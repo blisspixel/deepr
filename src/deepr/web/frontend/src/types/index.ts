@@ -166,6 +166,55 @@ export interface ExpertLoopRun {
   next_action: Record<string, unknown>
 }
 
+export interface ExpertDashboardTelemetry {
+  freshness: {
+    is_stale: boolean
+    status: string
+    age_days?: number | null
+    threshold_days?: number | null
+    days_until_stale?: number | null
+    domain_velocity: string
+    urgency: string
+    urgency_score: number
+    estimated_refresh_cost: number
+    last_refresh?: string | null
+    knowledge_cutoff?: string | null
+    message?: string | null
+    action_required?: string | null
+    refresh_command?: string | null
+  }
+  gaps: {
+    total: number
+    open: number
+    closed: number
+    opened_last_7_days: number
+    closed_last_7_days: number
+    opened_last_30_days: number
+    closed_last_30_days: number
+    net_open_delta_30_days: number
+    top_open: {
+      id: string
+      topic: string
+      priority: number
+      ev_cost_ratio: number
+      times_asked: number
+      identified_at?: string | null
+    }[]
+  }
+  contested_claims: {
+    open_count: number
+    manifest_claim_count: number
+    belief_count: number
+    contradiction_edge_count: number
+    sample: {
+      id: string
+      domain: string
+      updated_at?: string | null
+      contradiction_count: number
+    }[]
+  }
+}
+
 export interface ExpertLoopStatusRollup {
   expert_name: string
   count: number
@@ -185,6 +234,7 @@ export interface ExpertLoopStatusRollup {
   acceptance_rate: number
   cost_per_accepted_change: number
   verifier_failure_count: number
+  expert_state: ExpertDashboardTelemetry
   runs: ExpertLoopRun[]
 }
 

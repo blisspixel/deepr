@@ -35,6 +35,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   durable expert loop runs with latest run, last sync result, waiting scheduled
   action, failure, capacity source, spend, acceptance, and verifier failure
   metrics.
+- The loop-status dashboard API now includes `expert_state` telemetry for
+  profile freshness, 7-day and 30-day gap velocity, top open gaps, and
+  contested/open claim counts from manifest links and belief contradiction
+  edges.
 - Added `deepr expert health-check --scheduled`, which emits a scheduler action
   plan for recommended actions, and made `--archive-stale --scheduled` wait for
   explicit confirmation instead of prompting or mutating unless `--yes` is set.
