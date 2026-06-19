@@ -8,6 +8,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- Added `deepr expert route-gaps --execute --scheduled`, which returns pending
+  routes plus a wait state instead of starting metered gap-fill research from a
+  recurring scheduler run.
 - Added `deepr expert sync --scheduled`, a scheduler-facing capacity gate that
   waits with structured `capacity next` actions instead of falling through to
   metered API when a due recurring sync lacks owned/prepaid capacity. Explicit

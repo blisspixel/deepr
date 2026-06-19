@@ -233,6 +233,7 @@ deepr capacity --probe                                     # what's available, i
 deepr capacity next --task-class sync                      # ranked next actions for cheap capacity
 deepr capacity next --task-class sync --context-mode fresh --scheduled
 deepr expert sync "Platform Team Expert" --scheduled --fresh-context -y
+deepr expert route-gaps "Platform Team Expert" --execute --scheduled --json
 ```
 
 Local-model execution runs quality-tolerant expert maintenance at $0 against a local Ollama endpoint. This is the usable capacity waterfall rung today:
@@ -283,7 +284,10 @@ when to use fresh/deep local context, wait for cheap capacity, or deliberately
 fall back to metered API behind a budget gate. `deepr expert sync --scheduled`
 now consumes the same guidance: a due scheduled sync waits with structured next
 actions when owned/prepaid capacity is blocked, unless the operator explicitly
-chooses `--api`.
+chooses `--api`. `deepr expert route-gaps --execute --scheduled` applies the
+same scheduler default to gap-fill sweeps: it returns pending routes and a wait
+state instead of starting metered research until a cheap gap-fill backend exists
+or the operator reruns the command without `--scheduled`.
 
 ### Evidence and Calibration
 
