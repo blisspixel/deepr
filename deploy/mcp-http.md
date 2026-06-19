@@ -84,6 +84,23 @@ docker compose up -d
 deepr mcp smoke-http http://127.0.0.1:8765/mcp --auth-token "$DEEPR_MCP_KEY"
 ```
 
+## Azure Container Apps Variant
+
+The first cloud-provider template lives in
+[mcp-http/azure-container-apps/](mcp-http/azure-container-apps/). It deploys the
+same hosted MCP container to Azure Container Apps, mounts an Azure Files share
+at `/data`, keeps `security/mcp_keys.json` and
+`security/mcp_remote_audit.jsonl` durable, and exposes HTTPS-only ingress with
+optional CIDR restrictions.
+
+This is a template, not a deployment run. Creating Azure resources can incur
+cloud cost. The repo validates the template shape locally and does not run `az`
+or register with a hosted agent platform during CI.
+
+Use scoped keys for production. The template includes an optional
+`initialSharedAuthToken` only as a first-boot escape hatch; it should be removed
+after the scoped-key file is uploaded to the mounted share.
+
 ## Caddy Reverse Proxy
 
 Caddy handles certificates automatically for a public DNS name:

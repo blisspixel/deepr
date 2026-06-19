@@ -950,7 +950,11 @@ TLS-proxied HTTP MCP endpoint. A
 repeatable hosted container recipe lives in
 [../deploy/mcp-http/](../deploy/mcp-http/); it publishes only loopback by
 default, mounts one Deepr data directory at `/data`, and bootstraps scoped keys
-before the service starts.
+before the service starts. An Azure Container Apps template under
+[../deploy/mcp-http/azure-container-apps/](../deploy/mcp-http/azure-container-apps/)
+uses the same image with persistent `/data`, HTTPS-only ingress, scoped-key
+state, and remote-audit durability while leaving provider keys out until paid
+tools are intentionally enabled.
 
 See [design/capacity-waterfall.md](design/capacity-waterfall.md) for the capacity model and [design/local-fresh-context.md](design/local-fresh-context.md) for the fresh-context loop.
 
