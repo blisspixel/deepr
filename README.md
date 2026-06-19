@@ -154,6 +154,11 @@ deepr expert fill-gaps "Energy Transition Expert" --top 2 --budget 4
 
 # Create from your own docs
 deepr expert make "Platform Team Expert" --files docs/*.md
+
+# Create a $0 local expert profile, then maintain it through Ollama
+deepr expert make "UI Experience Expert" --local -d "UI/UX for agentic research tools"
+deepr expert subscribe "UI Experience Expert" "UI/UX for agentic research tools"
+deepr expert sync "UI Experience Expert" --local --fresh-context -y
 ```
 
 Agentic chat supports 27 slash commands (`/ask`, `/research`, `/advise`, `/focus`, `/council`, `/plan`, `/compact`, and more), visible reasoning, human-in-the-loop approval for expensive operations, multi-expert council, and hierarchical task decomposition.
@@ -203,6 +208,15 @@ The dashboard reads `data/benchmarks/routing_preferences.json` and shows per-tas
 
 `deepr init` detects API keys, writes `.env`, sets a budget ceiling, and can point your data at a synced folder. `deepr doctor` verifies connectivity and storage. `deepr capacity` shows local hardware, plan-based CLIs, and metered APIs. Automatic execution is local-first today: a scored, admitted Ollama model can run expert maintenance at $0. Plan-quota CLIs are visible but not yet execution backends; their adapters and live quota probes are still on the roadmap.
 
+Current capacity support:
+
+| Capacity source | Deepr status today | Best use |
+|---|---|---|
+| Local Ollama | Works for local expert profiles, `sync`/`absorb --local`, `eval local`, and scored local admission | $0 expert maintenance and validation loops |
+| Provider APIs | Works for full research when you provide keys and a budget ceiling | Deep research, high-quality synthesis, fallback |
+| Plan CLIs such as Claude Code, Codex, Antigravity, Grok Build, GitHub Copilot CLI, and Kiro | Detected or modeled, but not execution backends yet | Future plan-quota adapters and quota-aware scheduling |
+| Explicit CLI judge | Opt-in only for local evals with `--allow-cli-judge` | Human-approved comparison signal, not automatic routing |
+
 ```bash
 deepr init --yes --budget 5 --data-dir ~/OneDrive/deepr   # scripted setup, portable data
 deepr doctor                                               # connectivity + storage health
@@ -213,6 +227,7 @@ deepr capacity next --task-class sync                      # ranked next actions
 Local-model execution runs quality-tolerant expert maintenance at $0 against a local Ollama endpoint. This is the usable capacity waterfall rung today:
 
 ```bash
+deepr expert make "Platform Team Expert" --local -d "Platform engineering knowledge"
 deepr expert absorb "Platform Team Expert" report.md --local
 deepr expert sync "Platform Team Expert" --local
 deepr expert sync "Platform Team Expert" --local --fresh-context
@@ -236,6 +251,12 @@ specific artifact path when you want to admit a named model from an older run.
 Automatic local routing requires a measured admission score that clears the
 quality floor; scoreless manual admissions stay visible but do not silently take
 over the automatic path. `--local` remains the explicit override.
+
+The QOL goal is one command that explains the cheapest safe route for the job in
+front of you. `deepr capacity next` is the first slice. It does not run work, but
+it tells you whether local is blocked by setup, missing eval evidence, expired
+admission, or quality floor. The next slices are concrete job dry-runs and
+scheduler suggestions that wait for local or plan capacity instead of paying now.
 
 ### Evidence and Calibration
 
@@ -331,8 +352,8 @@ See [ROADMAP.md](ROADMAP.md) for detailed status.
   - [Gemini](https://aistudio.google.com/app/apikey) - cost-effective, large context
   - [xAI Grok](https://console.x.ai/) - Grok 4.3 flagship, Grok 4.20 research/freshness tiers, real-time web search
   - [Anthropic](https://console.anthropic.com/settings/keys) - complex reasoning
-- For $0 local expert maintenance, optional [Ollama](https://ollama.com/) plus a local model. This supports `deepr capacity`, `deepr eval local` with a local judge, explicit `expert sync`/`absorb --local`, and automatic local maintenance after scored admission.
-- Plan-quota CLIs are optional and visible in `deepr capacity`, but they are not execution backends yet. Adapters and live quota probes are tracked in the roadmap.
+- For $0 local expert maintenance, optional [Ollama](https://ollama.com/) plus a local model. This supports `deepr capacity`, `deepr eval local` with a local judge, `expert make --local`, explicit `expert sync`/`absorb --local`, and automatic local maintenance after scored admission.
+- Plan-quota CLIs are optional and visible in `deepr capacity`, but they are not execution backends yet. Claude Code, Codex, Antigravity, Grok Build, GitHub Copilot CLI, Kiro, and similar tools need adapters, quota probes, and no-surprise-bills guards before Deepr can run through them automatically.
 - Optional: More API keys for smarter auto-routing and fallback
 - Optional: Node.js 18+ for web dashboard development
 
