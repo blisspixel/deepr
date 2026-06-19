@@ -521,6 +521,7 @@ class TestExpertReflectCommand:
         result = runner.invoke(cli, ["expert", "reflect", "--help"])
         assert result.exit_code == 0
         assert "evaluate" in result.output.lower() or "verdict" in result.output.lower()
+        assert "--scheduled" in result.output
 
     def test_nonexistent_expert(self, runner):
         with patch("deepr.experts.profile.ExpertStore") as mock_store_class:
@@ -567,6 +568,44 @@ class TestExpertReflectCommand:
             import json
 
             assert json.loads(result.output)["verdict"] == "accept"
+
+    def test_scheduled_json_waits_before_reflection_engine(self, runner):
+        with (
+            patch("deepr.experts.profile.ExpertStore") as mock_store_class,
+            patch("deepr.services.context_index.ContextIndex") as mock_idx,
+            patch("deepr.experts.reflection.ReflectionEngine") as mock_engine,
+        ):
+            profile = MagicMock(domain="ai")
+            profile.name = "AI Expert"
+            mock_store = MagicMock()
+            mock_store.load.return_value = profile
+            mock_store_class.return_value = mock_store
+            mock_idx.return_value.get_report_by_job_id.return_value = MagicMock(prompt="Will X?")
+            mock_idx.return_value.get_report_content.return_value = "report body"
+
+            result = runner.invoke(
+                cli,
+                [
+                    "expert",
+                    "reflect",
+                    "AI Expert",
+                    "job1",
+                    "--execute-followups",
+                    "--scheduled",
+                    "--json",
+                ],
+            )
+
+        assert result.exit_code == 0
+        mock_engine.assert_not_called()
+        import json
+
+        payload = json.loads(result.output)
+        assert payload["status"] == "waiting_for_capacity"
+        assert payload["expert_name"] == "AI Expert"
+        assert payload["report_id"] == "job1"
+        assert payload["pending_work"] == ["reflection_evaluation", "followup_research"]
+        assert payload["next_actions"][0]["status"] == "wait"
 
 
 class TestExpertRouteGapsCommand:
