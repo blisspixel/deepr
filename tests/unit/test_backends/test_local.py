@@ -77,12 +77,16 @@ class TestResearchFn:
             def to_metadata(self):
                 return {"source_count": 1}
 
+            def to_source_pack(self):
+                return {"schema_version": "deepr.source_pack.v1", "source_count": 1}
+
         async def context_builder(_query):
             return _Context()
 
         fn = local.make_local_research_fn("qwen", client=_FakeClient(content="ok"), context_builder=context_builder)
         result = await fn("q", 1.0)
         assert result["fresh_context"] == {"source_count": 1}
+        assert result["source_pack"] == {"schema_version": "deepr.source_pack.v1", "source_count": 1}
 
     async def test_errors_are_reported_not_raised(self):
         fn = local.make_local_research_fn("qwen", client=_FakeClient(error=RuntimeError("boom")))
