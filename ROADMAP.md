@@ -980,7 +980,7 @@ Design: [docs/design/verified-expert-loops.md](docs/design/verified-expert-loops
    autonomous until the task repeats, the verifier is automated, the
    budget/capacity envelope is explicit, and the loop has tools/logs/state for
    failure diagnosis.
-2. [~] `ExpertLoopRun` substrate + `deepr expert loop-status` + MCP read tool:
+2. [x] `ExpertLoopRun` substrate + `deepr expert loop-status` + MCP read tool:
    schema-versioned loop-run records, typed stop reasons, append-only
    per-expert storage, acceptance metrics, cost per accepted change, and
    read-only CLI and MCP status are in place. Scheduled wait and action-plan
@@ -989,14 +989,15 @@ Design: [docs/design/verified-expert-loops.md](docs/design/verified-expert-loops
    gap-fill execution, reflection, health-check audit, and confirmed health
    archive runs also record completed, failed, budget-stopped,
    verifier-failed, or human-gated loop snapshots with spend, verifier outcome,
-   and accepted-change metrics where applicable. Remaining work is
-   dashboard/API rollups.
+   and accepted-change metrics where applicable. The dashboard API now exposes
+   `/api/experts/{name}/loop-status` as a read-only rollup over those records.
 3. [ ] Loop completion contract: a loop closes only on verifier pass, no due work
    under the current contract, budget/capacity exhaustion, human gate, or a typed
    failure reason. No model self-declared completion on the critical path.
-4. [ ] Loop dashboard/API surface: freshness, gap velocity, contested/open
-   verifier failures, last sync result, next scheduled action, and capacity source
-   for the next run.
+4. [~] Loop dashboard/API surface: loop-status rollup is in place for latest
+   run, last sync result, next scheduled action, capacity source, spend,
+   acceptance, and verifier-failure counts. Remaining dashboard work is
+   freshness deltas, gap velocity, and contested/open claim telemetry.
 5. [ ] OKF export/import: `export-okf` as a regenerated derived view over the
    belief/event/edge store; `absorb-okf` as a verified ingestion path. Include
    `index.md`, `log.md`, bundle-relative links, citations, gaps, contested claims,

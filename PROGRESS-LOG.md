@@ -17,4 +17,5 @@
 - Instrumented non-dry `deepr expert route-gaps --execute` runs to append gap-fill loop-run snapshots with budget spent, accepted changes, failures, human-gated deferred routes, and budget exhaustion stops.
 - Instrumented `deepr expert reflect` runs to append reflection loop-run snapshots with verifier outcome, verifier score, follow-up absorption metrics, human gates, and verifier-failed stops.
 - Instrumented `deepr expert health-check` and confirmed `--archive-stale` runs to append health-check loop-run snapshots with verifier outcome, action state, no-work stops, and accepted archive counts.
+- Added the read-only `/api/experts/{name}/loop-status` dashboard API rollup with latest run, last sync result, waiting scheduled action, failure, capacity source, spend, acceptance, and verifier failure metrics.
 - Spend so far: `$0.00`.

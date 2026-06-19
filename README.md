@@ -308,7 +308,10 @@ reflect` runs also record loop snapshots. `deepr expert health-check` and
 confirmed `--archive-stale` runs now do the same, with spend, capacity source,
 verifier outcome, accepted-change counts where applicable, and typed stop
 actions for failures, deferred specialist routes, weak verifier results,
-human gates, no corrective work, or exhausted budgets.
+human gates, no corrective work, or exhausted budgets. The dashboard API now
+exposes `/api/experts/{name}/loop-status`, a read-only rollup over the same
+records with latest run, last sync result, waiting scheduled action, failure,
+capacity source, spend, acceptance, and verifier failure metrics.
 
 ### Evidence and Calibration
 
@@ -374,7 +377,7 @@ Optional env controls:
 
 **Production-ready:** Core research commands, cost controls, expert creation/chat, context discovery, auto mode routing, all providers, local SQLite storage, guided setup (`deepr init`/`deepr doctor`), and a portable data directory (one `DEEPR_DATA_DIR` relocates experts and research, so they follow you across machines via OneDrive/Dropbox/etc.). 5700+ tests (Python 3.12-3.14).
 
-**Experimental:** Web dashboard, agentic expert chat (slash commands, modes, reasoning, approval, council, task planning), expert skills, MCP server, auto-fallback circuit breakers, cloud deployment templates, capacity visibility, local-model execution, capacity next actions (`deepr capacity next`), quota eligibility gates (`deepr capacity`, `--local` on expert sync/absorb), loop status records (`deepr expert loop-status`), and the evidence layer (`deepr eval continuity`, `deepr eval calibrate`).
+**Experimental:** Web dashboard, agentic expert chat (slash commands, modes, reasoning, approval, council, task planning), expert skills, MCP server, auto-fallback circuit breakers, cloud deployment templates, capacity visibility, local-model execution, capacity next actions (`deepr capacity next`), quota eligibility gates (`deepr capacity`, `--local` on expert sync/absorb), loop status records and API rollups (`deepr expert loop-status`, `/api/experts/{name}/loop-status`), and the evidence layer (`deepr eval continuity`, `deepr eval calibrate`).
 
 See [ROADMAP.md](ROADMAP.md) for detailed status.
 

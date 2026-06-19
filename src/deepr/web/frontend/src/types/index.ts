@@ -124,6 +124,70 @@ export interface Expert {
   portrait_url?: string | null
 }
 
+export type ExpertLoopRunStatus = 'pending' | 'running' | 'waiting' | 'completed' | 'failed' | 'cancelled'
+
+export interface ExpertLoopRun {
+  schema_version: number
+  run_id: string
+  expert_name: string
+  loop_type: string
+  goal: string
+  trigger: string
+  status: ExpertLoopRunStatus
+  started_at: string
+  updated_at: string
+  finished_at?: string | null
+  iteration_count: number
+  max_iterations?: number | null
+  state_artifact_path: string
+  budget_limit?: number | null
+  budget_spent: number
+  capacity_source: string
+  backend_profile_id: string
+  trace_id: string
+  queue_id: string
+  job_id: string
+  approval_id: string
+  input_refs: string[]
+  output_refs: string[]
+  knowledge_change_refs: string[]
+  verifier_id: string
+  verifier_version: string
+  verifier_outcome: string
+  verifier_score?: number | null
+  verifier_threshold?: number | null
+  verifier_evidence_refs: string[]
+  accepted_changes: number
+  rejected_changes: number
+  acceptance_rate: number
+  cost_per_accepted_change: number
+  stop_reason?: string | null
+  failure_reason: string
+  next_action: Record<string, unknown>
+}
+
+export interface ExpertLoopStatusRollup {
+  expert_name: string
+  count: number
+  window: { limit: number; summarized_runs: number }
+  latest_run: ExpertLoopRun | null
+  last_sync_result: ExpertLoopRun | null
+  last_failure: ExpertLoopRun | null
+  next_scheduled_action: ExpertLoopRun | null
+  latest_capacity_source: string
+  status_counts: Record<ExpertLoopRunStatus, number>
+  loop_type_counts: Record<string, number>
+  stop_reason_counts: Record<string, number>
+  capacity_source_counts: Record<string, number>
+  budget_spent_total: number
+  accepted_changes_total: number
+  rejected_changes_total: number
+  acceptance_rate: number
+  cost_per_accepted_change: number
+  verifier_failure_count: number
+  runs: ExpertLoopRun[]
+}
+
 export interface ExpertChat {
   role: 'user' | 'assistant'
   content: string
