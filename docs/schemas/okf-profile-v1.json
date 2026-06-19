@@ -1,0 +1,112 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/blisspixel/deepr/docs/schemas/okf-profile-v1.json",
+  "title": "Deepr OKF Profile v1",
+  "type": "object",
+  "additionalProperties": true,
+  "required": [
+    "schema_version",
+    "kind",
+    "contract",
+    "derived_view",
+    "documents",
+    "field_mapping",
+    "extensions"
+  ],
+  "properties": {
+    "schema_version": {"const": "deepr-okf-profile-v1"},
+    "kind": {"const": "deepr.okf.profile"},
+    "contract": {
+      "type": "object",
+      "required": ["read_only", "cost_usd", "stability", "compatibility"],
+      "properties": {
+        "read_only": {"const": true},
+        "cost_usd": {"const": 0.0},
+        "stability": {"type": "string"},
+        "compatibility": {
+          "type": "object",
+          "required": ["additive_fields", "breaking_changes_require_new_schema_version", "deprecation_policy"],
+          "properties": {
+            "additive_fields": {"const": true},
+            "breaking_changes_require_new_schema_version": {"const": true},
+            "deprecation_policy": {"type": "string"}
+          },
+          "additionalProperties": true
+        }
+      },
+      "additionalProperties": true
+    },
+    "derived_view": {
+      "type": "object",
+      "required": ["authoritative", "canonical_state", "regeneration_command"],
+      "properties": {
+        "authoritative": {"const": false},
+        "canonical_state": {"const": "deepr belief/event/edge store"},
+        "regeneration_command": {"type": "string"}
+      },
+      "additionalProperties": true
+    },
+    "documents": {
+      "type": "object",
+      "required": ["index", "concept", "gaps", "contested", "log", "llms"],
+      "properties": {
+        "index": {"$ref": "#/$defs/document_mapping"},
+        "concept": {"$ref": "#/$defs/document_mapping"},
+        "gaps": {"$ref": "#/$defs/document_mapping"},
+        "contested": {"$ref": "#/$defs/document_mapping"},
+        "log": {"$ref": "#/$defs/document_mapping"},
+        "llms": {"$ref": "#/$defs/document_mapping"}
+      },
+      "additionalProperties": true
+    },
+    "field_mapping": {
+      "type": "object",
+      "required": ["profile", "beliefs", "events", "edges", "gaps", "contested"],
+      "properties": {
+        "profile": {"$ref": "#/$defs/source_mapping"},
+        "beliefs": {"$ref": "#/$defs/source_mapping"},
+        "events": {"$ref": "#/$defs/source_mapping"},
+        "edges": {"$ref": "#/$defs/source_mapping"},
+        "gaps": {"$ref": "#/$defs/source_mapping"},
+        "contested": {"$ref": "#/$defs/source_mapping"}
+      },
+      "additionalProperties": true
+    },
+    "extensions": {
+      "type": "object",
+      "required": ["namespace", "frontmatter_key", "marker"],
+      "properties": {
+        "namespace": {"const": "deepr"},
+        "frontmatter_key": {"const": "deepr"},
+        "marker": {"const": "deepr:okf derived-view regenerable"}
+      },
+      "additionalProperties": true
+    }
+  },
+  "$defs": {
+    "document_mapping": {
+      "type": "object",
+      "required": ["path_pattern", "frontmatter_type", "source"],
+      "properties": {
+        "path_pattern": {"type": "string", "minLength": 1},
+        "frontmatter_type": {"type": "string", "minLength": 1},
+        "source": {"type": "string", "minLength": 1},
+        "notes": {"type": "string"}
+      },
+      "additionalProperties": true
+    },
+    "source_mapping": {
+      "type": "object",
+      "required": ["source", "target", "authority"],
+      "properties": {
+        "source": {"type": "string", "minLength": 1},
+        "target": {"type": "string", "minLength": 1},
+        "authority": {
+          "enum": ["canonical", "derived", "ingestion_source"]
+        },
+        "notes": {"type": "string"}
+      },
+      "additionalProperties": true
+    }
+  }
+}
