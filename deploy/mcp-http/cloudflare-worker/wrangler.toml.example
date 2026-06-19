@@ -1,0 +1,14 @@
+name = "deepr-mcp-edge-ingress"
+main = "worker.mjs"
+compatibility_date = "2026-06-19"
+workers_dev = false
+
+# Route this worker to your public MCP hostname after DNS is configured.
+# routes = [
+#   { pattern = "mcp.example.com/*", custom_domain = true }
+# ]
+
+[vars]
+# Must be the already-hosted Deepr MCP origin, including the /mcp path.
+# The worker requires https and refuses plaintext origins.
+DEEPR_MCP_ORIGIN = "https://mcp-origin.example.com/mcp"

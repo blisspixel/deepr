@@ -50,7 +50,8 @@ must not be described as usable capacity.
 - Local Ollama expert maintenance, local evals, local context evals, and scored
   local admission.
 - Hosted MCP deployment recipes, including the local container, Azure Container
-  Apps template, AWS ECS Fargate template, and GCP Cloud Run template.
+  Apps template, AWS ECS Fargate template, GCP Cloud Run template, and
+  Cloudflare Worker edge ingress recipe.
 
 ## Visible Or Planned Only
 
@@ -108,5 +109,8 @@ the verified absorb path.
 - Remote MCP endpoints must use HTTPS outside loopback, scoped keys per agent,
   budget ceilings, deterministic estimates for metered tools, rate limits, and
   concurrency caps, plus audit review before widening key mode.
+- Edge ingress recipes must stay stateless pass-through guards. Scoped-key
+  enforcement, budgets, rate limits, audit logs, and provider credentials stay
+  on the Deepr origin.
 - Cloud templates are deployment artifacts. Creating cloud resources can incur
   infrastructure cost even when Deepr itself makes no provider API calls.

@@ -144,6 +144,32 @@ This is a template, not a deployment run. Creating GCP resources can incur
 cloud cost. The repo validates the template shape locally and does not run
 `gcloud`, `terraform apply`, or hosted-agent registration during CI.
 
+## Cloudflare Worker Edge Ingress
+
+The edge ingress recipe lives in
+[mcp-http/cloudflare-worker/](mcp-http/cloudflare-worker/). It fronts an
+existing HTTPS MCP origin with a Worker, proxies only `/mcp` paths, caps request
+bodies at 1 MiB, forwards scoped-key auth headers, and sets forwarded headers
+for origin-side audit context.
+
+This recipe does not move trust to the edge. The Deepr origin still enforces
+scoped keys, budgets, rate limits, audit logging, tool dispatch, and provider
+credentials. Keep provider API keys out of Cloudflare Worker variables.
+
+The checked-in validation is local-only:
+
+```bash
+cd deploy/mcp-http/cloudflare-worker
+node --check worker.mjs
+```
+
+Deploying the Worker or attaching a route can incur Cloudflare cost. After a
+real deployment, validate the public edge endpoint with the same `$0` smoke:
+
+```bash
+deepr mcp smoke-http https://mcp.example.com/mcp --auth-token "$DEEPR_MCP_KEY"
+```
+
 ## Caddy Reverse Proxy
 
 Caddy handles certificates automatically for a public DNS name:

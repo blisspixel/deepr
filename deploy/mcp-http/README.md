@@ -103,3 +103,9 @@ For GCP Cloud Run, see [gcp-cloud-run/](gcp-cloud-run/). That template uses the
 same image and command, mounts a Cloud Storage bucket at `/data`, and keeps
 scoped-key plus audit state durable with single-writer defaults for the
 object-backed mount.
+
+For Cloudflare Worker edge ingress, see
+[cloudflare-worker/](cloudflare-worker/). That recipe fronts an existing HTTPS
+MCP origin, proxies only `/mcp` paths, caps request bodies at 1 MiB, forwards
+scoped-key auth headers, and leaves budgets, rate limits, audit logs, and
+provider keys on the origin side.

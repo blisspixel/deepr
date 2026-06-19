@@ -84,6 +84,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   hosted MCP HTTP container with a Cloud Storage FUSE-backed `/data`, scoped-key
   state, remote-audit durability, optional public invoker binding, and
   single-writer defaults for object-backed key and audit files.
+- Added `deploy/mcp-http/cloudflare-worker/`, a Cloudflare Worker edge ingress
+  recipe for hosted MCP that requires an HTTPS origin, proxies only `/mcp`
+  paths, caps request bodies at 1 MiB, forwards scoped-key auth headers, and
+  keeps provider keys, scoped-key state, and audit logs on the origin side.
 - Scheduled expert wait and action-plan surfaces now append `ExpertLoopRun`
   snapshots and include a `loop_run` object in JSON output for `sync`,
   `route-gaps`, `reflect`, and `health-check`.

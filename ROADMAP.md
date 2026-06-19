@@ -792,7 +792,7 @@ A mock panel (business buyer, indie hacker, enterprise AI architect, research sc
 - [ ] Azure Foundry durable agent orchestration + HITL (long-running experts that survive restarts, wait for human approval via SignalR/Durable Functions)
 - [ ] Expert watch (extension): broaden `deepr expert sync` (Phase 4) beyond first-party tools to arbitrary configured MCP or REST endpoints on schedule
 - [ ] Local model support beyond the Phase 6 `local-ollama` backend (DGX Spark, Jetson Orin Nano Super, multi-GPU); the core local backend + budget-exhausted offload now lives in Phase 6's capacity waterfall
-- [ ] Edge deployment of the hosted MCP endpoint (Cloudflare Workers etc.; the core hosted endpoint itself is now a Phase 5 item)
+- [x] Edge deployment of the hosted MCP endpoint (Cloudflare Worker ingress recipe shipped 2026-06-19; the core hosted endpoint itself is now a Phase 5 item)
 - [ ] Skill marketplace and meta-skills
 - [ ] Multi-agent swarm support beyond bounded subagent orchestration
 - [ ] `deepr ui` Textual dashboard
@@ -1075,12 +1075,16 @@ consumers who will exercise all three. Design:
    `deploy/mcp-http.md` documents the TLS reverse-proxy recipe.
    `deploy/mcp-http/` now adds the
    container variant with scoped-key bootstrap, loopback-only host publishing,
-   and `$0` smoke validation guidance. `deploy/mcp-http/azure-container-apps/`
-   now provides cloud-provider templates for Azure Container Apps, AWS ECS
+   and `$0` smoke validation guidance. `deploy/mcp-http/azure-container-apps/`,
+   `deploy/mcp-http/aws-ecs-fargate/`, and `deploy/mcp-http/gcp-cloud-run/`
+   now provide cloud-provider templates for Azure Container Apps, AWS ECS
    Fargate, and GCP Cloud Run, preserving persistent `/data`, scoped-key state,
    HTTPS-only ingress, remote-audit durability, and the HTTP concurrency cap
-   contract. Remaining work: edge/provider variants and live registration smoke
-   against a real hosted-agent platform. The key CLI is shipped as
+   contract. `deploy/mcp-http/cloudflare-worker/` now provides a stateless edge
+   ingress recipe that fronts an existing HTTPS MCP origin, proxies only `/mcp`
+   paths, caps request bodies, and leaves auth, budgets, rate limits, audit
+   logs, and provider keys on the origin. Remaining work: live registration
+   smoke against a real hosted-agent platform. The key CLI is shipped as
    `deepr mcp keys`.
 2. [~] Versioned handoff schemas (downstream agents get stability guarantees):
    `deepr_expert_handoff` and `/api/experts/{name}/handoff` now return the
