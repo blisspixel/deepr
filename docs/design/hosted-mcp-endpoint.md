@@ -2,8 +2,9 @@
 
 Target: v2.18. Roadmap: Phase 5 (promoted from backlog 2026-06-11 -
 "cloud-hosted autopilots cannot call a stdio server on a laptop").
-Status: design, with the first versioned handoff contract, HTTP serve path, and
-scoped-key, budget, rate-limit, and audit primitives shipped.
+Status: design, with the first versioned handoff contract, HTTP serve path,
+scoped-key, budget, rate-limit, audit primitives, hosted reverse-proxy recipe,
+and local remote-smoke command shipped.
 
 ## Problem
 
@@ -46,8 +47,10 @@ key's `ResearchMode`, optional `expert_allowlist`, and confirmation
 requirement before dispatch. `RemoteMCPAuditLog` writes append-only
 `deepr-mcp-remote-audit-v1` events with `{key_id, mode, tool, args_hash,
 trace_id, outcome, error_code, expert_names, cost_usd}`. `deepr mcp keys`
-creates, lists, and revokes those key records locally. This is not the full
-hosted endpoint yet: deployment docs and remote smoke tests remain open.
+creates, lists, and revokes those key records locally. `deepr mcp smoke-http`
+now verifies a local or proxied HTTP endpoint at `$0`. This is not the full
+hosted endpoint yet: live registration against a third-party agent host remains
+open.
 
 - **Scoped API keys**, not one shared secret: each key carries
   `{key_id, mode, expert_allowlist, budget, rate_limit}`.
@@ -102,6 +105,8 @@ hosted endpoint yet: deployment docs and remote smoke tests remain open.
 4. Audit log + rate limits + size caps. Audit log, per-key rate limits, and
    size caps are shipped; global concurrency cap remains.
 5. Deployment guide; loopback restriction lifts only when a credential exists.
+   Shipped as [deploy/mcp-http.md](../../deploy/mcp-http.md) plus
+   `deepr mcp smoke-http` for repeatable local/proxied endpoint validation.
 6. Platform smoke tests: register the endpoint with one real host
    (Anthropic Managed Agents connector first) and run the
    subscribe -> sync -> what_changed loop remotely.

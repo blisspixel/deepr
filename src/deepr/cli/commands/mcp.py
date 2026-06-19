@@ -222,6 +222,41 @@ def serve(
         sys.exit(1)
 
 
+@mcp.command("smoke-http")
+@click.argument("url")
+@click.option("--auth-token", help="Bearer token or scoped-key secret for the HTTP MCP endpoint.")
+@click.option("--timeout", "timeout_seconds", default=10.0, show_default=True, type=click.FloatRange(min=0.1))
+@click.option("--json", "as_json", is_flag=True, help="Emit machine-readable JSON.")
+def smoke_http(url: str, auth_token: str | None, timeout_seconds: float, as_json: bool):
+    """Smoke-test a Deepr HTTP MCP endpoint without provider calls."""
+    import json
+
+    from deepr.mcp.smoke import run_http_smoke
+
+    try:
+        report = run_async_command(
+            run_http_smoke(
+                url,
+                auth_token=auth_token,
+                timeout_seconds=timeout_seconds,
+            )
+        )
+    except Exception as exc:
+        raise click.ClickException(str(exc)) from exc
+
+    if as_json:
+        click.echo(json.dumps(report.to_dict(), indent=2, sort_keys=True))
+    else:
+        click.echo(f"MCP HTTP smoke test: {report.url}")
+        for step in report.steps:
+            state = "ok" if step.ok else "fail"
+            click.echo(f"[{state}] {step.name}: {step.detail}")
+        click.echo("Result: passed" if report.ok else "Result: failed")
+
+    if not report.ok:
+        sys.exit(1)
+
+
 @mcp.command()
 def test():
     """Test MCP server with sample requests.
