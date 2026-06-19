@@ -67,6 +67,8 @@ def expert(ctx, list_flag):
     type=click.Choice(["openai", "azure", "gemini"]),
     help="AI provider for expert",
 )
+@click.option("--local", is_flag=True, default=False, help="Create a local-only expert profile without provider setup")
+@click.option("--local-model", default=None, help="Local model name to record for local maintenance")
 @click.option("--learn", is_flag=True, default=False, help="Generate and execute autonomous learning curriculum")
 @click.option("--budget", type=float, default=None, help="Budget limit for autonomous learning (requires --learn)")
 @click.option(
@@ -84,6 +86,8 @@ def make_expert(
     files: tuple,
     description: str | None,
     provider: str,
+    local: bool,
+    local_model: str | None,
     learn: bool,
     budget: float | None,
     topics: int | None,
@@ -93,42 +97,17 @@ def make_expert(
     no_discovery: bool,
     yes: bool,
 ):
-    """Create a new domain expert with a knowledge base.
-
-    Creates an expert that can answer questions based on provided documents
-    and conduct autonomous research when they encounter knowledge gaps.
-
-    The expert uses the Model Router (Phase 3a) to optimize costs:
-    - Simple queries: GPT-5 with low reasoning effort
-    - Moderate queries: GPT-5 with medium reasoning effort
-    - Complex queries: GPT-5.2 or deep research models
-
-    EXAMPLES:
-      # Create expert from markdown docs
-      deepr expert make "Azure Architect" -f docs/*.md
-
-      # Create with description
-      deepr expert make "Python Expert" -f guides/*.py -d "Python best practices"
-
-      # Create with autonomous learning
-      deepr expert make "AI Expert" -f docs/*.md --learn --budget 10
-    """
+    """Create a new domain expert with a knowledge base."""
     import asyncio
-    from datetime import datetime
 
     from deepr.cli.validation import validate_budget, validate_expert_name, validate_upload_files
-    from deepr.config import load_config
-    from deepr.experts.profile import ExpertProfile, ExpertStore, get_expert_system_message
-    from deepr.providers import create_provider
 
-    # Validate expert name
     try:
         name = validate_expert_name(name)
     except click.UsageError as e:
         click.echo(f"Error: {e}", err=True)
         return
 
-    # Validate files if provided
     if files:
         try:
             files = tuple(str(f) for f in validate_upload_files(files))
@@ -136,7 +115,21 @@ def make_expert(
             click.echo(f"Error: {e}", err=True)
             return
 
-    # Validate budget if provided - warns for high amounts but doesn't hard block
+    if local:
+        from deepr.cli.commands.semantic.local_expert import make_local_expert_profile
+
+        learning_options_used = (
+            learn or no_discovery or any(value is not None for value in (budget, topics, docs, quick, deep))
+        )
+        make_local_expert_profile(
+            name=name,
+            files=files,
+            description=description,
+            local_model=local_model,
+            learning_options_used=learning_options_used,
+        )
+        return
+
     if budget is not None and not yes:
         try:
             budget = validate_budget(budget, min_budget=0.1)
@@ -156,6 +149,12 @@ def make_expert(
     click.echo(f"Creating expert: {name}...")
 
     async def create_expert():
+        from datetime import datetime
+
+        from deepr.config import load_config
+        from deepr.experts.profile import ExpertProfile, ExpertStore, get_expert_system_message
+        from deepr.providers import create_provider
+
         # Load config
         config = load_config()
 

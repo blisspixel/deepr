@@ -405,6 +405,9 @@ Create and interact with domain experts that can answer questions from uploaded 
 # Create expert from documents
 deepr expert make "Azure Architect" --files docs/*.md
 
+# Create a local-only expert profile with no provider API calls
+deepr expert make "UI Experience Expert" --local --description "UI/UX for agentic research tools"
+
 # Create with autonomous learning
 deepr expert make "FDA Regulations" --files docs/*.pdf --learn --budget 10
 
@@ -797,9 +800,19 @@ deepr capacity --json
 
 `deepr init` writes `DEEPR_DATA_DIR` (and `DEEPR_EXPERTS_PATH` / `DEEPR_REPORTS_PATH`). Pointing the data dir at a synced folder (OneDrive, Dropbox, iCloud) makes experts and research follow you across machines; cost ledger, queue, and traces stay machine-local ([ADR 0004](decisions/0004-one-experts-root-and-portable-data-dir.md)).
 
+Capacity source status:
+
+| Source | Status | Notes |
+|---|---|---|
+| Local Ollama | Execution works for local expert setup, local sync, local absorb, local eval, and scored admission | $0 marginal cost, quality-gated before automatic routing |
+| OpenAI, Gemini, Grok, Anthropic, Azure APIs | Execution works when configured with API keys and budget ceilings | Full research path, cost ledger writes every spend source |
+| Claude Code, Codex, Antigravity, Grok Build, GitHub Copilot CLI, Kiro, and other plan CLIs | Visible or modeled, not execution backends yet | Adapter work must include auth-mode detection, quota probes, no-overage checks, and tests |
+| CLI judge for local eval | Explicit opt-in only | `--allow-cli-judge` is required because Deepr cannot prove the vendor CLI's billing source |
+
 Local-model execution runs quality-tolerant steps at $0 against a local Ollama endpoint. Force it with `--local`, force the metered API with `--api`, or admit a local model so maintenance uses it automatically (owned capacity before metered API):
 
 ```bash
+deepr expert make "Platform Team Expert" --local -d "Platform engineering knowledge"
 deepr expert absorb "Platform Team Expert" report.md --local   # force local, $0
 deepr expert sync "Platform Team Expert" --api                 # force metered API
 deepr expert sync "Platform Team Expert" --local --fresh-context # local model + free retrieval context
@@ -829,7 +842,13 @@ API-key search providers. If no fresh sources are available, the prompt tells
 the local model to say that current context is unavailable, and sync records no
 changes instead of absorbing that uncertainty as permanent beliefs.
 
-Plan-quota adapters are still being wired. `deepr capacity` can detect the relevant CLIs and show the cost model, but Deepr does not execute work through those plan quotas yet. Their routing gates are already defined: selection orders local, plan-quota, and metered backends, then blocks execution on missing or unknown quota, exhaustion, quarantine, overage, reserve-floor breaches, unsupported task classes, missing measured quality, and metered fallback without a budget gate.
+Plan-quota adapters are still being wired. `deepr capacity` can detect or model the relevant CLIs and show the cost model, but Deepr does not execute work through those plan quotas yet. Their routing gates are already defined: selection orders local, plan-quota, and metered backends, then blocks execution on missing or unknown quota, exhaustion, quarantine, overage, reserve-floor breaches, unsupported task classes, missing measured quality, and metered fallback without a budget gate.
+
+The intended QOL is simple: ask for a job, see the cheapest safe route, and get a
+clear reason if Deepr should wait rather than pay. `deepr capacity next` is
+read-only today. The next steps are per-job dry-run previews and scheduler
+suggestions that explain whether local, plan quota, or metered API is the right
+choice for that run.
 
 See [design/capacity-waterfall.md](design/capacity-waterfall.md) for the capacity model and [design/local-fresh-context.md](design/local-fresh-context.md) for the fresh-context loop.
 
