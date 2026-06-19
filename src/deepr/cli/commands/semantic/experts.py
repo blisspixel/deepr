@@ -1850,6 +1850,7 @@ def reflect_report(
         )
         return
 
+    from deepr.cli.commands.semantic.expert_reflection_loop import record_completed_reflection_loop
     from deepr.experts.reflection import ReflectionEngine, ReflectionError
 
     engine = ReflectionEngine()
@@ -1863,7 +1864,16 @@ def reflect_report(
         sys.exit(1)
 
     if json_output:
-        click.echo(_json.dumps(report.to_dict(), indent=2))
+        loop_run = record_completed_reflection_loop(
+            profile.name,
+            report_id,
+            report,
+            budget=budget,
+            execute_followups=execute_followups,
+        )
+        payload = report.to_dict()
+        payload["loop_run"] = loop_run.to_dict()
+        click.echo(_json.dumps(payload, indent=2))
         return
 
     verdict_color = {"accept": "green", "revise": "yellow", "re_research": "red", "skipped": "dim"}.get(
@@ -1892,9 +1902,25 @@ def reflect_report(
         print_warning("Quality is weak; re-research the gaps above before absorbing.")
 
     # Close the loop: run the follow-ups reflection emitted, budget-bounded.
+    if not execute_followups:
+        record_completed_reflection_loop(
+            profile.name,
+            report_id,
+            report,
+            budget=budget,
+            execute_followups=False,
+        )
+        return
     if execute_followups:
         if not report.followups:
             console.print("[dim]No follow-up queries to execute.[/dim]")
+            record_completed_reflection_loop(
+                profile.name,
+                report_id,
+                report,
+                budget=budget,
+                execute_followups=True,
+            )
             return
         from deepr.experts.gap_fill import GapFillEngine, routes_from_queries
 
@@ -1904,6 +1930,14 @@ def reflect_report(
                 default=False,
             ):
                 print_warning("Follow-ups not executed.")
+                record_completed_reflection_loop(
+                    profile.name,
+                    report_id,
+                    report,
+                    budget=budget,
+                    execute_followups=True,
+                    cancelled_followups=True,
+                )
                 return
 
         routes = routes_from_queries(report.followups)
@@ -1922,6 +1956,14 @@ def reflect_report(
         console.print(f"\nTotal cost: ${fill.total_cost:.3f}")
         if any(o.flagged for o in fill.outcomes):
             print_warning(f"Contested beliefs recorded. Review: deepr expert contested '{name}'")
+        record_completed_reflection_loop(
+            profile.name,
+            report_id,
+            report,
+            budget=budget,
+            execute_followups=True,
+            fill_result=fill,
+        )
 
 
 @expert.command(name="export-skill")
