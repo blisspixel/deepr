@@ -215,6 +215,19 @@ export interface ExpertDashboardTelemetry {
   }
 }
 
+export interface ExpertLoopAdmissionContract {
+  loop_type: string
+  status: 'admitted' | 'supervised'
+  admitted: boolean
+  repeat_demand: boolean
+  automated_verification: boolean
+  explicit_budget_capacity: boolean
+  failure_diagnosis_state: boolean
+  missing_requirements: string[]
+  verifier: string
+  notes: string
+}
+
 export interface ExpertLoopStatusRollup {
   expert_name: string
   count: number
@@ -234,6 +247,7 @@ export interface ExpertLoopStatusRollup {
   acceptance_rate: number
   cost_per_accepted_change: number
   verifier_failure_count: number
+  admission_contracts: Record<string, ExpertLoopAdmissionContract>
   expert_state: ExpertDashboardTelemetry
   runs: ExpertLoopRun[]
 }
