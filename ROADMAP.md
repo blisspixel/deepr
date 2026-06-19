@@ -994,10 +994,10 @@ Design: [docs/design/verified-expert-loops.md](docs/design/verified-expert-loops
 3. [ ] Loop completion contract: a loop closes only on verifier pass, no due work
    under the current contract, budget/capacity exhaustion, human gate, or a typed
    failure reason. No model self-declared completion on the critical path.
-4. [~] Loop dashboard/API surface: loop-status rollup is in place for latest
-   run, last sync result, next scheduled action, capacity source, spend,
-   acceptance, and verifier-failure counts. Remaining dashboard work is
-   freshness deltas, gap velocity, and contested/open claim telemetry.
+4. [x] Loop dashboard/API surface: `/api/experts/{name}/loop-status` returns the
+   latest run, last sync result, next scheduled action, capacity source, spend,
+   acceptance metrics, verifier-failure counts, freshness telemetry, 7-day and
+   30-day gap velocity, top open gaps, and contested/open claim state.
 5. [ ] OKF export/import: `export-okf` as a regenerated derived view over the
    belief/event/edge store; `absorb-okf` as a verified ingestion path. Include
    `index.md`, `log.md`, bundle-relative links, citations, gaps, contested claims,
