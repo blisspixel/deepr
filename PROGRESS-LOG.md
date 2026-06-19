@@ -24,4 +24,5 @@
 - Added `deepr expert export-okf NAME PATH`, a `$0` regenerated OKF bundle over structured expert state with `index.md`, `log.md`, concept pages, citations, typed relations, gaps, contested claims, optional `llms.txt`, and marker-based overwrite protection.
 - Added `deepr expert absorb-okf NAME PATH`, which parses OKF concept Markdown/frontmatter into source text and runs it through the existing verified absorb pipeline instead of trusting generated bundle text.
 - Added the first v2.18 handoff contract: `deepr_expert_handoff` plus `/api/experts/{name}/handoff`, returning the `$0`, read-only `deepr-expert-handoff-v1` payload with bounded expert state, loop status, OKF hints, and additive compatibility.
+- Added the first v2.18 scoped-key and remote-audit primitive: local MCP key records with mode, expert allowlist, and budget metadata; HTTP pre-dispatch enforcement for scoped `tools/call`; and append-only remote-call audit records with hashed arguments.
 - Spend so far: `$0.00`.

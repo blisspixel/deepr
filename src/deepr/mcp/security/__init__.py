@@ -26,6 +26,17 @@ from .sampling import (
     create_confirmation_request,
     create_paywall_request,
 )
+from .scoped_keys import (
+    RemoteMCPAuditEvent,
+    RemoteMCPAuditLog,
+    ScopedMCPAuthzDecision,
+    ScopedMCPKeyContext,
+    ScopedMCPKeyRecord,
+    ScopedMCPKeyStore,
+    authorize_scoped_mcp_tool_call,
+    default_key_store_path,
+    default_remote_audit_path,
+)
 from .tool_allowlist import (
     ResearchMode,
     ToolAllowlist,
@@ -36,27 +47,31 @@ from .tool_allowlist import (
 )
 
 __all__ = [
-    # Instruction signing
     "InstructionSigner",
-    # Output verification
     "OutputVerifier",
+    "RemoteMCPAuditEvent",
+    "RemoteMCPAuditLog",
     "ResearchMode",
-    # Network security
     "SSRFProtector",
     "SamplingReason",
-    # Sampling
     "SamplingRequest",
     "SamplingResponse",
+    "ScopedMCPAuthzDecision",
+    "ScopedMCPKeyContext",
+    "ScopedMCPKeyRecord",
+    "ScopedMCPKeyStore",
     "SignedInstruction",
-    # Tool allowlist
     "ToolAllowlist",
     "ToolCategory",
     "ToolConfig",
     "VerificationChainEntry",
     "VerifiedOutput",
+    "authorize_scoped_mcp_tool_call",
     "create_captcha_request",
     "create_confirmation_request",
     "create_paywall_request",
+    "default_key_store_path",
+    "default_remote_audit_path",
     "get_allowed_tools",
     "is_internal_ip",
     "is_tool_allowed",
