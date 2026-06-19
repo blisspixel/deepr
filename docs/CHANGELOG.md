@@ -88,6 +88,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   recipe for hosted MCP that requires an HTTPS origin, proxies only `/mcp`
   paths, caps request bodies at 1 MiB, forwards scoped-key auth headers, and
   keeps provider keys, scoped-key state, and audit logs on the origin side.
+- Added cross-surface MCP allowlist enforcement contract tests. They cover the
+  union of visible registry tools and JSON-RPC dispatch tools across every
+  `ResearchMode`, including scoped-key authorization and the JSON-RPC
+  pre-dispatch block/confirmation gates.
 - Scheduled expert wait and action-plan surfaces now append `ExpertLoopRun`
   snapshots and include a `loop_run` object in JSON output for `sync`,
   `route-gaps`, `reflect`, and `health-check`.
