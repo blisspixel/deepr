@@ -299,6 +299,9 @@ follow-up research unless the operator removes `--scheduled`. `deepr expert
 health-check --scheduled` adds a scheduler action plan: paid recommendations
 wait for capacity, confirm-gated local writes wait for confirmation, and
 `--archive-stale --scheduled` will not mutate unless `--yes` is explicit.
+These scheduled wait and action-plan payloads now include durable `loop_run`
+records, so `deepr expert loop-status NAME --json` can show the latest blocked
+or waiting maintenance work without re-running it.
 
 ### Evidence and Calibration
 

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from dataclasses import replace
 from datetime import UTC, datetime, timedelta
+from unittest.mock import MagicMock, patch
 
 import pytest
 
@@ -12,6 +13,7 @@ from deepr.experts.loop_runs import (
     ExpertLoopRunStore,
     LoopRunStatus,
     LoopStopReason,
+    record_loop_run,
 )
 
 
@@ -85,3 +87,29 @@ def test_store_ignores_corrupt_lines(tmp_path):
     path.write_text(path.read_text(encoding="utf-8") + "not json\n", encoding="utf-8")
 
     assert len(store.list_runs()) == 1
+
+
+def test_record_loop_run_appends_snapshot():
+    with patch("deepr.experts.loop_runs.ExpertLoopRunStore") as store_class:
+        store = MagicMock()
+        store.append.side_effect = lambda run: run
+        store_class.return_value = store
+
+        run = record_loop_run(
+            expert_name="Platform Expert",
+            loop_type="sync",
+            goal="Refresh subscribed topics",
+            trigger="scheduled",
+            status=LoopRunStatus.WAITING,
+            stop_reason=LoopStopReason.CAPACITY_UNAVAILABLE,
+            next_action={"status": "wait"},
+            budget_limit=1.5,
+            capacity_source="owned/prepaid",
+        )
+
+    assert run.run_id.startswith("loop_")
+    assert run.status == LoopRunStatus.WAITING
+    assert run.stop_reason == LoopStopReason.CAPACITY_UNAVAILABLE
+    assert run.next_action == {"status": "wait"}
+    store_class.assert_called_once_with("Platform Expert")
+    store.append.assert_called_once_with(run)

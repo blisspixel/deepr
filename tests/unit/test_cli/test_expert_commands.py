@@ -400,7 +400,11 @@ class TestExpertHealthCheckCommand:
         with (
             patch("deepr.experts.profile.ExpertStore") as mock_store_class,
             patch("deepr.experts.health_check.ExpertHealthChecker") as mock_checker,
+            patch("deepr.experts.loop_runs.record_loop_run") as mock_record,
         ):
+            loop_run = MagicMock()
+            loop_run.to_dict.return_value = {"run_id": "loop_health"}
+            mock_record.return_value = loop_run
             mock_store = MagicMock()
             mock_store.load.return_value = MagicMock(name="Test Expert")
             mock_store_class.return_value = mock_store
@@ -414,6 +418,40 @@ class TestExpertHealthCheckCommand:
             plan = payload["scheduled_action_plan"]
             assert plan["status"] == "waiting_for_capacity"
             assert plan["actions"][0]["scheduler_status"] == "waiting_for_capacity"
+            assert payload["loop_run"]["run_id"] == "loop_health"
+
+    def test_scheduled_health_ready_actions_record_pending_loop(self):
+        from deepr.cli.commands.semantic.expert_health_schedule import scheduled_health_payload
+        from deepr.experts.health_check import HealthFinding, HealthReport, RecommendedAction
+        from deepr.experts.loop_runs import LoopRunStatus
+
+        report = HealthReport(
+            expert_name="Test Expert",
+            domain="ai",
+            status="needs_attention",
+            findings=[HealthFinding("freshness", "warning", "Local action available.")],
+            actions=[
+                RecommendedAction(
+                    category="freshness",
+                    description="Run a local cleanup",
+                    command="deepr expert cleanup Test Expert",
+                    estimated_cost=0.0,
+                    approval_tier="notify",
+                )
+            ],
+        )
+
+        with patch("deepr.experts.loop_runs.record_loop_run") as mock_record:
+            loop_run = MagicMock()
+            loop_run.to_dict.return_value = {"run_id": "loop_health_ready"}
+            mock_record.return_value = loop_run
+
+            payload = scheduled_health_payload(report)
+
+        assert payload["scheduled_action_plan"]["status"] == "ready"
+        assert payload["loop_run"]["run_id"] == "loop_health_ready"
+        assert mock_record.call_args.kwargs["status"] == LoopRunStatus.PENDING
+        assert mock_record.call_args.kwargs["stop_reason"] is None
 
     def test_scheduled_archive_waits_for_confirmation_without_mutating(self, runner, tmp_path):
         import json
@@ -432,7 +470,11 @@ class TestExpertHealthCheckCommand:
             patch("deepr.experts.profile.ExpertStore") as mock_store_class,
             patch("deepr.config.experts_root", return_value=tmp_path),
             patch("deepr.experts.beliefs.BeliefStore") as mock_belief_store_class,
+            patch("deepr.experts.loop_runs.record_loop_run") as mock_record,
         ):
+            loop_run = MagicMock()
+            loop_run.to_dict.return_value = {"run_id": "loop_health_archive"}
+            mock_record.return_value = loop_run
             mock_store = MagicMock()
             mock_store.load.return_value = MagicMock(name="Test Expert")
             mock_store_class.return_value = mock_store
@@ -458,6 +500,7 @@ class TestExpertHealthCheckCommand:
         assert payload["status"] == "waiting_for_confirmation"
         assert payload["action"] == "archive_stale"
         assert payload["count"] == 1
+        assert payload["loop_run"]["run_id"] == "loop_health_archive"
 
 
 class TestExpertAbsorbCommand:
@@ -640,7 +683,11 @@ class TestExpertReflectCommand:
             patch("deepr.experts.profile.ExpertStore") as mock_store_class,
             patch("deepr.services.context_index.ContextIndex") as mock_idx,
             patch("deepr.experts.reflection.ReflectionEngine") as mock_engine,
+            patch("deepr.experts.loop_runs.record_loop_run") as mock_record,
         ):
+            loop_run = MagicMock()
+            loop_run.to_dict.return_value = {"run_id": "loop_reflect"}
+            mock_record.return_value = loop_run
             profile = MagicMock(domain="ai")
             profile.name = "AI Expert"
             mock_store = MagicMock()
@@ -672,6 +719,7 @@ class TestExpertReflectCommand:
         assert payload["report_id"] == "job1"
         assert payload["pending_work"] == ["reflection_evaluation", "followup_research"]
         assert payload["next_actions"][0]["status"] == "wait"
+        assert payload["loop_run"]["run_id"] == "loop_reflect"
 
 
 class TestExpertRouteGapsCommand:
@@ -750,7 +798,11 @@ class TestExpertRouteGapsCommand:
             patch("deepr.experts.profile.ExpertStore") as mock_store_class,
             patch("deepr.experts.gap_router.GapRouter") as mock_router_class,
             patch("deepr.experts.gap_fill.GapFillEngine", ExplodingGapFillEngine),
+            patch("deepr.experts.loop_runs.record_loop_run") as mock_record,
         ):
+            loop_run = MagicMock()
+            loop_run.to_dict.return_value = {"run_id": "loop_gap"}
+            mock_record.return_value = loop_run
             mock_store = MagicMock()
             mock_store.load.return_value = expert
             mock_store_class.return_value = mock_store
@@ -768,6 +820,7 @@ class TestExpertRouteGapsCommand:
         assert payload["status"] == "waiting_for_capacity"
         assert payload["routes"][0]["topic"] == "open model benchmark drift"
         assert payload["next_actions"][0]["status"] == "wait"
+        assert payload["loop_run"]["run_id"] == "loop_gap"
 
 
 class TestExpertExportSkillCommand:
