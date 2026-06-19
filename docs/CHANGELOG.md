@@ -48,6 +48,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   a calls-per-minute ceiling, `deepr mcp keys create --rate-limit` exposes it,
   and the HTTP transport blocks over-limit calls before tool dispatch with
   retry metadata and an audited denial.
+- Added a global HTTP MCP concurrency cap. `deepr mcp serve --http` now limits
+  simultaneous POST requests to `DEEPR_MCP_HTTP_MAX_CONCURRENCY` or 32 by
+  default, returns 429 with retry metadata when full, and exposes
+  `--max-concurrency` for operators.
 - Added `deepr mcp audit list`, a read-only local CLI for reviewing
   `deepr-mcp-remote-audit-v1` remote-call audit records with key, tool, outcome,
   limit, and JSON filters.

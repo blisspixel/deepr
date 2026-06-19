@@ -321,6 +321,12 @@ def summarize_audit(
     "--keys-path", type=click.Path(dir_okay=False, path_type=str), help="Scoped-key store path for HTTP auth."
 )
 @click.option(
+    "--max-concurrency",
+    "max_concurrent_requests",
+    type=click.IntRange(min=1),
+    help="Maximum simultaneous HTTP POST requests before returning 429.",
+)
+@click.option(
     "--allow-unauthenticated-public-bind",
     is_flag=True,
     help="Allow public HTTP bind without a token or scoped key. Unsafe outside isolated tests.",
@@ -332,6 +338,7 @@ def serve(
     http_path: str,
     auth_token: str | None,
     keys_path: str | None,
+    max_concurrent_requests: int | None,
     allow_unauthenticated_public_bind: bool,
 ):
     """Start MCP server for AI agent integration.
@@ -375,6 +382,7 @@ def serve(
                     path=http_path,
                     auth_token=auth_token,
                     keys_path=keys_path,
+                    max_concurrent_requests=max_concurrent_requests,
                     allow_unauthenticated_public_bind=allow_unauthenticated_public_bind,
                 )
             )

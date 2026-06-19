@@ -46,6 +46,8 @@ def test_mcp_serve_http_uses_http_runner(tmp_path):
                 "token",
                 "--keys-path",
                 str(keys_path),
+                "--max-concurrency",
+                "9",
             ],
         )
 
@@ -57,6 +59,7 @@ def test_mcp_serve_http_uses_http_runner(tmp_path):
             "path": "/x",
             "auth_token": "token",
             "keys_path": str(keys_path),
+            "max_concurrent_requests": 9,
             "allow_unauthenticated_public_bind": False,
         }
     ]

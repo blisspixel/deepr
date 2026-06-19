@@ -88,6 +88,7 @@ async def run_http_server(
     auth_token: str | None = None,
     keys_path: str | None = None,
     allow_unauthenticated_public_bind: bool = False,
+    max_concurrent_requests: int | None = None,
     stop_event: asyncio.Event | None = None,
 ) -> None:
     """Run MCP server using Streamable HTTP transport."""
@@ -107,6 +108,7 @@ async def run_http_server(
         auth_token=auth_token,
         allow_unauthenticated_public_bind=allow_unauthenticated_public_bind,
         scoped_key_store=scoped_key_store,
+        max_concurrent_requests=max_concurrent_requests,
     )
     transport.on_message(_make_http_message_handler(deepr_server))
 
