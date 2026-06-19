@@ -102,6 +102,8 @@ def test_rollup_summarizes_latest_window(tmp_path):
     assert rollup["acceptance_rate"] == 0.75
     assert rollup["cost_per_accepted_change"] == 0.1
     assert rollup["verifier_failure_count"] == 1
+    assert rollup["admission_contracts"]["sync"]["status"] == "admitted"
+    assert rollup["admission_contracts"]["gap_fill"]["status"] == "supervised"
 
 
 def test_rollup_rejects_non_positive_limit(tmp_path):
