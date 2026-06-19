@@ -98,3 +98,8 @@ For AWS ECS Fargate, see [aws-ecs-fargate/](aws-ecs-fargate/). That template
 uses the same image and command, mounts EFS at `/data`, exposes HTTPS through an
 Application Load Balancer, and keeps scoped-key plus audit state durable across
 task restarts.
+
+For GCP Cloud Run, see [gcp-cloud-run/](gcp-cloud-run/). That template uses the
+same image and command, mounts a Cloud Storage bucket at `/data`, and keeps
+scoped-key plus audit state durable with single-writer defaults for the
+object-backed mount.

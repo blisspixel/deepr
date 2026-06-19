@@ -126,6 +126,24 @@ Use scoped keys for production. The template includes an optional
 `InitialSharedAuthToken` only as a first-boot escape hatch; it should be removed
 after the scoped-key file is present on EFS.
 
+## GCP Cloud Run Variant
+
+The third cloud-provider template lives in
+[mcp-http/gcp-cloud-run/](mcp-http/gcp-cloud-run/). It deploys the same hosted
+MCP container to Cloud Run, mounts a Cloud Storage bucket at `/data` through
+Cloud Storage FUSE, keeps `security/mcp_keys.json` and
+`security/mcp_remote_audit.jsonl` durable, and wires `max_concurrent_requests`
+into both Cloud Run request concurrency and `deepr mcp serve --max-concurrency`.
+
+Cloud Storage FUSE is object-backed, so this template defaults to one Cloud Run
+instance and one in-process MCP POST at a time while keys and audit logs live on
+that mount. Move scoped-key and audit state to a writer-safe store before
+raising those limits.
+
+This is a template, not a deployment run. Creating GCP resources can incur
+cloud cost. The repo validates the template shape locally and does not run
+`gcloud`, `terraform apply`, or hosted-agent registration during CI.
+
 ## Caddy Reverse Proxy
 
 Caddy handles certificates automatically for a public DNS name:
