@@ -67,6 +67,43 @@ def _filter_audit_records(records, *, key_id: str | None, tool_name: str | None,
     return filtered
 
 
+def _summarize_audit_records(records) -> dict:
+    def empty_bucket() -> dict:
+        return {"count": 0, "cost_usd": 0.0}
+
+    summary: dict = {
+        "count": len(records),
+        "cost_usd": 0.0,
+        "costed_records": 0,
+        "by_key": {},
+        "by_tool": {},
+        "by_outcome": {},
+    }
+    for record in records:
+        cost = float(record.cost_usd or 0.0)
+        if record.cost_usd is not None:
+            summary["costed_records"] += 1
+        summary["cost_usd"] += cost
+        for group_name, group_key in (
+            ("by_key", record.key_id),
+            ("by_tool", record.tool),
+            ("by_outcome", record.outcome),
+        ):
+            bucket = summary[group_name].setdefault(group_key, empty_bucket())
+            bucket["count"] += 1
+            bucket["cost_usd"] += cost
+    summary["cost_usd"] = round(summary["cost_usd"], 10)
+    for group_name in ("by_key", "by_tool", "by_outcome"):
+        summary[group_name] = {
+            key: {"count": value["count"], "cost_usd": round(value["cost_usd"], 10)}
+            for key, value in sorted(
+                summary[group_name].items(),
+                key=lambda item: (-item[1]["count"], item[0]),
+            )
+        }
+    return summary
+
+
 @keys.command("create")
 @click.option("--key-id", help="Stable key id. Defaults to a generated id.")
 @click.option(
@@ -223,6 +260,55 @@ def list_audit(
             f"{record.timestamp.isoformat()}\t{record.key_id}\t{record.mode.value}\t{record.outcome}\t"
             f"{record.tool}\t{_format_audit_cost(record.cost_usd)}\t{experts}\t{error_code}\t{trace_id}"
         )
+
+
+@audit.command("summary")
+@click.option("--audit-path", type=click.Path(dir_okay=False, path_type=str), help="Override remote audit JSONL path.")
+@click.option("--key-id", help="Summarize records for one scoped key id.")
+@click.option("--tool", "tool_name", help="Summarize records for one MCP tool name.")
+@click.option("--outcome", help="Summarize records for one outcome, such as success or error.")
+@click.option("--json", "as_json", is_flag=True, help="Emit machine-readable JSON.")
+def summarize_audit(
+    audit_path: str | None,
+    key_id: str | None,
+    tool_name: str | None,
+    outcome: str | None,
+    as_json: bool,
+):
+    """Summarize scoped HTTP MCP remote-call audit records."""
+    import json
+
+    audit_log = _load_remote_audit_log(audit_path)
+    records = _filter_audit_records(
+        audit_log.read_recent(limit=1_000_000),
+        key_id=key_id,
+        tool_name=tool_name,
+        outcome=outcome,
+    )
+    summary = _summarize_audit_records(records)
+    payload = {
+        "audit_path": str(audit_log.path),
+        "filters": {
+            "key_id": key_id,
+            "tool": tool_name,
+            "outcome": outcome,
+        },
+        "summary": summary,
+    }
+    if as_json:
+        click.echo(json.dumps(payload, indent=2, sort_keys=True))
+        return
+    click.echo(f"MCP remote audit summary: {audit_log.path}")
+    click.echo(f"Records: {summary['count']}")
+    click.echo(f"Audited cost: {_format_audit_cost(summary['cost_usd'])}")
+    click.echo(f"Records with cost: {summary['costed_records']}")
+    for title, key in (("By outcome", "by_outcome"), ("By key", "by_key"), ("By tool", "by_tool")):
+        click.echo(title + ":")
+        if not summary[key]:
+            click.echo("  none\t0\t$0.0000")
+            continue
+        for name, bucket in summary[key].items():
+            click.echo(f"  {name}\t{bucket['count']}\t{_format_audit_cost(bucket['cost_usd'])}")
 
 
 @mcp.command()

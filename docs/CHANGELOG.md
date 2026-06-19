@@ -41,6 +41,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Added `deepr mcp audit list`, a read-only local CLI for reviewing
   `deepr-mcp-remote-audit-v1` remote-call audit records with key, tool, outcome,
   limit, and JSON filters.
+- Added `deepr mcp audit summary`, a read-only aggregate view over the same
+  remote-call audit log with counts and audited cost grouped by key, tool, and
+  outcome.
 - Added `deepr mcp serve --http`, a Streamable HTTP/SSE serve mode for the
   existing MCP server. It defaults to loopback and relies on the HTTP
   transport's shared-token or scoped-key gates for reachable binds.
