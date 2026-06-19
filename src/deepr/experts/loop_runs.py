@@ -34,6 +34,15 @@ class LoopRunStatus(str, Enum):
     CANCELLED = "cancelled"
 
 
+TERMINAL_LOOP_STATUSES = frozenset(
+    {
+        LoopRunStatus.COMPLETED,
+        LoopRunStatus.FAILED,
+        LoopRunStatus.CANCELLED,
+    }
+)
+
+
 class LoopStopReason(str, Enum):
     VERIFIER_PASSED = "verifier_passed"
     NO_DUE_WORK = "no_due_work"
@@ -45,6 +54,32 @@ class LoopStopReason(str, Enum):
     VERIFIER_FAILED = "verifier_failed"
     SCHEMA_ERROR = "schema_error"
     CANCELLED = "cancelled"
+
+
+LOOP_STATUS_STOP_REASONS = {
+    LoopRunStatus.WAITING: frozenset(
+        {
+            LoopStopReason.BUDGET_EXHAUSTED,
+            LoopStopReason.CAPACITY_UNAVAILABLE,
+            LoopStopReason.HUMAN_GATE_REQUIRED,
+        }
+    ),
+    LoopRunStatus.COMPLETED: frozenset(
+        {
+            LoopStopReason.VERIFIER_PASSED,
+            LoopStopReason.NO_DUE_WORK,
+        }
+    ),
+    LoopRunStatus.FAILED: frozenset(
+        {
+            LoopStopReason.MAX_ITERATIONS,
+            LoopStopReason.SCHEMA_ERROR,
+            LoopStopReason.TOOL_FAILURE,
+            LoopStopReason.VERIFIER_FAILED,
+        }
+    ),
+    LoopRunStatus.CANCELLED: frozenset({LoopStopReason.CANCELLED}),
+}
 
 
 def loop_runs_path(expert_name: str, path: Path | None = None) -> Path:
@@ -122,6 +157,10 @@ class ExpertLoopRun:
     def cost_per_accepted_change(self) -> float:
         return self.budget_spent / self.accepted_changes if self.accepted_changes else 0.0
 
+    @property
+    def is_terminal(self) -> bool:
+        return self.status in TERMINAL_LOOP_STATUSES
+
     def __post_init__(self) -> None:
         if self.schema_version != LOOP_RUN_SCHEMA_VERSION:
             raise ValueError(f"unsupported loop-run schema version: {self.schema_version}")
@@ -138,6 +177,15 @@ class ExpertLoopRun:
             raise ValueError("budget_spent must be non-negative")
         if self.accepted_changes < 0 or self.rejected_changes < 0:
             raise ValueError("change counts must be non-negative")
+        if self.is_terminal and self.stop_reason is None:
+            raise ValueError("terminal loop runs require a typed stop_reason")
+        allowed_stop_reasons = LOOP_STATUS_STOP_REASONS.get(self.status)
+        if (
+            allowed_stop_reasons is not None
+            and self.stop_reason is not None
+            and self.stop_reason not in allowed_stop_reasons
+        ):
+            raise ValueError(f"{self.status.value} loop runs cannot use stop_reason {self.stop_reason.value}")
 
     def to_dict(self) -> dict[str, Any]:
         return {
