@@ -24,6 +24,8 @@ def test_mcp_keys_create_outputs_secret_once_and_stores_hash(tmp_path):
             "alpha",
             "--budget",
             "3.50",
+            "--rate-limit",
+            "12",
             "--keys-path",
             str(keys_path),
             "--json",
@@ -36,6 +38,7 @@ def test_mcp_keys_create_outputs_secret_once_and_stores_hash(tmp_path):
     assert payload["mode"] == "standard"
     assert payload["expert_allowlist"] == ["alpha"]
     assert payload["budget_limit_usd"] == 3.5
+    assert payload["rate_limit_per_minute"] == 12
     assert payload["secret"].startswith("deepr_mcp_")
     assert "secret_hash" not in payload
     assert payload["secret"] not in keys_path.read_text(encoding="utf-8")
