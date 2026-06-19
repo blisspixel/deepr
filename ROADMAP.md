@@ -89,7 +89,7 @@ These features work but APIs or behavior may change:
 - **Native Recon instrument** (v2.11.0): auto-discovered when `pip install recon-tool` is present; autonomous cost-$0 domain probe in agentic expert chat; passive infrastructure/email-security intelligence absorbed into expert context
 - **Native Distillr instrument** (v2.12): auto-discovered when `pip install distillr` is present (`distill-mcp` on PATH); source ingestion (papers/videos/sites) into a synthesized corpus, absorbed as academic knowledge with provenance; budget-capped and approval-gated (free `find_insights` corpus search first)
 - **Native Primr instrument** (v2.12): auto-discovered when `pip install primr` is present (`primr-mcp` on PATH); strategic company deep-dives (positioning, hiring signals, initiatives, tech stack) absorbed across infrastructure + strategic categories with report provenance; long-running, budget-capped, every paid run approval-gated (estimate first, `quick_lookup` for fast context)
-- **MCP server**: Functional with 27 tools, but MCP spec itself is still maturing
+- **MCP server**: Functional with 28 tools, but MCP spec itself is still maturing
 - **Agentic expert chat**: enabled by default in `expert chat` - autonomous research with slash commands, chat modes, visible reasoning, approval flows, expert council, and task planning. Pass `--no-research` to disable autonomous research triggers.
 - **Local-model execution + capacity** (v2.16, in progress): `deepr capacity` (+ `--probe`) shows owned/prepaid capacity (local Ollama, plan CLIs, metered APIs) and summarizes locally observed plan-quota state from `quota_ledger.jsonl`; `expert make --local` creates provider-free local experts; a local Ollama backend runs research at $0 via the injectable seams (`expert sync`/`absorb --local`), with `expert sync --local --fresh-context` adding a free-only retrieval pack and `--deep-context` adding bounded multi-query retrieval before the local model call. The free path can use explicit URLs, a configured SearXNG endpoint (`DEEPR_SEARXNG_URL`), or DuckDuckGo when the optional package is installed; it blocks instead of falling through to metered APIs when a context flag cannot use local capacity. `deepr eval local` compares local Ollama models with a local judge or an explicitly approved CLI judge (`--judge-cli grok` / `--judge-command`) so admission decisions have review evidence before automation; `deepr eval local-context` compares no context, fresh context, and deep context so source envelopes have evidence before schedulers select them. Context-bearing sync runs persist source-pack artifacts and fail closed if provenance cannot be written. The first waterfall rung is wired: eval-gated local **admission** (`deepr capacity admit`/`admissions`/`revoke`, including `--from-eval latest`) plus runtime admitted-score quality gating makes `expert sync`/`absorb` drain a scored, admitted local model at $0 before any metered API call, with `--local`/`--api` overrides. `deepr capacity next` now ranks the current block reason, local setup, latest-artifact admission, eval refresh, and explicit metered fallback. The normalized `ResearchBackend` profile, backend eligibility gate, and backend selector are in place for routing, logging, quota decisions, reserve floors, overage blocking, measured quality floors, and no-observation stops. Still to come: plan-quota CLI adapters, live quota probes, adapter writes, scheduler integration, auto-mode runtime integration, and scheduler-facing QOL. Design: [capacity-waterfall.md](docs/design/capacity-waterfall.md); [local-fresh-context.md](docs/design/local-fresh-context.md)
 - **Evidence layer** (v2.15): `deepr eval continuity` (staleness honesty / abstention / contradiction-surfacing / what-changed exactness, measured from stored state at $0) and `deepr eval calibrate` (does extraction confidence track grounding? reliability curve + ECE + Platt threshold; `--from` graded pairs at $0, `--corpus` runs the paid extraction + pre-grade). First curve in [docs/CALIBRATION.md](docs/CALIBRATION.md)
@@ -107,7 +107,7 @@ These features work but APIs or behavior may change:
 - Expert system with autonomous learning, agentic chat (streaming, 27 slash commands, 4 chat modes, visible reasoning, context compaction, approval flows, expert council, task planning, memory commands), knowledge synthesis, curriculum preview (`expert plan`), guardrail validation (`expert validate`), knowledge maintenance (`expert health-check`), report-to-knowledge absorption (`expert absorb`), report reflection (`expert reflect`), gap-to-tool routing (`expert route-gaps`), per-expert SKILL.md export (`expert export-skill`), domain-specific skills, AI-generated portraits
 - Expert skills system: 7 built-in skills, Python + MCP tool types, auto-activation triggers, three-tier storage
 - Conversations API for browsing and resuming past chat sessions
-- MCP server with 27 tools, persistence, security, multi-runtime configs
+- MCP server with 28 tools, persistence, security, multi-runtime configs
 - Web dashboard (12 pages: overview, research studio, research live, results library, result detail, expert hub, expert profile, cost intelligence, models & benchmarks, trace explorer, help, settings)
 - CLI trace flags (`--explain`, `--timeline`, `--full-trace`)
 - Output modes (`--verbose`, `--json`, `--quiet`)
@@ -646,6 +646,10 @@ Goal: production posture for multi-user and autonomous deployments.
   - [ ] Run comparison deltas
   - [ ] Provider validation action in UI
 - [ ] Hosted MCP endpoint (design: [docs/design/hosted-mcp-endpoint.md](docs/design/hosted-mcp-endpoint.md)) (the autopilot on-ramp - promoted from backlog, see Phase 2 landscape note):
+  - [x] Versioned read-only expert handoff contract:
+        `deepr_expert_handoff` and `/api/experts/{name}/handoff` return
+        `deepr-expert-handoff-v1` with bounded expert state, loop status, OKF
+        hints, and additive compatibility.
   - [ ] Streamable HTTP/SSE transport for the existing MCP server behind authenticated access (API key first; OAuth later with team features)
   - [ ] Per-key budget contracts and rate limits (reuses BudgetPropagator); read-only tool profile as the default exposure
   - [ ] Deploy recipe (container + the existing cloud templates) so a user can stand up "my experts, reachable by my cloud agents" in one command
@@ -1020,7 +1024,12 @@ consumers who will exercise all three. Design:
 
 1. Streamable HTTP transport; scoped API keys (mode/expert/budget);
    tool-call audit log (doubles as the mutation audit trail)
-2. Versioned handoff schemas (downstream agents get stability guarantees)
+2. [~] Versioned handoff schemas (downstream agents get stability guarantees):
+   `deepr_expert_handoff` and `/api/experts/{name}/handoff` now return the
+   `$0`, read-only `deepr-expert-handoff-v1` payload with profile summary,
+   manifest counts, bounded claims/gaps, dashboard telemetry, loop-status
+   rollup, OKF interchange hints, and an additive compatibility contract.
+   JSON Schema is published at `docs/schemas/expert-handoff-v1.json`.
 3. Expert Crews (Phase 4c) + autonomous research campaigns (Phase 4b) -
    the multi-expert deliverables, now consumable remotely
 4. Ops analytics: cost-vs-quality frontier, routing-drift and anomaly

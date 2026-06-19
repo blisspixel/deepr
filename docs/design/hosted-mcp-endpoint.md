@@ -1,8 +1,8 @@
 # Design: Hosted MCP Endpoint (remote, authenticated Deepr)
 
-Target: v2.17. Roadmap: Phase 5 (promoted from backlog 2026-06-11 -
+Target: v2.18. Roadmap: Phase 5 (promoted from backlog 2026-06-11 -
 "cloud-hosted autopilots cannot call a stdio server on a laptop").
-Status: design.
+Status: design, with the first versioned handoff contract shipped.
 
 ## Problem
 
@@ -19,9 +19,20 @@ it's dressed for."
 ### Transport
 
 Streamable HTTP (the current MCP spec transport, SSE for streaming) on the
-existing 25-tool server - the tool surface, allowlist, and error model do
+existing 28-tool server - the tool surface, allowlist, and error model do
 not change. stdio remains the local default; HTTP is an additional
 listener (`deepr mcp --http :8400`), one process, same dispatch.
+
+### Handoff contract
+
+`deepr_expert_handoff` and `/api/experts/{name}/handoff` now provide the first
+remote-friendly read contract: `deepr-expert-handoff-v1`. It is `$0`,
+read-only, bounded by caller-provided limits, and generated from the shared
+`build_expert_handoff` serializer so MCP and web responses cannot drift. The
+payload includes profile summary, manifest counts, bounded claims/gaps,
+dashboard telemetry, loop-status rollup, OKF interchange hints, and an additive
+compatibility contract. Detailed expert state remains `SENSITIVE` in MCP
+allowlists until scoped keys exist.
 
 ### Auth and scoping (API-key first, OAuth later)
 
@@ -61,14 +72,16 @@ listener (`deepr mcp --http :8400`), one process, same dispatch.
 
 ## Order of operations
 
-1. HTTP transport on the existing server (no auth, loopback-only bind,
+1. Versioned handoff payloads for downstream consumers, callable locally through
+   MCP and the dashboard API. Shipped as `deepr-expert-handoff-v1`.
+2. HTTP transport on the existing server (no auth, loopback-only bind,
    integration-tested against a real MCP client).
-2. Key store + middleware (mode scoping reuses the allowlist; budget
+3. Key store + middleware (mode scoping reuses the allowlist; budget
    reuses cost sessions) - the bulk of the new code, all unit-testable.
-3. Audit log + rate limits + size caps.
-4. `keys` CLI + docs + deployment guide; loopback restriction lifts only
+4. Audit log + rate limits + size caps.
+5. `keys` CLI + docs + deployment guide; loopback restriction lifts only
    when a key exists.
-5. Platform smoke tests: register the endpoint with one real host
+6. Platform smoke tests: register the endpoint with one real host
    (Anthropic Managed Agents connector first) and run the
    subscribe -> sync -> what_changed loop remotely.
 

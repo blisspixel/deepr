@@ -217,6 +217,13 @@ class ToolAllowlist:
             requires_confirmation_in={ResearchMode.STANDARD, ResearchMode.EXTENDED},
             blocked_in={ResearchMode.READ_ONLY},
         ),
+        "deepr_expert_handoff": ToolConfig(
+            name="deepr_expert_handoff",
+            category=ToolCategory.SENSITIVE,
+            description="Versioned expert handoff payload for downstream agents",
+            requires_confirmation_in={ResearchMode.STANDARD, ResearchMode.EXTENDED},
+            blocked_in={ResearchMode.READ_ONLY},
+        ),
         # Temporal perspective queries - cost-$0 and read-only, but they
         # surface belief content (claims, evidence, conflicts), so SENSITIVE
         # like health_check rather than plain READ.
