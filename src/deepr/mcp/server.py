@@ -63,6 +63,7 @@ from deepr.core.reports import ReportGenerator
 from deepr.core.research import ResearchOrchestrator
 from deepr.experts.chat import ExpertChatSession
 from deepr.experts.profile import ExpertStore
+from deepr.mcp.expert_loop_status import get_expert_loop_status
 from deepr.mcp.search.gateway import GatewayTool
 from deepr.mcp.search.registry import ToolRegistry, ToolSchema, create_default_registry
 from deepr.mcp.security import SSRFProtector
@@ -1652,6 +1653,7 @@ async def _handle_tools_call(server: DeeprMCPServer, params: dict[str, Any]) -> 
         "deepr_expert_health_check": lambda args: server.expert_health_check(
             expert_name=args.get("expert_name", ""),
         ),
+        "deepr_expert_loop_status": lambda args: get_expert_loop_status(server.store, **args),
         "deepr_route_gaps": lambda args: server.route_gaps(
             expert_name=args.get("expert_name", ""),
             top_n=args.get("top_n", 5),
@@ -1836,9 +1838,7 @@ async def _handle_prompts_get(server: DeeprMCPServer, params: dict[str, Any]) ->
     return result
 
 
-# ------------------------------------------------------------------ #
 # Backward-compatible method names (old raw dispatch)
-# ------------------------------------------------------------------ #
 
 _LEGACY_METHOD_MAP = {
     "list_experts": "deepr_list_experts",

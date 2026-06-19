@@ -538,6 +538,44 @@ def create_default_registry() -> ToolRegistry:
 
     registry.register(
         ToolSchema(
+            name="deepr_expert_loop_status",
+            description=(
+                "Show durable loop-run status for an expert. Read-only and cost-$0. Returns "
+                "schema-versioned loop runs with status, stop reason, budget/capacity source, "
+                "verifier fields, acceptance metrics, and next action. Use this before scheduling "
+                "or resuming expert maintenance so host agents can see blocked, waiting, pending, "
+                "or completed loop work without re-running it. "
+                "Example: deepr_expert_loop_status(expert_name='AI Strategy Expert', limit=5)"
+            ),
+            input_schema={
+                "type": "object",
+                "properties": {
+                    "expert_name": {"type": "string", "description": "Name of the expert"},
+                    "limit": {
+                        "type": "integer",
+                        "default": 5,
+                        "minimum": 1,
+                        "maximum": 50,
+                        "description": "Maximum loop runs to return",
+                    },
+                    "status": {
+                        "type": "string",
+                        "description": "Optional status filter: pending, running, waiting, completed, failed, cancelled",
+                    },
+                    "loop_type": {
+                        "type": "string",
+                        "description": "Optional loop type filter, such as sync, gap_fill, or health_check",
+                    },
+                },
+                "required": ["expert_name"],
+            },
+            category="experts",
+            cost_tier="free",
+        )
+    )
+
+    registry.register(
+        ToolSchema(
             name="deepr_route_gaps",
             description=(
                 "Route an expert's top knowledge gaps to the best instrument to fill each: recon "

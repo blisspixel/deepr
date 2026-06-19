@@ -11,6 +11,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Added the first v2.17 durable loop substrate: schema-versioned
   `ExpertLoopRun` records, an append-only per-expert loop-run store, and
   read-only `deepr expert loop-status`.
+- Added `deepr_expert_loop_status`, a read-only MCP tool for host agents to
+  inspect durable expert loop runs, stop reasons, budget/capacity source,
+  verifier fields, acceptance metrics, and next actions.
 - Scheduled expert wait and action-plan surfaces now append `ExpertLoopRun`
   snapshots and include a `loop_run` object in JSON output for `sync`,
   `route-gaps`, `reflect`, and `health-check`.
