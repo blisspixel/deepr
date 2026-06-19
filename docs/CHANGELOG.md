@@ -53,6 +53,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Added `deepr mcp smoke-http`, a `$0` HTTP MCP endpoint smoke check covering
   health, initialize, tools/list, and free `deepr_tool_search` dispatch for
   local or TLS-proxied endpoints.
+- Added `deepr mcp registration-manifest`, a token-redacted
+  `deepr-mcp-registration-manifest-v1` endpoint packet for remote host setup
+  that can embed the `$0` HTTP smoke result without serializing bearer secrets.
 - Added `deploy/mcp-http.md`, a hosted MCP reverse-proxy recipe covering
   scoped keys, loopback service binding, Caddy/nginx TLS termination, smoke
   validation, revocation, and operational guardrails.

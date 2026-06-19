@@ -90,10 +90,16 @@ MCP_ENDPOINT="$(az deployment group show \
   --output tsv)"
 
 deepr mcp smoke-http "$MCP_ENDPOINT" --auth-token "$DEEPR_MCP_KEY"
+deepr mcp registration-manifest "$MCP_ENDPOINT" \
+  --auth-token "$DEEPR_MCP_KEY" \
+  --agent-name planner \
+  --output mcp-registration.json
 ```
 
 The smoke command performs only `$0` structural checks: health, initialize,
 tools/list, and free `deepr_tool_search` dispatch.
+The registration manifest uses the published
+`deepr-mcp-registration-manifest-v1` schema and does not include the key secret.
 
 ## Operate
 

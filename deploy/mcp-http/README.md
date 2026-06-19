@@ -38,6 +38,9 @@ Then start the service:
 ```bash
 docker compose up -d
 deepr mcp smoke-http http://127.0.0.1:8765/mcp --auth-token "$DEEPR_MCP_KEY"
+deepr mcp registration-manifest http://127.0.0.1:8765/mcp \
+  --auth-token "$DEEPR_MCP_KEY" \
+  --output mcp-registration.json
 ```
 
 The smoke command performs only `$0` structural checks: health, initialize,
