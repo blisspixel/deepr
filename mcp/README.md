@@ -134,6 +134,7 @@ Add to `~/.config/zed/settings.json` under `"language_models"` -> `"mcp"`:
 | `deepr_rank_gaps` | Rank an expert's knowledge gaps by value | Free |
 | `deepr_expert_health_check` | Read-only knowledge-state audit (freshness, contradictions, provenance, gaps) | Free |
 | `deepr_expert_loop_status` | Durable expert loop-run status, stop reasons, and next actions | Free |
+| `deepr_expert_handoff` | Versioned read-only expert handoff payload for downstream agents | Free |
 | `deepr_route_gaps` | Route an expert's gaps to the best fill instrument (recon/distillr/primr/research) | Free |
 | `deepr_expert_absorb` | Promote a research report into expert beliefs, verification-gated (mutating) | Low |
 | `deepr_reflect` | Self-evaluate a research report (grounding/completeness/calibration/directness) | Low |
@@ -287,6 +288,6 @@ StdioServer (JSON-RPC transport)
 
 ---
 
-**Tools:** 27 (2 system + 5 research + 14 expert + 4 task management + 2 skills)
+**Tools:** 28 (2 system + 5 research + 15 expert + 4 task management + 2 skills)
 **Resources:** 10 URI schemes across 4 resource types
 **Prompts:** 3 templates

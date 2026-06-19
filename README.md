@@ -176,7 +176,7 @@ See [docs/EXPERTS.md](docs/EXPERTS.md) for the full expert system guide.
 
 ### MCP Integration - Experts as Consultable Roles
 
-Your AI agents (Claude Code, Cursor, VS Code) can call Deepr experts via MCP - not as a generic "research tool" but as named domain roles. An agent working on a proposal can consult "AI Strategy Expert" for market context, then hand that context to a downstream agent for solution design. 27 MCP tools, resource subscriptions, prompt templates, budget propagation, and trace ID stitching across agent boundaries. See [mcp/README.md](mcp/README.md) for setup.
+Your AI agents (Claude Code, Cursor, VS Code) can call Deepr experts via MCP - not as a generic "research tool" but as named domain roles. An agent working on a proposal can consult "AI Strategy Expert" for market context, then hand that context to a downstream agent for solution design. 28 MCP tools, resource subscriptions, prompt templates, budget propagation, and trace ID stitching across agent boundaries. See [mcp/README.md](mcp/README.md) for setup.
 
 This matters most for the new generation of always-on agents: an agent that runs for months needs durable, verified, current domain knowledge with provenance - and a cheap way to re-sync ("what changed since I last consulted you?") instead of re-reading everything. Deepr experts are that knowledge layer; the host platform keeps the schedule, Deepr keeps the perspective.
 
@@ -314,7 +314,11 @@ human gates, no corrective work, or exhausted budgets. The dashboard API now
 exposes `/api/experts/{name}/loop-status`, a read-only rollup over the same
 records with latest run, last sync result, waiting scheduled action, failure,
 capacity source, spend, acceptance, verifier failure metrics, and `expert_state`
-telemetry for freshness, gap velocity, and contested/open claims. Terminal loop
+telemetry for freshness, gap velocity, and contested/open claims. The dashboard
+API also exposes `/api/experts/{name}/handoff`, and MCP exposes
+`deepr_expert_handoff`, a `$0` versioned `deepr-expert-handoff-v1` payload with
+profile summary, manifest counts, bounded claims/gaps, loop status, OKF
+interchange hints, and an additive compatibility contract. Terminal loop
 records now require status-compatible typed stop reasons before they can be
 stored. The same API includes `admission_contracts` for the four autonomy gates:
 repeat demand, automated verification, explicit budget/capacity, and
@@ -388,7 +392,7 @@ Optional env controls:
 
 **Production-ready:** Core research commands, cost controls, expert creation/chat, context discovery, auto mode routing, all providers, local SQLite storage, guided setup (`deepr init`/`deepr doctor`), and a portable data directory (one `DEEPR_DATA_DIR` relocates experts and research, so they follow you across machines via OneDrive/Dropbox/etc.). 5700+ tests (Python 3.12-3.14).
 
-**Experimental:** Web dashboard, agentic expert chat (slash commands, modes, reasoning, approval, council, task planning), expert skills, MCP server, auto-fallback circuit breakers, cloud deployment templates, capacity visibility, local-model execution, capacity next actions (`deepr capacity next`), quota eligibility gates (`deepr capacity`, `--local` on expert sync/absorb), loop status records and API rollups (`deepr expert loop-status`, `/api/experts/{name}/loop-status`), OKF export/import (`deepr expert export-okf`, `deepr expert absorb-okf`), and the evidence layer (`deepr eval continuity`, `deepr eval calibrate`).
+**Experimental:** Web dashboard, agentic expert chat (slash commands, modes, reasoning, approval, council, task planning), expert skills, MCP server, auto-fallback circuit breakers, cloud deployment templates, capacity visibility, local-model execution, capacity next actions (`deepr capacity next`), quota eligibility gates (`deepr capacity`, `--local` on expert sync/absorb), loop status records and API rollups (`deepr expert loop-status`, `/api/experts/{name}/loop-status`), versioned expert handoff (`/api/experts/{name}/handoff`, `deepr_expert_handoff`), OKF export/import (`deepr expert export-okf`, `deepr expert absorb-okf`), and the evidence layer (`deepr eval continuity`, `deepr eval calibrate`).
 
 See [ROADMAP.md](ROADMAP.md) for detailed status.
 

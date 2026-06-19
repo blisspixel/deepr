@@ -101,6 +101,13 @@ parses OKF concept Markdown and frontmatter into source text, then sends that
 text through `ReportAbsorber` so extraction, grounding, dedup, and contradiction
 gates decide what becomes persistent belief state.
 
+The v2.18 reach track now has its first read-only contract. `deepr_expert_handoff`
+and `/api/experts/{name}/handoff` expose `deepr-expert-handoff-v1`: a `$0`
+versioned handoff payload with profile summary, manifest counts, bounded
+claims/gaps, dashboard telemetry, loop-status rollup, OKF interchange hints, and
+an additive compatibility contract. Hosted auth, per-key budgets, and audit logs
+remain open.
+
 ## Active Gap
 
 The capacity QOL item in `v2.16` now covers the recurring expert maintenance
@@ -120,9 +127,9 @@ That gap matters because it sits directly on the project promise: stop paying tw
 
 ## Next Work
 
-Next slice: start the v2.18 reach track by defining the smallest hosted
-contract that can expose existing read-only expert state without weakening
-budget, loop-status, or OKF invariants.
+Next slice: continue the v2.18 reach track by adding the smallest scoped-key or
+audit-log primitive that can wrap the existing MCP HTTP transport without
+weakening sensitive read gating, budget ceilings, or mutation auditability.
 
 ## Spend Ledger For This Run
 

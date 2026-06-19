@@ -26,7 +26,7 @@ from flask_socketio import SocketIO
 # The shared sync-to-async bridge (Phase Q1.3), aliased to the historical name
 # used throughout this module's request handlers.
 from deepr.utils.async_runner import run_async_command as run_async
-from deepr.web.expert_loop_status_api import register_expert_loop_status_api
+from deepr.web.expert_loop_status_api import register_expert_read_apis
 
 load_dotenv()
 
@@ -1491,7 +1491,7 @@ def _expert_counts(profile) -> tuple[int, int, int]:
     return doc_count, finding_count, gap_count
 
 
-register_expert_loop_status_api(app, _experts_dir, _decode_expert_name, _safe_int, _MAX_QUERY_LIMIT, logger)
+register_expert_read_apis(app, _experts_dir, _decode_expert_name, _safe_int, _MAX_QUERY_LIMIT, logger)
 
 
 @app.route("/api/experts", methods=["GET"])

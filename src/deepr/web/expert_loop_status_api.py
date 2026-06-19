@@ -12,6 +12,7 @@ from flask import Flask, jsonify, request
 from deepr.experts.dashboard_telemetry import build_expert_dashboard_telemetry
 from deepr.experts.loop_status_rollup import build_loop_status_rollup
 from deepr.experts.profile_store import ExpertStore
+from deepr.web.expert_handoff_api import register_expert_handoff_api
 
 
 def register_expert_loop_status_api(
@@ -47,3 +48,16 @@ def register_expert_loop_status_api(
         except Exception as exc:
             logger.error("Error getting loop status for expert %s: %s", name, exc)
             return jsonify({"error": "Internal server error"}), 500
+
+
+def register_expert_read_apis(
+    app: Flask,
+    experts_dir: Path,
+    decode_expert_name: Callable[[str], tuple[str, Any]],
+    safe_int: Callable[[Any, int], int],
+    max_query_limit: int,
+    logger: logging.Logger,
+) -> None:
+    """Register read-only expert state API routes."""
+    register_expert_loop_status_api(app, experts_dir, decode_expert_name, safe_int, max_query_limit, logger)
+    register_expert_handoff_api(app, experts_dir, decode_expert_name, safe_int, max_query_limit, logger)

@@ -576,6 +576,66 @@ def create_default_registry() -> ToolRegistry:
 
     registry.register(
         ToolSchema(
+            name="deepr_expert_handoff",
+            description=(
+                "Return a versioned read-only handoff payload for an expert. Includes the "
+                "stable schema version, profile summary, manifest counts, bounded claim and "
+                "gap samples, dashboard telemetry, loop-status rollup, OKF interchange hints, "
+                "and recommended follow-up MCP tools. Cost-$0 and does not mutate state. "
+                "Use this as the first call when a downstream agent needs to consume an expert "
+                "without relying on dashboard-specific response shapes. "
+                "Example: deepr_expert_handoff(expert_name='AI Strategy Expert', max_claims=10)"
+            ),
+            input_schema={
+                "type": "object",
+                "properties": {
+                    "expert_name": {"type": "string", "description": "Name of the expert"},
+                    "max_claims": {
+                        "type": "integer",
+                        "default": 10,
+                        "minimum": 0,
+                        "maximum": 100,
+                        "description": "Maximum top-confidence claims to include",
+                    },
+                    "max_gaps": {
+                        "type": "integer",
+                        "default": 10,
+                        "minimum": 0,
+                        "maximum": 50,
+                        "description": "Maximum top open gaps to include",
+                    },
+                    "loop_limit": {
+                        "type": "integer",
+                        "default": 5,
+                        "minimum": 1,
+                        "maximum": 50,
+                        "description": "Maximum loop runs to include in the rollup",
+                    },
+                    "include_claims": {
+                        "type": "boolean",
+                        "default": True,
+                        "description": "Include bounded claim samples",
+                    },
+                    "include_gaps": {
+                        "type": "boolean",
+                        "default": True,
+                        "description": "Include bounded open-gap samples",
+                    },
+                    "include_decisions": {
+                        "type": "boolean",
+                        "default": False,
+                        "description": "Include latest decision records",
+                    },
+                },
+                "required": ["expert_name"],
+            },
+            category="experts",
+            cost_tier="free",
+        )
+    )
+
+    registry.register(
+        ToolSchema(
             name="deepr_route_gaps",
             description=(
                 "Route an expert's top knowledge gaps to the best instrument to fill each: recon "
