@@ -40,7 +40,7 @@ def scheduled_reflection_wait_payload(
     pending = ["reflection_evaluation"]
     if execute_followups:
         pending.append("followup_research")
-    return {
+    payload = {
         "status": "waiting_for_capacity",
         "expert_name": expert_name,
         "report_id": report_id,
@@ -74,6 +74,21 @@ def scheduled_reflection_wait_payload(
             },
         ],
     }
+    from deepr.experts.loop_runs import LoopRunStatus, LoopStopReason, record_loop_run
+
+    loop_run = record_loop_run(
+        expert_name=expert_name,
+        loop_type="reflection_followups",
+        goal=f"Reflect on report {report_id} and run follow-ups",
+        trigger="scheduled",
+        status=LoopRunStatus.WAITING,
+        stop_reason=LoopStopReason.CAPACITY_UNAVAILABLE,
+        next_action=payload["next_actions"][0],
+        budget_limit=budget if execute_followups else None,
+        capacity_source="owned/prepaid",
+    )
+    payload["loop_run"] = loop_run.to_dict()
+    return payload
 
 
 def emit_scheduled_reflection_wait(

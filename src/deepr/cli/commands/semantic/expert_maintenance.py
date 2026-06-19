@@ -293,6 +293,19 @@ def _emit_scheduled_capacity_wait(
         status="waiting_for_capacity",
         detail=detail,
     )
+    from deepr.experts.loop_runs import LoopRunStatus, LoopStopReason, record_loop_run
+
+    loop_run = record_loop_run(
+        expert_name=expert_name,
+        loop_type="sync",
+        goal=f"Sync due subscriptions for {expert_name}",
+        trigger="scheduled",
+        status=LoopRunStatus.WAITING,
+        stop_reason=LoopStopReason.CAPACITY_UNAVAILABLE,
+        next_action=(payload["capacity_next"]["actions"][0] if payload["capacity_next"]["actions"] else {}),
+        capacity_source="owned/prepaid",
+    )
+    payload["loop_run"] = loop_run.to_dict()
     if json_output:
         click.echo(_json.dumps(payload, indent=2))
         return
