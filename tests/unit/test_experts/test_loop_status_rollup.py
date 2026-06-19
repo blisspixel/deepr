@@ -85,6 +85,9 @@ def test_rollup_summarizes_latest_window(tmp_path):
 
     rollup = build_loop_status_rollup("Platform Expert", store=store, limit=10)
 
+    assert rollup["schema_version"] == "deepr-loop-status-v1"
+    assert rollup["kind"] == "deepr.expert.loop_status"
+    assert rollup["contract"]["read_only"] is True
     assert rollup["count"] == 3
     assert rollup["latest_run"]["run_id"] == "loop_reflect"
     assert rollup["last_sync_result"]["run_id"] == "loop_sync"

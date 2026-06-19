@@ -64,6 +64,8 @@ def test_build_expert_handoff_is_versioned_and_bounded():
     assert len(payload["gaps"]) == 1
     assert payload["decisions"][0]["title"] == "Use handoff payload"
     assert payload["okf"]["canonical"] is False
+    assert payload["okf"]["profile_schema_version"] == "deepr-okf-profile-v1"
+    assert payload["okf"]["profile_schema_url"] == "docs/schemas/okf-profile-v1.json"
     assert "deepr_expert_handoff" in payload["recommended_mcp_tools"]
 
 
