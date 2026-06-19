@@ -8,6 +8,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- Added `deepr expert health-check --scheduled`, which emits a scheduler action
+  plan for recommended actions, and made `--archive-stale --scheduled` wait for
+  explicit confirmation instead of prompting or mutating unless `--yes` is set.
 - Added `deepr expert reflect --scheduled`, which validates the local report
   lookup and then returns a structured wait payload before any reflection
   evaluator or follow-up research can run from a recurring scheduler job.

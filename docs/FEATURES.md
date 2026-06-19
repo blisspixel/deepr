@@ -804,6 +804,7 @@ deepr capacity next --task-class sync --context-mode fresh --scheduled
 deepr expert sync "Platform Team Expert" --scheduled --fresh-context -y
 deepr expert route-gaps "Platform Team Expert" --execute --scheduled --json
 deepr expert reflect "Platform Team Expert" <job_id> --execute-followups --scheduled --json
+deepr expert health-check "Platform Team Expert" --scheduled --json
 deepr capacity --json
 ```
 
@@ -840,12 +841,13 @@ deepr capacity next --task-class sync --context-mode deep --expert "Platform Tea
 deepr expert sync "Platform Team Expert" --scheduled --fresh-context -y
 deepr expert route-gaps "Platform Team Expert" --execute --scheduled --json
 deepr expert reflect "Platform Team Expert" <job_id> --execute-followups --scheduled --json
+deepr expert health-check "Platform Team Expert" --archive-stale --scheduled --json
 deepr capacity revoke llama3.1 --task-class absorb
 ```
 
 After scored admission, `deepr expert sync`/`absorb` (with no backend flag) run on the admitted local model at $0 and print why. Admissions use a 90-day default expiry so they are re-earned as models change, and are machine-local (`DEEPR_CAPACITY_DATA_DIR`) since local capacity differs per machine. Use `deepr eval local --save` as the cheap review step before admitting a model, then `deepr capacity admit --from-eval latest` to turn that reviewed artifact into the admission record.
 
-`deepr capacity next` is the guided path when the safe cheap route is not ready. It ranks the current block reason, local setup commands, latest usable eval-artifact admission, eval refresh, scheduled-job wait guidance, and explicit metered fallback. It can preview a concrete job shape with `--expert`, `--report-id`, `--context-mode none|fresh|deep`, and `--scheduled`. It is read-only, runs no research, and makes no provider API calls. `deepr expert sync --scheduled` consumes the same preview automatically for due subscription syncs: when a recurring job would otherwise fall through to metered API, or when fresh/deep context needs local capacity, it exits successfully with a wait payload and next actions instead of spending. `deepr expert route-gaps --execute --scheduled` uses the same scheduler default for gap-fill sweeps by returning pending routes and a wait state instead of starting metered research. `deepr expert reflect --scheduled` waits before constructing the reflection evaluator, so recurring reflection follow-up jobs expose pending evaluation and follow-up work without making a metered call.
+`deepr capacity next` is the guided path when the safe cheap route is not ready. It ranks the current block reason, local setup commands, latest usable eval-artifact admission, eval refresh, scheduled-job wait guidance, and explicit metered fallback. It can preview a concrete job shape with `--expert`, `--report-id`, `--context-mode none|fresh|deep`, and `--scheduled`. It is read-only, runs no research, and makes no provider API calls. `deepr expert sync --scheduled` consumes the same preview automatically for due subscription syncs: when a recurring job would otherwise fall through to metered API, or when fresh/deep context needs local capacity, it exits successfully with a wait payload and next actions instead of spending. `deepr expert route-gaps --execute --scheduled` uses the same scheduler default for gap-fill sweeps by returning pending routes and a wait state instead of starting metered research. `deepr expert reflect --scheduled` waits before constructing the reflection evaluator, so recurring reflection follow-up jobs expose pending evaluation and follow-up work without making a metered call. `deepr expert health-check --scheduled` returns a scheduler action plan that separates metered recommendations, confirmation-gated local writes, and ready local actions.
 
 Local models do not automatically have current web context. For sync runs that
 need freshness, add `--fresh-context`; for broader source coverage, add
@@ -885,8 +887,10 @@ that preview before launching due subscription syncs. `route-gaps --execute
 --scheduled` now gives gap-fill sweeps the same no-surprise-spend wait behavior.
 `expert reflect --scheduled` waits before reflection evaluation and follow-up
 research until cheap evaluator capacity exists or the operator chooses a one-off
-metered run. Remaining scheduler work is to reuse the contract for health-check
-actioning.
+metered run. `expert health-check --scheduled` adds an action plan, and
+`--archive-stale --scheduled` waits for confirmation instead of prompting or
+mutating unless `--yes` is explicit. Full loop-run records and dashboard/API
+status are the v2.17 substrate.
 
 See [design/capacity-waterfall.md](design/capacity-waterfall.md) for the capacity model and [design/local-fresh-context.md](design/local-fresh-context.md) for the fresh-context loop.
 
