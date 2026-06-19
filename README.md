@@ -182,7 +182,9 @@ This matters most for the new generation of always-on agents: an agent that runs
 
 For remote hosts, `deepr mcp serve --http` exposes the same server over
 HTTP/SSE, and `deepr mcp smoke-http URL` validates a local or TLS-proxied
-endpoint without provider calls.
+endpoint without provider calls. The hosted recipe includes a loopback
+container variant under [deploy/mcp-http/](deploy/mcp-http/) for reverse-proxied
+remote agents.
 
 ### Web Dashboard
 

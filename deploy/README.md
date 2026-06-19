@@ -71,6 +71,11 @@ deploy/
 │       ├── security.py     # API key validation, CORS/security headers
 │       ├── models.py       # Job document creation, TTL, cost estimation
 │       └── responses.py    # Response formatting utilities
+├── mcp-http/           # Hosted MCP HTTP container recipe
+│   ├── Dockerfile
+│   ├── docker-compose.yml
+│   ├── .env.example
+│   └── README.md
 ├── aws/                # AWS SAM/CloudFormation deployment
 │   ├── template.yaml   # SAM template
 │   ├── deploy.sh       # Build + deploy + validate
@@ -101,6 +106,7 @@ Each cloud has three standardized scripts: `deploy.sh`, `validate.sh`, and `dest
 
 Remote agent hosts can call Deepr through the Streamable HTTP MCP endpoint.
 Use the local service plus reverse-proxy recipe in [mcp-http.md](mcp-http.md),
+or the containerized service in [mcp-http/](mcp-http/),
 then verify the endpoint with:
 
 ```bash
