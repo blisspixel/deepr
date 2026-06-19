@@ -922,6 +922,12 @@ read the durable loop state through `deepr_expert_loop_status`. Terminal loop
 records now require status-compatible typed stop reasons before they can be
 stored. The dashboard API also exposes `admission_contracts` for repeat demand,
 automated verification, explicit budget/capacity, and failure-diagnosis state.
+For downstream agents that need one stable read contract before choosing a more
+specific tool, `/api/experts/{name}/handoff` and MCP `deepr_expert_handoff`
+return the versioned `deepr-expert-handoff-v1` payload: profile summary,
+manifest counts, bounded claims/gaps, dashboard telemetry, loop-status rollup,
+OKF interchange hints, and an additive compatibility contract. The schema is
+published at [schemas/expert-handoff-v1.json](schemas/expert-handoff-v1.json).
 
 See [design/capacity-waterfall.md](design/capacity-waterfall.md) for the capacity model and [design/local-fresh-context.md](design/local-fresh-context.md) for the fresh-context loop.
 
