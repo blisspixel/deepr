@@ -6,6 +6,7 @@ without making any external API calls.
 
 import sys
 from pathlib import Path
+from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -821,6 +822,102 @@ class TestExpertRouteGapsCommand:
         assert payload["routes"][0]["topic"] == "open model benchmark drift"
         assert payload["next_actions"][0]["status"] == "wait"
         assert payload["loop_run"]["run_id"] == "loop_gap"
+
+    def test_execute_records_completed_gap_fill_loop(self, runner):
+        from deepr.experts.gap_router import GapRoute
+        from deepr.experts.loop_runs import LoopRunStatus, LoopStopReason
+
+        expert = MagicMock()
+        expert.name = "AI Strategy Expert"
+        expert.get_manifest.return_value.top_gaps.return_value = [MagicMock()]
+        route = GapRoute(
+            topic="open model benchmark drift",
+            instrument="research",
+            available=True,
+            estimated_cost=0.25,
+            rationale="general research",
+            suggestion="",
+            ev_cost_ratio=2.0,
+        )
+        outcome = SimpleNamespace(status="filled", topic=route.topic, absorbed=2, flagged=1, cost=0.17, detail="")
+
+        class FakeResult:
+            outcomes = [outcome]
+            total_cost = 0.17
+
+            def to_dict(self):
+                return {
+                    "expert_name": "AI Strategy Expert",
+                    "outcomes": [{"topic": route.topic, "status": "filled"}],
+                    "total_cost": 0.17,
+                    "filled_count": 1,
+                }
+
+        class FakeGapFillEngine:
+            def __init__(self, profile):
+                assert profile is expert
+
+            async def execute(self, received_routes, **kwargs):
+                assert received_routes == [route]
+                assert kwargs["budget"] == 0.5
+                assert kwargs["dry_run"] is False
+                return FakeResult()
+
+        with (
+            patch("deepr.experts.profile.ExpertStore") as mock_store_class,
+            patch("deepr.experts.gap_router.GapRouter") as mock_router_class,
+            patch("deepr.experts.gap_fill.GapFillEngine", FakeGapFillEngine),
+            patch("deepr.experts.loop_runs.record_loop_run") as mock_record,
+        ):
+            loop_run = MagicMock()
+            loop_run.to_dict.return_value = {"run_id": "loop_gap_complete"}
+            mock_record.return_value = loop_run
+            mock_store = MagicMock()
+            mock_store.load.return_value = expert
+            mock_store_class.return_value = mock_store
+            mock_router_class.return_value.route.return_value = [route]
+
+            result = runner.invoke(
+                cli,
+                [
+                    "expert",
+                    "route-gaps",
+                    "AI Strategy Expert",
+                    "--execute",
+                    "--budget",
+                    "0.50",
+                    "--yes",
+                    "--json",
+                ],
+            )
+
+        assert result.exit_code == 0
+        import json
+
+        payload = json.loads(result.output)
+        assert payload["loop_run"]["run_id"] == "loop_gap_complete"
+        assert mock_record.call_args.kwargs["status"] == LoopRunStatus.COMPLETED
+        assert mock_record.call_args.kwargs["stop_reason"] == LoopStopReason.VERIFIER_PASSED
+        assert mock_record.call_args.kwargs["budget_spent"] == 0.17
+        assert mock_record.call_args.kwargs["capacity_source"] == "api_metered"
+        assert mock_record.call_args.kwargs["accepted_changes"] == 3
+
+    def test_failed_gap_fill_records_tool_failure(self):
+        from deepr.cli.commands.semantic.expert_gap_routes import _record_completed_gap_fill_loop
+        from deepr.experts.loop_runs import LoopRunStatus, LoopStopReason
+
+        result = SimpleNamespace(
+            total_cost=0.02,
+            outcomes=[SimpleNamespace(status="failed", absorbed=0, flagged=0, detail="provider down")],
+        )
+
+        with patch("deepr.experts.loop_runs.record_loop_run") as mock_record:
+            _record_completed_gap_fill_loop("AI Strategy Expert", result, budget=0.5, scheduled=False)
+
+        assert mock_record.call_args.kwargs["status"] == LoopRunStatus.FAILED
+        assert mock_record.call_args.kwargs["stop_reason"] == LoopStopReason.TOOL_FAILURE
+        assert mock_record.call_args.kwargs["rejected_changes"] == 1
+        assert mock_record.call_args.kwargs["next_action"]["status"] == "inspect"
 
 
 class TestExpertExportSkillCommand:

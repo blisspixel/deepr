@@ -20,6 +20,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Successful `deepr expert sync` runs now append completed or failed
   `ExpertLoopRun` snapshots with trigger, budget spent, capacity source, accepted
   change count, and next action for failed topics.
+- Non-dry `deepr expert route-gaps --execute` runs now append gap-fill
+  `ExpertLoopRun` snapshots with trigger, budget spent, capacity source,
+  accepted changes, typed failure stops, and human-gate or budget stop actions
+  when routed gaps are deferred or skipped.
 - Added `deepr expert health-check --scheduled`, which emits a scheduler action
   plan for recommended actions, and made `--archive-stale --scheduled` wait for
   explicit confirmation instead of prompting or mutating unless `--yes` is set.
