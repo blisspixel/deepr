@@ -257,6 +257,7 @@ deepr mcp keys create --mode read_only --expert "AI Strategy Expert" --rate-limi
 deepr mcp keys list
 deepr mcp keys revoke <key-id>
 deepr mcp audit list
+deepr mcp audit summary
 ```
 
 Created secrets are shown once. `list` never prints secrets or stored hashes.
@@ -266,6 +267,7 @@ per-key calls-per-minute limit from recent audited calls, return retry metadata
 on rate-limit denials, and write successful response costs back to the remote
 audit log. `deepr mcp audit list` reads that local append-only audit log with
 optional `--key-id`, `--tool`, `--outcome`, `--limit`, and `--json` filters.
+`deepr mcp audit summary` aggregates the same records by key, tool, and outcome.
 
 ## HTTP Serve Mode
 
