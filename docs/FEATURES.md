@@ -736,6 +736,9 @@ deepr eval new --max-estimated-cost 3
 deepr eval local --model qwen2.5:14b --model qwen3-coder:30b --judge-model qwen2.5:14b
 deepr eval local --max-models 2 --max-prompts 2 --save
 
+# Local-only context comparison at $0: no context vs fresh vs deep
+deepr eval local-context --model qwen2.5:14b --judge-model qwen2.5:14b --save
+
 # Optional CLI judge: candidates stay local, judge runs through the approved CLI
 deepr eval local --model qwen2.5:14b --judge-cli grok --allow-cli-judge
 deepr eval local --model qwen2.5:14b \
@@ -746,6 +749,8 @@ deepr eval local --model qwen2.5:14b \
 Use `--tier all` full-catalog runs sparingly; they are for periodic baseline refreshes, not daily iteration.
 
 `deepr eval local` is the no-provider path for comparing local Ollama models before admitting one for automatic maintenance. It runs the built-in `agentic-loops` prompt set, asks a local judge model to score each answer against the rubric, reports the winner, latency, and Deepr metered cost `$0`, and can save JSON under `data/benchmarks`. The score is routing evidence, not ground truth: the judge handles semantic quality while Deepr validates response shape, score range, cost, and prompt failures.
+
+`deepr eval local-context` uses the same no-provider contract for a different decision: whether a model should answer a freshness task with no context, a small fresh context pack, or bounded deep context. It runs the built-in `local-freshness` prompt set, retrieves free-only context for the fresh/deep modes, asks a local judge to score answer relevance and grounding, and records source counts, citation-label validity, latency, and Deepr metered cost `$0`. This is context-routing evidence, not automatic scheduler behavior yet.
 
 Saved artifacts can feed admission directly:
 
@@ -804,7 +809,7 @@ Capacity source status:
 
 | Source | Status | Notes |
 |---|---|---|
-| Local Ollama | Execution works for local expert setup, local sync, deep/fresh local context, local absorb, local eval, and scored admission | `$0` marginal cost, quality-gated before automatic routing |
+| Local Ollama | Execution works for local expert setup, local sync, deep/fresh local context, local absorb, local eval, local context eval, and scored admission | `$0` marginal cost, quality-gated before automatic routing |
 | OpenAI, Gemini, Grok, Anthropic, Azure APIs | Execution works when configured with API keys and budget ceilings | Full research path, cost ledger writes every spend source |
 | Claude Code, Codex, Antigravity, Grok Build, GitHub Copilot CLI, Kiro, and other plan CLIs | Visible or modeled, not execution backends yet | Adapter work must include auth-mode detection, quota probes, no-overage checks, and tests |
 | CLI judge for local eval | Explicit opt-in only | `--allow-cli-judge` is required because Deepr cannot prove the vendor CLI's billing source |
@@ -821,6 +826,7 @@ deepr expert sync "Platform Team Expert" --local --deep-context  # multi-query f
 # Review local quality first, then admit it for automatic use.
 deepr expert absorb "Platform Team Expert" report.md --local --dry-run
 deepr eval local --model qwen2.5:14b --judge-model qwen2.5:14b
+deepr eval local-context --model qwen2.5:14b --judge-model qwen2.5:14b --save
 deepr eval local --model qwen2.5:14b --judge-cli grok --allow-cli-judge
 deepr capacity admit --from-eval latest --task-class sync --yes
 deepr capacity admit llama3.1 --task-class absorb --days 60 --score 0.74
@@ -847,13 +853,27 @@ prompt tells the local model to say that current context is unavailable, and
 sync records no changes instead of absorbing that uncertainty as permanent
 beliefs.
 
+When a sync run uses fresh/deep context, Deepr writes a bounded JSON source pack
+under the expert knowledge directory at
+`sync_artifacts/source_packs/<timestamp>_<topic>.json`. The sync outcome reports
+the artifact path, source count, and context mode. If the artifact cannot be
+written, Deepr treats the run as failed instead of absorbing a context-grounded
+answer without provenance.
+
+Use `deepr eval local-context` before depending on fresh/deep context for
+automation. The eval compares no context, fresh context, and deep context with a
+local judge, then records the retrieval and citation envelope as JSON under
+`data/benchmarks` when `--save` is passed. Schedulers do not consume those
+context artifacts yet; scheduler rules are the next slice in
+[design/local-fresh-context.md](design/local-fresh-context.md).
+
 Plan-quota adapters are still being wired. `deepr capacity` can detect or model the relevant CLIs and show the cost model, but Deepr does not execute work through those plan quotas yet. Their routing gates are already defined: selection orders local, plan-quota, and metered backends, then blocks execution on missing or unknown quota, exhaustion, quarantine, overage, reserve-floor breaches, unsupported task classes, missing measured quality, and metered fallback without a budget gate.
 
 The intended QOL is simple: ask for a job, see the cheapest safe route, and get a
 clear reason if Deepr should wait rather than pay. `deepr capacity next` is
 read-only today. The next steps are per-job dry-run previews and scheduler
-suggestions that explain whether local, plan quota, or metered API is the right
-choice for that run.
+suggestions that explain whether fresh/deep local context, plan quota, or
+metered API is the right choice for that run.
 
 See [design/capacity-waterfall.md](design/capacity-waterfall.md) for the capacity model and [design/local-fresh-context.md](design/local-fresh-context.md) for the fresh-context loop.
 

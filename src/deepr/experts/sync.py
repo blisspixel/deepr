@@ -61,6 +61,35 @@ def _fresh_context_has_no_sources(research: dict[str, Any]) -> bool:
     return metadata.get("source_count") == 0
 
 
+def _source_pack_from_research(research: dict[str, Any]) -> dict[str, Any] | None:
+    source_pack = research.get("source_pack")
+    if isinstance(source_pack, dict):
+        return dict(source_pack)
+
+    metadata = research.get("fresh_context")
+    if not isinstance(metadata, dict):
+        return None
+    return {
+        "schema_version": "deepr.source_pack.v1",
+        "metadata_only": True,
+        "mode": metadata.get("mode", "fresh"),
+        "generated_at": metadata.get("generated_at"),
+        "search_backend": metadata.get("search_backend"),
+        "browser_backend": metadata.get("browser_backend"),
+        "source_count": metadata.get("source_count", 0),
+        "retrieved_source_count": metadata.get("retrieved_source_count", 0),
+        "search_queries": metadata.get("search_queries", []),
+        "sources": metadata.get("sources", []),
+        "errors": metadata.get("errors", []),
+    }
+
+
+def _source_pack_summary(source_pack: dict[str, Any]) -> tuple[int, str]:
+    source_count = int(source_pack.get("source_count", 0) or 0)
+    mode = str(source_pack.get("mode", "") or "")
+    return source_count, mode
+
+
 @dataclass
 class Subscription:
     """One topic an expert stays current on."""
@@ -154,6 +183,9 @@ class SyncOutcome:
     absorbed: int = 0
     flagged: int = 0
     detail: str = ""
+    source_pack_artifact: str = ""
+    source_count: int = 0
+    context_mode: str = ""
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -163,6 +195,9 @@ class SyncOutcome:
             "absorbed": self.absorbed,
             "flagged": self.flagged,
             "detail": self.detail,
+            "source_pack_artifact": self.source_pack_artifact,
+            "source_count": self.source_count,
+            "context_mode": self.context_mode,
         }
 
 
@@ -318,18 +353,92 @@ class ExpertSyncEngine:
 
         cost = float(research.get("cost", 0.0) or 0.0)
         answer = (research.get("answer") or "").strip()
+        source_pack_path, source_count, context_mode = self._persist_source_pack_if_present(
+            subscription,
+            research,
+            started_at,
+        )
+        if source_pack_path is None:
+            return (
+                SyncOutcome(
+                    subscription.topic,
+                    "failed",
+                    cost=cost,
+                    detail="source pack artifact failed",
+                    source_count=source_count,
+                    context_mode=context_mode,
+                ),
+                cost,
+            )
 
         if _fresh_context_has_no_sources(research):
-            return self._record_no_changes(
+            outcome = self._record_no_changes(
                 subscription,
                 cost,
                 detail="fresh context returned no sources",
-            ), cost
+            )
+            self._attach_source_pack_summary(outcome, source_pack_path, source_count, context_mode)
+            return outcome, cost
 
         if not answer or answer.lower().startswith(_NO_CHANGES_MARKER):
-            return self._record_no_changes(subscription, cost), cost
+            outcome = self._record_no_changes(subscription, cost)
+            self._attach_source_pack_summary(outcome, source_pack_path, source_count, context_mode)
+            return outcome, cost
 
-        return await self._absorb_sync_answer(subscription, answer, cost=cost, started_at=started_at), cost
+        outcome = await self._absorb_sync_answer(subscription, answer, cost=cost, started_at=started_at)
+        self._attach_source_pack_summary(outcome, source_pack_path, source_count, context_mode)
+        return outcome, cost
+
+    def _persist_source_pack_if_present(
+        self,
+        subscription: Subscription,
+        research: dict[str, Any],
+        started_at: datetime,
+    ) -> tuple[str | None, int, str]:
+        source_pack = _source_pack_from_research(research)
+        if source_pack is None:
+            return "", 0, ""
+
+        source_count, context_mode = _source_pack_summary(source_pack)
+        try:
+            path = self._write_source_pack_artifact(subscription, source_pack, started_at)
+        except OSError as exc:
+            logger.error("Could not write source pack for %s: %s", subscription.topic, exc)
+            return None, source_count, context_mode
+        return path, source_count, context_mode
+
+    def _write_source_pack_artifact(
+        self,
+        subscription: Subscription,
+        source_pack: dict[str, Any],
+        started_at: datetime,
+    ) -> str:
+        root = self.subscriptions.path.parent
+        artifact_dir = root / "sync_artifacts" / "source_packs"
+        artifact_dir.mkdir(parents=True, exist_ok=True)
+        timestamp = started_at.strftime("%Y%m%dT%H%M%S%fZ")
+        path = artifact_dir / f"{timestamp}_{_slug(subscription.topic)}.json"
+        payload = {
+            "schema_version": "deepr.sync_source_pack.v1",
+            "expert_name": self.expert.name,
+            "topic": subscription.topic,
+            "query": self.build_freshness_query(subscription),
+            "started_at": started_at.isoformat(),
+            "source_pack": source_pack,
+        }
+        atomic_write_json(path, payload)
+        return path.relative_to(root).as_posix()
+
+    @staticmethod
+    def _attach_source_pack_summary(
+        outcome: SyncOutcome,
+        artifact_path: str,
+        source_count: int,
+        context_mode: str,
+    ) -> None:
+        outcome.source_pack_artifact = artifact_path
+        outcome.source_count = source_count
+        outcome.context_mode = context_mode
 
     def _record_no_changes(
         self,

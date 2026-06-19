@@ -33,6 +33,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   pack metadata, supports `DEEPR_SEARXNG_URL` for a self-hosted SearXNG search
   endpoint, and keeps the no-source path as `no_changes` instead of absorbing
   unsupported local claims.
+- Added `$0` local context evaluation via `deepr eval local-context`. It
+  compares no context, fresh context, and deep context for one local model,
+  uses a local model as the judge, records source and citation metadata, and can
+  save a JSON artifact under `data/benchmarks` without invoking provider APIs.
+- Added source-pack artifacts for context-bearing expert sync runs. Local
+  fresh/deep sync now writes a bounded JSON source pack under the expert
+  knowledge directory, includes the artifact path and source summary in sync
+  outcomes, and blocks absorption if the source trail cannot be persisted.
 - Added `$0` local Ollama comparison via `deepr eval local`. It compares local
   models on an agentic-loop prompt set, uses a local model as the judge, reports
   score, latency, winner, and cost, and can save a JSON artifact under

@@ -6,6 +6,7 @@ SubscriptionStore on tmp dirs, so every test is free (no providers).
 
 from __future__ import annotations
 
+import json
 from datetime import UTC, datetime, timedelta
 from types import SimpleNamespace
 
@@ -161,8 +162,87 @@ class TestSyncEngine:
 
         assert result.outcomes[0].status == "no_changes"
         assert "no sources" in result.outcomes[0].detail
+        assert result.outcomes[0].source_pack_artifact.endswith("_quiet-topic.json")
+        assert result.outcomes[0].source_count == 0
         assert len(engine.belief_store.beliefs) == 0
         assert store.subscriptions[0].last_synced is not None
+
+    @pytest.mark.asyncio
+    async def test_source_pack_artifact_records_context_used_for_sync(self, tmp_path):
+        store = _sub_store(tmp_path, Subscription(topic="Topic X", budget=0.5))
+        source_pack = {
+            "schema_version": "deepr.source_pack.v1",
+            "mode": "deep",
+            "source_count": 1,
+            "retrieved_source_count": 1,
+            "sources": [
+                {
+                    "label": "S1",
+                    "title": "Release notes",
+                    "url": "https://example.com/release",
+                    "excerpt": "Topic X gained capability Y in June 2026.",
+                }
+            ],
+        }
+        engine = _engine(
+            tmp_path,
+            store,
+            {
+                "Topic X": {
+                    "answer": "Topic X gained capability Y in June 2026. [S1]",
+                    "cost": 0.0,
+                    "fresh_context": {"source_count": 1, "mode": "deep"},
+                    "source_pack": source_pack,
+                }
+            },
+        )
+
+        result = await engine.sync(budget=1.0)
+
+        outcome = result.outcomes[0]
+        assert outcome.status == "synced"
+        assert outcome.source_count == 1
+        assert outcome.context_mode == "deep"
+        artifact = tmp_path / "knowledge" / outcome.source_pack_artifact
+        assert artifact.exists()
+        data = json.loads(artifact.read_text(encoding="utf-8"))
+        assert data["schema_version"] == "deepr.sync_source_pack.v1"
+        assert data["topic"] == "Topic X"
+        assert data["source_pack"]["sources"][0]["url"] == "https://example.com/release"
+
+    @pytest.mark.asyncio
+    async def test_source_pack_write_failure_blocks_absorb(self, tmp_path, monkeypatch):
+        store = _sub_store(tmp_path, Subscription(topic="Topic X"))
+        engine = _engine(
+            tmp_path,
+            store,
+            {
+                "Topic X": {
+                    "answer": "Topic X gained capability Y in June 2026. [S1]",
+                    "cost": 0.0,
+                    "fresh_context": {"source_count": 1, "mode": "fresh"},
+                    "source_pack": {
+                        "schema_version": "deepr.source_pack.v1",
+                        "mode": "fresh",
+                        "source_count": 1,
+                    },
+                }
+            },
+        )
+
+        def fail_write(*args, **kwargs):
+            raise OSError("disk full")
+
+        monkeypatch.setattr("deepr.experts.sync.atomic_write_json", fail_write)
+
+        result = await engine.sync(budget=1.0)
+
+        outcome = result.outcomes[0]
+        assert outcome.status == "failed"
+        assert "source pack artifact failed" in outcome.detail
+        assert outcome.source_count == 1
+        assert len(engine.belief_store.beliefs) == 0
+        assert store.subscriptions[0].last_synced is None
 
     @pytest.mark.asyncio
     async def test_dry_run_spends_and_writes_nothing(self, tmp_path):
