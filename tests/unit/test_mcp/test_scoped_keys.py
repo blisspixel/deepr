@@ -2,11 +2,15 @@
 
 from __future__ import annotations
 
+from datetime import UTC, datetime, timedelta
+
 from deepr.mcp.security.scoped_keys import (
+    RemoteMCPAuditEvent,
     RemoteMCPAuditLog,
     ScopedMCPKeyContext,
     ScopedMCPKeyStore,
     authorize_scoped_mcp_budget,
+    authorize_scoped_mcp_rate_limit,
     authorize_scoped_mcp_tool_call,
     constrain_scoped_mcp_budget_arguments,
 )
@@ -21,6 +25,7 @@ class TestScopedMCPKeyStore:
             mode=ResearchMode.READ_ONLY,
             expert_allowlist=["alpha"],
             budget_limit_usd=2.5,
+            rate_limit_per_minute=12,
             secret="plain-secret",
         )
 
@@ -33,6 +38,7 @@ class TestScopedMCPKeyStore:
         assert context.key_id == "agent-alpha"
         assert context.mode is ResearchMode.READ_ONLY
         assert context.expert_allowlist == ("alpha",)
+        assert context.rate_limit_per_minute == 12
         assert store.list_keys()[0].last_used_at is not None
 
         assert store.authenticate("wrong-secret") is None
@@ -144,6 +150,19 @@ class TestScopedMCPAuthorization:
         assert not decision.allowed
         assert decision.estimated_cost_usd == 10.0
 
+    def test_key_rate_limit_blocks_at_limit(self):
+        context = ScopedMCPKeyContext("agent", ResearchMode.UNRESTRICTED, rate_limit_per_minute=2)
+
+        allowed = authorize_scoped_mcp_rate_limit(context, 1)
+        denied = authorize_scoped_mcp_rate_limit(context, 2, retry_after_seconds=17)
+
+        assert allowed.allowed
+        assert not denied.allowed
+        assert denied.error_code == "KEY_RATE_LIMIT_EXCEEDED"
+        assert denied.limit_per_minute == 2
+        assert denied.calls_in_window == 2
+        assert denied.retry_after_seconds == 17
+
 
 class TestRemoteMCPAuditLog:
     def test_records_tool_call_without_storing_arguments(self, tmp_path):
@@ -177,3 +196,40 @@ class TestRemoteMCPAuditLog:
 
         assert log.total_cost_for_key("first") == 0.35
         assert log.total_cost_for_key("second") == 9.0
+
+    def test_counts_recent_calls_by_key(self, tmp_path):
+        log = RemoteMCPAuditLog(tmp_path / "remote.jsonl")
+        now = datetime(2026, 6, 19, 12, 0, tzinfo=UTC)
+        log.record(
+            RemoteMCPAuditEvent(
+                key_id="agent",
+                mode=ResearchMode.UNRESTRICTED,
+                tool="deepr_status",
+                args_hash="a",
+                outcome="success",
+                timestamp=now - timedelta(seconds=30),
+            )
+        )
+        log.record(
+            RemoteMCPAuditEvent(
+                key_id="agent",
+                mode=ResearchMode.UNRESTRICTED,
+                tool="deepr_status",
+                args_hash="b",
+                outcome="success",
+                timestamp=now - timedelta(seconds=90),
+            )
+        )
+        log.record(
+            RemoteMCPAuditEvent(
+                key_id="other",
+                mode=ResearchMode.UNRESTRICTED,
+                tool="deepr_status",
+                args_hash="c",
+                outcome="success",
+                timestamp=now - timedelta(seconds=10),
+            )
+        )
+
+        assert log.count_for_key_since("agent", now - timedelta(seconds=60)) == 1
+        assert log.retry_after_seconds_for_key("agent", now=now, window_seconds=60) == 30

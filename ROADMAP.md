@@ -663,8 +663,11 @@ Goal: production posture for multi-user and autonomous deployments.
         requested budget or fixed estimate exceeds the key's remaining budget,
         inject remaining budget into budget-aware tools when omitted, and record
         successful response costs back to the remote audit log.
+  - [x] Per-key rate limits:
+        scoped HTTP calls count recent audited calls for the authenticated key,
+        block over-limit calls before tool dispatch, return retry metadata, and
+        audit the denial.
   - [ ] Streamable HTTP/SSE transport for the existing MCP server behind authenticated access (API key first; OAuth later with team features)
-  - [ ] Per-key rate limits; read-only tool profile as the default exposure
   - [ ] Deploy recipe (container + the existing cloud templates) so a user can stand up "my experts, reachable by my cloud agents" in one command
   - Rationale: cloud-hosted always-on agents (Autopilots, Workspace Agents, Managed Agents, AgentCore) cannot reach a stdio server on a laptop; a reachable endpoint is the price of admission to every host platform, and it is transport + auth around tools that already exist.
 - [ ] Team features (auth, workspaces, RBAC, audit log)
@@ -1035,15 +1038,15 @@ loop/interchange contract (2.17), because a hosted endpoint invites always-on
 consumers who will exercise all three. Design:
 [docs/design/hosted-mcp-endpoint.md](docs/design/hosted-mcp-endpoint.md).
 
-1. [~] Streamable HTTP transport; scoped API keys (mode/expert/budget);
+1. [~] Streamable HTTP transport; scoped API keys (mode/expert/budget/rate);
    tool-call audit log (doubles as the mutation audit trail). The HTTP
    transport already exists, and the first scoped-key/audit primitive now
    authenticates key records, enforces mode plus expert allowlists before tool
    dispatch, enforces per-key budget ceilings from audited spend plus
-   deterministic tool estimates, and records append-only remote-call audit
-   events with response cost attribution when available. Remaining work:
-   rate limits, deployment recipe, and remote smoke tests. The key CLI is
-   shipped as `deepr mcp keys`.
+   deterministic tool estimates, enforces per-key rate limits from recent
+   audited calls, and records append-only remote-call audit events with response
+   cost attribution when available. Remaining work: deployment recipe and
+   remote smoke tests. The key CLI is shipped as `deepr mcp keys`.
 2. [~] Versioned handoff schemas (downstream agents get stability guarantees):
    `deepr_expert_handoff` and `/api/experts/{name}/handoff` now return the
    `$0`, read-only `deepr-expert-handoff-v1` payload with profile summary,
@@ -1064,7 +1067,7 @@ The criteria, all measurable:
 - [ ] Handoff schemas versioned with a published deprecation policy
 - [ ] Loop-status and OKF profile schemas versioned with backward compatibility
 - [ ] Calibration published and current for the shipping extraction model
-- [ ] Hosted endpoint with scoped auth, per-key budgets, audit log
+- [ ] Hosted endpoint with scoped auth, per-key budgets/rate limits, audit log
 - [ ] Multi-user safety: RBAC, workspace isolation, mutation audit trail
 - [ ] A documented supported-surface statement (what is stable, what is
       experimental, what export guarantees exist if the project stops)
