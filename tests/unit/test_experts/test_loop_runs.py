@@ -108,6 +108,10 @@ def test_record_loop_run_appends_snapshot():
             capacity_source="owned/prepaid",
             accepted_changes=2,
             rejected_changes=1,
+            verifier_id="reflection",
+            verifier_version="gpt-5-mini",
+            verifier_outcome="accept",
+            verifier_score=0.84,
         )
 
     assert run.run_id.startswith("loop_")
@@ -117,5 +121,9 @@ def test_record_loop_run_appends_snapshot():
     assert run.budget_spent == 0.25
     assert run.accepted_changes == 2
     assert run.rejected_changes == 1
+    assert run.verifier_id == "reflection"
+    assert run.verifier_version == "gpt-5-mini"
+    assert run.verifier_outcome == "accept"
+    assert run.verifier_score == 0.84
     store_class.assert_called_once_with("Platform Expert")
     store.append.assert_called_once_with(run)

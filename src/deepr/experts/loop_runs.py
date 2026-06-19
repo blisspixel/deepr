@@ -289,6 +289,11 @@ def record_loop_run(
     capacity_source: str = "",
     accepted_changes: int = 0,
     rejected_changes: int = 0,
+    verifier_id: str = "",
+    verifier_version: str = "",
+    verifier_outcome: str = "",
+    verifier_score: float | None = None,
+    verifier_threshold: float | None = None,
 ) -> ExpertLoopRun:
     run = ExpertLoopRun(
         run_id=new_loop_run_id(),
@@ -304,5 +309,10 @@ def record_loop_run(
         capacity_source=capacity_source,
         accepted_changes=accepted_changes,
         rejected_changes=rejected_changes,
+        verifier_id=verifier_id,
+        verifier_version=verifier_version,
+        verifier_outcome=verifier_outcome,
+        verifier_score=verifier_score,
+        verifier_threshold=verifier_threshold,
     )
     return ExpertLoopRunStore(expert_name).append(run)
