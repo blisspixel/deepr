@@ -133,8 +133,9 @@ third-party host registration remain open.
 
 The contract surface is now broader than the handoff payload. `docs/schemas/`
 publishes `deepr-expert-handoff-v1`, `deepr-loop-status-v1`, and
-`deepr-okf-profile-v1`, with `registry.json` and a README documenting additive
-compatibility and deprecation rules for downstream agents.
+`deepr-okf-profile-v1`, and `deepr-mcp-remote-audit-v1`, with `registry.json`
+and a README documenting additive compatibility and deprecation rules for
+downstream agents.
 
 ## Active Gap
 

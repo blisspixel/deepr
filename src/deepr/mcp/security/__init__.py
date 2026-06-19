@@ -27,6 +27,8 @@ from .sampling import (
     create_paywall_request,
 )
 from .scoped_keys import (
+    AUDIT_KIND,
+    AUDIT_SCHEMA_VERSION,
     RemoteMCPAuditEvent,
     RemoteMCPAuditLog,
     ScopedMCPAuthzDecision,
@@ -52,6 +54,8 @@ from .tool_allowlist import (
 )
 
 __all__ = [
+    "AUDIT_KIND",
+    "AUDIT_SCHEMA_VERSION",
     "InstructionSigner",
     "OutputVerifier",
     "RemoteMCPAuditEvent",

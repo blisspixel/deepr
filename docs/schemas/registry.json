@@ -29,6 +29,14 @@
       "path": "okf-profile-v1.json",
       "status": "experimental",
       "compatibility": "additive-within-v1"
+    },
+    {
+      "name": "mcp-remote-audit",
+      "schema_version": "deepr-mcp-remote-audit-v1",
+      "kind": "deepr.mcp.remote_audit",
+      "path": "mcp-remote-audit-v1.json",
+      "status": "experimental",
+      "compatibility": "additive-within-v1"
     }
   ]
 }
