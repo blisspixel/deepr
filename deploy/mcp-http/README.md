@@ -11,6 +11,8 @@ agent its own mode, expert allowlist, budget ceiling, rate limit, revocation
 state, and audit trail.
 Budgeted scoped calls are checked before handler dispatch from audited spend and
 deterministic estimates. Metered tools without an estimate fail closed.
+HTTP POST concurrency is capped at 32 by default through
+`DEEPR_MCP_HTTP_MAX_CONCURRENCY` in `.env`.
 
 ## Bootstrap
 

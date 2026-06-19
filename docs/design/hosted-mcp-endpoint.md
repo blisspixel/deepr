@@ -4,10 +4,10 @@ Target: v2.18. Roadmap: Phase 5 (promoted from backlog 2026-06-11 -
 "cloud-hosted autopilots cannot call a stdio server on a laptop").
 Status: design, with the first versioned handoff contract, HTTP serve path,
 scoped-key, budget, rate-limit, audit primitives, hosted reverse-proxy recipe,
-local remote-smoke command, audit review CLI, remote-audit schema, and first
-Azure Container Apps template shipped. A token-redacted registration manifest
-now packages endpoint metadata and optional smoke results before live platform
-registration.
+local remote-smoke command, audit review CLI, HTTP concurrency cap, remote-audit
+schema, and first Azure Container Apps template shipped. A token-redacted
+registration manifest now packages endpoint metadata and optional smoke results
+before live platform registration.
 
 ## Problem
 
@@ -77,6 +77,10 @@ third-party agent host remains open.
   - `rate_limit`: optional calls-per-minute ceiling. The HTTP transport counts
     recent audited calls for the authenticated key, blocks over-limit calls
     before tool dispatch, returns retry metadata, and audits the denial.
+- `max_concurrency`: process-level HTTP POST ceiling. The transport rejects
+  excess concurrent requests with 429 and retry metadata before reading or
+  dispatching tool work. Operators can set `DEEPR_MCP_HTTP_MAX_CONCURRENCY` or
+  `deepr mcp serve --http --max-concurrency`; default is 32.
 - Keys are hashed at rest with a salted one-way KDF. The key CLI shows each
   secret once at mint (`deepr mcp keys create --mode read_only --budget 5`),
   supports revocation (`keys revoke`), and lists last-used timestamps.
@@ -88,7 +92,8 @@ third-party agent host remains open.
 - TLS required (terminate at a reverse proxy; document the nginx/Caddy
   shape rather than embedding TLS).
 - Per-key rate limits are shipped as a transport-level calls-per-minute guard
-  over audited remote tool calls. Global concurrency cap remains open.
+  over audited remote tool calls. Global HTTP POST concurrency caps are shipped
+  as a transport-level 429 guard.
 - Request size limits; tool-call audit log `{key_id, tool, args_hash,
   cost, trace_id, timestamp}` - this doubles as the expert mutation audit
   log the architect review asked for, scoped to remote calls first.
@@ -116,8 +121,8 @@ third-party agent host remains open.
    audited remote cost attribution plus deterministic estimates). Key store,
    mode/expert middleware, fail-closed metered-tool estimate coverage, and the
    transport budget guard are shipped.
-4. Audit log + rate limits + size caps. Audit log, per-key rate limits, and
-   size caps are shipped; global concurrency cap remains.
+4. Audit log + rate limits + concurrency caps + size caps. Audit log, per-key
+   rate limits, global HTTP POST concurrency caps, and size caps are shipped.
 5. Deployment guide; loopback restriction lifts only when a credential exists.
    Shipped as [deploy/mcp-http.md](../../deploy/mcp-http.md) plus
    `deepr mcp smoke-http` for repeatable local/proxied endpoint validation.

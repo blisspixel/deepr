@@ -41,6 +41,9 @@ from deepr.mcp.security.scoped_keys import (
 
 logger = logging.getLogger(__name__)
 
+DEFAULT_MAX_CONCURRENT_REQUESTS = 32
+CONCURRENCY_RETRY_AFTER_SECONDS = 1
+
 
 def _is_loopback_host(host: str) -> bool:
     """Return True if host is a loopback address ('localhost', 127.0.0.0/8, ::1)."""
@@ -66,6 +69,18 @@ def _extract_bearer(request: "web.Request") -> str | None:
 def _scoped_key_store_from_env() -> ScopedMCPKeyStore | None:
     path = os.getenv("DEEPR_MCP_KEYS_PATH", "").strip()
     return ScopedMCPKeyStore(Path(path)) if path else None
+
+
+def _max_concurrent_requests_from_env() -> int:
+    raw = os.getenv("DEEPR_MCP_HTTP_MAX_CONCURRENCY", "").strip()
+    if not raw:
+        return DEFAULT_MAX_CONCURRENT_REQUESTS
+    try:
+        value = int(raw)
+    except ValueError:
+        logger.warning("Invalid DEEPR_MCP_HTTP_MAX_CONCURRENCY=%r; using %d", raw, DEFAULT_MAX_CONCURRENT_REQUESTS)
+        return DEFAULT_MAX_CONCURRENT_REQUESTS
+    return max(value, 1)
 
 
 @dataclass
@@ -124,6 +139,7 @@ class HttpTransportStats:
     bytes_received: int = 0
     bytes_sent: int = 0
     errors: int = 0
+    active_requests: int = 0
     active_streams: int = 0
     started_at: datetime = field(default_factory=datetime.now)
 
@@ -150,6 +166,7 @@ class StreamingHttpTransport:
         allow_unauthenticated_public_bind: bool = False,
         scoped_key_store: ScopedMCPKeyStore | None = None,
         audit_log: RemoteMCPAuditLog | None = None,
+        max_concurrent_requests: int | None = None,
     ):
         """Initialize the streaming HTTP transport.
 
@@ -168,12 +185,20 @@ class StreamingHttpTransport:
                 When configured, requests authenticate against per-key mode,
                 expert, and budget metadata instead of only a shared token.
             audit_log: Optional append-only audit sink for scoped-key calls.
+            max_concurrent_requests: Maximum simultaneous HTTP POST requests
+                allowed before returning 429. Defaults to
+                DEEPR_MCP_HTTP_MAX_CONCURRENCY or 32.
         """
         self._host = host
         self._port = port
         self._path = path
         self._auth_token = auth_token or os.getenv("MCP_AUTH_TOKEN") or os.getenv("DEEPR_MCP_AUTH_TOKEN") or None
         self._allow_unauthenticated_public_bind = allow_unauthenticated_public_bind
+        self._max_concurrent_requests = (
+            max(int(max_concurrent_requests), 1)
+            if max_concurrent_requests is not None
+            else _max_concurrent_requests_from_env()
+        )
         self._scoped_key_store = scoped_key_store or _scoped_key_store_from_env()
         self._audit_log = (
             audit_log if audit_log is not None else RemoteMCPAuditLog() if self._scoped_key_store else None
@@ -347,6 +372,39 @@ class StreamingHttpTransport:
             },
         )
 
+    def _try_acquire_request_slot(self) -> bool:
+        if self._stats.active_requests >= self._max_concurrent_requests:
+            return False
+        self._stats.active_requests += 1
+        return True
+
+    def _release_request_slot(self) -> None:
+        self._stats.active_requests = max(self._stats.active_requests - 1, 0)
+
+    def _concurrency_limited_response(self) -> web.Response:
+        payload = {
+            "jsonrpc": "2.0",
+            "error": {
+                "code": -32006,
+                "message": "MCP HTTP concurrency limit exceeded",
+                "data": {
+                    "error_code": "MCP_HTTP_CONCURRENCY_LIMIT_EXCEEDED",
+                    "limit": self._max_concurrent_requests,
+                    "retry_after_seconds": CONCURRENCY_RETRY_AFTER_SECONDS,
+                },
+            },
+            "id": None,
+        }
+        response_data = json.dumps(payload)
+        self._stats.bytes_sent += len(response_data)
+        self._stats.responses_sent += 1
+        return web.Response(
+            text=response_data,
+            status=429,
+            headers={"Retry-After": str(CONCURRENCY_RETRY_AFTER_SECONDS)},
+            content_type="application/json",
+        )
+
     def _scoped_rate_limit_decision(self, context: ScopedMCPKeyContext) -> ScopedMCPRateLimitDecision:
         if not self._audit_log:
             return authorize_scoped_mcp_rate_limit(context, 0)
@@ -459,6 +517,9 @@ class StreamingHttpTransport:
         if unauthorized is not None:
             self._stats.errors += 1
             return unauthorized
+        if not self._try_acquire_request_slot():
+            self._stats.errors += 1
+            return self._concurrency_limited_response()
         try:
             body = await request.read()
             self._stats.bytes_received += len(body)
@@ -540,6 +601,8 @@ class StreamingHttpTransport:
                 {"jsonrpc": "2.0", "error": {"code": -32603, "message": "Internal error"}, "id": None},
                 status=500,
             )
+        finally:
+            self._release_request_slot()
 
     async def _handle_stream(self, request: web.Request) -> web.StreamResponse:
         """
@@ -620,6 +683,8 @@ class StreamingHttpTransport:
             {
                 "status": "healthy",
                 "uptime_seconds": (datetime.now() - self._stats.started_at).total_seconds(),
+                "active_requests": self._stats.active_requests,
+                "max_concurrent_requests": self._max_concurrent_requests,
                 "active_streams": self._stats.active_streams,
             }
         )

@@ -1061,8 +1061,9 @@ consumers who will exercise all three. Design:
    expert allowlists before tool dispatch, enforces per-key budget ceilings from
    audited spend plus deterministic tool estimates, fails closed for metered
    remote tools that lack an estimate, enforces per-key rate limits from recent
-   audited calls, and records append-only remote-call audit events with response
-   cost attribution when available. `deepr mcp audit list` and
+   audited calls, enforces a global HTTP POST concurrency cap with 429 retry
+   metadata, and records append-only remote-call audit events with response cost
+   attribution when available. `deepr mcp audit list` and
    `deepr mcp audit summary` now make those local audit records operable with
    filters, JSON output, and aggregate counts/costs by key, tool, and outcome.
    `deepr-mcp-remote-audit-v1` is now published under `docs/schemas/` so the
