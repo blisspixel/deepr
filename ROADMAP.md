@@ -625,16 +625,20 @@ portable handoff artifacts after those are reliable on sync/gap-fill/reflection.
 
 Goal: production posture for multi-user and autonomous deployments.
 
-- [ ] Structured handoff contracts:
-  - [ ] Versioned JSON schemas for expert output (claims, confidence, citations, gaps, staleness)
-  - [ ] Versioned loop-status schema (`ExpertLoopRun`, next action, stop reason,
+- [~] Structured handoff contracts:
+  - [x] Versioned JSON schemas for expert output (claims, confidence, citations, gaps, staleness)
+        published as `deepr-expert-handoff-v1`.
+  - [x] Versioned loop-status schema (`ExpertLoopRun`, next action, stop reason,
         verifier result, budget/capacity source) so host agents can decide
         whether to consult, wait, retry, or escalate without scraping prose.
-  - [ ] Downstream agents can validate handoff artifacts against published schemas
-  - [ ] OKF profile: documented mapping from Deepr beliefs/events/edges/gaps to
+        Published as `deepr-loop-status-v1`.
+  - [x] Downstream agents can validate handoff artifacts against published schemas
+        in `docs/schemas/`.
+  - [x] OKF profile: documented mapping from Deepr beliefs/events/edges/gaps to
         OKF concept documents, including which fields are Deepr extensions and
-        which parts are derived views.
-  - [ ] Schema registry with backward compatibility guarantees
+        which parts are derived views. Published as `deepr-okf-profile-v1`.
+  - [x] Schema registry with backward compatibility guarantees
+        (`docs/schemas/registry.json` and `docs/schemas/README.md`).
 - [ ] Web operations analytics:
   - [ ] Cost-vs-quality frontier scatter (every routing decision plotted)
   - [ ] Failure-mode breakdown
@@ -1067,6 +1071,9 @@ consumers who will exercise all three. Design:
    manifest counts, bounded claims/gaps, dashboard telemetry, loop-status
    rollup, OKF interchange hints, and an additive compatibility contract.
    JSON Schema is published at `docs/schemas/expert-handoff-v1.json`.
+   `deepr-loop-status-v1`, `deepr-okf-profile-v1`, and
+   `docs/schemas/registry.json` now publish the adjacent loop and OKF mapping
+   contracts with additive compatibility policy.
 3. Expert Crews (Phase 4c) + autonomous research campaigns (Phase 4b) -
    the multi-expert deliverables, now consumable remotely
 4. Ops analytics: cost-vs-quality frontier, routing-drift and anomaly
@@ -1078,8 +1085,8 @@ consumers who will exercise all three. Design:
 organizational knowledge infrastructure *without the author in the loop*.
 The criteria, all measurable:
 
-- [ ] Handoff schemas versioned with a published deprecation policy
-- [ ] Loop-status and OKF profile schemas versioned with backward compatibility
+- [x] Handoff schemas versioned with a published deprecation policy
+- [x] Loop-status and OKF profile schemas versioned with backward compatibility
 - [ ] Calibration published and current for the shipping extraction model
 - [ ] Hosted endpoint with scoped auth, per-key budgets/rate limits, audit log
 - [ ] Multi-user safety: RBAC, workspace isolation, mutation audit trail

@@ -330,7 +330,8 @@ failure-diagnosis state. `deepr expert export-okf NAME PATH` now writes a
 regenerated OKF Markdown bundle from the belief/event/edge store, gaps, and
 contested claims at `$0`; `deepr expert absorb-okf NAME PATH` parses OKF
 concepts as source text and routes them through the verified absorb gates. The
-structured store remains canonical.
+structured store remains canonical. Published contracts for expert handoff,
+loop status, and the OKF profile mapping live under `docs/schemas/`.
 
 ### Evidence and Calibration
 
