@@ -1,0 +1,9 @@
+# Progress Log
+
+## 2026-06-19
+
+- Read the project-owned Markdown instruction and design set, excluding vendored dependency docs under `.venv` and `node_modules`.
+- Created `CURRENT-STATE-ANALYSIS.md` to capture current alignment and the immediate next slice.
+- Selected the next atomic implementation target: concrete `deepr capacity next` job previews for `v2.16` capacity QOL.
+- Implemented the first capacity-preview slice: `--expert`, `--report-id`, `--context-mode`, and `--scheduled` for `deepr capacity next`, with local-required wait guidance for fresh/deep sync jobs.
+- Spend so far: `$0.00`.
