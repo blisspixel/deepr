@@ -92,6 +92,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   union of visible registry tools and JSON-RPC dispatch tools across every
   `ResearchMode`, including scoped-key authorization and the JSON-RPC
   pre-dispatch block/confirmation gates.
+- Tightened expert chat session-budget coordination for deep research. Session
+  budget exhaustion and open session circuit breakers now return blocked
+  responses with session-specific metadata before any provider call, and
+  regression tests cover manager propagation plus standard/deep research
+  preflight behavior.
 - Scheduled expert wait and action-plan surfaces now append `ExpertLoopRun`
   snapshots and include a `loop_run` object in JSON output for `sync`,
   `route-gaps`, `reflect`, and `health-check`.
