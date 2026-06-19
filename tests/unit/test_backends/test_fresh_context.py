@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from deepr.backends.fresh_context import (
+    FreshContext,
     FreshContextConfig,
     FreshSource,
     make_free_deep_context_builder,
@@ -120,6 +121,40 @@ async def test_retrieve_fresh_context_records_search_errors():
 def test_fresh_source_excerpt_truncates():
     source = FreshSource(title="T", url="https://x", content="abcdef")
     assert source.excerpt(4) == "a..."
+    assert source.excerpt(0) == ""
+
+
+def test_fresh_context_labels_only_citable_sources():
+    context = FreshContext(
+        query="q",
+        generated_at="2026-06-18T00:00:00Z",
+        sources=(
+            FreshSource(title="Empty", url="https://empty.example"),
+            FreshSource(title="Good", url="https://good.example", content="Useful current evidence."),
+        ),
+    )
+
+    prompt = context.to_prompt_context()
+    pack = context.to_source_pack()
+
+    assert "[S1] Good" in prompt
+    assert "Empty" not in prompt
+    assert "[S2]" not in prompt
+    assert context.to_metadata()["source_count"] == 1
+    assert pack["source_count"] == 1
+    assert pack["retrieved_source_count"] == 2
+    assert pack["sources"] == [
+        {
+            "label": "S1",
+            "title": "Good",
+            "url": "https://good.example",
+            "source": "unknown",
+            "fetched": False,
+            "error": "",
+            "snippet": "",
+            "excerpt": "Useful current evidence.",
+        }
+    ]
 
 
 async def test_make_free_builder_uses_injected_backends():
