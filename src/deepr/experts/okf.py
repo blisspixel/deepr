@@ -19,6 +19,7 @@ from deepr.experts.beliefs import Belief, BeliefChange, BeliefStore, Edge
 from deepr.experts.perspective import contested as contested_query
 
 OKF_SCHEMA_VERSION = "deepr-okf-v1"
+OKF_PROFILE_SCHEMA_VERSION = "deepr-okf-profile-v1"
 OKF_MARKER = "deepr:okf derived-view regenerable"
 
 _HTML_BANNER = f"<!-- {OKF_MARKER} -->\n<!-- DERIVED VIEW - do not hand-edit. The belief store is canonical. -->\n"

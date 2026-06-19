@@ -1,0 +1,178 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/blisspixel/deepr/docs/schemas/loop-status-v1.json",
+  "title": "Deepr Expert Loop Status v1",
+  "type": "object",
+  "additionalProperties": true,
+  "required": [
+    "schema_version",
+    "kind",
+    "contract",
+    "expert_name",
+    "count",
+    "window",
+    "latest_run",
+    "last_sync_result",
+    "last_failure",
+    "next_scheduled_action",
+    "latest_capacity_source",
+    "status_counts",
+    "loop_type_counts",
+    "stop_reason_counts",
+    "capacity_source_counts",
+    "budget_spent_total",
+    "accepted_changes_total",
+    "rejected_changes_total",
+    "acceptance_rate",
+    "cost_per_accepted_change",
+    "verifier_failure_count",
+    "admission_contracts",
+    "runs"
+  ],
+  "properties": {
+    "schema_version": {"const": "deepr-loop-status-v1"},
+    "kind": {"const": "deepr.expert.loop_status"},
+    "contract": {
+      "type": "object",
+      "required": ["read_only", "cost_usd", "stability", "compatibility"],
+      "properties": {
+        "read_only": {"const": true},
+        "cost_usd": {"const": 0.0},
+        "stability": {"type": "string"},
+        "compatibility": {
+          "type": "object",
+          "required": ["additive_fields", "breaking_changes_require_new_schema_version", "deprecation_policy"],
+          "properties": {
+            "additive_fields": {"const": true},
+            "breaking_changes_require_new_schema_version": {"const": true},
+            "deprecation_policy": {"type": "string"}
+          },
+          "additionalProperties": true
+        }
+      },
+      "additionalProperties": true
+    },
+    "expert_name": {"type": "string", "minLength": 1},
+    "count": {"type": "integer", "minimum": 0},
+    "window": {
+      "type": "object",
+      "required": ["limit", "summarized_runs"],
+      "properties": {
+        "limit": {"type": "integer", "minimum": 1},
+        "summarized_runs": {"type": "integer", "minimum": 0}
+      },
+      "additionalProperties": true
+    },
+    "latest_run": {"oneOf": [{"$ref": "#/$defs/loop_run"}, {"type": "null"}]},
+    "last_sync_result": {"oneOf": [{"$ref": "#/$defs/loop_run"}, {"type": "null"}]},
+    "last_failure": {"oneOf": [{"$ref": "#/$defs/loop_run"}, {"type": "null"}]},
+    "next_scheduled_action": {"oneOf": [{"$ref": "#/$defs/loop_run"}, {"type": "null"}]},
+    "latest_capacity_source": {"type": "string"},
+    "status_counts": {
+      "type": "object",
+      "required": ["pending", "running", "waiting", "completed", "failed", "cancelled"],
+      "additionalProperties": {"type": "integer", "minimum": 0}
+    },
+    "loop_type_counts": {
+      "type": "object",
+      "additionalProperties": {"type": "integer", "minimum": 0}
+    },
+    "stop_reason_counts": {
+      "type": "object",
+      "required": [
+        "verifier_passed",
+        "no_due_work",
+        "budget_exhausted",
+        "capacity_unavailable",
+        "human_gate_required",
+        "max_iterations",
+        "tool_failure",
+        "verifier_failed",
+        "schema_error",
+        "cancelled"
+      ],
+      "additionalProperties": {"type": "integer", "minimum": 0}
+    },
+    "capacity_source_counts": {
+      "type": "object",
+      "additionalProperties": {"type": "integer", "minimum": 0}
+    },
+    "budget_spent_total": {"type": "number", "minimum": 0.0},
+    "accepted_changes_total": {"type": "integer", "minimum": 0},
+    "rejected_changes_total": {"type": "integer", "minimum": 0},
+    "acceptance_rate": {"type": "number", "minimum": 0.0, "maximum": 1.0},
+    "cost_per_accepted_change": {"type": "number", "minimum": 0.0},
+    "verifier_failure_count": {"type": "integer", "minimum": 0},
+    "admission_contracts": {"type": "object", "additionalProperties": true},
+    "runs": {
+      "type": "array",
+      "items": {"$ref": "#/$defs/loop_run"}
+    }
+  },
+  "$defs": {
+    "loop_run": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": [
+        "schema_version",
+        "run_id",
+        "expert_name",
+        "loop_type",
+        "goal",
+        "trigger",
+        "status",
+        "started_at",
+        "updated_at",
+        "iteration_count",
+        "budget_spent",
+        "accepted_changes",
+        "rejected_changes",
+        "acceptance_rate",
+        "cost_per_accepted_change",
+        "stop_reason",
+        "next_action"
+      ],
+      "properties": {
+        "schema_version": {"const": 1},
+        "run_id": {"type": "string", "minLength": 1},
+        "expert_name": {"type": "string", "minLength": 1},
+        "loop_type": {"type": "string", "minLength": 1},
+        "goal": {"type": "string", "minLength": 1},
+        "trigger": {"type": "string", "minLength": 1},
+        "status": {
+          "enum": ["pending", "running", "waiting", "completed", "failed", "cancelled"]
+        },
+        "started_at": {"type": "string", "format": "date-time"},
+        "updated_at": {"type": "string", "format": "date-time"},
+        "finished_at": {"type": ["string", "null"], "format": "date-time"},
+        "iteration_count": {"type": "integer", "minimum": 0},
+        "max_iterations": {"type": ["integer", "null"], "minimum": 1},
+        "budget_limit": {"type": ["number", "null"], "minimum": 0.0},
+        "budget_spent": {"type": "number", "minimum": 0.0},
+        "capacity_source": {"type": "string"},
+        "verifier_score": {"type": ["number", "null"]},
+        "verifier_threshold": {"type": ["number", "null"]},
+        "accepted_changes": {"type": "integer", "minimum": 0},
+        "rejected_changes": {"type": "integer", "minimum": 0},
+        "acceptance_rate": {"type": "number", "minimum": 0.0, "maximum": 1.0},
+        "cost_per_accepted_change": {"type": "number", "minimum": 0.0},
+        "stop_reason": {
+          "enum": [
+            "verifier_passed",
+            "no_due_work",
+            "budget_exhausted",
+            "capacity_unavailable",
+            "human_gate_required",
+            "max_iterations",
+            "tool_failure",
+            "verifier_failed",
+            "schema_error",
+            "cancelled",
+            null
+          ]
+        },
+        "next_action": {"type": "object", "additionalProperties": true}
+      }
+    }
+  }
+}

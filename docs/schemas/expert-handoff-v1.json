@@ -94,6 +94,8 @@
       "required": ["schema_version", "canonical", "export_command", "absorb_command"],
       "properties": {
         "schema_version": {"type": "string"},
+        "profile_schema_version": {"type": "string"},
+        "profile_schema_url": {"type": "string"},
         "canonical": {"const": false},
         "export_command": {"type": "string"},
         "absorb_command": {"type": "string"}

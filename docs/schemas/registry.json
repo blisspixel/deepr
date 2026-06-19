@@ -1,0 +1,34 @@
+{
+  "schema_version": "deepr-schema-registry-v1",
+  "compatibility_policy": {
+    "additive_fields_within_version": true,
+    "breaking_changes_require_new_schema_version": true,
+    "deprecation_policy": "A v1 schema field may be deprecated in documentation while remaining readable. Removing or changing the meaning of a required field requires a new schema_version and a new schema file."
+  },
+  "schemas": [
+    {
+      "name": "expert-handoff",
+      "schema_version": "deepr-expert-handoff-v1",
+      "kind": "deepr.expert.handoff",
+      "path": "expert-handoff-v1.json",
+      "status": "experimental",
+      "compatibility": "additive-within-v1"
+    },
+    {
+      "name": "loop-status",
+      "schema_version": "deepr-loop-status-v1",
+      "kind": "deepr.expert.loop_status",
+      "path": "loop-status-v1.json",
+      "status": "experimental",
+      "compatibility": "additive-within-v1"
+    },
+    {
+      "name": "okf-profile",
+      "schema_version": "deepr-okf-profile-v1",
+      "kind": "deepr.okf.profile",
+      "path": "okf-profile-v1.json",
+      "status": "experimental",
+      "compatibility": "additive-within-v1"
+    }
+  ]
+}
