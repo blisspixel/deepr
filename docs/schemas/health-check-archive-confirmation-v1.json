@@ -1,0 +1,89 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/blisspixel/deepr/docs/schemas/health-check-archive-confirmation-v1.json",
+  "title": "Deepr Health Check Archive Confirmation v1",
+  "type": "object",
+  "additionalProperties": true,
+  "required": [
+    "schema_version",
+    "kind",
+    "contract",
+    "status",
+    "scheduled",
+    "expert_name",
+    "expert",
+    "action",
+    "count",
+    "candidates",
+    "next_actions"
+  ],
+  "properties": {
+    "schema_version": {"const": "deepr-health-check-archive-confirmation-v1"},
+    "kind": {"const": "deepr.expert.health_check_archive_confirmation"},
+    "contract": {"$ref": "#/$defs/contract"},
+    "status": {"const": "waiting_for_confirmation"},
+    "scheduled": {"const": true},
+    "expert_name": {"type": "string", "minLength": 1},
+    "expert": {"type": "string", "minLength": 1},
+    "action": {"const": "archive_stale"},
+    "count": {"type": "integer", "minimum": 0},
+    "candidates": {
+      "type": "array",
+      "items": {"$ref": "#/$defs/candidate"}
+    },
+    "next_actions": {
+      "type": "array",
+      "minItems": 1,
+      "items": {"$ref": "#/$defs/next_action"}
+    },
+    "loop_run": {
+      "type": "object",
+      "additionalProperties": true
+    }
+  },
+  "$defs": {
+    "contract": {
+      "type": "object",
+      "required": ["read_only", "cost_usd", "stability", "compatibility"],
+      "properties": {
+        "read_only": {"const": true},
+        "cost_usd": {"const": 0.0},
+        "stability": {"type": "string"},
+        "compatibility": {
+          "type": "object",
+          "required": ["additive_fields", "breaking_changes_require_new_schema_version", "deprecation_policy"],
+          "properties": {
+            "additive_fields": {"const": true},
+            "breaking_changes_require_new_schema_version": {"const": true},
+            "deprecation_policy": {"type": "string"}
+          },
+          "additionalProperties": true
+        }
+      },
+      "additionalProperties": true
+    },
+    "candidate": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": ["belief_id", "claim", "confidence", "updated_at", "retrieval_count"],
+      "properties": {
+        "belief_id": {"type": "string", "minLength": 1},
+        "claim": {"type": "string", "minLength": 1},
+        "confidence": {"type": "number", "minimum": 0.0, "maximum": 1.0},
+        "updated_at": {"type": "string", "minLength": 1},
+        "retrieval_count": {"type": "integer", "minimum": 0}
+      }
+    },
+    "next_action": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": ["status", "title", "detail", "command"],
+      "properties": {
+        "status": {"type": "string", "minLength": 1},
+        "title": {"type": "string", "minLength": 1},
+        "detail": {"type": "string"},
+        "command": {"type": "string"}
+      }
+    }
+  }
+}

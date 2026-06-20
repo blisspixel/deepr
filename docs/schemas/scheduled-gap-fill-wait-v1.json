@@ -1,0 +1,104 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/blisspixel/deepr/docs/schemas/scheduled-gap-fill-wait-v1.json",
+  "title": "Deepr Scheduled Gap Fill Wait v1",
+  "type": "object",
+  "additionalProperties": true,
+  "required": [
+    "schema_version",
+    "kind",
+    "contract",
+    "status",
+    "scheduled",
+    "expert_name",
+    "detail",
+    "estimated_metered_cost",
+    "routes",
+    "next_actions"
+  ],
+  "properties": {
+    "schema_version": {"const": "deepr-scheduled-gap-fill-wait-v1"},
+    "kind": {"const": "deepr.expert.scheduled_gap_fill_wait"},
+    "contract": {"$ref": "#/$defs/contract"},
+    "status": {"const": "waiting_for_capacity"},
+    "scheduled": {"const": true},
+    "expert_name": {"type": "string", "minLength": 1},
+    "detail": {"type": "string", "minLength": 1},
+    "estimated_metered_cost": {"type": "number", "minimum": 0.0},
+    "routes": {
+      "type": "array",
+      "items": {"$ref": "#/$defs/route"}
+    },
+    "next_actions": {
+      "type": "array",
+      "minItems": 1,
+      "items": {"$ref": "#/$defs/next_action"}
+    },
+    "loop_run": {
+      "type": "object",
+      "additionalProperties": true
+    }
+  },
+  "$defs": {
+    "contract": {
+      "type": "object",
+      "required": ["read_only", "cost_usd", "stability", "compatibility"],
+      "properties": {
+        "read_only": {"const": true},
+        "cost_usd": {"const": 0.0},
+        "stability": {"type": "string"},
+        "compatibility": {
+          "type": "object",
+          "required": ["additive_fields", "breaking_changes_require_new_schema_version", "deprecation_policy"],
+          "properties": {
+            "additive_fields": {"const": true},
+            "breaking_changes_require_new_schema_version": {"const": true},
+            "deprecation_policy": {"type": "string"}
+          },
+          "additionalProperties": true
+        }
+      },
+      "additionalProperties": true
+    },
+    "route": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": [
+        "topic",
+        "instrument",
+        "available",
+        "estimated_cost",
+        "rationale",
+        "suggestion",
+        "priority",
+        "ev_cost_ratio",
+        "matched_keywords"
+      ],
+      "properties": {
+        "topic": {"type": "string", "minLength": 1},
+        "instrument": {"type": "string", "minLength": 1},
+        "available": {"type": "boolean"},
+        "estimated_cost": {"type": "number", "minimum": 0.0},
+        "rationale": {"type": "string"},
+        "suggestion": {"type": "string"},
+        "priority": {"type": "integer"},
+        "ev_cost_ratio": {"type": "number"},
+        "matched_keywords": {
+          "type": "array",
+          "items": {"type": "string"}
+        }
+      }
+    },
+    "next_action": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": ["status", "title"],
+      "properties": {
+        "status": {"type": "string", "minLength": 1},
+        "title": {"type": "string", "minLength": 1},
+        "detail": {"type": "string"},
+        "command": {"type": "string"}
+      }
+    }
+  }
+}
