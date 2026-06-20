@@ -645,6 +645,9 @@ Goal: production posture for multi-user and autonomous deployments.
         action plans: sync capacity gates, scheduled gap-fill waits, scheduled
         reflection waits, health-check action plans, and health-check archive
         confirmations.
+  - [x] MCP output validation for published host-facing expert reads:
+        `deepr_expert_handoff` and `deepr_expert_loop_status` fail closed when
+        schema version, kind, or required envelope fields drift.
 - [ ] Web operations analytics:
   - [ ] Cost-vs-quality frontier scatter (every routing decision plotted)
   - [ ] Failure-mode breakdown
@@ -702,7 +705,7 @@ Deepr is an orchestration layer over hosted model APIs - it does not train, fine
 
 - [ ] **Indirect prompt-injection defense for ingested/tool content.** Web search results, scraped pages, uploaded docs, and first-party MCP tool output (recon/distillr/primr) are untrusted input that flows into prompts and into expert beliefs. Extend `utils/prompt_security.PromptSanitizer` to the ingestion + tool-result boundary (not just user prompts), delimit/quarantine untrusted spans, and gate belief absorption behind the existing verify/reflection step so a poisoned source cannot silently become a belief. This is Deepr's #1 AI-security risk.
 - [ ] **Agentic trust boundaries.** Formalize the existing approval tiers (AUTO_APPROVE/NOTIFY/CONFIRM) + per-MCP-server tool allowlists, rate limits, and egress controls (overlaps Phase 2 elicitation sandboxing); capability-scope what each tool/expert may do, and never auto-approve a paid or write-capable tool.
-- [ ] **Output/handoff validation.** Validate MCP/A2A outputs against the published handoff schemas (above) before downstream agents consume them - a compromised expert must not emit malformed/unsafe artifacts.
+- [~] **Output/handoff validation.** Validate MCP/A2A outputs against the published handoff schemas (above) before downstream agents consume them - a compromised expert must not emit malformed/unsafe artifacts. MCP handoff and loop-status reads now fail closed on published-envelope drift; A2A output validation remains open.
 - [ ] **Agentic red-team suite.** Automated prompt-injection / jailbreak / tool-abuse tests against expert chat and the ingestion paths (the security-flavored sibling of the Phase E fault-injection tests); track attack-success-rate as a metric. Include memory-specific attacks from the 2026 literature: ADAM-style adaptive extraction probing through the MCP read tools, and trust-floor bypass attempts (can a crafted report mint a high-confidence belief?) - the floors are the poisoning backstop and need adversarial verification, not just unit tests.
 - [ ] **Threat model doc** (MITRE ATLAS-style) for Deepr's actual surface - ingestion, agentic tools, MCP/web/A2A endpoints, secret handling - that records what is explicitly out of scope (see below) so effort stays proportional.
 - [ ] Secret hygiene hardening: least-privilege provider keys, no secrets in logs/traces (redaction exists), and secret-scanning in CI.

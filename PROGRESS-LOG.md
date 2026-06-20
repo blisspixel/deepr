@@ -18,6 +18,11 @@
   health-check archive confirmations. Runtime payloads now include
   `schema_version`, `kind`, and additive compatibility contracts, and the
   schema registry validates those real builders.
+- Added runtime MCP output-contract validation for the two published
+  host-facing expert reads: `deepr_expert_handoff` and
+  `deepr_expert_loop_status` now fail closed with `SCHEMA_VALIDATION_FAILED`
+  if their builders drift from required `schema_version`, `kind`, or envelope
+  fields before dispatch to a host agent.
 - Spend so far: `$0.00`.
 
 ## 2026-06-19

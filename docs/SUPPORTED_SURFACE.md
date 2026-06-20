@@ -46,7 +46,8 @@ must not be described as usable capacity.
 - `deepr_expert_handoff`, `deepr_expert_loop_status`, and adjacent versioned
   handoff contracts. The MCP loop-status tool, the CLI JSON loop-status command,
   and `/api/experts/{name}/loop-status` share the `deepr-loop-status-v1` rollup
-  contract.
+  contract. MCP handoff and loop-status outputs fail closed if the published
+  schema version, kind, or required envelope fields drift before dispatch.
 - Scheduled expert maintenance JSON contracts for sync capacity gates, gap-fill
   waits, reflection waits, health-check action plans, and health-check archive
   confirmations. These are experimental but schema-versioned and additive.
