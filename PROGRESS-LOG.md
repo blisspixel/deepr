@@ -48,4 +48,5 @@
 - Audited expert chat circuit-breaker/session-budget coordination: session circuit trips block before fallback provider calls, deep research preserves session-budget metadata on preflight denials, and regression tests cover the blocked response paths.
 - Fixed the live-validation CLI polish item: `deepr search "query"` now dispatches to the query subcommand with options intact, and `deepr expert list` labels name and description fields for clearer roster scans.
 - Published `deepr-cli-operation-result-v1` for the shared CLI `OperationResult` JSON envelope, added schema-version/kind fields to runtime output, and validated success/error payloads against the registry schema.
+- Unified loop-status JSON output across CLI and MCP with the published `deepr-loop-status-v1` rollup payload, preserving MCP status and loop-type filters.
 - Spend so far: `$0.00`.

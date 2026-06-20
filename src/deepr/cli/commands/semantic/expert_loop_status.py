@@ -13,7 +13,7 @@ from deepr.cli.commands.semantic.experts import expert
 
 @expert.command(name="loop-status")
 @click.argument("name")
-@click.option("--limit", type=int, default=5, show_default=True, help="Maximum loop runs to show")
+@click.option("--limit", type=click.IntRange(min=1), default=5, show_default=True, help="Maximum loop runs to show")
 @click.option("--json", "json_output", is_flag=True, help="Emit loop status as JSON")
 def loop_status(name: str, limit: int, json_output: bool):
     """Show durable loop-run status for an expert.
@@ -26,7 +26,7 @@ def loop_status(name: str, limit: int, json_output: bool):
       deepr expert loop-status "AI Strategy Expert"
       deepr expert loop-status "AI Strategy Expert" --json
     """
-    from deepr.experts.loop_runs import ExpertLoopRunStore
+    from deepr.experts.loop_status_rollup import build_loop_status_rollup
     from deepr.experts.profile import ExpertStore
 
     profile = ExpertStore().load(name)
@@ -35,12 +35,8 @@ def loop_status(name: str, limit: int, json_output: bool):
         click.echo("List available experts: deepr expert list")
         sys.exit(2)
 
-    runs = ExpertLoopRunStore(profile.name).list_runs(limit=limit)
-    payload = {
-        "expert_name": profile.name,
-        "count": len(runs),
-        "runs": [run.to_dict() for run in runs],
-    }
+    payload = build_loop_status_rollup(profile.name, limit=limit)
+    runs = payload["runs"]
     if json_output:
         click.echo(_json.dumps(payload, indent=2))
         return
@@ -51,12 +47,14 @@ def loop_status(name: str, limit: int, json_output: bool):
         return
 
     for run in runs:
-        stop = f", stop: {run.stop_reason.value}" if run.stop_reason else ""
+        stop_reason = run.get("stop_reason")
+        stop = f", stop: {stop_reason}" if stop_reason else ""
         console.print(
-            f"  [bold]{run.loop_type}[/bold] {run.status.value} "
-            f"[dim]({run.run_id}, updated {run.updated_at.isoformat()}{stop})[/dim]"
+            f"  [bold]{run['loop_type']}[/bold] {run['status']} "
+            f"[dim]({run['run_id']}, updated {run['updated_at']}{stop})[/dim]"
         )
-        console.print(f"    {run.goal}")
-        if run.next_action:
-            title = run.next_action.get("title") or run.next_action.get("status") or "next action"
+        console.print(f"    {run['goal']}")
+        next_action = run.get("next_action") or {}
+        if next_action:
+            title = next_action.get("title") or next_action.get("status") or "next action"
             console.print(f"    [white]{title}[/white]")

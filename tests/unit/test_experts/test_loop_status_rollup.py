@@ -9,7 +9,6 @@ import pytest
 from deepr.experts.loop_runs import ExpertLoopRun, ExpertLoopRunStore, LoopRunStatus, LoopStopReason
 from deepr.experts.loop_status_rollup import build_loop_status_rollup
 
-
 BASE_TIME = datetime(2026, 6, 19, 12, 0, tzinfo=UTC)
 
 
@@ -114,3 +113,50 @@ def test_rollup_rejects_non_positive_limit(tmp_path):
 
     with pytest.raises(ValueError, match="limit must be positive"):
         build_loop_status_rollup("Platform Expert", store=store, limit=0)
+
+
+def test_rollup_applies_status_and_loop_type_filters(tmp_path):
+    store = ExpertLoopRunStore("Platform Expert", path=tmp_path / "loop_runs.jsonl")
+    store.append(
+        _run(
+            "loop_sync_waiting",
+            loop_type="sync",
+            status=LoopRunStatus.WAITING,
+            minutes=1,
+            stop_reason=LoopStopReason.CAPACITY_UNAVAILABLE,
+            trigger="scheduled",
+            next_action={"status": "wait"},
+        )
+    )
+    store.append(
+        _run(
+            "loop_sync_completed",
+            loop_type="sync",
+            status=LoopRunStatus.COMPLETED,
+            minutes=2,
+            stop_reason=LoopStopReason.VERIFIER_PASSED,
+        )
+    )
+    store.append(
+        _run(
+            "loop_health_waiting",
+            loop_type="health-check",
+            status=LoopRunStatus.WAITING,
+            minutes=3,
+            stop_reason=LoopStopReason.HUMAN_GATE_REQUIRED,
+        )
+    )
+
+    rollup = build_loop_status_rollup(
+        "Platform Expert",
+        store=store,
+        status=LoopRunStatus.WAITING,
+        loop_type="sync",
+        limit=5,
+    )
+
+    assert rollup["count"] == 1
+    assert rollup["window"]["filters"] == {"status": "waiting", "loop_type": "sync"}
+    assert rollup["runs"][0]["run_id"] == "loop_sync_waiting"
+    assert rollup["status_counts"]["waiting"] == 1
+    assert rollup["loop_type_counts"] == {"sync": 1}

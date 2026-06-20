@@ -4,7 +4,8 @@ from __future__ import annotations
 
 from typing import Any
 
-from deepr.experts.loop_runs import ExpertLoopRunStore, LoopRunStatus
+from deepr.experts.loop_runs import LoopRunStatus
+from deepr.experts.loop_status_rollup import build_loop_status_rollup
 from deepr.experts.profile import ExpertStore
 
 
@@ -46,15 +47,11 @@ async def get_expert_loop_status(
         if not isinstance(resolved_name, str) or not resolved_name.strip():
             resolved_name = expert_name
 
-        runs = ExpertLoopRunStore(resolved_name).list_runs(
+        return build_loop_status_rollup(
+            resolved_name,
             status=status_filter,
             loop_type=type_filter,
             limit=parsed_limit,
         )
-        return {
-            "expert_name": resolved_name,
-            "count": len(runs),
-            "runs": [run.to_dict() for run in runs],
-        }
     except (OSError, KeyError, ValueError) as e:
         return _error("LOOP_STATUS_FAILED", str(e))
