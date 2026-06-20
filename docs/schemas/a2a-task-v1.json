@@ -1,0 +1,70 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/blisspixel/deepr/docs/schemas/a2a-task-v1.json",
+  "title": "Deepr A2A Task",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "kind",
+    "contract",
+    "id",
+    "state",
+    "skill",
+    "input",
+    "result",
+    "error",
+    "cost",
+    "trace_id",
+    "created_at",
+    "updated_at",
+    "metadata"
+  ],
+  "properties": {
+    "schema_version": {"const": "deepr-a2a-task-v1"},
+    "kind": {"const": "deepr.a2a.task"},
+    "contract": {
+      "type": "object",
+      "required": [
+        "task_state_authoritative",
+        "cost_field",
+        "result_untrusted",
+        "compatibility"
+      ],
+      "properties": {
+        "task_state_authoritative": {"const": true},
+        "cost_field": {"const": "cost"},
+        "result_untrusted": {"const": true},
+        "compatibility": {
+          "type": "object",
+          "required": [
+            "additive_fields",
+            "breaking_changes_require_new_schema_version",
+            "deprecation_policy"
+          ],
+          "properties": {
+            "additive_fields": {"const": true},
+            "breaking_changes_require_new_schema_version": {"const": true},
+            "deprecation_policy": {"type": "string"}
+          },
+          "additionalProperties": true
+        }
+      },
+      "additionalProperties": true
+    },
+    "id": {"type": "string", "minLength": 1},
+    "state": {
+      "type": "string",
+      "enum": ["submitted", "working", "completed", "failed", "cancelled"]
+    },
+    "skill": {"type": "string"},
+    "input": {"type": "string"},
+    "result": {},
+    "error": {},
+    "cost": {"type": "number", "minimum": 0},
+    "trace_id": {"type": "string"},
+    "created_at": {"type": "string", "format": "date-time"},
+    "updated_at": {"type": "string", "format": "date-time"},
+    "metadata": {"type": "object"}
+  },
+  "additionalProperties": true
+}

@@ -8,17 +8,13 @@ from pathlib import Path
 from typing import Any
 from unittest.mock import MagicMock, patch
 
+from deepr.a2a.models import A2A_TASK_KIND, A2A_TASK_SCHEMA_VERSION, Task, TaskState
 from deepr.backends.capacity_actions import (
     CAPACITY_NEXT_KIND,
     CAPACITY_NEXT_SCHEMA_VERSION,
     CapacityJobContext,
     CapacityNextAction,
     build_capacity_next_payload,
-)
-from deepr.cli.commands.semantic.expert_maintenance import (
-    SYNC_CAPACITY_GATE_KIND,
-    SYNC_CAPACITY_GATE_SCHEMA_VERSION,
-    _build_sync_capacity_payload,
 )
 from deepr.cli.commands.semantic.expert_gap_routes import (
     SCHEDULED_GAP_FILL_WAIT_KIND,
@@ -32,6 +28,11 @@ from deepr.cli.commands.semantic.expert_health_schedule import (
     HEALTH_CHECK_ARCHIVE_CONFIRMATION_SCHEMA_VERSION,
     scheduled_archive_confirmation_payload,
     scheduled_health_payload,
+)
+from deepr.cli.commands.semantic.expert_maintenance import (
+    SYNC_CAPACITY_GATE_KIND,
+    SYNC_CAPACITY_GATE_SCHEMA_VERSION,
+    _build_sync_capacity_payload,
 )
 from deepr.cli.commands.semantic.expert_reflect_schedule import (
     SCHEDULED_REFLECTION_WAIT_KIND,
@@ -235,6 +236,28 @@ def test_mcp_registration_manifest_schema_validates_runtime_payload():
     assert payload["kind"] == REGISTRATION_MANIFEST_KIND
     assert payload["auth"]["secret_included"] is False
     assert payload["smoke"]["ok"] is True
+
+
+def test_a2a_task_schema_validates_runtime_payload():
+    task = Task(
+        id="task_contract",
+        state=TaskState.COMPLETED,
+        skill="deepr_research",
+        input="summarize this report",
+        result={"summary": "complete"},
+        cost=0.0,
+        trace_id="trace-a2a",
+        created_at=datetime(2026, 6, 20, 12, 0, tzinfo=UTC),
+        updated_at=datetime(2026, 6, 20, 12, 1, tzinfo=UTC),
+        metadata={"budget_cap": 1.0},
+    )
+    payload = task.to_dict()
+    schema = _load_schema("a2a-task-v1.json")
+
+    _validate(schema, payload)
+    assert payload["schema_version"] == A2A_TASK_SCHEMA_VERSION
+    assert payload["kind"] == A2A_TASK_KIND
+    assert payload["contract"]["result_untrusted"] is True
 
 
 def test_capacity_next_schema_validates_runtime_payload():
