@@ -141,6 +141,8 @@ class TestOperationResult:
         json_str = result.to_json()
         data = json.loads(json_str)
 
+        assert data["schema_version"] == "deepr-cli-operation-result-v1"
+        assert data["kind"] == "deepr.cli.operation_result"
         assert data["status"] == "success"
         assert data["duration_seconds"] == 135.5
         assert data["cost_usd"] == 0.42
@@ -156,6 +158,8 @@ class TestOperationResult:
         json_str = result.to_json()
         data = json.loads(json_str)
 
+        assert data["schema_version"] == "deepr-cli-operation-result-v1"
+        assert data["kind"] == "deepr.cli.operation_result"
         assert data["status"] == "error"
         assert data["error"] == "API rate limit exceeded"
         assert data["error_code"] == "RATE_LIMIT"

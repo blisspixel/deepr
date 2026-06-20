@@ -92,6 +92,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   union of visible registry tools and JSON-RPC dispatch tools across every
   `ResearchMode`, including scoped-key authorization and the JSON-RPC
   pre-dispatch block/confirmation gates.
+- Added `deepr-cli-operation-result-v1` to the published schema registry and
+  versioned the shared CLI `OperationResult` JSON envelope with `schema_version`
+  and `kind`.
 - Tightened expert chat session-budget coordination for deep research. Session
   budget exhaustion and open session circuit breakers now return blocked
   responses with session-specific metadata before any provider call, and
