@@ -397,6 +397,46 @@ def _compute_registry_hash() -> str:
     return hashlib.md5("|".join(keys).encode()).hexdigest()
 
 
+def _run_benchmark_eval(cost_cap: float, hash_file: Path, current_hash: str) -> None:
+    """Run the cost-capped registry-change benchmark in a background thread.
+
+    benchmark_models.py lives in the repo's scripts/ dir (repo root = parents[3]
+    of this module). It is not shipped in the installed package, so degrade
+    quietly when absent (e.g. a pipx install) rather than failing the subprocess.
+    """
+    try:
+        script = Path(__file__).resolve().parents[3] / "scripts" / "benchmark_models.py"
+        if not script.exists():
+            _logger.debug("Skipping background eval: benchmark script not found at %s", script)
+            return
+        result = subprocess.run(  # Internal trusted benchmark_models.py; no user-controlled input; background cost-capped eval.
+            [
+                sys.executable,
+                str(script),
+                "--new-models",
+                "--tier",
+                "all",
+                "--quick",
+                "--save",
+                "--max-estimated-cost",
+                str(cost_cap),
+            ],
+            capture_output=True,
+            text=True,
+            timeout=600,
+        )
+        if result.returncode == 0:
+            hash_file.parent.mkdir(parents=True, exist_ok=True)
+            hash_file.write_text(current_hash)
+            _logger.info("Background eval completed successfully")
+        else:
+            _logger.warning("Background eval failed (rc=%d): %s", result.returncode, result.stderr[:200])
+    except subprocess.TimeoutExpired:
+        _logger.warning("Background eval timed out after 10 minutes")
+    except Exception as exc:
+        _logger.warning("Background eval error: %s", exc)
+
+
 def trigger_background_eval_if_needed(
     cost_cap: float = 1.0,
     enabled: bool | None = None,
@@ -444,41 +484,12 @@ def trigger_background_eval_if_needed(
         cost_cap,
     )
 
-    def _run_eval():
-        try:
-            script = Path(__file__).resolve().parents[1].parent / "scripts" / "benchmark_models.py"
-            result = subprocess.run(  # Internal trusted benchmark_models.py for auto registry change detection. No user-controlled input; background cost-capped eval for routing.
-                [
-                    sys.executable,
-                    str(script),
-                    "--new-models",
-                    "--tier",
-                    "all",
-                    "--quick",
-                    "--save",
-                    "--max-estimated-cost",
-                    str(cost_cap),
-                ],
-                capture_output=True,
-                text=True,
-                timeout=600,
-            )
-            if result.returncode == 0:
-                hash_file.parent.mkdir(parents=True, exist_ok=True)
-                hash_file.write_text(current_hash)
-                _logger.info("Background eval completed successfully")
-            else:
-                _logger.warning(
-                    "Background eval failed (rc=%d): %s",
-                    result.returncode,
-                    result.stderr[:200],
-                )
-        except subprocess.TimeoutExpired:
-            _logger.warning("Background eval timed out after 10 minutes")
-        except Exception as exc:
-            _logger.warning("Background eval error: %s", exc)
-
-    thread = threading.Thread(target=_run_eval, daemon=True, name="deepr-auto-eval")
+    thread = threading.Thread(
+        target=_run_benchmark_eval,
+        args=(cost_cap, hash_file, current_hash),
+        daemon=True,
+        name="deepr-auto-eval",
+    )
     thread.start()
     return True
 
