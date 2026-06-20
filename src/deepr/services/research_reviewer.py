@@ -14,6 +14,8 @@ import os
 
 from openai import OpenAI
 
+from deepr.utils.prompt_security import sanitize_untrusted_content
+
 
 class ResearchReviewer:
     """
@@ -144,8 +146,13 @@ Return ONLY valid JSON, no other text."""
             if len(content) > 2000:
                 content = content[:2000] + "...(truncated)"
 
+            content_block = sanitize_untrusted_content(
+                content,
+                source_label=f"completed research task {i}",
+            )
+
             lines.append(f"## Task {i}: {title}")
-            lines.append(content)
+            lines.append(content_block.delimited)
             lines.append("")
 
         return "\n".join(lines)

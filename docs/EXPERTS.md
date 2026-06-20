@@ -587,12 +587,13 @@ never "how likely the claim is true" - calibration evidence for those numbers
 is the v2.15 harness (see docs/design/calibration-and-trust.md).
 
 Untrusted source and tool text is also bounded before it reaches model prompts:
-fresh retrieval snippets, report text passed into absorption, and first-party
-tool findings are sanitized and delimited as source data, not instructions.
-That boundary does not decide truth. It only prevents embedded directives from
-blending into the instruction hierarchy while the existing extraction,
-grounding, contradiction, dedup, and trust-floor gates decide what becomes a
-belief.
+fresh retrieval snippets, report text passed into absorption, first-party tool
+findings, local document previews, prior campaign reports, completed research
+summaries, company-intelligence snippets, and team findings are sanitized and
+delimited as source data, not instructions. That boundary does not decide truth.
+It only prevents embedded directives from blending into the instruction
+hierarchy while the existing extraction, grounding, contradiction, dedup, and
+trust-floor gates decide what becomes a belief.
 
 **Storage (the temporal knowledge graph):** the belief store is canonical  - 
 `beliefs.json` (claims + typed edges: supports / contradicts / enables /
