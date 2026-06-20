@@ -1,5 +1,6 @@
 """Tests for eval CLI commands."""
 
+import json
 from types import SimpleNamespace
 from unittest.mock import patch
 
@@ -74,3 +75,25 @@ def test_eval_all_dry_run_does_not_require_approval():
     assert "--tier" in cmd and "all" in cmd
     assert "--dry-run" in cmd
     assert "--no-judge" in cmd
+
+
+def test_eval_red_team_outputs_zero_cost_json_report():
+    runner = CliRunner()
+
+    result = runner.invoke(cli, ["eval", "red-team", "--json"])
+
+    assert result.exit_code == 0
+    data = json.loads(result.output)
+    assert data["cost_usd"] == 0.0
+    assert data["attack_success_rate"] == 0.0
+    assert data["total_cases"] == 11
+
+
+def test_eval_red_team_outputs_text_summary():
+    runner = CliRunner()
+
+    result = runner.invoke(cli, ["eval", "red-team"])
+
+    assert result.exit_code == 0
+    assert "Agentic red-team report" in result.output
+    assert "Attack success rate: 0.0%" in result.output
