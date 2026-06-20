@@ -203,6 +203,13 @@ create/status/cancel task responses fail closed with `SCHEMA_VALIDATION_FAILED`
 if schema version, kind, lifecycle state, cost, timestamps, metadata, or
 required envelope fields drift.
 
+The first indirect prompt-injection defense slice is in place. `PromptSanitizer`
+now exposes an untrusted-content wrapper that delimits source text as data, not
+instructions. Fresh retrieval context, report absorption prompts, and
+first-party tool findings use that boundary before text reaches a model or
+expert prompt context. This does not judge truth; belief absorption still relies
+on extraction, confidence, contradiction, dedup, and trust-floor gates.
+
 ## Active Gap
 
 The capacity QOL item from the `v2.16` substrate now covers the recurring expert maintenance
@@ -222,9 +229,10 @@ That gap matters because it sits directly on the project promise: stop paying tw
 
 ## Next Work
 
-Next slice: keep the release current while extending schema-backed validation to
-the remaining command-specific `--json` payloads and the highest-risk
-agentic-security backlog item, while keeping all local validation at `$0`.
+Next slice: finish the remaining indirect prompt-injection surfaces for uploaded
+document review and broader campaign/context synthesis, then add red-team
+metrics for prompt-injection and trust-floor bypass attempts. Keep all local
+validation at `$0`.
 
 ## Spend Ledger For This Run
 
