@@ -22,12 +22,17 @@ import os
 import shutil
 from collections.abc import Callable
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import UTC, datetime
 from pathlib import Path
 
 from deepr.backends import admission
 from deepr.backends.capacity import BackendKind, CostModel, available_local_models
-from deepr.backends.quota_ledger import summarize_quota_state
+from deepr.backends.quota_ledger import QuotaState, summarize_quota_state
+
+# Plan-quota admissions share the local admission store, namespaced so the local
+# rung never mistakes one for an Ollama model. A plan admission is the operator's
+# explicit opt-in to auto-route maintenance onto that subscription.
+PLAN_ADMISSION_PREFIX = "plan:"
 from deepr.backends.research_backend import ResearchBackend
 from deepr.backends.selection import BackendSelection, BackendSelectionStatus, select_capacity_backend
 
@@ -85,10 +90,21 @@ def choose_maintenance_backend(
     """
 
     def _fallback(reason: str) -> BackendChoice:
-        plan = _choose_plan_quota(task_class, which=which, plan_env=plan_env, quota_ledger_path=quota_ledger_path)
+        plan = _choose_plan_quota(
+            task_class,
+            now=now,
+            which=which,
+            plan_env=plan_env,
+            quota_ledger_path=quota_ledger_path,
+            admissions_path=admissions_path,
+        )
         return plan or _metered(reason)
 
-    admitted = {a.model: a for a in admission.list_active(now=now, path=admissions_path) if a.task_class == task_class}
+    admitted = {
+        a.model: a
+        for a in admission.list_active(now=now, path=admissions_path)
+        if a.task_class == task_class and not a.model.startswith(PLAN_ADMISSION_PREFIX)
+    }
     if not admitted:
         return _fallback(
             f"no local model admitted for {task_class!r} "
@@ -204,35 +220,52 @@ def _plan_quota_backend(adapter) -> ResearchBackend:  # adapter: PlanQuotaAdapte
 def _choose_plan_quota(
     task_class: str,
     *,
+    now: datetime | None,
     which: Callable[[str], str | None],
     plan_env: dict[str, str] | None,
     quota_ledger_path: Path | None,
+    admissions_path: Path | None,
 ) -> BackendChoice | None:
-    """The plan-quota rung: an installed, safe, auto-routable CLI with observed,
-    non-exhausted quota. Returns None (defer to metered) when none qualifies.
+    """The plan-quota rung: an installed, safe, *operator-admitted* auto-routable
+    CLI that is not currently in an exhaustion cooldown. Returns None (defer to
+    metered) when none qualifies.
 
-    Auto-routing requires an *observed remaining* quota window. Vendor CLIs do
-    not expose that reliably, so this is off by default until a probe records a
-    trusted remaining signal - exactly the honest no-surprise-bills posture.
+    Auto-routing is opt-in: vendor CLIs do not expose trustworthy remaining
+    quota, so instead of guessing, Deepr routes here only when the operator has
+    explicitly admitted the backend (``deepr capacity admit-plan``) - the
+    attestation that consuming that plan window for maintenance is intended. The
+    safety gate (plan auth, not metered/ack) still applies, and a backend seen
+    exhausted stays out until its observed reset time passes, so a depleted plan
+    self-heals without re-routing into the wall.
     """
     from deepr.backends.plan_quota.adapters import auto_routable_adapters
 
     env = plan_env if plan_env is not None else dict(os.environ)
+    stamp = now or datetime.now(UTC)
+    admitted = {
+        a.model
+        for a in admission.list_active(now=now, path=admissions_path)
+        if a.task_class == task_class and a.model.startswith(PLAN_ADMISSION_PREFIX)
+    }
     eligible_adapters = [
         adapter
         for adapter in auto_routable_adapters()
-        if which(adapter.exe) is not None and _auto_routable(adapter, env)
+        if which(adapter.exe) is not None
+        and f"{PLAN_ADMISSION_PREFIX}{adapter.backend_id}" in admitted
+        and _auto_routable(adapter, env)
     ]
     if not eligible_adapters:
         return None
 
     backends = [_plan_quota_backend(adapter) for adapter in eligible_adapters]
-    states = summarize_quota_state(quota_ledger_path)
+    # The admission replaces the observed-remaining requirement; an exhaustion
+    # whose reset has passed is dropped so the backend becomes eligible again.
+    states = [s for s in summarize_quota_state(quota_ledger_path) if not _exhaustion_cleared(s, stamp)]
     selection = select_capacity_backend(
         backends,
         quota_states=states,
         task_class=task_class,
-        require_observed_quota=True,
+        require_observed_quota=False,
     )
     if selection.status != BackendSelectionStatus.SELECTED or selection.selected is None:
         return None
@@ -241,9 +274,16 @@ def _choose_plan_quota(
     return BackendChoice(
         BACKEND_PLAN_QUOTA,
         None,
-        f"plan-quota backend {picked!r}: {selection.selected.eligibility.reason}; prepaid capacity before metered API",
+        f"plan-quota backend {picked!r} (operator-admitted): {selection.selected.eligibility.reason}; "
+        "prepaid capacity before metered API",
         plan_backend_id=picked,
     )
+
+
+def _exhaustion_cleared(state: QuotaState, now: datetime) -> bool:
+    """True when an exhaustion observation's reset time has passed (no longer blocks)."""
+    event = state.latest_event
+    return state.exhausted and event.reset_at is not None and event.reset_at <= now
 
 
 def _auto_routable(adapter, env: dict[str, str]) -> bool:  # adapter: PlanQuotaAdapter
