@@ -346,8 +346,8 @@ contested claims at `$0`; `deepr expert absorb-okf NAME PATH` parses OKF
 concepts as source text and routes them through the verified absorb gates. The
 structured store remains canonical. Published contracts for expert handoff,
 loop status, the OKF profile mapping, hosted MCP audit/registration payloads,
-capacity guidance, sync gates, scheduled maintenance payloads, and the shared
-CLI result envelope live under `docs/schemas/`.
+A2A task/result envelopes, capacity guidance, sync gates, scheduled maintenance
+payloads, and the shared CLI result envelope live under `docs/schemas/`.
 
 ### Evidence and Calibration
 
