@@ -290,7 +290,7 @@ Deepr handles sensitive data (API keys, research content, expert knowledge) and 
 |--------|------|------------|
 | API key exposure | High | Environment variables only, never in code/logs |
 | Path traversal | Medium | Input validation, sandboxed file operations |
-| Prompt injection | Medium | User prompts are sanitized; untrusted source/tool text is delimited before model use; belief absorption remains verify gated |
+| Prompt injection | Medium | User prompts are sanitized; untrusted source/tool text, document previews, campaign context, and team findings are delimited before model use; belief absorption remains verify gated |
 | Cost runaway | Medium | Session budgets, daily limits, circuit breakers |
 | Data exfiltration | Low | Local storage by default, no external telemetry |
 
