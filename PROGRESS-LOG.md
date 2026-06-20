@@ -9,6 +9,9 @@
   foundation, and published schema contracts are current; plan-quota adapters,
   live probes, adapter writes, plan-quota scheduler dispatch, auto-mode runtime
   integration, and live third-party host registration remain open.
+- Fixed the pushed CI blocker from the code-health ratchet: C901 is back at the
+  144 baseline by extracting new loop-run, OKF absorb, MCP HTTP dispatch,
+  scoped-key, and remote-call cost branches into smaller helpers.
 - Spend so far: `$0.00`.
 
 ## 2026-06-19
