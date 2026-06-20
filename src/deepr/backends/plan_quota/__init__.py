@@ -23,6 +23,12 @@ from deepr.backends.plan_quota.client import (
     make_plan_quota_research_fn,
     probe_plan_quota,
 )
+from deepr.backends.plan_quota.fleet import (
+    FLEET_KIND,
+    FLEET_SCHEMA_VERSION,
+    build_fleet_payload,
+    build_fleet_status,
+)
 from deepr.backends.plan_quota.safety import (
     AuthMode,
     SafetyDecision,
@@ -31,6 +37,8 @@ from deepr.backends.plan_quota.safety import (
 )
 
 __all__ = [
+    "FLEET_KIND",
+    "FLEET_SCHEMA_VERSION",
     "REGISTRY",
     "AuthMode",
     "PlanQuotaAdapter",
@@ -40,6 +48,8 @@ __all__ = [
     "SafetyDecision",
     "all_adapters",
     "auto_routable_adapters",
+    "build_fleet_payload",
+    "build_fleet_status",
     "detect_auth_mode",
     "evaluate_plan_quota_safety",
     "get_adapter",
