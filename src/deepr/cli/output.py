@@ -28,6 +28,9 @@ import click
 from rich.console import Console
 from rich.progress import Progress, SpinnerColumn, TextColumn, TimeElapsedColumn
 
+CLI_OPERATION_RESULT_KIND = "deepr.cli.operation_result"
+CLI_OPERATION_RESULT_SCHEMA_VERSION = "deepr-cli-operation-result-v1"
+
 
 class OutputMode(Enum):
     """Output verbosity modes for CLI."""
@@ -168,6 +171,8 @@ class OperationResult:
         """
         if self.success:
             data: dict[str, Any] = {
+                "schema_version": CLI_OPERATION_RESULT_SCHEMA_VERSION,
+                "kind": CLI_OPERATION_RESULT_KIND,
                 "status": "success",
                 "duration_seconds": self.duration_seconds,
                 "cost_usd": self.cost_usd,
@@ -176,6 +181,8 @@ class OperationResult:
             }
         else:
             data = {
+                "schema_version": CLI_OPERATION_RESULT_SCHEMA_VERSION,
+                "kind": CLI_OPERATION_RESULT_KIND,
                 "status": "error",
                 "error": self.error or "Unknown error",
                 "error_code": self.error_code or "UNKNOWN",

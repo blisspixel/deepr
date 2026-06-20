@@ -45,6 +45,14 @@
       "path": "mcp-registration-manifest-v1.json",
       "status": "experimental",
       "compatibility": "additive-within-v1"
+    },
+    {
+      "name": "cli-operation-result",
+      "schema_version": "deepr-cli-operation-result-v1",
+      "kind": "deepr.cli.operation_result",
+      "path": "cli-operation-result-v1.json",
+      "status": "stable",
+      "compatibility": "additive-within-v1"
     }
   ]
 }
