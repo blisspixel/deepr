@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Security
+- Added an untrusted-content prompt wrapper to `PromptSanitizer` and applied it
+  to fresh retrieval context, report absorption prompts, and first-party tool
+  findings so embedded source directives are delimited and neutralized before
+  model use.
+
 ## [2.17.1] - 2026-06-20
 
 Contract-validation and dependency-security patch release.

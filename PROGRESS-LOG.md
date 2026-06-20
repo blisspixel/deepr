@@ -32,6 +32,10 @@
   known vulnerabilities.
 - Prepared the `v2.17.1` patch release metadata so the public release can track
   the post-`v2.17.0` schema-validation work and the `msgpack` security fix.
+- Started the indirect prompt-injection defense backlog. Untrusted source text
+  now has a reusable prompt wrapper, fresh retrieval context and report
+  absorption prompts delimit and sanitize source spans, and first-party tool
+  findings sanitize embedded directives before entering expert prompt context.
 - Spend so far: `$0.00`.
 
 ## 2026-06-19
