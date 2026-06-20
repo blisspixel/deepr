@@ -4,7 +4,7 @@ Date: 2026-06-20
 
 ## Alignment Summary
 
-Deepr is aligned around one active product bet: persistent domain experts that can keep verified knowledge current without silent spend. The README sells this as research infrastructure, not another chat window. Current main is now the `v2.17.1` loop/interchange patch release plus unreleased prompt-boundary hardening: local Ollama is usable for `$0` expert maintenance, durable loop status is observable across CLI, MCP, and web surfaces, OKF import/export is a verified interchange path, the hosted MCP foundation is in place, host-facing output contracts fail closed on schema drift, the lockfile includes the `msgpack` security fix, and ingested/tool content prompt boundaries now cover fresh context, report absorption, first-party findings, document review, campaign context, and team synthesis paths. Plan-quota adapters remain explicitly not execution backends until adapters, probes, no-surprise-bills guards, and tests ship. `AGENTIC_BALANCE.md` is the governing boundary: deterministic workflow code owns spend, writes, routing gates, durable state, and verifier outcomes; model judgment owns meaning such as contradiction, grounding, deduplication, and synthesis.
+Deepr is aligned around one active product bet: persistent domain experts that can keep verified knowledge current without silent spend. The README sells this as research infrastructure, not another chat window. Current main is now the `v2.17.2` prompt-boundary hardening patch release: local Ollama is usable for `$0` expert maintenance, durable loop status is observable across CLI, MCP, and web surfaces, OKF import/export is a verified interchange path, the hosted MCP foundation is in place, host-facing output contracts fail closed on schema drift, the lockfile includes the `msgpack` security fix, and ingested/tool content prompt boundaries now cover fresh context, report absorption, first-party findings, document review, campaign context, and team synthesis paths. Plan-quota adapters remain explicitly not execution backends until adapters, probes, no-surprise-bills guards, and tests ship. `AGENTIC_BALANCE.md` is the governing boundary: deterministic workflow code owns spend, writes, routing gates, durable state, and verifier outcomes; model judgment owns meaning such as contradiction, grounding, deduplication, and synthesis.
 
 No clarification is needed before continuing. The docs are internally consistent about what works now, what is visible/read-only, and what remains planned.
 
@@ -228,9 +228,8 @@ and trust-floor gates.
 
 ## Next Work
 
-Next slice: validate the completed prompt-boundary hardening, commit it, verify
-CI, then cut a `v2.17.2` patch release if the hosted checks are green. After the
-release is current, start the agentic red-team metrics item. Keep all local
+Next slice: start the agentic red-team metrics item for prompt-injection,
+tool-abuse, MCP read extraction, and trust-floor bypass attempts. Keep all local
 validation at `$0`.
 
 ## Spend Ledger For This Run
