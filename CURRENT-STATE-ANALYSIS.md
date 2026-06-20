@@ -178,6 +178,9 @@ The CLI output-as-contract work has started. The shared `OperationResult`
 `--json` envelope now includes `schema_version` and `kind`, is published as
 `deepr-cli-operation-result-v1` in the schema registry, and has runtime schema
 validation coverage. Command-specific JSON payload schemas remain open.
+The loop-status contract gap is narrower now: the CLI, MCP, and web loop-status
+reads all return the shared `deepr-loop-status-v1` rollup payload instead of
+split ad hoc shapes.
 
 ## Active Gap
 
@@ -198,9 +201,9 @@ That gap matters because it sits directly on the project promise: stop paying tw
 
 ## Next Work
 
-Next slice: continue the v2.18 reach track with live host registration smoke
-against a real platform or schema-backed contract tests for additional remote
-surfaces, while keeping all local validation at `$0`.
+Next slice: continue schema-backed contract work for additional high-use JSON
+surfaces, especially capacity and scheduled expert action payloads, while
+keeping all local validation at `$0`.
 
 ## Spend Ledger For This Run
 
