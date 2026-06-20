@@ -78,9 +78,16 @@ docs = [
     "beautifulsoup4>=4.12.0,<5.0.0",
 ]
 
+# Free keyless web search for $0 fresh-context retrieval (local/plan maintenance).
+# ``ddgs`` is the maintained successor to the deprecated ``duckduckgo-search``,
+# whose old endpoint now returns no results.
+search = [
+    "ddgs>=9.0.0,<10.0.0",
+]
+
 # Full install with all features
 full = [
-    "deepr-research[web,azure,azure-foundry,docs]",
+    "deepr-research[web,azure,azure-foundry,docs,search]",
 ]
 
 # Development dependencies

@@ -108,14 +108,14 @@ class TestWebSearchTool:
         original_import = __builtins__["__import__"] if isinstance(__builtins__, dict) else __builtins__.__import__
 
         def _fake_import(name, *args, **kwargs):
-            if name == "duckduckgo_search":
+            if name in ("ddgs", "duckduckgo_search"):
                 raise ImportError("no module")
             return original_import(name, *args, **kwargs)
 
         with patch("builtins.__import__", side_effect=_fake_import):
             res = await tool.execute(query="q")
         assert res.success is False
-        assert "duckduckgo-search not installed" in res.error
+        assert "pip install ddgs" in res.error
 
 
 # ---------------------------------------------------------------------- #
