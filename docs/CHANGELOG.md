@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+No unreleased changes.
+
+## [2.17.0] - 2026-06-20
+
+Loop/interchange, hosted MCP foundation, and schema-contract release.
+
 ### Added
 - Added the first v2.17 durable loop substrate: schema-versioned
   `ExpertLoopRun` records, an append-only per-expert loop-run store, and

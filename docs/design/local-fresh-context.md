@@ -1,7 +1,7 @@
 # Design: local fresh context
 
 Status: fresh/deep context, the local context eval, and source-pack sync
-artifacts are shipped in v2.16 main.
+artifacts are shipped and included in current main.
 
 Local Ollama execution gives Deepr a zero-dollar maintenance path, but local
 models do not automatically know what changed online. Freshness is a retrieval
