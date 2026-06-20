@@ -30,6 +30,8 @@
 - Resolved the high Dependabot alert for transitive `msgpack` by updating the
   lockfile to `msgpack 1.2.1`; local `pip-audit --skip-editable` now reports no
   known vulnerabilities.
+- Prepared the `v2.17.1` patch release metadata so the public release can track
+  the post-`v2.17.0` schema-validation work and the `msgpack` security fix.
 - Spend so far: `$0.00`.
 
 ## 2026-06-19
