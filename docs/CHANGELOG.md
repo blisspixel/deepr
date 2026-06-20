@@ -9,8 +9,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Security
 - Added an untrusted-content prompt wrapper to `PromptSanitizer` and applied it
-  to fresh retrieval context, report absorption prompts, and first-party tool
-  findings so embedded source directives are delimited and neutralized before
+  to fresh retrieval context, report absorption prompts, first-party tool
+  findings, local document review previews, campaign context summarization,
+  completed-research review, company-intelligence reuse, and team-result
+  synthesis so embedded source directives are delimited and neutralized before
   model use.
 
 ## [2.17.1] - 2026-06-20

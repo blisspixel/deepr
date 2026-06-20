@@ -14,6 +14,8 @@ from typing import Any
 
 from openai import OpenAI
 
+from deepr.utils.prompt_security import sanitize_untrusted_content
+
 logger = logging.getLogger(__name__)
 
 
@@ -198,22 +200,12 @@ Only include people you find with actual research. If unable to find information
 
         if company_intel:
             parts.append("\n## Company Leadership Intelligence\n")
-            parts.append("Use this research to ground personas in real people:\n\n")
-
-            if company_intel.get("executives"):
-                parts.append("**Executives:**\n")
-                for exec in company_intel["executives"]:
-                    parts.append(f"- {exec['name']} ({exec['role']}): {exec['background']}\n")
-                parts.append("\n")
-
-            if company_intel.get("board"):
-                parts.append("**Board:**\n")
-                for board in company_intel["board"]:
-                    parts.append(f"- {board['name']} ({board['role']}): {board['background']}\n")
-                parts.append("\n")
-
-            if company_intel.get("summary"):
-                parts.append(f"**Summary:** {company_intel['summary']}\n\n")
+            parts.append("Use this source data to ground personas in real people:\n\n")
+            intelligence_block = sanitize_untrusted_content(
+                _render_company_intelligence(company_intel),
+                source_label="company leadership intelligence",
+            )
+            parts.append(f"{intelligence_block.delimited}\n\n")
 
             parts.append(
                 "**IMPORTANT:** Create personas grounded in these actual people's backgrounds and expertise. Don't use their exact names, but use their real experience to inform persona design.\n\n"
@@ -344,17 +336,22 @@ class TeamSynthesizer:
 
         parts = ["# Research Question", f"\n{question}\n", "\n## Team Findings\n"]
 
-        for result in team_results:
+        for index, result in enumerate(team_results, 1):
             member = result.get("team_member", {})
-            role = member.get("role", "Unknown")
-            perspective = member.get("perspective", "")
-            focus = member.get("focus", "")
+            role = sanitize_untrusted_content(
+                member.get("role", "Unknown"), source_label=f"team role {index}"
+            ).sanitized
+            perspective = sanitize_untrusted_content(
+                member.get("perspective", ""), source_label=f"team perspective {index}"
+            ).sanitized
+            focus = sanitize_untrusted_content(member.get("focus", ""), source_label=f"team focus {index}").sanitized
             findings = result.get("result", "")
+            findings_block = sanitize_untrusted_content(findings, source_label=f"team finding {index}")
 
             parts.append(f"\n### {role}")
             parts.append(f"\n**Perspective:** {perspective}")
             parts.append(f"\n**Focus:** {focus}\n")
-            parts.append(f"\n{findings}\n")
+            parts.append(f"\n{findings_block.delimited}\n")
             parts.append("\n---\n")
 
         parts.append("""
@@ -435,3 +432,31 @@ Based on the team's diverse perspectives:
 """)
 
         return "".join(parts)
+
+
+def _render_company_intelligence(company_intel: dict[str, Any]) -> str:
+    """Render company intelligence for a bounded prompt source block."""
+    lines: list[str] = []
+
+    if company_intel.get("executives"):
+        lines.append("Executives:")
+        for executive in company_intel["executives"]:
+            name = executive.get("name", "Unknown")
+            role = executive.get("role", "Unknown role")
+            background = executive.get("background", "")
+            lines.append(f"- {name} ({role}): {background}")
+        lines.append("")
+
+    if company_intel.get("board"):
+        lines.append("Board:")
+        for board_member in company_intel["board"]:
+            name = board_member.get("name", "Unknown")
+            role = board_member.get("role", "Unknown role")
+            background = board_member.get("background", "")
+            lines.append(f"- {name} ({role}): {background}")
+        lines.append("")
+
+    if company_intel.get("summary"):
+        lines.append(f"Summary: {company_intel['summary']}")
+
+    return "\n".join(lines)
