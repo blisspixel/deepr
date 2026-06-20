@@ -42,6 +42,10 @@
   before model reuse without changing the semantic verification gates.
 - Prepared the `v2.17.2` patch release metadata so the public release tracks
   the completed prompt-boundary hardening slice.
+- Added the first local agentic red-team metric slice: `deepr eval red-team`
+  now runs `$0` prompt-boundary, tool-spoofing, data-exfiltration, jailbreak,
+  and memory trust-floor probes, reports attack-success-rate, and fails if a
+  built-in attack succeeds.
 - Spend so far: `$0.00`.
 
 ## 2026-06-19

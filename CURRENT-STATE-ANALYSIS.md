@@ -4,7 +4,7 @@ Date: 2026-06-20
 
 ## Alignment Summary
 
-Deepr is aligned around one active product bet: persistent domain experts that can keep verified knowledge current without silent spend. The README sells this as research infrastructure, not another chat window. Current main is now the `v2.17.2` prompt-boundary hardening patch release: local Ollama is usable for `$0` expert maintenance, durable loop status is observable across CLI, MCP, and web surfaces, OKF import/export is a verified interchange path, the hosted MCP foundation is in place, host-facing output contracts fail closed on schema drift, the lockfile includes the `msgpack` security fix, and ingested/tool content prompt boundaries now cover fresh context, report absorption, first-party findings, document review, campaign context, and team synthesis paths. Plan-quota adapters remain explicitly not execution backends until adapters, probes, no-surprise-bills guards, and tests ship. `AGENTIC_BALANCE.md` is the governing boundary: deterministic workflow code owns spend, writes, routing gates, durable state, and verifier outcomes; model judgment owns meaning such as contradiction, grounding, deduplication, and synthesis.
+Deepr is aligned around one active product bet: persistent domain experts that can keep verified knowledge current without silent spend. The README sells this as research infrastructure, not another chat window. Current main is now post-`v2.17.2`: local Ollama is usable for `$0` expert maintenance, durable loop status is observable across CLI, MCP, and web surfaces, OKF import/export is a verified interchange path, the hosted MCP foundation is in place, host-facing output contracts fail closed on schema drift, ingested/tool content prompt boundaries cover fresh context, report absorption, first-party findings, document review, campaign context, and team synthesis paths, and `deepr eval red-team` now measures built-in prompt-boundary, tool-spoofing, and memory trust-floor canaries at `$0`. Plan-quota adapters remain explicitly not execution backends until adapters, probes, no-surprise-bills guards, and tests ship. `AGENTIC_BALANCE.md` is the governing boundary: deterministic workflow code owns spend, writes, routing gates, durable state, and verifier outcomes; model judgment owns meaning such as contradiction, grounding, deduplication, and synthesis.
 
 No clarification is needed before continuing. The docs are internally consistent about what works now, what is visible/read-only, and what remains planned.
 
@@ -13,7 +13,7 @@ No clarification is needed before continuing. The docs are internally consistent
 - API-backed research works with budget gates and the append-only cost ledger.
 - Local expert creation and maintenance work through `expert make --local`, `expert sync --local`, `expert sync --local --fresh-context`, `expert sync --local --deep-context`, `expert absorb --local`, `eval local`, `eval local-context`, and scored `capacity admit`.
 - Capacity visibility is in place through `deepr capacity`, quota observations, normalized backend profiles, eligibility decisions, pure backend selection, and `deepr capacity next`.
-- The evidence layer is present through `eval continuity`, `eval calibrate`, source-trust floors, event logs, typed edges, lifecycle archival, and model-verdict routing for semantic absorb checks.
+- The evidence layer is present through `eval continuity`, `eval calibrate`, `eval red-team`, source-trust floors, event logs, typed edges, lifecycle archival, and model-verdict routing for semantic absorb checks.
 - Portable data is in place through `DEEPR_DATA_DIR`, `DEEPR_EXPERTS_PATH`, and `DEEPR_REPORTS_PATH`, with the cost ledger deliberately machine-local.
 
 ## Recent Progress
@@ -214,23 +214,23 @@ contradiction, dedup, and trust-floor gates.
 
 ## Active Gap
 
-The next security gap is adversarial measurement, not another lexical rule.
-The prompt boundary now blocks embedded directives from blending into
-instruction text, but the agentic red-team suite still needs attack-success
-metrics for prompt injection, tool abuse, MCP read extraction, and trust-floor
-bypass attempts.
+The first adversarial measurement slice is now in place. `deepr eval red-team`
+runs a local `$0` attack-success-rate verifier over prompt-injection,
+system-prompt extraction, jailbreak, data-exfiltration, structured tool-spoofing,
+and memory trust-floor probes. The default suite currently has 11 built-in cases
+and fails if any attack succeeds.
 
-That gap matters because it proves the boundary under hostile inputs instead of
-relying on happy-path unit tests. It is also aligned with agentic balance:
-deterministic code records the envelope and metrics, while semantic acceptance
-continues to depend on calibrated extraction, grounding, contradiction, dedup,
-and trust-floor gates.
+The remaining security gap is breadth: expert-chat harness coverage,
+ingestion-path corpora beyond the built-in canaries, release-to-release trend
+artifacts, and ADAM-style adaptive extraction probing through MCP read tools.
+Those should stay workflow metrics over observable boundaries, while semantic
+acceptance continues to depend on calibrated extraction, grounding,
+contradiction, dedup, and trust-floor gates.
 
 ## Next Work
 
-Next slice: start the agentic red-team metrics item for prompt-injection,
-tool-abuse, MCP read extraction, and trust-floor bypass attempts. Keep all local
-validation at `$0`.
+Next slice: extend the agentic red-team suite from built-in local canaries into
+expert-chat and MCP read-path probes, still at `$0` unless explicitly approved.
 
 ## Spend Ledger For This Run
 

@@ -595,6 +595,11 @@ It only prevents embedded directives from blending into the instruction
 hierarchy while the existing extraction, grounding, contradiction, dedup, and
 trust-floor gates decide what becomes a belief.
 
+Run `deepr eval red-team` to exercise the current local `$0` adversarial
+canaries for those boundaries. The suite reports attack-success-rate for
+prompt-boundary, tool-spoofing, and trust-floor probes, and fails if a built-in
+attack succeeds.
+
 **Storage (the temporal knowledge graph):** the belief store is canonical  - 
 `beliefs.json` (claims + typed edges: supports / contradicts / enables /
 derived_from) plus an append-only `events.jsonl` recording every change.

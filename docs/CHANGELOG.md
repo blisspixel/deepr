@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- Added `deepr eval red-team`, a local `$0` agentic red-team verifier that
+  reports attack-success-rate across built-in prompt-injection, jailbreak,
+  data-exfiltration, tool-spoofing, and memory trust-floor probes.
+
+### Security
+- Prompt sanitization now neutralizes structured untrusted `tool_call`,
+  `function_call`, and `tool_result` markers before source text is embedded in
+  prompts.
+
 ## [2.17.2] - 2026-06-20
 
 Prompt-boundary security hardening patch release.
