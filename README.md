@@ -315,15 +315,18 @@ health-check --scheduled` adds a scheduler action plan: paid recommendations
 wait for capacity, confirm-gated local writes wait for confirmation, and
 `--archive-stale --scheduled` will not mutate unless `--yes` is explicit.
 These scheduled wait and action-plan payloads now include durable `loop_run`
-records, so `deepr expert loop-status NAME --json` can show the latest blocked
-or waiting maintenance work without re-running it. Host agents can read the
-same state through `deepr_expert_loop_status`. Successful `deepr expert sync`
-runs, non-dry `deepr expert route-gaps --execute` runs, and `deepr expert
-reflect` runs also record loop snapshots. `deepr expert health-check` and
-confirmed `--archive-stale` runs now do the same, with spend, capacity source,
-verifier outcome, accepted-change counts where applicable, and typed stop
-actions for failures, deferred specialist routes, weak verifier results,
-human gates, no corrective work, or exhausted budgets. The dashboard API now
+records plus published `schema_version` and `kind` values for sync capacity
+gates, scheduled gap-fill waits, scheduled reflection waits, health-check
+action plans, and archive confirmations. `deepr expert loop-status NAME --json`
+can show the latest blocked or waiting maintenance work without re-running it.
+Host agents can read the same state through `deepr_expert_loop_status`.
+Successful `deepr expert sync` runs, non-dry `deepr expert route-gaps
+--execute` runs, and `deepr expert reflect` runs also record loop snapshots.
+`deepr expert health-check` and confirmed `--archive-stale` runs now do the
+same, with spend, capacity source, verifier outcome, accepted-change counts
+where applicable, and typed stop actions for failures, deferred specialist
+routes, weak verifier results, human gates, no corrective work, or exhausted
+budgets. The dashboard API now
 exposes `/api/experts/{name}/loop-status`, a read-only rollup over the same
 records with latest run, last sync result, waiting scheduled action, failure,
 capacity source, spend, acceptance, verifier failure metrics, and `expert_state`
@@ -340,7 +343,9 @@ regenerated OKF Markdown bundle from the belief/event/edge store, gaps, and
 contested claims at `$0`; `deepr expert absorb-okf NAME PATH` parses OKF
 concepts as source text and routes them through the verified absorb gates. The
 structured store remains canonical. Published contracts for expert handoff,
-loop status, and the OKF profile mapping live under `docs/schemas/`.
+loop status, the OKF profile mapping, hosted MCP audit/registration payloads,
+capacity guidance, sync gates, scheduled maintenance payloads, and the shared
+CLI result envelope live under `docs/schemas/`.
 
 ### Evidence and Calibration
 

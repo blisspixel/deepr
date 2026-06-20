@@ -27,7 +27,8 @@ quality-floor selection for expert maintenance; and `deepr capacity next` for
 ranked local setup, admission, eval refresh, fallback guidance, and concrete
 scheduled-maintenance previews. Scheduled sync, gap-fill, reflection, and
 health-check surfaces now stop with wait or action-plan payloads instead of
-silently spending when owned/prepaid capacity is blocked. Not yet built: the
+silently spending when owned/prepaid capacity is blocked, and those scheduled
+payloads now carry published schema identifiers for downstream validation. Not yet built: the
 plan-quota CLI adapters, live window/credit probes, adapter writes,
 plan-quota scheduler dispatch, and auto-mode runtime integration.
 
