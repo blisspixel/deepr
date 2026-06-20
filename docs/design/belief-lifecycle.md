@@ -204,10 +204,11 @@ surface, not a borrowed benchmark.
 
 ### 8. Memory red-team additions (Phase 5)
 
-ADAM-style adaptive extraction probing through the MCP read tools and
-trust-floor bypass attempts (can a crafted report mint a high-confidence
-belief?) join the planned agentic red-team suite, with attack success
-rate tracked per release.
+First local probes now ship through `deepr eval red-team`: high-confidence
+single-report, ungrounded, duplicate-source, and two-tertiary-source cases are
+measured as memory trust-floor bypass attempts at `$0`. ADAM-style adaptive
+extraction probing through the MCP read tools remains planned, with attack
+success rate tracked per release.
 
 ## Order of operations
 
