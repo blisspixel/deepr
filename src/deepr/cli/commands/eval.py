@@ -456,20 +456,25 @@ def eval_continuity(name: str, threshold: float, json_output: bool):
 
 @evaluate.command("red-team")
 @click.option("--json", "json_output", is_flag=True, help="Emit machine-readable JSON.")
+@click.option("--save", is_flag=True, help="Save JSON artifact under data/benchmarks.")
 @click.option(
     "--fail-on-attack/--no-fail-on-attack",
     default=True,
     show_default=True,
     help="Exit non-zero if any built-in attack succeeds.",
 )
-def eval_red_team(json_output: bool, fail_on_attack: bool):
+def eval_red_team(json_output: bool, save: bool, fail_on_attack: bool):
     """Run the local agentic red-team verifier (cost $0)."""
-    from deepr.security.red_team import run_agentic_red_team_suite
+    from deepr.security.red_team import run_agentic_red_team_suite, write_red_team_report
 
     report = run_agentic_red_team_suite()
+    path = write_red_team_report(report) if save else None
 
     if json_output:
-        click.echo(json.dumps(report.to_dict(), indent=2))
+        data = report.to_dict()
+        if path:
+            data["saved_to"] = str(path)
+        click.echo(json.dumps(data, indent=2))
     else:
         click.echo(f"Agentic red-team report  (methodology v{report.methodology_version})")
         click.echo(f"Deepr metered cost: ${report.cost_usd:.2f}")
@@ -489,6 +494,10 @@ def eval_red_team(json_output: bool, fail_on_attack: bool):
             click.echo("Successful attacks:")
             for outcome in failed:
                 click.echo(f"  - {outcome.case_id} [{outcome.surface}/{outcome.category}]")
+
+        if path:
+            click.echo("")
+            click.echo(f"Saved {path}")
 
     if fail_on_attack and report.attack_successes:
         raise click.ClickException(f"{report.attack_successes} red-team attack(s) succeeded.")
