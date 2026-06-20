@@ -16,18 +16,38 @@ import click
 from deepr.cli.colors import console, print_error, print_header, print_success, print_warning
 from deepr.cli.commands.semantic.experts import expert
 
+SCHEDULED_GAP_FILL_WAIT_KIND = "deepr.expert.scheduled_gap_fill_wait"
+SCHEDULED_GAP_FILL_WAIT_SCHEMA_VERSION = "deepr-scheduled-gap-fill-wait-v1"
+
 
 def _quote_cli_arg(value: str) -> str:
     return f'"{value.replace(chr(34), chr(92) + chr(34))}"'
+
+
+def _scheduled_gap_fill_contract() -> dict[str, Any]:
+    return {
+        "read_only": True,
+        "cost_usd": 0.0,
+        "stability": "experimental",
+        "compatibility": {
+            "additive_fields": True,
+            "breaking_changes_require_new_schema_version": True,
+            "deprecation_policy": "Fields in this v1 payload are additive within v1; removals use a new schema.",
+        },
+    }
 
 
 def _scheduled_gap_fill_wait_payload(profile_name: str, routes: list[Any], *, budget: float, top_n: int) -> dict:
     research_routes = [r for r in routes if r.instrument == "research"]
     est = min(sum(max(r.estimated_cost, 0.05) for r in research_routes), budget)
     payload = {
+        "schema_version": SCHEDULED_GAP_FILL_WAIT_SCHEMA_VERSION,
+        "kind": SCHEDULED_GAP_FILL_WAIT_KIND,
+        "contract": _scheduled_gap_fill_contract(),
         "status": "waiting_for_capacity",
         "expert_name": profile_name,
         "detail": "scheduled gap fill is waiting for owned/prepaid capacity instead of using metered research",
+        "scheduled": True,
         "estimated_metered_cost": round(est, 4),
         "routes": [r.to_dict() for r in routes],
         "next_actions": [

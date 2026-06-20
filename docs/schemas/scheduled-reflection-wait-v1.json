@@ -1,0 +1,84 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/blisspixel/deepr/docs/schemas/scheduled-reflection-wait-v1.json",
+  "title": "Deepr Scheduled Reflection Wait v1",
+  "type": "object",
+  "additionalProperties": true,
+  "required": [
+    "schema_version",
+    "kind",
+    "contract",
+    "status",
+    "scheduled",
+    "expert_name",
+    "report_id",
+    "question",
+    "detail",
+    "depth",
+    "execute_followups",
+    "followup_budget_ceiling",
+    "pending_work",
+    "next_actions"
+  ],
+  "properties": {
+    "schema_version": {"const": "deepr-scheduled-reflection-wait-v1"},
+    "kind": {"const": "deepr.expert.scheduled_reflection_wait"},
+    "contract": {"$ref": "#/$defs/contract"},
+    "status": {"const": "waiting_for_capacity"},
+    "scheduled": {"const": true},
+    "expert_name": {"type": "string", "minLength": 1},
+    "report_id": {"type": "string", "minLength": 1},
+    "question": {"type": "string", "minLength": 1},
+    "detail": {"type": "string", "minLength": 1},
+    "depth": {"type": "integer", "minimum": 0},
+    "execute_followups": {"type": "boolean"},
+    "followup_budget_ceiling": {"type": "number", "minimum": 0.0},
+    "pending_work": {
+      "type": "array",
+      "minItems": 1,
+      "items": {"type": "string", "minLength": 1}
+    },
+    "next_actions": {
+      "type": "array",
+      "minItems": 1,
+      "items": {"$ref": "#/$defs/next_action"}
+    },
+    "loop_run": {
+      "type": "object",
+      "additionalProperties": true
+    }
+  },
+  "$defs": {
+    "contract": {
+      "type": "object",
+      "required": ["read_only", "cost_usd", "stability", "compatibility"],
+      "properties": {
+        "read_only": {"const": true},
+        "cost_usd": {"const": 0.0},
+        "stability": {"type": "string"},
+        "compatibility": {
+          "type": "object",
+          "required": ["additive_fields", "breaking_changes_require_new_schema_version", "deprecation_policy"],
+          "properties": {
+            "additive_fields": {"const": true},
+            "breaking_changes_require_new_schema_version": {"const": true},
+            "deprecation_policy": {"type": "string"}
+          },
+          "additionalProperties": true
+        }
+      },
+      "additionalProperties": true
+    },
+    "next_action": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": ["status", "title", "detail"],
+      "properties": {
+        "status": {"type": "string", "minLength": 1},
+        "title": {"type": "string", "minLength": 1},
+        "detail": {"type": "string"},
+        "command": {"type": "string"}
+      }
+    }
+  }
+}

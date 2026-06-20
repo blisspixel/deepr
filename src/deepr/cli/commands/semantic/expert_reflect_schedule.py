@@ -9,9 +9,25 @@ import click
 
 from deepr.cli.colors import console, print_warning
 
+SCHEDULED_REFLECTION_WAIT_KIND = "deepr.expert.scheduled_reflection_wait"
+SCHEDULED_REFLECTION_WAIT_SCHEMA_VERSION = "deepr-scheduled-reflection-wait-v1"
+
 
 def _quote_cli_arg(value: str) -> str:
     return f'"{value.replace(chr(34), chr(92) + chr(34))}"'
+
+
+def _scheduled_reflection_contract() -> dict[str, Any]:
+    return {
+        "read_only": True,
+        "cost_usd": 0.0,
+        "stability": "experimental",
+        "compatibility": {
+            "additive_fields": True,
+            "breaking_changes_require_new_schema_version": True,
+            "deprecation_policy": "Fields in this v1 payload are additive within v1; removals use a new schema.",
+        },
+    }
 
 
 def _reflect_command(
@@ -41,6 +57,9 @@ def scheduled_reflection_wait_payload(
     if execute_followups:
         pending.append("followup_research")
     payload = {
+        "schema_version": SCHEDULED_REFLECTION_WAIT_SCHEMA_VERSION,
+        "kind": SCHEDULED_REFLECTION_WAIT_KIND,
+        "contract": _scheduled_reflection_contract(),
         "status": "waiting_for_capacity",
         "expert_name": expert_name,
         "report_id": report_id,

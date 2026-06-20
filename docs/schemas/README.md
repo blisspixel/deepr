@@ -24,6 +24,10 @@ All v1 schemas are additive within the same schema version:
 | `deepr-mcp-registration-manifest-v1` | [mcp-registration-manifest-v1.json](mcp-registration-manifest-v1.json) | Token-redacted hosted MCP endpoint registration metadata plus optional smoke results |
 | `deepr-capacity-next-v1` | [capacity-next-v1.json](capacity-next-v1.json) | Read-only `$0` capacity guidance payload for scheduler and CLI consumers |
 | `deepr-sync-capacity-gate-v1` | [sync-capacity-gate-v1.json](sync-capacity-gate-v1.json) | Read-only sync capacity wait/block payload with embedded capacity guidance |
+| `deepr-scheduled-gap-fill-wait-v1` | [scheduled-gap-fill-wait-v1.json](scheduled-gap-fill-wait-v1.json) | Read-only scheduled gap-fill wait payload with routed gaps and safe next actions |
+| `deepr-scheduled-reflection-wait-v1` | [scheduled-reflection-wait-v1.json](scheduled-reflection-wait-v1.json) | Read-only scheduled reflection wait payload for evaluator and follow-up capacity gates |
+| `deepr-health-check-action-plan-v1` | [health-check-action-plan-v1.json](health-check-action-plan-v1.json) | Read-only scheduled health-check action plan with per-action scheduler status |
+| `deepr-health-check-archive-confirmation-v1` | [health-check-archive-confirmation-v1.json](health-check-archive-confirmation-v1.json) | Read-only scheduled health-check archive confirmation payload for reversible stale-belief cleanup |
 | `deepr-cli-operation-result-v1` | [cli-operation-result-v1.json](cli-operation-result-v1.json) | Stable `OperationResult` envelope emitted by shared CLI `--json` output helpers |
 
 Generated artifacts remain derived views unless the schema explicitly says
