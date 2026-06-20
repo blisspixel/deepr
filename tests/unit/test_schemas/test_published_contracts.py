@@ -14,6 +14,11 @@ from deepr.backends.capacity_actions import (
     CapacityNextAction,
     build_capacity_next_payload,
 )
+from deepr.cli.commands.semantic.expert_maintenance import (
+    SYNC_CAPACITY_GATE_KIND,
+    SYNC_CAPACITY_GATE_SCHEMA_VERSION,
+    _build_sync_capacity_payload,
+)
 from deepr.cli.output import (
     CLI_OPERATION_RESULT_KIND,
     CLI_OPERATION_RESULT_SCHEMA_VERSION,
@@ -236,6 +241,33 @@ def test_capacity_next_schema_validates_runtime_payload():
     assert payload["schema_version"] == CAPACITY_NEXT_SCHEMA_VERSION
     assert payload["kind"] == CAPACITY_NEXT_KIND
     assert payload["job_context"]["requires_local"] is True
+
+
+def test_sync_capacity_gate_schema_validates_runtime_payload(monkeypatch):
+    monkeypatch.setattr(
+        "deepr.backends.capacity_actions.build_capacity_next_actions",
+        lambda **_: [
+            CapacityNextAction(
+                8,
+                "wait",
+                "Wait for cheap capacity",
+                "scheduled wait",
+            )
+        ],
+    )
+    payload = _build_sync_capacity_payload(
+        "Platform Expert",
+        context_mode="fresh",
+        scheduled=True,
+        status="waiting_for_capacity",
+        detail="local capacity is blocked",
+    )
+    schema = _load_schema("sync-capacity-gate-v1.json")
+
+    _validate(schema, payload)
+    assert payload["schema_version"] == SYNC_CAPACITY_GATE_SCHEMA_VERSION
+    assert payload["kind"] == SYNC_CAPACITY_GATE_KIND
+    assert payload["capacity_next"]["schema_version"] == CAPACITY_NEXT_SCHEMA_VERSION
 
 
 def test_cli_operation_result_schema_validates_success_payload():

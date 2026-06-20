@@ -184,6 +184,9 @@ split ad hoc shapes.
 Capacity guidance now has its first command-specific JSON contract:
 `deepr-capacity-next-v1` covers `deepr capacity next --json` and the
 `capacity_next` object embedded by scheduled sync waits.
+The outer sync wait/block response is also versioned as
+`deepr-sync-capacity-gate-v1`, so a scheduler can validate both the envelope and
+the nested guidance object.
 
 ## Active Gap
 
@@ -205,8 +208,8 @@ That gap matters because it sits directly on the project promise: stop paying tw
 ## Next Work
 
 Next slice: continue schema-backed contract work for additional high-use JSON
-surfaces, especially scheduled expert action payloads beyond sync and capacity
-visibility/admission lists, while keeping all local validation at `$0`.
+surfaces, especially scheduled gap-fill, reflection, and health-check action
+payloads beyond sync, while keeping all local validation at `$0`.
 
 ## Spend Ledger For This Run
 
