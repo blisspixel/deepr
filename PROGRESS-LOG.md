@@ -36,6 +36,10 @@
   now has a reusable prompt wrapper, fresh retrieval context and report
   absorption prompts delimit and sanitize source spans, and first-party tool
   findings sanitize embedded directives before entering expert prompt context.
+- Extended indirect prompt-injection boundaries to local document review,
+  campaign context summarization, completed-research review, company-intelligence
+  reuse, and team-result synthesis. These paths now wrap untrusted source blocks
+  before model reuse without changing the semantic verification gates.
 - Spend so far: `$0.00`.
 
 ## 2026-06-19

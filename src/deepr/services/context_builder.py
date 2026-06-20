@@ -20,6 +20,7 @@ from openai import OpenAI
 
 from deepr.core.constants import MAX_CONTEXT_TOKENS
 from deepr.services.context_pruner import ContextItem, ContextPruner, PruningDecision
+from deepr.utils.prompt_security import sanitize_untrusted_content
 
 
 class ContextBuilder:
@@ -71,6 +72,10 @@ class ContextBuilder:
         """
         # Calculate rough target length in words (4 chars = 1 token)
         target_words = max_tokens * 3
+        report_block = sanitize_untrusted_content(
+            report_content[:20000],
+            source_label="research report",
+        )
 
         prompt = f"""Summarize the following research report for use as context in a follow-up research task.
 
@@ -82,7 +87,7 @@ Extract:
 Format as bullet list. Be concise but preserve essential information. Target length: {target_words} words.
 
 Research Report:
-{report_content[:20000]}
+{report_block.delimited}
 ... (report truncated for summarization)
 
 Summary (bullet list, ~{target_words} words):"""

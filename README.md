@@ -411,7 +411,7 @@ Optional env controls:
 
 ## What's Stable vs Experimental
 
-**Production-ready:** Core research commands, cost controls, expert creation/chat, context discovery, auto mode routing, all providers, local SQLite storage, guided setup (`deepr init`/`deepr doctor`), and a portable data directory (one `DEEPR_DATA_DIR` relocates experts and research, so they follow you across machines via OneDrive/Dropbox/etc.). 5700+ tests (Python 3.12-3.14).
+**Production-ready:** Core research commands, cost controls, expert creation/chat, context discovery, auto mode routing, all providers, local SQLite storage, guided setup (`deepr init`/`deepr doctor`), and a portable data directory (one `DEEPR_DATA_DIR` relocates experts and research, so they follow you across machines via OneDrive/Dropbox/etc.). 6100+ tests (Python 3.12-3.14).
 
 **Experimental:** Web dashboard, agentic expert chat (slash commands, modes, reasoning, approval, council, task planning), expert skills, MCP server, HTTP serve, scoped-key CLIs, HTTP smoke validation, per-key budget and rate guards, and remote-call audit primitives, auto-fallback circuit breakers, cloud deployment templates including hosted MCP Azure, AWS, and GCP variants, capacity visibility, local-model execution, capacity next actions (`deepr capacity next`), quota eligibility gates (`deepr capacity`, `--local` on expert sync/absorb), loop status records and API rollups (`deepr expert loop-status`, `/api/experts/{name}/loop-status`), versioned expert handoff (`/api/experts/{name}/handoff`, `deepr_expert_handoff`), OKF export/import (`deepr expert export-okf`, `deepr expert absorb-okf`), and the evidence layer (`deepr eval continuity`, `deepr eval calibrate`).
 
@@ -456,7 +456,7 @@ Contributions welcome. Run `ruff check . && ruff format .` and `pytest` before s
 
 ## Security
 
-5700+ tests (Python 3.12-3.14). Pre-commit hooks run ruff; CI also runs mypy (kernel is `--strict`) and pip-audit. Input validation, prompt-injection sanitization for user prompts and untrusted source/tool spans, SSRF protection, API key redaction, budget enforcement. See [Architecture](docs/ARCHITECTURE.md) for details.
+6100+ tests (Python 3.12-3.14). Pre-commit hooks run ruff; CI also runs mypy (kernel is `--strict`) and pip-audit. Input validation, prompt-injection sanitization for user prompts and untrusted source/tool spans, including retrieved snippets, reports, document previews, campaign context, and team outputs. SSRF protection, API key redaction, and budget enforcement are covered in [Architecture](docs/ARCHITECTURE.md).
 
 **Report vulnerabilities:** [nick@pueo.io](mailto:nick@pueo.io) (not via public issues)
 
