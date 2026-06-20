@@ -209,7 +209,8 @@ single-report, ungrounded, duplicate-source, and two-tertiary-source cases are
 measured as memory trust-floor bypass attempts at `$0`. The same command also
 measures first MCP handoff and loop-status read-path canaries at `$0`.
 Broader ADAM-style adaptive extraction probing through the MCP read tools
-remains planned, with attack success rate tracked per release.
+remains planned, with attack success rate tracked per release through saved
+red-team artifacts.
 
 ## Order of operations
 

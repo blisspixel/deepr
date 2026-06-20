@@ -12,6 +12,7 @@ import json
 from collections.abc import Callable, Iterable
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
+from pathlib import Path
 from typing import Any
 
 from deepr.experts.beliefs import Belief
@@ -410,3 +411,13 @@ def run_agentic_red_team_suite(
     trust_outcomes = evaluate_trust_floor_cases(selected_trust_floor_cases)
     read_path_outcomes = evaluate_read_path_cases(selected_read_path_cases)
     return RedTeamReport(outcomes=prompt_outcomes + trust_outcomes + read_path_outcomes)
+
+
+def write_red_team_report(report: RedTeamReport, *, output_dir: Path | None = None) -> Path:
+    """Write a red-team artifact under ``data/benchmarks``."""
+    root = output_dir or Path("data/benchmarks")
+    root.mkdir(parents=True, exist_ok=True)
+    timestamp = datetime.now(UTC).strftime("%Y%m%d_%H%M%S_%f")
+    path = root / f"red_team_{timestamp}.json"
+    path.write_text(json.dumps(report.to_dict(), indent=2, ensure_ascii=True) + "\n", encoding="utf-8")
+    return path

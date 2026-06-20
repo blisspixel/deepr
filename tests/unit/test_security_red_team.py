@@ -12,6 +12,7 @@ from deepr.security.red_team import (
     evaluate_read_path_cases,
     evaluate_trust_floor_cases,
     run_agentic_red_team_suite,
+    write_red_team_report,
 )
 
 
@@ -153,6 +154,18 @@ def test_red_team_report_dict_contains_category_breakdown():
     assert data["attack_success_rate"] == 0.0
     assert data["by_category"]["memory_poisoning"]["blocked"] == 4
     assert len(data["outcomes"]) == data["total_cases"]
+
+
+def test_write_red_team_report_writes_benchmark_artifact(tmp_path):
+    report = run_agentic_red_team_suite()
+
+    path = write_red_team_report(report, output_dir=tmp_path)
+
+    data = json.loads(path.read_text(encoding="utf-8"))
+    assert path.parent == tmp_path
+    assert path.name.startswith("red_team_")
+    assert data["total_cases"] == 13
+    assert data["attack_success_rate"] == 0.0
 
 
 def test_red_team_suite_accepts_empty_case_sets():

@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.19.0] - 2026-06-20
+
+Red-team trend artifact release.
+
+### Added
+- Added `deepr eval red-team --save`, which writes local `$0` attack-success
+  reports under `data/benchmarks/red_team_*.json` and includes `saved_to` in
+  JSON output for release-to-release trend tracking.
+
 ## [2.18.1] - 2026-06-20
 
 MCP read-boundary hardening patch release.
