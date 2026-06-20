@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.17.1] - 2026-06-20
+
+Contract-validation and dependency-security patch release.
+
 ### Added
 - Added published scheduler JSON contracts for recurring expert maintenance:
   `deepr-scheduled-gap-fill-wait-v1`,
@@ -20,6 +24,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Added `deepr-a2a-task-v1` to the published schema registry and runtime
   validation to A2A task create/status/cancel responses; malformed task/result
   envelopes now fail closed with `SCHEMA_VALIDATION_FAILED`.
+
+### Security
 - Updated locked `msgpack` to `1.2.1` to resolve GHSA-6v7p-g79w-8964 from
   the transitive `cachecontrol[filecache]` dependency.
 
