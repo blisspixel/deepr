@@ -40,6 +40,8 @@
   campaign context summarization, completed-research review, company-intelligence
   reuse, and team-result synthesis. These paths now wrap untrusted source blocks
   before model reuse without changing the semantic verification gates.
+- Prepared the `v2.17.2` patch release metadata so the public release tracks
+  the completed prompt-boundary hardening slice.
 - Spend so far: `$0.00`.
 
 ## 2026-06-19
