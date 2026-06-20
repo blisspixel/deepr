@@ -252,6 +252,10 @@ Loop/interchange, hosted MCP foundation, and schema-contract release.
 ### Fixed
 - Corrected the built-in search backend wrapper to pass structured query
   arguments to `WebSearchTool` instead of a positional dict.
+- Restored the blocking C901 code-health ratchet by extracting the new loop-run
+  validation, OKF absorption setup, MCP HTTP dispatch, scoped-key checks, and
+  remote-call cost extraction branches into smaller helpers without changing
+  behavior.
 - `deepr search "query"` now dispatches to `deepr search query "query"` instead
   of surfacing Click's generic "No such command" message, and `deepr expert
   list` labels names and descriptions so roster output is easier to scan.
