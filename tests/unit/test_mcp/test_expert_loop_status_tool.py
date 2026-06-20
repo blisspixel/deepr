@@ -68,13 +68,15 @@ class TestExpertLoopStatusTool:
         profile = MagicMock()
         profile.name = "Test Expert"
         mock_server.store.load = MagicMock(return_value=profile)
-        run = MagicMock()
-        run.to_dict.return_value = {"run_id": "loop_1", "status": "waiting"}
 
-        with patch("deepr.mcp.expert_loop_status.ExpertLoopRunStore") as store_class:
-            store = MagicMock()
-            store.list_runs.return_value = [run]
-            store_class.return_value = store
+        with patch("deepr.mcp.expert_loop_status.build_loop_status_rollup") as build_rollup:
+            build_rollup.return_value = {
+                "schema_version": "deepr-loop-status-v1",
+                "kind": "deepr.expert.loop_status",
+                "expert_name": "Test Expert",
+                "count": 1,
+                "runs": [{"run_id": "loop_1", "status": "waiting"}],
+            }
 
             out = await get_expert_loop_status(
                 mock_server.store,
@@ -84,13 +86,16 @@ class TestExpertLoopStatusTool:
                 loop_type="sync",
             )
 
-        assert out == {
-            "expert_name": "Test Expert",
-            "count": 1,
-            "runs": [{"run_id": "loop_1", "status": "waiting"}],
-        }
-        store_class.assert_called_once_with("Test Expert")
-        store.list_runs.assert_called_once_with(status=LoopRunStatus.WAITING, loop_type="sync", limit=3)
+        assert out["schema_version"] == "deepr-loop-status-v1"
+        assert out["kind"] == "deepr.expert.loop_status"
+        assert out["expert_name"] == "Test Expert"
+        assert out["runs"] == [{"run_id": "loop_1", "status": "waiting"}]
+        build_rollup.assert_called_once_with(
+            "Test Expert",
+            status=LoopRunStatus.WAITING,
+            loop_type="sync",
+            limit=3,
+        )
 
     @pytest.mark.asyncio
     async def test_dispatch_requires_confirmation(self, mock_server):
@@ -107,8 +112,14 @@ class TestExpertLoopStatusTool:
         profile.name = "Test Expert"
         mock_server.store.load = MagicMock(return_value=profile)
 
-        with patch("deepr.mcp.expert_loop_status.ExpertLoopRunStore") as store_class:
-            store_class.return_value.list_runs.return_value = []
+        with patch("deepr.mcp.expert_loop_status.build_loop_status_rollup") as build_rollup:
+            build_rollup.return_value = {
+                "schema_version": "deepr-loop-status-v1",
+                "kind": "deepr.expert.loop_status",
+                "expert_name": "Test Expert",
+                "count": 0,
+                "runs": [],
+            }
             result = await _handle_tools_call(
                 mock_server,
                 {
@@ -119,5 +130,7 @@ class TestExpertLoopStatusTool:
 
         assert result["isError"] is False
         payload = json.loads(result["content"][0]["text"])
+        assert payload["schema_version"] == "deepr-loop-status-v1"
+        assert payload["kind"] == "deepr.expert.loop_status"
         assert payload["expert_name"] == "Test Expert"
         assert payload["count"] == 0
