@@ -181,6 +181,9 @@ validation coverage. Command-specific JSON payload schemas remain open.
 The loop-status contract gap is narrower now: the CLI, MCP, and web loop-status
 reads all return the shared `deepr-loop-status-v1` rollup payload instead of
 split ad hoc shapes.
+Capacity guidance now has its first command-specific JSON contract:
+`deepr-capacity-next-v1` covers `deepr capacity next --json` and the
+`capacity_next` object embedded by scheduled sync waits.
 
 ## Active Gap
 
@@ -202,8 +205,8 @@ That gap matters because it sits directly on the project promise: stop paying tw
 ## Next Work
 
 Next slice: continue schema-backed contract work for additional high-use JSON
-surfaces, especially capacity and scheduled expert action payloads, while
-keeping all local validation at `$0`.
+surfaces, especially scheduled expert action payloads beyond sync and capacity
+visibility/admission lists, while keeping all local validation at `$0`.
 
 ## Spend Ledger For This Run
 

@@ -47,6 +47,14 @@
       "compatibility": "additive-within-v1"
     },
     {
+      "name": "capacity-next",
+      "schema_version": "deepr-capacity-next-v1",
+      "kind": "deepr.capacity.next",
+      "path": "capacity-next-v1.json",
+      "status": "experimental",
+      "compatibility": "additive-within-v1"
+    },
+    {
       "name": "cli-operation-result",
       "schema_version": "deepr-cli-operation-result-v1",
       "kind": "deepr.cli.operation_result",
