@@ -48,6 +48,14 @@
   built-in attack succeeds.
 - Prepared the `v2.18.0` minor release metadata so the public release tracks
   the red-team metrics command and structured tool-spoof neutralization.
+- Added MCP read-path hardening for derived expert handoff and loop-status
+  payloads. Host-facing payload strings now sanitize directive and tool-spoof
+  canaries before downstream consumption, while canonical expert state remains
+  unchanged.
+- Extended `deepr eval red-team` with `$0` MCP handoff and loop-status
+  read-path canaries. The built-in suite now reports 13/13 blocked cases.
+- Prepared the `v2.18.1` patch release metadata so the public release tracks
+  the MCP read-boundary hardening slice.
 - Spend so far: `$0.00`.
 
 ## 2026-06-19

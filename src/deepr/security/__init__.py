@@ -1,1 +1,1 @@
-"""Security primitives: permissions, audit, isolation, and red-team metrics."""
+"""Security primitives: permissions, audit, isolation, output safety, and red-team metrics."""
