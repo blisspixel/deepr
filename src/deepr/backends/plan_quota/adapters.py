@@ -38,6 +38,32 @@ _ANSI_RE = re.compile(r"\x1b\[[0-9;?]*[A-Za-z]")
 # A fenced ```...``` block the model wrapped its answer/JSON in.
 _FENCE_RE = re.compile(r"^```[a-zA-Z0-9]*\n(.*)\n```$", re.DOTALL)
 
+# Reset hints vendors print on exhaustion, e.g. codex "Try again in 3h 42m",
+# antigravity "Resets in 2h15m30s". This is deterministic *form* extraction of a
+# relative duration (AGENTIC_BALANCE: determinism guards form), not a semantic
+# verdict - if nothing parses, the reset is honestly recorded as unknown.
+_RESET_PHRASE_RE = re.compile(r"(?:try again in|resets? in|reset in|available again in)\s+([0-9hms\s]+)", re.IGNORECASE)
+_RESET_DUR_RE = re.compile(r"(\d+)\s*([hms])", re.IGNORECASE)
+
+
+def parse_reset_after_seconds(text: str) -> int | None:
+    """Extract a relative reset duration (seconds) from a CLI exhaustion message.
+
+    Returns None when no duration is stated (e.g. monthly credit pools whose
+    error carries no countdown) so the reset stays honestly unknown.
+    """
+    phrase = _RESET_PHRASE_RE.search(text)
+    if not phrase:
+        return None
+    total = 0
+    matched = False
+    for amount, unit in _RESET_DUR_RE.findall(phrase.group(1)):
+        matched = True
+        n = int(amount)
+        unit = unit.lower()
+        total += n * 3600 if unit == "h" else n * 60 if unit == "m" else n
+    return total if matched and total > 0 else None
+
 
 @dataclass(frozen=True)
 class PlanQuotaAdapter:

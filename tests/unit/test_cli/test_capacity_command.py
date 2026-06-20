@@ -27,6 +27,25 @@ def _stub_probe(monkeypatch, **result):
     monkeypatch.setattr("deepr.backends.plan_quota.probe_plan_quota", fake)
 
 
+class TestFleet:
+    def test_registered(self):
+        assert "fleet" in capacity.commands
+
+    def test_human_table_lists_all_backends(self):
+        r = CliRunner().invoke(capacity, ["fleet"])
+        assert r.exit_code == 0
+        for backend in ("codex", "claude", "opencode", "kiro", "grok", "antigravity", "copilot"):
+            assert backend in r.output
+
+    def test_json_payload(self):
+        r = CliRunner().invoke(capacity, ["fleet", "--json"])
+        assert r.exit_code == 0
+        payload = json.loads(r.output)
+        assert payload["schema_version"] == "deepr-plan-fleet-v1"
+        assert payload["contract"]["cost_usd"] == 0.0
+        assert len(payload["backends"]) == 7
+
+
 class TestProbePlan:
     def test_registered(self):
         assert "probe-plan" in capacity.commands
