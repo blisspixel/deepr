@@ -3,7 +3,7 @@
 [![CI](https://github.com/blisspixel/deepr/actions/workflows/ci.yml/badge.svg)](https://github.com/blisspixel/deepr/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 [![Python 3.12+](https://img.shields.io/badge/python-3.12+-blue.svg)](https://www.python.org/downloads/)
-[![Version](https://img.shields.io/badge/version-2.18.1-blue)](https://github.com/blisspixel/deepr/releases/tag/v2.18.1)
+[![Version](https://img.shields.io/badge/version-2.19.0-blue)](https://github.com/blisspixel/deepr/releases/tag/v2.19.0)
 
 **Domain experts, not another chat window.**
 
@@ -220,6 +220,9 @@ deepr eval local-context --model qwen2.5:14b --judge-model qwen2.5:14b --save
 # Run the built-in $0 prompt-boundary, MCP read-path, and trust-floor red-team gate
 deepr eval red-team --json
 
+# Save the $0 red-team report for release-to-release trend review
+deepr eval red-team --save
+
 # Or use an explicitly approved non-API CLI judge such as Grok
 deepr eval local --model qwen2.5:14b --judge-cli grok --allow-cli-judge
 
@@ -230,7 +233,7 @@ deepr eval new --dry-run --tier all
 deepr eval new --max-estimated-cost 3
 ```
 
-The dashboard reads `data/benchmarks/routing_preferences.json` and shows per-task best quality and best value picks. Local comparison artifacts can be saved under `data/benchmarks` for review before admitting a local model. Local context eval artifacts compare whether no context, fresh context, or deep context is the right envelope for a model before schedulers use that mode automatically. `deepr eval red-team` is a local `$0` verifier over built-in prompt-boundary, MCP handoff and loop-status read-path, tool-spoofing, and memory trust-floor probes; it tracks attack-success-rate and exits non-zero if a built-in attack succeeds. CLI judges are explicit opt-in because Deepr cannot prove whether a vendor CLI is using subscription quota or metered credentials.
+The dashboard reads `data/benchmarks/routing_preferences.json` and shows per-task best quality and best value picks. Local comparison artifacts can be saved under `data/benchmarks` for review before admitting a local model. Local context eval artifacts compare whether no context, fresh context, or deep context is the right envelope for a model before schedulers use that mode automatically. `deepr eval red-team` is a local `$0` verifier over built-in prompt-boundary, MCP handoff and loop-status read-path, tool-spoofing, and memory trust-floor probes; it tracks attack-success-rate, exits non-zero if a built-in attack succeeds, and can save `data/benchmarks/red_team_*.json` artifacts for release-to-release trend review. CLI judges are explicit opt-in because Deepr cannot prove whether a vendor CLI is using subscription quota or metered credentials.
 
 ### Setup and Capacity
 
@@ -354,13 +357,14 @@ payloads, and the shared CLI result envelope live under `docs/schemas/`.
 
 ### Evidence and Calibration
 
-Three evals make trust measurable instead of asserted. `deepr eval continuity` scores an expert's staleness honesty, abstention, contradiction-surfacing, and what-changed exactness from stored state at $0. `deepr eval calibrate` answers "does extraction confidence track actual grounding?" with a reliability curve, expected calibration error, and a Platt-derived threshold - `--from` grades existing pairs at $0, `--corpus` runs the paid extraction and pre-grade. `deepr eval red-team` tracks local attack-success-rate for prompt-boundary, MCP read-path, tool-spoofing, and trust-floor probes at $0.
+Three evals make trust measurable instead of asserted. `deepr eval continuity` scores an expert's staleness honesty, abstention, contradiction-surfacing, and what-changed exactness from stored state at $0. `deepr eval calibrate` answers "does extraction confidence track actual grounding?" with a reliability curve, expected calibration error, and a Platt-derived threshold - `--from` grades existing pairs at $0, `--corpus` runs the paid extraction and pre-grade. `deepr eval red-team` tracks local attack-success-rate for prompt-boundary, MCP read-path, tool-spoofing, and trust-floor probes at $0, and `--save` writes a trend artifact.
 
 ```bash
 deepr eval continuity "AI Policy Expert"
 deepr eval calibrate --from data/calibration/graded.jsonl   # $0
 deepr eval calibrate --corpus tests/data/calibration --max-cost 3 --yes
 deepr eval red-team --json                                # $0
+deepr eval red-team --save                                # $0 artifact
 ```
 
 See [docs/CALIBRATION.md](docs/CALIBRATION.md) for the first measured curve and [docs/design/checks-deterministic-vs-agentic.md](docs/design/checks-deterministic-vs-agentic.md) for what belongs in deterministic code versus model judgment.

@@ -1,6 +1,7 @@
 """Tests for eval CLI commands."""
 
 import json
+from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import patch
 
@@ -87,6 +88,21 @@ def test_eval_red_team_outputs_zero_cost_json_report():
     assert data["cost_usd"] == 0.0
     assert data["attack_success_rate"] == 0.0
     assert data["total_cases"] == 13
+
+
+def test_eval_red_team_save_writes_json_artifact():
+    runner = CliRunner()
+
+    with runner.isolated_filesystem():
+        result = runner.invoke(cli, ["eval", "red-team", "--json", "--save"])
+
+        assert result.exit_code == 0
+        data = json.loads(result.output)
+        path = Path(data["saved_to"])
+        saved = json.loads(path.read_text(encoding="utf-8"))
+        assert path.name.startswith("red_team_")
+        assert saved["attack_success_rate"] == 0.0
+        assert saved["total_cases"] == 13
 
 
 def test_eval_red_team_outputs_text_summary():

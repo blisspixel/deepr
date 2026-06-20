@@ -598,7 +598,8 @@ trust-floor gates decide what becomes a belief.
 Run `deepr eval red-team` to exercise the current local `$0` adversarial
 canaries for those boundaries. The suite reports attack-success-rate for
 prompt-boundary, MCP handoff and loop-status read-path, tool-spoofing, and
-trust-floor probes, and fails if a built-in attack succeeds.
+trust-floor probes, fails if a built-in attack succeeds, and can save a local
+trend artifact with `--save`.
 
 **Storage (the temporal knowledge graph):** the belief store is canonical  - 
 `beliefs.json` (claims + typed edges: supports / contradicts / enables /

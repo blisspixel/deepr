@@ -4,7 +4,7 @@ Date: 2026-06-20
 
 ## Alignment Summary
 
-Deepr is aligned around one active product bet: persistent domain experts that can keep verified knowledge current without silent spend. The README sells this as research infrastructure, not another chat window. Current main is now `v2.18.1`: local Ollama is usable for `$0` expert maintenance, durable loop status is observable across CLI, MCP, and web surfaces, OKF import/export is a verified interchange path, the hosted MCP foundation is in place, host-facing output contracts fail closed on schema drift, derived MCP handoff and loop-status reads sanitize directive canaries before host consumption, ingested/tool content prompt boundaries cover fresh context, report absorption, first-party findings, document review, campaign context, and team synthesis paths, and `deepr eval red-team` now measures built-in prompt-boundary, MCP read-path, tool-spoofing, and memory trust-floor canaries at `$0`. Plan-quota adapters remain explicitly not execution backends until adapters, probes, no-surprise-bills guards, and tests ship. `AGENTIC_BALANCE.md` is the governing boundary: deterministic workflow code owns spend, writes, routing gates, durable state, and verifier outcomes; model judgment owns meaning such as contradiction, grounding, deduplication, and synthesis.
+Deepr is aligned around one active product bet: persistent domain experts that can keep verified knowledge current without silent spend. The README sells this as research infrastructure, not another chat window. Current main is now `v2.19.0`: local Ollama is usable for `$0` expert maintenance, durable loop status is observable across CLI, MCP, and web surfaces, OKF import/export is a verified interchange path, the hosted MCP foundation is in place, host-facing output contracts fail closed on schema drift, derived MCP handoff and loop-status reads sanitize directive canaries before host consumption, ingested/tool content prompt boundaries cover fresh context, report absorption, first-party findings, document review, campaign context, and team synthesis paths, and `deepr eval red-team` now measures built-in prompt-boundary, MCP read-path, tool-spoofing, and memory trust-floor canaries at `$0` with optional saved trend artifacts. Plan-quota adapters remain explicitly not execution backends until adapters, probes, no-surprise-bills guards, and tests ship. `AGENTIC_BALANCE.md` is the governing boundary: deterministic workflow code owns spend, writes, routing gates, durable state, and verifier outcomes; model judgment owns meaning such as contradiction, grounding, deduplication, and synthesis.
 
 No clarification is needed before continuing. The docs are internally consistent about what works now, what is visible/read-only, and what remains planned.
 
@@ -219,13 +219,14 @@ runs a local `$0` attack-success-rate verifier over prompt-injection,
 system-prompt extraction, jailbreak, data-exfiltration, structured tool-spoofing,
 MCP handoff and loop-status read-path canaries, and memory trust-floor probes.
 The default suite currently has 13 built-in cases and fails if any attack
-succeeds.
+succeeds. `--save` writes local `data/benchmarks/red_team_*.json` artifacts for
+release-to-release trend review.
 
 The remaining security gap is breadth: expert-chat harness coverage,
-ingestion-path corpora beyond the built-in canaries, release-to-release trend
-artifacts, and broader ADAM-style adaptive extraction probing through MCP read
-tools. Those should stay workflow metrics over observable boundaries, while
-semantic acceptance continues to depend on calibrated extraction, grounding,
+ingestion-path corpora beyond the built-in canaries, and broader ADAM-style
+adaptive extraction probing through MCP read tools. Those should stay workflow
+metrics over observable boundaries, while semantic acceptance continues to
+depend on calibrated extraction, grounding,
 contradiction, dedup, and trust-floor gates.
 
 ## Next Work
