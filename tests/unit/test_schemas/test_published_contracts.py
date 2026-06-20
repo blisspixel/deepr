@@ -7,6 +7,11 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
+from deepr.cli.output import (
+    CLI_OPERATION_RESULT_KIND,
+    CLI_OPERATION_RESULT_SCHEMA_VERSION,
+    OperationResult,
+)
 from deepr.experts.loop_runs import ExpertLoopRun, ExpertLoopRunStore, LoopRunStatus, LoopStopReason
 from deepr.experts.loop_status_rollup import build_loop_status_rollup
 from deepr.mcp.security.scoped_keys import AUDIT_KIND, AUDIT_SCHEMA_VERSION, RemoteMCPAuditEvent
@@ -199,3 +204,43 @@ def test_mcp_registration_manifest_schema_validates_runtime_payload():
     assert payload["kind"] == REGISTRATION_MANIFEST_KIND
     assert payload["auth"]["secret_included"] is False
     assert payload["smoke"]["ok"] is True
+
+
+def test_cli_operation_result_schema_validates_success_payload():
+    payload = json.loads(
+        OperationResult(
+            success=True,
+            duration_seconds=12.5,
+            cost_usd=0.03,
+            report_path="data/reports/research-abc/report.md",
+            job_id="research-abc",
+        ).to_json()
+    )
+    schema = _load_schema("cli-operation-result-v1.json")
+
+    _validate(schema, payload)
+    assert payload["schema_version"] == CLI_OPERATION_RESULT_SCHEMA_VERSION
+    assert payload["kind"] == CLI_OPERATION_RESULT_KIND
+    assert payload["status"] == "success"
+
+
+def test_cli_operation_result_schema_validates_error_payload():
+    payload = json.loads(
+        OperationResult(
+            success=False,
+            duration_seconds=0.0,
+            cost_usd=0.0,
+            error="provider rate limited",
+            error_code="PROVIDER_RATE_LIMIT",
+            category="provider",
+            retryable=True,
+            retry_after=30,
+        ).to_json()
+    )
+    schema = _load_schema("cli-operation-result-v1.json")
+
+    _validate(schema, payload)
+    assert payload["schema_version"] == CLI_OPERATION_RESULT_SCHEMA_VERSION
+    assert payload["kind"] == CLI_OPERATION_RESULT_KIND
+    assert payload["status"] == "error"
+    assert payload["retry_after"] == 30

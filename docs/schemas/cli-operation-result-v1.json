@@ -1,0 +1,32 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/blisspixel/deepr/docs/schemas/cli-operation-result-v1.json",
+  "title": "Deepr CLI Operation Result v1",
+  "type": "object",
+  "additionalProperties": true,
+  "required": ["schema_version", "kind", "status"],
+  "properties": {
+    "schema_version": {"const": "deepr-cli-operation-result-v1"},
+    "kind": {"const": "deepr.cli.operation_result"},
+    "status": {"enum": ["success", "error"]},
+    "duration_seconds": {"type": "number", "minimum": 0},
+    "cost_usd": {"type": "number", "minimum": 0},
+    "report_path": {"type": "string"},
+    "job_id": {"type": "string"},
+    "error": {"type": "string"},
+    "error_code": {"type": "string", "minLength": 1},
+    "category": {"type": "string", "minLength": 1},
+    "retryable": {"type": "boolean"},
+    "retry_after": {"type": "integer", "minimum": 0}
+  },
+  "oneOf": [
+    {
+      "properties": {"status": {"const": "success"}},
+      "required": ["duration_seconds", "cost_usd", "report_path", "job_id"]
+    },
+    {
+      "properties": {"status": {"const": "error"}},
+      "required": ["error", "error_code", "category", "retryable"]
+    }
+  ]
+}

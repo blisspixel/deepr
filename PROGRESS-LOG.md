@@ -47,4 +47,5 @@
 - Added MCP allowlist enforcement contract tests across visible registry tools, dispatcher-only tools, every `ResearchMode`, scoped-key authorization, and JSON-RPC pre-dispatch gates.
 - Audited expert chat circuit-breaker/session-budget coordination: session circuit trips block before fallback provider calls, deep research preserves session-budget metadata on preflight denials, and regression tests cover the blocked response paths.
 - Fixed the live-validation CLI polish item: `deepr search "query"` now dispatches to the query subcommand with options intact, and `deepr expert list` labels name and description fields for clearer roster scans.
+- Published `deepr-cli-operation-result-v1` for the shared CLI `OperationResult` JSON envelope, added schema-version/kind fields to runtime output, and validated success/error payloads against the registry schema.
 - Spend so far: `$0.00`.
