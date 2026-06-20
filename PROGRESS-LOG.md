@@ -1,5 +1,12 @@
 # Progress Log
 
+## 2026-06-20 — Plan-quota auto-routing via operator admission (the fleet's "auto" made real)
+
+- `deepr capacity admit-plan <codex|claude|opencode> --task-class <sync|absorb>` (+ `revoke-plan`): explicit, dated, safety-gated operator opt-in to auto-route maintenance onto a subscription. Stored `plan:<id>` in the shared admission store; shown separately in `deepr capacity`.
+- Waterfall auto rung rewritten honestly: instead of waiting on a remaining-quota meter the CLIs don't expose, `_choose_plan_quota` auto-selects an installed + plan-authed + **admitted** + not-in-cooldown backend (`require_observed_quota=False`). Reset-aware: an `EXHAUSTED` event with a future `reset_at` blocks; once it passes the backend self-heals. API-key env still refuses the backend as plan capacity; metered stays the budget-gated last resort.
+- Local-admission lookup filtered to exclude `plan:*` keys (clean separation).
+- Tests rewritten for the admission model (admitted→routes, not-admitted→metered, exhausted-future→metered, exhausted-past-reset→re-routes, api-key→blocked, copilot-not-auto-routable) + admit/revoke CLI round-trip, api-key block, choice restricted to auto-routable. Waterfall 100% coverage; ruff + ratchets baseline; 319 suite green.
+
 ## 2026-06-20 — route-gaps --plan parity (gap-fill on prepaid capacity)
 
 - `expert route-gaps --execute` gains `--local` / `--api` / `--plan <id>` / `--plan-model`: gap-fill runs research + verified extraction on owned/prepaid capacity via one client (helper `_build_gap_fill_engine`), default stays metered. Scheduled recurring fills now proceed on owned/prepaid instead of waiting; loop records the real `capacity_source`.

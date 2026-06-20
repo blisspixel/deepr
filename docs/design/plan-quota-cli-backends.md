@@ -75,24 +75,35 @@ depleted plan) and a `$0` `cost_ledger.jsonl` event with the quota units in
 metadata, so `costs show` and anomaly detection see volume even at $0 marginal
 cost. The cost ledger stays the single record of every spend source.
 
-## Why auto-routing stays gated off by default
+## Auto-routing is opt-in, not guessed
 
-The waterfall's plan-quota rung (`choose_maintenance_backend`) only auto-selects
-a CLI that is installed, in plan auth mode, ToS-clean (`enabled_by_default`), and
-has an **observed, non-exhausted remaining-quota window**. Vendor CLIs do not
-expose trustworthy remaining quota, so `remaining_confidence` is recorded as
-`UNKNOWN` and the eligibility gate returns `QUOTA_UNKNOWN` - i.e. not
-auto-routed. This is deliberate: auto-routing maintenance onto a plan window the
-operator is also using interactively would silently exhaust it. Until a probe
-can record a trusted remaining signal, the **explicit** path is how operators opt
-in:
+Vendor CLIs do not expose trustworthy *remaining* quota, so Deepr never
+auto-routes on a guess. Instead the operator opts in with an explicit, dated
+admission - the attestation that draining that subscription window for
+background maintenance is intended:
 
-- `deepr expert sync NAME --plan codex` - run this sync on the plan now.
-- `deepr capacity probe-plan codex` - validate auth + one round-trip ($0 on a
-  subscription; asks first for a metered CLI).
+- `deepr capacity admit-plan codex --task-class sync` (and `revoke-plan`) records
+  a plan admission in the shared admission store, namespaced `plan:<id>` so the
+  local rung never mistakes it for an Ollama model. Only the genuinely
+  free-at-margin, ToS-clean backends (codex/claude/opencode) can be admitted.
 
-`choose_plan_quota_backend` resolves an explicit request through the same safety
-gate but without the observed-quota requirement (the operator chose it).
+The waterfall's plan-quota rung (`choose_maintenance_backend` ->
+`_choose_plan_quota`) then auto-selects a CLI that is installed, in plan auth
+mode, **admitted** for the task class, and **not in an exhaustion cooldown**. The
+admission replaces the observed-remaining requirement (`require_observed_quota=
+False`); the safety gate (API-key -> refused) and the exhaustion check still
+apply. A backend seen `EXHAUSTED` with a future `reset_at` is skipped and falls
+to metered; once the reset passes it auto-routes again, so a depleted plan
+self-heals without re-routing into the wall. Metered stays the budget-gated last
+resort.
+
+The explicit path needs no admission (the operator chose it directly):
+
+- `deepr expert sync NAME --plan codex` (also `absorb`, `route-gaps --execute`).
+- `deepr capacity probe-plan codex` - validate auth + one round-trip.
+
+`choose_plan_quota_backend` resolves an explicit `--plan` request through the
+same safety gate but without the admission/observed-quota requirement.
 
 ## Fleet visibility
 
