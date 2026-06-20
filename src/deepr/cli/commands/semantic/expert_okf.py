@@ -12,6 +12,77 @@ from deepr.cli.colors import console, print_error, print_header, print_key_value
 from deepr.cli.commands.semantic.experts import expert
 
 
+def _load_expert_or_exit(name: str):
+    from deepr.experts.profile import ExpertStore
+
+    store = ExpertStore()
+    profile = store.load(name)
+    if not profile:
+        print_error(f"Expert not found: {name}")
+        click.echo("List available experts: deepr expert list")
+        sys.exit(2)
+    return store, profile
+
+
+def _build_okf_corpus_or_exit(path: str):
+    from deepr.experts.okf import build_okf_ingestion_corpus
+
+    try:
+        return build_okf_ingestion_corpus(Path(path))
+    except ValueError as exc:
+        print_error(str(exc))
+        sys.exit(2)
+
+
+def _choose_absorb_backend(local: bool, api: bool, model: str | None) -> tuple[bool, str | None, str]:
+    if local or api or model is not None:
+        return local, model, ""
+
+    from deepr.backends.admission import TASK_CLASS_ABSORB
+    from deepr.backends.waterfall import choose_maintenance_backend
+
+    choice = choose_maintenance_backend(TASK_CLASS_ABSORB)
+    return choice.is_local, choice.model if choice.is_local else model, choice.reason if choice.is_local else ""
+
+
+def _make_absorber_or_exit(profile, *, use_local: bool, model: str | None):
+    from deepr.experts.report_absorber import ESTIMATED_EXTRACTION_COST, ReportAbsorber
+
+    if not use_local:
+        return ReportAbsorber(profile, model=model or "gpt-5-mini"), f"~${ESTIMATED_EXTRACTION_COST:.2f}"
+
+    from deepr.backends.local import default_local_model, ollama_chat_client
+
+    local_model = model or default_local_model()
+    if not local_model:
+        print_error("No local model available. Is Ollama running? Check: deepr capacity --probe")
+        sys.exit(2)
+    absorber = ReportAbsorber(profile, model=local_model, client=ollama_chat_client())
+    return absorber, f"$0 (local model {local_model})"
+
+
+def _run_okf_absorb_or_exit(absorber, corpus, *, min_confidence: float, dry_run: bool):
+    import asyncio
+
+    from deepr.experts.report_absorber import ReportAbsorberError
+
+    try:
+        return asyncio.run(
+            absorber.absorb(
+                corpus.report_id,
+                corpus.report_text,
+                min_confidence=min_confidence,
+                dry_run=dry_run,
+            )
+        )
+    except ReportAbsorberError as exc:
+        print_error(str(exc))
+        sys.exit(2)
+    except Exception as exc:
+        print_error(f"OKF absorption failed: {exc}")
+        sys.exit(1)
+
+
 @expert.command(name="export-okf")
 @click.argument("name")
 @click.argument("output", type=click.Path(file_okay=False))
@@ -104,56 +175,18 @@ def absorb_okf(
       deepr expert absorb-okf "AI Strategy Expert" ./okf/ai-strategy --dry-run
       deepr expert absorb-okf "AI Strategy Expert" ./okf/ai-strategy --local -y
     """
-    import asyncio
     from datetime import UTC, datetime
 
     if local and api:
         print_error("Use either --local or --api, not both.")
         sys.exit(2)
 
-    from deepr.experts.okf import build_okf_ingestion_corpus
-    from deepr.experts.profile import ExpertStore
-    from deepr.experts.report_absorber import ESTIMATED_EXTRACTION_COST, ReportAbsorber, ReportAbsorberError
-
-    store = ExpertStore()
-    profile = store.load(name)
-    if not profile:
-        print_error(f"Expert not found: {name}")
-        click.echo("List available experts: deepr expert list")
-        sys.exit(2)
-
-    try:
-        corpus = build_okf_ingestion_corpus(Path(path))
-    except ValueError as exc:
-        print_error(str(exc))
-        sys.exit(2)
-
-    use_local = local
-    selection_note = ""
-    if not local and not api and model is None:
-        from deepr.backends.admission import TASK_CLASS_ABSORB
-        from deepr.backends.waterfall import choose_maintenance_backend
-
-        choice = choose_maintenance_backend(TASK_CLASS_ABSORB)
-        use_local = choice.is_local
-        if use_local:
-            model = choice.model
-            selection_note = choice.reason
-
-    if use_local:
-        from deepr.backends.local import default_local_model, ollama_chat_client
-
-        local_model = model or default_local_model()
-        if not local_model:
-            print_error("No local model available. Is Ollama running? Check: deepr capacity --probe")
-            sys.exit(2)
-        absorber = ReportAbsorber(profile, model=local_model, client=ollama_chat_client())
-        cost_note = f"$0 (local model {local_model})"
-        if selection_note and not json_output:
-            console.print(f"[dim]{selection_note}[/dim]")
-    else:
-        absorber = ReportAbsorber(profile, model=model or "gpt-5-mini")
-        cost_note = f"~${ESTIMATED_EXTRACTION_COST:.2f}"
+    store, profile = _load_expert_or_exit(name)
+    corpus = _build_okf_corpus_or_exit(path)
+    use_local, model, selection_note = _choose_absorb_backend(local, api, model)
+    absorber, cost_note = _make_absorber_or_exit(profile, use_local=use_local, model=model)
+    if selection_note and not json_output:
+        console.print(f"[dim]{selection_note}[/dim]")
 
     if not yes:
         intent = "preview (writes nothing)" if dry_run else f"absorb OKF into '{name}'"
@@ -161,21 +194,7 @@ def absorb_okf(
             print_warning("Cancelled.")
             sys.exit(0)
 
-    try:
-        result = asyncio.run(
-            absorber.absorb(
-                corpus.report_id,
-                corpus.report_text,
-                min_confidence=min_confidence,
-                dry_run=dry_run,
-            )
-        )
-    except ReportAbsorberError as exc:
-        print_error(str(exc))
-        sys.exit(2)
-    except Exception as exc:
-        print_error(f"OKF absorption failed: {exc}")
-        sys.exit(1)
+    result = _run_okf_absorb_or_exit(absorber, corpus, min_confidence=min_confidence, dry_run=dry_run)
 
     if not result.dry_run:
         profile.total_research_cost += result.estimated_cost
