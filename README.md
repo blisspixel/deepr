@@ -456,7 +456,7 @@ Contributions welcome. Run `ruff check . && ruff format .` and `pytest` before s
 
 ## Security
 
-5700+ tests (Python 3.12-3.14). Pre-commit hooks run ruff; CI also runs mypy (kernel is `--strict`) and pip-audit. Input validation, prompt-injection sanitization, SSRF protection, API key redaction, budget enforcement. See [Architecture](docs/ARCHITECTURE.md) for details.
+5700+ tests (Python 3.12-3.14). Pre-commit hooks run ruff; CI also runs mypy (kernel is `--strict`) and pip-audit. Input validation, prompt-injection sanitization for user prompts and untrusted source/tool spans, SSRF protection, API key redaction, budget enforcement. See [Architecture](docs/ARCHITECTURE.md) for details.
 
 **Report vulnerabilities:** [nick@pueo.io](mailto:nick@pueo.io) (not via public issues)
 
