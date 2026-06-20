@@ -162,11 +162,18 @@ class ExpertLoopRun:
         return self.status in TERMINAL_LOOP_STATUSES
 
     def __post_init__(self) -> None:
+        self._validate_identity_fields()
+        self._validate_numeric_fields()
+        self._validate_stop_reason()
+
+    def _validate_identity_fields(self) -> None:
         if self.schema_version != LOOP_RUN_SCHEMA_VERSION:
             raise ValueError(f"unsupported loop-run schema version: {self.schema_version}")
         for field_name in ("run_id", "expert_name", "loop_type", "goal", "trigger"):
             if not str(getattr(self, field_name)).strip():
                 raise ValueError(f"{field_name} is required")
+
+    def _validate_numeric_fields(self) -> None:
         if self.iteration_count < 0:
             raise ValueError("iteration_count must be non-negative")
         if self.max_iterations is not None and self.max_iterations < 1:
@@ -177,6 +184,8 @@ class ExpertLoopRun:
             raise ValueError("budget_spent must be non-negative")
         if self.accepted_changes < 0 or self.rejected_changes < 0:
             raise ValueError("change counts must be non-negative")
+
+    def _validate_stop_reason(self) -> None:
         if self.is_terminal and self.stop_reason is None:
             raise ValueError("terminal loop runs require a typed stop_reason")
         allowed_stop_reasons = LOOP_STATUS_STOP_REASONS.get(self.status)
