@@ -7,6 +7,11 @@ from typing import Any
 from deepr.experts.loop_runs import LoopRunStatus
 from deepr.experts.loop_status_rollup import build_loop_status_rollup
 from deepr.experts.profile import ExpertStore
+from deepr.mcp.output_contracts import (
+    LOOP_STATUS_OUTPUT_CONTRACT,
+    schema_validation_error,
+    validate_published_output,
+)
 
 
 def _error(error_code: str, message: str) -> dict[str, Any]:
@@ -47,11 +52,15 @@ async def get_expert_loop_status(
         if not isinstance(resolved_name, str) or not resolved_name.strip():
             resolved_name = expert_name
 
-        return build_loop_status_rollup(
+        payload = build_loop_status_rollup(
             resolved_name,
             status=status_filter,
             loop_type=type_filter,
             limit=parsed_limit,
         )
+        errors = validate_published_output(payload, LOOP_STATUS_OUTPUT_CONTRACT)
+        if errors:
+            return schema_validation_error(LOOP_STATUS_OUTPUT_CONTRACT, errors)
+        return payload
     except (OSError, KeyError, ValueError) as e:
         return _error("LOOP_STATUS_FAILED", str(e))

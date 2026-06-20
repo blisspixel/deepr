@@ -6,6 +6,11 @@ from typing import Any
 
 from deepr.experts.handoff import build_expert_handoff
 from deepr.experts.profile import ExpertStore
+from deepr.mcp.output_contracts import (
+    EXPERT_HANDOFF_OUTPUT_CONTRACT,
+    schema_validation_error,
+    validate_published_output,
+)
 
 
 def _error(error_code: str, message: str) -> dict[str, Any]:
@@ -57,7 +62,7 @@ async def get_expert_handoff(
         if not expert:
             return _error("EXPERT_NOT_FOUND", f"Expert '{expert_name}' not found")
 
-        return build_expert_handoff(
+        payload = build_expert_handoff(
             expert,
             max_claims=parsed_claims if parsed_claims is not None else 10,
             max_gaps=parsed_gaps if parsed_gaps is not None else 10,
@@ -66,5 +71,9 @@ async def get_expert_handoff(
             include_gaps=_parse_bool(include_gaps, default=True),
             include_decisions=_parse_bool(include_decisions, default=False),
         )
+        errors = validate_published_output(payload, EXPERT_HANDOFF_OUTPUT_CONTRACT)
+        if errors:
+            return schema_validation_error(EXPERT_HANDOFF_OUTPUT_CONTRACT, errors)
+        return payload
     except (OSError, KeyError, ValueError) as e:
         return _error("HANDOFF_FAILED", str(e))
