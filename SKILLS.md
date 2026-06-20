@@ -50,3 +50,4 @@ This file captures repo-specific operating lessons from autonomous work cycles.
 - Published CLI JSON schemas should validate real runtime payloads, not hand-written examples. Add `schema_version` and `kind` additively, then test success and error outputs against the registry schema.
 - When a published JSON schema already has a shared serializer, route every surface through that serializer before adding another schema. CLI, MCP, and web payloads should not drift into separate ad hoc shapes.
 - Scheduler-facing guidance payloads should carry their own schema version even when nested inside a larger wait response. Preserve the existing nested key, but make the reusable object validate independently.
+- For scheduled wait envelopes, version both layers when they carry different contracts: the outer wait/block reason and the reusable nested guidance object.

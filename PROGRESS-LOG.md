@@ -50,4 +50,5 @@
 - Published `deepr-cli-operation-result-v1` for the shared CLI `OperationResult` JSON envelope, added schema-version/kind fields to runtime output, and validated success/error payloads against the registry schema.
 - Unified loop-status JSON output across CLI and MCP with the published `deepr-loop-status-v1` rollup payload, preserving MCP status and loop-type filters.
 - Published `deepr-capacity-next-v1` for read-only `$0` capacity guidance, added schema-version/kind fields to `deepr capacity next --json`, and reused the same payload under scheduled sync waits.
+- Published `deepr-sync-capacity-gate-v1` for read-only sync capacity wait/block payloads, including nested capacity guidance and optional loop-run records.
 - Spend so far: `$0.00`.

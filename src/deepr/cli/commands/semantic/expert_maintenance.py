@@ -25,6 +25,9 @@ from deepr.cli.colors import (
 )
 from deepr.cli.commands.semantic.experts import expert
 
+SYNC_CAPACITY_GATE_KIND = "deepr.expert.sync_capacity_gate"
+SYNC_CAPACITY_GATE_SCHEMA_VERSION = "deepr-sync-capacity-gate-v1"
+
 
 @expert.command(name="absorb")
 @click.argument("name")
@@ -262,6 +265,18 @@ def _build_sync_capacity_payload(
     )
     actions = build_capacity_next_actions(task_class=TASK_CLASS_SYNC, job_context=job_context)
     return {
+        "schema_version": SYNC_CAPACITY_GATE_SCHEMA_VERSION,
+        "kind": SYNC_CAPACITY_GATE_KIND,
+        "contract": {
+            "read_only": True,
+            "cost_usd": 0.0,
+            "stability": "experimental",
+            "compatibility": {
+                "additive_fields": True,
+                "breaking_changes_require_new_schema_version": True,
+                "deprecation_policy": "Fields in this v1 payload are additive within v1; removals use a new schema.",
+            },
+        },
         "status": status,
         "expert_name": expert_name,
         "detail": detail,
