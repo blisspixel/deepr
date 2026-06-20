@@ -290,7 +290,7 @@ Deepr handles sensitive data (API keys, research content, expert knowledge) and 
 |--------|------|------------|
 | API key exposure | High | Environment variables only, never in code/logs |
 | Path traversal | Medium | Input validation, sandboxed file operations |
-| Prompt injection | Medium | User prompts are sanitized; untrusted source/tool text, document previews, campaign context, and team findings are delimited before model use; `deepr eval red-team` tracks local attack-success-rate for built-in boundary probes; belief absorption remains verify gated |
+| Prompt injection | Medium | User prompts are sanitized; untrusted source/tool text, document previews, campaign context, and team findings are delimited before model use; derived MCP handoff and loop-status reads neutralize directive and tool-spoof canaries before host consumption; `deepr eval red-team` tracks local attack-success-rate for built-in boundary probes; belief absorption remains verify gated |
 | Cost runaway | Medium | Session budgets, daily limits, circuit breakers |
 | Data exfiltration | Low | Local storage by default, no external telemetry |
 
@@ -342,10 +342,11 @@ User inputs are validated before use:
 
 `deepr eval red-team` is a local `$0` verifier for the controls above. It
 checks built-in prompt-injection, jailbreak, data-exfiltration,
-tool-call/tool-result spoofing, and memory trust-floor probes, reports
-attack-success-rate, and fails if a built-in attack succeeds. These checks are
-workflow guards over prompt boundaries and confidence ceilings; they do not
-decide whether a claim is true.
+tool-call/tool-result spoofing, MCP handoff and loop-status read-path, and
+memory trust-floor probes, reports attack-success-rate, and fails if a built-in
+attack succeeds. These checks are workflow guards over prompt boundaries,
+derived read payloads, and confidence ceilings; they do not decide whether a
+claim is true.
 
 #### Cost Safety
 
