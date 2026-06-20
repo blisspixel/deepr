@@ -1,5 +1,12 @@
 # Progress Log
 
+## 2026-06-20 — Live $0-expert validation: fixed free web search (ddgs) + benchmark path bug
+
+- **Live validation on a real machine**: `deepr capacity fleet`/`--probe` correctly saw all 7 plan CLIs + Ollama (12 models, qwen2.5-coder:32b admitted); made 5 experts for **$0.00**; auth-mode gate correctly flagged codex/claude/grok as `metered` (API keys in env).
+- **Bug: free web search was dead.** The keyless backend imported the deprecated `duckduckgo_search`, whose endpoint now returns 0 results -> every `sync --local --fresh-context` got "no sources" -> no $0 knowledge. Fixed `web_search.py` to prefer the maintained `ddgs` package (legacy fallback), run the blocking query off the event loop, and degrade gracefully on rate-limit/network. Declared `ddgs` as a `search` extra in `[full]`. Regression tests added; the broken-by-install legacy test updated.
+- **Validated the $0 knowledge loop end to end**: `expert sync --local --fresh-context` then retrieved 5 sources via ddgs and the local qwen-32b extracted **17 grounded beliefs at $0.000** with a source-pack artifact. Real, sourced, queryable expert knowledge for free.
+- **Bug: `--auto --preview` printed "Background eval failed (rc=2)"** - `benchmark_models.py` path computed with wrong `parents[N]` in both `eval.py` and `auto_mode.py` (pointed at nonexistent `src/scripts/`). Fixed both, made the auto-mode eval degrade quietly when the script is absent (pipx installs), kept C901 at baseline by extracting a module-level helper, regression test pins both paths. (commit f9a5902, CI green.)
+
 ## 2026-06-20 — Plan-quota auto-routing via operator admission (the fleet's "auto" made real)
 
 - `deepr capacity admit-plan <codex|claude|opencode> --task-class <sync|absorb>` (+ `revoke-plan`): explicit, dated, safety-gated operator opt-in to auto-route maintenance onto a subscription. Stored `plan:<id>` in the shared admission store; shown separately in `deepr capacity`.

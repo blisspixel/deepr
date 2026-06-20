@@ -1,5 +1,6 @@
 """Web search tool implementation."""
 
+import asyncio
 import os
 from typing import Any
 
@@ -132,30 +133,35 @@ class WebSearchTool(Tool):
         return ToolResult(success=True, data=results, metadata={"backend": "tavily", "query": query})
 
     async def _search_duckduckgo(self, query: str, num_results: int) -> ToolResult:
-        """
-        Search using DuckDuckGo (free, no API key).
+        """Search using DuckDuckGo (free, no API key).
 
-        Note: Uses duckduckgo-search library if installed.
+        Prefers the maintained ``ddgs`` package; falls back to the legacy
+        ``duckduckgo_search`` name. The legacy package is deprecated and its
+        endpoint now returns no results, so ``ddgs`` is what makes the free
+        retrieval path actually work. Network errors degrade to a failed
+        ToolResult so the caller records "no sources" rather than crashing.
         """
         try:
-            from duckduckgo_search import DDGS
-
-            with DDGS() as ddgs:
-                results = []
-                for r in ddgs.text(query, max_results=num_results):
-                    results.append(
-                        {
-                            "title": r.get("title"),
-                            "url": r.get("href"),
-                            "snippet": r.get("body"),
-                        }
-                    )
-
-                return ToolResult(success=True, data=results, metadata={"backend": "duckduckgo", "query": query})
+            from ddgs import DDGS
         except ImportError:
-            return ToolResult(
-                success=False, data=None, error="duckduckgo-search not installed. Run: pip install duckduckgo-search"
-            )
+            try:
+                from duckduckgo_search import DDGS  # type: ignore[no-redef]
+            except ImportError:
+                return ToolResult(
+                    success=False, data=None, error="No DuckDuckGo backend installed. Run: pip install ddgs"
+                )
+
+        def _query() -> list[dict[str, str | None]]:
+            return [
+                {"title": r.get("title"), "url": r.get("href") or r.get("url"), "snippet": r.get("body")}
+                for r in DDGS().text(query, max_results=num_results)
+            ]
+
+        try:
+            results = await asyncio.to_thread(_query)
+        except Exception as e:  # rate limits / transient network: degrade, don't crash
+            return ToolResult(success=False, data=None, error=f"DuckDuckGo search failed: {e}")
+        return ToolResult(success=True, data=results, metadata={"backend": "duckduckgo", "query": query})
 
 
 class MCPWebSearchTool(Tool):
