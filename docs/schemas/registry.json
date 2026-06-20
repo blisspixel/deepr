@@ -47,6 +47,14 @@
       "compatibility": "additive-within-v1"
     },
     {
+      "name": "a2a-task",
+      "schema_version": "deepr-a2a-task-v1",
+      "kind": "deepr.a2a.task",
+      "path": "a2a-task-v1.json",
+      "status": "experimental",
+      "compatibility": "additive-within-v1"
+    },
+    {
       "name": "capacity-next",
       "schema_version": "deepr-capacity-next-v1",
       "kind": "deepr.capacity.next",

@@ -197,6 +197,11 @@ The MCP host-facing expert reads now also validate their published envelopes at
 runtime: `deepr_expert_handoff` and `deepr_expert_loop_status` fail closed with
 `SCHEMA_VALIDATION_FAILED` if required schema/kind/envelope fields drift before
 the response leaves Deepr.
+The A2A task lifecycle now has the same structural guard. `Task.to_dict()`
+emits `deepr-a2a-task-v1`, the schema is published in `docs/schemas/`, and
+create/status/cancel task responses fail closed with `SCHEMA_VALIDATION_FAILED`
+if schema version, kind, lifecycle state, cost, timestamps, metadata, or
+required envelope fields drift.
 
 ## Active Gap
 
@@ -217,10 +222,9 @@ That gap matters because it sits directly on the project promise: stop paying tw
 
 ## Next Work
 
-Next slice: keep the release current while extending output validation beyond
-the two MCP expert-read contracts, especially A2A task/result envelopes and any
-remaining command-specific `--json` payloads, while keeping all local
-validation at `$0`.
+Next slice: keep the release current while extending schema-backed validation to
+the remaining command-specific `--json` payloads and the highest-risk
+agentic-security backlog item, while keeping all local validation at `$0`.
 
 ## Spend Ledger For This Run
 

@@ -63,6 +63,9 @@ class TestTaskCreation:
         assert body["state"] == "submitted"
         assert body["skill"] == "recon"
         assert body["input"] == "example.com"
+        assert body["schema_version"] == "deepr-a2a-task-v1"
+        assert body["kind"] == "deepr.a2a.task"
+        assert body["contract"]["cost_field"] == "cost"
         assert "id" in body
 
     def test_missing_skill_returns_400(self, server: A2AServer) -> None:
@@ -93,6 +96,7 @@ class TestTaskRetrieval:
 
         assert status == 200
         assert body["id"] == task_id
+        assert body["schema_version"] == "deepr-a2a-task-v1"
 
     def test_get_nonexistent_task_returns_404(self, server: A2AServer) -> None:
         """Nonexistent task returns 404."""
@@ -114,6 +118,7 @@ class TestTaskCancellation:
 
         assert status == 200
         assert body["state"] == "cancelled"
+        assert body["kind"] == "deepr.a2a.task"
 
     def test_cancel_completed_task_returns_409(self, server: A2AServer) -> None:
         """Cannot cancel a completed task."""

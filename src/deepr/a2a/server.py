@@ -16,7 +16,12 @@ import os
 from typing import Any
 
 from deepr.a2a.agent_card import AgentCardGenerator
-from deepr.a2a.models import TaskRequest, TaskState
+from deepr.a2a.models import Task, TaskRequest, TaskState
+from deepr.a2a.output_contracts import (
+    A2A_TASK_OUTPUT_CONTRACT,
+    schema_validation_error,
+    validate_a2a_output,
+)
 from deepr.a2a.task_manager import (
     InvalidTransitionError,
     TaskManager,
@@ -183,24 +188,31 @@ class A2AServer:
         )
 
         task = self._task_manager.create_task(request, budget=request.budget)
-        return 201, task.to_dict()
+        return self._task_response(201, task)
 
     def _handle_get_task(self, task_id: str) -> tuple[int, dict[str, Any]]:
         """GET /tasks/{id}"""
         task = self._task_manager.get_task(task_id)
         if task is None:
             return 404, {"error": f"Task not found: {task_id}"}
-        return 200, task.to_dict()
+        return self._task_response(200, task)
 
     def _handle_cancel_task(self, task_id: str) -> tuple[int, dict[str, Any]]:
         """POST /tasks/{id}/cancel"""
         try:
             task = self._task_manager.transition(task_id, TaskState.CANCELLED)
-            return 200, task.to_dict()
+            return self._task_response(200, task)
         except TaskNotFoundError:
             return 404, {"error": f"Task not found: {task_id}"}
         except InvalidTransitionError as e:
             return 409, {"error": str(e)}
+
+    def _task_response(self, status: int, task: Task) -> tuple[int, dict[str, Any]]:
+        payload = task.to_dict()
+        errors = validate_a2a_output(payload, A2A_TASK_OUTPUT_CONTRACT)
+        if errors:
+            return 500, schema_validation_error(A2A_TASK_OUTPUT_CONTRACT, errors)
+        return status, payload
 
     def _handle_stream_info(self, task_id: str) -> tuple[int, dict[str, Any]]:
         """GET /tasks/{id}/stream — returns stream metadata."""
