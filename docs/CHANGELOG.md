@@ -14,6 +14,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `deepr-health-check-action-plan-v1`, and
   `deepr-health-check-archive-confirmation-v1`, with runtime payload stamps,
   registry entries, and schema-validation coverage.
+- Added runtime MCP output-contract validation for `deepr_expert_handoff` and
+  `deepr_expert_loop_status`; malformed published payloads now fail closed with
+  `SCHEMA_VALIDATION_FAILED` before host agents consume them.
 
 ## [2.17.0] - 2026-06-20
 
