@@ -56,6 +56,11 @@
   read-path canaries. The built-in suite now reports 13/13 blocked cases.
 - Prepared the `v2.18.1` patch release metadata so the public release tracks
   the MCP read-boundary hardening slice.
+- Added `deepr eval red-team --save`, which writes `$0` attack-success reports
+  under `data/benchmarks/red_team_*.json` and includes `saved_to` in JSON
+  output for release-to-release trend tracking.
+- Prepared the `v2.19.0` release metadata so the public release tracks saved
+  red-team trend artifacts.
 - Spend so far: `$0.00`.
 
 ## 2026-06-19

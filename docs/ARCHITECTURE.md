@@ -346,7 +346,8 @@ tool-call/tool-result spoofing, MCP handoff and loop-status read-path, and
 memory trust-floor probes, reports attack-success-rate, and fails if a built-in
 attack succeeds. These checks are workflow guards over prompt boundaries,
 derived read payloads, and confidence ceilings; they do not decide whether a
-claim is true.
+claim is true. Use `--save` to persist a local `data/benchmarks/red_team_*.json`
+artifact for release-to-release trend review.
 
 #### Cost Safety
 

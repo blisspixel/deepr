@@ -776,7 +776,8 @@ memory trust-floor probes at `$0`, reports attack-success-rate, and exits
 non-zero if a built-in attack succeeds. The metric checks boundary form,
 derived read-payload leakage, and confidence ceilings only; semantic acceptance
 still belongs to extraction, grounding, contradiction, dedup, and trust-floor
-gates.
+gates. Use `--save` to write a local `data/benchmarks/red_team_*.json` artifact
+for release-to-release trend review.
 
 Saved artifacts can feed admission directly:
 
@@ -803,6 +804,7 @@ deepr eval continuity "AI Policy Expert"
 
 # Red team: prompt-boundary, MCP read-path, tool-spoofing, and trust-floor probes at $0.
 deepr eval red-team --json
+deepr eval red-team --save
 
 # Calibration: does extraction confidence track grounding?
 # Reliability curve + expected calibration error + Platt-derived threshold.
