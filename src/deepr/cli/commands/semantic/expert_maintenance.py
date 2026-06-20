@@ -248,7 +248,11 @@ def _build_sync_capacity_payload(
     detail: str,
 ) -> dict:
     from deepr.backends.admission import TASK_CLASS_SYNC
-    from deepr.backends.capacity_actions import CapacityJobContext, build_capacity_next_actions
+    from deepr.backends.capacity_actions import (
+        CapacityJobContext,
+        build_capacity_next_actions,
+        build_capacity_next_payload,
+    )
 
     job_context = CapacityJobContext(
         task_class=TASK_CLASS_SYNC,
@@ -261,10 +265,7 @@ def _build_sync_capacity_payload(
         "status": status,
         "expert_name": expert_name,
         "detail": detail,
-        "capacity_next": {
-            "job_context": job_context.to_dict(),
-            "actions": [action.to_dict() for action in actions],
-        },
+        "capacity_next": build_capacity_next_payload(job_context, actions),
     }
 
 

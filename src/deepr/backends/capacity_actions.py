@@ -16,6 +16,9 @@ from deepr.backends import admission
 from deepr.backends.capacity import BackendKind, CapacitySource, available_local_models, detect_capacity
 from deepr.backends.waterfall import choose_maintenance_backend
 
+CAPACITY_NEXT_SCHEMA_VERSION = "deepr-capacity-next-v1"
+CAPACITY_NEXT_KIND = "deepr.capacity.next"
+
 
 @dataclass(frozen=True)
 class CapacityNextAction:
@@ -70,6 +73,33 @@ class CapacityJobContext:
             "scheduled": self.scheduled,
             "requires_local": self.requires_local,
         }
+
+
+def build_capacity_next_payload(
+    job_context: CapacityJobContext,
+    actions: list[CapacityNextAction],
+) -> dict[str, Any]:
+    """Return the published capacity-next guidance payload.
+
+    This is deterministic workflow guidance only: it describes spend gates,
+    local-capacity readiness, and commands, but it never runs the job.
+    """
+    return {
+        "schema_version": CAPACITY_NEXT_SCHEMA_VERSION,
+        "kind": CAPACITY_NEXT_KIND,
+        "contract": {
+            "read_only": True,
+            "cost_usd": 0.0,
+            "stability": "experimental",
+            "compatibility": {
+                "additive_fields": True,
+                "breaking_changes_require_new_schema_version": True,
+                "deprecation_policy": "Fields in this v1 payload are additive within v1; removals use a new schema.",
+            },
+        },
+        "job_context": job_context.to_dict(),
+        "actions": [action.to_dict() for action in actions],
+    }
 
 
 def build_capacity_next_actions(

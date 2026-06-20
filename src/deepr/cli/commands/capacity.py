@@ -189,7 +189,11 @@ def capacity_next(
     Read-only and $0: explains whether automatic local routing is ready, why it
     is blocked, and which command most directly unblocks it.
     """
-    from deepr.backends.capacity_actions import CapacityJobContext, build_capacity_next_actions
+    from deepr.backends.capacity_actions import (
+        CapacityJobContext,
+        build_capacity_next_actions,
+        build_capacity_next_payload,
+    )
 
     try:
         job_context = CapacityJobContext(
@@ -204,10 +208,7 @@ def capacity_next(
         raise click.ClickException(str(exc)) from exc
 
     if json_output:
-        payload = {
-            "job_context": job_context.to_dict(),
-            "actions": [action.to_dict() for action in actions],
-        }
+        payload = build_capacity_next_payload(job_context, actions)
         click.echo(_json.dumps(payload, indent=2))
         return
 

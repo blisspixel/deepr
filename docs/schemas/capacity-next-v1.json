@@ -1,0 +1,63 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/blisspixel/deepr/docs/schemas/capacity-next-v1.json",
+  "title": "Deepr Capacity Next Guidance v1",
+  "type": "object",
+  "additionalProperties": true,
+  "required": ["schema_version", "kind", "contract", "job_context", "actions"],
+  "properties": {
+    "schema_version": {"const": "deepr-capacity-next-v1"},
+    "kind": {"const": "deepr.capacity.next"},
+    "contract": {
+      "type": "object",
+      "required": ["read_only", "cost_usd", "stability", "compatibility"],
+      "properties": {
+        "read_only": {"const": true},
+        "cost_usd": {"const": 0.0},
+        "stability": {"type": "string"},
+        "compatibility": {
+          "type": "object",
+          "required": ["additive_fields", "breaking_changes_require_new_schema_version", "deprecation_policy"],
+          "properties": {
+            "additive_fields": {"const": true},
+            "breaking_changes_require_new_schema_version": {"const": true},
+            "deprecation_policy": {"type": "string"}
+          },
+          "additionalProperties": true
+        }
+      },
+      "additionalProperties": true
+    },
+    "job_context": {
+      "type": "object",
+      "required": ["task_class", "expert_name", "report_id", "context_mode", "scheduled", "requires_local"],
+      "properties": {
+        "task_class": {"type": "string", "minLength": 1},
+        "expert_name": {"type": "string", "minLength": 1},
+        "report_id": {"type": "string", "minLength": 1},
+        "context_mode": {"enum": ["none", "fresh", "deep"]},
+        "scheduled": {"type": "boolean"},
+        "requires_local": {"type": "boolean"}
+      },
+      "additionalProperties": true
+    },
+    "actions": {
+      "type": "array",
+      "items": {"$ref": "#/$defs/action"}
+    }
+  },
+  "$defs": {
+    "action": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": ["rank", "status", "title", "detail", "command"],
+      "properties": {
+        "rank": {"type": "integer", "minimum": 1},
+        "status": {"type": "string", "minLength": 1},
+        "title": {"type": "string", "minLength": 1},
+        "detail": {"type": "string"},
+        "command": {"type": "string"}
+      }
+    }
+  }
+}
