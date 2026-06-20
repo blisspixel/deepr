@@ -63,6 +63,38 @@
       "compatibility": "additive-within-v1"
     },
     {
+      "name": "scheduled-gap-fill-wait",
+      "schema_version": "deepr-scheduled-gap-fill-wait-v1",
+      "kind": "deepr.expert.scheduled_gap_fill_wait",
+      "path": "scheduled-gap-fill-wait-v1.json",
+      "status": "experimental",
+      "compatibility": "additive-within-v1"
+    },
+    {
+      "name": "scheduled-reflection-wait",
+      "schema_version": "deepr-scheduled-reflection-wait-v1",
+      "kind": "deepr.expert.scheduled_reflection_wait",
+      "path": "scheduled-reflection-wait-v1.json",
+      "status": "experimental",
+      "compatibility": "additive-within-v1"
+    },
+    {
+      "name": "health-check-action-plan",
+      "schema_version": "deepr-health-check-action-plan-v1",
+      "kind": "deepr.expert.health_check_action_plan",
+      "path": "health-check-action-plan-v1.json",
+      "status": "experimental",
+      "compatibility": "additive-within-v1"
+    },
+    {
+      "name": "health-check-archive-confirmation",
+      "schema_version": "deepr-health-check-archive-confirmation-v1",
+      "kind": "deepr.expert.health_check_archive_confirmation",
+      "path": "health-check-archive-confirmation-v1.json",
+      "status": "experimental",
+      "compatibility": "additive-within-v1"
+    },
+    {
       "name": "cli-operation-result",
       "schema_version": "deepr-cli-operation-result-v1",
       "kind": "deepr.cli.operation_result",

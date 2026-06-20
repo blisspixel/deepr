@@ -6,6 +6,7 @@ import json
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
+from unittest.mock import MagicMock, patch
 
 from deepr.backends.capacity_actions import (
     CAPACITY_NEXT_KIND,
@@ -18,6 +19,24 @@ from deepr.cli.commands.semantic.expert_maintenance import (
     SYNC_CAPACITY_GATE_KIND,
     SYNC_CAPACITY_GATE_SCHEMA_VERSION,
     _build_sync_capacity_payload,
+)
+from deepr.cli.commands.semantic.expert_gap_routes import (
+    SCHEDULED_GAP_FILL_WAIT_KIND,
+    SCHEDULED_GAP_FILL_WAIT_SCHEMA_VERSION,
+    _scheduled_gap_fill_wait_payload,
+)
+from deepr.cli.commands.semantic.expert_health_schedule import (
+    HEALTH_CHECK_ACTION_PLAN_KIND,
+    HEALTH_CHECK_ACTION_PLAN_SCHEMA_VERSION,
+    HEALTH_CHECK_ARCHIVE_CONFIRMATION_KIND,
+    HEALTH_CHECK_ARCHIVE_CONFIRMATION_SCHEMA_VERSION,
+    scheduled_archive_confirmation_payload,
+    scheduled_health_payload,
+)
+from deepr.cli.commands.semantic.expert_reflect_schedule import (
+    SCHEDULED_REFLECTION_WAIT_KIND,
+    SCHEDULED_REFLECTION_WAIT_SCHEMA_VERSION,
+    scheduled_reflection_wait_payload,
 )
 from deepr.cli.output import (
     CLI_OPERATION_RESULT_KIND,
@@ -268,6 +287,115 @@ def test_sync_capacity_gate_schema_validates_runtime_payload(monkeypatch):
     assert payload["schema_version"] == SYNC_CAPACITY_GATE_SCHEMA_VERSION
     assert payload["kind"] == SYNC_CAPACITY_GATE_KIND
     assert payload["capacity_next"]["schema_version"] == CAPACITY_NEXT_SCHEMA_VERSION
+
+
+def test_scheduled_gap_fill_wait_schema_validates_runtime_payload():
+    from deepr.experts.gap_router import GapRoute
+
+    route = GapRoute(
+        topic="open model benchmark drift",
+        instrument="research",
+        available=True,
+        estimated_cost=0.25,
+        rationale="general research",
+        suggestion="deepr research 'open model benchmark drift'",
+        priority=4,
+        ev_cost_ratio=2.0,
+        matched_keywords=[],
+    )
+    with patch("deepr.experts.loop_runs.record_loop_run") as mock_record:
+        loop_run = MagicMock()
+        loop_run.to_dict.return_value = {"run_id": "loop_gap_contract"}
+        mock_record.return_value = loop_run
+
+        payload = _scheduled_gap_fill_wait_payload("Platform Expert", [route], budget=2.0, top_n=5)
+    schema = _load_schema("scheduled-gap-fill-wait-v1.json")
+
+    _validate(schema, payload)
+    assert payload["schema_version"] == SCHEDULED_GAP_FILL_WAIT_SCHEMA_VERSION
+    assert payload["kind"] == SCHEDULED_GAP_FILL_WAIT_KIND
+    assert payload["scheduled"] is True
+    assert payload["loop_run"]["run_id"] == "loop_gap_contract"
+
+
+def test_scheduled_reflection_wait_schema_validates_runtime_payload():
+    with patch("deepr.experts.loop_runs.record_loop_run") as mock_record:
+        loop_run = MagicMock()
+        loop_run.to_dict.return_value = {"run_id": "loop_reflect_contract"}
+        mock_record.return_value = loop_run
+
+        payload = scheduled_reflection_wait_payload(
+            "Platform Expert",
+            "job-123",
+            "What changed?",
+            depth=2,
+            execute_followups=True,
+            budget=1.0,
+        )
+    schema = _load_schema("scheduled-reflection-wait-v1.json")
+
+    _validate(schema, payload)
+    assert payload["schema_version"] == SCHEDULED_REFLECTION_WAIT_SCHEMA_VERSION
+    assert payload["kind"] == SCHEDULED_REFLECTION_WAIT_KIND
+    assert payload["pending_work"] == ["reflection_evaluation", "followup_research"]
+    assert payload["loop_run"]["run_id"] == "loop_reflect_contract"
+
+
+def test_health_check_action_plan_schema_validates_runtime_payload():
+    from deepr.experts.health_check import HealthFinding, HealthReport, RecommendedAction
+
+    report = HealthReport(
+        expert_name="Platform Expert",
+        domain="platform",
+        status="needs_attention",
+        findings=[HealthFinding("freshness", "warning", "Knowledge is stale.")],
+        actions=[
+            RecommendedAction(
+                category="freshness",
+                description="Refresh knowledge",
+                command='deepr expert sync "Platform Expert"',
+                estimated_cost=0.5,
+                approval_tier="notify",
+            )
+        ],
+        generated_at=datetime(2026, 6, 20, 12, 0, tzinfo=UTC),
+    )
+    with patch("deepr.experts.loop_runs.record_loop_run") as mock_record:
+        loop_run = MagicMock()
+        loop_run.to_dict.return_value = {"run_id": "loop_health_contract"}
+        mock_record.return_value = loop_run
+
+        payload = scheduled_health_payload(report)
+    schema = _load_schema("health-check-action-plan-v1.json")
+
+    _validate(schema, payload)
+    assert payload["schema_version"] == HEALTH_CHECK_ACTION_PLAN_SCHEMA_VERSION
+    assert payload["kind"] == HEALTH_CHECK_ACTION_PLAN_KIND
+    assert payload["scheduled_action_plan"]["status"] == "waiting_for_capacity"
+    assert payload["loop_run"]["run_id"] == "loop_health_contract"
+
+
+def test_health_check_archive_confirmation_schema_validates_runtime_payload():
+    candidate = MagicMock()
+    candidate.id = "belief-1"
+    candidate.claim = "Stale claim"
+    candidate.get_current_confidence.return_value = 0.2
+    candidate.updated_at = datetime(2026, 1, 1, tzinfo=UTC)
+    candidate.retrieval_count = 0
+
+    with patch("deepr.experts.loop_runs.record_loop_run") as mock_record:
+        loop_run = MagicMock()
+        loop_run.to_dict.return_value = {"run_id": "loop_archive_contract"}
+        mock_record.return_value = loop_run
+
+        payload = scheduled_archive_confirmation_payload("Platform Expert", [candidate])
+    schema = _load_schema("health-check-archive-confirmation-v1.json")
+
+    _validate(schema, payload)
+    assert payload["schema_version"] == HEALTH_CHECK_ARCHIVE_CONFIRMATION_SCHEMA_VERSION
+    assert payload["kind"] == HEALTH_CHECK_ARCHIVE_CONFIRMATION_KIND
+    assert payload["expert_name"] == "Platform Expert"
+    assert payload["loop_run"]["run_id"] == "loop_archive_contract"
 
 
 def test_cli_operation_result_schema_validates_success_payload():
