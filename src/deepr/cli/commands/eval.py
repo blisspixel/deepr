@@ -7,7 +7,9 @@ from pathlib import Path
 
 import click
 
-SCRIPT_PATH = Path(__file__).resolve().parents[3] / "scripts" / "benchmark_models.py"
+# Repo root is parents[4] of src/deepr/cli/commands/eval.py; benchmark_models.py
+# lives in the repo's scripts/ dir (not shipped in the installed package).
+SCRIPT_PATH = Path(__file__).resolve().parents[4] / "scripts" / "benchmark_models.py"
 
 
 @click.group(name="eval")
