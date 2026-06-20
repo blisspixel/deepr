@@ -460,6 +460,46 @@ class TestPlanQuotaSync:
         assert captured["absorber_client"] is chat_client
         assert captured["loop_run_kwargs"]["capacity_source"] == "plan_quota:codex"
 
+    def test_auto_routes_to_admitted_plan_backend(self, monkeypatch):
+        # The flagship: a plain `sync` (no --plan) auto-routes to a plan backend
+        # the waterfall selected because the operator admitted it.
+        captured = {}
+        research_fn = object()
+        chat_client = object()
+        self._fakes(monkeypatch, captured)
+        for var in ("OPENAI_API_KEY", "CODEX_API_KEY", "CODEX_ACCESS_TOKEN"):
+            monkeypatch.delenv(var, raising=False)
+
+        class PlanChoice:
+            is_local = False
+            is_plan_quota = True
+            plan_backend_id = "codex"
+            reason = "plan-quota backend 'codex' (operator-admitted)"
+
+        monkeypatch.setattr("deepr.backends.waterfall.choose_maintenance_backend", lambda _task: PlanChoice())
+
+        class FakeReportAbsorber:
+            def __init__(self, loaded_profile, *, model, client):
+                captured["absorber_client"] = client
+
+        monkeypatch.setattr("deepr.experts.report_absorber.ReportAbsorber", FakeReportAbsorber)
+        monkeypatch.setattr("deepr.backends.plan_quota.PlanQuotaChatClient", lambda adapter, *, model=None: chat_client)
+        monkeypatch.setattr(
+            "deepr.backends.plan_quota.make_plan_quota_research_fn",
+            lambda adapter, *, model=None, context_builder=None, client=None: research_fn,
+        )
+        monkeypatch.setattr(
+            "deepr.experts.loop_runs.record_loop_run",
+            lambda **kwargs: captured.update(loop_run_kwargs=kwargs) or SimpleNamespace(to_dict=lambda: {"run_id": "x"}),
+        )
+
+        r = CliRunner().invoke(expert, ["sync", "Plan Expert", "-y", "--json"])
+
+        assert r.exit_code == 0, r.output
+        assert captured["research_fn"] is research_fn
+        assert captured["absorber_client"] is chat_client
+        assert captured["loop_run_kwargs"]["capacity_source"] == "plan_quota:codex"
+
     def test_plan_blocked_when_api_key_present(self, monkeypatch):
         captured = {}
         self._fakes(monkeypatch, captured)
