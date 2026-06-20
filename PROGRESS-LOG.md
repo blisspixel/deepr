@@ -27,6 +27,9 @@
   fail-closed validation on create, status, and cancel task responses. The
   validator checks schema version, kind, lifecycle state, cost, timestamps, and
   envelope fields before any task payload leaves the A2A server.
+- Resolved the high Dependabot alert for transitive `msgpack` by updating the
+  lockfile to `msgpack 1.2.1`; local `pip-audit --skip-editable` now reports no
+  known vulnerabilities.
 - Spend so far: `$0.00`.
 
 ## 2026-06-19
