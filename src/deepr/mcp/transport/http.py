@@ -43,6 +43,11 @@ logger = logging.getLogger(__name__)
 
 DEFAULT_MAX_CONCURRENT_REQUESTS = 32
 CONCURRENCY_RETRY_AFTER_SECONDS = 1
+TOOL_RESPONSE_COST_FIELDS = {
+    "deepr_get_result": "cost_final",
+    "deepr_query_expert": "cost",
+    "deepr_expert_absorb": "estimated_cost",
+}
 
 
 def _is_loopback_host(host: str) -> bool:
@@ -447,6 +452,23 @@ class StreamingHttpTransport:
                 return payload if isinstance(payload, dict) else None
         return response.result
 
+    def _read_payload_cost(self, payload: dict[str, Any], field: str) -> float | None:
+        value = payload.get(field)
+        if value is None or isinstance(value, bool):
+            return None
+        try:
+            resolved = float(value)
+        except (TypeError, ValueError):
+            return None
+        return max(resolved, 0.0)
+
+    def _reflect_response_cost_usd(self, arguments: dict[str, Any]) -> float:
+        try:
+            depth = int(arguments.get("depth", 1) or 1)
+        except (TypeError, ValueError):
+            depth = 1
+        return 0.02 if depth > 0 else 0.0
+
     def _response_cost_usd(
         self,
         tool_name: str,
@@ -457,30 +479,82 @@ class StreamingHttpTransport:
         if not payload or "error_code" in payload:
             return None
 
-        def read_cost(field: str) -> float | None:
-            value = payload.get(field)
-            if value is None or isinstance(value, bool):
-                return None
-            try:
-                resolved = float(value)
-            except (TypeError, ValueError):
-                return None
-            return max(resolved, 0.0)
-
-        if tool_name == "deepr_get_result":
-            return read_cost("cost_final")
-        if tool_name == "deepr_query_expert":
-            return read_cost("cost")
-        if tool_name == "deepr_expert_absorb":
-            return read_cost("estimated_cost")
+        if cost_field := TOOL_RESPONSE_COST_FIELDS.get(tool_name):
+            return self._read_payload_cost(payload, cost_field)
         if tool_name == "deepr_expert_validate":
             return 0.02
         if tool_name == "deepr_reflect":
-            try:
-                depth = int(arguments.get("depth", 1) or 1)
-            except (TypeError, ValueError):
-                depth = 1
-            return 0.02 if depth > 0 else 0.0
+            return self._reflect_response_cost_usd(arguments)
+        return None
+
+    def _message_web_response(self, message: HttpMessage) -> web.Response:
+        response_data = json.dumps(message.to_dict())
+        self._stats.bytes_sent += len(response_data)
+        self._stats.responses_sent += 1
+        return web.Response(text=response_data, content_type="application/json")
+
+    def _scoped_authorization_response(
+        self,
+        context: ScopedMCPKeyContext,
+        message: HttpMessage,
+        tool_name: str,
+        arguments: dict[str, Any],
+    ) -> web.Response | None:
+        decision = authorize_scoped_mcp_tool_call(context, tool_name, arguments)
+        if decision.allowed:
+            return None
+        denied = self._scoped_denial_message(message, decision)
+        self._record_remote_call(context, message, denied, error_code=decision.error_code)
+        return self._message_web_response(denied)
+
+    def _scoped_rate_limit_response(
+        self,
+        context: ScopedMCPKeyContext,
+        message: HttpMessage,
+    ) -> web.Response | None:
+        decision = self._scoped_rate_limit_decision(context)
+        if decision.allowed:
+            return None
+        denied = self._scoped_rate_limit_denial_message(message, decision)
+        self._record_remote_call(context, message, denied, error_code=decision.error_code)
+        return self._message_web_response(denied)
+
+    def _scoped_budget_response(
+        self,
+        context: ScopedMCPKeyContext,
+        message: HttpMessage,
+        tool_name: str,
+        arguments: dict[str, Any],
+    ) -> tuple[dict[str, Any], web.Response | None]:
+        spent_usd = self._scoped_key_spent(context)
+        constrained = constrain_scoped_mcp_budget_arguments(context, tool_name, arguments, spent_usd)
+        decision = authorize_scoped_mcp_budget(context, tool_name, constrained, spent_usd)
+        if decision.allowed:
+            return constrained, None
+        denied = self._scoped_budget_denial_message(message, decision)
+        self._record_remote_call(context, message, denied, error_code=decision.error_code)
+        return constrained, self._message_web_response(denied)
+
+    def _apply_scoped_key_context(
+        self,
+        context: ScopedMCPKeyContext,
+        message: HttpMessage,
+    ) -> web.Response | None:
+        tool_name, arguments = self._tool_call_parts(message)
+        if tool_name:
+            denied = self._scoped_authorization_response(context, message, tool_name, arguments)
+            if denied is not None:
+                return denied
+            denied = self._scoped_rate_limit_response(context, message)
+            if denied is not None:
+                return denied
+            arguments, denied = self._scoped_budget_response(context, message, tool_name, arguments)
+            if denied is not None:
+                return denied
+            if isinstance(message.params, dict):
+                message.params = {**message.params, "arguments": arguments}
+        if isinstance(message.params, dict):
+            message.params = {**message.params, "_scoped_key": context.to_dict()}
         return None
 
     def _record_remote_call(
@@ -529,57 +603,16 @@ class StreamingHttpTransport:
             message = HttpMessage.from_dict(data)
 
             if auth_context:
-                tool_name, arguments = self._tool_call_parts(message)
-                if tool_name:
-                    decision = authorize_scoped_mcp_tool_call(auth_context, tool_name, arguments)
-                    if not decision.allowed:
-                        denied = self._scoped_denial_message(message, decision)
-                        self._record_remote_call(auth_context, message, denied, error_code=decision.error_code)
-                        response_data = json.dumps(denied.to_dict())
-                        self._stats.bytes_sent += len(response_data)
-                        self._stats.responses_sent += 1
-                        return web.Response(text=response_data, content_type="application/json")
-                    rate_limit_decision = self._scoped_rate_limit_decision(auth_context)
-                    if not rate_limit_decision.allowed:
-                        denied = self._scoped_rate_limit_denial_message(message, rate_limit_decision)
-                        self._record_remote_call(
-                            auth_context,
-                            message,
-                            denied,
-                            error_code=rate_limit_decision.error_code,
-                        )
-                        response_data = json.dumps(denied.to_dict())
-                        self._stats.bytes_sent += len(response_data)
-                        self._stats.responses_sent += 1
-                        return web.Response(text=response_data, content_type="application/json")
-                    spent_usd = self._scoped_key_spent(auth_context)
-                    arguments = constrain_scoped_mcp_budget_arguments(auth_context, tool_name, arguments, spent_usd)
-                    budget_decision = authorize_scoped_mcp_budget(auth_context, tool_name, arguments, spent_usd)
-                    if not budget_decision.allowed:
-                        denied = self._scoped_budget_denial_message(message, budget_decision)
-                        self._record_remote_call(auth_context, message, denied, error_code=budget_decision.error_code)
-                        response_data = json.dumps(denied.to_dict())
-                        self._stats.bytes_sent += len(response_data)
-                        self._stats.responses_sent += 1
-                        return web.Response(text=response_data, content_type="application/json")
-                    if isinstance(message.params, dict):
-                        message.params = {**message.params, "arguments": arguments}
-                if isinstance(message.params, dict):
-                    message.params = {**message.params, "_scoped_key": auth_context.to_dict()}
+                scoped_response = self._apply_scoped_key_context(auth_context, message)
+                if scoped_response is not None:
+                    return scoped_response
 
             if self._handler:
                 response = await self._handler(message)
                 self._record_remote_call(auth_context, message, response)
 
                 if response:
-                    response_data = json.dumps(response.to_dict())
-                    self._stats.bytes_sent += len(response_data)
-                    self._stats.responses_sent += 1
-
-                    return web.Response(
-                        text=response_data,
-                        content_type="application/json",
-                    )
+                    return self._message_web_response(response)
 
             # No response needed (notification)
             return web.Response(status=204)
