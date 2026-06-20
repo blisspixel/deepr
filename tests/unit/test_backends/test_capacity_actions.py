@@ -9,7 +9,14 @@ from click.testing import CliRunner
 
 from deepr.backends.admission import record_admission
 from deepr.backends.capacity import BackendKind, CapacitySource, CostModel
-from deepr.backends.capacity_actions import CapacityJobContext, CapacityNextAction, build_capacity_next_actions
+from deepr.backends.capacity_actions import (
+    CAPACITY_NEXT_KIND,
+    CAPACITY_NEXT_SCHEMA_VERSION,
+    CapacityJobContext,
+    CapacityNextAction,
+    build_capacity_next_actions,
+    build_capacity_next_payload,
+)
 from deepr.cli.commands.capacity import capacity
 
 T0 = datetime(2026, 6, 18, tzinfo=UTC)
@@ -73,6 +80,20 @@ def _artifact(bench, *, score: float = 0.82, model: str = "good-local"):
 
 
 class TestCapacityNextActions:
+    def test_payload_adds_schema_contract(self):
+        context = CapacityJobContext(task_class="sync", expert_name="Policy Expert", scheduled=True)
+        payload = build_capacity_next_payload(
+            context,
+            [CapacityNextAction(8, "wait", "Wait for cheap capacity", "scheduled wait")],
+        )
+
+        assert payload["schema_version"] == CAPACITY_NEXT_SCHEMA_VERSION
+        assert payload["kind"] == CAPACITY_NEXT_KIND
+        assert payload["contract"]["read_only"] is True
+        assert payload["contract"]["cost_usd"] == 0.0
+        assert payload["job_context"]["expert_name"] == "Policy Expert"
+        assert payload["actions"][0]["status"] == "wait"
+
     def test_ready_when_scored_admission_is_available(self, tmp_path):
         p = tmp_path / "adm.jsonl"
         record_admission("good-local", "sync", score=0.82, now=T0, path=p)
@@ -311,6 +332,8 @@ class TestCapacityNextCommand:
 
         assert result.exit_code == 0
         payload = json.loads(result.output)
+        assert payload["schema_version"] == CAPACITY_NEXT_SCHEMA_VERSION
+        assert payload["kind"] == CAPACITY_NEXT_KIND
         assert payload["job_context"]["task_class"] == "sync"
         assert payload["actions"][0]["status"] == "blocked"
 

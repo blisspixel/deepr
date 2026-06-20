@@ -7,6 +7,13 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
+from deepr.backends.capacity_actions import (
+    CAPACITY_NEXT_KIND,
+    CAPACITY_NEXT_SCHEMA_VERSION,
+    CapacityJobContext,
+    CapacityNextAction,
+    build_capacity_next_payload,
+)
 from deepr.cli.output import (
     CLI_OPERATION_RESULT_KIND,
     CLI_OPERATION_RESULT_SCHEMA_VERSION,
@@ -204,6 +211,31 @@ def test_mcp_registration_manifest_schema_validates_runtime_payload():
     assert payload["kind"] == REGISTRATION_MANIFEST_KIND
     assert payload["auth"]["secret_included"] is False
     assert payload["smoke"]["ok"] is True
+
+
+def test_capacity_next_schema_validates_runtime_payload():
+    payload = build_capacity_next_payload(
+        CapacityJobContext(
+            task_class="sync",
+            expert_name="Platform Expert",
+            context_mode="fresh",
+            scheduled=True,
+        ),
+        [
+            CapacityNextAction(
+                8,
+                "wait",
+                "Wait for cheap capacity",
+                "This scheduled job should wait for owned/prepaid capacity instead of paying now.",
+            )
+        ],
+    )
+    schema = _load_schema("capacity-next-v1.json")
+
+    _validate(schema, payload)
+    assert payload["schema_version"] == CAPACITY_NEXT_SCHEMA_VERSION
+    assert payload["kind"] == CAPACITY_NEXT_KIND
+    assert payload["job_context"]["requires_local"] is True
 
 
 def test_cli_operation_result_schema_validates_success_payload():

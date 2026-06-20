@@ -95,6 +95,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Added `deepr-cli-operation-result-v1` to the published schema registry and
   versioned the shared CLI `OperationResult` JSON envelope with `schema_version`
   and `kind`.
+- Added `deepr-capacity-next-v1` to the published schema registry. The
+  `deepr capacity next --json` command and scheduled sync wait payloads now
+  share the same versioned, read-only `$0` capacity guidance object.
 - `deepr expert loop-status --json` and `deepr_expert_loop_status` now return
   the shared `deepr-loop-status-v1` rollup payload, matching the web loop-status
   API contract instead of emitting smaller ad hoc run lists.

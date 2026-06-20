@@ -22,6 +22,7 @@ All v1 schemas are additive within the same schema version:
 | `deepr-okf-profile-v1` | [okf-profile-v1.json](okf-profile-v1.json) | Mapping from Deepr structured expert state to regenerated OKF Markdown bundles |
 | `deepr-mcp-remote-audit-v1` | [mcp-remote-audit-v1.json](mcp-remote-audit-v1.json) | Append-only scoped-key remote MCP tool-call audit events |
 | `deepr-mcp-registration-manifest-v1` | [mcp-registration-manifest-v1.json](mcp-registration-manifest-v1.json) | Token-redacted hosted MCP endpoint registration metadata plus optional smoke results |
+| `deepr-capacity-next-v1` | [capacity-next-v1.json](capacity-next-v1.json) | Read-only `$0` capacity guidance payload for scheduler and CLI consumers |
 | `deepr-cli-operation-result-v1` | [cli-operation-result-v1.json](cli-operation-result-v1.json) | Stable `OperationResult` envelope emitted by shared CLI `--json` output helpers |
 
 Generated artifacts remain derived views unless the schema explicitly says
