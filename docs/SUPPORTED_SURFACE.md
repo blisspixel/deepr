@@ -1,6 +1,6 @@
 # Supported Surface
 
-Status: v2.18.1 current main, 2026-06-20. This document defines what users and host
+Status: v2.19.0 current main, 2026-06-20. This document defines what users and host
 agents can rely on today, what is experimental, what is planned only, and what
 data remains portable if development stops.
 
@@ -67,8 +67,8 @@ must not be described as usable capacity.
   string fields before downstream host consumption. The structured expert store
   remains canonical.
 - Local Ollama expert maintenance, local evals, local context evals, local
-  red-team attack-success-rate metrics including MCP read-path canaries, and
-  scored local admission.
+  red-team attack-success-rate metrics including MCP read-path canaries and
+  saved trend artifacts, and scored local admission.
 - Hosted MCP deployment recipes, including the local container, Azure Container
   Apps template, AWS ECS Fargate template, GCP Cloud Run template, and
   Cloudflare Worker edge ingress recipe.
