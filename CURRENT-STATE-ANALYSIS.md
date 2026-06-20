@@ -101,13 +101,13 @@ parses OKF concept Markdown and frontmatter into source text, then sends that
 text through `ReportAbsorber` so extraction, grounding, dedup, and contradiction
 gates decide what becomes persistent belief state.
 
-The v2.18 reach track now has its first read-only contract. `deepr_expert_handoff`
+The hosted reach track now has its first read-only contract. `deepr_expert_handoff`
 and `/api/experts/{name}/handoff` expose `deepr-expert-handoff-v1`: a `$0`
 versioned handoff payload with profile summary, manifest counts, bounded
 claims/gaps, dashboard telemetry, loop-status rollup, OKF interchange hints, and
 an additive compatibility contract.
 
-The v2.18 reach track also has its first scoped-key and remote-audit primitive.
+The hosted reach track also has its first scoped-key and remote-audit primitive.
 `ScopedMCPKeyStore` persists one-way hashed key records with mode, expert
 allowlist, and budget metadata; the HTTP transport enforces mode, confirmation,
 and expert scope for `tools/call` before dispatch; `RemoteMCPAuditLog` appends
@@ -177,7 +177,9 @@ entries are easier to scan.
 The CLI output-as-contract work has started. The shared `OperationResult`
 `--json` envelope now includes `schema_version` and `kind`, is published as
 `deepr-cli-operation-result-v1` in the schema registry, and has runtime schema
-validation coverage. Command-specific JSON payload schemas remain open.
+validation coverage. The recurring scheduler JSON surfaces beyond sync now also
+have published schemas: scheduled gap-fill waits, scheduled reflection waits,
+health-check action plans, and health-check archive confirmations.
 The loop-status contract gap is narrower now: the CLI, MCP, and web loop-status
 reads all return the shared `deepr-loop-status-v1` rollup payload instead of
 split ad hoc shapes.
@@ -187,6 +189,10 @@ Capacity guidance now has its first command-specific JSON contract:
 The outer sync wait/block response is also versioned as
 `deepr-sync-capacity-gate-v1`, so a scheduler can validate both the envelope and
 the nested guidance object.
+The adjacent scheduled maintenance envelopes are now versioned as
+`deepr-scheduled-gap-fill-wait-v1`, `deepr-scheduled-reflection-wait-v1`,
+`deepr-health-check-action-plan-v1`, and
+`deepr-health-check-archive-confirmation-v1`.
 
 ## Active Gap
 
@@ -207,10 +213,10 @@ That gap matters because it sits directly on the project promise: stop paying tw
 
 ## Next Work
 
-Next slice: keep the release current while continuing schema-backed contract
-work for additional high-use JSON surfaces, especially scheduled gap-fill,
-reflection, and health-check action payloads beyond sync, while keeping all
-local validation at `$0`.
+Next slice: keep the release current while expanding schema-backed validation to
+the next high-use JSON surfaces, especially MCP/A2A output validation against
+the published contracts and any remaining command-specific `--json` payloads,
+while keeping all local validation at `$0`.
 
 ## Spend Ledger For This Run
 

@@ -7,7 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-No unreleased changes.
+### Added
+- Added published scheduler JSON contracts for recurring expert maintenance:
+  `deepr-scheduled-gap-fill-wait-v1`,
+  `deepr-scheduled-reflection-wait-v1`,
+  `deepr-health-check-action-plan-v1`, and
+  `deepr-health-check-archive-confirmation-v1`, with runtime payload stamps,
+  registry entries, and schema-validation coverage.
 
 ## [2.17.0] - 2026-06-20
 

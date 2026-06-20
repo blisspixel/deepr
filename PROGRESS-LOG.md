@@ -12,6 +12,12 @@
 - Fixed the pushed CI blocker from the code-health ratchet: C901 is back at the
   144 baseline by extracting new loop-run, OKF absorb, MCP HTTP dispatch,
   scoped-key, and remote-call cost branches into smaller helpers.
+- Added published scheduler JSON contracts for the remaining recurring
+  maintenance payloads beyond sync: scheduled gap-fill waits, scheduled
+  reflection waits, scheduled health-check action plans, and scheduled
+  health-check archive confirmations. Runtime payloads now include
+  `schema_version`, `kind`, and additive compatibility contracts, and the
+  schema registry validates those real builders.
 - Spend so far: `$0.00`.
 
 ## 2026-06-19
@@ -37,8 +43,8 @@
 - Codified the loop admission contract in `LoopAdmissionContract` and exposed `admission_contracts` through the dashboard rollup; gap-fill stays supervised until gap-closure verifier evidence exists.
 - Added `deepr expert export-okf NAME PATH`, a `$0` regenerated OKF bundle over structured expert state with `index.md`, `log.md`, concept pages, citations, typed relations, gaps, contested claims, optional `llms.txt`, and marker-based overwrite protection.
 - Added `deepr expert absorb-okf NAME PATH`, which parses OKF concept Markdown/frontmatter into source text and runs it through the existing verified absorb pipeline instead of trusting generated bundle text.
-- Added the first v2.18 handoff contract: `deepr_expert_handoff` plus `/api/experts/{name}/handoff`, returning the `$0`, read-only `deepr-expert-handoff-v1` payload with bounded expert state, loop status, OKF hints, and additive compatibility.
-- Added the first v2.18 scoped-key and remote-audit primitive: local MCP key records with mode, expert allowlist, and budget metadata; HTTP pre-dispatch enforcement for scoped `tools/call`; and append-only remote-call audit records with hashed arguments.
+- Added the hosted handoff contract: `deepr_expert_handoff` plus `/api/experts/{name}/handoff`, returning the `$0`, read-only `deepr-expert-handoff-v1` payload with bounded expert state, loop status, OKF hints, and additive compatibility.
+- Added the hosted scoped-key and remote-audit primitive: local MCP key records with mode, expert allowlist, and budget metadata; HTTP pre-dispatch enforcement for scoped `tools/call`; and append-only remote-call audit records with hashed arguments.
 - Added `deepr mcp keys create/list/revoke` so the scoped-key primitive is operable from the CLI without exposing stored hashes or secrets after creation.
 - Added scoped HTTP MCP per-key budget enforcement: remote calls now sum audited key spend, block over-budget requests before dispatch, inject remaining budget into budget-aware tools when omitted, and write successful response costs back to the remote audit log.
 - Hardened scoped HTTP MCP budget coverage: metered remote tools now require deterministic estimates before dispatch, missing estimates fail closed, and `deepr_expert_validate` is advertised as low-cost instead of free.

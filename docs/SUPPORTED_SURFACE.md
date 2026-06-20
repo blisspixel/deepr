@@ -47,6 +47,9 @@ must not be described as usable capacity.
   handoff contracts. The MCP loop-status tool, the CLI JSON loop-status command,
   and `/api/experts/{name}/loop-status` share the `deepr-loop-status-v1` rollup
   contract.
+- Scheduled expert maintenance JSON contracts for sync capacity gates, gap-fill
+  waits, reflection waits, health-check action plans, and health-check archive
+  confirmations. These are experimental but schema-versioned and additive.
 - Durable `ExpertLoopRun` records.
 - OKF export and absorb paths. OKF export is a derived view; OKF absorb is an
   ingestion source that still passes through verified extraction.
@@ -82,7 +85,8 @@ If development stops, users keep these portable artifacts:
   `log.md`, concept pages, citations, gaps, and contested claims.
 - Published JSON Schemas under `docs/schemas/` for handoff, loop status, OKF
   profile mapping, remote audit events, MCP registration manifests, capacity
-  guidance, sync capacity gates, and the shared CLI operation-result envelope.
+  guidance, sync capacity gates, scheduled maintenance payloads, and the shared
+  CLI operation-result envelope.
 - Cost ledger JSONL and remote MCP audit JSONL records.
 - Scoped MCP key metadata, excluding plaintext secrets. Created key secrets are
   shown once and cannot be recovered from stored hashes.
