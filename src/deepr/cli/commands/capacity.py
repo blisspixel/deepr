@@ -355,3 +355,55 @@ def capacity_revoke(model: str, task_class: str):
         return
     revoke_admission(model, task_class)
     click.echo(f"Revoked admission for '{model}' on '{task_class}'. Maintenance falls back to metered API.")
+
+
+@capacity.command(name="probe-plan")
+@click.argument(
+    "backend",
+    type=click.Choice(["codex", "claude", "opencode", "kiro", "grok", "antigravity", "copilot"]),
+)
+@click.option("--model", default=None, help="Model to pass to the CLI (e.g. anthropic/claude-sonnet-4-6 for opencode).")
+@click.option("--yes", "-y", is_flag=True, help="Skip the confirmation for a metered-at-margin CLI.")
+@click.option("--json", "json_output", is_flag=True, help="Emit machine-readable JSON.")
+def capacity_probe_plan(backend: str, model: str | None, yes: bool, json_output: bool):
+    """Validate that a plan-quota CLI backend works: auth gate + one round-trip.
+
+    Runs the deterministic no-surprise-bills / auth-mode gate, then a single tiny
+    call through the vendor CLI. Marginal cost is $0 on a subscription plan; a
+    metered-at-margin CLI (e.g. copilot) bills one call and is asked first.
+    """
+    import os
+    import sys
+
+    from deepr.backends.plan_quota import evaluate_plan_quota_safety, get_adapter, probe_plan_quota
+    from deepr.cli.async_runner import run_async_command
+
+    adapter = get_adapter(backend)
+    if adapter is None:  # pragma: no cover - Choice already constrains values
+        click.echo(f"Unknown plan-quota backend: {backend}", err=True)
+        sys.exit(2)
+
+    decision = evaluate_plan_quota_safety(adapter, env=dict(os.environ))
+    if not decision.safe:
+        click.echo(f"Cannot probe {adapter.display_name}: {decision.reason}", err=True)
+        sys.exit(2)
+    if decision.requires_ack and not yes and not json_output:
+        if not click.confirm(f"{adapter.display_name} bills per use. Run one probe call?", default=False):
+            click.echo("Cancelled.")
+            return
+    if adapter.tos_note and not json_output:
+        click.echo(f"Note: {adapter.tos_note}")
+
+    result = run_async_command(probe_plan_quota(adapter, model=model))
+
+    if json_output:
+        click.echo(_json.dumps({"backend": backend, "auth_mode": decision.auth_mode.value, **result}, indent=2))
+        return
+    if result["ok"]:
+        click.echo(
+            f"{adapter.display_name}: OK - replied {result['reply'][:60]!r} in {result['latency_ms']}ms "
+            f"(auth: {decision.auth_mode.value})"
+        )
+    else:
+        click.echo(f"{adapter.display_name}: FAILED - {result['error']}")
+        sys.exit(1)

@@ -97,8 +97,20 @@ _CLI_BACKENDS: list[tuple[str, str, CostModel, str]] = [
         "GitHub plan, monthly AI credits (metered per token; overflow admin-capped)",
     ),
     ("Cursor CLI", "cursor-agent", CostModel.CREDIT_POOL, "Cursor plan; Auto model free, frontier models metered"),
+    (
+        "OpenCode CLI",
+        "opencode",
+        CostModel.CREDIT_POOL,
+        "BYO provider; route to an OAuth/subscription or local model for $0/prepaid",
+    ),
     ("Antigravity", "agy", CostModel.CALENDAR_WINDOW, "Google AI plan, weekly compute caps"),
     ("Kiro CLI", "kiro-cli", CostModel.CALENDAR_WINDOW, "monthly credits (overage risk - reserve floor)"),
+    (
+        "Grok Build",
+        "grok",
+        CostModel.CREDIT_POOL,
+        "SuperGrok/X Premium+ subscription; headless use is ToS gray-zone",
+    ),
 ]
 
 _OLLAMA_DEFAULT_URL = "http://localhost:11434"

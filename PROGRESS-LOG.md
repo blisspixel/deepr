@@ -1,5 +1,39 @@
 # Progress Log
 
+## 2026-06-20 — Plan-quota CLI execution backends (ROADMAP Phase 6)
+
+- Shipped plan-quota CLI execution: drive vendor coding/agent CLIs as
+  $0-at-margin research backends for expert maintenance, behind a deterministic
+  no-surprise-bills gate. New package `src/deepr/backends/plan_quota/`:
+  `cli_runner` (safe async subprocess), `safety` (auth-mode + ack gate),
+  `adapters` (declarative registry of 7 CLIs from cited June-2026 specs),
+  `client` (`PlanQuotaChatClient` CLI-as-chat shim serving research + verified
+  extraction, plus `make_plan_quota_research_fn`, `probe_plan_quota`).
+- Honesty model: codex/claude/opencode are auto-routable (free-at-margin,
+  ToS-clean); kiro/grok/antigravity are explicit-`--plan`-only with printed ToS
+  notes; copilot is off-by-default (metered per token since 2026-06-01). An
+  API-key-authenticated CLI is refused as plan capacity.
+- Waterfall: `BACKEND_PLAN_QUOTA`, extended `BackendChoice`, gated auto rung
+  (off until an observed remaining-quota window exists), `choose_plan_quota_backend`
+  for explicit selection.
+- CLI: `deepr expert sync --plan <id> [--plan-model]` runs the whole sync on
+  prepaid capacity (research + extraction via one client, no silent metered
+  call); `deepr capacity probe-plan <id>` validates a backend works.
+- Every call writes `quota_ledger.jsonl` (usage / terminal exhaustion) and a
+  `$0` `cost_ledger.jsonl` entry with quota units, so `costs show` and anomaly
+  detection see volume even at $0 marginal cost.
+- Docs: design note `docs/design/plan-quota-cli-backends.md`; AGENTIC_BALANCE
+  surfaces row; ROADMAP Phase 6 + Current Status; README capacity section;
+  AGENTS.md capacity-honesty bullet.
+- Validation ($0/local): full unit suite 6261 passed / 8 skipped; new-module
+  coverage 95% (waterfall 100%); ruff check+format clean; docs-consistency OK.
+- Confirmed via research: Anthropic paused the 2026-06-15 headless credit-pool
+  change (claude `-p` draws the plan window again); GitHub Copilot moved to
+  usage-based billing 2026-06-01 (metered).
+- Open follow-ups: live remaining-quota probe to enable auto-routing; capacity
+  display id join for kiro/antigravity; opencode per-run provider auth-type
+  check; antigravity PTY wrapper for headless capture.
+
 ## 2026-06-20
 
 - Refreshed release metadata and documentation for `v2.17.0`, including the

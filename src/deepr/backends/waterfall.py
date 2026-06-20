@@ -1,32 +1,38 @@
 """Capacity-waterfall backend selection (v2.16).
 
 Chooses which backend runs a piece of work so owned capacity is drained before
-a metered API is ever touched (docs/design/capacity-waterfall.md). Today the
-waterfall has two rungs that are actually wired - an eval-admitted local model
-and the metered API; plan-quota CLI adapters slot in between later. The choice
-is a pure decision plus a human-readable reason, so "why did this run on X" is
-always answerable (a no-surprise-bills invariant).
+a metered API is ever touched (docs/design/capacity-waterfall.md). Three rungs,
+cheapest first: an eval-admitted local Ollama model, then a prepaid plan-quota
+CLI (codex/claude/opencode), then the metered API. The choice is a pure decision
+plus a human-readable reason, so "why did this run on X" is always answerable (a
+no-surprise-bills invariant).
 
-The metered API is the explicit last resort: local is chosen only when a live
-admission exists for the task class (see ``admission``) and a local model is
-actually available. No admission, or no local model, falls through to metered.
-``--local`` / ``--api`` overrides are handled by the caller; this is the
-automatic path.
+The metered API is the explicit last resort. Local is chosen when a live
+admission exists for the task class and the model is loaded. The plan-quota rung
+is *auto-routed only* when an installed, ToS-clean CLI is in subscription auth
+mode and has an observed, non-exhausted quota window; since vendor CLIs do not
+expose trustworthy remaining quota, that gate stays closed by default and the
+explicit ``--plan`` path (``choose_plan_quota_backend``) is how operators opt in.
+``--local`` / ``--api`` overrides are handled by the caller.
 """
 
 from __future__ import annotations
 
 import os
+import shutil
 from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import datetime
+from pathlib import Path
 
 from deepr.backends import admission
 from deepr.backends.capacity import BackendKind, CostModel, available_local_models
+from deepr.backends.quota_ledger import summarize_quota_state
 from deepr.backends.research_backend import ResearchBackend
 from deepr.backends.selection import BackendSelection, BackendSelectionStatus, select_capacity_backend
 
 BACKEND_LOCAL = "local"
+BACKEND_PLAN_QUOTA = "plan_quota"
 BACKEND_API_METERED = "api_metered"
 
 
@@ -37,10 +43,15 @@ class BackendChoice:
     backend: str
     model: str | None
     reason: str
+    plan_backend_id: str | None = None
 
     @property
     def is_local(self) -> bool:
         return self.backend == BACKEND_LOCAL
+
+    @property
+    def is_plan_quota(self) -> bool:
+        return self.backend == BACKEND_PLAN_QUOTA
 
 
 def _metered(reason: str) -> BackendChoice:
@@ -54,26 +65,39 @@ def choose_maintenance_backend(
     available_models_fn: Callable[[], list[str]] = available_local_models,
     admissions_path=None,
     quality_floor: float = admission.DEFAULT_LOCAL_EVAL_MIN_SCORE,
+    which: Callable[[str], str | None] = shutil.which,
+    plan_env: dict[str, str] | None = None,
+    quota_ledger_path: Path | None = None,
 ) -> BackendChoice:
-    """Pick an admitted, currently-available local model else metered API.
+    """Pick the cheapest eligible backend: local, then plan-quota, then metered.
 
-    Admission drives selection (not list order or an env var): of the local
+    Admission drives the local rung (not list order or an env var): of the local
     models admitted for ``task_class``, use one that Ollama currently has. When
     several qualify, ``DEEPR_LOCAL_MODEL`` breaks the tie if it is itself
-    admitted, available, and clears the measured quality floor. No admission,
-    no measured score, or the admitted model not loaded falls through to the
-    metered API - the explicit last resort.
+    admitted, available, and clears the measured quality floor.
+
+    When local is not selected, the plan-quota rung is considered: an installed,
+    auto-routable (free-at-margin, ToS-clean) CLI in subscription auth mode with
+    an observed, non-exhausted quota window. Because vendor CLIs do not expose
+    trustworthy *remaining* quota, this stays gated off by default (no observed
+    remaining -> not auto-routed); the explicit ``--plan`` path is how operators
+    opt in today. Metered API is the explicit last resort.
     """
+
+    def _fallback(reason: str) -> BackendChoice:
+        plan = _choose_plan_quota(task_class, which=which, plan_env=plan_env, quota_ledger_path=quota_ledger_path)
+        return plan or _metered(reason)
+
     admitted = {a.model: a for a in admission.list_active(now=now, path=admissions_path) if a.task_class == task_class}
     if not admitted:
-        return _metered(
+        return _fallback(
             f"no local model admitted for {task_class!r} "
             f"(admit one: deepr capacity admit <model> --task-class {task_class})"
         )
 
     available = set(available_models_fn())
     if not available:
-        return _metered(f"local Ollama not reachable; admitted model(s) {sorted(admitted)} unavailable")
+        return _fallback(f"local Ollama not reachable; admitted model(s) {sorted(admitted)} unavailable")
 
     local_backends = [_admission_backend(adm, available=adm.model in available) for adm in admitted.values()]
     quality_scores = _quality_scores(local_backends, admitted)
@@ -93,7 +117,7 @@ def choose_maintenance_backend(
         quality_scores=quality_scores,
     )
     if selection.status != BackendSelectionStatus.SELECTED or selection.selected is None:
-        return _metered(selection.reason)
+        return _fallback(selection.reason)
 
     pick = str(selection.selected.backend.metadata["model"])
     adm = admitted[pick]
@@ -161,3 +185,89 @@ def _quality_scores(backends: list[ResearchBackend], admissions: dict[str, admis
             continue
         scores[backend.backend_id] = score
     return scores
+
+
+def _plan_quota_backend(adapter) -> ResearchBackend:  # adapter: PlanQuotaAdapter
+    return ResearchBackend(
+        backend_id=adapter.backend_id,
+        name=adapter.display_name,
+        kind=BackendKind.PLAN_QUOTA,
+        cost_model=adapter.cost_model,
+        available=True,
+        detail=adapter.value_note,
+        task_classes=(),
+        requires_quota_ledger=True,
+        metadata={"plan_backend_id": adapter.backend_id},
+    )
+
+
+def _choose_plan_quota(
+    task_class: str,
+    *,
+    which: Callable[[str], str | None],
+    plan_env: dict[str, str] | None,
+    quota_ledger_path: Path | None,
+) -> BackendChoice | None:
+    """The plan-quota rung: an installed, safe, auto-routable CLI with observed,
+    non-exhausted quota. Returns None (defer to metered) when none qualifies.
+
+    Auto-routing requires an *observed remaining* quota window. Vendor CLIs do
+    not expose that reliably, so this is off by default until a probe records a
+    trusted remaining signal - exactly the honest no-surprise-bills posture.
+    """
+    from deepr.backends.plan_quota.adapters import auto_routable_adapters
+
+    env = plan_env if plan_env is not None else dict(os.environ)
+    eligible_adapters = [
+        adapter
+        for adapter in auto_routable_adapters()
+        if which(adapter.exe) is not None and _auto_routable(adapter, env)
+    ]
+    if not eligible_adapters:
+        return None
+
+    backends = [_plan_quota_backend(adapter) for adapter in eligible_adapters]
+    states = summarize_quota_state(quota_ledger_path)
+    selection = select_capacity_backend(
+        backends,
+        quota_states=states,
+        task_class=task_class,
+        require_observed_quota=True,
+    )
+    if selection.status != BackendSelectionStatus.SELECTED or selection.selected is None:
+        return None
+
+    picked = selection.selected.backend.backend_id
+    return BackendChoice(
+        BACKEND_PLAN_QUOTA,
+        None,
+        f"plan-quota backend {picked!r}: {selection.selected.eligibility.reason}; prepaid capacity before metered API",
+        plan_backend_id=picked,
+    )
+
+
+def _auto_routable(adapter, env: dict[str, str]) -> bool:  # adapter: PlanQuotaAdapter
+    from deepr.backends.plan_quota.safety import evaluate_plan_quota_safety
+
+    decision = evaluate_plan_quota_safety(adapter, env=env)
+    return decision.safe and not decision.requires_ack
+
+
+def choose_plan_quota_backend(backend_id: str, *, env: dict[str, str] | None = None) -> BackendChoice:
+    """Resolve an explicit ``--plan <id>`` request into a vetted BackendChoice.
+
+    Unlike the auto rung, an explicit operator request does not require an
+    observed quota window (the operator chose it), but it still passes the
+    deterministic safety gate (auth mode is plan, billing acknowledged).
+    """
+    from deepr.backends.plan_quota.adapters import get_adapter
+    from deepr.backends.plan_quota.safety import evaluate_plan_quota_safety
+
+    adapter = get_adapter(backend_id)
+    if adapter is None:
+        return _metered(f"unknown plan-quota backend {backend_id!r}")
+
+    decision = evaluate_plan_quota_safety(adapter, env=env if env is not None else dict(os.environ))
+    if not decision.safe:
+        return _metered(decision.reason)
+    return BackendChoice(BACKEND_PLAN_QUOTA, None, decision.reason, plan_backend_id=backend_id)

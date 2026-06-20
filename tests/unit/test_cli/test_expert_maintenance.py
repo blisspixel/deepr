@@ -46,7 +46,7 @@ class TestBackendFlagGuard:
     def test_sync_rejects_local_and_api_together(self):
         r = CliRunner().invoke(expert, ["sync", "Whoever", "--local", "--api"])
         assert r.exit_code == 2
-        assert "not both" in r.output
+        assert "only one of --local, --api, or --plan" in r.output
 
     def test_absorb_rejects_local_and_api_together(self):
         r = CliRunner().invoke(expert, ["absorb", "Whoever", "job123", "--local", "--api"])
@@ -133,7 +133,7 @@ class TestBackendFlagGuard:
     def test_sync_deep_context_rejects_api(self):
         r = CliRunner().invoke(expert, ["sync", "Whoever", "--api", "--deep-context"])
         assert r.exit_code == 2
-        assert "--deep-context is only supported for local sync" in r.output
+        assert "--deep-context is only supported for local or plan sync" in r.output
 
     def test_sync_fresh_context_requires_local_backend(self, monkeypatch):
         profile = SimpleNamespace(name="UI Experience Expert")
@@ -154,6 +154,8 @@ class TestBackendFlagGuard:
 
         class FakeChoice:
             is_local = False
+            is_plan_quota = False
+            plan_backend_id = None
             reason = "no local admission"
 
         monkeypatch.setattr("deepr.experts.profile.ExpertStore", FakeExpertStore)
@@ -163,7 +165,7 @@ class TestBackendFlagGuard:
         r = CliRunner().invoke(expert, ["sync", "UI Experience Expert", "--fresh-context", "-y"])
 
         assert r.exit_code == 2
-        assert "requires a local sync backend" in r.output
+        assert "requires a local or plan-quota sync backend" in r.output
 
     def test_scheduled_sync_waits_instead_of_using_metered_backend(self, monkeypatch):
         profile = SimpleNamespace(name="UI Experience Expert")
@@ -184,6 +186,8 @@ class TestBackendFlagGuard:
 
         class FakeChoice:
             is_local = False
+            is_plan_quota = False
+            plan_backend_id = None
             reason = "no local admission"
 
         class ExplodingSyncEngine:
@@ -235,6 +239,8 @@ class TestBackendFlagGuard:
 
         class FakeChoice:
             is_local = False
+            is_plan_quota = False
+            plan_backend_id = None
             reason = "no local admission"
 
         monkeypatch.setattr("deepr.experts.profile.ExpertStore", FakeExpertStore)
@@ -375,3 +381,100 @@ class TestBackendFlagGuard:
         assert captured["context_builder"] is deep_context_builder
         assert captured["research_fn"] is research_fn
         assert captured["engine_absorber"] is captured["absorber"]
+
+
+class TestPlanQuotaSync:
+    """`expert sync --plan <id>` runs the whole sync on prepaid plan capacity,
+    behind the deterministic no-surprise-bills gate."""
+
+    def test_sync_has_plan_flags(self):
+        opts = {p.name for p in expert.commands["sync"].params}
+        assert {"plan", "plan_model"} <= opts
+
+    def _fakes(self, monkeypatch, captured):
+        profile = SimpleNamespace(name="Plan Expert")
+
+        class FakeExpertStore:
+            def load(self, name):
+                return profile
+
+        class FakeSubscriptionStore:
+            subscriptions = [SimpleNamespace(topic="t", budget=1.0)]
+
+            def __init__(self, name):
+                pass
+
+            def due(self):
+                return list(self.subscriptions)
+
+        class FakeSyncResult:
+            total_cost = 0.0
+            outcomes = []
+
+            def to_dict(self):
+                return {"total_cost": 0.0, "outcomes": []}
+
+        class FakeSyncEngine:
+            def __init__(self, loaded_profile, *, research_fn=None, absorber=None):
+                captured["research_fn"] = research_fn
+                captured["absorber"] = absorber
+
+            async def sync(self, **kwargs):
+                return FakeSyncResult()
+
+        monkeypatch.setattr("deepr.experts.profile.ExpertStore", FakeExpertStore)
+        monkeypatch.setattr("deepr.experts.sync.SubscriptionStore", FakeSubscriptionStore)
+        monkeypatch.setattr("deepr.experts.sync.ExpertSyncEngine", FakeSyncEngine)
+        return profile
+
+    def test_plan_codex_runs_on_prepaid_and_records_source(self, monkeypatch):
+        captured = {}
+        research_fn = object()
+        chat_client = object()
+        self._fakes(monkeypatch, captured)
+        for var in ("OPENAI_API_KEY", "CODEX_API_KEY", "CODEX_ACCESS_TOKEN"):
+            monkeypatch.delenv(var, raising=False)
+
+        class FakeReportAbsorber:
+            def __init__(self, loaded_profile, *, model, client):
+                captured["absorber_model"] = model
+                captured["absorber_client"] = client
+
+        monkeypatch.setattr("deepr.experts.report_absorber.ReportAbsorber", FakeReportAbsorber)
+        monkeypatch.setattr(
+            "deepr.backends.plan_quota.PlanQuotaChatClient", lambda adapter, *, model=None: chat_client
+        )
+        monkeypatch.setattr(
+            "deepr.backends.plan_quota.make_plan_quota_research_fn",
+            lambda adapter, *, model=None, context_builder=None, client=None: research_fn,
+        )
+
+        def fake_record_loop_run(**kwargs):
+            captured["loop_run_kwargs"] = kwargs
+            return SimpleNamespace(to_dict=lambda: {"run_id": "loop_plan"})
+
+        monkeypatch.setattr("deepr.experts.loop_runs.record_loop_run", fake_record_loop_run)
+
+        r = CliRunner().invoke(expert, ["sync", "Plan Expert", "--plan", "codex", "-y", "--json"])
+
+        assert r.exit_code == 0, r.output
+        assert captured["research_fn"] is research_fn
+        assert captured["absorber_client"] is chat_client
+        assert captured["loop_run_kwargs"]["capacity_source"] == "plan_quota:codex"
+
+    def test_plan_blocked_when_api_key_present(self, monkeypatch):
+        captured = {}
+        self._fakes(monkeypatch, captured)
+        monkeypatch.setenv("OPENAI_API_KEY", "sk-should-block")
+
+        class ExplodingSyncEngine:
+            def __init__(self, *a, **k):
+                raise AssertionError("must not run sync when the gate blocks")
+
+        monkeypatch.setattr("deepr.experts.sync.ExpertSyncEngine", ExplodingSyncEngine)
+
+        r = CliRunner().invoke(expert, ["sync", "Plan Expert", "--plan", "codex", "-y"])
+
+        assert r.exit_code == 2
+        assert "OPENAI_API_KEY" in r.output
+        assert "--api" in r.output
