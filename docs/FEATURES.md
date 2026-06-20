@@ -933,6 +933,9 @@ return the versioned `deepr-expert-handoff-v1` payload: profile summary,
 manifest counts, bounded claims/gaps, dashboard telemetry, loop-status rollup,
 OKF interchange hints, and an additive compatibility contract. The schema is
 published at [schemas/expert-handoff-v1.json](schemas/expert-handoff-v1.json).
+MCP handoff and loop-status responses validate their published envelope before
+dispatch and fail closed with `SCHEMA_VALIDATION_FAILED` if schema version,
+kind, or required envelope fields drift.
 The adjacent loop-status and OKF mapping contracts are published as
 [schemas/loop-status-v1.json](schemas/loop-status-v1.json) and
 [schemas/okf-profile-v1.json](schemas/okf-profile-v1.json). Hosted MCP

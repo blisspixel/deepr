@@ -18,6 +18,36 @@ from deepr.mcp.security.tool_allowlist import ResearchMode, ToolAllowlist
 from deepr.mcp.server import DeeprMCPServer, _handle_tools_call
 
 
+def _loop_status_payload(**overrides) -> dict:
+    payload = {
+        "schema_version": "deepr-loop-status-v1",
+        "kind": "deepr.expert.loop_status",
+        "contract": {"read_only": True, "cost_usd": 0.0},
+        "expert_name": "Test Expert",
+        "count": 0,
+        "window": {"limit": 5, "summarized_runs": 0},
+        "latest_run": None,
+        "last_sync_result": None,
+        "last_failure": None,
+        "next_scheduled_action": None,
+        "latest_capacity_source": "",
+        "status_counts": {},
+        "loop_type_counts": {},
+        "stop_reason_counts": {},
+        "capacity_source_counts": {},
+        "budget_spent_total": 0.0,
+        "accepted_changes_total": 0,
+        "rejected_changes_total": 0,
+        "acceptance_rate": 0.0,
+        "cost_per_accepted_change": 0.0,
+        "verifier_failure_count": 0,
+        "admission_contracts": [],
+        "runs": [],
+    }
+    payload.update(overrides)
+    return payload
+
+
 @pytest.fixture
 def mock_server():
     with (
@@ -70,13 +100,10 @@ class TestExpertLoopStatusTool:
         mock_server.store.load = MagicMock(return_value=profile)
 
         with patch("deepr.mcp.expert_loop_status.build_loop_status_rollup") as build_rollup:
-            build_rollup.return_value = {
-                "schema_version": "deepr-loop-status-v1",
-                "kind": "deepr.expert.loop_status",
-                "expert_name": "Test Expert",
-                "count": 1,
-                "runs": [{"run_id": "loop_1", "status": "waiting"}],
-            }
+            build_rollup.return_value = _loop_status_payload(
+                count=1,
+                runs=[{"run_id": "loop_1", "status": "waiting"}],
+            )
 
             out = await get_expert_loop_status(
                 mock_server.store,
@@ -98,6 +125,20 @@ class TestExpertLoopStatusTool:
         )
 
     @pytest.mark.asyncio
+    async def test_malformed_loop_status_payload_fails_closed(self, mock_server):
+        profile = MagicMock()
+        profile.name = "Test Expert"
+        mock_server.store.load = MagicMock(return_value=profile)
+
+        with patch("deepr.mcp.expert_loop_status.build_loop_status_rollup") as build_rollup:
+            build_rollup.return_value = {"schema_version": "deepr-loop-status-v1"}
+            out = await get_expert_loop_status(mock_server.store, expert_name="Test Expert")
+
+        assert out["error_code"] == "SCHEMA_VALIDATION_FAILED"
+        assert out["schema_version"] == "deepr-loop-status-v1"
+        assert any("kind" in error for error in out["schema_errors"])
+
+    @pytest.mark.asyncio
     async def test_dispatch_requires_confirmation(self, mock_server):
         result = await _handle_tools_call(
             mock_server,
@@ -113,13 +154,7 @@ class TestExpertLoopStatusTool:
         mock_server.store.load = MagicMock(return_value=profile)
 
         with patch("deepr.mcp.expert_loop_status.build_loop_status_rollup") as build_rollup:
-            build_rollup.return_value = {
-                "schema_version": "deepr-loop-status-v1",
-                "kind": "deepr.expert.loop_status",
-                "expert_name": "Test Expert",
-                "count": 0,
-                "runs": [],
-            }
+            build_rollup.return_value = _loop_status_payload()
             result = await _handle_tools_call(
                 mock_server,
                 {
