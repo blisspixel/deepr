@@ -632,7 +632,8 @@ Goal: production posture for multi-user and autonomous deployments.
   - [x] Versioned loop-status schema (`ExpertLoopRun`, next action, stop reason,
         verifier result, budget/capacity source) so host agents can decide
         whether to consult, wait, retry, or escalate without scraping prose.
-        Published as `deepr-loop-status-v1`.
+        Published as `deepr-loop-status-v1`; CLI, MCP, and web loop-status
+        reads now share the same rollup payload.
   - [x] Downstream agents can validate handoff artifacts against published schemas
         in `docs/schemas/`.
   - [x] OKF profile: documented mapping from Deepr beliefs/events/edges/gaps to
