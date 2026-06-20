@@ -82,7 +82,7 @@ If development stops, users keep these portable artifacts:
   `log.md`, concept pages, citations, gaps, and contested claims.
 - Published JSON Schemas under `docs/schemas/` for handoff, loop status, OKF
   profile mapping, remote audit events, MCP registration manifests, capacity
-  guidance, and the shared CLI operation-result envelope.
+  guidance, sync capacity gates, and the shared CLI operation-result envelope.
 - Cost ledger JSONL and remote MCP audit JSONL records.
 - Scoped MCP key metadata, excluding plaintext secrets. Created key secrets are
   shown once and cannot be recovered from stored hashes.
