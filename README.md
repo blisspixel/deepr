@@ -334,7 +334,9 @@ telemetry for freshness, gap velocity, and contested/open claims. The dashboard
 API also exposes `/api/experts/{name}/handoff`, and MCP exposes
 `deepr_expert_handoff`, a `$0` versioned `deepr-expert-handoff-v1` payload with
 profile summary, manifest counts, bounded claims/gaps, loop status, OKF
-interchange hints, and an additive compatibility contract. Terminal loop
+interchange hints, and an additive compatibility contract. MCP handoff and
+loop-status reads validate their published envelope before returning to a host
+agent and fail closed on schema drift. Terminal loop
 records now require status-compatible typed stop reasons before they can be
 stored. The same API includes `admission_contracts` for the four autonomy gates:
 repeat demand, automated verification, explicit budget/capacity, and

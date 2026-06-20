@@ -193,6 +193,10 @@ The adjacent scheduled maintenance envelopes are now versioned as
 `deepr-scheduled-gap-fill-wait-v1`, `deepr-scheduled-reflection-wait-v1`,
 `deepr-health-check-action-plan-v1`, and
 `deepr-health-check-archive-confirmation-v1`.
+The MCP host-facing expert reads now also validate their published envelopes at
+runtime: `deepr_expert_handoff` and `deepr_expert_loop_status` fail closed with
+`SCHEMA_VALIDATION_FAILED` if required schema/kind/envelope fields drift before
+the response leaves Deepr.
 
 ## Active Gap
 
@@ -213,10 +217,10 @@ That gap matters because it sits directly on the project promise: stop paying tw
 
 ## Next Work
 
-Next slice: keep the release current while expanding schema-backed validation to
-the next high-use JSON surfaces, especially MCP/A2A output validation against
-the published contracts and any remaining command-specific `--json` payloads,
-while keeping all local validation at `$0`.
+Next slice: keep the release current while extending output validation beyond
+the two MCP expert-read contracts, especially A2A task/result envelopes and any
+remaining command-specific `--json` payloads, while keeping all local
+validation at `$0`.
 
 ## Spend Ledger For This Run
 

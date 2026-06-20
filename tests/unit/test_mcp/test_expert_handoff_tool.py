@@ -17,6 +17,22 @@ from deepr.mcp.security.tool_allowlist import ResearchMode, ToolAllowlist
 from deepr.mcp.server import DeeprMCPServer, _handle_tools_call
 
 
+def _handoff_payload() -> dict:
+    return {
+        "schema_version": "deepr-expert-handoff-v1",
+        "kind": "deepr.expert.handoff",
+        "generated_at": "2026-06-20T00:00:00+00:00",
+        "contract": {"read_only": True, "cost_usd": 0.0},
+        "expert": {"name": "Test Expert", "domain": "testing"},
+        "summary": {},
+        "manifest": {},
+        "expert_state": {},
+        "loop_status": {},
+        "okf": {},
+        "recommended_mcp_tools": [],
+    }
+
+
 @pytest.fixture
 def mock_server():
     with (
@@ -63,7 +79,7 @@ class TestExpertHandoffTool:
         mock_server.store.load = MagicMock(return_value=profile)
 
         with patch("deepr.mcp.expert_handoff.build_expert_handoff") as build_handoff:
-            build_handoff.return_value = {"schema_version": "deepr-expert-handoff-v1"}
+            build_handoff.return_value = _handoff_payload()
             out = await get_expert_handoff(
                 mock_server.store,
                 expert_name="Test Expert",
@@ -73,7 +89,8 @@ class TestExpertHandoffTool:
                 include_claims=False,
             )
 
-        assert out == {"schema_version": "deepr-expert-handoff-v1"}
+        assert out["schema_version"] == "deepr-expert-handoff-v1"
+        assert out["kind"] == "deepr.expert.handoff"
         build_handoff.assert_called_once_with(
             profile,
             max_claims=3,
@@ -83,6 +100,20 @@ class TestExpertHandoffTool:
             include_gaps=True,
             include_decisions=False,
         )
+
+    @pytest.mark.asyncio
+    async def test_malformed_handoff_payload_fails_closed(self, mock_server):
+        profile = MagicMock()
+        profile.name = "Test Expert"
+        mock_server.store.load = MagicMock(return_value=profile)
+
+        with patch("deepr.mcp.expert_handoff.build_expert_handoff") as build_handoff:
+            build_handoff.return_value = {"schema_version": "deepr-expert-handoff-v1"}
+            out = await get_expert_handoff(mock_server.store, expert_name="Test Expert")
+
+        assert out["error_code"] == "SCHEMA_VALIDATION_FAILED"
+        assert out["schema_version"] == "deepr-expert-handoff-v1"
+        assert any("kind" in error for error in out["schema_errors"])
 
     @pytest.mark.asyncio
     async def test_dispatch_requires_confirmation(self, mock_server):
@@ -100,7 +131,7 @@ class TestExpertHandoffTool:
         mock_server.store.load = MagicMock(return_value=profile)
 
         with patch("deepr.mcp.expert_handoff.build_expert_handoff") as build_handoff:
-            build_handoff.return_value = {"schema_version": "deepr-expert-handoff-v1"}
+            build_handoff.return_value = _handoff_payload()
             result = await _handle_tools_call(
                 mock_server,
                 {
