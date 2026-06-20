@@ -4,7 +4,7 @@ Date: 2026-06-20
 
 ## Alignment Summary
 
-Deepr is aligned around one active product bet: persistent domain experts that can keep verified knowledge current without silent spend. The README sells this as research infrastructure, not another chat window. Current main is now the `v2.17.1` loop/interchange patch release: local Ollama is usable for `$0` expert maintenance, durable loop status is observable across CLI, MCP, and web surfaces, OKF import/export is a verified interchange path, the hosted MCP foundation is in place, host-facing output contracts fail closed on schema drift, and the lockfile includes the `msgpack` security fix. Plan-quota adapters remain explicitly not execution backends until adapters, probes, no-surprise-bills guards, and tests ship. `AGENTIC_BALANCE.md` is the governing boundary: deterministic workflow code owns spend, writes, routing gates, durable state, and verifier outcomes; model judgment owns meaning such as contradiction, grounding, deduplication, and synthesis.
+Deepr is aligned around one active product bet: persistent domain experts that can keep verified knowledge current without silent spend. The README sells this as research infrastructure, not another chat window. Current main is now the `v2.17.1` loop/interchange patch release plus unreleased prompt-boundary hardening: local Ollama is usable for `$0` expert maintenance, durable loop status is observable across CLI, MCP, and web surfaces, OKF import/export is a verified interchange path, the hosted MCP foundation is in place, host-facing output contracts fail closed on schema drift, the lockfile includes the `msgpack` security fix, and ingested/tool content prompt boundaries now cover fresh context, report absorption, first-party findings, document review, campaign context, and team synthesis paths. Plan-quota adapters remain explicitly not execution backends until adapters, probes, no-surprise-bills guards, and tests ship. `AGENTIC_BALANCE.md` is the governing boundary: deterministic workflow code owns spend, writes, routing gates, durable state, and verifier outcomes; model judgment owns meaning such as contradiction, grounding, deduplication, and synthesis.
 
 No clarification is needed before continuing. The docs are internally consistent about what works now, what is visible/read-only, and what remains planned.
 
@@ -203,35 +203,34 @@ create/status/cancel task responses fail closed with `SCHEMA_VALIDATION_FAILED`
 if schema version, kind, lifecycle state, cost, timestamps, metadata, or
 required envelope fields drift.
 
-The first indirect prompt-injection defense slice is in place. `PromptSanitizer`
+The indirect prompt-injection prompt-boundary slice is in place. `PromptSanitizer`
 now exposes an untrusted-content wrapper that delimits source text as data, not
-instructions. Fresh retrieval context, report absorption prompts, and
-first-party tool findings use that boundary before text reaches a model or
-expert prompt context. This does not judge truth; belief absorption still relies
-on extraction, confidence, contradiction, dedup, and trust-floor gates.
+instructions. Fresh retrieval context, report absorption prompts, first-party
+tool findings, local document review previews, campaign context summarization,
+completed-research review, company-intelligence reuse, and team-result synthesis
+use that boundary before text reaches a model or expert prompt context. This
+does not judge truth; belief absorption still relies on extraction, confidence,
+contradiction, dedup, and trust-floor gates.
 
 ## Active Gap
 
-The capacity QOL item from the `v2.16` substrate now covers the recurring expert maintenance
-surfaces at the CLI contract level: sync, gap-fill, reflection follow-ups, and
-health-check actioning all have explicit scheduled wait or action-plan behavior.
-The `v2.17.1` durable loop release is in place: `ExpertLoopRun` defines
-schema-versioned loop records, typed stop reasons, acceptance metrics, cost per
-accepted change, append-only per-expert storage, and read-only
-`deepr expert loop-status`. Scheduled wait/action-plan instrumentation now feeds
-that store for the recurring expert surfaces that can safely stop before spend
-or mutation. MCP read access is also in place for host agents, and completed
-sync, gap-fill execution, reflection, and health-check runs now feed the same
-lifecycle. The web API can summarize those records and adjacent expert-state
-telemetry for the dashboard without rerunning work or spending.
+The next security gap is adversarial measurement, not another lexical rule.
+The prompt boundary now blocks embedded directives from blending into
+instruction text, but the agentic red-team suite still needs attack-success
+metrics for prompt injection, tool abuse, MCP read extraction, and trust-floor
+bypass attempts.
 
-That gap matters because it sits directly on the project promise: stop paying twice, make the cheapest safe route obvious, and never hide gates. It is also a workflow surface, so it can be improved deterministically without violating agentic-balance.
+That gap matters because it proves the boundary under hostile inputs instead of
+relying on happy-path unit tests. It is also aligned with agentic balance:
+deterministic code records the envelope and metrics, while semantic acceptance
+continues to depend on calibrated extraction, grounding, contradiction, dedup,
+and trust-floor gates.
 
 ## Next Work
 
-Next slice: finish the remaining indirect prompt-injection surfaces for uploaded
-document review and broader campaign/context synthesis, then add red-team
-metrics for prompt-injection and trust-floor bypass attempts. Keep all local
+Next slice: validate the completed prompt-boundary hardening, commit it, verify
+CI, then cut a `v2.17.2` patch release if the hosted checks are green. After the
+release is current, start the agentic red-team metrics item. Keep all local
 validation at `$0`.
 
 ## Spend Ledger For This Run
