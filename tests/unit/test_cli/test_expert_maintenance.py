@@ -51,7 +51,7 @@ class TestBackendFlagGuard:
     def test_absorb_rejects_local_and_api_together(self):
         r = CliRunner().invoke(expert, ["absorb", "Whoever", "job123", "--local", "--api"])
         assert r.exit_code == 2
-        assert "not both" in r.output
+        assert "only one of --local, --api, or --plan" in r.output
 
     def test_sync_local_uses_local_absorber(self, monkeypatch):
         captured = {}
@@ -441,9 +441,7 @@ class TestPlanQuotaSync:
                 captured["absorber_client"] = client
 
         monkeypatch.setattr("deepr.experts.report_absorber.ReportAbsorber", FakeReportAbsorber)
-        monkeypatch.setattr(
-            "deepr.backends.plan_quota.PlanQuotaChatClient", lambda adapter, *, model=None: chat_client
-        )
+        monkeypatch.setattr("deepr.backends.plan_quota.PlanQuotaChatClient", lambda adapter, *, model=None: chat_client)
         monkeypatch.setattr(
             "deepr.backends.plan_quota.make_plan_quota_research_fn",
             lambda adapter, *, model=None, context_builder=None, client=None: research_fn,
@@ -478,3 +476,77 @@ class TestPlanQuotaSync:
         assert r.exit_code == 2
         assert "OPENAI_API_KEY" in r.output
         assert "--api" in r.output
+
+    def test_absorb_has_plan_flags(self):
+        opts = {p.name for p in expert.commands["absorb"].params}
+        assert {"plan", "plan_model"} <= opts
+
+    def test_absorb_plan_codex_uses_plan_chat_client(self, monkeypatch):
+        captured = {}
+        profile = SimpleNamespace(name="Plan Expert", total_research_cost=0.0, last_knowledge_refresh=None)
+        sentinel_client = object()
+
+        class FakeExpertStore:
+            def load(self, name):
+                return profile
+
+            def save(self, p):
+                captured["saved"] = p
+
+        class FakeIndex:
+            def get_report_content(self, report_id, max_chars=0):
+                return "report text"
+
+        class FakeResult:
+            dry_run = False
+            estimated_cost = 0.0
+
+            def to_dict(self):
+                return {"absorbed": []}
+
+        class FakeReportAbsorber:
+            def __init__(self, loaded_profile, *, model, client=None):
+                captured["model"] = model
+                captured["client"] = client
+
+            async def absorb(self, *a, **k):
+                return FakeResult()
+
+        for var in ("OPENAI_API_KEY", "CODEX_API_KEY", "CODEX_ACCESS_TOKEN"):
+            monkeypatch.delenv(var, raising=False)
+        monkeypatch.setattr("deepr.experts.profile.ExpertStore", FakeExpertStore)
+        monkeypatch.setattr("deepr.services.context_index.ContextIndex", FakeIndex)
+        monkeypatch.setattr("deepr.experts.report_absorber.ReportAbsorber", FakeReportAbsorber)
+        monkeypatch.setattr(
+            "deepr.backends.plan_quota.PlanQuotaChatClient", lambda adapter, *, model=None: sentinel_client
+        )
+
+        r = CliRunner().invoke(expert, ["absorb", "Plan Expert", "job1", "--plan", "codex", "-y", "--json"])
+
+        assert r.exit_code == 0, r.output
+        assert captured["client"] is sentinel_client
+
+    def test_absorb_plan_blocked_when_api_key_present(self, monkeypatch):
+        profile = SimpleNamespace(name="Plan Expert")
+
+        class FakeExpertStore:
+            def load(self, name):
+                return profile
+
+        class FakeIndex:
+            def get_report_content(self, report_id, max_chars=0):
+                return "report text"
+
+        class ExplodingAbsorber:
+            def __init__(self, *a, **k):
+                raise AssertionError("must not construct absorber when the gate blocks")
+
+        monkeypatch.setenv("OPENAI_API_KEY", "sk-should-block")
+        monkeypatch.setattr("deepr.experts.profile.ExpertStore", FakeExpertStore)
+        monkeypatch.setattr("deepr.services.context_index.ContextIndex", FakeIndex)
+        monkeypatch.setattr("deepr.experts.report_absorber.ReportAbsorber", ExplodingAbsorber)
+
+        r = CliRunner().invoke(expert, ["absorb", "Plan Expert", "job1", "--plan", "codex", "-y"])
+
+        assert r.exit_code == 2
+        assert "OPENAI_API_KEY" in r.output

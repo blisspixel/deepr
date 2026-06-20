@@ -47,6 +47,14 @@ SYNC_CAPACITY_GATE_SCHEMA_VERSION = "deepr-sync-capacity-gate-v1"
     help="Force extraction on the local Ollama model at $0 (no admission needed)",
 )
 @click.option("--api", is_flag=True, help="Force the metered API even if a local model is admitted")
+@click.option(
+    "--plan",
+    "plan",
+    type=click.Choice(["codex", "claude", "opencode", "kiro", "grok", "antigravity", "copilot"]),
+    default=None,
+    help="Run extraction on a plan-quota CLI backend (prepaid subscription capacity). See: deepr capacity",
+)
+@click.option("--plan-model", "plan_model", default=None, help="Model to pass to the plan-quota CLI")
 @click.option("--yes", "-y", is_flag=True, help="Skip the confirmation prompt")
 @click.option("--json", "json_output", is_flag=True, help="Emit the structured absorption result as JSON")
 def absorb_report(
@@ -57,6 +65,8 @@ def absorb_report(
     dry_run: bool,
     local: bool,
     api: bool,
+    plan: str | None,
+    plan_model: str | None,
     yes: bool,
     json_output: bool,
 ):
@@ -83,8 +93,8 @@ def absorb_report(
     import json as _json
     import sys
 
-    if local and api:
-        print_error("Use either --local or --api, not both.")
+    if sum(bool(x) for x in (local, api, plan)) > 1:
+        print_error("Use only one of --local, --api, or --plan.")
         sys.exit(2)
 
     from deepr.experts.profile import ExpertStore
@@ -111,15 +121,31 @@ def absorb_report(
     # --model forces the metered path; otherwise an admitted+available local
     # model is used automatically, else metered. Why is always printed below.
     use_local = local
+    use_plan = False
+    plan_backend_id: str | None = plan
     selection_note = ""
-    if not local and not api and model is None:
+    if plan:
+        from deepr.backends.waterfall import choose_plan_quota_backend
+
+        choice = choose_plan_quota_backend(plan)
+        if not choice.is_plan_quota:
+            print_error(choice.reason)
+            sys.exit(2)
+        use_plan = True
+        plan_backend_id = choice.plan_backend_id
+        selection_note = choice.reason
+    elif not local and not api and model is None:
         from deepr.backends.admission import TASK_CLASS_ABSORB
         from deepr.backends.waterfall import choose_maintenance_backend
 
         choice = choose_maintenance_backend(TASK_CLASS_ABSORB)
         use_local = choice.is_local
+        use_plan = choice.is_plan_quota
+        plan_backend_id = choice.plan_backend_id
         if use_local:
             model = choice.model
+            selection_note = choice.reason
+        elif use_plan:
             selection_note = choice.reason
 
     if use_local:
@@ -133,6 +159,17 @@ def absorb_report(
         cost_note = f"$0 (local model {local_model})"
         if selection_note and not json_output:
             console.print(f"[dim]{selection_note}[/dim]")
+    elif use_plan:
+        from deepr.backends.plan_quota import PlanQuotaChatClient, get_adapter
+
+        plan_adapter = get_adapter(plan_backend_id or "")
+        client = PlanQuotaChatClient(plan_adapter, model=plan_model)
+        absorber = ReportAbsorber(profile, model=plan_model or plan_adapter.backend_id, client=client)
+        cost_note = "billed per use" if plan_adapter.metered_at_margin else "$0 at the margin (prepaid plan)"
+        if selection_note and not json_output:
+            console.print(f"[dim]{selection_note}[/dim]")
+        if plan_adapter.tos_note and not json_output:
+            print_warning(plan_adapter.tos_note)
     else:
         absorber = ReportAbsorber(profile, model=model or "gpt-5-mini")
         cost_note = f"~${ESTIMATED_EXTRACTION_COST:.2f}"
