@@ -1,5 +1,12 @@
 # Progress Log
 
+## 2026-06-20 — Plan-quota fleet view + absorb parity + reset times
+
+- `expert absorb --plan <id>`: extraction parity with sync on prepaid capacity, same safety gate. Tests + CI green.
+- `deepr capacity fleet`: one read-only $0 dashboard over all 7 CLIs — installed, auth mode (metered when an API key is set), routability (auto/explicit/metered), and latest observed quota state (active/exhausted/quarantined/unobserved) with reset time. Builder `fleet.build_fleet_status`, versioned `deepr-plan-fleet-v1` payload.
+- Reset times made real: `parse_reset_after_seconds` extracts a relative duration from vendor exhaustion messages ("Try again in 3h 42m", "Resets in 2h15m30s") and the chat client records `reset_at` on EXHAUSTED events; monthly pools with no countdown stay honestly unknown.
+- Validation ($0): new tests for fleet (11), reset parser (5), absorb --plan (3), reset recording (1), fleet CLI (3); coverage 94.6% on plan_quota; ruff + C901/S ratchets at baseline; full suites green.
+
 ## 2026-06-20 — Plan-quota CLI execution backends (ROADMAP Phase 6)
 
 - Shipped plan-quota CLI execution: drive vendor coding/agent CLIs as

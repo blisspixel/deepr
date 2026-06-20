@@ -22,11 +22,12 @@ from __future__ import annotations
 
 import logging
 from collections.abc import Awaitable, Callable
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any
 
 from deepr.backends.local import _local_prompt  # shared research-prompt builder
-from deepr.backends.plan_quota.adapters import PlanQuotaAdapter
+from deepr.backends.plan_quota.adapters import PlanQuotaAdapter, parse_reset_after_seconds
 from deepr.backends.plan_quota.cli_runner import DEFAULT_TIMEOUT_S, CliResult, run_cli
 from deepr.backends.quota_ledger import (
     QuotaConfidence,
@@ -131,8 +132,12 @@ class PlanQuotaChatClient:
         """Turn a CliResult into an answer or raise a typed error. Records quota."""
         combined = f"{result.stdout}\n{result.stderr}"
         if self.adapter.looks_exhausted(combined):
-            self._record_quota(QuotaEventType.EXHAUSTED, detail="exhaustion signature in CLI output")
-            raise PlanQuotaExhausted(f"{self.adapter.display_name} quota appears exhausted - reschedule after reset")
+            reset_at = self._reset_at_from(combined)
+            self._record_quota(QuotaEventType.EXHAUSTED, detail="exhaustion signature in CLI output", reset_at=reset_at)
+            when = f" (resets ~{reset_at:%H:%M UTC})" if reset_at else ""
+            raise PlanQuotaExhausted(
+                f"{self.adapter.display_name} quota appears exhausted - reschedule after reset{when}"
+            )
         if result.launch_error:
             raise PlanQuotaError(f"{self.adapter.exe} failed to launch: {result.launch_error}")
         if result.timed_out:
@@ -149,7 +154,11 @@ class PlanQuotaChatClient:
         self._record_cost()
         return answer
 
-    def _record_quota(self, event_type: QuotaEventType, *, detail: str) -> None:
+    def _reset_at_from(self, text: str) -> datetime | None:
+        seconds = parse_reset_after_seconds(text)
+        return datetime.now(UTC) + timedelta(seconds=seconds) if seconds else None
+
+    def _record_quota(self, event_type: QuotaEventType, *, detail: str, reset_at: datetime | None = None) -> None:
         try:
             QuotaLedger(self._quota_ledger_path).record_event(
                 QuotaLedgerEvent(
@@ -164,6 +173,7 @@ class PlanQuotaChatClient:
                     # vendors don't expose it. UNKNOWN keeps auto-routing off
                     # until a real remaining signal exists (eligibility gate).
                     remaining_confidence=QuotaConfidence.UNKNOWN,
+                    reset_at=reset_at,
                     overage_enabled=False,
                     detail=detail,
                 )

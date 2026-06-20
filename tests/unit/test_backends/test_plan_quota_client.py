@@ -83,6 +83,20 @@ class TestResearchFn:
         events = QuotaLedger(qpath).get_events()
         assert events[0].event_type == QuotaEventType.EXHAUSTED
 
+    async def test_exhaustion_records_reset_time_when_stated(self, tmp_path):
+        qpath = tmp_path / "q.jsonl"
+        fn = make_plan_quota_research_fn(
+            get_adapter("codex"),
+            runner=_runner(stdout="usage_limit_reached. Try again in 1h 30m."),
+            quota_ledger_path=qpath,
+            cost_ledger_path=tmp_path / "c.jsonl",
+        )
+        result = await fn("q", 1.0)
+        assert result.get("quota_exhausted") is True
+        event = QuotaLedger(qpath).get_events()[0]
+        assert event.event_type == QuotaEventType.EXHAUSTED
+        assert event.reset_at is not None
+
     async def test_launch_error_is_reported_not_raised(self, tmp_path):
         fn = make_plan_quota_research_fn(
             get_adapter("codex"),
