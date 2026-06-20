@@ -10,9 +10,27 @@ import click
 from deepr.cli.colors import console, print_section_header, print_warning
 from deepr.experts.approval import ApprovalTier
 
+HEALTH_CHECK_ACTION_PLAN_KIND = "deepr.expert.health_check_action_plan"
+HEALTH_CHECK_ACTION_PLAN_SCHEMA_VERSION = "deepr-health-check-action-plan-v1"
+HEALTH_CHECK_ARCHIVE_CONFIRMATION_KIND = "deepr.expert.health_check_archive_confirmation"
+HEALTH_CHECK_ARCHIVE_CONFIRMATION_SCHEMA_VERSION = "deepr-health-check-archive-confirmation-v1"
+
 
 def _quote_cli_arg(value: str) -> str:
     return f'"{value.replace(chr(34), chr(92) + chr(34))}"'
+
+
+def _scheduled_health_contract() -> dict[str, Any]:
+    return {
+        "read_only": True,
+        "cost_usd": 0.0,
+        "stability": "experimental",
+        "compatibility": {
+            "additive_fields": True,
+            "breaking_changes_require_new_schema_version": True,
+            "deprecation_policy": "Fields in this v1 payload are additive within v1; removals use a new schema.",
+        },
+    }
 
 
 def _scheduled_action_status(action: Any) -> tuple[str, str]:
@@ -56,7 +74,12 @@ def scheduled_health_action_plan(report: Any) -> dict[str, Any]:
 
 
 def scheduled_health_payload(report: Any) -> dict[str, Any]:
-    payload = report.to_dict()
+    payload = {
+        "schema_version": HEALTH_CHECK_ACTION_PLAN_SCHEMA_VERSION,
+        "kind": HEALTH_CHECK_ACTION_PLAN_KIND,
+        "contract": _scheduled_health_contract(),
+        **report.to_dict(),
+    }
     payload["scheduled"] = True
     plan = scheduled_health_action_plan(report)
     payload["scheduled_action_plan"] = plan
@@ -98,7 +121,12 @@ def print_scheduled_health_action_plan(plan: dict[str, Any]) -> None:
 
 def scheduled_archive_confirmation_payload(expert_name: str, candidates: list[Any]) -> dict[str, Any]:
     payload = {
+        "schema_version": HEALTH_CHECK_ARCHIVE_CONFIRMATION_SCHEMA_VERSION,
+        "kind": HEALTH_CHECK_ARCHIVE_CONFIRMATION_KIND,
+        "contract": _scheduled_health_contract(),
         "status": "waiting_for_confirmation",
+        "scheduled": True,
+        "expert_name": expert_name,
         "expert": expert_name,
         "action": "archive_stale",
         "count": len(candidates),

@@ -414,6 +414,11 @@ class TestExpertHealthCheckCommand:
     def test_health_check_scheduled_json_includes_action_plan(self, runner):
         import json
 
+        from deepr.cli.commands.semantic.expert_health_schedule import (
+            HEALTH_CHECK_ACTION_PLAN_KIND,
+            HEALTH_CHECK_ACTION_PLAN_SCHEMA_VERSION,
+        )
+
         with (
             patch("deepr.experts.profile.ExpertStore") as mock_store_class,
             patch("deepr.experts.health_check.ExpertHealthChecker") as mock_checker,
@@ -431,6 +436,8 @@ class TestExpertHealthCheckCommand:
 
             assert result.exit_code == 0
             payload = json.loads(result.output)
+            assert payload["schema_version"] == HEALTH_CHECK_ACTION_PLAN_SCHEMA_VERSION
+            assert payload["kind"] == HEALTH_CHECK_ACTION_PLAN_KIND
             assert payload["scheduled"] is True
             plan = payload["scheduled_action_plan"]
             assert plan["status"] == "waiting_for_capacity"
@@ -474,6 +481,11 @@ class TestExpertHealthCheckCommand:
         import json
         from datetime import UTC, datetime
 
+        from deepr.cli.commands.semantic.expert_health_schedule import (
+            HEALTH_CHECK_ARCHIVE_CONFIRMATION_KIND,
+            HEALTH_CHECK_ARCHIVE_CONFIRMATION_SCHEMA_VERSION,
+        )
+
         beliefs_dir = tmp_path / "Test Expert" / "beliefs"
         beliefs_dir.mkdir(parents=True)
         candidate = MagicMock()
@@ -514,6 +526,8 @@ class TestExpertHealthCheckCommand:
         assert result.exit_code == 0
         belief_store.archive_stale.assert_not_called()
         payload = json.loads(result.output)
+        assert payload["schema_version"] == HEALTH_CHECK_ARCHIVE_CONFIRMATION_SCHEMA_VERSION
+        assert payload["kind"] == HEALTH_CHECK_ARCHIVE_CONFIRMATION_KIND
         assert payload["status"] == "waiting_for_confirmation"
         assert payload["action"] == "archive_stale"
         assert payload["count"] == 1
@@ -720,6 +734,11 @@ class TestExpertReflectCommand:
             assert mock_record.call_args.kwargs["verifier_score"] == 0.84
 
     def test_scheduled_json_waits_before_reflection_engine(self, runner):
+        from deepr.cli.commands.semantic.expert_reflect_schedule import (
+            SCHEDULED_REFLECTION_WAIT_KIND,
+            SCHEDULED_REFLECTION_WAIT_SCHEMA_VERSION,
+        )
+
         with (
             patch("deepr.experts.profile.ExpertStore") as mock_store_class,
             patch("deepr.services.context_index.ContextIndex") as mock_idx,
@@ -755,6 +774,8 @@ class TestExpertReflectCommand:
         import json
 
         payload = json.loads(result.output)
+        assert payload["schema_version"] == SCHEDULED_REFLECTION_WAIT_SCHEMA_VERSION
+        assert payload["kind"] == SCHEDULED_REFLECTION_WAIT_KIND
         assert payload["status"] == "waiting_for_capacity"
         assert payload["expert_name"] == "AI Expert"
         assert payload["report_id"] == "job1"
@@ -903,6 +924,10 @@ class TestExpertRouteGapsCommand:
             assert payload["routes"][0]["instrument"] == "primr"
 
     def test_scheduled_execute_waits_without_starting_gap_fill_engine(self, runner):
+        from deepr.cli.commands.semantic.expert_gap_routes import (
+            SCHEDULED_GAP_FILL_WAIT_KIND,
+            SCHEDULED_GAP_FILL_WAIT_SCHEMA_VERSION,
+        )
         from deepr.core.contracts import ExpertManifest, Gap
         from deepr.experts.gap_router import GapRoute
 
@@ -950,6 +975,8 @@ class TestExpertRouteGapsCommand:
         import json
 
         payload = json.loads(result.output)
+        assert payload["schema_version"] == SCHEDULED_GAP_FILL_WAIT_SCHEMA_VERSION
+        assert payload["kind"] == SCHEDULED_GAP_FILL_WAIT_KIND
         assert payload["status"] == "waiting_for_capacity"
         assert payload["routes"][0]["topic"] == "open model benchmark drift"
         assert payload["next_actions"][0]["status"] == "wait"
