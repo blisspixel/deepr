@@ -94,6 +94,20 @@ in:
 `choose_plan_quota_backend` resolves an explicit request through the same safety
 gate but without the observed-quota requirement (the operator chose it).
 
+## Fleet visibility
+
+`deepr capacity fleet` (builder: `fleet.build_fleet_status`) shows every plan-quota
+CLI in one read-only `$0` table: installed (PATH), auth mode (the same gate -
+"metered" when an API key is set), routability (auto / explicit / metered), and
+the latest *observed* quota state (active / exhausted / quarantined /
+unobserved) with a reset time when one was parsed from the vendor's exhaustion
+message. "unobserved" and a blank reset are deliberate: Deepr reports only what
+it has seen, never a fabricated remaining-quota number. Reset times are recorded
+on `EXHAUSTED` events by `parse_reset_after_seconds`, which extracts a relative
+duration ("Try again in 3h 42m", "Resets in 2h15m30s") - deterministic *form*
+extraction, never a semantic verdict; monthly pools with no countdown stay
+honestly unknown. Published as the versioned `deepr-plan-fleet-v1` envelope.
+
 ## What is deterministic vs model judgment (AGENTIC_BALANCE)
 
 | Concern | Setting |

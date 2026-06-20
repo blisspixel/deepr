@@ -357,6 +357,52 @@ def capacity_revoke(model: str, task_class: str):
     click.echo(f"Revoked admission for '{model}' on '{task_class}'. Maintenance falls back to metered API.")
 
 
+@capacity.command(name="fleet")
+@click.option("--json", "json_output", is_flag=True, help="Emit the versioned fleet payload as JSON.")
+def capacity_fleet(json_output: bool):
+    """Fleet status for every plan-quota CLI: installed, auth, routable, quota state.
+
+    Read-only and $0: derived from PATH detection, the deterministic auth-mode
+    gate, and the append-only quota ledger. "exhausted" with a reset time appears
+    once a run has actually hit a vendor limit; "unobserved" means Deepr has not
+    run that backend yet (vendors do not expose remaining quota up front).
+    """
+    from deepr.backends.plan_quota import build_fleet_payload, build_fleet_status
+
+    rows = build_fleet_status()
+    if json_output:
+        click.echo(_json.dumps(build_fleet_payload(rows), indent=2))
+        return
+
+    click.echo("Plan-quota fleet (read-only, $0)\n")
+    click.echo(f"{'backend':<12} {'installed':<10} {'auth':<8} {'routable':<9} {'status':<12} {'reset':<14} last seen")
+    for r in rows:
+        installed = "yes" if r["installed"] else "no"
+        auth = r["auth_mode"] or "-"
+        reset = _fmt_reset(r["reset_at"])
+        last = (r["last_event_at"] or "-")[:16].replace("T", " ")
+        click.echo(
+            f"{r['backend']:<12} {installed:<10} {auth:<8} {r['routable']:<9} {r['status']:<12} {reset:<14} {last}"
+        )
+    click.echo("\nauto = waterfall may auto-route; explicit = --plan only; metered = paid per use (off by default)")
+
+
+def _fmt_reset(reset_at_iso: str | None) -> str:
+    if not reset_at_iso:
+        return "-"
+    from datetime import UTC, datetime
+
+    try:
+        reset_at = datetime.fromisoformat(reset_at_iso)
+    except ValueError:
+        return "-"
+    delta = reset_at - datetime.now(UTC)
+    mins = int(delta.total_seconds() // 60)
+    if mins <= 0:
+        return "due"
+    return f"~{mins // 60}h{mins % 60:02d}m" if mins >= 60 else f"~{mins}m"
+
+
 @capacity.command(name="probe-plan")
 @click.argument(
     "backend",

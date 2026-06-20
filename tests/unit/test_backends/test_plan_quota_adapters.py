@@ -8,7 +8,25 @@ from deepr.backends.plan_quota.adapters import (
     all_adapters,
     auto_routable_adapters,
     get_adapter,
+    parse_reset_after_seconds,
 )
+
+
+class TestResetParser:
+    def test_codex_hours_minutes(self):
+        assert parse_reset_after_seconds("reached your 5-hour limit. Try again in 3h 42m.") == 3 * 3600 + 42 * 60
+
+    def test_antigravity_compact(self):
+        assert parse_reset_after_seconds("Individual quota reached. Resets in 2h15m30s.") == 2 * 3600 + 15 * 60 + 30
+
+    def test_minutes_only(self):
+        assert parse_reset_after_seconds("try again in 45m") == 45 * 60
+
+    def test_monthly_no_countdown_is_none(self):
+        assert parse_reset_after_seconds("[429] credits_exhausted") is None
+
+    def test_unrelated_text_is_none(self):
+        assert parse_reset_after_seconds("here is your answer in detail") is None
 
 
 class TestRegistry:
