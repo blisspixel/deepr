@@ -267,15 +267,23 @@ class ExpertSyncEngine:
 
     @staticmethod
     def build_freshness_query(subscription: Subscription) -> str:
-        """Ask only for what changed - the delta, not a re-survey."""
-        if subscription.last_synced:
-            since = subscription.last_synced.strftime("%Y-%m-%d")
-            window = f"since {since}"
-        else:
-            window = "in the last 30 days"
+        """The research query for one subscription.
+
+        First sync (no ``last_synced``) establishes the baseline: a comprehensive,
+        sourced overview, so a brand-new expert is actually populated - including
+        evergreen topics where "what changed lately" is correctly nothing.
+        Subsequent syncs ask only for the delta since the last sync.
+        """
         focus = f" Focus: {subscription.query}" if subscription.query else ""
+        if subscription.last_synced is None:
+            return (
+                f"Provide a comprehensive, well-sourced overview of '{subscription.topic}'.{focus} "
+                "Cover the key facts, core concepts, and current state of the art, each grounded in the "
+                "provided sources (include dates where relevant). Be specific and factual; do not speculate."
+            )
+        since = subscription.last_synced.strftime("%Y-%m-%d")
         return (
-            f"What has changed regarding '{subscription.topic}' {window}?{focus} "
+            f"What has changed regarding '{subscription.topic}' since {since}?{focus} "
             "Report ONLY new developments: announcements, releases, pricing or policy changes, "
             "deprecations, retractions, or significant new evidence - each with its date and source. "
             f"If nothing meaningful changed, reply exactly: '{_NO_CHANGES_MARKER}'."
