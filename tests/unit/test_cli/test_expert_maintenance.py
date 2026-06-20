@@ -12,7 +12,7 @@ from types import SimpleNamespace
 
 from click.testing import CliRunner
 
-from deepr.backends.capacity_actions import CapacityNextAction
+from deepr.backends.capacity_actions import CAPACITY_NEXT_KIND, CAPACITY_NEXT_SCHEMA_VERSION, CapacityNextAction
 from deepr.cli.commands.semantic.experts import expert
 
 
@@ -204,6 +204,8 @@ class TestBackendFlagGuard:
         assert r.exit_code == 0
         payload = json.loads(r.output)
         assert payload["status"] == "waiting_for_capacity"
+        assert payload["capacity_next"]["schema_version"] == CAPACITY_NEXT_SCHEMA_VERSION
+        assert payload["capacity_next"]["kind"] == CAPACITY_NEXT_KIND
         assert payload["capacity_next"]["job_context"]["scheduled"] is True
         assert payload["capacity_next"]["actions"][0]["status"] == "wait"
         assert payload["loop_run"]["run_id"] == "loop_sync"
@@ -249,6 +251,8 @@ class TestBackendFlagGuard:
         assert r.exit_code == 0
         payload = json.loads(r.output)
         assert payload["status"] == "waiting_for_capacity"
+        assert payload["capacity_next"]["schema_version"] == CAPACITY_NEXT_SCHEMA_VERSION
+        assert payload["capacity_next"]["kind"] == CAPACITY_NEXT_KIND
         assert payload["capacity_next"]["job_context"]["context_mode"] == "fresh"
         assert payload["capacity_next"]["job_context"]["requires_local"] is True
         assert payload["loop_run"]["run_id"] == "loop_sync"
@@ -349,6 +353,7 @@ class TestBackendFlagGuard:
 
         monkeypatch.setattr("deepr.backends.local.make_local_research_fn", fake_local_research_fn)
         monkeypatch.setattr("deepr.experts.report_absorber.ReportAbsorber", FakeReportAbsorber)
+
         def fake_record_loop_run(**kwargs):
             captured["loop_run_kwargs"] = kwargs
             return SimpleNamespace(to_dict=lambda: {"run_id": "loop_sync_complete"})
