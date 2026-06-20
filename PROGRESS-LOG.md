@@ -1,5 +1,16 @@
 # Progress Log
 
+## 2026-06-20
+
+- Refreshed release metadata and documentation for `v2.17.0`, including the
+  package version, README badge, changelog release section, roadmap current
+  status, supported-surface statement, and current-state analysis.
+- Kept the release language honest: durable loops, OKF interchange, hosted MCP
+  foundation, and published schema contracts are current; plan-quota adapters,
+  live probes, adapter writes, plan-quota scheduler dispatch, auto-mode runtime
+  integration, and live third-party host registration remain open.
+- Spend so far: `$0.00`.
+
 ## 2026-06-19
 
 - Read the project-owned Markdown instruction and design set, excluding vendored dependency docs under `.venv` and `node_modules`.
