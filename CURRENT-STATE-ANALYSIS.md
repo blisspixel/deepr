@@ -1,10 +1,10 @@
 # Current State Analysis
 
-Date: 2026-06-19
+Date: 2026-06-20
 
 ## Alignment Summary
 
-Deepr is aligned around one active product bet: persistent domain experts that can keep verified knowledge current without silent spend. The README sells this as research infrastructure, not another chat window. The roadmap makes `v2.16` the active capacity release, with local Ollama already usable for `$0` expert maintenance and plan-quota adapters still explicitly not execution backends. `AGENTIC_BALANCE.md` is the governing boundary: deterministic workflow code owns spend, writes, routing gates, durable state, and verifier outcomes; model judgment owns meaning such as contradiction, grounding, deduplication, and synthesis.
+Deepr is aligned around one active product bet: persistent domain experts that can keep verified knowledge current without silent spend. The README sells this as research infrastructure, not another chat window. Current main is now the `v2.17.0` loop/interchange release: local Ollama is usable for `$0` expert maintenance, durable loop status is observable across CLI, MCP, and web surfaces, OKF import/export is a verified interchange path, and the hosted MCP foundation is in place. Plan-quota adapters remain explicitly not execution backends until adapters, probes, no-surprise-bills guards, and tests ship. `AGENTIC_BALANCE.md` is the governing boundary: deterministic workflow code owns spend, writes, routing gates, durable state, and verifier outcomes; model judgment owns meaning such as contradiction, grounding, deduplication, and synthesis.
 
 No clarification is needed before continuing. The docs are internally consistent about what works now, what is visible/read-only, and what remains planned.
 
@@ -190,10 +190,10 @@ the nested guidance object.
 
 ## Active Gap
 
-The capacity QOL item in `v2.16` now covers the recurring expert maintenance
+The capacity QOL item from the `v2.16` substrate now covers the recurring expert maintenance
 surfaces at the CLI contract level: sync, gap-fill, reflection follow-ups, and
 health-check actioning all have explicit scheduled wait or action-plan behavior.
-The first `v2.17` durable loop slice is also in place: `ExpertLoopRun` defines
+The `v2.17.0` durable loop release is in place: `ExpertLoopRun` defines
 schema-versioned loop records, typed stop reasons, acceptance metrics, cost per
 accepted change, append-only per-expert storage, and read-only
 `deepr expert loop-status`. Scheduled wait/action-plan instrumentation now feeds
@@ -207,9 +207,10 @@ That gap matters because it sits directly on the project promise: stop paying tw
 
 ## Next Work
 
-Next slice: continue schema-backed contract work for additional high-use JSON
-surfaces, especially scheduled gap-fill, reflection, and health-check action
-payloads beyond sync, while keeping all local validation at `$0`.
+Next slice: keep the release current while continuing schema-backed contract
+work for additional high-use JSON surfaces, especially scheduled gap-fill,
+reflection, and health-check action payloads beyond sync, while keeping all
+local validation at `$0`.
 
 ## Spend Ledger For This Run
 
