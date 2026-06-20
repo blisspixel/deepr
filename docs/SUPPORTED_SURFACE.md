@@ -1,6 +1,6 @@
 # Supported Surface
 
-Status: v2.17.2 current main, 2026-06-20. This document defines what users and host
+Status: post-v2.17.2 current main, 2026-06-20. This document defines what users and host
 agents can rely on today, what is experimental, what is planned only, and what
 data remains portable if development stops.
 
@@ -63,8 +63,8 @@ must not be described as usable capacity.
   reuse, and team-result synthesis. These delimit and sanitize untrusted source
   text before model prompts, while semantic acceptance still depends on the
   existing verification and trust-floor gates.
-- Local Ollama expert maintenance, local evals, local context evals, and scored
-  local admission.
+- Local Ollama expert maintenance, local evals, local context evals, local
+  red-team attack-success-rate metrics, and scored local admission.
 - Hosted MCP deployment recipes, including the local container, Azure Container
   Apps template, AWS ECS Fargate template, GCP Cloud Run template, and
   Cloudflare Worker edge ingress recipe.

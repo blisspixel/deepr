@@ -769,6 +769,14 @@ Use `--tier all` full-catalog runs sparingly; they are for periodic baseline ref
 
 `deepr eval local-context` uses the same no-provider contract for a different decision: whether a model should answer a freshness task with no context, a small fresh context pack, or bounded deep context. It runs the built-in `local-freshness` prompt set, retrieves free-only context for the fresh/deep modes, asks a local judge to score answer relevance and grounding, and records source counts, citation-label validity, latency, and Deepr metered cost `$0`. This is context-routing evidence, not automatic scheduler behavior yet.
 
+`deepr eval red-team` is the no-provider security verifier for Deepr's own
+agentic boundaries. It runs built-in prompt-injection, jailbreak,
+data-exfiltration, tool-spoofing, and memory trust-floor probes at `$0`, reports
+attack-success-rate, and exits non-zero if a built-in attack succeeds. The
+metric checks boundary form and confidence ceilings only; semantic acceptance
+still belongs to extraction, grounding, contradiction, dedup, and trust-floor
+gates.
+
 Saved artifacts can feed admission directly:
 
 ```bash
@@ -783,14 +791,17 @@ Automatic local routing now uses the admitted score as runtime quality evidence.
 
 CLI judges are supported for plan or subscription tools when the operator explicitly approves them with `--allow-cli-judge`. The Grok preset expands to a headless prompt-file command; custom commands must include `{prompt_file}` and run with `shell=False`. Deepr still records metered cost `$0`, but the external CLI may consume its own quota or credits, so this path is never auto-selected.
 
-### Evidence Evals (Continuity and Calibration)
+### Evidence Evals
 
-Two evals make expert trust measurable instead of asserted.
+Three evals make expert trust measurable instead of asserted.
 
 ```bash
 # Continuity: staleness honesty, abstention, contradiction-surfacing,
 # what-changed exactness - measured from stored belief state at $0.
 deepr eval continuity "AI Policy Expert"
+
+# Red team: prompt-boundary, tool-spoofing, and trust-floor probes at $0.
+deepr eval red-team --json
 
 # Calibration: does extraction confidence track grounding?
 # Reliability curve + expected calibration error + Platt-derived threshold.
@@ -801,7 +812,7 @@ deepr eval calibrate --corpus tests/data/calibration \
   --grader-model gpt-5 --sample 50 --max-cost 3 --yes
 ```
 
-Calibration uses FActScore/SAFE-style atomic claim decomposition and a strong-model grader; the threshold fit is numpy Platt scaling (no sklearn). The first measured curve is in [CALIBRATION.md](CALIBRATION.md); the deterministic-vs-model check boundary is in [design/checks-deterministic-vs-agentic.md](design/checks-deterministic-vs-agentic.md).
+Calibration uses FActScore/SAFE-style atomic claim decomposition and a strong-model grader; the threshold fit is numpy Platt scaling (no sklearn). Red-team metrics are local workflow checks over shipped boundaries, not a replacement for calibrated model judgment. The first measured curve is in [CALIBRATION.md](CALIBRATION.md); the deterministic-vs-model check boundary is in [design/checks-deterministic-vs-agentic.md](design/checks-deterministic-vs-agentic.md).
 
 ## Setup and Capacity
 
