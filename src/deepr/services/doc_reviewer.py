@@ -31,6 +31,7 @@ import os
 from datetime import UTC, datetime
 from typing import Any
 
+from deepr.utils.prompt_security import sanitize_untrusted_content
 from deepr.utils.security import InvalidInputError, PathTraversalError, validate_path
 
 logger = logging.getLogger(__name__)
@@ -204,10 +205,14 @@ class DocReviewer:
         parts.append("\n## Existing Documentation\n")
 
         for i, doc in enumerate(docs, 1):
+            preview = sanitize_untrusted_content(
+                doc.get("preview", ""),
+                source_label=f"doc preview {doc.get('name', f'doc {i}')}",
+            )
             parts.append(f"\n### Doc {i}: {doc['name']}")
             parts.append(f"**Path:** {doc['path']}")
             parts.append(f"**Last Modified:** {doc['modified']}")
-            parts.append(f"**Preview:**\n```\n{doc['preview']}\n```\n")
+            parts.append(f"**Preview:**\n{preview.delimited}\n")
 
         parts.append("\n## Your Task\n")
         parts.append("""
