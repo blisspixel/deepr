@@ -591,15 +591,22 @@ def expert_portrait(name, all_experts, missing_only, style, provider, yes):
         print_warning("Cancelled.")
         return
 
-    ok = 0
-    for target in targets:
-        profile = store.load(target)
-        try:
-            url = asyncio.run(generate_and_save_portrait(profile, store, provider=provider, style=style))
-            console.print(f"  [green]done[/green] {target}  ->  {url}")
-            ok += 1
-        except Exception as e:
-            console.print(f"  [red]failed[/red] {target}: {e}")
+    async def _run_batch() -> int:
+        # One event loop for the whole batch: repeated asyncio.run() per item
+        # races the async HTTP client's teardown on Windows ("Event loop is
+        # closed"). A single loop reaps cleanly.
+        done = 0
+        for target in targets:
+            profile = store.load(target)
+            try:
+                url = await generate_and_save_portrait(profile, store, provider=provider, style=style)
+                console.print(f"  [green]done[/green] {target}  ->  {url}")
+                done += 1
+            except Exception as e:
+                console.print(f"  [red]failed[/red] {target}: {e}")
+        return done
+
+    ok = asyncio.run(_run_batch())
     print_success(f"Generated {ok}/{len(targets)} portrait(s). Spend ~${ok * PORTRAIT_COST_ESTIMATE_USD:.2f}.")
 
 
