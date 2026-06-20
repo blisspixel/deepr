@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.18.1] - 2026-06-20
+
+MCP read-boundary hardening patch release.
+
+### Added
+- Extended `deepr eval red-team` with `$0` MCP handoff and loop-status
+  read-path canaries, bringing the built-in suite to 13 blocked cases.
+
+### Security
+- Added host-facing payload sanitization for derived MCP expert handoff and
+  loop-status reads so directive and tool-spoof canaries are neutralized before
+  downstream host agents consume the JSON payload.
+
 ## [2.18.0] - 2026-06-20
 
 Agentic red-team metric release.

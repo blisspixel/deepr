@@ -7,6 +7,7 @@ from typing import Any
 
 from deepr.experts.loop_admission import known_loop_admission_contracts
 from deepr.experts.loop_runs import ExpertLoopRun, ExpertLoopRunStore, LoopRunStatus, LoopStopReason
+from deepr.security.output_safety import sanitize_host_facing_payload
 
 LOOP_STATUS_SCHEMA_VERSION = "deepr-loop-status-v1"
 
@@ -68,7 +69,7 @@ def build_loop_status_rollup(
         ),
     )
 
-    return {
+    payload = {
         "schema_version": LOOP_STATUS_SCHEMA_VERSION,
         "kind": "deepr.expert.loop_status",
         "contract": {
@@ -109,3 +110,4 @@ def build_loop_status_rollup(
         "admission_contracts": known_loop_admission_contracts(),
         "runs": [run.to_dict() for run in runs],
     }
+    return sanitize_host_facing_payload(payload, source_label=f"expert loop status: {expert_name}")
