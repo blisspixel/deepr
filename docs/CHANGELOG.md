@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.17.2] - 2026-06-20
+
+Prompt-boundary security hardening patch release.
+
 ### Security
 - Added an untrusted-content prompt wrapper to `PromptSanitizer` and applied it
   to fresh retrieval context, report absorption prompts, first-party tool
