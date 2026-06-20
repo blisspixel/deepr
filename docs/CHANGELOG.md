@@ -20,6 +20,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Added `deepr-a2a-task-v1` to the published schema registry and runtime
   validation to A2A task create/status/cancel responses; malformed task/result
   envelopes now fail closed with `SCHEMA_VALIDATION_FAILED`.
+- Updated locked `msgpack` to `1.2.1` to resolve GHSA-6v7p-g79w-8964 from
+  the transitive `cachecontrol[filecache]` dependency.
 
 ## [2.17.0] - 2026-06-20
 
