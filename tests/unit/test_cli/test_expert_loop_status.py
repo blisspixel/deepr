@@ -48,7 +48,7 @@ def test_loop_status_missing_expert():
 def test_loop_status_json_reads_latest_runs():
     with (
         patch("deepr.experts.profile.ExpertStore") as mock_store_class,
-        patch("deepr.experts.loop_runs.ExpertLoopRunStore") as mock_store_type,
+        patch("deepr.experts.loop_status_rollup.ExpertLoopRunStore") as mock_store_type,
     ):
         profile = MagicMock()
         profile.name = "Platform Expert"
@@ -63,7 +63,12 @@ def test_loop_status_json_reads_latest_runs():
 
     assert result.exit_code == 0
     payload = json.loads(result.output)
+    assert payload["schema_version"] == "deepr-loop-status-v1"
+    assert payload["kind"] == "deepr.expert.loop_status"
     assert payload["expert_name"] == "Platform Expert"
     assert payload["count"] == 1
+    assert payload["window"]["limit"] == 5
+    assert payload["status_counts"]["waiting"] == 1
+    assert payload["next_scheduled_action"]["run_id"] == "loop_123"
     assert payload["runs"][0]["run_id"] == "loop_123"
     assert payload["runs"][0]["stop_reason"] == "human_gate_required"

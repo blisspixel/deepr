@@ -95,6 +95,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Added `deepr-cli-operation-result-v1` to the published schema registry and
   versioned the shared CLI `OperationResult` JSON envelope with `schema_version`
   and `kind`.
+- `deepr expert loop-status --json` and `deepr_expert_loop_status` now return
+  the shared `deepr-loop-status-v1` rollup payload, matching the web loop-status
+  API contract instead of emitting smaller ad hoc run lists.
 - Tightened expert chat session-budget coordination for deep research. Session
   budget exhaustion and open session circuit breakers now return blocked
   responses with session-specific metadata before any provider call, and

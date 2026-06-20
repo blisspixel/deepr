@@ -922,6 +922,9 @@ read the durable loop state through `deepr_expert_loop_status`. Terminal loop
 records now require status-compatible typed stop reasons before they can be
 stored. The dashboard API also exposes `admission_contracts` for repeat demand,
 automated verification, explicit budget/capacity, and failure-diagnosis state.
+The CLI, MCP tool, and dashboard API share the same
+`deepr-loop-status-v1` rollup payload, so host agents can validate one shape
+instead of handling separate ad hoc run lists.
 For downstream agents that need one stable read contract before choosing a more
 specific tool, `/api/experts/{name}/handoff` and MCP `deepr_expert_handoff`
 return the versioned `deepr-expert-handoff-v1` payload: profile summary,

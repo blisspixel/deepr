@@ -44,8 +44,10 @@ must not be described as usable capacity.
 - Scoped MCP keys, per-key budgets, per-key rate limits, HTTP concurrency caps,
   HTTP smoke checks, registration manifests, and remote-call audit review.
 - `deepr_expert_handoff`, `deepr_expert_loop_status`, and adjacent versioned
-  handoff contracts.
-- `deepr expert loop-status` and durable `ExpertLoopRun` records.
+  handoff contracts. The MCP loop-status tool, the CLI JSON loop-status command,
+  and `/api/experts/{name}/loop-status` share the `deepr-loop-status-v1` rollup
+  contract.
+- Durable `ExpertLoopRun` records.
 - OKF export and absorb paths. OKF export is a derived view; OKF absorb is an
   ingestion source that still passes through verified extraction.
 - Local Ollama expert maintenance, local evals, local context evals, and scored
