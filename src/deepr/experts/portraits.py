@@ -14,12 +14,36 @@ from pathlib import Path
 
 logger = logging.getLogger(__name__)
 
+# The house art style every expert portrait shares, so a whole library reads as
+# one coherent set rather than a grab-bag. Override with ``DEEPR_PORTRAIT_STYLE``
+# to set your own consistent look (e.g. "flat vector, muted palette").
+DEFAULT_PORTRAIT_STYLE = (
+    "Stylized digital illustration, clean solid background, soft warm lighting, "
+    "academic/professional aesthetic, head-and-shoulders, suitable as an avatar"
+)
 
-def _build_prompt(name: str, domain: str | None, description: str | None) -> str:
+# Style preference env var (see ``portrait_style``).
+PORTRAIT_STYLE_ENV = "DEEPR_PORTRAIT_STYLE"
+
+# Approximate per-image cost, used for budget confirmation and ledger entries.
+PORTRAIT_COST_ESTIMATE_USD = 0.04
+
+
+def portrait_style(override: str | None = None) -> str:
+    """The consistent portrait art style: explicit override, else the
+    ``DEEPR_PORTRAIT_STYLE`` preference, else the house default."""
+    if override and override.strip():
+        return override.strip()
+    env = os.getenv(PORTRAIT_STYLE_ENV, "").strip()
+    return env or DEFAULT_PORTRAIT_STYLE
+
+
+def _build_prompt(name: str, domain: str | None, description: str | None, *, style: str | None = None) -> str:
     """Build an image generation prompt from expert metadata.
 
     Uses a seeded rotation of gender, ethnicity, and age to ensure diverse
-    representation across generated portraits.
+    representation across generated portraits, while the *style* clause stays
+    constant across the library (``portrait_style``) for a coherent look.
     """
     import hashlib
 
@@ -47,9 +71,7 @@ def _build_prompt(name: str, domain: str | None, description: str | None) -> str
     return (
         f"Professional portrait of a {age} {ethnicity} {gender} who is an expert in "
         f"{domain_hint[:100]}. Confident, approachable expression. "
-        "Stylized digital illustration, clean background, warm lighting, "
-        "academic/professional aesthetic, suitable as an avatar. "
-        "No text or watermarks."
+        f"{portrait_style(style)}. No text or watermarks."
     )
 
 
@@ -70,6 +92,7 @@ async def generate_portrait(
     description: str | None = None,
     *,
     provider: str | None = None,
+    style: str | None = None,
     output_dir: str | Path = "data/portraits",
 ) -> str:
     """Generate a portrait image for an expert.
@@ -92,7 +115,7 @@ async def generate_portrait(
     if not provider:
         raise RuntimeError("No image generation API key found. Set OPENAI_API_KEY, GEMINI_API_KEY, or XAI_API_KEY.")
 
-    prompt = _build_prompt(name, domain, description)
+    prompt = _build_prompt(name, domain, description, style=style)
     logger.info("Generating portrait for '%s' via %s", name, provider)
 
     if provider == "openai":
@@ -116,6 +139,46 @@ async def generate_portrait(
     logger.info("Portrait saved to %s (%d bytes)", filepath, len(image_bytes))
 
     return f"/portraits/{filename}"
+
+
+async def generate_and_save_portrait(
+    profile: object,
+    store: object,
+    *,
+    provider: str | None = None,
+    style: str | None = None,
+    output_dir: str | Path = "data/portraits",
+) -> str:
+    """Generate a portrait, attach it to ``profile``, persist via ``store``, and
+    record the (best-effort) cost. Shared by the CLI and web so both behave
+    identically. ``store`` only needs a ``save(profile)`` method.
+    """
+    portrait_url = await generate_portrait(
+        name=profile.name,
+        domain=getattr(profile, "domain", None),
+        description=getattr(profile, "description", None),
+        provider=provider,
+        style=style,
+        output_dir=output_dir,
+    )
+    profile.portrait_url = portrait_url  # type: ignore[attr-defined]
+    store.save(profile)  # type: ignore[attr-defined]
+
+    try:  # best-effort: the portrait already exists; ledger failure must not break it
+        from deepr.experts.cost_safety import get_cost_safety_manager
+
+        get_cost_safety_manager().record_cost(
+            session_id=f"portrait_{getattr(profile, 'name', 'expert')}",
+            operation_type="portrait_generation",
+            actual_cost=PORTRAIT_COST_ESTIMATE_USD,
+            provider=provider or "auto",
+            source="experts.portraits",
+            metadata={"expert": getattr(profile, "name", "")},
+        )
+    except Exception as cost_exc:
+        logger.debug("Portrait cost ledger entry skipped: %s", cost_exc)
+
+    return portrait_url
 
 
 # ---------------------------------------------------------------------------
