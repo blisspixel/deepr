@@ -71,6 +71,22 @@ class TestGetCancelStream:
         status, body = await srv.handle_request("GET", f"/tasks/{tid}")
         assert status == 200
         assert body["id"] == tid
+        assert body["schema_version"] == "deepr-a2a-task-v1"
+
+    @pytest.mark.asyncio
+    async def test_malformed_task_payload_fails_closed(self):
+        srv = _server()
+        _, created = await srv.handle_request("POST", "/tasks", _create_body())
+        task = srv._task_manager.get_task(created["id"])
+        assert task is not None
+        task.to_dict = lambda: {"schema_version": "deepr-a2a-task-v1"}
+
+        status, body = await srv.handle_request("GET", f"/tasks/{created['id']}")
+
+        assert status == 500
+        assert body["error_code"] == "SCHEMA_VALIDATION_FAILED"
+        assert body["schema_version"] == "deepr-a2a-task-v1"
+        assert any("kind" in error for error in body["schema_errors"])
 
     @pytest.mark.asyncio
     async def test_get_unknown_task_404(self):

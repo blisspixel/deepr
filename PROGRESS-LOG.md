@@ -23,6 +23,10 @@
   `deepr_expert_loop_status` now fail closed with `SCHEMA_VALIDATION_FAILED`
   if their builders drift from required `schema_version`, `kind`, or envelope
   fields before dispatch to a host agent.
+- Added `deepr-a2a-task-v1` for A2A task/result envelopes and runtime
+  fail-closed validation on create, status, and cancel task responses. The
+  validator checks schema version, kind, lifecycle state, cost, timestamps, and
+  envelope fields before any task payload leaves the A2A server.
 - Spend so far: `$0.00`.
 
 ## 2026-06-19
