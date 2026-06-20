@@ -46,6 +46,8 @@
   now runs `$0` prompt-boundary, tool-spoofing, data-exfiltration, jailbreak,
   and memory trust-floor probes, reports attack-success-rate, and fails if a
   built-in attack succeeds.
+- Prepared the `v2.18.0` minor release metadata so the public release tracks
+  the red-team metrics command and structured tool-spoof neutralization.
 - Spend so far: `$0.00`.
 
 ## 2026-06-19
