@@ -8,6 +8,7 @@ from typing import Any
 from deepr.experts.dashboard_telemetry import build_expert_dashboard_telemetry
 from deepr.experts.loop_status_rollup import build_loop_status_rollup
 from deepr.experts.okf import OKF_PROFILE_SCHEMA_VERSION, OKF_SCHEMA_VERSION
+from deepr.security.output_safety import sanitize_host_facing_payload
 
 HANDOFF_SCHEMA_VERSION = "deepr-expert-handoff-v1"
 HANDOFF_KIND = "deepr.expert.handoff"
@@ -171,4 +172,4 @@ def build_expert_handoff(
     if include_decisions:
         payload["decisions"] = [decision.to_dict() for decision in decisions[:10]]
 
-    return payload
+    return sanitize_host_facing_payload(payload, source_label=f"expert handoff: {resolved_name}")
