@@ -30,6 +30,8 @@ def build_loop_status_rollup(
     expert_name: str,
     *,
     limit: int = 20,
+    status: LoopRunStatus | None = None,
+    loop_type: str | None = None,
     store: ExpertLoopRunStore | None = None,
 ) -> dict[str, Any]:
     """Return a deterministic status rollup for dashboard and API consumers."""
@@ -37,7 +39,7 @@ def build_loop_status_rollup(
         raise ValueError("limit must be positive")
 
     loop_store = store or ExpertLoopRunStore(expert_name)
-    runs = loop_store.list_runs(limit=limit)
+    runs = loop_store.list_runs(status=status, loop_type=loop_type, limit=limit)
     status_counts = Counter(run.status.value for run in runs)
     loop_type_counts = Counter(run.loop_type for run in runs)
     stop_reason_counts = Counter(run.stop_reason.value for run in runs if run.stop_reason)
@@ -81,7 +83,14 @@ def build_loop_status_rollup(
         },
         "expert_name": expert_name,
         "count": len(runs),
-        "window": {"limit": limit, "summarized_runs": len(runs)},
+        "window": {
+            "limit": limit,
+            "summarized_runs": len(runs),
+            "filters": {
+                "status": status.value if status else "",
+                "loop_type": loop_type or "",
+            },
+        },
         "latest_run": _run_or_none(runs[0] if runs else None),
         "last_sync_result": _run_or_none(_first_run(runs, lambda run: run.loop_type == "sync")),
         "last_failure": _run_or_none(last_failure),
