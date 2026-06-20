@@ -1,0 +1,50 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/blisspixel/deepr/docs/schemas/sync-capacity-gate-v1.json",
+  "title": "Deepr Expert Sync Capacity Gate v1",
+  "type": "object",
+  "additionalProperties": true,
+  "required": ["schema_version", "kind", "contract", "status", "expert_name", "detail", "capacity_next"],
+  "properties": {
+    "schema_version": {"const": "deepr-sync-capacity-gate-v1"},
+    "kind": {"const": "deepr.expert.sync_capacity_gate"},
+    "contract": {
+      "type": "object",
+      "required": ["read_only", "cost_usd", "stability", "compatibility"],
+      "properties": {
+        "read_only": {"const": true},
+        "cost_usd": {"const": 0.0},
+        "stability": {"type": "string"},
+        "compatibility": {
+          "type": "object",
+          "required": ["additive_fields", "breaking_changes_require_new_schema_version", "deprecation_policy"],
+          "properties": {
+            "additive_fields": {"const": true},
+            "breaking_changes_require_new_schema_version": {"const": true},
+            "deprecation_policy": {"type": "string"}
+          },
+          "additionalProperties": true
+        }
+      },
+      "additionalProperties": true
+    },
+    "status": {"enum": ["waiting_for_capacity", "capacity_blocked"]},
+    "expert_name": {"type": "string", "minLength": 1},
+    "detail": {"type": "string", "minLength": 1},
+    "capacity_next": {
+      "type": "object",
+      "required": ["schema_version", "kind", "job_context", "actions"],
+      "properties": {
+        "schema_version": {"const": "deepr-capacity-next-v1"},
+        "kind": {"const": "deepr.capacity.next"},
+        "job_context": {"type": "object", "additionalProperties": true},
+        "actions": {"type": "array"}
+      },
+      "additionalProperties": true
+    },
+    "loop_run": {
+      "type": "object",
+      "additionalProperties": true
+    }
+  }
+}

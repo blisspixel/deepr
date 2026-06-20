@@ -55,6 +55,14 @@
       "compatibility": "additive-within-v1"
     },
     {
+      "name": "sync-capacity-gate",
+      "schema_version": "deepr-sync-capacity-gate-v1",
+      "kind": "deepr.expert.sync_capacity_gate",
+      "path": "sync-capacity-gate-v1.json",
+      "status": "experimental",
+      "compatibility": "additive-within-v1"
+    },
+    {
       "name": "cli-operation-result",
       "schema_version": "deepr-cli-operation-result-v1",
       "kind": "deepr.cli.operation_result",
