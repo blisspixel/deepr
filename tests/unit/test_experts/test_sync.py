@@ -15,6 +15,7 @@ import pytest
 from deepr.experts.beliefs import BeliefStore
 from deepr.experts.report_absorber import ReportAbsorber
 from deepr.experts.sync import (
+    _NO_CHANGES_MARKER,
     DEFAULT_SUBSCRIPTION_BUDGET,
     ExpertSyncEngine,
     Subscription,
@@ -99,16 +100,22 @@ class TestSubscriptionStore:
 
 
 class TestFreshnessQuery:
-    def test_first_sync_uses_30_day_window(self):
+    def test_first_sync_is_comprehensive_baseline(self):
+        # No last_synced -> populate the new expert, not a delta. This is what
+        # lets evergreen topics ("coffee extraction") gain knowledge on sync 1.
         q = ExpertSyncEngine.build_freshness_query(Subscription(topic="MCP spec"))
-        assert "in the last 30 days" in q
+        assert "comprehensive" in q
         assert "MCP spec" in q
+        assert "What has changed" not in q
+        assert _NO_CHANGES_MARKER not in q
 
-    def test_subsequent_sync_uses_last_synced_date(self):
+    def test_subsequent_sync_uses_last_synced_date_as_delta(self):
         sub = Subscription(topic="MCP spec", last_synced=datetime(2026, 6, 1, tzinfo=UTC), query="transports only")
         q = ExpertSyncEngine.build_freshness_query(sub)
+        assert "What has changed" in q
         assert "since 2026-06-01" in q
         assert "transports only" in q
+        assert _NO_CHANGES_MARKER in q
 
 
 class TestSyncEngine:
