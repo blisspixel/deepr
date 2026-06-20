@@ -15,29 +15,30 @@ from deepr.mcp.transport.http import HttpMessage, StreamingHttpTransport
 logger = logging.getLogger("deepr.mcp")
 
 
+_MCP_METHOD_HANDLERS: dict[
+    str,
+    Callable[[mcp_server.DeeprMCPServer, dict[str, Any]], Awaitable[dict[str, Any]]],
+] = {
+    "initialize": mcp_server._handle_initialize,
+    "tools/list": mcp_server._handle_tools_list,
+    "tools/call": mcp_server._handle_tools_call,
+    "resources/list": mcp_server._handle_resources_list,
+    "resources/read": mcp_server._handle_resources_read,
+    "resources/subscribe": mcp_server._handle_resources_subscribe,
+    "resources/unsubscribe": mcp_server._handle_resources_unsubscribe,
+    "prompts/list": mcp_server._handle_prompts_list,
+    "prompts/get": mcp_server._handle_prompts_get,
+}
+
+
 async def _dispatch_mcp_method(
     server: mcp_server.DeeprMCPServer,
     method: str,
     params: dict[str, Any],
 ) -> dict[str, Any]:
-    if method == "initialize":
-        return await mcp_server._handle_initialize(server, params)
-    if method == "tools/list":
-        return await mcp_server._handle_tools_list(server, params)
-    if method == "tools/call":
-        return await mcp_server._handle_tools_call(server, params)
-    if method == "resources/list":
-        return await mcp_server._handle_resources_list(server, params)
-    if method == "resources/read":
-        return await mcp_server._handle_resources_read(server, params)
-    if method == "resources/subscribe":
-        return await mcp_server._handle_resources_subscribe(server, params)
-    if method == "resources/unsubscribe":
-        return await mcp_server._handle_resources_unsubscribe(server, params)
-    if method == "prompts/list":
-        return await mcp_server._handle_prompts_list(server, params)
-    if method == "prompts/get":
-        return await mcp_server._handle_prompts_get(server, params)
+    handler = _MCP_METHOD_HANDLERS.get(method)
+    if handler is not None:
+        return await handler(server, params)
     legacy_tool = mcp_server._LEGACY_METHOD_MAP.get(method)
     if legacy_tool:
         return await mcp_server._handle_tools_call(server, {"name": legacy_tool, "arguments": params})
