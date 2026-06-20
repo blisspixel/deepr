@@ -1,6 +1,6 @@
 # Supported Surface
 
-Status: v2.17.0 current main, 2026-06-20. This document defines what users and host
+Status: v2.17.1 current main, 2026-06-20. This document defines what users and host
 agents can rely on today, what is experimental, what is planned only, and what
 data remains portable if development stops.
 
