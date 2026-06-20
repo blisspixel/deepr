@@ -57,6 +57,10 @@ must not be described as usable capacity.
 - Durable `ExpertLoopRun` records.
 - OKF export and absorb paths. OKF export is a derived view; OKF absorb is an
   ingestion source that still passes through verified extraction.
+- Indirect prompt-injection boundaries for fresh retrieval context, report
+  absorption, and first-party tool findings. These delimit and sanitize
+  untrusted source text before model prompts, while semantic acceptance still
+  depends on the existing verification and trust-floor gates.
 - Local Ollama expert maintenance, local evals, local context evals, and scored
   local admission.
 - Hosted MCP deployment recipes, including the local container, Azure Container

@@ -16,6 +16,7 @@ from typing import Protocol
 
 from deepr.tools.browser_backend import BrowserBackend, BuiltinBrowserBackend
 from deepr.tools.search_backend import BuiltinSearchBackend, SearchBackend, SearchResult, SearXNGSearchBackend
+from deepr.utils.prompt_security import sanitize_untrusted_content
 
 _URL_RE = re.compile(r"https?://[^\s<>)\"']+")
 _TRAILING_PUNCTUATION = ".,;:!?"
@@ -102,6 +103,7 @@ class FreshContext:
             excerpt = source.excerpt(min(cfg.max_chars_per_source, remaining))
             if not excerpt:
                 continue
+            sanitized = sanitize_untrusted_content(excerpt, source_label=f"S{index} {source.url}")
             used_chars += len(excerpt)
             lines.extend(
                 [
@@ -109,7 +111,7 @@ class FreshContext:
                     f"[S{index}] {source.title or source.url}",
                     f"URL: {source.url}",
                     f"Retrieved via: {source.source}",
-                    excerpt,
+                    sanitized.delimited,
                 ]
             )
             if used_chars >= cfg.max_total_chars:

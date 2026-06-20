@@ -12,6 +12,8 @@ import logging
 from dataclasses import dataclass, field
 from typing import Any
 
+from deepr.utils.prompt_security import sanitize_untrusted_content
+
 logger = logging.getLogger(__name__)
 
 # Confidence thresholds by category
@@ -67,6 +69,13 @@ class AbsorbedFinding:
     source_type: str  # e.g., "DNS", "paper", "scrape", "api"
     source_tool: str  # e.g., "recon/domain_lookup"
     raw_data: dict[str, Any] = field(default_factory=dict)
+
+    def __post_init__(self) -> None:
+        label = self.source_tool or self.source_type or "tool output"
+        sanitized = sanitize_untrusted_content(self.text, source_label=label)
+        self.text = sanitized.sanitized
+        if sanitized.patterns_detected:
+            self.raw_data = {**self.raw_data, "prompt_security": sanitized.to_metadata()}
 
 
 class KnowledgeAbsorber:
