@@ -21,6 +21,7 @@ the ``research_fn`` seam contract (report, do not raise) intact end to end.
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import tempfile
 import time
 from dataclasses import dataclass
@@ -83,10 +84,10 @@ async def run_cli(
         out, err = await asyncio.wait_for(proc.communicate(input_bytes), timeout=timeout)
     except TimeoutError:
         proc.kill()
-        try:
+        # Reap the killed process so it leaves no zombie / unawaited warning;
+        # it is already being reported as a timeout, so drain errors are moot.
+        with contextlib.suppress(Exception):
             await proc.communicate()
-        except Exception:
-            pass
         return CliResult(None, "", "", True, "", _ms(start))
 
     return CliResult(
