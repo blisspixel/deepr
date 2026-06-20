@@ -13,6 +13,9 @@ from datetime import UTC, datetime
 from enum import Enum
 from typing import Any
 
+A2A_TASK_SCHEMA_VERSION = "deepr-a2a-task-v1"
+A2A_TASK_KIND = "deepr.a2a.task"
+
 
 class TaskState(str, Enum):
     """Lifecycle states for an A2A task."""
@@ -111,6 +114,18 @@ class Task:
 
     def to_dict(self) -> dict[str, Any]:
         return {
+            "schema_version": A2A_TASK_SCHEMA_VERSION,
+            "kind": A2A_TASK_KIND,
+            "contract": {
+                "task_state_authoritative": True,
+                "cost_field": "cost",
+                "result_untrusted": True,
+                "compatibility": {
+                    "additive_fields": True,
+                    "breaking_changes_require_new_schema_version": True,
+                    "deprecation_policy": "Additive fields only within v1.",
+                },
+            },
             "id": self.id,
             "state": self.state.value,
             "skill": self.skill,

@@ -936,6 +936,11 @@ published at [schemas/expert-handoff-v1.json](schemas/expert-handoff-v1.json).
 MCP handoff and loop-status responses validate their published envelope before
 dispatch and fail closed with `SCHEMA_VALIDATION_FAILED` if schema version,
 kind, or required envelope fields drift.
+The A2A task lifecycle uses the same contract posture: create, status, cancel,
+and result-bearing task responses are stamped as `deepr-a2a-task-v1`, published
+at [schemas/a2a-task-v1.json](schemas/a2a-task-v1.json), and fail closed if
+their schema version, kind, lifecycle state, cost field, timestamps, or metadata
+drift.
 The adjacent loop-status and OKF mapping contracts are published as
 [schemas/loop-status-v1.json](schemas/loop-status-v1.json) and
 [schemas/okf-profile-v1.json](schemas/okf-profile-v1.json). Hosted MCP

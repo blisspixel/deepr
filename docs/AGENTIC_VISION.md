@@ -156,7 +156,10 @@ Expert decides:
 
 ### 5. A2A Protocol Support (Agent-to-Agent)
 
-**The gap:** Deepr exposes MCP tools (agent-to-tool). But the emerging standard for agent-to-agent communication is A2A (Agent2Agent Protocol, now under Linux Foundation governance). MCP connects an agent to its tools; A2A connects agents to each other.
+**Current status:** Deepr exposes MCP tools (agent-to-tool) and now has a
+baseline A2A server for agent-to-agent task exchange. The remaining gap is
+higher-value A2A skill coverage: multi-expert councils, campaign tasks, and
+fully backed streaming execution for long research work.
 
 **The fix:** Deepr experts should be discoverable and callable via A2A:
 
@@ -195,12 +198,16 @@ Expert decides:
 
 With A2A, a planning agent can discover Deepr experts, send them structured tasks, receive streaming progress updates, and get structured results - all without knowing Deepr's internals. This makes Deepr experts first-class citizens on any A2A-compatible agent team.
 
-**Implementation:** Primr already has A2A support (`pip install primr[a2a]`). Follow the same pattern:
+**Implementation status:** The baseline is shipped:
 - `deepr a2a` command to start A2A server
 - Agent Card at `/.well-known/agent.json` describing expert capabilities
-- Task lifecycle: submitted → working → completed/failed
-- Streaming updates during long research
+- Task lifecycle: submitted to working to completed/failed/cancelled
 - Budget propagation via task metadata
+- Versioned `deepr-a2a-task-v1` task/result envelope with runtime
+  fail-closed validation
+
+Remaining: streaming updates backed by real long-running expert work,
+multi-expert council skills, and campaign-oriented A2A tasks.
 
 ### 6. Structured Handoff Contracts
 

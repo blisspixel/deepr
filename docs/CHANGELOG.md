@@ -17,6 +17,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Added runtime MCP output-contract validation for `deepr_expert_handoff` and
   `deepr_expert_loop_status`; malformed published payloads now fail closed with
   `SCHEMA_VALIDATION_FAILED` before host agents consume them.
+- Added `deepr-a2a-task-v1` to the published schema registry and runtime
+  validation to A2A task create/status/cancel responses; malformed task/result
+  envelopes now fail closed with `SCHEMA_VALIDATION_FAILED`.
 
 ## [2.17.0] - 2026-06-20
 
