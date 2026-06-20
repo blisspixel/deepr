@@ -174,6 +174,11 @@ The live-validation CLI polish finding is closed locally. Bare `deepr search
 error, and `deepr expert list` labels the name and description fields so roster
 entries are easier to scan.
 
+The CLI output-as-contract work has started. The shared `OperationResult`
+`--json` envelope now includes `schema_version` and `kind`, is published as
+`deepr-cli-operation-result-v1` in the schema registry, and has runtime schema
+validation coverage. Command-specific JSON payload schemas remain open.
+
 ## Active Gap
 
 The capacity QOL item in `v2.16` now covers the recurring expert maintenance
