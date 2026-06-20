@@ -97,7 +97,63 @@ def _emit_scheduled_gap_fill_wait(profile_name: str, routes: list[Any], *, budge
             console.print(f"      [dim]{action['command']}[/dim]")
 
 
-def _record_completed_gap_fill_loop(profile_name: str, result: Any, *, budget: float, scheduled: bool):
+def _build_gap_fill_engine(
+    profile: Any,
+    *,
+    use_local: bool,
+    use_plan: bool,
+    plan_backend_id: str | None,
+    plan_model: str | None,
+    selection_note: str,
+    json_output: bool,
+) -> tuple[Any, str]:
+    """Build the gap-fill engine for the chosen rung; returns (engine, capacity_source).
+
+    Owned local and prepaid plan both run research *and* verified extraction on
+    the same $0/prepaid client (no silent metered call); the default is metered.
+    """
+    from deepr.experts.gap_fill import GapFillEngine
+
+    if use_local:
+        from deepr.backends.local import default_local_model, make_local_research_fn, ollama_chat_client
+        from deepr.experts.report_absorber import ReportAbsorber
+
+        local_model = default_local_model()
+        if not local_model:
+            print_error("No local model available. Is Ollama running? Check: deepr capacity --probe")
+            sys.exit(2)
+        if selection_note and not json_output:
+            console.print(f"[dim]{selection_note}[/dim]")
+        engine = GapFillEngine(
+            profile,
+            research_fn=make_local_research_fn(local_model),
+            absorber=ReportAbsorber(profile, model=local_model, client=ollama_chat_client()),
+        )
+        return engine, "local"
+
+    if use_plan:
+        from deepr.backends.plan_quota import PlanQuotaChatClient, get_adapter, make_plan_quota_research_fn
+        from deepr.experts.report_absorber import ReportAbsorber
+
+        adapter = get_adapter(plan_backend_id or "")
+        if selection_note and not json_output:
+            console.print(f"[dim]{selection_note}[/dim]")
+        if adapter.tos_note and not json_output:
+            print_warning(adapter.tos_note)
+        client = PlanQuotaChatClient(adapter, model=plan_model)
+        engine = GapFillEngine(
+            profile,
+            research_fn=make_plan_quota_research_fn(adapter, model=plan_model, client=client),
+            absorber=ReportAbsorber(profile, model=plan_model or adapter.backend_id, client=client),
+        )
+        return engine, f"plan_quota:{adapter.backend_id}"
+
+    return GapFillEngine(profile), "api_metered"
+
+
+def _record_completed_gap_fill_loop(
+    profile_name: str, result: Any, *, budget: float, scheduled: bool, capacity_source: str
+):
     from deepr.experts.loop_runs import LoopRunStatus, LoopStopReason, record_loop_run
 
     outcomes = list(getattr(result, "outcomes", []) or [])
@@ -153,7 +209,7 @@ def _record_completed_gap_fill_loop(profile_name: str, result: Any, *, budget: f
         next_action=next_action,
         budget_limit=budget,
         budget_spent=float(getattr(result, "total_cost", 0.0) or 0.0),
-        capacity_source="api_metered",
+        capacity_source=capacity_source,
         accepted_changes=accepted,
         rejected_changes=rejected,
     )
@@ -167,6 +223,16 @@ def _record_completed_gap_fill_loop(profile_name: str, result: Any, *, budget: f
 @click.option("--budget", "-b", type=float, default=2.0, show_default=True, help="Run budget ceiling for --execute")
 @click.option("--dry-run", is_flag=True, help="With --execute: show what would run; no spend")
 @click.option("--scheduled", is_flag=True, help="With --execute: wait instead of spending on recurring gap fills")
+@click.option("--local", is_flag=True, help="With --execute: run fills on the local Ollama model at $0")
+@click.option("--api", is_flag=True, help="With --execute: force the metered API")
+@click.option(
+    "--plan",
+    "plan",
+    type=click.Choice(["codex", "claude", "opencode", "kiro", "grok", "antigravity", "copilot"]),
+    default=None,
+    help="With --execute: run fills on a plan-quota CLI backend (prepaid). See: deepr capacity",
+)
+@click.option("--plan-model", "plan_model", default=None, help="Model to pass to the plan-quota CLI")
 @click.option("--yes", "-y", is_flag=True, help="Skip confirmation")
 def route_gaps(
     name: str,
@@ -176,6 +242,10 @@ def route_gaps(
     budget: float,
     dry_run: bool,
     scheduled: bool,
+    local: bool,
+    api: bool,
+    plan: str | None,
+    plan_model: str | None,
     yes: bool,
 ):
     """Route an expert's knowledge gaps to the best instrument to fill each.
@@ -211,13 +281,36 @@ def route_gaps(
     routes = GapRouter().route(gaps)
 
     if execute_fills:
-        from deepr.experts.gap_fill import GapFillEngine
+        if sum(bool(x) for x in (local, api, plan)) > 1:
+            print_error("Use only one of --local, --api, or --plan.")
+            sys.exit(2)
 
         research_routes = [r for r in routes if r.instrument == "research"]
         if not routes:
             print_success("No open knowledge gaps to fill.")
             return
-        if scheduled and not dry_run and research_routes:
+
+        # Backend (capacity waterfall): owned local or prepaid plan before metered.
+        # Explicit-only here (route-gaps has no auto-local rung); default is metered.
+        use_local = local
+        use_plan = False
+        plan_backend_id: str | None = plan
+        selection_note = ""
+        if plan:
+            from deepr.backends.waterfall import choose_plan_quota_backend
+
+            choice = choose_plan_quota_backend(plan)
+            if not choice.is_plan_quota:
+                print_error(choice.reason)
+                sys.exit(2)
+            use_plan = True
+            plan_backend_id = choice.plan_backend_id
+            selection_note = choice.reason
+        owned_or_prepaid = use_local or use_plan
+
+        # A scheduled recurring fill waits for cheap capacity instead of paying;
+        # owned/prepaid (local or plan) proceeds because it is not metered spend.
+        if scheduled and not dry_run and research_routes and not owned_or_prepaid:
             if json_output:
                 payload = _scheduled_gap_fill_wait_payload(profile.name, routes, budget=budget, top_n=top_n)
                 click.echo(_json.dumps(payload, indent=2))
@@ -225,16 +318,30 @@ def route_gaps(
             _emit_scheduled_gap_fill_wait(profile.name, routes, budget=budget, top_n=top_n)
             return
         if not dry_run and not yes:
-            est = min(sum(max(r.estimated_cost, 0.05) for r in research_routes), budget)
-            if not click.confirm(
-                f"Execute up to {len(research_routes)} research fill(s), estimated up to ${est:.2f} "
-                f"(ceiling ${budget:.2f})? Specialist routes are deferred.",
-                default=False,
-            ):
+            if owned_or_prepaid:
+                where = "the local model at $0" if use_local else f"plan quota ({plan_backend_id})"
+                prompt = (
+                    f"Execute up to {len(research_routes)} research fill(s) on {where}? Specialist routes are deferred."
+                )
+            else:
+                est = min(sum(max(r.estimated_cost, 0.05) for r in research_routes), budget)
+                prompt = (
+                    f"Execute up to {len(research_routes)} research fill(s), estimated up to ${est:.2f} "
+                    f"(ceiling ${budget:.2f})? Specialist routes are deferred."
+                )
+            if not click.confirm(prompt, default=False):
                 print_warning("Cancelled.")
                 return
 
-        engine = GapFillEngine(profile)
+        engine, capacity_source = _build_gap_fill_engine(
+            profile,
+            use_local=use_local,
+            use_plan=use_plan,
+            plan_backend_id=plan_backend_id,
+            plan_model=plan_model,
+            selection_note=selection_note,
+            json_output=json_output,
+        )
         result = asyncio.run(engine.execute(routes, budget=budget, top=top_n, dry_run=dry_run))
         loop_run = (
             None
@@ -244,6 +351,7 @@ def route_gaps(
                 result,
                 budget=budget,
                 scheduled=scheduled,
+                capacity_source=capacity_source,
             )
         )
 

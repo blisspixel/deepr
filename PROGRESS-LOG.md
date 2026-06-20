@@ -1,5 +1,11 @@
 # Progress Log
 
+## 2026-06-20 — route-gaps --plan parity (gap-fill on prepaid capacity)
+
+- `expert route-gaps --execute` gains `--local` / `--api` / `--plan <id>` / `--plan-model`: gap-fill runs research + verified extraction on owned/prepaid capacity via one client (helper `_build_gap_fill_engine`), default stays metered. Scheduled recurring fills now proceed on owned/prepaid instead of waiting; loop records the real `capacity_source`.
+- All three research-bearing maintenance loop-closers (sync, absorb, route-gaps) now support `--plan`. The story holds: scheduled expert maintenance on subscriptions you already pay for, $0 at the margin, no silent metered call.
+- Tests: route-gaps `--plan` happy path + loop `capacity_source` assertions; 311 cli+experts+backends green; ruff + C901/S ratchets at baseline.
+
 ## 2026-06-20 — Plan-quota fleet view + absorb parity + reset times
 
 - `expert absorb --plan <id>`: extraction parity with sync on prepaid capacity, same safety gate. Tests + CI green.
