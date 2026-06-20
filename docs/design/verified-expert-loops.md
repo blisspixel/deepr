@@ -1,6 +1,6 @@
 # Design: verified expert loops
 
-Status: active for v2.17.
+Status: shipped in v2.17.0; follow-on hosted reach and contract work continues.
 
 Deepr already has loop-shaped surfaces: expert sync, absorb, reflection,
 health-check, gap routing, and future campaigns. The next step is not a generic
@@ -46,7 +46,7 @@ Deepr should build from the smallest reliable loop upward:
 1. **Tool loop**: a single agent can call approved tools inside a bounded
    request.
 2. **Goal loop**: a durable outer run repeats work until the verifier passes or
-   a typed stop reason is recorded. This is the v2.17 target.
+   a typed stop reason is recorded. This is the v2.17 shipped target.
 3. **Meta loop**: the system compares attempts, prompts, tools, or models and
    keeps the better strategy. This waits for goal-loop telemetry.
 4. **Team loop**: multiple experts or specialist agents coordinate on a shared

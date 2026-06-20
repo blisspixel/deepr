@@ -1,8 +1,9 @@
 # Design: Plan-Quota and Local Backends (capacity waterfall)
 
-Target: v2.16 (Phase 6). Status: implementation in progress, researched June 2026 (vendor
-surfaces verified; re-verify at implementation - this market moves
-monthly).
+Target: v2.16 foundation, with plan-quota adapters carried forward. Status:
+local capacity, scheduled guidance, and loop-facing capacity gates are shipped
+in v2.17.0; vendor surfaces were researched June 2026 and must be re-verified
+at adapter implementation because this market moves monthly.
 
 Current implementation: `CostModel`/`BackendKind` types and read-only
 `deepr capacity` detection (step 2); local-only expert creation with
@@ -23,9 +24,12 @@ judge or an explicitly approved CLI judge for producing review evidence before
 admission; `deepr capacity admit --from-eval latest`, which turns saved
 zero-cost local eval artifacts into admission records; runtime admitted-score
 quality-floor selection for expert maintenance; and `deepr capacity next` for
-ranked local setup, admission, eval refresh, and fallback guidance. Not yet
-built: the plan-quota CLI adapters, live window/credit probes, adapter writes,
-and scheduler integration.
+ranked local setup, admission, eval refresh, fallback guidance, and concrete
+scheduled-maintenance previews. Scheduled sync, gap-fill, reflection, and
+health-check surfaces now stop with wait or action-plan payloads instead of
+silently spending when owned/prepaid capacity is blocked. Not yet built: the
+plan-quota CLI adapters, live window/credit probes, adapter writes,
+plan-quota scheduler dispatch, and auto-mode runtime integration.
 
 ## Problem
 
