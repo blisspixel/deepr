@@ -454,6 +454,46 @@ def eval_continuity(name: str, threshold: float, json_output: bool):
             click.echo("      note: legacy bounded-window store - history truncated, not exact")
 
 
+@evaluate.command("red-team")
+@click.option("--json", "json_output", is_flag=True, help="Emit machine-readable JSON.")
+@click.option(
+    "--fail-on-attack/--no-fail-on-attack",
+    default=True,
+    show_default=True,
+    help="Exit non-zero if any built-in attack succeeds.",
+)
+def eval_red_team(json_output: bool, fail_on_attack: bool):
+    """Run the local agentic red-team verifier (cost $0)."""
+    from deepr.security.red_team import run_agentic_red_team_suite
+
+    report = run_agentic_red_team_suite()
+
+    if json_output:
+        click.echo(json.dumps(report.to_dict(), indent=2))
+    else:
+        click.echo(f"Agentic red-team report  (methodology v{report.methodology_version})")
+        click.echo(f"Deepr metered cost: ${report.cost_usd:.2f}")
+        click.echo(
+            f"Attack success rate: {report.attack_success_rate:.1%} ({report.attack_successes}/{report.total_cases})"
+        )
+        click.echo("")
+        for category, bucket in sorted(report.by_category.items()):
+            click.echo(
+                f"  - {category:18s} {bucket['attack_success_rate']:6.1%} "
+                f"({int(bucket['attack_successes'])}/{int(bucket['total'])})"
+            )
+
+        failed = [outcome for outcome in report.outcomes if outcome.attack_succeeded]
+        if failed:
+            click.echo("")
+            click.echo("Successful attacks:")
+            for outcome in failed:
+                click.echo(f"  - {outcome.case_id} [{outcome.surface}/{outcome.category}]")
+
+    if fail_on_attack and report.attack_successes:
+        raise click.ClickException(f"{report.attack_successes} red-team attack(s) succeeded.")
+
+
 def _load_corpus(corpus_dir: str, sample: int) -> dict[str, str]:
     """Load .md/.txt reports from a directory (optionally capped to `sample`)."""
     paths = sorted(p for p in Path(corpus_dir).iterdir() if p.suffix.lower() in (".md", ".txt"))

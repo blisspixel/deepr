@@ -89,6 +89,9 @@ class PromptSanitizer:
         # Data exfiltration attempts
         (r"(send|transmit|upload)\s+(to|data\s+to)\s+https?://", "data_exfiltration", "high"),
         (r"curl\s+.*https?://", "data_exfiltration", "high"),
+        # Structured tool-call markers in untrusted source text
+        (r"(?m)^\s*(tool_call|function_call|tool_result)\s*[:=]", "tool_spoofing", "high"),
+        (r"<\s*/?\s*(tool_call|function_call|tool_result)\s*>", "tool_spoofing", "high"),
     ]
 
     # Patterns to neutralize (replace with safe alternatives)
@@ -112,6 +115,10 @@ class PromptSanitizer:
         (r"run\s+(this\s+)?(python|bash|shell|code)", "[code execution request removed]"),
         (r"(send|transmit|upload)\s+(to|data\s+to)\s+https?://\S+", "[data exfiltration request removed]"),
         (r"curl\s+.*https?://\S+", "[network command removed]"),
+        # Remove structured tool-call markers that should remain data, never
+        # executable instructions, when embedded source text enters a prompt.
+        (r"(?m)^\s*(tool_call|function_call|tool_result)\s*[:=].*$", "[tool call marker removed]"),
+        (r"<\s*(tool_call|function_call|tool_result)\s*>[\s\S]*?<\s*/\s*\1\s*>", "[tool call marker removed]"),
     ]
 
     def __init__(self, strict_mode: bool = False):
