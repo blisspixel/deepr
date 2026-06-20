@@ -46,6 +46,45 @@ class TestFleet:
         assert len(payload["backends"]) == 7
 
 
+class TestAdmitPlan:
+    def test_registered(self):
+        assert "admit-plan" in capacity.commands
+        assert "revoke-plan" in capacity.commands
+
+    def test_admit_then_revoke_round_trip(self, monkeypatch, tmp_path):
+        monkeypatch.setenv("DEEPR_CAPACITY_DATA_DIR", str(tmp_path))
+        for var in _CLEAN:
+            monkeypatch.delenv(var, raising=False)
+        from deepr.backends.admission import is_admitted
+
+        r = CliRunner().invoke(capacity, ["admit-plan", "codex", "--task-class", "sync"])
+        assert r.exit_code == 0, r.output
+        assert is_admitted("plan:codex", "sync")
+
+        r2 = CliRunner().invoke(capacity, ["revoke-plan", "codex", "--task-class", "sync"])
+        assert r2.exit_code == 0
+        assert not is_admitted("plan:codex", "sync")
+
+    def test_admit_blocked_when_api_key_present(self, monkeypatch, tmp_path):
+        monkeypatch.setenv("DEEPR_CAPACITY_DATA_DIR", str(tmp_path))
+        monkeypatch.setenv("OPENAI_API_KEY", "sk-should-block")
+        r = CliRunner().invoke(capacity, ["admit-plan", "codex"])
+        assert r.exit_code == 2
+        assert "OPENAI_API_KEY" in r.output
+
+    def test_admit_choice_restricted_to_auto_routable(self):
+        # ToS-gray / metered backends cannot be admitted for auto-routing.
+        for backend in ("kiro", "grok", "antigravity", "copilot"):
+            r = CliRunner().invoke(capacity, ["admit-plan", backend])
+            assert r.exit_code != 0, backend
+
+    def test_revoke_when_not_admitted_is_graceful(self, monkeypatch, tmp_path):
+        monkeypatch.setenv("DEEPR_CAPACITY_DATA_DIR", str(tmp_path))
+        r = CliRunner().invoke(capacity, ["revoke-plan", "codex", "--task-class", "sync"])
+        assert r.exit_code == 0
+        assert "Nothing to revoke" in r.output
+
+
 class TestProbePlan:
     def test_registered(self):
         assert "probe-plan" in capacity.commands
