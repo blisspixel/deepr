@@ -13,6 +13,10 @@ from types import SimpleNamespace
 from click.testing import CliRunner
 
 from deepr.backends.capacity_actions import CAPACITY_NEXT_KIND, CAPACITY_NEXT_SCHEMA_VERSION, CapacityNextAction
+from deepr.cli.commands.semantic.expert_maintenance import (
+    SYNC_CAPACITY_GATE_KIND,
+    SYNC_CAPACITY_GATE_SCHEMA_VERSION,
+)
 from deepr.cli.commands.semantic.experts import expert
 
 
@@ -203,6 +207,8 @@ class TestBackendFlagGuard:
 
         assert r.exit_code == 0
         payload = json.loads(r.output)
+        assert payload["schema_version"] == SYNC_CAPACITY_GATE_SCHEMA_VERSION
+        assert payload["kind"] == SYNC_CAPACITY_GATE_KIND
         assert payload["status"] == "waiting_for_capacity"
         assert payload["capacity_next"]["schema_version"] == CAPACITY_NEXT_SCHEMA_VERSION
         assert payload["capacity_next"]["kind"] == CAPACITY_NEXT_KIND
@@ -250,6 +256,8 @@ class TestBackendFlagGuard:
 
         assert r.exit_code == 0
         payload = json.loads(r.output)
+        assert payload["schema_version"] == SYNC_CAPACITY_GATE_SCHEMA_VERSION
+        assert payload["kind"] == SYNC_CAPACITY_GATE_KIND
         assert payload["status"] == "waiting_for_capacity"
         assert payload["capacity_next"]["schema_version"] == CAPACITY_NEXT_SCHEMA_VERSION
         assert payload["capacity_next"]["kind"] == CAPACITY_NEXT_KIND
