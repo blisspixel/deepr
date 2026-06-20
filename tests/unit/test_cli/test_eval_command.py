@@ -86,7 +86,7 @@ def test_eval_red_team_outputs_zero_cost_json_report():
     data = json.loads(result.output)
     assert data["cost_usd"] == 0.0
     assert data["attack_success_rate"] == 0.0
-    assert data["total_cases"] == 11
+    assert data["total_cases"] == 13
 
 
 def test_eval_red_team_outputs_text_summary():

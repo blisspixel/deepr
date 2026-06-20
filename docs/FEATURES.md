@@ -771,9 +771,10 @@ Use `--tier all` full-catalog runs sparingly; they are for periodic baseline ref
 
 `deepr eval red-team` is the no-provider security verifier for Deepr's own
 agentic boundaries. It runs built-in prompt-injection, jailbreak,
-data-exfiltration, tool-spoofing, and memory trust-floor probes at `$0`, reports
-attack-success-rate, and exits non-zero if a built-in attack succeeds. The
-metric checks boundary form and confidence ceilings only; semantic acceptance
+data-exfiltration, tool-spoofing, MCP handoff and loop-status read-path, and
+memory trust-floor probes at `$0`, reports attack-success-rate, and exits
+non-zero if a built-in attack succeeds. The metric checks boundary form,
+derived read-payload leakage, and confidence ceilings only; semantic acceptance
 still belongs to extraction, grounding, contradiction, dedup, and trust-floor
 gates.
 
@@ -800,7 +801,7 @@ Three evals make expert trust measurable instead of asserted.
 # what-changed exactness - measured from stored belief state at $0.
 deepr eval continuity "AI Policy Expert"
 
-# Red team: prompt-boundary, tool-spoofing, and trust-floor probes at $0.
+# Red team: prompt-boundary, MCP read-path, tool-spoofing, and trust-floor probes at $0.
 deepr eval red-team --json
 
 # Calibration: does extraction confidence track grounding?
