@@ -362,7 +362,7 @@ def _record_completed_sync_loop(
     budget: float,
     scheduled: bool,
     sync_all: bool,
-    use_local: bool,
+    capacity_source: str,
 ):
     from deepr.experts.loop_runs import LoopRunStatus, LoopStopReason, record_loop_run
 
@@ -395,10 +395,37 @@ def _record_completed_sync_loop(
         next_action=next_action,
         budget_limit=budget,
         budget_spent=float(getattr(result, "total_cost", 0.0) or 0.0),
-        capacity_source="local" if use_local else "api_metered",
+        capacity_source=capacity_source,
         accepted_changes=accepted,
         rejected_changes=len(failed),
     )
+
+
+def _sync_context_builder(*, fresh_context: bool, deep_context: bool, json_output: bool):
+    """Build the optional free-only retrieval context builder for local/plan sync.
+
+    Shared by the local and plan-quota engine branches so both get the same
+    free-only retrieval envelope (never API-key search). Returns ``None`` when no
+    context flag is set.
+    """
+    if deep_context:
+        from deepr.backends.fresh_context import make_free_deep_context_builder
+
+        if not json_output:
+            console.print(
+                "[dim]Deep context enabled: multi-query free-only web retrieval; "
+                "API-key search providers are not used.[/dim]"
+            )
+        return make_free_deep_context_builder()
+    if fresh_context:
+        from deepr.backends.fresh_context import make_free_fresh_context_builder
+
+        if not json_output:
+            console.print(
+                "[dim]Fresh context enabled: free-only web retrieval; API-key search providers are not used.[/dim]"
+            )
+        return make_free_fresh_context_builder()
+    return None
 
 
 @expert.command(name="sync")
@@ -413,9 +440,22 @@ def _record_completed_sync_loop(
 )
 @click.option("--api", is_flag=True, help="Force the metered API even if a local model is admitted")
 @click.option(
+    "--plan",
+    "plan",
+    type=click.Choice(["codex", "claude", "opencode", "kiro", "grok", "antigravity", "copilot"]),
+    default=None,
+    help="Run sync on a plan-quota CLI backend (prepaid subscription capacity). See: deepr capacity",
+)
+@click.option(
+    "--plan-model",
+    "plan_model",
+    default=None,
+    help="Model to pass to the plan-quota CLI (e.g. anthropic/claude-sonnet-4-6 for --plan opencode)",
+)
+@click.option(
     "--fresh-context",
     is_flag=True,
-    help="For local sync, retrieve free web context before calling the local model",
+    help="For local/plan sync, retrieve free web context before calling the model",
 )
 @click.option(
     "--deep-context",
@@ -436,6 +476,8 @@ def sync_cmd(
     dry_run: bool,
     local: bool,
     api: bool,
+    plan: str | None,
+    plan_model: str | None,
     fresh_context: bool,
     deep_context: bool,
     scheduled: bool,
@@ -462,14 +504,14 @@ def sync_cmd(
     import json as _json
     import sys
 
-    if local and api:
-        print_error("Use either --local or --api, not both.")
+    if sum(bool(x) for x in (local, api, plan)) > 1:
+        print_error("Use only one of --local, --api, or --plan.")
         sys.exit(2)
     if fresh_context and api:
-        print_error("--fresh-context is only supported for local sync.")
+        print_error("--fresh-context is only supported for local or plan sync.")
         sys.exit(2)
     if deep_context and api:
-        print_error("--deep-context is only supported for local sync.")
+        print_error("--deep-context is only supported for local or plan sync.")
         sys.exit(2)
 
     from deepr.experts.profile import ExpertStore
@@ -487,22 +529,38 @@ def sync_cmd(
         console.print(f"Subscriptions: deepr expert subscriptions '{name}'")
         return
 
-    # Pick the backend (capacity waterfall): owned local capacity before metered
-    # API. --local forces local; --api forces metered; otherwise an admitted +
-    # available local model is used automatically, else metered.
+    # Pick the backend (capacity waterfall): owned local then prepaid plan-quota
+    # before metered API. --local/--api/--plan force a rung; otherwise the
+    # waterfall auto-selects (local if admitted+available, else metered; plan is
+    # auto-routed only with an observed quota window - see choose_maintenance_backend).
     use_local = local
+    use_plan = False
+    plan_backend_id: str | None = plan
     selection_note = ""
-    if not local and not api:
+    if plan:
+        from deepr.backends.waterfall import choose_plan_quota_backend
+
+        choice = choose_plan_quota_backend(plan)
+        if not choice.is_plan_quota:
+            print_error(choice.reason)
+            sys.exit(2)
+        use_plan = True
+        plan_backend_id = choice.plan_backend_id
+        selection_note = choice.reason
+    elif not local and not api:
         from deepr.backends.admission import TASK_CLASS_SYNC
         from deepr.backends.waterfall import choose_maintenance_backend
 
         choice = choose_maintenance_backend(TASK_CLASS_SYNC)
         use_local = choice.is_local
-        if use_local:
+        use_plan = choice.is_plan_quota
+        plan_backend_id = choice.plan_backend_id
+        if use_local or use_plan:
             selection_note = choice.reason
 
+    owned_or_prepaid = use_local or use_plan
     context_mode = _sync_context_mode(fresh_context=fresh_context, deep_context=deep_context)
-    if scheduled and not api and not use_local:
+    if scheduled and not api and not owned_or_prepaid:
         _emit_scheduled_capacity_wait(
             name,
             context_mode=context_mode,
@@ -511,12 +569,12 @@ def sync_cmd(
         )
         return
 
-    if (fresh_context or deep_context) and not use_local:
+    if (fresh_context or deep_context) and not owned_or_prepaid:
         _emit_capacity_block(
             name,
             context_mode=context_mode,
             json_output=json_output,
-            detail="fresh/deep context requires a local sync backend",
+            detail="fresh/deep context requires a local or plan-quota sync backend",
         )
         sys.exit(2)
 
@@ -537,9 +595,18 @@ def sync_cmd(
             print_error("No local model available. Is Ollama running? Check: deepr capacity --probe")
             sys.exit(2)
 
+    plan_adapter = None
+    if use_plan:
+        from deepr.backends.plan_quota import get_adapter
+
+        plan_adapter = get_adapter(plan_backend_id or "")
+
     if not dry_run and not yes:
         if use_local:
             prompt = f"Sync {len(targets)} topic(s) on the local model at $0?"
+        elif use_plan and plan_adapter is not None:
+            cost_desc = "billed per use" if plan_adapter.metered_at_margin else "$0 at the margin (prepaid plan)"
+            prompt = f"Sync {len(targets)} topic(s) via {plan_adapter.display_name} ({cost_desc})?"
         else:
             est = sum(min(s.budget, budget) for s in targets)
             prompt = f"Sync {len(targets)} topic(s), estimated up to ${min(est, budget):.2f}?"
@@ -547,34 +614,46 @@ def sync_cmd(
             print_warning("Cancelled.")
             return
 
+    capacity_source = "api_metered"
     if use_local:
         from deepr.backends.local import make_local_research_fn, ollama_chat_client
         from deepr.experts.report_absorber import ReportAbsorber
 
         if selection_note and not json_output:
             console.print(f"[dim]{selection_note}[/dim]")
-        context_builder = None
-        if deep_context:
-            from deepr.backends.fresh_context import make_free_deep_context_builder
-
-            context_builder = make_free_deep_context_builder()
-            console.print(
-                "[dim]Deep context enabled: multi-query free-only web retrieval; "
-                "API-key search providers are not used.[/dim]"
-            )
-        elif fresh_context:
-            from deepr.backends.fresh_context import make_free_fresh_context_builder
-
-            context_builder = make_free_fresh_context_builder()
-            console.print(
-                "[dim]Fresh context enabled: free-only web retrieval; API-key search providers are not used.[/dim]"
-            )
+        context_builder = _sync_context_builder(
+            fresh_context=fresh_context, deep_context=deep_context, json_output=json_output
+        )
         absorber = ReportAbsorber(profile, model=local_model, client=ollama_chat_client())
         engine = ExpertSyncEngine(
             profile,
             research_fn=make_local_research_fn(local_model, context_builder=context_builder),
             absorber=absorber,
         )
+        capacity_source = "local"
+    elif use_plan and plan_adapter is not None:
+        from deepr.backends.plan_quota import PlanQuotaChatClient, make_plan_quota_research_fn
+        from deepr.experts.report_absorber import ReportAbsorber
+
+        if selection_note and not json_output:
+            console.print(f"[dim]{selection_note}[/dim]")
+        if plan_adapter.tos_note and not json_output:
+            print_warning(plan_adapter.tos_note)
+        context_builder = _sync_context_builder(
+            fresh_context=fresh_context, deep_context=deep_context, json_output=json_output
+        )
+        # One client serves both research and verified extraction, so the whole
+        # sync runs on prepaid plan capacity with no silent metered call.
+        client = PlanQuotaChatClient(plan_adapter, model=plan_model)
+        absorber = ReportAbsorber(profile, model=plan_model or plan_adapter.backend_id, client=client)
+        engine = ExpertSyncEngine(
+            profile,
+            research_fn=make_plan_quota_research_fn(
+                plan_adapter, model=plan_model, context_builder=context_builder, client=client
+            ),
+            absorber=absorber,
+        )
+        capacity_source = f"plan_quota:{plan_adapter.backend_id}"
     else:
         engine = ExpertSyncEngine(profile)
     result = asyncio.run(engine.sync(budget=budget, only_due=not sync_all, dry_run=dry_run))
@@ -587,7 +666,7 @@ def sync_cmd(
             budget=budget,
             scheduled=scheduled,
             sync_all=sync_all,
-            use_local=use_local,
+            capacity_source=capacity_source,
         )
     )
 

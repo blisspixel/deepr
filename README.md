@@ -237,7 +237,7 @@ The dashboard reads `data/benchmarks/routing_preferences.json` and shows per-tas
 
 ### Setup and Capacity
 
-`deepr init` detects API keys, writes `.env`, sets a budget ceiling, and can point your data at a synced folder. `deepr doctor` verifies connectivity and storage. `deepr capacity` shows local hardware, plan-based CLIs, and metered APIs. Automatic execution is local-first today: a scored, admitted Ollama model can run expert maintenance at `$0`. Plan-quota CLIs are visible but not yet execution backends; their adapters and live quota probes are still on the roadmap.
+`deepr init` detects API keys, writes `.env`, sets a budget ceiling, and can point your data at a synced folder. `deepr doctor` verifies connectivity and storage. `deepr capacity` shows local hardware, plan-based CLIs, and metered APIs. Automatic execution is local-first today: a scored, admitted Ollama model can run expert maintenance at `$0`. Plan-quota CLIs now execute too, via explicit opt-in: `deepr expert sync "Expert" --plan codex` (also `claude`, `opencode`, and more) runs the whole sync on a subscription you already pay for, behind a deterministic auth-mode + no-surprise-bills gate; `deepr capacity probe-plan codex` validates one works first. *Automatic* routing to a plan CLI is still gated off (vendors don't expose remaining quota reliably) - that and live quota probes are on the roadmap.
 
 Current capacity support:
 
@@ -245,7 +245,7 @@ Current capacity support:
 |---|---|---|
 | Local Ollama | Works for local expert profiles, `sync`/`absorb --local`, `sync --local --fresh-context`, `sync --local --deep-context`, `eval local`, `eval local-context`, and scored local admission | High-volume `$0` expert maintenance and validation loops |
 | Provider APIs | Works for full research when you provide keys and a budget ceiling | Deep research, high-quality synthesis, fallback |
-| Plan CLIs such as Claude Code, Codex, Antigravity, Grok Build, GitHub Copilot CLI, and Kiro | Detected or modeled, but not execution backends yet | Future plan-quota adapters and quota-aware scheduling |
+| Plan CLIs: Codex, Claude Code, OpenCode (auto-routable); Kiro, Grok Build, Antigravity, GitHub Copilot (explicit only) | Execute via `expert sync --plan <id>` behind an auth-mode + no-surprise-bills gate; auto-routing still gated pending live quota probes | $0-at-margin expert maintenance on subscriptions you already pay for |
 | Explicit CLI judge | Opt-in only for local evals with `--allow-cli-judge` | Human-approved comparison signal, not automatic routing |
 
 ```bash
@@ -454,7 +454,7 @@ contract and [ROADMAP.md](ROADMAP.md) for detailed status.
   - [xAI Grok](https://console.x.ai/) - Grok 4.3 flagship, Grok 4.20 research/freshness tiers, real-time web search
   - [Anthropic](https://console.anthropic.com/settings/keys) - complex reasoning
 - For $0 local expert maintenance, optional [Ollama](https://ollama.com/) plus a local model. This supports `deepr capacity`, `deepr eval local` with a local judge, `deepr eval local-context`, `expert make --local`, explicit `expert sync`/`absorb --local`, and automatic local maintenance after scored admission.
-- Plan-quota CLIs are optional and visible in `deepr capacity`, but they are not execution backends yet. Claude Code, Codex, Antigravity, Grok Build, GitHub Copilot CLI, Kiro, and similar tools need adapters, quota probes, and no-surprise-bills guards before Deepr can run through them automatically.
+- Plan-quota CLIs are optional. When installed, they execute via explicit `deepr expert sync --plan <id>` (Codex, Claude Code, OpenCode, Kiro, Grok Build, Antigravity, GitHub Copilot) behind an auth-mode + no-surprise-bills gate; `deepr capacity probe-plan <id>` validates one. *Automatic* routing to them is still gated off pending live quota probes (vendors don't expose remaining quota reliably).
 - Optional: More API keys for smarter auto-routing and fallback
 - Optional: Node.js 18+ for web dashboard development
 

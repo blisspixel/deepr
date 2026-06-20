@@ -2,6 +2,17 @@
 
 This file captures repo-specific operating lessons from autonomous work cycles.
 
+## Plan-quota CLI backends
+
+- Run the value-prop honesty test before building any "plan capacity" CLI: is the next headless call free at the margin on a flat subscription, or metered per use? A metered CLI (Copilot post-2026-06-01) is the API in a costume — `enabled_by_default=False`, never marketed as free. The check belongs in the adapter spec, not in prose.
+- Two execution seams exist. For maintenance, the light `research_fn` `(query, budget) -> {answer, cost}` / chat-client seam is correct; the API-shaped `DeepResearchProvider` is wrong for a subprocess CLI. `expert sync` needs research AND extraction, so expose the CLI as a minimal `client.chat.completions.create -> .choices[0].message.content` shim (like `ollama_chat_client`) and use ONE instance for both — otherwise extraction silently falls back to metered.
+- The shim must ignore the caller's model name: Deepr's internal ids (gpt-5-mini) are meaningless to a vendor CLI and would be passed as a bad `--model`. Use the operator's `--plan-model` or the plan default.
+- No-surprise-bills is deterministic and lives before the subprocess: if a metered-env var is set the CLI would bill that key (every vendor's precedence), so refuse the "plan" classification and tell the operator to unset it or use `--api`.
+- Auto-routing requires an *observed remaining* quota window. Vendor CLIs don't expose remaining quota, so record `remaining_confidence=UNKNOWN` and let the eligibility gate return `QUOTA_UNKNOWN` — auto-routing stays off until a real signal exists. Explicit `--plan` is the works-now path. This keeps the waterfall honest without lying about readiness.
+- Drive the agentic CLI safely: explicit argv (never shell), read-only sandbox / `--deny-tool shell,write`, a scratch cwd so it can't wander the repo, and a hard timeout that kills the process.
+- Record both ledgers per call: `quota_ledger.jsonl` (usage / terminal exhaustion) and a `$0` `cost_ledger.jsonl` entry with quota units, so `costs show` and anomaly detection see volume even at $0. Both writes are best-effort (never break a run).
+- Test the subprocess runner with real hermetic subprocesses via `sys.executable` (cross-platform, $0); mock the runner for adapter/shim tests.
+
 ## Capacity QOL Work
 
 - Treat capacity planning as deterministic workflow state. It can inspect local ledgers, admissions, model availability, and command shape, but it must not make semantic quality claims beyond measured numeric floors.
