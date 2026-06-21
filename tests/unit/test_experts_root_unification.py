@@ -33,10 +33,19 @@ class TestNoHardcodedRoot:
 
 
 class TestResolution:
-    def test_default_is_backward_compatible(self, monkeypatch):
+    def test_default_data_dir_is_user_home_not_cwd(self):
+        # Generic + CWD-independent: no username hard-coded, resolves from home.
+        from deepr.config import default_data_dir
+
+        assert default_data_dir() == pathlib.Path.home() / ".deepr"
+
+    def test_default_is_stable_per_user_home(self, monkeypatch):
+        # Unset -> a stable per-user home (~/.deepr), CWD-independent, so a
+        # globally-installed CLI finds the same experts from any directory
+        # (not the old ./data that only resolved inside a checkout).
         monkeypatch.delenv("DEEPR_EXPERTS_PATH", raising=False)
         monkeypatch.delenv("DEEPR_DATA_DIR", raising=False)
-        assert experts_root() == pathlib.Path("data") / "experts"
+        assert experts_root() == pathlib.Path.home() / ".deepr" / "experts"
 
     def test_data_dir_moves_the_root(self, tmp_path, monkeypatch):
         monkeypatch.delenv("DEEPR_EXPERTS_PATH", raising=False)

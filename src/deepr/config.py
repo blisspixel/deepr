@@ -9,8 +9,32 @@ from typing import Any, Literal
 from dotenv import load_dotenv
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
-# Load .env file
+
+def default_data_dir() -> Path:
+    """Stable, per-user data home used when DEEPR_DATA_DIR is unset.
+
+    Resolved at runtime from the user's home (``~/.deepr``) so the CLI works
+    from ANY directory - not the old CWD-relative ``data`` that only resolved
+    inside a checkout. No username is hard-coded; point ``DEEPR_DATA_DIR`` at a
+    synced folder (OneDrive/Dropbox/iCloud) to share experts across machines.
+
+    If the home directory cannot be determined (no HOME/USERPROFILE - rare, but
+    happens under stripped environments and some CI/container setups), fall back
+    to a CWD-local ``.deepr`` so the CLI keeps running instead of hard-crashing
+    on import.
+    """
+    try:
+        return Path.home() / ".deepr"
+    except (RuntimeError, OSError):
+        return Path(".deepr")
+
+
+# Load .env: the current directory first (local/dev), then the per-user global
+# ~/.deepr/.env, so a globally-installed CLI finds its config from ANY working
+# directory. load_dotenv does not override already-set vars, so a local .env
+# wins over the global one.
 load_dotenv()
+load_dotenv(default_data_dir() / ".env")
 
 
 class ProviderConfig(BaseModel):
@@ -515,9 +539,10 @@ def experts_root() -> Path:
     folder and your experts follow you across machines). Resolution:
 
     1. ``DEEPR_EXPERTS_PATH`` if set (explicit override), else
-    2. ``<DEEPR_DATA_DIR>/experts`` (default ``DEEPR_DATA_DIR`` = ``data``),
-       i.e. ``data/experts`` out of the box - so this is fully backward
-       compatible and data only moves when you set a path.
+    2. ``<DEEPR_DATA_DIR>/experts`` if ``DEEPR_DATA_DIR`` is set, else
+    3. ``<default_data_dir()>/experts`` - a stable per-user home (``~/.deepr``)
+       so the CLI finds the same experts from ANY directory. Point
+       ``DEEPR_DATA_DIR`` at a synced folder to share them across machines.
 
     Never derive an experts path any other way; a second root splits the store
     (the failure mode ADR 0001 fixed for reports). See ADR 0004.
@@ -525,7 +550,9 @@ def experts_root() -> Path:
     explicit = os.getenv("DEEPR_EXPERTS_PATH")
     if explicit:
         return Path(explicit)
-    return Path(os.getenv("DEEPR_DATA_DIR", "data")) / "experts"
+    data_dir = os.getenv("DEEPR_DATA_DIR")
+    base = Path(data_dir) if data_dir else default_data_dir()
+    return base / "experts"
 
 
 def load_config() -> dict:
