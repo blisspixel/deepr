@@ -163,7 +163,7 @@ import uuid
 import deepr
 
 # Load project config for correct paths
-from deepr.config import load_config
+from deepr.config import experts_root, load_config
 from deepr.core.costs import CostController, CostEstimator
 from deepr.providers.base import ResearchRequest, ToolConfig
 from deepr.providers.openai_provider import OpenAIProvider
@@ -179,8 +179,11 @@ queue = SQLiteQueue(_cfg.get("queue_db_path", str(config_path / "queue.db")))
 storage = LocalStorage(_cfg.get("results_dir", str(config_path / "storage")))
 provider = OpenAIProvider(api_key=os.getenv("OPENAI_API_KEY"))
 
-# Experts live under the data directory, not .deepr
-_experts_dir = Path("data") / "experts"
+# Experts live under the canonical, CWD-independent root (ADR 0004), so the
+# web app and the CLI always read the same experts - from any working directory
+# and from a synced DEEPR_DATA_DIR. The old Path("data")/"experts" silently
+# split the store the moment the server ran outside a checkout.
+_experts_dir = experts_root()
 
 
 # ---------------------------------------------------------------------------
