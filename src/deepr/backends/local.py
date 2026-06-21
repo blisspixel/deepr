@@ -29,6 +29,15 @@ from deepr.backends.capacity import _OLLAMA_DEFAULT_URL, ollama_status
 ResearchFn = Callable[[str, float], Awaitable[dict[str, Any]]]
 ContextBuilder = Callable[[str], Awaitable[Any]]
 
+# Keep the model resident between calls. Ollama evicts after ~5 min idle by
+# default, so a multi-call workload (a sync with several subscriptions, or a
+# spaced probe) pays a full cold reload of the weights each time - e.g. ~60s to
+# page a 19 GB model back into VRAM on an otherwise-idle GPU. Passing keep_alive
+# on every request pins it warm for the window; "-1" would pin indefinitely.
+# Ollama reads this from the request body even on its OpenAI-compatible /v1
+# endpoint; a server that ignores it simply falls back to the default.
+_KEEP_ALIVE = os.getenv("DEEPR_OLLAMA_KEEP_ALIVE", "30m")
+
 
 def _base_url(base_url: str | None) -> str:
     """Resolve the Ollama base URL (arg > env > default), no trailing slash."""
@@ -104,6 +113,7 @@ def make_local_research_fn(
             response = await chat.chat.completions.create(
                 model=model,
                 messages=[{"role": "user", "content": prompt}],
+                extra_body={"keep_alive": _KEEP_ALIVE},
             )
             answer = response.choices[0].message.content or ""
             result: dict[str, Any] = {"answer": answer, "cost": 0.0}
@@ -136,6 +146,7 @@ async def probe_local(
             model=chosen,
             messages=[{"role": "user", "content": "Reply with exactly: OK"}],
             max_tokens=16,
+            extra_body={"keep_alive": _KEEP_ALIVE},
         )
         reply = (response.choices[0].message.content or "").strip()
         return {
