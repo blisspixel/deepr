@@ -266,8 +266,23 @@ class TestReasoningGraphAsync:
 
         # Should complete
         assert state.phase in [ReasoningPhase.COMPLETE, ReasoningPhase.ERROR]
-        # Should have generated hypotheses
-        assert len(state.hypotheses) > 0
+
+    @pytest.mark.asyncio
+    async def test_no_llm_degrades_honestly_without_fabricating(self):
+        """Regression: without an LLM, reasoning must NOT fabricate confident
+        'Hypothesis N for: <query>' placeholders (which surfaced as a confident
+        council answer). It degrades honestly and synthesizes an explicit
+        'unable' message at zero confidence."""
+        graph = ReasoningGraph()  # no llm_client
+        state = await graph.reason("How does machine learning compare to traditional programming?")
+
+        assert state.is_degraded is True
+        # No fabricated placeholder content anywhere.
+        assert all("Hypothesis " not in h.text for h in state.hypotheses)
+        assert "for: How does machine learning" not in state.synthesis
+        # Honest degraded synthesis.
+        assert state.synthesis == "Unable to generate a confident answer."
+        assert state.confidence == pytest.approx(0.0)
 
     @pytest.mark.asyncio
     async def test_reason_with_context(self):

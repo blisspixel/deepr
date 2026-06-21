@@ -1,5 +1,11 @@
 # Progress Log
 
+## 2026-06-21 — Fixed a silent-degradation bug the consulting process surfaced
+
+- **The wider 11-expert consult (incl. 4 new experts: Distributed Systems Reliability, Temporal Knowledge Graphs, Karpathy LLM Wiki, Open Knowledge Format) returned garbage** - every perspective was `Hypothesis 1 for: <prompt>` at $0. Root cause: `ReasoningGraph._generate_hypotheses` had a "fallback" that **fabricated** `num_hypotheses` placeholder hypotheses (`text="Hypothesis N for: <query>"`, confidence 0.7) whenever the LLM call failed or no client was present. `_synthesize` then returned the highest-confidence hypothesis as the answer - so fabricated placeholders surfaced as a confident response. The local model being pathologically slow right now (probe: qwen2.5-coder:32b took 58s for "OK") triggered the failure path.
+- **Fix:** removed the synthetic fallback entirely. On no/failed generation the state stays `is_degraded=True` with no hypotheses, and the existing honest path in `_synthesize` emits `"Unable to generate a confident answer."` at 0.0 confidence. Also skip blank-text hypotheses. This is the no-silent-failure discipline applied: a model outage now degrades honestly instead of fabricating confident content. Regression test asserts no `Hypothesis N for:` text and the honest synthesis; updated the one test that had encoded the fabrication; 49 reasoning + 58 chat/reasoning tests green; lint/ratchets/file-size at baseline.
+- **GitHub hygiene:** one clean `main` (local + remote, no stray branches); pushed; CI = success, CodeQL = success. Keeping main + build current as work lands.
+
 ## 2026-06-21 — Source-independence trust floor (the dogfood experts' #1 risk, fixed)
 
 - **The calibration-integrity bug the expert team unanimously flagged, fixed.** The tertiary trust ceiling rose 0.60 -> 0.80 on `len(set(evidence_refs)) >= 2`. But absorb stores `evidence_refs=[f"report:{id}", *quotes]`, so the `report:` pointer + any quote excerpt = 2 distinct strings -> **0.80 for a single source**, systematically. Live beliefs showed it (the dogfood expert read at 0.80 from one report). This is the "syndicated/same-origin can't corroborate" gap five experts independently raised.
