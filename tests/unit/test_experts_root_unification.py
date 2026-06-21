@@ -65,7 +65,9 @@ class TestComponentsHonorRoot:
         from deepr.experts.beliefs import BeliefStore
 
         store = BeliefStore("Portable Expert")
-        assert store.storage_dir == tmp_path / "experts" / "Portable Expert" / "beliefs"
+        # One expert = one canonical (slugified) directory under the configured
+        # root; the display name lives in profile.json, not the path.
+        assert store.storage_dir == tmp_path / "experts" / "portable_expert" / "beliefs"
 
     def test_expert_store_writes_under_configured_root(self, tmp_path, monkeypatch):
         monkeypatch.delenv("DEEPR_EXPERTS_PATH", raising=False)
