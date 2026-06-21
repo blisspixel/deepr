@@ -127,7 +127,7 @@ def _ensure_env_file(env_path: Path, example_path: Path) -> bool:
 def _collect_provider_keys(env_file: dict[str, str], *, yes: bool) -> dict[str, str]:
     """Report detected keys; in interactive mode, prompt (hidden) for missing ones."""
     updates: dict[str, str] = {}
-    console.print("\nProvider keys (you need at least one):")
+    console.print("\nCloud API keys (optional - metered; skip if you'll use local or subscription capacity):")
     for label, var, url in _PROVIDERS:
         if _key_is_set(_resolved(env_file, var)):
             console.print(f"  [green]+[/green] {label}: detected")
@@ -165,21 +165,55 @@ def _resolve_budget_updates(env_file: dict[str, str], *, yes: bool, budget: floa
     return updates
 
 
-def _print_summary(env_file: dict[str, str]) -> None:
-    """Print usable-provider count, the budget, and the next command."""
-    usable = [label for label, var, _ in _PROVIDERS if _key_is_set(_resolved(env_file, var))]
+def _report_capacity(env_file: dict[str, str]) -> bool:
+    """Show what Deepr can run on, cheapest-first, across all three tiers.
+
+    Deepr is capability-adaptive: it works with whatever you have - a local
+    Ollama model ($0), a subscription CLI you already pay for (prepaid), or a
+    cloud API key (metered) - and routes cheapest-first. Returns True if any
+    capacity is available, so setup is "ready" without forcing an API key.
+    Cross-platform (Mac/Linux/Windows): detection is HTTP probe + PATH lookup.
+    """
+    from deepr.backends.capacity import BackendKind, detect_capacity
+
+    merged = {**os.environ, **{k: v for k, v in env_file.items() if v}}
+    sources = detect_capacity(env=merged)
+    groups = [
+        (BackendKind.LOCAL, "Local models", "free at the margin"),
+        (BackendKind.PLAN_QUOTA, "Subscription CLIs", "prepaid - accounts you already have"),
+        (BackendKind.API_METERED, "Cloud API keys", "metered - paid per call"),
+    ]
+    console.print("\nWhat Deepr can run on (it routes cheapest-first: local -> quota -> metered):")
+    any_available = False
+    for kind, label, note in groups:
+        available = [s.name for s in sources if s.kind == kind and s.available]
+        if available:
+            any_available = True
+            console.print(f"  [green]+[/green] {label} [dim]({note})[/dim]: {', '.join(available)}")
+        else:
+            console.print(f"  [dim]- {label} ({note}): none detected[/dim]")
+    return any_available
+
+
+def _print_summary(env_file: dict[str, str], has_capacity: bool) -> None:
+    """Print readiness (any capacity tier), the budget, and the next command."""
     console.print("")
-    if not usable:
-        console.print("[yellow]No provider keys configured yet.[/yellow]")
-        console.print("Add at least one key to .env (or re-run `deepr init`), then:")
-        console.print("  deepr doctor")
+    if not has_capacity:
+        console.print("[yellow]No capacity detected yet.[/yellow] Deepr needs ONE of these (cheapest first):")
+        console.print(
+            "  - Local model: install Ollama (https://ollama.com), then `ollama pull qwen2.5-coder:32b`  ($0)"
+        )
+        console.print("  - Subscription CLI on PATH: codex / claude / opencode / ...  (prepaid)")
+        console.print("  - Cloud API key in .env: OPENAI_API_KEY / ANTHROPIC_API_KEY / GEMINI_API_KEY  (metered)")
+        console.print("Then: deepr doctor")
         return
-    print_success(f"Ready: {len(usable)} provider(s) configured ({', '.join(usable)}).")
+    print_success("Ready - Deepr will use the cheapest capacity available (local -> quota -> metered).")
     console.print(f"Per-job budget ceiling: ${float(env_file.get(_BUDGET_JOB, _DEFAULT_JOB_BUDGET)):.2f}")
     data_dir = env_file.get(_DATA_DIR)
     if data_dir:
         console.print(f"Data location: {data_dir} (experts + research; portable across machines)")
     console.print("\nNext steps:")
+    console.print("  deepr capacity        # see exactly what Deepr will run on")
     console.print('  deepr research "Your question here" --auto')
     console.print("  deepr doctor          # verify connectivity")
 
@@ -223,4 +257,5 @@ def init(yes: bool, budget: float | None, data_dir: str | None):
         _upsert_env(env_path, updates)
         env_file.update(updates)
 
-    _print_summary(env_file)
+    has_capacity = _report_capacity(env_file)
+    _print_summary(env_file, has_capacity)

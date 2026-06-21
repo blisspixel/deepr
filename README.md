@@ -78,7 +78,13 @@ After the installer finishes, open a **new** terminal and run `deepr init` (guid
 
 ---
 
-**Deepr runs on Windows, macOS, and Linux** (Python 3.12+). It works with one or more of OpenAI, Gemini, Grok, or Anthropic (any single key is enough to start).
+**Deepr runs on Windows, macOS, and Linux** (Python 3.12+) and **works with whatever capacity you have** - it adapts and routes cheapest-first:
+
+- **Local model** via [Ollama](https://ollama.com) - `$0` at the margin (expert creation/maintenance, `--local` flows). No API key needed.
+- **Subscription CLIs** you already pay for (Codex, Claude Code, OpenCode, ...) - prepaid quota, opt-in per run.
+- **Cloud API keys** (OpenAI, Gemini, Grok, Anthropic) - metered, the last resort.
+
+You need **at least one** of these - not specifically an API key. `deepr init` detects what you have and `deepr capacity` shows exactly what Deepr will run on. Maybe you have a GPU and Ollama; maybe just a Claude subscription; maybe only an API key - Deepr works with what you've got and prefers the cheapest path.
 
 ### Install from source
 
