@@ -66,8 +66,41 @@ class TestWhatChanged:
 
         delta = what_changed(store, since)
         assert len(delta.revised) == 1
-        assert delta.revised[0]["confidence"] == 0.9
+        # The surfaced confidence is the trust-floored effective value: a default
+        # tertiary belief with a single source caps at 0.60, not the raw 0.9.
+        assert delta.revised[0]["confidence"] == 0.6
         assert delta.revised[0]["reason"] == "stronger evidence"
+
+    def test_confidence_is_trust_floored_not_raw_rating(self, tmp_path):
+        # Regression (found by dogfooding): what-changed showed conf 1.00 on
+        # web-sourced beliefs because it rendered the model's raw self-rating
+        # instead of the trust-floored effective confidence. A tertiary belief
+        # must surface at its ceiling - 0.60 (single source) / 0.80 (2+) - and a
+        # secondary/primary belief stays uncapped.
+        store = _store(tmp_path)
+        since = datetime.now(UTC) - timedelta(minutes=1)
+        store.add_belief(
+            Belief(claim="One web source", confidence=1.0, domain="ai", trust_class="tertiary", evidence_refs=["a"]),
+            check_conflicts=False,
+        )
+        store.add_belief(
+            Belief(
+                claim="Two web sources",
+                confidence=1.0,
+                domain="ai",
+                trust_class="tertiary",
+                evidence_refs=["a", "b"],
+            ),
+            check_conflicts=False,
+        )
+        store.add_belief(
+            Belief(claim="Official doc", confidence=0.95, domain="ai", trust_class="secondary", evidence_refs=["d"]),
+            check_conflicts=False,
+        )
+        by_claim = {e["claim"]: e["confidence"] for e in what_changed(store, since).added}
+        assert by_claim["One web source"] == 0.6
+        assert by_claim["Two web sources"] == 0.8
+        assert by_claim["Official doc"] == 0.95
 
     def test_naive_since_treated_as_utc(self, tmp_path):
         store = _store(tmp_path)
