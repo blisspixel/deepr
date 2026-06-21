@@ -277,3 +277,17 @@
 - Published `deepr-capacity-next-v1` for read-only `$0` capacity guidance, added schema-version/kind fields to `deepr capacity next --json`, and reused the same payload under scheduled sync waits.
 - Published `deepr-sync-capacity-gate-v1` for read-only sync capacity wait/block payloads, including nested capacity guidance and optional loop-run records.
 - Spend so far: `$0.00`.
+
+## 2026-06-21 - Portability, branding, and $0 web-grounded expert enrichment
+
+- Resolved experts from a stable per-user root (`~/.deepr`) instead of CWD-relative `data/experts`, so the global `deepr` and the web app read one store from any directory and follow the user across machines via `DEEPR_DATA_DIR` (ADR 0004); `default_data_dir()` degrades to a CWD-local `.deepr` when no home is determinable. Fixed the web app's hardcoded `Path("data")/"experts"` (slipped past the guard via the split path).
+- Web UI: replaced the placeholder `D` tile with a rune-inspired (Kenaz) brand mark that works in light/dark/monochrome + favicon; added a user-selectable accent color (Settings > Appearance, 8 presets, light/dark, FOUC-safe, persisted). Fixed the Markdown viewer by installing/registering `@tailwindcss/typography` (every `prose-*` class was a no-op, so headings/spacing were dead).
+- Enrichment, capability-adaptive and $0-first:
+  - `absorb --file`: ingest a local document (repo docs, papers) into an expert at $0 via local Ollama, provenance `file:<name>`.
+  - `research_web_local` + `deepr expert learn-web`: a local model searches the LIVE web (free DuckDuckGo) + scrapes pages + synthesizes a current, source-cited report, absorbed into beliefs - $0 on owned hardware. Fixes the "local research answers from stale parametric knowledge" gap.
+  - `fix(local)`: generous client timeout (`DEEPR_LOCAL_TIMEOUT`, default 3600s) so slow local generation is not aborted by the OpenAI SDK's 600s default (this had broken local synthesis). Quality over speed: a big model running well under 1 tok/s is fine for unattended $0 work.
+- Validated live: DuckDuckGo returns current 2026 sources at $0; deepr's scraper pulls clean page text; local routing selects Ollama at $0; metered absorb produced excellent grounded TKG beliefs ($0.43 research + ~$0.06 extraction; TKG expert went 0 -> 50 findings). End-to-end `research_web_local` confirmed (cost $0, 6 live sources, real report).
+- Cleaned the roster: archived + deleted 6 hollow demo experts (Coffee/Lighthouse/Sourdough/Lock Picking/Antarctic/Tardigrade); 13 real Deepr experts remain.
+- License: switched to plain Apache 2.0 (Author: Nick Seal); corrected stale MIT/Commons-Clause references across LICENSE, README, pyproject, ROADMAP, and the API OpenAPI metadata.
+- Roadmap: logged model-freshness loop, local-fleet daemon with quiet-hours, and portrait portability/overwrite-safety.
+- Spend this session: ~$0.49 external (one grounded TKG research report + extractions); enrichment path is now $0 via local web research. Lifetime well under budget.
