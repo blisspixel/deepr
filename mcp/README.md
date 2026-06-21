@@ -359,6 +359,6 @@ StdioServer (JSON-RPC transport)
 
 ---
 
-**Tools:** 28 (2 system + 5 research + 15 expert + 4 task management + 2 skills)
+**Tools:** 29 (2 system + 5 research + 16 expert + 4 task management + 2 skills)
 **Resources:** 10 URI schemes across 4 resource types
 **Prompts:** 3 templates
