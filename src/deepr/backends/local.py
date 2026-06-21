@@ -44,16 +44,24 @@ def _base_url(base_url: str | None) -> str:
     return (base_url or os.getenv("OLLAMA_HOST") or _OLLAMA_DEFAULT_URL).rstrip("/")
 
 
-def ollama_chat_client(base_url: str | None = None) -> Any:
+def ollama_chat_client(base_url: str | None = None, *, timeout: float | None = None) -> Any:
     """An AsyncOpenAI client pointed at Ollama's OpenAI-compatible endpoint.
 
     Usable anywhere deepr injects a chat ``client`` (report_absorber,
-    reflection). The api_key is a required-but-ignored placeholder; nothing is
-    billed - calls hit the local server.
+    reflection, local web research). The api_key is a required-but-ignored
+    placeholder; nothing is billed - calls hit the local server.
+
+    Local generation is intentionally allowed to be slow - a large model on a
+    long context can run at well under 1 token/sec, and that is fine for
+    unattended $0 work. The OpenAI SDK's 600s default timeout would abort such a
+    legitimate run, so default to a generous timeout (``DEEPR_LOCAL_TIMEOUT``
+    seconds, default 3600). Raise ``DEEPR_LOCAL_TIMEOUT`` for very slow runs.
     """
     from openai import AsyncOpenAI
 
-    return AsyncOpenAI(base_url=f"{_base_url(base_url)}/v1", api_key="ollama")
+    if timeout is None:
+        timeout = float(os.getenv("DEEPR_LOCAL_TIMEOUT", "3600"))
+    return AsyncOpenAI(base_url=f"{_base_url(base_url)}/v1", api_key="ollama", timeout=timeout)
 
 
 def default_local_model(base_url: str | None = None) -> str | None:
