@@ -2,6 +2,21 @@
 
 This file captures repo-specific operating lessons from autonomous work cycles.
 
+## Code-health ratchets (the red-CI traps)
+
+- `experts.py` and 16 other files are at grandfathered **file-size caps** (Phase Q). New CLI commands do NOT go in `experts.py` - put them in their own module (`expert_portrait.py`, `expert_maintenance.py`, ...) and register via the bottom-of-`experts.py` `from ... import X as _X  # noqa: F401` pattern. Adding to `experts.py` trips the BLOCKING file-size ratchet.
+- There are TWO ratchet scripts: `scripts/check_file_sizes.py` AND `scripts/check_ratchets.py` (C901 + S). Run BOTH, full output - never `head` the C901 line off. A file-size failure (CI runs `bash -e`) masks the later C901 check in the same step, so fixing one can unmask the other (two red pushes in a row if you only fix what you see).
+- Before pushing, run the **full lint-job mirror** locally: `ruff check src/deepr/` + `ruff format --check src/deepr/` + `check_file_sizes.py` + `check_ratchets.py` + `check_docs_consistency.py` + `mypy --strict ... core providers mcp`. CI's "lint" job is exactly these; reproducing them avoids red-main ping-pong. (`ruff` is pinned to 0.15.17 so counts match CI.)
+- A new click command that resolves targets + confirms + runs a batch easily hits C901 11. Extract target resolution and the batch runner into module-level helpers - ruff rolls a nested function's branches into its parent, so a nested `async def _run()` inflates the command's complexity.
+
+## Free $0 expert knowledge (local + agentic)
+
+- $0 sourced expert knowledge = local Ollama model + free web search + the comprehensive first-sync baseline. All three are required: without sources the absorb gates correctly refuse to record the model's unsourced guesses ("no changes").
+- Free web search uses `ddgs` (the maintained successor to the deprecated `duckduckgo_search`, whose endpoint returns nothing). It's an optional `[search]` extra; without it, fresh-context returns 0 sources.
+- `expert sync` is a delta tool ("what changed"). The FIRST sync establishes a comprehensive baseline; only later syncs are deltas. Evergreen topics gain nothing from a delta-only first sync.
+- Driving a chat seam from raw `python -c` on Windows hits cp1252 emoji crashes (the CLI sets UTF-8 at entry). Use `PYTHONUTF8=1` for ad-hoc scripts.
+- The web dev server (vite) must proxy `/portraits` (and any backend static route) or `<img>` tags get the SPA index.html (200, wrong type) and fall back silently. Dev must mirror the prod static routes.
+
 ## Plan-quota CLI backends
 
 - Run the value-prop honesty test before building any "plan capacity" CLI: is the next headless call free at the margin on a flat subscription, or metered per use? A metered CLI (Copilot post-2026-06-01) is the API in a costume — `enabled_by_default=False`, never marketed as free. The check belongs in the adapter spec, not in prose.
