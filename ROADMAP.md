@@ -455,7 +455,7 @@ the bounded council synthesizer is the only "supervisor" Deepr should own.
 (5) *Letta-style self-editing memory* - puts the model in the write loop, which
 defeats trust ceilings. Sharpest honest positioning that came out of it:
 **"experts, not memories"** - keep "epistemic," drop "operating system" (an
-over-reach for a solo MIT project; Letta/MemOS already own the "OS" label).
+over-reach for a solo project; Letta/MemOS already own the "OS" label).
 
 - [ ] Verified expert-loop substrate:
   - [ ] Add a loop admission contract: no surface graduates from advisory to
@@ -1296,4 +1296,4 @@ that does not gate the contract.
 
 **Questions?** Open a [GitHub Discussion](https://github.com/blisspixel/deepr/discussions) or check the [documentation](docs/).
 
-[MIT License](LICENSE) · [GitHub](https://github.com/blisspixel/deepr)
+[Apache 2.0 + Commons Clause](LICENSE) · [GitHub](https://github.com/blisspixel/deepr)
