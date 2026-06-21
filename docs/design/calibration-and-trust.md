@@ -56,6 +56,14 @@ TERTIARY); today it is recorded but never enforced. The enforcement:
     extraction score.
   - Crossing 0.8 requires at least one SECONDARY+ source, or two
     independent TERTIARY sources absorbed from different reports.
+  - Independence is counted over distinct source *identifiers* only -
+    URLs collapsed to host (a syndicated origin counts once) and namespaced
+    ids like `report:<id>` - **never** over free-text quote excerpts.
+    Absorb stores `[f"report:{id}", *quotes]`; the quotes ground one source,
+    not new origins, so counting them (the original `len(set(evidence_refs))`
+    bug) falsely lifted single-source beliefs to 0.8 (`_independent_source_count`,
+    fixed 2026-06-21). The count is whitespace-discriminated form, kept
+    deterministic so a prompt-injected "independence" claim can never lift it.
   - Adjudication (`ConflictResolver`) may not raise confidence above the
     floor; only new, better-sourced evidence can.
 - This is the deterministic backstop for ingestion-time prompt injection:
