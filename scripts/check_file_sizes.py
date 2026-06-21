@@ -29,7 +29,7 @@ GRANDFATHERED: dict[str, int] = {
     "deepr/experts/chat.py": 2655,  # +22: cost-integrity fix (chat consult writes the ledger + caps, 2026-06-21)
     "deepr/experts/lazy_graph_rag.py": 2040,
     "deepr/mcp/server.py": 1937,
-    "deepr/experts/beliefs.py": 1415,  # +7: security fix (expert-name path containment, 2026-06-16)
+    "deepr/experts/beliefs.py": 1448,  # +7: security fix (path containment, 2026-06-16); +33: source-independence trust floor (2026-06-21)
     "deepr/cli/commands/run.py": 1363,
     "deepr/experts/curriculum.py": 1340,
     "deepr/experts/memory.py": 1291,
