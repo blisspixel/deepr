@@ -987,7 +987,7 @@ A mock panel (business buyer, indie hacker, enterprise AI architect, research sc
 Explicitly out of scope:
 
 - **General-purpose chat** - Expert chat is domain-focused; for open-ended conversation, use ChatGPT, Claude, Gemini, etc.
-- **Workflow orchestration** - Deepr experts are roles that participate in multi-agent teams, but Deepr is not the orchestrator. It handles its domain (research, knowledge, gap detection) and hands off cleanly. Workflow coordination belongs to a separate orchestration layer.
+- **Workflow orchestration** - Deepr experts are roles that participate in multi-agent teams, but Deepr is not the orchestrator. It handles its domain (research, knowledge, gap detection) and hands off cleanly. Workflow coordination belongs to a separate orchestration layer. Sharpened boundary (dogfood-derived, [agentic-harness-boundary.md](docs/design/agentic-harness-boundary.md)): Deepr *is* agentic, but only **within a single bounded, idempotent knowledge transaction** (decompose -> consult its own experts -> reason -> verify -> one commit point, under hard budgets, returning one calibrated artifact). It must not own workflow state, cross-call retries/scheduling, or side effects beyond its own knowledge store - it recommends next actions; the calling harness decides and enacts.
 - **Real-time responses** - Deep research takes minutes by design; this is a feature, not a bug
 - **Sub-$1 comprehensive research** - Deep research requires substantial compute (use `--auto` for simple queries at $0.01)
 - **Mobile apps** - CLI and web dashboard cover the use cases
