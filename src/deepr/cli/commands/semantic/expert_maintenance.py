@@ -860,9 +860,7 @@ def learn_web(name, topic, model, num_results, max_pages, min_confidence, save_p
 
     absorber = ReportAbsorber(profile, model=model, client=client)
     try:
-        result = asyncio.run(
-            absorber.absorb(f"web:{topic}", report, min_confidence=min_confidence, dry_run=dry_run)
-        )
+        result = asyncio.run(absorber.absorb(f"web:{topic}", report, min_confidence=min_confidence, dry_run=dry_run))
     except ReportAbsorberError as e:
         print_error(str(e))
         sys.exit(2)
