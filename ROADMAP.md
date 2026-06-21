@@ -428,6 +428,33 @@ verified knowledge loops, expose machine-readable loop state, and export/import
 portable knowledge without letting generated Markdown become authority over the
 belief store. Detailed loop contract: [docs/design/verified-expert-loops.md](docs/design/verified-expert-loops.md).
 
+**2026-06-21 external-review reconciliation.** A strategic review proposed
+re-architecting Deepr as a "persistent epistemic OS" (OKF as live canonical
+memory; Temporal durable-execution engine; Neo4j/GraphRAG; an internal
+supervisor graph; Letta-style self-editing memory). Five independent
+literature sweeps were run against what Deepr actually has. The verdict: the
+existing architecture is already the correct one, and most of the proposal
+would *weaken* it. **Adopt:** semantic (embedding) recall over beliefs - the one
+genuine gap (see the graph-memory section below). **Reject, with reasons:**
+(1) *OKF/wiki as canonical* inverts Karpathy's own pattern (raw sources are the
+source of truth, the wiki is derived) and the memory-degradation literature
+(SSGM, HaluMem: evolving-memory errors are cumulative and persistent, write-path
+correct-update rates < 26%) - Deepr's structured-store-canonical + regenerable
+derived view is the literature's prescribed dual-track design, so keep it; human
+edits to the view route back through verified absorb, never hand-edit canon.
+(2) *Temporal/Restate/DBOS* - campaigns get ~90% of durable execution from the
+existing `ExpertLoopRun` + queue + append-only ledger plus idempotent phase
+checkpointing; a new always-on engine violates the heavy-infra non-goal (see
+Phase 4b). (3) *Neo4j/GraphRAG community summarization* - re-derives structure
+Deepr already has, loses on factual lookup in independent benchmarks, and breaks
+the $0 read path; revisit only past tens-of-thousands of beliefs per expert.
+(4) *Internal supervisor graph* - violates the not-the-orchestrator non-goal;
+the bounded council synthesizer is the only "supervisor" Deepr should own.
+(5) *Letta-style self-editing memory* - puts the model in the write loop, which
+defeats trust ceilings. Sharpest honest positioning that came out of it:
+**"experts, not memories"** - keep "epistemic," drop "operating system" (an
+over-reach for a solo MIT project; Letta/MemOS already own the "OS" label).
+
 - [ ] Verified expert-loop substrate:
   - [ ] Add a loop admission contract: no surface graduates from advisory to
         autonomous until the task repeats, the verifier is automated, the
@@ -467,6 +494,7 @@ belief store. Detailed loop contract: [docs/design/verified-expert-loops.md](doc
     - [ ] `deepr_explain_belief` - inference chain + provenance + confidence trajectory for one belief. Provenance and history exist today (evidence_refs, belief history); full inference *chains* (trace through supporting beliefs) need the typed-edge graph above, so this one lands with it.
     - Sequencing note: the first two are the autopilot-facing wedge (re-sync + open-conflicts) and should land in v2.14 ahead of the full graph; they also keep the graph work honest by fixing the query contracts first.
     - Rationale: host agents have ephemeral context and monthly-plan economics; the expert is the durable, shared epistemic state across their sessions *and across different agents* - Claude Code and Copilot consulting the same expert get the same calibrated perspective, which is what makes experts organizational knowledge rather than per-tool caches.
+  - [ ] Semantic recall over beliefs (the one genuine recall gap, confirmed by the 2026-06 memory-systems sweep): belief recall today is lexical word-overlap within a domain (`_find_similar`/`_find_related`/`get_beliefs_by_domain`), so a belief only surfaces when the query shares words and lands in the right domain - a paraphrased or cross-domain belief is invisible. Add an embedding index over each belief's claim (embedded once at absorb time - construction-side, where spend belongs) and a `semantic_recall(query, k)` that returns *candidate* belief ids by cosine similarity; the existing epistemic layer (trust ceiling, decay, contradiction edges, `explain_belief`) still does the *judgment*. Recall finds; the belief graph concludes - this is route-to-the-model, not a lexical verdict, so it passes the STOP banner. Constraints: local-first index (numpy/`sqlite-vec`, no new service), cost-gated and off by default (one cheap embed per query is not $0); explicitly **not** GraphRAG, Neo4j, or Letta-style memory - those re-solve problems the structured graph already solves at a cost the design rejects. Bonus: the same vector recall raises the *recall of contradiction candidates*, feeding the entailment screen paraphrased conflicts the lexical router misses.
 - [~] Regenerated expert digest (a browsable view over the structured store, never the source of truth):
   - [x] On-demand "compilation" pass (`deepr expert digest`, v2.14): reads beliefs + typed edges + contradictions and emits a browsable Markdown digest - $0, no LLM, byte-stable for an unchanged store, derived-view marker enforced before overwrite (the Phase E regeneration invariant made executable)
   - [x] Surface the contradiction flags from the contradiction-as-signal path so a reader sees open conflicts rather than a smoothed narrative
@@ -614,7 +642,21 @@ budget, evidence, and checkpoint bounds. Campaigns are not the first loop
 surface; they build on `ExpertLoopRun`, loop-status, capacity routing, and
 portable handoff artifacts after those are reliable on sync/gap-fill/reflection.
 
+Design constraint (durability without an engine): a campaign is a multi-phase
+generalization of `ExpertLoopRun` (append-only JSONL with `fsync`,
+schema-versioned, typed stop reasons, budget envelope) dispatched through the
+existing `QueueBackend` and gated by the append-only cost ledger. The one new
+primitive is **idempotent phase checkpointing**: a phase whose output artifact
+already exists is skipped on resume, so a crash mid-campaign never re-bills
+completed phases. This delivers ~90% of durable-execution value with **no new
+always-on service** - explicitly *not* Temporal/Restate/DBOS (heavy-infra
+non-goal). Triggers belong to the host (OS cron / systemd / webhook->MCP), per
+"hosts own the schedule, Deepr owns the verbs"; resume is just re-invoking the
+verb. DBOS (library, Postgres/SQLite-backed) is the documented "if we hit the
+wall" upgrade, not a launch dependency.
+
 - [ ] Campaign definition: goal, budget, duration, checkpoint frequency, stop conditions
+- [ ] Idempotent phase checkpointing: per-phase status + output ref; resume skips completed phases (no re-billing); idempotency key = campaign id + phase index threaded through any side-effecting call
 - [ ] Background campaign executor (queue-based, persists state, survives process restarts)
 - [ ] Multi-phase planning: expert decomposes goal into research phases, executes sequentially
 - [ ] Checkpoint system: periodic summaries of progress, spend, gaps remaining, next steps
