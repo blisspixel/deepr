@@ -691,15 +691,18 @@ Sequenced smallest-shippable-first:
       expensive extraction/absorb path. ~60% of refresh work finds nothing
       changed, so this is the biggest cost saver. Lives in the existing
       fresh-context/health-check path; $0, preserves the $0-read-side invariant.
-- [ ] **`deepr fleet status`**: cross-expert health rollup folding existing
-      per-expert `loop_runs.jsonl` (the per-expert `loop_status_rollup` and the
-      plan-quota `capacity fleet` don't cover roster-wide agent-run health; the
-      `capacity fleet` name is taken). Per expert x loop_type: last run + typed
-      stop reason, accepted/rejected changes, cost + capacity source, last
-      failure, **overdue** (`finished_at + expected_interval + grace < now`), next
-      action. `deepr-fleet-status-v1`, `--json`, non-zero exit on overdue/failed
-      (so the scheduler can run it as a watchdog), web-dashboard view. New config:
-      per-expert/verb `expected_interval` (default `interval x 3`).
+- [x] **`deepr fleet status`** (2026-06-21): cross-expert health rollup folding
+      existing per-expert `loop_runs.jsonl` + `subscriptions.json` - no new
+      storage (the per-expert `loop_status_rollup` and the plan-quota `capacity
+      fleet` don't cover roster-wide agent-run health; the `capacity fleet` name
+      is taken). Per expert: last run (type/status/typed stop reason),
+      accepted/rejected changes, cost + capacity source, last failure, **refresh
+      due** (honest cadence from `Subscription.is_due`, not an invented interval),
+      and waiting next-action. Anomalies sort first. `deepr-fleet-status-v1`,
+      `--json`, **non-zero exit when any latest run failed** (so a scheduler can
+      run it as a watchdog). Read-only, $0. Module `experts/fleet_status.py` +
+      `deepr fleet status`; 17 tests. Deferred: web-dashboard view; a configurable
+      `expected_interval` for clock-based overdue beyond subscription cadence.
 - [ ] **In-verb overlap guard + `--jitter`**: a non-blocking cross-platform
       `filelock` keyed by `expert + verb` (Windows-primary rules out `flock`);
       on contention exit 0 with a recorded skip. Bounded startup jitter (stable

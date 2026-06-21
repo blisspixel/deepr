@@ -1,5 +1,11 @@
 # Progress Log
 
+## 2026-06-21 — `deepr fleet status`: roster-wide health at a glance (Phase 4d slice 3)
+
+- **Shipped `deepr fleet status`** — the cross-expert health view the per-expert `loop_status_rollup` and plan-quota `capacity fleet` didn't cover. Read-only, $0, **no new storage**: folds each expert's `loop_runs.jsonl` (latest run, typed stop reason, accepted/rejected, cost + capacity source, last failure, waiting next-action) and `subscriptions.json` (refresh-due via the honest `Subscription.is_due` cadence — no invented intervals). Anomalies sort to the top; roster summary line; `--json` emits `deepr-fleet-status-v1` (sanitized host-facing envelope); **non-zero exit when any latest run failed** so a scheduler can run it as a watchdog.
+- **Design**: pure rollup core in `experts/fleet_status.py` with injectable store factories (unit-tested without disk, 11 tests); thin command layer `cli/commands/fleet.py` (monkeypatched rollup, 6 CLI tests covering json/empty/healthy/attention-exit/refresh+waiting/limit-validation). Kept C901 at baseline by extracting `_row_tag`/`_row_detail`/`_print_row_extras` (a branchy renderer hits 11 fast).
+- **Live-validated** against the real 16-expert roster: rendered correctly, surfaced that 4 project-relevant experts ("Agentic Coding Tools", "AI Cost Optimization", "Deep Research Systems", "Local LLM Operations") exist but were never synced (empty) — exactly the visibility the command is for. Full lint mirror green; $0 this slice.
+
 ## 2026-06-21 — Expert Fleet autopilot: research, design, roadmap + the monthly-reserve correctness fix
 
 - **Strategic alignment check (folded here, not a parallel doc).** Re-read README/ROADMAP/AGENTS/AGENTIC_BALANCE + the fleet/scheduling/budget code. Vision confirmed: a roster of always-fresh experts maintained mostly at $0 (local + free search + plan quota), with a monthly reserve (~$20) that is a pool rarely touched, the host owning the schedule, metered spend only for targeted reasons. Created CURRENT-STATE-ANALYSIS as this entry (CLAUDE.md/AGENTS.md mandate single-source-of-truth, no drift — a standalone analysis file would rot).
