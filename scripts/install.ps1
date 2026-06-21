@@ -55,7 +55,16 @@ if (-not (Get-Command pipx -ErrorAction SilentlyContinue)) {
     $env:Path = [System.Environment]::GetEnvironmentVariable("Path", "User") + ";" + [System.Environment]::GetEnvironmentVariable("Path", "Machine")
 }
 
-# --- Install or update (idempotent) ----------------------------------------
+# --- Does the CLI actually run? (used to verify + self-heal) ----------------
+function Test-DeeprWorks {
+    if (-not (Get-Command $Cli -ErrorAction SilentlyContinue)) { return $false }
+    try {
+        & $Cli --version *> $null
+        return ($LASTEXITCODE -eq 0)
+    } catch { return $false }
+}
+
+# --- Install, update, or repair (idempotent + self-healing) -----------------
 $installed = $false
 try {
     $list = pipx list 2>$null | Out-String
@@ -64,16 +73,36 @@ try {
 
 if ($installed) {
     Write-Step "$Package already installed. Updating to the latest version ..."
-    pipx upgrade $Package
+    try {
+        pipx upgrade $Package
+    } catch {
+        # A stale venv (common after a system Python upgrade) makes upgrade fail.
+        Write-Warn "Update failed; repairing the install ..."
+        try { pipx reinstall $Package } catch { pipx uninstall $Package; pipx install $Package }
+    }
 } else {
     Write-Step "Installing $Package (CLI: $Cli) ..."
     pipx install $Package
 }
 
-# --- Report installed version (best effort) ---------------------------------
+# --- Verify it runs; one automatic clean reinstall if not -------------------
+if (-not (Test-DeeprWorks)) {
+    Write-Warn "$Cli did not run cleanly; attempting a clean reinstall ..."
+    try { pipx uninstall $Package } catch { }
+    pipx install $Package
+}
+
+# --- Report version + warn about a shadowing (non-pipx) install -------------
 $shownVersion = $false
-if (Get-Command $Cli -ErrorAction SilentlyContinue) {
+if (Test-DeeprWorks) {
     try { & $Cli --version; $shownVersion = $true } catch { }
+    $src = (Get-Command $Cli -ErrorAction SilentlyContinue).Source
+    if ($src -and $src -notlike "*\.local\*" -and $src -notlike "*pipx*") {
+        Write-Warn "Note: '$Cli' on PATH resolves to $src, which is not the pipx-managed copy."
+        Write-Warn "If the version above looks wrong, remove that copy: pip uninstall $Package (in that Python)."
+    }
+} else {
+    Write-Err "Install completed but '$Cli' still does not run. Try a new terminal, or: pipx reinstall $Package"
 }
 
 Write-Host ""
