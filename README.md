@@ -1,11 +1,12 @@
-License: Apache 2.0 + Commons Clause  
-Personal/research/sharing use free.  
-Commercial/enterprise products require separate license from Nick Seal.
+License: Apache 2.0  
+Author: Nick Seal (nick@pueo.io)  
+Free to use, build on, fork, and share patterns.  
+For commercial or enterprise use, contact nick@pueo.io
 
 # Deepr
 
 [![CI](https://github.com/blisspixel/deepr/actions/workflows/ci.yml/badge.svg)](https://github.com/blisspixel/deepr/actions/workflows/ci.yml)
-[![License: Apache 2.0 + Commons Clause](https://img.shields.io/badge/license-Apache--2.0%20%2B%20Commons%20Clause-blue.svg)](LICENSE)
+[![License: Apache 2.0](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](LICENSE)
 [![Python 3.12+](https://img.shields.io/badge/python-3.12+-blue.svg)](https://www.python.org/downloads/)
 [![Version](https://img.shields.io/badge/version-2.19.0-blue)](https://github.com/blisspixel/deepr/releases/tag/v2.19.0)
 
@@ -480,10 +481,8 @@ Contributions welcome. Run `ruff check . && ruff format .` and `pytest` before s
 
 ## License
 
-[Apache 2.0 + Commons Clause](LICENSE). Personal, research, and open-sharing
-use is free; building and selling a commercial/enterprise product or SaaS whose
-value derives substantially from Deepr requires a separate license from Nick Seal
-(nick@pueo.io).
+[Apache 2.0](LICENSE). Free to use, build on, fork, and share. For commercial or
+enterprise use, contact Nick Seal (nick@pueo.io).
 
 ---
 
