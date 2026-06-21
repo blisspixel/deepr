@@ -129,14 +129,21 @@ def what_changed(store: BeliefStore, since: datetime, *, expert_name: str = "") 
         if ts <= since:
             continue
 
+        # The host-facing confidence must be the trust-floored *effective* value
+        # (get_current_confidence), never the extractor's raw self-rating: a
+        # tertiary web-sourced belief caps at 0.60/0.80 no matter what the model
+        # claimed, and every other read surface (digest, okf, perspective, why)
+        # already shows the floored value. Fall back to the recorded change value
+        # only for archived beliefs, where there is no live belief left to floor.
+        current = store.beliefs.get(change.belief_id)
+        effective_confidence = current.get_current_confidence() if current is not None else change.new_confidence
         entry: dict[str, Any] = {
             "belief_id": change.belief_id,
             "claim": change.new_claim,
-            "confidence": round(change.new_confidence, 3),
+            "confidence": round(effective_confidence, 3),
             "reason": change.reason,
             "timestamp": ts.isoformat(),
         }
-        current = store.beliefs.get(change.belief_id)
         if current is not None:
             entry["current"] = _belief_summary(current)
 

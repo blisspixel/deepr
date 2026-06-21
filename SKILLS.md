@@ -17,6 +17,11 @@ This file captures repo-specific operating lessons from autonomous work cycles.
 - Driving a chat seam from raw `python -c` on Windows hits cp1252 emoji crashes (the CLI sets UTF-8 at entry). Use `PYTHONUTF8=1` for ad-hoc scripts.
 - The web dev server (vite) must proxy `/portraits` (and any backend static route) or `<img>` tags get the SPA index.html (200, wrong type) and fall back silently. Dev must mirror the prod static routes.
 
+## Belief confidence: always surface the floored effective value
+
+- A belief stores the extractor's *raw* `confidence` (often 1.0 from a local model), but the trusted value is `belief.get_current_confidence()` - decay x source-trust ceiling (tertiary single-source 0.60, tertiary 2+ 0.80, secondary/primary uncapped). **Every host-facing or human-facing surface that shows confidence MUST call `get_current_confidence()`, never the raw `confidence` field or a change-record's `new_confidence`.** Dogfooding caught `perspective.what_changed` (CLI `what-changed` + MCP `deepr_what_changed`) rendering raw 1.00 on web-sourced beliefs while digest/okf/why/health-check all correctly floored - an agent re-syncing would over-trust. The trust-floor invariant is only real if no surface bypasses it.
+- When showing a *delta* over a still-existing belief, the honest "what you believe now" is the floored current confidence, not the value recorded at change time. Fall back to the recorded value only for archived beliefs (no live belief left to floor).
+
 ## Budget / cost-safety invariants
 
 - The reserve-then-settle pattern in `CostSafetyManager.check_and_reserve` only prevents over-commit if the cap *projection* counts in-flight reservations. Every cap (daily AND monthly) needs its own `_reserved_*` pool included in the projection, incremented on reserve, released on both settle (`record_cost`) and `refund_reservation`, all under the one `_budget_lock`. Asymmetry is a real bug: the monthly projection omitted reservations while daily included them, so a *low monthly* reserve (the $20/month fleet) over-committed under parallelism even though daily looked fine. When you touch one cap's reservation accounting, mirror it in the other.
