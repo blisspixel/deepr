@@ -14,6 +14,14 @@ from deepr.experts.portraits import (
 )
 
 
+def test_portrait_command_registered_on_expert_group():
+    # Guards the extraction into expert_portrait.py: importing the expert group
+    # must pull in and register the portrait subcommand.
+    from deepr.cli.commands.semantic.experts import expert
+
+    assert "portrait" in expert.commands
+
+
 class TestPortraitStyle:
     def test_default_when_unset(self, monkeypatch):
         monkeypatch.delenv(PORTRAIT_STYLE_ENV, raising=False)
