@@ -740,6 +740,18 @@ Sequenced smallest-shippable-first:
       no self-family judging). Decision rule folds into the targeted-spend gate -
       local by default, escalate to frontier only for long/conflicting/high-value/
       high-volatility experts. Design: [expert-fleet.md](docs/design/expert-fleet.md) Pillar 4.
+- [ ] **Cross-vendor maker-checker verification** (use the CLI fleet for quality,
+      not round-robin): the absorb-time contradiction/grounding verdict already
+      routes to a model; the upgrade is making that checker a **different vendor**
+      than the maker, in a **fresh context** (claim+evidence only), prompted to
+      **disconfirm** (find the unsupported part), **bounded** to 1 maker + 1
+      checker (2nd only on disagreement/high-stakes; stop at 2 - returns are
+      convex). 2026 evidence: model errors are correlated across vendors, so
+      fan-out-and-vote adds cost not truth, but a *different*-vendor challenger
+      catches errors self-checking can't. Degrade to fresh-context same-model when
+      only one vendor is admitted; never silently skip or escalate to metered.
+      Surface assurance ("verified by N cross-vendor checkers") in the handoff.
+      Design: [multi-backend-patterns.md](docs/design/multi-backend-patterns.md).
 - [ ] **Hardening**: reservation TTL/sweeper (a leaked reservation permanently
       shrinks a tight pool until restart) and an optional **off-box heartbeat** to
       a free dead-man's-switch (healthchecks.io / Dead Man's Snitch) on scheduled-
