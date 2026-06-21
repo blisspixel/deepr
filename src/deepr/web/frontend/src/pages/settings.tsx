@@ -3,7 +3,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { configApi } from '@/api/config'
 import type { Config } from '@/types'
 import { cn } from '@/lib/utils'
-import { useUIStore } from '@/stores/ui-store'
+import { useUIStore, ACCENTS, type Accent } from '@/stores/ui-store'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -36,7 +36,7 @@ import { FormSkeleton } from '@/components/ui/skeleton'
 
 export default function Settings() {
   const queryClient = useQueryClient()
-  const { theme, setTheme } = useUIStore()
+  const { theme, setTheme, accent, setAccent } = useUIStore()
 
   const { data: config, isLoading, isError, refetch } = useQuery({
     queryKey: ['config'],
@@ -400,6 +400,37 @@ export default function Settings() {
                       {t.label}
                     </button>
                   ))}
+                </div>
+              </div>
+
+              <div>
+                <Label className="mb-2 block">Accent Color</Label>
+                <p className="text-xs text-muted-foreground mb-3">
+                  Tints buttons, links, charts, and the Deepr mark. Applies instantly across the app.
+                </p>
+                <div className="flex flex-wrap gap-2.5">
+                  {(Object.keys(ACCENTS) as Accent[]).map((key) => {
+                    const isActive = accent === key
+                    return (
+                      <button
+                        key={key}
+                        onClick={() => setAccent(key)}
+                        aria-label={ACCENTS[key].label}
+                        aria-pressed={isActive}
+                        title={ACCENTS[key].label}
+                        className={cn(
+                          'relative h-9 w-9 rounded-full border-2 transition-transform hover:scale-105',
+                          'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background',
+                          isActive ? 'border-foreground' : 'border-transparent'
+                        )}
+                        style={{ backgroundColor: `hsl(${ACCENTS[key].light})` }}
+                      >
+                        {isActive && (
+                          <CheckCircle className="absolute inset-0 m-auto h-4 w-4 text-white drop-shadow" />
+                        )}
+                      </button>
+                    )
+                  })}
                 </div>
               </div>
             </div>
