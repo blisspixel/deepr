@@ -816,12 +816,8 @@ class CostDashboard:
         return self.aggregator._filter_by_date(start_date, end_date)
 
     def _entries_from_ledger(self) -> list[CostEntry]:
-        """Materialize ``CostEntry`` objects from the canonical ledger.
-
-        The append-only ledger is the source of truth; this projects its events
-        into the dashboard's entry shape. Used by both ``_load`` (so reads always
-        reflect the ledger) and ``rebuild_from_ledger`` (to repair the cache).
-        """
+        """Project the canonical ledger's events into dashboard entries (the
+        ledger is the source of truth). Used by ``_load`` and ``rebuild_from_ledger``."""
         return [
             CostEntry(
                 timestamp=ev.timestamp,
