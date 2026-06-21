@@ -35,7 +35,7 @@ def _patch(monkeypatch, result):
     async def fake(question, experts, max_experts, budget):
         return result
 
-    monkeypatch.setattr(mod, "_run_consult", fake)
+    monkeypatch.setattr(mod, "run_consult", fake)
 
 
 def test_consult_registered_on_expert_group():
@@ -89,7 +89,7 @@ def test_failure_surfaced_not_silent(monkeypatch):
     async def boom(*a, **k):
         raise RuntimeError("council down")
 
-    monkeypatch.setattr(mod, "_run_consult", boom)
+    monkeypatch.setattr(mod, "run_consult", boom)
     result = CliRunner().invoke(expert_consult, ["q", "-y"])
     assert result.exit_code == 1
     assert "Consultation failed" in result.output
@@ -103,7 +103,7 @@ def test_explicit_experts_and_budget_passed_through(monkeypatch):
         captured["budget"] = budget
         return _result()
 
-    monkeypatch.setattr(mod, "_run_consult", fake)
+    monkeypatch.setattr(mod, "run_consult", fake)
     result = CliRunner().invoke(expert_consult, ["q", "-e", "A", "-e", "B", "-b", "1.5", "--json"])
     assert result.exit_code == 0
     assert captured["experts"] == ["A", "B"]

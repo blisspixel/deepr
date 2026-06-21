@@ -1,5 +1,10 @@
 # Progress Log
 
+## 2026-06-21 — `deepr_consult_experts` MCP tool (harness-native team consultation)
+
+- **Consultation is now reachable over MCP**, so any harness (Claude Code, Cursor, ...) can consult Deepr's expert team natively - the other half of "anyone with an agentic harness can leverage Deepr." Extracted the consult core into `deepr/experts/consult.py` (`run_consult` + `build_consult_payload` + the `deepr-consult-v1` contract) so the CLI verb and the MCP tool share one code path and the MCP server never depends on the CLI layer. Added the `deepr_consult_experts` handler + ToolSchema + dispatch entry; registered its allowlist policy (SENSITIVE, metered, blocked in READ_ONLY, mirrors `query_expert`). Tool count 28 -> 29 (docs updated in README/ROADMAP/mcp/README).
+- **Maker-checker caught two real wiring gaps before merge**: the tool needed an explicit allowlist config (a test enforces *every* MCP tool declares one), and a brand-new tool must NOT get a `_LEGACY_METHOD_MAP` alias (that map is backward-compat for *renamed* tools only). Both fixed. 951 MCP + allowlist tests green; mypy --strict (mcp gate) clean; C901/S at baseline; server.py file-size cap re-baselined +63 with a justifying comment.
+
 ## 2026-06-21 — First-class `deepr expert consult` verb (consultation is native, not a script)
 
 - **Shipped the native team-consultation verb** the last several rounds pointed at: `deepr expert consult "<question>" [-e EXPERT]... [--budget] [--json]`. It routes to the relevant experts (or an explicit set), runs the bounded council, and returns one calibrated artifact - the single "knowledge transaction" from `agentic-harness-boundary.md`. No more driver scripts; any harness can call it (CLI `--json` now, MCP tool next). `--json` emits a versioned `deepr-consult-v1` payload (answer, per-expert perspectives + confidence, agreements, disagreements, cost). Failures surface (exit 1), no-experts is explicit (exit 2) - never a silent empty result.
