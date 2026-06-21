@@ -1,5 +1,14 @@
 # Progress Log
 
+## 2026-06-20 — Expert portraits, refreshed screenshots, and the expert-library-as-team vision
+
+- **Portraits, consistent + settable style**: `portrait_style()` (`DEEPR_PORTRAIT_STYLE` / `--style`, house default) so a roster shares one look; new `deepr expert portrait [--all|--missing-only]` (own module `expert_portrait.py`) generate->attach->save->ledger. Generated consistent-style portraits for all 15 experts (~$0.56).
+- **Dev portrait rendering fixed**: vite now proxies `/portraits` to the backend (was SPA-fallback -> placeholder icons; dev now matches prod).
+- **Regenerated all 10 README screenshots** from live data: the expert hub/profile show real portraits + sourced beliefs + `$0.00` spent (verified visually).
+- **Expert-library vision** (`docs/design/expert-library.md`): a roster maintained at ~$0 (local/plan), consulted by agents as a *dynamic team*; sequenced refinements - library-wide maintenance, expert routing, a `consult` team-assembly verb.
+- **Team dynamic validated live**: one cross-domain question -> 2 relevant experts -> distinct grounded perspectives (Tardigrade cellular survival; Antarctic thermoregulation), 90% confidence each.
+- **Red->green discipline**: the portrait command in the capped `experts.py` tripped the file-size ratchet, then (unmasked) the C901 ratchet; fixed by extracting to `expert_portrait.py` with module-level helpers. Recorded the full lint-job mirror in SKILLS so it doesn't recur. All CI-green; spend ~$0.65 of the $5 cap.
+
 ## 2026-06-20 — Live $0-expert validation: fixed free web search (ddgs) + benchmark path bug
 
 - **Live validation on a real machine**: `deepr capacity fleet`/`--probe` correctly saw all 7 plan CLIs + Ollama (12 models, qwen2.5-coder:32b admitted); made 5 experts for **$0.00**; auth-mode gate correctly flagged codex/claude/grok as `metered` (API keys in env).
