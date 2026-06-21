@@ -137,7 +137,7 @@ per client IP on top of authentication.
         """,
         "version": "1.0.0",
         "contact": {"name": "Deepr Support", "url": "https://github.com/deepr-ai/deepr"},
-        "license": {"name": "Apache 2.0 + Commons Clause", "url": "https://github.com/blisspixel/deepr/blob/main/LICENSE"},
+        "license": {"name": "Apache 2.0", "url": "https://www.apache.org/licenses/LICENSE-2.0"},
     },
     "basePath": "/api",
     "schemes": ["http", "https"],
