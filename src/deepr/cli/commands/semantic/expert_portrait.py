@@ -9,11 +9,51 @@ from __future__ import annotations
 
 import asyncio
 import sys
+from typing import Any
 
 import click
 
 from deepr.cli.colors import console, print_error, print_success, print_warning
 from deepr.cli.commands.semantic.experts import expert
+
+
+def _resolve_targets(store: Any, *, name: str | None, all_experts: bool, missing_only: bool) -> list[str] | None:
+    """Resolve the expert names to portray, or None after printing an error."""
+    if not name and not all_experts:
+        print_error("Specify an expert NAME or --all.")
+        return None
+
+    if all_experts:
+        targets = [e.name for e in store.list_all()]
+    elif not store.load(name):
+        print_error(f"Expert not found: {name}")
+        return None
+    else:
+        targets = [name]
+
+    if missing_only:
+        targets = [n for n in targets if not getattr(store.load(n), "portrait_url", None)]
+    return targets
+
+
+async def _run_portrait_batch(store: Any, targets: list[str], *, provider: str | None, style: str | None) -> int:
+    """Generate portraits for ``targets`` in one event loop. Returns the count done.
+
+    A single loop (vs asyncio.run per item) avoids racing the async HTTP client's
+    teardown on Windows ("Event loop is closed").
+    """
+    from deepr.experts.portraits import generate_and_save_portrait
+
+    done = 0
+    for target in targets:
+        profile = store.load(target)
+        try:
+            url = await generate_and_save_portrait(profile, store, provider=provider, style=style)
+            console.print(f"  [green]done[/green] {target}  ->  {url}")
+            done += 1
+        except Exception as e:
+            console.print(f"  [red]failed[/red] {target}: {e}")
+    return done
 
 
 @expert.command(name="portrait")
@@ -36,33 +76,16 @@ def expert_portrait(name, all_experts, missing_only, style, provider, yes):
       deepr expert portrait --all --missing-only -y
       deepr expert portrait --all --style "flat vector, muted palette" -y
     """
-    from deepr.experts.portraits import (
-        PORTRAIT_COST_ESTIMATE_USD,
-        detect_provider,
-        generate_and_save_portrait,
-        portrait_style,
-    )
+    from deepr.experts.portraits import PORTRAIT_COST_ESTIMATE_USD, detect_provider, portrait_style
     from deepr.experts.profile import ExpertStore
 
-    if not name and not all_experts:
-        print_error("Specify an expert NAME or --all.")
-        sys.exit(2)
-
     store = ExpertStore()
-    if all_experts:
-        targets = [e.name for e in store.list_all()]
-    elif not store.load(name):
-        print_error(f"Expert not found: {name}")
+    targets = _resolve_targets(store, name=name, all_experts=all_experts, missing_only=missing_only)
+    if targets is None:
         sys.exit(2)
-    else:
-        targets = [name]
-
-    if missing_only:
-        targets = [n for n in targets if not getattr(store.load(n), "portrait_url", None)]
     if not targets:
         print_success("Nothing to do - all selected experts already have portraits.")
         return
-
     if not (provider or detect_provider()):
         print_error("No image provider available. Set OPENAI_API_KEY, GEMINI_API_KEY, or XAI_API_KEY.")
         sys.exit(2)
@@ -73,20 +96,5 @@ def expert_portrait(name, all_experts, missing_only, style, provider, yes):
         print_warning("Cancelled.")
         return
 
-    async def _run_batch() -> int:
-        # One event loop for the whole batch: repeated asyncio.run() per item
-        # races the async HTTP client's teardown on Windows ("Event loop is
-        # closed"). A single loop reaps cleanly.
-        done = 0
-        for target in targets:
-            profile = store.load(target)
-            try:
-                url = await generate_and_save_portrait(profile, store, provider=provider, style=style)
-                console.print(f"  [green]done[/green] {target}  ->  {url}")
-                done += 1
-            except Exception as e:
-                console.print(f"  [red]failed[/red] {target}: {e}")
-        return done
-
-    ok = asyncio.run(_run_batch())
+    ok = asyncio.run(_run_portrait_batch(store, targets, provider=provider, style=style))
     print_success(f"Generated {ok}/{len(targets)} portrait(s). Spend ~${ok * PORTRAIT_COST_ESTIMATE_USD:.2f}.")
