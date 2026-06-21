@@ -26,7 +26,7 @@ CEILING = 1000
 GRANDFATHERED: dict[str, int] = {
     "deepr/web/app.py": 3993,  # +1: security fix (generic error responses, 2026-06-16)
     "deepr/cli/commands/semantic/experts.py": 3338,
-    "deepr/experts/chat.py": 2633,
+    "deepr/experts/chat.py": 2655,  # +22: cost-integrity fix (chat consult writes the ledger + caps, 2026-06-21)
     "deepr/experts/lazy_graph_rag.py": 2040,
     "deepr/mcp/server.py": 1937,
     "deepr/experts/beliefs.py": 1415,  # +7: security fix (expert-name path containment, 2026-06-16)
@@ -35,7 +35,7 @@ GRANDFATHERED: dict[str, int] = {
     "deepr/experts/memory.py": 1291,
     "deepr/experts/learner.py": 1287,
     "deepr/providers/registry.py": 1279,
-    "deepr/observability/costs.py": 1146,
+    "deepr/observability/costs.py": 1156,  # +10: cost-integrity fix (dashboard reads canonical ledger, 2026-06-21)
     "deepr/core/settings.py": 1120,
     "deepr/cli/commands/prep.py": 1094,
     "deepr/cli/commands/research.py": 1049,

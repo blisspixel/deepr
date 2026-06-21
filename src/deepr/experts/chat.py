@@ -1281,15 +1281,9 @@ Budget remaining: ${budget_remaining:.2f}
             return {"status": "error", "error": str(e), "new_beliefs": 0, "updated_beliefs": 0, "gaps_filled": 0}
 
     def _account_chat_cost(self, usage: Any, model: Any) -> None:
-        """Accumulate a chat completion's cost in the session AND write it to the
-        canonical cost ledger and global caps.
-
-        Conversational answer generation previously updated only the in-session
-        ``cost_accumulated`` counter, so that spend escaped both the cost ledger
-        ("every spend source writes it") and the daily/monthly caps. This routes
-        it through ``cost_safety.record_cost`` exactly like the research paths.
-        Best-effort, mirroring the ledger's no-fail write policy.
-        """
+        """Accumulate a chat completion's cost AND record it to the canonical
+        ledger + caps (best-effort). Conversational generation previously bumped
+        only the in-session counter, so that spend escaped the ledger and caps."""
         cost = _chat_token_cost(usage, getattr(model, "model", ""))
         if cost <= 0:
             return
