@@ -1,5 +1,10 @@
 # Progress Log
 
+## 2026-06-21 — Branded "Deepr Expert" portrait style + local ($0) image generation
+
+- **Branded style:** adopted a real brand identity for expert portraits (from the operator's style bible): premium vector / modern-scholar SaaS-avatar look, deep teal + indigo accents on a soft off-white gradient, confident 3/4 angle, soft cinematic rim light, a small per-domain symbolic icon subtly integrated, no logos/clutter. Replaces the generic `DEFAULT_PORTRAIT_STYLE`; still fully user-settable (`DEEPR_PORTRAIT_STYLE` env / `--style` per run).
+- **Local image generation (capability-adaptive, $0):** added a `local` provider so portraits can be generated on the user's own GPU instead of paying per image. Point `DEEPR_LOCAL_IMAGE_URL` at a local diffusion server's OpenAI-Images endpoint (ComfyUI/SwarmUI/a FLUX server with a `/v1` shim; `DEEPR_LOCAL_IMAGE_MODEL` defaults to `flux`). `detect_provider` now prefers local over metered (cheapest-first), `portrait_cost("local") == 0.0`, and the ledger + CLI confirmation reflect $0. Honest caveat documented in code: plain Ollama can't generate images (no diffusion models), so a diffusion server is required. 14 portrait tests green (5 new: local-first detection, $0 cost, local endpoint call + /v1 shim + key-not-billed). No money spent - portraits wait for the user's local FLUX endpoint.
+
 ## 2026-06-21 — Fixed the split-expert-directory bug + `deepr expert cleanup`
 
 - **Root cause of the "duplicate experts" was a directory split**: `ExpertStore` stored an expert under a slugified dir (`ai_expert/`, via `sanitize_name(name).lower()`) while `BeliefStore`/loop-runs used the raw display name (`AI Expert/`) - so every expert was split across TWO directories (profile in one, beliefs in the other), and `expert list` showed ~27 experts that looked empty while their beliefs sat elsewhere. A BeliefStore comment even *claimed* it matched ExpertStore but didn't.
