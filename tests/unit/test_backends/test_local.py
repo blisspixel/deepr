@@ -134,3 +134,37 @@ class TestDefaultModel:
 
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])
+
+
+class TestOllamaChatClientTimeout:
+    """Local generation may run for many minutes; the client must not abort it
+    at the OpenAI SDK's 600s default. (User requirement: slow local = fine.)"""
+
+    def _capture(self, monkeypatch):
+        captured = {}
+
+        class FakeAsyncOpenAI:
+            def __init__(self, **kwargs):
+                captured.update(kwargs)
+
+        import openai
+
+        monkeypatch.setattr(openai, "AsyncOpenAI", FakeAsyncOpenAI)
+        return captured
+
+    def test_default_timeout_is_generous(self, monkeypatch):
+        monkeypatch.delenv("DEEPR_LOCAL_TIMEOUT", raising=False)
+        captured = self._capture(monkeypatch)
+        local.ollama_chat_client()
+        assert captured["timeout"] == 3600.0  # not the 600s SDK default
+
+    def test_timeout_env_override(self, monkeypatch):
+        monkeypatch.setenv("DEEPR_LOCAL_TIMEOUT", "7200")
+        captured = self._capture(monkeypatch)
+        local.ollama_chat_client()
+        assert captured["timeout"] == 7200.0
+
+    def test_explicit_timeout_wins(self, monkeypatch):
+        captured = self._capture(monkeypatch)
+        local.ollama_chat_client(timeout=120.0)
+        assert captured["timeout"] == 120.0
