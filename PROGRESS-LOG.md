@@ -1,5 +1,10 @@
 # Progress Log
 
+## 2026-06-21 — Capability-adaptive setup: `deepr init` works with what you've got
+
+- **`deepr init` is no longer API-key-centric.** It claimed "Provider keys (you need at least one)" and reported "Ready" only when an API key was set - false for a user with only Ollama ($0) or only subscription CLIs. Refactored to be **capability-adaptive**: a new `_report_capacity` reuses `detect_capacity()` (the same primitive `deepr capacity` uses) to detect all three tiers - **local models / subscription CLIs / cloud API keys** - and reports readiness on *any* of them. API-key prompts reframed as optional/metered. Newly-entered keys are merged into the detection so they count immediately. Cross-platform (HTTP probe + PATH lookup). Live-verified the new three-tier "What Deepr can run on" view + "Ready - cheapest capacity available". 11 init tests green; lint/ratchets at baseline.
+- **Docs/roadmap clarified** per the "work with what you got" requirement: README setup now leads with the three capacity tiers (local/quota/metered, cheapest-first, "you need at least one - not specifically an API key"); ROADMAP gains an explicit **Capability-adaptive principle** (any OS, any combination of capacity, cost-efficient by default, no single capability required).
+
 ## 2026-06-21 — Agentic-harness boundary (dogfood-derived) + new AI Agent Harnesses expert
 
 - **Created + populated "AI Agent Harnesses" expert** (+25, API $0.048), then consulted it with Model Context Protocol + Distributed Systems Reliability on the strategic question "is Deepr an agentic harness?" - dogfooding the now-fixed consult path (3/3 real, convergent answers, $0.024 ledgered).
