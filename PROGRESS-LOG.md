@@ -1,5 +1,11 @@
 # Progress Log
 
+## 2026-06-21 — First-class `deepr expert consult` verb (consultation is native, not a script)
+
+- **Shipped the native team-consultation verb** the last several rounds pointed at: `deepr expert consult "<question>" [-e EXPERT]... [--budget] [--json]`. It routes to the relevant experts (or an explicit set), runs the bounded council, and returns one calibrated artifact - the single "knowledge transaction" from `agentic-harness-boundary.md`. No more driver scripts; any harness can call it (CLI `--json` now, MCP tool next). `--json` emits a versioned `deepr-consult-v1` payload (answer, per-expert perspectives + confidence, agreements, disagreements, cost). Failures surface (exit 1), no-experts is explicit (exit 2) - never a silent empty result.
+- **Design:** thin command in its own module (`expert_consult.py`, registered via the bottom-of-experts.py F401 pattern to respect the file-size cap); artifact shaping + async council run + render extracted to module-level helpers to hold C901. 8 CLI-layer tests (monkeypatched council, pure/$0). **Live-verified:** consulted AI Cost Optimization + Distributed Systems Reliability, got a real synthesized answer at $0.0172 (ledgered). lint/ratchets/file-size at baseline.
+- Next: the matching MCP `consult_experts` tool (the harness-native path) and capacity-aware routing of the council (so consult can run on local/quota, not only metered synthesis).
+
 ## 2026-06-21 — Capability-adaptive setup: `deepr init` works with what you've got
 
 - **`deepr init` is no longer API-key-centric.** It claimed "Provider keys (you need at least one)" and reported "Ready" only when an API key was set - false for a user with only Ollama ($0) or only subscription CLIs. Refactored to be **capability-adaptive**: a new `_report_capacity` reuses `detect_capacity()` (the same primitive `deepr capacity` uses) to detect all three tiers - **local models / subscription CLIs / cloud API keys** - and reports readiness on *any* of them. API-key prompts reframed as optional/metered. Newly-entered keys are merged into the detection so they count immediately. Cross-platform (HTTP probe + PATH lookup). Live-verified the new three-tier "What Deepr can run on" view + "Ready - cheapest capacity available". 11 init tests green; lint/ratchets at baseline.
