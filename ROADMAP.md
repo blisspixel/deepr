@@ -666,6 +666,69 @@ wall" upgrade, not a launch dependency.
 - [ ] Campaign artifacts: final synthesis + all intermediate checkpoints as auditable trail
 - [ ] `deepr expert campaign` CLI command + MCP tool + A2A skill
 
+### Phase 4d: Expert Fleet autopilot (always-fresh roster on a monthly reserve)
+
+Goal: keep the whole roster current **as a fleet** - mostly at $0 (local + free
+search + plan quota), with a monthly reserve (default ~$20) that is a pool you
+rarely touch, the host owning the schedule, and the operator able to see fleet
+health at a glance. Full design, research-grounded:
+[docs/design/expert-fleet.md](docs/design/expert-fleet.md). This is composition
+over existing parts (capacity waterfall, `ExpertLoopRun`, `CostSafetyManager`,
+per-expert `loop_runs.jsonl`, the scheduled `--scheduled` verbs); it adds **no
+always-on service** and no new datastore, per "hosts own the schedule, Deepr owns
+the verbs" and the heavy-infra non-goal.
+
+Sequenced smallest-shippable-first:
+
+- [x] **Concurrency-safe monthly reservation** (2026-06-21): the monthly cap
+      projection now counts in-flight reservations (`_reserved_monthly`,
+      symmetric with `_reserved_daily`) so N parallel callers cannot over-commit
+      a low monthly reserve - the primary over-spend path for a $20/month fleet.
+      Regression-tested in `test_cost_safety_reservations.py`.
+- [ ] **Pre-sync change-detection gate** (highest-leverage freshness-per-$0):
+      ETag/`If-Modified-Since` -> `304` skip, RSS/Atom + sitemap `lastmod` as
+      hints, content-hash of extracted main content; only a real diff reaches the
+      expensive extraction/absorb path. ~60% of refresh work finds nothing
+      changed, so this is the biggest cost saver. Lives in the existing
+      fresh-context/health-check path; $0, preserves the $0-read-side invariant.
+- [ ] **`deepr fleet status`**: cross-expert health rollup folding existing
+      per-expert `loop_runs.jsonl` (the per-expert `loop_status_rollup` and the
+      plan-quota `capacity fleet` don't cover roster-wide agent-run health; the
+      `capacity fleet` name is taken). Per expert x loop_type: last run + typed
+      stop reason, accepted/rejected changes, cost + capacity source, last
+      failure, **overdue** (`finished_at + expected_interval + grace < now`), next
+      action. `deepr-fleet-status-v1`, `--json`, non-zero exit on overdue/failed
+      (so the scheduler can run it as a watchdog), web-dashboard view. New config:
+      per-expert/verb `expected_interval` (default `interval x 3`).
+- [ ] **In-verb overlap guard + `--jitter`**: a non-blocking cross-platform
+      `filelock` keyed by `expert + verb` (Windows-primary rules out `flock`);
+      on contention exit 0 with a recorded skip. Bounded startup jitter (stable
+      per-expert offset) so a roster on one cadence doesn't thunder-herd
+      rate-limited plan-quota CLIs.
+- [ ] **`deepr fleet install-schedule`**: emit the correct **non-default** host
+      recipe - Windows Task Scheduler XML (StartWhenAvailable, run-whether-logged-
+      on, uncheck AC-only/stop-on-battery, WakeToRun, do-not-start-new-instance),
+      crontab line, systemd `.timer` (`Persistent=true`, `RandomizedDelaySec`,
+      `WakeSystem`). Design for **catch-up, not punctuality** (Win11 Modern
+      Standby cannot guarantee exact-time wake; verbs are delta-driven and
+      idempotent, so a missed run catches up safely).
+- [ ] **Library-wide maintenance** (`expert sync-all`, see expert-library.md):
+      one roll-up `ExpertLoopRun` over due experts through the waterfall,
+      per-expert budgets, skip-not-fail.
+- [ ] **Budget degradation tiers + targeted-spend gate**: drive behavior off
+      `monthly_remaining` - NORMAL (<70%) / CONSERVE (70-90%, metered only for
+      urgent/high-value, defer the rest) / LOCAL-ONLY (90-100%, metered hard-off,
+      local still $0) / PAUSE-METERED (>=100%, resumable pause, never fail).
+      Metered spend (only after the waterfall) must clear a value-of-spend gate:
+      `gap_closure x value x urgency x volatility > cost_multiple x est_cost`,
+      with the hurdle rising as the pool drains; decision ledgered. Additive over
+      the existing `is_pausable_limit`/`get_resume_message` machinery.
+- [ ] **Hardening**: reservation TTL/sweeper (a leaked reservation permanently
+      shrinks a tight pool until restart) and an optional **off-box heartbeat** to
+      a free dead-man's-switch (healthchecks.io / Dead Man's Snitch) on scheduled-
+      verb success - the only thing that catches "the laptop never woke up." No
+      same-host monitor (it dies with the jobs).
+
 ### Phase 5: Operations, Team, and Security Hardening
 
 Goal: production posture for multi-user and autonomous deployments.
