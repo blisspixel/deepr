@@ -20,53 +20,11 @@ import click
 from deepr.cli.colors import console, print_error, print_warning
 from deepr.cli.commands.semantic.experts import expert
 
-CONSULT_SCHEMA_VERSION = "deepr-consult-v1"
-CONSULT_KIND = "deepr.expert.consult"
-MAX_CONSULT_EXPERTS = 5
+# Shared core (also used by the deepr_consult_experts MCP tool). Re-exported so
+# existing importers/tests keep working.
+from deepr.experts.consult import build_consult_payload, run_consult
 
-
-def build_consult_payload(question: str, result: dict[str, Any]) -> dict[str, Any]:
-    """Shape the council result into the versioned consult artifact.
-
-    The "knowledge transaction" contract a harness consumes: the synthesized
-    answer, each contributing expert's calibrated perspective, the points of
-    agreement/dissent, and the cost. Read-mostly (it may write the consulted
-    experts' usage), single-shot, and safe to render or machine-parse.
-    """
-    perspectives = result.get("perspectives", []) or []
-    cost = round(float(result.get("total_cost", 0.0) or 0.0), 4)
-    return {
-        "schema_version": CONSULT_SCHEMA_VERSION,
-        "kind": CONSULT_KIND,
-        "contract": {"stability": "experimental", "cost_usd": cost},
-        "question": question,
-        "answer": result.get("synthesis", "") or "",
-        "experts_consulted": [p.get("expert_name", "") for p in perspectives],
-        "perspectives": [
-            {
-                "expert": p.get("expert_name", ""),
-                "domain": p.get("domain", "") or "",
-                "confidence": round(float(p.get("confidence", 0.0) or 0.0), 3),
-                "response": p.get("response", "") or "",
-            }
-            for p in perspectives
-        ],
-        "agreements": list(result.get("agreements", []) or []),
-        "disagreements": list(result.get("disagreements", []) or []),
-        "cost_usd": cost,
-    }
-
-
-async def _run_consult(question: str, experts: list[str], max_experts: int, budget: float) -> dict[str, Any]:
-    """Resolve experts (explicit or auto-selected) and run one bounded council."""
-    from deepr.experts.council import ExpertCouncil
-
-    council = ExpertCouncil()
-    if experts:
-        chosen: list[dict[str, str]] = [{"name": name, "domain": ""} for name in experts]
-    else:
-        chosen = await council.select_experts(question, max_experts=min(max_experts, MAX_CONSULT_EXPERTS))
-    return await council.consult(question, experts=chosen, budget=budget)
+__all__ = ["build_consult_payload", "expert_consult", "run_consult"]
 
 
 def _render(payload: dict[str, Any]) -> None:
@@ -118,7 +76,7 @@ def expert_consult(question, experts, max_experts, budget, json_output, yes):
         return
 
     try:
-        result = asyncio.run(_run_consult(question, list(experts), max_experts, budget))
+        result = asyncio.run(run_consult(question, list(experts), max_experts, budget))
     except Exception as e:  # surface the failure honestly; never a silent empty result
         print_error(f"Consultation failed: {e}")
         sys.exit(1)

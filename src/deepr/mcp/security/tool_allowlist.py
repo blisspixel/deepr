@@ -287,6 +287,14 @@ class ToolAllowlist:
             blocked_in={ResearchMode.READ_ONLY},
             metadata={REMOTE_METERED_SPEND_METADATA_KEY: True},
         ),
+        "deepr_consult_experts": ToolConfig(
+            name="deepr_consult_experts",
+            category=ToolCategory.SENSITIVE,
+            description="Consult a team of experts and synthesize one calibrated answer",
+            requires_confirmation_in={ResearchMode.STANDARD, ResearchMode.EXTENDED},
+            blocked_in={ResearchMode.READ_ONLY},
+            metadata={REMOTE_METERED_SPEND_METADATA_KEY: True},
+        ),
         # Cost-incurring writes: paid provider calls and state changes.
         "deepr_research": ToolConfig(
             name="deepr_research",
