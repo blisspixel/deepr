@@ -59,6 +59,8 @@ The kernel is designed to be embeddable in other agent projects. The primitives 
 
 **Interoperability model:** Deepr is built to be one role on a larger agent team, not the orchestrator. Experts produce structured, handoff-ready artifacts (reports with citations, belief states, gap backlogs) that downstream agents can consume directly. An external orchestrator assigns work to a Deepr expert the same way it would assign work to any other role - via MCP tool calls with budget contracts and trace IDs that stitch across agent boundaries. This means Deepr doesn't need to know about the full workflow; it just needs to do its job well and hand off cleanly.
 
+**Capability-adaptive principle:** Deepr must work for anyone, on any OS (Windows/macOS/Linux), with whatever capacity they have - a local Ollama model (`$0`), subscription CLIs they already pay for (prepaid quota), and/or cloud API keys (metered) - and it routes **cheapest-first** (local -> plan-quota -> metered). No single capability is required: a user with only Ollama, only a Claude subscription, or only an API key must all be first-class. `deepr init` detects what's present across all three tiers and reports readiness on *any* of them (not just an API key); `deepr capacity` shows what will actually run. Cost-efficiency is the default, not a mode.
+
 ---
 
 ## Current Status (v2.19.0)
