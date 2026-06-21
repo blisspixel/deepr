@@ -23,13 +23,21 @@ Usage:
 import json
 import logging
 import math
+import re
 from dataclasses import dataclass, field
 from datetime import UTC, datetime, timedelta
 from enum import Enum
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
+from urllib.parse import urlparse
 
 logger = logging.getLogger(__name__)
+
+# A source *identifier* is a compact token (URL or namespaced id like
+# ``report:<id>`` / ``doc_001``) with no whitespace. Free-text evidence
+# excerpts (report quotes - which always contain spaces) are grounding, not
+# independent origins, so they must not count toward source independence.
+_URL_SCHEME_RE = re.compile(r"^[a-z][a-z0-9+.\-]*://", re.IGNORECASE)
 
 if TYPE_CHECKING:
     from deepr.core.contracts import Claim
@@ -114,11 +122,36 @@ class Belief:
           ingestion-time prompt injection)
         - tertiary, two+ independent sources: 0.80
         - secondary/primary: uncapped (1.0)
+
+        Independence counts distinct source *identifiers* (URLs by host, so a
+        syndicated origin counts once; namespaced ids like ``report:<id>``),
+        never free-text quote excerpts - absorb stores ``[f"report:{id}",
+        *quotes]`` and the quotes ground one source, not new origins. Counting
+        them would falsely lift a single-source belief to 0.80. Deterministic
+        (a safety floor no model can lift) and fails safe toward 0.60.
         """
         if self.trust_class in ("primary", "secondary"):
             return 1.0
-        independent_sources = len(set(self.evidence_refs))
-        return 0.80 if independent_sources >= 2 else 0.60
+        return 0.80 if self._independent_source_count() >= 2 else 0.60
+
+    def _independent_source_count(self) -> int:
+        """Distinct independent source identifiers among ``evidence_refs``.
+
+        Form-only and conservative: free-text excerpts (any ref containing
+        whitespace - i.e. a quote) are skipped; URLs collapse to their host so
+        the same origin counts once; remaining compact ids count by value.
+        """
+        keys: set[str] = set()
+        for ref in self.evidence_refs:
+            token = str(ref).strip()
+            if not token or any(ch.isspace() for ch in token):
+                continue  # a quote excerpt grounds one source; it is not a new origin
+            if _URL_SCHEME_RE.match(token):
+                host = (urlparse(token).netloc or "").lower().removeprefix("www.")
+                keys.add(f"url:{host}" if host else token.lower())
+            else:
+                keys.add(token.lower())
+        return len(keys)
 
     def get_current_confidence(self) -> float:
         """Get confidence with decay and the source-trust ceiling applied.

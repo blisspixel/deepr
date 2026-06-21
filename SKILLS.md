@@ -17,6 +17,11 @@ This file captures repo-specific operating lessons from autonomous work cycles.
 - Driving a chat seam from raw `python -c` on Windows hits cp1252 emoji crashes (the CLI sets UTF-8 at entry). Use `PYTHONUTF8=1` for ad-hoc scripts.
 - The web dev server (vite) must proxy `/portraits` (and any backend static route) or `<img>` tags get the SPA index.html (200, wrong type) and fall back silently. Dev must mirror the prod static routes.
 
+## Source-trust floor: count identifiers, not quotes (and keep it deterministic)
+
+- The tertiary ceiling 0.60->0.80 hinges on "2+ independent sources". `evidence_refs` from absorb is `[f"report:{id}", *quote_excerpts]`, so a naive `len(set(evidence_refs))` counts the report pointer + each quote as separate sources -> systematic inflation to 0.80 for one source. Count distinct source **identifiers** only (`_independent_source_count`): URLs by host (syndication counts once), namespaced ids by value, and **skip any ref containing whitespace** (that's a quote excerpt grounding one source, not a new origin).
+- A trust floor MUST be deterministic form, never a model verdict: it's the prompt-injection backstop, and a model could be injected to claim "independent corroboration" to lift it. Determinism-on-form here is correct AGENTIC_BALANCE, not a violation. Make it **fail safe toward the lower ceiling** (ambiguity lowers confidence; it must never lift or add/remove beliefs).
+
 ## Belief confidence: always surface the floored effective value
 
 - A belief stores the extractor's *raw* `confidence` (often 1.0 from a local model), but the trusted value is `belief.get_current_confidence()` - decay x source-trust ceiling (tertiary single-source 0.60, tertiary 2+ 0.80, secondary/primary uncapped). **Every host-facing or human-facing surface that shows confidence MUST call `get_current_confidence()`, never the raw `confidence` field or a change-record's `new_confidence`.** Dogfooding caught `perspective.what_changed` (CLI `what-changed` + MCP `deepr_what_changed`) rendering raw 1.00 on web-sourced beliefs while digest/okf/why/health-check all correctly floored - an agent re-syncing would over-trust. The trust-floor invariant is only real if no surface bypasses it.
