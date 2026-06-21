@@ -770,6 +770,24 @@ def sync_cmd(
             print_warning(f"Contested beliefs recorded. Review: deepr expert contested '{name}'")
 
 
+def _emit_absorb_result(result, name: str, json_output: bool) -> None:
+    """Render an absorption result as JSON or a human summary (shared by learn-web)."""
+    if json_output:
+        import json as _json
+
+        click.echo(_json.dumps(result.to_dict(), indent=2))
+        return
+    if result.dry_run:
+        console.print("[yellow]DRY RUN[/yellow] - nothing written")
+    console.print(
+        f"Candidates: {result.total_candidates}  Absorbed: {len(result.absorbed)} "
+        f"(added {result.added_count}, merged {result.merged_count})  Rejected: {len(result.rejected)}"
+    )
+    for a in result.absorbed:
+        print_list_item(f"{a.statement}  [dim](conf {a.confidence:.2f}, {a.outcome})[/dim]")
+    console.print(f"\nAudit anytime: deepr expert health-check '{name}'")
+
+
 @expert.command(name="learn-web")
 @click.argument("name")
 @click.argument("topic")
@@ -853,18 +871,4 @@ def learn_web(name, topic, model, num_results, max_pages, min_confidence, save_p
         profile.last_knowledge_refresh = datetime.now(UTC)
         store.save(profile)
 
-    if json_output:
-        import json as _json
-
-        click.echo(_json.dumps(result.to_dict(), indent=2))
-        return
-
-    if result.dry_run:
-        console.print("[yellow]DRY RUN[/yellow] - nothing written")
-    console.print(
-        f"Candidates: {result.total_candidates}  Absorbed: {len(result.absorbed)} "
-        f"(added {result.added_count}, merged {result.merged_count})  Rejected: {len(result.rejected)}"
-    )
-    for a in result.absorbed:
-        print_list_item(f"{a.statement}  [dim](conf {a.confidence:.2f}, {a.outcome})[/dim]")
-    console.print(f"\nAudit anytime: deepr expert health-check '{name}'")
+    _emit_absorb_result(result, name, json_output)
