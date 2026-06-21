@@ -815,6 +815,28 @@ class CostDashboard:
         """
         return self.aggregator._filter_by_date(start_date, end_date)
 
+    def _entries_from_ledger(self) -> list[CostEntry]:
+        """Materialize ``CostEntry`` objects from the canonical ledger.
+
+        The append-only ledger is the source of truth; this projects its events
+        into the dashboard's entry shape. Used by both ``_load`` (so reads always
+        reflect the ledger) and ``rebuild_from_ledger`` (to repair the cache).
+        """
+        return [
+            CostEntry(
+                timestamp=ev.timestamp,
+                operation=ev.operation,
+                provider=ev.provider,
+                model=ev.model,
+                cost=ev.cost_usd,
+                tokens_input=ev.tokens_input,
+                tokens_output=ev.tokens_output,
+                task_id=ev.task_id,
+                metadata={"source": ev.source, **(ev.metadata or {})},
+            )
+            for ev in self.ledger.get_events()
+        ]
+
     def rebuild_from_ledger(self) -> int:
         """Rebuild dashboard entries from the canonical cost ledger.
 
@@ -826,23 +848,10 @@ class CostDashboard:
         Returns:
             Number of entries in the rebuilt view.
         """
-        events = self.ledger.get_events()
+        entries = self._entries_from_ledger()
+        entries.sort(key=lambda e: e.timestamp)
         self.entries.clear()
-        for ev in events:
-            self.entries.append(
-                CostEntry(
-                    timestamp=ev.timestamp,
-                    operation=ev.operation,
-                    provider=ev.provider,
-                    model=ev.model,
-                    cost=ev.cost_usd,
-                    tokens_input=ev.tokens_input,
-                    tokens_output=ev.tokens_output,
-                    task_id=ev.task_id,
-                    metadata={"source": ev.source, **(ev.metadata or {})},
-                )
-            )
-        self.entries.sort(key=lambda e: e.timestamp)
+        self.entries.extend(entries)
         self.aggregator = CostAggregator(self.entries)
         self._save()
         return len(self.entries)
@@ -879,16 +888,47 @@ class CostDashboard:
         except OSError as e:
             logger.debug(f"Failed to save cost data: {e}")
 
+    def _load_cache_state(self, data: dict[str, Any]) -> None:
+        """Load dashboard-owned state (triggered alerts, user-set limits) from
+        the derived ``cost_log.json``. Entries are NOT loaded here - they come
+        from the canonical ledger in ``_load``."""
+        self.alert_manager.triggered_alerts = [
+            CostAlert(
+                level=a["level"],
+                threshold=a["threshold"],
+                current_value=a["current_value"],
+                limit=a["limit"],
+                period=a["period"],
+                triggered_at=datetime.fromisoformat(a["triggered_at"]),
+            )
+            for a in data.get("alerts", [])
+        ]
+        for attr in ("daily_limit", "monthly_limit"):
+            if attr in data:
+                try:
+                    setattr(self, attr, float(data[attr]))
+                except (TypeError, ValueError):
+                    pass
+
     def _load(self):
-        """Load entries from disk.
+        """Load dashboard state.
 
-        Logs errors and starts fresh if loading fails, rather than
-        silently ignoring corruption.
+        Entries come from the canonical cost ledger (the append-only source of
+        truth) so the dashboard reflects ALL spend - including the recorders
+        (``cost_safety.record_cost``, the research pipeline, ...) that write the
+        ledger directly and bypass the dashboard. The derived ``cost_log.json``
+        supplies only dashboard-owned state (triggered alerts, user-set limits),
+        plus a legacy entry fallback for installs that predate the ledger.
 
-        Note:
-            After loading, the aggregator is reinitialized to reference
-            the newly loaded entries list.
+        Logs errors and starts fresh if loading fails, rather than silently
+        ignoring corruption.
         """
+        ledger_entries = self._entries_from_ledger()
+        if ledger_entries:
+            ledger_entries.sort(key=lambda e: e.timestamp)
+            self.entries = ledger_entries
+            self.aggregator = CostAggregator(self.entries)
+
         if not self.storage_path.exists():
             return
 
@@ -896,38 +936,12 @@ class CostDashboard:
             with open(self.storage_path, encoding="utf-8") as f:
                 data = json.load(f)
 
-            self.entries = [CostEntry.from_dict(e) for e in data.get("entries", [])]
+            if not ledger_entries:
+                # No ledger yet (legacy install): fall back to the cached view.
+                self.entries = [CostEntry.from_dict(e) for e in data.get("entries", [])]
+                self.aggregator = CostAggregator(self.entries)
 
-            # Reinitialize aggregator with loaded entries
-            self.aggregator = CostAggregator(self.entries)
-
-            # Load alerts into the alert manager
-            loaded_alerts = []
-            for alert_data in data.get("alerts", []):
-                loaded_alerts.append(
-                    CostAlert(
-                        level=alert_data["level"],
-                        threshold=alert_data["threshold"],
-                        current_value=alert_data["current_value"],
-                        limit=alert_data["limit"],
-                        period=alert_data["period"],
-                        triggered_at=datetime.fromisoformat(alert_data["triggered_at"]),
-                    )
-                )
-            self.alert_manager.triggered_alerts = loaded_alerts
-
-            # Restore user-set spending limits if present in the file.
-            if "daily_limit" in data:
-                try:
-                    self.daily_limit = float(data["daily_limit"])
-                except (TypeError, ValueError):
-                    pass
-            if "monthly_limit" in data:
-                try:
-                    self.monthly_limit = float(data["monthly_limit"])
-                except (TypeError, ValueError):
-                    pass
-
+            self._load_cache_state(data)
             logger.debug(
                 f"Loaded {len(self.entries)} cost entries and {len(self.alert_manager.triggered_alerts)} alerts"
             )
