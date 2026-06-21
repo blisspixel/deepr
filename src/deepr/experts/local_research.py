@@ -24,6 +24,7 @@ unit-testable without network or a model.
 
 from __future__ import annotations
 
+import contextlib
 from typing import Any, Protocol
 
 DEFAULT_NUM_RESULTS = 8
@@ -100,15 +101,13 @@ async def gather_sources(
             continue
         text = (item.get("snippet") or "").strip()
         if pages_fetched < max_pages:
-            try:
+            # Blocked/unreachable page: keep the snippet, keep going.
+            with contextlib.suppress(Exception):
                 page = await browser.fetch_page(url)
                 page_text = (getattr(page, "text", "") or "").strip()
                 if len(page_text) > len(text):
                     text = page_text[:_PAGE_CHARS]
                     pages_fetched += 1
-            except Exception:
-                # Blocked/unreachable page: keep the snippet, keep going.
-                pass
         if text:
             sources.append({"title": (item.get("title") or url).strip(), "url": url, "text": text})
     return sources
