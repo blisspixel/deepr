@@ -1322,35 +1322,37 @@ def subscriptions_cmd(name: str, remove_topic: str | None, json_output: bool):
 
 @expert.command(name="delete")
 @click.argument("name")
+@click.option("--purge", is_flag=True, help="Hard delete without archiving (irreversible).")
 @click.option("--yes", "-y", is_flag=True, help="Skip confirmation")
-def delete_expert(name: str, yes: bool):
-    """Delete an expert and optionally its knowledge base."""
+def delete_expert(name: str, purge: bool, yes: bool):
+    """Delete an expert. By default its whole directory is archived (compressed
+    to a gitignored archive folder) before removal so it can be restored;
+    --purge skips the archive and deletes outright."""
+    from deepr.cli.commands.semantic.expert_cleanup import archive_expert
+    from deepr.experts.paths import canonical_expert_dir
     from deepr.experts.profile import ExpertStore
 
     store = ExpertStore()
     profile = store.load(name)
-
     if not profile:
-        click.echo(f"Error: Expert not found: {name}")
+        print_error(f"Expert not found: {name}")
         return
 
-    click.echo(f"\nExpert: {profile.name}")
-    click.echo(f"Knowledge Base: {profile.vector_store_id}")
-    click.echo(f"Documents: {profile.total_documents}")
+    action = "Delete" if purge else "Archive and delete"
+    if not yes and not click.confirm(f"{action} expert '{profile.name}'?"):
+        click.echo("Cancelled")
+        return
 
-    if not yes:
-        click.echo("\nThis will delete the expert profile.")
-        click.echo("Knowledge base (vector store) will remain and must be deleted separately.")
-        if not click.confirm("\nDelete expert?"):
-            click.echo("Cancelled")
-            return
+    if not purge and canonical_expert_dir(name).exists():
+        console.print(f"[dim]Archived to {archive_expert(name)}[/dim]")
 
-    if store.delete(name):
-        print_success(f"Expert deleted: {name}")
-        click.echo("\nTo delete the knowledge base:")
-        click.echo(f"  deepr knowledge delete {profile.vector_store_id}")
+    if store.delete(name, remove_directory=True):
+        print_success(f"Expert {'deleted' if purge else 'archived and deleted'}: {name}")
+        vsid = getattr(profile, "vector_store_id", "")
+        if vsid and not str(vsid).startswith("local"):
+            console.print(f"Knowledge base (vector store) remains; delete with: deepr knowledge delete {vsid}")
     else:
-        click.echo("\nError: Failed to delete expert")
+        print_error("Failed to delete expert")
 
 
 @expert.command(name="learn")
