@@ -7,7 +7,7 @@ name = "deepr-research"
 version = "2.19.0"
 description = "Research automation platform that replicates human research team workflows using AI"
 readme = "README.md"
-license = {text = "Apache-2.0 WITH Commons-Clause"}
+license = {text = "Apache-2.0"}
 authors = [
     {name = "Nick Seal", email = "nick@pueo.io"}
 ]

@@ -1296,4 +1296,4 @@ that does not gate the contract.
 
 **Questions?** Open a [GitHub Discussion](https://github.com/blisspixel/deepr/discussions) or check the [documentation](docs/).
 
-[Apache 2.0 + Commons Clause](LICENSE) · [GitHub](https://github.com/blisspixel/deepr)
+[Apache 2.0](LICENSE) · [GitHub](https://github.com/blisspixel/deepr)
