@@ -17,6 +17,7 @@ from __future__ import annotations
 import json
 import shutil
 import sys
+import tarfile
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from pathlib import Path
@@ -25,7 +26,32 @@ import click
 
 from deepr.cli.colors import console, print_success, print_warning
 from deepr.cli.commands.semantic.experts import expert
-from deepr.experts.paths import expert_slug
+from deepr.experts.paths import canonical_expert_dir, expert_slug
+
+
+def archive_dir() -> Path:
+    """The gitignored folder where deleted experts are archived (a sibling of
+    the experts root, so it is never mistaken for an expert; under ``data/`` and
+    thus gitignored)."""
+    from deepr.config import experts_root
+
+    return experts_root().parent / "expert-archive"
+
+
+def archive_expert(name: str) -> Path:
+    """Compress an expert's directory into the archive folder and return the path.
+
+    Does not delete the live directory - the caller removes it after a
+    successful archive (so a failed archive never loses data).
+    """
+    src = canonical_expert_dir(name)
+    dest_dir = archive_dir()
+    dest_dir.mkdir(parents=True, exist_ok=True)
+    stamp = datetime.now(UTC).strftime("%Y%m%dT%H%M%SZ")
+    dest = dest_dir / f"{expert_slug(name)}-{stamp}.tar.gz"
+    with tarfile.open(dest, "w:gz") as tar:
+        tar.add(src, arcname=src.name)
+    return dest
 
 
 @dataclass

@@ -73,6 +73,31 @@ def test_apply_merges_and_deletes(tmp_path, monkeypatch):
     assert any(p.name.startswith(f"{tmp_path.name}.backup-") for p in tmp_path.parent.iterdir())
 
 
+def test_archive_expert_tars_to_gitignored_sibling(tmp_path, monkeypatch):
+    import tarfile
+
+    import deepr.config as cfg
+
+    monkeypatch.setattr(cfg, "experts_root", lambda: tmp_path / "experts")
+    # An expert dir at the canonical (slug) path with a profile + a belief file.
+    _write(tmp_path / "experts" / "my_expert" / "profile.json", {"name": "My Expert"})
+    _write(tmp_path / "experts" / "my_expert" / "beliefs" / "beliefs.json", {"beliefs": {"b1": {}}})
+
+    from deepr.cli.commands.semantic.expert_cleanup import archive_expert
+
+    dest = archive_expert("My Expert")
+
+    assert dest.exists() and dest.name.endswith(".tar.gz")
+    # Archived to a sibling of the experts root (under data/, gitignored).
+    assert dest.parent == tmp_path / "expert-archive"
+    with tarfile.open(dest) as tar:
+        names = tar.getnames()
+    assert any(n.endswith("profile.json") for n in names)
+    assert any(n.endswith("beliefs.json") for n in names)
+    # Archiving does not remove the live dir (the caller does, after success).
+    assert (tmp_path / "experts" / "my_expert" / "profile.json").exists()
+
+
 def test_dry_run_changes_nothing(tmp_path, monkeypatch):
     import deepr.config as cfg
 
