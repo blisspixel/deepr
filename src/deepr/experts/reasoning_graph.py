@@ -499,34 +499,30 @@ class ReasoningGraph:
         else:
             num_hypotheses = 1
 
-        # Try to generate hypotheses with LLM if available
+        # Generate hypotheses with the LLM. There is deliberately NO synthetic
+        # fallback: fabricating "Hypothesis N for: <query>" placeholders at high
+        # confidence let an absent/failed model surface as a confident answer
+        # (a silent-degradation bug - it produced garbage council perspectives).
+        # When generation yields nothing we stay degraded and let _synthesize
+        # emit an honest "Unable to generate a confident answer." instead.
         if self.llm_client:
             hypotheses_data = await self._generate_hypotheses_with_llm(state.query, state.context, num_hypotheses)
-
-            if hypotheses_data:
-                for h_data in hypotheses_data.get("hypotheses", []):
-                    hypothesis = Hypothesis(
+            for h_data in (hypotheses_data or {}).get("hypotheses", []):
+                text = str(h_data.get("text", "")).strip()
+                if not text:
+                    continue  # a blank hypothesis is not content
+                state.hypotheses.append(
+                    Hypothesis(
                         id=h_data.get("id", f"h_{len(state.hypotheses) + 1}"),
-                        text=h_data.get("text", ""),
+                        text=text,
                         confidence=h_data.get("confidence", 0.5),
                         evidence=h_data.get("evidence", []),
                     )
-                    state.hypotheses.append(hypothesis)
-            else:
-                # LLM generation failed, mark as degraded
-                state.is_degraded = True
-                self._emit_thought(ThoughtType.ERROR, "Hypothesis generation failed, using fallback")
-
-        # Fallback: generate placeholder hypotheses if none created
-        if not state.hypotheses:
-            for i in range(num_hypotheses):
-                hypothesis = Hypothesis(
-                    id=f"h_{i + 1}",
-                    text=f"Hypothesis {i + 1} for: {state.query[:50]}...",
-                    confidence=0.7 - (i * 0.1),  # Decreasing confidence
-                    evidence=[],
                 )
-                state.hypotheses.append(hypothesis)
+
+        if not state.hypotheses:
+            state.is_degraded = True
+            self._emit_thought(ThoughtType.ERROR, "Hypothesis generation unavailable; degrading honestly")
 
         state.add_trace(
             "generate_hypotheses", "hypotheses_created", {"count": len(state.hypotheses), "degraded": state.is_degraded}
