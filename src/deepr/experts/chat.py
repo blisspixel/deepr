@@ -1280,6 +1280,34 @@ Budget remaining: ${budget_remaining:.2f}
             )
             return {"status": "error", "error": str(e), "new_beliefs": 0, "updated_beliefs": 0, "gaps_filled": 0}
 
+    def _account_chat_cost(self, usage: Any, model: Any) -> None:
+        """Accumulate a chat completion's cost in the session AND write it to the
+        canonical cost ledger and global caps.
+
+        Conversational answer generation previously updated only the in-session
+        ``cost_accumulated`` counter, so that spend escaped both the cost ledger
+        ("every spend source writes it") and the daily/monthly caps. This routes
+        it through ``cost_safety.record_cost`` exactly like the research paths.
+        Best-effort, mirroring the ledger's no-fail write policy.
+        """
+        cost = _chat_token_cost(usage, getattr(model, "model", ""))
+        if cost <= 0:
+            return
+        self.cost_accumulated += cost
+        try:
+            self.cost_safety.record_cost(
+                session_id=self.session_id,
+                operation_type="expert_chat",
+                actual_cost=cost,
+                provider=getattr(model, "provider", "unknown"),
+                model=getattr(model, "model", ""),
+                tokens_input=getattr(usage, "prompt_tokens", 0) or 0,
+                tokens_output=getattr(usage, "completion_tokens", 0) or 0,
+                source="experts.chat",
+            )
+        except Exception:
+            logger.debug("Chat cost ledger write failed", exc_info=True)
+
     async def send_message(self, user_message: str, status_callback=None) -> str:
         """Send a message to the expert and get a response using GPT-5 + tool calling.
 
@@ -1818,14 +1846,14 @@ Budget remaining: ${budget_remaining:.2f}
 
                 # Track costs using the selected model's registry pricing
                 # rather than hard-coded GPT-5 rates.
-                self.cost_accumulated += _chat_token_cost(next_response.usage, selected_model.model)
+                self._account_chat_cost(next_response.usage, selected_model)
 
             # Get final message
             final_message = current_message.content
 
             # Track initial call costs using registry pricing for the
             # selected model (handles gpt-5.2's $1.75/$14 per-1M rates).
-            self.cost_accumulated += _chat_token_cost(first_response.usage, selected_model.model)
+            self._account_chat_cost(first_response.usage, selected_model)
 
             # Detect uncertainty in final response and track knowledge gaps
             if self.metacognition and final_message:
@@ -2275,7 +2303,7 @@ Budget remaining: ${budget_remaining:.2f}
                 next_response = await self.client.chat.completions.create(**api_params_next)
                 current_message = next_response.choices[0].message
 
-                self.cost_accumulated += _chat_token_cost(next_response.usage, selected_model.model)
+                self._account_chat_cost(next_response.usage, selected_model)
 
             # --- Final response: stream it ---
             if current_message.content is not None:
@@ -2307,7 +2335,7 @@ Budget remaining: ${budget_remaining:.2f}
 
             # Track initial call costs using registry pricing for the
             # selected model.
-            self.cost_accumulated += _chat_token_cost(first_response.usage, selected_model.model)
+            self._account_chat_cost(first_response.usage, selected_model)
 
             # Add to history
             self.messages.append({"role": "assistant", "content": final_message})
