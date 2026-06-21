@@ -148,9 +148,7 @@ async def research_web_local(
     if not model:
         return {"answer": "", "sources": [], "cost": 0.0, "error": "no local model available"}
 
-    sources = await gather_sources(
-        topic, search=search, browser=browser, num_results=num_results, max_pages=max_pages
-    )
+    sources = await gather_sources(topic, search=search, browser=browser, num_results=num_results, max_pages=max_pages)
     if not sources:
         return {"answer": "", "sources": [], "cost": 0.0, "error": "no web results for topic"}
 
