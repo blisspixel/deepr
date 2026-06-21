@@ -17,6 +17,12 @@ This file captures repo-specific operating lessons from autonomous work cycles.
 - Driving a chat seam from raw `python -c` on Windows hits cp1252 emoji crashes (the CLI sets UTF-8 at entry). Use `PYTHONUTF8=1` for ad-hoc scripts.
 - The web dev server (vite) must proxy `/portraits` (and any backend static route) or `<img>` tags get the SPA index.html (200, wrong type) and fall back silently. Dev must mirror the prod static routes.
 
+## Budget / cost-safety invariants
+
+- The reserve-then-settle pattern in `CostSafetyManager.check_and_reserve` only prevents over-commit if the cap *projection* counts in-flight reservations. Every cap (daily AND monthly) needs its own `_reserved_*` pool included in the projection, incremented on reserve, released on both settle (`record_cost`) and `refund_reservation`, all under the one `_budget_lock`. Asymmetry is a real bug: the monthly projection omitted reservations while daily included them, so a *low monthly* reserve (the $20/month fleet) over-committed under parallelism even though daily looked fine. When you touch one cap's reservation accounting, mirror it in the other.
+- Test the concurrency guard by making the *other* cap roomy and the cap-under-test binding (e.g. `max_daily=100, max_monthly=5`), then assert the second parallel `check_and_reserve` is rejected and names the right limit. Same shape for daily.
+- `cost_safety.py` sits right at the 1000-line file-size ceiling. Necessary functional lines win; claw back the budget by tightening prose/docstrings, NOT by splitting the file for tidiness (STOP-banner: low-value churn). A net +1 line trips the BLOCKING ratchet.
+
 ## Plan-quota CLI backends
 
 - Run the value-prop honesty test before building any "plan capacity" CLI: is the next headless call free at the margin on a flat subscription, or metered per use? A metered CLI (Copilot post-2026-06-01) is the API in a costume — `enabled_by_default=False`, never marketed as free. The check belongs in the adapter spec, not in prose.
