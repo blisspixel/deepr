@@ -15,7 +15,6 @@ from enum import Enum
 from pathlib import Path
 from typing import Any
 
-from deepr.config import experts_root
 from deepr.utils.atomic_io import append_jsonl_durable
 
 LOOP_RUN_SCHEMA_VERSION = 1
@@ -83,7 +82,13 @@ LOOP_STATUS_STOP_REASONS = {
 
 
 def loop_runs_path(expert_name: str, path: Path | None = None) -> Path:
-    return path or experts_root() / expert_name / "loop_runs.jsonl"
+    if path is not None:
+        return path
+    from deepr.experts.paths import canonical_expert_dir
+
+    # Same canonical (slug) directory as profile + beliefs, so loop runs are not
+    # orphaned in a separate display-named dir.
+    return canonical_expert_dir(expert_name) / "loop_runs.jsonl"
 
 
 def new_loop_run_id() -> str:

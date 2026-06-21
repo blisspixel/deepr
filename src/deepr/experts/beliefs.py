@@ -463,19 +463,15 @@ class BeliefStore:
         self.conflict_resolution = conflict_resolution
 
         if storage_dir is None:
-            from deepr.config import experts_root
+            # Resolve through the one canonical resolver so beliefs land in the
+            # SAME directory as the rest of the expert's state (profile, loop
+            # runs, subscriptions). It slugifies + containment-checks the name,
+            # so untrusted MCP args like ``../python_expert`` cannot escape the
+            # experts root. (Previously this used the raw name and split one
+            # expert across two directories - the bug `expert cleanup` repairs.)
+            from deepr.experts.paths import canonical_expert_dir
 
-            # BeliefStore is constructed directly from untrusted MCP tool args,
-            # so containment-check the expert name before using it as a path
-            # component: a value like ``../python_expert`` must not build a path
-            # outside the experts root. The raw name is preserved (expert names
-            # legitimately contain spaces and punctuation), so beliefs land
-            # beside the rest of the expert's state, matching ExpertStore.
-            root = experts_root()
-            storage_dir = root / expert_name / "beliefs"
-            resolved, root_resolved = storage_dir.resolve(), root.resolve()
-            if root_resolved != resolved and root_resolved not in resolved.parents:
-                raise ValueError(f"expert name {expert_name!r} resolves outside the experts root")
+            storage_dir = canonical_expert_dir(expert_name) / "beliefs"
         self.storage_dir = storage_dir
         self.storage_dir.mkdir(parents=True, exist_ok=True)
 

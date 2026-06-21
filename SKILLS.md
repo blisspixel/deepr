@@ -17,6 +17,11 @@ This file captures repo-specific operating lessons from autonomous work cycles.
 - Driving a chat seam from raw `python -c` on Windows hits cp1252 emoji crashes (the CLI sets UTF-8 at entry). Use `PYTHONUTF8=1` for ad-hoc scripts.
 - The web dev server (vite) must proxy `/portraits` (and any backend static route) or `<img>` tags get the SPA index.html (200, wrong type) and fall back silently. Dev must mirror the prod static routes.
 
+## One expert = one directory (resolve through paths.canonical_expert_dir)
+
+- An expert's profile, beliefs, loop-runs, subscriptions, conversations, and documents must ALL live under one directory. Resolve it through `deepr/experts/paths.py:canonical_expert_dir(name)` (slug = `sanitize_name(name).lower()`, containment-checked) - never build `experts_root() / name` with the raw display name. The original bug: `ExpertStore` slugified but `BeliefStore`/`loop_runs` used the raw name, splitting one expert across `ai_expert/` (profile) and `AI Expert/` (beliefs); `expert list` then showed phantom-empty experts. The display name lives in `profile.json`, not the path.
+- `deepr expert cleanup` repairs legacy split dirs (merge display->slug) and deletes empty experts; it backs up the experts root before `--apply`. If you add a new per-expert store, route its path through `canonical_expert_dir` so it can't reintroduce the split.
+
 ## Source-trust floor: count identifiers, not quotes (and keep it deterministic)
 
 - The tertiary ceiling 0.60->0.80 hinges on "2+ independent sources". `evidence_refs` from absorb is `[f"report:{id}", *quote_excerpts]`, so a naive `len(set(evidence_refs))` counts the report pointer + each quote as separate sources -> systematic inflation to 0.80 for one source. Count distinct source **identifiers** only (`_independent_source_count`): URLs by host (syndication counts once), namespaced ids by value, and **skip any ref containing whitespace** (that's a quote excerpt grounding one source, not a new origin).
