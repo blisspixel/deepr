@@ -24,8 +24,6 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
-from deepr.utils.security import sanitize_name, validate_path
-
 if TYPE_CHECKING:
     from deepr.experts.profile import ExpertProfile
 
@@ -190,8 +188,9 @@ class ExpertStore:
         Returns:
             Validated path to expert directory
         """
-        safe_name = sanitize_name(name).lower()
-        return validate_path(safe_name, base_dir=self.base_path, must_exist=False, allow_create=True)
+        from deepr.experts.paths import canonical_expert_dir
+
+        return canonical_expert_dir(name, self.base_path)
 
     def _get_profile_path(self, name: str) -> Path:
         """Get file path for expert profile.

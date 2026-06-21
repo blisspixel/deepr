@@ -1,5 +1,12 @@
 # Progress Log
 
+## 2026-06-21 — Fixed the split-expert-directory bug + `deepr expert cleanup`
+
+- **Root cause of the "duplicate experts" was a directory split**: `ExpertStore` stored an expert under a slugified dir (`ai_expert/`, via `sanitize_name(name).lower()`) while `BeliefStore`/loop-runs used the raw display name (`AI Expert/`) - so every expert was split across TWO directories (profile in one, beliefs in the other), and `expert list` showed ~27 experts that looked empty while their beliefs sat elsewhere. A BeliefStore comment even *claimed* it matched ExpertStore but didn't.
+- **Fix (one canonical resolver):** new `deepr/experts/paths.py` `canonical_expert_dir()` (slug + containment-check); `ExpertStore`, `BeliefStore`, and `loop_runs` all resolve through it, so an expert is one directory. Filesystem-safe + case-stable (Windows/macOS); the display name lives in `profile.json`. 1267 belief/expert tests green after the change.
+- **`deepr expert cleanup`** (new verb): dry-run by default; `--apply` backs up the whole experts root first, then merges each split (display) dir into its canonical slug dir (recursive move, never overwriting a non-empty file) and deletes experts with no data (0 beliefs/conversations/docs). 5 tests incl. "never delete when beliefs live in the split twin" and the full apply+backup path.
+- **Ran it on the real roster:** backed up to `data/experts.backup-...`, **merged 27 split dirs, deleted 8 empty experts**. Result verified: **19 real experts, 0 phantoms, 0 empty, 0 never-run**, and `BeliefStore` now reads each expert's beliefs from the single canonical dir (21/25/23 confirmed). The "how many good, real experts" answer is now honestly **19**.
+
 ## 2026-06-21 — `deepr_consult_experts` MCP tool (harness-native team consultation)
 
 - **Consultation is now reachable over MCP**, so any harness (Claude Code, Cursor, ...) can consult Deepr's expert team natively - the other half of "anyone with an agentic harness can leverage Deepr." Extracted the consult core into `deepr/experts/consult.py` (`run_consult` + `build_consult_payload` + the `deepr-consult-v1` contract) so the CLI verb and the MCP tool share one code path and the MCP server never depends on the CLI layer. Added the `deepr_consult_experts` handler + ToolSchema + dispatch entry; registered its allowlist policy (SENSITIVE, metered, blocked in READ_ONLY, mirrors `query_expert`). Tool count 28 -> 29 (docs updated in README/ROADMAP/mcp/README).

@@ -652,7 +652,12 @@ class TestExpertAbsorbCommand:
             patch("deepr.services.context_index.ContextIndex") as mock_idx,
         ):
             mock_store = MagicMock()
-            mock_store.load.return_value = MagicMock(name="Test Expert")
+            # MagicMock(name=...) sets the mock's repr, NOT a .name attribute; set
+            # it explicitly so profile.name is the real string the canonical path
+            # resolver (sanitize_name) needs.
+            mock_profile = MagicMock()
+            mock_profile.name = "Test Expert"
+            mock_store.load.return_value = mock_profile
             mock_store_class.return_value = mock_store
             mock_idx.return_value.get_report_content.return_value = "report body"
 
