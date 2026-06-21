@@ -1,5 +1,10 @@
 # Progress Log
 
+## 2026-06-21 — Agentic-harness boundary (dogfood-derived) + new AI Agent Harnesses expert
+
+- **Created + populated "AI Agent Harnesses" expert** (+25, API $0.048), then consulted it with Model Context Protocol + Distributed Systems Reliability on the strategic question "is Deepr an agentic harness?" - dogfooding the now-fixed consult path (3/3 real, convergent answers, $0.024 ledgered).
+- **The experts converged on a sharp boundary**, captured in `docs/design/agentic-harness-boundary.md` and used to sharpen the ROADMAP "not the orchestrator" non-goal: **Deepr is agentic only within a single bounded, idempotent knowledge transaction** (decompose -> consult its own experts -> reason -> verify -> one commit point, hard budgets, one calibrated artifact out). It must not own workflow state, cross-call retries/scheduling, or side effects beyond its own knowledge store - it recommends next actions; the calling harness decides and enacts. This retroactively validates the session's design (idempotent absorb, single commit point, bounded councils, host-triggered campaigns).
+
 ## 2026-06-21 — Consult now "just works" (adaptive) + Ollama kept warm
 
 - **Consultation reliability traced and verified fixed.** Root cause of the garbage consult was NOT Ollama: `chat.py` wires `ReasoningGraph(llm_client=None)` and its LLM call is a `.generate()` placeholder never connected to a real client, so the ToT path could never reason. Pre-fix it fabricated `Hypothesis N for: <query>` (which didn't contain "unable to generate", so `send_message` returned the garbage). The earlier reasoning fix (degrade honestly to "Unable to generate a confident answer.") means ToT now trips the existing fallthrough at `chat.py:1350` -> standard chat -> a real answer. **Verified live:** a "should...best" (ToT-triggering) consult returned a real, substantive answer at $0.0223 (ledgered). So consult is now adaptive/defensive: degraded reasoning falls through to a working, cost-tracked path instead of silently emitting stubs.
