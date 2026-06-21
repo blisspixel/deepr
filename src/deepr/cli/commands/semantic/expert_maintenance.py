@@ -31,7 +31,14 @@ SYNC_CAPACITY_GATE_SCHEMA_VERSION = "deepr-sync-capacity-gate-v1"
 
 @expert.command(name="absorb")
 @click.argument("name")
-@click.argument("report_id")
+@click.argument("report_id", required=False)
+@click.option(
+    "--file",
+    "doc_file",
+    type=click.Path(exists=True, dir_okay=False),
+    default=None,
+    help="Absorb a local document instead of a report id (provenance = the filename). $0 with --local.",
+)
 @click.option(
     "--min-confidence",
     type=float,
@@ -59,7 +66,8 @@ SYNC_CAPACITY_GATE_SCHEMA_VERSION = "deepr-sync-capacity-gate-v1"
 @click.option("--json", "json_output", is_flag=True, help="Emit the structured absorption result as JSON")
 def absorb_report(
     name: str,
-    report_id: str,
+    report_id: str | None,
+    doc_file: str | None,
     min_confidence: float,
     model: str | None,
     dry_run: bool,
@@ -89,12 +97,17 @@ def absorb_report(
       deepr expert absorb "AI Strategy Expert" <job_id>
       deepr expert absorb "AI Strategy Expert" <job_id> --dry-run
       deepr expert absorb "AI Strategy Expert" <job_id> --local -y
+      deepr expert absorb "MCP Expert" --file docs/design/mcp.md --local -y
     """
     import json as _json
     import sys
 
     if sum(bool(x) for x in (local, api, plan)) > 1:
         print_error("Use only one of --local, --api, or --plan.")
+        sys.exit(2)
+
+    if bool(report_id) == bool(doc_file):
+        print_error("Provide exactly one of REPORT_ID or --file.")
         sys.exit(2)
 
     from deepr.experts.profile import ExpertStore
@@ -108,13 +121,25 @@ def absorb_report(
         click.echo("List available experts: deepr expert list")
         sys.exit(2)
 
-    # Resolve the report id (or job id) to its full text via the context index.
-    index = ContextIndex()
-    report_text = index.get_report_content(report_id, max_chars=100000)
-    if not report_text:
-        print_error(f"No report found for id: {report_id}")
-        click.echo("Find report/job IDs with: deepr search")
-        sys.exit(2)
+    # Resolve the source text. A local file (--file) is the $0 way to seed an
+    # expert from repo docs or papers with no web research; otherwise resolve a
+    # report/job id to its full text via the context index. Provenance is the
+    # filename ("file:<name>") or the report id, so absorbed beliefs stay traceable.
+    if doc_file:
+        from pathlib import Path as _Path
+
+        report_text = _Path(doc_file).read_text(encoding="utf-8", errors="replace")[:100000]
+        report_id = f"file:{_Path(doc_file).name}"
+        if not report_text.strip():
+            print_error(f"File is empty: {doc_file}")
+            sys.exit(2)
+    else:
+        report_id = report_id or ""
+        report_text = ContextIndex().get_report_content(report_id, max_chars=100000)
+        if not report_text:
+            print_error(f"No report found for id: {report_id}")
+            click.echo("Find report/job IDs with: deepr search")
+            sys.exit(2)
 
     # Pick the backend (capacity waterfall): owned local capacity before metered
     # API. --local forces local (no admission needed); --api or an explicit

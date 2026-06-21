@@ -590,3 +590,66 @@ class TestPlanQuotaSync:
 
         assert r.exit_code == 2
         assert "OPENAI_API_KEY" in r.output
+
+
+class TestAbsorbFromFile:
+    """absorb --file ingests a local document at $0 (local) - the repo-docs path."""
+
+    def test_absorb_has_file_option(self):
+        opts = {p.name for p in expert.commands["absorb"].params}
+        assert "doc_file" in opts
+
+    def test_absorb_rejects_report_id_and_file_together(self, tmp_path):
+        doc = tmp_path / "d.md"
+        doc.write_text("x", encoding="utf-8")
+        r = CliRunner().invoke(expert, ["absorb", "Whoever", "job123", "--file", str(doc)])
+        assert r.exit_code == 2
+        assert "exactly one of REPORT_ID or --file" in r.output
+
+    def test_absorb_requires_report_id_or_file(self):
+        r = CliRunner().invoke(expert, ["absorb", "Whoever"])
+        assert r.exit_code == 2
+        assert "exactly one of REPORT_ID or --file" in r.output
+
+    def test_absorb_file_reads_doc_and_uses_filename_provenance(self, tmp_path, monkeypatch):
+        captured = {}
+        profile = SimpleNamespace(name="MCP Expert")
+        doc = tmp_path / "mcp-design.md"
+        doc.write_text("The Model Context Protocol exposes tools over a registry.", encoding="utf-8")
+
+        class FakeExpertStore:
+            def load(self, name):
+                return profile
+
+        class FakeResult:
+            dry_run = True
+
+            def to_dict(self):
+                return {"absorbed": [], "dry_run": True}
+
+        class FakeReportAbsorber:
+            def __init__(self, loaded_profile, *, model, client):
+                captured["model"] = model
+                captured["client"] = client
+
+            async def absorb(self, report_id, report_text, *, min_confidence, dry_run):
+                captured["report_id"] = report_id
+                captured["report_text"] = report_text
+                return FakeResult()
+
+        client = object()
+        monkeypatch.setattr("deepr.experts.profile.ExpertStore", FakeExpertStore)
+        monkeypatch.setattr("deepr.experts.report_absorber.ReportAbsorber", FakeReportAbsorber)
+        monkeypatch.setattr("deepr.backends.local.default_local_model", lambda: "qwen-local")
+        monkeypatch.setattr("deepr.backends.local.ollama_chat_client", lambda: client)
+
+        r = CliRunner().invoke(
+            expert, ["absorb", "MCP Expert", "--file", str(doc), "--local", "--dry-run", "-y", "--json"]
+        )
+
+        assert r.exit_code == 0, r.output
+        # Provenance is the filename, content is the file text, backend is local ($0).
+        assert captured["report_id"] == "file:mcp-design.md"
+        assert "Model Context Protocol" in captured["report_text"]
+        assert captured["model"] == "qwen-local"
+        assert captured["client"] is client
