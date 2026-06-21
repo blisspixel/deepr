@@ -581,6 +581,7 @@ class CostSafetyManager:
         # In-flight reservations keyed by (session_id, reservation_id) →
         # estimated_cost. record_cost / refund_reservation drain them.
         self._reserved_daily: float = 0.0
+        self._reserved_monthly: float = 0.0
         self._reservations: dict[str, float] = {}
 
     @staticmethod
@@ -665,11 +666,11 @@ class CostSafetyManager:
     ) -> tuple[bool, str, bool, str]:
         """Atomic check + (optional) reservation of estimated_cost.
 
-        Holds ``self._budget_lock`` across the read-modify-write so N
-        parallel callers can't all see the same stale daily_cost. When
-        ``reserve=True`` and the operation is allowed, the estimated cost
-        is added to an in-flight reservation pool that subsequent
-        ``check_operation`` calls treat as already-spent. ``record_cost``
+        Holds ``self._budget_lock`` across the read-modify-write so N parallel
+        callers can't all see stale daily/monthly totals. When ``reserve=True``
+        and allowed, the cost is added to in-flight daily *and* monthly
+        reservation pools that subsequent ``check_operation`` calls treat as
+        already-spent (neither cap over-commits). ``record_cost``
         clears the reservation when the actual cost lands; if a caller
         forgets to record, call ``refund_reservation(reservation_id)``.
 
@@ -708,7 +709,7 @@ class CostSafetyManager:
                     False,
                     "",
                 )
-            projected_monthly = self.monthly_cost + estimated_cost
+            projected_monthly = self.monthly_cost + self._reserved_monthly + estimated_cost
             if projected_monthly > self.max_monthly:
                 return (
                     False,
@@ -725,6 +726,7 @@ class CostSafetyManager:
                 reservation_id = _uuid.uuid4().hex[:16]
                 self._reservations[reservation_id] = estimated_cost
                 self._reserved_daily += estimated_cost
+                self._reserved_monthly += estimated_cost
 
             # Confirmation needed?
             if require_confirmation and estimated_cost > 1.0:
@@ -739,6 +741,7 @@ class CostSafetyManager:
         with self._budget_lock:
             held = self._reservations.pop(reservation_id, 0.0)
             self._reserved_daily = max(0.0, self._reserved_daily - held)
+            self._reserved_monthly = max(0.0, self._reserved_monthly - held)
 
     def record_cost(
         self,
@@ -767,6 +770,7 @@ class CostSafetyManager:
             if reservation_id:
                 held = self._reservations.pop(reservation_id, 0.0)
                 self._reserved_daily = max(0.0, self._reserved_daily - held)
+                self._reserved_monthly = max(0.0, self._reserved_monthly - held)
 
             # Track session cost (legacy)
             self._session_costs[session_id] = self._session_costs.get(session_id, 0.0) + actual_cost
