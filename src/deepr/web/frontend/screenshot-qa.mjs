@@ -4,13 +4,20 @@ import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
-const screenshotDir = join(__dirname, 'screenshots');
+
+// Port + appearance are configurable so the QA loop can run against whatever
+// port vite picked and capture both themes / a chosen accent.
+//   QA_BASE=http://localhost:3002 QA_THEME=dark QA_ACCENT=indigo node screenshot-qa.mjs
+const BASE = process.env.QA_BASE || 'http://localhost:3000';
+const API = process.env.QA_API || 'http://localhost:5000';
+const THEME = process.env.QA_THEME || 'light';
+const ACCENT = process.env.QA_ACCENT || 'teal';
+
+const screenshotDir = join(__dirname, 'screenshots', THEME === 'dark' ? 'dark' : 'light');
 mkdirSync(screenshotDir, { recursive: true });
 
-const BASE = 'http://localhost:3000';
-
 // Fetch a valid job ID from the running backend
-const configResp = await fetch('http://localhost:5000/api/jobs?limit=20');
+const configResp = await fetch(`${API}/api/jobs?limit=20`);
 const configData = await configResp.json();
 // Prefer a completed job so detail/trace pages have content
 const jobs = configData.jobs || [];
@@ -51,6 +58,15 @@ async function main() {
     viewport: { width: 1440, height: 900 },
     deviceScaleFactor: 1,
   });
+
+  // Seed the persisted UI store so theme + accent apply before first paint,
+  // exactly as a real user's localStorage would (matches the FOUC script).
+  await context.addInitScript(([theme, accent]) => {
+    localStorage.setItem(
+      'deepr-ui-store',
+      JSON.stringify({ state: { theme, accent, sidebarCollapsed: false }, version: 0 })
+    );
+  }, [THEME, ACCENT]);
 
   for (const pg of pages) {
     const page = await context.newPage();
