@@ -110,6 +110,9 @@ from deepr.cli.commands import (
 from deepr.cli.commands import (
     eval as eval_cmd,
 )
+from deepr.cli.commands import (
+    fleet as fleet_cmd,
+)
 from deepr.cli.commands import help as help_cmd
 from deepr.cli.commands import (
     init as init_cmd,
@@ -152,6 +155,7 @@ cli.add_command(status.list_alias)
 # Supporting commands
 cli.add_command(budget.budget)
 cli.add_command(capacity_cmd.capacity)
+cli.add_command(fleet_cmd.fleet)
 # `cost` is a deprecated alias for `costs` (Phase Q1.2): functional but hidden
 # from --help, emits a deprecation warning on use.
 cost.cost.hidden = True
