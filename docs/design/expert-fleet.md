@@ -271,6 +271,80 @@ the same laptop; no new always-on service in Deepr.
 
 ---
 
+## Pillar 4 — Is a $0 expert actually good? (quality validation)
+
+The fleet runs mostly on a local model, so the fair question is whether $0
+experts are as good as ones built with a metered frontier API. The 2026
+evidence is clear and counterintuitive, and it changes where (if anywhere)
+metered money belongs.
+
+### What the evidence says
+
+For Deepr's actual task - **grounded extraction/synthesis from provided web
+sources**, not answering from parametric memory - the local-vs-frontier quality
+gap is small, and on *faithfulness* it often runs the wrong way:
+
+- On Vectara's grounded-summarization hallucination leaderboard, open models in
+  the 8B-70B range (Llama-3.3-70B ~4.1%, Qwen3-32B ~5.9%) **hallucinate less**
+  than frontier *reasoning* models (GPT-5 / Claude Sonnet 4.5 / Gemini-3-Pro all
+  >10%). "Infer more" behavior hurts when the job is to stay inside the source.
+- Structured-output gaps close to ~0 with schema-constrained decoding (Deepr
+  controls the extraction harness).
+- The gap that **survives** is **calibration** (does stated confidence match
+  correctness) and robustness on very long / conflicting multi-source inputs.
+
+### Why Deepr is already covered on the one real gap
+
+Calibration is precisely where source-trust floors already act: research-derived
+(tertiary / web) beliefs are deterministically capped at **0.60** (single source)
+and **0.80** (2+ independent sources), uncapped only for secondary/primary
+sources (`beliefs.py`). So a $0 local expert **cannot emit high-confidence
+authority on a single web result** no matter how (mis)calibrated the local model
+is. The system's honesty does not depend on trusting the local model's
+self-assessed confidence - it is enforced by source provenance. This is the
+correct, already-shipped answer to "local models are overconfident."
+
+### The honest claim Deepr should make
+
+> $0 local experts are **as faithful to their sources** as frontier-built ones
+> for typical web research (open models hallucinate less than frontier reasoning
+> models on grounded summarization); every claim is grounded, citation-checked,
+> and trust-floor-capped. The known limitation is **confidence calibration** on
+> long/conflicting/high-stakes topics - where Deepr escalates to a frontier model.
+
+What Deepr must **not** claim: that local experts are "as good as frontier" full
+stop. Equal grounding, weaker calibration, selective escalation - the narrower
+claim is the defensible one.
+
+### The lean A/B (uses existing surfaces; targeted, bounded spend)
+
+Deepr already ships the comparison tooling:
+
+- **`deepr eval local`** ($0) - compares installed local models with a local
+  judge on a prompt set; picks the best local extraction model for free.
+- **`deepr eval calibrate --corpus <dir> --grader-model <strong> --max-cost X`**
+  (paid, spend-guarded) - extracts claims with the model under test and grades
+  grounding with a strong grader: "does 0.7 confidence mean ~70% grounded?" The
+  `--from <graded.jsonl>` mode then publishes the reliability curve at $0.
+- **`deepr eval continuity`** ($0) - per-expert continuity / staleness honesty.
+
+Methodology (an afternoon, a few dollars at most): build the **same expert twice**
+from the *same* fetched sources (local vs frontier), sample ~100-150 claims, and
+report the **delta** on (a) grounding precision - does each claim *entail* its
+cited source, not just token-match (the documented failure mode is true-but-
+unsupported claims), (b) FActScore-style factual precision, (c) **calibration**
+(reliability diagram, not a single ECE number - ECE is gameable), (d) coverage
+vs a frontier-built superset. Validate the LLM judge against ~20-30 human labels
+first, and **always randomize A/B order** (position + self-preference bias are
+real); never let a model judge its own family.
+
+**Decision rule (folds into the Pillar 2.4 spend gate):** if grounding deltas are
+within noise (expected) and local calibration is acceptable, **use local ($0)
+everywhere by default**; escalate to a frontier model only per-expert for **long /
+source-conflicting / high-value / high-volatility** experts - the same conditions
+the targeted-spend gate already tests. Quality, not freshness, becomes one more
+input to "is this metered dollar worth it."
+
 ## Boundaries (so this stays Deepr's role)
 
 - **No always-on Deepr daemon, no APScheduler** — hosts own the schedule; Deepr
@@ -309,7 +383,11 @@ the same laptop; no new always-on service in Deepr.
    — one roll-up `ExpertLoopRun` over due experts through the waterfall.
 7. **Budget degradation tiers + targeted-spend gate** (Pillar 2.2 / 2.4) — wire
    the reserve modes and the value-of-spend comparison; ledger the decision.
-8. **Reservation TTL/sweeper** (Pillar 2.3) and **optional off-box heartbeat**
+8. **Quality A/B harness** (Pillar 4) — a `deepr eval fleet-quality` (or a
+   documented recipe over `eval local` + `eval calibrate`) that builds a sample
+   expert local vs frontier from the same sources and reports the grounding /
+   calibration / coverage delta, feeding the per-expert escalation decision.
+9. **Reservation TTL/sweeper** (Pillar 2.3) and **optional off-box heartbeat**
    (Pillar 3.4) — the last hardening.
 
 ## What NOT to build

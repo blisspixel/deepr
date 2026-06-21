@@ -726,6 +726,20 @@ Sequenced smallest-shippable-first:
       `gap_closure x value x urgency x volatility > cost_multiple x est_cost`,
       with the hurdle rising as the pool drains; decision ledgered. Additive over
       the existing `is_pausable_limit`/`get_resume_message` machinery.
+- [ ] **Expert quality validation (local vs frontier A/B)**: the fleet runs
+      mostly on a local model, so validate that $0 experts are good. 2026 evidence:
+      for *grounded* extraction from provided sources, local 8B-70B models match or
+      beat frontier *reasoning* models on faithfulness (they hallucinate less when
+      told to stay in-source); the surviving gap is **calibration** + long/conflicting
+      sources - and source-trust floors already cap web-derived confidence at
+      0.60/0.80, so the system never over-claims regardless of the local model's
+      calibration. Build the lean A/B on existing surfaces (`eval local` $0,
+      `eval calibrate --corpus` paid+guarded, `eval continuity` $0): same expert
+      built local vs frontier from the same sources, report grounding/calibration/
+      coverage delta (reliability diagram, not a single ECE; randomize judge order;
+      no self-family judging). Decision rule folds into the targeted-spend gate -
+      local by default, escalate to frontier only for long/conflicting/high-value/
+      high-volatility experts. Design: [expert-fleet.md](docs/design/expert-fleet.md) Pillar 4.
 - [ ] **Hardening**: reservation TTL/sweeper (a leaked reservation permanently
       shrinks a tight pool until restart) and an optional **off-box heartbeat** to
       a free dead-man's-switch (healthchecks.io / Dead Man's Snitch) on scheduled-
