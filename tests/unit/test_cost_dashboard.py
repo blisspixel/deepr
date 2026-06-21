@@ -916,6 +916,38 @@ class TestCostDashboard:
         assert "total_entries" in summary
         assert summary["total_entries"] == 2
 
+    def test_summary_reflects_ledger_written_outside_dashboard(self, temp_storage):
+        """Real spend usually writes the canonical ledger directly (cost_safety,
+        the research pipeline) and bypasses dashboard.record(). costs show must
+        still reflect it - regression for the undercount where the dashboard read
+        a stale derived cost_log.json instead of the ledger."""
+        from deepr.observability.cost_ledger import CostLedger
+
+        ledger = CostLedger(ledger_path=temp_storage.with_name("cost_ledger.jsonl"))
+        ledger.record_event(operation="research", provider="openai", cost_usd=0.50, source="cost_safety.record_cost")
+        ledger.record_event(operation="chat", provider="anthropic", cost_usd=0.30, source="cost_safety.record_cost")
+
+        summary = CostDashboard(storage_path=temp_storage).get_summary()
+        assert abs(summary["monthly"]["total"] - 0.80) < 1e-6
+        assert abs(summary["daily"]["total"] - 0.80) < 1e-6  # events default to now (UTC today)
+
+    def test_stale_cache_does_not_mask_ledger_spend(self, temp_storage):
+        """A stale/empty derived cost_log.json must never hide real ledger spend -
+        the ledger is the source of truth."""
+        import json as _json
+
+        from deepr.observability.cost_ledger import CostLedger
+
+        temp_storage.parent.mkdir(parents=True, exist_ok=True)
+        temp_storage.write_text(
+            _json.dumps({"entries": [], "alerts": [], "daily_limit": 10.0, "monthly_limit": 100.0}),
+            encoding="utf-8",
+        )
+        ledger = CostLedger(ledger_path=temp_storage.with_name("cost_ledger.jsonl"))
+        ledger.record_event(operation="research", provider="openai", cost_usd=0.42, source="cost_safety.record_cost")
+
+        assert abs(CostDashboard(storage_path=temp_storage).get_summary()["monthly"]["total"] - 0.42) < 1e-6
+
     def test_persistence_save_and_load(self, temp_storage):
         """Dashboard should persist and load entries correctly."""
         # Create dashboard and record data
@@ -1101,9 +1133,13 @@ class TestCostDashboardEdgeCases:
 
         assert entry.metadata == unicode_metadata
 
-        # Verify persistence works with Unicode
+        # Verify persistence works with Unicode. Entries reload from the
+        # canonical ledger, which also carries the provenance `source` key, so
+        # assert the original Unicode metadata round-trips (subset) rather than
+        # exact equality.
         dashboard2 = CostDashboard(storage_path=temp_storage)
-        assert dashboard2.entries[0].metadata == unicode_metadata
+        reloaded = dashboard2.entries[0].metadata
+        assert all(reloaded.get(k) == v for k, v in unicode_metadata.items())
 
     def test_unicode_in_operation_and_provider(self, temp_storage):
         """Dashboard should handle Unicode in operation and provider names."""
