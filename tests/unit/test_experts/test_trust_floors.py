@@ -36,6 +36,50 @@ class TestTrustCeilings:
         b = Belief(claim="Same web twice", confidence=0.95, domain="d", evidence_refs=["report:r1", "report:r1"])
         assert b.get_current_confidence() == pytest.approx(0.60)
 
+    def test_quote_excerpts_do_not_count_as_independent_sources(self):
+        # Regression (dogfood): absorb stores [f"report:{id}", *quotes]. The
+        # quotes are grounding for ONE report, not extra origins - counting them
+        # falsely lifted single-source beliefs to 0.80. A report id + any number
+        # of quote excerpts is one source -> 0.60.
+        b = Belief(
+            claim="Episodic memory recalls past events",
+            confidence=0.95,
+            domain="d",
+            evidence_refs=[
+                "report:sync:ai-agent-memory:20260621",
+                "Episodic memory allows agents to recall specific past events [S2].",
+                "It records what happened, when, and in what context [S2].",
+            ],
+        )
+        assert b.get_current_confidence() == pytest.approx(0.60)
+
+    def test_two_distinct_report_runs_still_corroborate(self):
+        b = Belief(
+            claim="X",
+            confidence=0.95,
+            domain="d",
+            evidence_refs=["report:run-a", "A supporting quote with spaces.", "report:run-b"],
+        )
+        assert b.get_current_confidence() == pytest.approx(0.80)
+
+    def test_same_host_urls_are_one_source(self):
+        b = Belief(
+            claim="X",
+            confidence=0.95,
+            domain="d",
+            evidence_refs=["https://example.com/a", "https://www.example.com/b"],
+        )
+        assert b.get_current_confidence() == pytest.approx(0.60)
+
+    def test_distinct_host_urls_corroborate(self):
+        b = Belief(
+            claim="X",
+            confidence=0.95,
+            domain="d",
+            evidence_refs=["https://alpha.com/a", "https://beta.com/b"],
+        )
+        assert b.get_current_confidence() == pytest.approx(0.80)
+
     def test_secondary_and_primary_uncapped(self):
         for tier in ("secondary", "primary"):
             b = Belief(claim=f"{tier} fact", confidence=0.95, domain="d", trust_class=tier)
