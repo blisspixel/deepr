@@ -103,6 +103,47 @@ class TestReservationFlow:
         assert c_allowed is True
 
 
+class TestMonthlyReservationSymmetry:
+    """The monthly projection must count in-flight reservations exactly as the
+    daily one does. Without this, when the *monthly* reserve is the binding
+    constraint (the $20/month fleet case, where daily headroom is large), N
+    parallel checks all read the same stale monthly_cost, all pass, and the
+    pool over-commits by up to N times. This is the primary over-spend path for
+    a low monthly reserve, so it gets the same lock+reservation guard as daily.
+    """
+
+    def test_record_cost_settles_monthly_reservation(self, manager):
+        allowed, _, _, rid = manager.check_and_reserve(session_id="s1", operation_type="research", estimated_cost=2.0)
+        assert allowed
+        assert manager._reserved_monthly == 2.0
+
+        manager.record_cost(session_id="s1", operation_type="research", actual_cost=1.75, reservation_id=rid)
+        assert manager._reserved_monthly == 0.0
+        assert manager.monthly_cost == pytest.approx(1.75)
+
+    def test_refund_reservation_releases_monthly_without_billing(self, manager):
+        _, _, _, rid = manager.check_and_reserve(session_id="s1", operation_type="research", estimated_cost=3.0)
+        manager.refund_reservation(rid)
+        assert manager._reserved_monthly == 0.0
+        assert manager.monthly_cost == 0.0
+
+    def test_parallel_reservations_block_over_commit_monthly(self, manager):
+        """Daily roomy, monthly binding: the second parallel check must still
+        be rejected because the first reservation counts against the monthly
+        projection — symmetric with the daily guarantee above."""
+        manager.max_daily = 100.0  # roomy, never the binding constraint here
+        manager.max_monthly = 5.0  # the binding reserve
+        a_allowed, _, _, a_id = manager.check_and_reserve(session_id="s1", operation_type="r", estimated_cost=4.0)
+        b_allowed, b_reason, _, _ = manager.check_and_reserve(session_id="s2", operation_type="r", estimated_cost=2.0)
+        assert a_allowed is True
+        assert b_allowed is False
+        assert "Monthly limit" in b_reason
+        # Settle the first reservation as $0 actual; the second can now run.
+        manager.record_cost(session_id="s1", operation_type="r", actual_cost=0.0, reservation_id=a_id)
+        c_allowed, _, _, _ = manager.check_and_reserve(session_id="s2", operation_type="r", estimated_cost=2.0)
+        assert c_allowed is True
+
+
 class TestLegacyCheckOperation:
     def test_check_operation_still_returns_three_tuple(self, manager):
         # Public API for older callers must remain (bool, str, bool).
