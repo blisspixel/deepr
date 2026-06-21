@@ -442,6 +442,33 @@ class DeeprMCPServer:
             return _make_error("EXPERT_QUERY_FAILED", str(e))
 
     # ------------------------------------------------------------------ #
+    # Tool: deepr_consult_experts
+    # ------------------------------------------------------------------ #
+    async def consult_experts(
+        self,
+        question: str,
+        experts: list[str] | None = None,
+        max_experts: int = 3,
+        budget: float = 2.0,
+    ) -> dict[str, Any]:
+        """Consult a team of experts as one bounded knowledge transaction.
+
+        Routes to the relevant experts (or the explicit ``experts`` set), runs
+        the bounded council, and returns the versioned ``deepr-consult-v1``
+        artifact (answer + per-expert perspectives + agreements/dissent + cost).
+        Shares the CLI's code path via ``deepr.experts.consult``.
+        """
+        from deepr.experts.consult import build_consult_payload, run_consult
+
+        if budget <= 0:
+            return _make_error("INVALID_BUDGET", "budget must be positive")
+        try:
+            result = await run_consult(question, list(experts or []), max_experts, budget)
+        except (OSError, KeyError, ValueError, DeeprError) as e:
+            return _make_error("CONSULT_FAILED", str(e))
+        return build_consult_payload(question, result)
+
+    # ------------------------------------------------------------------ #
     # Tool: deepr_expert_manifest
     # ------------------------------------------------------------------ #
     async def expert_manifest(self, expert_name: str) -> dict[str, Any]:
@@ -1346,6 +1373,40 @@ def _register_new_tools(registry: ToolRegistry) -> None:
 
     registry.register(
         ToolSchema(
+            name="deepr_consult_experts",
+            description=(
+                "Consult a TEAM of domain experts on a question and get one synthesized, "
+                "calibrated answer (the deepr-consult-v1 artifact: answer, each expert's "
+                "perspective with confidence, points of agreement and dissent, and cost). "
+                "Routes to the most relevant experts automatically, or pass 'experts' to name "
+                "them. One bounded knowledge transaction - Deepr recommends; your harness "
+                "decides and enacts."
+            ),
+            input_schema={
+                "type": "object",
+                "properties": {
+                    "question": {"type": "string", "description": "The question to put to the expert team"},
+                    "experts": {
+                        "type": "array",
+                        "items": {"type": "string"},
+                        "description": "Optional explicit expert names; omit to auto-select relevant experts",
+                    },
+                    "max_experts": {
+                        "type": "integer",
+                        "description": "Max experts when auto-selecting (capped at 5)",
+                        "default": 3,
+                    },
+                    "budget": {"type": "number", "description": "USD ceiling for the consultation", "default": 2.0},
+                },
+                "required": ["question"],
+            },
+            category="experts",
+            cost_tier="low",
+        )
+    )
+
+    registry.register(
+        ToolSchema(
             name="deepr_list_skills",
             description=(
                 "List available and installed skills for an expert. Skills are domain-specific "
@@ -1634,6 +1695,7 @@ async def _handle_tools_call(server: DeeprMCPServer, params: dict[str, Any]) -> 
         "deepr_agentic_research": lambda args: server.deepr_agentic_research(**args),
         "deepr_list_experts": lambda args: server.list_experts(),
         "deepr_query_expert": lambda args: server.query_expert(**args),
+        "deepr_consult_experts": lambda args: server.consult_experts(**args),
         "deepr_get_expert_info": lambda args: server.get_expert_info(
             expert_name=args.get("expert_name", ""),
         ),
