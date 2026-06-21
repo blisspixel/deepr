@@ -47,19 +47,42 @@ if ! command -v pipx >/dev/null 2>&1; then
     export PATH="$HOME/.local/bin:$PATH"
 fi
 
-# --- Install or update (idempotent) ----------------------------------------
+# --- Does the CLI actually run? (used to verify + self-heal) ----------------
+deepr_works() { command -v "$CLI" >/dev/null 2>&1 && "$CLI" --version >/dev/null 2>&1; }
+
+# --- Install, update, or repair (idempotent + self-healing) -----------------
 if pipx list 2>/dev/null | grep -q "$PACKAGE"; then
     step "$PACKAGE already installed. Updating to the latest version ..."
-    pipx upgrade "$PACKAGE"
+    # A stale venv (common after a system Python upgrade) makes upgrade fail;
+    # fall back to reinstall, then a clean uninstall+install.
+    pipx upgrade "$PACKAGE" \
+        || { step "Update failed; repairing ..."; pipx reinstall "$PACKAGE"; } \
+        || { pipx uninstall "$PACKAGE" || true; pipx install "$PACKAGE"; }
 else
     step "Installing $PACKAGE (CLI: $CLI) ..."
     pipx install "$PACKAGE"
 fi
 
-# --- Report installed version (best effort) ---------------------------------
+# --- Verify it runs; one automatic clean reinstall if not -------------------
+if ! deepr_works; then
+    step "$CLI did not run cleanly; attempting a clean reinstall ..."
+    pipx uninstall "$PACKAGE" || true
+    pipx install "$PACKAGE"
+fi
+
+# --- Report version + warn about a shadowing (non-pipx) install -------------
 shown_version=false
-if command -v "$CLI" >/dev/null 2>&1; then
+if deepr_works; then
     "$CLI" --version && shown_version=true || true
+    src=$(command -v "$CLI" 2>/dev/null || true)
+    case "$src" in
+        *.local/*|*pipx*) : ;;
+        "") : ;;
+        *) echo "Note: '$CLI' on PATH resolves to $src, not the pipx-managed copy."
+           echo "      If the version above looks wrong, remove it: pip uninstall $PACKAGE (in that Python)." ;;
+    esac
+else
+    echo "Install completed but '$CLI' still does not run. Open a new terminal, or: pipx reinstall $PACKAGE" >&2
 fi
 
 echo ""
