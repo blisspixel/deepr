@@ -13,6 +13,7 @@ import {
 } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { DeeprLogo } from '@/components/brand/deepr-logo'
 import { useUIStore } from '@/stores/ui-store'
 import { useNotificationStore } from '@/stores/notification-store'
 import { Badge } from '@/components/ui/badge'
@@ -151,16 +152,10 @@ export default function Sidebar({ mobile }: { mobile?: boolean }) {
         >
           <Link
             to="/"
-            className={cn('flex items-center gap-2 text-sidebar-foreground', focusRing, 'rounded-md')}
+            aria-label="Deepr home"
+            className={cn('flex items-center text-sidebar-foreground', focusRing, 'rounded-md')}
           >
-            <div className="flex h-7 w-7 items-center justify-center rounded-md bg-primary text-primary-foreground text-xs font-bold">
-              D
-            </div>
-            {(!collapsed || mobile) && (
-              <span className="text-lg font-semibold tracking-tight">
-                Deepr
-              </span>
-            )}
+            <DeeprLogo collapsed={collapsed && !mobile} />
           </Link>
         </div>
 
