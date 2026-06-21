@@ -653,3 +653,82 @@ class TestAbsorbFromFile:
         assert "Model Context Protocol" in captured["report_text"]
         assert captured["model"] == "qwen-local"
         assert captured["client"] is client
+
+
+class TestLearnWeb:
+    """learn-web: live web research on a local model, then absorb - all $0."""
+
+    def test_learn_web_registered_with_options(self):
+        assert "learn-web" in expert.commands
+        opts = {p.name for p in expert.commands["learn-web"].params}
+        assert {"name", "topic", "model", "num_results", "max_pages", "dry_run"} <= opts
+
+    def test_learn_web_runs_research_then_absorbs_local(self, monkeypatch):
+        captured = {}
+        profile = SimpleNamespace(name="TKG Expert", last_knowledge_refresh=None)
+
+        class FakeExpertStore:
+            def load(self, name):
+                return profile
+
+            def save(self, p):
+                captured["saved"] = p
+
+        async def fake_research(topic, *, model, client, num_results, max_pages):
+            captured["research"] = {"topic": topic, "model": model}
+            return {"answer": f"# {topic}\n\nBody [1].\n\n## Sources\n[1] T - http://a\n", "sources": [{"n": 1}], "cost": 0.0}
+
+        class FakeResult:
+            dry_run = False
+            total_candidates = 2
+            absorbed = [SimpleNamespace(statement="a current fact", confidence=0.9, outcome="added")]
+            rejected = []
+            added_count = 1
+            merged_count = 0
+
+            def to_dict(self):
+                return {"absorbed": 1}
+
+        class FakeReportAbsorber:
+            def __init__(self, loaded_profile, *, model, client):
+                captured["absorb_model"] = model
+
+            async def absorb(self, report_id, report_text, *, min_confidence, dry_run):
+                captured["report_id"] = report_id
+                captured["report_text"] = report_text
+                return FakeResult()
+
+        monkeypatch.setattr("deepr.experts.profile.ExpertStore", FakeExpertStore)
+        monkeypatch.setattr("deepr.experts.local_research.research_web_local", fake_research)
+        monkeypatch.setattr("deepr.experts.report_absorber.ReportAbsorber", FakeReportAbsorber)
+        monkeypatch.setattr("deepr.backends.local.default_local_model", lambda: "qwen-local")
+        monkeypatch.setattr("deepr.backends.local.ollama_chat_client", lambda: object())
+
+        r = CliRunner().invoke(expert, ["learn-web", "TKG Expert", "latest TKG research 2026", "-y"])
+
+        assert r.exit_code == 0, r.output
+        assert captured["research"]["topic"] == "latest TKG research 2026"
+        assert captured["absorb_model"] == "qwen-local"
+        # Provenance marks it as web-sourced; the synthesized report is what gets absorbed.
+        assert captured["report_id"] == "web:latest TKG research 2026"
+        assert "Sources" in captured["report_text"]
+        assert captured.get("saved") is profile  # belief refresh persisted
+
+    def test_learn_web_errors_when_no_report(self, monkeypatch):
+        profile = SimpleNamespace(name="TKG Expert")
+
+        class FakeExpertStore:
+            def load(self, name):
+                return profile
+
+        async def fake_research(topic, *, model, client, num_results, max_pages):
+            return {"answer": "", "sources": [], "cost": 0.0, "error": "no web results for topic"}
+
+        monkeypatch.setattr("deepr.experts.profile.ExpertStore", FakeExpertStore)
+        monkeypatch.setattr("deepr.experts.local_research.research_web_local", fake_research)
+        monkeypatch.setattr("deepr.backends.local.default_local_model", lambda: "qwen-local")
+        monkeypatch.setattr("deepr.backends.local.ollama_chat_client", lambda: object())
+
+        r = CliRunner().invoke(expert, ["learn-web", "TKG Expert", "obscure topic", "-y"])
+        assert r.exit_code == 1
+        assert "no report" in r.output.lower() or "no web results" in r.output.lower()

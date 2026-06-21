@@ -768,3 +768,103 @@ def sync_cmd(
             console.print(f"Inspect: deepr expert what-changed '{name}' --since 1h")
         if any(o.flagged for o in result.outcomes):
             print_warning(f"Contested beliefs recorded. Review: deepr expert contested '{name}'")
+
+
+@expert.command(name="learn-web")
+@click.argument("name")
+@click.argument("topic")
+@click.option(
+    "--model",
+    default=None,
+    help="Local Ollama model for synthesis + extraction. Pick for quality; runtime does not matter.",
+)
+@click.option("--num-results", type=int, default=8, show_default=True, help="Web results to retrieve")
+@click.option("--max-pages", type=int, default=5, show_default=True, help="Top results to fetch in full")
+@click.option("--min-confidence", type=float, default=0.6, show_default=True, help="Drop weaker claims")
+@click.option("--save", "save_path", type=click.Path(), default=None, help="Also save the report markdown here")
+@click.option("--dry-run", is_flag=True, help="Research + preview claims; write no beliefs")
+@click.option("--yes", "-y", is_flag=True, help="Skip the confirmation prompt")
+@click.option("--json", "json_output", is_flag=True, help="Emit the absorption result as JSON")
+def learn_web(name, topic, model, num_results, max_pages, min_confidence, save_path, dry_run, yes, json_output):
+    """Research a TOPIC on the LIVE web with a local model, then absorb the findings.
+
+    The whole pipeline runs at $0 on owned hardware: free web search (DuckDuckGo)
+    plus the built-in scraper fetch CURRENT sources, the local model synthesizes a
+    cited report, and the report is absorbed into the expert's belief store with
+    real URL provenance. This is the answer to "experts must search online for the
+    latest" without metered spend. It is slow on a big local model - that is fine;
+    quality is what matters.
+
+    EXAMPLES:
+      deepr expert learn-web "TKG Expert" "latest temporal knowledge graph research 2026"
+      deepr expert learn-web "MCP Expert" "Model Context Protocol updates" --model qwen3.6:27b
+    """
+    import sys
+    from pathlib import Path
+
+    from deepr.backends.local import default_local_model, ollama_chat_client
+    from deepr.experts.local_research import research_web_local
+    from deepr.experts.profile import ExpertStore
+    from deepr.experts.report_absorber import ReportAbsorber, ReportAbsorberError
+
+    store = ExpertStore()
+    profile = store.load(name)
+    if not profile:
+        print_error(f"Expert not found: {name}")
+        click.echo("List available experts: deepr expert list")
+        sys.exit(2)
+
+    model = model or default_local_model()
+    if not model:
+        print_error("No local model available. Is Ollama running? Check: deepr capacity --probe")
+        sys.exit(2)
+
+    print_header(f"Learn from the web: {name}")
+    console.print(f"  Topic: {topic}")
+    console.print(f"  Local model: {model}  ($0, owned hardware)")
+    if not yes and not click.confirm("\nSearch the live web and absorb findings?", default=True):
+        print_warning("Cancelled.")
+        sys.exit(0)
+
+    client = ollama_chat_client()
+    console.print("[dim]Searching the web, fetching pages, and synthesizing locally (no metered spend)...[/dim]")
+    research = asyncio.run(
+        research_web_local(topic, model=model, client=client, num_results=num_results, max_pages=max_pages)
+    )
+    report = research.get("answer") or ""
+    if not report:
+        print_error(f"Web research produced no report: {research.get('error', 'empty')}")
+        sys.exit(1)
+    console.print(f"[dim]Synthesized a report from {len(research.get('sources', []))} live source(s).[/dim]")
+    if save_path:
+        Path(save_path).write_text(report, encoding="utf-8")
+        console.print(f"[dim]Report saved: {save_path}[/dim]")
+
+    absorber = ReportAbsorber(profile, model=model, client=client)
+    try:
+        result = asyncio.run(
+            absorber.absorb(f"web:{topic}", report, min_confidence=min_confidence, dry_run=dry_run)
+        )
+    except ReportAbsorberError as e:
+        print_error(str(e))
+        sys.exit(2)
+
+    if not result.dry_run:
+        profile.last_knowledge_refresh = datetime.now(UTC)
+        store.save(profile)
+
+    if json_output:
+        import json as _json
+
+        click.echo(_json.dumps(result.to_dict(), indent=2))
+        return
+
+    if result.dry_run:
+        console.print("[yellow]DRY RUN[/yellow] - nothing written")
+    console.print(
+        f"Candidates: {result.total_candidates}  Absorbed: {len(result.absorbed)} "
+        f"(added {result.added_count}, merged {result.merged_count})  Rejected: {len(result.rejected)}"
+    )
+    for a in result.absorbed:
+        print_list_item(f"{a.statement}  [dim](conf {a.confidence:.2f}, {a.outcome})[/dim]")
+    console.print(f"\nAudit anytime: deepr expert health-check '{name}'")
