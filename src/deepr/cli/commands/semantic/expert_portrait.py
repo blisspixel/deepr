@@ -76,7 +76,7 @@ def expert_portrait(name, all_experts, missing_only, style, provider, yes):
       deepr expert portrait --all --missing-only -y
       deepr expert portrait --all --style "flat vector, muted palette" -y
     """
-    from deepr.experts.portraits import PORTRAIT_COST_ESTIMATE_USD, detect_provider, portrait_style
+    from deepr.experts.portraits import detect_provider, portrait_cost, portrait_style
     from deepr.experts.profile import ExpertStore
 
     store = ExpertStore()
@@ -86,15 +86,20 @@ def expert_portrait(name, all_experts, missing_only, style, provider, yes):
     if not targets:
         print_success("Nothing to do - all selected experts already have portraits.")
         return
-    if not (provider or detect_provider()):
-        print_error("No image provider available. Set OPENAI_API_KEY, GEMINI_API_KEY, or XAI_API_KEY.")
+    effective = provider or detect_provider()
+    if not effective:
+        print_error(
+            "No image generator available. Set DEEPR_LOCAL_IMAGE_URL (local FLUX/ComfyUI, $0) "
+            "or OPENAI_API_KEY / GEMINI_API_KEY / XAI_API_KEY."
+        )
         sys.exit(2)
 
-    console.print(f"[dim]Style: {portrait_style(style)}[/dim]")
-    est = len(targets) * PORTRAIT_COST_ESTIMATE_USD
+    unit = portrait_cost(effective)
+    console.print(f"[dim]Provider: {effective} (~${unit:.2f}/image)  Style: {portrait_style(style)}[/dim]")
+    est = len(targets) * unit
     if not yes and not click.confirm(f"Generate {len(targets)} portrait(s) (~${est:.2f})?", default=False):
         print_warning("Cancelled.")
         return
 
     ok = asyncio.run(_run_portrait_batch(store, targets, provider=provider, style=style))
-    print_success(f"Generated {ok}/{len(targets)} portrait(s). Spend ~${ok * PORTRAIT_COST_ESTIMATE_USD:.2f}.")
+    print_success(f"Generated {ok}/{len(targets)} portrait(s). Spend ~${ok * unit:.2f}.")

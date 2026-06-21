@@ -15,18 +15,41 @@ from pathlib import Path
 logger = logging.getLogger(__name__)
 
 # The house art style every expert portrait shares, so a whole library reads as
-# one coherent set rather than a grab-bag. Override with ``DEEPR_PORTRAIT_STYLE``
-# to set your own consistent look (e.g. "flat vector, muted palette").
+# one coherent, branded set - the "Deepr Expert look". Override with
+# ``DEEPR_PORTRAIT_STYLE`` to set your own consistent look (e.g. "flat vector,
+# muted palette"); a per-run ``--style`` wins over both.
 DEFAULT_PORTRAIT_STYLE = (
-    "Stylized digital illustration, clean solid background, soft warm lighting, "
-    "academic/professional aesthetic, head-and-shoulders, suitable as an avatar"
+    "Premium vector-style portrait in a consistent 'Deepr Expert' look: "
+    "sophisticated modern-scholar aesthetic like a high-end SaaS avatar; clean "
+    "minimalist lines with subtle cyber-futurist tech accents; soft cinematic "
+    "studio lighting with a gentle rim light; confident three-quarter angle, "
+    "warm approachable expression; deep teal and indigo accent palette on a soft "
+    "off-white background with a faint gradient; a small symbolic icon from the "
+    "expert's own domain subtly integrated; head-and-shoulders, square and "
+    "circle-crop friendly; ultra-professional and trustworthy; no logos, no "
+    "clutter, no harsh shadows"
 )
 
 # Style preference env var (see ``portrait_style``).
 PORTRAIT_STYLE_ENV = "DEEPR_PORTRAIT_STYLE"
 
-# Approximate per-image cost, used for budget confirmation and ledger entries.
+# Approximate per-image cost for the metered providers, used for budget
+# confirmation and ledger entries. Local generation is $0 (see portrait_cost).
 PORTRAIT_COST_ESTIMATE_USD = 0.04
+
+# Local image generation (capability-adaptive, $0): point this at a local
+# diffusion server that speaks the OpenAI Images API (e.g. ComfyUI/SwarmUI/a
+# FLUX server with an OpenAI-compatible shim at /v1). Plain Ollama does NOT
+# generate images, so it is not an option here. When set, it is preferred over
+# metered providers (cheapest-first, like the research capacity waterfall).
+LOCAL_IMAGE_URL_ENV = "DEEPR_LOCAL_IMAGE_URL"
+LOCAL_IMAGE_MODEL_ENV = "DEEPR_LOCAL_IMAGE_MODEL"
+DEFAULT_LOCAL_IMAGE_MODEL = "flux"
+
+
+def portrait_cost(provider: str | None) -> float:
+    """Per-image cost for a provider: $0 for local, the metered estimate else."""
+    return 0.0 if provider == "local" else PORTRAIT_COST_ESTIMATE_USD
 
 
 def portrait_style(override: str | None = None) -> str:
@@ -76,7 +99,13 @@ def _build_prompt(name: str, domain: str | None, description: str | None, *, sty
 
 
 def detect_provider() -> str | None:
-    """Return the first available image-generation provider, or None."""
+    """Return the best available image provider, cheapest-first, or None.
+
+    Local (a configured diffusion endpoint) wins over metered APIs so a user
+    with a GPU generates portraits at $0.
+    """
+    if os.getenv(LOCAL_IMAGE_URL_ENV):
+        return "local"
     if os.getenv("OPENAI_API_KEY"):
         return "openai"
     if os.getenv("GEMINI_API_KEY") or os.getenv("GOOGLE_API_KEY"):
@@ -113,12 +142,17 @@ async def generate_portrait(
     """
     provider = provider or detect_provider()
     if not provider:
-        raise RuntimeError("No image generation API key found. Set OPENAI_API_KEY, GEMINI_API_KEY, or XAI_API_KEY.")
+        raise RuntimeError(
+            "No image generator available. Set DEEPR_LOCAL_IMAGE_URL (a local FLUX/ComfyUI "
+            "OpenAI-images endpoint, $0) or OPENAI_API_KEY / GEMINI_API_KEY / XAI_API_KEY."
+        )
 
     prompt = _build_prompt(name, domain, description, style=style)
     logger.info("Generating portrait for '%s' via %s", name, provider)
 
-    if provider == "openai":
+    if provider == "local":
+        image_bytes = await _generate_local(prompt)
+    elif provider == "openai":
         image_bytes = await _generate_openai(prompt)
     elif provider == "google":
         image_bytes = await _generate_google(prompt)
@@ -164,14 +198,15 @@ async def generate_and_save_portrait(
     profile.portrait_url = portrait_url  # type: ignore[attr-defined]
     store.save(profile)  # type: ignore[attr-defined]
 
+    effective_provider = provider or detect_provider()
     try:  # best-effort: the portrait already exists; ledger failure must not break it
         from deepr.experts.cost_safety import get_cost_safety_manager
 
         get_cost_safety_manager().record_cost(
             session_id=f"portrait_{getattr(profile, 'name', 'expert')}",
             operation_type="portrait_generation",
-            actual_cost=PORTRAIT_COST_ESTIMATE_USD,
-            provider=provider or "auto",
+            actual_cost=portrait_cost(effective_provider),
+            provider=effective_provider or "auto",
             source="experts.portraits",
             metadata={"expert": getattr(profile, "name", "")},
         )
@@ -266,4 +301,33 @@ async def _generate_xai(prompt: str) -> bytes:
     b64 = result.data[0].b64_json
     if not b64:
         raise RuntimeError("xAI returned empty image data")
+    return base64.b64decode(b64)
+
+
+async def _generate_local(prompt: str) -> bytes:
+    """Generate via a local OpenAI-Images-compatible endpoint ($0, on your GPU).
+
+    Point ``DEEPR_LOCAL_IMAGE_URL`` at a local diffusion server exposing the
+    OpenAI Images API (ComfyUI/SwarmUI/a FLUX server with a ``/v1`` shim);
+    ``DEEPR_LOCAL_IMAGE_MODEL`` selects the model (default ``flux``). Nothing is
+    billed - it hits your own hardware. Plain Ollama cannot do this (it has no
+    image-generation models), so a diffusion server is required.
+    """
+    from openai import AsyncOpenAI
+
+    base_url = os.getenv(LOCAL_IMAGE_URL_ENV, "").rstrip("/")
+    if not base_url:
+        raise RuntimeError(f"{LOCAL_IMAGE_URL_ENV} is not set")
+    if not base_url.endswith("/v1"):
+        base_url = f"{base_url}/v1"
+    client = AsyncOpenAI(api_key="local", base_url=base_url)
+    result = await client.images.generate(
+        model=os.getenv(LOCAL_IMAGE_MODEL_ENV, DEFAULT_LOCAL_IMAGE_MODEL),
+        prompt=prompt,
+        n=1,
+        response_format="b64_json",
+    )
+    b64 = result.data[0].b64_json
+    if not b64:
+        raise RuntimeError("Local image endpoint returned empty image data")
     return base64.b64decode(b64)
