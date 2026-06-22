@@ -7,6 +7,35 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.20.0] - 2026-06-22
+
+Licensing, safe-defaults, and model-freshness release.
+
+### Changed
+- **License** finalized to plain **Apache 2.0** (the interim Commons Clause
+  rider was removed); `LICENSE`, `pyproject.toml`, and the README now agree.
+- **Lower, coherent default budget caps** so a fresh install can't quietly run
+  up a large bill: the web dashboard and local REST API now default to
+  per-job **$5**, daily **$10**, monthly **$20** (previously $20 / $100 /
+  $1000). The cost-intelligence sliders were rescaled to matching personal-use
+  ranges. Existing saved limits and the `DEEPR_PER_JOB_LIMIT` /
+  `DEEPR_DAILY_LIMIT` / `DEEPR_MONTHLY_LIMIT` env overrides are unchanged.
+- **OpenAI task-model defaults bumped to `gpt-5.5`** (the current flagship) for
+  the metered chat / synthesis / planning / documentation / strategy tasks,
+  replacing the stale `gpt-5.2` defaults. Pricing is unaffected (`gpt-5.5` is
+  registered).
+- **README** reformatted to the conventional layout — title, badges, and
+  tagline lead; license and authorship details move to the License section at
+  the foot of the document.
+
+### Fixed
+- Reconciled the parallel `core/settings.py` configuration with `config.py`:
+  its `TASK_MODEL_MAP`, `synthesis_model`, and OpenAI env default were left on
+  `gpt-5.2` when `config.py` moved to `gpt-5.5`, so the two config systems
+  disagreed on the default model. Both now resolve to `gpt-5.5`.
+- Committed the `uv.lock` update for the maintained `ddgs` web-search
+  dependency so locked and declared dependencies match.
+
 ## [2.19.0] - 2026-06-20
 
 Red-team trend artifact release.
