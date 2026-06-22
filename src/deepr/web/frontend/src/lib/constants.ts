@@ -35,9 +35,9 @@ export const TIME_RANGES = [
 
 /** Default budget limits — used as fallbacks when backend is unreachable */
 export const BUDGET_DEFAULTS = {
-  PER_JOB: 10,
+  PER_JOB: 5,
   DAILY: 10,
-  MONTHLY: 100,
+  MONTHLY: 20,
 } as const
 
 export const CHAT_MODES = [
