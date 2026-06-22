@@ -772,9 +772,9 @@ Budget remaining: ${budget_remaining:.2f}
                 logger.debug("Recon probe cleanup after failure also failed (non-fatal)", exc_info=False)
 
     async def _quick_lookup(self, query: str) -> dict:
-        """Quick web lookup using GPT-5.2 with high reasoning (5-15 sec).
+        """Quick web lookup using GPT-5.5 with high reasoning (5-15 sec).
 
-        Uses GPT-5.2 which has better current knowledge and reasoning.
+        Uses GPT-5.5 which has better current knowledge and reasoning.
         For true web search, use standard_research instead.
 
         Args:
@@ -799,9 +799,9 @@ Budget remaining: ${budget_remaining:.2f}
             return {"error": f"Quick lookup blocked: {reason}", "mode": "quick_lookup_gpt52", "status": "blocked"}
 
         try:
-            # Use GPT-5.2 with low reasoning effort for knowledge lookups
+            # Use GPT-5.5 with low reasoning effort for knowledge lookups
             response = await self.client.chat.completions.create(
-                model="gpt-5.2",
+                model="gpt-5.5",
                 messages=[
                     {
                         "role": "system",
@@ -816,14 +816,14 @@ Budget remaining: ${budget_remaining:.2f}
 
             # Token-priced via the registry so future rate changes for
             # gpt-5.2 don't silently drift from the budget bookkeeping.
-            cost = _chat_token_cost(response.usage, "gpt-5.2") if response.usage else 0.01
+            cost = _chat_token_cost(response.usage, "gpt-5.5") if response.usage else 0.01
             self.cost_accumulated += cost
             self.cost_safety.record_cost(
                 session_id=self.session_id,
                 operation_type="quick_lookup",
                 actual_cost=cost,
                 provider="openai",
-                model="gpt-5.2",
+                model="gpt-5.5",
                 tokens_input=getattr(response.usage, "prompt_tokens", 0) if response.usage else 0,
                 tokens_output=getattr(response.usage, "completion_tokens", 0) if response.usage else 0,
             )
@@ -934,10 +934,10 @@ Budget remaining: ${budget_remaining:.2f}
             # Record failure for circuit breaker
             self.cost_safety.record_failure(self.session_id, "standard_research", str(e))
 
-            # Fallback to GPT-5.2 without web search
+            # Fallback to GPT-5.5 without web search
             try:
                 response = await self.client.chat.completions.create(
-                    model="gpt-5.2",
+                    model="gpt-5.5",
                     messages=[
                         {
                             "role": "system",
@@ -948,9 +948,9 @@ Budget remaining: ${budget_remaining:.2f}
                     reasoning_effort="low",
                 )
 
-                answer = f"{response.choices[0].message.content or ''}\n\n[Note: Grok web search unavailable, using GPT-5.2 knowledge instead]"
+                answer = f"{response.choices[0].message.content or ''}\n\n[Note: Grok web search unavailable, using GPT-5.5 knowledge instead]"
 
-                cost = _chat_token_cost(response.usage, "gpt-5.2") if response.usage else 0.01
+                cost = _chat_token_cost(response.usage, "gpt-5.5") if response.usage else 0.01
                 self.cost_accumulated += cost
 
                 # Record fallback cost
@@ -968,7 +968,7 @@ Budget remaining: ${budget_remaining:.2f}
                     "budget_remaining": self.cost_session.get_remaining_budget(),
                 }
             except Exception as fallback_error:
-                return {"error": f"Grok search failed: {e!s}. GPT-5.2 fallback failed: {fallback_error!s}"}
+                return {"error": f"Grok search failed: {e!s}. GPT-5.5 fallback failed: {fallback_error!s}"}
 
     async def _deep_research(self, query: str) -> dict:
         """Deep research using o4-mini-deep-research ($0.10-0.30, 5-20 min).
