@@ -275,9 +275,9 @@ export default function CostIntelligence() {
         </div>
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
           {[
-            { label: 'Per-job limit', key: 'per_job' as const, value: effectiveLimits?.per_job || BUDGET_DEFAULTS.PER_JOB, max: 50, step: 1 },
-            { label: 'Daily limit', key: 'daily' as const, value: effectiveLimits?.daily || BUDGET_DEFAULTS.DAILY, max: 200, step: 5 },
-            { label: 'Monthly limit', key: 'monthly' as const, value: effectiveLimits?.monthly || BUDGET_DEFAULTS.MONTHLY, max: 2000, step: 10 },
+            { label: 'Per-job limit', key: 'per_job' as const, value: effectiveLimits?.per_job || BUDGET_DEFAULTS.PER_JOB, max: 25, step: 1 },
+            { label: 'Daily limit', key: 'daily' as const, value: effectiveLimits?.daily || BUDGET_DEFAULTS.DAILY, max: 50, step: 1 },
+            { label: 'Monthly limit', key: 'monthly' as const, value: effectiveLimits?.monthly || BUDGET_DEFAULTS.MONTHLY, max: 200, step: 5 },
           ].map((control) => (
             <div key={control.key} className="space-y-2">
               <div className="flex justify-between items-baseline">

@@ -192,9 +192,9 @@ _LIMITS_FILE = config_path / "budget_limits.json"
 def _load_persisted_limits() -> dict:
     """Load budget limits from disk, falling back to env vars / defaults."""
     defaults = {
-        "per_job": float(os.getenv("DEEPR_PER_JOB_LIMIT", "20") or "20"),
-        "daily": float(os.getenv("DEEPR_DAILY_LIMIT", "100") or "100"),
-        "monthly": float(os.getenv("DEEPR_MONTHLY_LIMIT", "1000") or "1000"),
+        "per_job": float(os.getenv("DEEPR_PER_JOB_LIMIT", "5") or "5"),
+        "daily": float(os.getenv("DEEPR_DAILY_LIMIT", "10") or "10"),
+        "monthly": float(os.getenv("DEEPR_MONTHLY_LIMIT", "20") or "20"),
     }
     if _LIMITS_FILE.exists():
         try:
@@ -914,8 +914,8 @@ def get_cost_summary():
 
         # Get limits from controller or defaults
         daily_limit = cost_controller.max_daily_cost if cost_controller else 10.0
-        monthly_limit = cost_controller.max_monthly_cost if cost_controller else 100.0
-        per_job_limit = cost_controller.max_cost_per_job if cost_controller else 10.0
+        monthly_limit = cost_controller.max_monthly_cost if cost_controller else 20.0
+        per_job_limit = cost_controller.max_cost_per_job if cost_controller else 5.0
 
         summary = {
             "daily": round(daily_spending, 2),
@@ -1402,7 +1402,7 @@ def get_config():
             config = {
                 **_config,
                 "daily_limit": cost_controller.max_daily_cost if cost_controller else 10.0,
-                "monthly_limit": cost_controller.max_monthly_cost if cost_controller else 100.0,
+                "monthly_limit": cost_controller.max_monthly_cost if cost_controller else 20.0,
                 "has_api_key": bool(os.getenv("OPENAI_API_KEY")),
                 "provider_keys": {
                     "openai": bool(os.getenv("OPENAI_API_KEY")),

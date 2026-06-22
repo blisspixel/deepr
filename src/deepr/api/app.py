@@ -612,9 +612,9 @@ def submit_job():
 
         _estimate = CostEstimator.estimate_cost(prompt=prompt, model=model, enable_web_search=enable_web_search)
         _controller = CostController(
-            max_cost_per_job=float(os.getenv("DEEPR_PER_JOB_LIMIT", "20") or "20"),
-            max_daily_cost=float(os.getenv("DEEPR_DAILY_LIMIT", "100") or "100"),
-            max_monthly_cost=float(os.getenv("DEEPR_MONTHLY_LIMIT", "1000") or "1000"),
+            max_cost_per_job=float(os.getenv("DEEPR_PER_JOB_LIMIT", "5") or "5"),
+            max_daily_cost=float(os.getenv("DEEPR_DAILY_LIMIT", "10") or "10"),
+            max_monthly_cost=float(os.getenv("DEEPR_MONTHLY_LIMIT", "20") or "20"),
         )
         allowed, reason = _controller.check_cost_limit(_estimate)
         if not allowed:
