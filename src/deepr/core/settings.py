@@ -276,7 +276,7 @@ class ExpertSettings:
 
     # Synthesis
     auto_synthesis: bool = True
-    synthesis_model: str = "gpt-5.2"
+    synthesis_model: str = "gpt-5.5"
 
     # Freshness
     default_domain_velocity: DomainVelocity = DomainVelocity.MEDIUM
@@ -366,11 +366,11 @@ TASK_MODEL_MAP: dict[str, tuple[str, str]] = {
     "quick_lookup": ("xai", "grok-4.3"),
     "fact_check": ("xai", "grok-4.3"),
     "deep_research": ("openai", "o3-deep-research"),
-    "synthesis": ("openai", "gpt-5.2"),
-    "chat": ("openai", "gpt-5.2"),
-    "planning": ("openai", "gpt-5.2"),
-    "documentation": ("openai", "gpt-5.2"),
-    "strategy": ("openai", "gpt-5.2"),
+    "synthesis": ("openai", "gpt-5.5"),
+    "chat": ("openai", "gpt-5.5"),
+    "planning": ("openai", "gpt-5.5"),
+    "documentation": ("openai", "gpt-5.5"),
+    "strategy": ("openai", "gpt-5.5"),
 }
 
 
@@ -531,7 +531,7 @@ class Settings:
         self._apply_env("DEEPR_DATA_DIR", "data_dir")
 
         # Provider API keys
-        self._load_provider_from_env("openai", "OPENAI_API_KEY", "OPENAI_BASE_URL", "gpt-5.2")
+        self._load_provider_from_env("openai", "OPENAI_API_KEY", "OPENAI_BASE_URL", "gpt-5.5")
         self._load_provider_from_env("anthropic", "ANTHROPIC_API_KEY", None, "claude-opus-4-5-20251101")
         self._load_provider_from_env("gemini", "GEMINI_API_KEY", None, "gemini-2.0-flash")
         self._load_provider_from_env("grok", "XAI_API_KEY", None, "grok-4.3")
