@@ -726,11 +726,26 @@ Sequenced smallest-shippable-first:
       run it as a watchdog). Read-only, $0. Module `experts/fleet_status.py` +
       `deepr fleet status`; 17 tests. Deferred: web-dashboard view; a configurable
       `expected_interval` for clock-based overdue beyond subscription cadence.
-- [ ] **In-verb overlap guard + `--jitter`**: a non-blocking cross-platform
+- [~] **In-verb overlap guard + `--jitter`**: a non-blocking cross-platform
       `filelock` keyed by `expert + verb` (Windows-primary rules out `flock`);
       on contention exit 0 with a recorded skip. Bounded startup jitter (stable
       per-expert offset) so a roster on one cadence doesn't thunder-herd
       rate-limited plan-quota CLIs.
+  - [x] **Primitive** (2026-06-23): `experts/loop_lock.py` -
+        `expert_verb_lock(expert, verb)` (non-blocking `filelock` keyed by
+        (expert, verb) in the lock *filename*, so it is correct even under a
+        shared lock dir; yields `acquired: bool`, never blocks or raises on
+        contention, always releases - a crash frees it) plus
+        `startup_jitter_seconds`/`apply_startup_jitter` (deterministic bounded
+        per-expert offset, injectable sleep). `filelock` promoted to a direct
+        runtime dependency. 13 tests. Deterministic workflow mechanics over
+        side-effects/timing per AGENTIC_BALANCE.
+  - [ ] **Verb wiring** (next): wrap the scheduled-verb bodies (`expert sync`,
+        `health-check`, `reflect`, `route-gaps`, future `sync-all`) so each
+        holds its lock for the whole run and exits 0 with a printed skip on
+        contention, and applies `--jitter` at startup. Best done with (or after)
+        the `sync_cmd` body extraction (Phase Q3 decomposition) so the lock
+        wraps a single helper rather than indenting a 100-line click command.
 - [ ] **`deepr fleet install-schedule`**: emit the correct **non-default** host
       recipe - Windows Task Scheduler XML (StartWhenAvailable, run-whether-logged-
       on, uncheck AC-only/stop-on-battery, WakeToRun, do-not-start-new-instance),
