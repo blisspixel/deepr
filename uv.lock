@@ -796,7 +796,7 @@ wheels = [
 
 [[package]]
 name = "deepr-research"
-version = "2.19.0"
+version = "2.20.0"
 source = { editable = "." }
 dependencies = [
     { name = "aiofiles" },
@@ -804,6 +804,7 @@ dependencies = [
     { name = "anthropic" },
     { name = "click" },
     { name = "colorama" },
+    { name = "filelock" },
     { name = "google-genai" },
     { name = "httpx" },
     { name = "numpy" },
@@ -888,6 +889,7 @@ requires-dist = [
     { name = "colorama", specifier = ">=0.4.6,<1.0.0" },
     { name = "ddgs", marker = "extra == 'search'", specifier = ">=9.0.0,<10.0.0" },
     { name = "deepr-research", extras = ["web", "azure", "azure-foundry", "docs", "search"], marker = "extra == 'full'" },
+    { name = "filelock", specifier = ">=3.12.0,<4.0.0" },
     { name = "flasgger", marker = "extra == 'web'", specifier = ">=0.9.7,<1.0.0" },
     { name = "flask", marker = "extra == 'web'", specifier = ">=3.0.0,<4.0.0" },
     { name = "flask-cors", marker = "extra == 'web'", specifier = ">=6.0.0,<7.0.0" },
