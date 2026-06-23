@@ -7,6 +7,7 @@ cited context pack that can be prepended to a local-model prompt.
 
 from __future__ import annotations
 
+import hashlib
 import os
 import re
 from collections.abc import Awaitable, Callable
@@ -52,6 +53,21 @@ class FreshSource:
         if len(text) <= max_chars:
             return text
         return text[: max(0, max_chars - 3)].rstrip() + "..."
+
+    @property
+    def content_hash(self) -> str:
+        """SHA-256 of the fetched main content, or '' when nothing was fetched.
+
+        The pre-sync change-detection gate (``experts/sync.py``) compares these
+        across syncs to skip re-absorbing byte-identical sources. Derived from
+        ``content`` so the hash can never drift from the text it summarizes; the
+        search snippet is excluded because it is volatile retrieval metadata,
+        not the content the absorber reads.
+        """
+        text = self.content.strip()
+        if not text:
+            return ""
+        return hashlib.sha256(text.encode("utf-8")).hexdigest()
 
 
 @dataclass(frozen=True)
@@ -135,6 +151,7 @@ class FreshContext:
                     "source": source.source,
                     "fetched": source.fetched,
                     "error": source.error,
+                    "content_hash": source.content_hash,
                 }
                 for source in self.sources
             ],
@@ -167,6 +184,7 @@ class FreshContext:
                     "error": source.error,
                     "snippet": source.snippet,
                     "excerpt": source.excerpt(excerpt_limit),
+                    "content_hash": source.content_hash,
                 }
                 for index, source in enumerate(usable_sources, start=1)
             ],

@@ -90,6 +90,40 @@ def _source_pack_summary(source_pack: dict[str, Any]) -> tuple[int, str]:
     return source_count, mode
 
 
+def _source_pack_content_hashes(source_pack: dict[str, Any] | None) -> set[str]:
+    """Non-empty SHA-256 content hashes of the fetched sources in a pack."""
+    if not isinstance(source_pack, dict):
+        return set()
+    hashes: set[str] = set()
+    for source in source_pack.get("sources", []):
+        if isinstance(source, dict):
+            digest = source.get("content_hash")
+            if isinstance(digest, str) and digest:
+                hashes.add(digest)
+    return hashes
+
+
+def fresh_sources_unchanged(prior: dict[str, Any] | None, current: dict[str, Any] | None) -> bool:
+    """Whether the current retrieval adds no new content versus the prior sync.
+
+    Deterministic and form-only: it compares SHA-256 hashes of fetched source
+    content, never their meaning. It fails safe toward "changed" - returning
+    ``False`` whenever it cannot prove no-change (no prior pack, no hashable
+    current content, or any hash the prior run did not already have) - so a real
+    update is never skipped; the worst case is one wasted, already-gated
+    extraction. The model-side "no significant changes" reply is the second
+    backstop for semantic no-ops the hash cannot see. See
+    docs/design/change-detection-gate.md.
+    """
+    current_hashes = _source_pack_content_hashes(current)
+    if not current_hashes:
+        return False
+    prior_hashes = _source_pack_content_hashes(prior)
+    if not prior_hashes:
+        return False
+    return current_hashes <= prior_hashes
+
+
 @dataclass
 class Subscription:
     """One topic an expert stays current on."""
@@ -351,6 +385,10 @@ class ExpertSyncEngine:
                 subscription.topic, "would_sync", detail=self.build_freshness_query(subscription)[:120]
             ), 0.0
 
+        # Read the prior pack before this run writes its own, so the
+        # change-detection gate compares against the previous sync.
+        prior_pack = self._load_latest_source_pack(subscription)
+
         try:
             research = await self._research(subscription, budget)
         except Exception as exc:
@@ -361,9 +399,10 @@ class ExpertSyncEngine:
 
         cost = float(research.get("cost", 0.0) or 0.0)
         answer = (research.get("answer") or "").strip()
-        source_pack_path, source_count, context_mode = self._persist_source_pack_if_present(
+        current_pack = _source_pack_from_research(research)
+        source_pack_path, source_count, context_mode = self._persist_source_pack(
             subscription,
-            research,
+            current_pack,
             started_at,
         )
         if source_pack_path is None:
@@ -388,6 +427,15 @@ class ExpertSyncEngine:
             self._attach_source_pack_summary(outcome, source_pack_path, source_count, context_mode)
             return outcome, cost
 
+        if fresh_sources_unchanged(prior_pack, current_pack):
+            outcome = self._record_no_changes(
+                subscription,
+                cost,
+                detail="sources unchanged since last sync",
+            )
+            self._attach_source_pack_summary(outcome, source_pack_path, source_count, context_mode)
+            return outcome, cost
+
         if not answer or answer.lower().startswith(_NO_CHANGES_MARKER):
             outcome = self._record_no_changes(subscription, cost)
             self._attach_source_pack_summary(outcome, source_pack_path, source_count, context_mode)
@@ -397,13 +445,12 @@ class ExpertSyncEngine:
         self._attach_source_pack_summary(outcome, source_pack_path, source_count, context_mode)
         return outcome, cost
 
-    def _persist_source_pack_if_present(
+    def _persist_source_pack(
         self,
         subscription: Subscription,
-        research: dict[str, Any],
+        source_pack: dict[str, Any] | None,
         started_at: datetime,
     ) -> tuple[str | None, int, str]:
-        source_pack = _source_pack_from_research(research)
         if source_pack is None:
             return "", 0, ""
 
@@ -414,6 +461,28 @@ class ExpertSyncEngine:
             logger.error("Could not write source pack for %s: %s", subscription.topic, exc)
             return None, source_count, context_mode
         return path, source_count, context_mode
+
+    def _load_latest_source_pack(self, subscription: Subscription) -> dict[str, Any] | None:
+        """Most recent persisted source pack for this topic, or None.
+
+        Called before the current run writes its own artifact, so the result is
+        the previous sync's pack. The timestamped filenames sort lexically in
+        chronological order, so the last match is the newest. Returns the inner
+        ``source_pack`` payload (the part carrying per-source content hashes).
+        """
+        artifact_dir = self.subscriptions.path.parent / "sync_artifacts" / "source_packs"
+        if not artifact_dir.is_dir():
+            return None
+        candidates = sorted(artifact_dir.glob(f"*_{_slug(subscription.topic)}.json"))
+        if not candidates:
+            return None
+        try:
+            data = json.loads(candidates[-1].read_text(encoding="utf-8"))
+        except (json.JSONDecodeError, OSError, ValueError) as exc:
+            logger.warning("Could not read prior source pack %s: %s", candidates[-1], exc)
+            return None
+        source_pack = data.get("source_pack")
+        return source_pack if isinstance(source_pack, dict) else None
 
     def _write_source_pack_artifact(
         self,
