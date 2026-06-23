@@ -146,7 +146,23 @@ def test_fresh_source_excerpt_truncates():
     assert source.excerpt(0) == ""
 
 
+def test_fresh_source_content_hash_is_sha256_of_stripped_content():
+    import hashlib
+
+    source = FreshSource(title="T", url="https://x", content="  hello world  ")
+    assert source.content_hash == hashlib.sha256(b"hello world").hexdigest()
+
+
+def test_fresh_source_content_hash_empty_without_fetched_content():
+    # No content and snippet-only sources are not a stable change signal.
+    assert FreshSource(title="T", url="https://x").content_hash == ""
+    assert FreshSource(title="T", url="https://x", snippet="only a snippet").content_hash == ""
+
+
 def test_fresh_context_labels_only_citable_sources():
+    import hashlib
+
+    good_hash = hashlib.sha256(b"Useful current evidence.").hexdigest()
     context = FreshContext(
         query="q",
         generated_at="2026-06-18T00:00:00Z",
@@ -175,6 +191,7 @@ def test_fresh_context_labels_only_citable_sources():
             "error": "",
             "snippet": "",
             "excerpt": "Useful current evidence.",
+            "content_hash": good_hash,
         }
     ]
 

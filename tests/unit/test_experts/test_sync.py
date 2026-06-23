@@ -20,6 +20,7 @@ from deepr.experts.sync import (
     ExpertSyncEngine,
     Subscription,
     SubscriptionStore,
+    fresh_sources_unchanged,
 )
 
 
@@ -118,6 +119,36 @@ class TestFreshnessQuery:
         assert _NO_CHANGES_MARKER in q
 
 
+class TestFreshSourcesUnchanged:
+    """The pure change-detection gate fails safe toward 'changed'."""
+
+    def test_no_prior_pack_is_changed(self):
+        assert fresh_sources_unchanged(None, {"sources": [{"content_hash": "a"}]}) is False
+
+    def test_no_current_hashes_is_changed(self):
+        # Fetch failures / snippet-only sources cannot prove no-change.
+        assert fresh_sources_unchanged({"sources": [{"content_hash": "a"}]}, {"sources": []}) is False
+        assert fresh_sources_unchanged({"sources": [{"content_hash": "a"}]}, {"sources": [{"url": "x"}]}) is False
+
+    def test_prior_without_hashes_is_changed(self):
+        # Packs that predate this feature carry no content_hash -> proceed.
+        assert fresh_sources_unchanged({"sources": [{"url": "x"}]}, {"sources": [{"content_hash": "a"}]}) is False
+
+    def test_subset_of_prior_is_unchanged(self):
+        prior = {"sources": [{"content_hash": "a"}, {"content_hash": "b"}]}
+        current = {"sources": [{"content_hash": "a"}]}
+        assert fresh_sources_unchanged(prior, current) is True
+
+    def test_identical_hashes_are_unchanged(self):
+        pack = {"sources": [{"content_hash": "a"}, {"content_hash": "b"}]}
+        assert fresh_sources_unchanged(pack, dict(pack)) is True
+
+    def test_any_new_hash_is_changed(self):
+        prior = {"sources": [{"content_hash": "a"}]}
+        current = {"sources": [{"content_hash": "a"}, {"content_hash": "c"}]}
+        assert fresh_sources_unchanged(prior, current) is False
+
+
 class TestSyncEngine:
     @pytest.mark.asyncio
     async def test_sync_absorbs_delta_and_reports_what_changed(self, tmp_path):
@@ -149,6 +180,84 @@ class TestSyncEngine:
         assert result.outcomes[0].status == "no_changes"
         assert len(engine.belief_store.beliefs) == 0
         assert store.subscriptions[0].last_synced is not None  # cadence advanced
+
+    @pytest.mark.asyncio
+    async def test_unchanged_sources_skip_absorb_on_second_sync(self, tmp_path):
+        # Same sources (same content hashes) as last sync -> skip the paid
+        # absorb even though the model wrote a substantive (non-marker) answer.
+        store = _sub_store(tmp_path, Subscription(topic="Topic X", budget=0.5, cadence_days=0))
+        source_pack = {
+            "schema_version": "deepr.source_pack.v1",
+            "mode": "fresh",
+            "source_count": 1,
+            "retrieved_source_count": 1,
+            "sources": [
+                {
+                    "label": "S1",
+                    "url": "https://example.com/release",
+                    "content_hash": "f" * 64,
+                    "excerpt": "Topic X gained capability Y in June 2026.",
+                }
+            ],
+        }
+        engine = _engine(
+            tmp_path,
+            store,
+            {
+                "Topic X": {
+                    "answer": "Topic X gained capability Y in June 2026. [S1]",
+                    "cost": 0.01,
+                    "fresh_context": {"source_count": 1, "mode": "fresh"},
+                    "source_pack": source_pack,
+                }
+            },
+        )
+
+        first = await engine.sync(budget=2.0, only_due=False)
+        assert first.outcomes[0].status == "synced"
+        assert first.outcomes[0].absorbed == 1
+        assert len(engine.belief_store.beliefs) == 1
+
+        second = await engine.sync(budget=2.0, only_due=False)
+        assert second.outcomes[0].status == "no_changes"
+        assert "unchanged since last sync" in second.outcomes[0].detail
+        assert second.outcomes[0].source_pack_artifact  # still records provenance
+        # The gate fired before absorb: belief count is unchanged.
+        assert len(engine.belief_store.beliefs) == 1
+
+    @pytest.mark.asyncio
+    async def test_changed_source_hash_proceeds_to_absorb(self, tmp_path):
+        # A new content hash on the second sync falsifies the no-change subset,
+        # so the pipeline runs normally and absorbs the delta.
+        store = _sub_store(tmp_path, Subscription(topic="Topic X", budget=0.5, cadence_days=0))
+        calls = {"n": 0}
+
+        async def research_fn(query: str, budget: float) -> dict:
+            calls["n"] += 1
+            digest = "a" * 64 if calls["n"] == 1 else "b" * 64
+            return {
+                "answer": "Topic X gained capability Y in June 2026. [S1]",
+                "cost": 0.01,
+                "fresh_context": {"source_count": 1, "mode": "fresh"},
+                "source_pack": {
+                    "schema_version": "deepr.source_pack.v1",
+                    "mode": "fresh",
+                    "source_count": 1,
+                    "sources": [{"label": "S1", "url": "https://example.com/release", "content_hash": digest}],
+                },
+            }
+
+        beliefs = BeliefStore("Sync Test Expert", storage_dir=tmp_path / "beliefs")
+        absorber = ReportAbsorber(_expert(), client=_FakeExtractionClient(), belief_store=beliefs)
+        engine = ExpertSyncEngine(
+            _expert(), research_fn=research_fn, subscription_store=store, belief_store=beliefs, absorber=absorber
+        )
+
+        first = await engine.sync(budget=2.0, only_due=False)
+        second = await engine.sync(budget=2.0, only_due=False)
+
+        assert first.outcomes[0].status == "synced"
+        assert second.outcomes[0].status == "synced"
 
     @pytest.mark.asyncio
     async def test_empty_fresh_context_skips_absorb(self, tmp_path):

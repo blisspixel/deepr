@@ -689,12 +689,31 @@ Sequenced smallest-shippable-first:
       symmetric with `_reserved_daily`) so N parallel callers cannot over-commit
       a low monthly reserve - the primary over-spend path for a $20/month fleet.
       Regression-tested in `test_cost_safety_reservations.py`.
-- [ ] **Pre-sync change-detection gate** (highest-leverage freshness-per-$0):
+- [~] **Pre-sync change-detection gate** (highest-leverage freshness-per-$0):
       ETag/`If-Modified-Since` -> `304` skip, RSS/Atom + sitemap `lastmod` as
       hints, content-hash of extracted main content; only a real diff reaches the
       expensive extraction/absorb path. ~60% of refresh work finds nothing
       changed, so this is the biggest cost saver. Lives in the existing
       fresh-context/health-check path; $0, preserves the $0-read-side invariant.
+  - [x] **Content-hash slice** (2026-06-23): `FreshSource.content_hash`
+        (sha256 of extracted main content, a derived property so it cannot
+        drift) is persisted per source in the sync source packs, and
+        `fresh_sources_unchanged()` skips the paid absorb when the current
+        retrieval's content hashes are a subset of the prior sync's - i.e. no
+        new content. Deterministic, form-only, and fails safe toward proceeding
+        (no prior pack / no hashable content / any new hash -> run the pipeline),
+        so a real update is never skipped; the model-side `no significant
+        changes` reply stays the second backstop. The universal signal first
+        because it needs no server cooperation. Design:
+        [change-detection-gate.md](docs/design/change-detection-gate.md);
+        AGENTIC_BALANCE surface row added.
+  - [ ] **Conditional-GET slice** (next): persist `etag`/`last_modified` per
+        source and send `If-None-Match`/`If-Modified-Since` on the next fetch so
+        a `304` skips *before* retrieval cost, not just before absorb cost.
+        Needs a pre-research probe over known URLs plus HTTP-header plumbing
+        through the fetcher; ships with its consumer (no validator plumbing
+        lands until the probe reads it). RSS/Atom + sitemap `lastmod` is a
+        further optional prefilter on top.
 - [x] **`deepr fleet status`** (2026-06-21): cross-expert health rollup folding
       existing per-expert `loop_runs.jsonl` + `subscriptions.json` - no new
       storage (the per-expert `loop_status_rollup` and the plan-quota `capacity
