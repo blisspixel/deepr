@@ -859,11 +859,22 @@ Sequenced smallest-shippable-first:
       only one vendor is admitted; never silently skip or escalate to metered.
       Surface assurance ("verified by N cross-vendor checkers") in the handoff.
       Design: [multi-backend-patterns.md](docs/design/multi-backend-patterns.md).
-- [ ] **Hardening**: reservation TTL/sweeper (a leaked reservation permanently
-      shrinks a tight pool until restart) and an optional **off-box heartbeat** to
-      a free dead-man's-switch (healthchecks.io / Dead Man's Snitch) on scheduled-
-      verb success - the only thing that catches "the laptop never woke up." No
-      same-host monitor (it dies with the jobs).
+- [~] **Hardening**:
+  - [x] **Reservation TTL/sweeper** (2026-06-24): a `check_and_reserve` whose
+        caller crashes before `record_cost`/`refund_reservation` used to hold its
+        slice of the daily/monthly pool until process restart - on a tight
+        monthly reserve that silently starves the fleet. `CostSafetyManager` now
+        timestamps each reservation (`_reservation_started`) and lazily sweeps
+        any older than `RESERVATION_TTL_SECONDS` (1h, longer than any real op) at
+        the top of the next `check_and_reserve`, refunding both the daily and
+        monthly reserved pools under the existing lock. Fit inside the at-cap
+        file by tightening two verbose class-docstring examples (net shrink). 14
+        reservation tests (live not swept, leaked swept, both pools refunded,
+        settle clears the timestamp).
+  - [ ] **Off-box heartbeat** (next): an optional ping to a free dead-man's-switch
+        (healthchecks.io / Dead Man's Snitch) on scheduled-verb success - the only
+        thing that catches "the laptop never woke up." No same-host monitor (it
+        dies with the jobs).
 
 ### Phase 5: Operations, Team, and Security Hardening
 
