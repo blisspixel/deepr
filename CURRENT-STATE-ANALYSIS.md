@@ -1,12 +1,16 @@
 # Current State Analysis
 
-Date: 2026-06-20
+Date: 2026-06-24
 
 ## Alignment Summary
 
-Deepr is aligned around one active product bet: persistent domain experts that can keep verified knowledge current without silent spend. The README sells this as research infrastructure, not another chat window. Current main is now `v2.19.0`: local Ollama is usable for `$0` expert maintenance, durable loop status is observable across CLI, MCP, and web surfaces, OKF import/export is a verified interchange path, the hosted MCP foundation is in place, host-facing output contracts fail closed on schema drift, derived MCP handoff and loop-status reads sanitize directive canaries before host consumption, ingested/tool content prompt boundaries cover fresh context, report absorption, first-party findings, document review, campaign context, and team synthesis paths, and `deepr eval red-team` now measures built-in prompt-boundary, MCP read-path, tool-spoofing, and memory trust-floor canaries at `$0` with optional saved trend artifacts. Plan-quota adapters remain explicitly not execution backends until adapters, probes, no-surprise-bills guards, and tests ship. `AGENTIC_BALANCE.md` is the governing boundary: deterministic workflow code owns spend, writes, routing gates, durable state, and verifier outcomes; model judgment owns meaning such as contradiction, grounding, deduplication, and synthesis.
+Deepr is aligned around one active product bet: persistent domain experts that keep verified knowledge current without silent spend. The README sells this as research infrastructure and a consultable knowledge role, not another chat window and not generic RAG. Current main is `v2.20.0`: local Ollama is usable for `$0` expert maintenance; explicit plan-quota execution works for `expert sync --plan <id>`, `expert absorb --plan <id>`, and `capacity probe-plan <id>` behind auth-mode and no-surprise-bills gates; durable loop status is observable across CLI, MCP, and web surfaces; OKF import/export is a verified interchange path; hosted MCP has scoped keys, per-key budgets, rate limits, concurrency caps, audit records, smoke checks, registration manifests, and deployment recipes; red-team metrics measure prompt-boundary, MCP read-path, tool-spoofing, and memory trust-floor probes at `$0`.
 
-No clarification is needed before continuing. The docs are internally consistent about what works now, what is visible/read-only, and what remains planned.
+The latest 2026 external guidance reinforces Deepr's direction: this is agentic harness, context engineering, and loop engineering work. The useful primitives are durable progress files, tight high-signal context, independent verification, trace/eval loops, typed stop conditions, scoped tools, and explicit spend/security gates. Deepr already has most of the harness substrate: `ExpertLoopRun`, loop-status rollups, context source packs, capacity previews, budget gates, scoped MCP, red-team metrics, and derived handoff contracts. The remaining work is not "more RAG"; it is closing verifier loops and making the scheduled verbs safer and more observable.
+
+`AGENTIC_BALANCE.md` is the governing boundary: deterministic workflow code owns spend, writes, routing gates, durable state, locks, jitter, schemas, and verifier outcomes; model judgment owns meaning such as contradiction, grounding, deduplication, and synthesis.
+
+No clarification is needed before continuing. Two docs still had stale language that treated plan-quota execution as planned-only; this run updates the supported-surface and capacity-waterfall wording to match `README.md`, `ROADMAP.md`, and code.
 
 ## What Works Now
 
@@ -15,6 +19,8 @@ No clarification is needed before continuing. The docs are internally consistent
 - Capacity visibility is in place through `deepr capacity`, quota observations, normalized backend profiles, eligibility decisions, pure backend selection, and `deepr capacity next`.
 - The evidence layer is present through `eval continuity`, `eval calibrate`, `eval red-team`, source-trust floors, event logs, typed edges, lifecycle archival, and model-verdict routing for semantic absorb checks.
 - Portable data is in place through `DEEPR_DATA_DIR`, `DEEPR_EXPERTS_PATH`, and `DEEPR_REPORTS_PATH`, with the cost ledger deliberately machine-local.
+- Explicit plan-quota CLI execution is in place for maintenance through the lightweight `research_fn` and chat-client seams, with quota and `$0` cost-ledger writes. Automatic plan routing remains gated until trustworthy live remaining-quota signals exist.
+- Fleet loop primitives are in place: `fleet status`, `expert sync-all`, `fleet install-schedule`, content-hash pre-sync change detection, per-verb locks, startup jitter, and durable loop-run records.
 
 ## Recent Progress
 
@@ -214,26 +220,36 @@ contradiction, dedup, and trust-floor gates.
 
 ## Active Gap
 
-The first adversarial measurement slices are now in place. `deepr eval red-team`
-runs a local `$0` attack-success-rate verifier over prompt-injection,
-system-prompt extraction, jailbreak, data-exfiltration, structured tool-spoofing,
-MCP handoff and loop-status read-path canaries, and memory trust-floor probes.
-The default suite currently has 13 built-in cases and fails if any attack
-succeeds. `--save` writes local `data/benchmarks/red_team_*.json` artifacts for
-release-to-release trend review.
+The next-version edge is harness hardening, not plain retrieval. Highest-value
+open slices are:
 
-The remaining security gap is breadth: expert-chat harness coverage,
-ingestion-path corpora beyond the built-in canaries, and broader ADAM-style
-adaptive extraction probing through MCP read tools. Those should stay workflow
-metrics over observable boundaries, while semantic acceptance continues to
-depend on calibrated extraction, grounding,
+- Maker-checker completion: real caller wiring through provider adapters,
+  bounded second-check escalation, and assurance surfaced in handoff contracts.
+- Local-vs-frontier A/B: evidence that `$0` local experts preserve grounding
+  and identify the calibration/coverage cases that deserve targeted metered
+  escalation.
+- Final Phase 4d primitives: conditional GET before retrieval cost, plus the
+  now-advanced `expert sync` verb-lock and jitter wiring.
+- Brittle-rule cleanup: `context_chainer` discourse-marker contradictions,
+  health-check lexical contradiction surface, and shared-store dedup must route
+  to model judgment when they make semantic claims.
+- Semantic belief recall: local-first embedding candidates over belief claims,
+  used only for recall, with the existing epistemic graph still deciding trust.
+
+Security breadth remains open too: expert-chat harness coverage, ingestion-path
+corpora beyond built-in canaries, and broader adaptive MCP extraction probing.
+Those stay workflow metrics over observable boundaries, while semantic
+acceptance continues to depend on calibrated extraction, grounding,
 contradiction, dedup, and trust-floor gates.
 
 ## Next Work
 
-Next slice: extend the agentic red-team suite from built-in local canaries into
-expert-chat harness coverage and broader ingestion-path corpora, still at `$0`
-unless explicitly approved.
+Next slice selected and advanced: wire the per-(expert, verb) overlap guard and
+startup jitter into `deepr expert sync`, so a scheduled/manual collision exits
+0, records a typed `overlap_locked` loop state, and performs no model call or
+state mutation from the second process. This follows the loop-engineering rule:
+guard side effects deterministically, expose progress durably, and keep dry-run
+previews side-effect free.
 
 ## Spend Ledger For This Run
 

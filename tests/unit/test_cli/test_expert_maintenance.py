@@ -8,6 +8,7 @@ deepr/cli/commands/semantic/expert_maintenance.py must stay registered on the
 from __future__ import annotations
 
 import json
+from contextlib import contextmanager
 from types import SimpleNamespace
 
 from click.testing import CliRunner
@@ -33,7 +34,7 @@ class TestRegistration:
 
     def test_sync_has_local_and_api_flags(self):
         opts = {p.name for p in expert.commands["sync"].params}
-        assert {"local", "api", "fresh_context", "deep_context", "scheduled"} <= opts
+        assert {"local", "api", "fresh_context", "deep_context", "scheduled", "jitter"} <= opts
 
     def test_absorb_has_local_and_api_flags(self):
         opts = {p.name for p in expert.commands["absorb"].params}
@@ -47,6 +48,18 @@ class TestBackendFlagGuard:
         r = CliRunner().invoke(expert, ["sync", "Whoever", "--local", "--api"])
         assert r.exit_code == 2
         assert "only one of --local, --api, or --plan" in r.output
+
+    def test_sync_rejects_negative_jitter_before_store_work(self, monkeypatch):
+        class ExplodingExpertStore:
+            def load(self, name):
+                raise AssertionError("negative jitter must be rejected before loading experts")
+
+        monkeypatch.setattr("deepr.experts.profile.ExpertStore", ExplodingExpertStore)
+
+        r = CliRunner().invoke(expert, ["sync", "Whoever", "--jitter", "-1"])
+
+        assert r.exit_code == 2
+        assert "--jitter must be non-negative" in r.output
 
     def test_absorb_rejects_local_and_api_together(self):
         r = CliRunner().invoke(expert, ["absorb", "Whoever", "job123", "--local", "--api"])
@@ -129,6 +142,67 @@ class TestBackendFlagGuard:
         assert captured["research_fn"] is research_fn
         assert captured["engine_absorber"] is captured["absorber"]
         assert captured["sync_kwargs"]["budget"] == 2.0
+
+    def test_sync_overlap_lock_records_skip_without_building_engine(self, monkeypatch):
+        captured = {}
+        profile = SimpleNamespace(name="UI Experience Expert")
+
+        class FakeExpertStore:
+            def load(self, name):
+                assert name == "UI Experience Expert"
+                return profile
+
+        class FakeSubscriptionStore:
+            subscriptions = [SimpleNamespace(topic="UI/UX for agentic research tools", budget=1.0)]
+
+            def __init__(self, name):
+                assert name == "UI Experience Expert"
+
+            def due(self):
+                return list(self.subscriptions)
+
+        @contextmanager
+        def fake_lock(name, verb):
+            captured["lock"] = (name, verb)
+            yield False
+
+        def fake_record_loop_run(**kwargs):
+            captured["loop_run_kwargs"] = kwargs
+            return SimpleNamespace(
+                to_dict=lambda: {
+                    "run_id": "loop_locked",
+                    "status": kwargs["status"].value,
+                    "stop_reason": kwargs["stop_reason"].value,
+                }
+            )
+
+        def exploding_build_engine(*args, **kwargs):
+            raise AssertionError("locked sync must not construct the sync engine")
+
+        monkeypatch.setattr("deepr.experts.profile.ExpertStore", FakeExpertStore)
+        monkeypatch.setattr("deepr.experts.sync.SubscriptionStore", FakeSubscriptionStore)
+        monkeypatch.setattr("deepr.experts.loop_lock.expert_verb_lock", fake_lock)
+        monkeypatch.setattr(
+            "deepr.experts.loop_lock.apply_startup_jitter", lambda name, jitter: captured.update(jitter=(name, jitter))
+        )
+        monkeypatch.setattr("deepr.experts.loop_runs.record_loop_run", fake_record_loop_run)
+        monkeypatch.setattr("deepr.experts.maintenance_engine.build_sync_engine", exploding_build_engine)
+
+        r = CliRunner().invoke(
+            expert,
+            ["sync", "UI Experience Expert", "--api", "--scheduled", "--jitter", "30", "-y", "--json"],
+        )
+
+        assert r.exit_code == 0, r.output
+        payload = json.loads(r.output)
+        assert captured["jitter"] == ("UI Experience Expert", 30.0)
+        assert captured["lock"] == ("UI Experience Expert", "sync")
+        assert payload["outcomes"][0]["status"] == "skipped"
+        assert payload["outcomes"][0]["detail"] == "another sync for this expert is already running"
+        assert payload["loop_run"]["run_id"] == "loop_locked"
+        assert payload["loop_run"]["status"] == "waiting"
+        assert payload["loop_run"]["stop_reason"] == "overlap_locked"
+        assert captured["loop_run_kwargs"]["capacity_source"] == "api_metered"
 
     def test_sync_deep_context_rejects_api(self):
         r = CliRunner().invoke(expert, ["sync", "Whoever", "--api", "--deep-context"])
@@ -490,7 +564,9 @@ class TestPlanQuotaSync:
         )
         monkeypatch.setattr(
             "deepr.experts.loop_runs.record_loop_run",
-            lambda **kwargs: captured.update(loop_run_kwargs=kwargs) or SimpleNamespace(to_dict=lambda: {"run_id": "x"}),
+            lambda **kwargs: (
+                captured.update(loop_run_kwargs=kwargs) or SimpleNamespace(to_dict=lambda: {"run_id": "x"})
+            ),
         )
 
         r = CliRunner().invoke(expert, ["sync", "Plan Expert", "-y", "--json"])
@@ -676,7 +752,11 @@ class TestLearnWeb:
 
         async def fake_research(topic, *, model, client, num_results, max_pages):
             captured["research"] = {"topic": topic, "model": model}
-            return {"answer": f"# {topic}\n\nBody [1].\n\n## Sources\n[1] T - http://a\n", "sources": [{"n": 1}], "cost": 0.0}
+            return {
+                "answer": f"# {topic}\n\nBody [1].\n\n## Sources\n[1] T - http://a\n",
+                "sources": [{"n": 1}],
+                "cost": 0.0,
+            }
 
         class FakeResult:
             dry_run = False

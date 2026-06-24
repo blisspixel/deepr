@@ -25,12 +25,16 @@ admission; `deepr capacity admit --from-eval latest`, which turns saved
 zero-cost local eval artifacts into admission records; runtime admitted-score
 quality-floor selection for expert maintenance; and `deepr capacity next` for
 ranked local setup, admission, eval refresh, fallback guidance, and concrete
-scheduled-maintenance previews. Scheduled sync, gap-fill, reflection, and
-health-check surfaces now stop with wait or action-plan payloads instead of
-silently spending when owned/prepaid capacity is blocked, and those scheduled
-payloads now carry published schema identifiers for downstream validation. Not yet built: the
-plan-quota CLI adapters, live window/credit probes, adapter writes,
-plan-quota scheduler dispatch, and auto-mode runtime integration.
+scheduled-maintenance previews. Explicit plan-quota CLI execution now works for
+maintenance through `expert sync --plan <id>`, `expert absorb --plan <id>`, and
+`capacity probe-plan <id>`, with auth-mode, no-surprise-bills, quota-ledger, and
+`$0` cost-ledger guards. Scheduled sync, gap-fill, reflection, and health-check
+surfaces now stop with wait or action-plan payloads instead of silently spending
+when owned/prepaid capacity is blocked, and those scheduled payloads carry
+published schema identifiers for downstream validation. Still open: live
+window/credit probes, plan-quota scheduler dispatch, and auto-mode runtime
+integration. Automatic plan routing remains gated until a trusted remaining-
+quota signal exists.
 
 ## Problem
 
@@ -83,11 +87,12 @@ There are three distinct states, and docs must keep them separate:
 
 1. **Works now:** `local-ollama` for local expert setup and maintenance, plus
    metered provider APIs behind budget gates.
-2. **Visible/read-only now:** plan CLIs and credit pools listed by
-   `deepr capacity` or modeled in this design.
-3. **Planned adapter:** a CLI can execute Deepr work only after the adapter
-   proves auth mode, live quota state, no-overage behavior, output contract,
-   teardown, tests, and cost/quota ledger writes.
+2. **Works now by explicit opt-in:** plan CLIs with shipped adapters can execute
+   expert maintenance through `--plan` after deterministic auth-mode and
+   no-surprise-bills checks.
+3. **Visible/read-only or planned adapter:** unimplemented or unsafe capacity
+   sources stay modeled only until they prove auth mode, no-overage behavior,
+   output contract, teardown, tests, and cost/quota ledger writes.
 
 ### Vendor surfaces (verified 2026-06-18; re-verify before building - this churns monthly)
 
@@ -234,9 +239,9 @@ scheduler work remains.
 12. Local retrieval quality loop: no/fresh/deep context eval and source-pack
    run artifacts are done. Remaining: scheduler rules for when to choose
    `--fresh-context` or `--deep-context`.
-13. First plan_quota rungs, in priority order from the vendor survey: the
-   highest-confidence first-party CLIs and endpoint-backed coding plans, each
-   behind an explicit opt-in and a "sanctioned as of <date>" kill switch.
+13. First plan_quota rungs are shipped for explicit maintenance execution.
+   Remaining plan work is live remaining-quota probes, reset-aware scheduler
+   dispatch, and auto-mode integration without surprise spend.
 14. Multi-account pools (N accounts of one vendor as one pooled backend) - last,
    it multiplies an already-working mechanism.
 

@@ -82,6 +82,7 @@
       "required": [
         "verifier_passed",
         "no_due_work",
+        "overlap_locked",
         "budget_exhausted",
         "capacity_unavailable",
         "human_gate_required",
@@ -160,6 +161,7 @@
           "enum": [
             "verifier_passed",
             "no_due_work",
+            "overlap_locked",
             "budget_exhausted",
             "capacity_unavailable",
             "human_gate_required",
