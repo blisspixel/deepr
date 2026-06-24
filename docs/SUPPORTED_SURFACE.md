@@ -83,16 +83,22 @@ must not be described as usable capacity.
 - Local Ollama expert maintenance, local evals, local context evals, local
   red-team attack-success-rate metrics including MCP read-path canaries and
   saved trend artifacts, and scored local admission.
+- Explicit plan-quota CLI execution for expert maintenance:
+  `deepr expert sync --plan <id>`, `deepr expert absorb --plan <id>`, and
+  `deepr capacity probe-plan <id>` run through deterministic auth-mode and
+  no-surprise-bills guards. Codex, Claude Code, and OpenCode are eligible for
+  operator admission; Kiro, Grok Build, Antigravity, and GitHub Copilot remain
+  explicit-only.
 - Hosted MCP deployment recipes, including the local container, Azure Container
   Apps template, AWS ECS Fargate template, GCP Cloud Run template, and
   Cloudflare Worker edge ingress recipe.
 
 ## Visible Or Planned Only
 
-- Plan-quota CLIs such as Claude Code, Codex, Antigravity, Grok Build, GitHub
-  Copilot CLI, and Kiro are visible or modeled as capacity sources. They are
-  not Deepr execution backends until adapters, quota probes, no-surprise-bills
-  guards, and tests ship.
+- Automatic routing to plan-quota CLIs remains gated until Deepr has a trusted
+  live remaining-quota signal. Vendor CLIs generally expose exhaustion only
+  reactively, so explicit `--plan` is the works-now path and automatic plan
+  dispatch must stay opt-in and conservative.
 - Multi-account capacity pools are planned after a single-account mechanism is
   complete.
 - Live hosted-agent registration smoke against a real third-party platform is

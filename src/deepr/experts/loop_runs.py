@@ -45,6 +45,7 @@ TERMINAL_LOOP_STATUSES = frozenset(
 class LoopStopReason(str, Enum):
     VERIFIER_PASSED = "verifier_passed"
     NO_DUE_WORK = "no_due_work"
+    OVERLAP_LOCKED = "overlap_locked"
     BUDGET_EXHAUSTED = "budget_exhausted"
     CAPACITY_UNAVAILABLE = "capacity_unavailable"
     HUMAN_GATE_REQUIRED = "human_gate_required"
@@ -61,6 +62,7 @@ LOOP_STATUS_STOP_REASONS = {
             LoopStopReason.BUDGET_EXHAUSTED,
             LoopStopReason.CAPACITY_UNAVAILABLE,
             LoopStopReason.HUMAN_GATE_REQUIRED,
+            LoopStopReason.OVERLAP_LOCKED,
         }
     ),
     LoopRunStatus.COMPLETED: frozenset(

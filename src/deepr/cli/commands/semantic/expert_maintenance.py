@@ -463,6 +463,129 @@ def _record_completed_sync_loop(
     )
 
 
+def _record_sync_overlap_loop(
+    expert_name: str,
+    *,
+    budget: float,
+    scheduled: bool,
+    sync_all: bool,
+    capacity_source: str,
+):
+    from deepr.experts.loop_runs import LoopRunStatus, LoopStopReason, record_loop_run
+
+    return record_loop_run(
+        expert_name=expert_name,
+        loop_type="sync",
+        goal=f"Sync {'all' if sync_all else 'due'} subscriptions for {expert_name}",
+        trigger="scheduled" if scheduled else "manual",
+        status=LoopRunStatus.WAITING,
+        stop_reason=LoopStopReason.OVERLAP_LOCKED,
+        next_action={
+            "status": "waiting_for_overlap",
+            "title": "Another sync is already running",
+            "detail": "This run skipped because the same expert sync verb already holds the overlap lock.",
+            "command": f'deepr expert sync "{expert_name}" --scheduled',
+        },
+        budget_limit=budget,
+        budget_spent=0.0,
+        capacity_source=capacity_source,
+    )
+
+
+def _selected_sync_capacity_source(*, use_local: bool, use_plan: bool, plan_adapter) -> str:
+    if use_local:
+        return "local"
+    if use_plan and plan_adapter is not None:
+        return f"plan_quota:{plan_adapter.backend_id}"
+    return "api_metered"
+
+
+def _sync_overlap_result(expert_name: str):
+    from deepr.experts.sync import SyncOutcome, SyncResult
+
+    return SyncResult(
+        expert_name=expert_name,
+        started_at=datetime.now(UTC),
+        outcomes=[
+            SyncOutcome(
+                topic="sync",
+                status="skipped",
+                detail="another sync for this expert is already running",
+            )
+        ],
+    )
+
+
+def _run_sync_with_loop_guard(
+    profile,
+    *,
+    name: str,
+    budget: float,
+    sync_all: bool,
+    dry_run: bool,
+    scheduled: bool,
+    jitter: float,
+    use_local: bool,
+    local_model: str | None,
+    use_plan: bool,
+    plan_adapter,
+    plan_model: str | None,
+    context_builder,
+):
+    from deepr.experts.maintenance_engine import build_sync_engine
+
+    def run_once():
+        engine, capacity_source = build_sync_engine(
+            profile,
+            use_local=use_local,
+            local_model=local_model,
+            use_plan=use_plan,
+            plan_adapter=plan_adapter,
+            plan_model=plan_model,
+            context_builder=context_builder,
+        )
+        result = asyncio.run(engine.sync(budget=budget, only_due=not sync_all, dry_run=dry_run))
+        return result, capacity_source
+
+    if dry_run:
+        result, capacity_source = run_once()
+        return result, None, capacity_source
+
+    if jitter > 0:
+        from deepr.experts.loop_lock import apply_startup_jitter
+
+        apply_startup_jitter(name, jitter)
+
+    from deepr.experts.loop_lock import expert_verb_lock
+
+    capacity_source = _selected_sync_capacity_source(
+        use_local=use_local,
+        use_plan=use_plan,
+        plan_adapter=plan_adapter,
+    )
+    with expert_verb_lock(name, "sync") as acquired:
+        if not acquired:
+            result = _sync_overlap_result(name)
+            loop_run = _record_sync_overlap_loop(
+                name,
+                budget=budget,
+                scheduled=scheduled,
+                sync_all=sync_all,
+                capacity_source=capacity_source,
+            )
+            return result, loop_run, capacity_source
+        result, capacity_source = run_once()
+        loop_run = _record_completed_sync_loop(
+            name,
+            result,
+            budget=budget,
+            scheduled=scheduled,
+            sync_all=sync_all,
+            capacity_source=capacity_source,
+        )
+        return result, loop_run, capacity_source
+
+
 def _sync_context_builder(*, fresh_context: bool, deep_context: bool, json_output: bool):
     """Build the optional free-only retrieval context builder for local/plan sync.
 
@@ -529,6 +652,13 @@ def _sync_context_builder(*, fresh_context: bool, deep_context: bool, json_outpu
     is_flag=True,
     help="For recurring jobs, wait for cheap capacity instead of falling through to metered API",
 )
+@click.option(
+    "--jitter",
+    type=float,
+    default=0.0,
+    show_default=True,
+    help="Maximum startup jitter in seconds before a non-dry sync run",
+)
 @click.option("--yes", "-y", is_flag=True, help="Skip confirmation")
 @click.option("--json", "json_output", is_flag=True, help="Output JSON")
 def sync_cmd(
@@ -543,6 +673,7 @@ def sync_cmd(
     fresh_context: bool,
     deep_context: bool,
     scheduled: bool,
+    jitter: float,
     yes: bool,
     json_output: bool,
 ):
@@ -575,8 +706,10 @@ def sync_cmd(
     if deep_context and api:
         print_error("--deep-context is only supported for local or plan sync.")
         sys.exit(2)
+    if jitter < 0:
+        print_error("--jitter must be non-negative.")
+        sys.exit(2)
 
-    from deepr.experts.maintenance_engine import build_sync_engine
     from deepr.experts.profile import ExpertStore
     from deepr.experts.sync import SubscriptionStore
 
@@ -686,27 +819,20 @@ def sync_cmd(
         if (use_local or use_plan)
         else None
     )
-    engine, capacity_source = build_sync_engine(
+    result, loop_run, _ = _run_sync_with_loop_guard(
         profile,
+        name=name,
+        budget=budget,
+        sync_all=sync_all,
+        dry_run=dry_run,
+        scheduled=scheduled,
+        jitter=jitter,
         use_local=use_local,
         local_model=local_model,
         use_plan=use_plan,
         plan_adapter=plan_adapter,
         plan_model=plan_model,
         context_builder=context_builder,
-    )
-    result = asyncio.run(engine.sync(budget=budget, only_due=not sync_all, dry_run=dry_run))
-    loop_run = (
-        None
-        if dry_run
-        else _record_completed_sync_loop(
-            name,
-            result,
-            budget=budget,
-            scheduled=scheduled,
-            sync_all=sync_all,
-            capacity_source=capacity_source,
-        )
     )
 
     if json_output:
