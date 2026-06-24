@@ -746,13 +746,24 @@ Sequenced smallest-shippable-first:
         contention, and applies `--jitter` at startup. Best done with (or after)
         the `sync_cmd` body extraction (Phase Q3 decomposition) so the lock
         wraps a single helper rather than indenting a 100-line click command.
-- [ ] **`deepr fleet install-schedule`**: emit the correct **non-default** host
-      recipe - Windows Task Scheduler XML (StartWhenAvailable, run-whether-logged-
-      on, uncheck AC-only/stop-on-battery, WakeToRun, do-not-start-new-instance),
-      crontab line, systemd `.timer` (`Persistent=true`, `RandomizedDelaySec`,
-      `WakeSystem`). Design for **catch-up, not punctuality** (Win11 Modern
-      Standby cannot guarantee exact-time wake; verbs are delta-driven and
-      idempotent, so a missed run catches up safely).
+- [x] **`deepr fleet install-schedule`** (2026-06-23): emits the correct
+      **non-default** host recipe and the exact install command (it does not
+      auto-install - registering a task is a privileged host step the operator
+      runs). Windows Task Scheduler XML (`StartWhenAvailable`, `S4U`
+      run-whether-logged-on, `DisallowStartIfOnBatteries`/`StopIfGoingOnBatteries`
+      false, `WakeToRun`, `MultipleInstancesPolicy=IgnoreNew` so a still-running
+      job is never double-started - the scheduler-level complement to the in-verb
+      filelock), crontab line (with an honest "no catch-up/jitter, prefer
+      systemd" note), and systemd `.service`+`.timer` (`Persistent=true`,
+      `RandomizedDelaySec`, `WakeSystem`). Built for **catch-up, not punctuality**
+      (Win11 Modern Standby cannot guarantee exact-time wake; the verbs are
+      delta-driven and idempotent, so a missed run catches up with no
+      double-spend). Pure deterministic generators in `experts/fleet_schedule.py`
+      + `deepr fleet install-schedule` (`--platform auto/windows/cron/systemd`,
+      `--command`, `--cadence`, `--at`, `--name`, `--jitter-minutes`,
+      `--output`); 38 tests; `$0`, no model judgment (AGENTIC_BALANCE workflow
+      form). The roster-wide maintenance verb it is meant to drive
+      (`expert sync-all`) is the next item.
 - [ ] **Library-wide maintenance** (`expert sync-all`, see expert-library.md):
       one roll-up `ExpertLoopRun` over due experts through the waterfall,
       per-expert budgets, skip-not-fail.
