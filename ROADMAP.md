@@ -788,7 +788,7 @@ Sequenced smallest-shippable-first:
       capacity exists. 20 tests. Deferred: `--plan`/`--fresh-context` parity and
       a single library-level loop record (per-expert records + the returned
       roll-up cover the need without a synthetic expert).
-- [ ] **Budget degradation tiers + targeted-spend gate**: drive behavior off
+- [~] **Budget degradation tiers + targeted-spend gate**: drive behavior off
       `monthly_remaining` - NORMAL (<70%) / CONSERVE (70-90%, metered only for
       urgent/high-value, defer the rest) / LOCAL-ONLY (90-100%, metered hard-off,
       local still $0) / PAUSE-METERED (>=100%, resumable pause, never fail).
@@ -796,6 +796,23 @@ Sequenced smallest-shippable-first:
       `gap_closure x value x urgency x volatility > cost_multiple x est_cost`,
       with the hurdle rising as the pool drains; decision ledgered. Additive over
       the existing `is_pausable_limit`/`get_resume_message` machinery.
+  - [x] **Policy core + tier wiring** (2026-06-24): `experts/spend_policy.py`
+        (pure, deterministic, separate from the at-cap `cost_safety.py`) -
+        `BudgetTier`, `budget_tier(spent, cap)`, `evaluate_spend(...)` (the
+        value gate with a hurdle that rises by tier and by cost),
+        `tier_from_manager`/`describe_tier`. Fail-safe toward not spending; every
+        denial is resumable, nothing raises; only metered dollars are gated
+        (local/plan-quota free). The **tier hard-off is wired into
+        `expert sync-all`**: an auto metered pass defers when the monthly pool is
+        drained (LOCAL_ONLY/PAUSE_METERED), `--api` overrides the soft tier (the
+        hard monthly cap still backstops), a dry run previews freely. 37 tests;
+        AGENTIC_BALANCE surface row added. Design:
+        [budget-degradation.md](docs/design/budget-degradation.md).
+  - [ ] **Value-gate wiring + decision ledger** (next): produce the four benefit
+        estimates at the call sites (scheduler / gap-fill ranker), wire the
+        per-op value gate into single `expert sync` and gap-fill, fold the tier
+        into the waterfall so every metered path benefits, and ledger each defer
+        decision to a dedicated decision log.
 - [ ] **Expert quality validation (local vs frontier A/B)**: the fleet runs
       mostly on a local model, so validate that $0 experts are good. 2026 evidence:
       for *grounded* extraction from provided sources, local 8B-70B models match or
