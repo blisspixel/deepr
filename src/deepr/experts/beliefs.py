@@ -86,12 +86,13 @@ class Belief:
     decay_rate: float = 0.01  # Per day
     history: list[dict[str, Any]] = field(default_factory=list)
     id: str = field(default="")
-    # Provenance tier of the weakest load-bearing source: "primary"
-    # (operator-supplied documents), "secondary" (official docs,
-    # first-party instrument output), or "tertiary" (web search results,
-    # research syntheses - the default, and the retroactive default for
-    # every belief stored before this field existed).
+    # Provenance tier of the weakest source: "primary" (operator docs),
+    # "secondary" (official / first-party tools), or "tertiary" (web / research
+    # syntheses; the default, and the retroactive default for legacy beliefs).
     trust_class: str = "tertiary"
+    # Cross-vendor maker-checker assurance (maker_checker.py): "cross_vendor" /
+    # "same_vendor_fresh_context" / "unverified" (default; also could-not-verify).
+    grounding_assurance: str = "unverified"
     # Usage salience (docs/design/belief-lifecycle.md): how often this
     # belief was load-bearing in an answer, bumped via record_retrieval -
     # and ONLY from surfaces that already mutate the expert; read-side
@@ -250,6 +251,7 @@ class Belief:
             "decay_rate": self.decay_rate,
             "history": self.history,
             "trust_class": self.trust_class,
+            "grounding_assurance": self.grounding_assurance,
             "retrieval_count": self.retrieval_count,
             "last_retrieved_at": self.last_retrieved_at.isoformat() if self.last_retrieved_at else None,
         }
@@ -270,6 +272,7 @@ class Belief:
             history=data.get("history", []),
             # Pre-floor beliefs default tertiary: retroactive honesty
             trust_class=data.get("trust_class", "tertiary"),
+            grounding_assurance=data.get("grounding_assurance", "unverified"),
             retrieval_count=int(data.get("retrieval_count", 0) or 0),
             last_retrieved_at=(
                 datetime.fromisoformat(data["last_retrieved_at"]) if data.get("last_retrieved_at") else None
