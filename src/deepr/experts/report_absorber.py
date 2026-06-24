@@ -41,13 +41,20 @@ from __future__ import annotations
 import json
 import logging
 import os
+from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from typing import TYPE_CHECKING, Any
 
 from deepr.experts.beliefs import Belief, BeliefStore
 from deepr.experts.conflict_resolver import ConflictResolver
+from deepr.experts.maker_checker import CheckVerdict
 from deepr.utils.prompt_security import sanitize_untrusted_content
+
+# (claim, evidence) -> verdict. Injected so the absorber stays provider-agnostic
+# and $0-testable; the real cross-vendor checker is built and budget-gated by the
+# caller (maker_checker.py). None (default) leaves absorb behavior unchanged.
+GroundingChecker = Callable[[str, str], Awaitable[CheckVerdict]]
 
 if TYPE_CHECKING:
     from deepr.experts.profile import ExpertProfile
@@ -190,6 +197,23 @@ class FlaggedContradiction:
 
 
 @dataclass
+class GroundingFlag:
+    """A claim a cross-vendor checker found unsupported by its own evidence.
+
+    Surfaced like a flagged contradiction (flag, do not silently drop). In this
+    slice the claim is still absorbed but marked unverified; acting on it
+    (bounded escalation / hold) is a later slice per multi-backend-patterns.md.
+    """
+
+    statement: str
+    checker_vendor: str | None
+    reason: str = ""
+
+    def to_dict(self) -> dict[str, Any]:
+        return {"statement": self.statement, "checker_vendor": self.checker_vendor, "reason": self.reason}
+
+
+@dataclass
 class AbsorptionResult:
     """The outcome of one absorb run."""
 
@@ -201,6 +225,8 @@ class AbsorptionResult:
     rejected: list[RejectedClaim] = field(default_factory=list)
     flagged: list[FlaggedContradiction] = field(default_factory=list)
     insufficient: list[InsufficientGroundingClaim] = field(default_factory=list)
+    # Claims a cross-vendor checker found unsupported by their own evidence.
+    grounding_flagged: list[GroundingFlag] = field(default_factory=list)
     estimated_cost: float = 0.0
     # How many lexical false positives the model verdicts caught (the value of
     # routing the brittle heuristics through a model - visible, not silent).
@@ -228,12 +254,14 @@ class AbsorptionResult:
             "rejected_count": len(self.rejected),
             "flagged_count": len(self.flagged),
             "insufficient_count": len(self.insufficient),
+            "grounding_flagged_count": len(self.grounding_flagged),
             "contradictions_refuted": self.contradictions_refuted,
             "merges_blocked": self.merges_blocked,
             "absorbed": [a.to_dict() for a in self.absorbed],
             "rejected": [r.to_dict() for r in self.rejected],
             "flagged": [f.to_dict() for f in self.flagged],
             "insufficient": [i.to_dict() for i in self.insufficient],
+            "grounding_flagged": [g.to_dict() for g in self.grounding_flagged],
             "estimated_cost": round(self.estimated_cost, 4),
             "generated_at": self.generated_at.isoformat(),
         }
@@ -249,6 +277,7 @@ class ReportAbsorber:
         client: Any | None = None,
         model: str = DEFAULT_EXTRACTION_MODEL,
         belief_store: BeliefStore | None = None,
+        grounding_checker: GroundingChecker | None = None,
     ) -> None:
         """Create an absorber for one expert.
 
@@ -259,11 +288,16 @@ class ReportAbsorber:
             model: Extraction model (default gpt-5-mini, cheap + structured).
             belief_store: Optional BeliefStore (tests inject one on a tmp dir);
                 defaults to the expert's canonical store.
+            grounding_checker: Optional cross-vendor checker (maker_checker.py).
+                When set, each absorbed claim's evidence is checked against the
+                claim; a support verdict stamps the assurance level on the
+                belief, a cross-vendor refutation is flagged. None = off.
         """
         self.expert = expert
         self.model = model
         self._client = client
         self.belief_store = belief_store if belief_store is not None else BeliefStore(expert.name)
+        self._grounding_checker = grounding_checker
 
     def _get_client(self) -> Any:
         if self._client is None:
@@ -336,6 +370,7 @@ class ReportAbsorber:
         rejected: list[RejectedClaim] = []
         flagged: list[FlaggedContradiction] = []
         insufficient: list[InsufficientGroundingClaim] = []
+        grounding_flagged: list[GroundingFlag] = []
         contradictions_refuted = 0
         merges_blocked = 0
 
@@ -406,6 +441,10 @@ class ReportAbsorber:
                 existing.append(belief)
                 continue
 
+            # Cross-vendor grounding check (a no-op unless a checker is injected):
+            # support stamps the assurance on the belief; a refutation is flagged.
+            await self._check_grounding(belief, cand, grounding_flagged)
+
             # When the model refuted the lexical contradiction, skip add_belief's
             # contradiction-edge re-creation - the same heuristic would re-find the
             # same false positive and re-add the edge the verdict just rejected.
@@ -429,7 +468,27 @@ class ReportAbsorber:
             estimated_cost=ESTIMATED_EXTRACTION_COST,
             contradictions_refuted=contradictions_refuted,
             merges_blocked=merges_blocked,
+            grounding_flagged=grounding_flagged,
         )
+
+    async def _check_grounding(self, belief: Belief, cand: Any, flagged: list[GroundingFlag]) -> None:
+        """Cross-vendor grounding check on a claim about to be absorbed.
+
+        A no-op unless a checker is injected. A support verdict stamps the
+        assurance level on the belief; a cross-vendor refutation appends a flag
+        (surfaced, not silently dropped) and leaves the belief ``unverified``; a
+        could-not-verify also leaves it unverified - the check never invents a
+        verdict. Acting on a flag (escalate / hold) is a later slice; this slice
+        records the signal.
+        """
+        checker = self._grounding_checker
+        if checker is None:
+            return
+        verdict = await checker(belief.claim, "\n".join(cand.evidence))
+        if verdict.supported is True:
+            belief.grounding_assurance = verdict.assurance.value
+        elif verdict.refuted:
+            flagged.append(GroundingFlag(belief.claim, verdict.checker_vendor, verdict.reason))
 
     async def _resolve_contradiction(
         self, belief: Belief, existing: list[Belief], verify_contradictions: bool
