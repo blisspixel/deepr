@@ -576,8 +576,9 @@ def sync_cmd(
         print_error("--deep-context is only supported for local or plan sync.")
         sys.exit(2)
 
+    from deepr.experts.maintenance_engine import build_sync_engine
     from deepr.experts.profile import ExpertStore
-    from deepr.experts.sync import ExpertSyncEngine, SubscriptionStore
+    from deepr.experts.sync import SubscriptionStore
 
     profile = ExpertStore().load(name)
     if not profile:
@@ -676,48 +677,24 @@ def sync_cmd(
             print_warning("Cancelled.")
             return
 
-    capacity_source = "api_metered"
-    if use_local:
-        from deepr.backends.local import make_local_research_fn, ollama_chat_client
-        from deepr.experts.report_absorber import ReportAbsorber
-
-        if selection_note and not json_output:
-            console.print(f"[dim]{selection_note}[/dim]")
-        context_builder = _sync_context_builder(
-            fresh_context=fresh_context, deep_context=deep_context, json_output=json_output
-        )
-        absorber = ReportAbsorber(profile, model=local_model, client=ollama_chat_client())
-        engine = ExpertSyncEngine(
-            profile,
-            research_fn=make_local_research_fn(local_model, context_builder=context_builder),
-            absorber=absorber,
-        )
-        capacity_source = "local"
-    elif use_plan and plan_adapter is not None:
-        from deepr.backends.plan_quota import PlanQuotaChatClient, make_plan_quota_research_fn
-        from deepr.experts.report_absorber import ReportAbsorber
-
-        if selection_note and not json_output:
-            console.print(f"[dim]{selection_note}[/dim]")
-        if plan_adapter.tos_note and not json_output:
-            print_warning(plan_adapter.tos_note)
-        context_builder = _sync_context_builder(
-            fresh_context=fresh_context, deep_context=deep_context, json_output=json_output
-        )
-        # One client serves both research and verified extraction, so the whole
-        # sync runs on prepaid plan capacity with no silent metered call.
-        client = PlanQuotaChatClient(plan_adapter, model=plan_model)
-        absorber = ReportAbsorber(profile, model=plan_model or plan_adapter.backend_id, client=client)
-        engine = ExpertSyncEngine(
-            profile,
-            research_fn=make_plan_quota_research_fn(
-                plan_adapter, model=plan_model, context_builder=context_builder, client=client
-            ),
-            absorber=absorber,
-        )
-        capacity_source = f"plan_quota:{plan_adapter.backend_id}"
-    else:
-        engine = ExpertSyncEngine(profile)
+    if (use_local or use_plan) and selection_note and not json_output:
+        console.print(f"[dim]{selection_note}[/dim]")
+    if use_plan and plan_adapter is not None and plan_adapter.tos_note and not json_output:
+        print_warning(plan_adapter.tos_note)
+    context_builder = (
+        _sync_context_builder(fresh_context=fresh_context, deep_context=deep_context, json_output=json_output)
+        if (use_local or use_plan)
+        else None
+    )
+    engine, capacity_source = build_sync_engine(
+        profile,
+        use_local=use_local,
+        local_model=local_model,
+        use_plan=use_plan,
+        plan_adapter=plan_adapter,
+        plan_model=plan_model,
+        context_builder=context_builder,
+    )
     result = asyncio.run(engine.sync(budget=budget, only_due=not sync_all, dry_run=dry_run))
     loop_run = (
         None
