@@ -61,6 +61,30 @@ def _expert_instructions(expert_name: str, domain: str, description: str) -> str
     )
 
 
+def _expert_gotchas(expert_name: str) -> str:
+    """Real failure modes of consulting a Deepr expert over MCP.
+
+    Anthropic calls the Gotchas section a skill's highest-signal content; these
+    are grounded in Deepr's actual freshness, validation, and trust-floor
+    semantics, not theoretical warnings. See docs/design/skill-authoring.md.
+    """
+    return (
+        "## Gotchas\n\n"
+        "- The expert can be stale. A confident answer is not necessarily current; for "
+        "time-sensitive questions, check `deepr_what_changed` before relying on it.\n"
+        f'- A PASS from `deepr_expert_validate` means the claim is consistent with what "{expert_name}" '
+        "currently believes, not that it is true in the world - it is bounded by the expert's sources. "
+        "Treat WARN/FAIL as a stop; do not treat PASS as proof.\n"
+        "- Confidence is trust-floor-capped (web-sourced claims cap at ~0.60 single-source, ~0.80 with "
+        "two independent sources), so a high number is a capped ceiling, not a probability of truth.\n"
+        "- Low confidence or a flagged gap is a signal to fill the gap (offer research) and surface it "
+        "to the user, not to guess.\n"
+        "- This skill is a pointer, not a copy: it needs a running Deepr MCP server with "
+        f'"{expert_name}" present. An EXPERT_NOT_FOUND error means the host is pointed at the wrong '
+        "Deepr instance."
+    )
+
+
 def _expert_tool_manifests(expert_name: str) -> list[ToolManifest]:
     """The expert-scoped read-side Deepr MCP tools, with expert_name pinned."""
     pinned = {"type": "string", "description": f'Always "{expert_name}"'}
@@ -129,17 +153,22 @@ def build_expert_skill(
     Returns:
         A configured SkillPackager; call ``.render()`` or ``.generate(dir)``.
     """
+    # Trigger-style description (the host scans it to decide whether to invoke):
+    # name the situations that should fire it, not a noun-phrase summary.
+    about_clause = f" about {domain}" if domain else ""
     frontmatter_description = (
         f"Consult the '{expert_name}' domain expert"
-        f"{f' ({domain})' if domain else ''} - a persistent, citation-backed Deepr expert - "
-        "for grounded answers, claim validation, and knowledge-gap analysis on in-domain questions."
+        f"{f' ({domain})' if domain else ''} - a persistent, citation-backed Deepr expert. "
+        f"Use it when the user asks an in-domain question, wants a cited answer instead of a guess, "
+        f"or needs to validate a claim{about_clause}."
     )
+    body = f"{_expert_instructions(expert_name, domain, description.strip())}\n\n{_expert_gotchas(expert_name)}"
     packager = SkillPackager(
         name=f"deepr-expert-{expert_slug(expert_name)}",
         description=frontmatter_description,
         mcp_server="deepr",
         triggers=_expert_triggers(expert_name, domain),
-        instructions=_expert_instructions(expert_name, domain, description.strip()),
+        instructions=body,
     )
     packager.add_tools(_expert_tool_manifests(expert_name))
     return packager

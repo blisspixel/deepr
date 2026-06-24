@@ -139,6 +139,17 @@ See `references/cost_guidance.md` for pricing tables, budget tiers, and optimiza
 4. **Include metadata** - cost, time, number of sources consulted
 5. **Structure for scannability** - sections, bullets, tables where appropriate
 
+## Gotchas
+
+Real failure modes, learned from use. Read these before relying on a result.
+
+- **Deep/agentic research is async** (30 sec to 20+ min). Do not block waiting - subscribe to the status resource or poll, tell the user it is running, and continue other work. Treat a missing result as "still running", not "failed".
+- **Auto mode can under-route a nuanced question** to a cheap model. If the answer looks shallow for a critical decision, re-run explicitly in `deep` mode rather than trusting the first cheap pass.
+- **Citations are the whole point - never strip them.** When you summarize a result, preserve `[1][2]` markers and clearly separate research-derived facts from your own knowledge. An uncited synthesis defeats the reason to use Deepr.
+- **An expert's answer is bounded by its sources and may be stale.** A `PASS` from `deepr_expert_validate` means "consistent with the expert's current beliefs", not ground truth; confidence is trust-floor-capped (web-sourced caps at ~0.60 single-source / ~0.80 with two independent sources), so a high number is a ceiling, not certainty. On low confidence or a flagged gap, offer to fill it - do not present it as authoritative.
+- **Cost accrues across a session.** State cumulative spend when you have run several operations; agentic research is $1-10+ and must be confirmed before it starts.
+- **`BUDGET_EXCEEDED` / `PROVIDER_NOT_CONFIGURED` are configuration states, not bad questions.** Relay the fix (raise the budget, set the API key) instead of retrying the same call.
+
 ## Tool Discovery
 
 Deepr uses dynamic tool discovery to minimize context window usage. If you need a capability and don't see the right tool, search for it:
