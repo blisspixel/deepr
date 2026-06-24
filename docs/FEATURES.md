@@ -570,6 +570,36 @@ deepr expert loop-status "Azure Architect" --json
 deepr expert reflect "Azure Architect" <job_id> --execute-followups --budget 1 -y
 ```
 
+### Fleet Maintenance (whole roster)
+
+Keep an entire roster of experts current as a fleet, mostly at `$0`, and run it unattended.
+
+```bash
+# Read-only $0 roster health: per expert the last run, what changed, cost +
+# capacity source, last failure, and whether a refresh is due. Anomalies sort
+# first; exits non-zero when any latest run failed, so a scheduler can run it as
+# a watchdog.
+deepr fleet status
+deepr fleet status --json
+
+# Sync every due expert in one capacity-aware pass: owned/prepaid capacity first
+# (local model at $0 with --local), per-expert budgets within a total ceiling,
+# skip-not-fail, overlap-locked so a pass never collides with a manual sync. A
+# --scheduled pass waits instead of spending metered when the monthly pool is
+# drained, and pings the heartbeat (below) on completion.
+deepr expert sync-all --dry-run
+deepr expert sync-all --local -y
+deepr expert sync-all --scheduled -y
+
+# Emit the correct host scheduler recipe (Windows Task Scheduler XML / cron /
+# systemd timer), tuned for catch-up not punctuality. It prints the recipe plus
+# the exact install command; it does not auto-install (a privileged host step).
+deepr fleet install-schedule --command "deepr expert sync-all --scheduled -y"
+deepr fleet install-schedule --platform systemd --output ./schedule
+```
+
+Set `DEEPR_HEARTBEAT_URL` to a free dead-man's-switch (healthchecks.io / Dead Man's Snitch) so you are alerted if a scheduled pass ever silently does not run - the only signal that catches "the laptop never woke up" (a same-host monitor dies with the jobs).
+
 ### Temporal Perspective Queries
 
 ```bash
