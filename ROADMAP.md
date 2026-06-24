@@ -772,9 +772,22 @@ Sequenced smallest-shippable-first:
       `--output`); 38 tests; `$0`, no model judgment (AGENTIC_BALANCE workflow
       form). The roster-wide maintenance verb it is meant to drive
       (`expert sync-all`) is the next item.
-- [ ] **Library-wide maintenance** (`expert sync-all`, see expert-library.md):
-      one roll-up `ExpertLoopRun` over due experts through the waterfall,
-      per-expert budgets, skip-not-fail.
+- [x] **Library-wide maintenance** (`expert sync-all`, see expert-library.md)
+      (2026-06-24): `experts/sync_all.py:run_library_sync` syncs every due
+      expert in one pass through the capacity waterfall (`--local`/`--api`/auto,
+      plan-quota auto stays gated off), per-expert budget within a total
+      ceiling, **skip-not-fail** (one expert's failure never aborts the roster),
+      and holds the per-(expert, sync) overlap lock so a pass never collides
+      with a manual sync - the first real consumer of `loop_lock`. The
+      orchestration is pure/injectable (`$0`-tested); the per-expert work reuses
+      `build_sync_engine` and records a per-expert `ExpertLoopRun` so
+      `deepr fleet status` sees the pass, and the run returns a versioned
+      `deepr-library-sync-v1` roll-up. `deepr expert sync-all`
+      (`--budget`/`--per-expert-budget`/`--all`/`--dry-run`/`--scheduled`/`--json`);
+      scheduled passes wait instead of spending metered when no owned/prepaid
+      capacity exists. 20 tests. Deferred: `--plan`/`--fresh-context` parity and
+      a single library-level loop record (per-expert records + the returned
+      roll-up cover the need without a synthetic expert).
 - [ ] **Budget degradation tiers + targeted-spend gate**: drive behavior off
       `monthly_remaining` - NORMAL (<70%) / CONSERVE (70-90%, metered only for
       urgent/high-value, defer the rest) / LOCAL-ONLY (90-100%, metered hard-off,
