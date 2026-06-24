@@ -96,6 +96,34 @@ def _emit_roster_wait(json_output: bool, detail: str) -> None:
     console.print(f"[dim]{detail}. Rerun without --scheduled to use the metered API.[/dim]")
 
 
+def _metered_tier_defers(json_output: bool) -> bool:
+    """Defer an auto metered pass when the monthly pool is drained.
+
+    When the budget tier is LOCAL_ONLY/PAUSE_METERED, a roster pass that fell
+    through to metered (no local capacity, no explicit --api) defers instead of
+    spending - graceful degradation that protects the monthly pool. Returns True
+    when it deferred (the caller should stop). The hard monthly cap in
+    CostSafetyManager still backstops an explicit --api. See
+    docs/design/budget-degradation.md.
+    """
+    from deepr.experts.cost_safety import get_cost_safety_manager
+    from deepr.experts.spend_policy import METERED_OFF_TIERS, describe_tier, tier_from_manager
+
+    manager = get_cost_safety_manager()
+    if tier_from_manager(manager) not in METERED_OFF_TIERS:
+        return False
+    snapshot = describe_tier(manager)
+    if json_output:
+        click.echo(_json.dumps({"kind": "deepr.expert.sync_all", "status": "metered_deferred", **snapshot}))
+        return True
+    print_warning(
+        f"Budget tier {snapshot['tier']} ({snapshot['drain_percent']}% of the monthly pool used): "
+        "metered roster sync is off."
+    )
+    console.print("[dim]Use --local for $0 maintenance, wait for the monthly reset, or --api to override.[/dim]")
+    return True
+
+
 def _render_library_result(result: Any, json_output: bool) -> None:
     if json_output:
         click.echo(_json.dumps(result.to_dict(), indent=2))
@@ -174,6 +202,13 @@ def sync_all_cmd(
     if use_local and local_model is None:
         print_error("No local model available. Is Ollama running? Check: deepr capacity --probe")
         sys.exit(2)
+
+    # Graceful degradation: an auto metered pass defers when the monthly pool is
+    # drained (a dry run previews freely; an explicit --api overrides the soft
+    # tier, the hard cap still applies).
+    metered_auto = not use_local and not api
+    if metered_auto and not dry_run and _metered_tier_defers(json_output):
+        return
 
     if selection_note and not json_output:
         console.print(f"[dim]{selection_note}[/dim]")
