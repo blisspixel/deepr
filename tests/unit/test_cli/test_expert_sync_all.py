@@ -120,6 +120,41 @@ class TestCapacity:
         assert "No local model" in r.output
 
 
+class TestHeartbeat:
+    def _capture(self, monkeypatch):
+        pinged: list = []
+        monkeypatch.setattr("deepr.experts.heartbeat.send_heartbeat", lambda **kw: pinged.append(kw) or True)
+        return pinged
+
+    def test_scheduled_success_pings_heartbeat(self, monkeypatch):
+        pinged = self._capture(monkeypatch)
+        _wire(monkeypatch, _sync_result(SyncOutcome("t", "synced"), cost=0.0))
+        r = CliRunner().invoke(expert, ["sync-all", "--all", "--local", "--scheduled", "-y", "--json"])
+        assert r.exit_code == 0
+        assert pinged == [{"success": True}]
+
+    def test_scheduled_failure_pings_fail(self, monkeypatch):
+        pinged = self._capture(monkeypatch)
+        _wire(monkeypatch, _sync_result(SyncOutcome("t", "failed", detail="boom"), cost=0.0))
+        r = CliRunner().invoke(expert, ["sync-all", "--all", "--local", "--scheduled", "-y", "--json"])
+        assert r.exit_code == 0
+        assert pinged == [{"success": False}]
+
+    def test_non_scheduled_run_does_not_ping(self, monkeypatch):
+        pinged = self._capture(monkeypatch)
+        _wire(monkeypatch, _sync_result(SyncOutcome("t", "synced"), cost=0.0))
+        r = CliRunner().invoke(expert, ["sync-all", "--all", "--local", "-y"])
+        assert r.exit_code == 0
+        assert pinged == []
+
+    def test_dry_run_does_not_ping(self, monkeypatch):
+        pinged = self._capture(monkeypatch)
+        _wire(monkeypatch, _sync_result(SyncOutcome("t", "would_sync"), cost=0.0))
+        r = CliRunner().invoke(expert, ["sync-all", "--all", "--local", "--scheduled", "--dry-run"])
+        assert r.exit_code == 0
+        assert pinged == []
+
+
 class TestBudgetTierGate:
     def _auto_metered(self, monkeypatch):
         monkeypatch.setattr(
