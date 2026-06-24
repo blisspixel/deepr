@@ -19,6 +19,7 @@ from unittest.mock import MagicMock
 import pytest
 
 from deepr.experts.beliefs import Belief, BeliefStore
+from deepr.experts.maker_checker import CheckAssurance, CheckVerdict
 from deepr.experts.report_absorber import (
     AbsorptionResult,
     ReportAbsorber,
@@ -492,3 +493,84 @@ class TestInsufficientGrounding:
         assert result.to_dict()["insufficient_count"] == 1
         # Abstained claims are never written to the store
         assert all("Weakly supported" not in b.claim for b in absorber.belief_store.beliefs.values())
+
+
+def _checker(verdict: CheckVerdict):
+    async def check(claim: str, evidence: str):
+        return verdict
+
+    return check
+
+
+def _grounding_absorber(content, tmp_path, checker):
+    store = BeliefStore("Test Expert", storage_dir=tmp_path / "beliefs")
+    return ReportAbsorber(_expert(), client=_FakeClient(content), belief_store=store, grounding_checker=checker)
+
+
+class TestGroundingCheck:
+    """The injected cross-vendor checker stamps assurance on absorbed beliefs
+    and flags refutations (record-don't-reject); off by default."""
+
+    @pytest.mark.asyncio
+    async def test_no_checker_leaves_assurance_unverified(self, tmp_path):
+        content = _claims_json({"statement": "X is true", "confidence": 0.9, "evidence": ["e1"]})
+        absorber = _absorber(content, tmp_path)  # no grounding_checker
+        result = await absorber.absorb("rep1", "report")
+        assert result.grounding_flagged == []
+        bel = next(iter(absorber.belief_store.beliefs.values()))
+        assert bel.grounding_assurance == "unverified"
+
+    @pytest.mark.asyncio
+    async def test_supported_claim_gets_assurance_stamped(self, tmp_path):
+        content = _claims_json({"statement": "X is true", "confidence": 0.9, "evidence": ["e1"]})
+        checker = _checker(CheckVerdict(True, CheckAssurance.CROSS_VENDOR, "xai", "stated"))
+        absorber = _grounding_absorber(content, tmp_path, checker)
+        result = await absorber.absorb("rep1", "report")
+        assert result.grounding_flagged == []
+        bel = next(iter(absorber.belief_store.beliefs.values()))
+        assert bel.grounding_assurance == "cross_vendor"
+
+    @pytest.mark.asyncio
+    async def test_refuted_claim_is_flagged_but_still_absorbed_unverified(self, tmp_path):
+        content = _claims_json({"statement": "Price is $30", "confidence": 0.9, "evidence": ["the price is $10"]})
+        checker = _checker(CheckVerdict(False, CheckAssurance.CROSS_VENDOR, "xai", "$10 not $30"))
+        absorber = _grounding_absorber(content, tmp_path, checker)
+        result = await absorber.absorb("rep1", "report")
+        assert len(result.grounding_flagged) == 1
+        assert result.grounding_flagged[0].checker_vendor == "xai"
+        assert result.to_dict()["grounding_flagged_count"] == 1
+        # Record-don't-reject: still absorbed this slice, but not marked verified.
+        bel = next(iter(absorber.belief_store.beliefs.values()))
+        assert bel.grounding_assurance == "unverified"
+
+    @pytest.mark.asyncio
+    async def test_could_not_verify_leaves_unverified_no_flag(self, tmp_path):
+        content = _claims_json({"statement": "X", "confidence": 0.9, "evidence": ["e"]})
+        checker = _checker(CheckVerdict(None, CheckAssurance.UNVERIFIED, None))
+        absorber = _grounding_absorber(content, tmp_path, checker)
+        result = await absorber.absorb("rep1", "report")
+        assert result.grounding_flagged == []
+        bel = next(iter(absorber.belief_store.beliefs.values()))
+        assert bel.grounding_assurance == "unverified"
+
+    @pytest.mark.asyncio
+    async def test_dry_run_never_calls_the_checker(self, tmp_path):
+        calls: list = []
+
+        async def checker(claim, evidence):
+            calls.append((claim, evidence))
+            return CheckVerdict(True, CheckAssurance.CROSS_VENDOR, "xai")
+
+        content = _claims_json({"statement": "X", "confidence": 0.9, "evidence": ["e"]})
+        absorber = _grounding_absorber(content, tmp_path, checker)
+        await absorber.absorb("rep1", "report", dry_run=True)
+        assert calls == []  # no spend on a dry run
+
+
+def test_belief_grounding_assurance_roundtrips():
+    b = Belief(claim="x", confidence=0.5, grounding_assurance="cross_vendor")
+    assert b.to_dict()["grounding_assurance"] == "cross_vendor"
+    assert Belief.from_dict(b.to_dict()).grounding_assurance == "cross_vendor"
+    # Legacy beliefs (no field) default to unverified.
+    legacy = Belief.from_dict({"claim": "y", "confidence": 0.5})
+    assert legacy.grounding_assurance == "unverified"
