@@ -439,6 +439,11 @@ This creates:
 - `prompt.md` - domain-specific reasoning instructions
 - `tools/` - Python tool implementations
 
+Before writing one, read [docs/design/skill-authoring.md](design/skill-authoring.md) -
+how to make a skill measurably good: narrow scope, trigger-style descriptions,
+deterministic `tools/` (never a meaning-verdict), a verification-first design, and
+a `## Gotchas` section seeded from real failures.
+
 ### Built-in Skills
 
 | Skill | Tools | Purpose |

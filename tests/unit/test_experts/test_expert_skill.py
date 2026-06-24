@@ -62,10 +62,25 @@ class TestBuildExpertSkill:
         # MCP-server requirement.
         assert "MCP" in md
 
+    def test_description_is_trigger_style(self):
+        # The frontmatter description should name when to invoke, not summarize.
+        md = build_expert_skill("AI Strategy Expert", "AI market strategy").render()
+        assert "Use it when" in md
+
+    def test_includes_gotchas_section_with_real_failure_modes(self):
+        md = build_expert_skill("AI Strategy Expert", "AI").render()
+        assert "## Gotchas" in md
+        # PASS is not ground truth; confidence is capped; staleness is real.
+        assert "do not treat PASS as proof" in md
+        assert "trust-floor-capped" in md
+        assert "deepr_what_changed" in md
+        assert "EXPERT_NOT_FOUND" in md
+
     def test_no_domain_no_description_still_valid(self):
         md = build_expert_skill("Bare Expert").render()
         assert "name: deepr-expert-bare-expert" in md
         assert "Bare Expert" in md
+        assert "## Gotchas" in md  # gotchas are always emitted
 
     def test_generate_writes_file(self, tmp_path):
         pkg = build_expert_skill("AI Strategy Expert", "AI")
