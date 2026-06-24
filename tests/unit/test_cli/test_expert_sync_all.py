@@ -118,3 +118,52 @@ class TestCapacity:
         r = CliRunner().invoke(expert, ["sync-all", "--all", "--local", "-y"])
         assert r.exit_code == 2
         assert "No local model" in r.output
+
+
+class TestBudgetTierGate:
+    def _auto_metered(self, monkeypatch):
+        monkeypatch.setattr(
+            "deepr.backends.waterfall.choose_maintenance_backend",
+            lambda task_class: SimpleNamespace(is_local=False, reason=""),
+        )
+
+    def _manager(self, monkeypatch, *, spent, cap=10.0):
+        monkeypatch.setattr(
+            "deepr.experts.cost_safety.get_cost_safety_manager",
+            lambda: SimpleNamespace(monthly_cost=spent, max_monthly=cap),
+        )
+
+    def test_drained_pool_defers_auto_metered_pass(self, monkeypatch):
+        self._auto_metered(monkeypatch)
+        self._manager(monkeypatch, spent=9.6)  # 96% -> LOCAL_ONLY
+        _wire(monkeypatch, _sync_result(SyncOutcome("t", "synced"), cost=0.0))
+        r = CliRunner().invoke(expert, ["sync-all", "--all", "-y", "--json"])
+        assert r.exit_code == 0
+        assert "metered_deferred" in r.output
+
+    def test_normal_tier_allows_auto_metered_pass(self, monkeypatch):
+        import json
+
+        self._auto_metered(monkeypatch)
+        self._manager(monkeypatch, spent=1.0)  # 10% -> NORMAL
+        _wire(monkeypatch, _sync_result(SyncOutcome("t", "synced"), cost=0.0))
+        r = CliRunner().invoke(expert, ["sync-all", "--all", "-y", "--json"])
+        assert r.exit_code == 0
+        assert json.loads(r.output)["schema_version"] == "deepr-library-sync-v1"  # ran, not deferred
+
+    def test_api_override_bypasses_the_soft_tier(self, monkeypatch):
+        import json
+
+        self._manager(monkeypatch, spent=9.6)  # drained, but --api is explicit
+        _wire(monkeypatch, _sync_result(SyncOutcome("t", "synced"), cost=0.0))
+        r = CliRunner().invoke(expert, ["sync-all", "--all", "--api", "-y", "--json"])
+        assert r.exit_code == 0
+        assert json.loads(r.output)["schema_version"] == "deepr-library-sync-v1"
+
+    def test_dry_run_previews_even_when_drained(self, monkeypatch):
+        self._auto_metered(monkeypatch)
+        self._manager(monkeypatch, spent=9.6)
+        _wire(monkeypatch, _sync_result(SyncOutcome("t", "would_sync"), cost=0.0))
+        r = CliRunner().invoke(expert, ["sync-all", "--all", "--dry-run", "--json"])
+        assert r.exit_code == 0
+        assert "metered_deferred" not in r.output
