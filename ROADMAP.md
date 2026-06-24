@@ -847,7 +847,7 @@ Sequenced smallest-shippable-first:
       no self-family judging). Decision rule folds into the targeted-spend gate -
       local by default, escalate to frontier only for long/conflicting/high-value/
       high-volatility experts. Design: [expert-fleet.md](docs/design/expert-fleet.md) Pillar 4.
-- [ ] **Cross-vendor maker-checker verification** (use the CLI fleet for quality,
+- [~] **Cross-vendor maker-checker verification** (use the CLI fleet for quality,
       not round-robin): the absorb-time contradiction/grounding verdict already
       routes to a model; the upgrade is making that checker a **different vendor**
       than the maker, in a **fresh context** (claim+evidence only), prompted to
@@ -859,6 +859,20 @@ Sequenced smallest-shippable-first:
       only one vendor is admitted; never silently skip or escalate to metered.
       Surface assurance ("verified by N cross-vendor checkers") in the handoff.
       Design: [multi-backend-patterns.md](docs/design/multi-backend-patterns.md).
+  - [x] **Checker core** (2026-06-24): `experts/maker_checker.py` -
+        deterministic `choose_checker_vendor` (different vendor -> `CROSS_VENDOR`,
+        else same -> `SAME_VENDOR_FRESH_CONTEXT`, else `UNVERIFIED`; vendor
+        diversity is a routing requirement, form per AGENTIC_BALANCE), a
+        fresh-context/disconfirm/entailment prompt (claim+evidence only, find the
+        unsupported part), and async `check_claim` returning a `CheckVerdict`
+        (`supported` True/False/None; a model or parse failure is None -
+        could-not-verify, never a false refutation). 20 `$0` tests; the verdict
+        stays model judgment. Real cross-vendor validation + absorb wiring +
+        assurance-in-handoff are the next slices.
+  - [ ] **Absorb wiring + assurance in handoff** (next): route the absorb
+        contradiction/grounding verdict through the cross-vendor checker, record
+        the assurance level on the belief, bounded escalation on disagreement,
+        and surface "verified by N cross-vendor checkers" in the handoff contract.
 - [~] **Hardening**:
   - [x] **Reservation TTL/sweeper** (2026-06-24): a `check_and_reserve` whose
         caller crashes before `record_cost`/`refund_reservation` used to hold its
