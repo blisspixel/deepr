@@ -375,8 +375,13 @@ input to "is this metered dollar worth it."
    sitemap hint, content-hash; the highest-leverage freshness-per-$0 change.
 3. **`deepr fleet status`** (Pillar 3.3) — cross-expert rollup over existing
    `loop_runs.jsonl`, `deepr-fleet-status-v1`, overdue detection, non-zero exit.
-4. **In-verb overlap guard + `--jitter`** (Pillar 3.1) — cross-platform
-   `filelock`, recorded skip on contention.
+4. **[PARTIAL 2026-06-24] In-verb overlap guard + `--jitter`** (Pillar 3.1) -
+   cross-platform `filelock`, recorded skip on contention. The primitive and
+   `sync-all` wiring shipped earlier; `expert sync` now applies jitter, holds
+   the per-(expert, sync) lock across the non-dry verb body, and records a
+   typed `overlap_locked` waiting loop run on contention. Remaining work is the
+   same pattern for any other scheduled mutating verbs that still lack an
+   in-verb guard.
 5. **`deepr fleet install-schedule`** (Pillar 3.2) — emits the correct
    non-default Task Scheduler / cron / systemd recipe.
 6. **Library-wide maintenance pass** (`expert sync-all`, from expert-library.md)

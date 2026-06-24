@@ -1,5 +1,16 @@
 # Progress Log
 
+## 2026-06-24 - Loop-engineering roadmap refresh and `expert sync` overlap guard
+
+- Re-read the current README, ROADMAP, AGENTS instructions, CONTRIBUTING definition of done, AGENTIC_BALANCE, verified-loop and harness-boundary docs, fleet/change-detection/maker-checker design notes, supported-surface contract, current-state analysis, progress log, and relevant sync/loop code.
+- Re-checked the 2026 external direction online: harness engineering, context engineering, and loop engineering now center on durable state, high-signal context, trace/eval feedback, self-verification, scoped tools, and typed stop conditions. This confirms Deepr is not "old RAG"; RAG is only one retrieval primitive under the knowledge-role harness.
+- Updated `CURRENT-STATE-ANALYSIS.md` from stale v2.19 language to v2.20, corrected plan-quota execution status, and selected the immediate code slice: scheduled `expert sync` verb lock and jitter wiring.
+- Implemented `deepr expert sync --jitter SECONDS` for non-dry runs, wrapped real sync execution in the per-(expert, sync) `expert_verb_lock`, and kept dry runs lock-free.
+- Added typed `overlap_locked` loop state. On contention, `expert sync` now exits cleanly with a skipped `SyncResult`, appends a waiting `ExpertLoopRun`, reports `stop_reason=overlap_locked`, performs no model call, and constructs no sync engine.
+- Updated the published loop-status schema, ROADMAP, AGENTIC_BALANCE, expert-fleet design note, supported-surface contract, capacity-waterfall design note, and SKILLS memory to reflect the new state and the corrected plan-quota status.
+- Validation: `.venv\Scripts\python -m pytest tests/unit/test_cli/test_expert_maintenance.py tests/unit/test_experts/test_loop_runs.py tests/unit/test_experts/test_loop_lock.py tests/unit/test_experts/test_sync_all.py -q` passed (64 tests). `.venv\Scripts\python -m pytest tests/unit/test_schemas/test_published_contracts.py tests/unit/test_experts/test_loop_status_rollup.py tests/unit/test_cli/test_expert_loop_status.py -q` passed (21 tests). Full CI-style unit gate `.venv\Scripts\python -m pytest tests/unit/ --ignore=tests/data -q --timeout=120` passed (6545 passed, 8 skipped). `ruff check src/deepr/`, `ruff format --check src/deepr/ ...`, `scripts/check_file_sizes.py`, `scripts/check_ratchets.py`, `scripts/check_docs_consistency.py`, and strict mypy for `core`, `providers`, and `mcp` all passed.
+- Spend this run: `$0.00`. Only web research, local filesystem reads, lint, and local tests were used. No provider APIs, embeddings, paid evals, or cloud resources.
+
 ## 2026-06-21 — Self-healing cross-platform installers
 
 - **Found via the operator's broken global CLI:** a stale from-source editable `deepr-research 2.8.1` in system Python 3.13 (left when Python was upgraded 3.12->3.13) made `import deepr` fail though pip listed it "installed". Restored their global to 2.19.0 (editable reinstall).

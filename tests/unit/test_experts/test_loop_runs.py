@@ -111,6 +111,21 @@ def test_waiting_loop_run_rejects_completion_stop_reason():
         )
 
 
+def test_waiting_loop_run_accepts_overlap_locked_stop_reason():
+    run = ExpertLoopRun(
+        run_id="loop_1",
+        expert_name="Platform Expert",
+        loop_type="sync",
+        goal="refresh subscribed topics",
+        trigger="scheduled",
+        status=LoopRunStatus.WAITING,
+        stop_reason=LoopStopReason.OVERLAP_LOCKED,
+    )
+
+    assert run.stop_reason == LoopStopReason.OVERLAP_LOCKED
+    assert run.to_dict()["stop_reason"] == "overlap_locked"
+
+
 def test_store_collapses_append_only_snapshots(tmp_path):
     path = tmp_path / "loop_runs.jsonl"
     store = ExpertLoopRunStore("Platform Expert", path=path)
