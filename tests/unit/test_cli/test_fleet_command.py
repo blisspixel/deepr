@@ -121,3 +121,41 @@ def test_status_renders_refresh_due_and_waiting(monkeypatch):
 def test_status_rejects_nonpositive_limit():
     result = CliRunner().invoke(fleet, ["status", "--limit", "0"])
     assert result.exit_code == 2
+
+
+class TestInstallSchedule:
+    def test_prints_systemd_recipe_and_install_steps(self):
+        result = CliRunner().invoke(fleet, ["install-schedule", "--platform", "systemd"])
+        assert result.exit_code == 0
+        assert "deepr-fleet.timer" in result.output
+        assert "Persistent=true" in result.output
+        assert "systemctl --user enable --now" in result.output
+
+    def test_prints_windows_recipe(self):
+        result = CliRunner().invoke(fleet, ["install-schedule", "--platform", "windows"])
+        assert result.exit_code == 0
+        assert "MultipleInstancesPolicy>IgnoreNew" in result.output
+        assert "schtasks /Create" in result.output
+
+    def test_custom_command_flows_into_recipe(self):
+        result = CliRunner().invoke(
+            fleet,
+            ["install-schedule", "--platform", "cron", "--command", "deepr expert sync 'AI' --scheduled -y"],
+        )
+        assert result.exit_code == 0
+        assert "deepr expert sync 'AI' --scheduled -y" in result.output
+
+    def test_invalid_time_exits_two(self):
+        result = CliRunner().invoke(fleet, ["install-schedule", "--platform", "cron", "--at", "9pm"])
+        assert result.exit_code == 2
+        assert "HH:MM" in result.output
+
+    def test_output_dir_writes_files(self, tmp_path):
+        result = CliRunner().invoke(
+            fleet,
+            ["install-schedule", "--platform", "systemd", "--output", str(tmp_path)],
+        )
+        assert result.exit_code == 0
+        assert (tmp_path / "deepr-fleet.service").exists()
+        assert (tmp_path / "deepr-fleet.timer").exists()
+        assert "Wrote" in result.output
