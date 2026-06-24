@@ -869,10 +869,22 @@ Sequenced smallest-shippable-first:
         could-not-verify, never a false refutation). 20 `$0` tests; the verdict
         stays model judgment. Real cross-vendor validation + absorb wiring +
         assurance-in-handoff are the next slices.
-  - [ ] **Absorb wiring + assurance in handoff** (next): route the absorb
-        contradiction/grounding verdict through the cross-vendor checker, record
-        the assurance level on the belief, bounded escalation on disagreement,
-        and surface "verified by N cross-vendor checkers" in the handoff contract.
+  - [x] **Absorb wiring** (2026-06-24): `ReportAbsorber` takes an optional
+        injected `grounding_checker` seam (off by default, so absorb behavior and
+        cost are unchanged unless a caller wires it). When set, each absorbed
+        claim's evidence is checked against the claim before `add_belief`
+        (non-dry-run only): a support verdict stamps `Belief.grounding_assurance`
+        (`cross_vendor` / `same_vendor_fresh_context`), a cross-vendor refutation
+        appends a `GroundingFlag` to the result (surfaced, not silently dropped),
+        and a could-not-verify leaves it `unverified`. Record-don't-reject this
+        slice; acting on a flag (bounded escalation / hold) is next. `Belief`
+        gains a persisted `grounding_assurance` field; the absorber stays
+        provider-agnostic and `$0`-tested with a fake checker. 6 tests.
+  - [ ] **Caller wiring + bounded escalation + assurance in handoff** (next):
+        build the real cross-vendor checker (via the provider adapters that
+        translate model names) and budget-gate it; escalate to a 2nd
+        different-vendor checker on a refutation/high-stakes claim, then hold;
+        surface "verified by N cross-vendor checkers" in the handoff contract.
 - [~] **Hardening**:
   - [x] **Reservation TTL/sweeper** (2026-06-24): a `check_and_reserve` whose
         caller crashes before `record_cost`/`refund_reservation` used to hold its
