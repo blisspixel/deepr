@@ -45,22 +45,9 @@ class CircuitBreakerState:
 class CostCircuitBreaker:
     """Circuit breaker for cost control.
 
-    Monitors cost accumulation and trips when spending exceeds thresholds.
-    Implements the circuit breaker pattern with configurable thresholds.
-
-    Example:
-        breaker = CostCircuitBreaker(
-            cost_threshold=10.0,  # $10 in window
-            window_seconds=300,   # 5 minute window
-            event_threshold=20    # Max 20 events in window
-        )
-
-        # Before each API call
-        if not breaker.allow_request():
-            raise CostLimitExceeded("Circuit breaker open")
-
-        # After API call
-        breaker.record_cost(0.15, "research_job", job_id="job-123")
+    Trips when spending exceeds a threshold (total cost, event count, or a single
+    operation's cost) over a rolling window, then auto-resets after a cooldown.
+    Call ``allow_request`` before an API call and ``record_cost`` after.
     """
 
     def __init__(
@@ -503,38 +490,15 @@ def create_default_circuit_breaker() -> CostCircuitBreaker:
 
 
 class CostSafetyManager:
-    """High-level cost safety manager for research operations.
+    """High-level cost safety: circuit breaker + per-session tracking + atomic
+    daily/monthly caps with a reserve-then-settle pattern.
 
-    Provides a unified interface for cost tracking and safety checks,
-    combining circuit breaker functionality with session-based tracking.
-
-    Example:
-        manager = get_cost_safety_manager()
-
-        # Create a session for tracking
-        session = manager.create_session(
-            session_id="session-123",
-            session_type="chat",
-            budget_limit=10.0
-        )
-
-        # Check before operation
-        allowed, reason, needs_confirm = manager.check_operation(
-            session_id="session-123",
-            operation_type="research_submit",
-            estimated_cost=0.50
-        )
-
-        if not allowed:
-            raise ValueError(f"Operation blocked: {reason}")
-
-        # Record after operation
-        manager.record_cost(
-            session_id="session-123",
-            operation_type="research_submit",
-            actual_cost=0.45,
-            details="Job completed successfully"
-        )
+    Use ``check_and_reserve`` -> ``record_cost(reservation_id=...)`` (or
+    ``refund_reservation`` on caller error) so parallel callers cannot
+    over-commit a cap. A reservation that is never settled or refunded (e.g. a
+    crash between the two) is released by the TTL sweep on the next check, so a
+    leak cannot permanently shrink a tight pool. Contract: see
+    ``test_cost_safety_reservations.py``.
     """
 
     # Hard ceilings the manager will never permit, regardless of any
@@ -545,6 +509,11 @@ class CostSafetyManager:
     ABSOLUTE_MAX_PER_OPERATION: float = 10.0
     ABSOLUTE_MAX_DAILY: float = 50.0
     ABSOLUTE_MAX_MONTHLY: float = 500.0
+
+    # A reservation is presumed leaked (caller crashed between reserve and
+    # settle) once it outlives this, and is swept so it stops shrinking the pool.
+    # Longer than any real operation, so a live op is never swept.
+    RESERVATION_TTL_SECONDS: float = 3600.0
 
     def __init__(self, circuit_breaker: CostCircuitBreaker | None = None):
         """Initialize cost safety manager.
@@ -583,6 +552,8 @@ class CostSafetyManager:
         self._reserved_daily: float = 0.0
         self._reserved_monthly: float = 0.0
         self._reservations: dict[str, float] = {}
+        # reservation_id -> creation time, for the leaked-reservation TTL sweep.
+        self._reservation_started: dict[str, float] = {}
 
     @staticmethod
     def _env_limit(var: str, default: float, ceiling: float) -> float:
@@ -678,6 +649,10 @@ class CostSafetyManager:
         ``reservation_id`` is empty when no reservation was placed.
         """
         with self._budget_lock:
+            # Release any leaked reservations before projecting, so a crashed
+            # caller's stale hold cannot keep blocking the pool.
+            self._sweep_stale_reservations(time.time())
+
             # Per-op hard ceiling — any caller value above this is silently
             # treated as a denial regardless of session/daily room.
             if estimated_cost > self.ABSOLUTE_MAX_PER_OPERATION:
@@ -725,6 +700,7 @@ class CostSafetyManager:
 
                 reservation_id = _uuid.uuid4().hex[:16]
                 self._reservations[reservation_id] = estimated_cost
+                self._reservation_started[reservation_id] = time.time()
                 self._reserved_daily += estimated_cost
                 self._reserved_monthly += estimated_cost
 
@@ -734,12 +710,29 @@ class CostSafetyManager:
 
             return True, "OK", False, reservation_id
 
+    def _sweep_stale_reservations(self, now: float) -> None:
+        """Release reservations older than the TTL. Caller holds ``_budget_lock``.
+
+        A reservation that is never settled or refunded (a crash between reserve
+        and record) would otherwise hold its slice of the daily/monthly pool
+        forever; on a tight monthly reserve that silently starves the fleet.
+        """
+        stale = [
+            rid for rid, started in self._reservation_started.items() if now - started > self.RESERVATION_TTL_SECONDS
+        ]
+        for rid in stale:
+            held = self._reservations.pop(rid, 0.0)
+            self._reservation_started.pop(rid, None)
+            self._reserved_daily = max(0.0, self._reserved_daily - held)
+            self._reserved_monthly = max(0.0, self._reserved_monthly - held)
+
     def refund_reservation(self, reservation_id: str) -> None:
         """Release a reservation without recording a cost (e.g. on caller error)."""
         if not reservation_id:
             return
         with self._budget_lock:
             held = self._reservations.pop(reservation_id, 0.0)
+            self._reservation_started.pop(reservation_id, None)
             self._reserved_daily = max(0.0, self._reserved_daily - held)
             self._reserved_monthly = max(0.0, self._reserved_monthly - held)
 
@@ -769,6 +762,7 @@ class CostSafetyManager:
         with self._budget_lock:
             if reservation_id:
                 held = self._reservations.pop(reservation_id, 0.0)
+                self._reservation_started.pop(reservation_id, None)
                 self._reserved_daily = max(0.0, self._reserved_daily - held)
                 self._reserved_monthly = max(0.0, self._reserved_monthly - held)
 
