@@ -523,19 +523,26 @@ over-reach for a solo project; Letta/MemOS already own the "OS" label).
     property. This is the brittle lexical-verdict fix the STOP banner demands.
     Remaining: extend the same router->verdict pass to the health-check detection
     surface; calibrate the verdict via the evidence layer.
-  - [ ] **Brittle-verdict debt in ToT reasoning (audit finding 2026-06-24):**
-    `reasoning_graph._verify_claim_against_context` returns a `verified` verdict
-    from 30% keyword overlap, and `_detect_contradictions` flags contradictions
-    from negation words + a hardcoded antonym list with `confidence = word
-    overlap` - lexical verdicts on grounding and contradiction (the HANS
-    anti-pattern; self-admitted "would use semantic similarity in production").
-    Lower severity than the absorb path because it runs in chat Tree-of-Thoughts
-    and feeds `state.synthesis` (the ephemeral answer), not the belief store
-    (beliefs only persist through the verified absorb pipeline). Fix: the ToT
-    graph already calls a model per node - route the verify/contradiction step to
-    that model, or stop asserting "verified"/contradiction from keyword overlap.
-    Do not let these verdicts reach beliefs except via verified absorb. Disposition
-    in [checks-deterministic-vs-agentic.md](docs/design/checks-deterministic-vs-agentic.md).
+  - [x] **Brittle-verdict debt in ToT reasoning (audit finding + fix 2026-06-24):**
+    `reasoning_graph` previously returned a `verified` verdict from 30% keyword
+    overlap and flagged contradictions from negation words + a hardcoded antonym
+    list (`confidence = word overlap`) - the HANS anti-pattern, self-admitted
+    "would use semantic similarity in production". Replaced both with
+    `_analyze_claims`: one bounded model call returns grounding + contradictions,
+    parsed deterministically (unknown ids dropped, same-hypothesis pairs filtered
+    as a form rule); **no model = no verdict** (nothing verified, no
+    contradictions), the honest no-conclusion this file's hypothesis-gen already
+    uses. Also fixed a latent `_emit_thought(evidence_refs=...)` TypeError the
+    model path now reaches. 45 tests (lexical-behavior tests replaced with
+    model-based + no-model + malformed-JSON + form-filter cases).
+  - [ ] **Sibling lexical-contradiction debt (audit finding 2026-06-24, lower
+    severity):** `context_chainer._detect_contradictions` regex-matches discourse
+    markers ("in contrast", "on the other hand") and labels them "contradictions"
+    in the phase-to-phase research context. Ephemeral context enrichment, not a
+    belief verdict (beliefs persist only through verified absorb), and the whole
+    module is lexical context-structuring. Fix when the phase-handoff structuring
+    goes model-based. Disposition in
+    [checks-deterministic-vs-agentic.md](docs/design/checks-deterministic-vs-agentic.md).
   - [x] Dedup-merge verdict on the absorb gate (2026-06-14): the sibling brittle
     verdict. `_find_similar`'s >0.7 word-overlap decided merges, so two different
     facts that share words (e.g. "$10/M" vs "$30/M") silently merged into one,
