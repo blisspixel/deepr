@@ -174,7 +174,9 @@ def sync_all_cmd(
 
     Owned/prepaid capacity first, per-expert budgets within the total ceiling,
     skip-not-fail. Designed to run on a schedule (deepr fleet install-schedule)
-    so the library self-maintains.
+    so the library self-maintains. On a --scheduled run, set DEEPR_HEARTBEAT_URL
+    to ping a dead-man's-switch (healthchecks.io) so you are alerted if a
+    scheduled pass ever silently does not run.
 
     EXAMPLES:
       deepr expert sync-all --dry-run
@@ -232,4 +234,11 @@ def sync_all_cmd(
             dry_run=dry_run,
         )
     )
+    if scheduled and not dry_run:
+        # Off-box liveness: tell the dead-man's-switch the scheduled pass ran, so
+        # the operator is alerted if it ever silently does not (the laptop never
+        # woke up). Opt-in via DEEPR_HEARTBEAT_URL; best-effort, never fails here.
+        from deepr.experts.heartbeat import send_heartbeat
+
+        send_heartbeat(success=result.failed_experts == 0)
     _render_library_result(result, json_output)

@@ -871,10 +871,15 @@ Sequenced smallest-shippable-first:
         file by tightening two verbose class-docstring examples (net shrink). 14
         reservation tests (live not swept, leaked swept, both pools refunded,
         settle clears the timestamp).
-  - [ ] **Off-box heartbeat** (next): an optional ping to a free dead-man's-switch
-        (healthchecks.io / Dead Man's Snitch) on scheduled-verb success - the only
-        thing that catches "the laptop never woke up." No same-host monitor (it
-        dies with the jobs).
+  - [x] **Off-box heartbeat** (2026-06-24): `experts/heartbeat.py` -
+        `send_heartbeat(success=...)` pings an operator-configured dead-man's-switch
+        (healthchecks.io / Dead Man's Snitch convention: GET the URL on success,
+        `<url>/fail` on a failed run). Opt-in via `DEEPR_HEARTBEAT_URL`,
+        best-effort (never raises, never fails the run), `$0`. Wired into
+        `expert sync-all`'s scheduled, non-dry-run completion (success = no failed
+        experts), so the service alerts when the scheduled pass silently does not
+        arrive - the only signal that catches "the laptop never woke up." 12
+        tests. No same-host monitor (it dies with the jobs).
 
 ### Phase 5: Operations, Team, and Security Hardening
 
