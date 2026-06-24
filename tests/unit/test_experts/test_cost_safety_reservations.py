@@ -10,6 +10,8 @@ Covers the changes from the bug-hunt pass:
 
 from __future__ import annotations
 
+import time
+
 import pytest
 
 from deepr.experts.cost_safety import CostSafetyManager
@@ -142,6 +144,52 @@ class TestMonthlyReservationSymmetry:
         manager.record_cost(session_id="s1", operation_type="r", actual_cost=0.0, reservation_id=a_id)
         c_allowed, _, _, _ = manager.check_and_reserve(session_id="s2", operation_type="r", estimated_cost=2.0)
         assert c_allowed is True
+
+
+class TestReservationTTL:
+    """A reservation that is never settled or refunded (a caller crash between
+    reserve and record) must not hold its slice of the pool forever - on a tight
+    monthly reserve that silently starves the fleet. The TTL sweep releases it.
+    """
+
+    def test_stale_reservation_is_swept_on_next_check(self, manager):
+        manager.max_daily = 5.0
+        _, _, _, leaked = manager.check_and_reserve(session_id="s1", operation_type="r", estimated_cost=4.0)
+        assert manager._reserved_daily == 4.0
+        # Simulate a leak: backdate the reservation beyond the TTL.
+        manager._reservation_started[leaked] = time.time() - manager.RESERVATION_TTL_SECONDS - 1
+        # The next check sweeps it, so a fresh 4.0 reservation now fits.
+        allowed, _, _, _ = manager.check_and_reserve(session_id="s2", operation_type="r", estimated_cost=4.0)
+        assert allowed is True
+        assert leaked not in manager._reservations
+        assert leaked not in manager._reservation_started
+
+    def test_live_reservation_is_not_swept(self, manager):
+        manager.max_daily = 5.0
+        _, _, _, fresh = manager.check_and_reserve(session_id="s1", operation_type="r", estimated_cost=4.0)
+        # Still within TTL -> a parallel over-commit is still correctly blocked.
+        allowed, reason, _, _ = manager.check_and_reserve(session_id="s2", operation_type="r", estimated_cost=4.0)
+        assert allowed is False
+        assert "Daily limit" in reason
+        assert fresh in manager._reservations  # not swept
+
+    def test_sweep_refunds_both_daily_and_monthly(self, manager):
+        manager.check_and_reserve(session_id="s1", operation_type="r", estimated_cost=3.0)
+        assert manager._reserved_daily == 3.0
+        assert manager._reserved_monthly == 3.0
+
+        manager._sweep_stale_reservations(time.time() + manager.RESERVATION_TTL_SECONDS + 10)
+
+        assert manager._reserved_daily == 0.0
+        assert manager._reserved_monthly == 0.0
+        assert manager._reservations == {}
+        assert manager._reservation_started == {}
+
+    def test_settling_clears_the_timestamp(self, manager):
+        _, _, _, rid = manager.check_and_reserve(session_id="s1", operation_type="r", estimated_cost=2.0)
+        assert rid in manager._reservation_started
+        manager.record_cost(session_id="s1", operation_type="r", actual_cost=1.0, reservation_id=rid)
+        assert rid not in manager._reservation_started  # no orphan timestamp left behind
 
 
 class TestLegacyCheckOperation:
