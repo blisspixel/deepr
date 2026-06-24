@@ -55,6 +55,20 @@ must not be described as usable capacity.
   waits, reflection waits, health-check action plans, and health-check archive
   confirmations. These are experimental but schema-versioned and additive.
 - Durable `ExpertLoopRun` records.
+- Fleet self-maintenance: `deepr fleet status` (read-only `$0` roster-health
+  rollup, `deepr-fleet-status-v1`, non-zero exit on a failed latest run),
+  `deepr expert sync-all` (one capacity-aware roster pass, `deepr-library-sync-v1`
+  roll-up, overlap-locked, per-expert budgets, skip-not-fail), and
+  `deepr fleet install-schedule` (emits host scheduler recipes; never
+  auto-installs). The off-box heartbeat (`DEEPR_HEARTBEAT_URL`) is opt-in and
+  best-effort.
+- Pre-sync content-hash change-detection gate, the per-(expert, verb) overlap
+  guard + startup jitter, budget degradation tiers + value-of-spend gate, and the
+  reservation TTL sweep - deterministic spend/side-effect guards.
+- Cross-vendor maker-checker grounding assurance on absorbed beliefs
+  (`Belief.grounding_assurance`); the checker is an injected, budget-gated seam,
+  off by default. The verdict is model judgment; vendor diversity is a
+  deterministic routing requirement.
 - OKF export and absorb paths. OKF export is a derived view; OKF absorb is an
   ingestion source that still passes through verified extraction.
 - Indirect prompt-injection boundaries for fresh retrieval context, report
