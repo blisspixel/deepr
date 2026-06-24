@@ -340,87 +340,103 @@ class TestClaimExtraction:
         assert len(claims) == 0
 
 
-class TestClaimVerification:
-    """Tests for claim verification logic."""
+class _FakeLLM:
+    """Minimal llm_client with the async ``.generate`` the graph expects."""
 
-    def test_verify_claim_with_supporting_context(self):
-        """Test verifying a claim with supporting context."""
+    def __init__(self, response: str):
+        self._response = response
+        self.prompts: list[str] = []
+
+    async def generate(self, prompt: str) -> str:
+        self.prompts.append(prompt)
+        return self._response
+
+
+class TestClaimAnalysis:
+    """Claim grounding + contradiction is a model verdict, never word overlap.
+
+    Replaces the former lexical tests (30% keyword-overlap "verified", negation/
+    antonym contradiction) - those encoded the brittle anti-pattern this fix
+    removes. See docs/design/checks-deterministic-vs-agentic.md.
+    """
+
+    @pytest.mark.asyncio
+    async def test_model_verdict_grounds_claims(self):
+        llm = _FakeLLM('{"grounding": [{"id": "c_1", "supported": true, "sources": ["doc1"]}], "contradictions": []}')
+        graph = ReasoningGraph(llm_client=llm)
+        claims = [Claim(id="c_1", text="Python is a programming language", source_hypothesis_id="h_1")]
+
+        analysis = await graph._analyze_claims(claims, [{"id": "doc1", "content": "Python is a language."}])
+
+        assert analysis.grounding["c_1"]["verified"] is True
+        assert analysis.grounding["c_1"]["sources"] == ["doc1"]
+
+    @pytest.mark.asyncio
+    async def test_no_model_makes_no_verdict_not_a_keyword_guess(self):
+        # The whole point: without a model we assert nothing, rather than
+        # "verifying" by keyword overlap.
         graph = ReasoningGraph()
-        claim = Claim(id="c_1", text="Python is a programming language", source_hypothesis_id="h_1")
-        context = [{"id": "doc1", "content": "Python is a popular programming language used for web development."}]
+        claims = [Claim(id="c_1", text="Python is a programming language", source_hypothesis_id="h_1")]
 
-        result = graph._verify_claim_against_context(claim, context)
-        assert result["verified"] is True
-        assert len(result["sources"]) > 0
+        analysis = await graph._analyze_claims(claims, [{"id": "doc1", "content": "Python is a programming language."}])
 
-    def test_verify_claim_without_context(self):
-        """Test verifying a claim without context."""
-        graph = ReasoningGraph()
-        claim = Claim(id="c_1", text="Test claim", source_hypothesis_id="h_1")
+        assert analysis.grounding == {}
+        assert analysis.contradictions == []
 
-        result = graph._verify_claim_against_context(claim, [])
-        assert result["verified"] is False
-        assert len(result["sources"]) == 0
+    @pytest.mark.asyncio
+    async def test_malformed_json_falls_back_to_no_verdict(self):
+        graph = ReasoningGraph(llm_client=_FakeLLM("not json at all"))
+        claims = [Claim(id="c_1", text="x is y", source_hypothesis_id="h_1")]
 
-    def test_verify_claim_no_match(self):
-        """Test verifying a claim that doesn't match context."""
-        graph = ReasoningGraph()
-        claim = Claim(id="c_1", text="Quantum computing uses qubits", source_hypothesis_id="h_1")
-        context = [{"id": "doc1", "content": "Python is a programming language."}]
+        analysis = await graph._analyze_claims(claims, [])
 
-        result = graph._verify_claim_against_context(claim, context)
-        assert result["verified"] is False
+        assert analysis.grounding == {}
+        assert analysis.contradictions == []
 
-
-class TestContradictionDetection:
-    """Tests for contradiction detection logic."""
-
-    def test_detect_negation_contradiction(self):
-        """Test detecting negation-based contradictions."""
-        graph = ReasoningGraph()
+    @pytest.mark.asyncio
+    async def test_model_contradictions_are_parsed(self):
+        llm = _FakeLLM(
+            '{"grounding": [], "contradictions": [{"claim_ids": ["c_1", "c_2"], "description": "opposite claims"}]}'
+        )
+        graph = ReasoningGraph(llm_client=llm)
         claims = [
             Claim(id="c_1", text="Python is easy to learn", source_hypothesis_id="h_1"),
-            Claim(id="c_2", text="Python is not easy to learn", source_hypothesis_id="h_2"),
+            Claim(id="c_2", text="Python is hard to learn", source_hypothesis_id="h_2"),
         ]
 
-        contradictions = graph._detect_contradictions(claims, [])
-        assert len(contradictions) >= 1
-        assert contradictions[0]["type"] == "negation"
+        analysis = await graph._analyze_claims(claims, [])
 
-    def test_detect_antonym_contradiction(self):
-        """Test detecting antonym-based contradictions."""
-        graph = ReasoningGraph()
-        claims = [
-            Claim(id="c_1", text="The performance is good", source_hypothesis_id="h_1"),
-            Claim(id="c_2", text="The performance is bad", source_hypothesis_id="h_2"),
-        ]
+        assert len(analysis.contradictions) == 1
+        assert analysis.contradictions[0]["claim_ids"] == ["c_1", "c_2"]
+        assert analysis.contradictions[0]["type"] == "model"
 
-        contradictions = graph._detect_contradictions(claims, [])
-        assert len(contradictions) >= 1
-        assert contradictions[0]["type"] == "antonym"
-
-    def test_no_contradiction_same_hypothesis(self):
-        """Test that claims from same hypothesis don't contradict."""
-        graph = ReasoningGraph()
+    @pytest.mark.asyncio
+    async def test_same_hypothesis_contradiction_is_filtered(self):
+        # The model may flag a pair; the deterministic form rule drops pairs from
+        # one hypothesis (assumed internally coherent).
+        llm = _FakeLLM('{"grounding": [], "contradictions": [{"claim_ids": ["c_1", "c_2"], "description": "x"}]}')
+        graph = ReasoningGraph(llm_client=llm)
         claims = [
             Claim(id="c_1", text="Python is fast", source_hypothesis_id="h_1"),
-            Claim(id="c_2", text="Python is not fast", source_hypothesis_id="h_1"),  # Same hypothesis
+            Claim(id="c_2", text="Python is not fast", source_hypothesis_id="h_1"),
         ]
 
-        contradictions = graph._detect_contradictions(claims, [])
-        # Should not detect contradiction within same hypothesis
-        assert len(contradictions) == 0
+        analysis = await graph._analyze_claims(claims, [])
 
-    def test_no_contradiction_unrelated_claims(self):
-        """Test that unrelated claims don't contradict."""
-        graph = ReasoningGraph()
-        claims = [
-            Claim(id="c_1", text="Python is a programming language", source_hypothesis_id="h_1"),
-            Claim(id="c_2", text="The weather is sunny today", source_hypothesis_id="h_2"),
-        ]
+        assert analysis.contradictions == []
 
-        contradictions = graph._detect_contradictions(claims, [])
-        assert len(contradictions) == 0
+    @pytest.mark.asyncio
+    async def test_unknown_claim_ids_are_dropped(self):
+        llm = _FakeLLM(
+            '{"grounding": [{"id": "c_99", "supported": true}], "contradictions": [{"claim_ids": ["c_99", "c_1"]}]}'
+        )
+        graph = ReasoningGraph(llm_client=llm)
+        claims = [Claim(id="c_1", text="a is b", source_hypothesis_id="h_1")]
+
+        analysis = await graph._analyze_claims(claims, [])
+
+        assert analysis.grounding == {}  # c_99 is not a real claim id
+        assert analysis.contradictions == []  # fewer than two valid ids
 
 
 # Property-based tests using hypothesis
@@ -532,99 +548,35 @@ class TestHypothesisSchemaPropertyTests:
         assert "confidence" in error
 
 
-class TestClaimVerificationPropertyTests:
-    """Property-based tests for claim verification."""
+class TestClaimAnalysisPropertyTests:
+    """Property-based tests for the model-based claim analysis.
+
+    The invariant that replaces the old lexical properties: with no model, the
+    analysis asserts nothing (no false "verified", no fabricated contradiction)
+    for any input - the honest no-conclusion that the brittle keyword/negation
+    verdicts used to violate.
+    """
 
     @given(
         claim_text=st.text(min_size=10, max_size=100),
-        context_texts=st.lists(st.text(min_size=10, max_size=100), min_size=0, max_size=5),
+        context_count=st.integers(min_value=0, max_value=5),
     )
-    @settings(max_examples=30)
-    def test_verification_returns_valid_structure(self, claim_text, context_texts):
-        """Property: Verification always returns valid structure."""
-        assume("\x00" not in claim_text)
-        for ct in context_texts:
-            assume("\x00" not in ct)
-
-        graph = ReasoningGraph()
-        claim = Claim(id="c_1", text=claim_text, source_hypothesis_id="h_1")
-        context = [{"id": f"doc{i}", "content": ct} for i, ct in enumerate(context_texts)]
-
-        result = graph._verify_claim_against_context(claim, context)
-
-        # Must have required fields
-        assert "verified" in result
-        assert "sources" in result
-        assert isinstance(result["verified"], bool)
-        assert isinstance(result["sources"], list)
-
-    @given(claim_text=st.text(min_size=10, max_size=50))
-    @settings(max_examples=20)
-    def test_empty_context_never_verifies(self, claim_text):
-        """Property: Empty context never verifies a claim."""
+    @settings(max_examples=25, suppress_health_check=[HealthCheck.too_slow])
+    @pytest.mark.asyncio
+    async def test_no_model_never_verifies_or_contradicts(self, claim_text, context_count):
         assume("\x00" not in claim_text)
 
-        graph = ReasoningGraph()
-        claim = Claim(id="c_1", text=claim_text, source_hypothesis_id="h_1")
-
-        result = graph._verify_claim_against_context(claim, [])
-
-        assert result["verified"] is False
-        assert len(result["sources"]) == 0
-
-
-class TestContradictionDetectionPropertyTests:
-    """Property-based tests for contradiction detection."""
-
-    @given(claim1_text=st.text(min_size=10, max_size=50), claim2_text=st.text(min_size=10, max_size=50))
-    @settings(max_examples=30)
-    def test_contradiction_detection_returns_list(self, claim1_text, claim2_text):
-        """Property: Contradiction detection always returns a list."""
-        assume("\x00" not in claim1_text and "\x00" not in claim2_text)
-
-        graph = ReasoningGraph()
+        graph = ReasoningGraph()  # no llm_client
         claims = [
-            Claim(id="c_1", text=claim1_text, source_hypothesis_id="h_1"),
-            Claim(id="c_2", text=claim2_text, source_hypothesis_id="h_2"),
+            Claim(id="c_1", text=claim_text, source_hypothesis_id="h_1"),
+            Claim(id="c_2", text=f"not {claim_text}", source_hypothesis_id="h_2"),
         ]
+        context = [{"id": f"doc{i}", "content": f"Context {i}: {claim_text}"} for i in range(context_count)]
 
-        result = graph._detect_contradictions(claims, [])
+        analysis = await graph._analyze_claims(claims, context)
 
-        assert isinstance(result, list)
-        for contradiction in result:
-            assert "type" in contradiction
-            assert "claim_ids" in contradiction
-            assert isinstance(contradiction["claim_ids"], list)
-
-    @given(
-        word1=st.text(alphabet=st.characters(whitelist_categories=("L",)), min_size=3, max_size=10),
-        word2=st.text(alphabet=st.characters(whitelist_categories=("L",)), min_size=3, max_size=10),
-    )
-    @settings(max_examples=20, deadline=None)
-    def test_negation_detected_as_contradiction(self, word1, word2):
-        """Property: Adding 'not' creates detectable contradiction."""
-        # Skip words that are themselves negation indicators, since both claims
-        # would then contain negation and the detector wouldn't flag a difference
-        negation_words = {"not", "no", "never", "none", "neither", "nobody", "nothing", "nowhere", "cannot"}
-        assume(word1.lower() not in negation_words)
-        assume(word2.lower() not in negation_words)
-
-        graph = ReasoningGraph()
-
-        # Create claim and its negation using generated words
-        positive = f"The {word1} {word2} is good"
-        negative = f"The {word1} {word2} is not good"
-
-        claims = [
-            Claim(id="c_1", text=positive, source_hypothesis_id="h_1"),
-            Claim(id="c_2", text=negative, source_hypothesis_id="h_2"),
-        ]
-
-        result = graph._detect_contradictions(claims, [])
-
-        # Should detect the negation contradiction
-        assert len(result) >= 1
-        assert any(c["type"] == "negation" for c in result)
+        assert analysis.grounding == {}
+        assert analysis.contradictions == []
 
 
 class TestReasoningStatePropertyTests:

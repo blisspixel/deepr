@@ -206,6 +206,20 @@ class Claim:
 
 
 @dataclass
+class ClaimAnalysis:
+    """Model-derived grounding + contradiction verdicts over a set of claims.
+
+    Grounding maps a claim id to ``{"verified": bool, "sources": [id, ...]}``;
+    contradictions are ``{"type", "claim_ids", "description"}`` records. An empty
+    analysis means "no verdict" (nothing verified, no contradictions) - the
+    honest state when no model is available, never a lexical guess.
+    """
+
+    grounding: dict[str, dict[str, Any]] = field(default_factory=dict)
+    contradictions: list[dict[str, Any]] = field(default_factory=list)
+
+
+@dataclass
 class ReasoningState:
     """State for the reasoning graph.
 
@@ -569,8 +583,7 @@ Generate exactly {num_hypotheses} hypotheses with confidence scores between 0 an
 
         for attempt in range(max_retries):
             try:
-                # Call LLM (placeholder - would use actual client)
-                if hasattr(self.llm_client, "generate"):
+                if self.llm_client and hasattr(self.llm_client, "generate"):
                     response = await self.llm_client.generate(prompt)
                 else:
                     return None
@@ -631,22 +644,26 @@ Generate exactly {num_hypotheses} hypotheses with confidence scores between 0 an
 
         self._emit_thought(ThoughtType.PLAN_STEP, f"Extracted {len(state.claims)} atomic claims")
 
-        # Verify claims against context
+        # Verify claims and detect contradictions with the model (the graph is
+        # already model-driven). Grounding and contradiction are meaning, not word
+        # overlap, so there is no lexical keyword/antonym verdict: without a model
+        # we make no positive claim - unverified, no contradictions - which
+        # degrades honestly instead of asserting meaning from string matching
+        # (AGENTIC_BALANCE.md / checks-deterministic-vs-agentic.md).
+        analysis = await self._analyze_claims(state.claims, state.context)
         for claim in state.claims:
-            verification_result = self._verify_claim_against_context(claim, state.context)
-            claim.verified = verification_result["verified"]
-            claim.verification_sources = verification_result["sources"]
-
+            grounded = analysis.grounding.get(claim.id)
+            claim.verified = bool(grounded and grounded.get("verified"))
+            claim.verification_sources = list(grounded.get("sources", [])) if grounded else []
             if claim.verified:
                 state.verified_claims.append(claim)
-                self._emit_thought(
-                    ThoughtType.EVIDENCE_FOUND,
-                    f"Verified: {claim.text[:50]}...",
-                    evidence_refs=claim.verification_sources,
-                )
+                # _emit_thought takes no evidence_refs; the sources live on the
+                # claim and in the phase trace. (Removing the bad kwarg fixes a
+                # latent TypeError that the old lexical path rarely reached and
+                # the model path now does.)
+                self._emit_thought(ThoughtType.EVIDENCE_FOUND, f"Verified: {claim.text[:50]}...")
 
-        # Check for contradictions between claims
-        contradictions = self._detect_contradictions(state.claims, state.context)
+        contradictions = analysis.contradictions
         state.contradictions = contradictions
 
         # Update claim contradiction references
@@ -716,151 +733,99 @@ Generate exactly {num_hypotheses} hypotheses with confidence scores between 0 an
 
         return claims
 
-    def _verify_claim_against_context(self, claim: Claim, context: list[dict[str, Any]]) -> dict[str, Any]:
-        """Verify a claim against retrieved context.
-
-        Args:
-            claim: The claim to verify
-            context: Retrieved context documents
-
-        Returns:
-            Dict with verified status and supporting sources
-        """
-        if not context:
-            # No context to verify against - assume unverified
-            return {"verified": False, "sources": []}
-
-        supporting_sources = []
-        claim_lower = claim.text.lower()
-
-        # Simple keyword matching for verification
-        # Would use semantic similarity in production
-        claim_keywords = set(
-            word
-            for word in claim_lower.split()
-            if len(word) > 3 and word not in {"this", "that", "with", "from", "have", "been"}
+    def _build_claim_analysis_prompt(self, claims: list[Claim], context: list[dict[str, Any]]) -> str:
+        """Prompt the model to ground claims in the sources and flag contradictions."""
+        claim_lines = "\n".join(f"[{c.id}] (from {c.source_hypothesis_id}) {c.text}" for c in claims)
+        if context:
+            source_lines = "\n".join(
+                f"[{doc.get('id', f'context_{i}')}] {str(doc.get('content', doc.get('text', '')))[:500]}"
+                for i, doc in enumerate(context)
+            )
+        else:
+            source_lines = "(no sources provided)"
+        return (
+            "You verify claims against source context for a reasoning system. "
+            "Use ONLY the sources; do not rely on prior knowledge.\n\n"
+            f"Claims:\n{claim_lines}\n\n"
+            f"Sources:\n{source_lines}\n\n"
+            "For each claim, decide whether the sources SUPPORT it (it is entailed by at least one "
+            "source); a claim with no supporting source is unsupported. Also list any pairs of claims "
+            "that CONTRADICT each other.\n\n"
+            "Respond with JSON only, no prose:\n"
+            '{"grounding": [{"id": "<claim id>", "supported": true, "sources": ["<source id>"]}], '
+            '"contradictions": [{"claim_ids": ["<id>", "<id>"], "description": "<why>"}]}'
         )
 
-        for i, doc in enumerate(context):
-            doc_text = str(doc.get("content", doc.get("text", ""))).lower()
+    async def _analyze_claims(self, claims: list[Claim], context: list[dict[str, Any]]) -> ClaimAnalysis:
+        """Model-based grounding + contradiction verdict over the claims.
 
-            # Check keyword overlap
-            matches = sum(1 for kw in claim_keywords if kw in doc_text)
-            overlap_ratio = matches / max(len(claim_keywords), 1)
-
-            if overlap_ratio > 0.3:  # 30% keyword overlap threshold
-                source_id = doc.get("id", f"context_{i}")
-                supporting_sources.append(source_id)
-
-        return {"verified": len(supporting_sources) > 0, "sources": supporting_sources}
-
-    def _detect_contradictions(self, claims: list[Claim], context: list[dict[str, Any]]) -> list[dict[str, Any]]:
-        """Detect contradictions between claims.
-
-        Uses negation detection and semantic analysis to find
-        claims that contradict each other.
-
-        Args:
-            claims: List of claims to check
-            context: Context for additional verification
-
-        Returns:
-            List of contradiction records
+        Grounding is retrieval-grounded judgment and contradiction is entailment;
+        neither is decidable from word overlap (the HANS/ROUGE failure mode), so
+        the verdict is the model's. Without a usable model this returns an empty
+        analysis - nothing verified, no contradictions - an honest no-conclusion
+        rather than a lexical guess. The graph is already model-driven, so this
+        adds one bounded call alongside hypothesis generation. See
+        docs/design/checks-deterministic-vs-agentic.md.
         """
-        contradictions = []
+        if not claims or not self.llm_client or not hasattr(self.llm_client, "generate"):
+            return ClaimAnalysis()
+        try:
+            response = await self.llm_client.generate(self._build_claim_analysis_prompt(claims, context))
+        except Exception as exc:
+            self._emit_thought(ThoughtType.ERROR, f"Claim analysis failed: {exc!s}; treating claims as unverified")
+            return ClaimAnalysis()
+        try:
+            data = json.loads(response)
+        except (json.JSONDecodeError, TypeError):
+            data = HypothesisSchema.repair(response) if isinstance(response, str) else None
+        if not isinstance(data, dict):
+            self._emit_thought(ThoughtType.ERROR, "Claim analysis JSON parse failed; treating claims as unverified")
+            return ClaimAnalysis()
+        return self._parse_claim_analysis(data, claims)
 
-        # Negation indicators
-        negation_words = {
-            "not",
-            "no",
-            "never",
-            "none",
-            "neither",
-            "nobody",
-            "nothing",
-            "nowhere",
-            "cannot",
-            "can't",
-            "won't",
-            "don't",
-            "doesn't",
-            "isn't",
-            "aren't",
-            "wasn't",
-            "weren't",
-        }
+    def _parse_claim_analysis(self, data: dict[str, Any], claims: list[Claim]) -> ClaimAnalysis:
+        """Shape the model's JSON into a ClaimAnalysis (parse, don't validate).
 
-        # Antonym pairs (simplified)
-        antonym_pairs = [
-            ("increase", "decrease"),
-            ("rise", "fall"),
-            ("grow", "shrink"),
-            ("better", "worse"),
-            ("good", "bad"),
-            ("high", "low"),
-            ("more", "less"),
-            ("always", "never"),
-            ("all", "none"),
-            ("true", "false"),
-            ("yes", "no"),
-            ("positive", "negative"),
-            ("success", "failure"),
-            ("win", "lose"),
-            ("fast", "slow"),
-        ]
+        Unknown claim ids are dropped, types coerced, and same-hypothesis
+        contradiction pairs filtered - a hypothesis's own claims are assumed
+        internally coherent, which is a structural (form) rule, not a meaning
+        verdict. The grounding/contradiction decisions themselves stay the
+        model's.
+        """
+        claim_ids = {c.id for c in claims}
+        source_hypothesis = {c.id: c.source_hypothesis_id for c in claims}
 
-        # Check each pair of claims
-        for i, claim1 in enumerate(claims):
-            for _j, claim2 in enumerate(claims[i + 1 :], i + 1):
-                # Skip claims from the same hypothesis
-                if claim1.source_hypothesis_id == claim2.source_hypothesis_id:
-                    continue
+        grounding: dict[str, dict[str, Any]] = {}
+        for entry in data.get("grounding", []) or []:
+            if not isinstance(entry, dict):
+                continue
+            cid = str(entry.get("id", ""))
+            if cid not in claim_ids:
+                continue
+            raw_sources = entry.get("sources", [])
+            sources = [str(s) for s in raw_sources] if isinstance(raw_sources, list) else []
+            grounding[cid] = {"verified": bool(entry.get("supported")), "sources": sources}
 
-                text1_lower = claim1.text.lower()
-                text2_lower = claim2.text.lower()
+        contradictions: list[dict[str, Any]] = []
+        seen: set[frozenset[str]] = set()
+        for entry in data.get("contradictions", []) or []:
+            if not isinstance(entry, dict):
+                continue
+            ids = [str(x) for x in entry.get("claim_ids", []) if str(x) in claim_ids]
+            if len(set(ids)) < 2:
+                continue
+            a, b = ids[0], ids[1]
+            if source_hypothesis.get(a) == source_hypothesis.get(b):
+                continue  # same hypothesis: assumed coherent (a form rule, not a verdict)
+            key = frozenset((a, b))
+            if key in seen:
+                continue
+            seen.add(key)
+            contradictions.append(
+                {"type": "model", "claim_ids": [a, b], "description": str(entry.get("description", ""))}
+            )
 
-                # Check for negation contradiction
-                # One claim has negation, other doesn't, but similar content
-                has_negation1 = any(neg in text1_lower.split() for neg in negation_words)
-                has_negation2 = any(neg in text2_lower.split() for neg in negation_words)
-
-                if has_negation1 != has_negation2:
-                    # Check if claims are about the same thing
-                    words1 = set(text1_lower.split())
-                    words2 = set(text2_lower.split())
-                    overlap = len(words1 & words2) / max(len(words1 | words2), 1)
-
-                    if overlap > 0.4:  # 40% word overlap
-                        contradictions.append(
-                            {
-                                "type": "negation",
-                                "claim_ids": [claim1.id, claim2.id],
-                                "description": "Negation contradiction between claims",
-                                "confidence": overlap,
-                            }
-                        )
-                        continue
-
-                # Check for antonym contradiction
-                for ant1, ant2 in antonym_pairs:
-                    if (ant1 in text1_lower and ant2 in text2_lower) or (ant2 in text1_lower and ant1 in text2_lower):
-                        # Check if claims are about the same subject
-                        words1 = set(text1_lower.split()) - {ant1, ant2}
-                        words2 = set(text2_lower.split()) - {ant1, ant2}
-                        overlap = len(words1 & words2) / max(len(words1 | words2), 1)
-
-                        if overlap > 0.3:
-                            contradictions.append(
-                                {
-                                    "type": "antonym",
-                                    "claim_ids": [claim1.id, claim2.id],
-                                    "description": f"Antonym contradiction: {ant1} vs {ant2}",
-                                    "confidence": overlap,
-                                }
-                            )
-                            break
-
-        return contradictions
+        return ClaimAnalysis(grounding=grounding, contradictions=contradictions)
 
     async def _self_correct(self, state: ReasoningState) -> ReasoningState:
         """Self-correct based on detected contradictions.
