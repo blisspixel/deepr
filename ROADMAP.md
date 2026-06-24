@@ -523,6 +523,19 @@ over-reach for a solo project; Letta/MemOS already own the "OS" label).
     property. This is the brittle lexical-verdict fix the STOP banner demands.
     Remaining: extend the same router->verdict pass to the health-check detection
     surface; calibrate the verdict via the evidence layer.
+  - [ ] **Brittle-verdict debt in ToT reasoning (audit finding 2026-06-24):**
+    `reasoning_graph._verify_claim_against_context` returns a `verified` verdict
+    from 30% keyword overlap, and `_detect_contradictions` flags contradictions
+    from negation words + a hardcoded antonym list with `confidence = word
+    overlap` - lexical verdicts on grounding and contradiction (the HANS
+    anti-pattern; self-admitted "would use semantic similarity in production").
+    Lower severity than the absorb path because it runs in chat Tree-of-Thoughts
+    and feeds `state.synthesis` (the ephemeral answer), not the belief store
+    (beliefs only persist through the verified absorb pipeline). Fix: the ToT
+    graph already calls a model per node - route the verify/contradiction step to
+    that model, or stop asserting "verified"/contradiction from keyword overlap.
+    Do not let these verdicts reach beliefs except via verified absorb. Disposition
+    in [checks-deterministic-vs-agentic.md](docs/design/checks-deterministic-vs-agentic.md).
   - [x] Dedup-merge verdict on the absorb gate (2026-06-14): the sibling brittle
     verdict. `_find_similar`'s >0.7 word-overlap decided merges, so two different
     facts that share words (e.g. "$10/M" vs "$30/M") silently merged into one,
