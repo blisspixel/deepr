@@ -612,7 +612,15 @@ over-reach for a solo project; Letta/MemOS already own the "OS" label).
   - [ ] Trace-based skill self-improvement: improve generated skills/prompts from real execution traces, gated behind tests + size limits + human-review/PR. Reference approach: GEPA (genetic-Pareto reflective prompt evolution) + DSPy over traces - zero-GPU, API-only, validated (ICLR 2026); composes with the reflection + absorb loop above (the trace is the artifact those loops already produce).
 - [ ] Skill templates + versioning/dependency management
 - [ ] Skill format conversion (Claude Skills ↔ OpenClaw Skills ↔ agentskills.io)
-- [ ] Keep skill design constrained (focused modules, measurable outcomes)
+- [x] Keep skill design constrained (focused modules, measurable outcomes) -
+      authoring guidance codified in [docs/design/skill-authoring.md](docs/design/skill-authoring.md)
+      (2026-06-23): Deepr's two skill surfaces mapped against Anthropic's Agent
+      Skills best practices, with the AGENTIC_BALANCE line for `tools/` (no
+      meaning-verdicts), verification-first design (the evidence layer is the
+      high-leverage skill type), and a `## Gotchas` convention. Embodied in the
+      `expert export-skill` generator, which now emits a trigger-style
+      description and a grounded Gotchas section, and in the deepr-research
+      exemplar.
 
 ### Phase 4c: Expert Crews (composable, exportable expert teams)
 
