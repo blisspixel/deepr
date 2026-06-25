@@ -180,6 +180,32 @@ package, durable state, and a verifier gate. Goal loops come before meta/team
 loops; Deepr only widens autonomy after the smaller loop has acceptance metrics
 and failure telemetry.
 
+## Rollout and Versioning Discipline
+
+Agentic surfaces move through explicit rollout stages:
+
+1. **Prototype** - manual or local-only, no unattended writes or spend.
+2. **Shadow** - runs beside the baseline and records deltas, without changing
+   state or routing production work.
+3. **Pilot** - opt-in for a bounded user, expert, tool, or task class with
+   tighter budgets and extra telemetry.
+4. **Limited production** - default for a narrow surface after verifier,
+   recovery, and cost metrics are stable.
+5. **Full production** - broad default only after regression evidence and CI
+   coverage prove the verifier and recovery path hold.
+
+Prompts, tool specs, schemas, eval sets, memory policies, and orchestration
+graphs are versioned when a host, user, scheduler, or stored artifact depends on
+them. Versioning is not ceremony: it makes failures bisectable, lets agents hand
+off state safely, and keeps prompt or graph changes testable against the same
+golden and adversarial cases.
+
+State-changing surfaces must document retry behavior, idempotency keys or
+deduplication strategy, and rollback or compensation behavior before moving past
+pilot. Planning and irreversible execution stay separated; the workflow decides
+when a proposed action is authorized to spend, write, publish, modify
+permissions, or call an external side-effecting tool.
+
 ## Invariants
 
 - Determinism guards side-effects and flowchartable control flow; it never

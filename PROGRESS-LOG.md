@@ -1,5 +1,12 @@
 # Progress Log
 
+## 2026-06-25 - Agentic rollout guidance folded into standards
+
+- Reviewed the operator-provided June 2026 agentic development checklist against Deepr's existing README, ROADMAP, CONTRIBUTING, and AGENTIC_BALANCE.
+- Net-new useful pieces were not new architecture, but production discipline: explicit rollout stages, versioned prompts/tools/schemas/eval sets/graphs, and documented idempotency/recovery before widening autonomy.
+- Updated `CONTRIBUTING.md` Definition of Done, `docs/plans/AGENTIC_BALANCE.md`, and `SKILLS.md` with those gates.
+- Spend this run: `$0.00`.
+
 ## 2026-06-25 - Explicit maker-checker grounding wiring
 
 - Re-read README, ROADMAP, AGENTS, CONTRIBUTING, AGENTIC_BALANCE, current state, progress memory, maker-checker design notes, and the relevant absorb/sync/plan-quota code before choosing the next slice.

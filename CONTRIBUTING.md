@@ -62,6 +62,10 @@ A change is done when all of these hold - not "the code works":
       source).
 - [ ] Docs updated: CHANGELOG entry; README/guides if behavior changed;
       ROADMAP item checked off or moved.
+- [ ] Agentic or scheduled surfaces document their workflow/agent boundary,
+      rollout stage, versioned contracts, verifier, state persistence, retry
+      behavior, idempotency or compensation path, and human-approval threshold
+      before widening autonomy.
 - [ ] No em-dashes in docs/markdown (use ` - `). No AI attribution in commit
       messages.
 - [ ] CI green after push.
