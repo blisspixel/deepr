@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- Added maker-checker assurance to host-facing expert handoff payloads.
+  `Claim` now preserves `grounding_assurance` from belief state, and
+  `deepr-expert-handoff-v1` includes per-claim assurance plus summary counts for
+  verified and cross-vendor verified claims.
+
 ## [2.20.0] - 2026-06-22
 
 Licensing, safe-defaults, and model-freshness release.

@@ -136,6 +136,7 @@ class Claim:
         contradicts: IDs of contradicting Claims
         supersedes: Claim ID this replaced
         tags: Categorization tags
+        grounding_assurance: Maker-checker assurance for this claim
     """
 
     id: str
@@ -148,6 +149,7 @@ class Claim:
     contradicts: list[str] = field(default_factory=list)
     supersedes: str | None = None
     tags: list[str] = field(default_factory=list)
+    grounding_assurance: str = "unverified"
 
     @classmethod
     def create(cls, statement: str, domain: str, confidence: float, **kwargs: Any) -> "Claim":
@@ -169,6 +171,7 @@ class Claim:
             "contradicts": self.contradicts,
             "supersedes": self.supersedes,
             "tags": self.tags,
+            "grounding_assurance": self.grounding_assurance,
         }
 
     @classmethod
@@ -185,6 +188,7 @@ class Claim:
             contradicts=data.get("contradicts", []),
             supersedes=data.get("supersedes"),
             tags=data.get("tags", []),
+            grounding_assurance=data.get("grounding_assurance", "unverified"),
         )
 
 

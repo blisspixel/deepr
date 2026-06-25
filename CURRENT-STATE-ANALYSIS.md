@@ -20,7 +20,7 @@ No clarification is needed before continuing. This run selects maker-checker cal
 - The evidence layer is present through `eval continuity`, `eval calibrate`, `eval red-team`, source-trust floors, event logs, typed edges, lifecycle archival, and model-verdict routing for semantic absorb checks.
 - Portable data is in place through `DEEPR_DATA_DIR`, `DEEPR_EXPERTS_PATH`, and `DEEPR_REPORTS_PATH`, with the cost ledger deliberately machine-local.
 - Explicit plan-quota CLI execution is in place for maintenance through the lightweight `research_fn` and chat-client seams, with quota and `$0` cost-ledger writes. Automatic plan routing remains gated until trustworthy live remaining-quota signals exist.
-- Explicit maker-checker grounding is in place for `expert absorb` and `expert sync` through `--check-grounding`, with optional `--checker-plan <id>` for cross-plan checking. It is off by default, dry runs do not check, and metered API checker construction remains future work behind spend-policy gates.
+- Explicit maker-checker grounding is in place for `expert absorb` and `expert sync` through `--check-grounding`, with optional `--checker-plan <id>` for cross-plan checking. It is off by default, dry runs do not check, and metered API checker construction remains future work behind spend-policy gates. Handoff payloads now preserve per-claim `grounding_assurance` and summarize verified and cross-vendor verified claim counts.
 - Fleet loop primitives are in place: `fleet status`, `expert sync-all`, `fleet install-schedule`, content-hash pre-sync change detection, per-verb locks, startup jitter, and durable loop-run records.
 
 ## Recent Progress
@@ -124,8 +124,9 @@ gates decide what becomes persistent belief state.
 The hosted reach track now has its first read-only contract. `deepr_expert_handoff`
 and `/api/experts/{name}/handoff` expose `deepr-expert-handoff-v1`: a `$0`
 versioned handoff payload with profile summary, manifest counts, bounded
-claims/gaps, dashboard telemetry, loop-status rollup, OKF interchange hints, and
-an additive compatibility contract.
+claims/gaps, per-claim grounding assurance, verified-claim counts, dashboard
+telemetry, loop-status rollup, OKF interchange hints, and an additive
+compatibility contract.
 
 The hosted reach track also has its first scoped-key and remote-audit primitive.
 `ScopedMCPKeyStore` persists one-way hashed key records with mode, expert
@@ -237,8 +238,9 @@ contradiction, dedup, and trust-floor gates.
 The next-version edge is harness hardening, not plain retrieval. Highest-value
 open slices are:
 
-- Maker-checker completion: real caller wiring through provider adapters,
-  bounded second-check escalation, and assurance surfaced in handoff contracts.
+- Maker-checker completion: metered provider-adapter checker construction with
+  spend-policy gates, then bounded second-check escalation before holding
+  unsupported claims.
 - Local-vs-frontier A/B: evidence that `$0` local experts preserve grounding
   and identify the calibration/coverage cases that deserve targeted metered
   escalation.
@@ -258,12 +260,12 @@ contradiction, dedup, and trust-floor gates.
 
 ## Next Work
 
-Next slice selected and advanced: wire the per-(expert, verb) overlap guard and
-startup jitter into `deepr expert sync`, so a scheduled/manual collision exits
-0, records a typed `overlap_locked` loop state, and performs no model call or
-state mutation from the second process. This follows the loop-engineering rule:
-guard side effects deterministically, expose progress durably, and keep dry-run
-previews side-effect free.
+Next slice selected and advanced: preserve maker-checker grounding assurance in
+the host-facing handoff contract. `Claim` now carries
+`grounding_assurance`, `Belief.to_claim()` preserves the value from structured
+belief state, and `deepr-expert-handoff-v1` reports per-claim assurance plus
+summary counts for verified and cross-vendor verified claims. This keeps the
+verifier signal visible to downstream agents before bounded escalation starts.
 
 ## Spend Ledger For This Run
 

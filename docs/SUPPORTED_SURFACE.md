@@ -1,6 +1,6 @@
 # Supported Surface
 
-Status: v2.20.0 current main, 2026-06-22. This document defines what users and host
+Status: v2.20.0 current main, 2026-06-25. This document defines what users and host
 agents can rely on today, what is experimental, what is planned only, and what
 data remains portable if development stops.
 
@@ -69,9 +69,10 @@ must not be described as usable capacity.
   (`Belief.grounding_assurance`). `deepr expert absorb` and `deepr expert sync`
   can opt into the checker with `--check-grounding`; `--checker-plan <id>` uses
   a different plan CLI as the checker. The checker is off by default, dry runs
-  do not check, and metered API checking is not automatic. The verdict is model
-  judgment; vendor diversity and spend gates are deterministic routing
-  requirements.
+  do not check, and metered API checking is not automatic. Expert handoff
+  payloads preserve per-claim `grounding_assurance` and include verified-claim
+  counts by assurance level. The verdict is model judgment; vendor diversity and
+  spend gates are deterministic routing requirements.
 - OKF export and absorb paths. OKF export is a derived view; OKF absorb is an
   ingestion source that still passes through verified extraction.
 - Indirect prompt-injection boundaries for fresh retrieval context, report

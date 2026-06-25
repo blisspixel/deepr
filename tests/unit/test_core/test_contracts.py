@@ -81,12 +81,19 @@ class TestClaim:
         assert c1.id == c2.id  # ID based on statement+domain, not confidence
 
     def test_to_dict(self):
-        claim = Claim.create(statement="test", domain="d", confidence=0.75, tags=["inferred"])
+        claim = Claim.create(
+            statement="test",
+            domain="d",
+            confidence=0.75,
+            tags=["inferred"],
+            grounding_assurance="cross_vendor",
+        )
         d = claim.to_dict()
         assert d["statement"] == "test"
         assert d["domain"] == "d"
         assert d["confidence"] == 0.75
         assert d["tags"] == ["inferred"]
+        assert d["grounding_assurance"] == "cross_vendor"
         assert isinstance(d["sources"], list)
 
     def test_round_trip(self):
@@ -99,6 +106,7 @@ class TestClaim:
             contradicts=["abc"],
             supersedes="xyz",
             tags=["learned"],
+            grounding_assurance="same_vendor_fresh_context",
         )
         d = claim.to_dict()
         restored = Claim.from_dict(d)
@@ -110,6 +118,7 @@ class TestClaim:
         assert restored.contradicts == ["abc"]
         assert restored.supersedes == "xyz"
         assert restored.tags == ["learned"]
+        assert restored.grounding_assurance == "same_vendor_fresh_context"
 
     def test_from_dict_missing_optional_fields(self):
         d = {
@@ -125,6 +134,7 @@ class TestClaim:
         assert claim.contradicts == []
         assert claim.supersedes is None
         assert claim.tags == []
+        assert claim.grounding_assurance == "unverified"
 
     def test_confidence_bounds(self):
         claim = Claim.create(statement="x", domain="d", confidence=0.0)

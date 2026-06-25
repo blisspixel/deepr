@@ -12,6 +12,7 @@ from deepr.security.output_safety import sanitize_host_facing_payload
 
 HANDOFF_SCHEMA_VERSION = "deepr-expert-handoff-v1"
 HANDOFF_KIND = "deepr.expert.handoff"
+GROUNDING_ASSURANCE_LEVELS = ("cross_vendor", "same_vendor_fresh_context", "unverified")
 
 
 def _aware(value: datetime | None) -> datetime | None:
@@ -42,6 +43,14 @@ def _decision_sort_key(decision: Any) -> tuple[datetime, str]:
         _aware(getattr(decision, "timestamp", None)) or datetime.min.replace(tzinfo=UTC),
         str(getattr(decision, "id", "")),
     )
+
+
+def _grounding_assurance_counts(claims: list[Any]) -> dict[str, int]:
+    counts = dict.fromkeys(GROUNDING_ASSURANCE_LEVELS, 0)
+    for claim in claims:
+        assurance = str(getattr(claim, "grounding_assurance", "unverified") or "unverified")
+        counts[assurance] = counts.get(assurance, 0) + 1
+    return counts
 
 
 def _profile_summary(profile: Any) -> dict[str, Any]:
@@ -117,6 +126,10 @@ def build_expert_handoff(
         key=_decision_sort_key,
         reverse=True,
     )
+    grounding_assurance = _grounding_assurance_counts(claims)
+    verified_claim_count = grounding_assurance.get("cross_vendor", 0) + grounding_assurance.get(
+        "same_vendor_fresh_context", 0
+    )
 
     payload: dict[str, Any] = {
         "schema_version": HANDOFF_SCHEMA_VERSION,
@@ -131,6 +144,9 @@ def build_expert_handoff(
             "avg_confidence": float(getattr(resolved_manifest, "avg_confidence", 0.0) or 0.0),
             "contested_open_count": int(resolved_telemetry.get("contested_claims", {}).get("open_count", 0) or 0),
             "loop_run_count": int(resolved_loop_status.get("count", 0) or 0),
+            "verified_claim_count": verified_claim_count,
+            "cross_vendor_verified_claim_count": grounding_assurance.get("cross_vendor", 0),
+            "grounding_assurance": grounding_assurance,
         },
         "limits": {
             "max_claims": claim_limit if include_claims else 0,

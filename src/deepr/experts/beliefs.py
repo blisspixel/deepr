@@ -235,6 +235,7 @@ class Belief:
             updated_at=self.updated_at,
             contradicts=list(self.contradictions_with),
             tags=[self.source_type] if self.source_type else [],
+            grounding_assurance=self.grounding_assurance,
         )
 
     def to_dict(self) -> dict[str, Any]:
