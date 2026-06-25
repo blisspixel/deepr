@@ -1,16 +1,16 @@
 # Current State Analysis
 
-Date: 2026-06-24
+Date: 2026-06-25
 
 ## Alignment Summary
 
 Deepr is aligned around one active product bet: persistent domain experts that keep verified knowledge current without silent spend. The README sells this as research infrastructure and a consultable knowledge role, not another chat window and not generic RAG. Current main is `v2.20.0`: local Ollama is usable for `$0` expert maintenance; explicit plan-quota execution works for `expert sync --plan <id>`, `expert absorb --plan <id>`, and `capacity probe-plan <id>` behind auth-mode and no-surprise-bills gates; durable loop status is observable across CLI, MCP, and web surfaces; OKF import/export is a verified interchange path; hosted MCP has scoped keys, per-key budgets, rate limits, concurrency caps, audit records, smoke checks, registration manifests, and deployment recipes; red-team metrics measure prompt-boundary, MCP read-path, tool-spoofing, and memory trust-floor probes at `$0`.
 
-The latest 2026 external guidance reinforces Deepr's direction: this is agentic harness, context engineering, and loop engineering work. The useful primitives are durable progress files, tight high-signal context, independent verification, trace/eval loops, typed stop conditions, scoped tools, and explicit spend/security gates. Deepr already has most of the harness substrate: `ExpertLoopRun`, loop-status rollups, context source packs, capacity previews, budget gates, scoped MCP, red-team metrics, and derived handoff contracts. The remaining work is not "more RAG"; it is closing verifier loops and making the scheduled verbs safer and more observable.
+The latest 2026 external guidance reinforces Deepr's direction: this is agentic harness, context engineering, loop engineering, and harness-first verification work. The useful primitives are durable progress files, tight high-signal context, independent verification, trace/eval loops, typed stop conditions, scoped tools, and explicit spend/security gates. Deepr already has most of the harness substrate: `ExpertLoopRun`, loop-status rollups, context source packs, capacity previews, budget gates, scoped MCP, red-team metrics, and derived handoff contracts. The remaining work is not "more RAG"; it is closing verifier loops and making the scheduled verbs safer and more observable.
 
 `AGENTIC_BALANCE.md` is the governing boundary: deterministic workflow code owns spend, writes, routing gates, durable state, locks, jitter, schemas, and verifier outcomes; model judgment owns meaning such as contradiction, grounding, deduplication, and synthesis.
 
-No clarification is needed before continuing. Two docs still had stale language that treated plan-quota execution as planned-only; this run updates the supported-surface and capacity-waterfall wording to match `README.md`, `ROADMAP.md`, and code.
+No clarification is needed before continuing. This run selects maker-checker caller wiring as the next slice because it turns an existing verified seam into operator-usable loop verification without broadening into a generic agent orchestrator.
 
 ## What Works Now
 
@@ -20,9 +20,23 @@ No clarification is needed before continuing. Two docs still had stale language 
 - The evidence layer is present through `eval continuity`, `eval calibrate`, `eval red-team`, source-trust floors, event logs, typed edges, lifecycle archival, and model-verdict routing for semantic absorb checks.
 - Portable data is in place through `DEEPR_DATA_DIR`, `DEEPR_EXPERTS_PATH`, and `DEEPR_REPORTS_PATH`, with the cost ledger deliberately machine-local.
 - Explicit plan-quota CLI execution is in place for maintenance through the lightweight `research_fn` and chat-client seams, with quota and `$0` cost-ledger writes. Automatic plan routing remains gated until trustworthy live remaining-quota signals exist.
+- Explicit maker-checker grounding is in place for `expert absorb` and `expert sync` through `--check-grounding`, with optional `--checker-plan <id>` for cross-plan checking. It is off by default, dry runs do not check, and metered API checker construction remains future work behind spend-policy gates.
 - Fleet loop primitives are in place: `fleet status`, `expert sync-all`, `fleet install-schedule`, content-hash pre-sync change detection, per-verb locks, startup jitter, and durable loop-run records.
 
 ## Recent Progress
+
+`deepr expert absorb` and `deepr expert sync` now have explicit maker-checker
+grounding flags. `--check-grounding` injects the existing fresh-context
+entailment checker into the absorb path, and `--checker-plan <id>` lets the
+operator run the checker on a different plan CLI for `cross_vendor` assurance.
+Without `--checker-plan`, local and plan-backed runs get
+`same_vendor_fresh_context` assurance. The checker stays off by default, dry
+runs do not call it, and metered API checking is not automatic.
+
+The sync command file was split cleanly before adding flags:
+`expert_sync_support.py` now owns capacity waits, loop records, context
+builders, and overlap locking, keeping the command module under the file-size
+ratchet while preserving behavior.
 
 The first capacity QOL slice is now in place. `deepr capacity next` accepts
 concrete job context (`--expert`, `--report-id`, `--context-mode`, and

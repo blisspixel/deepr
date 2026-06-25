@@ -53,6 +53,25 @@ def test_local_builds_local_research_and_absorber(patch_engine, monkeypatch):
     assert captured == {"model": "qwen-local", "client": client}
 
 
+def test_local_passes_grounding_checker_when_supplied(patch_engine, monkeypatch):
+    profile = SimpleNamespace(name="X")
+    checker = object()
+    captured = {}
+
+    class _FakeAbsorber:
+        def __init__(self, prof, *, model, client, grounding_checker=None):
+            captured.update(model=model, grounding_checker=grounding_checker)
+
+    monkeypatch.setattr("deepr.backends.local.ollama_chat_client", lambda: object())
+    monkeypatch.setattr("deepr.backends.local.make_local_research_fn", lambda model, *, context_builder=None: object())
+    monkeypatch.setattr("deepr.experts.report_absorber.ReportAbsorber", _FakeAbsorber)
+
+    _engine, source = build_sync_engine(profile, use_local=True, local_model="qwen-local", grounding_checker=checker)
+
+    assert source == "local"
+    assert captured == {"model": "qwen-local", "grounding_checker": checker}
+
+
 def test_local_without_model_is_a_programming_error(patch_engine):
     # The caller must resolve the model before choosing the local rung.
     with pytest.raises(ValueError, match="resolved local_model"):
@@ -72,3 +91,22 @@ def test_plan_reports_backend_id_source(patch_engine, monkeypatch):
     _engine, source = build_sync_engine(profile, use_plan=True, plan_adapter=adapter, plan_model="gpt")
 
     assert source == "plan_quota:codex"
+
+
+def test_metered_path_injects_absorber_when_grounding_checker_supplied(patch_engine, monkeypatch):
+    profile = SimpleNamespace(name="X")
+    checker = object()
+    captured = {}
+
+    class _FakeAbsorber:
+        def __init__(self, prof, *, grounding_checker=None):
+            captured["grounding_checker"] = grounding_checker
+
+    monkeypatch.setattr("deepr.experts.report_absorber.ReportAbsorber", _FakeAbsorber)
+
+    engine, source = build_sync_engine(profile, grounding_checker=checker)
+
+    assert source == "api_metered"
+    assert engine.research_fn is None
+    assert engine.absorber is not None
+    assert captured["grounding_checker"] is checker
