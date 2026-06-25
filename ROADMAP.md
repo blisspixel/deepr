@@ -75,7 +75,7 @@ Multi-provider research automation with expert system, domain-specific skills, M
 
 The fleet-autopilot track (Phase 4d) is essentially complete; the active edge is finishing knowledge-quality verification and the last sub-slices of shipped primitives:
 
-1. **Maker-checker completion** - local/plan caller wiring is shipped for `expert absorb` and `expert sync` via explicit `--check-grounding` and optional `--checker-plan <id>` (2026-06-25). Remaining: metered provider-adapter checker construction with spend-policy gates, bounded escalation (a 2nd different-vendor checker on a refutation/high-stakes claim before holding), and "verified by N cross-vendor checkers" in the handoff contract. Core + absorb seam shipped; design: [multi-backend-patterns.md](docs/design/multi-backend-patterns.md).
+1. **Maker-checker completion** - local/plan caller wiring is shipped for `expert absorb` and `expert sync` via explicit `--check-grounding` and optional `--checker-plan <id>` (2026-06-25). `deepr-expert-handoff-v1` now preserves per-claim `grounding_assurance` and summary counts for verified and cross-vendor verified claims. Remaining: metered provider-adapter checker construction with spend-policy gates and bounded escalation (a 2nd different-vendor checker on a refutation/high-stakes claim before holding). Core + absorb seam shipped; design: [multi-backend-patterns.md](docs/design/multi-backend-patterns.md).
 2. **Local-vs-frontier A/B** - validate that `$0` local experts are good: build the same expert local vs frontier from the same sources, report grounding/calibration/coverage delta; the decision folds into the targeted-spend gate. Design: [expert-fleet.md](docs/design/expert-fleet.md) Pillar 4.
 3. **Last Phase 4d sub-slices** - the change-detection **conditional-GET** slice (ETag/304 to skip *before* retrieval cost) and the remaining overlap-guard **verb wiring**. `expert sync` now holds the per-(expert, sync) lock across the non-dry verb body, applies deterministic `--jitter`, and records an `overlap_locked` waiting loop state on contention (2026-06-24); finish the same pattern for any other scheduled verbs that still mutate without an in-verb guard.
 4. **Finish the brittle-rule cleanup** - route the remaining lexical verdicts to the model: `context_chainer` discourse-marker contradictions, the health-check lexical contradiction surface, and the shared-store dedup. Tracked in [checks-deterministic-vs-agentic.md](docs/design/checks-deterministic-vs-agentic.md).
@@ -871,7 +871,7 @@ Sequenced smallest-shippable-first:
       fan-out-and-vote adds cost not truth, but a *different*-vendor challenger
       catches errors self-checking can't. Degrade to fresh-context same-model when
       only one vendor is admitted; never silently skip or escalate to metered.
-      Surface assurance ("verified by N cross-vendor checkers") in the handoff.
+      Surface assurance in the handoff.
       Design: [multi-backend-patterns.md](docs/design/multi-backend-patterns.md).
   - [x] **Checker core** (2026-06-24): `experts/maker_checker.py` -
         deterministic `choose_checker_vendor` (different vendor -> `CROSS_VENDOR`,
@@ -881,8 +881,8 @@ Sequenced smallest-shippable-first:
         unsupported part), and async `check_claim` returning a `CheckVerdict`
         (`supported` True/False/None; a model or parse failure is None -
         could-not-verify, never a false refutation). 20 `$0` tests; the verdict
-        stays model judgment. Real cross-vendor validation + absorb wiring +
-        assurance-in-handoff are the next slices.
+        stays model judgment. Real cross-vendor validation, absorb wiring, and
+        assurance in handoff shipped in later slices.
   - [x] **Absorb wiring** (2026-06-24): `ReportAbsorber` takes an optional
         injected `grounding_checker` seam (off by default, so absorb behavior and
         cost are unchanged unless a caller wires it). When set, each absorbed
@@ -903,11 +903,15 @@ Sequenced smallest-shippable-first:
         run checks, and metered API checking is not automatic. The wiring keeps
         the verifier behind the injected absorber seam and uses the plan CLI
         chat shim so plan model names stay adapter-owned.
-  - [ ] **Bounded escalation + assurance in handoff** (next): build the
-        metered provider-adapter checker path with spend-policy gates; escalate
-        to a 2nd different-vendor checker on a refutation/high-stakes claim,
-        then hold; surface "verified by N cross-vendor checkers" in the handoff
-        contract.
+  - [x] **Assurance in handoff** (2026-06-25): canonical `Claim` objects now
+        preserve `grounding_assurance` from the belief store, and
+        `deepr-expert-handoff-v1` surfaces per-claim assurance plus summary
+        counts for verified and cross-vendor verified claims. Schema validation
+        covers the additive contract.
+  - [ ] **Bounded escalation** (next): build the metered provider-adapter
+        checker path with spend-policy gates; escalate to a 2nd different-vendor
+        checker on a refutation/high-stakes claim, then hold instead of
+        absorbing unsupported knowledge.
 - [~] **Hardening**:
   - [x] **Reservation TTL/sweeper** (2026-06-24): a `check_and_reserve` whose
         caller crashes before `record_cost`/`refund_reservation` used to hold its
@@ -956,6 +960,9 @@ Goal: production posture for multi-user and autonomous deployments.
   - [x] MCP output validation for published host-facing expert reads:
         `deepr_expert_handoff` and `deepr_expert_loop_status` fail closed when
         schema version, kind, or required envelope fields drift.
+  - [x] Handoff grounding assurance: `deepr-expert-handoff-v1` now includes
+        per-claim maker-checker assurance and summary counts for verified and
+        cross-vendor verified claims.
   - [x] A2A task/result output validation: create, status, cancel, and
         result-bearing task responses publish `deepr-a2a-task-v1` and fail
         closed when schema version, kind, lifecycle state, cost, timestamps, or
