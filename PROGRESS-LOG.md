@@ -1,5 +1,14 @@
 # Progress Log
 
+## 2026-06-25 - Handoff grounding assurance contract
+
+- Re-read README, ROADMAP, CONTRIBUTING, AGENTIC_BALANCE, current state, progress memory, supported-surface docs, and the relevant maker-checker, absorber, belief, claim, handoff, MCP, and schema code.
+- Re-checked current 2026 agentic guidance online. The signal remains harness engineering and loop engineering: durable state, scoped tools, context contracts, independent verification, observability, cost gates, and security boundaries.
+- Advanced the maker-checker completion track by preserving `Belief.grounding_assurance` through `Claim` and surfacing it in `deepr-expert-handoff-v1`. Host-facing handoff payloads now include per-claim assurance plus summary counts for verified and cross-vendor verified claims.
+- Updated README, ROADMAP, supported-surface docs, CURRENT-STATE-ANALYSIS, CHANGELOG, and SKILLS to keep shipped state and next work honest.
+- Validation: focused contract slice passed (`93 passed`) across core contracts, report absorber, handoff, published schemas, and MCP handoff dispatch. Full unit gate passed (`6559 passed, 8 skipped`). Coverage gate passed (`82.63%`, required `80%`). `ruff check src/deepr/`, `ruff format --check src/deepr/`, `scripts/check_file_sizes.py`, `scripts/check_ratchets.py`, `scripts/check_docs_consistency.py`, and strict mypy for `core`, `providers`, and `mcp` all passed.
+- Spend this run: `$0.00`. Only online research, local filesystem reads, lint, and local tests were used. No provider APIs, embeddings, paid evals, or cloud resources.
+
 ## 2026-06-25 - Agentic rollout guidance folded into standards
 
 - Reviewed the operator-provided June 2026 agentic development checklist against Deepr's existing README, ROADMAP, CONTRIBUTING, and AGENTIC_BALANCE.

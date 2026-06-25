@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 from datetime import UTC, datetime
 from pathlib import Path
+from types import SimpleNamespace
 from typing import Any
 from unittest.mock import MagicMock, patch
 
@@ -44,6 +45,8 @@ from deepr.cli.output import (
     CLI_OPERATION_RESULT_SCHEMA_VERSION,
     OperationResult,
 )
+from deepr.core.contracts import Claim, ExpertManifest
+from deepr.experts.handoff import build_expert_handoff
 from deepr.experts.loop_runs import ExpertLoopRun, ExpertLoopRunStore, LoopRunStatus, LoopStopReason
 from deepr.experts.loop_status_rollup import build_loop_status_rollup
 from deepr.mcp.security.scoped_keys import AUDIT_KIND, AUDIT_SCHEMA_VERSION, RemoteMCPAuditEvent
@@ -194,6 +197,44 @@ def test_okf_profile_schema_validates_mapping_payload():
     _validate(schema, payload)
     assert payload["derived_view"]["authoritative"] is False
     assert payload["extensions"]["frontmatter_key"] == "deepr"
+
+
+def test_expert_handoff_schema_validates_grounding_assurance_payload():
+    profile = SimpleNamespace(
+        name="Contract Expert",
+        domain="contracts",
+        description="Contract surface expert",
+        created_at=datetime(2026, 6, 20, 12, 0, tzinfo=UTC),
+        updated_at=datetime(2026, 6, 20, 12, 1, tzinfo=UTC),
+        knowledge_cutoff_date=None,
+        last_knowledge_refresh=None,
+        refresh_frequency_days=30,
+        domain_velocity="medium",
+        source_files=[],
+        research_jobs=[],
+        total_documents=0,
+    )
+    manifest = ExpertManifest(
+        expert_name="Contract Expert",
+        domain="contracts",
+        claims=[
+            Claim.create("Cross-vendor checked claim", "contracts", 0.9, grounding_assurance="cross_vendor"),
+            Claim.create("Unchecked claim", "contracts", 0.5),
+        ],
+    )
+    payload = build_expert_handoff(
+        profile,
+        manifest=manifest,
+        telemetry={"contested_claims": {"open_count": 0}},
+        loop_status={"count": 0, "runs": []},
+    )
+    schema = _load_schema("expert-handoff-v1.json")
+
+    _validate(schema, payload)
+    assert payload["summary"]["verified_claim_count"] == 1
+    assert payload["summary"]["cross_vendor_verified_claim_count"] == 1
+    assert payload["summary"]["grounding_assurance"]["cross_vendor"] == 1
+    assert payload["claims"][0]["grounding_assurance"] == "cross_vendor"
 
 
 def test_mcp_remote_audit_schema_validates_runtime_event_payload():

@@ -571,6 +571,7 @@ def test_belief_grounding_assurance_roundtrips():
     b = Belief(claim="x", confidence=0.5, grounding_assurance="cross_vendor")
     assert b.to_dict()["grounding_assurance"] == "cross_vendor"
     assert Belief.from_dict(b.to_dict()).grounding_assurance == "cross_vendor"
+    assert b.to_claim().grounding_assurance == "cross_vendor"
     # Legacy beliefs (no field) default to unverified.
     legacy = Belief.from_dict({"claim": "y", "confidence": 0.5})
     assert legacy.grounding_assurance == "unverified"
