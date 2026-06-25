@@ -110,7 +110,7 @@ itself a hidden nondeterminism.
 
 | Surface | Setting | Why |
 |---|---|---|
-| Budget enforcement, cost ledger, quota ledger, backend eligibility, daily/monthly caps | **Workflow** (deterministic, gated) | Irreversible spend and quota exhaustion; the audit promise breaks if model-driven |
+| Budget enforcement, cost ledger, quota ledger, quota snapshots, backend eligibility, daily/monthly caps | **Workflow** (deterministic, gated) | Irreversible spend and quota exhaustion; the audit promise breaks if model-driven |
 | Budget degradation tiers + value-of-spend gate | **Workflow** (deterministic, gated) | The tier (from monthly-spend fraction) and the benefit-vs-hurdle comparison are arithmetic over caller-supplied numeric estimates; they gate irreversible metered spend and fail safe toward not spending (local/$0 stays available, denials are resumable, never failures). The value factors may be model-estimated upstream, but this gate enforces a numeric threshold, never a semantic verdict. Design: [budget-degradation.md](../design/budget-degradation.md) |
 | Belief/knowledge persistence, archival, restore | **Workflow** | State writes; reversibility must be executable, not judged |
 | Permission/approval flows, capacity admission | **Workflow** | Gate the irreversible action (spend, exec), not the reasoning (NVIDIA) |
