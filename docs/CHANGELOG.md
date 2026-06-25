@@ -7,11 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.21.0] - 2026-06-25
+
+Handoff assurance and CI refresh release.
+
 ### Added
 - Added maker-checker assurance to host-facing expert handoff payloads.
   `Claim` now preserves `grounding_assurance` from belief state, and
   `deepr-expert-handoff-v1` includes per-claim assurance plus summary counts for
   verified and cross-vendor verified claims.
+
+### Changed
+- Updated pinned GitHub Actions workflow dependencies to
+  `actions/checkout@v7.0.0` and `astral-sh/setup-uv@v8.2.0`.
+- Corrected package runtime author metadata to `Nick Seal`; GitHub repository
+  identity remains `blisspixel/deepr`.
 
 ## [2.20.0] - 2026-06-22
 
