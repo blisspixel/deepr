@@ -1,5 +1,13 @@
 # Progress Log
 
+## 2026-06-25 - Quota snapshot substrate from Quotabot lessons
+
+- Reviewed `C:\GitHub\quotabot` for reusable quota-availability patterns. The useful part is the normalized provider/window snapshot, pure binding-window headroom calculation, stale cache flag, and metadata-only probe posture, not the desktop UI.
+- Added Deepr's Python `QuotaSnapshot` and `QuotaWindowSnapshot` contract with pure headroom, binding-window, availability, reset-rollover, and ledger-conversion helpers.
+- Added the first live metadata probe: `deepr capacity refresh-quota codex` reads local Codex rollout `rate_limits`, maps them into the quota snapshot contract, and records a conservative quota-ledger event without a model call.
+- Updated README, supported-surface docs, the capacity waterfall, plan-quota backend design, roadmap, changelog, and current-state analysis so Claude and the explicit-only metadata probes are now the next dependency before automatic plan routing.
+- Spend this run: `$0.00`. Only local repo reads, online source review, and local code/test work were used. No provider APIs, embeddings, paid evals, or cloud resources were used.
+
 ## 2026-06-25 - Release and branch cleanup
 
 - Applied the two intended Dependabot GitHub Actions updates directly on current `main`: `actions/checkout@v7.0.0` and `astral-sh/setup-uv@v8.2.0`, without pulling in the stale branch diffs that would have reverted recent project work.

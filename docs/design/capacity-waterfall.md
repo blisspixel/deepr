@@ -31,10 +31,13 @@ maintenance through `expert sync --plan <id>`, `expert absorb --plan <id>`, and
 `$0` cost-ledger guards. Scheduled sync, gap-fill, reflection, and health-check
 surfaces now stop with wait or action-plan payloads instead of silently spending
 when owned/prepaid capacity is blocked, and those scheduled payloads carry
-published schema identifiers for downstream validation. Still open: live
-window/credit probes, plan-quota scheduler dispatch, and auto-mode runtime
-integration. Automatic plan routing remains gated until a trusted remaining-
-quota signal exists.
+published schema identifiers for downstream validation. Codex now has the first
+metadata-only quota refresh path: `deepr capacity refresh-quota codex` reads
+local session-log `rate_limits` and records a binding-window ledger event at
+`$0`. Still open: Claude and other live window/credit probes, plan-quota
+scheduler dispatch, and auto-mode runtime integration. Automatic plan routing
+remains gated until a trusted remaining-quota signal exists for the candidate
+backend.
 
 ## Problem
 
@@ -147,6 +150,15 @@ local observation per backend/account without invoking vendor CLIs. Remaining
 work is adapter-side probes that populate the ledger and scheduler decisions
 that consume it.
 
+The live-probe shape now has a pure substrate before any provider code lands:
+`QuotaSnapshot` and `QuotaWindowSnapshot` normalize provider windows, compute
+the binding window by lowest remaining headroom, treat already-passed reset
+times as fresh windows, and convert the result into a conservative
+`QuotaLedgerEvent`. This is the Quotabot lesson worth carrying over: probes may
+be vendor-specific, but routing consumes one tested contract. Codex session-log
+windows, Claude OAuth usage, Grok billing metadata, and Antigravity Cloud Code
+quota can all map into the same snapshot shape without changing the waterfall.
+
 `evaluate_backend_eligibility` consumes a
 `ResearchBackend` and the observed `QuotaState` list before execution. It
 blocks unavailable backends, unsupported task classes, metered backends without
@@ -239,9 +251,10 @@ scheduler work remains.
 12. Local retrieval quality loop: no/fresh/deep context eval and source-pack
    run artifacts are done. Remaining: scheduler rules for when to choose
    `--fresh-context` or `--deep-context`.
-13. First plan_quota rungs are shipped for explicit maintenance execution.
-   Remaining plan work is live remaining-quota probes, reset-aware scheduler
-   dispatch, and auto-mode integration without surprise spend.
+13. First plan_quota rungs are shipped for explicit maintenance execution, and
+   Codex has a local metadata quota probe. Remaining plan work is Claude and
+   other remaining-quota probes, reset-aware scheduler dispatch, and auto-mode
+   integration without surprise spend.
 14. Multi-account pools (N accounts of one vendor as one pooled backend) - last,
    it multiplies an already-working mechanism.
 
