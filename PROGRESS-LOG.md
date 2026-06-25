@@ -1,5 +1,31 @@
 # Progress Log
 
+## 2026-06-25 - Claude quota metadata probe
+
+- Re-checked current June 2026 quota guidance and confirmed the safe posture:
+  Claude Code usage visibility is useful, but the OAuth usage endpoint is
+  lightly documented and reported to rate-limit aggressive polling. Deepr should
+  expose it as an explicit metadata refresh, not an automatic background poll.
+- Added `deepr capacity refresh-quota claude`. It reads the current user's
+  Claude Code OAuth credentials path from `CLAUDE_CONFIG_DIR` or `~/.claude`,
+  calls the read-only usage endpoint only when explicitly requested, normalizes
+  five-hour, weekly, and Opus weekly windows through `QuotaSnapshot`, and writes
+  a conservative quota-ledger event without running a model call.
+- Kept the implementation generic and account-neutral: no personal account data,
+  no tokens, and no local credential paths are committed; tests use temp
+  credentials and mocked HTTP responses.
+- Updated README, supported-surface docs, feature docs, design notes, roadmap,
+  changelog, current-state analysis, and skills memory. Next quota probes are
+  Grok and Antigravity metadata visibility for explicit-only backends.
+- Added a roadmap gate for API provider prompt-cache economics after checking
+  current Anthropic, OpenAI/Azure, Gemini, and xAI docs. Caching remains a
+  research item, not a shipped feature: estimator support, usage ingestion, and
+  explicit budget gates must land before any cache controls, pre-warming, or
+  longer TTLs are enabled.
+- Spend this run: `$0.00`. Only web research, local repo reads, mocked tests,
+  lint, and local code changes were used. No provider APIs, embeddings, paid
+  evals, or cloud resources were used.
+
 ## 2026-06-25 - Quota snapshot substrate from Quotabot lessons
 
 - Reviewed `C:\GitHub\quotabot` for reusable quota-availability patterns. The useful part is the normalized provider/window snapshot, pure binding-window headroom calculation, stale cache flag, and metadata-only probe posture, not the desktop UI.
