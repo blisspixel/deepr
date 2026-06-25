@@ -66,9 +66,12 @@ must not be described as usable capacity.
   guard + startup jitter, budget degradation tiers + value-of-spend gate, and the
   reservation TTL sweep - deterministic spend/side-effect guards.
 - Cross-vendor maker-checker grounding assurance on absorbed beliefs
-  (`Belief.grounding_assurance`); the checker is an injected, budget-gated seam,
-  off by default. The verdict is model judgment; vendor diversity is a
-  deterministic routing requirement.
+  (`Belief.grounding_assurance`). `deepr expert absorb` and `deepr expert sync`
+  can opt into the checker with `--check-grounding`; `--checker-plan <id>` uses
+  a different plan CLI as the checker. The checker is off by default, dry runs
+  do not check, and metered API checking is not automatic. The verdict is model
+  judgment; vendor diversity and spend gates are deterministic routing
+  requirements.
 - OKF export and absorb paths. OKF export is a derived view; OKF absorb is an
   ingestion source that still passes through verified extraction.
 - Indirect prompt-injection boundaries for fresh retrieval context, report

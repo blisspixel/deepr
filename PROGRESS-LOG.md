@@ -1,5 +1,16 @@
 # Progress Log
 
+## 2026-06-25 - Explicit maker-checker grounding wiring
+
+- Re-read README, ROADMAP, AGENTS, CONTRIBUTING, AGENTIC_BALANCE, current state, progress memory, maker-checker design notes, and the relevant absorb/sync/plan-quota code before choosing the next slice.
+- Re-checked 2026 external guidance online. Harness-first agents, harness engineering, and long-running-agent guidance all point toward verifier-owned stop conditions, independent checks, durable traces, tight context, and budget/security gates. This confirms maker-checker wiring is the right next step over another advisory surface.
+- Split `expert sync` support helpers into `expert_sync_support.py` so `expert_maintenance.py` stays under the file-size ratchet before new flags landed.
+- Added `make_grounding_checker` and CLI grounding support. `deepr expert absorb` and `deepr expert sync` now accept `--check-grounding`; `--checker-plan <id>` runs the checker through a different plan CLI for cross-plan assurance. Same local/plan checks record `same_vendor_fresh_context`; different checker plans record `cross_vendor`.
+- Preserved the no-surprise-spend invariant: the checker is off by default, dry runs do not check, metered API checking is not automatic, and plan CLI checker calls stay behind the existing auth-mode gate and `$0` ledgered chat shim.
+- Updated README, ROADMAP, supported-surface docs, AGENTIC_BALANCE, CURRENT-STATE-ANALYSIS, and SKILLS to reflect the shipped slice and the remaining escalation/handoff work.
+- Validation: focused lint passed for changed Python files; focused unit set passed (`66 passed`) covering maker-checker, maintenance-engine wiring, grounding support, and expert maintenance CLI behavior. Full unit gate `.venv\Scripts\python.exe -m pytest tests/unit/ --ignore=tests/data -q --timeout=120` passed (`6558 passed, 8 skipped`). Coverage gate `.venv\Scripts\python.exe -m pytest tests/unit/ --ignore=tests/data -q --tb=short --cov=deepr --cov-report=term-missing --timeout=120` passed (`6558 passed, 8 skipped`, total coverage `82.63%`, required `80%`), and `.venv\Scripts\python.exe -m coverage report > $null` passed. `ruff check src/deepr/`, `ruff format --check src/deepr/ ...`, `scripts/check_file_sizes.py`, `scripts/check_ratchets.py`, `scripts/check_docs_consistency.py`, and strict mypy for `core`, `providers`, and `mcp` all passed.
+- Spend this run: `$0.00`. Only online research, local filesystem reads, lint, and local tests were used. No provider APIs, embeddings, paid evals, or cloud resources.
+
 ## 2026-06-24 - Loop-engineering roadmap refresh and `expert sync` overlap guard
 
 - Re-read the current README, ROADMAP, AGENTS instructions, CONTRIBUTING definition of done, AGENTIC_BALANCE, verified-loop and harness-boundary docs, fleet/change-detection/maker-checker design notes, supported-surface contract, current-state analysis, progress log, and relevant sync/loop code.
