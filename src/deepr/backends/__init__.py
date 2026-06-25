@@ -9,8 +9,8 @@ already have. Design: docs/design/capacity-waterfall.md.
 
 This package currently provides capacity *visibility*, normalized backend
 profiles, local admission, append-only quota observations, pure eligibility
-decisions, and deterministic backend selection. Backend execution lands in
-later v2.16 increments.
+decisions, deterministic backend selection, explicit plan-quota execution, and
+the normalized quota-snapshot substrate for live availability probes.
 """
 
 from deepr.backends.capacity import (
@@ -32,6 +32,15 @@ from deepr.backends.quota_ledger import (
     QuotaState,
     QuotaWindowKind,
     summarize_quota_state,
+)
+from deepr.backends.quota_snapshot import (
+    QuotaAvailability,
+    QuotaSnapshot,
+    QuotaWindowSnapshot,
+    binding_window,
+    snapshot_availability,
+    snapshot_headroom,
+    snapshot_to_ledger_event,
 )
 from deepr.backends.research_backend import (
     ResearchBackend,
@@ -58,17 +67,24 @@ __all__ = [
     "BackendSelectionStatus",
     "CapacitySource",
     "CostModel",
+    "QuotaAvailability",
     "QuotaConfidence",
     "QuotaEventType",
     "QuotaLedger",
     "QuotaLedgerEvent",
+    "QuotaSnapshot",
     "QuotaState",
     "QuotaWindowKind",
+    "QuotaWindowSnapshot",
     "ResearchBackend",
     "backend_from_capacity_source",
+    "binding_window",
     "detect_capacity",
     "discover_research_backends",
     "evaluate_backend_eligibility",
     "select_capacity_backend",
+    "snapshot_availability",
+    "snapshot_headroom",
+    "snapshot_to_ledger_event",
     "summarize_quota_state",
 ]

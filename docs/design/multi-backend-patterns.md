@@ -21,12 +21,15 @@ self-heals (`_exhaustion_cleared`). It picks one backend with a human-readable
 reason - never blind rotation. (`deepr capacity probe-plan` additionally does a
 real `$0`/quota round-trip to confirm a CLI actually works.)
 
-**Honest limitation:** vendor CLIs do **not** expose *remaining* quota, so "has
-quota" cannot be pre-validated. Deepr detects exhaustion **reactively** (parsing
-vendor "try again in Nh" messages into a cooldown), which is why auto-routing
-onto a subscription stays opt-in (`admit-plan`) and explicit `--plan` is the
-works-now path. This is a vendor limitation, surfaced honestly in `capacity
-fleet`, not a routing shortcut.
+**Honest limitation:** most vendor CLIs do **not** expose *remaining* quota
+through the execution command, so "has quota" cannot be guessed from CLI
+presence. Deepr detects exhaustion **reactively** for execution runs (parsing
+vendor "try again in Nh" messages into a cooldown). The first proactive
+metadata probe is Codex: `deepr capacity refresh-quota codex` reads local
+session-log `rate_limits` and writes a trusted ledger event without a model
+call. Other backends stay explicit or reactive until their own metadata probes
+exist, which is why auto-routing onto a subscription stays opt-in
+(`admit-plan`) and explicit `--plan` remains the works-now path.
 
 ## 2. The evidence: averaging adds cost, challenging adds truth
 

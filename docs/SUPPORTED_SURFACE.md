@@ -93,16 +93,20 @@ must not be described as usable capacity.
   no-surprise-bills guards. Codex, Claude Code, and OpenCode are eligible for
   operator admission; Kiro, Grok Build, Antigravity, and GitHub Copilot remain
   explicit-only.
+- Codex quota metadata refresh: `deepr capacity refresh-quota codex` reads local
+  Codex session `rate_limits` metadata and records a conservative quota-ledger
+  event without running a model call.
 - Hosted MCP deployment recipes, including the local container, Azure Container
   Apps template, AWS ECS Fargate template, GCP Cloud Run template, and
   Cloudflare Worker edge ingress recipe.
 
 ## Visible Or Planned Only
 
-- Automatic routing to plan-quota CLIs remains gated until Deepr has a trusted
-  live remaining-quota signal. Vendor CLIs generally expose exhaustion only
-  reactively, so explicit `--plan` is the works-now path and automatic plan
-  dispatch must stay opt-in and conservative.
+- Automatic routing to plan-quota CLIs remains gated until Deepr has trusted
+  live remaining-quota signals for the candidate backend. Codex has the first
+  metadata probe; Claude, Grok, Antigravity, and other sources remain planned or
+  explicit-only. Explicit `--plan` is still the works-now path and automatic
+  plan dispatch must stay opt-in and conservative.
 - Multi-account capacity pools are planned after a single-account mechanism is
   complete.
 - Live hosted-agent registration smoke against a real third-party platform is
