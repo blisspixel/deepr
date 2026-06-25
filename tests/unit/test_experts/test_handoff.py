@@ -24,7 +24,7 @@ def _manifest() -> ExpertManifest:
         domain="interop",
         claims=[
             Claim.create("Low confidence claim", "interop", 0.4),
-            Claim.create("High confidence claim", "interop", 0.9),
+            Claim.create("High confidence claim", "interop", 0.9, grounding_assurance="cross_vendor"),
         ],
         gaps=[
             Gap.create("Low value gap", ev_cost_ratio=0.5, priority=2),
@@ -60,7 +60,15 @@ def test_build_expert_handoff_is_versioned_and_bounded():
     assert payload["summary"]["claim_count"] == 2
     assert payload["summary"]["open_gap_count"] == 2
     assert payload["summary"]["contested_open_count"] == 2
+    assert payload["summary"]["verified_claim_count"] == 1
+    assert payload["summary"]["cross_vendor_verified_claim_count"] == 1
+    assert payload["summary"]["grounding_assurance"] == {
+        "cross_vendor": 1,
+        "same_vendor_fresh_context": 0,
+        "unverified": 1,
+    }
     assert payload["claims"][0]["statement"] == "High confidence claim"
+    assert payload["claims"][0]["grounding_assurance"] == "cross_vendor"
     assert len(payload["claims"]) == 1
     assert payload["gaps"][0]["topic"] == "High value gap"
     assert len(payload["gaps"]) == 1

@@ -72,7 +72,18 @@
         "decision_count": {"type": "integer", "minimum": 0},
         "avg_confidence": {"type": "number", "minimum": 0.0, "maximum": 1.0},
         "contested_open_count": {"type": "integer", "minimum": 0},
-        "loop_run_count": {"type": "integer", "minimum": 0}
+        "loop_run_count": {"type": "integer", "minimum": 0},
+        "verified_claim_count": {"type": "integer", "minimum": 0},
+        "cross_vendor_verified_claim_count": {"type": "integer", "minimum": 0},
+        "grounding_assurance": {
+          "type": "object",
+          "properties": {
+            "cross_vendor": {"type": "integer", "minimum": 0},
+            "same_vendor_fresh_context": {"type": "integer", "minimum": 0},
+            "unverified": {"type": "integer", "minimum": 0}
+          },
+          "additionalProperties": {"type": "integer", "minimum": 0}
+        }
       },
       "additionalProperties": true
     },
@@ -108,7 +119,13 @@
     },
     "claims": {
       "type": "array",
-      "items": {"type": "object"}
+      "items": {
+        "type": "object",
+        "properties": {
+          "grounding_assurance": {"type": "string"}
+        },
+        "additionalProperties": true
+      }
     },
     "gaps": {
       "type": "array",

@@ -129,6 +129,7 @@ This file captures repo-specific operating lessons from autonomous work cycles.
 - For local/plan sync with a different `--checker-plan`, avoid constructing the same-backend default checker client. The checker helper ignores default clients when a checker plan is supplied, but Python still evaluates the argument first.
 - Preserve constructor compatibility by passing `grounding_checker` only when it is non-None. Many CLI tests patch `ReportAbsorber` with narrow constructor stubs, and default behavior should keep the old argument shape.
 - Dry-run absorb/sync previews should not call the checker. The checker verifies claims about to be written, not preview output.
+- Handoff assurance should flow from canonical state, not a side channel. Preserve `Belief.grounding_assurance` through `Belief.to_claim()` and `Claim.to_dict()`, then summarize it in `build_expert_handoff`; keep `deepr-expert-handoff-v1` additive and schema-tested.
 
 ## Agentic Surface Rollout
 
