@@ -34,11 +34,21 @@ class TestRegistration:
 
     def test_sync_has_local_and_api_flags(self):
         opts = {p.name for p in expert.commands["sync"].params}
-        assert {"local", "api", "fresh_context", "deep_context", "scheduled", "jitter"} <= opts
+        assert {
+            "local",
+            "api",
+            "fresh_context",
+            "deep_context",
+            "scheduled",
+            "jitter",
+            "check_grounding",
+            "checker_plan",
+            "checker_plan_model",
+        } <= opts
 
     def test_absorb_has_local_and_api_flags(self):
         opts = {p.name for p in expert.commands["absorb"].params}
-        assert {"local", "api"} <= opts
+        assert {"local", "api", "check_grounding", "checker_plan", "checker_plan_model"} <= opts
 
 
 class TestBackendFlagGuard:
@@ -65,6 +75,30 @@ class TestBackendFlagGuard:
         r = CliRunner().invoke(expert, ["absorb", "Whoever", "job123", "--local", "--api"])
         assert r.exit_code == 2
         assert "only one of --local, --api, or --plan" in r.output
+
+    def test_sync_rejects_checker_plan_without_grounding_before_store_work(self, monkeypatch):
+        class ExplodingExpertStore:
+            def load(self, name):
+                raise AssertionError("checker flag validation must run before loading experts")
+
+        monkeypatch.setattr("deepr.experts.profile.ExpertStore", ExplodingExpertStore)
+
+        r = CliRunner().invoke(expert, ["sync", "Whoever", "--checker-plan", "codex"])
+
+        assert r.exit_code == 2
+        assert "Use --check-grounding with --checker-plan" in r.output
+
+    def test_absorb_rejects_checker_plan_without_grounding_before_store_work(self, monkeypatch):
+        class ExplodingExpertStore:
+            def load(self, name):
+                raise AssertionError("checker flag validation must run before loading experts")
+
+        monkeypatch.setattr("deepr.experts.profile.ExpertStore", ExplodingExpertStore)
+
+        r = CliRunner().invoke(expert, ["absorb", "Whoever", "job123", "--checker-plan", "codex"])
+
+        assert r.exit_code == 2
+        assert "Use --check-grounding with --checker-plan" in r.output
 
     def test_sync_local_uses_local_absorber(self, monkeypatch):
         captured = {}
@@ -456,6 +490,49 @@ class TestBackendFlagGuard:
         assert captured["research_fn"] is research_fn
         assert captured["engine_absorber"] is captured["absorber"]
 
+    def test_sync_dry_run_grounding_flag_does_not_construct_checker(self, monkeypatch):
+        captured = {}
+        profile = SimpleNamespace(name="UI Experience Expert")
+
+        class FakeExpertStore:
+            def load(self, name):
+                return profile
+
+        class FakeSubscriptionStore:
+            subscriptions = [SimpleNamespace(topic="UI/UX for agentic research tools")]
+
+            def __init__(self, name):
+                pass
+
+            def due(self):
+                return list(self.subscriptions)
+
+        class FakeSyncResult:
+            total_cost = 0.0
+            outcomes = []
+
+            def to_dict(self):
+                return {"total_cost": 0.0, "outcomes": []}
+
+        class FakeSyncEngine:
+            def __init__(self, loaded_profile, *, research_fn=None, absorber=None):
+                captured["absorber"] = absorber
+
+            async def sync(self, **kwargs):
+                return FakeSyncResult()
+
+        monkeypatch.setattr("deepr.experts.profile.ExpertStore", FakeExpertStore)
+        monkeypatch.setattr("deepr.experts.sync.SubscriptionStore", FakeSubscriptionStore)
+        monkeypatch.setattr("deepr.experts.sync.ExpertSyncEngine", FakeSyncEngine)
+
+        r = CliRunner().invoke(
+            expert,
+            ["sync", "UI Experience Expert", "--api", "--dry-run", "--check-grounding", "--json"],
+        )
+
+        assert r.exit_code == 0, r.output
+        assert captured["absorber"] is None
+
 
 class TestPlanQuotaSync:
     """`expert sync --plan <id>` runs the whole sync on prepaid plan capacity,
@@ -533,6 +610,53 @@ class TestPlanQuotaSync:
         assert captured["research_fn"] is research_fn
         assert captured["absorber_client"] is chat_client
         assert captured["loop_run_kwargs"]["capacity_source"] == "plan_quota:codex"
+
+    def test_plan_sync_can_inject_cross_plan_grounding_checker(self, monkeypatch):
+        captured = {}
+        research_fn = object()
+        clients = []
+        self._fakes(monkeypatch, captured)
+        for var in ("OPENAI_API_KEY", "CODEX_API_KEY", "CODEX_ACCESS_TOKEN", "ANTHROPIC_API_KEY"):
+            monkeypatch.delenv(var, raising=False)
+
+        class FakeReportAbsorber:
+            def __init__(self, loaded_profile, *, model, client, grounding_checker=None):
+                captured["grounding_checker"] = grounding_checker
+
+        monkeypatch.setattr("deepr.experts.report_absorber.ReportAbsorber", FakeReportAbsorber)
+
+        def fake_plan_client(adapter, **kwargs):
+            clients.append(adapter.backend_id)
+            return object()
+
+        monkeypatch.setattr("deepr.backends.plan_quota.PlanQuotaChatClient", fake_plan_client)
+        monkeypatch.setattr(
+            "deepr.backends.plan_quota.make_plan_quota_research_fn",
+            lambda adapter, *, model=None, context_builder=None, client=None: research_fn,
+        )
+        monkeypatch.setattr(
+            "deepr.experts.loop_runs.record_loop_run",
+            lambda **kwargs: SimpleNamespace(to_dict=lambda: {"run_id": "loop_plan"}),
+        )
+
+        r = CliRunner().invoke(
+            expert,
+            [
+                "sync",
+                "Plan Expert",
+                "--plan",
+                "codex",
+                "--check-grounding",
+                "--checker-plan",
+                "claude",
+                "-y",
+                "--json",
+            ],
+        )
+
+        assert r.exit_code == 0, r.output
+        assert clients == ["claude", "codex"]
+        assert callable(captured["grounding_checker"])
 
     def test_auto_routes_to_admitted_plan_backend(self, monkeypatch):
         # The flagship: a plain `sync` (no --plan) auto-routes to a plan backend
@@ -642,6 +766,69 @@ class TestPlanQuotaSync:
         assert r.exit_code == 0, r.output
         assert captured["client"] is sentinel_client
 
+    def test_absorb_plan_can_inject_cross_plan_grounding_checker(self, monkeypatch):
+        captured = {}
+        clients = []
+        profile = SimpleNamespace(name="Plan Expert", total_research_cost=0.0, last_knowledge_refresh=None)
+
+        class FakeExpertStore:
+            def load(self, name):
+                return profile
+
+            def save(self, p):
+                captured["saved"] = p
+
+        class FakeIndex:
+            def get_report_content(self, report_id, max_chars=0):
+                return "report text"
+
+        class FakeResult:
+            dry_run = False
+            estimated_cost = 0.0
+
+            def to_dict(self):
+                return {"absorbed": []}
+
+        class FakeReportAbsorber:
+            def __init__(self, loaded_profile, *, model, client=None, grounding_checker=None):
+                captured["client"] = client
+                captured["grounding_checker"] = grounding_checker
+
+            async def absorb(self, *a, **k):
+                return FakeResult()
+
+        for var in ("OPENAI_API_KEY", "CODEX_API_KEY", "CODEX_ACCESS_TOKEN", "ANTHROPIC_API_KEY"):
+            monkeypatch.delenv(var, raising=False)
+        monkeypatch.setattr("deepr.experts.profile.ExpertStore", FakeExpertStore)
+        monkeypatch.setattr("deepr.services.context_index.ContextIndex", FakeIndex)
+        monkeypatch.setattr("deepr.experts.report_absorber.ReportAbsorber", FakeReportAbsorber)
+
+        def fake_plan_client(adapter, **kwargs):
+            clients.append(adapter.backend_id)
+            return object()
+
+        monkeypatch.setattr("deepr.backends.plan_quota.PlanQuotaChatClient", fake_plan_client)
+
+        r = CliRunner().invoke(
+            expert,
+            [
+                "absorb",
+                "Plan Expert",
+                "job1",
+                "--plan",
+                "codex",
+                "--check-grounding",
+                "--checker-plan",
+                "claude",
+                "-y",
+                "--json",
+            ],
+        )
+
+        assert r.exit_code == 0, r.output
+        assert clients == ["codex", "claude"]
+        assert callable(captured["grounding_checker"])
+
     def test_absorb_plan_blocked_when_api_key_present(self, monkeypatch):
         profile = SimpleNamespace(name="Plan Expert")
 
@@ -729,6 +916,43 @@ class TestAbsorbFromFile:
         assert "Model Context Protocol" in captured["report_text"]
         assert captured["model"] == "qwen-local"
         assert captured["client"] is client
+
+    def test_absorb_dry_run_grounding_flag_does_not_require_checker(self, monkeypatch):
+        captured = {}
+        profile = SimpleNamespace(name="MCP Expert")
+
+        class FakeExpertStore:
+            def load(self, name):
+                return profile
+
+        class FakeIndex:
+            def get_report_content(self, report_id, max_chars=0):
+                return "report text"
+
+        class FakeResult:
+            dry_run = True
+
+            def to_dict(self):
+                return {"dry_run": True}
+
+        class FakeReportAbsorber:
+            def __init__(self, loaded_profile, *, model, grounding_checker=None):
+                captured["grounding_checker"] = grounding_checker
+
+            async def absorb(self, *a, **k):
+                return FakeResult()
+
+        monkeypatch.setattr("deepr.experts.profile.ExpertStore", FakeExpertStore)
+        monkeypatch.setattr("deepr.services.context_index.ContextIndex", FakeIndex)
+        monkeypatch.setattr("deepr.experts.report_absorber.ReportAbsorber", FakeReportAbsorber)
+
+        r = CliRunner().invoke(
+            expert,
+            ["absorb", "MCP Expert", "job1", "--api", "--dry-run", "--check-grounding", "-y", "--json"],
+        )
+
+        assert r.exit_code == 0, r.output
+        assert captured["grounding_checker"] is None
 
 
 class TestLearnWeb:

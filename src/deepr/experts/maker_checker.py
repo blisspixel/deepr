@@ -24,6 +24,7 @@ or parse failure yields "could not verify", never a false verdict.
 from __future__ import annotations
 
 import logging
+from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 from enum import Enum
 from typing import Any
@@ -89,6 +90,9 @@ class CheckVerdict:
             "checker_vendor": self.checker_vendor,
             "reason": self.reason,
         }
+
+
+GroundingChecker = Callable[[str, str], Awaitable[CheckVerdict]]
 
 
 _SYSTEM_PROMPT = (
@@ -159,3 +163,25 @@ async def check_claim(
         return CheckVerdict(None, assurance, checker_vendor, "check failed")
     supported, reason = parse_verdict(text)
     return CheckVerdict(supported, assurance, checker_vendor, reason)
+
+
+def make_grounding_checker(
+    *,
+    client: Any,
+    checker_vendor: str | None,
+    assurance: CheckAssurance,
+    model: str,
+) -> GroundingChecker:
+    """Adapt an OpenAI-shaped client into ReportAbsorber's checker seam."""
+
+    async def _grounding_checker(claim: str, evidence: str) -> CheckVerdict:
+        return await check_claim(
+            claim,
+            evidence,
+            client=client,
+            checker_vendor=checker_vendor,
+            assurance=assurance,
+            model=model,
+        )
+
+    return _grounding_checker

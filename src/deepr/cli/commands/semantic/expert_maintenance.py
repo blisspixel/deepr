@@ -23,10 +23,31 @@ from deepr.cli.colors import (
     print_success,
     print_warning,
 )
+from deepr.cli.commands.semantic.expert_sync_support import (
+    SYNC_CAPACITY_GATE_KIND,
+    SYNC_CAPACITY_GATE_SCHEMA_VERSION,
+    _build_sync_capacity_payload,
+    _emit_capacity_block,
+    _emit_scheduled_capacity_wait,
+    _record_completed_sync_loop,
+    _run_sync_with_loop_guard,
+    _sync_context_builder,
+    _sync_context_mode,
+)
 from deepr.cli.commands.semantic.experts import expert
+from deepr.cli.commands.semantic.grounding_support import (
+    PLAN_BACKEND_CHOICES,
+    absorber_kwargs,
+    build_grounding_checker,
+    validate_grounding_flags,
+)
 
-SYNC_CAPACITY_GATE_KIND = "deepr.expert.sync_capacity_gate"
-SYNC_CAPACITY_GATE_SCHEMA_VERSION = "deepr-sync-capacity-gate-v1"
+__all__ = [
+    "SYNC_CAPACITY_GATE_KIND",
+    "SYNC_CAPACITY_GATE_SCHEMA_VERSION",
+    "_build_sync_capacity_payload",
+    "_record_completed_sync_loop",
+]
 
 
 @expert.command(name="absorb")
@@ -57,11 +78,19 @@ SYNC_CAPACITY_GATE_SCHEMA_VERSION = "deepr-sync-capacity-gate-v1"
 @click.option(
     "--plan",
     "plan",
-    type=click.Choice(["codex", "claude", "opencode", "kiro", "grok", "antigravity", "copilot"]),
+    type=click.Choice(PLAN_BACKEND_CHOICES),
     default=None,
     help="Run extraction on a plan-quota CLI backend (prepaid subscription capacity). See: deepr capacity",
 )
 @click.option("--plan-model", "plan_model", default=None, help="Model to pass to the plan-quota CLI")
+@click.option("--check-grounding", is_flag=True, help="Check absorbed claims with a fresh-context verifier")
+@click.option(
+    "--checker-plan",
+    type=click.Choice(PLAN_BACKEND_CHOICES),
+    default=None,
+    help="Use this plan-quota CLI as the grounding checker",
+)
+@click.option("--checker-plan-model", default=None, help="Model to pass to the checker plan CLI")
 @click.option("--yes", "-y", is_flag=True, help="Skip the confirmation prompt")
 @click.option("--json", "json_output", is_flag=True, help="Emit the structured absorption result as JSON")
 def absorb_report(
@@ -75,6 +104,9 @@ def absorb_report(
     api: bool,
     plan: str | None,
     plan_model: str | None,
+    check_grounding: bool,
+    checker_plan: str | None,
+    checker_plan_model: str | None,
     yes: bool,
     json_output: bool,
 ):
@@ -104,6 +136,15 @@ def absorb_report(
 
     if sum(bool(x) for x in (local, api, plan)) > 1:
         print_error("Use only one of --local, --api, or --plan.")
+        sys.exit(2)
+    try:
+        validate_grounding_flags(
+            check_grounding=check_grounding,
+            checker_plan=checker_plan,
+            checker_plan_model=checker_plan_model,
+        )
+    except ValueError as exc:
+        print_error(str(exc))
         sys.exit(2)
 
     if bool(report_id) == bool(doc_file):
@@ -140,6 +181,8 @@ def absorb_report(
             print_error(f"No report found for id: {report_id}")
             click.echo("Find report/job IDs with: deepr search")
             sys.exit(2)
+
+    run_grounding_checks = check_grounding and not dry_run
 
     # Pick the backend (capacity waterfall): owned local capacity before metered
     # API. --local forces local (no admission needed); --api or an explicit
@@ -180,7 +223,24 @@ def absorb_report(
         if not local_model:
             print_error("No local model available. Is Ollama running? Check: deepr capacity --probe")
             sys.exit(2)
-        absorber = ReportAbsorber(profile, model=local_model, client=ollama_chat_client())
+        local_client = ollama_chat_client()
+        try:
+            grounding_checker = build_grounding_checker(
+                enabled=run_grounding_checks,
+                checker_plan=checker_plan,
+                checker_plan_model=checker_plan_model,
+                maker_vendor="local",
+                default_client=local_client,
+                default_vendor="local",
+                default_model=local_model,
+            )
+        except ValueError as exc:
+            print_error(str(exc))
+            sys.exit(2)
+        absorber = ReportAbsorber(
+            profile,
+            **absorber_kwargs(model=local_model, client=local_client, grounding_checker=grounding_checker),
+        )
         cost_note = f"$0 (local model {local_model})"
         if selection_note and not json_output:
             console.print(f"[dim]{selection_note}[/dim]")
@@ -189,21 +249,55 @@ def absorb_report(
 
         plan_adapter = get_adapter(plan_backend_id or "")
         client = PlanQuotaChatClient(plan_adapter, model=plan_model)
-        absorber = ReportAbsorber(profile, model=plan_model or plan_adapter.backend_id, client=client)
+        try:
+            grounding_checker = build_grounding_checker(
+                enabled=run_grounding_checks,
+                checker_plan=checker_plan,
+                checker_plan_model=checker_plan_model,
+                maker_vendor=plan_adapter.backend_id,
+                default_client=client,
+                default_vendor=plan_adapter.backend_id,
+                default_model=plan_model or plan_adapter.backend_id,
+            )
+        except ValueError as exc:
+            print_error(str(exc))
+            sys.exit(2)
+        absorber = ReportAbsorber(
+            profile,
+            **absorber_kwargs(
+                model=plan_model or plan_adapter.backend_id,
+                client=client,
+                grounding_checker=grounding_checker,
+            ),
+        )
         cost_note = "billed per use" if plan_adapter.metered_at_margin else "$0 at the margin (prepaid plan)"
         if selection_note and not json_output:
             console.print(f"[dim]{selection_note}[/dim]")
         if plan_adapter.tos_note and not json_output:
             print_warning(plan_adapter.tos_note)
     else:
-        absorber = ReportAbsorber(profile, model=model or "gpt-5-mini")
+        try:
+            grounding_checker = build_grounding_checker(
+                enabled=run_grounding_checks,
+                checker_plan=checker_plan,
+                checker_plan_model=checker_plan_model,
+                maker_vendor="api_metered",
+            )
+        except ValueError as exc:
+            print_error(str(exc))
+            sys.exit(2)
+        absorber = ReportAbsorber(
+            profile,
+            **absorber_kwargs(model=model or "gpt-5-mini", grounding_checker=grounding_checker),
+        )
         cost_note = f"~${ESTIMATED_EXTRACTION_COST:.2f}"
 
     # Confirm before the extraction call (cost is incurred whether or not we
     # write, so gate it even for --dry-run; local is $0 but still confirmed).
     if not yes:
         intent = "preview (writes nothing)" if dry_run else f"absorb into '{name}'"
-        if not click.confirm(f"Run extraction ({cost_note}) and {intent}?", default=False):
+        check_note = " + grounding checks" if run_grounding_checks else ""
+        if not click.confirm(f"Run extraction{check_note} ({cost_note}) and {intent}?", default=False):
             print_warning("Cancelled.")
             sys.exit(0)
 
@@ -296,323 +390,6 @@ def absorb_report(
             )
 
 
-def _sync_context_mode(*, fresh_context: bool, deep_context: bool) -> str:
-    if deep_context:
-        return "deep"
-    if fresh_context:
-        return "fresh"
-    return "none"
-
-
-def _build_sync_capacity_payload(
-    expert_name: str,
-    *,
-    context_mode: str,
-    scheduled: bool,
-    status: str,
-    detail: str,
-) -> dict:
-    from deepr.backends.admission import TASK_CLASS_SYNC
-    from deepr.backends.capacity_actions import (
-        CapacityJobContext,
-        build_capacity_next_actions,
-        build_capacity_next_payload,
-    )
-
-    job_context = CapacityJobContext(
-        task_class=TASK_CLASS_SYNC,
-        expert_name=expert_name,
-        context_mode=context_mode,
-        scheduled=scheduled,
-    )
-    actions = build_capacity_next_actions(task_class=TASK_CLASS_SYNC, job_context=job_context)
-    return {
-        "schema_version": SYNC_CAPACITY_GATE_SCHEMA_VERSION,
-        "kind": SYNC_CAPACITY_GATE_KIND,
-        "contract": {
-            "read_only": True,
-            "cost_usd": 0.0,
-            "stability": "experimental",
-            "compatibility": {
-                "additive_fields": True,
-                "breaking_changes_require_new_schema_version": True,
-                "deprecation_policy": "Fields in this v1 payload are additive within v1; removals use a new schema.",
-            },
-        },
-        "status": status,
-        "expert_name": expert_name,
-        "detail": detail,
-        "capacity_next": build_capacity_next_payload(job_context, actions),
-    }
-
-
-def _print_capacity_payload(payload: dict) -> None:
-    for action in payload["capacity_next"]["actions"]:
-        console.print(f"  [{action['rank']}] {action['status']}: {action['title']}")
-        if action.get("detail"):
-            console.print(f"      [dim]{action['detail']}[/dim]")
-        if action.get("command"):
-            console.print(f"      [dim]{action['command']}[/dim]")
-
-
-def _emit_scheduled_capacity_wait(
-    expert_name: str,
-    *,
-    context_mode: str,
-    json_output: bool,
-    detail: str,
-) -> None:
-    import json as _json
-
-    payload = _build_sync_capacity_payload(
-        expert_name,
-        context_mode=context_mode,
-        scheduled=True,
-        status="waiting_for_capacity",
-        detail=detail,
-    )
-    from deepr.experts.loop_runs import LoopRunStatus, LoopStopReason, record_loop_run
-
-    loop_run = record_loop_run(
-        expert_name=expert_name,
-        loop_type="sync",
-        goal=f"Sync due subscriptions for {expert_name}",
-        trigger="scheduled",
-        status=LoopRunStatus.WAITING,
-        stop_reason=LoopStopReason.CAPACITY_UNAVAILABLE,
-        next_action=(payload["capacity_next"]["actions"][0] if payload["capacity_next"]["actions"] else {}),
-        capacity_source="owned/prepaid",
-    )
-    payload["loop_run"] = loop_run.to_dict()
-    if json_output:
-        click.echo(_json.dumps(payload, indent=2))
-        return
-
-    print_warning("Scheduled sync is waiting for cheap capacity.")
-    console.print(f"[dim]{detail}.[/dim]")
-    _print_capacity_payload(payload)
-
-
-def _emit_capacity_block(
-    expert_name: str,
-    *,
-    context_mode: str,
-    json_output: bool,
-    detail: str,
-) -> None:
-    import json as _json
-
-    payload = _build_sync_capacity_payload(
-        expert_name,
-        context_mode=context_mode,
-        scheduled=False,
-        status="capacity_blocked",
-        detail=detail,
-    )
-    if json_output:
-        click.echo(_json.dumps(payload, indent=2))
-        return
-
-    print_error(f"{detail}. Use --local or admit a local model first.")
-    _print_capacity_payload(payload)
-
-
-def _record_completed_sync_loop(
-    expert_name: str,
-    result,
-    *,
-    budget: float,
-    scheduled: bool,
-    sync_all: bool,
-    capacity_source: str,
-):
-    from deepr.experts.loop_runs import LoopRunStatus, LoopStopReason, record_loop_run
-
-    outcomes = list(getattr(result, "outcomes", []) or [])
-    failed = [o for o in outcomes if getattr(o, "status", "") == "failed"]
-    accepted = sum(
-        max(int(getattr(o, "absorbed", 0) or 0), 0) + max(int(getattr(o, "flagged", 0) or 0), 0) for o in outcomes
-    )
-    if failed:
-        status = LoopRunStatus.FAILED
-        stop_reason = LoopStopReason.TOOL_FAILURE
-        next_action = {
-            "status": "inspect",
-            "title": "Inspect failed sync outcomes",
-            "detail": f"{len(failed)} topic(s) failed during sync.",
-            "command": f'deepr expert sync "{expert_name}" --dry-run',
-        }
-    else:
-        status = LoopRunStatus.COMPLETED
-        stop_reason = LoopStopReason.VERIFIER_PASSED if accepted else LoopStopReason.NO_DUE_WORK
-        next_action = {}
-
-    return record_loop_run(
-        expert_name=expert_name,
-        loop_type="sync",
-        goal=f"Sync {'all' if sync_all else 'due'} subscriptions for {expert_name}",
-        trigger="scheduled" if scheduled else "manual",
-        status=status,
-        stop_reason=stop_reason,
-        next_action=next_action,
-        budget_limit=budget,
-        budget_spent=float(getattr(result, "total_cost", 0.0) or 0.0),
-        capacity_source=capacity_source,
-        accepted_changes=accepted,
-        rejected_changes=len(failed),
-    )
-
-
-def _record_sync_overlap_loop(
-    expert_name: str,
-    *,
-    budget: float,
-    scheduled: bool,
-    sync_all: bool,
-    capacity_source: str,
-):
-    from deepr.experts.loop_runs import LoopRunStatus, LoopStopReason, record_loop_run
-
-    return record_loop_run(
-        expert_name=expert_name,
-        loop_type="sync",
-        goal=f"Sync {'all' if sync_all else 'due'} subscriptions for {expert_name}",
-        trigger="scheduled" if scheduled else "manual",
-        status=LoopRunStatus.WAITING,
-        stop_reason=LoopStopReason.OVERLAP_LOCKED,
-        next_action={
-            "status": "waiting_for_overlap",
-            "title": "Another sync is already running",
-            "detail": "This run skipped because the same expert sync verb already holds the overlap lock.",
-            "command": f'deepr expert sync "{expert_name}" --scheduled',
-        },
-        budget_limit=budget,
-        budget_spent=0.0,
-        capacity_source=capacity_source,
-    )
-
-
-def _selected_sync_capacity_source(*, use_local: bool, use_plan: bool, plan_adapter) -> str:
-    if use_local:
-        return "local"
-    if use_plan and plan_adapter is not None:
-        return f"plan_quota:{plan_adapter.backend_id}"
-    return "api_metered"
-
-
-def _sync_overlap_result(expert_name: str):
-    from deepr.experts.sync import SyncOutcome, SyncResult
-
-    return SyncResult(
-        expert_name=expert_name,
-        started_at=datetime.now(UTC),
-        outcomes=[
-            SyncOutcome(
-                topic="sync",
-                status="skipped",
-                detail="another sync for this expert is already running",
-            )
-        ],
-    )
-
-
-def _run_sync_with_loop_guard(
-    profile,
-    *,
-    name: str,
-    budget: float,
-    sync_all: bool,
-    dry_run: bool,
-    scheduled: bool,
-    jitter: float,
-    use_local: bool,
-    local_model: str | None,
-    use_plan: bool,
-    plan_adapter,
-    plan_model: str | None,
-    context_builder,
-):
-    from deepr.experts.maintenance_engine import build_sync_engine
-
-    def run_once():
-        engine, capacity_source = build_sync_engine(
-            profile,
-            use_local=use_local,
-            local_model=local_model,
-            use_plan=use_plan,
-            plan_adapter=plan_adapter,
-            plan_model=plan_model,
-            context_builder=context_builder,
-        )
-        result = asyncio.run(engine.sync(budget=budget, only_due=not sync_all, dry_run=dry_run))
-        return result, capacity_source
-
-    if dry_run:
-        result, capacity_source = run_once()
-        return result, None, capacity_source
-
-    if jitter > 0:
-        from deepr.experts.loop_lock import apply_startup_jitter
-
-        apply_startup_jitter(name, jitter)
-
-    from deepr.experts.loop_lock import expert_verb_lock
-
-    capacity_source = _selected_sync_capacity_source(
-        use_local=use_local,
-        use_plan=use_plan,
-        plan_adapter=plan_adapter,
-    )
-    with expert_verb_lock(name, "sync") as acquired:
-        if not acquired:
-            result = _sync_overlap_result(name)
-            loop_run = _record_sync_overlap_loop(
-                name,
-                budget=budget,
-                scheduled=scheduled,
-                sync_all=sync_all,
-                capacity_source=capacity_source,
-            )
-            return result, loop_run, capacity_source
-        result, capacity_source = run_once()
-        loop_run = _record_completed_sync_loop(
-            name,
-            result,
-            budget=budget,
-            scheduled=scheduled,
-            sync_all=sync_all,
-            capacity_source=capacity_source,
-        )
-        return result, loop_run, capacity_source
-
-
-def _sync_context_builder(*, fresh_context: bool, deep_context: bool, json_output: bool):
-    """Build the optional free-only retrieval context builder for local/plan sync.
-
-    Shared by the local and plan-quota engine branches so both get the same
-    free-only retrieval envelope (never API-key search). Returns ``None`` when no
-    context flag is set.
-    """
-    if deep_context:
-        from deepr.backends.fresh_context import make_free_deep_context_builder
-
-        if not json_output:
-            console.print(
-                "[dim]Deep context enabled: multi-query free-only web retrieval; "
-                "API-key search providers are not used.[/dim]"
-            )
-        return make_free_deep_context_builder()
-    if fresh_context:
-        from deepr.backends.fresh_context import make_free_fresh_context_builder
-
-        if not json_output:
-            console.print(
-                "[dim]Fresh context enabled: free-only web retrieval; API-key search providers are not used.[/dim]"
-            )
-        return make_free_fresh_context_builder()
-    return None
-
-
 @expert.command(name="sync")
 @click.argument("name")
 @click.option("--budget", "-b", type=float, default=2.0, show_default=True, help="Total budget ceiling for this run")
@@ -627,7 +404,7 @@ def _sync_context_builder(*, fresh_context: bool, deep_context: bool, json_outpu
 @click.option(
     "--plan",
     "plan",
-    type=click.Choice(["codex", "claude", "opencode", "kiro", "grok", "antigravity", "copilot"]),
+    type=click.Choice(PLAN_BACKEND_CHOICES),
     default=None,
     help="Run sync on a plan-quota CLI backend (prepaid subscription capacity). See: deepr capacity",
 )
@@ -637,6 +414,14 @@ def _sync_context_builder(*, fresh_context: bool, deep_context: bool, json_outpu
     default=None,
     help="Model to pass to the plan-quota CLI (e.g. anthropic/claude-sonnet-4-6 for --plan opencode)",
 )
+@click.option("--check-grounding", is_flag=True, help="Check absorbed claims with a fresh-context verifier")
+@click.option(
+    "--checker-plan",
+    type=click.Choice(PLAN_BACKEND_CHOICES),
+    default=None,
+    help="Use this plan-quota CLI as the grounding checker",
+)
+@click.option("--checker-plan-model", default=None, help="Model to pass to the checker plan CLI")
 @click.option(
     "--fresh-context",
     is_flag=True,
@@ -670,6 +455,9 @@ def sync_cmd(
     api: bool,
     plan: str | None,
     plan_model: str | None,
+    check_grounding: bool,
+    checker_plan: str | None,
+    checker_plan_model: str | None,
     fresh_context: bool,
     deep_context: bool,
     scheduled: bool,
@@ -699,6 +487,15 @@ def sync_cmd(
 
     if sum(bool(x) for x in (local, api, plan)) > 1:
         print_error("Use only one of --local, --api, or --plan.")
+        sys.exit(2)
+    try:
+        validate_grounding_flags(
+            check_grounding=check_grounding,
+            checker_plan=checker_plan,
+            checker_plan_model=checker_plan_model,
+        )
+    except ValueError as exc:
+        print_error(str(exc))
         sys.exit(2)
     if fresh_context and api:
         print_error("--fresh-context is only supported for local or plan sync.")
@@ -797,15 +594,61 @@ def sync_cmd(
 
         plan_adapter = get_adapter(plan_backend_id or "")
 
+    grounding_checker = None
+    run_grounding_checks = check_grounding and not dry_run
+    if run_grounding_checks:
+        try:
+            if use_local:
+                from deepr.backends.local import ollama_chat_client
+
+                default_checker_client = None if checker_plan else ollama_chat_client()
+                grounding_checker = build_grounding_checker(
+                    enabled=True,
+                    checker_plan=checker_plan,
+                    checker_plan_model=checker_plan_model,
+                    maker_vendor="local",
+                    default_client=default_checker_client,
+                    default_vendor="local",
+                    default_model=local_model,
+                )
+            elif use_plan and plan_adapter is not None:
+                from deepr.backends.plan_quota import PlanQuotaChatClient
+
+                default_checker_client = (
+                    None
+                    if checker_plan
+                    else PlanQuotaChatClient(plan_adapter, model=plan_model, operation="plan_quota_grounding_check")
+                )
+                grounding_checker = build_grounding_checker(
+                    enabled=True,
+                    checker_plan=checker_plan,
+                    checker_plan_model=checker_plan_model,
+                    maker_vendor=plan_adapter.backend_id,
+                    default_client=default_checker_client,
+                    default_vendor=plan_adapter.backend_id,
+                    default_model=plan_model or plan_adapter.backend_id,
+                )
+            else:
+                grounding_checker = build_grounding_checker(
+                    enabled=True,
+                    checker_plan=checker_plan,
+                    checker_plan_model=checker_plan_model,
+                    maker_vendor="api_metered",
+                )
+        except ValueError as exc:
+            print_error(str(exc))
+            sys.exit(2)
+
     if not dry_run and not yes:
+        check_note = " with grounding checks" if run_grounding_checks else ""
         if use_local:
-            prompt = f"Sync {len(targets)} topic(s) on the local model at $0?"
+            prompt = f"Sync {len(targets)} topic(s){check_note} on the local model at $0?"
         elif use_plan and plan_adapter is not None:
             cost_desc = "billed per use" if plan_adapter.metered_at_margin else "$0 at the margin (prepaid plan)"
-            prompt = f"Sync {len(targets)} topic(s) via {plan_adapter.display_name} ({cost_desc})?"
+            prompt = f"Sync {len(targets)} topic(s){check_note} via {plan_adapter.display_name} ({cost_desc})?"
         else:
             est = sum(min(s.budget, budget) for s in targets)
-            prompt = f"Sync {len(targets)} topic(s), estimated up to ${min(est, budget):.2f}?"
+            prompt = f"Sync {len(targets)} topic(s){check_note}, estimated up to ${min(est, budget):.2f}?"
         if not click.confirm(prompt, default=False):
             print_warning("Cancelled.")
             return
@@ -833,6 +676,7 @@ def sync_cmd(
         plan_adapter=plan_adapter,
         plan_model=plan_model,
         context_builder=context_builder,
+        grounding_checker=grounding_checker,
     )
 
     if json_output:
