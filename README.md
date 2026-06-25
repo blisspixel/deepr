@@ -476,8 +476,7 @@ Contributions welcome. Run `ruff check . && ruff format .` and `pytest` before s
 
 ## License
 
-[Apache 2.0](LICENSE). Free to use, build on, fork, and share. For commercial or
-enterprise use, contact Nick Seal (nick@pueo.io).
+[Apache 2.0](LICENSE). Free to use, build on, fork, and share.
 
 ---
 
