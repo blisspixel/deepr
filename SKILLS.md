@@ -129,3 +129,9 @@ This file captures repo-specific operating lessons from autonomous work cycles.
 - For local/plan sync with a different `--checker-plan`, avoid constructing the same-backend default checker client. The checker helper ignores default clients when a checker plan is supplied, but Python still evaluates the argument first.
 - Preserve constructor compatibility by passing `grounding_checker` only when it is non-None. Many CLI tests patch `ReportAbsorber` with narrow constructor stubs, and default behavior should keep the old argument shape.
 - Dry-run absorb/sync previews should not call the checker. The checker verifies claims about to be written, not preview output.
+
+## Agentic Surface Rollout
+
+- Before widening autonomy, name the rollout stage: prototype, shadow, pilot, limited production, or full production. A loop without verifier metrics and recovery evidence should stay shadow or pilot.
+- Version prompts, tool specs, schemas, eval sets, memory policy, and orchestration graphs once any host, scheduler, or stored artifact depends on them. Versioning makes failures bisectable and lets old handoffs remain interpretable.
+- State-changing agentic paths need documented retry behavior plus idempotency keys, deduplication, rollback, or compensation before they move beyond pilot. Planning and irreversible execution stay separated by deterministic workflow gates.
