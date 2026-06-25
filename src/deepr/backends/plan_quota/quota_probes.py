@@ -8,15 +8,22 @@ touching provider generation paths.
 from __future__ import annotations
 
 import json
+import os
 from collections.abc import Iterable
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
+import httpx
+
 from deepr.backends.capacity import CostModel
 from deepr.backends.quota_ledger import QuotaWindowKind
 from deepr.backends.quota_snapshot import QuotaSnapshot, QuotaWindowSnapshot
 
+CLAUDE_QUOTA_BACKEND_ID = "claude"
+CLAUDE_QUOTA_DISPLAY_NAME = "Claude Code"
+CLAUDE_USAGE_ENDPOINT = "https://api.anthropic.com/api/oauth/usage"
+CLAUDE_USAGE_TIMEOUT_SECONDS = 10.0
 CODEX_QUOTA_BACKEND_ID = "codex"
 CODEX_QUOTA_DISPLAY_NAME = "Codex"
 CODEX_RECENT_ROLLOUT_LIMIT = 5
@@ -27,7 +34,7 @@ class QuotaProbeUnsupportedError(ValueError):
 
 
 def supported_quota_probe_backends() -> tuple[str, ...]:
-    return (CODEX_QUOTA_BACKEND_ID,)
+    return (CODEX_QUOTA_BACKEND_ID, CLAUDE_QUOTA_BACKEND_ID)
 
 
 def collect_plan_quota_snapshot(
@@ -35,15 +42,35 @@ def collect_plan_quota_snapshot(
     *,
     now: datetime | None = None,
     codex_sessions_dir: Path | None = None,
+    claude_config_dir: Path | None = None,
+    claude_http_get: Any | None = None,
 ) -> QuotaSnapshot:
     """Collect a metadata-only quota snapshot for ``backend_id``."""
     if backend_id == CODEX_QUOTA_BACKEND_ID:
         return collect_codex_quota_snapshot(sessions_dir=codex_sessions_dir, now=now)
+    if backend_id == CLAUDE_QUOTA_BACKEND_ID:
+        return collect_claude_quota_snapshot(config_dir=claude_config_dir, now=now, http_get=claude_http_get)
     raise QuotaProbeUnsupportedError(f"no live quota probe for {backend_id!r}")
 
 
 def default_codex_sessions_dir(*, home: Path | None = None) -> Path:
     return (home or Path.home()) / ".codex" / "sessions"
+
+
+def default_claude_credentials_path(
+    *,
+    config_dir: Path | None = None,
+    env: dict[str, str] | None = None,
+    home: Path | None = None,
+) -> Path:
+    """Return the Claude Code OAuth credentials file path for this machine."""
+    if config_dir is not None:
+        return config_dir / ".credentials.json"
+    env_map = os.environ if env is None else env
+    configured = env_map.get("CLAUDE_CONFIG_DIR")
+    if configured and configured.strip():
+        return Path(configured).expanduser() / ".credentials.json"
+    return (home or Path.home()) / ".claude" / ".credentials.json"
 
 
 def collect_codex_quota_snapshot(
@@ -79,6 +106,66 @@ def collect_codex_quota_snapshot(
     return _codex_error_snapshot(f"no rate_limits found in {len(rollouts)} recent rollout files", stamp)
 
 
+def collect_claude_quota_snapshot(
+    *,
+    config_dir: Path | None = None,
+    now: datetime | None = None,
+    http_get: Any | None = None,
+    timeout_seconds: float = CLAUDE_USAGE_TIMEOUT_SECONDS,
+) -> QuotaSnapshot:
+    """Read Claude Code usage windows from the read-only OAuth usage endpoint.
+
+    This is an explicit metadata refresh, not a model call. It reuses the
+    Claude Code OAuth token on the current machine only long enough to call the
+    same usage endpoint Claude Code uses, then records normalized usage windows.
+    The token is never returned, logged, or written to Deepr state.
+    """
+    stamp = now or datetime.now(UTC)
+    credentials_path = default_claude_credentials_path(config_dir=config_dir)
+    oauth = _read_claude_oauth(credentials_path)
+    if not oauth["ok"]:
+        return _claude_error_snapshot(str(oauth["error"]), stamp)
+
+    token = str(oauth["access_token"])
+    plan = _string_or_none(oauth.get("plan"))
+    getter = http_get or httpx.get
+    try:
+        response = getter(
+            CLAUDE_USAGE_ENDPOINT,
+            headers={
+                "Authorization": f"Bearer {token}",
+                "anthropic-beta": "oauth-2025-04-20",
+                "anthropic-version": "2023-06-01",
+            },
+            timeout=timeout_seconds,
+        )
+    except (httpx.HTTPError, TimeoutError, OSError) as exc:
+        return _claude_error_snapshot(f"usage endpoint request failed: {exc}", stamp, plan=plan)
+
+    status_code = int(getattr(response, "status_code", 0))
+    if status_code == 401:
+        return _claude_error_snapshot(
+            "Claude Code OAuth token expired or unauthorized; re-run claude login", stamp, plan=plan
+        )
+    if status_code == 429:
+        retry_after = _response_header(response, "retry-after")
+        detail = "Claude usage endpoint rate-limited"
+        if retry_after:
+            detail = f"{detail}; retry after {retry_after}s"
+        return _claude_error_snapshot(detail, stamp, plan=plan, metadata={"retry_after": retry_after})
+    if status_code != 200:
+        return _claude_error_snapshot(f"Claude usage endpoint returned HTTP {status_code}", stamp, plan=plan)
+
+    try:
+        data = response.json()
+    except (json.JSONDecodeError, ValueError, TypeError) as exc:
+        return _claude_error_snapshot(f"Claude usage endpoint returned invalid JSON: {exc}", stamp, plan=plan)
+    if not isinstance(data, dict):
+        return _claude_error_snapshot("Claude usage endpoint returned a non-object payload", stamp, plan=plan)
+
+    return _claude_snapshot_from_usage(data, stamp, plan=plan)
+
+
 def _codex_error_snapshot(error: str, stamp: datetime) -> QuotaSnapshot:
     return QuotaSnapshot(
         backend_id=CODEX_QUOTA_BACKEND_ID,
@@ -89,6 +176,48 @@ def _codex_error_snapshot(error: str, stamp: datetime) -> QuotaSnapshot:
         error=error,
         as_of=stamp,
     )
+
+
+def _claude_error_snapshot(
+    error: str,
+    stamp: datetime,
+    *,
+    plan: str | None = None,
+    metadata: dict[str, Any] | None = None,
+) -> QuotaSnapshot:
+    return QuotaSnapshot(
+        backend_id=CLAUDE_QUOTA_BACKEND_ID,
+        display_name=CLAUDE_QUOTA_DISPLAY_NAME,
+        account_id=plan or "unknown",
+        plan=plan,
+        cost_model=CostModel.ROLLING_WINDOW,
+        ok=False,
+        error=error,
+        as_of=stamp,
+        metadata=metadata or {},
+    )
+
+
+def _read_claude_oauth(credentials_path: Path) -> dict[str, object]:
+    if not credentials_path.exists():
+        return {"ok": False, "error": f"no Claude Code credentials file: {credentials_path}"}
+    try:
+        raw = json.loads(credentials_path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as exc:
+        return {"ok": False, "error": f"cannot read Claude Code credentials: {exc}"}
+    if not isinstance(raw, dict):
+        return {"ok": False, "error": "Claude Code credentials file is not a JSON object"}
+    oauth = raw.get("claudeAiOauth")
+    if not isinstance(oauth, dict):
+        return {"ok": False, "error": "Claude Code credentials file has no claudeAiOauth object"}
+    token = _string_or_none(oauth.get("accessToken"))
+    if token is None:
+        return {"ok": False, "error": "Claude Code credentials file has no OAuth access token"}
+    return {
+        "ok": True,
+        "access_token": token,
+        "plan": _string_or_none(oauth.get("subscriptionType")),
+    }
 
 
 def _recent_rollout_files(root: Path, *, limit: int) -> list[Path]:
@@ -150,6 +279,23 @@ def _codex_snapshot_from_rate_limits(
     )
 
 
+def _claude_snapshot_from_usage(data: dict[str, Any], stamp: datetime, *, plan: str | None) -> QuotaSnapshot:
+    windows = tuple(_claude_windows(data))
+    response_plan = _string_or_none(data.get("subscription_type") or data.get("subscriptionType"))
+    effective_plan = response_plan or plan
+    return QuotaSnapshot(
+        backend_id=CLAUDE_QUOTA_BACKEND_ID,
+        display_name=CLAUDE_QUOTA_DISPLAY_NAME,
+        account_id=effective_plan or "default",
+        plan=effective_plan,
+        cost_model=CostModel.ROLLING_WINDOW,
+        ok=True,
+        windows=windows,
+        as_of=stamp,
+        metadata={"source": "claude_oauth_usage"},
+    )
+
+
 def _codex_windows(rate_limits: dict[str, Any]) -> Iterable[QuotaWindowSnapshot]:
     specs = (
         ("primary", "5h", QuotaWindowKind.ROLLING_5H),
@@ -164,6 +310,29 @@ def _codex_windows(rate_limits: dict[str, Any]) -> Iterable[QuotaWindowSnapshot]
             window_kind=kind,
             used_fraction=_percent_to_fraction(window.get("used_percent")),
             reset_at=_epoch_to_datetime(window.get("resets_at")),
+            unit_name="plan_request",
+            metadata={"source_key": key},
+        )
+
+
+def _claude_windows(data: dict[str, Any]) -> Iterable[QuotaWindowSnapshot]:
+    specs = (
+        ("five_hour", "5h", QuotaWindowKind.ROLLING_5H),
+        ("seven_day", "weekly", QuotaWindowKind.WEEKLY),
+        ("seven_day_opus", "opus", QuotaWindowKind.WEEKLY),
+    )
+    for key, label, kind in specs:
+        block = data.get(key)
+        if not isinstance(block, dict):
+            continue
+        used_fraction = _percent_to_fraction(block.get("utilization"))
+        if used_fraction is None:
+            continue
+        yield QuotaWindowSnapshot(
+            label=label,
+            window_kind=kind,
+            used_fraction=used_fraction,
+            reset_at=_iso_to_datetime(block.get("resets_at")),
             unit_name="plan_request",
             metadata={"source_key": key},
         )
@@ -197,6 +366,24 @@ def _epoch_to_datetime(value: object) -> datetime | None:
         return datetime.fromtimestamp(float(value), tz=UTC)
     except (OSError, OverflowError, ValueError):
         return None
+
+
+def _iso_to_datetime(value: object) -> datetime | None:
+    if not isinstance(value, str):
+        return None
+    try:
+        parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
+    except ValueError:
+        return None
+    return parsed.astimezone(UTC) if parsed.tzinfo else parsed.replace(tzinfo=UTC)
+
+
+def _response_header(response: object, name: str) -> str | None:
+    headers = getattr(response, "headers", {})
+    if not hasattr(headers, "get"):
+        return None
+    value = headers.get(name) or headers.get(name.title())
+    return _string_or_none(value)
 
 
 def _string_or_none(value: object) -> str | None:
