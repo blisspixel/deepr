@@ -4,13 +4,13 @@ Date: 2026-06-25
 
 ## Alignment Summary
 
-Deepr is aligned around one active product bet: persistent domain experts that keep verified knowledge current without silent spend. The README sells this as research infrastructure and a consultable knowledge role, not another chat window and not generic RAG. Current main is `v2.22.0`: local Ollama is usable for `$0` expert maintenance; explicit plan-quota execution works for `expert sync --plan <id>`, `expert absorb --plan <id>`, and `capacity probe-plan <id>` behind auth-mode and no-surprise-bills gates; Codex quota metadata refresh works through `capacity refresh-quota codex` without a model call; durable loop status is observable across CLI, MCP, and web surfaces; OKF import/export is a verified interchange path; hosted MCP has scoped keys, per-key budgets, rate limits, concurrency caps, audit records, smoke checks, registration manifests, and deployment recipes; red-team metrics measure prompt-boundary, MCP read-path, tool-spoofing, and memory trust-floor probes at `$0`; expert handoff payloads carry per-claim grounding assurance with verified and cross-vendor verified summary counts.
+Deepr is aligned around one active product bet: persistent domain experts that keep verified knowledge current without silent spend. The README sells this as research infrastructure and a consultable knowledge role, not another chat window and not generic RAG. Current main is `v2.23.0`: local Ollama is usable for `$0` expert maintenance; explicit plan-quota execution works for `expert sync --plan <id>`, `expert absorb --plan <id>`, and `capacity probe-plan <id>` behind auth-mode and no-surprise-bills gates; Codex quota metadata refresh works through `capacity refresh-quota codex`; Claude Code quota metadata refresh works through `capacity refresh-quota claude` when that user has Claude Code OAuth credentials configured; both refresh paths write quota-ledger events without model calls or credential persistence; durable loop status is observable across CLI, MCP, and web surfaces; OKF import/export is a verified interchange path; hosted MCP has scoped keys, per-key budgets, rate limits, concurrency caps, audit records, smoke checks, registration manifests, and deployment recipes; red-team metrics measure prompt-boundary, MCP read-path, tool-spoofing, and memory trust-floor probes at `$0`; expert handoff payloads carry per-claim grounding assurance with verified and cross-vendor verified summary counts.
 
 The latest 2026 external guidance reinforces Deepr's direction: this is agentic harness, context engineering, loop engineering, and harness-first verification work. The useful primitives are durable progress files, tight high-signal context, independent verification, trace/eval loops, typed stop conditions, scoped tools, and explicit spend/security gates. Deepr already has most of the harness substrate: `ExpertLoopRun`, loop-status rollups, context source packs, capacity previews, budget gates, scoped MCP, red-team metrics, and derived handoff contracts. The remaining work is not "more RAG"; it is closing verifier loops and making the scheduled verbs safer and more observable.
 
 `AGENTIC_BALANCE.md` is the governing boundary: deterministic workflow code owns spend, writes, routing gates, durable state, locks, jitter, schemas, and verifier outcomes; model judgment owns meaning such as contradiction, grounding, deduplication, and synthesis.
 
-No clarification is needed before continuing. The next slice is live trusted quota probes, starting with Codex session-log `rate_limits` and Claude Code OAuth `/usage`, because auto-routing to prepaid capacity must be based on observed remaining headroom instead of CLI presence.
+No clarification is needed before continuing. The next slice is live trusted quota probes for the explicit-only backends, starting with Grok and Antigravity metadata visibility, because auto-routing to prepaid capacity must be based on observed remaining headroom instead of CLI presence. The next metered-API cost-control slice is provider prompt-cache economics, but only after estimator support, actual usage ingestion, and explicit budget gates cover cache writes, cache reads, TTL, and pre-warm behavior.
 
 ## What Works Now
 
@@ -19,7 +19,7 @@ No clarification is needed before continuing. The next slice is live trusted quo
 - Capacity visibility is in place through `deepr capacity`, quota observations, normalized backend profiles, eligibility decisions, pure backend selection, and `deepr capacity next`.
 - The evidence layer is present through `eval continuity`, `eval calibrate`, `eval red-team`, source-trust floors, event logs, typed edges, lifecycle archival, and model-verdict routing for semantic absorb checks.
 - Portable data is in place through `DEEPR_DATA_DIR`, `DEEPR_EXPERTS_PATH`, and `DEEPR_REPORTS_PATH`, with the cost ledger deliberately machine-local.
-- Explicit plan-quota CLI execution is in place for maintenance through the lightweight `research_fn` and chat-client seams, with quota and `$0` cost-ledger writes. The quota availability substrate now has a normalized `QuotaSnapshot` contract with binding-window/headroom calculation, and `deepr capacity refresh-quota codex` records Codex local session-log `rate_limits` into `quota_ledger.jsonl` without a model call. Claude, Grok, and Antigravity metadata probes can use the same substrate next. Automatic plan routing remains gated until trustworthy live remaining-quota signals exist.
+- Explicit plan-quota CLI execution is in place for maintenance through the lightweight `research_fn` and chat-client seams, with quota and `$0` cost-ledger writes. The quota availability substrate now has a normalized `QuotaSnapshot` contract with binding-window/headroom calculation. `deepr capacity refresh-quota codex` records Codex local session-log `rate_limits`, and `deepr capacity refresh-quota claude` records Claude Code OAuth usage metadata when configured. Both write `quota_ledger.jsonl` without a model call and without storing credential material. Grok and Antigravity metadata probes can use the same substrate next. Automatic plan routing remains gated until trustworthy live remaining-quota signals exist.
 - Explicit maker-checker grounding is in place for `expert absorb` and `expert sync` through `--check-grounding`, with optional `--checker-plan <id>` for cross-plan checking. It is off by default, dry runs do not check, and metered API checker construction remains future work behind spend-policy gates. Handoff payloads now preserve per-claim `grounding_assurance` and summarize verified and cross-vendor verified claim counts.
 - Fleet loop primitives are in place: `fleet status`, `expert sync-all`, `fleet install-schedule`, content-hash pre-sync change detection, per-verb locks, startup jitter, and durable loop-run records.
 
@@ -266,9 +266,10 @@ contradiction, dedup, and trust-floor gates.
 
 ## Next Work
 
-Next slice: wire Claude Code OAuth `/usage` into the same `QuotaSnapshot`
-contract, then validate the project-expert refresh and consultation path using
-free/local capacity or explicit plan-quota capacity only.
+Next slice: wire Grok and Antigravity metadata probes into the same
+`QuotaSnapshot` contract for explicit-only visibility, then validate the
+project-expert refresh and consultation path using free/local capacity or
+explicit plan-quota capacity only.
 
 ## Spend Ledger For This Run
 

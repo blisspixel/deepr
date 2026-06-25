@@ -25,10 +25,11 @@ real `$0`/quota round-trip to confirm a CLI actually works.)
 through the execution command, so "has quota" cannot be guessed from CLI
 presence. Deepr detects exhaustion **reactively** for execution runs (parsing
 vendor "try again in Nh" messages into a cooldown). The first proactive
-metadata probe is Codex: `deepr capacity refresh-quota codex` reads local
-session-log `rate_limits` and writes a trusted ledger event without a model
-call. Other backends stay explicit or reactive until their own metadata probes
-exist, which is why auto-routing onto a subscription stays opt-in
+metadata probes are Codex and Claude Code: `deepr capacity refresh-quota codex`
+reads local session-log `rate_limits`, and `deepr capacity refresh-quota claude`
+reads Claude Code OAuth usage metadata when the current user has Claude Code
+configured. Other backends stay explicit or reactive until their own metadata
+probes exist, which is why auto-routing onto a subscription stays opt-in
 (`admit-plan`) and explicit `--plan` remains the works-now path.
 
 ## 2. The evidence: averaging adds cost, challenging adds truth

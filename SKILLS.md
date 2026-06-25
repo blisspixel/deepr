@@ -43,6 +43,19 @@ This file captures repo-specific operating lessons from autonomous work cycles.
 - Run the value-prop honesty test before building any "plan capacity" CLI: is the next headless call free at the margin on a flat subscription, or metered per use? A metered CLI (Copilot post-2026-06-01) is the API in a costume — `enabled_by_default=False`, never marketed as free. The check belongs in the adapter spec, not in prose.
 - Quotabot's reusable lesson is the quota snapshot contract: provider-specific probes should emit normalized windows, mark stale cache explicitly, compute headroom from the most constrained window, treat passed reset times as fresh, and then write one conservative ledger event through `snapshot_to_ledger_event`. Do not let each vendor probe invent routing semantics.
 - Codex has the first trusted metadata path: `deepr capacity refresh-quota codex` reads newest local `~/.codex/sessions/**/rollout-*.jsonl` files for a nested `rate_limits` object, maps primary to 5h and secondary to weekly, then writes a quota-ledger event. This is a local metadata read, not a model call.
+- Claude Code quota refresh is a live metadata call, not a generation call:
+  `deepr capacity refresh-quota claude` reads the current user's
+  `.credentials.json` from `CLAUDE_CONFIG_DIR` or `~/.claude`, uses the OAuth
+  access token only for the read-only usage endpoint, maps `five_hour`,
+  `seven_day`, and `seven_day_opus` windows into `QuotaSnapshot`, and never
+  persists credential material. Keep it explicit because the endpoint is
+  reported to rate-limit aggressive polling.
+- Provider prompt caching is a metered cost-control feature, not free capacity.
+  Treat cache writes, long TTLs, cache keys, and pre-warm requests as billable
+  until the provider usage record proves otherwise. For Anthropic in
+  particular, do not enable automatic pre-warming or 1-hour TTLs without an
+  estimator, actual `cache_creation_input_tokens` / `cache_read_input_tokens`
+  ingestion, and an explicit user budget ceiling.
 - Two execution seams exist. For maintenance, the light `research_fn` `(query, budget) -> {answer, cost}` / chat-client seam is correct; the API-shaped `DeepResearchProvider` is wrong for a subprocess CLI. `expert sync` needs research AND extraction, so expose the CLI as a minimal `client.chat.completions.create -> .choices[0].message.content` shim (like `ollama_chat_client`) and use ONE instance for both — otherwise extraction silently falls back to metered.
 - The shim must ignore the caller's model name: Deepr's internal ids (gpt-5-mini) are meaningless to a vendor CLI and would be passed as a bad `--model`. Use the operator's `--plan-model` or the plan default.
 - No-surprise-bills is deterministic and lives before the subprocess: if a metered-env var is set the CLI would bill that key (every vendor's precedence), so refuse the "plan" classification and tell the operator to unset it or use `--api`.

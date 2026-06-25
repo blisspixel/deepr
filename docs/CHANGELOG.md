@@ -7,6 +7,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.23.0] - 2026-06-25
+
+Claude quota metadata release.
+
+### Added
+- Added `deepr capacity refresh-quota claude`, a metadata-only `$0` probe that
+  reads Claude Code OAuth usage windows when the current user has Claude Code
+  configured. The command normalizes five-hour, weekly, and Opus weekly windows
+  into the shared `QuotaSnapshot` contract and records a conservative
+  quota-ledger observation without running a model call or storing credential
+  material.
+
+### Changed
+- Added a roadmap gate for API provider prompt-cache economics across Anthropic,
+  OpenAI/Azure, Gemini, and xAI. Cache controls stay planned until estimator
+  support, actual usage accounting, and explicit budget gates prove they reduce
+  spend instead of adding cache-write or pre-warm costs.
+
 ## [2.22.0] - 2026-06-25
 
 Codex quota metadata release.

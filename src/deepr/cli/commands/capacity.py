@@ -399,14 +399,15 @@ def capacity_fleet(json_output: bool):
 
 
 @capacity.command(name="refresh-quota")
-@click.argument("backend", type=click.Choice(["codex"]))
+@click.argument("backend", type=click.Choice(["codex", "claude"]))
 @click.option("--json", "json_output", is_flag=True, help="Emit machine-readable JSON.")
 def capacity_refresh_quota(backend: str, json_output: bool):
     """Refresh trusted plan-quota metadata and record a quota-ledger event.
 
     Metadata-only and $0: reads a provider quota source such as Codex rollout
-    logs, normalizes the binding window, and writes the local append-only quota
-    ledger. It does not run a model call.
+    logs or Claude Code's read-only usage endpoint, normalizes the binding
+    window, and writes the local append-only quota ledger. It does not run a
+    model call.
     """
     import sys
 

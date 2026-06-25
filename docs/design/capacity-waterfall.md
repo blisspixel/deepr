@@ -31,13 +31,14 @@ maintenance through `expert sync --plan <id>`, `expert absorb --plan <id>`, and
 `$0` cost-ledger guards. Scheduled sync, gap-fill, reflection, and health-check
 surfaces now stop with wait or action-plan payloads instead of silently spending
 when owned/prepaid capacity is blocked, and those scheduled payloads carry
-published schema identifiers for downstream validation. Codex now has the first
-metadata-only quota refresh path: `deepr capacity refresh-quota codex` reads
-local session-log `rate_limits` and records a binding-window ledger event at
-`$0`. Still open: Claude and other live window/credit probes, plan-quota
-scheduler dispatch, and auto-mode runtime integration. Automatic plan routing
-remains gated until a trusted remaining-quota signal exists for the candidate
-backend.
+published schema identifiers for downstream validation. Codex and Claude Code
+now have metadata-only quota refresh paths: `deepr capacity refresh-quota codex`
+reads local session-log `rate_limits`, and `deepr capacity refresh-quota claude`
+reads Claude Code OAuth usage metadata, then both record binding-window ledger
+events at `$0` without model calls. Still open: Grok and Antigravity
+window/credit probes, plan-quota scheduler dispatch, and auto-mode runtime
+integration. Automatic plan routing remains gated until a trusted
+remaining-quota signal exists for the candidate backend.
 
 ## Problem
 
@@ -252,9 +253,9 @@ scheduler work remains.
    run artifacts are done. Remaining: scheduler rules for when to choose
    `--fresh-context` or `--deep-context`.
 13. First plan_quota rungs are shipped for explicit maintenance execution, and
-   Codex has a local metadata quota probe. Remaining plan work is Claude and
-   other remaining-quota probes, reset-aware scheduler dispatch, and auto-mode
-   integration without surprise spend.
+   Codex plus Claude Code have metadata quota probes. Remaining plan work is
+   Grok and Antigravity remaining-quota probes, reset-aware scheduler dispatch,
+   and auto-mode integration without surprise spend.
 14. Multi-account pools (N accounts of one vendor as one pooled backend) - last,
    it multiplies an already-working mechanism.
 

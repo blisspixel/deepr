@@ -861,6 +861,7 @@ deepr doctor
 deepr capacity            # local Ollama, plan CLIs, metered APIs + cost model
 deepr capacity --probe    # actively probe local endpoint and list models
 deepr capacity refresh-quota codex  # record Codex quota windows from local logs
+deepr capacity refresh-quota claude # record Claude Code usage windows when configured
 deepr capacity next       # ranked next actions for making cheap capacity usable
 deepr capacity next --task-class sync --context-mode fresh --scheduled
 deepr expert sync "Platform Team Expert" --scheduled --fresh-context -y
@@ -878,7 +879,7 @@ Capacity source status:
 |---|---|---|
 | Local Ollama | Execution works for local expert setup, local sync, deep/fresh local context, local absorb, local eval, local context eval, and scored admission | `$0` marginal cost, quality-gated before automatic routing |
 | OpenAI, Gemini, Grok, Anthropic, Azure APIs | Execution works when configured with API keys and budget ceilings | Full research path, cost ledger writes every spend source |
-| Codex, Claude Code, OpenCode, Antigravity, Grok Build, GitHub Copilot CLI, Kiro, and other plan CLIs | Explicit execution works through `expert sync --plan <id>` and `expert absorb --plan <id>` behind auth-mode and no-surprise-bills gates; Codex has a live local quota metadata probe | Automatic plan routing still requires trusted remaining-quota observations per backend |
+| Codex, Claude Code, OpenCode, Antigravity, Grok Build, GitHub Copilot CLI, Kiro, and other plan CLIs | Explicit execution works through `expert sync --plan <id>` and `expert absorb --plan <id>` behind auth-mode and no-surprise-bills gates; Codex and Claude Code have live quota metadata probes | Automatic plan routing still requires trusted remaining-quota observations per backend |
 | CLI judge for local eval | Explicit opt-in only | `--allow-cli-judge` is required because Deepr cannot prove the vendor CLI's billing source |
 
 Local-model execution runs quality-tolerant steps at $0 against a local Ollama endpoint. Force it with `--local`, force the metered API with `--api`, or admit a local model so maintenance uses it automatically (owned capacity before metered API):
@@ -939,7 +940,7 @@ local judge, then records the retrieval and citation envelope as JSON under
 context artifacts yet; scheduler rules are the next slice in
 [design/local-fresh-context.md](design/local-fresh-context.md).
 
-Plan-quota adapters now execute expert maintenance by explicit opt-in. `deepr expert sync NAME --plan codex` and `deepr expert absorb NAME REPORT --plan codex` run through the plan-quota chat-client seam so research and extraction stay on the chosen CLI instead of silently falling back to metered APIs. The same path supports Claude Code, OpenCode, Kiro, Grok Build, Antigravity, and GitHub Copilot according to their adapter safety settings. `deepr capacity probe-plan <id>` validates auth and one tiny round trip; `deepr capacity refresh-quota codex` reads Codex local session-log `rate_limits` metadata and records a conservative quota-ledger event without running a model call. Automatic plan routing stays conservative: selection orders local, plan-quota, and metered backends, then blocks execution on missing or unknown quota, exhaustion, quarantine, overage, reserve-floor breaches, unsupported task classes, missing measured quality, and metered fallback without a budget gate.
+Plan-quota adapters now execute expert maintenance by explicit opt-in. `deepr expert sync NAME --plan codex` and `deepr expert absorb NAME REPORT --plan codex` run through the plan-quota chat-client seam so research and extraction stay on the chosen CLI instead of silently falling back to metered APIs. The same path supports Claude Code, OpenCode, Kiro, Grok Build, Antigravity, and GitHub Copilot according to their adapter safety settings. `deepr capacity probe-plan <id>` validates auth and one tiny round trip; `deepr capacity refresh-quota codex` reads Codex local session-log `rate_limits` metadata, and `deepr capacity refresh-quota claude` reads Claude Code OAuth usage metadata. Both record conservative quota-ledger events without running a model call. Automatic plan routing stays conservative: selection orders local, plan-quota, and metered backends, then blocks execution on missing or unknown quota, exhaustion, quarantine, overage, reserve-floor breaches, unsupported task classes, missing measured quality, and metered fallback without a budget gate.
 
 The intended QOL is simple: ask for a job, see the cheapest safe route, and get a
 clear reason if Deepr should wait rather than pay. `deepr capacity next` is

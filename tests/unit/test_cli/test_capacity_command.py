@@ -172,6 +172,31 @@ class TestRefreshQuota:
         assert events[0].units_remaining is None
         assert events[0].metadata["headroom_fraction"] == 0.75
 
+    def test_refresh_quota_accepts_claude_backend(self, monkeypatch, tmp_path):
+        monkeypatch.setenv("DEEPR_CAPACITY_DATA_DIR", str(tmp_path))
+
+        def fake(backend):
+            assert backend == "claude"
+            return QuotaSnapshot(
+                backend_id="claude",
+                display_name="Claude Code",
+                account_id="max_20x",
+                plan="max_20x",
+                cost_model=CostModel.ROLLING_WINDOW,
+                windows=(QuotaWindowSnapshot(label="5h", used_fraction=0.4, unit_name="plan_request"),),
+                as_of=T0,
+            )
+
+        monkeypatch.setattr("deepr.backends.plan_quota.collect_plan_quota_snapshot", fake)
+
+        r = CliRunner().invoke(capacity, ["refresh-quota", "claude"])
+
+        assert r.exit_code == 0, r.output
+        assert "Claude Code quota snapshot recorded" in r.output
+        events = load_quota_events(tmp_path / "quota_ledger.jsonl")
+        assert len(events) == 1
+        assert events[0].backend_id == "claude"
+
     def test_refresh_quota_json_payload(self, monkeypatch, tmp_path):
         monkeypatch.setenv("DEEPR_CAPACITY_DATA_DIR", str(tmp_path))
 
