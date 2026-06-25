@@ -12,6 +12,7 @@ from deepr.experts.maker_checker import (
     build_disconfirm_messages,
     check_claim,
     choose_checker_vendor,
+    make_grounding_checker,
     parse_verdict,
 )
 
@@ -95,8 +96,12 @@ class TestCheckClaim:
     async def test_supported_claim_passes(self):
         client = _FakeClient(reply="SUPPORTED\nDirectly stated.")
         verdict = await check_claim(
-            "X", "X is stated.", client=client, checker_vendor="anthropic",
-            assurance=CheckAssurance.CROSS_VENDOR, model="claude",
+            "X",
+            "X is stated.",
+            client=client,
+            checker_vendor="anthropic",
+            assurance=CheckAssurance.CROSS_VENDOR,
+            model="claude",
         )
         assert verdict.supported is True
         assert verdict.refuted is False
@@ -106,8 +111,12 @@ class TestCheckClaim:
     async def test_unsupported_claim_is_refuted(self):
         client = _FakeClient(reply="UNSUPPORTED\nThe evidence says $10, the claim says $30.")
         verdict = await check_claim(
-            "Price is $30", "The price is $10.", client=client, checker_vendor="anthropic",
-            assurance=CheckAssurance.CROSS_VENDOR, model="claude",
+            "Price is $30",
+            "The price is $10.",
+            client=client,
+            checker_vendor="anthropic",
+            assurance=CheckAssurance.CROSS_VENDOR,
+            model="claude",
         )
         assert verdict.supported is False
         assert verdict.refuted is True
@@ -123,8 +132,12 @@ class TestCheckClaim:
     async def test_model_failure_is_could_not_verify_not_a_refutation(self):
         client = _FakeClient(error=RuntimeError("provider down"))
         verdict = await check_claim(
-            "X", "E", client=client, checker_vendor="xai",
-            assurance=CheckAssurance.CROSS_VENDOR, model="grok",
+            "X",
+            "E",
+            client=client,
+            checker_vendor="xai",
+            assurance=CheckAssurance.CROSS_VENDOR,
+            model="grok",
         )
         assert verdict.supported is None  # could not verify
         assert verdict.refuted is False  # a failure is NOT a refutation
@@ -133,12 +146,32 @@ class TestCheckClaim:
     async def test_passes_model_and_fresh_context_prompt_to_client(self):
         client = _FakeClient(reply="SUPPORTED")
         await check_claim(
-            "claim text", "evidence text", client=client, checker_vendor="anthropic",
-            assurance=CheckAssurance.CROSS_VENDOR, model="claude-x",
+            "claim text",
+            "evidence text",
+            client=client,
+            checker_vendor="anthropic",
+            assurance=CheckAssurance.CROSS_VENDOR,
+            model="claude-x",
         )
         call = client.calls[0]
         assert call["model"] == "claude-x"
         assert any("evidence text" in m["content"] for m in call["messages"])
+
+
+async def test_make_grounding_checker_adapts_client_to_absorber_seam():
+    client = _FakeClient(reply="SUPPORTED\nThe evidence states it.")
+    checker = make_grounding_checker(
+        client=client,
+        checker_vendor="anthropic",
+        assurance=CheckAssurance.CROSS_VENDOR,
+        model="claude",
+    )
+
+    verdict = await checker("claim text", "evidence text")
+
+    assert verdict.supported is True
+    assert verdict.checker_vendor == "anthropic"
+    assert client.calls[0]["model"] == "claude"
 
 
 def test_verdict_to_dict_shape():
