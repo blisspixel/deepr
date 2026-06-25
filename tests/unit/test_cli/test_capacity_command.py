@@ -7,12 +7,17 @@ run with no CLI installed and no spend.
 from __future__ import annotations
 
 import json
+from datetime import UTC, datetime
 
 from click.testing import CliRunner
 
+from deepr.backends.capacity import CostModel
+from deepr.backends.quota_ledger import load_quota_events
+from deepr.backends.quota_snapshot import QuotaSnapshot, QuotaWindowSnapshot
 from deepr.cli.commands.capacity import capacity
 
 _CLEAN = ("OPENAI_API_KEY", "CODEX_API_KEY", "CODEX_ACCESS_TOKEN")
+T0 = datetime(2026, 6, 25, 12, tzinfo=UTC)
 
 
 def _clean_env(monkeypatch):
@@ -128,3 +133,111 @@ class TestProbePlan:
         r = CliRunner().invoke(capacity, ["probe-plan", "copilot"], input="n\n")
         assert r.exit_code == 0
         assert "Cancelled" in r.output
+
+
+class TestRefreshQuota:
+    def test_registered(self):
+        assert "refresh-quota" in capacity.commands
+
+    def test_refresh_quota_records_snapshot(self, monkeypatch, tmp_path):
+        monkeypatch.setenv("DEEPR_CAPACITY_DATA_DIR", str(tmp_path))
+
+        def fake(backend):
+            assert backend == "codex"
+            return QuotaSnapshot(
+                backend_id="codex",
+                display_name="Codex",
+                account_id="pro",
+                plan="pro",
+                cost_model=CostModel.ROLLING_WINDOW,
+                windows=(
+                    QuotaWindowSnapshot(
+                        label="5h",
+                        used_fraction=0.25,
+                        unit_name="plan_request",
+                    ),
+                ),
+                as_of=T0,
+            )
+
+        monkeypatch.setattr("deepr.backends.plan_quota.collect_plan_quota_snapshot", fake)
+
+        r = CliRunner().invoke(capacity, ["refresh-quota", "codex"])
+
+        assert r.exit_code == 0, r.output
+        assert "Codex quota snapshot recorded" in r.output
+        events = load_quota_events(tmp_path / "quota_ledger.jsonl")
+        assert len(events) == 1
+        assert events[0].backend_id == "codex"
+        assert events[0].units_remaining is None
+        assert events[0].metadata["headroom_fraction"] == 0.75
+
+    def test_refresh_quota_json_payload(self, monkeypatch, tmp_path):
+        monkeypatch.setenv("DEEPR_CAPACITY_DATA_DIR", str(tmp_path))
+
+        def fake(_backend):
+            return QuotaSnapshot(
+                backend_id="codex",
+                display_name="Codex",
+                account_id="pro",
+                plan="pro",
+                cost_model=CostModel.ROLLING_WINDOW,
+                windows=(QuotaWindowSnapshot(label="weekly", used_fraction=0.9),),
+                as_of=T0,
+            )
+
+        monkeypatch.setattr("deepr.backends.plan_quota.collect_plan_quota_snapshot", fake)
+
+        r = CliRunner().invoke(capacity, ["refresh-quota", "codex", "--json"])
+
+        assert r.exit_code == 0, r.output
+        payload = json.loads(r.output)
+        assert payload["schema_version"] == "deepr-plan-quota-refresh-v1"
+        assert payload["backend"] == "codex"
+        assert payload["binding_window"] == "weekly"
+        assert payload["ledger_event"]["remaining_confidence"] == "vendor_reported"
+
+    def test_refresh_quota_failure_exits_nonzero_and_records_event(self, monkeypatch, tmp_path):
+        monkeypatch.setenv("DEEPR_CAPACITY_DATA_DIR", str(tmp_path))
+
+        def fake(_backend):
+            return QuotaSnapshot(
+                backend_id="codex",
+                display_name="Codex",
+                account_id="unknown",
+                cost_model=CostModel.ROLLING_WINDOW,
+                ok=False,
+                error="no rollout files",
+                as_of=T0,
+            )
+
+        monkeypatch.setattr("deepr.backends.plan_quota.collect_plan_quota_snapshot", fake)
+
+        r = CliRunner().invoke(capacity, ["refresh-quota", "codex"])
+
+        assert r.exit_code == 1
+        assert "no rollout files" in r.output
+        events = load_quota_events(tmp_path / "quota_ledger.jsonl")
+        assert len(events) == 1
+        assert events[0].remaining_confidence.value == "unknown"
+
+    def test_refresh_quota_without_usable_windows_exits_nonzero(self, monkeypatch, tmp_path):
+        monkeypatch.setenv("DEEPR_CAPACITY_DATA_DIR", str(tmp_path))
+
+        def fake(_backend):
+            return QuotaSnapshot(
+                backend_id="codex",
+                display_name="Codex",
+                account_id="pro",
+                cost_model=CostModel.ROLLING_WINDOW,
+                ok=True,
+                windows=(),
+                as_of=T0,
+            )
+
+        monkeypatch.setattr("deepr.backends.plan_quota.collect_plan_quota_snapshot", fake)
+
+        r = CliRunner().invoke(capacity, ["refresh-quota", "codex"])
+
+        assert r.exit_code == 1
+        assert "no usable quota windows reported" in r.output

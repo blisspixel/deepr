@@ -29,6 +29,12 @@ from deepr.backends.plan_quota.fleet import (
     build_fleet_payload,
     build_fleet_status,
 )
+from deepr.backends.plan_quota.quota_probes import (
+    QuotaProbeUnsupportedError,
+    collect_codex_quota_snapshot,
+    collect_plan_quota_snapshot,
+    supported_quota_probe_backends,
+)
 from deepr.backends.plan_quota.safety import (
     AuthMode,
     SafetyDecision,
@@ -45,14 +51,18 @@ __all__ = [
     "PlanQuotaChatClient",
     "PlanQuotaError",
     "PlanQuotaExhausted",
+    "QuotaProbeUnsupportedError",
     "SafetyDecision",
     "all_adapters",
     "auto_routable_adapters",
     "build_fleet_payload",
     "build_fleet_status",
+    "collect_codex_quota_snapshot",
+    "collect_plan_quota_snapshot",
     "detect_auth_mode",
     "evaluate_plan_quota_safety",
     "get_adapter",
     "make_plan_quota_research_fn",
     "probe_plan_quota",
+    "supported_quota_probe_backends",
 ]

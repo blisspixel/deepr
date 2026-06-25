@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.22.0] - 2026-06-25
+
+Codex quota metadata release.
+
+### Added
+- Added a normalized plan-quota snapshot contract for live quota probes. Provider
+  windows now have a pure binding-window/headroom calculation and can be
+  converted into conservative quota-ledger events before any automatic routing
+  trusts them.
+- Added `deepr capacity refresh-quota codex`, a metadata-only `$0` probe that
+  reads Codex local session-log `rate_limits` and records a trusted
+  quota-ledger observation without running a model call.
+
 ## [2.21.0] - 2026-06-25
 
 Handoff assurance and CI refresh release.

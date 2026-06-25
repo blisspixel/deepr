@@ -398,6 +398,72 @@ def capacity_fleet(json_output: bool):
     click.echo("\nauto = waterfall may auto-route; explicit = --plan only; metered = paid per use (off by default)")
 
 
+@capacity.command(name="refresh-quota")
+@click.argument("backend", type=click.Choice(["codex"]))
+@click.option("--json", "json_output", is_flag=True, help="Emit machine-readable JSON.")
+def capacity_refresh_quota(backend: str, json_output: bool):
+    """Refresh trusted plan-quota metadata and record a quota-ledger event.
+
+    Metadata-only and $0: reads a provider quota source such as Codex rollout
+    logs, normalizes the binding window, and writes the local append-only quota
+    ledger. It does not run a model call.
+    """
+    import sys
+
+    from deepr.backends.plan_quota import collect_plan_quota_snapshot
+    from deepr.backends.quota_ledger import QuotaLedger
+    from deepr.backends.quota_snapshot import snapshot_availability, snapshot_to_ledger_event
+
+    snapshot = collect_plan_quota_snapshot(backend)
+    event = QuotaLedger().record_event(snapshot_to_ledger_event(snapshot))
+    availability = snapshot_availability(snapshot, now=event.timestamp)
+    payload = _quota_refresh_payload(snapshot, event, availability)
+    success = snapshot.ok and availability.binding_window is not None
+
+    if json_output:
+        click.echo(_json.dumps(payload, indent=2))
+        if not success:
+            sys.exit(1)
+        return
+
+    if not success:
+        detail = snapshot.error or availability.reason
+        click.echo(f"{snapshot.display_name} quota snapshot unavailable: {detail}")
+        sys.exit(1)
+
+    headroom = _format_headroom(payload["headroom_fraction"])
+    reset = f", reset {payload['reset_at']}" if payload["reset_at"] else ""
+    click.echo(
+        f"{snapshot.display_name} quota snapshot recorded: {payload['binding_window']} binding window, "
+        f"{headroom} headroom{reset}."
+    )
+
+
+def _quota_refresh_payload(snapshot, event, availability) -> dict[str, object]:
+    window = availability.binding_window
+    return {
+        "schema_version": "deepr-plan-quota-refresh-v1",
+        "kind": "deepr.capacity.quota_refresh",
+        "backend": snapshot.backend_id,
+        "display_name": snapshot.display_name,
+        "ok": snapshot.ok,
+        "error": snapshot.error,
+        "account_id": snapshot.account_id,
+        "plan": snapshot.plan,
+        "stale": snapshot.stale,
+        "headroom_fraction": availability.headroom_fraction,
+        "binding_window": window.label if window else None,
+        "reset_at": availability.reset_at.isoformat() if availability.reset_at else None,
+        "ledger_event": event.to_dict(),
+    }
+
+
+def _format_headroom(headroom_fraction: float | None) -> str:
+    if headroom_fraction is None:
+        return "unknown"
+    return f"{headroom_fraction * 100:.1f}%"
+
+
 def _fmt_reset(reset_at_iso: str | None) -> str:
     if not reset_at_iso:
         return "-"
