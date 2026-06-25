@@ -4,7 +4,7 @@ Date: 2026-06-25
 
 ## Alignment Summary
 
-Deepr is aligned around one active product bet: persistent domain experts that keep verified knowledge current without silent spend. The README sells this as research infrastructure and a consultable knowledge role, not another chat window and not generic RAG. Current main is `v2.20.0`: local Ollama is usable for `$0` expert maintenance; explicit plan-quota execution works for `expert sync --plan <id>`, `expert absorb --plan <id>`, and `capacity probe-plan <id>` behind auth-mode and no-surprise-bills gates; durable loop status is observable across CLI, MCP, and web surfaces; OKF import/export is a verified interchange path; hosted MCP has scoped keys, per-key budgets, rate limits, concurrency caps, audit records, smoke checks, registration manifests, and deployment recipes; red-team metrics measure prompt-boundary, MCP read-path, tool-spoofing, and memory trust-floor probes at `$0`.
+Deepr is aligned around one active product bet: persistent domain experts that keep verified knowledge current without silent spend. The README sells this as research infrastructure and a consultable knowledge role, not another chat window and not generic RAG. Current main is `v2.21.0`: local Ollama is usable for `$0` expert maintenance; explicit plan-quota execution works for `expert sync --plan <id>`, `expert absorb --plan <id>`, and `capacity probe-plan <id>` behind auth-mode and no-surprise-bills gates; durable loop status is observable across CLI, MCP, and web surfaces; OKF import/export is a verified interchange path; hosted MCP has scoped keys, per-key budgets, rate limits, concurrency caps, audit records, smoke checks, registration manifests, and deployment recipes; red-team metrics measure prompt-boundary, MCP read-path, tool-spoofing, and memory trust-floor probes at `$0`; expert handoff payloads carry per-claim grounding assurance with verified and cross-vendor verified summary counts.
 
 The latest 2026 external guidance reinforces Deepr's direction: this is agentic harness, context engineering, loop engineering, and harness-first verification work. The useful primitives are durable progress files, tight high-signal context, independent verification, trace/eval loops, typed stop conditions, scoped tools, and explicit spend/security gates. Deepr already has most of the harness substrate: `ExpertLoopRun`, loop-status rollups, context source packs, capacity previews, budget gates, scoped MCP, red-team metrics, and derived handoff contracts. The remaining work is not "more RAG"; it is closing verifier loops and making the scheduled verbs safer and more observable.
 
@@ -235,9 +235,16 @@ contradiction, dedup, and trust-floor gates.
 
 ## Active Gap
 
-The next-version edge is harness hardening, not plain retrieval. Highest-value
-open slices are:
+The next-version edge is harness hardening, not plain retrieval. The dependency
+order is:
 
+- Release and repo hygiene: keep `main`, the package version, README badge,
+  changelog, tag, and GitHub release in agreement before widening scope.
+- Dogfood expert refresh and consultation: validate `deepr capacity`, refresh
+  project-relevant experts through `$0` local/fresh-context or explicit
+  plan-quota capacity, then consult them on README and ROADMAP.
+- Replayable evidence: make source packs content-addressed and memoize
+  claim+source+window verification before broader checker escalation.
 - Maker-checker completion: metered provider-adapter checker construction with
   spend-policy gates, then bounded second-check escalation before holding
   unsupported claims.
@@ -245,12 +252,11 @@ open slices are:
   and identify the calibration/coverage cases that deserve targeted metered
   escalation.
 - Final Phase 4d primitives: conditional GET before retrieval cost, plus the
-  now-advanced `expert sync` verb-lock and jitter wiring.
-- Brittle-rule cleanup: `context_chainer` discourse-marker contradictions,
-  health-check lexical contradiction surface, and shared-store dedup must route
-  to model judgment when they make semantic claims.
-- Semantic belief recall: local-first embedding candidates over belief claims,
-  used only for recall, with the existing epistemic graph still deciding trust.
+  remaining scheduled-verb lock and jitter wiring.
+- Brittle-rule cleanup and semantic recall: remaining lexical verdict surfaces
+  must route to model judgment when they make semantic claims; local-first
+  embedding candidates can improve recall while the epistemic graph still
+  decides trust.
 
 Security breadth remains open too: expert-chat harness coverage, ingestion-path
 corpora beyond built-in canaries, and broader adaptive MCP extraction probing.
@@ -260,12 +266,10 @@ contradiction, dedup, and trust-floor gates.
 
 ## Next Work
 
-Next slice selected and advanced: preserve maker-checker grounding assurance in
-the host-facing handoff contract. `Claim` now carries
-`grounding_assurance`, `Belief.to_claim()` preserves the value from structured
-belief state, and `deepr-expert-handoff-v1` reports per-claim assurance plus
-summary counts for verified and cross-vendor verified claims. This keeps the
-verifier signal visible to downstream agents before bounded escalation starts.
+Next slice: finish v2.21.0 release hygiene, clean stale dependency branches
+after their intended updates are on `main`, then validate the project-expert
+refresh and consultation path using free/local capacity or explicit plan-quota
+capacity only.
 
 ## Spend Ledger For This Run
 
