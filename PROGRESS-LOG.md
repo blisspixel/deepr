@@ -1,5 +1,14 @@
 # Progress Log
 
+## 2026-06-25 - Release and branch cleanup
+
+- Applied the two intended Dependabot GitHub Actions updates directly on current `main`: `actions/checkout@v7.0.0` and `astral-sh/setup-uv@v8.2.0`, without pulling in the stale branch diffs that would have reverted recent project work.
+- Bumped the project release truth to `2.21.0` in package metadata, runtime version, README badge, roadmap current-status label, and changelog.
+- Corrected runtime author metadata to `Nick Seal` while keeping `blisspixel/deepr` as the GitHub repository identity.
+- Refreshed ROADMAP's next work into dependency order: release hygiene, dogfood expert refresh and consultation, replayable evidence, maker-checker escalation, local-vs-frontier A/B, fleet finishers, then semantic correctness gaps.
+- Next validation target: local hygiene gates, push to `main`, delete the stale Dependabot branches once main contains their intended updates, then create the GitHub release after CI is green.
+- Spend this run: `$0.00`. No provider APIs, embeddings, paid evals, or cloud resources were used.
+
 ## 2026-06-25 - Handoff grounding assurance contract
 
 - Re-read README, ROADMAP, CONTRIBUTING, AGENTIC_BALANCE, current state, progress memory, supported-surface docs, and the relevant maker-checker, absorber, belief, claim, handoff, MCP, and schema code.
