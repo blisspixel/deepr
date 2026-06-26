@@ -3,6 +3,34 @@
 Working log only. Keep the latest five cycles plus the active cycle here; older
 completed milestones are summarized in `docs/CHANGELOG.md`.
 
+## 2026-06-26 - Cycle 6 - Metacognitive monitor proposals
+
+- Added `deepr-metacognitive-monitor-v1`, a read-only monitor artifact that
+  converts self-model blockers, calibration risks, failed loop runs, capacity
+  waits, and sanitized consult trace candidates into `review_required`
+  proposals.
+- Added `deepr expert monitor NAME` with `--json`, `--limit`,
+  `--max-proposals`, and optional `--trace-path`.
+- Kept the monitor non-mutating: proposals do not apply goal, strategy, gap,
+  eval, prompt, tool, or skill changes.
+- Added expert-specific consult trace filtering for monitor input.
+- Published and registered `docs/schemas/metacognitive-monitor-v1.json`.
+- Fixed Windows malformed UNC-like path normalization discovered during full
+  validation, so drive-less forms such as `\\0` normalize to the current drive
+  root instead of a non-absolute `WindowsPath('//0')`.
+- Updated README, roadmap, expert docs, features, supported surface, schema
+  docs, changelog, current-state analysis, and quality rubric to mark the
+  monitor proposal artifact as shipped while keeping promotion and self-model
+  updates gated.
+- Validation passed: 30 focused monitor, CLI, and schema tests; focused path
+  property regression tests; `ruff check src/deepr/`; `ruff format
+  --check src/deepr/`; strict mypy gate for `core/providers/mcp`; docs
+  consistency; file-size ratchet; complexity/security ratchets; full unit suite
+  `6711 passed, 8 skipped`, branch coverage `83.02%`.
+- Maker-checker target score: correctness 5/5, security 5/5, performance 5/5,
+  maintainability 5/5, simplicity 5/5, testability 5/5.
+- Spend: `$0.00`.
+
 ## 2026-06-26 - Cycle 5 - Sync self-model run context
 
 - Added one shared compact self-model context builder and refactored council
@@ -85,28 +113,6 @@ Cycle health: 5/5 | Simplicity: 5/5 | Est. spend: $0.00 | New skill distilled: l
   `core/providers/mcp`; docs consistency; file-size ratchet;
   complexity/security ratchets; full unit suite
   `6688 passed, 8 skipped`, branch coverage `82.96%`.
-- Maker-checker score: correctness 5/5, security 5/5, performance 5/5,
-  maintainability 5/5, simplicity 5/5, testability 5/5.
-- Spend: `$0.00`.
-
-## 2026-06-26 - Cycle 1 - Persisted consult traces
-
-- Startup gate passed: `README.md` and `ROADMAP.md` are present and non-empty;
-  no architecture-from-scratch change or HITL architecture review is required.
-- Re-read the active roadmap edge, consult docs, schema conventions, and relevant
-  consult/MCP/eval code. The next atomic task is the Level 5 consult trace and
-  semantic quality flywheel.
-- Added `deepr-consult-trace-v1` as a local append-only consult trace record.
-  CLI and MCP consults now record the question, requested experts, selected
-  context metadata, capacity posture, output artifact, checks run, and synthesis
-  failure events.
-- Extended `deepr eval consult` with a `$0` consult trace contract case.
-- Published and registered `docs/schemas/consult-trace-v1.json`.
-- Validation passed: 42 focused consult/schema tests; `ruff check src/deepr/`;
-  `ruff format --check src/deepr/`; strict mypy gate for
-  `core/providers/mcp`; docs consistency; file-size ratchet;
-  complexity/security ratchets; full unit suite
-  `6682 passed, 8 skipped`, branch coverage `82.97%`.
 - Maker-checker score: correctness 5/5, security 5/5, performance 5/5,
   maintainability 5/5, simplicity 5/5, testability 5/5.
 - Spend: `$0.00`.

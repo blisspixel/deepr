@@ -19,6 +19,7 @@ All v1 schemas are additive within the same schema version:
 |---|---|---|
 | `deepr-expert-handoff-v1` | [expert-handoff-v1.json](expert-handoff-v1.json) | Bounded read-only expert handoff payload for MCP and web consumers |
 | `deepr-expert-self-model-v1` | [expert-self-model-v1.json](expert-self-model-v1.json) | Read-only expert capabilities, limits, goals, calibration, risks, and current-focus packet |
+| `deepr-metacognitive-monitor-v1` | [metacognitive-monitor-v1.json](metacognitive-monitor-v1.json) | Read-only reviewed proposals from self-model, loop-run, and consult-trace evidence |
 | `deepr-loop-status-v1` | [loop-status-v1.json](loop-status-v1.json) | Durable loop status rollup and embedded `ExpertLoopRun` records with optional run context |
 | `deepr-okf-profile-v1` | [okf-profile-v1.json](okf-profile-v1.json) | Mapping from Deepr structured expert state to regenerated OKF Markdown bundles |
 | `deepr-mcp-remote-audit-v1` | [mcp-remote-audit-v1.json](mcp-remote-audit-v1.json) | Append-only scoped-key remote MCP tool-call audit events |
