@@ -123,7 +123,7 @@ Results are saved under the configured reports root, defaulting to
 | API-backed research | Works with provider keys, preflight estimates, budget ceilings, and append-only cost settlement | [docs/FEATURES.md](docs/FEATURES.md), [docs/MODELS.md](docs/MODELS.md) |
 | Local expert maintenance | Works through Ollama for local expert setup, absorb, sync, fresh/deep local context, eval, and scored admission | [docs/CAPACITY.md](docs/CAPACITY.md) |
 | Explicit plan-quota execution | Works for selected expert sync, absorb, learn, consult, and probe commands behind auth-mode and no-surprise-bills checks | [docs/CAPACITY.md](docs/CAPACITY.md), [docs/design/plan-quota-cli-backends.md](docs/design/plan-quota-cli-backends.md) |
-| Domain experts | Works for expert creation, chat, consult, beliefs, gaps, loop status, OKF export/import, self-model reads, monitor proposals, and reviewed monitor promotion | [docs/EXPERTS.md](docs/EXPERTS.md) |
+| Domain experts | Works for expert creation, chat, consult, beliefs, gaps, loop status, OKF export/import, self-model reads, monitor proposals, reviewed monitor promotion, and self-model update review and acceptance records | [docs/EXPERTS.md](docs/EXPERTS.md) |
 | MCP | Works for local stdio and experimental HTTP/SSE with scoped keys, budgets, rate limits, audit logs, smoke checks, and registration manifests | [mcp/README.md](mcp/README.md) |
 | Web dashboard | Experimental but usable for reports, experts, costs, model views, and loop status | [docs/FEATURES.md](docs/FEATURES.md) |
 
@@ -154,6 +154,8 @@ deepr expert consult "What should our agentic harness improve next?" --local
 deepr expert self-model "AI Policy Expert" --json
 deepr expert monitor "AI Policy Expert" --json
 deepr expert promote-monitor "AI Policy Expert" meta_abc123 --target gap --apply
+deepr expert propose-self-model "AI Policy Expert" meta_def456 --json
+deepr expert accept-self-model "AI Policy Expert" ./data/self_model_updates/ai-policy/self_model_update_meta_def456_20260626_120000000000.json --outcome-evidence loop_run:loop_123 --reviewer operator --json
 deepr expert loop-status "AI Policy Expert" --json
 deepr expert export-okf "AI Policy Expert" ./okf/ai-policy
 ```
@@ -205,9 +207,10 @@ Deepr deliberately separates workflow control from model judgment.
   gap selection, and narrative quality.
 - Cheap lexical or structural checks may route work, but they must not conclude
   semantic truth.
-- Self-model updates must be proposals with evidence, verifier results, and
-  explicit promotion gates. They do not grant new authority.
-- The research-processing compiler should have deterministic source snapshots,
+- Self-model updates must be proposals with evidence, verifier results,
+  accepted-record gates, and explicit outcome evidence before they affect a
+  learning transaction. They do not grant new authority.
+- The research-processing compiler starts with deterministic source snapshots,
   content hashes, prompt/schema versions, and one commit point, while leaving
   claim extraction and semantic edges to calibrated model judgment.
 

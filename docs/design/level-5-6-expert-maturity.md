@@ -190,6 +190,15 @@ strategies."
   to write a verifier-gated self-model update review record. It gates proposal
   type, target path, evidence refs, zero cost, human review, no derived
   self-model mutation, and no authority expansion.
+- `deepr expert accept-self-model` previews by default and requires `--apply`
+  to write a separate acceptance record. Acceptance requires explicit outcome
+  evidence, a reviewer, the original verifier-gated record, zero cost, no
+  derived self-model mutation, and no authority expansion. Accepted records are
+  attached to later sync loop-run context as read-only guidance only.
+- Context-bearing sync now writes a companion `deepr-source-pack-manifest-v1`
+  artifact for each source pack. This is the first research-processing compiler
+  stage: deterministic provenance, hash, count, and readiness metadata with no
+  model call and no semantic verdict.
 - Beliefs already carry confidence, provenance, typed edges, event history,
   contradiction handling, and trust floors.
 - Handoff payloads expose bounded context packets instead of dumping whole
@@ -202,10 +211,12 @@ strategies."
 
 - Consult traces need to be first-class records, not only returned payloads.
 - Failed consults need to become durable eval cases or gap-fill tasks.
-- The research-processing compiler needs to make source pack to belief graph to
-  digest regeneration explicit and replayable.
-- Source packs need content hashes, prompt/model versions, retrieval metadata,
-  and verification outcomes so improvements can be replayed.
+- The research-processing compiler still needs source-note, atomic-claim,
+  graph-edge, contradiction-agenda, and digest-regeneration stages to be
+  explicit and replayable.
+- Source packs now have deterministic manifests; later compiler stages still
+  need prompt/model versions, normalized evidence windows, and verification
+  outcomes so improvements can be replayed.
 - Local and plan capacity need enough measured quality data to be trusted for
   unattended expert maintenance.
 - Each expert needs a first-class self-model record: capabilities,
@@ -214,10 +225,11 @@ strategies."
 - The consult flow needs a global-workspace packet: selected beliefs, selected
   gaps, active contradictions, current goal, and allowed tools for the next
   step.
-- Reviewed monitor proposal promotion exists for gap/eval creation, and
-  verifier-gated self-model update records now exist as review artifacts. The
-  remaining gap is connecting accepted records to the learning transaction only
-  after measured outcome evidence and policy checks are explicit.
+- Reviewed monitor proposal promotion exists for gap/eval creation,
+  verifier-gated self-model update records exist as review artifacts, and
+  accepted self-model update records now enter sync loop-run context as
+  read-only guidance. The remaining gap is making any concrete learning-policy
+  effect require measured before/after evidence.
 
 ## Level 6 Gaps
 
@@ -225,9 +237,10 @@ strategies."
 - Prompt, tool-description, and skill changes need a proposal format with the
   changed component, supporting trace evidence, predicted measurable effect,
   and before/after eval evidence.
-- Self-model changes now have a review-record proposal and structural
-  verifier. The next Level 6 work is proving a measured outcome before any
-  accepted record changes default learning policy or harness behavior.
+- Self-model changes now have a review-record proposal, structural verifier,
+  outcome-evidence acceptance gate, and read-only learning-transaction context.
+  The next Level 6 work is proving a measured outcome before any accepted
+  record changes default learning policy or harness behavior.
 - Skill self-improvement needs sandbox execution, size limits, human review,
   and rollback.
 - Multi-expert review should critique proposed changes, but never bypass

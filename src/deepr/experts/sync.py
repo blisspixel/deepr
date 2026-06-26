@@ -232,6 +232,7 @@ class SyncOutcome:
     flagged: int = 0
     detail: str = ""
     source_pack_artifact: str = ""
+    source_pack_manifest_artifact: str = ""
     source_count: int = 0
     context_mode: str = ""
 
@@ -244,6 +245,7 @@ class SyncOutcome:
             "flagged": self.flagged,
             "detail": self.detail,
             "source_pack_artifact": self.source_pack_artifact,
+            "source_pack_manifest_artifact": self.source_pack_manifest_artifact,
             "source_count": self.source_count,
             "context_mode": self.context_mode,
         }
@@ -414,7 +416,7 @@ class ExpertSyncEngine:
         cost = float(research.get("cost", 0.0) or 0.0)
         answer = (research.get("answer") or "").strip()
         current_pack = _source_pack_from_research(research)
-        source_pack_path, source_count, context_mode = self._persist_source_pack(
+        source_pack_path, source_pack_manifest_path, source_count, context_mode = self._persist_source_pack(
             subscription,
             current_pack,
             started_at,
@@ -438,7 +440,9 @@ class ExpertSyncEngine:
                 cost,
                 detail="fresh context returned no sources",
             )
-            self._attach_source_pack_summary(outcome, source_pack_path, source_count, context_mode)
+            self._attach_source_pack_summary(
+                outcome, source_pack_path, source_pack_manifest_path, source_count, context_mode
+            )
             return outcome, cost
 
         if fresh_sources_unchanged(prior_pack, current_pack):
@@ -447,16 +451,22 @@ class ExpertSyncEngine:
                 cost,
                 detail="sources unchanged since last sync",
             )
-            self._attach_source_pack_summary(outcome, source_pack_path, source_count, context_mode)
+            self._attach_source_pack_summary(
+                outcome, source_pack_path, source_pack_manifest_path, source_count, context_mode
+            )
             return outcome, cost
 
         if not answer or _is_no_changes_answer(answer):
             outcome = self._record_no_changes(subscription, cost)
-            self._attach_source_pack_summary(outcome, source_pack_path, source_count, context_mode)
+            self._attach_source_pack_summary(
+                outcome, source_pack_path, source_pack_manifest_path, source_count, context_mode
+            )
             return outcome, cost
 
         outcome = await self._absorb_sync_answer(subscription, answer, cost=cost, started_at=started_at)
-        self._attach_source_pack_summary(outcome, source_pack_path, source_count, context_mode)
+        self._attach_source_pack_summary(
+            outcome, source_pack_path, source_pack_manifest_path, source_count, context_mode
+        )
         return outcome, cost
 
     def _persist_source_pack(
@@ -464,17 +474,17 @@ class ExpertSyncEngine:
         subscription: Subscription,
         source_pack: dict[str, Any] | None,
         started_at: datetime,
-    ) -> tuple[str | None, int, str]:
+    ) -> tuple[str | None, str, int, str]:
         if source_pack is None:
-            return "", 0, ""
+            return "", "", 0, ""
 
         source_count, context_mode = _source_pack_summary(source_pack)
         try:
-            path = self._write_source_pack_artifact(subscription, source_pack, started_at)
+            path, manifest_path = self._write_source_pack_artifact(subscription, source_pack, started_at)
         except OSError as exc:
             logger.error("Could not write source pack for %s: %s", subscription.topic, exc)
-            return None, source_count, context_mode
-        return path, source_count, context_mode
+            return None, "", source_count, context_mode
+        return path, manifest_path, source_count, context_mode
 
     def _load_latest_source_pack(self, subscription: Subscription) -> dict[str, Any] | None:
         """Most recent persisted source pack for this topic, or None.
@@ -503,12 +513,17 @@ class ExpertSyncEngine:
         subscription: Subscription,
         source_pack: dict[str, Any],
         started_at: datetime,
-    ) -> str:
+    ) -> tuple[str, str]:
+        from deepr.experts.source_pack_compiler import build_source_pack_manifest
+
         root = self.subscriptions.path.parent
         artifact_dir = root / "sync_artifacts" / "source_packs"
+        manifest_dir = root / "sync_artifacts" / "source_pack_manifests"
         artifact_dir.mkdir(parents=True, exist_ok=True)
+        manifest_dir.mkdir(parents=True, exist_ok=True)
         timestamp = started_at.strftime("%Y%m%dT%H%M%S%fZ")
         path = artifact_dir / f"{timestamp}_{_slug(subscription.topic)}.json"
+        manifest_path = manifest_dir / f"{timestamp}_{_slug(subscription.topic)}.json"
         payload = {
             "schema_version": "deepr.sync_source_pack.v1",
             "expert_name": self.expert.name,
@@ -518,16 +533,21 @@ class ExpertSyncEngine:
             "source_pack": source_pack,
         }
         atomic_write_json(path, payload)
-        return path.relative_to(root).as_posix()
+        relative_path = path.relative_to(root).as_posix()
+        manifest = build_source_pack_manifest(payload, source_pack_artifact=relative_path)
+        atomic_write_json(manifest_path, manifest)
+        return relative_path, manifest_path.relative_to(root).as_posix()
 
     @staticmethod
     def _attach_source_pack_summary(
         outcome: SyncOutcome,
         artifact_path: str,
+        manifest_artifact_path: str,
         source_count: int,
         context_mode: str,
     ) -> None:
         outcome.source_pack_artifact = artifact_path
+        outcome.source_pack_manifest_artifact = manifest_artifact_path
         outcome.source_count = source_count
         outcome.context_mode = context_mode
 

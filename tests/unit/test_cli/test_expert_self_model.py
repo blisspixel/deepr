@@ -9,6 +9,7 @@ from unittest.mock import MagicMock, patch
 from click.testing import CliRunner
 
 from deepr.cli.commands.semantic.expert_self_model import (
+    expert_accept_self_model,
     expert_monitor,
     expert_promote_monitor,
     expert_propose_self_model,
@@ -70,6 +71,13 @@ def test_propose_self_model_registered_in_expert_help():
 
     assert result.exit_code == 0
     assert "self-model update record" in result.output.lower()
+
+
+def test_accept_self_model_registered_in_expert_help():
+    result = CliRunner().invoke(cli, ["expert", "accept-self-model", "--help"])
+
+    assert result.exit_code == 0
+    assert "acceptance for a self-model update record" in result.output.lower()
 
 
 def test_self_model_json_output():
@@ -269,3 +277,57 @@ def test_propose_self_model_json_output(monkeypatch):
     assert captured["proposal_id"] == "meta_self"
     assert captured["kwargs"]["apply"] is True
     assert captured["kwargs"]["output_dir"].as_posix() == "data/self_model_updates"
+
+
+def test_accept_self_model_json_output(monkeypatch, tmp_path):
+    profile = _profile()
+    captured = {}
+    record_path = tmp_path / "record.json"
+    payload = {
+        "schema_version": "deepr-expert-self-model-update-acceptance-v1",
+        "kind": "deepr.expert.self_model_update_acceptance",
+        "expert_name": profile.name,
+        "proposal_id": "meta_self",
+        "proposal_type": "self_model_review",
+        "target": "self_model.blocked_capabilities",
+        "applied": True,
+        "status": "accepted",
+        "accepted_update": {
+            "title": "Review blockers",
+            "update_kind": "review_blockers_and_risks",
+            "expected_effect": "Clarify next action.",
+        },
+        "policy_gate": {"status": "passed", "checks": []},
+        "review": {"reviewer": "operator", "outcome_evidence_refs": ["loop_run:loop_123"]},
+        "actions": [],
+    }
+
+    def fake_accept(path, **kwargs):
+        captured["path"] = path
+        captured["kwargs"] = kwargs
+        return payload
+
+    monkeypatch.setattr("deepr.experts.self_model_updates.accept_self_model_update_record", fake_accept)
+
+    with _patch_store(profile):
+        result = CliRunner().invoke(
+            expert_accept_self_model,
+            [
+                profile.name,
+                str(record_path),
+                "--outcome-evidence",
+                "loop_run:loop_123",
+                "--reviewer",
+                "operator",
+                "--apply",
+                "--json",
+            ],
+        )
+
+    assert result.exit_code == 0, result.output
+    assert json.loads(result.output)["kind"] == "deepr.expert.self_model_update_acceptance"
+    assert captured["path"] == record_path
+    assert captured["kwargs"]["expert_name"] == profile.name
+    assert captured["kwargs"]["outcome_evidence_refs"] == ["loop_run:loop_123"]
+    assert captured["kwargs"]["reviewer"] == "operator"
+    assert captured["kwargs"]["apply"] is True

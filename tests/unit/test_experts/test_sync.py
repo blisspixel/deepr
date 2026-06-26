@@ -336,6 +336,19 @@ class TestSyncEngine:
         assert data["schema_version"] == "deepr.sync_source_pack.v1"
         assert data["topic"] == "Topic X"
         assert data["source_pack"]["sources"][0]["url"] == "https://example.com/release"
+        manifest_path = tmp_path / "knowledge" / outcome.source_pack_manifest_artifact
+        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+        assert manifest["schema_version"] == "deepr-source-pack-manifest-v1"
+        assert manifest["kind"] == "deepr.expert.source_pack_manifest"
+        assert manifest["contract"]["semantic_judgment"] is False
+        assert manifest["source_pack"]["artifact_path"] == outcome.source_pack_artifact
+        assert manifest["manifest"]["source_entry_count"] == 1
+        assert manifest["manifest"]["valid_content_hash_count"] == 0
+        assert manifest["manifest"]["missing_content_hash_count"] == 1
+        assert manifest["manifest"]["invalid_content_hash_count"] == 0
+        assert manifest["manifest"]["ready_for_semantic_compile"] is False
+        assert manifest["sources"][0]["url"] == "https://example.com/release"
+        assert manifest["sources"][0]["excerpt_hash"]
 
     @pytest.mark.asyncio
     async def test_source_pack_write_failure_blocks_absorb(self, tmp_path, monkeypatch):

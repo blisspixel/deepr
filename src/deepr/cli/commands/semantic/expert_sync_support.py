@@ -33,7 +33,13 @@ def _self_model_context(expert_name: str, *, profile: Any | None = None) -> dict
 
 def _self_model_run_context(expert_name: str, *, profile: Any | None = None) -> dict[str, Any]:
     self_model = _self_model_context(expert_name, profile=profile)
-    return {"self_model": self_model} if self_model else {}
+    context = {"self_model": self_model} if self_model else {}
+    from deepr.experts.self_model_updates import build_self_model_update_context
+
+    update_context = build_self_model_update_context(expert_name)
+    if update_context.get("accepted_record_count"):
+        context["self_model_updates"] = update_context
+    return context
 
 
 def _sync_context_mode(*, fresh_context: bool, deep_context: bool) -> str:
