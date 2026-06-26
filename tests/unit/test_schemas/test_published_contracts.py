@@ -47,9 +47,12 @@ from deepr.cli.output import (
 )
 from deepr.core.contracts import Claim, ExpertManifest
 from deepr.experts.consult_traces import (
+    CONSULT_TRACE_CANDIDATES_KIND,
+    CONSULT_TRACE_CANDIDATES_SCHEMA_VERSION,
     CONSULT_TRACE_KIND,
     CONSULT_TRACE_SCHEMA_VERSION,
     build_consult_trace,
+    build_consult_trace_candidates,
 )
 from deepr.experts.handoff import build_expert_handoff
 from deepr.experts.loop_runs import ExpertLoopRun, ExpertLoopRunStore, LoopRunStatus, LoopStopReason
@@ -347,6 +350,25 @@ def test_consult_trace_schema_validates_runtime_payload():
     assert payload["schema_version"] == CONSULT_TRACE_SCHEMA_VERSION
     assert payload["kind"] == CONSULT_TRACE_KIND
     assert payload["events"][-1]["name"] == "synthesis_finished"
+
+
+def test_consult_trace_candidates_schema_validates_runtime_payload():
+    trace = build_consult_trace(
+        question="What should the expert loop improve next?",
+        requested_experts=["AI Agent Harnesses"],
+        max_experts=3,
+        budget=0.0,
+        failure={"stage": "run_consult", "error_type": "RuntimeError", "message": "boom"},
+        trace_id="consult_abcdef123456",
+        recorded_at=datetime(2026, 6, 26, 12, 0, tzinfo=UTC),
+    )
+    payload = build_consult_trace_candidates([trace])
+    schema = _load_schema("consult-trace-candidates-v1.json")
+
+    _validate(schema, payload)
+    assert payload["schema_version"] == CONSULT_TRACE_CANDIDATES_SCHEMA_VERSION
+    assert payload["kind"] == CONSULT_TRACE_CANDIDATES_KIND
+    assert payload["candidates"][0]["eval_case"]["source_trace_id"] == "consult_abcdef123456"
 
 
 def test_capacity_next_schema_validates_runtime_payload():

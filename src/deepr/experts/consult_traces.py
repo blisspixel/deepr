@@ -9,6 +9,7 @@ events. These records are append-only and local to the operator's data root.
 from __future__ import annotations
 
 import hashlib
+import json
 import os
 import uuid
 from datetime import UTC, datetime
@@ -16,10 +17,14 @@ from pathlib import Path
 from typing import Any
 
 from deepr.config import default_data_dir
+from deepr.core.contracts import Gap
+from deepr.experts.gap_scorer import score_gap
 from deepr.utils.atomic_io import append_jsonl_durable
 
 CONSULT_TRACE_SCHEMA_VERSION = "deepr-consult-trace-v1"
 CONSULT_TRACE_KIND = "deepr.expert.consult_trace"
+CONSULT_TRACE_CANDIDATES_SCHEMA_VERSION = "deepr-consult-trace-candidates-v1"
+CONSULT_TRACE_CANDIDATES_KIND = "deepr.expert.consult_trace_candidates"
 
 
 def _utc_now() -> datetime:
@@ -28,6 +33,13 @@ def _utc_now() -> datetime:
 
 def _sha256(value: str) -> str:
     return hashlib.sha256(value.encode("utf-8")).hexdigest()
+
+
+def _preview(value: str, *, limit: int = 160) -> str:
+    cleaned = " ".join(value.split())
+    if len(cleaned) <= limit:
+        return cleaned
+    return cleaned[: limit - 3].rstrip() + "..."
 
 
 def _trace_path(path: Path | None = None) -> Path:
@@ -133,7 +145,7 @@ def _checks(
                 "detail": "api synthesis backend may use metered fallback under budget",
             }
         )
-    context_count = len(_perspective_contexts(payload))
+    context_count = sum(1 for item in _perspective_contexts(payload) if item["context"])
     checks.append(
         {
             "name": "perspective_context_packet",
@@ -248,3 +260,181 @@ def record_consult_trace(*, path: Path | None = None, **kwargs: Any) -> dict[str
     record = build_consult_trace(**kwargs)
     append_jsonl_durable(_trace_path(path), record, fsync=True)
     return public_trace_ref(record)
+
+
+def load_consult_traces(*, path: Path | None = None, limit: int = 50) -> list[dict[str, Any]]:
+    """Load the newest consult traces from the local JSONL trace store."""
+    resolved = _trace_path(path)
+    if limit <= 0 or not resolved.exists():
+        return []
+
+    records: list[dict[str, Any]] = []
+    with resolved.open(encoding="utf-8") as f:
+        for line in f:
+            stripped = line.strip()
+            if not stripped:
+                continue
+            try:
+                parsed = json.loads(stripped)
+            except json.JSONDecodeError:
+                continue
+            if isinstance(parsed, dict):
+                records.append(parsed)
+    return records[-limit:]
+
+
+def _check_names_by_status(trace: dict[str, Any], statuses: set[str]) -> list[str]:
+    names: list[str] = []
+    for check in trace.get("checks", []) or []:
+        if not isinstance(check, dict):
+            continue
+        if str(check.get("status", "")) in statuses:
+            names.append(str(check.get("name", "")))
+    return [name for name in names if name]
+
+
+def _selected_context_count(trace: dict[str, Any]) -> int:
+    packet = trace.get("context_packet", {})
+    selected = packet.get("selected", []) if isinstance(packet, dict) else []
+    if not isinstance(selected, list):
+        return 0
+    return sum(1 for item in selected if isinstance(item, dict) and bool(item.get("context")))
+
+
+def _candidate_reason(trace: dict[str, Any], *, low_context_threshold: int) -> tuple[str, int] | None:
+    if trace.get("status") == "failed":
+        return "failed_consult", 5
+
+    failed_checks = _check_names_by_status(trace, {"failed"})
+    if failed_checks:
+        return "failed_check", 4
+
+    if _selected_context_count(trace) < low_context_threshold:
+        return "low_context", 3
+
+    return None
+
+
+def _gap_for_trace(trace: dict[str, Any], reason: str, priority: int) -> Gap:
+    question = str((trace.get("input") or {}).get("question", ""))
+    label = {
+        "failed_consult": "Consult failed",
+        "failed_check": "Consult trace check failed",
+        "low_context": "Consult lacked selected context",
+    }[reason]
+    gap = Gap.create(
+        f"{label}: {_preview(question, limit=120)}",
+        questions=[question] if question else [],
+        priority=priority,
+        times_asked=1,
+    )
+    return score_gap(gap)
+
+
+def _eval_case_for_trace(trace: dict[str, Any], reason: str) -> dict[str, Any]:
+    input_block = trace.get("input") if isinstance(trace.get("input"), dict) else {}
+    question = str(input_block.get("question", ""))
+    return {
+        "case_id": f"{trace.get('trace_id', 'consult_unknown')}_{reason}",
+        "category": "consult_trace_regression",
+        "source_trace_id": str(trace.get("trace_id", "")),
+        "input": {
+            "question_hash": str(input_block.get("question_hash", _sha256(question))),
+            "question_preview": _preview(question),
+        },
+        "expected_failure_mode": reason,
+        "acceptance_check": "future consult run should avoid this structural failure",
+    }
+
+
+def _candidate_for_trace(
+    trace: dict[str, Any],
+    *,
+    reason: str,
+    priority: int,
+) -> dict[str, Any]:
+    gap = _gap_for_trace(trace, reason, priority)
+    input_block = trace.get("input") if isinstance(trace.get("input"), dict) else {}
+    return {
+        "trace_id": str(trace.get("trace_id", "")),
+        "recorded_at": str(trace.get("recorded_at", "")),
+        "reason": reason,
+        "severity": priority,
+        "question_hash": str(input_block.get("question_hash", "")),
+        "question_preview": _preview(str(input_block.get("question", ""))),
+        "failed_checks": _check_names_by_status(trace, {"failed"}),
+        "warning_checks": _check_names_by_status(trace, {"warning"}),
+        "selected_context_count": _selected_context_count(trace),
+        "gap": gap.to_dict(),
+        "eval_case": _eval_case_for_trace(trace, reason),
+    }
+
+
+def build_consult_trace_candidates(
+    traces: list[dict[str, Any]],
+    *,
+    max_candidates: int = 20,
+    low_context_threshold: int = 1,
+) -> dict[str, Any]:
+    """Build sanitized gap and eval candidates from local consult traces."""
+    max_candidates = max(0, max_candidates)
+    low_context_threshold = max(0, low_context_threshold)
+    candidates: list[dict[str, Any]] = []
+    failed_trace_count = 0
+    failed_check_count = 0
+    low_context_count = 0
+    seen_trace_ids: set[str] = set()
+
+    for trace in traces:
+        trace_id = str(trace.get("trace_id", ""))
+        if trace_id in seen_trace_ids:
+            continue
+        seen_trace_ids.add(trace_id)
+        reason = _candidate_reason(trace, low_context_threshold=low_context_threshold)
+        if reason is None:
+            continue
+        reason_name, priority = reason
+        if reason_name == "failed_consult":
+            failed_trace_count += 1
+        if reason_name == "failed_check":
+            failed_check_count += 1
+        if reason_name == "low_context":
+            low_context_count += 1
+        candidates.append(_candidate_for_trace(trace, reason=reason_name, priority=priority))
+
+    candidates = sorted(
+        candidates,
+        key=lambda item: (int(item["severity"]), str(item["recorded_at"])),
+        reverse=True,
+    )[:max_candidates]
+    return {
+        "schema_version": CONSULT_TRACE_CANDIDATES_SCHEMA_VERSION,
+        "kind": CONSULT_TRACE_CANDIDATES_KIND,
+        "contract": {
+            "read_only": True,
+            "cost_usd": 0.0,
+            "stability": "experimental",
+            "path_exposed": False,
+        },
+        "trace_count": len(traces),
+        "candidate_count": len(candidates),
+        "failed_trace_count": failed_trace_count,
+        "failed_check_count": failed_check_count,
+        "low_context_trace_count": low_context_count,
+        "candidates": candidates,
+    }
+
+
+def review_consult_traces(
+    *,
+    path: Path | None = None,
+    limit: int = 50,
+    max_candidates: int = 20,
+    low_context_threshold: int = 1,
+) -> dict[str, Any]:
+    """Load local traces and return sanitized gap and eval candidates."""
+    return build_consult_trace_candidates(
+        load_consult_traces(path=path, limit=limit),
+        max_candidates=max_candidates,
+        low_context_threshold=low_context_threshold,
+    )

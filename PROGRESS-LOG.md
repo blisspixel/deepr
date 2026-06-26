@@ -3,6 +3,25 @@
 Working log only. Keep the latest five cycles plus the active cycle here; older
 completed milestones are summarized in `docs/CHANGELOG.md`.
 
+## 2026-06-26 - Cycle 2 - Consult trace candidate review
+
+- Added sanitized `deepr-consult-trace-candidates-v1` review for failed or
+  low-context consult traces.
+- Added `deepr expert consult-traces` as a read-only local review command. The
+  JSON payload includes trace ids, question hashes/previews, failed/warning
+  checks, gap candidates, and eval-case candidates, without local trace file
+  paths or raw trace payloads.
+- Extended `deepr eval consult` with a `$0` candidate contract case.
+- Published and registered `docs/schemas/consult-trace-candidates-v1.json`.
+- Validation passed: 12 focused trace-candidate tests; `ruff check src/deepr/`;
+  `ruff format --check src/deepr/`; strict mypy gate for
+  `core/providers/mcp`; docs consistency; file-size ratchet;
+  complexity/security ratchets; full unit suite
+  `6688 passed, 8 skipped`, branch coverage `82.96%`.
+- Maker-checker score: correctness 5/5, security 5/5, performance 5/5,
+  maintainability 5/5, simplicity 5/5, testability 5/5.
+- Spend: `$0.00`.
+
 ## 2026-06-26 - Cycle 1 - Persisted consult traces
 
 - Startup gate passed: `README.md` and `ROADMAP.md` are present and non-empty;
@@ -66,16 +85,4 @@ Cycle health: 5/5 | Simplicity: 5/5 | Est. spend: $0.00 | New skill distilled: n
   lexical stripper was added.
 - Raised consult auto-fan-out to 10 with a relevance floor and fixed Claude
   plan synthesis on Windows by moving prompts to stdin.
-- Spend: `$0.00`.
-
-## 2026-06-25 - Research processing compiler groundwork
-
-- Reframed expert improvement as compiler-like processing: source packs become
-  source notes, atomic beliefs, typed temporal edges, contradiction and gap
-  agendas, and regenerated views.
-- Fixed scalar evidence normalization so one model-returned evidence string is
-  preserved as one excerpt rather than split into character refs.
-- Added report provenance to belief creation events and auto-related graph edges.
-- Validation: 65 focused absorber, trust-floor, typed-edge, and explain-belief
-  tests.
 - Spend: `$0.00`.

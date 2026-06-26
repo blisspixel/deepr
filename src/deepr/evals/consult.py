@@ -16,7 +16,7 @@ from typing import Any
 
 from deepr.experts.beliefs import Belief
 from deepr.experts.consult import build_consult_payload, resolve_explicit_expert_choices
-from deepr.experts.consult_traces import build_consult_trace
+from deepr.experts.consult_traces import build_consult_trace, build_consult_trace_candidates
 from deepr.experts.council import ExpertCouncil, parse_synthesis_sections
 from deepr.experts.profile import ExpertProfile
 
@@ -91,6 +91,7 @@ def run_consult_eval() -> ConsultEvalReport:
             _check_synthesis_section_parser(),
             _check_payload_context_preservation(),
             _check_consult_trace_contract(),
+            _check_consult_trace_candidate_contract(),
         )
     )
 
@@ -249,4 +250,30 @@ def _check_consult_trace_contract() -> ConsultEvalOutcome:
         category="trace",
         passed=passed,
         detail={"trace_id": trace["trace_id"], "synthesis_check": synthesis_check},
+    )
+
+
+def _check_consult_trace_candidate_contract() -> ConsultEvalOutcome:
+    trace = build_consult_trace(
+        question="What did this consult fail to answer?",
+        requested_experts=["A"],
+        max_experts=3,
+        budget=0.0,
+        failure={"stage": "run_consult", "error_type": "RuntimeError", "message": "boom"},
+        trace_id="consult_abcdef123456",
+    )
+    payload = build_consult_trace_candidates([trace])
+    first = payload["candidates"][0]
+    passed = (
+        payload["schema_version"] == "deepr-consult-trace-candidates-v1"
+        and payload["candidate_count"] == 1
+        and first["reason"] == "failed_consult"
+        and first["eval_case"]["source_trace_id"] == trace["trace_id"]
+        and "failure" not in first
+    )
+    return ConsultEvalOutcome(
+        case_id="consult_trace_candidate_contract",
+        category="trace",
+        passed=passed,
+        detail={"candidate_count": payload["candidate_count"], "reason": first["reason"]},
     )

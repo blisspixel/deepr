@@ -700,6 +700,15 @@ Deepr consults its own experts about its own work (the self-consultation loop).
 Every CLI and MCP consult writes a local `deepr-consult-trace-v1` record for the
 improvement loop: question, requested experts, selected context metadata, capacity
 posture, checks run, output artifact, and first-class synthesis failure events.
+Review those traces with:
+
+```bash
+deepr expert consult-traces --json
+```
+
+The review output is `deepr-consult-trace-candidates-v1`: sanitized gap and eval
+candidates for failed or low-context consults. It does not expose the local trace
+file path or dump raw trace payloads into the host artifact.
 
 ## Limitations
 

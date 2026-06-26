@@ -30,6 +30,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   selected context metadata, capacity posture, output artifact, checks run, and
   first-class synthesis failure events. The schema is published under
   `docs/schemas/` and registered for downstream compatibility checks.
+- Added sanitized consult trace review. `deepr expert consult-traces` mines local
+  failed or low-context consult traces into `deepr-consult-trace-candidates-v1`
+  gap/eval candidates without exposing local trace file paths or raw trace
+  payloads.
 - Added `deepr_capabilities`, a free MCP discovery tool returning the versioned
   `deepr-capabilities-v1` map: expert roster, key tools with live registry-sourced
   cost tiers and outcome-oriented when-to-use, the `$0` owned/prepaid synthesis
@@ -61,8 +65,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Added `deepr eval consult`, a `$0` consult harness regression suite covering
   explicit expert slug resolution, stored-belief context packet shape,
   synthesis agreement/disagreement parsing, `deepr-consult-v1` context
-  preservation, and `deepr-consult-trace-v1` trace contracts. It can emit JSON
-  and save artifacts under `data/benchmarks`.
+  preservation, `deepr-consult-trace-v1` trace contracts, and
+  `deepr-consult-trace-candidates-v1` candidate contracts. It can emit JSON and
+  save artifacts under `data/benchmarks`.
 - Added owned-capacity consult synthesis flags:
   `deepr expert consult --local` uses local Ollama synthesis at `$0`, and
   `deepr expert consult --plan <id>` uses an explicit plan-quota CLI for

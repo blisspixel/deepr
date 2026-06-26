@@ -124,7 +124,7 @@ def test_eval_consult_outputs_zero_cost_json_report():
     data = json.loads(result.output)
     assert data["suite_name"] == "consult-harness"
     assert data["cost_usd"] == 0.0
-    assert data["total_cases"] == 5
+    assert data["total_cases"] == 6
     assert data["failed_cases"] == 0
 
 

@@ -199,7 +199,7 @@ deepr expert export-okf "UI Experience Expert" ./okf/ui-experience
 deepr expert absorb-okf "UI Experience Expert" ./okf/ui-experience --local --dry-run
 ```
 
-Agentic chat supports 27 slash commands (`/ask`, `/research`, `/advise`, `/focus`, `/council`, `/plan`, `/compact`, and more), visible reasoning, human-in-the-loop approval for expensive operations, multi-expert council, and hierarchical task decomposition. `deepr expert consult` exposes the same council as a first-class CLI and MCP knowledge transaction; stored beliefs are used before live chat fallback, explicit `--local` or `--plan <id>` synthesis keeps consults on owned or prepaid capacity without silent metered fallback, and every consult now writes a local `deepr-consult-trace-v1` record so failures can become durable eval cases.
+Agentic chat supports 27 slash commands (`/ask`, `/research`, `/advise`, `/focus`, `/council`, `/plan`, `/compact`, and more), visible reasoning, human-in-the-loop approval for expensive operations, multi-expert council, and hierarchical task decomposition. `deepr expert consult` exposes the same council as a first-class CLI and MCP knowledge transaction; stored beliefs are used before live chat fallback, explicit `--local` or `--plan <id>` synthesis keeps consults on owned or prepaid capacity without silent metered fallback, every consult writes a local `deepr-consult-trace-v1` record, and `deepr expert consult-traces` reviews failed or low-context traces as sanitized gap/eval candidates.
 
 See [docs/EXPERTS.md](docs/EXPERTS.md) for the full expert system guide.
 
