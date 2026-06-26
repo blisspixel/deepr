@@ -75,6 +75,73 @@ def _resolve_agent_endpoint(
     return f"http://{host}:{port}{_normalize_mcp_path(http_path)}"
 
 
+def _nearest_existing_parent(path):
+    from pathlib import Path
+
+    current = Path(path).resolve()
+    if current.is_file():
+        current = current.parent
+    while not current.exists() and current != current.parent:
+        current = current.parent
+    return current
+
+
+def _git_command(args: list[str], *, cwd):
+    import shutil
+    import subprocess
+
+    git_exe = shutil.which("git")
+    if git_exe is None:
+        return None
+    return subprocess.run(  # noqa: S603 - fixed git executable, no shell, internal metadata probes.
+        [git_exe, *args],
+        cwd=str(cwd),
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+
+def _git_worktree_root(path) -> str | None:
+    probe_dir = _nearest_existing_parent(path)
+    result = _git_command(["rev-parse", "--show-toplevel"], cwd=probe_dir)
+    if result is None or result.returncode != 0:
+        return None
+    return result.stdout.strip() or None
+
+
+def _path_requires_git_ignore(path) -> bool:
+    from pathlib import Path
+
+    output_path = Path(path).resolve()
+    root_raw = _git_worktree_root(output_path)
+    if not root_raw:
+        return False
+    root = Path(root_raw).resolve()
+    try:
+        relative = output_path.relative_to(root)
+    except ValueError:
+        return False
+
+    relative_arg = relative.as_posix()
+    tracked = _git_command(["ls-files", "--error-unmatch", "--", relative_arg], cwd=root)
+    if tracked is not None and tracked.returncode == 0:
+        return True
+    ignored = _git_command(["check-ignore", "--quiet", "--", relative_arg], cwd=root)
+    return ignored is None or ignored.returncode != 0
+
+
+def _validate_agent_guide_output_path(output: str | None, *, allow_tracked_output: bool) -> None:
+    if not output or allow_tracked_output:
+        return
+    if _path_requires_git_ignore(output):
+        raise click.ClickException(
+            "Refusing to write a bearer-token MCP guide to a tracked or unignored git path. "
+            "Use an ignored path such as data/security/agent-guide.md, or pass "
+            "--allow-tracked-output if this is intentional."
+        )
+
+
 def _build_agent_guide_text(
     *,
     endpoint: str,
@@ -467,6 +534,11 @@ def summarize_audit(
 )
 @click.option("--plan", help="Plan id when --synthesis-backend=plan, such as codex or claude.")
 @click.option("--output", type=click.Path(dir_okay=False, path_type=str), help="Write the guide to a file.")
+@click.option(
+    "--allow-tracked-output",
+    is_flag=True,
+    help="Allow writing the bearer-token guide to a tracked or unignored git path.",
+)
 @click.option("--json", "as_json", is_flag=True, help="Emit machine-readable JSON with the guide text.")
 def agent_guide(
     endpoint: str | None,
@@ -485,6 +557,7 @@ def agent_guide(
     synthesis_backend: str,
     plan: str | None,
     output: str | None,
+    allow_tracked_output: bool,
     as_json: bool,
 ):
     """Create a scoped MCP trial key and print remote-agent instructions."""
@@ -501,6 +574,7 @@ def agent_guide(
         port=port,
         http_path=normalized_path,
     )
+    _validate_agent_guide_output_path(output, allow_tracked_output=allow_tracked_output)
     token = auth_token
     record_id = key_id
     if no_create_key and not token:
@@ -551,7 +625,9 @@ def agent_guide(
         "guide": guide,
     }
     if output:
-        Path(output).write_text(guide, encoding="utf-8")
+        output_path = Path(output)
+        output_path.parent.mkdir(parents=True, exist_ok=True)
+        output_path.write_text(guide, encoding="utf-8")
         if not as_json:
             click.echo(f"Wrote MCP agent guide: {output}")
             return

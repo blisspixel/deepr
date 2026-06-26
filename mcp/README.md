@@ -329,8 +329,9 @@ deepr mcp agent-guide --host 0.0.0.0 --public-host 192.168.44.62 --key-id agent-
 The guide includes the server command, endpoint, bearer token, allowed tool
 rules, and a no-metered `deepr_consult_experts` example. Use `--expert "Name"`
 to scope the key to one expert, `--synthesis-backend plan --plan codex` for an
-explicit plan-capacity consult, or `--output docs/agent-guide.md` to write a
-file.
+explicit plan-capacity consult, or `--output data/security/agent-guide.md` to
+write a file. Because the guide contains a bearer token, repo-local output paths
+must be git-ignored unless `--allow-tracked-output` is passed intentionally.
 
 ## HTTP Serve Mode
 
