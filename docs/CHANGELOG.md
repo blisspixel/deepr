@@ -207,6 +207,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Changed `deepr mcp test` to use only read-only `$0` MCP calls. It no longer
   probes `deepr_query_expert`, which can reach expert chat and spend despite a
   caller intending a no-cost diagnostic.
+- Fixed HTTP scoped-key authorization so MCP protocol handshakes
+  (`initialize`, `tools/list`) are not treated as sensitive tool calls requiring
+  `_approved=true`; scoped keys still enforce approval and budget gates on
+  actual `tools/call` requests.
 - Hardened self-model update evidence refs so accepted prefixes must also carry
   a non-empty value, and malformed local review records fail closed before an
   acceptance artifact can be emitted.
