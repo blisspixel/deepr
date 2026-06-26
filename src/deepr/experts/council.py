@@ -294,7 +294,62 @@ class ExpertCouncil:
             return None
 
         store = BeliefStore(name)
-        return self.build_stored_perspective(query, name, domain, store.beliefs.values())
+        perspective = self.build_stored_perspective(query, name, domain, store.beliefs.values())
+        if perspective is not None:
+            self._attach_self_model_context(perspective.context, name)
+        return perspective
+
+    def _self_model_context(self, name: str) -> dict[str, Any]:
+        """Return bounded self-model metadata for consult traces."""
+        from deepr.experts.profile import ExpertStore
+        from deepr.experts.self_model import EXPERT_SELF_MODEL_KIND, EXPERT_SELF_MODEL_SCHEMA_VERSION
+
+        try:
+            profile = ExpertStore().load(name)
+            if profile is None:
+                return {}
+
+            from deepr.experts.self_model import build_expert_self_model
+
+            payload = build_expert_self_model(profile, profile.get_manifest(), focus_limit=3)
+        except Exception as exc:
+            logger.debug("Council: self-model context unavailable for %s", name, exc_info=True)
+            return {
+                "schema_version": EXPERT_SELF_MODEL_SCHEMA_VERSION,
+                "kind": EXPERT_SELF_MODEL_KIND,
+                "status": "unavailable",
+                "error_type": type(exc).__name__,
+            }
+
+        focus = payload["current_focus_packet"]
+        return {
+            "schema_version": payload["schema_version"],
+            "kind": payload["kind"],
+            "status": "available",
+            "contract": {
+                "read_only": payload["contract"]["read_only"],
+                "cost_usd": payload["contract"]["cost_usd"],
+                "derived_view": payload["contract"]["derived_view"],
+                "goal_changes_require_review": payload["contract"]["goal_changes_require_review"],
+            },
+            "current_goals": list(payload["current_goals"]),
+            "calibration": dict(payload["calibration"]),
+            "blocked_capability_count": len(payload["blocked_capabilities"]),
+            "unresolved_risk_count": len(payload["unresolved_risks"]),
+            "current_focus_packet": {
+                "selected_beliefs": list(focus["selected_beliefs"]),
+                "selected_gaps": list(focus["selected_gaps"]),
+                "active_contradictions": list(focus["active_contradictions"]),
+                "goal": focus["goal"],
+                "allowed_tools": list(focus["allowed_tools"]),
+                "expected_stop_condition": focus["expected_stop_condition"],
+            },
+        }
+
+    def _attach_self_model_context(self, context: dict[str, Any], name: str) -> None:
+        self_model = self._self_model_context(name)
+        if self_model:
+            context["self_model"] = self_model
 
     async def select_experts(
         self,
@@ -343,7 +398,7 @@ class ExpertCouncil:
             try:
                 progress_callback(name, status)
             except Exception:
-                pass  # progress callback failure must not abort council synthesis or expert querying
+                logger.debug("Council progress callback failed for %s", name, exc_info=True)
 
     async def _query_expert(
         self,
@@ -363,6 +418,8 @@ class ExpertCouncil:
                 return stored
             if not self._allow_live_fallback:
                 self._notify(progress_callback, name, "done")
+                context = {"source": "no_stored_context"}
+                self._attach_self_model_context(context, name)
                 return ExpertPerspective(
                     expert_name=name,
                     domain=domain,
@@ -372,7 +429,7 @@ class ExpertCouncil:
                     ),
                     confidence=0.0,
                     cost=0.0,
-                    context={"source": "no_stored_context"},
+                    context=context,
                 )
 
             child_identity = None
@@ -400,7 +457,7 @@ class ExpertCouncil:
                 domain=domain,
                 response=response,
                 cost=session.cost_accumulated,
-                context={"source": "live_session"},
+                context=self._live_context(name),
             )
         except Exception as e:
             logger.warning("Council: expert %s failed: %s", name, e)
@@ -413,6 +470,11 @@ class ExpertCouncil:
                 cost=0.0,
                 context={"source": "failed", "error_type": type(e).__name__},
             )
+
+    def _live_context(self, name: str) -> dict[str, Any]:
+        context = {"source": "live_session"}
+        self._attach_self_model_context(context, name)
+        return context
 
     async def consult(
         self,

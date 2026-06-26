@@ -67,20 +67,21 @@ Planning Principles), and [docs/plans/AGENTIC_BALANCE.md](docs/plans/AGENTIC_BAL
 
 ## Current Cycle Alignment - 2026-06-26
 
-Active task: add read-only expert self-model records without widening autonomy.
+Active task: attach read-only expert self-model focus metadata to consults
+without widening autonomy.
 
 Target score before merge:
 
 | Category | Required score | Evidence |
 |---|---:|---|
-| Correctness | 5/5 | Self-model builder, CLI command, and published schema tests must pass. |
-| Security | 5/5 | Payload is read-only, `$0`, path-free, and secret-free; goal changes require review. |
-| Performance | 5/5 | Build from an already loaded profile and manifest; no provider calls, embeddings, or paid validation. |
-| Readability | 5/5 | One focused self-model module; CLI handler stays thin. |
-| Maintainability | 5/5 | Published schema, registry entry, and tests keep contract drift visible. |
-| Simplicity | 5/5 | No new dependency, no persistence store, no speculative monitor writer. |
+| Correctness | 5/5 | Council tests prove stored, live, and no-context paths preserve context and expose self-model focus when a profile exists. |
+| Security | 5/5 | Embedded self-model metadata is read-only, `$0`, path-free, and secret-free; goal changes still require review. |
+| Performance | 5/5 | Work is bounded to consulted experts and a focus limit of 3; no provider calls, embeddings, or paid validation. |
+| Readability | 5/5 | One helper attaches self-model metadata; consult synthesis and payload shaping stay unchanged. |
+| Maintainability | 5/5 | Uses the published self-model builder instead of duplicating schema logic. |
+| Simplicity | 5/5 | No new dependency, no persistence store, no prompt mutation, no monitor writer. |
 
-Cycle 3 adds the self-model as a derived contract only. The same bar applies,
+Cycle 4 wires the self-model into consult metadata only. The same bar applies,
 with two added gates: no mutation of expert state, and no semantic verdict from
 lexical rules.
 

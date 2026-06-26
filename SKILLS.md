@@ -148,6 +148,10 @@ This file captures repo-specific operating lessons from autonomous work cycles.
   candidate; do not let word overlap or phrasing checks conclude answer quality.
   Host-facing review payloads should include trace ids, hashes, short previews,
   checks, and candidate metadata, not raw trace files.
+- Self-model context should enter consults as bounded metadata before it affects
+  prompts or writes. Attach the published read-only contract to perspective
+  context and traces first; promote it into learning or synthesis only behind a
+  measured eval improvement and review gate.
 - Local model synthesis often uses Markdown emphasis in bullets. Parse one
   bullet marker explicitly, then normalize harmless bold labels; broad `lstrip`
   can delete the opening `**` and leave a dangling closing marker.

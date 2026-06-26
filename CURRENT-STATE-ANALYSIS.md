@@ -22,20 +22,26 @@ without exposing local trace file paths or raw payloads. This keeps determinism
 on structure, capacity, and side effects while leaving answer meaning to model
 synthesis and later semantic evals.
 
-Cycle 3 adds the first read-only self-model slice. `deepr expert self-model`
+Cycle 3 added the first read-only self-model slice. `deepr expert self-model`
 now emits a published `deepr-expert-self-model-v1` derived record with
 capabilities, limits, current goals, calibration, learning strategy, continuity,
 blocked capabilities, unresolved risks, and a bounded current-focus packet. It
 does not mutate expert goals or call a model; it is a contract for later consult,
 learning, and metacognitive-monitor integration.
 
+Cycle 4 wires that self-model into consult metadata. Stored-belief, live-session,
+and no-stored-context perspectives attach a bounded read-only `self_model` block
+when the expert profile exists, so consult traces and host handoffs can see the
+expert's current goals, calibration, blockers, risks, and focus packet without
+changing synthesis prompts or mutating state.
+
 External best-practice check, current as of 2026-06-26: modern agent harness
 guidance converges on trace-first improvement loops, evals from real failures,
 bounded context packets, explicit handoffs, and deterministic gates around
 spend, writes, tools, and credentials. Deepr's next implementation slices should
 continue that shape: promote selected trace candidates through a reviewed
-gap/eval path, wire the self-model into consult and learning context, then add
-the metacognitive monitor, rather than widening autonomy or building broader
+gap/eval path, wire the self-model into learning context, then add the
+metacognitive monitor, rather than widening autonomy or building broader
 orchestration.
 
 ## Alignment Summary
@@ -91,9 +97,9 @@ measured. Level 6 means the fleet has a control plane for improving expert
 self-models, prompts, tools, skills, context policies, and learning strategies
 through trace-derived proposals, sandbox runs, regression checks, budget gates,
 and human review where required. The self-model now exists as a read-only
-derived contract; the next Deepr slice is wiring that current-focus packet into
-consult and learning runs, then adding the metacognitive monitor that proposes
-reviewed goal or strategy updates. See
+derived contract and consult metadata now carries its current-focus packet. The
+next Deepr slice is wiring the same packet into learning runs, then adding the
+metacognitive monitor that proposes reviewed goal or strategy updates. See
 `docs/design/level-5-6-expert-maturity.md`.
 
 Distillr is available on this machine as `distill-mcp`, and the live `$0`

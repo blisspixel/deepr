@@ -95,7 +95,9 @@ must not be described as usable capacity.
 - `deepr expert self-model` emits a read-only `deepr-expert-self-model-v1`
   record with expert capabilities, limits, goals, calibration, learning
   strategy, continuity, blockers, risks, and a bounded current-focus packet.
-  It is a derived view and does not mutate expert state.
+  It is a derived view and does not mutate expert state. Consult perspective
+  context includes this bounded self-model focus metadata when the expert
+  profile is available.
 - Local Ollama expert maintenance, local evals, local context evals, local
   red-team attack-success-rate metrics including MCP read-path canaries and
   saved trend artifacts, and scored local admission.
