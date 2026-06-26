@@ -34,6 +34,9 @@ The reasoning behind contract-spanning choices, kept versioned with the code.
 - **[plans/AGENTIC_BALANCE.md](plans/AGENTIC_BALANCE.md)** - Cross-cutting
   principle: workflow vs agent, what deepr hardcodes vs lets the model decide
   (determinism on side-effects, not meaning).
+- **[design/level-5-6-expert-maturity.md](design/level-5-6-expert-maturity.md)** -
+  concrete gates for bounded self-improving experts, self-models,
+  metacognitive monitoring, and the expert-fleet control plane.
 - **[design/](design/)** - Design notes (the why, with literature grounding):
   belief lifecycle, temporal knowledge graph, calibration and trust,
   deterministic-vs-agentic checks, capacity waterfall, local fresh context,

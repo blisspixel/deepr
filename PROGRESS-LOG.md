@@ -1,5 +1,395 @@
 # Progress Log
 
+## 2026-06-26 - Agent QOL: deepr_capabilities discovery tool + validated LAN access
+
+- Fixed a false-exhaustion bug that was corrupting the capacity signal. The
+  plan-quota client scanned the CLI's whole combined output (stdout answer +
+  stderr) for exhaustion keywords ("rate limit", "quota", "credits", "429"), so a
+  good research report ABOUT provider rate limits and quotas (the
+  `provider_api_and_sdk_contracts` topic) was misread as a depleted plan, the
+  answer thrown away, and a bogus EXHAUSTED event written to the quota ledger.
+  Exhaustion is an error condition, so the scan is now scoped: on a successful run
+  only stderr (the CLI's status/progress stream) is checked; the stdout answer is
+  never scanned; on a failed run everything is. This is the AGENTIC_BALANCE rule
+  (deterministic form on the error channel, never a lexical verdict on the answer
+  body). Three regression tests: an answer discussing rate limits is not
+  exhaustion, a failed run with the signal is, and a real stderr limit notice on a
+  zero-exit run still is. Two older tests that modeled exhaustion as a stdout
+  message on exit 0 were corrected to the realistic shape (notice on stderr).
+- Added `deepr_capabilities`, one free MCP call that returns the versioned
+  `deepr-capabilities-v1` map so a connecting agent learns everything at once:
+  the expert roster, the key tools with live cost tiers and outcome-oriented
+  when-to-use, the $0 owned/prepaid synthesis paths, the cost-tier legend, and
+  the structured-error contract. Cost tiers are read from the live registry, not
+  hardcoded, so the map cannot drift from the tools actually served. Logic lives
+  in a small testable `mcp/capabilities.py`; the schema registers in
+  `create_default_registry`, the handler is a thin server method, and the
+  allowlist marks it read-only. 5 builder tests plus the existing allowlist and
+  registry contract suites (329 MCP tests) green; mypy-strict clean on the mcp
+  island (52 files); ruff and format clean. Keeping `server.py` under its
+  grandfathered file-size cap drove the schema into the registry module, which is
+  where the other tool schemas already live.
+- Validated LAN reachability for off-box agents. Bound the HTTP MCP server to
+  `0.0.0.0` with a token and proved from the host's LAN IP that initialize,
+  tools/list, and tools/call pass with the token and are rejected `Unauthorized`
+  without it (only the health ping is open). Documented the recipe and the
+  consuming-agent guide in `mcp/README.md`, grounded in current MCP best
+  practices (outcome-oriented tools, free discovery, explicit cost tiers,
+  structured errors, scoped keys).
+- Expert fills (plan windows reset overnight): observability (24) and
+  supply_chain (25) filled clean (meta:0) via codex and grok; 8 of 9
+  originally-empty experts now carry clean source-grounded beliefs. provider_api
+  still misses on free-web HTTP flakiness (retrying); that path is the remaining
+  completeness limiter, not the plan capacity.
+- Spend this session: $0.00 external.
+
+## 2026-06-25 - Multi-plan headless capacity: claude, codex, grok, antigravity
+
+- Made the prepaid-plan pool work headless instead of claude-only. Probed every
+  plan the operator has: codex and claude run over stdin; grok runs on plan auth
+  but its prompt must go through a file; antigravity authenticates but drops
+  stdout under a non-TTY pipe.
+- Fixed grok for real research prompts. A long prompt as `grok -p <arg>` trips
+  `WinError 206` (command line too long), so all four grok fills in the first pass
+  produced zero beliefs. Grok has no stdin path (`grok -p` needs the value;
+  `-p -` reads interactively), but `--prompt-file <path>` reads an arbitrarily
+  long prompt from a file - validated live with a 42 KB prompt. Added a
+  `prompt_is_file` adapter mode and a shared `client._build_invocation` that
+  resolves file/stdin/argv delivery, writes and removes the temp file, and is used
+  by both the chat seam and the probe. Re-ran a grok fill end to end:
+  `Documentation and Information Architecture` gained 23 clean Diataxis beliefs
+  (meta:0, char-split:0) at $0.
+- Made antigravity work headless. `agy` v1.0.12 exits 0 with empty stdout under a
+  pipe (not a flag issue); its answer is persisted to its transcript as the last
+  `PLANNER_RESPONSE` record. Added `antigravity_transcript.recover_answer` (reads
+  the newest transcript touched at/after the run start, returns that record's
+  content), an `answer_from_transcript` adapter mode, and wired it into both the
+  chat client and the probe. The parser was validated against the real
+  transcripts on this machine, and the full path validated end to end:
+  `probe_plan_quota(antigravity)` returned the expected reply in ~5.5s on plan
+  auth with stdout empty. All four plan CLIs now run headless (codex/claude over
+  stdin, grok over a prompt file, antigravity over its transcript). Antigravity
+  stays explicit-only and ToS gray-zone (active ban wave) despite working. Tests:
+  7 transcript-parser cases plus client transcript-recovery and empty-transcript
+  paths; 280 backend tests green, ratchets at baseline.
+- Validated the extraction fixes in the wild: claude fills produced 25 clean
+  beliefs each for Developer Experience, Frontend Product Design, and Open Source
+  Governance (meta:0, char-split:0). Two real robustness gaps surfaced for
+  follow-up: free DuckDuckGo retrieval is flaky (some fills got no sources -> no
+  report), and grok's substring exhaustion check can false-positive on an answer
+  that discusses rate limits/quota. Both are noted, neither is masked.
+- Roadmap gained the multi-backend ensemble learning item (every plan CLI
+  proposes current insights for a dated topic; one verified absorb merges them
+  into canon and regenerates the wiki view - the Karpathy-wiki-for-experts loop).
+  Docs updated: plan-quota design doc (delivery modes + antigravity path),
+  EXPERTS.md (up-to-10 fan-out, $0 plan/local consult), SKILLS.md (per-CLI
+  headless quirks). Tests: grok file delivery, the three delivery modes; 48
+  plan-quota tests green, ruff clean.
+
+## 2026-06-25 - Expert-quality dogfood: extraction de-referencing and disclaimer exclusion
+
+- Dogfooded the $0 capacity path end to end on this machine. `capacity probe-plan
+  codex` confirmed plan execution works: the safety gate removed `OPENAI_API_KEY`
+  from the child env and Codex authenticated on the ChatGPT plan (auth: plan, $0,
+  13.4s). `expert learn --plan codex` then filled the empty `Local LLM Operations`
+  expert at $0 before Codex's 5h window exhausted (expected; waterfall treats plan
+  capacity as opportunistic).
+- Audited belief quality across the roster and found three degradation classes,
+  not one. The char-split evidence_refs bug was already fixed in local work; this
+  session found and fixed two more in the extraction prompt (the maker side):
+  - Source-meta framing: 71% (17/24) of one fresh expert's beliefs began
+    "Source [N] lists/recommends/states ..." - extraction was copying the
+    synthesized report's citation numbering into the claim text instead of stating
+    the bare domain fact. Fixed by instructing `_extract_claims` to de-reference
+    source pointers ("Source [5] lists X" -> "X") so a claim reads as knowledge the
+    expert holds; provenance still lives in `evidence`/`evidence_refs`.
+  - Disclaimer absorption: experts built from parametric knowledge with no live
+    sources had captured model boilerplate as beliefs (e.g. "the author has no
+    live web access", "no sources were included"). Fixed by instructing extraction
+    to never emit meta-commentary about the author/assistant's own knowledge,
+    cutoff, or limitations.
+  - Both fixes are prompt-level (model judgment owns meaning per AGENTIC_BALANCE),
+    not brittle lexical strippers. Existing absorber suite stays green (39/39).
+- Honest quality read: the pipeline can produce excellent experts (temporal
+  knowledge graphs: 75 crisp standalone beliefs, avg conf 0.93, 0 meta/0
+  char-split). Quality failures were extraction-prompt defects (now fixed) plus
+  free-web recency limits (DuckDuckGo retrieval can pull stale model names).
+  Re-grounding the experts filled before these fixes is follow-up work.
+
+- Experts-as-a-consultable-team (the surface an external agent or Deepr's own
+  loop calls). Mapped the real architecture: `ExpertCouncil.consult` already runs
+  experts in true parallel with an upfront cost reservation, per-expert budget
+  split, and stored-belief perspectives before live fallback, exposed over both
+  CLI (`expert consult`) and MCP (`deepr_consult_experts`) with $0 local/plan
+  synthesis. Shipped one contained slice and fixed one real blocker:
+  - Configurable auto-fan-out breadth: `MAX_CONSULT_EXPERTS` and
+    `ExpertCouncil.MAX_EXPERTS` raised 5 -> 10 with a relevance floor so a wide
+    fan-out drops zero-overlap experts instead of padding the council (never
+    returns empty when experts exist). MCP `max_experts` accepts up to 10
+    (default 3). Parallelism still bounded by `MAX_COUNCIL_CONCURRENCY`. Explicit
+    expert lists were already uncapped; this lights up wide auto-selection.
+  - Fixed claude-plan consult synthesis on Windows. The council's multi-line
+    synthesis prompt, passed as a command-line arg to `claude.cmd`, was mangled
+    by cmd.exe, so claude saw an empty task and replied "I'm ready to help" with
+    cost $0 - a silent quality failure. Routed claude's prompt over stdin
+    (`stdin_prompt=True` -> `claude -p -`), the same hardening codex already had.
+    Verified end to end: a 6-expert consult via claude plan now returns an
+    excellent structured synthesis at $0. (This consult was Deepr consulting its
+    own experts about its own design - the self-consultation loop, live.)
+  - Regression tests: wide fan-out drops zero-overlap experts, fan-out falls back
+    when nothing overlaps, claude uses stdin delivery. Roadmap Phase 2 gained an
+    "Experts as a consultable team" entry covering external-agent consultation
+    (1:1, group, wide fan-out, multi-turn-next, A2A-council-next, deep/heavy
+    fan-out) and the self-consultation flywheel. 111 affected tests green, ruff
+    clean, mypy-strict clean on the touched mcp module.
+
+## 2026-06-25 - Research processing compiler groundwork
+
+- Reframed the expert-quality roadmap around a compiler-like learning pass:
+  raw source packs become source notes, atomic beliefs, typed temporal graph
+  edges, contradiction and gap agendas, and regenerated wiki/digest views from
+  canonical state.
+- Fixed `ReportAbsorber` evidence normalization so a scalar model `evidence`
+  string is preserved as one excerpt instead of being split into character refs.
+  This keeps provenance, source-trust ceilings, and grounding-check inputs
+  aligned when model output is schema-adjacent but not exact.
+- Added report provenance to belief creation events and auto-related typed graph
+  edges written during report absorption, so `expert why` and regenerated views
+  can point back to the source pack more directly.
+- Added absorber regressions for scalar evidence storage and scalar evidence
+  passed into the grounding checker, plus TKG provenance on report-absorbed
+  support edges.
+- Updated `ROADMAP.md`, `CURRENT-STATE-ANALYSIS.md`, and
+  `docs/CHANGELOG.md` so the next work is described as research processing,
+  not passive doc upload or model warmup.
+- Focused validation passed: `65 passed` across report absorber, trust-floor,
+  typed-edge, and explain-belief tests.
+- Spend this slice: `$0.00` metered API. Web research used browsing only; no
+  paid provider calls were made.
+
+## 2026-06-25 - Level 5/6 expert maturity and reflective continuity
+
+- Researched current Level 5/6 agent maturity framing: Level 5 is bounded
+  self-improvement with durable state, traces, measured deltas, and human
+  steering; Level 6 is the governed harness/control plane for improving the
+  expert factory itself through proposals, sandboxes, evals, and rollout gates.
+- Added the consciousness-leaning but evidence-honest boundary: Deepr should
+  build self-models, temporal continuity, metacognitive monitoring,
+  global-workspace-style focus packets, and reflective identity artifacts, while
+  making no claim of subjective experience and never adding self-preservation
+  behavior.
+- Made the docs explicit that Deepr is a deep research and understanding loop:
+  a run is not complete at report generation, but when evidence has been
+  compiled into reusable beliefs, gaps, contradictions, confidence, provenance,
+  temporal context, and a next learning plan.
+- Added `docs/design/level-5-6-expert-maturity.md` to define Deepr-specific
+  gates for Level 5 experts and the Level 6 fleet control plane, including
+  explicit self-model and metacognitive monitor gates.
+- Live-validated the installed Distillr MCP server through Deepr's own `$0`
+  integration drift check. The server exposes 27 tools; the profile now
+  classifies all 27 so no newly shipped tool falls through default approval.
+- Classified `list_topics`, `list_topic_summary`, and `okf_validate` as free
+  read-side tools; kept `ask`, `find_insights_summary`, and `okf_export`
+  approval-gated because they synthesize or write derived artifacts and do not
+  yet expose a stable zero-cost contract.
+- Queried relevant existing Distillr corpora with free reads. The
+  `long-running-agentic-workflows` corpus already covers the harness,
+  boundary-verification, and replayable-state patterns needed for this slice,
+  so no new paper ingestion was run.
+- Updated `ROADMAP.md`, `docs/plans/AGENTIC_BALANCE.md`,
+  `docs/INTEGRATIONS.md`, `src/deepr/skills/distillr/prompt.md`, and
+  `docs/CHANGELOG.md`.
+- Validation passed: Distillr live drift check reports 27 live tools and 27
+  declared; focused Distillr/profile tests reported `28 passed, 15 skipped`;
+  ruff, strict mypy, docs consistency, file-size ratchet, security/complexity
+  ratchets, `git diff --check`, no-attribution, no-Unicode-dash, and non-ASCII
+  addition scans passed; full `uv run pytest tests/unit/ -q` reported
+  `6639 passed, 8 skipped`.
+- Spend this slice: `$0.00` metered API. Distillr paper ingestion was not run
+  because it is approval-gated and no explicit spend cap was approved.
+
+## 2026-06-25 - MCP no-metered expert consult path
+
+- Added MCP support for owned-capacity expert consult synthesis:
+  `deepr_consult_experts` now accepts `synthesis_backend=api|local|plan`,
+  `local_model`, `plan`, and `plan_model`.
+- Local and explicit plan MCP consults reuse the shared consult backend builder,
+  disable live metered expert fallback, allow a zero API budget ceiling, and
+  return a `capacity` block so host agents can verify the selected backend.
+- Added `docs/MCP_AGENT_TEST_GUIDE.md` with a concrete agent test script:
+  discover tools, list experts, read handoff and loop-status payloads, explain
+  a belief, then run a no-metered consult through local Ollama or explicit plan
+  capacity.
+- Updated `mcp/README.md`, `docs/SUPPORTED_SURFACE.md`, and
+  `docs/CHANGELOG.md` to document the no-surprise-cost MCP path.
+- Cleaned README and package metadata public contact copy so
+  security/project-footer links use GitHub-native surfaces and the author
+  identity stays Nick Seal / blisspixel without a public email contact.
+- Focused validation passed: `41 passed` across MCP consult, shared consult
+  core, CLI consult, and MCP tool-registry tests.
+- Full local validation passed after the scoped-key budget estimate fix:
+  `uv run pytest tests/unit/ -q` reported `6639 passed, 8 skipped`; ruff,
+  strict mypy, docs consistency, file-size ratchet, security/complexity
+  ratchets, `git diff --check`, no-attribution, no-Unicode-dash, and non-ASCII
+  addition scans passed.
+- Spend this slice: `$0.00` metered API. No provider model calls were made.
+
+## 2026-06-25 - Adaptive expert learn topic path
+
+- Folded topic `deepr expert learn "Expert" "topic"` into the verified
+  live-web absorption pipeline. It now uses free web retrieval plus local or
+  explicit plan-quota synthesis and extraction, with `--plan`, `--plan-model`,
+  `--model`, retrieval bounds, confidence floor, and dry-run exposed directly
+  on `expert learn`.
+- Kept `deepr expert learn-web` as a compatibility alias over the same helper
+  instead of making users discover a separate command for the normal topic
+  learning flow.
+- Preserved the file-size ratchet by trimming old verbose help/comment text in
+  the grandfathered `experts.py` file rather than raising its cap.
+- Focused validation passed: `22 passed` across learn command and learn-web
+  command tests; file-size ratchet passed.
+
+## 2026-06-25 - Grok quota metadata refresh
+
+- Added `deepr capacity refresh-quota grok` as a metadata-only quota probe. It
+  reads the current user's Grok CLI auth file, calls Grok billing metadata, maps
+  the returned monthly usage window into the shared `QuotaSnapshot` contract,
+  and writes the quota ledger without running a model call or storing credential
+  material.
+- Extended the quota-probe registry and `capacity refresh-quota` CLI so Codex,
+  Claude Code, and Grok now share the same observed-headroom substrate.
+- Updated README, supported-surface docs, feature docs, capacity waterfall
+  design, plan-quota backend design, roadmap, changelog, current-state analysis,
+  and skills memory so Grok is no longer described as future work.
+- Focused validation passed: `43 passed` across plan-quota quota probe and
+  capacity command tests; ruff and ratchet checks passed for the touched
+  implementation.
+- Live validation passed with a temporary capacity-data directory:
+  `uv run deepr capacity refresh-quota grok --json` returned an available
+  monthly binding window and wrote only a local quota-ledger event.
+- Full local validation passed after the Grok probe work:
+  `uv run pytest tests/unit/ -q` reported `6631 passed, 8 skipped`; ruff,
+  strict mypy on the CI-blocking packages, docs consistency, file-size ratchet,
+  C901/S ratchets, and `git diff --check` all passed.
+- Spend this slice: `$0.00` metered API. The probe is metadata-only and does
+  not run a model call.
+
+## 2026-06-25 - Plan-quota expert bootstrap and zero-cost accounting
+
+- Added explicit `deepr expert learn-web --plan <id>` so expert bootstrapping
+  can use free DuckDuckGo retrieval plus a plan-quota CLI for synthesis and
+  verified belief extraction.
+- Hardened plan CLI execution for Windows and long prompts: resolves
+  `codex.cmd`, strips metered API-key variables from child environments, and
+  sends Codex prompts over stdin to avoid command-line length failures.
+- Fixed owned/prepaid absorb accounting by letting callers inject
+  `estimated_cost=0.0`; local, plan, learn-web, sync, gap-fill, and OKF absorb
+  paths now keep profile spend aligned with `$0` ledger events.
+- Live validated Codex plan capacity with `Release Engineering and CI
+  Reliability`: 3 live sources, 25 absorbed beliefs,
+  `plan_quota_learn_web` cost-ledger events at `$0`, and expert
+  `total_research_cost` remained `0.0`.
+- Focused validation passed: `172 passed` across plan-quota, learn-web,
+  absorber, maintenance-engine, OKF, and capacity command tests; ruff passed
+  for `src/deepr`.
+- Full local unit validation now passes through the project `.venv`:
+  `uv run pytest tests/unit/ -q` reported `6639 passed, 8 skipped`. Waterfall
+  tests assert the intended child-env sanitization contract.
+- Spend this slice: `$0.00` metered API. Plan capacity used Codex prepaid quota
+  only.
+
+## 2026-06-25 - Owned-capacity consult synthesis and quota validation
+
+- Re-checked current 2026 harness, loop, context, and eval guidance from
+  OpenAI, Anthropic, and LangChain. The useful delta for Deepr is not "more
+  agents"; it is durable traces, targeted context packs, replayable evals,
+  explicit handoffs, and deterministic spend or side-effect gates around
+  model-owned semantic work.
+- Reviewed a current security-rule distribution project for transferable
+  process ideas, without adding any project mention or dependency. The useful
+  concepts were folded into the roadmap generically: always-present versus
+  context-selected consult packets, generated host views over canonical expert
+  state, and validators for generated trace or handoff artifacts.
+- Added capability-adaptive consult synthesis. `deepr expert consult --local`
+  now uses local Ollama synthesis at `$0`; `deepr expert consult --plan <id>`
+  now uses an explicit plan-quota CLI synthesis backend. Both modes disable
+  live metered expert fallback when stored belief context is missing, so owned
+  or prepaid consults cannot silently become API calls.
+- Refactored `ExpertCouncil` to accept an injected synthesis chat client and
+  model/provider metadata. The default path remains the existing metered
+  OpenAI-style synthesis with ledger writes; local and plan-quota paths report
+  `$0` and rely on their own capacity ledgers where applicable.
+- Added regression tests for consult capacity mode wiring, mutual exclusion of
+  `--local` and `--plan`, no live fallback in owned-capacity modes, injected
+  local synthesis cost `$0`, and Markdown-bold synthesis bullet parsing.
+- Live validation: `deepr expert consult ... --plan grok --json` stayed at
+  `$0`, used stored beliefs, and correctly surfaced Grok quota exhaustion as
+  `Synthesis unavailable` without falling back to a metered API. `deepr expert
+  consult ... --local --json` completed through local Ollama synthesis at `$0`
+  and produced a valid `deepr-consult-v1` artifact.
+- Earlier in this pass, plan-quota runner launch hardening fixed NUL bytes in
+  argv/fetched context and invalid env entries. Expert sync no-change markers
+  now stay no-op even when Markdown wrapped, report absorption rejects no-change
+  meta claims, and health checks no longer turn heuristic-only contradiction
+  candidates or small gap backlogs into capacity-blocking actions.
+- Validation so far: focused consult/council/core tests passed (`21 passed`);
+  broader focused consult, plan-quota, sync, absorber, health, and CLI health
+  suite passed (`121 passed`); `ruff check`, `ruff format --check`,
+  `scripts/check_ratchets.py`, and `scripts/check_file_sizes.py` passed on the
+  touched code after refactor. Final validation passed: `deepr eval consult
+  --json` scored `4/4`; broad focused suite passed (`174 passed`);
+  `scripts/check_docs_consistency.py`, strict mypy for `core`, `providers`, and
+  `mcp`, `git diff --check`, touched-file dash scan, `ruff check`, `ruff format
+  --check`, `scripts/check_ratchets.py`, and `scripts/check_file_sizes.py` all
+  passed; full CI-style unit coverage passed (`6617 passed, 8 skipped`,
+  `82.93%` total coverage, required `80%`). Post-review iterable-length cleanup
+  in the stored-perspective helper passed `test_council.py`, ruff, format, the
+  ratchet gate, and `git diff --check`.
+- Spend this pass: `$0.00`. Web research used browsing only, and live consult
+  validation used local Ollama or explicit plan-quota CLI capacity. No GitHub
+  upload, tag, PR, or release was made.
+
+## 2026-06-25 - Consult grounding and ledger hardening
+
+- Re-checked current context-engineering, harness-engineering, and agent-eval
+  guidance from Anthropic, OpenAI, LangChain, and the ACE paper. The consistent
+  signal for Deepr consult is: select tight context, preserve durable state, make
+  traces and evals drive improvement, and keep spend/security gates deterministic.
+- Dogfooded the refreshed expert fleet through `deepr expert consult` and found
+  three local quality gaps: stored expert beliefs were not guaranteed to ground
+  expert perspectives, `DISAGREEMENTS` could be parsed as `AGREEMENTS`, and
+  stored-belief council synthesis returned a cost without writing the canonical
+  cost ledger.
+- Locally changed `ExpertCouncil` so stored belief context is the first
+  perspective source. Live expert chat remains a fallback only when no stored
+  belief store exists. Query-token overlap is used only as context selection,
+  never as a truth verdict.
+- Locally changed explicit consult resolution so display names and expert slugs
+  map back to profiles, carrying profile domains into consult payloads.
+- Locally changed council synthesis to calculate cost from provider usage when
+  available, settle the council reservation, and record the event through
+  `cost_safety.record_cost` with source `expert_council.synthesis`.
+- Added regression coverage for normalized routing, slug resolution, stored
+  belief grounding, high-confidence fallback context, disagreement parsing, and
+  synthesis ledger writes.
+- Added context metadata to consult perspectives and the shared
+  `deepr-consult-v1` artifact: source, selection reason, included and available
+  belief counts, and matched terms. This gives dogfood failures a stable replay
+  handle without promoting lexical overlap into a semantic verdict.
+- Added `deepr eval consult`, a `$0` consult harness regression suite seeded
+  from the dogfood failures: explicit slug resolution, stored context packet
+  shape, synthesis parser drift, and consult artifact context preservation.
+- Validation: focused consult and eval suite passed (`31 passed`). Full
+  coverage gate passed (`6606 passed, 8 skipped`, `82.91%` total coverage,
+  required `80%`).
+  `ruff check src/deepr/`, `ruff format --check src/deepr/`,
+  `scripts/check_docs_consistency.py`, `scripts/check_file_sizes.py`,
+  `scripts/check_ratchets.py`, and strict mypy for `core`, `providers`, and
+  `mcp` all passed. No GitHub push, tag, release, or PR was made per operator
+  instruction.
+- Spend this run: two local dogfood council syntheses were backfilled as an
+  estimated `$0.002` ledger correction. Today's visible ledger is now `$0.90`.
+
 ## 2026-06-25 - Claude quota metadata probe
 
 - Re-checked current June 2026 quota guidance and confirmed the safe posture:
@@ -15,8 +405,8 @@
   no tokens, and no local credential paths are committed; tests use temp
   credentials and mocked HTTP responses.
 - Updated README, supported-surface docs, feature docs, design notes, roadmap,
-  changelog, current-state analysis, and skills memory. Next quota probes are
-  Grok and Antigravity metadata visibility for explicit-only backends.
+  changelog, current-state analysis, and skills memory. Antigravity metadata
+  visibility remains the next explicit-only backend probe.
 - Added a roadmap gate for API provider prompt-cache economics after checking
   current Anthropic, OpenAI/Azure, Gemini, and xAI docs. Caching remains a
   research item, not a shipped feature: estimator support, usage ingestion, and
@@ -81,7 +471,7 @@
 - Validation: `.venv\Scripts\python -m pytest tests/unit/test_cli/test_expert_maintenance.py tests/unit/test_experts/test_loop_runs.py tests/unit/test_experts/test_loop_lock.py tests/unit/test_experts/test_sync_all.py -q` passed (64 tests). `.venv\Scripts\python -m pytest tests/unit/test_schemas/test_published_contracts.py tests/unit/test_experts/test_loop_status_rollup.py tests/unit/test_cli/test_expert_loop_status.py -q` passed (21 tests). Full CI-style unit gate `.venv\Scripts\python -m pytest tests/unit/ --ignore=tests/data -q --timeout=120` passed (6545 passed, 8 skipped). `ruff check src/deepr/`, `ruff format --check src/deepr/ ...`, `scripts/check_file_sizes.py`, `scripts/check_ratchets.py`, `scripts/check_docs_consistency.py`, and strict mypy for `core`, `providers`, and `mcp` all passed.
 - Spend this run: `$0.00`. Only web research, local filesystem reads, lint, and local tests were used. No provider APIs, embeddings, paid evals, or cloud resources.
 
-## 2026-06-21 — Self-healing cross-platform installers
+## 2026-06-21 - Self-healing cross-platform installers
 
 - **Found via the operator's broken global CLI:** a stale from-source editable `deepr-research 2.8.1` in system Python 3.13 (left when Python was upgraded 3.12->3.13) made `import deepr` fail though pip listed it "installed". Restored their global to 2.19.0 (editable reinstall).
 - **Hardened both installers** (`scripts/install.ps1` Windows + `scripts/install.sh` macOS/Linux) for parity and defensiveness, like modern CLI installers: install/update is now **self-healing** - `pipx upgrade` falls back to `pipx reinstall`, then a clean `uninstall && install`, which repairs the exact "stale venv after a Python upgrade" failure. Added a real **post-install verification** (run `deepr --version`; if it doesn't run, do one automatic clean reinstall, else print a clear repair hint) and a **shadow-install warning** (if `deepr` on PATH resolves to a non-pipx copy, tell the user to `pip uninstall` it). Both scripts syntax-checked (`bash -n`, PS parser). pipx isolation (the existing design) already survives most system-Python churn; these changes make re-running the one-liner reliably fix a broken install instead of failing.
@@ -92,86 +482,86 @@
 - **Branded style:** adopted a real brand identity for expert portraits (from the operator's style bible): premium vector / modern-scholar SaaS-avatar look, deep teal + indigo accents on a soft off-white gradient, confident 3/4 angle, soft cinematic rim light, a small per-domain symbolic icon subtly integrated, no logos/clutter. Replaces the generic `DEFAULT_PORTRAIT_STYLE`; still fully user-settable (`DEEPR_PORTRAIT_STYLE` env / `--style` per run).
 - **Local image generation (capability-adaptive, $0):** added a `local` provider so portraits can be generated on the user's own GPU instead of paying per image. Point `DEEPR_LOCAL_IMAGE_URL` at a local diffusion server's OpenAI-Images endpoint (ComfyUI/SwarmUI/a FLUX server with a `/v1` shim; `DEEPR_LOCAL_IMAGE_MODEL` defaults to `flux`). `detect_provider` now prefers local over metered (cheapest-first), `portrait_cost("local") == 0.0`, and the ledger + CLI confirmation reflect $0. Honest caveat documented in code: plain Ollama can't generate images (no diffusion models), so a diffusion server is required. 14 portrait tests green (5 new: local-first detection, $0 cost, local endpoint call + /v1 shim + key-not-billed). No money spent - portraits wait for the user's local FLUX endpoint.
 
-## 2026-06-21 — Fixed the split-expert-directory bug + `deepr expert cleanup`
+## 2026-06-21 - Fixed the split-expert-directory bug + `deepr expert cleanup`
 
 - **Root cause of the "duplicate experts" was a directory split**: `ExpertStore` stored an expert under a slugified dir (`ai_expert/`, via `sanitize_name(name).lower()`) while `BeliefStore`/loop-runs used the raw display name (`AI Expert/`) - so every expert was split across TWO directories (profile in one, beliefs in the other), and `expert list` showed ~27 experts that looked empty while their beliefs sat elsewhere. A BeliefStore comment even *claimed* it matched ExpertStore but didn't.
 - **Fix (one canonical resolver):** new `deepr/experts/paths.py` `canonical_expert_dir()` (slug + containment-check); `ExpertStore`, `BeliefStore`, and `loop_runs` all resolve through it, so an expert is one directory. Filesystem-safe + case-stable (Windows/macOS); the display name lives in `profile.json`. 1267 belief/expert tests green after the change.
 - **`deepr expert cleanup`** (new verb): dry-run by default; `--apply` backs up the whole experts root first, then merges each split (display) dir into its canonical slug dir (recursive move, never overwriting a non-empty file) and deletes experts with no data (0 beliefs/conversations/docs). 5 tests incl. "never delete when beliefs live in the split twin" and the full apply+backup path.
 - **Ran it on the real roster:** backed up to `data/experts.backup-...`, **merged 27 split dirs, deleted 8 empty experts**. Result verified: **19 real experts, 0 phantoms, 0 empty, 0 never-run**, and `BeliefStore` now reads each expert's beliefs from the single canonical dir (21/25/23 confirmed). The "how many good, real experts" answer is now honestly **19**.
 
-## 2026-06-21 — `deepr_consult_experts` MCP tool (harness-native team consultation)
+## 2026-06-21 - `deepr_consult_experts` MCP tool (harness-native team consultation)
 
 - **Consultation is now reachable over MCP**, so any harness (Claude Code, Cursor, ...) can consult Deepr's expert team natively - the other half of "anyone with an agentic harness can leverage Deepr." Extracted the consult core into `deepr/experts/consult.py` (`run_consult` + `build_consult_payload` + the `deepr-consult-v1` contract) so the CLI verb and the MCP tool share one code path and the MCP server never depends on the CLI layer. Added the `deepr_consult_experts` handler + ToolSchema + dispatch entry; registered its allowlist policy (SENSITIVE, metered, blocked in READ_ONLY, mirrors `query_expert`). Tool count 28 -> 29 (docs updated in README/ROADMAP/mcp/README).
 - **Maker-checker caught two real wiring gaps before merge**: the tool needed an explicit allowlist config (a test enforces *every* MCP tool declares one), and a brand-new tool must NOT get a `_LEGACY_METHOD_MAP` alias (that map is backward-compat for *renamed* tools only). Both fixed. 951 MCP + allowlist tests green; mypy --strict (mcp gate) clean; C901/S at baseline; server.py file-size cap re-baselined +63 with a justifying comment.
 
-## 2026-06-21 — First-class `deepr expert consult` verb (consultation is native, not a script)
+## 2026-06-21 - First-class `deepr expert consult` verb (consultation is native, not a script)
 
 - **Shipped the native team-consultation verb** the last several rounds pointed at: `deepr expert consult "<question>" [-e EXPERT]... [--budget] [--json]`. It routes to the relevant experts (or an explicit set), runs the bounded council, and returns one calibrated artifact - the single "knowledge transaction" from `agentic-harness-boundary.md`. No more driver scripts; any harness can call it (CLI `--json` now, MCP tool next). `--json` emits a versioned `deepr-consult-v1` payload (answer, per-expert perspectives + confidence, agreements, disagreements, cost). Failures surface (exit 1), no-experts is explicit (exit 2) - never a silent empty result.
 - **Design:** thin command in its own module (`expert_consult.py`, registered via the bottom-of-experts.py F401 pattern to respect the file-size cap); artifact shaping + async council run + render extracted to module-level helpers to hold C901. 8 CLI-layer tests (monkeypatched council, pure/$0). **Live-verified:** consulted AI Cost Optimization + Distributed Systems Reliability, got a real synthesized answer at $0.0172 (ledgered). lint/ratchets/file-size at baseline.
 - Next: the matching MCP `consult_experts` tool (the harness-native path) and capacity-aware routing of the council (so consult can run on local/quota, not only metered synthesis).
 
-## 2026-06-21 — Capability-adaptive setup: `deepr init` works with what you've got
+## 2026-06-21 - Capability-adaptive setup: `deepr init` works with what you've got
 
 - **`deepr init` is no longer API-key-centric.** It claimed "Provider keys (you need at least one)" and reported "Ready" only when an API key was set - false for a user with only Ollama ($0) or only subscription CLIs. Refactored to be **capability-adaptive**: a new `_report_capacity` reuses `detect_capacity()` (the same primitive `deepr capacity` uses) to detect all three tiers - **local models / subscription CLIs / cloud API keys** - and reports readiness on *any* of them. API-key prompts reframed as optional/metered. Newly-entered keys are merged into the detection so they count immediately. Cross-platform (HTTP probe + PATH lookup). Live-verified the new three-tier "What Deepr can run on" view + "Ready - cheapest capacity available". 11 init tests green; lint/ratchets at baseline.
 - **Docs/roadmap clarified** per the "work with what you got" requirement: README setup now leads with the three capacity tiers (local/quota/metered, cheapest-first, "you need at least one - not specifically an API key"); ROADMAP gains an explicit **Capability-adaptive principle** (any OS, any combination of capacity, cost-efficient by default, no single capability required).
 
-## 2026-06-21 — Agentic-harness boundary (dogfood-derived) + new AI Agent Harnesses expert
+## 2026-06-21 - Agentic-harness boundary (dogfood-derived) + new AI Agent Harnesses expert
 
 - **Created + populated "AI Agent Harnesses" expert** (+25, API $0.048), then consulted it with Model Context Protocol + Distributed Systems Reliability on the strategic question "is Deepr an agentic harness?" - dogfooding the now-fixed consult path (3/3 real, convergent answers, $0.024 ledgered).
 - **The experts converged on a sharp boundary**, captured in `docs/design/agentic-harness-boundary.md` and used to sharpen the ROADMAP "not the orchestrator" non-goal: **Deepr is agentic only within a single bounded, idempotent knowledge transaction** (decompose -> consult its own experts -> reason -> verify -> one commit point, hard budgets, one calibrated artifact out). It must not own workflow state, cross-call retries/scheduling, or side effects beyond its own knowledge store - it recommends next actions; the calling harness decides and enacts. This retroactively validates the session's design (idempotent absorb, single commit point, bounded councils, host-triggered campaigns).
 
-## 2026-06-21 — Consult now "just works" (adaptive) + Ollama kept warm
+## 2026-06-21 - Consult now "just works" (adaptive) + Ollama kept warm
 
 - **Consultation reliability traced and verified fixed.** Root cause of the garbage consult was NOT Ollama: `chat.py` wires `ReasoningGraph(llm_client=None)` and its LLM call is a `.generate()` placeholder never connected to a real client, so the ToT path could never reason. Pre-fix it fabricated `Hypothesis N for: <query>` (which didn't contain "unable to generate", so `send_message` returned the garbage). The earlier reasoning fix (degrade honestly to "Unable to generate a confident answer.") means ToT now trips the existing fallthrough at `chat.py:1350` -> standard chat -> a real answer. **Verified live:** a "should...best" (ToT-triggering) consult returned a real, substantive answer at $0.0223 (ledgered). So consult is now adaptive/defensive: degraded reasoning falls through to a working, cost-tracked path instead of silently emitting stubs.
 - **Ollama "slowness" was cold-loading, not degradation.** The RTX 4090 (24GB) sits idle; Ollama evicts the 19GB model after ~5 min, so each spaced call paid a full reload (~22-58s). Fix: deepr's local backend now sends `keep_alive` (`DEEPR_OLLAMA_KEEP_ALIVE`, default 30m) on every Ollama request, pinning the model warm. **Verified:** probe 22.4s cold -> 1.8s warm (12x). Local syncs no longer cold-reload between subscriptions. 173 local tests green; lint/ratchets/file-size at baseline.
 - Follow-ons identified (not yet built): a native `deepr expert consult` CLI + MCP tool (so consultation isn't a driver script and any harness can call it), capacity-aware consultation routing (fall through to plan-quota CLIs), and wiring ToT to a real client *with* ledgered cost (it currently bypasses cost_safety, so it stays disabled-by-fallthrough rather than reintroducing a silent-spend path).
 
-## 2026-06-21 — Fixed a silent-degradation bug the consulting process surfaced
+## 2026-06-21 - Fixed a silent-degradation bug the consulting process surfaced
 
 - **The wider 11-expert consult (incl. 4 new experts: Distributed Systems Reliability, Temporal Knowledge Graphs, Karpathy LLM Wiki, Open Knowledge Format) returned garbage** - every perspective was `Hypothesis 1 for: <prompt>` at $0. Root cause: `ReasoningGraph._generate_hypotheses` had a "fallback" that **fabricated** `num_hypotheses` placeholder hypotheses (`text="Hypothesis N for: <query>"`, confidence 0.7) whenever the LLM call failed or no client was present. `_synthesize` then returned the highest-confidence hypothesis as the answer - so fabricated placeholders surfaced as a confident response. The local model being pathologically slow right now (probe: qwen2.5-coder:32b took 58s for "OK") triggered the failure path.
 - **Fix:** removed the synthetic fallback entirely. On no/failed generation the state stays `is_degraded=True` with no hypotheses, and the existing honest path in `_synthesize` emits `"Unable to generate a confident answer."` at 0.0 confidence. Also skip blank-text hypotheses. This is the no-silent-failure discipline applied: a model outage now degrades honestly instead of fabricating confident content. Regression test asserts no `Hypothesis N for:` text and the honest synthesis; updated the one test that had encoded the fabrication; 49 reasoning + 58 chat/reasoning tests green; lint/ratchets/file-size at baseline.
 - **GitHub hygiene:** one clean `main` (local + remote, no stray branches); pushed; CI = success, CodeQL = success. Keeping main + build current as work lands.
 
-## 2026-06-21 — Source-independence trust floor (the dogfood experts' #1 risk, fixed)
+## 2026-06-21 - Source-independence trust floor (the dogfood experts' #1 risk, fixed)
 
 - **The calibration-integrity bug the expert team unanimously flagged, fixed.** The tertiary trust ceiling rose 0.60 -> 0.80 on `len(set(evidence_refs)) >= 2`. But absorb stores `evidence_refs=[f"report:{id}", *quotes]`, so the `report:` pointer + any quote excerpt = 2 distinct strings -> **0.80 for a single source**, systematically. Live beliefs showed it (the dogfood expert read at 0.80 from one report). This is the "syndicated/same-origin can't corroborate" gap five experts independently raised.
 - **Fix (`Belief._independent_source_count`):** count distinct source *identifiers* only - URLs collapsed to host (a syndicated origin counts once), namespaced ids (`report:<id>`) by value - and **skip free-text excerpts** (any ref containing whitespace; quotes ground one source, not new origins). Kept **deterministic** by design and per the user's "no brittle fail patterns" steer: a trust floor is the prompt-injection backstop, so a model verdict (injectable to claim independence) must never set it - this is determinism-on-*form* (AGENTIC_BALANCE), and it **fails safe toward 0.60** (ambiguity lowers, never lifts; never adds/removes beliefs). The existing designed semantics hold (two distinct report runs still corroborate to 0.80).
 - **Validation:** 4 new regression tests (quotes don't count, same-host URLs are one source, distinct hosts corroborate, distinct report runs corroborate); 1298 belief/expert/calibration tests green; lint/ratchets at baseline; beliefs.py file-size cap re-baselined +33 with a justifying comment (precedent: the existing `+7 security fix`). Docs updated: ROADMAP item closed (and its earlier "route to a model verdict" framing corrected - a safety floor stays deterministic), calibration-and-trust.md independence definition sharpened.
 
-## 2026-06-21 — Cost-visibility fix: `costs show` now reflects the canonical ledger ($0.05 -> $0.82)
+## 2026-06-21 - Cost-visibility fix: `costs show` now reflects the canonical ledger ($0.05 -> $0.82)
 
 - **The "ohg" bug, run down and fixed.** `deepr costs show` reported month $0.05 / today $0.00 while the canonical `cost_ledger.jsonl` actually held **$0.82** ($0.17 today). Root cause: `CostDashboard._load` read entries from the *derived* `cost_log.json`, which only gets the spend that flows through `dashboard.record()`. The real recorders - `cost_safety.record_cost` (the main one), the research pipeline - write the canonical ledger **directly** and bypass the dashboard, so the derived cache drifts and `costs show` undercounts. The code even documented the drift (`rebuild_from_ledger`'s docstring) but `show` never reconciled.
 - **Fix (regeneration-invariant-correct):** the dashboard now treats the **ledger as the source of truth** for reads. `_load` materializes entries from the ledger (new `_entries_from_ledger` helper, shared with `rebuild_from_ledger`); `cost_log.json` supplies only dashboard-owned state (triggered alerts, user-set limits) with a legacy entry fallback when no ledger exists. Extracted `_load_cache_state` to keep `_load` under the C901 ceiling. Live-verified: `costs show` now reads $0.17 today / $0.82 month. Two regression tests (ledger-written-outside-dashboard is visible; a stale/empty cache never masks ledger spend); 161 cost tests green; updated the unicode round-trip test (entries now carry the ledger's provenance `source` key).
 - **Bug B fixed too:** expert *chat consultation* (the council's `agentic=False` perspective generations) incurred ~$0.01/expert but wrote **no** ledger entries - chat recorded *research* costs via `cost_safety.record_cost` but the conversational answer-generation path only bumped the in-session `cost_accumulated`, so that spend escaped both the canonical ledger *and* the daily/monthly caps. Fixed with `_account_chat_cost(usage, model)` (accumulate AND `record_cost`, best-effort), replacing the four inline `cost_accumulated +=` sites in `send_message` + `send_message_streaming`. Unit-tested (records to ledger+caps, skips zero cost, swallows ledger-write failure) and **live-verified**: a one-question consult now appends an `expert_chat` ledger entry (0 -> 1). Both no-silent-money gaps are now closed.
 
-## 2026-06-21 — Dogfood: the expert team reviews Deepr (consultation + TKG + council all validated)
+## 2026-06-21 - Dogfood: the expert team reviews Deepr (consultation + TKG + council all validated)
 
 - **Validated, end to end, the four things asked:** (1) experts can be talked to (read verbs + chat); (2) TKGs work - `why` returns the inference chain (claim, floored 0.80 confidence, 2 evidence refs with `[S2]` citations, recorded-1.00->effective-0.80 trajectory), `what-changed` and `contested` work; (3) they talk as a **team** - a 5-expert council (AI Agent Memory Systems [$0 local] + Knowledge Graphs/Provenance, AI Cost Optimization, Model Context Protocol, Python Code Quality) produced 5/5 belief-grounded perspectives + a synthesized verdict with agreements/disagreements; (4) they **consulted on Deepr's own direction** and the output is genuinely sharp.
 - **The team's convergent verdict on Deepr (real dogfood payoff):** all five independently flagged the **absorption pipeline's evidence/provenance integrity** as Deepr's #1 risk - "calibrated experts vs well-indexed confabulation." Specific asks, assessed against what exists: (a) **source-independence check before the 0.60->0.80 trust-floor bump** - real gap (the floor counts 2+ evidence_refs but not their independence; syndicated copies inflate); (b) **content-addressed, replayable evidence** (snapshot+URL+timestamp+hash, extraction model/prompt) so LLM synthesis never counts as primary evidence - partial today (source packs exist, no hashing/replay guarantee); (c) **memoize verification + circuit-break verification cascades** so the autopilot can't trigger re-check storms into metered APIs. Added (a) and (b) to ROADMAP (belief-lifecycle), credited to the dogfood. Deepr already has the rest they listed (trust floors, contradiction-as-signal, bi-temporal, decay).
 - **Operational findings:** (i) rapid *consecutive* local syncs get throttled by free ddgs (2nd/3rd hung) - validates the fleet design's jitter/spacing requirement; switched the team to the API populate path ($0.034-$0.050/expert via the provider's own grounded research, +25 beliefs each). (ii) Council/chat consultation runs on an **API chat model by default** (~$0.01/expert, frontier "knowledge cutoff" phrasing), not the expert's local model - "$0 consult" needs an explicit local flag/config. (iii) `costs show` reports month $0.05 while sync+consult reports summed ~$0.28 - **possible cost-ledger completeness gap** (the chat/council spend path may not write the canonical ledger); flagged to verify against the no-silent-money invariant. (iv) `council.select_experts` ranks by lexical keyword overlap (a brittle router) - passed experts explicitly per AGENTIC_BALANCE; the model-judgment routing upgrade is already roadmapped.
 - **Spend this session ~$0.28** (4 API syncs + 2 council runs); lifetime well under the $10 validation cap. Throwaway driver script removed (not committed).
 
-## 2026-06-21 — Dogfooding: 10 project-experts + a real calibration-honesty bug fix
+## 2026-06-21 - Dogfooding: 10 project-experts + a real calibration-honesty bug fix
 
 - **Dogfooded the fleet on Deepr itself.** Defined + created 10 experts that help build this project (AI Agent Memory Systems, Model Context Protocol, Python Code Quality, LLM Evaluation and Calibration, Prompt Injection Defense, Knowledge Graphs and Provenance, Agentic Coding Tools, AI Cost Optimization, Deep Research Systems, Local LLM Operations) - all `--local`, $0. Validated creation (`expert list` / `fleet status`: 22 experts), subscription, and population: **AI Agent Memory Systems gained +21 grounded beliefs from 5 sources at $0.000** via local qwen2.5-coder:32b + free search. Consulted it via the $0 read verbs (`what-changed`, `info`) - content is accurate and on-topic (Mem0/Letta/Zep/Graphiti, temporal KGs, memory governance).
 - **Quality question answered with research.** For *grounded extraction from provided sources*, 2026 evidence says local 8B-70B models match or beat frontier *reasoning* models on faithfulness (they hallucinate less when kept in-source); the surviving gap is calibration + long/conflicting sources. Documented Pillar 4 (quality validation) in expert-fleet.md and a roadmap item, with the lean A/B over existing eval surfaces (`eval local` $0, `eval calibrate --corpus` paid+guarded).
 - **BUG found by dogfooding + fixed: `what-changed` showed `conf 1.00` on web-sourced beliefs.** Root cause: `perspective.what_changed` surfaced the extractor's *raw* `change.new_confidence` instead of the trust-floored `get_current_confidence()`. Every other read surface (digest, okf, perspective, why, health-check) already floors; this host-facing one (CLI + MCP `deepr_what_changed`) didn't - so an agent re-syncing would over-trust a single-web-source claim at 1.00 when the system's actual trusted confidence is capped at 0.60/0.80. Fixed at the source: surface the effective floored confidence when the belief still exists (raw change value only for archived beliefs, which have nothing left to floor). Live-verified: the 21 beliefs now show 0.80 (2 sources), not 1.00. Regression tests added (single-source->0.60, 2-source->0.80, secondary->uncapped); 128 tests across all what_changed consumers green. This is the trust-floor invariant ("research-derived never over-claims") made true in the one surface that had silently bypassed it.
 
-## 2026-06-21 — `deepr fleet status`: roster-wide health at a glance (Phase 4d slice 3)
+## 2026-06-21 - `deepr fleet status`: roster-wide health at a glance (Phase 4d slice 3)
 
-- **Shipped `deepr fleet status`** — the cross-expert health view the per-expert `loop_status_rollup` and plan-quota `capacity fleet` didn't cover. Read-only, $0, **no new storage**: folds each expert's `loop_runs.jsonl` (latest run, typed stop reason, accepted/rejected, cost + capacity source, last failure, waiting next-action) and `subscriptions.json` (refresh-due via the honest `Subscription.is_due` cadence — no invented intervals). Anomalies sort to the top; roster summary line; `--json` emits `deepr-fleet-status-v1` (sanitized host-facing envelope); **non-zero exit when any latest run failed** so a scheduler can run it as a watchdog.
+- **Shipped `deepr fleet status`** - the cross-expert health view the per-expert `loop_status_rollup` and plan-quota `capacity fleet` didn't cover. Read-only, $0, **no new storage**: folds each expert's `loop_runs.jsonl` (latest run, typed stop reason, accepted/rejected, cost + capacity source, last failure, waiting next-action) and `subscriptions.json` (refresh-due via the honest `Subscription.is_due` cadence - no invented intervals). Anomalies sort to the top; roster summary line; `--json` emits `deepr-fleet-status-v1` (sanitized host-facing envelope); **non-zero exit when any latest run failed** so a scheduler can run it as a watchdog.
 - **Design**: pure rollup core in `experts/fleet_status.py` with injectable store factories (unit-tested without disk, 11 tests); thin command layer `cli/commands/fleet.py` (monkeypatched rollup, 6 CLI tests covering json/empty/healthy/attention-exit/refresh+waiting/limit-validation). Kept C901 at baseline by extracting `_row_tag`/`_row_detail`/`_print_row_extras` (a branchy renderer hits 11 fast).
-- **Live-validated** against the real 16-expert roster: rendered correctly, surfaced that 4 project-relevant experts ("Agentic Coding Tools", "AI Cost Optimization", "Deep Research Systems", "Local LLM Operations") exist but were never synced (empty) — exactly the visibility the command is for. Full lint mirror green; $0 this slice.
+- **Live-validated** against the real 16-expert roster: rendered correctly, surfaced that 4 project-relevant experts ("Agentic Coding Tools", "AI Cost Optimization", "Deep Research Systems", "Local LLM Operations") exist but were never synced (empty) - exactly the visibility the command is for. Full lint mirror green; $0 this slice.
 
-## 2026-06-21 — Expert Fleet autopilot: research, design, roadmap + the monthly-reserve correctness fix
+## 2026-06-21 - Expert Fleet autopilot: research, design, roadmap + the monthly-reserve correctness fix
 
-- **Strategic alignment check (folded here, not a parallel doc).** Re-read README/ROADMAP/AGENTS/AGENTIC_BALANCE + the fleet/scheduling/budget code. Vision confirmed: a roster of always-fresh experts maintained mostly at $0 (local + free search + plan quota), with a monthly reserve (~$20) that is a pool rarely touched, the host owning the schedule, metered spend only for targeted reasons. Created CURRENT-STATE-ANALYSIS as this entry (CLAUDE.md/AGENTS.md mandate single-source-of-truth, no drift — a standalone analysis file would rot).
-- **Three research sweeps ($0, free web)** grounded the design: (1) refresh economics — ~60% of naïve refresh finds nothing changed; the win is a $0 ETag/304 + feed/sitemap + content-hash skip *before* model time; adaptive cadence sub-linear in volatility (never proportional — it starves the roster); reinforce-on-confirmation not on age. (2) Budget governance — reserve + per-expert soft allowance + per-run cap; degradation tiers NORMAL/CONSERVE/LOCAL-ONLY/PAUSE-METERED (degrade, don't fail); a value-of-spend gate (`gap_closure×value×urgency×volatility > cost_multiple×est`). (3) Scheduling — OS scheduler + in-verb `filelock` overlap guard + jitter beats any in-process daemon for a solo project; Win11 Modern Standby can't guarantee punctual wake, so design for catch-up + idempotency; a cross-expert `deepr fleet status` over existing `loop_runs.jsonl` + an off-box dead-man's-switch.
+- **Strategic alignment check (folded here, not a parallel doc).** Re-read README/ROADMAP/AGENTS/AGENTIC_BALANCE + the fleet/scheduling/budget code. Vision confirmed: a roster of always-fresh experts maintained mostly at $0 (local + free search + plan quota), with a monthly reserve (~$20) that is a pool rarely touched, the host owning the schedule, metered spend only for targeted reasons. Created CURRENT-STATE-ANALYSIS as this entry (CLAUDE.md/AGENTS.md mandate single-source-of-truth, no drift - a standalone analysis file would rot).
+- **Three research sweeps ($0, free web)** grounded the design: (1) refresh economics - ~60% of naive refresh finds nothing changed; the win is a $0 ETag/304 + feed/sitemap + content-hash skip *before* model time; adaptive cadence sub-linear in volatility (never proportional - it starves the roster); reinforce-on-confirmation not on age. (2) Budget governance - reserve + per-expert soft allowance + per-run cap; degradation tiers NORMAL/CONSERVE/LOCAL-ONLY/PAUSE-METERED (degrade, don't fail); a value-of-spend gate (`gap_closure x value x urgency x volatility > cost_multiple x est`). (3) Scheduling - OS scheduler + in-verb `filelock` overlap guard + jitter beats any in-process daemon for a solo project; Win11 Modern Standby can't guarantee punctual wake, so design for catch-up + idempotency; a cross-expert `deepr fleet status` over existing `loop_runs.jsonl` + an off-box dead-man's-switch.
 - **Design doc** `docs/design/expert-fleet.md`: the three pillars, every invariant preserved (no daemon, no new datastore, $0 read side, no-surprise-bills, plan-quota explicit-only, contested never throttled), and an 8-step smallest-shippable-first sequence.
 - **Roadmap** Phase 4d added (Expert Fleet autopilot), and the 2026-06-20 external-review reconciliation note already records adopt/reject vs the "epistemic OS" proposal.
-- **SHIPPED — concurrency-safe monthly reservation.** Confirmed defect: `check_and_reserve` projected daily spend *with* in-flight reservations but monthly *without* (`projected_monthly = monthly_cost + estimated_cost`), so under a low monthly reserve — exactly the $20 fleet case where daily headroom is large — N parallel callers all read the same stale total and over-commit by up to N×. Fixed with a `_reserved_monthly` pool symmetric to `_reserved_daily` (included in the projection; incremented on reserve; released on settle/refund under the one lock). TDD: 3 new regression tests (settle, refund, parallel-monthly-block) + the existing 7; 58 cost_safety tests green. Kept `cost_safety.py` under the 1000-line ceiling by tightening a docstring rather than splitting (splitting for tidiness is the STOP-banner anti-pattern). Full lint mirror green; spend this milestone $0 (research was free), lifetime ~$0.65 of $5.
+- **SHIPPED - concurrency-safe monthly reservation.** Confirmed defect: `check_and_reserve` projected daily spend *with* in-flight reservations but monthly *without* (`projected_monthly = monthly_cost + estimated_cost`), so under a low monthly reserve - exactly the $20 fleet case where daily headroom is large - N parallel callers all read the same stale total and over-commit by up to N times. Fixed with a `_reserved_monthly` pool symmetric to `_reserved_daily` (included in the projection; incremented on reserve; released on settle/refund under the one lock). TDD: 3 new regression tests (settle, refund, parallel-monthly-block) + the existing 7; 58 cost_safety tests green. Kept `cost_safety.py` under the 1000-line ceiling by tightening a docstring rather than splitting (splitting for tidiness is the STOP-banner anti-pattern). Full lint mirror green; spend this milestone $0 (research was free), lifetime ~$0.65 of $5.
 
-## 2026-06-20 — Expert portraits, refreshed screenshots, and the expert-library-as-team vision
+## 2026-06-20 - Expert portraits, refreshed screenshots, and the expert-library-as-team vision
 
 - **Portraits, consistent + settable style**: `portrait_style()` (`DEEPR_PORTRAIT_STYLE` / `--style`, house default) so a roster shares one look; new `deepr expert portrait [--all|--missing-only]` (own module `expert_portrait.py`) generate->attach->save->ledger. Generated consistent-style portraits for all 15 experts (~$0.56).
 - **Dev portrait rendering fixed**: vite now proxies `/portraits` to the backend (was SPA-fallback -> placeholder icons; dev now matches prod).
@@ -180,7 +570,7 @@
 - **Team dynamic validated live**: one cross-domain question -> 2 relevant experts -> distinct grounded perspectives (Tardigrade cellular survival; Antarctic thermoregulation), 90% confidence each.
 - **Red->green discipline**: the portrait command in the capped `experts.py` tripped the file-size ratchet, then (unmasked) the C901 ratchet; fixed by extracting to `expert_portrait.py` with module-level helpers. Recorded the full lint-job mirror in SKILLS so it doesn't recur. All CI-green; spend ~$0.65 of the $5 cap.
 
-## 2026-06-20 — Live $0-expert validation: fixed free web search (ddgs) + benchmark path bug
+## 2026-06-20 - Live $0-expert validation: fixed free web search (ddgs) + benchmark path bug
 
 - **Live validation on a real machine**: `deepr capacity fleet`/`--probe` correctly saw all 7 plan CLIs + Ollama (12 models, qwen2.5-coder:32b admitted); made 5 experts for **$0.00**; auth-mode gate correctly flagged codex/claude/grok as `metered` (API keys in env).
 - **Bug: free web search was dead.** The keyless backend imported the deprecated `duckduckgo_search`, whose endpoint now returns 0 results -> every `sync --local --fresh-context` got "no sources" -> no $0 knowledge. Fixed `web_search.py` to prefer the maintained `ddgs` package (legacy fallback), run the blocking query off the event loop, and degrade gracefully on rate-limit/network. Declared `ddgs` as a `search` extra in `[full]`. Regression tests added; the broken-by-install legacy test updated.
@@ -189,27 +579,27 @@
 - **Bug: new experts on evergreen topics never populated.** `sync` is delta-only ("what changed lately"), so a brand-new expert on a stable topic (coffee, castles) correctly found nothing and gained 0 beliefs. Fixed `build_freshness_query`: the FIRST sync (no `last_synced`) now establishes a comprehensive, sourced baseline; later syncs stay delta. Validated live end-to-end: a fresh "Coffee Brewing Methods" expert gained **+23 grounded beliefs at $0.000** on first sync via free ddgs + local qwen (vs 0 before); the fast-moving "Plan-Quota Capacity" expert had already gained +17. All three fixes this round are CI-green on main (eb46650, f9a5902, aaff1bd).
 - **Net:** the "$0 experts with real, sourced knowledge on local + free search" loop now works on ANY topic, validated live, with budget guards holding at $0.000 and bounded per-topic runs (no runaway).
 
-## 2026-06-20 — Plan-quota auto-routing via operator admission (the fleet's "auto" made real)
+## 2026-06-20 - Plan-quota auto-routing via operator admission (the fleet's "auto" made real)
 
 - `deepr capacity admit-plan <codex|claude|opencode> --task-class <sync|absorb>` (+ `revoke-plan`): explicit, dated, safety-gated operator opt-in to auto-route maintenance onto a subscription. Stored `plan:<id>` in the shared admission store; shown separately in `deepr capacity`.
 - Waterfall auto rung rewritten honestly: instead of waiting on a remaining-quota meter the CLIs don't expose, `_choose_plan_quota` auto-selects an installed + plan-authed + **admitted** + not-in-cooldown backend (`require_observed_quota=False`). Reset-aware: an `EXHAUSTED` event with a future `reset_at` blocks; once it passes the backend self-heals. API-key env still refuses the backend as plan capacity; metered stays the budget-gated last resort.
 - Local-admission lookup filtered to exclude `plan:*` keys (clean separation).
 - Tests rewritten for the admission model (admitted→routes, not-admitted→metered, exhausted-future→metered, exhausted-past-reset→re-routes, api-key→blocked, copilot-not-auto-routable) + admit/revoke CLI round-trip, api-key block, choice restricted to auto-routable. Waterfall 100% coverage; ruff + ratchets baseline; 319 suite green.
 
-## 2026-06-20 — route-gaps --plan parity (gap-fill on prepaid capacity)
+## 2026-06-20 - route-gaps --plan parity (gap-fill on prepaid capacity)
 
 - `expert route-gaps --execute` gains `--local` / `--api` / `--plan <id>` / `--plan-model`: gap-fill runs research + verified extraction on owned/prepaid capacity via one client (helper `_build_gap_fill_engine`), default stays metered. Scheduled recurring fills now proceed on owned/prepaid instead of waiting; loop records the real `capacity_source`.
 - All three research-bearing maintenance loop-closers (sync, absorb, route-gaps) now support `--plan`. The story holds: scheduled expert maintenance on subscriptions you already pay for, $0 at the margin, no silent metered call.
 - Tests: route-gaps `--plan` happy path + loop `capacity_source` assertions; 311 cli+experts+backends green; ruff + C901/S ratchets at baseline.
 
-## 2026-06-20 — Plan-quota fleet view + absorb parity + reset times
+## 2026-06-20 - Plan-quota fleet view + absorb parity + reset times
 
 - `expert absorb --plan <id>`: extraction parity with sync on prepaid capacity, same safety gate. Tests + CI green.
-- `deepr capacity fleet`: one read-only $0 dashboard over all 7 CLIs — installed, auth mode (metered when an API key is set), routability (auto/explicit/metered), and latest observed quota state (active/exhausted/quarantined/unobserved) with reset time. Builder `fleet.build_fleet_status`, versioned `deepr-plan-fleet-v1` payload.
+- `deepr capacity fleet`: one read-only $0 dashboard over all 7 CLIs - installed, auth mode (metered when an API key is set), routability (auto/explicit/metered), and latest observed quota state (active/exhausted/quarantined/unobserved) with reset time. Builder `fleet.build_fleet_status`, versioned `deepr-plan-fleet-v1` payload.
 - Reset times made real: `parse_reset_after_seconds` extracts a relative duration from vendor exhaustion messages ("Try again in 3h 42m", "Resets in 2h15m30s") and the chat client records `reset_at` on EXHAUSTED events; monthly pools with no countdown stay honestly unknown.
 - Validation ($0): new tests for fleet (11), reset parser (5), absorb --plan (3), reset recording (1), fleet CLI (3); coverage 94.6% on plan_quota; ruff + C901/S ratchets at baseline; full suites green.
 
-## 2026-06-20 — Plan-quota CLI execution backends (ROADMAP Phase 6)
+## 2026-06-20 - Plan-quota CLI execution backends (ROADMAP Phase 6)
 
 - Shipped plan-quota CLI execution: drive vendor coding/agent CLIs as
   $0-at-margin research backends for expert maintenance, behind a deterministic
@@ -365,7 +755,7 @@
 - Web UI: replaced the placeholder `D` tile with a rune-inspired (Kenaz) brand mark that works in light/dark/monochrome + favicon; added a user-selectable accent color (Settings > Appearance, 8 presets, light/dark, FOUC-safe, persisted). Fixed the Markdown viewer by installing/registering `@tailwindcss/typography` (every `prose-*` class was a no-op, so headings/spacing were dead).
 - Enrichment, capability-adaptive and $0-first:
   - `absorb --file`: ingest a local document (repo docs, papers) into an expert at $0 via local Ollama, provenance `file:<name>`.
-  - `research_web_local` + `deepr expert learn-web`: a local model searches the LIVE web (free DuckDuckGo) + scrapes pages + synthesizes a current, source-cited report, absorbed into beliefs - $0 on owned hardware. Fixes the "local research answers from stale parametric knowledge" gap.
+  - `research_web_local` + topic `deepr expert learn` (with `learn-web` as an explicit alias): a local model searches the LIVE web (free DuckDuckGo) + scrapes pages + synthesizes a current, source-cited report, absorbed into beliefs - $0 on owned hardware. Fixes the "local research answers from stale parametric knowledge" gap.
   - `fix(local)`: generous client timeout (`DEEPR_LOCAL_TIMEOUT`, default 3600s) so slow local generation is not aborted by the OpenAI SDK's 600s default (this had broken local synthesis). Quality over speed: a big model running well under 1 tok/s is fine for unattended $0 work.
 - Validated live: DuckDuckGo returns current 2026 sources at $0; deepr's scraper pulls clean page text; local routing selects Ollama at $0; metered absorb produced excellent grounded TKG beliefs ($0.43 research + ~$0.06 extraction; TKG expert went 0 -> 50 findings). End-to-end `research_web_local` confirmed (cost $0, 6 live sources, real report).
 - Cleaned the roster: archived + deleted 6 hollow demo experts (Coffee/Lighthouse/Sourdough/Lock Picking/Antarctic/Tardigrade); 13 real Deepr experts remain.

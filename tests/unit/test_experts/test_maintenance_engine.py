@@ -36,8 +36,8 @@ def test_local_builds_local_research_and_absorber(patch_engine, monkeypatch):
     captured = {}
 
     class _FakeAbsorber:
-        def __init__(self, prof, *, model, client):
-            captured.update(model=model, client=client)
+        def __init__(self, prof, *, model, client, estimated_cost=0.0):
+            captured.update(model=model, client=client, estimated_cost=estimated_cost)
 
     monkeypatch.setattr("deepr.backends.local.ollama_chat_client", lambda: client)
     monkeypatch.setattr(
@@ -50,7 +50,7 @@ def test_local_builds_local_research_and_absorber(patch_engine, monkeypatch):
 
     assert source == "local"
     assert engine.research_fn is research_fn
-    assert captured == {"model": "qwen-local", "client": client}
+    assert captured == {"model": "qwen-local", "client": client, "estimated_cost": 0.0}
 
 
 def test_local_passes_grounding_checker_when_supplied(patch_engine, monkeypatch):
@@ -59,8 +59,8 @@ def test_local_passes_grounding_checker_when_supplied(patch_engine, monkeypatch)
     captured = {}
 
     class _FakeAbsorber:
-        def __init__(self, prof, *, model, client, grounding_checker=None):
-            captured.update(model=model, grounding_checker=grounding_checker)
+        def __init__(self, prof, *, model, client, grounding_checker=None, estimated_cost=0.0):
+            captured.update(model=model, grounding_checker=grounding_checker, estimated_cost=estimated_cost)
 
     monkeypatch.setattr("deepr.backends.local.ollama_chat_client", lambda: object())
     monkeypatch.setattr("deepr.backends.local.make_local_research_fn", lambda model, *, context_builder=None: object())
@@ -69,7 +69,7 @@ def test_local_passes_grounding_checker_when_supplied(patch_engine, monkeypatch)
     _engine, source = build_sync_engine(profile, use_local=True, local_model="qwen-local", grounding_checker=checker)
 
     assert source == "local"
-    assert captured == {"model": "qwen-local", "grounding_checker": checker}
+    assert captured == {"model": "qwen-local", "grounding_checker": checker, "estimated_cost": 0.0}
 
 
 def test_local_without_model_is_a_programming_error(patch_engine):

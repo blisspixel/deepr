@@ -26,16 +26,19 @@ zero-cost local eval artifacts into admission records; runtime admitted-score
 quality-floor selection for expert maintenance; and `deepr capacity next` for
 ranked local setup, admission, eval refresh, fallback guidance, and concrete
 scheduled-maintenance previews. Explicit plan-quota CLI execution now works for
-maintenance through `expert sync --plan <id>`, `expert absorb --plan <id>`, and
-`capacity probe-plan <id>`, with auth-mode, no-surprise-bills, quota-ledger, and
-`$0` cost-ledger guards. Scheduled sync, gap-fill, reflection, and health-check
+maintenance and bootstrap through `expert sync --plan <id>`,
+`expert absorb --plan <id>`, topic `expert learn --plan <id>`, the explicit
+`expert learn-web --plan <id>` alias, and `capacity probe-plan <id>`, with
+auth-mode, no-surprise-bills, quota-ledger, and `$0` cost-ledger guards.
+Scheduled sync, gap-fill, reflection, and health-check
 surfaces now stop with wait or action-plan payloads instead of silently spending
 when owned/prepaid capacity is blocked, and those scheduled payloads carry
-published schema identifiers for downstream validation. Codex and Claude Code
-now have metadata-only quota refresh paths: `deepr capacity refresh-quota codex`
-reads local session-log `rate_limits`, and `deepr capacity refresh-quota claude`
-reads Claude Code OAuth usage metadata, then both record binding-window ledger
-events at `$0` without model calls. Still open: Grok and Antigravity
+published schema identifiers for downstream validation. Codex, Claude Code, and
+Grok now have metadata-only quota refresh paths: `deepr capacity refresh-quota
+codex` reads local session-log `rate_limits`, `deepr capacity refresh-quota
+claude` reads Claude Code OAuth usage metadata, and `deepr capacity
+refresh-quota grok` reads Grok billing metadata. They record binding-window
+ledger events at `$0` without model calls. Still open: Antigravity
 window/credit probes, plan-quota scheduler dispatch, and auto-mode runtime
 integration. Automatic plan routing remains gated until a trusted
 remaining-quota signal exists for the candidate backend.
@@ -253,8 +256,8 @@ scheduler work remains.
    run artifacts are done. Remaining: scheduler rules for when to choose
    `--fresh-context` or `--deep-context`.
 13. First plan_quota rungs are shipped for explicit maintenance execution, and
-   Codex plus Claude Code have metadata quota probes. Remaining plan work is
-   Grok and Antigravity remaining-quota probes, reset-aware scheduler dispatch,
+   Codex, Claude Code, plus Grok have metadata quota probes. Remaining plan
+   work is Antigravity remaining-quota probes, reset-aware scheduler dispatch,
    and auto-mode integration without surprise spend.
 14. Multi-account pools (N accounts of one vendor as one pooled backend) - last,
    it multiplies an already-working mechanism.

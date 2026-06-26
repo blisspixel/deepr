@@ -33,8 +33,10 @@ from deepr.backends.plan_quota.quota_probes import (
     QuotaProbeUnsupportedError,
     collect_claude_quota_snapshot,
     collect_codex_quota_snapshot,
+    collect_grok_quota_snapshot,
     collect_plan_quota_snapshot,
     default_claude_credentials_path,
+    default_grok_auth_path,
     supported_quota_probe_backends,
 )
 from deepr.backends.plan_quota.safety import (
@@ -42,6 +44,7 @@ from deepr.backends.plan_quota.safety import (
     SafetyDecision,
     detect_auth_mode,
     evaluate_plan_quota_safety,
+    plan_quota_child_env,
 )
 
 __all__ = [
@@ -61,12 +64,15 @@ __all__ = [
     "build_fleet_status",
     "collect_claude_quota_snapshot",
     "collect_codex_quota_snapshot",
+    "collect_grok_quota_snapshot",
     "collect_plan_quota_snapshot",
     "default_claude_credentials_path",
+    "default_grok_auth_path",
     "detect_auth_mode",
     "evaluate_plan_quota_safety",
     "get_adapter",
     "make_plan_quota_research_fn",
+    "plan_quota_child_env",
     "probe_plan_quota",
     "supported_quota_probe_backends",
 ]

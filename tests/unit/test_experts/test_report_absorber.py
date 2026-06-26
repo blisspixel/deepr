@@ -125,6 +125,46 @@ async def test_absorbs_strong_claim_with_provenance(tmp_path):
 
 
 @pytest.mark.asyncio
+async def test_string_evidence_is_preserved_as_one_excerpt(tmp_path):
+    quote = "The report states that model X leads on benchmark Y."
+    content = _claims_json({"statement": "Model X leads on benchmark Y", "confidence": 0.95, "evidence": quote})
+    absorber = _absorber(content, tmp_path)
+
+    await absorber.absorb("rep-123", "report body")
+
+    stored = next(iter(absorber.belief_store.beliefs.values()))
+    assert stored.evidence_refs == ["report:rep-123", quote]
+    assert stored.get_current_confidence() == pytest.approx(0.60)
+
+
+@pytest.mark.asyncio
+async def test_absorb_records_report_provenance_on_event_and_edges(tmp_path):
+    existing = Belief(claim="Benchmark Y uses accuracy", confidence=0.8, domain="ai")
+    content = _claims_json({"statement": "Model X leads benchmark Y", "confidence": 0.9, "evidence": ["table 2"]})
+    absorber = _absorber(content, tmp_path, beliefs=[existing])
+
+    result = await absorber.absorb("rep-edge", "report body")
+
+    added_id = result.absorbed[0].belief_id
+    created = [event for event in absorber.belief_store.iter_events() if event.belief_id == added_id]
+    assert created[-1].reason == "absorbed_report:rep-edge"
+    edges = absorber.belief_store.edges_for(added_id, "supports")
+    assert len(edges) == 1
+    assert "report:rep-edge" in edges[0].provenance
+
+
+@pytest.mark.asyncio
+async def test_absorber_uses_injected_cost_estimate(tmp_path):
+    content = _claims_json({"statement": "Plan-backed extraction costs zero at the margin", "confidence": 0.9})
+    store = BeliefStore("Test Expert", storage_dir=tmp_path / "beliefs")
+    absorber = ReportAbsorber(_expert(), client=_FakeClient(content), belief_store=store, estimated_cost=0.0)
+
+    result = await absorber.absorb("rep-123", "report body")
+
+    assert result.estimated_cost == 0.0
+
+
+@pytest.mark.asyncio
 async def test_extraction_prompt_quarantines_untrusted_report_text(tmp_path):
     content = _claims_json({"statement": "Grounded fact remains", "confidence": 0.9, "evidence": ["section"]})
     client = _CapturingClient(content)
@@ -157,6 +197,25 @@ async def test_low_confidence_rejected(tmp_path):
     assert result.absorbed == []
     assert len(result.rejected) == 1
     assert result.rejected[0].reason == "low_confidence"
+    assert absorber.belief_store.beliefs == {}
+
+
+@pytest.mark.asyncio
+async def test_no_change_meta_claim_rejected_as_non_domain_belief(tmp_path):
+    content = _claims_json(
+        {
+            "statement": "There were no significant changes.",
+            "confidence": 0.95,
+            "evidence": ["**no significant changes**"],
+        }
+    )
+    absorber = _absorber(content, tmp_path)
+
+    result = await absorber.absorb("rep1", "body")
+
+    assert result.absorbed == []
+    assert len(result.rejected) == 1
+    assert result.rejected[0].reason == "non_domain_meta_claim"
     assert absorber.belief_store.beliefs == {}
 
 
@@ -529,6 +588,22 @@ class TestGroundingCheck:
         assert result.grounding_flagged == []
         bel = next(iter(absorber.belief_store.beliefs.values()))
         assert bel.grounding_assurance == "cross_vendor"
+
+    @pytest.mark.asyncio
+    async def test_string_evidence_reaches_checker_as_one_excerpt(self, tmp_path):
+        calls: list[tuple[str, str]] = []
+        quote = "The report states that X is true."
+
+        async def checker(claim: str, evidence: str) -> CheckVerdict:
+            calls.append((claim, evidence))
+            return CheckVerdict(True, CheckAssurance.CROSS_VENDOR, "xai", "stated")
+
+        content = _claims_json({"statement": "X is true", "confidence": 0.9, "evidence": quote})
+        absorber = _grounding_absorber(content, tmp_path, checker)
+
+        await absorber.absorb("rep1", "report")
+
+        assert calls == [("X is true", quote)]
 
     @pytest.mark.asyncio
     async def test_refuted_claim_is_flagged_but_still_absorbed_unverified(self, tmp_path):

@@ -61,7 +61,7 @@ class TestArgvBuilders:
         argv = get_adapter("codex").build_argv("what changed?")
         assert argv[:2] == ["codex", "exec"]
         assert "--sandbox" in argv and "read-only" in argv
-        assert "--ask-for-approval" in argv and "never" in argv
+        assert "-c" in argv and 'approval_policy="never"' in argv
         assert argv[-1] == "what changed?"
 
     def test_codex_inserts_model(self):
@@ -74,11 +74,28 @@ class TestArgvBuilders:
         argv = get_adapter("claude").build_argv("q")
         assert argv == ["claude", "-p", "q"]
 
+    def test_claude_uses_stdin_delivery(self):
+        # A multi-line synthesis prompt passed as a claude.cmd command-line arg is
+        # mangled by cmd.exe on Windows, so claude silently sees an empty task.
+        # The prompt must go over stdin instead (`claude -p -`).
+        adapter = get_adapter("claude")
+        assert adapter.stdin_prompt is True
+        assert adapter.build_argv("-") == ["claude", "-p", "-"]
+
     def test_opencode_passes_model_as_provider_slash_model(self):
         argv = get_adapter("opencode").build_argv("q", "anthropic/claude-sonnet-4-6")
         assert argv[:2] == ["opencode", "run"]
         assert "-m" in argv
         assert argv[argv.index("-m") + 1] == "anthropic/claude-sonnet-4-6"
+
+    def test_grok_reads_prompt_from_file(self):
+        # A long research/synthesis prompt as a -p arg hits the Windows command
+        # line limit (WinError 206), so grok must read it from a file.
+        adapter = get_adapter("grok")
+        assert adapter.prompt_is_file is True
+        argv = adapter.build_argv("/tmp/deepr-plan-xyz.txt")
+        assert "-p" not in argv
+        assert argv[-2:] == ["--prompt-file", "/tmp/deepr-plan-xyz.txt"]
 
     def test_copilot_denies_shell_and_write(self):
         argv = get_adapter("copilot").build_argv("q")

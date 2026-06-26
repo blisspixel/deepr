@@ -26,12 +26,15 @@ def absorber_kwargs(
     model: str,
     client: Any | None = None,
     grounding_checker: GroundingChecker | None = None,
+    estimated_cost: float | None = None,
 ) -> dict[str, Any]:
     kwargs: dict[str, Any] = {"model": model}
     if client is not None:
         kwargs["client"] = client
     if grounding_checker is not None:
         kwargs["grounding_checker"] = grounding_checker
+    if estimated_cost is not None:
+        kwargs["estimated_cost"] = estimated_cost
     return kwargs
 
 

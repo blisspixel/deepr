@@ -83,10 +83,11 @@ def test_absorb_okf_local_dry_run_routes_parsed_text_to_absorber(monkeypatch, tm
             captured["saved_profile"] = saved_profile
 
     class FakeReportAbsorber:
-        def __init__(self, loaded_profile, *, model, client):
+        def __init__(self, loaded_profile, *, model, client, estimated_cost=0.0):
             captured["profile"] = loaded_profile
             captured["model"] = model
             captured["client"] = client
+            captured["estimated_cost"] = estimated_cost
 
         async def absorb(self, report_id, report_text, *, min_confidence, dry_run):
             captured["report_id"] = report_id
@@ -117,6 +118,7 @@ def test_absorb_okf_local_dry_run_routes_parsed_text_to_absorber(monkeypatch, tm
     assert payload["okf"]["concept_count"] == 1
     assert payload["absorption"]["dry_run"] is True
     assert captured["model"] == "qwen-local"
+    assert captured["estimated_cost"] == 0.0
     assert captured["dry_run"] is True
     assert captured["report_id"].startswith("okf:okf:")
     assert "OKF claims need verification" in captured["report_text"]

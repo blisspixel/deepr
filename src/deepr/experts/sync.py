@@ -54,6 +54,20 @@ def _slug(text: str) -> str:
     return re.sub(r"[^a-z0-9]+", "-", text.lower()).strip("-")[:48] or "topic"
 
 
+def _is_no_changes_answer(answer: str) -> bool:
+    """True when the model returned the instructed no-change marker.
+
+    Vendor CLIs sometimes wrap short answers in Markdown emphasis or code ticks.
+    This strips only formatting wrappers and punctuation around the first line,
+    then compares the exact marker. It is a form guard, not a semantic verdict.
+    """
+    first_line = (answer or "").strip().splitlines()[0] if (answer or "").strip() else ""
+    normalized = first_line.lower()
+    normalized = normalized.replace("*", "").replace("_", "").replace("`", "").replace("~", "")
+    normalized = re.sub(r"\s+", " ", normalized).strip(" .!:;")
+    return normalized == _NO_CHANGES_MARKER
+
+
 def _fresh_context_has_no_sources(research: dict[str, Any]) -> bool:
     metadata = research.get("fresh_context")
     if not isinstance(metadata, dict):
@@ -436,7 +450,7 @@ class ExpertSyncEngine:
             self._attach_source_pack_summary(outcome, source_pack_path, source_count, context_mode)
             return outcome, cost
 
-        if not answer or answer.lower().startswith(_NO_CHANGES_MARKER):
+        if not answer or _is_no_changes_answer(answer):
             outcome = self._record_no_changes(subscription, cost)
             self._attach_source_pack_summary(outcome, source_pack_path, source_count, context_mode)
             return outcome, cost

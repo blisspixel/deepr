@@ -1,24 +1,4 @@
-"""Belief system for expert consciousness.
-
-Implements belief objects with:
-- Claim, confidence, evidence tracking
-- Belief revision with conflict resolution
-- Confidence decay over time
-- Cross-expert knowledge sharing
-
-Usage:
-    from deepr.experts.beliefs import Belief, BeliefStore
-
-    belief = Belief(
-        claim="Python 3.12 supports pattern matching",
-        confidence=0.95,
-        evidence_refs=["doc_001", "doc_002"],
-        domain="python"
-    )
-
-    store = BeliefStore(expert_name="python_expert")
-    store.add_belief(belief)
-"""
+"""Belief objects, typed edges, and append-only belief events for experts."""
 
 import json
 import logging
@@ -592,7 +572,13 @@ class BeliefStore:
         return events
 
     def add_belief(
-        self, belief: Belief, check_conflicts: bool = True, dedup: bool = True
+        self,
+        belief: Belief,
+        check_conflicts: bool = True,
+        dedup: bool = True,
+        *,
+        change_reason: str = "",
+        edge_provenance: str = "detected:add_belief",
     ) -> tuple[Belief, BeliefChange | None]:
         """Add a belief to the store.
 
@@ -602,6 +588,9 @@ class BeliefStore:
             dedup: Merge into a lexically-similar existing belief. A caller that
                 confirmed the candidate is a *distinct* fact passes dedup=False
                 (the >0.7 overlap is a router, not a verdict; AGENTIC_BALANCE.md).
+            change_reason: Optional event-log reason for a newly created belief.
+            edge_provenance: Provenance recorded on auto-detected related and
+                contradiction edges created while adding this belief.
 
         Returns:
             Tuple of (added/updated belief, change record)
@@ -621,14 +610,18 @@ class BeliefStore:
         if check_conflicts:
             contradictions = self._find_contradictions(belief)
             for contra in contradictions:
-                self.add_edge(belief.id, contra.id, "contradicts", provenance="detected:add_belief", save=False)
+                self.add_edge(belief.id, contra.id, "contradicts", provenance=edge_provenance, save=False)
             # Same-polarity related beliefs become supports edges - the
             # structure explain_belief walks (TKG steps 2/4)
             for related in self._find_related(belief):
-                self.add_edge(belief.id, related.id, "supports", provenance="detected:add_belief", save=False)
+                self.add_edge(belief.id, related.id, "supports", provenance=edge_provenance, save=False)
 
         change = BeliefChange(
-            belief_id=belief.id, change_type="created", new_claim=belief.claim, new_confidence=belief.confidence
+            belief_id=belief.id,
+            change_type="created",
+            new_claim=belief.claim,
+            new_confidence=belief.confidence,
+            reason=change_reason,
         )
         self._record_change(change)
 

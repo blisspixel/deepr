@@ -22,9 +22,31 @@ from deepr.cli.commands.semantic.experts import expert
 
 # Shared core (also used by the deepr_consult_experts MCP tool). Re-exported so
 # existing importers/tests keep working.
-from deepr.experts.consult import build_consult_payload, run_consult
+from deepr.experts.consult import ConsultBackendError, build_consult_payload, build_synthesis_backend, run_consult
 
 __all__ = ["build_consult_payload", "expert_consult", "run_consult"]
+
+
+def _build_cli_synthesis_backend(
+    *,
+    use_local: bool,
+    local_model: str | None,
+    plan_backend: str | None,
+    plan_model: str | None,
+    json_output: bool,
+):
+    try:
+        backend = build_synthesis_backend(
+            use_local=use_local,
+            local_model=local_model,
+            plan_backend=plan_backend,
+            plan_model=plan_model,
+        )
+    except ConsultBackendError as exc:
+        raise click.UsageError(str(exc)) from exc
+    if backend.tos_note and not json_output:
+        print_warning(backend.tos_note)
+    return backend
 
 
 def _render(payload: dict[str, Any]) -> None:
@@ -52,11 +74,28 @@ def _render(payload: dict[str, Any]) -> None:
     multiple=True,
     help="Expert to include (repeatable). Omit to auto-select relevant experts.",
 )
-@click.option("--max-experts", default=3, show_default=True, help="Max experts when auto-selecting (capped at 5).")
+@click.option(
+    "--max-experts", default=3, show_default=True, help="Max experts when auto-selecting (capped at 10)."
+)
 @click.option("--budget", "-b", default=2.0, show_default=True, help="USD ceiling for this consultation.")
+@click.option("--local", "use_local", is_flag=True, help="Use local Ollama synthesis at $0.")
+@click.option("--local-model", default=None, help="Local Ollama model for synthesis. Defaults to detected model.")
+@click.option("--plan", "plan_backend", default=None, help="Use an explicit plan-quota CLI for synthesis.")
+@click.option("--plan-model", default=None, help="Model hint for the plan-quota CLI.")
 @click.option("--json", "json_output", is_flag=True, help="Emit the versioned consult artifact (deepr-consult-v1).")
 @click.option("-y", "--yes", is_flag=True, help="Skip the spend confirmation.")
-def expert_consult(question, experts, max_experts, budget, json_output, yes):
+def expert_consult(
+    question,
+    experts,
+    max_experts,
+    budget,
+    use_local,
+    local_model,
+    plan_backend,
+    plan_model,
+    json_output,
+    yes,
+):
     """Consult a team of experts and synthesize one calibrated answer.
 
     One bounded knowledge transaction: route to the relevant experts (or the ones
@@ -71,12 +110,37 @@ def expert_consult(question, experts, max_experts, budget, json_output, yes):
     if budget <= 0:
         print_error("--budget must be positive.")
         sys.exit(2)
+    try:
+        synthesis_backend = _build_cli_synthesis_backend(
+            use_local=use_local,
+            local_model=local_model,
+            plan_backend=plan_backend,
+            plan_model=plan_model,
+            json_output=json_output,
+        )
+    except click.UsageError as e:
+        print_error(str(e))
+        sys.exit(2)
+
     if not yes and not json_output and not click.confirm(f"Consult experts (budget ${budget:.2f})?", default=True):
         print_warning("Cancelled.")
         return
+    if synthesis_backend.note and not json_output:
+        console.print(f"[dim]{synthesis_backend.note}[/dim]")
 
     try:
-        result = asyncio.run(run_consult(question, list(experts), max_experts, budget))
+        result = asyncio.run(
+            run_consult(
+                question,
+                list(experts),
+                max_experts,
+                budget,
+                synthesis_client=synthesis_backend.client,
+                synthesis_model=synthesis_backend.model,
+                synthesis_provider=synthesis_backend.provider,
+                allow_live_fallback=synthesis_backend.allow_live_fallback,
+            )
+        )
     except Exception as e:  # surface the failure honestly; never a silent empty result
         print_error(f"Consultation failed: {e}")
         sys.exit(1)

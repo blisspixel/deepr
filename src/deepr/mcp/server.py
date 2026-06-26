@@ -63,6 +63,7 @@ from deepr.core.reports import ReportGenerator
 from deepr.core.research import ResearchOrchestrator
 from deepr.experts.chat import ExpertChatSession
 from deepr.experts.profile import ExpertStore
+from deepr.mcp.consult_tool import CONSULT_EXPERTS_INPUT_SCHEMA, consult_experts_tool
 from deepr.mcp.expert_reads import get_expert_handoff, get_expert_loop_status
 from deepr.mcp.search.gateway import GatewayTool
 from deepr.mcp.search.registry import ToolRegistry, ToolSchema, create_default_registry
@@ -300,6 +301,12 @@ class DeeprMCPServer:
             },
         }
 
+    async def deepr_capabilities(self) -> dict[str, Any]:
+        """Return the versioned capability map: roster, key tools, cost tiers, $0 paths."""
+        from deepr.mcp.capabilities import build_capabilities
+
+        return build_capabilities(self.store, self.registry, version=SERVER_VERSION)
+
     # ------------------------------------------------------------------ #
     # Tool: deepr_tool_search (gateway / dynamic discovery)
     # ------------------------------------------------------------------ #
@@ -450,6 +457,10 @@ class DeeprMCPServer:
         experts: list[str] | None = None,
         max_experts: int = 3,
         budget: float = 2.0,
+        synthesis_backend: str = "api",
+        local_model: str | None = None,
+        plan: str | None = None,
+        plan_model: str | None = None,
     ) -> dict[str, Any]:
         """Consult a team of experts as one bounded knowledge transaction.
 
@@ -458,15 +469,16 @@ class DeeprMCPServer:
         artifact (answer + per-expert perspectives + agreements/dissent + cost).
         Shares the CLI's code path via ``deepr.experts.consult``.
         """
-        from deepr.experts.consult import build_consult_payload, run_consult
-
-        if budget <= 0:
-            return _make_error("INVALID_BUDGET", "budget must be positive")
-        try:
-            result = await run_consult(question, list(experts or []), max_experts, budget)
-        except (OSError, KeyError, ValueError, DeeprError) as e:
-            return _make_error("CONSULT_FAILED", str(e))
-        return build_consult_payload(question, result)
+        return await consult_experts_tool(
+            question=question,
+            experts=experts,
+            max_experts=max_experts,
+            budget=budget,
+            synthesis_backend=synthesis_backend,
+            local_model=local_model,
+            plan=plan,
+            plan_model=plan_model,
+        )
 
     # ------------------------------------------------------------------ #
     # Tool: deepr_expert_manifest
@@ -1382,24 +1394,7 @@ def _register_new_tools(registry: ToolRegistry) -> None:
                 "them. One bounded knowledge transaction - Deepr recommends; your harness "
                 "decides and enacts."
             ),
-            input_schema={
-                "type": "object",
-                "properties": {
-                    "question": {"type": "string", "description": "The question to put to the expert team"},
-                    "experts": {
-                        "type": "array",
-                        "items": {"type": "string"},
-                        "description": "Optional explicit expert names; omit to auto-select relevant experts",
-                    },
-                    "max_experts": {
-                        "type": "integer",
-                        "description": "Max experts when auto-selecting (capped at 5)",
-                        "default": 3,
-                    },
-                    "budget": {"type": "number", "description": "USD ceiling for the consultation", "default": 2.0},
-                },
-                "required": ["question"],
-            },
+            input_schema=CONSULT_EXPERTS_INPUT_SCHEMA,
             category="experts",
             cost_tier="low",
         )
@@ -1678,6 +1673,7 @@ async def _handle_tools_call(server: DeeprMCPServer, params: dict[str, Any]) -> 
 
     tool_dispatch: dict[str, Callable[[dict[str, Any]], Awaitable[Any]]] = {
         "deepr_status": lambda args: server.deepr_status(),
+        "deepr_capabilities": lambda args: server.deepr_capabilities(),
         "deepr_tool_search": lambda args: server.deepr_tool_search(
             query=args.get("query", ""),
             limit=args.get("limit", 3),

@@ -22,8 +22,10 @@ from __future__ import annotations
 
 import asyncio
 import contextlib
+import shutil
 import tempfile
 import time
+from collections.abc import Mapping
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -61,23 +63,27 @@ async def run_cli(
     *,
     stdin: str | None = None,
     timeout: float = DEFAULT_TIMEOUT_S,
-    env: dict[str, str] | None = None,
+    env: Mapping[str, object] | None = None,
     cwd: str | None = None,
 ) -> CliResult:
     """Run ``argv`` to completion and return a structured result. Never raises."""
     start = time.perf_counter()
     run_cwd = cwd if cwd is not None else _scratch_dir()
+    run_argv = _clean_argv(argv)
+    run_env = _clean_env(env)
+    if not run_argv:
+        return CliResult(None, "", "", False, "failed to launch: empty argv", _ms(start))
     try:
         proc = await asyncio.create_subprocess_exec(
-            *argv,
+            *run_argv,
             stdin=asyncio.subprocess.PIPE if stdin is not None else None,
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE,
-            env=env,
+            env=run_env,
             cwd=run_cwd,
         )
     except (OSError, ValueError) as e:
-        return CliResult(None, "", "", False, f"failed to launch {argv[0]!r}: {e}", _ms(start))
+        return CliResult(None, "", "", False, f"failed to launch {run_argv[0]!r}: {e}", _ms(start))
 
     input_bytes = stdin.encode("utf-8") if stdin is not None else None
     try:
@@ -102,3 +108,34 @@ async def run_cli(
 
 def _ms(start: float) -> int:
     return int((time.perf_counter() - start) * 1000)
+
+
+def _clean_argv(argv: list[str]) -> list[str]:
+    """Normalize argv text so fetched web context cannot break process launch."""
+    clean = [str(part).replace("\x00", " ") for part in argv]
+    if not clean:
+        return clean
+    clean[0] = shutil.which(clean[0]) or clean[0]
+    return clean
+
+
+def _clean_env(env: Mapping[str, object] | None) -> dict[str, str] | None:
+    """Drop env entries subprocess APIs cannot represent.
+
+    Environment is operator-controlled and may include empty or cleared API-key
+    overrides. Invalid entries should not make an otherwise safe plan-quota run
+    fail before the vendor CLI starts.
+    """
+    if env is None:
+        return None
+    clean: dict[str, str] = {}
+    for key, value in env.items():
+        if not isinstance(key, str) or not key or "=" in key or "\x00" in key:
+            continue
+        if value is None:
+            continue
+        text = str(value)
+        if "\x00" in text:
+            continue
+        clean[key] = text
+    return clean

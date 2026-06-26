@@ -282,17 +282,21 @@ class ExpertHealthChecker:
         ]
 
         count = len(recorded_pairs) + len(heuristic_pairs)
-        severity = "warning" if count else "ok"
-        if count:
-            # Both sources are lexical-heuristic candidates (a high-recall
-            # router), not confirmed semantic contradictions - resolve-conflicts
-            # runs the model verdict (docs/design/checks-deterministic-vs-agentic.md).
+        if recorded_pairs:
+            severity = "warning"
             summary = (
                 f"{count} candidate contradiction(s), lexical/unverified: {len(recorded_pairs)} recorded "
                 f"(absorb/sync-time flags), {len(heuristic_pairs)} newly detected (heuristic). "
-                "Adjudicate for a model verdict."
+                "Adjudicate recorded pairs for a model verdict."
+            )
+        elif heuristic_pairs:
+            severity = "info"
+            summary = (
+                f"{len(heuristic_pairs)} advisory contradiction candidate(s) from the lexical router. "
+                "No recorded contested beliefs; do not treat these as semantic contradictions until model-checked."
             )
         else:
+            severity = "ok"
             summary = "No belief contradictions detected (recorded + heuristic pass)."
         detail = {
             "count": count,
@@ -313,15 +317,12 @@ class ExpertHealthChecker:
         }
 
         action = None
-        if count:
-            # resolve-conflicts runs the paid LLM adjudication; a few cents per pair.
-            cost = round(0.02 * count, 2)
+        if recorded_pairs:
+            # resolve-conflicts runs the paid LLM adjudication; a few cents per recorded pair.
+            cost = round(0.02 * len(recorded_pairs), 2)
             action = RecommendedAction(
                 category="contradictions",
-                description=(
-                    f"Adjudicate {count} contradiction(s) "
-                    f"({len(recorded_pairs)} recorded, {len(heuristic_pairs)} new) and revise beliefs"
-                ),
+                description=(f"Adjudicate {len(recorded_pairs)} recorded contradiction(s) and revise beliefs"),
                 command=f"deepr expert resolve-conflicts {shlex.quote(self.profile.name)}",
                 estimated_cost=cost,
                 approval_tier=_approval_tier_for_cost(cost),
@@ -451,7 +452,7 @@ class ExpertHealthChecker:
         }
 
         action = None
-        if open_count:
+        if open_count >= _GAP_BACKLOG_WARN:
             n = min(open_count, 3)
             cost = round(sum(g.estimated_cost for g in top[:n]), 2)
             action = RecommendedAction(

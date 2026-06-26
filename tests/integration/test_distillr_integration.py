@@ -62,8 +62,14 @@ class TestDistillrProfileLoading:
         # Distillr spends money: a per-call cap must exist (recon is 0 = free).
         assert profile.budget_limit == 2.0
         # Only the free read-side tool auto-approves; ingestion needs approval.
+        assert "list_topics" in profile.auto_approve
         assert "find_insights" in profile.auto_approve
+        assert "list_topic_summary" in profile.auto_approve
+        assert "okf_validate" in profile.auto_approve
         assert "papers" in profile.require_approval
+        assert "ask" in profile.require_approval
+        assert "find_insights_summary" in profile.require_approval
+        assert "okf_export" in profile.require_approval
         assert "catch_up" in profile.require_approval  # the freshness/delta verb
 
     def test_distillr_template_matches_spec(self) -> None:
@@ -71,7 +77,9 @@ class TestDistillrProfileLoading:
         assert DISTILLR_PROFILE_TEMPLATE["command"] == "distill-mcp"
         assert DISTILLR_PROFILE_TEMPLATE["budget_limit"] == 2.0
         assert DISTILLR_PROFILE_TEMPLATE["progress"] is True
+        assert "list_topics" in DISTILLR_PROFILE_TEMPLATE["auto_approve"]  # free corpus inventory
         assert "find_insights" in DISTILLR_PROFILE_TEMPLATE["auto_approve"]  # free read-side corpus search
+        assert "ask" in DISTILLR_PROFILE_TEMPLATE["require_approval"]
 
     def test_distillr_profile_from_yaml_config(self, tmp_path: Path) -> None:
         config_content = """\

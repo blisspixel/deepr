@@ -56,7 +56,7 @@ def build_sync_engine(
         # contract with a real raise (asserts are stripped under -O).
         if local_model is None:
             raise ValueError("use_local requires a resolved local_model")
-        absorber_kwargs = {"model": local_model, "client": ollama_chat_client()}
+        absorber_kwargs = {"model": local_model, "client": ollama_chat_client(), "estimated_cost": 0.0}
         if grounding_checker is not None:
             absorber_kwargs["grounding_checker"] = grounding_checker
         absorber = ReportAbsorber(profile, **absorber_kwargs)
@@ -74,7 +74,7 @@ def build_sync_engine(
         # One client serves research and verified extraction, so the whole sync
         # stays on prepaid plan capacity with no silent metered call.
         client = PlanQuotaChatClient(plan_adapter, model=plan_model)
-        absorber_kwargs = {"model": plan_model or plan_adapter.backend_id, "client": client}
+        absorber_kwargs = {"model": plan_model or plan_adapter.backend_id, "client": client, "estimated_cost": 0.0}
         if grounding_checker is not None:
             absorber_kwargs["grounding_checker"] = grounding_checker
         absorber = ReportAbsorber(profile, **absorber_kwargs)
