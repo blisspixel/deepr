@@ -9,10 +9,18 @@ from __future__ import annotations
 
 import json
 
+import pytest
 from click.testing import CliRunner
 
 import deepr.cli.commands.semantic.expert_consult as mod
 from deepr.cli.commands.semantic.expert_consult import build_consult_payload, expert_consult
+
+
+@pytest.fixture(autouse=True)
+def consult_trace_path(monkeypatch, tmp_path):
+    path = tmp_path / "consult_traces.jsonl"
+    monkeypatch.setenv("DEEPR_CONSULT_TRACE_PATH", str(path))
+    return path
 
 
 def _result(**over):
@@ -78,6 +86,21 @@ def test_consult_json_emits_versioned_artifact(monkeypatch):
     assert parsed["schema_version"] == "deepr-consult-v1"
     assert parsed["answer"] == "the synthesized answer"
     assert parsed["cost_usd"] == 0.0123
+    assert parsed["trace"]["schema_version"] == "deepr-consult-trace-v1"
+
+
+def test_consult_writes_replayable_trace(monkeypatch, consult_trace_path):
+    _patch(monkeypatch, _result())
+
+    result = CliRunner().invoke(expert_consult, ["q", "--json"])
+
+    assert result.exit_code == 0
+    trace = json.loads(consult_trace_path.read_text(encoding="utf-8").strip())
+    parsed = json.loads(result.output)
+    assert parsed["trace"]["trace_id"] == trace["trace_id"]
+    assert trace["input"]["question"] == "q"
+    assert trace["context_packet"]["selected"][0]["context"]["source"] == "belief_store"
+    assert trace["capacity"]["synthesis_backend"] == "api"
 
 
 def test_consult_human_render(monkeypatch):
@@ -100,7 +123,7 @@ def test_budget_must_be_positive():
     assert result.exit_code == 2
 
 
-def test_failure_surfaced_not_silent(monkeypatch):
+def test_failure_surfaced_not_silent(monkeypatch, consult_trace_path):
     async def boom(*a, **k):
         raise RuntimeError("council down")
 
@@ -108,6 +131,9 @@ def test_failure_surfaced_not_silent(monkeypatch):
     result = CliRunner().invoke(expert_consult, ["q", "-y"])
     assert result.exit_code == 1
     assert "Consultation failed" in result.output
+    trace = json.loads(consult_trace_path.read_text(encoding="utf-8").strip())
+    assert trace["status"] == "failed"
+    assert trace["failure"]["error_type"] == "RuntimeError"
 
 
 def test_explicit_experts_and_budget_passed_through(monkeypatch):

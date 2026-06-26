@@ -7,7 +7,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+<details>
+<summary>Archived autonomous progress milestones before the latest five cycles</summary>
+
+- Built the Level 5 and Level 6 expert maturity design, including explicit
+  self-model, metacognitive monitor, and reflective-continuity gates.
+- Added the MCP no-metered consult path and host-agent test guide.
+- Added topic learning through local and explicit plan capacity.
+- Added Grok, Codex, and Claude quota metadata refresh paths.
+- Added plan-quota execution for sync, absorb, learn, route-gaps, and probes.
+- Added hosted MCP HTTP, scoped keys, per-key budgets, rate limits, concurrency
+  caps, audit review, registration manifests, and deployment recipes.
+- Added loop-run records, loop-status rollups, OKF export/import, handoff
+  schemas, scheduled maintenance schemas, prompt-boundary red-team metrics, and
+  supported-surface documentation.
+
+</details>
+
 ### Added
+- Added persisted consult traces. CLI and MCP consults now append local
+  `deepr-consult-trace-v1` records with the question, requested experts,
+  selected context metadata, capacity posture, output artifact, checks run, and
+  first-class synthesis failure events. The schema is published under
+  `docs/schemas/` and registered for downstream compatibility checks.
 - Added `deepr_capabilities`, a free MCP discovery tool returning the versioned
   `deepr-capabilities-v1` map: expert roster, key tools with live registry-sourced
   cost tiers and outcome-oriented when-to-use, the `$0` owned/prepaid synthesis
@@ -38,8 +60,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   with `$0` cost-ledger entries.
 - Added `deepr eval consult`, a `$0` consult harness regression suite covering
   explicit expert slug resolution, stored-belief context packet shape,
-  synthesis agreement/disagreement parsing, and `deepr-consult-v1` context
-  preservation. It can emit JSON and save artifacts under `data/benchmarks`.
+  synthesis agreement/disagreement parsing, `deepr-consult-v1` context
+  preservation, and `deepr-consult-trace-v1` trace contracts. It can emit JSON
+  and save artifacts under `data/benchmarks`.
 - Added owned-capacity consult synthesis flags:
   `deepr expert consult --local` uses local Ollama synthesis at `$0`, and
   `deepr expert consult --plan <id>` uses an explicit plan-quota CLI for

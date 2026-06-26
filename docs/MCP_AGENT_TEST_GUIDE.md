@@ -112,6 +112,7 @@ Call:
 Expected:
 
 - `schema_version` is `deepr-consult-v1`.
+- `trace.schema_version` is `deepr-consult-trace-v1`.
 - `cost_usd` is `0`.
 - `capacity.synthesis_backend` is `local`.
 - `capacity.provider` is `local`.
@@ -147,6 +148,7 @@ Call:
 Expected:
 
 - `schema_version` is `deepr-consult-v1`.
+- `trace.schema_version` is `deepr-consult-trace-v1`.
 - `capacity.synthesis_backend` is `plan`.
 - `capacity.provider` starts with `plan_quota:`.
 - `capacity.live_metered_fallback` is `false`.

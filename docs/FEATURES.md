@@ -506,6 +506,8 @@ The CLI form emits a versioned `deepr-consult-v1` artifact with `--json`.
 By default it preserves the existing metered synthesis path behind the consult
 budget. `--local` and `--plan <id>` use owned or explicit plan-quota synthesis
 and disable live metered expert fallback when stored belief context is missing.
+Each run appends a local `deepr-consult-trace-v1` record with input, selected
+context metadata, capacity posture, checks run, and synthesis failure events.
 
 **Task Planning** decomposes complex queries into subtasks:
 
