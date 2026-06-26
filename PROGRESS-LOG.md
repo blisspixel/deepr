@@ -3,6 +3,29 @@
 Working log only. Keep the latest five cycles plus the active cycle here; older
 completed milestones are summarized in `docs/CHANGELOG.md`.
 
+## 2026-06-26 - Cycle 4 - Consult self-model focus metadata
+
+- Added bounded read-only self-model metadata to consult perspective context for
+  stored-belief, live-session, and no-stored-context paths when an expert profile
+  exists.
+- Kept the integration metadata-only: synthesis prompts, cost behavior, and
+  expert state mutation are unchanged.
+- Updated roadmap, README, expert docs, features, supported surface, changelog,
+  current-state analysis, and quality rubric to mark consult metadata as shipped
+  while keeping learning-run integration and the metacognitive monitor next.
+- Distilled skill into `SKILLS.md`: self-model context should enter consults as
+  bounded metadata before it affects prompts or writes.
+- Replaced the council progress-callback silent no-op with debug logging and
+  tightened the flake8-bandit ratchet baseline from 97 to 96.
+- Validation passed: 31 focused council/trace/consult tests; `ruff check
+  src/deepr/`; `ruff format --check src/deepr/`; strict mypy gate for
+  `core/providers/mcp`; docs consistency; file-size ratchet;
+  complexity/security ratchets; full unit suite `6698 passed, 8 skipped`,
+  branch coverage `83.03%`.
+- Maker-checker score: correctness 5/5, security 5/5, performance 5/5,
+  maintainability 5/5, simplicity 5/5, testability 5/5.
+- Spend: `$0.00`.
+
 ## 2026-06-26 - Cycle 3 - Expert self-model records
 
 - Added `deepr-expert-self-model-v1` as a read-only derived expert record with
@@ -85,13 +108,4 @@ Cycle health: 5/5 | Simplicity: 5/5 | Est. spend: $0.00 | New skill distilled: n
 - Validated HTTP MCP LAN access with token auth: authorized calls pass,
   unauthenticated calls are rejected.
 - Filled additional project experts through plan capacity after windows reset.
-- Spend: `$0.00`.
-
-## 2026-06-25 - Multi-plan headless capacity
-
-- Made Codex and Claude use stdin, Grok use `--prompt-file`, and Antigravity use
-  transcript recovery for headless plan execution.
-- Validated plan probes and fills end to end; Antigravity remains explicit-only
-  and ToS gray-zone.
-- Added regression coverage for delivery modes and transcript recovery.
 - Spend: `$0.00`.
