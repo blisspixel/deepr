@@ -34,7 +34,7 @@ def test_path_traversal_rejected(subcommand, tmp_path, monkeypatch):
     try:
         runner = CliRunner()
         result = runner.invoke(templates_group, subcommand)
-        # The command must fail — the sanitised name won't resolve
+        # The command must fail - the sanitised name won't resolve
         # to a real template.
         assert result.exit_code != 0
         # The sentinel must remain untouched: no file read, no delete.

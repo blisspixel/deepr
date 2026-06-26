@@ -88,7 +88,7 @@ class TestDetectContradictions:
         # Heuristic only checks same domain for word overlap
         # These are different domains but same words, so heuristic may still find them
         result = await resolver.detect_contradictions(beliefs)
-        # This is ok — the LLM stage would refine
+        # This is ok - the LLM stage would refine
 
     @pytest.mark.asyncio
     async def test_single_belief_no_contradiction(self):

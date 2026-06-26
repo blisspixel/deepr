@@ -330,7 +330,7 @@ class SQLiteQueue(QueueBackend):
             if len(rows) == 1:
                 row = rows[0]
             elif len(rows) > 1:
-                # Ambiguous prefix — raise so callers can distinguish
+                # Ambiguous prefix - raise so callers can distinguish
                 # "doesn't exist" from "refusing to guess". The previous
                 # ``return None`` silently looked identical to a missing
                 # job; cancel / status flows treated it as no-op.
@@ -422,7 +422,7 @@ class SQLiteQueue(QueueBackend):
         the queue showed the job completed with cost recorded in the
         row, but the canonical cost_ledger.jsonl had no entry. With the
         ledger appended (and fsync'd) first, the ledger may briefly hold
-        an entry for a row that didn't land — far less harmful than the
+        an entry for a row that didn't land - far less harmful than the
         inverse, and idempotency_key prevents a retry from double-billing.
         """
         conn = sqlite3.connect(self.db_path)

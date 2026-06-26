@@ -912,7 +912,7 @@ def _print_explicit_preview(
 
     Shows the resolved provider/model and a cost estimate band based on
     query length and whether web search is enabled. Pure local computation
-    — does not contact any provider. Exits without submitting a job.
+    - does not contact any provider. Exits without submitting a job.
 
     JSON mode emits a structured ``{preview, executed, provider, model,
     cost_estimate}`` document for machine consumers.
@@ -943,7 +943,7 @@ def _print_explicit_preview(
             "reasoning": estimate.reasoning,
         }
         # Use click.echo (not Rich console) so the JSON is clean for
-        # downstream consumers — no ANSI control codes leak in.
+        # downstream consumers - no ANSI control codes leak in.
         click.echo(json.dumps(payload, indent=2))
         return
 

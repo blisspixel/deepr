@@ -129,7 +129,7 @@ class OutputVerifier:
         self._create_tables()
 
         # Chain tracking per job. Primed from DB at init so a process
-        # restart doesn't break the chain — previously ``_chain_heads``
+        # restart doesn't break the chain - previously ``_chain_heads``
         # started empty, so the next ``record_output`` after restart
         # wrote ``previous_hash=NULL`` despite prior rows existing,
         # producing a "Chain break" report on every subsequent

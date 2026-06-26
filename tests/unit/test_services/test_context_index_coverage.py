@@ -138,7 +138,7 @@ class TestIndexReports:
         client.embeddings.create = AsyncMock(return_value=MagicMock(data=[MagicMock(embedding=list(np.zeros(1536)))]))
         with patch("openai.AsyncOpenAI", return_value=client):
             await tmp_index.index_reports()
-            # second pass — already indexed, returns 0
+            # second pass - already indexed, returns 0
             n = await tmp_index.index_reports()
             assert n == 0
             # force=True re-indexes

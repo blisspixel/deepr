@@ -18,7 +18,7 @@ Design notes
   bounded to the knowledge the expert already has. If the expert's
   knowledge is thin, that surfaces as WARN with explicit caveats.
 - LLM call uses JSON-object response format so the verdict is machine-
-  parseable. The model is asked to be conservative — WARN over PASS when
+  parseable. The model is asked to be conservative - WARN over PASS when
   evidence is thin.
 - Claim IDs returned by the LLM are resolved back to canonical Claim
   objects, so callers get full citation provenance, not just statements.
@@ -270,7 +270,7 @@ class ExpertValidator:
     def _format_evidence(claims: list[Claim]) -> str:
         if not claims:
             return (
-                "(none — this expert has no recorded beliefs yet; you should likely choose WARN with that as a caveat)"
+                "(none - this expert has no recorded beliefs yet; you should likely choose WARN with that as a caveat)"
             )
         lines = []
         for c in claims:

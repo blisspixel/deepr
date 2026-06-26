@@ -57,7 +57,7 @@ class TaskManager:
     def __init__(self, max_terminal_tasks: int = 10_000) -> None:
         # OrderedDict so we can evict oldest terminal tasks first.
         # Without bounded eviction, a long-running A2A server leaks one
-        # Task per request — even after the consumer has read the
+        # Task per request - even after the consumer has read the
         # final state, the entry stays in memory forever.
         from collections import OrderedDict
 

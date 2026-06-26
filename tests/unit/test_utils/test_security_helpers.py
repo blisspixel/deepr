@@ -1,6 +1,6 @@
 """Coverage tests for ``deepr/utils/security.py`` helpers.
 
-These functions sit on user-input boundaries — path validation, SSRF check,
+These functions sit on user-input boundaries - path validation, SSRF check,
 file-size + extension limits, API-key shape, log redaction. They previously
 had no dedicated unit tests; the existing ``test_security.py`` covers the
 PromptSanitizer in ``prompt_security.py``.
@@ -222,7 +222,7 @@ class TestValidateApiKey:
             validate_api_key("wrong-prefix-key", "openai")
 
     def test_unknown_provider_accepts_any_nonempty(self):
-        # No pattern configured for unknown providers — just non-empty check.
+        # No pattern configured for unknown providers - just non-empty check.
         out = validate_api_key("whatever", "groq")
         assert out == "whatever"
 

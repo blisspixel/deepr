@@ -237,7 +237,7 @@ class ResearchOrchestrator:
             # Initialize temporal tracking for this job (6.4). Pass
             # ``job_id`` so the emitter stores the tracker per-job
             # rather than overwriting a single shared field (R4 audit
-            # finding — two concurrent jobs would otherwise clobber).
+            # finding - two concurrent jobs would otherwise clobber).
             if self._enable_temporal:
                 tracker = TemporalKnowledgeTracker(job_id=job_id)
                 self._temporal_trackers[job_id] = tracker

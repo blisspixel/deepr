@@ -1,4 +1,4 @@
-"""Tests for InformationGainTracker — pure-logic coverage."""
+"""Tests for InformationGainTracker - pure-logic coverage."""
 
 from __future__ import annotations
 
@@ -71,7 +71,7 @@ class TestRecordPhaseFindings:
     def test_repeated_findings_reduce_novelty(self):
         tracker = InformationGainTracker()
         tracker.record_phase_findings(phase=1, findings=["The sky is blue"])
-        # Same finding again in phase 2 — should not be novel
+        # Same finding again in phase 2 - should not be novel
         m = tracker.record_phase_findings(phase=2, findings=["The sky is blue"])
         assert m.unique_findings == 0
         assert m.novelty_rate < 0.5

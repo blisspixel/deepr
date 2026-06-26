@@ -3,7 +3,7 @@ ResearchRequest when falling back to a cheaper model on rate-limit.
 
 Before the fix, ``request.model`` was set in place; the caller (which
 might be persisting the request as a decision record, or retrying
-against a different provider) would observe the silent downgrade —
+against a different provider) would observe the silent downgrade -
 e.g. from o3-deep-research ($11/$44 per MTok) to o4-mini-deep-research
 ($1.10/$4.40 per MTok).
 """
@@ -54,7 +54,7 @@ async def test_rate_limit_fallback_does_not_mutate_request():
         job_id = await provider.submit_research(request)
 
     # The caller's request object is unchanged. This is the core
-    # invariant — the silent quality downgrade in the previous code
+    # invariant - the silent quality downgrade in the previous code
     # mutated request.model, so a caller persisting the request as a
     # decision record would see the wrong model.
     assert request.model == original_model, "submit_research mutated the caller's request.model on rate-limit fallback"

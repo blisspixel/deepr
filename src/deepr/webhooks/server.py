@@ -69,14 +69,14 @@ def create_webhook_server(
     def webhook():
         """Handle webhook POST requests from AI provider.
 
-        Sync handler — when ``on_completion`` is async we dispatch it
+        Sync handler - when ``on_completion`` is async we dispatch it
         via ``asyncio.run``. The previous ``async def`` version required
         the ``flask[async]`` extra and produced confusing 500 errors
         under test clients that already manage an event loop.
         """
         try:
             # Always require a signature header. When no secret is configured,
-            # we refuse every request — there is no "trust the loopback"
+            # we refuse every request - there is no "trust the loopback"
             # fallback because a local process running under the same user
             # could still spoof callbacks.
             if not webhook_secret:
@@ -99,7 +99,7 @@ def create_webhook_server(
 
             logger.info("Webhook received for job %s: %s", job_id, status)
 
-            # Call completion handler — sync OR async accepted.
+            # Call completion handler - sync OR async accepted.
             result = on_completion(job_id, data)
             if inspect.iscoroutine(result):
                 asyncio.run(result)

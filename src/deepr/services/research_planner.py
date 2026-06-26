@@ -205,7 +205,7 @@ Please analyze this scenario and generate {max_tasks} distinct research tasks th
             for task in tasks[:max_tasks]:  # Ensure we don't exceed max_tasks
                 if isinstance(task, dict) and "title" in task and "prompt" in task:
                     # Preserve ``id``, ``phase``, ``depends_on``, ``type``,
-                    # and ``model`` if the planner emitted them — the
+                    # and ``model`` if the planner emitted them - the
                     # downstream BatchExecutor._group_by_phase requires
                     # these. The previous validator stripped them, so
                     # every task ended up in phase 1 with no deps.

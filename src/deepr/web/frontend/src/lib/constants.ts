@@ -33,7 +33,7 @@ export const TIME_RANGES = [
   { value: '90d', label: 'Last 90 Days' },
 ] as const
 
-/** Default budget limits — used as fallbacks when backend is unreachable */
+/** Default budget limits - used as fallbacks when backend is unreachable */
 export const BUDGET_DEFAULTS = {
   PER_JOB: 5,
   DAILY: 10,
@@ -41,10 +41,10 @@ export const BUDGET_DEFAULTS = {
 } as const
 
 export const CHAT_MODES = [
-  { value: 'ask', label: 'Ask', description: 'Quick answers — KB search only', color: 'bg-green-500' },
-  { value: 'research', label: 'Research', description: 'Default — full tool access', color: 'bg-cyan-500' },
+  { value: 'ask', label: 'Ask', description: 'Quick answers - KB search only', color: 'bg-green-500' },
+  { value: 'research', label: 'Research', description: 'Default - full tool access', color: 'bg-cyan-500' },
   { value: 'advise', label: 'Advise', description: 'Consulting-style structured advice', color: 'bg-yellow-500' },
-  { value: 'focus', label: 'Focus', description: 'Deep reasoning — Tree of Thoughts', color: 'bg-purple-500' },
+  { value: 'focus', label: 'Focus', description: 'Deep reasoning - Tree of Thoughts', color: 'bg-purple-500' },
 ] as const
 
 export const CHAT_COMMANDS: { name: string; aliases: string[]; description: string; category: string; args: string }[] = [

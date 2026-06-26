@@ -88,7 +88,7 @@ class TestShouldStopBranches:
     def test_low_entropy_triggers_stop(self):
         c = EntropyStoppingCriteria(entropy_threshold=0.99)
         ctx = PhaseContext(phase_num=2, original_query="q", current_focus="q", prior_entropy=0.9, iteration_count=5)
-        # Very repetitive — entropy near 0
+        # Very repetitive - entropy near 0
         findings = [_finding("same words same words same words", i) for i in range(10)]
         out = c.evaluate(findings, ctx)
         # Should match either low-entropy or low-info-gain branch.

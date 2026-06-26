@@ -592,7 +592,7 @@ class ContextIndex:
 
         # Reject empty/whitespace ids before building a LIKE pattern. An empty
         # prefix becomes LIKE '%' and would resolve to an arbitrary indexed
-        # report — the wildcard-selection bug behind deepr_reflect /
+        # report - the wildcard-selection bug behind deepr_reflect /
         # deepr_expert_absorb. A missing id must mean "no match", not "any".
         if not job_id or not job_id.strip():
             conn.close()

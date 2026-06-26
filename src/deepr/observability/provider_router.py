@@ -898,7 +898,7 @@ class AutonomousProviderRouter:
             temp_path = Path(tmp_name)
             with os.fdopen(fd, "w", encoding="utf-8") as f:
                 json.dump(data, f, indent=2)
-            # Atomic rename — retry on Windows where file locking
+            # Atomic rename - retry on Windows where file locking
             # can cause transient Access Denied errors
             max_attempts = 5 if sys.platform == "win32" else 1
             for attempt in range(max_attempts):

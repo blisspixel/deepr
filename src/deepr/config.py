@@ -253,7 +253,7 @@ class WebhookConfig(BaseModel):
     # on any non-loopback bind (see deepr/webhooks/server.py:create_webhook_server);
     # previously this defaulted to ``0.0.0.0`` so a worker process that
     # imported WebhookConfig without overriding ``host`` would attempt
-    # to bind every interface — and would only refuse if the secret was
+    # to bind every interface - and would only refuse if the secret was
     # also unset. Defaulting to loopback is the safer baseline.
     host: str = Field(default="127.0.0.1", description="Webhook server host (use 127.0.0.1 for local-only)")
 

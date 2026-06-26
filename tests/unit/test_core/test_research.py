@@ -266,7 +266,7 @@ class TestPromptValidation:
     @pytest.mark.asyncio
     async def test_long_prompt_rejected(self, orchestrator):
         """Test that long prompts are accepted (metadata truncated internally)."""
-        long_prompt = "x" * 350  # Over 300 chars — should be accepted now
+        long_prompt = "x" * 350  # Over 300 chars - should be accepted now
 
         with patch("deepr.experts.cost_safety.get_cost_safety_manager") as mock_csm:
             mock_manager = MagicMock()

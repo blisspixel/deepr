@@ -1,4 +1,4 @@
-"""Tests for MCP client pool — multi-server management, circuit breakers."""
+"""Tests for MCP client pool - multi-server management, circuit breakers."""
 
 from unittest.mock import AsyncMock
 

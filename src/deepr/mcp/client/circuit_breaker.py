@@ -104,7 +104,7 @@ class CircuitBreaker:
         self._probe_in_flight = False
         self.failure_count += 1
         if self._state == CircuitState.HALF_OPEN or self.state == CircuitState.HALF_OPEN:
-            # Probe failed — re-open
+            # Probe failed - re-open
             self._state = CircuitState.OPEN
             self._opened_at = time.time()
         elif self.failure_count >= self.threshold:

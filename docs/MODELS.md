@@ -23,9 +23,9 @@ Deepr uses a hybrid approach optimizing for both quality and cost. Different tas
 - **Note**: Gemini 3.5 Flash (GA May 19, 2026, Google I/O 2026) is the newest Flash generation - it beats Gemini 3.1 Pro on coding/agentic/multimodal benchmarks at ~4x faster output, priced at $1.50/$9.00 per MTok
 
 ### xAI Grok (`XAI_API_KEY`)
-- **Deep Research**: Grok 4.20 Multi-Agent (4–16 parallel agents with autonomous tool use)
+- **Deep Research**: Grok 4.20 Multi-Agent (4-16 parallel agents with autonomous tool use)
 - **Models**: Grok 4.3 (flagship), Grok 4.20 Reasoning, Grok 4.20 Non-Reasoning, Grok 4.20 Multi-Agent
-- **Best for**: Grok 4.3 tops leaderboards in agentic tool calling and instruction following; flagship quality on 4.20 ($2/$6 per MTok); real-time web + X search
+- **Best for**: Grok 4.3 tops leaderboards in agentic tool calling and instruction following; Grok 4.20 remains a research/freshness tier; real-time web + X search. Use the registry for current token rates.
 - **Note**: Grok 4.3 is xAI's latest flagship with reasoning effort control (low/medium/high). Grok 4.20 remains the multi-agent deep research workhorse.
 
 #### Grok 4.3 (Flagship)

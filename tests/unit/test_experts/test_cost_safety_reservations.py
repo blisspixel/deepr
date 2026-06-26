@@ -93,7 +93,7 @@ class TestReservationFlow:
         manager.max_daily = 5.0
         # First call reserves 4.0
         a_allowed, _, _, a_id = manager.check_and_reserve(session_id="s1", operation_type="r", estimated_cost=4.0)
-        # Second call estimates 2.0 — should be rejected because the
+        # Second call estimates 2.0 - should be rejected because the
         # first call's reservation is still in flight.
         b_allowed, b_reason, _, _ = manager.check_and_reserve(session_id="s2", operation_type="r", estimated_cost=2.0)
         assert a_allowed is True
@@ -132,7 +132,7 @@ class TestMonthlyReservationSymmetry:
     def test_parallel_reservations_block_over_commit_monthly(self, manager):
         """Daily roomy, monthly binding: the second parallel check must still
         be rejected because the first reservation counts against the monthly
-        projection — symmetric with the daily guarantee above."""
+        projection - symmetric with the daily guarantee above."""
         manager.max_daily = 100.0  # roomy, never the binding constraint here
         manager.max_monthly = 5.0  # the binding reserve
         a_allowed, _, _, a_id = manager.check_and_reserve(session_id="s1", operation_type="r", estimated_cost=4.0)

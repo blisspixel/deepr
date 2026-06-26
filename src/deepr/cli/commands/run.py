@@ -49,7 +49,7 @@ def _classify_provider_error(exc: Exception, provider: str) -> None:
         ProviderError as CoreProviderError,
     )
 
-    # Already a core error — re-raise as-is
+    # Already a core error - re-raise as-is
     if isinstance(exc, CoreProviderError):
         raise exc
 
@@ -559,7 +559,7 @@ async def _run_single(
                     emitter,
                 )
 
-                # Success — record metrics
+                # Success - record metrics
                 submit_latency = (time.time() - submit_start) * 1000
                 try:
                     router.record_result(
@@ -597,13 +597,13 @@ async def _run_single(
                 # Timeout: retry same provider once, then fallback
                 last_error = e
                 if (current_provider, current_model) not in attempted:
-                    # First timeout for this provider — retry once
+                    # First timeout for this provider - retry once
                     attempted.append((current_provider, current_model))
                     if output_context.mode == OutputMode.VERBOSE:
                         console.print(f"  [yellow]Timeout on {current_provider}/{current_model}, retrying...[/yellow]")
                     continue  # Retry same provider without incrementing fallback_count
 
-                # Second timeout — record and fall through to fallback
+                # Second timeout - record and fall through to fallback
                 try:
                     router.record_result(current_provider, current_model, success=False, error=str(e))
                 except Exception as exc:

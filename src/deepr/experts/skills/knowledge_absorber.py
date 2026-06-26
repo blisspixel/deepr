@@ -273,7 +273,7 @@ class KnowledgeAbsorber:
                             )
                         )
 
-        # Insights (derived observations — still high value for infrastructure)
+        # Insights (derived observations - still high value for infrastructure)
         insights = data.get("insights") or []
         if isinstance(insights, list):
             for ins in insights[:8]:

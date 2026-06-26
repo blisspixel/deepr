@@ -46,7 +46,7 @@ class CircuitBreakerStateMachine(RuleBasedStateMachine):
 
     @rule()
     def record_success(self) -> None:
-        """Record a success — should always close the circuit."""
+        """Record a success - should always close the circuit."""
         prev_state = self.cb.state
         was_available = self.cb.is_available()
         self.cb.record_success()
@@ -57,7 +57,7 @@ class CircuitBreakerStateMachine(RuleBasedStateMachine):
 
     @rule()
     def record_failure(self) -> None:
-        """Record a failure — may open circuit if threshold reached."""
+        """Record a failure - may open circuit if threshold reached."""
         prev_state = self.cb.state
         self.cb.record_failure()
         self.expected_failures += 1

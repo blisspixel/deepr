@@ -206,7 +206,7 @@ class ElicitationRouter:
                 timeout_used=True,
             )
         except Exception:
-            # Handler error — log locally, return a clean default to
+            # Handler error - log locally, return a clean default to
             # the caller. The previous ``"error": str(e)`` echoed
             # exception text (potentially with stack-derived class
             # names or argument values) to whichever UI surface presented

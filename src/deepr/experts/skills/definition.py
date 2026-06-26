@@ -54,7 +54,7 @@ class SkillTrigger:
         backtrack-shape filter applied at compile time (above), so this
         is safe to call on attacker-controlled query strings.
         """
-        # Cap the query length too — extremely long inputs can still
+        # Cap the query length too - extremely long inputs can still
         # exercise pathological matching against a benign pattern.
         query_lower = query.lower()[:8192]
         bounded_query = query[:8192]

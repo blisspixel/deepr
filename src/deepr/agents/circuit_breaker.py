@@ -89,7 +89,7 @@ class CircuitBreaker:
         preserves the original reason and timestamp.
         """
         if self.state.tripped:
-            # Already tripped — merge trace IDs
+            # Already tripped - merge trace IDs
             existing = set(self.state.affected_trace_ids)
             existing.update(affected_trace_ids)
             self.state.affected_trace_ids = list(existing)

@@ -71,7 +71,7 @@ async def test_create_task_with_valid_token(server):
 
 @pytest.mark.asyncio
 async def test_create_task_with_non_ascii_token(server):
-    """compare_digest raises TypeError on non-ASCII strings — we treat that
+    """compare_digest raises TypeError on non-ASCII strings - we treat that
     as a normal 401 rather than letting it escape as 500."""
     status, _body = await server.handle_request(
         "POST",

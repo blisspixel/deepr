@@ -67,24 +67,26 @@ Planning Principles), and [docs/plans/AGENTIC_BALANCE.md](docs/plans/AGENTIC_BAL
 
 ## Current Cycle Alignment - 2026-06-26
 
-Active task: close provider cost-settlement gaps for cached input, prompt-cache
-buckets, tiered provider pricing, and research reservation settlement without
-making paid API calls.
+Active task: clarify README and docs, move capacity detail out of the front
+door, make the next self-model/compiler work explicit about the
+agentic-balance boundary, and clean literal em/en dash usage from tracked text
+files without changing runtime logic or making paid calls.
 
 Target score before merge:
 
 | Category | Required score | Evidence |
 |---|---:|---|
-| Correctness | 5/5 | Provider tests pin cached OpenAI/Azure/xAI input, Anthropic cache buckets, Gemini large-context tiering, Grok 4.20 rates, and core reserve/refund/settle behavior. |
-| Security | 5/5 | Local and explicit plan-quota paths remain `$0`; API spend reserves before dispatch, refunds on failure, and settles once from provider usage. |
-| Performance | 5/5 | No provider calls, embeddings, or paid validation; cached-token accounting reduces overcharge risk without enabling pre-warm traffic. |
-| Readability | 5/5 | Shared usage helpers and registry pricing keep provider-specific parsing small and explicit. |
-| Maintainability | 5/5 | Token pricing, cached rates, and provider usage buckets live behind shared APIs instead of duplicated arithmetic. |
-| Simplicity | 5/5 | No new dependency or cache-control feature; only accounting and settlement were changed. |
+| Correctness | 5/5 | README states what works now, what remains conservative, and where detailed capacity docs live; `docs/CAPACITY.md` captures provider-specific cost buckets; docs consistency remains green. |
+| Security | 5/5 | No surprise-spend claims are tightened, plan routing remains explicit/conservative, and self-model updates are documented as gated proposals. |
+| Performance | 5/5 | Text-only cleanup and docs; no provider calls, embeddings, paid validation, or new runtime paths. |
+| Readability | 5/5 | README is shorter and scannable; capacity operations are in a focused guide. |
+| Maintainability | 5/5 | Volatile capacity and cost detail is linked from README instead of duplicated in the front door; punctuation policy is enforced consistently. |
+| Simplicity | 5/5 | No new architecture or feature surface; one focused capacity doc plus mechanical text hygiene. |
 
-Cycle 8 ships accounting and ledger settlement only. Provider cache controls,
-pre-warming, keep-warm jobs, longer TTL defaults, and self-model mutation remain
-gated future work.
+Cycle 9 is documentation and text hygiene only. It keeps the next self-model and
+compiler work inside the workflow-vs-agent boundary: deterministic gates own
+spend, writes, schemas, rollout, review, provenance, and commit points;
+calibrated model judgment owns meaning.
 
 ## How to score (maker-checker)
 

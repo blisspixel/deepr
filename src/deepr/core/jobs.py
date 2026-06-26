@@ -152,7 +152,7 @@ class JobManager:
         """Write a record to JSONL file with durable append.
 
         Uses ``append_jsonl_durable`` so the line is flushed + fsync'd
-        before returning — survives a crash between ``write()`` and
+        before returning - survives a crash between ``write()`` and
         process exit. (POSIX appends ≤ PIPE_BUF are atomic per-process,
         but multi-process appenders can still interleave; we'd need a
         file lock to fully serialise across processes. Single-process

@@ -48,7 +48,7 @@ class TestListAllCorruption:
         # The good expert is returned.
         names = [p.name for p in profiles]
         assert "good-expert" in names
-        # The broken one is NOT silently dropped — it surfaces in errors.
+        # The broken one is NOT silently dropped - it surfaces in errors.
         assert "broken-expert" not in names
         # And is logged at ERROR (not WARNING) with the file path.
         assert any("broken-expert" in record.message for record in caplog.records)

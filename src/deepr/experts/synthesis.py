@@ -247,7 +247,7 @@ class KnowledgeSynthesizer:
             _cost_safety = None  # type: ignore[assignment]
             _est = 0.0
 
-        # GPT-5.2 synthesizes knowledge (low reasoning — extraction/synthesis, not deep analysis)
+        # GPT-5.2 synthesizes knowledge (low reasoning - extraction/synthesis, not deep analysis)
         response = await self.client.chat.completions.create(
             model="gpt-5.2",
             messages=[

@@ -119,7 +119,7 @@ class AgentOrchestrator:
             dispatch_tasks = [{"id": f"worker-{i}", "coro": _run_worker(i, subtasks[i])} for i in range(num_subtasks)]
             dispatch_result = await dispatcher.dispatch(dispatch_tasks)
 
-            # Numeric sort so worker-10 lands AFTER worker-2 — lex sort
+            # Numeric sort so worker-10 lands AFTER worker-2 - lex sort
             # produced ``worker-0, worker-1, worker-10, worker-11,
             # worker-2, …``, mis-attributing subtask outputs at >10 workers.
             def _worker_index(task_id: str) -> int:
@@ -138,7 +138,7 @@ class AgentOrchestrator:
                     worker_outputs.append(result.output)
                     # Record cost to the canonical ledger. The orchestrator
                     # previously accumulated ``total_cost`` locally without
-                    # touching the cost-safety / ledger surfaces — long
+                    # touching the cost-safety / ledger surfaces - long
                     # multi-worker runs were invisible to daily/monthly
                     # spend tracking (R4 audit finding).
                     try:

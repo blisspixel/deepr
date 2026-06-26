@@ -1,4 +1,4 @@
-"""Command registry for expert chat — shared between CLI and web.
+"""Command registry for expert chat - shared between CLI and web.
 
 Provides a unified slash-command system with categories, modes, and
 completions. CLI uses ``\\`` prefix; web uses ``/``. The registry
@@ -36,7 +36,7 @@ MODE_CONFIGS: dict[ChatMode, dict[str, Any]] = {
         "model_bias": "fast",
         "force_tot": False,
         "label": "Ask",
-        "description": "Quick answers — KB search only",
+        "description": "Quick answers - KB search only",
     },
     ChatMode.RESEARCH: {
         "tools": ["search_knowledge_base", "standard_research", "deep_research"],
@@ -44,7 +44,7 @@ MODE_CONFIGS: dict[ChatMode, dict[str, Any]] = {
         "model_bias": "balanced",
         "force_tot": False,
         "label": "Research",
-        "description": "Default — full tool access",
+        "description": "Default - full tool access",
     },
     ChatMode.ADVISE: {
         "tools": ["search_knowledge_base", "standard_research"],
@@ -65,7 +65,7 @@ MODE_CONFIGS: dict[ChatMode, dict[str, Any]] = {
         "model_bias": "quality",
         "force_tot": True,
         "label": "Focus",
-        "description": "Deep reasoning — Tree of Thoughts always on",
+        "description": "Deep reasoning - Tree of Thoughts always on",
     },
 }
 

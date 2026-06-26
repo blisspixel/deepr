@@ -43,7 +43,7 @@ def _chat_token_cost(usage: Any, model_name: str) -> float:
     Uses ``get_token_pricing`` so any model in the registry (gpt-5.2 at
     $1.75/$14, etc.) is priced correctly. When ``usage`` exposes
     ``prompt_tokens_details.cached_tokens`` (OpenAI caching), the cached
-    portion is billed at 50% — without this discount users hit their
+    portion is billed at 50% - without this discount users hit their
     session budget earlier than necessary on cache-hit-heavy workloads.
     """
     if not usage:
@@ -136,7 +136,7 @@ class ExpertChatSession:
         from deepr.experts.cost_safety import get_cost_safety_manager
 
         self.cost_safety = get_cost_safety_manager()
-        # Sanitize identifiers feeding into session_id — agent_identity
+        # Sanitize identifiers feeding into session_id - agent_identity
         # is caller-supplied (downstream MCP / A2A may forward arbitrary
         # strings) and the session_id ends up in cost-safety keys and
         # potentially thought-stream log filenames.
@@ -319,7 +319,7 @@ Don't overthink it. Trust your judgment like a real expert would.
 Budget remaining: ${budget_remaining:.2f}
 """
 
-        # Skill summaries (always present — progressive disclosure)
+        # Skill summaries (always present - progressive disclosure)
         installed = self.skill_manager.get_installed_skills(getattr(self.expert, "installed_skills", []))
         if installed:
             base_message += "\n\nSKILLS AVAILABLE:\n"
@@ -2004,7 +2004,7 @@ Budget remaining: ${budget_remaining:.2f}
                     private_payload={"reason": "ToT reasoning incomplete"},
                 )
 
-            # Build tools list — filtered by current chat mode
+            # Build tools list - filtered by current chat mode
             active_tool_names = self.get_active_tools()
 
             tools: list[dict] = []
@@ -2097,7 +2097,7 @@ Budget remaining: ${budget_remaining:.2f}
 
                     self.skill_executors[skill.name] = SkillExecutor(skill, skill_budget)
 
-            # Autonomous native recon probe (first-class instrument, cost 0) — streaming path
+            # Autonomous native recon probe (first-class instrument, cost 0) - streaming path
             if self.agentic:
                 try:
                     await self._maybe_probe_recon_autonomously(user_message)
@@ -2307,7 +2307,7 @@ Budget remaining: ${budget_remaining:.2f}
                     for char in final_message:
                         token_callback(char)
             else:
-                # No content yet — need a streaming call for the final answer
+                # No content yet - need a streaming call for the final answer
                 report_status("Generating response...")
                 conversation_messages.append(current_message)
                 stream_params = {
@@ -2480,7 +2480,7 @@ Budget remaining: ${budget_remaining:.2f}
             summary = result.choices[0].message.content or "Summary unavailable."
         except Exception as e:
             logger.warning("Compact summary failed: %s", e)
-            summary = f"[{len(to_summarise)} earlier messages — summary unavailable]"
+            summary = f"[{len(to_summarise)} earlier messages - summary unavailable]"
 
         # Replace messages
         summary_msg = {

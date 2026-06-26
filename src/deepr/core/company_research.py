@@ -31,7 +31,7 @@ class CompanyResearchOrchestrator:
             config: Optional configuration dict. If None, loads from environment.
 
         ResearchOrchestrator takes positional ``provider, storage,
-        document_manager, report_generator`` arguments — the previous
+        document_manager, report_generator`` arguments - the previous
         implementation passed a single ``config`` dict, so every call to
         ``research_company`` crashed at construction. We build the real
         collaborators here from config the same way ``mcp/server.py``
@@ -206,7 +206,7 @@ class CompanyResearchOrchestrator:
         """
         try:
             # ``scrape_for_company_research`` does not accept a ``config``
-            # kwarg — it takes ``save_dir`` only. The ScrapeConfig built
+            # kwarg - it takes ``save_dir`` only. The ScrapeConfig built
             # by the caller was being silently dropped via TypeError on
             # the previous code path. Pass save_dir from config when
             # supplied, otherwise let the function use its default.

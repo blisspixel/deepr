@@ -266,7 +266,7 @@ class TestSaveLoadVersionedJson:
         path = tmp_path / "test_migrate.json"
         save_versioned_json(data, path, "worldview", version="0.9.0")
 
-        # Load with auto-migrate — version should be updated to current
+        # Load with auto-migrate - version should be updated to current
         loaded = load_versioned_json(path, "worldview", auto_migrate=True)
         assert loaded["schema_version"]["version"] == CURRENT_VERSIONS["worldview"]
         assert loaded["schema_version"]["migrated_from"] == "0.9.0"

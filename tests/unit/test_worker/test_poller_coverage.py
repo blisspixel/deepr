@@ -179,7 +179,7 @@ class TestCheckJobStatus:
 
     @pytest.mark.asyncio
     async def test_naive_submitted_at_gets_utc(self, poller):
-        # Naive datetime — code must add timezone before subtracting.
+        # Naive datetime - code must add timezone before subtracting.
         naive_old = datetime.now() - timedelta(minutes=20)
         resp = MagicMock(status="queued")
         poller.provider.get_status = AsyncMock(return_value=resp)

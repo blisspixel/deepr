@@ -561,7 +561,7 @@ async def _cancel_job(job_id: str):
         return
 
     # Try to cancel with provider if it's processing. Use the job's
-    # OWN provider — falling back to the config default sent the cancel
+    # OWN provider - falling back to the config default sent the cancel
     # request to whichever vendor was configured last, leaking job IDs
     # cross-vendor and failing auth.
     if job.provider_job_id and job.status == JobStatus.PROCESSING:

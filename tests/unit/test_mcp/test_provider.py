@@ -1,4 +1,4 @@
-"""Unit tests for MCP provider — Resources, Prompts, Sampling.
+"""Unit tests for MCP provider - Resources, Prompts, Sampling.
 
 Tests resource URI routing, prompt template existence and structure,
 and sampling fallback when client doesn't support it.

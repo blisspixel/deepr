@@ -112,7 +112,7 @@ class CostLedger:
                         if key:
                             self._idempotency_keys.add(key)
                     except (json.JSONDecodeError, TypeError, ValueError) as exc:
-                        # Surface ledger corruption — the previous silent
+                        # Surface ledger corruption - the previous silent
                         # ``continue`` let partial-write lines drop out of
                         # the idempotency index, which then allowed the
                         # same operation to be billed twice on retry.

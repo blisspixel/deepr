@@ -16,6 +16,7 @@ understand why it works the way it does.
 ## Core reference (looking things up)
 
 - **[FEATURES.md](FEATURES.md)** - Complete feature and command reference
+- **[CAPACITY.md](CAPACITY.md)** - Local, plan-quota, metered API, scheduler, and no-surprise-bills behavior
 - **[EXPERTS.md](EXPERTS.md)** - Domain expert system guide
 - **[MODELS.md](MODELS.md)** - Model selection and provider guide
 - **[../mcp/README.md](../mcp/README.md)** - MCP server setup and tools

@@ -153,7 +153,7 @@ class OpenAIProvider(DeepResearchProvider):
                 elif fallback_model:
                     # All retries exhausted: try fallback model with fresh retries.
                     # Build a shallow copy of the request rather than mutating
-                    # the caller's instance — the caller may inspect it after
+                    # the caller's instance - the caller may inspect it after
                     # the call, retry against a different provider, or persist
                     # it as a decision record. Silently swapping their chosen
                     # model on rate-limit also degraded quality (e.g.
@@ -209,7 +209,7 @@ class OpenAIProvider(DeepResearchProvider):
                     "reasoning_tokens",
                 ) or get_usage_int(response.usage, "reasoning_tokens")
                 # If response.model is missing, log a warning rather than
-                # silently defaulting to o4-mini pricing — for an
+                # silently defaulting to o4-mini pricing - for an
                 # o3-deep-research job (10x more expensive: $11/$44 per
                 # MTok vs $1.10/$4.40) that mis-attribution would
                 # massively under-bill the user.

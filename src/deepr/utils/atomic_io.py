@@ -37,7 +37,7 @@ def atomic_write_bytes(path: str | os.PathLike[str], data: bytes, *, fsync: bool
     """Atomically write ``data`` to ``path``.
 
     Writes to a tempfile in the same directory, then renames onto the target.
-    If ``fsync`` is true the file is fsync'd before rename — slow, but the
+    If ``fsync`` is true the file is fsync'd before rename - slow, but the
     only way to survive a power-loss event without a corrupt or zero-byte
     file. Off by default; opt in for ledgers and other write-once records.
     """
@@ -117,7 +117,7 @@ def append_jsonl_durable(
     Plain ``open(path, "a") + write(line)`` leaves the last record in the
     libc / kernel write buffer; a ``kill -9`` or power loss between ``write``
     and process exit truncates it. The cost ledger and routing log are
-    declared canonical sources of truth — they need to survive crashes.
+    declared canonical sources of truth - they need to survive crashes.
 
     The caller is responsible for any cross-process serialization (e.g. a
     lock around concurrent appenders).

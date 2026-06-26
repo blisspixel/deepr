@@ -748,7 +748,7 @@ class DeeprMCPServer:
             absorber = ReportAbsorber(expert)
             result = await absorber.absorb(report_id, report_text, min_confidence=min_confidence, dry_run=dry_run)
 
-            # Record the extraction spend regardless of dry_run — the provider
+            # Record the extraction spend regardless of dry_run - the provider
             # call happened either way, so the ledger must reflect it.
             _absorb_model = getattr(absorber, "model", "")
             cost_safety.record_cost(

@@ -123,7 +123,7 @@ class RoutingDecisionLog:
 
         # Read all matching events first, then return the last ``limit``.
         # The previous implementation broke out of the loop after collecting
-        # the FIRST ``limit`` rows — chronologically the OLDEST. Every
+        # the FIRST ``limit`` rows - chronologically the OLDEST. Every
         # downstream "last_n" analytic (cost_distribution, model_usage,
         # detect_routing_drift, detect_cost_anomalies) was therefore
         # analysing the wrong slice of history.

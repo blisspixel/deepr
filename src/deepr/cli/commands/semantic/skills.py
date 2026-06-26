@@ -1,4 +1,4 @@
-"""Skill management commands — list, install, remove, create, and inspect skills."""
+"""Skill management commands - list, install, remove, create, and inspect skills."""
 
 import click
 
@@ -14,7 +14,7 @@ from deepr.cli.colors import (
 
 @click.group()
 def skill():
-    """Manage expert skills — domain-specific capability packages.
+    """Manage expert skills - domain-specific capability packages.
 
     Skills give experts unique tools and domain-specific reasoning.
     Supports Python tools (local, free) and MCP bridging (external servers).
@@ -59,7 +59,7 @@ def list_skills(expert_name):
             console.print("\n[bold]Installed:[/bold]")
             for s in installed:
                 tier_badge = f"[dim][{s.tier}][/dim]"
-                console.print(f"  [green]●[/green] {s.name} — {s.description} {tier_badge}")
+                console.print(f"  [green]●[/green] {s.name} - {s.description} {tier_badge}")
                 console.print(f"    Tools: {', '.join(t.name for t in s.tools)}")
         else:
             console.print("\n[dim]No skills installed.[/dim]")
@@ -71,7 +71,7 @@ def list_skills(expert_name):
             console.print("\n[bold]Available to install:[/bold]")
             for s in not_installed:
                 domains = ", ".join(s.domains[:3]) if s.domains else ""
-                console.print(f"  [dim]○[/dim] {s.name} — {s.description}")
+                console.print(f"  [dim]○[/dim] {s.name} - {s.description}")
                 if domains:
                     console.print(f"    [dim]Domains: {domains}[/dim]")
     else:
@@ -248,9 +248,9 @@ def run(input: str) -> dict:
 
     print_success(f"Created skill scaffold: {skills_dir}")
     console.print("  Files created:")
-    console.print("    skill.yaml    — Metadata and tool definitions")
-    console.print("    prompt.md     — Domain-specific instructions")
-    console.print("    tools/        — Python tool implementations")
+    console.print("    skill.yaml    - Metadata and tool definitions")
+    console.print("    prompt.md     - Domain-specific instructions")
+    console.print("    tools/        - Python tool implementations")
     console.print(f'\nInstall on an expert: deepr skill install "Expert Name" {name}')
 
 
@@ -285,7 +285,7 @@ def skill_info(name):
     console.print("\n[bold]Tools:[/bold]")
     for tool in skill_def.tools:
         cost_label = f"[dim]({tool.cost_tier})[/dim]"
-        console.print(f"  {tool.name} — {tool.description} {cost_label}")
+        console.print(f"  {tool.name} - {tool.description} {cost_label}")
         console.print(f"    Type: {tool.type}", highlight=False)
         if tool.type == "python":
             console.print(f"    Module: {tool.module}.{tool.function}", highlight=False)

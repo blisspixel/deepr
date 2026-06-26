@@ -157,7 +157,7 @@ export default function ExpertProfile() {
   const chatEndRef = useRef<HTMLDivElement>(null)
   const userScrolledRef = useRef(false)
   // Safety timer that clears streaming state if the WS chat_complete /
-  // chat_error event is dropped — UI was previously stuck on "streaming"
+  // chat_error event is dropped - UI was previously stuck on "streaming"
   // forever in that case (R3 frontend-audit finding).
   const streamTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
@@ -427,7 +427,7 @@ export default function ExpertProfile() {
       if (streamTimeoutRef.current) clearTimeout(streamTimeoutRef.current)
       streamTimeoutRef.current = setTimeout(() => {
         setIsStreaming(false)
-        toast.warning('Chat stream timeout — the response may be lost. Refresh to reload the session.')
+        toast.warning('Chat stream timeout - the response may be lost. Refresh to reload the session.')
       }, 60_000)
     } else {
       chatMutation.mutate(message)
@@ -710,7 +710,7 @@ export default function ExpertProfile() {
                       {msg.role === 'assistant' && msg.confidence != null && msg.confidence < 0.5 && (
                         <div className="flex items-center gap-1.5 mt-2 text-xs text-yellow-600 dark:text-yellow-500">
                           <AlertTriangle className="w-3 h-3" />
-                          <span>Low confidence — consider verifying</span>
+                          <span>Low confidence - consider verifying</span>
                         </div>
                       )}
                       <div className={cn(

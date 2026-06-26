@@ -65,6 +65,19 @@ costs before settling the append-only ledger. Research submission now reserves
 estimated cost before dispatch, refunds on submit failure, and records actual
 provider usage on completion.
 
+Cycle 9 refocuses the documentation surface. README is now a concise front door
+instead of an operations manual, with capacity details moved into
+`docs/CAPACITY.md`. That capacity guide now includes a provider-costing deep
+dive for cached-token buckets, server-side tool costs, exact provider
+settlement, tier modifiers, and the cache-control preconditions that must exist
+before TTL/cache-key/pre-warm features ship. The roadmap now states the
+agentic-balance boundary for the next self-model and compiler work: self-model
+updates are reviewable evidence-backed proposals, not autonomous self-mutation,
+and the compiler keeps deterministic provenance/commit boundaries while model
+judgment owns meaning. Markdown docs were cleaned of emoji markers and
+AI-attribution-shaped phrases, and tracked text files were cleaned of literal
+em/en dash characters.
+
 External best-practice check, current as of 2026-06-26: modern agent harness
 guidance converges on trace-first improvement loops, evals from real failures,
 bounded context packets, explicit handoffs, and deterministic gates around

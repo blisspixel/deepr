@@ -1,4 +1,4 @@
-"""Tests for AgentTool — wrapping SubagentContract as OpenAI tool."""
+"""Tests for AgentTool - wrapping SubagentContract as OpenAI tool."""
 
 import pytest
 

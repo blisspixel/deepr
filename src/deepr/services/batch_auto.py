@@ -328,7 +328,7 @@ class AutoBatchExecutor:
 
             cost_safety = get_cost_safety_manager()
             batch_total_est = float(routing.total_cost_estimate or 0.0)
-            # Clamp against the absolute per-op ceiling — a batch is a
+            # Clamp against the absolute per-op ceiling - a batch is a
             # single user action even though it dispatches N jobs.
             if batch_total_est > CostSafetyManager.ABSOLUTE_MAX_PER_OPERATION:
                 return BatchResult(
@@ -364,7 +364,7 @@ class AutoBatchExecutor:
                     error=f"Batch blocked by cost-safety: {deny_reason}",
                 )
         except Exception:
-            # Don't block on cost-safety import / runtime errors —
+            # Don't block on cost-safety import / runtime errors -
             # individual ``_execute_single`` calls will still go through
             # their own per-job cost checks downstream.
             pass

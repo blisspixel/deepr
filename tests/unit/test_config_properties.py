@@ -166,7 +166,7 @@ class TestWebhookConfigUnit:
         assert config.port == 5000
 
     def test_default_host(self):
-        """Default host is loopback (R4 fix — was 0.0.0.0).
+        """Default host is loopback (R4 fix - was 0.0.0.0).
 
         The webhook server refuses non-loopback binds without
         DEEPR_WEBHOOK_SECRET, so the default config should bias toward

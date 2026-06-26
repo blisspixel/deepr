@@ -200,7 +200,7 @@ class MetadataEmitter:
         self.tasks: list[TaskMetadata] = []
         self._active_operations: dict[str, OperationContext] = {}
         # Per-job tracker map. Previously a single shared field meant
-        # two concurrent ``research_async`` jobs clobbered each other —
+        # two concurrent ``research_async`` jobs clobbered each other -
         # whichever job called ``set_temporal_tracker`` last "won" and
         # the other job's findings flowed through the wrong tracker.
         self._temporal_trackers: dict[str, TemporalKnowledgeTracker] = {}

@@ -1,4 +1,4 @@
-"""Tests for FindingsStore — covers the SQLite-backed findings index.
+"""Tests for FindingsStore - covers the SQLite-backed findings index.
 
 Exercises store/retrieve, ranking, multi-finding queries, and the
 delete-by-job path.

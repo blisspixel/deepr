@@ -536,14 +536,14 @@ Individual tools are useful. The compound system is qualitatively different:
 
 | Capability | Recon alone | Distillr alone | Primr alone | Deepr + all three |
 |-----------|-------------|----------------|-------------|-------------------|
-| Company tech stack | ✓ (one-shot) | - | ✓ (embedded) | ✓ (persistent, tracked over time) |
-| Academic depth | - | ✓ (one-shot corpus) | - | ✓ (absorbed into expert memory, cross-referenced with company data) |
-| Strategic analysis | - | - | ✓ (one-shot report) | ✓ (persistent, updated, synthesized across companies) |
-| Cross-source synthesis | - | - | - | ✓ (expert combines all sources into unified understanding) |
-| Temporal tracking | - | - | - | ✓ (expert knows what changed since last analysis) |
-| Autonomous gap filling | - | - | - | ✓ (expert detects gaps, triggers right tool, absorbs results) |
-| Budget-aware orchestration | - | - | - | ✓ (single budget across all tools, smart allocation) |
-| Audit trail | - | - | - | ✓ (every tool call traced, every decision logged) |
+| Company tech stack | yes (one-shot) | - | yes (embedded) | yes (persistent, tracked over time) |
+| Academic depth | - | yes (one-shot corpus) | - | yes (absorbed into expert memory, cross-referenced with company data) |
+| Strategic analysis | - | - | yes (one-shot report) | yes (persistent, updated, synthesized across companies) |
+| Cross-source synthesis | - | - | - | yes (expert combines all sources into unified understanding) |
+| Temporal tracking | - | - | - | yes (expert knows what changed since last analysis) |
+| Autonomous gap filling | - | - | - | yes (expert detects gaps, triggers right tool, absorbs results) |
+| Budget-aware orchestration | - | - | - | yes (single budget across all tools, smart allocation) |
+| Audit trail | - | - | - | yes (every tool call traced, every decision logged) |
 
 The bottom four rows are things that *only exist* when Deepr orchestrates the tools. That's the value proposition of the integrated system.
 

@@ -126,32 +126,32 @@ source = ["deepr"]
 # tests). The gate ratchets up from this real branch baseline.
 branch = true
 omit = [
-    # CLI commands and rendering — covered by end-to-end tests, not units.
+    # CLI commands and rendering - covered by end-to-end tests, not units.
     "src/deepr/cli/commands/*",
     "src/deepr/cli/realtime_progress.py",
     "src/deepr/cli/startup_banner.py",
     "src/deepr/cli/ui.py",
-    # Web app — large Flask surface, manually QA'd + smoke-tested.
+    # Web app - large Flask surface, manually QA'd + smoke-tested.
     "src/deepr/web/*",
     # WebSocket / SocketIO event handlers require a live Flask context.
     "src/deepr/api/websockets/*",
-    # HTTP webhook server — runs only in long-lived deployments.
+    # HTTP webhook server - runs only in long-lived deployments.
     "src/deepr/webhooks/*",
-    # S3 / blob storage — integration-tested against AWS.
+    # S3 / blob storage - integration-tested against AWS.
     "src/deepr/storage/blob.py",
     # Playwright/headless-browser backend.
     "src/deepr/tools/browser_backend.py",
-    # Optional DSPy integration — gracefully degrades when the
+    # Optional DSPy integration - gracefully degrades when the
     # ``dspy`` package isn't installed; covered by DSPy-specific tests.
     "src/deepr/experts/dspy_pipeline.py",
-    # Autonomous learning loop — long-running, integration-tested.
+    # Autonomous learning loop - long-running, integration-tested.
     "src/deepr/experts/learner.py",
-    # Slash-command dispatcher — covered by chat integration tests.
+    # Slash-command dispatcher - covered by chat integration tests.
     "src/deepr/experts/command_handlers.py",
-    # Skill execution wrapper — covered by skill integration tests.
+    # Skill execution wrapper - covered by skill integration tests.
     "src/deepr/experts/skills/expert_skill.py",
     "src/deepr/experts/skills/executor.py",
-    # Web scraper — covered by integration tests against live targets.
+    # Web scraper - covered by integration tests against live targets.
     "src/deepr/utils/scrape/*",
     # Image-generation provider for expert portraits (OpenAI/Gemini/XAI).
     "src/deepr/experts/portraits.py",
@@ -160,7 +160,7 @@ omit = [
     "src/deepr/cli/colors.py",
     # DOCX/PDF style helpers (heavy python-docx surface).
     "src/deepr/formatting/style.py",
-    # Research-agent poller (long-running background worker — covered by
+    # Research-agent poller (long-running background worker - covered by
     # integration runs against live providers).
     "src/deepr/research_agent/poller.py",
     # MCP credential manager (interactive prompts + OS keyring integration).

@@ -24,7 +24,7 @@ def provider():
 
 
 # ---------------------------------------------------------------------- #
-# _calculate_cost — tiered pricing
+# _calculate_cost - tiered pricing
 # ---------------------------------------------------------------------- #
 
 
@@ -33,7 +33,7 @@ class TestCalculateCost:
         assert provider._calculate_cost(0, 0, DEEP_RESEARCH_AGENT) == provider.deep_research_cost_estimate
 
     def test_small_prompt_no_multiplier(self, provider):
-        # Under 200K input tokens — multiplier is 1.0
+        # Under 200K input tokens - multiplier is 1.0
         cost = provider._calculate_cost(10_000, 10_000, "gemini-3.1-pro-preview")
         assert cost > 0
 
@@ -50,7 +50,7 @@ class TestCalculateCost:
     def test_large_context_does_not_affect_flash(self, provider):
         small = provider._calculate_cost(199_000, 10_000, "gemini-2.5-flash")
         big = provider._calculate_cost(201_000, 10_000, "gemini-2.5-flash")
-        # Flash is not in the multiplier set — scaling should be near-linear
+        # Flash is not in the multiplier set - scaling should be near-linear
         # (no 2x jump).
         ratio = big / small if small else 1.0
         assert ratio < 1.5
@@ -82,7 +82,7 @@ class TestPollInterval:
 
 
 # ---------------------------------------------------------------------- #
-# cancel_job — both job types
+# cancel_job - both job types
 # ---------------------------------------------------------------------- #
 
 

@@ -78,7 +78,7 @@ class MapReduceIngester:
             content = doc.get("content", "")
 
             if len(content) <= self.chunk_size:
-                # Small document — no need for map-reduce
+                # Small document - no need for map-reduce
                 results.append({"filename": filename, "content": content})
                 continue
 
@@ -131,7 +131,7 @@ class MapReduceIngester:
                 if section.strip():
                     chunks.append(section.strip())
             else:
-                # Section too large — split at paragraph boundaries
+                # Section too large - split at paragraph boundaries
                 paragraphs = section.split("\n\n")
                 current_chunk = ""
 
@@ -144,7 +144,7 @@ class MapReduceIngester:
                         if len(para) <= self.chunk_size:
                             current_chunk = para
                         else:
-                            # Paragraph too large — hard split
+                            # Paragraph too large - hard split
                             for i in range(0, len(para), self.chunk_size):
                                 chunk = para[i : i + self.chunk_size].strip()
                                 if chunk:

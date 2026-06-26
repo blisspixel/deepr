@@ -245,7 +245,7 @@ from deepr.api.websockets.events import (
 register_socketio_events(socketio)
 
 # ---------------------------------------------------------------------------
-# Background poller — checks provider status for PROCESSING jobs
+# Background poller - checks provider status for PROCESSING jobs
 # ---------------------------------------------------------------------------
 _poller_lock = threading.Lock()
 _poller_started = False
@@ -347,7 +347,7 @@ def _handle_completion(loop, job, response):
     if updated_job:
         emit_job_completed(socketio, updated_job)
     else:
-        logger.error("Poller: job %s vanished after completion update — WebSocket notification lost", job.id)
+        logger.error("Poller: job %s vanished after completion update - WebSocket notification lost", job.id)
     logger.info("Poller: job %s completed (cost=%.4f)", job.id, cost or 0)
 
 
@@ -358,7 +358,7 @@ def _handle_failure(loop, job, error):
     if updated_job:
         emit_job_failed(socketio, updated_job, str(error))
     else:
-        logger.error("Poller: job %s vanished after failure update — WebSocket notification lost", job.id)
+        logger.error("Poller: job %s vanished after failure update - WebSocket notification lost", job.id)
     logger.info("Poller: job %s failed: %s", job.id, error)
 
 
@@ -367,7 +367,7 @@ def _check_stuck(loop, job):
     if not job.started_at:
         return
     if datetime.now(UTC) - _ensure_utc(job.started_at) > _STUCK_THRESHOLD:
-        _handle_failure(loop, job, "Job stuck — exceeded 30 minute processing threshold")
+        _handle_failure(loop, job, "Job stuck - exceeded 30 minute processing threshold")
 
 
 @app.before_request
@@ -394,7 +394,7 @@ def index():
 @app.errorhandler(404)
 def fallback_to_spa(e):
     """Serve index.html for unknown routes so client-side routing works."""
-    # Don't catch missing API routes — return 404 JSON for those
+    # Don't catch missing API routes - return 404 JSON for those
     if request.path.startswith("/api/"):
         return jsonify({"error": "Not found"}), 404
     # Serve static files from dist if they exist (with path traversal protection)
@@ -1544,7 +1544,7 @@ def create_expert():
         if name_err:
             return jsonify({"error": name_err}), 400
 
-        # Description and domain must be strings — the React Expert Hub
+        # Description and domain must be strings - the React Expert Hub
         # calls .toLowerCase() and renders them directly. A persisted object
         # or array would trip the frontend error boundary for every client.
         raw_description = data.get("description", "")
@@ -1634,7 +1634,7 @@ _PORTRAIT_COOLDOWN_SECONDS = 60
 _PORTRAIT_LAST_GENERATED: dict[str, float] = {}
 _PORTRAIT_ALLOWED_PROVIDERS = {"openai", "google", "xai"}
 # Conservative per-call estimate for image generation, in USD. Used purely
-# for the canonical cost ledger entry — provider-specific actuals are not
+# for the canonical cost ledger entry - provider-specific actuals are not
 # returned by the image APIs uniformly.
 _PORTRAIT_COST_ESTIMATE_USD = 0.04
 
@@ -2781,7 +2781,7 @@ def list_benchmarks():
         return jsonify({"error": "Internal server error"}), 500
 
 
-# Same patterns as scripts/benchmark_models.py:redact_secrets — duplicated here so
+# Same patterns as scripts/benchmark_models.py:redact_secrets - duplicated here so
 # the web app does not require the benchmark script to be importable as a module.
 _BENCHMARK_SECRET_PATTERNS = [
     re.compile(r"(?i)([?&](?:key|api[_-]?key|access[_-]?token)=)[^&\s\"'<>]+"),
@@ -3741,7 +3741,7 @@ def load_demo_data():
         },
         # 11-13 days ago
         {
-            "prompt": "Nuclear fusion progress update: ITER, NIF, and private ventures — plasma confinement milestones and energy breakeven timeline",
+            "prompt": "Nuclear fusion progress update: ITER, NIF, and private ventures - plasma confinement milestones and energy breakeven timeline",
             "model": "gemini/deep-research",
             "cost": 1.08,
             "tokens": 63000,
@@ -3918,7 +3918,7 @@ def _auto_load_demo():
     if _demo_mode_enabled():
         with app.app_context():
             try:
-                logger.info("DEEPR_DEMO is set — auto-loading demo data")
+                logger.info("DEEPR_DEMO is set - auto-loading demo data")
                 # Check if jobs already exist to avoid duplicate loads
                 jobs = run_async(queue.list_jobs(limit=1))
                 if not jobs:
@@ -3932,7 +3932,7 @@ def _auto_load_demo():
                         load_demo_data()
                     logger.info("Demo data loaded successfully")
                 else:
-                    logger.info("Jobs already exist — skipping demo auto-load")
+                    logger.info("Jobs already exist - skipping demo auto-load")
             except Exception as e:
                 logger.warning("Failed to auto-load demo data: %s", e)
 
@@ -3973,7 +3973,7 @@ if __name__ == "__main__":
     # Only opt out of Flask-SocketIO's production-safety check when the
     # operator has explicitly bound to loopback. For any non-loopback bind
     # the operator must front the app with a real server (gunicorn+eventlet,
-    # uvicorn workers, etc.) — we surface that requirement instead of
+    # uvicorn workers, etc.) - we surface that requirement instead of
     # silently running the dev server on a reachable interface.
     use_werkzeug = _is_loopback(host)
 

@@ -831,7 +831,7 @@ class HierarchicalMemory:
 
         Each of the three files is written atomically. A power loss
         between writes can still leave episodic.json updated while
-        profiles.json is at the previous version — these files are not
+        profiles.json is at the previous version - these files are not
         cross-file transactional. For full consistency we'd need a
         snapshot file; for now this at least prevents partial-write
         corruption of any individual file.

@@ -152,7 +152,7 @@ class MCPClient:
         self._send_lock = asyncio.Lock()
         # Background task that drains the subprocess's stderr. Without
         # this the OS pipe buffer (~64KB on Linux) fills up on a chatty
-        # server and the child blocks on its next stderr write — every
+        # server and the child blocks on its next stderr write - every
         # tool call then times out and ``close()`` is forced to ``kill()``.
         self._stderr_task: asyncio.Task[None] | None = None
 
@@ -198,7 +198,7 @@ class MCPClient:
             )
 
         # Drain stderr to a logger so the subprocess pipe never fills up.
-        # Cancel any prior drain task without awaiting — awaiting can
+        # Cancel any prior drain task without awaiting - awaiting can
         # block on AsyncMock-based test harnesses where cancellation
         # propagation through ``wait_for`` doesn't unwind cleanly.
         if self._stderr_task is not None and not self._stderr_task.done():
@@ -319,7 +319,7 @@ class MCPClient:
                     # Intent: expected idle timeout in stderr drain poll loop; continue polling without logging noise (normal for long-lived MCP sessions).
                     continue
                 except (AttributeError, TypeError):
-                    # Mock stderr or stream torn down — stop draining.
+                    # Mock stderr or stream torn down - stop draining.
                     return
                 # Real stderr returns ``b""`` on EOF; defensive against
                 # test mocks that emit non-bytes return values.
@@ -381,7 +381,7 @@ class MCPClient:
                 elapsed = (time.monotonic() - start) * 1000
 
                 if "error" in response:
-                    # Protocol error from server — not retryable
+                    # Protocol error from server - not retryable
                     error_msg = str(response["error"])
                     self._stats.total_calls += 1
                     self._stats.failed_calls += 1
@@ -441,7 +441,7 @@ class MCPClient:
                     self.max_retries,
                     e,
                 )
-                # Connection lost — reconnect on next attempt
+                # Connection lost - reconnect on next attempt
                 await self.close()
 
             # Exponential backoff before retry, with full jitter. Without
@@ -455,7 +455,7 @@ class MCPClient:
                 delay = base * (0.5 + _random.random())  # 0.5x..1.5x of base
                 await asyncio.sleep(delay)
 
-        # All retries exhausted — count as one failed logical call
+        # All retries exhausted - count as one failed logical call
         elapsed = (time.monotonic() - start) * 1000
         self._stats.total_calls += 1
         self._stats.failed_calls += 1
@@ -479,7 +479,7 @@ class MCPClient:
 
         Serializes the write/read pair under a per-client lock so concurrent
         callers on a shared MCPClient (e.g. through MCPClientPool) cannot
-        interleave on the single stdio stream — without this, caller A's
+        interleave on the single stdio stream - without this, caller A's
         readline could pick up caller B's response and leak results across
         sessions. Also validates that the response id matches the request id;
         any mismatch is rejected rather than silently returned to the caller.

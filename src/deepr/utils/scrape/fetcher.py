@@ -300,7 +300,7 @@ class ContentFetcher:
                     # (networkidle can timeout on sites with continuous activity)
                     await page.goto(url, wait_until="domcontentloaded", timeout=self.config.timeout * 1000)
 
-                    # Re-validate the final URL — JS may have called
+                    # Re-validate the final URL - JS may have called
                     # window.location = "http://169.254.169.254/..." or a top-
                     # level redirect may have moved us to an internal host.
                     final_url = page.url

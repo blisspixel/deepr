@@ -275,7 +275,7 @@ def print_command_help():
         for cmd in cmds:
             arg_str = f" {cmd.args}" if cmd.args else ""
             aliases = f" ({', '.join('/' + a for a in cmd.aliases)})" if cmd.aliases else ""
-            console.print(f"  [cyan]/{cmd.name}{arg_str}[/cyan]{aliases} — {cmd.description}")
+            console.print(f"  [cyan]/{cmd.name}{arg_str}[/cyan]{aliases} - {cmd.description}")
         console.print()
     console.print("Use / (web) or \\ (CLI) prefix for commands. Just type to chat.")
     console.print()

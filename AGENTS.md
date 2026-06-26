@@ -32,7 +32,7 @@ Multi-provider research automation: routes each research question to the cheapes
 ## Conventions
 
 - Conventional commits (`feat:`/`fix:`/`docs:`/`chore:`); single `main` branch.
-- **No AI attribution anywhere.** No `Co-Authored-By` / "Generated with" / "by Claude/Codex" style trailers or notes in commits, tags, PRs, releases, code comments, or docs. Commits and releases are authored as the human maintainer, full stop.
-- **No emojis and no em/en dashes (`-` style only).** Do not use emoji or `—`/`–` in commit messages, tags, PRs, releases, code, or docs; use a plain hyphen `-` where a dash is needed.
+- **No AI attribution anywhere.** No AI-tool authorship trailers or notes in commits, tags, PRs, releases, code comments, or docs. Commits and releases are authored as the human maintainer, full stop.
+- **No emojis and no em/en dashes (`-` style only).** Do not use emoji or `-`/`-` in commit messages, tags, PRs, releases, code, or docs; use a plain hyphen `-` where a dash is needed.
 - Live-validation findings get a ROADMAP backlog entry and are checked off with a dated note when fixed.
 - Doc counts (test counts, tool counts) are checked by `scripts/check_docs_consistency.py` in CI - update docs when the numbers move.

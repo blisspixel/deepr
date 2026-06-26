@@ -121,8 +121,8 @@ class ConflictResolver:
     ) -> list[tuple[Belief, Belief]]:
         """Detect contradictions between beliefs.
 
-        Stage 1: Heuristic check (negation + word overlap) — fast, free
-        Stage 2: LLM check on remaining pairs — more accurate (skipped when
+        Stage 1: Heuristic check (negation + word overlap) - fast, free
+        Stage 2: LLM check on remaining pairs - more accurate (skipped when
         ``heuristic_only`` is set, keeping the call cost-$0)
 
         Args:

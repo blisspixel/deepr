@@ -17,7 +17,7 @@ class MCPClientProfile:
     """Configuration profile for an MCP server connection.
 
     Defines how to connect to and interact with a specific MCP server.
-    Profiles are reusable — multiple experts/sessions can share one.
+    Profiles are reusable - multiple experts/sessions can share one.
 
     Example::
 

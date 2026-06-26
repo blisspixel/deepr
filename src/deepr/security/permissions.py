@@ -88,7 +88,7 @@ class PermissionPolicy:
 
     @classmethod
     def restrictive(cls) -> PermissionPolicy:
-        """Create a restrictive policy — read-only, no external requests, no code."""
+        """Create a restrictive policy - read-only, no external requests, no code."""
         return cls(
             name="restrictive",
             description="Read-only, no external requests, no code execution",
@@ -102,7 +102,7 @@ class PermissionPolicy:
 
     @classmethod
     def open(cls) -> PermissionPolicy:
-        """Create an open policy — everything allowed."""
+        """Create an open policy - everything allowed."""
         return cls(name="open", description="All operations permitted")
 
 

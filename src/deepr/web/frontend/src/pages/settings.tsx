@@ -58,7 +58,7 @@ export default function Settings() {
     mutationFn: () => configApi.loadDemo(),
     onSuccess: (data) => {
       queryClient.invalidateQueries()
-      toast.success(`Demo data loaded — ${data.created_jobs} sample jobs created`)
+      toast.success(`Demo data loaded - ${data.created_jobs} sample jobs created`)
       if (data.errors?.length) {
         toast.warning(`Some demo data failed: ${data.errors[0]}`)
       }

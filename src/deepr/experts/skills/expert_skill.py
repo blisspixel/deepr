@@ -115,7 +115,7 @@ class ExpertSkillWrapper:
                         server_name=self._profile.name,
                         tool_name="lookup_tenant",
                         arguments={"domain": domain, "format": "json"},
-                        reason=f"Detected domain: {domain} — using native recon",
+                        reason=f"Detected domain: {domain} - using native recon",
                         estimated_cost=0.0,
                         requires_approval=self._needs_approval("lookup_tenant"),
                     )
@@ -219,11 +219,11 @@ class ExpertSkillWrapper:
                 if attempt < max_attempts - 1:
                     continue
 
-        # All retries exhausted — last_error is guaranteed to be set by the loop above,
+        # All retries exhausted - last_error is guaranteed to be set by the loop above,
         # but we defend against the invariant being violated in the future.
         if last_error is None:
             logger.error(
-                "ExpertSkillWrapper.execute: last_error was None after retry loop — "
+                "ExpertSkillWrapper.execute: last_error was None after retry loop - "
                 "this indicates a logic error in the retry handling."
             )
             return StructuredError(

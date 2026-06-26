@@ -1,9 +1,9 @@
 """Azure AI Foundry provider implementation.
 
 Supports two modes:
-1. Deep Research (Agent/Thread/Run + DeepResearchTool + Bing grounding) — for
+1. Deep Research (Agent/Thread/Run + DeepResearchTool + Bing grounding) - for
    comprehensive multi-step research using o3-deep-research. Background async.
-2. Regular completions (Agent/Thread/Run, no DeepResearchTool) — for lighter
+2. Regular completions (Agent/Thread/Run, no DeepResearchTool) - for lighter
    tasks like expert chat, synthesis, quick lookups using GPT-5/5-mini,
    GPT-4.1/4.1-mini, GPT-4o/4o-mini. Synchronous via polling.
 
@@ -62,7 +62,7 @@ class AzureFoundryProvider(DeepResearchProvider):
     synthesis, expert building, and quick lookups.
 
     Authentication is via DefaultAzureCredential (Azure AD, Managed Identity).
-    No API key option — use `az login` for local development.
+    No API key option - use `az login` for local development.
     """
 
     def __init__(
@@ -132,7 +132,7 @@ class AzureFoundryProvider(DeepResearchProvider):
         # Cost estimation: Bing grounding ~$0.035/search query
         self.deep_research_cost_estimate = 0.50
 
-        # Job tracking — deep research and regular share the same dict
+        # Job tracking - deep research and regular share the same dict
         self._jobs: dict[str, dict[str, Any]] = {}
 
         logger.info(
@@ -263,7 +263,7 @@ class AzureFoundryProvider(DeepResearchProvider):
         return round(input_cost + output_cost, 6)
 
     # =========================================================================
-    # Submit research — dispatches to deep research or regular mode
+    # Submit research - dispatches to deep research or regular mode
     # =========================================================================
 
     async def submit_research(self, request: ResearchRequest) -> str:
@@ -417,7 +417,7 @@ class AzureFoundryProvider(DeepResearchProvider):
         )
 
     # =========================================================================
-    # Get status — handles both deep research and regular jobs
+    # Get status - handles both deep research and regular jobs
     # =========================================================================
 
     async def get_status(self, job_id: str) -> ResearchResponse:

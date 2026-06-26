@@ -62,7 +62,7 @@ class TestMigrateModel:
 
     def test_grok3_auto_migrates(self):
         model, confidence, warning = migrate_model("grok-3")
-        # Provider prefix is stripped — downstream provider clients
+        # Provider prefix is stripped - downstream provider clients
         # consume the plain model id, not "<provider>/<model>".
         assert model == "grok-4-3"
         assert confidence == 1.0
@@ -88,7 +88,7 @@ class TestMigrateModel:
 
     def test_confidence_preserved(self):
         model, confidence, warning = migrate_model("grok-3", confidence=0.75)
-        # Provider prefix is stripped — downstream provider clients
+        # Provider prefix is stripped - downstream provider clients
         # consume the plain model id, not "<provider>/<model>".
         assert model == "grok-4-3"
         assert confidence == 0.75

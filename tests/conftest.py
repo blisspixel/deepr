@@ -20,7 +20,7 @@ from hypothesis import settings as hypothesis_settings
 # Load .env file for API keys in integration/E2E tests
 load_dotenv()
 
-# Suppress slow-generation health checks globally — property tests use complex
+# Suppress slow-generation health checks globally - property tests use complex
 # strategies (nested dicts, filtered text) that can be slow on CI/Windows.
 hypothesis_settings.register_profile(
     "ci",

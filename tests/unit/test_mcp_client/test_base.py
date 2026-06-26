@@ -1,4 +1,4 @@
-"""Tests for MCP client base — connection, retry, health tracking."""
+"""Tests for MCP client base - connection, retry, health tracking."""
 
 import asyncio
 import json

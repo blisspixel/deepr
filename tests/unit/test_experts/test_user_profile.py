@@ -1,4 +1,4 @@
-"""Tests for UserProfileTracker — fast path coverage.
+"""Tests for UserProfileTracker - fast path coverage.
 
 The module was 0% covered before; this exercises load/create,
 interaction recording, persistence round-trip, and the inference paths
@@ -42,7 +42,7 @@ class TestUserProfileTracker:
             research_triggered=False,
             cost=0.05,
         )
-        # Reload — interaction should persist
+        # Reload - interaction should persist
         tracker2 = UserProfileTracker(str(tmp_path))
         profile = tracker2.load_or_create("user-1")
         assert profile.total_interactions == 1
@@ -50,7 +50,7 @@ class TestUserProfileTracker:
         assert profile.topics_asked_about.get("x-topic", 0) == 1
 
     def test_save_profile_atomic_write(self, tmp_path: Path):
-        """save_profile uses atomic_write_json — output should be readable
+        """save_profile uses atomic_write_json - output should be readable
         and a previous version should not be left half-written even on
         repeated saves."""
         tracker = UserProfileTracker(str(tmp_path))

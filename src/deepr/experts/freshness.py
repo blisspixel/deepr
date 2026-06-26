@@ -300,7 +300,7 @@ class FreshnessChecker:
                 try:
                     source_date = datetime.fromisoformat(source["date"])
                     # Naive datetimes (no tz in the input string) raise
-                    # ``TypeError`` when subtracted from ``now`` (aware) —
+                    # ``TypeError`` when subtracted from ``now`` (aware) -
                     # the previous bare except swallowed every such call,
                     # so source-freshness analysis returned ``dated_count=0``
                     # for the common case of dates without explicit tz.

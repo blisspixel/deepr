@@ -11,7 +11,7 @@ logger = logging.getLogger(__name__)
 # Track import errors so create_provider can expose root causes.
 _OPTIONAL_PROVIDER_IMPORT_ERRORS: dict[str, Exception] = {}
 
-# Optional providers — imported lazily so missing/incompatible SDKs don't break
+# Optional providers - imported lazily so missing/incompatible SDKs don't break
 # the package import for unrelated code paths.
 try:
     from .azure_provider import AzureProvider

@@ -303,7 +303,7 @@ def _enrich_with_provisional(
     for model_key, cap in MODEL_CAPABILITIES.items():
         if model_key in benchmarked:
             continue
-        # Skip deprecated models — they shouldn't participate in routing
+        # Skip deprecated models - they shouldn't participate in routing
         if cap.deprecated:
             continue
 
@@ -753,7 +753,7 @@ class AutoModeRouter:
                 continue
             if budget is not None and cost > budget:
                 continue
-            # Skip deprecated models — route to successor if available
+            # Skip deprecated models - route to successor if available
             dep = check_deprecation(model)
             if dep is not None:
                 continue
@@ -784,7 +784,7 @@ class AutoModeRouter:
             p, m, c = candidates[0]
             return (p, m, c, f"Cheapest available → {p}/{m} (${c:.3f})")
 
-        # Absolute last resort — but pick a USABLE provider. The previous
+        # Absolute last resort - but pick a USABLE provider. The previous
         # behaviour hard-coded ``openai/gpt-4.1-mini`` regardless of
         # which providers had API keys, so a user with only Gemini/XAI
         # configured would receive an openai model the dispatcher
@@ -897,7 +897,7 @@ class AutoModeRouter:
         # Last resort: ask ``_cheapest_available`` which iterates the
         # usable providers and raises ``RuntimeError`` if none have keys.
         # Round-3 fixed this exact pattern in ``_cheapest_available`` but
-        # missed this sibling path — handing back ``openai/gpt-4.1-mini``
+        # missed this sibling path - handing back ``openai/gpt-4.1-mini``
         # when no OpenAI key is configured produced a fail-at-provider-
         # creation downstream and a confusing error.
         return self._cheapest_available(budget=None)
