@@ -60,7 +60,13 @@ from deepr.experts.loop_status_rollup import build_loop_status_rollup
 from deepr.experts.metacognitive_monitor import (
     METACOGNITIVE_MONITOR_KIND,
     METACOGNITIVE_MONITOR_SCHEMA_VERSION,
+    build_consult_trace_candidates_for_expert,
     build_metacognitive_monitor_report,
+)
+from deepr.experts.monitor_promotion import (
+    METACOGNITIVE_PROMOTION_KIND,
+    METACOGNITIVE_PROMOTION_SCHEMA_VERSION,
+    promote_monitor_proposal,
 )
 from deepr.experts.profile import ExpertProfile
 from deepr.experts.self_model import (
@@ -303,6 +309,43 @@ def test_metacognitive_monitor_schema_validates_runtime_payload():
     _validate(schema, payload)
     assert payload["schema_version"] == METACOGNITIVE_MONITOR_SCHEMA_VERSION
     assert payload["kind"] == METACOGNITIVE_MONITOR_KIND
+    assert payload["contract"]["auto_apply"] is False
+
+
+def test_metacognitive_promotion_schema_validates_runtime_payload(tmp_path):
+    profile = ExpertProfile(
+        name="Promotion Expert",
+        vector_store_id="vs-promotion",
+        domain="promotion",
+        knowledge_cutoff_date=datetime(2026, 6, 26, 12, 0, tzinfo=UTC),
+        last_knowledge_refresh=datetime(2026, 6, 26, 12, 0, tzinfo=UTC),
+    )
+    manifest = ExpertManifest(
+        expert_name="Promotion Expert",
+        domain="promotion",
+        claims=[Claim.create("Reviewed monitor proposals can become gap artifacts.", "promotion", 0.86)],
+    )
+    profile.get_manifest = lambda: manifest  # type: ignore[method-assign]
+    trace = build_consult_trace(
+        question="What did this consult miss?",
+        requested_experts=[profile.name],
+        max_experts=3,
+        budget=0.0,
+        failure={"error_type": "RuntimeError", "message": "synthesis failed"},
+        trace_id="consult_schema123",
+        recorded_at=datetime(2026, 6, 26, 12, 0, tzinfo=UTC),
+    )
+    trace_path = tmp_path / "consult_traces.jsonl"
+    trace_path.write_text(json.dumps(trace) + "\n", encoding="utf-8")
+    candidates = build_consult_trace_candidates_for_expert(profile.name, path=trace_path)
+    monitor = build_metacognitive_monitor_report(profile, loop_runs=[], consult_trace_candidates=candidates)
+    proposal_id = monitor["proposals"][0]["proposal_id"]
+    payload = promote_monitor_proposal(profile, proposal_id, target="gap", trace_path=trace_path, apply=False)
+    schema = _load_schema("metacognitive-promotion-v1.json")
+
+    _validate(schema, payload)
+    assert payload["schema_version"] == METACOGNITIVE_PROMOTION_SCHEMA_VERSION
+    assert payload["kind"] == METACOGNITIVE_PROMOTION_KIND
     assert payload["contract"]["auto_apply"] is False
 
 

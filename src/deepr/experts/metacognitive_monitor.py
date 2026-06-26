@@ -49,8 +49,11 @@ def _proposal(
     recommended_command: str,
     expected_effect: str,
 ) -> dict[str, Any]:
+    proposal_id = _proposal_id(expert_name, proposal_type, title, evidence_refs)
+    if "{proposal_id}" in recommended_command:
+        recommended_command = recommended_command.format(proposal_id=proposal_id)
     return {
-        "proposal_id": _proposal_id(expert_name, proposal_type, title, evidence_refs),
+        "proposal_id": proposal_id,
         "proposal_type": proposal_type,
         "status": "review_required",
         "target": target,
@@ -166,7 +169,7 @@ def _consult_candidate_proposals(profile: ExpertProfile, candidate_payload: dict
                 title=f"Review consult trace candidate: {reason}",
                 rationale=str(candidate.get("question_preview", "Consult trace candidate requires review.")),
                 evidence_refs=evidence_refs,
-                recommended_command="deepr expert consult-traces --json",
+                recommended_command=f'deepr expert promote-monitor "{profile.name}" {{proposal_id}} --target gap --apply',
                 expected_effect="Promote the candidate into a gap-fill route or eval case only after review.",
             )
         )
