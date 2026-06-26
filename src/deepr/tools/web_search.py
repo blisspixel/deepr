@@ -2,11 +2,43 @@
 
 import asyncio
 import os
-from typing import Any
+from collections.abc import Awaitable, Callable
+from typing import Any, TypeVar
 
 import requests
 
 from .base import Tool, ToolResult
+
+_T = TypeVar("_T")
+
+# DuckDuckGo's free endpoint rate-limits aggressively, so a single attempt fails
+# often enough to starve the $0 retrieval path ("no sources -> no report"). Retry
+# transient failures with exponential backoff before degrading. Slow is fine for
+# unattended $0 work; a wrong "no sources" is not.
+_DDG_MAX_ATTEMPTS = 3
+_DDG_BACKOFF_BASE_S = 1.5
+
+
+async def _retry_async(
+    operation: Callable[[], Awaitable[_T]],
+    *,
+    attempts: int,
+    base_delay: float,
+    sleep: Callable[[float], Awaitable[None]] = asyncio.sleep,
+) -> _T:
+    """Run ``operation`` with exponential backoff, re-raising the last error.
+
+    Backoff is ``base_delay * 2**attempt`` between tries; the final attempt does
+    not sleep. ``sleep`` is injectable so tests run without real delays.
+    """
+    for attempt in range(attempts):
+        try:
+            return await operation()
+        except Exception:  # transient: rate limit, timeout, network
+            if attempt + 1 >= attempts:
+                raise  # exhausted: surface the last failure to the caller
+            await sleep(base_delay * (2**attempt))
+    raise ValueError("attempts must be >= 1")
 
 
 class WebSearchTool(Tool):
@@ -158,9 +190,17 @@ class WebSearchTool(Tool):
             ]
 
         try:
-            results = await asyncio.to_thread(_query)
+            results = await _retry_async(
+                lambda: asyncio.to_thread(_query),
+                attempts=_DDG_MAX_ATTEMPTS,
+                base_delay=_DDG_BACKOFF_BASE_S,
+            )
         except Exception as e:  # rate limits / transient network: degrade, don't crash
-            return ToolResult(success=False, data=None, error=f"DuckDuckGo search failed: {e}")
+            return ToolResult(
+                success=False,
+                data=None,
+                error=f"DuckDuckGo search failed after {_DDG_MAX_ATTEMPTS} attempts: {e}",
+            )
         return ToolResult(success=True, data=results, metadata={"backend": "duckduckgo", "query": query})
 
 
