@@ -83,6 +83,11 @@ The research changes what "self-improving expert" should mean in Deepr:
 - Persistence without verification is a liability. Beliefs, traces, wiki views,
   OKF bundles, and skill exports must stay replayable and checked at promotion
   boundaries.
+- Evidence is grounding, not the definition of expertise. Facts require
+  provenance, but concepts, stances, hypotheses, and exploration agendas require
+  different checks: rationale, uncertainty, predicted observations, freshness,
+  and disconfirming signals. Do not collapse expert judgment into a brittle
+  fact checklist.
 - Context engineering is not enough once experts run across sessions. Deepr
   needs a harness layer that decides what context enters each step, what tools
   may run, what state may mutate, when to stop, and how to evaluate the result.
@@ -117,6 +122,10 @@ reflective, and self-improving without claiming subjective experience:
 - Self-model: a structured record of an expert's domain, known strengths,
   known weaknesses, current confidence calibration, preferred learning
   strategies, blocked capabilities, and active goals.
+- Perspective state: the expert's current conceptual model, stance, important
+  tradeoffs, hypotheses, watchlist, and open questions. This is not a list of
+  facts. It is the expert's current best orientation, labeled with uncertainty
+  and revised as new material arrives.
 - Temporal continuity: durable autobiographical traces of important consults,
   learning transactions, belief revisions, failed predictions, and why the
   expert changed its mind.
@@ -144,26 +153,30 @@ A Level 5 Deepr expert is a bounded learning expert. It can run a full
 knowledge-improvement transaction inside explicit budget, tool, and approval
 boundaries:
 
-1. Detect a gap, stale belief, contradiction, failed consult, or poor answer
-   from stored traces and loop state.
+1. Detect a gap, stale belief, stale concept, outdated news context,
+   contradiction, weak stance, failed consult, or poor answer from stored
+   traces and loop state.
 2. Select the cheapest capable capacity: local, explicit plan quota, then
    metered only with a budget gate.
-3. Gather or reuse evidence through the right instrument: existing expert
+3. Gather or reuse material through the right instrument: existing expert
    state, Distillr corpus, Recon, Primr, local/fresh web context, or a metered
    research provider.
-4. Compile evidence into source notes, atomic beliefs, typed temporal graph
-   edges, contradiction records, and gap updates.
+4. Compile material into source notes, concepts, claims, hypotheses, stance,
+   typed temporal graph edges, contradiction records, watch items, and gap
+   updates.
 5. Verify the result with deterministic gates for schema, provenance, budget,
-   writes, and idempotency plus calibrated model judgment for meaning.
+   writes, and idempotency plus calibrated model judgment for meaning,
+   coherence, relevance, and conceptual fit.
 6. Persist the before/after trace and only promote the change if the verifier
    says it improved or preserved quality.
 7. Update its self-model with what it learned about its knowledge, calibration,
    source trust, and learning strategy.
-8. Stop with a typed blocked action when evidence, approval, capacity, or
-   verification is missing.
+8. Stop with a typed blocked action when support, approval, capacity,
+   freshness, or verification is missing.
 
 Level 5 is not "let the expert rewrite itself." It is "let the expert improve
-its belief state, self-assessment, and maintenance plan under measured gates."
+its perspective, belief state, self-assessment, and maintenance plan under
+measured gates."
 
 ### Level 6 Expert Fleet
 

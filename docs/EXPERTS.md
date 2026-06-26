@@ -6,8 +6,9 @@
 
 Deepr's expert system creates domain experts from documents that can answer questions, recognize knowledge gaps, and autonomously research to fill them.
 Expert learning is not passive document accumulation. New material is processed
-into canonical beliefs, provenance refs, temporal graph edges, contradiction
-signals, gap backlogs, and regenerated digest or handoff views.
+into canonical beliefs, concepts, hypotheses, stance, provenance refs, temporal
+graph edges, contradiction signals, gap backlogs, freshness watchlists, and
+regenerated digest or handoff views.
 
 ## What Makes It Different
 
@@ -21,6 +22,9 @@ Deepr experts:
 - Can trigger research when needed
 - Integrate new knowledge permanently
 - Track what they know vs don't know
+- Maintain concepts, hypotheses, stance, and tradeoffs
+- Keep up with current developments on their topic
+- Explore new possibilities instead of only recalling stored claims
 - Build on previous learning
 
 ## Quick Start
