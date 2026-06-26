@@ -157,7 +157,7 @@ class JobPoller:
                 error = response.error or "Job failed"
                 await self._handle_failure(job, error)
 
-            # Cancelled/expired are terminal too — without this, the poller
+            # Cancelled/expired are terminal too - without this, the poller
             # kept hammering the provider forever for jobs that would
             # never transition. Mark FAILED so the queue row exits
             # PROCESSING and the user sees a stable terminal state.

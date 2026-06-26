@@ -1,7 +1,7 @@
 """Lightweight A2A HTTP server with agent discovery and task endpoints.
 
 Uses Python's built-in asyncio and a minimal ASGI-like handler pattern.
-No heavy framework dependency — just async request/response handling.
+No heavy framework dependency - just async request/response handling.
 
 Feature: mcp-client-agent-interop
 """
@@ -39,11 +39,11 @@ class A2AServer:
     """Lightweight A2A HTTP server.
 
     Endpoints:
-    - GET  /.well-known/agent.json  — Agent card
-    - POST /tasks                   — Create task
-    - GET  /tasks/{id}              — Get task status
-    - POST /tasks/{id}/cancel       — Cancel task
-    - GET  /tasks/{id}/stream       — SSE progress stream
+    - GET  /.well-known/agent.json  - Agent card
+    - POST /tasks                   - Create task
+    - GET  /tasks/{id}              - Get task status
+    - POST /tasks/{id}/cancel       - Cancel task
+    - GET  /tasks/{id}/stream       - SSE progress stream
 
     Usage::
 
@@ -72,7 +72,7 @@ class A2AServer:
 
     async def start(self, host: str = "localhost", port: int = 8080) -> None:
         """Start the A2A HTTP server."""
-        # Refuse to start on a non-loopback bind without an auth token —
+        # Refuse to start on a non-loopback bind without an auth token -
         # ``POST /tasks`` triggers paid expert work via the underlying
         # task manager, so an anonymous reachable endpoint is a
         # spend-amplification primitive.
@@ -128,7 +128,7 @@ class A2AServer:
         an auth token is configured it must match for any state-changing
         endpoint (``POST /tasks``, ``POST /tasks/{id}/cancel``).
         """
-        # Public endpoints — discovery and read-only status.
+        # Public endpoints - discovery and read-only status.
         if method == "GET" and path == "/.well-known/agent.json":
             return self._handle_agent_card()
 
@@ -215,7 +215,7 @@ class A2AServer:
         return status, payload
 
     def _handle_stream_info(self, task_id: str) -> tuple[int, dict[str, Any]]:
-        """GET /tasks/{id}/stream — returns stream metadata."""
+        """GET /tasks/{id}/stream - returns stream metadata."""
         task = self._task_manager.get_task(task_id)
         if task is None:
             return 404, {"error": f"Task not found: {task_id}"}
@@ -269,7 +269,7 @@ class A2AServer:
                     try:
                         content_length = int(header_lower.split(":", 1)[1].strip())
                     except ValueError:
-                        # Bad header — refuse to read a body, return 400.
+                        # Bad header - refuse to read a body, return 400.
                         await self._send_simple(writer, 400, {"error": "Invalid Content-Length"})
                         return
                     if content_length < 0 or content_length > _MAX_REQUEST_BODY_BYTES:

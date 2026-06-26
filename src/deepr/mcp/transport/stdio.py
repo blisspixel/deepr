@@ -218,12 +218,12 @@ class StdioTransport:
         dispatches them to the registered handler. Handler dispatch is
         offloaded to ``asyncio.create_task`` so a single long-running
         tool call (deepr_research, deepr_agentic_research) doesn't
-        block subsequent reads — including cancellations of itself.
+        block subsequent reads - including cancellations of itself.
         """
         if self._input is None:
             logger.critical(
                 "StdioTransport._read_loop started before start() initialized _input. "
-                "This is a programming error — the MCP stdio transport is in an invalid state."
+                "This is a programming error - the MCP stdio transport is in an invalid state."
             )
             return
         while self._running:
@@ -256,7 +256,7 @@ class StdioTransport:
                     await self._send_error(None, -32700, "Parse error")
                     continue
 
-                # Handle message — dispatch in a background task so the
+                # Handle message - dispatch in a background task so the
                 # next line can be read immediately.
                 if self._handler:
 

@@ -262,7 +262,7 @@ export default function CostIntelligence() {
         )}
       </div>
 
-      {/* Budget Controls — prominent section */}
+      {/* Budget Controls - prominent section */}
       <div className="rounded-lg border-2 border-primary/20 bg-card p-5 space-y-4">
         <div className="flex items-center justify-between">
           <div>

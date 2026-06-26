@@ -92,7 +92,7 @@ class TestImportStructuredBundle:
 
     @pytest.mark.asyncio
     async def test_import_json_file(self, tmp_path, mock_store):
-        """Import a single JSON file — converts to markdown."""
+        """Import a single JSON file - converts to markdown."""
         data = {"title": "Analysis", "findings": ["Finding 1", "Finding 2"]}
         json_file = tmp_path / "analysis.json"
         json_file.write_text(json.dumps(data), encoding="utf-8")
@@ -164,7 +164,7 @@ class TestImportStructuredBundle:
 
     @pytest.mark.asyncio
     async def test_no_overwrite_existing(self, tmp_path, mock_store):
-        """Should not overwrite existing documents — appends counter."""
+        """Should not overwrite existing documents - appends counter."""
         docs_dir = mock_store.get_documents_dir.return_value
         (docs_dir / "report.md").write_text("existing", encoding="utf-8")
 

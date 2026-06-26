@@ -355,7 +355,7 @@ class ExpertStore:
                             data = migrate_profile_data(data)
                             profiles.append(ExpertProfile.from_dict(data))
                     except Exception as e:
-                        # Log at ERROR — the previous WARNING was easy to
+                        # Log at ERROR - the previous WARNING was easy to
                         # miss, so corrupted profiles silently disappeared
                         # from the UI's expert list. Operators saw their
                         # expert "deleted" with no indication of why.

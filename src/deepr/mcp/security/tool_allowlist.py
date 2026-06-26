@@ -150,7 +150,7 @@ class ToolAllowlist:
             blocked_in={ResearchMode.READ_ONLY},
         ),
         # ----------------------------------------------------------------
-        # Deepr MCP tools — registered so allowlist decisions reflect the
+        # Deepr MCP tools - registered so allowlist decisions reflect the
         # actual exposed surface instead of treating every tool as
         # "unknown". Without these entries, deepr_research, the agentic
         # workflow, and expert manifest/gap data inherit the unknown-tool
@@ -177,7 +177,7 @@ class ToolAllowlist:
         "deepr_get_expert_info": ToolConfig(
             name="deepr_get_expert_info", category=ToolCategory.READ, description="Public expert summary"
         ),
-        # Expert state — SENSITIVE: aggregates beliefs, claims, gaps,
+        # Expert state - SENSITIVE: aggregates beliefs, claims, gaps,
         # decision records, and policy/budget metadata. Requires
         # confirmation outside read-only/unrestricted modes; blocked in
         # read-only mode.
@@ -212,7 +212,7 @@ class ToolAllowlist:
             requires_confirmation_in={ResearchMode.STANDARD, ResearchMode.EXTENDED},
             blocked_in={ResearchMode.READ_ONLY},
         ),
-        # Health-check audit — cost-$0 and read-only, but surfaces sample
+        # Health-check audit - cost-$0 and read-only, but surfaces sample
         # belief/claim/gap content, so it is SENSITIVE like manifest/rank_gaps
         # (not a plain READ summary). Scheduled local self-maintenance via the
         # CLI is unaffected; only remote MCP calls are gated.
@@ -322,7 +322,7 @@ class ToolAllowlist:
             requires_confirmation_in={ResearchMode.STANDARD, ResearchMode.EXTENDED},
             blocked_in={ResearchMode.READ_ONLY},
         ),
-        # Task durability — read-only status surfaces. Listed explicitly
+        # Task durability - read-only status surfaces. Listed explicitly
         # so the allowlist treats them as READ instead of unknown-tool;
         # otherwise confirmation enforcement breaks polling.
         "deepr_get_task_progress": ToolConfig(

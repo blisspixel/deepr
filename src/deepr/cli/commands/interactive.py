@@ -390,8 +390,8 @@ def _submit_research_job(prompt: str, model: str, web_search: bool, estimated_co
     queue = SQLiteQueue()
 
     # Map the model name to its actual provider. The previous fallback
-    # routed everything that wasn't o3/o4 to ``gemini`` — including Grok,
-    # Claude, and any explicit GPT-5/GPT-4.1 selection — producing instant
+    # routed everything that wasn't o3/o4 to ``gemini`` - including Grok,
+    # Claude, and any explicit GPT-5/GPT-4.1 selection - producing instant
     # auth failures or, worse, wrong-vendor charges.
     def _provider_for(m: str) -> str:
         lm = (m or "").lower()

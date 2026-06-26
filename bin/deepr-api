@@ -49,7 +49,7 @@ def main():
 
     warning = ""
     if not _is_loopback(host) and not api_token_set:
-        warning = "WARNING: binding non-loopback interface WITHOUT auth — DEEPR_ALLOW_PUBLIC_BIND is set."
+        warning = "WARNING: binding non-loopback interface WITHOUT auth - DEEPR_ALLOW_PUBLIC_BIND is set."
 
     print(f"""
 ===============================================================================

@@ -68,7 +68,7 @@ export default function ResearchStudio() {
   const processFiles = useCallback(async (files: File[]) => {
     if (files.length === 0) return
     const allowed = ['.txt', '.md', '.json', '.csv']
-    // Size caps — uploaded content is inlined into the prompt; a 100 MB
+    // Size caps - uploaded content is inlined into the prompt; a 100 MB
     // CSV would silently push token usage into hundreds of dollars.
     const MAX_FILE_BYTES = 1 * 1024 * 1024 // 1 MB per file
     const MAX_TOTAL_BYTES = 5 * 1024 * 1024 // 5 MB across all files

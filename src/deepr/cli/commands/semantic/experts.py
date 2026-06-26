@@ -404,7 +404,7 @@ def plan_curriculum(
     output_csv: bool,
     quiet: bool,
 ):
-    """Generate a research curriculum for any topic — without creating an expert.
+    """Generate a research curriculum for any topic - without creating an expert.
 
     Shows what deepr would research, how much it would cost, and the prompts
     it would use. Great for previewing before committing to --learn.
@@ -2995,7 +2995,7 @@ def chat_with_expert(name: str, budget: float | None, no_research: bool):
                         console.print(result.export_content[:2000])
                     continue
 
-                # Fall through for unrecognised /commands — handle legacy ones
+                # Fall through for unrecognised /commands - handle legacy ones
 
             # Legacy commands not in the registry
             if user_input.startswith("/learn ") or user_input.startswith("\\learn "):
@@ -3186,7 +3186,7 @@ def chat_with_expert(name: str, budget: float | None, no_research: bool):
             streamed_chunks: list[str] = []
 
             def on_token(text: str):
-                """Handle streamed token — stop spinner and print incrementally."""
+                """Handle streamed token - stop spinner and print incrementally."""
                 nonlocal status_live
                 # Close the spinner on first token
                 if status_live and status_live.is_started:

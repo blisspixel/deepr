@@ -132,7 +132,7 @@ class AzureProvider(DeepResearchProvider):
             payload["temperature"] = request.temperature
 
         # Retry transient failures the same way the OpenAI provider does
-        # — Azure throttles aggressively and a single 429 shouldn't fail
+        # - Azure throttles aggressively and a single 429 shouldn't fail
         # a whole job. Authentication / invalid-request errors are still
         # raised immediately as ProviderError.
         max_retries = 3

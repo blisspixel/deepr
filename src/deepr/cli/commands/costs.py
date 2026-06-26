@@ -242,7 +242,7 @@ def limits(daily: float | None, monthly: float | None):
     else:
         # Update limits, then persist them. The previous implementation
         # mutated the in-memory dashboard but never called ``_save()``,
-        # so the next process started back at defaults — users saw
+        # so the next process started back at defaults - users saw
         # "limit set" feedback but nothing took effect.
         if daily is not None:
             if daily < 0:

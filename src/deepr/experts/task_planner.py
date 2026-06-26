@@ -82,7 +82,7 @@ class TaskPlanner:
         )
 
         # Cost-safety gate. A task plan that proceeds spawns N step
-        # send_message calls — each itself a research dispatch — so the
+        # send_message calls - each itself a research dispatch - so the
         # planner is a high-amplification cost point.
         try:
             from deepr.experts.cost_safety import get_cost_safety_manager
@@ -281,7 +281,7 @@ class TaskPlanner:
             if s.status == StepStatus.DONE:
                 parts.append(f"**{s.title}**: {s.result[:500]}")
             elif s.status == StepStatus.FAILED:
-                parts.append(f"**{s.title}**: Failed — {s.error}")
+                parts.append(f"**{s.title}**: Failed - {s.error}")
 
         synthesis = await self._synthesise(plan_data.get("query", ""), parts)
 

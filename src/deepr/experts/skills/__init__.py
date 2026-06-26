@@ -1,4 +1,4 @@
-"""Expert skills system — domain-specific capability packages.
+"""Expert skills system - domain-specific capability packages.
 
 Skills give each expert unique tools and domain-specific reasoning
 instructions beyond their knowledge base. Supports Python tools

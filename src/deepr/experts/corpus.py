@@ -369,7 +369,7 @@ async def import_structured_bundle(
     """Import a structured document bundle into an existing expert's knowledge.
 
     Supports MD, JSON, and JSONL files. Does not require a provider or vector
-    store — documents are stored locally and integrated into the worldview.
+    store - documents are stored locally and integrated into the worldview.
 
     This is the "one-command ingest" for research reports, synthesis docs,
     company briefs, or any structured output.

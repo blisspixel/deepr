@@ -52,12 +52,12 @@ async def handle_focus(session: ExpertChatSession, args: str, context: dict) -> 
 async def handle_mode(session: ExpertChatSession, args: str, context: dict) -> CommandResult:
     if not args.strip():
         cfg = MODE_CONFIGS[session.chat_mode]
-        lines = [f"Current mode: **{session.chat_mode.value}** — {cfg['description']}"]
+        lines = [f"Current mode: **{session.chat_mode.value}** - {cfg['description']}"]
         lines.append("")
         lines.append("Available modes:")
         for mode, mcfg in MODE_CONFIGS.items():
             marker = " (active)" if mode == session.chat_mode else ""
-            lines.append(f"  /{mode.value} — {mcfg['description']}{marker}")
+            lines.append(f"  /{mode.value} - {mcfg['description']}{marker}")
         return CommandResult(output="\n".join(lines))
 
     name = args.strip().lower()
@@ -73,7 +73,7 @@ def _switch_mode(session: ExpertChatSession, mode: ChatMode) -> CommandResult:
     session.chat_mode = mode
     cfg = MODE_CONFIGS[mode]
     return CommandResult(
-        output=f"Switched to **{mode.value}** mode — {cfg['description']}",
+        output=f"Switched to **{mode.value}** mode - {cfg['description']}",
         mode_changed=mode,
         data={"old_mode": old.value, "new_mode": mode.value},
     )
@@ -351,7 +351,7 @@ async def handle_help(session: ExpertChatSession | None, args: str, context: dic
         lines.append(f"**{cat.value}**")
         for cmd in groups[cat]:
             arg_str = f" {cmd.args}" if cmd.args else ""
-            lines.append(f"  /{cmd.name}{arg_str} — {cmd.description}")
+            lines.append(f"  /{cmd.name}{arg_str} - {cmd.description}")
         lines.append("")
     lines.append("Type your question to chat. Use / (web) or \\ (CLI) prefix for commands.")
     return CommandResult(output="\n".join(lines))

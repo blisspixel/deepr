@@ -42,7 +42,7 @@ from typing import Any, Optional
 
 # Async-friendly current-trace ref. ``threading.local`` was incorrect:
 # under asyncio, multiple coroutines run on the same thread and share
-# the same threading.local — so ``TraceContext.get_current()`` would
+# the same threading.local - so ``TraceContext.get_current()`` would
 # return whichever trace was set most recently, regardless of which
 # request was actually executing.
 _current_trace: contextvars.ContextVar[Optional["TraceContext"]] = contextvars.ContextVar(

@@ -204,7 +204,7 @@ class TestMCPClientProxyClose:
 
 
 # ---------------------------------------------------------------------------
-# SkillExecutor.execute_tool — routing and error cases
+# SkillExecutor.execute_tool - routing and error cases
 # ---------------------------------------------------------------------------
 
 
@@ -307,7 +307,7 @@ class TestSkillExecutorExecuteTool:
 
 
 # ---------------------------------------------------------------------------
-# SkillExecutor._execute_python — real module execution
+# SkillExecutor._execute_python - real module execution
 # ---------------------------------------------------------------------------
 
 

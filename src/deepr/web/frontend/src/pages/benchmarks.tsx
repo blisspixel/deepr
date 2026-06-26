@@ -199,7 +199,7 @@ export default function Benchmarks() {
     [filtered, selectedTier]
   )
 
-  // Top model per tier for hero cards — mode-aware selection
+  // Top model per tier for hero cards - mode-aware selection
   // Best: highest quality regardless of cost (deep research default)
   // Balanced: best quality among cost-efficient models (within 10% of top quality, cheapest wins)
   // Value: lowest cost_per_quality with ≥50% quality floor
@@ -568,7 +568,7 @@ export default function Benchmarks() {
         </div>
       )}
 
-      {/* Quality chart — benchmarked models only */}
+      {/* Quality chart - benchmarked models only */}
       {availableSorted.length > 0 && (
         <div className="rounded-lg border bg-card p-4">
           <h3 className="text-sm font-medium text-foreground mb-4">Quality Ranking</h3>

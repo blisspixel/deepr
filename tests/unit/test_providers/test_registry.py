@@ -181,7 +181,7 @@ class TestCostEstimateMatching:
     """Regression tests: get_cost_estimate must resolve the most specific model.
 
     A prior first-substring-match fallback resolved snapshot/variant strings to
-    the shorter, wrong family member — over-charging (mini -> full price) and,
+    the shorter, wrong family member - over-charging (mini -> full price) and,
     worse, under-charging (gpt-5.4-pro-<date> -> cheaper gpt-5.4), which lets
     budget pre-flight approve an expensive job against an underestimate.
     """

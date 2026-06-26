@@ -205,13 +205,16 @@ async def test_humble_tone():
     assert isinstance(response, str)
 
     # Check for pompous language (should NOT be present)
+    em_dash = chr(0x2014)
+    en_dash = chr(0x2013)
     pompous_terms = [
         "you must",
         "you should always",
         "the only way",
         "it is imperative",
         "you need to",
-        "—",  # em dash (explicitly forbidden)
+        em_dash,
+        en_dash,
     ]
 
     response_lower = response.lower()

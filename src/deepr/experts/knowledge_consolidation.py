@@ -221,7 +221,7 @@ class KnowledgeConsolidator:
 
         # Compare all pairs. ``break`` out of the inner loop as soon as
         # entry1 is marked for removal so we don't keep using a "ghost"
-        # entry to drop further valid entries — the previous code only
+        # entry to drop further valid entries - the previous code only
         # short-circuited at the start of each outer iteration, so after
         # entry1 was removed via entry2 it would still be compared
         # against entry3/4/… and could mark them too.

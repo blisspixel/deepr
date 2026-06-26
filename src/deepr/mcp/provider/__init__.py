@@ -1,4 +1,4 @@
-"""MCP provider enhancements — Resources, Prompts, and Sampling.
+"""MCP provider enhancements - Resources, Prompts, and Sampling.
 
 Exposes expert state as MCP resources, provides reusable prompt
 templates, and supports sampling requests with fallback.

@@ -101,6 +101,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   confidence, provenance, temporal context, and a next learning plan.
 
 ### Changed
+- Reworked the README as a concise front door, moved capacity operations into
+  `docs/CAPACITY.md`, added a provider-costing deep dive for cached-token
+  buckets, server-side tool costs, exact provider settlement, tier modifiers,
+  and cache-control preconditions, and refreshed tracked text files to remove
+  literal em/en dash characters.
 - API provider cost accounting now records cached OpenAI/Azure/xAI input,
   Anthropic cache creation and cache read buckets, Gemini large-context input
   and output tiers, and current Grok 4.20 token rates from provider usage

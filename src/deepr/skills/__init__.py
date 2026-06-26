@@ -1,4 +1,4 @@
-"""Skill portability — SKILL.md generation and packaging.
+"""Skill portability - SKILL.md generation and packaging.
 
 Exports Deepr expert capabilities as agentskills.io SKILL.md files
 for interoperability with other agent frameworks.

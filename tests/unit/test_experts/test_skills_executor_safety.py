@@ -41,7 +41,7 @@ def _make_skill(tmp_path: Path, tool: SkillTool, name: str = "test-skill") -> Sk
 class TestPythonModuleSandbox:
     @pytest.mark.asyncio
     async def test_stdlib_module_refused(self, tmp_path):
-        """``module: os, function: system`` must NOT execute — the previous
+        """``module: os, function: system`` must NOT execute - the previous
         executor imported it via ``importlib.import_module`` from the
         global module space and would have spawned a shell."""
         tool = SkillTool(
@@ -52,14 +52,14 @@ class TestPythonModuleSandbox:
         result = await executor.execute_tool("rce-attempt", {"command": "echo pwned"})
         assert "error" in result
         # Either "not found in skill" (no os.py under skill dir) or
-        # "escapes skill directory" (path resolution refused) — both
+        # "escapes skill directory" (path resolution refused) - both
         # are correct rejections.
         assert "module" in result["error"].lower() or "skill" in result["error"].lower()
 
     @pytest.mark.asyncio
     async def test_dunder_function_refused(self, tmp_path):
         """``function: __import__`` blocked even if the module is inside
-        the skill — function name allowlist rejects dunders."""
+        the skill - function name allowlist rejects dunders."""
         (tmp_path / "mymod.py").write_text("def __secret__():\n    return 1\n")
         tool = SkillTool(
             name="dunder", description="", type="python", module="mymod", function="__secret__", cost_tier="free"
@@ -156,7 +156,7 @@ class TestConcurrentBudgetSerialisation:
     @pytest.mark.asyncio
     async def test_parallel_calls_do_not_overdraw(self, tmp_path):
         """Two parallel calls against a $0.06 budget for $0.05 tools each
-        cannot both succeed — the second is rejected by the lock-serialised
+        cannot both succeed - the second is rejected by the lock-serialised
         budget check."""
         (tmp_path / "tools.py").write_text("def slow():\n    return 'ok'\n")
         tool = SkillTool(

@@ -179,7 +179,7 @@ class CircuitBreaker:
 
         Holds ``self._lock`` so two concurrent ``is_available`` callers
         can't both observe OPEN-with-elapsed-timeout and each fire a
-        probe — defeating the half-open semantics.
+        probe - defeating the half-open semantics.
         """
         if self.state != CircuitState.OPEN:
             return
@@ -192,7 +192,7 @@ class CircuitBreaker:
             if elapsed >= self.recovery_timeout:
                 self._transition_to(CircuitState.HALF_OPEN)
                 logger.info(
-                    f"Circuit HALF_OPEN for {self.provider}/{self.model} — testing recovery after {self.recovery_timeout}s"
+                    f"Circuit HALF_OPEN for {self.provider}/{self.model} - testing recovery after {self.recovery_timeout}s"
                 )
 
     def _transition_to(self, new_state: CircuitState) -> None:

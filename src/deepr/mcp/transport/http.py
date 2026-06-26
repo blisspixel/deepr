@@ -665,7 +665,7 @@ class StreamingHttpTransport:
         # used the same subscriber_id (reconnect, or two clients omitting
         # the id and id(request) colliding), signal that handler to
         # close cleanly before replacing the queue. Without this the
-        # old handler keeps draining a queue nobody ever puts to —
+        # old handler keeps draining a queue nobody ever puts to -
         # a zombie stream that only times out 30s later.
         old_queue = self._subscribers.pop(subscriber_id, None)
         if old_queue is not None:
@@ -701,7 +701,7 @@ class StreamingHttpTransport:
             self._stats.active_streams -= 1
             # Only remove the entry if it still points at THIS handler's queue.
             # When a reconnect with the same subscriber_id replaces ``queue`` in
-            # ``_subscribers``, the old handler exits via its sentinel — but its
+            # ``_subscribers``, the old handler exits via its sentinel - but its
             # finally block must NOT pop the new owner. An unconditional pop
             # silently unregisters the replacement and stalls notification
             # delivery until the next reconnect.
@@ -877,13 +877,13 @@ class HttpClient:
 
             url += f"?subscriber_id={_quote(str(subscriber_id), safe='')}"
 
-        # Warn about plaintext-bearer over HTTP — the auth token will be
+        # Warn about plaintext-bearer over HTTP - the auth token will be
         # observable in transit. Allowed (silently) for loopback only.
         if self._auth_token and self._base_url.startswith("http://"):
             loopback = any(self._base_url.startswith(p) for p in ("http://127.", "http://localhost", "http://[::1]"))
             if not loopback:
                 logger.warning(
-                    "MCP HTTP client subscribing with auth token over plaintext HTTP to %s — token will be in cleartext.",
+                    "MCP HTTP client subscribing with auth token over plaintext HTTP to %s - token will be in cleartext.",
                     self._base_url,
                 )
 

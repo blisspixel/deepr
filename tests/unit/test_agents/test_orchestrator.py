@@ -1,4 +1,4 @@
-"""Tests for AgentOrchestrator — planner -> workers -> synthesizer pipeline."""
+"""Tests for AgentOrchestrator - planner -> workers -> synthesizer pipeline."""
 
 import pytest
 

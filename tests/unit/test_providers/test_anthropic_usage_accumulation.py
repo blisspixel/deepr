@@ -3,7 +3,7 @@ returns a real ResearchResponse from get_status.
 
 Previously every Anthropic ``submit_research`` discarded ``response.usage``
 across the multi-turn tool loop and ``get_status`` returned $0 cost with
-no output for every job — making the provider invisible to the cost
+no output for every job - making the provider invisible to the cost
 ledger while still being billed by Anthropic.
 """
 

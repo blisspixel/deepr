@@ -48,12 +48,12 @@ epistemic layer underneath them:
 
 | Capability | Today | Refinement |
 |---|---|---|
-| Create / populate / refresh at $0 | ✅ (local + free search + plan-quota) | - |
-| Per-expert maintenance | ✅ `sync`, `health-check`, `route-gaps`, `reflect` | **Library-wide** maintenance in one pass |
-| Consult one expert | ✅ MCP `query_expert`, `chat` | - |
+| Create / populate / refresh at $0 | yes (local + free search + plan-quota) | - |
+| Per-expert maintenance | yes: `sync`, `health-check`, `route-gaps`, `reflect` | **Library-wide** maintenance in one pass |
+| Consult one expert | yes: MCP `query_expert`, `chat` | - |
 | Consult several experts | `~` `/council` inside chat; `council.py` | A first-class **team-assembly** surface |
-| Pick the right expert(s) for a question | ❌ caller chooses | **Expert routing** (relevance selection) |
-| Discovery for agents | ✅ `list_experts`, handoff, SKILL export | A single "consult the library" MCP verb |
+| Pick the right expert(s) for a question | no caller chooses | **Expert routing** (relevance selection) |
+| Discovery for agents | yes: `list_experts`, handoff, SKILL export | A single "consult the library" MCP verb |
 
 The two gaps that turn "a pile of experts" into "a team an agent engages
 dynamically" are **expert routing** (which experts are relevant to a question)
