@@ -169,7 +169,7 @@ def _consult_candidate_proposals(profile: ExpertProfile, candidate_payload: dict
                 title=f"Review consult trace candidate: {reason}",
                 rationale=str(candidate.get("question_preview", "Consult trace candidate requires review.")),
                 evidence_refs=evidence_refs,
-                recommended_command=f'deepr expert promote-monitor "{profile.name}" {{proposal_id}} --target gap --apply',
+                recommended_command=f'deepr expert promote-monitor "{profile.name}" {{proposal_id}} --target gap --json',
                 expected_effect="Promote the candidate into a gap-fill route or eval case only after review.",
             )
         )

@@ -1,0 +1,123 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/blisspixel/deepr/docs/schemas/source-pack-manifest-v1.json",
+  "title": "Deepr Source Pack Manifest v1",
+  "type": "object",
+  "additionalProperties": true,
+  "required": [
+    "schema_version",
+    "kind",
+    "contract",
+    "source_pack",
+    "manifest",
+    "sources",
+    "compiler",
+    "generated_at"
+  ],
+  "properties": {
+    "schema_version": {"const": "deepr-source-pack-manifest-v1"},
+    "kind": {"const": "deepr.expert.source_pack_manifest"},
+    "contract": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": ["read_only", "cost_usd", "derived_view", "semantic_judgment", "model_calls"],
+      "properties": {
+        "read_only": {"const": true},
+        "cost_usd": {"const": 0.0},
+        "derived_view": {"const": true},
+        "semantic_judgment": {"const": false},
+        "model_calls": {"const": false},
+        "breaking_changes_require_new_schema_version": {"const": true}
+      }
+    },
+    "source_pack": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": [
+        "artifact_path",
+        "schema_version",
+        "query",
+        "topic",
+        "mode",
+        "source_count",
+        "retrieved_source_count",
+        "search_queries"
+      ],
+      "properties": {
+        "artifact_path": {"type": "string"},
+        "schema_version": {"type": "string"},
+        "query": {"type": "string"},
+        "topic": {"type": "string"},
+        "mode": {"type": "string"},
+        "generated_at": {"type": "string"},
+        "search_backend": {"type": "string"},
+        "browser_backend": {"type": "string"},
+        "source_count": {"type": "integer", "minimum": 0},
+        "retrieved_source_count": {"type": "integer", "minimum": 0},
+        "search_queries": {"type": "array", "items": {"type": "string"}}
+      }
+    },
+    "manifest": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": [
+        "source_entry_count",
+        "content_hash_count",
+        "valid_content_hash_count",
+        "missing_content_hash_count",
+        "invalid_content_hash_count",
+        "ready_for_semantic_compile"
+      ],
+      "properties": {
+        "source_entry_count": {"type": "integer", "minimum": 0},
+        "content_hash_count": {"type": "integer", "minimum": 0},
+        "valid_content_hash_count": {"type": "integer", "minimum": 0},
+        "missing_content_hash_count": {"type": "integer", "minimum": 0},
+        "invalid_content_hash_count": {"type": "integer", "minimum": 0},
+        "ready_for_semantic_compile": {"type": "boolean"}
+      }
+    },
+    "sources": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": true,
+        "required": [
+          "label",
+          "title",
+          "url",
+          "source",
+          "fetched",
+          "content_hash",
+          "has_content_hash",
+          "content_hash_valid",
+          "excerpt_hash",
+          "excerpt_chars"
+        ],
+        "properties": {
+          "label": {"type": "string"},
+          "title": {"type": "string"},
+          "url": {"type": "string"},
+          "source": {"type": "string"},
+          "fetched": {"type": "boolean"},
+          "content_hash": {"type": "string"},
+          "has_content_hash": {"type": "boolean"},
+          "content_hash_valid": {"type": "boolean"},
+          "excerpt_hash": {"type": "string"},
+          "excerpt_chars": {"type": "integer", "minimum": 0}
+        }
+      }
+    },
+    "compiler": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": ["stage", "next_stage", "next_stage_requires_model_judgment"],
+      "properties": {
+        "stage": {"const": "source_pack_manifest"},
+        "next_stage": {"const": "semantic_claim_extraction"},
+        "next_stage_requires_model_judgment": {"const": true}
+      }
+    },
+    "generated_at": {"type": "string", "format": "date-time"}
+  }
+}

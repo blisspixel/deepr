@@ -31,6 +31,14 @@
       "compatibility": "additive-within-v1"
     },
     {
+      "name": "expert-self-model-update-acceptance",
+      "schema_version": "deepr-expert-self-model-update-acceptance-v1",
+      "kind": "deepr.expert.self_model_update_acceptance",
+      "path": "expert-self-model-update-acceptance-v1.json",
+      "status": "experimental",
+      "compatibility": "additive-within-v1"
+    },
+    {
       "name": "metacognitive-monitor",
       "schema_version": "deepr-metacognitive-monitor-v1",
       "kind": "deepr.expert.metacognitive_monitor",
@@ -99,6 +107,14 @@
       "schema_version": "deepr-consult-trace-candidates-v1",
       "kind": "deepr.expert.consult_trace_candidates",
       "path": "consult-trace-candidates-v1.json",
+      "status": "experimental",
+      "compatibility": "additive-within-v1"
+    },
+    {
+      "name": "source-pack-manifest",
+      "schema_version": "deepr-source-pack-manifest-v1",
+      "kind": "deepr.expert.source_pack_manifest",
+      "path": "source-pack-manifest-v1.json",
       "status": "experimental",
       "compatibility": "additive-within-v1"
     },

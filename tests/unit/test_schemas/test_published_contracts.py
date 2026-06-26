@@ -75,9 +75,17 @@ from deepr.experts.self_model import (
     build_expert_self_model,
 )
 from deepr.experts.self_model_updates import (
+    SELF_MODEL_UPDATE_ACCEPTANCE_KIND,
+    SELF_MODEL_UPDATE_ACCEPTANCE_SCHEMA_VERSION,
     SELF_MODEL_UPDATE_KIND,
     SELF_MODEL_UPDATE_SCHEMA_VERSION,
+    accept_self_model_update_record,
     propose_self_model_update,
+)
+from deepr.experts.source_pack_compiler import (
+    SOURCE_PACK_MANIFEST_KIND,
+    SOURCE_PACK_MANIFEST_SCHEMA_VERSION,
+    build_source_pack_manifest,
 )
 from deepr.mcp.security.scoped_keys import AUDIT_KIND, AUDIT_SCHEMA_VERSION, RemoteMCPAuditEvent
 from deepr.mcp.security.tool_allowlist import ResearchMode
@@ -353,6 +361,50 @@ def test_self_model_update_schema_validates_runtime_payload(tmp_path):
     assert payload["contract"]["mutates_derived_self_model"] is False
 
 
+def test_self_model_update_acceptance_schema_validates_runtime_payload(tmp_path):
+    profile = ExpertProfile(
+        name="Self Model Acceptance Contract Expert",
+        vector_store_id="",
+        domain="self-model updates",
+        knowledge_cutoff_date=datetime(2026, 6, 26, 12, 0, tzinfo=UTC),
+        last_knowledge_refresh=datetime(2026, 6, 26, 12, 0, tzinfo=UTC),
+    )
+    manifest = ExpertManifest(
+        expert_name=profile.name,
+        domain="self-model updates",
+        gaps=[Gap.create("missing baseline", questions=["What failed?"], ev_cost_ratio=4.0)],
+    )
+    profile.get_manifest = lambda: manifest  # type: ignore[method-assign]
+    monitor = build_metacognitive_monitor_report(
+        profile,
+        loop_runs=[],
+        consult_trace_candidates={"candidate_count": 0, "candidates": []},
+    )
+    proposal_id = str(monitor["proposals"][0]["proposal_id"])
+    update = propose_self_model_update(
+        profile,
+        proposal_id,
+        apply=True,
+        limit=0,
+        trace_path=tmp_path / "consult_traces.jsonl",
+        output_dir=tmp_path / "updates",
+    )
+    payload = accept_self_model_update_record(
+        Path(update["artifact_path"]),
+        expert_name=profile.name,
+        outcome_evidence_refs=["loop_run:loop_contract"],
+        reviewer="operator",
+        apply=False,
+        output_dir=tmp_path / "accepted",
+    )
+    schema = _load_schema("expert-self-model-update-acceptance-v1.json")
+
+    _validate(schema, payload)
+    assert payload["schema_version"] == SELF_MODEL_UPDATE_ACCEPTANCE_SCHEMA_VERSION
+    assert payload["kind"] == SELF_MODEL_UPDATE_ACCEPTANCE_KIND
+    assert payload["contract"]["writes_acceptance_record_only"] is True
+
+
 def test_metacognitive_promotion_schema_validates_runtime_payload(tmp_path):
     profile = ExpertProfile(
         name="Promotion Expert",
@@ -514,6 +566,41 @@ def test_consult_trace_candidates_schema_validates_runtime_payload():
     assert payload["schema_version"] == CONSULT_TRACE_CANDIDATES_SCHEMA_VERSION
     assert payload["kind"] == CONSULT_TRACE_CANDIDATES_KIND
     assert payload["candidates"][0]["eval_case"]["source_trace_id"] == "consult_abcdef123456"
+
+
+def test_source_pack_manifest_schema_validates_runtime_payload():
+    payload = build_source_pack_manifest(
+        {
+            "schema_version": "deepr.sync_source_pack.v1",
+            "topic": "source pack compiler",
+            "query": "What changed?",
+            "source_pack": {
+                "schema_version": "deepr.source_pack.v1",
+                "mode": "fresh",
+                "source_count": 1,
+                "retrieved_source_count": 1,
+                "search_queries": ["source pack compiler"],
+                "sources": [
+                    {
+                        "label": "S1",
+                        "title": "Release notes",
+                        "url": "https://example.com/release",
+                        "source": "duckduckgo+builtin",
+                        "fetched": True,
+                        "excerpt": "Release text",
+                        "content_hash": "a" * 64,
+                    }
+                ],
+            },
+        },
+        source_pack_artifact="sync_artifacts/source_packs/pack.json",
+    )
+    schema = _load_schema("source-pack-manifest-v1.json")
+
+    _validate(schema, payload)
+    assert payload["schema_version"] == SOURCE_PACK_MANIFEST_SCHEMA_VERSION
+    assert payload["kind"] == SOURCE_PACK_MANIFEST_KIND
+    assert payload["contract"]["semantic_judgment"] is False
 
 
 def test_capacity_next_schema_validates_runtime_payload():

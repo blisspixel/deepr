@@ -25,6 +25,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 </details>
 
 ### Added
+- Added `deepr expert accept-self-model`, a `$0` outcome-evidence acceptance
+  gate for recorded self-model update review artifacts. It publishes
+  `deepr-expert-self-model-update-acceptance-v1`, requires explicit reviewer
+  and outcome evidence refs, writes only a separate append-only acceptance
+  record, and attaches accepted records to later sync loop-run context as
+  read-only guidance without mutating the derived self-model or granting
+  authority.
+- Added `deepr-source-pack-manifest-v1`, the first research-processing compiler
+  stage. Context-bearing sync runs now write a companion deterministic manifest
+  beside each source pack with provenance, source counts, excerpt hashes,
+  content-hash validity, and readiness metadata. It costs `$0`, makes no model
+  calls, and never emits semantic verdicts.
 - Added `deepr expert propose-self-model`, a `$0` verifier-gated self-model
   update review-record surface backed by the published
   `deepr-expert-self-model-update-v1` schema. It previews by default and
@@ -188,6 +200,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   improvements.
 
 ### Fixed
+- Hardened self-model update evidence refs so accepted prefixes must also carry
+  a non-empty value, and malformed local review records fail closed before an
+  acceptance artifact can be emitted.
+- Changed monitor-generated gap/eval promotion recommendations to preview-first
+  commands so copied recommendations do not apply local state changes without
+  an explicit operator decision.
 - Research submissions now reserve estimated cost before provider dispatch,
   refund the reservation on submit failure, and settle the append-only cost
   ledger from provider-reported completion usage instead of treating the
