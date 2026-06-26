@@ -5,6 +5,7 @@ import pytest
 from deepr.providers.registry import (
     MODEL_CAPABILITIES,
     ModelCapability,
+    get_cached_input_pricing,
     get_cheapest_model,
     get_cost_estimate,
     get_fastest_model,
@@ -235,6 +236,10 @@ class TestTokenPricingTiers:
         assert tiered["input"] == round(base["input"] * 2.0, 6)
         assert tiered["output"] == round(base["output"] * 1.5, 6)
 
+    def test_cached_input_pricing_uses_model_registry(self):
+        assert get_cached_input_pricing("gpt-5") == pytest.approx(0.125)
+        assert get_cached_input_pricing("grok-4.20-0309-reasoning") == pytest.approx(0.20)
+
     def test_settlement_uses_tier_rates(self):
         from deepr.providers.base import UsageStats
 
@@ -242,6 +247,17 @@ class TestTokenPricingTiers:
         large = UsageStats.calculate_cost(300_000, 10_000, "gemini-3.1-pro-preview")
         # Large job must cost more than 3x the small one (3x tokens AND 2x rate)
         assert large > small * 3
+
+    def test_settlement_uses_cached_input_rates(self):
+        from deepr.providers.base import UsageStats
+
+        cost = UsageStats.calculate_cost_with_cached_input(
+            1000,
+            500,
+            "gpt-5",
+            cached_input_tokens=400,
+        )
+        assert cost == pytest.approx(0.0058)
 
     def test_non_tiered_model_unaffected(self):
         from deepr.providers.registry import get_token_pricing

@@ -105,6 +105,14 @@ This file captures repo-specific operating lessons from autonomous work cycles.
   from stored beliefs. Settle the council reservation with `record_cost` and
   write source `expert_council.synthesis`; do not rely on the consult payload's
   returned `cost_usd` as accounting.
+- Provider API preflight estimates are reservations, not final ledger events.
+  Reserve before dispatch, refund if submission fails, and settle once on
+  completion from provider usage with an idempotency key. Local Ollama and
+  explicit plan-quota services must continue to report `$0` marginal cost, while
+  API usage must preserve provider-specific buckets: cached input tokens,
+  Anthropic cache creation, Anthropic cache reads, reasoning tokens, and tiered
+  large-context pricing. If a provider omits a cached-input rate, charge cached
+  tokens at the normal input rate to fail safe against undercounting.
 
 ## Expert consult grounding
 

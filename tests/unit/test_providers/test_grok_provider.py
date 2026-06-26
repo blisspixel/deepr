@@ -43,7 +43,7 @@ class TestGrokProvider:
         # Grok 4 full reasoning model
         assert provider.get_model_name("grok-4") == "grok-4"
 
-        # Aliases — map to the canonical "grok-4.3" id so cost lookups match
+        # Aliases - map to the canonical "grok-4.3" id so cost lookups match
         # the pricing table (previous "grok-4-3" alias fell through to the
         # cheaper Grok 4.1 Fast pricing).
         assert provider.get_model_name("grok") == "grok-4.3"
@@ -65,8 +65,9 @@ class TestGrokProvider:
         assert "grok-4.20-0309-reasoning" in provider.pricing
         assert "grok-4.20-0309-non-reasoning" in provider.pricing
         assert "grok-4.20-multi-agent-0309" in provider.pricing
-        assert provider.pricing["grok-4.20-0309-reasoning"]["input"] == 2.00
-        assert provider.pricing["grok-4.20-0309-reasoning"]["output"] == 6.00
+        assert provider.pricing["grok-4.20-0309-reasoning"]["input"] == 1.25
+        assert provider.pricing["grok-4.20-0309-reasoning"]["output"] == 2.50
+        assert provider.pricing["grok-4.20-0309-reasoning"]["cached_input"] == 0.20
 
         # Grok 4.1 Fast budget pricing
         assert "grok-4-1-fast-reasoning" in provider.pricing
@@ -76,8 +77,8 @@ class TestGrokProvider:
 
         # Grok 4.20 flagship pricing
         assert "grok-4.20-0309-reasoning" in provider.pricing
-        assert provider.pricing["grok-4.20-0309-reasoning"]["input"] == 2.00
-        assert provider.pricing["grok-4.20-0309-reasoning"]["output"] == 6.00
+        assert provider.pricing["grok-4.20-0309-reasoning"]["input"] == 1.25
+        assert provider.pricing["grok-4.20-0309-reasoning"]["output"] == 2.50
 
         # Grok 3 pricing
         assert "grok-3" in provider.pricing
@@ -113,11 +114,21 @@ class TestGrokProvider:
 
     def test_calculate_cost_grok_4_20(self, provider):
         """Test cost calculation for Grok 4.20 (flagship model)."""
-        # 1M input + 1M output = $2.00 + $6.00 = $8.00
+        # 1M input + 1M output = $1.25 + $2.50 = $3.75
         cost = provider._calculate_cost(
             prompt_tokens=1_000_000, completion_tokens=1_000_000, model="grok-4.20-0309-reasoning"
         )
-        assert cost == 8.00
+        assert cost == 3.75
+
+    def test_calculate_cost_with_cached_prompt_tokens(self, provider):
+        """Cached prompt tokens should use xAI cached-input rates."""
+        cost = provider._calculate_cost(
+            prompt_tokens=1_000_000,
+            completion_tokens=1_000_000,
+            model="grok-4.20-0309-reasoning",
+            cached_input_tokens=500_000,
+        )
+        assert cost == pytest.approx(3.225)
 
     def test_cost_scales_linearly(self, provider):
         """Test that cost scales linearly with token count."""
@@ -241,7 +252,7 @@ class TestGrokCapabilities:
         """Document Grok 4.20 flagship key features.
 
         Grok 4.20:
-        - Flagship: $2.00 input / $6.00 output per 1M tokens
+        - Flagship: $1.25 input / $2.50 output per 1M tokens
         - Lowest hallucination rate, strict prompt adherence
         - 2M token context window
         - Multi-agent variant for deep research
@@ -252,8 +263,8 @@ class TestGrokCapabilities:
         - Unified reasoning/non-reasoning in single model
         """
         # Verify flagship pricing
-        assert provider.pricing["grok-4.20-0309-reasoning"]["input"] == 2.00
-        assert provider.pricing["grok-4.20-0309-reasoning"]["output"] == 6.00
+        assert provider.pricing["grok-4.20-0309-reasoning"]["input"] == 1.25
+        assert provider.pricing["grok-4.20-0309-reasoning"]["output"] == 2.50
 
         # Verify budget tier pricing
         assert provider.pricing["grok-4-1-fast-reasoning"]["input"] == 0.20
@@ -277,29 +288,30 @@ class TestGrokCapabilities:
         Grok is NOT for:
         - Deep Research (use OpenAI o3/o4-mini - unique async API)
         """
-        # This is a documentation test
-        pass
+        assert provider.get_model_name("grok-fast") == "grok-4.20-0309-non-reasoning"
+        assert provider.get_model_name("grok-multi-agent") == "grok-4.20-multi-agent-0309"
+        assert provider.pricing["grok-4-1-fast-reasoning"]["input"] < provider.pricing["grok-4.3"]["input"]
 
     def test_grok_vs_gpt5_cost_comparison(self, provider):
         """Compare Grok 4.1 Fast vs GPT-5 costs.
 
         For 1M input + 1M output tokens:
-        - GPT-5: $3 + $15 = $18.00
+        - GPT-5: $1.25 + $10 = $11.25
         - Grok 4.1 Fast: $0.20 + $0.50 = $0.70
-        - Savings: 96% (25x cheaper)
+        - Savings: 94%
 
         For 10M input + 10M output tokens:
-        - GPT-5: $30 + $150 = $180.00
+        - GPT-5: $12.50 + $100 = $112.50
         - Grok 4.1 Fast: $2 + $5 = $7.00
-        - Savings: 96% (25x cheaper)
+        - Savings: 94%
         """
         # 1M tokens
         grok_cost = provider._calculate_cost(1_000_000, 1_000_000, "grok-4-1-fast-reasoning")
         flagship_cost = provider._calculate_cost(1_000_000, 1_000_000, "grok-4.20-0309-reasoning")
 
         assert grok_cost == 0.70
-        assert flagship_cost == 8.00
-        assert grok_cost < flagship_cost * 0.10  # More than 90% cheaper
+        assert flagship_cost == 3.75
+        assert grok_cost < flagship_cost * 0.20
 
     def test_context_window_size(self, provider):
         """Document Grok 4 Fast context window.
@@ -312,8 +324,9 @@ class TestGrokCapabilities:
         - Document processing
         - Multi-turn research
         """
-        # This is a documentation test
-        pass
+        assert provider.get_model_name("grok-4.20") == "grok-4.20-0309-non-reasoning"
+        assert provider.pricing["grok-4.20-0309-reasoning"]["input"] > 0
+        assert provider.pricing["grok-4.20-0309-reasoning"]["output"] > 0
 
 
 class TestGrokErrorHandling:
@@ -386,7 +399,7 @@ class TestGrokHyphenatedRegistryForms:
     """Regression: registry keys use hyphenated grok-4-20-* but the provider
     mappings/pricing were keyed only by the dotted API form. A routed
     "grok-4-20-reasoning" then went unmapped (wrong API id) and fell to the
-    grok-4-1-fast default price (~11x undercharge: $0.7 vs $8.0 per 1M/1M).
+    grok-4-1-fast default price ($0.7 vs $3.75 per 1M/1M).
     """
 
     @pytest.fixture
@@ -399,10 +412,10 @@ class TestGrokHyphenatedRegistryForms:
         assert provider.get_model_name("grok-4-20-multi-agent") == "grok-4.20-multi-agent-0309"
 
     def test_hyphenated_forms_priced_at_flagship_rate(self, provider):
-        # $2/$6 per MTok -> $8.0 for 1M in + 1M out; NOT the $0.70 fast default
+        # $1.25/$2.50 per MTok -> $3.75 for 1M in + 1M out.
         for model in ("grok-4-20-reasoning", "grok-4-20-non-reasoning", "grok-4-20-multi-agent"):
             cost = provider._calculate_cost(1_000_000, 1_000_000, model)
-            assert cost == 8.0, f"{model} mispriced: {cost}"
+            assert cost == 3.75, f"{model} mispriced: {cost}"
 
     def test_dotted_and_hyphenated_prices_match(self, provider):
         assert provider._calculate_cost(1_000_000, 1_000_000, "grok-4-20-reasoning") == provider._calculate_cost(

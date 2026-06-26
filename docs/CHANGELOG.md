@@ -101,6 +101,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   confidence, provenance, temporal context, and a next learning plan.
 
 ### Changed
+- API provider cost accounting now records cached OpenAI/Azure/xAI input,
+  Anthropic cache creation and cache read buckets, Gemini large-context input
+  and output tiers, and current Grok 4.20 token rates from provider usage
+  details before ledger settlement.
 - Sync learning loop records now carry bounded read-only self-model metadata in
   `run_context.self_model`, and sync capacity wait/block payloads expose the
   same compact block when an expert profile is available. This uses the shared
@@ -163,6 +167,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   improvements.
 
 ### Fixed
+- Research submissions now reserve estimated cost before provider dispatch,
+  refund the reservation on submit failure, and settle the append-only cost
+  ledger from provider-reported completion usage instead of treating the
+  preflight estimate as final spend.
 - Fixed Windows malformed UNC-like path normalization so drive-less forms such
   as `\\0` normalize to the current drive root instead of returning a
   non-absolute `WindowsPath('//0')`.
