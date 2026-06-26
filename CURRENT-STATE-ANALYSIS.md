@@ -48,13 +48,20 @@ turns measured blockers, calibration risks, failed loops, capacity waits, and
 consult trace candidates into `review_required` proposals, but it does not apply
 goal, strategy, gap, eval, prompt, tool, or skill changes.
 
+Cycle 7 adds reviewed monitor proposal promotion. `deepr expert
+promote-monitor` emits `deepr-metacognitive-promotion-v1` preview/apply
+results, previews by default, and requires `--apply` before a
+`gap_or_eval_candidate` writes a metacognition gap and/or local eval-case artifact.
+The maintenance sub-goal also ran local dependency audit, agentic red-team, and
+security ratchet checks with no required fixes.
+
 External best-practice check, current as of 2026-06-26: modern agent harness
 guidance converges on trace-first improvement loops, evals from real failures,
 bounded context packets, explicit handoffs, and deterministic gates around
 spend, writes, tools, and credentials. Deepr's next implementation slices should
-continue that shape: promote selected trace candidates through a reviewed
-gap/eval path and add verifier-gated self-model update records, rather than
-widening autonomy or building broader orchestration.
+continue that shape: add verifier-gated self-model update records, then route
+selected learning transactions through the research-processing compiler rather
+than widening autonomy or building broader orchestration.
 
 ## Alignment Summary
 
@@ -64,7 +71,7 @@ The latest 2026 external guidance reinforces Deepr's direction: this is agentic 
 
 `AGENTIC_BALANCE.md` is the governing boundary: deterministic workflow code owns spend, writes, routing gates, durable state, locks, jitter, schemas, and verifier outcomes; model judgment owns meaning such as contradiction, grounding, deduplication, and synthesis.
 
-No clarification is needed before continuing. The next slices are the consult trace quality flywheel, reviewed promotion from monitor proposals into gap/eval artifacts, verifier-gated self-model update records, and the research-processing compiler that turns source packs into verified beliefs, temporal graph edges, gaps, and regenerated wiki/digest views. After that, continue Antigravity metadata visibility, then scheduler dispatch that uses admitted plan capacity only from trusted headroom observations. The next metered-API cost-control slice is provider prompt-cache economics, but only after estimator support, actual usage ingestion, and explicit budget gates cover cache writes, cache reads, TTL, and pre-warm behavior.
+No clarification is needed before continuing. The next slices are verifier-gated self-model update records and the research-processing compiler that turns source packs into verified beliefs, temporal graph edges, gaps, and regenerated wiki/digest views. After that, continue Antigravity metadata visibility, then scheduler dispatch that uses admitted plan capacity only from trusted headroom observations. The next metered-API cost-control slice is provider prompt-cache economics, but only after estimator support, actual usage ingestion, and explicit budget gates cover cache writes, cache reads, TTL, and pre-warm behavior.
 
 ## Local Unreleased Work
 
@@ -112,8 +119,8 @@ and human review where required. The self-model now exists as a read-only
 derived contract, consult metadata carries its current-focus packet, and sync
 learning records carry the same compact packet as read-only run context. The
 metacognitive monitor now proposes reviewed follow-up actions from measured
-evidence without applying them. The next Deepr slice is explicit promotion of
-reviewed monitor proposals into gap/eval artifacts and verifier-gated
+evidence without applying them, and `promote-monitor` now applies reviewed
+gap/eval proposals only when requested. The next Deepr slice is verifier-gated
 self-model update records. See
 `docs/design/level-5-6-expert-maturity.md`.
 

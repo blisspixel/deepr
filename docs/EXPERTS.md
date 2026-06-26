@@ -384,6 +384,19 @@ deepr expert monitor "Azure Architect"
 deepr expert monitor "Azure Architect" --json
 ```
 
+### Promote Monitor Proposals (reviewed gap/eval promotion)
+Preview or apply one selected monitor proposal. Preview is the default and
+writes nothing. `--apply` is required to promote a `gap_or_eval_candidate` into
+the metacognition gap backlog, a local eval-case artifact under
+`data/benchmarks`, or both. Other proposal types stay review-only until their
+own verifier-gated commands exist.
+```bash
+deepr expert promote-monitor "Azure Architect" meta_abc123 --target gap
+deepr expert promote-monitor "Azure Architect" meta_abc123 --target gap --apply
+deepr expert promote-monitor "Azure Architect" meta_abc123 --target eval --apply --json
+deepr expert promote-monitor "Azure Architect" meta_abc123 --target both --apply
+```
+
 ### Digest (browsable derived view)
 Compile the belief store into a browsable Markdown digest: beliefs by domain
 sorted by confidence, open contradictions with both sides, graph stats. $0, no

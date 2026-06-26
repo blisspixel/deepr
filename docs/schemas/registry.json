@@ -31,6 +31,14 @@
       "compatibility": "additive-within-v1"
     },
     {
+      "name": "metacognitive-promotion",
+      "schema_version": "deepr-metacognitive-promotion-v1",
+      "kind": "deepr.expert.metacognitive_promotion",
+      "path": "metacognitive-promotion-v1.json",
+      "status": "experimental",
+      "compatibility": "additive-within-v1"
+    },
+    {
       "name": "loop-status",
       "schema_version": "deepr-loop-status-v1",
       "kind": "deepr.expert.loop_status",
