@@ -130,7 +130,7 @@ class TestRedactionRulesSensitiveData:
         passwords = [
             "password=secret123",
             "password: mysecretpassword",
-            "api_key=sk_live_12345",
+            "api_key=fixture-value",
             "api-key: secret_key_here",
         ]
 
