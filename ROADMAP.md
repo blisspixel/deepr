@@ -64,20 +64,30 @@ The kernel is designed to be embeddable in other agent projects. The primitives 
 
 **Deep understanding loop:** Deepr's product direction is not "better RAG" and
 not "one more deep research button." Deepr should become a durable understanding
-loop: gather evidence, compile it into beliefs and temporal graph edges, expose
-gaps and contradictions, preserve provenance, reflect on confidence and learning
-strategy, and hand that evolving understanding to humans or agents through
-bounded interfaces. The Level 5/6 path is the careful version of this idea:
-self-models, metacognitive monitors, current-focus packets, and reflective
-continuity, all under spend, security, provenance, and verification gates.
+loop: keep up with new material, compile it into concepts, beliefs, temporal
+graph edges, hypotheses, stance, gaps, contradictions, and exploration agendas,
+then hand that evolving perspective to humans or agents through bounded
+interfaces. The Level 5/6 path is the careful version of this idea: self-models,
+metacognitive monitors, current-focus packets, and reflective continuity, all
+under spend, security, provenance, and verification gates.
+
+**Expertise principle:** an expert is not a fact book. Facts need grounding, but
+expertise also includes conceptual models, judgment, taste, tradeoff awareness,
+news currency, hypotheses, open questions, dissent, and willingness to revise.
+Deepr should label those states honestly: a factual claim needs provenance; an
+interpretive stance needs rationale and uncertainty; a hypothesis needs
+predicted observations or disconfirming signals; a learning agenda needs a
+reason it is worth exploring. Deterministic gates protect form, spend, writes,
+and provenance. They must not reduce expertise to checklist matching.
 
 **Context-engineering principle:** context is an engineered runtime substrate,
 not a bag of chunks. Deepr should assemble compact task context from canonical
 expert state: current goals, source notes, belief graph slices, contradictions,
-gap backlog, consult traces, self-model focus, capacity posture, and budget
-policy. Raw corpus excerpts are evidence inputs, not the expert's mind. The
-compiler decides what state is eligible for the next step; calibrated model
-judgment decides meaning inside that bounded frame.
+gap backlog, consult traces, hypotheses, stance, freshness radar, self-model
+focus, capacity posture, and budget policy. Raw corpus excerpts are evidence
+inputs, not the expert's mind. The compiler decides what state is eligible for
+the next step; calibrated model judgment decides meaning inside that bounded
+frame.
 
 **Digital-continuity principle:** Deepr does not claim phenomenal
 consciousness. The engineering target is functional continuity: an expert can
@@ -89,10 +99,11 @@ accepted self-model records, or human review evidence.
 
 **Wiki-memory principle:** the browsable wiki or digest is a regenerated view,
 not canonical memory. Canon lives in source packs, source notes, atomic beliefs,
-typed temporal edges, events, gaps, and acceptance records. Human or agent edits
-to a wiki route back through verified absorb. This keeps the Karpathy-style
-"write the environment, then re-read it" loop useful without letting prose drift
-become authority.
+concept maps, hypotheses, stance notes, typed temporal edges, events, gaps,
+freshness watchlists, and acceptance records. Human or agent edits to a wiki
+route back through verified absorb. This keeps the Karpathy-style "write the
+environment, then re-read it" loop useful without letting prose drift become
+authority.
 
 ---
 
@@ -108,8 +119,8 @@ Multi-provider research automation with expert system, domain-specific skills, M
 
 The fleet-autopilot track (Phase 4d) is largely closed; the active edge is quality of expert understanding, not more document chat. This order is dependency-based, not a time estimate:
 
-1. **Corpus-to-expert compiler and generated wiki memory** - turn expert refresh from "files were added" into a bounded learning transaction: source pack -> source-note cards -> atomic claim candidates -> verifier decisions -> typed temporal graph writes -> contradiction and gap agenda -> regenerated wiki/digest view. `deepr-source-pack-manifest-v1` is already the first compiler stage: deterministic, `$0`, no-model provenance and hash readiness. Next add source-note artifacts, prompt/schema version capture, claim extraction envelopes, and one commit envelope that writes the belief graph only after verifier checks pass. The wiki remains a derived view over canonical state. Why: a corpus is what was read; an expert is the compiled, calibrated perspective that survives context resets.
-2. **Temporal knowledge graph completion and memory quality** - `BeliefStore`, typed support/contradict/derived edges, event logs, `what_changed`, `contested`, `why`, digests, trust ceilings, grounding assurance, and source-pack manifests are in place. Next make temporal graph writes first-class in the compiler, add local-first semantic belief recall as candidate routing only, and add contradiction-candidate recall so paraphrased conflicts reach the model verifier. Keep recall subordinate to the graph: recall finds candidates; the belief graph and verifier decide. Why: the expert should answer "what changed," "why do you believe it," "what is contested," and "what would change your mind," which no chunk store can answer.
+1. **Corpus-to-expert compiler and generated wiki memory** - turn expert refresh from "files were added" into a bounded learning transaction: source pack -> source-note cards -> concept map -> claim, hypothesis, and stance candidates -> verifier decisions -> typed temporal graph writes -> contradiction, gap, and exploration agenda -> regenerated wiki/digest view. `deepr-source-pack-manifest-v1` is already the first compiler stage: deterministic, `$0`, no-model provenance and hash readiness. Next add source-note artifacts, prompt/schema version capture, claim extraction envelopes, concept/hypothesis envelopes, and one commit envelope that writes the expert graph only after the right checks pass. The wiki remains a derived view over canonical state. Why: a corpus is what was read; an expert is the compiled, calibrated perspective that survives context resets.
+2. **Temporal knowledge graph completion and memory quality** - `BeliefStore`, typed support/contradict/derived edges, event logs, `what_changed`, `contested`, `why`, digests, trust ceilings, grounding assurance, and source-pack manifests are in place. Next make temporal graph writes first-class in the compiler, add local-first semantic belief and concept recall as candidate routing only, and add contradiction-candidate recall so paraphrased conflicts reach the model verifier. Keep recall subordinate to the graph: recall finds candidates; the belief graph and verifier decide. Why: the expert should answer "what changed," "why do you believe it," "what is your current take," "what is contested," "what are you watching," and "what would change your mind," which no chunk store can answer.
 3. **Protocol-native expert collaboration over MCP and A2A** - MCP already exposes expert reads, consults, loop status, handoff, belief explanation, scoped keys, budgets, rate limits, and audit logs. A2A has an authenticated task envelope and Agent Card baseline. Next add a collaboration contract for a set of experts: roster selection, per-expert role, shared task trace id, budget/capacity contract, evidence packet, dissent handling, and result artifact. Deepr remains a role on the team, not the global orchestrator; host agents decide and enact. Why: external agents should be able to ask a durable expert council to collaborate, inspect agreement and dissent, then continue with structured state instead of opaque prose.
 4. **Level 5 consult trace and semantic quality flywheel** - stored-belief perspectives, ledgered synthesis, `$0` consult evals, explicit local/plan synthesis, MCP-owned-capacity consult arguments, replayable `deepr-consult-trace-v1` records, and sanitized `deepr-consult-trace-candidates-v1` review are in place. Next add semantic answer-quality cases from dogfood failures and promote selected trace candidates into gap-fill or eval artifacts through a human-reviewed path. Keep the trace contract disciplined: include a small always-present context packet, keep larger belief/source/gap packets context-selected, validate generated trace and host-handoff artifacts against schema before they ship, and report which checks ran so a failed consult can become a durable regression case. Why: consult is Deepr's primary team-of-experts surface, and self-improvement only works when failures become durable test cases instead of one-off anecdotes. See [level-5-6-expert-maturity.md](docs/design/level-5-6-expert-maturity.md).
 5. **Expert self-model and metacognitive monitor** - first-class read-only `deepr-expert-self-model-v1` records are in place for capabilities, limits, current goals, calibration, learning strategy, continuity summary, blocked capabilities, unresolved risks, and a bounded current-focus packet. Consult perspective context now carries the self-model focus packet when an expert profile is available, and sync learning loop records plus sync capacity gates now carry the same compact packet as read-only run context. `deepr expert monitor` now emits a read-only `deepr-metacognitive-monitor-v1` artifact that turns self-model risks, failed loop runs, capacity blocks, and consult trace candidates into review-required proposals without applying them. `deepr expert promote-monitor` previews by default and applies only with `--apply`, promoting one reviewed gap/eval proposal into a metacognition gap and/or local eval-case artifact. `deepr expert propose-self-model` now previews or writes a verifier-gated `deepr-expert-self-model-update-v1` review record for self-model-related monitor proposals, and `deepr expert accept-self-model` writes a separate `deepr-expert-self-model-update-acceptance-v1` artifact only when outcome evidence and policy gates are explicit. Accepted records are attached to sync loop-run context as read-only guidance; they do not mutate the derived self-model or grant authority. Next connect accepted records to concrete learning-policy effects only when measured before/after outcomes exist. Why: Level 5/6 in Deepr means the expert can inspect and improve its learning process while deterministic workflow code still owns spend, writes, schemas, rollout, and review gates.
@@ -118,7 +129,7 @@ The fleet-autopilot track (Phase 4d) is largely closed; the active edge is quali
 7. **Maker-checker bounded escalation** - finish metered provider-adapter checker construction behind spend-policy gates, then add a second different-vendor checker only for refuted, unsupported, or high-risk claims before holding them. Why: `grounding_assurance` is now visible in handoffs; the next value is using it to prevent weak claims from becoming trusted knowledge.
 8. **Trusted plan-quota fleet availability** - Codex session-log `rate_limits`, Claude Code OAuth usage, and Grok billing metadata now write through the `QuotaSnapshot` contract, and explicit Codex capacity has live-bootstrapped expert beliefs through topic `learn --plan`. Next wire Antigravity metadata visibility, then add scheduler dispatch that selects admitted plan capacity only from trusted headroom observations. Why: automatic plan routing must be unlocked by observed remaining capacity, not by CLI presence or wishful free-capacity assumptions.
 9. **Provider prompt-cache cost model** - actual usage accounting now settles cached OpenAI/Azure/xAI input, Anthropic cache-write and cache-read buckets, Gemini large-context input/output tiers, and provider-reported completion costs after reservation. Next add explicit provider cache controls only after estimator coverage includes TTL, cache keys, and pre-warm behavior. Do not add automatic pre-warming, keep-warm loops, or 1-hour cache TTLs unless the user opts in under an explicit budget ceiling. Why: Deepr repeats stable expert/system/source context, so caching can reduce spend, but cache writes, longer TTLs, and pre-warm calls can increase spend if enabled blindly.
-10. **Local-vs-frontier A/B for compiled experts** - build or refresh the same expert from the same source pack through local and frontier capacity, then compare grounding, calibration, temporal-edge quality, contradiction detection, gap quality, wiki usefulness, and cost. Why: automatic routing should promote `$0` local models only when they meet a measured expert-quality floor, not because they are cheap.
+10. **Local-vs-frontier A/B for compiled experts** - build or refresh the same expert from the same source pack through local and frontier capacity, then compare grounding, calibration, concept coverage, perspective quality, temporal-edge quality, contradiction detection, gap quality, exploration agenda quality, wiki usefulness, and cost. Why: automatic routing should promote `$0` local models only when they meet a measured expert-quality floor, not because they are cheap.
 11. **Fleet cost, concurrency, and release hygiene** - ship conditional GET for known sources, wrap any remaining scheduled mutating verbs in the per-(expert, verb) overlap guard, keep `main` as the single source of truth, publish the matching GitHub release after CI passes, and close stale branches only after their intended updates are present on `main`. Why: refresh loops must stay cheap and idempotent, and users and downstream agents need package version, README badge, changelog, tag, and default branch to agree before they trust any handoff contract.
 
 After those are stable, resume the larger tracks in this order: Phase 5 hosted/ops hardening, Phase 4c expert crews, then Phase 4b autonomous campaigns.
