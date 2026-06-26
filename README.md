@@ -161,9 +161,10 @@ deepr expert export-okf "AI Policy Expert" ./okf/ai-policy
 ```
 
 Learning is a processing loop, not passive RAG. Source material becomes atomic
-beliefs, provenance refs, temporal edges, contradiction signals, gap backlogs,
-and regenerated digest or handoff views. Generated reports, digests, OKF
-bundles, and handoff payloads are derived views over structured state.
+beliefs, concepts, hypotheses, stance, provenance refs, temporal edges,
+contradiction signals, gap backlogs, freshness watchlists, and regenerated
+digest or handoff views. Generated reports, digests, OKF bundles, and handoff
+payloads are derived views over structured state.
 
 ### Capacity
 
