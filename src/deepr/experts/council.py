@@ -445,6 +445,8 @@ class ExpertCouncil:
                 "synthesis": "No experts available for this query.",
                 "agreements": [],
                 "disagreements": [],
+                "synthesis_status": "skipped_no_valid_perspectives",
+                "synthesis_error_type": "",
                 "total_cost": 0.0,
             }
 
@@ -558,6 +560,8 @@ class ExpertCouncil:
             "synthesis": synthesis.get("text", ""),
             "agreements": synthesis.get("agreements", []),
             "disagreements": synthesis.get("disagreements", []),
+            "synthesis_status": synthesis.get("synthesis_status", "completed"),
+            "synthesis_error_type": synthesis.get("synthesis_error_type", ""),
             "total_cost": round(total_cost, 4),
         }
 
@@ -569,7 +573,13 @@ class ExpertCouncil:
     ) -> dict:
         """Synthesise multiple expert perspectives into a unified view."""
         if not perspectives or all(p.confidence == 0 for p in perspectives):
-            return {"text": "No valid perspectives to synthesise.", "agreements": [], "disagreements": [], "cost": 0.0}
+            return {
+                "text": "No valid perspectives to synthesise.",
+                "agreements": [],
+                "disagreements": [],
+                "cost": 0.0,
+                "synthesis_status": "skipped_no_valid_perspectives",
+            }
 
         parts = []
         for p in perspectives:
@@ -617,7 +627,15 @@ class ExpertCouncil:
                 "tokens_input": tokens_input,
                 "tokens_output": tokens_output,
                 "cost_estimated": cost_estimated,
+                "synthesis_status": "completed",
             }
         except Exception as e:
             logger.warning("Council synthesis failed: %s", e)
-            return {"text": "Synthesis unavailable.", "agreements": [], "disagreements": [], "cost": 0.0}
+            return {
+                "text": "Synthesis unavailable.",
+                "agreements": [],
+                "disagreements": [],
+                "cost": 0.0,
+                "synthesis_status": "failed",
+                "synthesis_error_type": type(e).__name__,
+            }

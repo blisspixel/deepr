@@ -87,7 +87,9 @@ must not be described as usable capacity.
 - MCP `deepr_consult_experts` can synthesize through local Ollama or an
   explicit plan-quota CLI with live metered fallback disabled, and the returned
   `deepr-consult-v1` artifact includes a `capacity` block describing the
-  selected synthesis backend.
+  selected synthesis backend. CLI and MCP consults append local
+  `deepr-consult-trace-v1` records with selected context metadata, checks run,
+  capacity posture, and synthesis failure events.
 - Local Ollama expert maintenance, local evals, local context evals, local
   red-team attack-success-rate metrics including MCP read-path canaries and
   saved trend artifacts, and scored local admission.

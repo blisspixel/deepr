@@ -23,6 +23,7 @@ from deepr.cli.commands.semantic.experts import expert
 # Shared core (also used by the deepr_consult_experts MCP tool). Re-exported so
 # existing importers/tests keep working.
 from deepr.experts.consult import ConsultBackendError, build_consult_payload, build_synthesis_backend, run_consult
+from deepr.experts.consult_traces import record_consult_trace
 
 __all__ = ["build_consult_payload", "expert_consult", "run_consult"]
 
@@ -65,6 +66,15 @@ def _render(payload: dict[str, Any]) -> None:
     console.print(f"\n[dim]Cost: ${payload['cost_usd']:.4f}[/dim]")
 
 
+def _capacity_payload(backend_mode: str, backend: Any) -> dict[str, Any]:
+    return {
+        "synthesis_backend": backend_mode,
+        "provider": backend.provider,
+        "model": backend.model,
+        "live_metered_fallback": backend.allow_live_fallback,
+    }
+
+
 @expert.command(name="consult")
 @click.argument("question")
 @click.option(
@@ -74,9 +84,7 @@ def _render(payload: dict[str, Any]) -> None:
     multiple=True,
     help="Expert to include (repeatable). Omit to auto-select relevant experts.",
 )
-@click.option(
-    "--max-experts", default=3, show_default=True, help="Max experts when auto-selecting (capped at 10)."
-)
+@click.option("--max-experts", default=3, show_default=True, help="Max experts when auto-selecting (capped at 10).")
 @click.option("--budget", "-b", default=2.0, show_default=True, help="USD ceiling for this consultation.")
 @click.option("--local", "use_local", is_flag=True, help="Use local Ollama synthesis at $0.")
 @click.option("--local-model", default=None, help="Local Ollama model for synthesis. Defaults to detected model.")
@@ -142,10 +150,27 @@ def expert_consult(
             )
         )
     except Exception as e:  # surface the failure honestly; never a silent empty result
+        record_consult_trace(
+            question=question,
+            requested_experts=list(experts),
+            max_experts=max_experts,
+            budget=budget,
+            capacity=_capacity_payload("local" if use_local else "plan" if plan_backend else "api", synthesis_backend),
+            failure={"stage": "run_consult", "error_type": type(e).__name__, "message": str(e)},
+        )
         print_error(f"Consultation failed: {e}")
         sys.exit(1)
 
     payload = build_consult_payload(question, result)
+    payload["trace"] = record_consult_trace(
+        question=question,
+        requested_experts=list(experts),
+        max_experts=max_experts,
+        budget=budget,
+        payload=payload,
+        result=result,
+        capacity=_capacity_payload("local" if use_local else "plan" if plan_backend else "api", synthesis_backend),
+    )
     if json_output:
         click.echo(_json.dumps(payload, indent=2))
     else:

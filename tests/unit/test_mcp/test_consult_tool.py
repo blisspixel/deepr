@@ -7,6 +7,7 @@ The council + consult core are tested elsewhere; here we exercise the MCP handle
 
 from __future__ import annotations
 
+import json
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -41,6 +42,13 @@ def server():
         yield DeeprMCPServer()
 
 
+@pytest.fixture(autouse=True)
+def consult_trace_path(monkeypatch, tmp_path):
+    path = tmp_path / "consult_traces.jsonl"
+    monkeypatch.setenv("DEEPR_CONSULT_TRACE_PATH", str(path))
+    return path
+
+
 def test_consult_tool_registered(server):
     names = [t.name for t in server.registry.all_tools()]
     assert "deepr_consult_experts" in names
@@ -58,6 +66,30 @@ async def test_consult_returns_versioned_artifact(server, monkeypatch):
     assert out["experts_consulted"] == ["A"]
     assert out["perspectives"][0]["context"]["selection"] == "query_overlap"
     assert out["cost_usd"] == 0.0212
+    assert out["trace"]["schema_version"] == "deepr-consult-trace-v1"
+
+
+@pytest.mark.asyncio
+async def test_consult_mcp_writes_trace(server, monkeypatch, consult_trace_path):
+    monkeypatch.setattr("deepr.backends.local.default_local_model", lambda: "qwen-local")
+    monkeypatch.setattr("deepr.backends.local.ollama_chat_client", lambda: object())
+
+    async def fake(question, experts, max_experts, budget, **_kwargs):
+        return {**_RESULT, "synthesis_status": "completed"}
+
+    monkeypatch.setattr("deepr.experts.consult.run_consult", fake)
+
+    out = await server.consult_experts(
+        question="q",
+        experts=["A"],
+        synthesis_backend="local",
+        budget=0.0,
+    )
+
+    trace = json.loads(consult_trace_path.read_text(encoding="utf-8").strip())
+    assert out["trace"]["trace_id"] == trace["trace_id"]
+    assert trace["input"]["requested_experts"] == ["A"]
+    assert trace["capacity"]["synthesis_backend"] == "local"
 
 
 @pytest.mark.asyncio
@@ -137,10 +169,13 @@ async def test_consult_rejects_nonpositive_budget(server):
 
 
 @pytest.mark.asyncio
-async def test_consult_failure_mapped_to_error(server, monkeypatch):
+async def test_consult_failure_mapped_to_error(server, monkeypatch, consult_trace_path):
     async def boom(*args, **kwargs):
         raise ValueError("council down")
 
     monkeypatch.setattr("deepr.experts.consult.run_consult", boom)
     out = await server.consult_experts(question="q", budget=1.0)
     assert "CONSULT_FAILED" in str(out)
+    trace = json.loads(consult_trace_path.read_text(encoding="utf-8").strip())
+    assert trace["status"] == "failed"
+    assert trace["failure"]["error_type"] == "ValueError"

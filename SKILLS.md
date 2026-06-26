@@ -130,6 +130,15 @@ This file captures repo-specific operating lessons from autonomous work cycles.
   exhaustion should leave the consult at `$0` with an unavailable synthesis
   result, never fall through to metered API. The next improvement is a durable
   trace event and eval case, not a hidden fallback.
+- Persist consult traces as local artifacts, not host payload dumps. The host
+  gets a safe `trace` reference with schema, kind, trace id, status, and checks
+  run; the local JSONL record gets the replay material: question, requested
+  experts, selected context metadata, capacity posture, output artifact, checks,
+  and first-class synthesis failure events.
+- A trace is a workflow artifact, not a semantic verdict. It can say which
+  context was selected, which capacity path ran, which structural checks passed,
+  and whether synthesis failed; answer quality still belongs to evals and model
+  judgment.
 - Local model synthesis often uses Markdown emphasis in bullets. Parse one
   bullet marker explicitly, then normalize harmless bold labels; broad `lstrip`
   can delete the opening `**` and leave a dangling closing marker.

@@ -46,6 +46,11 @@ from deepr.cli.output import (
     OperationResult,
 )
 from deepr.core.contracts import Claim, ExpertManifest
+from deepr.experts.consult_traces import (
+    CONSULT_TRACE_KIND,
+    CONSULT_TRACE_SCHEMA_VERSION,
+    build_consult_trace,
+)
 from deepr.experts.handoff import build_expert_handoff
 from deepr.experts.loop_runs import ExpertLoopRun, ExpertLoopRunStore, LoopRunStatus, LoopStopReason
 from deepr.experts.loop_status_rollup import build_loop_status_rollup
@@ -299,6 +304,49 @@ def test_a2a_task_schema_validates_runtime_payload():
     assert payload["schema_version"] == A2A_TASK_SCHEMA_VERSION
     assert payload["kind"] == A2A_TASK_KIND
     assert payload["contract"]["result_untrusted"] is True
+
+
+def test_consult_trace_schema_validates_runtime_payload():
+    payload = build_consult_trace(
+        question="What should the expert loop improve next?",
+        requested_experts=["AI Agent Harnesses"],
+        max_experts=3,
+        budget=0.0,
+        payload={
+            "schema_version": "deepr-consult-v1",
+            "kind": "deepr.expert.consult",
+            "question": "What should the expert loop improve next?",
+            "answer": "Use traces and evals.",
+            "experts_consulted": ["AI Agent Harnesses"],
+            "perspectives": [
+                {
+                    "expert": "AI Agent Harnesses",
+                    "domain": "agent harnesses",
+                    "confidence": 0.9,
+                    "response": "Trace failed consults.",
+                    "context": {"source": "belief_store", "selection": "query_overlap"},
+                }
+            ],
+            "agreements": [],
+            "disagreements": [],
+            "cost_usd": 0.0,
+        },
+        result={"perspectives": [{}], "synthesis_status": "completed"},
+        capacity={
+            "synthesis_backend": "local",
+            "provider": "local",
+            "model": "qwen",
+            "live_metered_fallback": False,
+        },
+        trace_id="consult_abcdef123456",
+        recorded_at=datetime(2026, 6, 26, 12, 0, tzinfo=UTC),
+    )
+    schema = _load_schema("consult-trace-v1.json")
+
+    _validate(schema, payload)
+    assert payload["schema_version"] == CONSULT_TRACE_SCHEMA_VERSION
+    assert payload["kind"] == CONSULT_TRACE_KIND
+    assert payload["events"][-1]["name"] == "synthesis_finished"
 
 
 def test_capacity_next_schema_validates_runtime_payload():

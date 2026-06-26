@@ -1,0 +1,130 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/blisspixel/deepr/docs/schemas/consult-trace-v1.json",
+  "title": "Deepr Consult Trace v1",
+  "type": "object",
+  "additionalProperties": true,
+  "required": [
+    "schema_version",
+    "kind",
+    "contract",
+    "trace_id",
+    "recorded_at",
+    "status",
+    "input",
+    "capacity",
+    "context_packet",
+    "output",
+    "checks",
+    "events",
+    "failure"
+  ],
+  "properties": {
+    "schema_version": {"const": "deepr-consult-trace-v1"},
+    "kind": {"const": "deepr.expert.consult_trace"},
+    "contract": {
+      "type": "object",
+      "required": ["read_only", "cost_usd", "stability", "compatibility"],
+      "properties": {
+        "read_only": {"const": false},
+        "cost_usd": {"type": "number", "minimum": 0},
+        "stability": {"type": "string"},
+        "compatibility": {
+          "type": "object",
+          "required": ["additive_fields", "breaking_changes_require_new_schema_version", "deprecation_policy"],
+          "properties": {
+            "additive_fields": {"const": true},
+            "breaking_changes_require_new_schema_version": {"const": true},
+            "deprecation_policy": {"type": "string"}
+          },
+          "additionalProperties": true
+        }
+      },
+      "additionalProperties": true
+    },
+    "trace_id": {"type": "string", "pattern": "^consult_[a-f0-9]{12}$"},
+    "recorded_at": {"type": "string"},
+    "status": {"type": "string", "enum": ["completed", "failed"]},
+    "input": {
+      "type": "object",
+      "required": ["question", "question_hash", "requested_experts", "max_experts", "budget_usd"],
+      "properties": {
+        "question": {"type": "string"},
+        "question_hash": {"type": "string", "pattern": "^[a-f0-9]{64}$"},
+        "requested_experts": {"type": "array", "items": {"type": "string"}},
+        "max_experts": {"type": "integer", "minimum": 1},
+        "budget_usd": {"type": "number", "minimum": 0}
+      },
+      "additionalProperties": true
+    },
+    "capacity": {
+      "type": "object",
+      "required": ["synthesis_backend", "provider", "model", "live_metered_fallback"],
+      "properties": {
+        "synthesis_backend": {"type": "string", "enum": ["api", "local", "plan"]},
+        "provider": {"type": "string"},
+        "model": {"type": "string"},
+        "live_metered_fallback": {"type": "boolean"}
+      },
+      "additionalProperties": true
+    },
+    "context_packet": {
+      "type": "object",
+      "required": ["always", "selected"],
+      "properties": {
+        "always": {
+          "type": "object",
+          "required": ["experts_consulted", "perspective_count", "cost_usd"],
+          "properties": {
+            "experts_consulted": {"type": "array", "items": {"type": "string"}},
+            "perspective_count": {"type": "integer", "minimum": 0},
+            "cost_usd": {"type": "number", "minimum": 0}
+          },
+          "additionalProperties": true
+        },
+        "selected": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["expert", "confidence", "context"],
+            "properties": {
+              "expert": {"type": "string"},
+              "confidence": {"type": "number", "minimum": 0},
+              "context": {"type": "object"}
+            },
+            "additionalProperties": true
+          }
+        }
+      },
+      "additionalProperties": true
+    },
+    "output": {"type": "object"},
+    "checks": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["name", "status", "detail"],
+        "properties": {
+          "name": {"type": "string"},
+          "status": {"type": "string", "enum": ["passed", "failed", "warning", "skipped"]},
+          "detail": {"type": "string"}
+        },
+        "additionalProperties": true
+      }
+    },
+    "events": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["name", "timestamp", "attributes"],
+        "properties": {
+          "name": {"type": "string"},
+          "timestamp": {"type": "string"},
+          "attributes": {"type": "object"}
+        },
+        "additionalProperties": true
+      }
+    },
+    "failure": {"type": "object"}
+  }
+}

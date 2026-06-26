@@ -1,6 +1,31 @@
 # Current State Analysis
 
-Date: 2026-06-25
+Date: 2026-06-26
+
+## Startup Alignment - 2026-06-26
+
+README.md and ROADMAP.md are present and non-empty; no architecture rebuild or
+HITL architecture gate is required. The active roadmap edge is the Level 5
+consult trace and semantic quality flywheel, followed by expert self-models,
+metacognitive monitors, and the research-processing compiler. The code confirms
+the same constraint: consult already has one shared core for CLI and MCP, stored
+belief context packets, owned-capacity synthesis, and a `$0` consult eval, but it
+needed a replayable local trace artifact before failed consults could become
+durable eval or gap candidates.
+
+Cycle 1 shipped that missing harness primitive. CLI and MCP consults now append
+`deepr-consult-trace-v1` records with inputs, requested experts, selected context
+metadata, capacity posture, output artifact, checks run, and synthesis failure
+events. This keeps determinism on structure, capacity, and side effects while
+leaving answer meaning to model synthesis and later semantic evals.
+
+External best-practice check, current as of 2026-06-26: modern agent harness
+guidance converges on trace-first improvement loops, evals from real failures,
+bounded context packets, explicit handoffs, and deterministic gates around
+spend, writes, tools, and credentials. Deepr's next implementation slices should
+continue that shape: mine consult traces into local eval/gap candidates, then add
+the expert self-model and current-focus packet, rather than widening autonomy or
+building broader orchestration.
 
 ## Alignment Summary
 
