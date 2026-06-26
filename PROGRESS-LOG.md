@@ -3,6 +3,34 @@
 Working log only. Keep the latest five cycles plus the active cycle here; older
 completed milestones are summarized in `docs/CHANGELOG.md`.
 
+## 2026-06-26 - Cycle 7 - Reviewed monitor promotion
+
+- Ran the cycle-7 maintenance sub-goal before feature work: dependency audit
+  found no known vulnerabilities, the local agentic red-team verifier blocked
+  13/13 attacks at `$0`, and security/complexity ratchets stayed at baseline.
+- Added `deepr-metacognitive-promotion-v1`, a preview/apply result contract for
+  reviewed monitor proposal promotion.
+- Added idempotent metacognition gap candidate promotion so re-running the same
+  reviewed proposal does not keep bumping the gap backlog.
+- Added `deepr expert promote-monitor NAME PROPOSAL_ID`, defaulting to preview
+  and requiring `--apply` before writing a metacognition gap, a local eval-case
+  artifact under `data/benchmarks`, or both.
+- Updated monitor `gap_or_eval_candidate` proposals to recommend the exact
+  promotion command with the stable proposal id.
+- Published and registered `docs/schemas/metacognitive-promotion-v1.json`.
+- Updated README, roadmap, expert docs, features, supported surface, schema
+  docs, design note, changelog, current-state analysis, and quality rubric to
+  mark reviewed gap/eval promotion as shipped while keeping self-model updates
+  gated.
+- Validation passed: 37 focused monitor promotion, monitor, CLI, and schema
+  tests; `ruff check src/deepr/`; `ruff format --check src/deepr/`; strict
+  mypy gate for `core/providers/mcp`; docs consistency; file-size ratchet;
+  complexity/security ratchets; full unit suite `6718 passed, 8 skipped`,
+  branch coverage `83.08%`.
+- Maker-checker target score: correctness 5/5, security 5/5, performance 5/5,
+  maintainability 5/5, simplicity 5/5, testability 5/5.
+- Spend: `$0.00`.
+
 ## 2026-06-26 - Cycle 6 - Metacognitive monitor proposals
 
 - Added `deepr-metacognitive-monitor-v1`, a read-only monitor artifact that
@@ -94,25 +122,6 @@ Cycle health: 5/5 | Simplicity: 5/5 | Est. spend: $0.00 | New skill distilled: l
   `ruff format --check src/deepr/`; strict mypy gate for `core/providers/mcp`;
   docs consistency; file-size ratchet; complexity/security ratchets; full unit
   suite `6696 passed, 8 skipped`, branch coverage `82.99%`.
-- Maker-checker score: correctness 5/5, security 5/5, performance 5/5,
-  maintainability 5/5, simplicity 5/5, testability 5/5.
-- Spend: `$0.00`.
-
-## 2026-06-26 - Cycle 2 - Consult trace candidate review
-
-- Added sanitized `deepr-consult-trace-candidates-v1` review for failed or
-  low-context consult traces.
-- Added `deepr expert consult-traces` as a read-only local review command. The
-  JSON payload includes trace ids, question hashes/previews, failed/warning
-  checks, gap candidates, and eval-case candidates, without local trace file
-  paths or raw trace payloads.
-- Extended `deepr eval consult` with a `$0` candidate contract case.
-- Published and registered `docs/schemas/consult-trace-candidates-v1.json`.
-- Validation passed: 12 focused trace-candidate tests; `ruff check src/deepr/`;
-  `ruff format --check src/deepr/`; strict mypy gate for
-  `core/providers/mcp`; docs consistency; file-size ratchet;
-  complexity/security ratchets; full unit suite
-  `6688 passed, 8 skipped`, branch coverage `82.96%`.
 - Maker-checker score: correctness 5/5, security 5/5, performance 5/5,
   maintainability 5/5, simplicity 5/5, testability 5/5.
 - Spend: `$0.00`.

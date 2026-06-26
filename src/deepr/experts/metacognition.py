@@ -8,7 +8,7 @@ import logging
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
     from deepr.core.contracts import Gap
@@ -56,6 +56,18 @@ class DomainConfidence:
     evidence_count: int  # Number of documents/research covering this
     last_updated: datetime
     sources: list[str]  # Document names or research IDs
+
+
+def _gap_candidate_log(gap: "Gap") -> dict[str, Any]:
+    return {
+        "id": gap.id,
+        "topic": gap.topic,
+        "questions": list(gap.questions),
+        "priority": gap.priority,
+        "estimated_cost": gap.estimated_cost,
+        "expected_value": gap.expected_value,
+        "ev_cost_ratio": gap.ev_cost_ratio,
+    }
 
 
 class MetaCognitionTracker:
@@ -189,6 +201,43 @@ class MetaCognitionTracker:
 
         self._save()
         return gap
+
+    def promote_gap_candidate(
+        self,
+        gap: "Gap",
+        *,
+        proposal_id: str,
+        evidence_refs: list[str],
+        source: str = "metacognitive_monitor",
+    ) -> tuple[KnowledgeGap, bool]:
+        """Persist a reviewed gap candidate without duplicating existing gaps."""
+        existing = self.knowledge_gaps.get(gap.topic)
+        if existing is not None:
+            return existing, False
+
+        promoted = KnowledgeGap(
+            topic=gap.topic,
+            first_encountered=gap.identified_at,
+            times_asked=max(1, int(gap.times_asked or 1)),
+            research_triggered=gap.filled,
+            research_date=gap.filled_at,
+            confidence_before=0.0,
+        )
+        self.knowledge_gaps[gap.topic] = promoted
+        self.uncertainty_log.append(
+            {
+                "timestamp": datetime.now(UTC).isoformat(),
+                "topic": gap.topic,
+                "times_asked": promoted.times_asked,
+                "action": "promoted_gap_candidate",
+                "source": source,
+                "proposal_id": proposal_id,
+                "evidence_refs": evidence_refs,
+                "candidate": _gap_candidate_log(gap),
+            }
+        )
+        self._save()
+        return promoted, True
 
     def record_research_triggered(self, topic: str, research_mode: str):
         """Record that research was triggered for a knowledge gap.

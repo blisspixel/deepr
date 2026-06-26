@@ -1,0 +1,71 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/blisspixel/deepr/docs/schemas/metacognitive-promotion-v1.json",
+  "title": "Deepr Metacognitive Promotion v1",
+  "type": "object",
+  "additionalProperties": true,
+  "required": [
+    "schema_version",
+    "kind",
+    "contract",
+    "expert_name",
+    "proposal_id",
+    "proposal_type",
+    "target",
+    "applied",
+    "status",
+    "actions",
+    "source",
+    "generated_at"
+  ],
+  "properties": {
+    "schema_version": {"const": "deepr-metacognitive-promotion-v1"},
+    "kind": {"const": "deepr.expert.metacognitive_promotion"},
+    "contract": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": ["read_only", "cost_usd", "requires_human_review", "auto_apply", "apply_required"],
+      "properties": {
+        "read_only": {"type": "boolean"},
+        "cost_usd": {"type": "number", "minimum": 0},
+        "derived_from": {"type": "string"},
+        "requires_human_review": {"const": true},
+        "auto_apply": {"const": false},
+        "apply_required": {"const": true}
+      }
+    },
+    "expert_name": {"type": "string", "minLength": 1},
+    "proposal_id": {"type": "string", "minLength": 1},
+    "proposal_type": {"type": "string", "minLength": 1},
+    "target": {"enum": ["gap", "eval", "both"]},
+    "applied": {"type": "boolean"},
+    "status": {"enum": ["preview", "promoted", "already_exists"]},
+    "actions": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": true,
+        "required": ["action", "status"],
+        "properties": {
+          "action": {"enum": ["promote_gap", "write_eval_case"]},
+          "status": {"enum": ["preview", "promoted", "already_exists", "written"]},
+          "path": {"type": "string"},
+          "would_write": {"type": "string"},
+          "gap": {"type": "object"},
+          "artifact": {"type": "object"}
+        }
+      }
+    },
+    "source": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": ["monitor_schema_version", "candidate_schema_version", "evidence_refs"],
+      "properties": {
+        "monitor_schema_version": {"type": "string", "minLength": 1},
+        "candidate_schema_version": {"type": "string"},
+        "evidence_refs": {"type": "array", "items": {"type": "string"}}
+      }
+    },
+    "generated_at": {"type": "string", "format": "date-time"}
+  }
+}

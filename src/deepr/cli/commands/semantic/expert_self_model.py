@@ -71,6 +71,22 @@ def _render_monitor(payload: dict[str, Any]) -> None:
         console.print(f"  [dim]{proposal['recommended_command']}[/dim]")
 
 
+def _render_promotion(payload: dict[str, Any]) -> None:
+    print_section_header("Monitor Promotion")
+    print_key_value("Expert", payload["expert_name"])
+    print_key_value("Proposal", payload["proposal_id"])
+    print_key_value("Target", payload["target"])
+    print_key_value("Status", payload["status"])
+    for action in payload.get("actions", []) or []:
+        console.print(f"\n[bold]{action['action']}[/bold]  [dim]{action['status']}[/dim]")
+        if action.get("path"):
+            console.print(f"  {action['path']}")
+        elif action.get("would_write"):
+            console.print(f"  would write: {action['would_write']}")
+    if not payload["applied"]:
+        console.print("\n[dim]Preview only. Re-run with --apply after review to write changes.[/dim]")
+
+
 @expert.command(name="monitor")
 @click.argument("name")
 @click.option("--limit", type=int, default=20, show_default=True, help="Recent loop runs and traces to inspect.")
@@ -121,3 +137,70 @@ def expert_monitor(
         click.echo(json.dumps(payload, indent=2, default=str))
         return
     _render_monitor(payload)
+
+
+@expert.command(name="promote-monitor")
+@click.argument("name")
+@click.argument("proposal_id")
+@click.option(
+    "--target",
+    type=click.Choice(["gap", "eval", "both"]),
+    default="gap",
+    show_default=True,
+    help="Promotion target to preview or apply.",
+)
+@click.option("--apply", "apply_change", is_flag=True, help="Write the reviewed promotion. Default is preview.")
+@click.option("--limit", type=int, default=20, show_default=True, help="Recent loop runs and traces to inspect.")
+@click.option("--max-proposals", type=int, default=20, show_default=True, help="Maximum monitor proposals to rebuild.")
+@click.option(
+    "--trace-path",
+    type=click.Path(dir_okay=False, path_type=Path),
+    default=None,
+    help="Optional local consult trace JSONL path.",
+)
+@click.option(
+    "--output-dir",
+    type=click.Path(file_okay=False, path_type=Path),
+    default=None,
+    help="Optional directory for eval-case artifacts.",
+)
+@click.option("--json", "json_output", is_flag=True, help="Emit machine-readable JSON.")
+def expert_promote_monitor(
+    name: str,
+    proposal_id: str,
+    target: str,
+    apply_change: bool,
+    limit: int,
+    max_proposals: int,
+    trace_path: Path | None,
+    output_dir: Path | None,
+    json_output: bool,
+) -> None:
+    """Preview or apply one reviewed metacognitive monitor proposal."""
+    from deepr.experts.monitor_promotion import MonitorPromotionError, promote_monitor_proposal
+
+    store = ExpertStore()
+    profile = store.load(name)
+    if profile is None:
+        print_error(f"Expert '{name}' not found")
+        raise click.Abort()
+
+    try:
+        payload = promote_monitor_proposal(
+            profile,
+            proposal_id,
+            target=target,
+            apply=apply_change,
+            trace_path=trace_path,
+            limit=limit,
+            max_proposals=max_proposals,
+            output_dir=output_dir,
+        )
+    except MonitorPromotionError as exc:
+        print_error(str(exc))
+        raise click.Abort() from exc
+
+    if json_output:
+        click.echo(json.dumps(payload, indent=2, default=str))
+        return
+    _render_promotion(payload)

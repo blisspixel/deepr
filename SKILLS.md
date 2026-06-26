@@ -73,7 +73,9 @@ This file captures repo-specific operating lessons from autonomous work cycles.
 - Metacognitive monitors should emit proposals, not apply changes. The safe
   first surface is a read-only artifact with evidence refs, expected effect,
   and `review_required`; separate promotion commands own gap/eval creation or
-  self-model updates behind verifier gates.
+  self-model updates behind verifier gates. Promotion commands should preview
+  by default, require an explicit apply flag for writes, and be idempotent when
+  re-run against the same proposal.
 - Treat schema-adjacent model output as expected. If a model returns one
   `evidence` string despite the requested array, preserve it as one excerpt.
   Splitting it into characters corrupts provenance and can falsely lift

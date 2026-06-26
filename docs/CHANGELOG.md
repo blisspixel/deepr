@@ -25,6 +25,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 </details>
 
 ### Added
+- Added `deepr expert promote-monitor`, a `$0` reviewed promotion surface backed
+  by the published `deepr-metacognitive-promotion-v1` schema. It previews by
+  default and requires `--apply` before a `gap_or_eval_candidate` monitor
+  proposal writes a metacognition gap, a local eval-case artifact under
+  `data/benchmarks`, or both.
 - Added `deepr expert monitor`, a `$0` read-only metacognitive monitor surface
   backed by the published `deepr-metacognitive-monitor-v1` schema. It turns
   self-model blockers or calibration risks, failed loop runs, capacity waits,

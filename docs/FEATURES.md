@@ -525,6 +525,10 @@ calibration, risks, and the bounded current-focus packet.
 failed loop runs, capacity waits, and consult trace candidates into
 review-required proposals. It never applies the proposed goal, strategy, gap, or
 eval changes.
+`deepr expert promote-monitor NAME PROPOSAL_ID` previews one selected
+gap/eval proposal, and `--apply` is required before it writes a metacognition
+gap or local eval-case artifact. This keeps monitor output advisory while
+making reviewed failures durable.
 
 **Task Planning** decomposes complex queries into subtasks:
 
@@ -646,6 +650,8 @@ deepr expert self-model "Azure Architect" --json
 
 # Monitor proposals: measured failures and risks become reviewed next steps.
 deepr expert monitor "Azure Architect" --json
+deepr expert promote-monitor "Azure Architect" meta_abc123 --target gap
+deepr expert promote-monitor "Azure Architect" meta_abc123 --target gap --apply
 
 # Browsable derived view: beliefs by domain, conflicts surfaced, byte-stable
 deepr expert digest "Azure Architect" --print

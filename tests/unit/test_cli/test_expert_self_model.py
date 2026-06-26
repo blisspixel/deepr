@@ -8,7 +8,7 @@ from unittest.mock import MagicMock, patch
 
 from click.testing import CliRunner
 
-from deepr.cli.commands.semantic.expert_self_model import expert_monitor, expert_self_model
+from deepr.cli.commands.semantic.expert_self_model import expert_monitor, expert_promote_monitor, expert_self_model
 from deepr.cli.main import cli
 from deepr.core.contracts import Claim, ExpertManifest, Gap
 from deepr.experts.profile import ExpertProfile
@@ -51,6 +51,13 @@ def test_monitor_registered_in_expert_help():
 
     assert result.exit_code == 0
     assert "metacognitive proposals" in result.output.lower()
+
+
+def test_promote_monitor_registered_in_expert_help():
+    result = CliRunner().invoke(cli, ["expert", "promote-monitor", "--help"])
+
+    assert result.exit_code == 0
+    assert "reviewed metacognitive monitor proposal" in result.output.lower()
 
 
 def test_self_model_json_output():
@@ -170,3 +177,40 @@ def test_monitor_zero_limit_skips_loop_runs(monkeypatch):
     assert result.exit_code == 0, result.output
     assert captured["candidate_kwargs"]["limit"] == 0
     assert captured["report_kwargs"]["loop_runs"] == []
+
+
+def test_promote_monitor_json_output(monkeypatch):
+    profile = _profile()
+    captured = {}
+    payload = {
+        "schema_version": "deepr-metacognitive-promotion-v1",
+        "kind": "deepr.expert.metacognitive_promotion",
+        "expert_name": profile.name,
+        "proposal_id": "meta_123",
+        "proposal_type": "gap_or_eval_candidate",
+        "target": "eval",
+        "applied": True,
+        "status": "promoted",
+        "actions": [],
+        "source": {"monitor_schema_version": "deepr-metacognitive-monitor-v1", "evidence_refs": []},
+    }
+
+    def fake_promote(loaded_profile, proposal_id, **kwargs):
+        captured["proposal_id"] = proposal_id
+        captured["kwargs"] = kwargs
+        assert loaded_profile is profile
+        return payload
+
+    monkeypatch.setattr("deepr.experts.monitor_promotion.promote_monitor_proposal", fake_promote)
+
+    with _patch_store(profile):
+        result = CliRunner().invoke(
+            expert_promote_monitor,
+            [profile.name, "meta_123", "--target", "eval", "--apply", "--json"],
+        )
+
+    assert result.exit_code == 0, result.output
+    assert json.loads(result.output)["kind"] == "deepr.expert.metacognitive_promotion"
+    assert captured["proposal_id"] == "meta_123"
+    assert captured["kwargs"]["target"] == "eval"
+    assert captured["kwargs"]["apply"] is True

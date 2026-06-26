@@ -183,6 +183,9 @@ strategies."
 - `deepr expert monitor` emits read-only, review-required metacognitive
   proposals from self-model state, loop-run failures or capacity waits, and
   sanitized consult trace candidates.
+- `deepr expert promote-monitor` previews by default and requires `--apply` to
+  promote one reviewed gap/eval proposal into the metacognition gap backlog,
+  a local eval-case artifact, or both.
 - Beliefs already carry confidence, provenance, typed edges, event history,
   contradiction handling, and trust floors.
 - Handoff payloads expose bounded context packets instead of dumping whole
@@ -207,8 +210,8 @@ strategies."
 - The consult flow needs a global-workspace packet: selected beliefs, selected
   gaps, active contradictions, current goal, and allowed tools for the next
   step.
-- Reviewed monitor proposals still need explicit promotion commands for
-  gap/eval creation and verifier-gated self-model update records.
+- Reviewed monitor proposal promotion exists for gap/eval creation; verifier-gated
+  self-model update records remain next.
 
 ## Level 6 Gaps
 

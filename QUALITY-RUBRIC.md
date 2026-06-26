@@ -67,23 +67,22 @@ Planning Principles), and [docs/plans/AGENTIC_BALANCE.md](docs/plans/AGENTIC_BAL
 
 ## Current Cycle Alignment - 2026-06-26
 
-Active task: add a read-only metacognitive monitor that converts measured
-expert evidence into review-required proposals without widening autonomy.
+Active task: add reviewed monitor proposal promotion for gap/eval candidates,
+with dry-run default, explicit `--apply`, and no model calls.
 
 Target score before merge:
 
 | Category | Required score | Evidence |
 |---|---:|---|
-| Correctness | 5/5 | Monitor tests prove self-model risks, failed loops, capacity waits, and consult trace candidates become schema-valid proposals. |
-| Security | 5/5 | Proposals are read-only, `$0`, path-free, secret-free, review-required, and never auto-applied. |
-| Performance | 5/5 | Work is bounded to recent local loop/trace records and a focus limit of 3; no provider calls, embeddings, or paid validation. |
-| Readability | 5/5 | Proposal rules are explicit structural signals over existing artifacts. |
-| Maintainability | 5/5 | Published v1 schema, registry entry, and CLI surface keep the monitor artifact consumable by agents. |
-| Simplicity | 5/5 | No new dependency, no persistence store, no prompt mutation, no self-model writer. |
+| Correctness | 5/5 | Promotion tests prove preview is non-mutating, gap apply is idempotent, eval apply writes a bounded artifact, CLI JSON works, and the published schema validates runtime payloads. |
+| Security | 5/5 | `--apply` is required for writes; trace paths are not exposed; outputs stay `$0`; only sanitized candidate fields are promoted. |
+| Performance | 5/5 | Work is bounded to recent local loop/trace records; no provider calls, embeddings, or paid validation. |
+| Readability | 5/5 | Promotion is a small service over existing monitor and metacognition primitives. |
+| Maintainability | 5/5 | Published v1 schema, registry entry, CLI surface, and docs keep the promotion artifact consumable by agents. |
+| Simplicity | 5/5 | No new dependency, no broad state store, no prompt mutation, no self-model writer. |
 
-Cycle 6 adds a read-only monitor artifact only. The same bar applies, with two
-added gates: no mutation of expert state, and no semantic verdict from lexical
-rules.
+Cycle 7 adds reviewed promotion for gap/eval proposals only. Self-model,
+prompt, tool, and skill changes remain gated future work.
 
 ## How to score (maker-checker)
 
