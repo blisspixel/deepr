@@ -88,6 +88,11 @@ The research changes what "self-improving expert" should mean in Deepr:
   different checks: rationale, uncertainty, predicted observations, freshness,
   and disconfirming signals. Do not collapse expert judgment into a brittle
   fact checklist.
+- Staleness is an unknown-unknowns problem. A frozen corpus or base model cannot
+  reliably identify which of its own assumptions are now wrong, superseded, or
+  misleading. Deepr must treat old knowledge as a prior to revisit, not as an
+  authority, and maintain watchlists plus contradiction and freshness loops that
+  can discover where the expert needs to change its mind.
 - Context engineering is not enough once experts run across sessions. Deepr
   needs a harness layer that decides what context enters each step, what tools
   may run, what state may mutate, when to stop, and how to evaluate the result.
