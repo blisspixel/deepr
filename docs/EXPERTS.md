@@ -373,6 +373,17 @@ deepr expert self-model "Azure Architect"
 deepr expert self-model "Azure Architect" --focus-limit 3 --json
 ```
 
+### Monitor (read-only proposal review)
+Build a derived `deepr-metacognitive-monitor-v1` artifact from the self-model,
+recent loop runs, and sanitized consult trace candidates. It emits
+`review_required` proposals for self-model blockers, calibration review, failed
+learning loops, capacity blocks, and gap/eval candidates. It does not apply
+goal, strategy, prompt, tool, or skill changes.
+```bash
+deepr expert monitor "Azure Architect"
+deepr expert monitor "Azure Architect" --json
+```
+
 ### Digest (browsable derived view)
 Compile the belief store into a browsable Markdown digest: beliefs by domain
 sorted by confidence, open contradictions with both sides, graph stats. $0, no

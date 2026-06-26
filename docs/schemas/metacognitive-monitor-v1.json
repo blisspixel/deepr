@@ -1,0 +1,91 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/blisspixel/deepr/docs/schemas/metacognitive-monitor-v1.json",
+  "title": "Deepr Metacognitive Monitor v1",
+  "type": "object",
+  "additionalProperties": true,
+  "required": [
+    "schema_version",
+    "kind",
+    "contract",
+    "expert_name",
+    "inputs",
+    "signals",
+    "proposal_count",
+    "proposals",
+    "next_review"
+  ],
+  "properties": {
+    "schema_version": {"const": "deepr-metacognitive-monitor-v1"},
+    "kind": {"const": "deepr.expert.metacognitive_monitor"},
+    "contract": {
+      "type": "object",
+      "required": ["read_only", "cost_usd", "derived_view", "auto_apply", "review_required"],
+      "properties": {
+        "read_only": {"const": true},
+        "cost_usd": {"const": 0.0},
+        "derived_view": {"const": true},
+        "auto_apply": {"const": false},
+        "review_required": {"const": true}
+      },
+      "additionalProperties": true
+    },
+    "expert_name": {"type": "string", "minLength": 1},
+    "inputs": {"type": "object", "additionalProperties": true},
+    "signals": {
+      "type": "object",
+      "required": [
+        "blocked_capability_count",
+        "active_risk_count",
+        "failed_loop_count",
+        "waiting_capacity_count",
+        "consult_trace_candidate_count"
+      ],
+      "additionalProperties": true
+    },
+    "proposal_count": {"type": "integer", "minimum": 0},
+    "proposals": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "proposal_id",
+          "proposal_type",
+          "status",
+          "target",
+          "title",
+          "rationale",
+          "evidence_refs",
+          "recommended_command",
+          "expected_effect",
+          "requires_human_review",
+          "auto_apply"
+        ],
+        "properties": {
+          "proposal_id": {"type": "string", "minLength": 1},
+          "proposal_type": {"type": "string", "minLength": 1},
+          "status": {"const": "review_required"},
+          "target": {"type": "string", "minLength": 1},
+          "title": {"type": "string", "minLength": 1},
+          "rationale": {"type": "string", "minLength": 1},
+          "evidence_refs": {"type": "array", "items": {"type": "string"}},
+          "recommended_command": {"type": "string"},
+          "expected_effect": {"type": "string"},
+          "requires_human_review": {"const": true},
+          "auto_apply": {"const": false}
+        },
+        "additionalProperties": true
+      }
+    },
+    "next_review": {
+      "type": "object",
+      "required": ["status", "auto_apply", "recommended_command"],
+      "properties": {
+        "status": {"enum": ["review_required", "no_actions"]},
+        "auto_apply": {"const": false},
+        "recommended_command": {"type": "string"}
+      },
+      "additionalProperties": true
+    }
+  }
+}

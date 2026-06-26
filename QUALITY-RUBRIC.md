@@ -67,23 +67,23 @@ Planning Principles), and [docs/plans/AGENTIC_BALANCE.md](docs/plans/AGENTIC_BAL
 
 ## Current Cycle Alignment - 2026-06-26
 
-Active task: attach read-only expert self-model focus metadata to sync learning
-loop records and sync capacity waits without widening autonomy.
+Active task: add a read-only metacognitive monitor that converts measured
+expert evidence into review-required proposals without widening autonomy.
 
 Target score before merge:
 
 | Category | Required score | Evidence |
 |---|---:|---|
-| Correctness | 5/5 | Sync loop tests prove completed sync records and capacity gates expose self-model run context when a profile exists. |
-| Security | 5/5 | Embedded self-model metadata is read-only, `$0`, path-free, secret-free, and separate from executable next actions. |
-| Performance | 5/5 | Work is bounded to the active sync expert and a focus limit of 3; no provider calls, embeddings, or paid validation. |
-| Readability | 5/5 | One shared helper shapes compact self-model metadata for consults and syncs. |
-| Maintainability | 5/5 | `run_context` keeps metadata out of `next_action` and uses additive v1 contract fields. |
-| Simplicity | 5/5 | No new dependency, no persistence store, no prompt mutation, no monitor writer. |
+| Correctness | 5/5 | Monitor tests prove self-model risks, failed loops, capacity waits, and consult trace candidates become schema-valid proposals. |
+| Security | 5/5 | Proposals are read-only, `$0`, path-free, secret-free, review-required, and never auto-applied. |
+| Performance | 5/5 | Work is bounded to recent local loop/trace records and a focus limit of 3; no provider calls, embeddings, or paid validation. |
+| Readability | 5/5 | Proposal rules are explicit structural signals over existing artifacts. |
+| Maintainability | 5/5 | Published v1 schema, registry entry, and CLI surface keep the monitor artifact consumable by agents. |
+| Simplicity | 5/5 | No new dependency, no persistence store, no prompt mutation, no self-model writer. |
 
-Cycle 5 wires the self-model into sync learning metadata only. The same bar
-applies, with two added gates: no mutation of expert state, and no semantic
-verdict from lexical rules.
+Cycle 6 adds a read-only monitor artifact only. The same bar applies, with two
+added gates: no mutation of expert state, and no semantic verdict from lexical
+rules.
 
 ## How to score (maker-checker)
 

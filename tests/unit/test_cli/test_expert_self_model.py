@@ -8,7 +8,7 @@ from unittest.mock import MagicMock, patch
 
 from click.testing import CliRunner
 
-from deepr.cli.commands.semantic.expert_self_model import expert_self_model
+from deepr.cli.commands.semantic.expert_self_model import expert_monitor, expert_self_model
 from deepr.cli.main import cli
 from deepr.core.contracts import Claim, ExpertManifest, Gap
 from deepr.experts.profile import ExpertProfile
@@ -46,6 +46,13 @@ def test_self_model_registered_in_expert_help():
     assert "read-only self-model" in result.output.lower()
 
 
+def test_monitor_registered_in_expert_help():
+    result = CliRunner().invoke(cli, ["expert", "monitor", "--help"])
+
+    assert result.exit_code == 0
+    assert "metacognitive proposals" in result.output.lower()
+
+
 def test_self_model_json_output():
     with _patch_store(_profile()):
         result = CliRunner().invoke(expert_self_model, ["Agent Harness Expert", "--focus-limit", "1", "--json"])
@@ -74,3 +81,92 @@ def test_self_model_missing_expert_exits_nonzero():
 
     assert result.exit_code != 0
     assert "not found" in result.output.lower()
+
+
+def test_monitor_json_output(monkeypatch):
+    profile = _profile()
+    payload = {
+        "schema_version": "deepr-metacognitive-monitor-v1",
+        "kind": "deepr.expert.metacognitive_monitor",
+        "expert_name": profile.name,
+        "proposal_count": 0,
+        "signals": {
+            "failed_loop_count": 0,
+            "consult_trace_candidate_count": 0,
+        },
+        "proposals": [],
+    }
+
+    class FakeLoopStore:
+        def __init__(self, name):
+            assert name == profile.name
+
+        def list_runs(self, *, limit):
+            assert limit == 5
+            return []
+
+    monkeypatch.setattr("deepr.experts.loop_runs.ExpertLoopRunStore", FakeLoopStore)
+    monkeypatch.setattr(
+        "deepr.experts.metacognitive_monitor.build_consult_trace_candidates_for_expert",
+        lambda expert_name, **kwargs: {"candidate_count": 0, "candidates": []},
+    )
+    monkeypatch.setattr(
+        "deepr.experts.metacognitive_monitor.build_metacognitive_monitor_report",
+        lambda loaded_profile, **kwargs: payload,
+    )
+
+    with _patch_store(profile):
+        result = CliRunner().invoke(expert_monitor, [profile.name, "--limit", "5", "--json"])
+
+    assert result.exit_code == 0, result.output
+    assert json.loads(result.output)["kind"] == "deepr.expert.metacognitive_monitor"
+
+
+def test_monitor_zero_limit_skips_loop_runs(monkeypatch):
+    profile = _profile()
+    captured = {}
+    payload = {
+        "schema_version": "deepr-metacognitive-monitor-v1",
+        "kind": "deepr.expert.metacognitive_monitor",
+        "expert_name": profile.name,
+        "proposal_count": 0,
+        "signals": {
+            "failed_loop_count": 0,
+            "consult_trace_candidate_count": 0,
+        },
+        "proposals": [],
+    }
+
+    class FakeLoopStore:
+        def __init__(self, name):
+            assert name == profile.name
+
+        def list_runs(self, *, limit):
+            raise AssertionError(f"zero limit should skip loop-run loading, got {limit}")
+
+    def fake_candidates(expert_name, **kwargs):
+        captured["candidate_kwargs"] = kwargs
+        assert expert_name == profile.name
+        return {"candidate_count": 0, "candidates": []}
+
+    def fake_report(loaded_profile, **kwargs):
+        captured["report_kwargs"] = kwargs
+        assert loaded_profile is profile
+        return payload
+
+    monkeypatch.setattr("deepr.experts.loop_runs.ExpertLoopRunStore", FakeLoopStore)
+    monkeypatch.setattr(
+        "deepr.experts.metacognitive_monitor.build_consult_trace_candidates_for_expert",
+        fake_candidates,
+    )
+    monkeypatch.setattr(
+        "deepr.experts.metacognitive_monitor.build_metacognitive_monitor_report",
+        fake_report,
+    )
+
+    with _patch_store(profile):
+        result = CliRunner().invoke(expert_monitor, [profile.name, "--limit", "0", "--json"])
+
+    assert result.exit_code == 0, result.output
+    assert captured["candidate_kwargs"]["limit"] == 0
+    assert captured["report_kwargs"]["loop_runs"] == []

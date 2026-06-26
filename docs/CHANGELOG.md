@@ -25,6 +25,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 </details>
 
 ### Added
+- Added `deepr expert monitor`, a `$0` read-only metacognitive monitor surface
+  backed by the published `deepr-metacognitive-monitor-v1` schema. It turns
+  self-model blockers or calibration risks, failed loop runs, capacity waits,
+  and sanitized consult trace candidates into `review_required` proposals
+  without applying goal, strategy, gap, eval, prompt, tool, or skill changes.
 - Added `deepr expert self-model`, a `$0` read-only expert self-model surface
   backed by the published `deepr-expert-self-model-v1` schema. The payload is
   derived from the profile and manifest and includes capabilities, limits,
@@ -153,6 +158,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   improvements.
 
 ### Fixed
+- Fixed Windows malformed UNC-like path normalization so drive-less forms such
+  as `\\0` normalize to the current drive root instead of returning a
+  non-absolute `WindowsPath('//0')`.
 - The free DuckDuckGo retrieval path now retries with exponential backoff (3
   attempts) instead of a single attempt. DuckDuckGo rate-limits aggressively, so
   one transient failure was degrading to "no sources -> no report" and starving
