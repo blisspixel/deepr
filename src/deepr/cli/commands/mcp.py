@@ -56,6 +56,133 @@ def _format_audit_cost(cost_usd: float | None) -> str:
     return "none" if cost_usd is None else f"${cost_usd:.4f}"
 
 
+def _normalize_mcp_path(path: str) -> str:
+    resolved = path.strip() or "/mcp"
+    return resolved if resolved.startswith("/") else f"/{resolved}"
+
+
+def _resolve_agent_endpoint(
+    *,
+    endpoint: str | None,
+    public_host: str | None,
+    bind_host: str,
+    port: int,
+    http_path: str,
+) -> str:
+    if endpoint:
+        return endpoint.rstrip("/")
+    host = public_host or bind_host
+    return f"http://{host}:{port}{_normalize_mcp_path(http_path)}"
+
+
+def _build_agent_guide_text(
+    *,
+    endpoint: str,
+    token: str,
+    key_id: str | None,
+    bind_host: str,
+    port: int,
+    http_path: str,
+    keys_path: str,
+    mode: str,
+    budget: float | None,
+    rate_limit: int | None,
+    experts: tuple[str, ...],
+    synthesis_backend: str,
+    plan: str | None,
+) -> str:
+    import json
+
+    arguments: dict[str, object] = {
+        "_approved": True,
+        "question": "What should the current project do next?",
+        "max_experts": 3,
+        "synthesis_backend": synthesis_backend,
+        "budget": 0,
+    }
+    if experts:
+        arguments["experts"] = list(experts)
+    if synthesis_backend == "plan" and plan:
+        arguments["plan"] = plan
+    consult_call = {"name": "deepr_consult_experts", "arguments": arguments}
+
+    list_step = (
+        f"2. Use only these experts: {', '.join(experts)}."
+        if experts
+        else "2. Call deepr_list_experts and select the most relevant expert."
+    )
+    info_step = (
+        "3. Call deepr_get_expert_info for one allowed expert with _approved=true."
+        if experts
+        else "3. Call deepr_get_expert_info for the selected expert with _approved=true."
+    )
+    key_line = f"Key id: {key_id}" if key_id else "Key id: shared token"
+    budget_line = "none" if budget is None else f"${budget:.2f}"
+    rate_line = "none" if rate_limit is None else f"{rate_limit}/minute"
+    normalized_path = _normalize_mcp_path(http_path)
+
+    return f"""# Deepr MCP Agent Trial
+
+## Operator
+
+Run this on the machine that owns the Deepr experts:
+
+```powershell
+cd C:\\GitHub\\deepr
+$env:DEEPR_MCP_KEYS_PATH = "{keys_path}"
+.\\.venv\\Scripts\\deepr.exe mcp serve --http --host {bind_host} --port {port} --path {normalized_path} --keys-path $env:DEEPR_MCP_KEYS_PATH
+```
+
+Smoke test:
+
+```powershell
+.\\.venv\\Scripts\\deepr.exe mcp smoke-http {endpoint} --auth-token "{token}"
+```
+
+Scoped key:
+
+```text
+{key_line}
+Mode: {mode}
+Budget: {budget_line}
+Rate limit: {rate_line}
+Token: {token}
+```
+
+## Agent Instructions
+
+Connect to:
+
+```text
+{endpoint}
+```
+
+Use this HTTP header:
+
+```text
+Authorization: Bearer {token}
+```
+
+Rules:
+
+1. First call deepr_tool_search with query "expert list handoff consult".
+{list_step}
+{info_step}
+4. Prefer deepr_expert_handoff for context. Include _approved=true.
+5. Prefer deepr_consult_experts for questions. Include _approved=true.
+6. Do not call deepr_query_expert, deepr_research, deepr_agentic_research, deepr_expert_absorb, deepr_reflect, deepr_install_skill, or mutating tools.
+7. For consults, force no-metered execution with synthesis_backend="{synthesis_backend}" and budget=0.
+8. Verify capacity.live_metered_fallback=false and cost_usd=0.
+9. If local or plan synthesis is unavailable, return the structured error. Do not retry with API or metered fallback.
+
+Example consult call:
+
+```json
+{json.dumps(consult_call, indent=2)}
+```
+"""
+
+
 def _filter_audit_records(records, *, key_id: str | None, tool_name: str | None, outcome: str | None):
     filtered = records
     if key_id:
@@ -309,6 +436,129 @@ def summarize_audit(
             continue
         for name, bucket in summary[key].items():
             click.echo(f"  {name}\t{bucket['count']}\t{_format_audit_cost(bucket['cost_usd'])}")
+
+
+@mcp.command("agent-guide")
+@click.option("--endpoint", help="Full MCP endpoint to give the remote agent. Overrides --public-host.")
+@click.option("--public-host", help="Host or LAN IP the remote agent should use.")
+@click.option("--host", "bind_host", default="127.0.0.1", show_default=True, help="HTTP host for the server command.")
+@click.option("--port", default=8765, show_default=True, type=click.IntRange(min=1, max=65535), help="HTTP port.")
+@click.option("--path", "http_path", default="/mcp", show_default=True, help="HTTP MCP path.")
+@click.option("--keys-path", type=click.Path(dir_okay=False, path_type=str), default="data/security/mcp_keys.json")
+@click.option("--key-id", help="Stable scoped key id. Defaults to a generated id.")
+@click.option(
+    "--mode",
+    type=click.Choice(["read_only", "standard", "extended", "unrestricted"], case_sensitive=False),
+    default="standard",
+    show_default=True,
+    help="Scoped-key mode. Standard is needed for approved expert handoff and consult calls.",
+)
+@click.option("--budget", type=click.FloatRange(min=0.0), default=0.0, show_default=True)
+@click.option("--rate-limit", type=click.IntRange(min=1), default=30, show_default=True)
+@click.option("--expert", "experts", multiple=True, help="Restrict this key to one expert. Repeatable.")
+@click.option("--auth-token", help="Use an existing bearer token instead of creating a scoped key.")
+@click.option("--no-create-key", is_flag=True, help="Do not create a key; requires --auth-token.")
+@click.option(
+    "--synthesis-backend",
+    type=click.Choice(["local", "plan"], case_sensitive=False),
+    default="local",
+    show_default=True,
+    help="No-metered consult backend to instruct the agent to use.",
+)
+@click.option("--plan", help="Plan id when --synthesis-backend=plan, such as codex or claude.")
+@click.option("--output", type=click.Path(dir_okay=False, path_type=str), help="Write the guide to a file.")
+@click.option("--json", "as_json", is_flag=True, help="Emit machine-readable JSON with the guide text.")
+def agent_guide(
+    endpoint: str | None,
+    public_host: str | None,
+    bind_host: str,
+    port: int,
+    http_path: str,
+    keys_path: str,
+    key_id: str | None,
+    mode: str,
+    budget: float,
+    rate_limit: int,
+    experts: tuple[str, ...],
+    auth_token: str | None,
+    no_create_key: bool,
+    synthesis_backend: str,
+    plan: str | None,
+    output: str | None,
+    as_json: bool,
+):
+    """Create a scoped MCP trial key and print remote-agent instructions."""
+    import json
+    from pathlib import Path
+
+    from deepr.mcp.security.tool_allowlist import ResearchMode
+
+    normalized_path = _normalize_mcp_path(http_path)
+    resolved_endpoint = _resolve_agent_endpoint(
+        endpoint=endpoint,
+        public_host=public_host,
+        bind_host=bind_host,
+        port=port,
+        http_path=normalized_path,
+    )
+    token = auth_token
+    record_id = key_id
+    if no_create_key and not token:
+        raise click.ClickException("--no-create-key requires --auth-token")
+    if token is None:
+        try:
+            token, record = _load_key_store(keys_path).create_key(
+                key_id,
+                mode=ResearchMode(mode.lower()),
+                expert_allowlist=experts,
+                budget_limit_usd=budget,
+                rate_limit_per_minute=rate_limit,
+            )
+        except Exception as exc:
+            raise click.ClickException(str(exc)) from exc
+        record_id = record.key_id
+    if synthesis_backend.lower() == "plan" and not plan:
+        plan = "codex"
+
+    guide = _build_agent_guide_text(
+        endpoint=resolved_endpoint,
+        token=token,
+        key_id=record_id,
+        bind_host=bind_host,
+        port=port,
+        http_path=normalized_path,
+        keys_path=keys_path,
+        mode=mode.lower(),
+        budget=budget,
+        rate_limit=rate_limit,
+        experts=experts,
+        synthesis_backend=synthesis_backend.lower(),
+        plan=plan,
+    )
+    payload = {
+        "schema_version": "deepr-mcp-agent-guide-v1",
+        "endpoint": resolved_endpoint,
+        "key_id": record_id,
+        "mode": mode.lower(),
+        "budget_limit_usd": budget,
+        "rate_limit_per_minute": rate_limit,
+        "expert_allowlist": list(experts),
+        "token": token,
+        "server_command": (
+            f".\\.venv\\Scripts\\deepr.exe mcp serve --http --host {bind_host} --port {port} "
+            f"--path {normalized_path} --keys-path {keys_path}"
+        ),
+        "guide": guide,
+    }
+    if output:
+        Path(output).write_text(guide, encoding="utf-8")
+        if not as_json:
+            click.echo(f"Wrote MCP agent guide: {output}")
+            return
+    if as_json:
+        click.echo(json.dumps(payload, indent=2, sort_keys=True))
+    else:
+        click.echo(guide, nl=False)
 
 
 @mcp.command()
