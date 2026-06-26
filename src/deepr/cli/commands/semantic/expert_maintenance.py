@@ -565,6 +565,7 @@ def sync_cmd(
             context_mode=context_mode,
             json_output=json_output,
             detail="scheduled sync is waiting for owned/prepaid capacity instead of using metered API",
+            profile=profile,
         )
         return
 
@@ -574,6 +575,7 @@ def sync_cmd(
             context_mode=context_mode,
             json_output=json_output,
             detail="fresh/deep context requires a local or plan-quota sync backend",
+            profile=profile,
         )
         sys.exit(2)
 
@@ -589,6 +591,7 @@ def sync_cmd(
                     context_mode=context_mode,
                     json_output=json_output,
                     detail="scheduled local sync is waiting for a running local model",
+                    profile=profile,
                 )
                 return
             print_error("No local model available. Is Ollama running? Check: deepr capacity --probe")

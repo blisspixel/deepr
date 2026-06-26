@@ -91,6 +91,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   confidence, provenance, temporal context, and a next learning plan.
 
 ### Changed
+- Sync learning loop records now carry bounded read-only self-model metadata in
+  `run_context.self_model`, and sync capacity wait/block payloads expose the
+  same compact block when an expert profile is available. This uses the shared
+  self-model context builder, keeps `next_action` action-only, and does not
+  mutate expert goals, prompts, or state.
 - `deepr expert consult` perspective context now includes bounded read-only
   self-model metadata when the expert profile exists. The embedded block carries
   current goals, calibration, blocker/risk counts, and the current-focus packet

@@ -3,6 +3,31 @@
 Working log only. Keep the latest five cycles plus the active cycle here; older
 completed milestones are summarized in `docs/CHANGELOG.md`.
 
+## 2026-06-26 - Cycle 5 - Sync self-model run context
+
+- Added one shared compact self-model context builder and refactored council
+  consults to use it, eliminating duplicate shaping logic.
+- Added additive `ExpertLoopRun.run_context` metadata and kept `next_action`
+  action-only.
+- Attached bounded read-only `self_model` metadata to completed sync loop
+  records, overlap-locked sync records, scheduled sync capacity waits, and sync
+  capacity blocks when an expert profile exists.
+- Updated loop-status and sync-capacity schemas with optional additive fields.
+- Updated README, roadmap, expert docs, features, supported surface, schema
+  docs, changelog, current-state analysis, and quality rubric to mark
+  learning-run self-model context as shipped while keeping metacognitive
+  mutation as the next gated step.
+- Validation passed: 66 focused self-model, loop-run, council, and maintenance
+  tests; `ruff check src/deepr/`; `ruff format --check src/deepr/`; strict mypy
+  gate for `core/providers/mcp`; docs consistency; file-size ratchet;
+  complexity/security ratchets; full unit suite `6702 passed, 8 skipped`,
+  branch coverage `83.04%`.
+- Maker-checker score: correctness 5/5, security 5/5, performance 5/5,
+  maintainability 5/5, simplicity 5/5, testability 5/5.
+- Spend: `$0.00`.
+
+Cycle health: 5/5 | Simplicity: 5/5 | Est. spend: $0.00 | New skill distilled: loop run context metadata
+
 ## 2026-06-26 - Cycle 4 - Consult self-model focus metadata
 
 - Added bounded read-only self-model metadata to consult perspective context for
@@ -84,28 +109,4 @@ completed milestones are summarized in `docs/CHANGELOG.md`.
   `6682 passed, 8 skipped`, branch coverage `82.97%`.
 - Maker-checker score: correctness 5/5, security 5/5, performance 5/5,
   maintainability 5/5, simplicity 5/5, testability 5/5.
-- Spend: `$0.00`.
-
-Cycle health: 5/5 | Simplicity: 5/5 | Est. spend: $0.00 | New skill distilled: none
-
-## 2026-06-26 - Free-web retrieval hardening + repo hygiene
-
-- Added bounded retry/backoff around DDGS so one transient keyless-search failure
-  no longer starves `$0` expert maintenance.
-- Kept the retry helper injectable for tests and avoided new security-ratchet
-  debt.
-- Removed one-off session scripts, added `QUALITY-RUBRIC.md`, updated
-  `docs/CHANGELOG.md`, and committed accumulated work on a feature branch.
-- Validation: focused web-search tests, ratchets, ruff, and format.
-- Spend: `$0.00`.
-
-## 2026-06-26 - Agent QOL discovery + LAN validation
-
-- Fixed plan-quota false exhaustion by scanning the answer body never, stderr on
-  successful runs, and full output only on failed runs.
-- Added `deepr_capabilities`, a free versioned MCP discovery map over roster,
-  tools, cost tiers, structured errors, and owned/prepaid synthesis paths.
-- Validated HTTP MCP LAN access with token auth: authorized calls pass,
-  unauthenticated calls are rejected.
-- Filled additional project experts through plan capacity after windows reset.
 - Spend: `$0.00`.
