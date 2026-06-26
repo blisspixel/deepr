@@ -57,6 +57,12 @@ from deepr.experts.consult_traces import (
 from deepr.experts.handoff import build_expert_handoff
 from deepr.experts.loop_runs import ExpertLoopRun, ExpertLoopRunStore, LoopRunStatus, LoopStopReason
 from deepr.experts.loop_status_rollup import build_loop_status_rollup
+from deepr.experts.profile import ExpertProfile
+from deepr.experts.self_model import (
+    EXPERT_SELF_MODEL_KIND,
+    EXPERT_SELF_MODEL_SCHEMA_VERSION,
+    build_expert_self_model,
+)
 from deepr.mcp.security.scoped_keys import AUDIT_KIND, AUDIT_SCHEMA_VERSION, RemoteMCPAuditEvent
 from deepr.mcp.security.tool_allowlist import ResearchMode
 from deepr.mcp.smoke import (
@@ -243,6 +249,29 @@ def test_expert_handoff_schema_validates_grounding_assurance_payload():
     assert payload["summary"]["cross_vendor_verified_claim_count"] == 1
     assert payload["summary"]["grounding_assurance"]["cross_vendor"] == 1
     assert payload["claims"][0]["grounding_assurance"] == "cross_vendor"
+
+
+def test_expert_self_model_schema_validates_runtime_payload():
+    profile = ExpertProfile(
+        name="Self Model Expert",
+        vector_store_id="vs-self-model",
+        domain="self models",
+        knowledge_cutoff_date=datetime(2026, 6, 26, 12, 0, tzinfo=UTC),
+        last_knowledge_refresh=datetime(2026, 6, 26, 12, 0, tzinfo=UTC),
+        installed_skills=["consult-review"],
+    )
+    manifest = ExpertManifest(
+        expert_name="Self Model Expert",
+        domain="self models",
+        claims=[Claim.create("Experts need bounded current-focus packets.", "self models", 0.86)],
+    )
+    payload = build_expert_self_model(profile, manifest, focus_limit=1)
+    schema = _load_schema("expert-self-model-v1.json")
+
+    _validate(schema, payload)
+    assert payload["schema_version"] == EXPERT_SELF_MODEL_SCHEMA_VERSION
+    assert payload["kind"] == EXPERT_SELF_MODEL_KIND
+    assert payload["contract"]["goal_changes_require_review"] is True
 
 
 def test_mcp_remote_audit_schema_validates_runtime_event_payload():

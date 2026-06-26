@@ -15,6 +15,14 @@
       "compatibility": "additive-within-v1"
     },
     {
+      "name": "expert-self-model",
+      "schema_version": "deepr-expert-self-model-v1",
+      "kind": "deepr.expert.self_model",
+      "path": "expert-self-model-v1.json",
+      "status": "experimental",
+      "compatibility": "additive-within-v1"
+    },
+    {
       "name": "loop-status",
       "schema_version": "deepr-loop-status-v1",
       "kind": "deepr.expert.loop_status",

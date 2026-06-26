@@ -511,6 +511,9 @@ context metadata, capacity posture, checks run, and synthesis failure events.
 `deepr expert consult-traces` reviews those local records and emits sanitized
 `deepr-consult-trace-candidates-v1` gap/eval candidates for failed or
 low-context consults.
+`deepr expert self-model NAME --json` emits a read-only
+`deepr-expert-self-model-v1` record with capabilities, limits, goals,
+calibration, risks, and the bounded current-focus packet.
 
 **Task Planning** decomposes complex queries into subtasks:
 
@@ -626,6 +629,9 @@ deepr expert contested "Azure Architect"
 # Introspection: why does the expert believe X? Evidence roots, confidence
 # trajectory (event log), support chains (typed graph), contradictions.
 deepr expert why "Azure Architect" "landing zone subscription vending"
+
+# Derived self-model: capabilities, limits, goals, calibration, current focus.
+deepr expert self-model "Azure Architect" --json
 
 # Browsable derived view: beliefs by domain, conflicts surfaced, byte-stable
 deepr expert digest "Azure Architect" --print

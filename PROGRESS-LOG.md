@@ -3,6 +3,25 @@
 Working log only. Keep the latest five cycles plus the active cycle here; older
 completed milestones are summarized in `docs/CHANGELOG.md`.
 
+## 2026-06-26 - Cycle 3 - Expert self-model records
+
+- Added `deepr-expert-self-model-v1` as a read-only derived expert record with
+  capabilities, limits, current goals, calibration, learning strategy,
+  continuity summary, blocked capabilities, unresolved risks, and a bounded
+  current-focus packet.
+- Added `deepr expert self-model NAME` with `--json` and `--focus-limit`.
+- Published and registered `docs/schemas/expert-self-model-v1.json`.
+- Updated README, roadmap, supported-surface docs, expert docs, schema docs,
+  current-state analysis, and the quality rubric to distinguish the shipped
+  read-only self-model from the still-planned metacognitive monitor.
+- Validation passed: 25 focused self-model/schema tests; `ruff check src/deepr/`;
+  `ruff format --check src/deepr/`; strict mypy gate for `core/providers/mcp`;
+  docs consistency; file-size ratchet; complexity/security ratchets; full unit
+  suite `6696 passed, 8 skipped`, branch coverage `82.99%`.
+- Maker-checker score: correctness 5/5, security 5/5, performance 5/5,
+  maintainability 5/5, simplicity 5/5, testability 5/5.
+- Spend: `$0.00`.
+
 ## 2026-06-26 - Cycle 2 - Consult trace candidate review
 
 - Added sanitized `deepr-consult-trace-candidates-v1` review for failed or
@@ -75,14 +94,4 @@ Cycle health: 5/5 | Simplicity: 5/5 | Est. spend: $0.00 | New skill distilled: n
 - Validated plan probes and fills end to end; Antigravity remains explicit-only
   and ToS gray-zone.
 - Added regression coverage for delivery modes and transcript recovery.
-- Spend: `$0.00`.
-
-## 2026-06-25 - Expert-quality dogfood
-
-- Audited live expert beliefs and fixed extraction prompt failures that produced
-  source-pointer claims or model-disclaimer beliefs.
-- Preserved the boundary: prompt-level model extraction owns meaning; no brittle
-  lexical stripper was added.
-- Raised consult auto-fan-out to 10 with a relevance floor and fixed Claude
-  plan synthesis on Windows by moving prompts to stdin.
 - Spend: `$0.00`.
