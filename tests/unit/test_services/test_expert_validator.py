@@ -197,7 +197,7 @@ class TestValidate:
     @pytest.mark.asyncio
     async def test_unknown_claim_id_is_dropped(self):
         """If the model hallucinates a claim id that isn't in the evidence
-        block, it must NOT appear in the result — citation provenance has
+        block, it must NOT appear in the result - citation provenance has
         to be ground-truth."""
         c1 = _make_claim("Real claim", 0.9, claim_id="real")
         expert = _make_expert(claims=[c1])

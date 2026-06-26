@@ -1,4 +1,4 @@
-"""MCP client pool — manages multiple server connections with health monitoring.
+"""MCP client pool - manages multiple server connections with health monitoring.
 
 Provides parallel dispatch across MCP servers, circuit breaker per server,
 automatic fallback, budget/trace/progress integration, and aggregated health.
@@ -186,7 +186,7 @@ class MCPClientPool:
         circuit = self._circuits.get(server_name)
         if circuit and not circuit.is_available():
             return MCPToolResult(
-                error=f"Circuit breaker open for '{server_name}' — server temporarily unavailable",
+                error=f"Circuit breaker open for '{server_name}' - server temporarily unavailable",
                 server_name=server_name,
                 tool_name=tool_name,
                 trace_id=trace_id,
@@ -210,7 +210,7 @@ class MCPClientPool:
                 circuit.record_failure()
 
         # 6. Record cost + complete span. The server-reported cost is
-        # untrusted — a malicious remote MCP server can return ``0`` to
+        # untrusted - a malicious remote MCP server can return ``0`` to
         # bypass spend tracking, or a negative value to credit budget
         # back. Clamp to a sane range bounded by the profile's
         # ``cost_per_call`` (10x ceiling so high-cost tool variants
@@ -236,9 +236,9 @@ class MCPClientPool:
 
         # Emit a terminal progress event so subscribers learn the call
         # completed. Round 2/3 audits flagged that ``_progress_notifier``
-        # was stored but never triggered — every subscriber saw zero
+        # was stored but never triggered - every subscriber saw zero
         # events. Server-pushed mid-flight progress frames still need
-        # wiring from ``MCPClient._send_request`` (deferred — would
+        # wiring from ``MCPClient._send_request`` (deferred - would
         # require threading a callback through the client).
         if self._progress_notifier is not None:
             try:

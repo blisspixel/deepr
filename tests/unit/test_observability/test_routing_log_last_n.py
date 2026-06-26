@@ -38,7 +38,7 @@ class TestLastNSemantics:
 
         events = log.get_events(limit=5)
         # The five returned events must be the LAST five recorded, in
-        # insertion order — not the first five.
+        # insertion order - not the first five.
         assert len(events) == 5
         assert [e.model for e in events] == [f"gpt-{i}" for i in range(15, 20)]
 
@@ -51,7 +51,7 @@ class TestLastNSemantics:
     def test_filter_with_limit(self, log):
         for i in range(10):
             log.record(_make_event(i))
-        # Filter to specific model — should still return up to ``limit``
+        # Filter to specific model - should still return up to ``limit``
         # MOST RECENT matches.
         events = log.get_events(model="gpt-7", limit=5)
         assert len(events) == 1

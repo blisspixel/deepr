@@ -3,6 +3,35 @@
 Working log only. Keep the latest five cycles plus the active cycle here; older
 completed milestones are summarized in `docs/CHANGELOG.md`.
 
+## 2026-06-26 - Cycle 9 - README and docs clarity pass
+
+- Reworked README into a concise front door: product framing, quick start, what
+  works now, core workflows, agentic-balance guardrails, cost controls,
+  supported-surface summary, and documentation links.
+- Moved detailed local, plan-quota, metered API, scheduler, and cost-accounting
+  operations into new `docs/CAPACITY.md`.
+- Refined the ROADMAP next-order language so verifier-gated self-model updates
+  are explicitly reviewable evidence-backed proposals, not autonomous
+  self-mutation or authority expansion.
+- Clarified the research-processing compiler boundary: deterministic code owns
+  source snapshots, hashes, prompt/schema versions, commit points, and
+  regenerated views; calibrated model judgment owns meaning.
+- Added a costing deep dive to `docs/CAPACITY.md` from current provider docs:
+  cached-token buckets, server-side tool costs, exact provider settlement,
+  tier modifiers, and why cache controls wait for TTL/cache-key/pre-warm
+  estimators.
+- Ran a Markdown cleanup for emoji markers and AI-attribution-shaped phrases,
+  plus a repository-wide literal em/en dash cleanup in tracked text files.
+- Validation passed: repository-wide literal em/en dash scan; Markdown emoji
+  and AI-attribution scans; `ruff check src/deepr/`; `ruff format --check
+  src/deepr/`; docs consistency; file-size ratchet; complexity/security
+  ratchets; strict mypy gate for `core/providers/mcp`; frontend `npm run lint`,
+  `npx tsc --noEmit`, and `npx vite build`; full unit suite `6726 passed, 8
+  skipped`, branch coverage `83.20%`.
+- Maker-checker target score: correctness 5/5, security 5/5, performance 5/5,
+  maintainability 5/5, simplicity 5/5, testability 5/5.
+- Spend: `$0.00`.
+
 ## 2026-06-26 - Cycle 8 - Provider cost settlement audit
 
 - Audited the money paths the user called out: local Ollama still reports
@@ -117,26 +146,3 @@ completed milestones are summarized in `docs/CHANGELOG.md`.
 - Spend: `$0.00`.
 
 Cycle health: 5/5 | Simplicity: 5/5 | Est. spend: $0.00 | New skill distilled: loop run context metadata
-
-## 2026-06-26 - Cycle 4 - Consult self-model focus metadata
-
-- Added bounded read-only self-model metadata to consult perspective context for
-  stored-belief, live-session, and no-stored-context paths when an expert profile
-  exists.
-- Kept the integration metadata-only: synthesis prompts, cost behavior, and
-  expert state mutation are unchanged.
-- Updated roadmap, README, expert docs, features, supported surface, changelog,
-  current-state analysis, and quality rubric to mark consult metadata as shipped
-  while keeping learning-run integration and the metacognitive monitor next.
-- Distilled skill into `SKILLS.md`: self-model context should enter consults as
-  bounded metadata before it affects prompts or writes.
-- Replaced the council progress-callback silent no-op with debug logging and
-  tightened the flake8-bandit ratchet baseline from 97 to 96.
-- Validation passed: 31 focused council/trace/consult tests; `ruff check
-  src/deepr/`; `ruff format --check src/deepr/`; strict mypy gate for
-  `core/providers/mcp`; docs consistency; file-size ratchet;
-  complexity/security ratchets; full unit suite `6698 passed, 8 skipped`,
-  branch coverage `83.03%`.
-- Maker-checker score: correctness 5/5, security 5/5, performance 5/5,
-  maintainability 5/5, simplicity 5/5, testability 5/5.
-- Spend: `$0.00`.

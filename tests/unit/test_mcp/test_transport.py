@@ -295,7 +295,7 @@ class TestStreamingHttpTransport:
         assert transport.url == "http://localhost:9000/api"
 
     def test_default_url(self):
-        """Default URL uses standard values — loopback for safety."""
+        """Default URL uses standard values - loopback for safety."""
         transport = StreamingHttpTransport()
         assert transport.url == "http://127.0.0.1:8765/mcp"
 

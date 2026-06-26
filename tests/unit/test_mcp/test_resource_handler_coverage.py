@@ -81,7 +81,7 @@ class TestReportResources:
         assert r.data["cost"] == 1.5
 
     def test_summary_json_falls_back_to_job_state(self, handler, job_dir):
-        # No file present — should fall through to JobManager state, which is None.
+        # No file present - should fall through to JobManager state, which is None.
         r = handler.read_resource(f"deepr://reports/{job_dir.name}/summary.json")
         assert r.success is False
 
@@ -90,7 +90,7 @@ class TestReportResources:
         assert r.success is False
 
     def test_path_traversal_blocked(self, handler):
-        # ".." in job_id makes resolved path escape reports_base — the
+        # ".." in job_id makes resolved path escape reports_base - the
         # resolve().is_relative_to check should reject it.
         r = handler.read_resource("deepr://reports/..%2F..%2Fetc%2Fpasswd/final.md")
         # Either invalid URI or invalid job_id; both are failure states.
@@ -155,5 +155,5 @@ class TestListResources:
 
     def test_filter_to_campaigns(self, handler):
         urls = handler.list_resources(resource_type="campaigns")
-        # No jobs registered — campaigns list comes back empty.
+        # No jobs registered - campaigns list comes back empty.
         assert isinstance(urls, list)

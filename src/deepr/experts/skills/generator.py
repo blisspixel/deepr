@@ -159,7 +159,7 @@ def generate_skill_from_report(
         "triggers": {
             "keywords": keywords[:15],  # Cap at 15 trigger keywords
         },
-        "tools": [],  # Knowledge skills don't need tools — prompt is the value
+        "tools": [],  # Knowledge skills don't need tools - prompt is the value
         "budget": {
             "max_per_call": 0.0,
             "default_budget": 0.0,
@@ -285,7 +285,7 @@ def _build_prompt(topic: str, content: str) -> str:
         truncated += "\n\n... (truncated)"
 
     return (
-        f"# {topic} — Knowledge Context\n\n"
+        f"# {topic} - Knowledge Context\n\n"
         f"You have access to the following research on **{topic}**. "
         f"Use this knowledge to inform your responses. "
         f"Cite specific findings when relevant.\n\n"

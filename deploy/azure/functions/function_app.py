@@ -217,7 +217,7 @@ def submit_job(req: func.HttpRequest) -> func.HttpResponse:
     job = {
         # Cosmos DB document id. The container's partition-key path is
         # ``/job_id`` (see main.bicep), so the document MUST also carry
-        # a top-level ``job_id`` field — without it inserts either fail
+        # a top-level ``job_id`` field - without it inserts either fail
         # or land under the ``null`` partition, breaking every read.
         "id": job_id,
         "job_id": job_id,

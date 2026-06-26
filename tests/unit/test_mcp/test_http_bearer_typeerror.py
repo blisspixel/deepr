@@ -2,7 +2,7 @@
 ``hmac.compare_digest`` raises on non-ASCII string inputs and return 401
 instead of letting it escape into a generic 500.
 
-Same fix as web/app.py + api/app.py — applied to the MCP surface in
+Same fix as web/app.py + api/app.py - applied to the MCP surface in
 the bug-hunt pass.
 """
 

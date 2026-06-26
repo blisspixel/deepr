@@ -29,7 +29,7 @@ JOBS_TABLE = os.environ.get("JOBS_TABLE")
 
 # DynamoDB is the API's source of truth for job lifecycle (status,
 # cancellation, completion). The worker must read/write DynamoDB rather than
-# a parallel S3 metadata.json that the API never creates — otherwise
+# a parallel S3 metadata.json that the API never creates - otherwise
 # cancelled jobs still execute and completed reports never become visible
 # to the result endpoint.
 jobs_table = dynamodb.Table(JOBS_TABLE) if JOBS_TABLE else None
@@ -118,7 +118,7 @@ def is_job_cancelled(job_id: str) -> bool:
     """Read the authoritative DynamoDB status to detect cancellation.
 
     Returns False on lookup failure rather than swallowing the error
-    silently — the previous behavior caused cancelled jobs to still call
+    silently - the previous behavior caused cancelled jobs to still call
     paid providers when S3 metadata was unreadable.
     """
     if jobs_table is None:
@@ -282,7 +282,7 @@ def main():
     """Main entry point."""
     # JOBS_TABLE was previously omitted from this check. Without it the
     # worker would still poll SQS, run paid research jobs, then silently
-    # discard the completion update — the API row stayed "queued" forever
+    # discard the completion update - the API row stayed "queued" forever
     # while the user paid the provider. Fail fast instead.
     missing = [
         name

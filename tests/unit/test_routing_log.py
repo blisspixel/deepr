@@ -137,7 +137,7 @@ class TestRoutingDrift:
 
 class TestCostAnomalies:
     def test_detects_outliers(self, log):
-        # 19 normal + 1 extreme — enough data for stable stdev
+        # 19 normal + 1 extreme - enough data for stable stdev
         for _ in range(19):
             log.record(_make_event(cost=0.10))
         log.record(_make_event(cost=5.00))

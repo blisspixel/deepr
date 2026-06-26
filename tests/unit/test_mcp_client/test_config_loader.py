@@ -120,7 +120,7 @@ class TestEnvVarResolution:
         """Missing environment variables raise ``ValueError`` (round-3 fix).
 
         The previous silent-empty behaviour produced confusing downstream
-        errors — a server spawned with ``API_KEY=""`` returned 401
+        errors - a server spawned with ``API_KEY=""`` returned 401
         instead of a clear "var not set" message.
         """
         env_copy = {k: v for k, v in os.environ.items() if k != "NONEXISTENT_VAR_XYZ"}

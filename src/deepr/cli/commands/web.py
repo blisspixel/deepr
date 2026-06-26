@@ -1,4 +1,4 @@
-"""Web dashboard command — start the Deepr web server."""
+"""Web dashboard command - start the Deepr web server."""
 
 import ipaddress
 import os

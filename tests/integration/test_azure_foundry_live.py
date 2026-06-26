@@ -68,7 +68,7 @@ class TestAzureFoundryLive:
         job_id = await provider.submit_research(request)
         assert job_id is not None
 
-        # Deep research is async — check initial status
+        # Deep research is async - check initial status
         response = await provider.get_status(job_id)
         assert response.status in ("in_progress", "completed")
 

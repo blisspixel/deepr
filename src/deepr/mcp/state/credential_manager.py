@@ -171,7 +171,7 @@ class CredentialManager:
 
         NOTE: ``value_encrypted`` column is reserved for a future
         encrypted-at-rest implementation. **Credential values are not
-        currently persisted** — they live only in ``self._value_cache``
+        currently persisted** - they live only in ``self._value_cache``
         in-memory and are lost on process restart. Callers that read a
         ``GatedCredential`` after restart will get ``_value=None``; they
         must re-prompt the user (via the elicitation flow) for the
@@ -304,7 +304,7 @@ class CredentialManager:
         cred = GatedCredential.from_row(row, cached_value)
 
         if cached_value is None:
-            # Row exists but the in-memory value is gone — almost
+            # Row exists but the in-memory value is gone - almost
             # always means the process restarted. Surface this loudly
             # so callers can re-elicit; previously this returned a
             # ``GatedCredential`` with ``_value=None`` that downstream

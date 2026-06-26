@@ -5,7 +5,7 @@ Discovers available models from AI providers and compares against the
 current registry. Two discovery modes:
 
 1. API-based: Query provider model listing APIs directly (model names only,
-   not pricing — most APIs don't expose pricing).
+   not pricing - most APIs don't expose pricing).
 2. LLM-based: Ask an LLM with web access (Grok recommended) for latest
    model info including pricing. Returns structured JSON.
 
@@ -43,7 +43,7 @@ PROJECT_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(PROJECT_ROOT))
 
 # Load .env so keys configured there (not just exported in the shell) are
-# visible — otherwise discovery silently skips providers like Anthropic/Azure.
+# visible - otherwise discovery silently skips providers like Anthropic/Azure.
 try:
     from dotenv import load_dotenv
 
@@ -763,8 +763,8 @@ def classify_new_models(
 def _registry_stub(m: DiscoveredModel) -> str:
     """Render a ready-to-paste ModelCapability stub for a discovered model.
 
-    Pricing (which provider APIs don't expose) and tuning fields are left as
-    TODOs to fill from the provider's pricing page before the entry goes live —
+    Pricing (which provider APIs don't expose) and tuning fields require manual
+    review against the provider's pricing page before the entry goes live -
     wrong pricing silently corrupts budget enforcement and the cost ledger.
     """
     cw = m.context_window or 0
@@ -826,7 +826,7 @@ def print_comparison_report(
 
     if other_count:
         print(
-            f"  ({other_count} other discovered models hidden — older versions, new families, or non-text. Use --all.)\n"
+            f"  ({other_count} other discovered models hidden - older versions, new families, or non-text. Use --all.)\n"
         )
 
     # Pricing changes
@@ -851,7 +851,7 @@ def print_comparison_report(
     print(f"    Registry-only:    {len(registry_only)}")
 
     if registry_only:
-        print("\n  REGISTRY-ONLY (not found in discovery — may be fine):")
+        print("\n  REGISTRY-ONLY (not found in discovery - may be fine):")
         for rm in sorted(registry_only, key=lambda x: x.key):
             print(f"    ? {rm.key}")
 

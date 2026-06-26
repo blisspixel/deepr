@@ -653,7 +653,7 @@ class CostSafetyManager:
             # caller's stale hold cannot keep blocking the pool.
             self._sweep_stale_reservations(time.time())
 
-            # Per-op hard ceiling — any caller value above this is silently
+            # Per-op hard ceiling - any caller value above this is silently
             # treated as a denial regardless of session/daily room.
             if estimated_cost > self.ABSOLUTE_MAX_PER_OPERATION:
                 return (
@@ -962,7 +962,7 @@ def format_cost_warning(expected_cost: float, budget_limit: float | None) -> str
     msg = f"Estimated cost: ${expected_cost:.2f}"
     if budget_limit is not None:
         if expected_cost > budget_limit:
-            msg += f" (exceeds ${budget_limit:.2f} budget — will stop at limit)"
+            msg += f" (exceeds ${budget_limit:.2f} budget - will stop at limit)"
         else:
             msg += f" (within ${budget_limit:.2f} budget)"
     return msg

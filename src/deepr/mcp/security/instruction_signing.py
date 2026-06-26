@@ -353,7 +353,7 @@ class InstructionSigner:
 
 # Module-level singleton signer. The previous implementation instantiated
 # ``InstructionSigner()`` fresh inside ``sign_instruction`` and
-# ``verify_instruction`` — when ``DEEPR_SIGNING_KEY`` was unset each call
+# ``verify_instruction`` - when ``DEEPR_SIGNING_KEY`` was unset each call
 # generated a random key, so verification of any signed instruction always
 # failed. Sharing one signer guarantees the same key is used end-to-end.
 _default_signer: Optional["InstructionSigner"] = None
@@ -365,7 +365,7 @@ def _get_default_signer() -> "InstructionSigner":
         if not os.environ.get(SIGNING_KEY_ENV):
             logger.warning(
                 "%s is not set; generating an ephemeral signing key. Signatures will not "
-                "verify across processes — set %s for production deployments.",
+                "verify across processes - set %s for production deployments.",
                 SIGNING_KEY_ENV,
                 SIGNING_KEY_ENV,
             )

@@ -382,7 +382,7 @@ class TestUploadDocument:
 
     @pytest.mark.asyncio
     async def test_upload_os_error_wrapped(self, provider):
-        # file_path doesn't exist — open() will raise FileNotFoundError (subclass of OSError)
+        # file_path doesn't exist - open() will raise FileNotFoundError (subclass of OSError)
         with pytest.raises(ProviderError, match="Failed to upload"):
             await provider.upload_document("/this/path/does/not/exist.txt")
 

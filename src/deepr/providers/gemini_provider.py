@@ -215,7 +215,7 @@ class GeminiProvider(DeepResearchProvider):
         base_model = model
         # Match the longest pricing key first so e.g. "gemini-2.5-flash-lite"
         # resolves to its own entry instead of the shorter "gemini-2.5-flash"
-        # prefix — which would charge Flash-Lite at ~5x the Flash rate.
+        # prefix - which would charge Flash-Lite at ~5x the Flash rate.
         for key in sorted(self.pricing, key=len, reverse=True):
             if key in model:
                 base_model = key
@@ -276,7 +276,7 @@ class GeminiProvider(DeepResearchProvider):
         return None
 
     # =========================================================================
-    # Submit research — dispatches to deep research or regular mode
+    # Submit research - dispatches to deep research or regular mode
     # =========================================================================
 
     async def submit_research(self, request: ResearchRequest) -> str:
@@ -297,7 +297,7 @@ class GeminiProvider(DeepResearchProvider):
         """
         Submit deep research via the Gemini Interactions API.
 
-        This is a background async job — returns an interaction ID immediately.
+        This is a background async job - returns an interaction ID immediately.
         Poll with get_status() to check for completion.
         """
         max_retries = 3
@@ -442,7 +442,7 @@ class GeminiProvider(DeepResearchProvider):
                 # implementation discarded these and substituted a
                 # len(text) // 4 estimate, which dramatically under-counts
                 # prompts (no system instructions, no embedded media) and
-                # drops thinking tokens entirely — for gemini-2.5-pro
+                # drops thinking tokens entirely - for gemini-2.5-pro
                 # (mandatory thinking) that's often 10x the visible output.
                 last_usage: Any = None
 
@@ -517,7 +517,7 @@ class GeminiProvider(DeepResearchProvider):
                 return
 
     # =========================================================================
-    # Get status — handles both deep research and regular jobs
+    # Get status - handles both deep research and regular jobs
     # =========================================================================
 
     async def get_status(self, job_id: str) -> ResearchResponse:
@@ -581,7 +581,7 @@ class GeminiProvider(DeepResearchProvider):
             # else: still pending/in_progress
 
         except Exception as e:
-            # Whitelist transient errors — anything else (401/403/404,
+            # Whitelist transient errors - anything else (401/403/404,
             # ``not found``) should promote the job to failed so the
             # orchestrator stops polling and cleans up the file_search
             # store (Gemini stores have no TTL). Bare ``except Exception``
@@ -674,7 +674,7 @@ class GeminiProvider(DeepResearchProvider):
         )
 
     # =========================================================================
-    # Deep Research — content extraction helpers
+    # Deep Research - content extraction helpers
     # =========================================================================
 
     def _extract_interaction_content(self, interaction: Any) -> str:
@@ -721,7 +721,7 @@ class GeminiProvider(DeepResearchProvider):
         return count
 
     # =========================================================================
-    # Deep Research — File Search Store support
+    # Deep Research - File Search Store support
     # =========================================================================
 
     async def _create_file_search_store(self, name: str, file_ids: list[str]) -> str | None:
@@ -764,7 +764,7 @@ class GeminiProvider(DeepResearchProvider):
         """
         Delete a File Search Store and its documents.
 
-        Important: Gemini file search stores have no TTL — they persist
+        Important: Gemini file search stores have no TTL - they persist
         until manually deleted. Always clean up after use.
         """
         try:

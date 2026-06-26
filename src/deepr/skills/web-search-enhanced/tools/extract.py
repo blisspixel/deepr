@@ -11,7 +11,7 @@ def structured_extract(text: str, extract_type: str = "all") -> dict[str, Any]:
 
     Args:
         text: Research text to analyze
-        extract_type: What to extract — "facts", "entities", "relationships", or "all"
+        extract_type: What to extract - "facts", "entities", "relationships", or "all"
 
     Returns:
         Dictionary with extracted data

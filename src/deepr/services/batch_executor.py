@@ -403,7 +403,7 @@ class BatchExecutor:
             max_wait_seconds: Hard ceiling on total wall-clock time
                 (default: 1 hour). Without this the loop could run
                 forever if a provider hung or the queue dropped the
-                completion event — campaigns would hold coroutines and
+                completion event - campaigns would hold coroutines and
                 resources indefinitely.
 
         Returns:

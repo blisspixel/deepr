@@ -66,7 +66,7 @@ class ResearchAPI:
 
         # cost_limit is a CAP. Round-1 used ``min(estimated, cap)`` which
         # had the bug of presenting the lower of the two to the safety
-        # check — so a $0.50 cap on a $2.00 model passed the gate even
+        # check - so a $0.50 cap on a $2.00 model passed the gate even
         # though the real spend would exceed the cap. Reject upfront
         # when the model's estimate already exceeds the cap; never
         # downsize the value we hand to ``check_operation``.

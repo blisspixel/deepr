@@ -223,7 +223,7 @@ EVAL_PROMPTS = [
     ),
     # ── Knowledge Base (Domain Expertise) ────────────────────────────────
     # Good = accurate domain knowledge, specific details, no hallucination.
-    # Tests training data quality — what the model actually "knows" —
+    # Tests training data quality - what the model actually "knows" -
     # which is what matters for expert chat and knowledge base building.
     # NOTE: No web access. Tests training data only.
     EvalPrompt(
@@ -631,12 +631,12 @@ DOCS_EVAL_PROMPTS = [
 
 # Chat-tier models: standard chat completions API.
 # Default: one model per routing tier. Tests the routing table, not duplicates.
-# Azure Foundry runs the same models as OpenAI — test it separately for latency.
+# Azure Foundry runs the same models as OpenAI - test it separately for latency.
 DEFAULT_MODELS = [
     # Frontier models
     "openai/gpt-5.5",  # Newest OpenAI frontier (April 2026, 1M+ context)
     "openai/gpt-5.4",  # Previous OpenAI frontier (1M+ context)
-    "anthropic/claude-opus-4-7",  # Most capable Claude — leads SWE-bench Pro ($0.85/query)
+    "anthropic/claude-opus-4-7",  # Most capable Claude - leads SWE-bench Pro ($0.85/query)
     "anthropic/claude-opus-4-6",  # Prior most-capable Claude ($0.80/query)
     "gemini/gemini-3.1-pro-preview",  # Latest gen, best quality ($0.20/query)
     "gemini/gemini-2.5-pro",  # Thinking model, can't disable thinking ($0.15/query)
@@ -647,7 +647,7 @@ DEFAULT_MODELS = [
     "openai/o3",  # Reasoning model for complex tasks ($0.10/query)
     "openai/o4-mini",  # Fast reasoning ($0.04/query)
     # xAI flagship
-    "xai/grok-4-3",  # xAI newest flagship — agentic + reasoning ($0.05/query)
+    "xai/grok-4-3",  # xAI newest flagship - agentic + reasoning ($0.05/query)
     "xai/grok-4-20-reasoning",  # xAI multi-agent workhorse ($0.10/query)
     "xai/grok-4-20-non-reasoning",  # xAI flagship non-reasoning ($0.08/query)
     # Budget models
@@ -657,7 +657,7 @@ DEFAULT_MODELS = [
     "openai/gpt-5.4-nano",  # Cheapest GPT-5.4 ($0.01/query)
     "openai/gpt-5-nano",  # Cheapest GPT-5 ($0.005/query)
     "openai/gpt-4.1-nano",  # Cheapest 1M context ($0.003/query)
-    "gemini/gemini-3.5-flash",  # Newest Flash gen — beats 3.1 Pro on coding/agentic ($0.03/query)
+    "gemini/gemini-3.5-flash",  # Newest Flash gen - beats 3.1 Pro on coding/agentic ($0.03/query)
     "gemini/gemini-3-flash-preview",  # Prior gen, fast ($0.01/query)
     "gemini/gemini-3.1-flash-lite",  # Most cost-effective Gemini, GA ($0.007/query)
     "gemini/gemini-3.1-flash-lite-preview",  # Prior preview of Flash-Lite
@@ -768,7 +768,7 @@ def warn_if_newer_models_available() -> None:
     registry knows about.
 
     Reuses scripts/discover_models.py so the "newer version of a family we use"
-    logic lives in one place. Never raises — discovery is networked and optional,
+    logic lives in one place. Never raises - discovery is networked and optional,
     and must not block a benchmark.
     """
     try:
@@ -914,7 +914,7 @@ def estimate_cost(models: list[str], prompts: list[EvalPrompt], registry: dict) 
                     per_eval = input_cost + output_cost
                 total += per_eval
             else:
-                # Model not in registry — use fallback
+                # Model not in registry - use fallback
                 total += _FALLBACK_COST.get(ep.tier, 0.005)
     return total
 
@@ -1296,7 +1296,7 @@ def call_openai_deep_research(api_key: str, model: str, prompt: str, max_tokens:
         if elapsed > timeout:
             raise TimeoutError(
                 f"OpenAI deep research timed out after {timeout}s. "
-                f"Job {job_id} may still be running — check with: "
+                f"Job {job_id} may still be running - check with: "
                 f"GET https://api.openai.com/v1/responses/{job_id}"
             )
 
@@ -1317,7 +1317,7 @@ def call_openai_deep_research(api_key: str, model: str, prompt: str, max_tokens:
         elif status in ("failed", "cancelled"):
             error = status_data.get("error", {}).get("message", status)
             raise RuntimeError(f"OpenAI deep research {status}: {error}")
-        # else: in_progress, queued — keep polling
+        # else: in_progress, queued - keep polling
 
     latency_ms = int((time.monotonic() - start) * 1000)
 
@@ -1398,7 +1398,7 @@ def call_gemini_deep_research(api_key: str, prompt: str) -> tuple[str, int, list
     latency_ms = int((time.monotonic() - start) * 1000)
 
     # Extract text and citations from outputs
-    # The Interactions API response structure can vary — try multiple paths:
+    # The Interactions API response structure can vary - try multiple paths:
     #   - outputs[].text (primary)
     #   - outputs[].content[].text (alternate)
     #   - outputs[].groundingMetadata.groundingChunks (grounding citations)
@@ -1523,7 +1523,7 @@ _budget_lock = threading.Lock()
 
 
 def _eval_key(model_key: str, prompt_text: str) -> str:
-    """Unique key for a (model, prompt) eval — for dedup on resume."""
+    """Unique key for a (model, prompt) eval - for dedup on resume."""
     import hashlib
 
     h = hashlib.sha256(prompt_text.encode()).hexdigest()[:12]
@@ -1551,7 +1551,7 @@ def _save_checkpoint(results: list[EvalResult]) -> None:
             }
             for r in results
         ]
-        # Write checkpoint — use atomic rename with fallback for Windows/OneDrive locks
+        # Write checkpoint - use atomic rename with fallback for Windows/OneDrive locks
         content = json.dumps(data, indent=2)
         tmp = _CHECKPOINT_FILE.with_suffix(".tmp")
         try:
@@ -1611,7 +1611,7 @@ def _clear_checkpoint() -> None:
 def _eval_single(model_key: str, ep: EvalPrompt, registry: dict) -> tuple[EvalResult, float]:
     """Run a single model+prompt evaluation. Returns (result, cost_estimate).
 
-    Thread-safe — no shared mutable state.
+    Thread-safe - no shared mutable state.
     """
     lookup = "openai/" + model_key.split("/", 1)[1] if model_key.startswith("azure-foundry/") else model_key
     cap = registry.get(lookup) or registry.get(model_key)
@@ -1635,7 +1635,7 @@ def _eval_single(model_key: str, ep: EvalPrompt, registry: dict) -> tuple[EvalRe
         result.citation_count = len(citations)
         result.report_length = len(text.split()) if ep.tier in ("research", "docs") else 0
 
-        # Estimate cost — tier-specific token budgets
+        # Estimate cost - tier-specific token budgets
         thinking_extra = 500 if _is_thinking_model(model_key) else 0
         if ep.tier == "research":
             model_name = model_key.split("/", 1)[1]
@@ -1722,7 +1722,7 @@ def run_evaluations(
             try:
                 result, cost = fut.result()
             except Exception as e:
-                # Unexpected error in thread — create error result
+                # Unexpected error in thread - create error result
                 result = EvalResult(
                     model_key=model_key,
                     task_type=ep.task_type,
@@ -1742,7 +1742,7 @@ def run_evaluations(
                 over_budget = budget is not None and spent >= budget
 
             print(
-                f"\r  [{done_count}/{len(tasks)}] {model_key} — {ep.task_type}/{ep.difficulty} "
+                f"\r  [{done_count}/{len(tasks)}] {model_key} - {ep.task_type}/{ep.difficulty} "
                 f"({result.latency_ms}ms)" + (" ERROR" if result.error else ""),
                 end="",
                 flush=True,
@@ -2026,7 +2026,7 @@ def _get_judge_config(tier: str) -> tuple[str, dict[str, float]]:
 def _judge_single(result: EvalResult, judge_model: str) -> tuple[dict[str, float] | None, float]:
     """Judge a single eval result. Returns (judge_details, judge_score).
 
-    Thread-safe — no shared mutable state.
+    Thread-safe - no shared mutable state.
     """
     judge_template, weights = _get_judge_config(result.tier)
     trunc = 3000 if result.tier in ("research", "docs") else 2000
@@ -2069,7 +2069,7 @@ def run_judge(results: list[EvalResult], judge_model: str, max_workers: int = 5)
                 results[idx].judge_score = 0.0
 
             print(
-                f"\r  Judging [{done_count}/{total}] {results[idx].model_key} — {results[idx].task_type}",
+                f"\r  Judging [{done_count}/{total}] {results[idx].model_key} - {results[idx].task_type}",
                 end="",
                 flush=True,
             )
@@ -2686,7 +2686,7 @@ def run_validation(tier: str = "chat"):
         print()
         print(f"  {passed} passed, {failed} failed, {skipped} skipped")
 
-    # Research tier validation — skipped unless explicitly requested
+    # Research tier validation - skipped unless explicitly requested
     if tier == "research":
         print()
         print("  Research Tier Validation")
@@ -2719,7 +2719,7 @@ def run_validation(tier: str = "chat"):
         print()
         print(f"  {passed} passed, {failed} failed, {skipped} skipped")
 
-    # Docs tier validation — uses same web search callers as news
+    # Docs tier validation - uses same web search callers as news
     if tier in ("docs", "all"):
         docs_prompt = "What are the main endpoints of the Stripe API? List 3."
         docs_tests = [
@@ -2939,7 +2939,7 @@ Examples:
     parser.add_argument(
         "--resume",
         action="store_true",
-        help="Resume from checkpoint — skip already-completed evals (auto-saved after each eval)",
+        help="Resume from checkpoint - skip already-completed evals (auto-saved after each eval)",
     )
     parser.add_argument(
         "--validate", action="store_true", help="Validate provider APIs (chat + news; use --tier research for research)"
@@ -3086,7 +3086,7 @@ Examples:
             print("  No checkpoint found, starting fresh.")
 
     # ─── Phase 2: Evaluate ────────────────────────────────────────────────
-    # Cumulative results — each tier builds on prior results so the
+    # Cumulative results - each tier builds on prior results so the
     # checkpoint always contains everything completed so far.
     all_results: list[EvalResult] = list(prior_results) if prior_results else []
     for tier, models, prompts in tier_plans:
@@ -3114,7 +3114,7 @@ Examples:
 
     # Snapshot the results actually executed this run, BEFORE merging prior
     # history. The merge below adds historical evals (for richer rankings),
-    # but those incurred no new spend — so the reported cost must come from
+    # but those incurred no new spend - so the reported cost must come from
     # this snapshot, not the merged dataset.
     executed_results = list(all_results)
 
@@ -3127,7 +3127,7 @@ Examples:
             model = r.get("model", "")
             tier = r.get("tier", "chat")
             if (model, tier) in new_keys:
-                continue  # don't duplicate — new results take precedence
+                continue  # don't duplicate - new results take precedence
             all_results.append(saved_result_to_eval(r))
             merged_count += 1
         if merged_count:

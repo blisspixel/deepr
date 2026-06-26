@@ -82,7 +82,7 @@ def _check_auth():
         return jsonify({"error": "Unauthorized"}), 401
     # hmac.compare_digest raises TypeError for str inputs containing
     # non-ASCII characters. Treat any TypeError as Unauthorized rather
-    # than letting it escape into the generic 500 handler — the latter
+    # than letting it escape into the generic 500 handler - the latter
     # turned malformed Authorization headers into an availability/log-
     # amplification primitive.
     try:

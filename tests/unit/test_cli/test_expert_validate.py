@@ -110,7 +110,7 @@ class TestValidateBehavior:
                 ["expert", "validate", "Test Expert", "ok claim", "--json"],
             )
         assert result.exit_code == 0, result.output
-        # Output is pure JSON — no decoration prefix.
+        # Output is pure JSON - no decoration prefix.
         payload = json.loads(result.output)
         assert payload["verdict"] == "pass"
         assert payload["expert_name"] == "Test Expert"
