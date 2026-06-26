@@ -21,6 +21,11 @@ settled through the canonical ledger.
 | Plan-quota CLIs | Explicit `expert sync --plan <id>`, `expert absorb --plan <id>`, `expert learn --plan <id>`, `expert learn-web --plan <id>`, `expert consult --plan <id>`, and `capacity probe-plan <id>` | Metered API-key env vars are stripped from child processes, auth mode is checked, and automatic routing waits for trusted remaining-quota evidence |
 | CLI judges | Explicit local eval judging with `--allow-cli-judge` | Opt-in only because Deepr cannot prove whether a vendor CLI uses quota, credits, or metered credentials |
 
+Expert consult synthesis already supports local and explicit plan capacity.
+Classic expert chat still needs a backend-neutral adapter before it can honestly
+support local, plan, and paid API selection. The implementation plan is
+[expert-chat-capacity-backends.md](design/expert-chat-capacity-backends.md).
+
 Automatic plan routing is not a blanket claim. Codex, Claude Code, and Grok
 have metadata probes. Antigravity and other sources remain explicit-only or
 planned until a trustworthy probe and safety gate exist.
@@ -184,6 +189,10 @@ reserve, settle, and audit every bucket it can trigger.
 - Batch, flex, priority, provisioned, data-residency, and deployment-tier
   modifiers must be modeled as first-class pricing dimensions, not hidden in a
   single model price.
+- Anthropic Claude Opus 4.8 must use the native Messages API adapter. It
+  rejects non-default sampling params such as `temperature`, `top_p`, and
+  `top_k`; manual thinking budgets are rejected, while adaptive thinking is the
+  supported path.
 - Provider cache semantics differ. OpenAI, Azure OpenAI, and Gemini can apply
   implicit prompt caching; Anthropic exposes explicit and automatic
   `cache_control`; Gemini Interactions currently documents implicit caching
