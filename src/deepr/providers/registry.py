@@ -4,10 +4,7 @@ Defines capabilities, costs, and specializations for all supported models across
 Used by ModelRouter to make intelligent routing decisions.
 """
 
-import logging
 from dataclasses import dataclass
-
-logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -24,6 +21,7 @@ class ModelCapability:
     weaknesses: list[str]  # Known limitations
     input_cost_per_1m: float = 0.0  # Cost per 1M input tokens (USD)
     output_cost_per_1m: float = 0.0  # Cost per 1M output tokens (USD)
+    cached_input_cost_per_1m: float | None = None  # Cost per 1M cached input tokens (USD)
     deprecated: bool = False  # Whether this model is deprecated
     successor: str | None = None  # Model key to migrate to (e.g. "openai/gpt-4.1")
 
@@ -48,6 +46,7 @@ MODEL_CAPABILITIES: dict[str, ModelCapability] = {
         weaknesses=["Higher cost than gpt-5.2", "May require prompt/effort tuning for best cost-quality tradeoff"],
         input_cost_per_1m=2.50,
         output_cost_per_1m=15.00,
+        cached_input_cost_per_1m=0.25,
     ),
     "openai/gpt-5.4-pro": ModelCapability(
         provider="openai",
@@ -68,6 +67,7 @@ MODEL_CAPABILITIES: dict[str, ModelCapability] = {
         ],
         input_cost_per_1m=30.00,
         output_cost_per_1m=180.00,
+        cached_input_cost_per_1m=3.00,
     ),
     "openai/gpt-5.4-mini": ModelCapability(
         provider="openai",
@@ -89,6 +89,7 @@ MODEL_CAPABILITIES: dict[str, ModelCapability] = {
         ],
         input_cost_per_1m=0.75,
         output_cost_per_1m=4.50,
+        cached_input_cost_per_1m=0.075,
     ),
     "openai/gpt-5.4-nano": ModelCapability(
         provider="openai",
@@ -109,6 +110,7 @@ MODEL_CAPABILITIES: dict[str, ModelCapability] = {
         ],
         input_cost_per_1m=0.20,
         output_cost_per_1m=1.25,
+        cached_input_cost_per_1m=0.02,
     ),
     "openai/gpt-5.5": ModelCapability(
         provider="openai",
@@ -120,7 +122,7 @@ MODEL_CAPABILITIES: dict[str, ModelCapability] = {
         strengths=[
             "OpenAI's most capable model (April 2026)",
             "Strongest for coding, tool-heavy agents, and complex workflows",
-            "More efficient reasoning — fewer tokens for same quality",
+            "More efficient reasoning - fewer tokens for same quality",
             "1M+ token context window (922K input, 128K output)",
             "Configurable reasoning effort (none/low/medium/high/xhigh)",
             "Improved instruction following and task execution",
@@ -131,6 +133,7 @@ MODEL_CAPABILITIES: dict[str, ModelCapability] = {
         ],
         input_cost_per_1m=5.00,
         output_cost_per_1m=30.00,
+        cached_input_cost_per_1m=0.50,
     ),
     "openai/gpt-5.5-pro": ModelCapability(
         provider="openai",
@@ -147,11 +150,12 @@ MODEL_CAPABILITIES: dict[str, ModelCapability] = {
         ],
         weaknesses=[
             "Very expensive ($30/$180 per MTok)",
-            "High latency — may take minutes on hard tasks",
+            "High latency - may take minutes on hard tasks",
             "Overkill for most workloads",
         ],
         input_cost_per_1m=30.00,
         output_cost_per_1m=180.00,
+        cached_input_cost_per_1m=3.00,
     ),
     "openai/gpt-5.2": ModelCapability(
         provider="openai",
@@ -170,6 +174,7 @@ MODEL_CAPABILITIES: dict[str, ModelCapability] = {
         weaknesses=["Registration required", "Higher cost than gpt-5"],
         input_cost_per_1m=1.75,
         output_cost_per_1m=14.00,
+        cached_input_cost_per_1m=0.175,
     ),
     "openai/gpt-5": ModelCapability(
         provider="openai",
@@ -187,6 +192,7 @@ MODEL_CAPABILITIES: dict[str, ModelCapability] = {
         weaknesses=["Registration required", "Higher cost than gpt-5-mini"],
         input_cost_per_1m=1.25,
         output_cost_per_1m=10.00,
+        cached_input_cost_per_1m=0.125,
     ),
     "openai/gpt-5-mini": ModelCapability(
         provider="openai",
@@ -204,6 +210,7 @@ MODEL_CAPABILITIES: dict[str, ModelCapability] = {
         weaknesses=["Less capable than gpt-5 for complex tasks"],
         input_cost_per_1m=0.25,
         output_cost_per_1m=2.00,
+        cached_input_cost_per_1m=0.025,
     ),
     "openai/gpt-4.1": ModelCapability(
         provider="openai",
@@ -221,6 +228,7 @@ MODEL_CAPABILITIES: dict[str, ModelCapability] = {
         weaknesses=["Slower than mini/nano variants", "Not frontier-scale reasoning"],
         input_cost_per_1m=2.00,
         output_cost_per_1m=8.00,
+        cached_input_cost_per_1m=0.50,
     ),
     "openai/gpt-4.1-mini": ModelCapability(
         provider="openai",
@@ -238,6 +246,7 @@ MODEL_CAPABILITIES: dict[str, ModelCapability] = {
         weaknesses=["Less capable reasoning than gpt-4.1"],
         input_cost_per_1m=0.40,
         output_cost_per_1m=1.60,
+        cached_input_cost_per_1m=0.10,
     ),
     "openai/gpt-4.1-nano": ModelCapability(
         provider="openai",
@@ -254,6 +263,7 @@ MODEL_CAPABILITIES: dict[str, ModelCapability] = {
         weaknesses=["Least capable 4.1 variant", "Not ideal for complex reasoning"],
         input_cost_per_1m=0.10,
         output_cost_per_1m=0.40,
+        cached_input_cost_per_1m=0.025,
     ),
     "openai/gpt-5-nano": ModelCapability(
         provider="openai",
@@ -271,6 +281,7 @@ MODEL_CAPABILITIES: dict[str, ModelCapability] = {
         weaknesses=["Lowest reasoning capability in GPT-5 family"],
         input_cost_per_1m=0.05,
         output_cost_per_1m=0.40,
+        cached_input_cost_per_1m=0.005,
     ),
     # OpenAI Reasoning Models (o-series, non-deep-research)
     "openai/o3": ModelCapability(
@@ -347,7 +358,7 @@ MODEL_CAPABILITIES: dict[str, ModelCapability] = {
         output_cost_per_1m=8.00,
     ),
     # xAI Models (Grok)
-    # Grok 4.20 — Flagship (March 2026)
+    # Grok 4.20 - Flagship (March 2026)
     "xai/grok-4-20-reasoning": ModelCapability(
         provider="xai",
         model="grok-4-20-reasoning",
@@ -364,11 +375,12 @@ MODEL_CAPABILITIES: dict[str, ModelCapability] = {
             "2M token context window",
         ],
         weaknesses=[
-            "10x more expensive than Grok 4.1 Fast ($2/$6 vs $0.20/$0.50)",
+            "More expensive than Grok 4.1 Fast ($1.25/$2.50 vs $0.20/$0.50)",
             "Slower than non-reasoning variant",
         ],
-        input_cost_per_1m=2.00,
-        output_cost_per_1m=6.00,
+        input_cost_per_1m=1.25,
+        output_cost_per_1m=2.50,
+        cached_input_cost_per_1m=0.20,
     ),
     "xai/grok-4-20-non-reasoning": ModelCapability(
         provider="xai",
@@ -385,11 +397,12 @@ MODEL_CAPABILITIES: dict[str, ModelCapability] = {
             "2M token context window",
         ],
         weaknesses=[
-            "More expensive than 4.1 Fast tier ($2/$6 vs $0.20/$0.50)",
+            "More expensive than 4.1 Fast tier ($1.25/$2.50 vs $0.20/$0.50)",
             "Weaker than reasoning variant on complex analysis",
         ],
-        input_cost_per_1m=2.00,
-        output_cost_per_1m=6.00,
+        input_cost_per_1m=1.25,
+        output_cost_per_1m=2.50,
+        cached_input_cost_per_1m=0.20,
     ),
     "xai/grok-4-20-multi-agent": ModelCapability(
         provider="xai",
@@ -405,14 +418,15 @@ MODEL_CAPABILITIES: dict[str, ModelCapability] = {
             "2M token context window",
         ],
         weaknesses=[
-            "Expensive ($2/$6 per MTok, multiplied by agent count)",
+            "Expensive ($1.25/$2.50 per MTok, multiplied by agent count)",
             "Slow (30-120 seconds depending on agent count)",
             "Requires Responses API for full multi-agent mode",
         ],
-        input_cost_per_1m=2.00,
-        output_cost_per_1m=6.00,
+        input_cost_per_1m=1.25,
+        output_cost_per_1m=2.50,
+        cached_input_cost_per_1m=0.20,
     ),
-    # Grok 4.3 — Newest generation (May 2026)
+    # Grok 4.3 - Newest generation (May 2026)
     "xai/grok-4-3": ModelCapability(
         provider="xai",
         model="grok-4-3",
@@ -433,8 +447,9 @@ MODEL_CAPABILITIES: dict[str, ModelCapability] = {
         ],
         input_cost_per_1m=1.25,
         output_cost_per_1m=2.50,
+        cached_input_cost_per_1m=0.20,
     ),
-    # Grok 4.1 Fast — Budget tier (DEPRECATED: retires May 15, 2026)
+    # Grok 4.1 Fast - Budget tier (DEPRECATED: retires May 15, 2026)
     "xai/grok-4-1-fast-reasoning": ModelCapability(
         provider="xai",
         model="grok-4-1-fast-reasoning",
@@ -455,6 +470,7 @@ MODEL_CAPABILITIES: dict[str, ModelCapability] = {
         ],
         input_cost_per_1m=0.20,
         output_cost_per_1m=0.50,
+        cached_input_cost_per_1m=0.05,
         deprecated=True,
         successor="xai/grok-4-3",
     ),
@@ -476,6 +492,7 @@ MODEL_CAPABILITIES: dict[str, ModelCapability] = {
         ],
         input_cost_per_1m=0.20,
         output_cost_per_1m=0.50,
+        cached_input_cost_per_1m=0.05,
         deprecated=True,
         successor="xai/grok-4-20-non-reasoning",
     ),
@@ -554,6 +571,7 @@ MODEL_CAPABILITIES: dict[str, ModelCapability] = {
         weaknesses=["DEPRECATED: Retires May 15, 2026. Successor: Grok 4.3"],
         input_cost_per_1m=3.00,
         output_cost_per_1m=15.00,
+        cached_input_cost_per_1m=0.75,
         deprecated=True,
         successor="xai/grok-4-3",
     ),
@@ -572,7 +590,7 @@ MODEL_CAPABILITIES: dict[str, ModelCapability] = {
         successor="xai/grok-imagine-image",
     ),
     # Google Models (Gemini)
-    # Gemini 3.5 Flash — newest Flash generation (GA May 19, 2026, Google I/O 2026)
+    # Gemini 3.5 Flash - newest Flash generation (GA May 19, 2026, Google I/O 2026)
     "gemini/gemini-3.5-flash": ModelCapability(
         provider="gemini",
         model="gemini-3.5-flash",
@@ -616,7 +634,7 @@ MODEL_CAPABILITIES: dict[str, ModelCapability] = {
         input_cost_per_1m=0.50,
         output_cost_per_1m=3.00,  # Includes thinking tokens
     ),
-    # Gemini 3.1 Flash-Lite — GA (May 7, 2026); most cost-effective Gemini
+    # Gemini 3.1 Flash-Lite - GA (May 7, 2026); most cost-effective Gemini
     "gemini/gemini-3.1-flash-lite": ModelCapability(
         provider="gemini",
         model="gemini-3.1-flash-lite",
@@ -771,7 +789,7 @@ MODEL_CAPABILITIES: dict[str, ModelCapability] = {
     # Note: Anthropic does NOT have a turnkey deep research API like OpenAI/Gemini.
     # Research capability is achieved via Extended Thinking + tool use + our orchestration.
     # For research, we recommend Opus 4.8 - most capable, Adaptive Thinking, production-grade agents.
-    # Claude Fable 5 — frontier tier above Opus (GA Jun 2026); premium price, opt-in only
+    # Claude Fable 5 - frontier tier above Opus (GA Jun 2026); premium price, opt-in only
     "anthropic/claude-fable-5": ModelCapability(
         provider="anthropic",
         model="claude-fable-5",
@@ -795,7 +813,7 @@ MODEL_CAPABILITIES: dict[str, ModelCapability] = {
         input_cost_per_1m=10.00,
         output_cost_per_1m=50.00,
     ),
-    # Claude Opus 4.8 — most capable Claude (GA May 28, 2026); recommended flagship
+    # Claude Opus 4.8 - most capable Claude (GA May 28, 2026); recommended flagship
     "anthropic/claude-opus-4-8": ModelCapability(
         provider="anthropic",
         model="claude-opus-4-8",
@@ -818,8 +836,9 @@ MODEL_CAPABILITIES: dict[str, ModelCapability] = {
         ],
         input_cost_per_1m=5.00,
         output_cost_per_1m=25.00,
+        cached_input_cost_per_1m=0.50,
     ),
-    # Claude Opus 4.7 — superseded by 4.8 (same price); still available
+    # Claude Opus 4.7 - superseded by 4.8 (same price); still available
     "anthropic/claude-opus-4-7": ModelCapability(
         provider="anthropic",
         model="claude-opus-4-7",
@@ -843,6 +862,7 @@ MODEL_CAPABILITIES: dict[str, ModelCapability] = {
         ],
         input_cost_per_1m=5.00,
         output_cost_per_1m=25.00,
+        cached_input_cost_per_1m=0.50,
     ),
     "anthropic/claude-opus-4-6": ModelCapability(
         provider="anthropic",
@@ -867,8 +887,31 @@ MODEL_CAPABILITIES: dict[str, ModelCapability] = {
         ],
         input_cost_per_1m=5.00,
         output_cost_per_1m=25.00,
+        cached_input_cost_per_1m=0.50,
     ),
-    # Claude Sonnet 4.6 — best value for everyday coding (GA Apr 2026)
+    "anthropic/claude-opus-4-5": ModelCapability(
+        provider="anthropic",
+        model="claude-opus-4-5",
+        cost_per_query=0.80,
+        latency_ms=12000,
+        context_window=200_000,
+        specializations=["research", "reasoning", "coding", "analysis", "complex_tasks", "agents"],
+        strengths=[
+            "Opus 4.5 research and coding model",
+            "Extended Thinking support",
+            "128K max output tokens",
+            "Strong complex-task reasoning",
+        ],
+        weaknesses=[
+            "Replaced with claude-opus-4-8",
+            "No native deep research API",
+            "Slower and more expensive than Sonnet",
+        ],
+        input_cost_per_1m=5.00,
+        output_cost_per_1m=25.00,
+        cached_input_cost_per_1m=0.50,
+    ),
+    # Claude Sonnet 4.6 - best value for everyday coding (GA Apr 2026)
     "anthropic/claude-sonnet-4-6": ModelCapability(
         provider="anthropic",
         model="claude-sonnet-4-6",
@@ -957,6 +1000,7 @@ MODEL_CAPABILITIES: dict[str, ModelCapability] = {
         ],
         input_cost_per_1m=1.25,
         output_cost_per_1m=10.00,
+        cached_input_cost_per_1m=0.125,
     ),
     "azure-foundry/gpt-5-mini": ModelCapability(
         provider="azure-foundry",
@@ -977,6 +1021,7 @@ MODEL_CAPABILITIES: dict[str, ModelCapability] = {
         ],
         input_cost_per_1m=0.25,
         output_cost_per_1m=2.00,
+        cached_input_cost_per_1m=0.025,
     ),
     "azure-foundry/gpt-4.1": ModelCapability(
         provider="azure-foundry",
@@ -997,6 +1042,7 @@ MODEL_CAPABILITIES: dict[str, ModelCapability] = {
         ],
         input_cost_per_1m=2.00,
         output_cost_per_1m=8.00,
+        cached_input_cost_per_1m=0.50,
     ),
     "azure-foundry/gpt-4.1-mini": ModelCapability(
         provider="azure-foundry",
@@ -1017,6 +1063,7 @@ MODEL_CAPABILITIES: dict[str, ModelCapability] = {
         ],
         input_cost_per_1m=0.40,
         output_cost_per_1m=1.60,
+        cached_input_cost_per_1m=0.10,
     ),
     "azure-foundry/gpt-4o": ModelCapability(
         provider="azure-foundry",
@@ -1037,6 +1084,7 @@ MODEL_CAPABILITIES: dict[str, ModelCapability] = {
         ],
         input_cost_per_1m=2.50,
         output_cost_per_1m=10.00,
+        cached_input_cost_per_1m=1.25,
     ),
     "azure-foundry/gpt-4o-mini": ModelCapability(
         provider="azure-foundry",
@@ -1057,6 +1105,7 @@ MODEL_CAPABILITIES: dict[str, ModelCapability] = {
         ],
         input_cost_per_1m=0.15,
         output_cost_per_1m=0.60,
+        cached_input_cost_per_1m=0.075,
     ),
     "anthropic/claude-haiku-4-5": ModelCapability(
         provider="anthropic",
@@ -1079,150 +1128,25 @@ MODEL_CAPABILITIES: dict[str, ModelCapability] = {
 }
 
 
-def _normalize_model_name(name: str) -> str:
-    """Normalize a model name so dot/hyphen variants compare equal.
-
-    The Grok provider reports model IDs with dots (``grok-4.20-...``) but
-    the registry keys them with hyphens (``grok-4-20-...``). Without this
-    normalization, a substring match on the dotted form falls through to
-    the o4-mini default — a ~80% under-charge on every Grok 4.20 call.
-    """
-    if not name:
-        return name
-    return name.replace(".", "-").lower()
-
-
 def get_token_pricing(model: str, input_tokens: int | None = None) -> dict[str, float]:
-    """Get per-token pricing for a model.
+    """Get per-token pricing for a model."""
+    from .registry_pricing import get_token_pricing as _get_token_pricing
 
-    Searches registry by model name across all providers.
-
-    Args:
-        model: Model name (e.g., "o3-deep-research", "grok-4-1-fast-non-reasoning")
-        input_tokens: Optional prompt size in tokens. When provided and the
-            model has tiered pricing (e.g. Gemini 3.x Pro charges more above
-            200K input tokens), the returned rates reflect the tier so that
-            settlement (UsageStats.calculate_cost) matches what the provider
-            actually bills instead of silently under-recording.
-
-    Returns:
-        Dict with "input" and "output" costs per 1M tokens.
-        Returns default pricing if model not found.
-    """
-    # Resolve alias first so callers using ``gemini-deep-research`` or
-    # ``deep-research`` see the real provider model's per-token pricing
-    # instead of the o4-mini default.
-    resolved = _MODEL_ALIASES.get(model, model)
-    needle = _normalize_model_name(resolved)
-
-    def _with_tier(prices: dict[str, float]) -> dict[str, float]:
-        if input_tokens is not None:
-            for tiered_model, (threshold, input_mult, output_mult) in _TIERED_PRICING.items():
-                if _normalize_model_name(tiered_model) in needle and input_tokens > threshold:
-                    return {
-                        "input": round(prices["input"] * input_mult, 6),
-                        "output": round(prices["output"] * output_mult, 6),
-                    }
-        return prices
-
-    # Exact match (normalized)
-    for cap in MODEL_CAPABILITIES.values():
-        if cap.input_cost_per_1m > 0 and _normalize_model_name(cap.model) == needle:
-            return _with_tier({"input": cap.input_cost_per_1m, "output": cap.output_cost_per_1m})
-
-    # Partial match — longest cap.model first so e.g. ``gemini-2.5-flash-lite``
-    # matches its own entry before the shorter ``gemini-2.5-flash`` prefix
-    # (which would have charged Flash-Lite at Flash rates, ~3x overcharge).
-    candidates = sorted(
-        (cap for cap in MODEL_CAPABILITIES.values() if cap.input_cost_per_1m > 0),
-        key=lambda c: len(c.model or ""),
-        reverse=True,
-    )
-    for cap in candidates:
-        if _normalize_model_name(cap.model) in needle:
-            return _with_tier({"input": cap.input_cost_per_1m, "output": cap.output_cost_per_1m})
-
-    # Default to o4-mini pricing. This is a silent-money hazard for
-    # unregistered expensive models (e.g. a $10/$50 frontier model would
-    # bill internally at $1.10/$4.40), so make it loud.
-    logger.warning(
-        "No registry pricing for model %r; defaulting to o4-mini rates ($1.10/$4.40 per 1M). "
-        "Add the model to deepr/providers/registry.py to bill it correctly.",
-        model,
-    )
-    # Plain o4-mini ($1.10/$4.40), as the warning above documents. (This
-    # previously pointed at o4-mini-deep-research, which only matched the
-    # documented rates because that entry carried a mistakenly copied
-    # price - corrected to $2/$8 on 2026-06-11.)
-    default = MODEL_CAPABILITIES.get("openai/o4-mini")
-    if default:
-        return {"input": default.input_cost_per_1m, "output": default.output_cost_per_1m}
-    return {"input": 1.10, "output": 4.40}
+    return _get_token_pricing(model, input_tokens=input_tokens)
 
 
-# Models whose published pricing rises for prompts exceeding a per-model
-# input-token threshold: (threshold, input_multiplier, output_multiplier).
-# Gemini 3.x Pro: $2/$12 -> $4/$18 above 200K input tokens (2x input,
-# 1.5x output). Used by get_cost_estimate() for pre-flight budget checks
-# and by get_token_pricing(input_tokens=...) at settlement so the ledger
-# records what the provider actually bills.
-_TIERED_PRICING: dict[str, tuple[int, float, float]] = {
-    "gemini-3.1-pro-preview": (200_000, 2.0, 1.5),
-    "gemini-3-pro-preview": (200_000, 2.0, 1.5),
-}
+def get_cached_input_pricing(model: str, input_tokens: int | None = None) -> float | None:
+    """Get per-1M-token cached-input pricing for a model if documented."""
+    from .registry_pricing import get_cached_input_pricing as _get_cached_input_pricing
 
-# Caller-facing aliases that resolve to expensive deep-research provider
-# paths. Without these, both the orchestrator and MCP fall back to the
-# generic $0.20 default and approve jobs that cost ~$2.50 to run.
-_MODEL_ALIASES: dict[str, str] = {
-    "gemini-deep-research": "deep-research-pro-preview-12-2025",
-    "deep-research": "deep-research-pro-preview-12-2025",
-}
+    return _get_cached_input_pricing(model, input_tokens=input_tokens)
 
 
 def get_cost_estimate(model: str, input_tokens: int | None = None) -> float:
-    """Get per-query cost estimate for a model.
+    """Get per-query cost estimate for a model."""
+    from .registry_pricing import get_cost_estimate as _get_cost_estimate
 
-    Args:
-        model: Model name
-        input_tokens: Optional prompt size in tokens. When provided and the
-            model has tiered pricing (e.g. Gemini 3.x Pro 2x above 200K
-            input tokens), the returned estimate reflects the tier so that
-            budget checks do not approve large-context jobs against an
-            underestimated cost.
-
-    Returns:
-        Estimated cost per query in USD. Returns 0.20 if model not found.
-    """
-    resolved = _MODEL_ALIASES.get(model, model)
-    needle = _normalize_model_name(resolved)
-    base = 0.20
-
-    # Exact match (normalized) first.
-    for cap in MODEL_CAPABILITIES.values():
-        if _normalize_model_name(cap.model) == needle:
-            base = cap.cost_per_query
-            break
-    else:
-        # Partial match — longest cap.model first so e.g. a "gpt-5.4-mini"
-        # snapshot matches its own entry before the shorter "gpt-5.4" prefix.
-        # Without longest-first this both over-charges (mini -> full price) and,
-        # worse, under-charges ("gpt-5.4-pro-<date>" -> cheaper "gpt-5.4"),
-        # letting budget pre-flight approve an expensive job. Mirrors
-        # get_token_pricing().
-        for cap in sorted(MODEL_CAPABILITIES.values(), key=lambda c: len(c.model or ""), reverse=True):
-            if _normalize_model_name(cap.model) in needle:
-                base = cap.cost_per_query
-                break
-
-    if input_tokens is not None:
-        for tiered_model, (threshold, input_mult, _output_mult) in _TIERED_PRICING.items():
-            if _normalize_model_name(tiered_model) in needle and input_tokens > threshold:
-                # Large-context jobs are input-dominated; the input multiplier
-                # is the conservative per-query scaling for pre-flight checks.
-                return round(base * input_mult, 4)
-
-    return base
+    return _get_cost_estimate(model, input_tokens=input_tokens)
 
 
 def get_model_capability(provider: str, model: str) -> ModelCapability | None:

@@ -200,16 +200,14 @@ class GeminiProvider(DeepResearchProvider):
         "gemini-3-pro-preview",
     }
     _LARGE_CONTEXT_INPUT_TOKEN_THRESHOLD = 200_000
-    _LARGE_CONTEXT_MULTIPLIER = 2.0
+    _LARGE_CONTEXT_INPUT_MULTIPLIER = 2.0
+    _LARGE_CONTEXT_OUTPUT_MULTIPLIER = 1.5
 
     def _calculate_cost(self, input_tokens: int, output_tokens: int, model: str) -> float:
         """Calculate cost for Gemini models, including the >200K-token tier.
 
-        Gemini 3.x Pro charges 2x for prompts that exceed 200K input tokens.
-        The registry only records the base flat rate, so apply the multiplier
-        here on top of the matched price entry. This keeps cost recording
-        aligned with provider invoices and prevents budget checks from
-        approving large-context jobs against an underestimated cost.
+        Gemini 3.x Pro applies separate large-context multipliers above
+        200K input tokens: 2x input and 1.5x output.
         """
         if _is_deep_research_model(model):
             return self.deep_research_cost_estimate
@@ -225,12 +223,14 @@ class GeminiProvider(DeepResearchProvider):
 
         prices = self.pricing.get(base_model, self.pricing["gemini-2.5-flash"])
 
-        multiplier = 1.0
+        input_multiplier = 1.0
+        output_multiplier = 1.0
         if base_model in self._LARGE_CONTEXT_MODELS and input_tokens > self._LARGE_CONTEXT_INPUT_TOKEN_THRESHOLD:
-            multiplier = self._LARGE_CONTEXT_MULTIPLIER
+            input_multiplier = self._LARGE_CONTEXT_INPUT_MULTIPLIER
+            output_multiplier = self._LARGE_CONTEXT_OUTPUT_MULTIPLIER
 
-        input_cost = (input_tokens / 1_000_000) * prices["input"] * multiplier
-        output_cost = (output_tokens / 1_000_000) * prices["output"] * multiplier
+        input_cost = (input_tokens / 1_000_000) * prices["input"] * input_multiplier
+        output_cost = (output_tokens / 1_000_000) * prices["output"] * output_multiplier
 
         return round(input_cost + output_cost, 6)
 
