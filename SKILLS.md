@@ -139,6 +139,11 @@ This file captures repo-specific operating lessons from autonomous work cycles.
   context was selected, which capacity path ran, which structural checks passed,
   and whether synthesis failed; answer quality still belongs to evals and model
   judgment.
+- Mine traces into candidates through structural signals only. Failed status,
+  failed checks, and missing selected context can route a trace into a gap/eval
+  candidate; do not let word overlap or phrasing checks conclude answer quality.
+  Host-facing review payloads should include trace ids, hashes, short previews,
+  checks, and candidate metadata, not raw trace files.
 - Local model synthesis often uses Markdown emphasis in bullets. Parse one
   bullet marker explicitly, then normalize harmless bold labels; broad `lstrip`
   can delete the opening `**` and leave a dangling closing marker.

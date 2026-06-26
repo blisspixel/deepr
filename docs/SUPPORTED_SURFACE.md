@@ -89,7 +89,9 @@ must not be described as usable capacity.
   `deepr-consult-v1` artifact includes a `capacity` block describing the
   selected synthesis backend. CLI and MCP consults append local
   `deepr-consult-trace-v1` records with selected context metadata, checks run,
-  capacity posture, and synthesis failure events.
+  capacity posture, and synthesis failure events. CLI `deepr expert
+  consult-traces` is a read-only local review surface that emits sanitized
+  `deepr-consult-trace-candidates-v1` gap/eval candidates.
 - Local Ollama expert maintenance, local evals, local context evals, local
   red-team attack-success-rate metrics including MCP read-path canaries and
   saved trend artifacts, and scored local admission.

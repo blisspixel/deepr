@@ -80,6 +80,11 @@ Target score before merge:
 | Maintainability | 5/5 | Published schema, registry entry, and tests keep contract drift visible. |
 | Simplicity | 5/5 | No new dependency, no parallel consult path, no speculative trace UI. |
 
+Cycle 2 extension: convert failed or low-context traces into sanitized candidate
+records. The same bar applies, with two added gates: no local trace path or raw
+trace payload in review output, and no semantic answer-quality verdict from
+lexical rules.
+
 ## How to score (maker-checker)
 
 Maker implements test-first. Then two independent checker passes: one for

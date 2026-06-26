@@ -63,6 +63,14 @@
       "compatibility": "additive-within-v1"
     },
     {
+      "name": "consult-trace-candidates",
+      "schema_version": "deepr-consult-trace-candidates-v1",
+      "kind": "deepr.expert.consult_trace_candidates",
+      "path": "consult-trace-candidates-v1.json",
+      "status": "experimental",
+      "compatibility": "additive-within-v1"
+    },
+    {
       "name": "capacity-next",
       "schema_version": "deepr-capacity-next-v1",
       "kind": "deepr.capacity.next",

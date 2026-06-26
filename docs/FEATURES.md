@@ -508,6 +508,9 @@ budget. `--local` and `--plan <id>` use owned or explicit plan-quota synthesis
 and disable live metered expert fallback when stored belief context is missing.
 Each run appends a local `deepr-consult-trace-v1` record with input, selected
 context metadata, capacity posture, checks run, and synthesis failure events.
+`deepr expert consult-traces` reviews those local records and emits sanitized
+`deepr-consult-trace-candidates-v1` gap/eval candidates for failed or
+low-context consults.
 
 **Task Planning** decomposes complex queries into subtasks:
 

@@ -11,7 +11,7 @@ def test_consult_eval_builtin_cases_pass():
     report = run_consult_eval()
 
     assert report.cost_usd == 0.0
-    assert report.total_cases == 5
+    assert report.total_cases == 6
     assert report.failed_cases == 0
     assert report.score == 1.0
     assert {outcome.case_id for outcome in report.outcomes} == {
@@ -20,6 +20,7 @@ def test_consult_eval_builtin_cases_pass():
         "synthesis_section_parser",
         "payload_context_preservation",
         "consult_trace_contract",
+        "consult_trace_candidate_contract",
     }
 
 
