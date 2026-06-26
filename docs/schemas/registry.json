@@ -23,6 +23,14 @@
       "compatibility": "additive-within-v1"
     },
     {
+      "name": "expert-self-model-update",
+      "schema_version": "deepr-expert-self-model-update-v1",
+      "kind": "deepr.expert.self_model_update",
+      "path": "expert-self-model-update-v1.json",
+      "status": "experimental",
+      "compatibility": "additive-within-v1"
+    },
+    {
       "name": "metacognitive-monitor",
       "schema_version": "deepr-metacognitive-monitor-v1",
       "kind": "deepr.expert.metacognitive_monitor",

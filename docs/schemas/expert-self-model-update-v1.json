@@ -1,0 +1,147 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/blisspixel/deepr/docs/schemas/expert-self-model-update-v1.json",
+  "title": "Deepr Expert Self-Model Update v1",
+  "type": "object",
+  "additionalProperties": true,
+  "required": [
+    "schema_version",
+    "kind",
+    "contract",
+    "expert_name",
+    "proposal_id",
+    "proposal_type",
+    "target",
+    "applied",
+    "status",
+    "proposed_update",
+    "verifier",
+    "source",
+    "generated_at",
+    "actions"
+  ],
+  "properties": {
+    "schema_version": {"const": "deepr-expert-self-model-update-v1"},
+    "kind": {"const": "deepr.expert.self_model_update"},
+    "contract": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": [
+        "read_only",
+        "cost_usd",
+        "requires_human_review",
+        "auto_apply",
+        "apply_required",
+        "mutates_derived_self_model",
+        "writes_review_record_only",
+        "authority_changes_allowed"
+      ],
+      "properties": {
+        "read_only": {"type": "boolean"},
+        "cost_usd": {"const": 0.0},
+        "derived_from": {"type": "string", "minLength": 1},
+        "requires_human_review": {"const": true},
+        "auto_apply": {"const": false},
+        "apply_required": {"const": true},
+        "mutates_derived_self_model": {"const": false},
+        "writes_review_record_only": {"const": true},
+        "authority_changes_allowed": {"const": false}
+      }
+    },
+    "expert_name": {"type": "string", "minLength": 1},
+    "proposal_id": {"type": "string", "minLength": 1},
+    "proposal_type": {
+      "enum": [
+        "calibration_review",
+        "capacity_strategy_review",
+        "learning_strategy_update",
+        "self_model_review"
+      ]
+    },
+    "target": {
+      "enum": [
+        "self_model.blocked_capabilities",
+        "self_model.calibration",
+        "self_model.learning_strategy",
+        "self_model.learning_strategy.capacity_order"
+      ]
+    },
+    "applied": {"type": "boolean"},
+    "status": {"enum": ["preview", "recorded"]},
+    "proposed_update": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": [
+        "update_kind",
+        "target_path",
+        "title",
+        "rationale",
+        "expected_effect",
+        "review_action"
+      ],
+      "properties": {
+        "update_kind": {
+          "enum": [
+            "review_blockers_and_risks",
+            "review_calibration",
+            "review_capacity_strategy",
+            "review_learning_strategy"
+          ]
+        },
+        "target_path": {"type": "string", "minLength": 1},
+        "title": {"type": "string", "minLength": 1},
+        "rationale": {"type": "string", "minLength": 1},
+        "expected_effect": {"type": "string", "minLength": 1},
+        "review_action": {"const": "operator_review_required"}
+      }
+    },
+    "verifier": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": ["status", "checks"],
+      "properties": {
+        "status": {"const": "passed"},
+        "checks": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "object",
+            "additionalProperties": true,
+            "required": ["name", "passed", "detail"],
+            "properties": {
+              "name": {"type": "string", "minLength": 1},
+              "passed": {"const": true},
+              "detail": {"type": "string"}
+            }
+          }
+        }
+      }
+    },
+    "source": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": ["monitor_schema_version", "evidence_refs"],
+      "properties": {
+        "monitor_schema_version": {"type": "string", "minLength": 1},
+        "evidence_refs": {"type": "array", "minItems": 1, "items": {"type": "string"}}
+      }
+    },
+    "generated_at": {"type": "string", "format": "date-time"},
+    "artifact_path": {"type": "string"},
+    "actions": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": true,
+        "required": ["action", "status"],
+        "properties": {
+          "action": {"const": "write_self_model_update_record"},
+          "status": {"enum": ["preview", "written"]},
+          "path": {"type": "string"},
+          "would_write": {"type": "string"}
+        }
+      }
+    }
+  }
+}

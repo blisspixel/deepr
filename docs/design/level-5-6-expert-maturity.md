@@ -186,6 +186,10 @@ strategies."
 - `deepr expert promote-monitor` previews by default and requires `--apply` to
   promote one reviewed gap/eval proposal into the metacognition gap backlog,
   a local eval-case artifact, or both.
+- `deepr expert propose-self-model` previews by default and requires `--apply`
+  to write a verifier-gated self-model update review record. It gates proposal
+  type, target path, evidence refs, zero cost, human review, no derived
+  self-model mutation, and no authority expansion.
 - Beliefs already carry confidence, provenance, typed edges, event history,
   contradiction handling, and trust floors.
 - Handoff payloads expose bounded context packets instead of dumping whole
@@ -210,8 +214,10 @@ strategies."
 - The consult flow needs a global-workspace packet: selected beliefs, selected
   gaps, active contradictions, current goal, and allowed tools for the next
   step.
-- Reviewed monitor proposal promotion exists for gap/eval creation; verifier-gated
-  self-model update records remain next.
+- Reviewed monitor proposal promotion exists for gap/eval creation, and
+  verifier-gated self-model update records now exist as review artifacts. The
+  remaining gap is connecting accepted records to the learning transaction only
+  after measured outcome evidence and policy checks are explicit.
 
 ## Level 6 Gaps
 
@@ -219,8 +225,9 @@ strategies."
 - Prompt, tool-description, and skill changes need a proposal format with the
   changed component, supporting trace evidence, predicted measurable effect,
   and before/after eval evidence.
-- Self-model changes need a proposal and verifier too. A model should not be
-  able to silently rewrite its own stated goals, limits, or permissions.
+- Self-model changes now have a review-record proposal and structural
+  verifier. The next Level 6 work is proving a measured outcome before any
+  accepted record changes default learning policy or harness behavior.
 - Skill self-improvement needs sandbox execution, size limits, human review,
   and rollback.
 - Multi-expert review should critique proposed changes, but never bypass
