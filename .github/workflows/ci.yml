@@ -77,12 +77,19 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          fetch-depth: 0
 
       - name: Install uv
         uses: astral-sh/setup-uv@fac544c07dec837d0ccb6301d7b5580bf5edae39 # v8.2.0
         with:
           activate-environment: true
           python-version: "3.12"
+
+      - name: Secret scan (Gitleaks, blocking)
+        run: |
+          go install github.com/zricethezav/gitleaks/v8@v8.30.1
+          "$(go env GOPATH)/bin/gitleaks" git . --redact --no-banner --no-color --log-level warn
 
       - name: Dependency audit (pip-audit, blocking)
         # Phase E: BLOCKING. The baseline was cleared (flask-cors bumped past
@@ -188,7 +195,7 @@ jobs:
 
       - name: Unit tests with coverage
         # Coverage threshold lives in pyproject.toml (currently 80%).
-        # Do NOT pass --cov-fail-under here — it would silently override
+        # Do NOT pass --cov-fail-under here - it would silently override
         # the pyproject setting and allow coverage to drop without
         # tripping CI (R4 audit caught this discrepancy).
         run: python -m pytest tests/unit/ --ignore=tests/data -q --tb=short --cov=deepr --cov-report=term-missing

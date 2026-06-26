@@ -378,7 +378,7 @@ def sanitize_log_message(message: str) -> str:
         Sanitized log message
 
     Examples:
-        >>> sanitize_log_message("API key: sk-proj-abc123")
+        >>> sanitize_log_message("API key: example-value")
         'API key: [REDACTED]'
     """
     # Patterns for sensitive data

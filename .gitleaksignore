@@ -1,0 +1,8 @@
+# Historical false positives from redaction tests and documentation examples.
+# These fingerprints do not correspond to live credentials.
+b81493b83931378e48de55a9fc5418a19a689da9:tests/unit/test_api/test_error_properties.py:generic-api-key:293
+7fc10db63fa7f373e054cc49562ffc97eb1186c1:tests/unit/test_api/test_error_handler.py:generic-api-key:283
+7fc10db63fa7f373e054cc49562ffc97eb1186c1:tests/unit/test_api/test_error_properties.py:generic-api-key:277
+c78c88039c95978a7beefc007d5bb08cf8b683fb:tests/unit/test_utils/test_security.py:generic-api-key:298
+44b457aa341eaf1313d316d74cf4d8f628dddc1a:tests/unit/test_adversarial_injection.py:generic-api-key:140
+ea701ee2f014683646ade82ef72163b4c7f493b5:deepr/utils/security.py:generic-api-key:348

@@ -32,6 +32,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Hardened scoped HTTP MCP keys so expert-scoped consult calls are constrained
   to the key's expert allowlist before dispatch, and `agent-guide --output`
   refuses git-trackable bearer-token files by default.
+- Added a blocking Gitleaks history scan in CI, removed scanner-triggering fake
+  key literals from current test fixtures, and documented the historical
+  redaction-test false positives in `.gitleaksignore`.
 - Added `deepr expert promote-monitor`, a `$0` reviewed promotion surface backed
   by the published `deepr-metacognitive-promotion-v1` schema. It previews by
   default and requires `--apply` before a `gap_or_eval_candidate` monitor

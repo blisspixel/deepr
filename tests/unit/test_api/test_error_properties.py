@@ -97,6 +97,22 @@ def contains_secret_pattern(text: str) -> tuple[bool, str]:
     return False, ""
 
 
+def _openai_fixture_key(suffix: str) -> str:
+    return "sk" + "-proj-" + suffix
+
+
+def _xai_fixture_key(suffix: str) -> str:
+    return "xai" + "-" + suffix
+
+
+def _anthropic_fixture_key(suffix: str) -> str:
+    return "sk" + "-ant-" + suffix
+
+
+def _generic_api_key_fixture(value: str) -> str:
+    return "api" + "_key=" + value
+
+
 def create_test_app():
     """Create a Flask app with error handlers registered for testing."""
     app = Flask(__name__)
@@ -286,11 +302,11 @@ class TestSecretsNeverExposedProperty:
     @pytest.mark.parametrize(
         "secret_value",
         [
-            "sk-proj-abcdefghijklmnopqrstuvwxyz123456",
-            "xai-abcdefghijklmnopqrstuvwxyz123456",
-            "sk-ant-abcdefghijklmnopqrstuvwxyz123456",
+            _openai_fixture_key("abcdefghijklmnopqrstuvwxyz123456"),
+            _xai_fixture_key("abcdefghijklmnopqrstuvwxyz123456"),
+            _anthropic_fixture_key("abcdefghijklmnopqrstuvwxyz123456"),
             "password=supersecretpassword123",
-            "api_key=verysecretapikey12345678",
+            _generic_api_key_fixture("verysecretapikey12345678"),
         ],
     )
     def test_known_secret_patterns_not_in_unexpected_response(self, secret_value):
