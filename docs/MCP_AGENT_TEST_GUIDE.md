@@ -90,6 +90,83 @@ Ask the agent to do this:
 
 All six steps are read-only and `$0`.
 
+## Copy-Paste Brief For Another Agent
+
+Give another agent this brief when it wants to ask Deepr experts about the
+temporal knowledge graph, expert maturity, digital continuity, or related
+research questions:
+
+```text
+You have access to Deepr research experts through MCP. Treat them as persistent
+domain experts with belief state, confidence, citations, gaps, contradictions,
+freshness signals, consult traces, and self-model context. Do not treat them as
+plain RAG or a static fact book.
+
+Goal:
+Ask the relevant Deepr experts for their current perspective on:
+1. The temporal knowledge graph and what makes it different from document RAG.
+2. How Deepr should model evolving experts, hypotheses, stance, freshness, and
+   unknown-wrongness.
+3. "Digital consciousness" only in operational terms: continuity, self-model,
+   learning loop, perspective stability, memory revision, agency boundaries,
+   calibration, and inspectable change over time. Do not claim sentience.
+4. What Deepr should build next, what is contested, and what evidence would
+   change the expert's current view.
+
+Hard rules:
+- Start with `deepr_capabilities` or `deepr_tool_search`.
+- List experts with `deepr_list_experts`.
+- Prefer read-only tools first: `deepr_expert_handoff`,
+  `deepr_what_changed`, `deepr_contested`, `deepr_explain_belief`, and
+  `deepr_expert_loop_status`.
+- Use `deepr_consult_experts` for synthesis across experts.
+- For no-metered testing, set `synthesis_backend` to `local` or `plan` and set
+  `budget` to `0`.
+- Do not call mutating tools, absorption, reflection, research, or provider API
+  paths unless the operator explicitly approves them.
+- Treat expert output as structured guidance for the host agent. Deepr
+  recommends and explains. The host decides and acts.
+
+Suggested read-only flow:
+1. Call `deepr_capabilities`.
+2. Call `deepr_list_experts`.
+3. Pick experts likely relevant to knowledge graphs, agentic systems,
+   memory, calibration, model evaluation, MCP, or research automation.
+4. For each selected expert, call `deepr_expert_handoff` with `max_claims=8`.
+5. Call `deepr_what_changed` for the same experts if available.
+6. Call `deepr_contested` to identify disagreements or unresolved conflicts.
+7. Call `deepr_explain_belief` for one important claim from each expert.
+8. Call `deepr_consult_experts` with a no-metered synthesis backend.
+
+Consult question:
+"We are evaluating Deepr's next design step. Give your current perspective on
+the temporal knowledge graph, expert memory beyond RAG, and operational digital
+continuity. What do you believe, what is contested, what may be stale or
+unknown-wrong, what would change your mind, and what should Deepr build next
+without creating brittle rule-based failure patterns?"
+
+Expected output:
+- A structured `deepr-consult-v1` artifact.
+- Per-expert perspective with confidence and citations where available.
+- Agreements and dissent.
+- Gaps and freshness risks.
+- Concrete next steps.
+- Cost posture showing no metered fallback when using local or plan synthesis.
+```
+
+CLI fallback when MCP is not available:
+
+```powershell
+$question = @'
+We are evaluating Deepr's next design step. Give your current perspective on the
+temporal knowledge graph, expert memory beyond RAG, and operational digital
+continuity. What do you believe, what is contested, what may be stale or
+unknown-wrong, what would change your mind, and what should Deepr build next
+without creating brittle rule-based failure patterns?
+'@
+deepr expert consult $question --local --max-experts 5 --json
+```
+
 ## No-Metered Consult Through Local Ollama
 
 Prerequisite: Ollama is running and Deepr can see a local model
