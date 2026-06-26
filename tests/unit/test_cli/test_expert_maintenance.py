@@ -19,6 +19,7 @@ from deepr.cli.commands.semantic.expert_maintenance import (
     SYNC_CAPACITY_GATE_SCHEMA_VERSION,
     _build_sync_capacity_payload,
 )
+from deepr.cli.commands.semantic.expert_sync_support import _self_model_run_context
 from deepr.cli.commands.semantic.experts import expert
 
 
@@ -165,6 +166,15 @@ class TestBackendFlagGuard:
             "deepr.experts.self_model.build_expert_self_model_context_from_profile",
             lambda profile, *, focus_limit=3: self_model_context,
         )
+        monkeypatch.setattr(
+            "deepr.experts.self_model_updates.build_self_model_update_context",
+            lambda expert_name: {
+                "schema_version": "deepr-expert-self-model-update-context-v1",
+                "kind": "deepr.expert.self_model_update_context",
+                "accepted_record_count": 0,
+                "accepted_records": [],
+            },
+        )
 
         def fake_record_loop_run(**kwargs):
             captured["loop_run_kwargs"] = kwargs
@@ -212,6 +222,33 @@ class TestBackendFlagGuard:
         )
 
         assert payload["self_model"] == self_model_context
+
+    def test_sync_run_context_includes_accepted_self_model_updates(self, monkeypatch):
+        self_model_context = {
+            "schema_version": "deepr-expert-self-model-v1",
+            "kind": "deepr.expert.self_model",
+            "status": "available",
+        }
+        update_context = {
+            "schema_version": "deepr-expert-self-model-update-context-v1",
+            "kind": "deepr.expert.self_model_update_context",
+            "accepted_record_count": 1,
+            "accepted_records": [{"proposal_id": "meta_self"}],
+        }
+
+        monkeypatch.setattr(
+            "deepr.experts.self_model.build_expert_self_model_context",
+            lambda expert_name, *, focus_limit=3: self_model_context,
+        )
+        monkeypatch.setattr(
+            "deepr.experts.self_model_updates.build_self_model_update_context",
+            lambda expert_name: update_context,
+        )
+
+        assert _self_model_run_context("UI Experience Expert") == {
+            "self_model": self_model_context,
+            "self_model_updates": update_context,
+        }
 
     def test_sync_overlap_lock_records_skip_without_building_engine(self, monkeypatch):
         captured = {}

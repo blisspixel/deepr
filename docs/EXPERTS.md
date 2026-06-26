@@ -397,6 +397,30 @@ deepr expert promote-monitor "Azure Architect" meta_abc123 --target eval --apply
 deepr expert promote-monitor "Azure Architect" meta_abc123 --target both --apply
 ```
 
+### Propose Self-Model Updates (review record)
+Preview or write a verifier-gated self-model update review record for a
+self-model-related monitor proposal. The command costs `$0`, never calls a
+model, and never mutates the derived self-model. `--apply` writes an append-only
+`deepr-expert-self-model-update-v1` artifact only after deterministic gates pass
+for proposal type, target path, evidence refs, human review, zero cost, no
+authority expansion, and no derived self-model mutation.
+```bash
+deepr expert propose-self-model "Azure Architect" meta_def456
+deepr expert propose-self-model "Azure Architect" meta_def456 --apply --json
+```
+
+### Accept Self-Model Updates (outcome evidence gate)
+Preview or write a separate acceptance artifact for a recorded self-model
+update. Acceptance requires explicit outcome evidence refs such as
+`loop_run:...`, `eval:...`, `source_pack:...`, or `human_review:...`, plus a
+reviewer. `--apply` writes `deepr-expert-self-model-update-acceptance-v1`;
+accepted records are later attached to sync loop-run context as read-only
+guidance. They do not grant new authority or mutate the derived self-model.
+```bash
+deepr expert accept-self-model "Azure Architect" data/self_model_updates/azure-architect/self_model_update_meta_def456_20260626_120000000000.json --outcome-evidence loop_run:loop_123 --reviewer operator
+deepr expert accept-self-model "Azure Architect" data/self_model_updates/azure-architect/self_model_update_meta_def456_20260626_120000000000.json --outcome-evidence loop_run:loop_123 --outcome-evidence human_review:review_1 --reviewer operator --apply --json
+```
+
 ### Digest (browsable derived view)
 Compile the belief store into a browsable Markdown digest: beliefs by domain
 sorted by confidence, open contradictions with both sides, graph stats. $0, no

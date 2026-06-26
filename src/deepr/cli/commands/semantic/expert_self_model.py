@@ -107,6 +107,25 @@ def _render_self_model_update(payload: dict[str, Any]) -> None:
         console.print("\n[dim]Preview only. Re-run with --apply after review to write the record.[/dim]")
 
 
+def _render_self_model_acceptance(payload: dict[str, Any]) -> None:
+    print_section_header("Self-Model Update Acceptance")
+    print_key_value("Expert", payload["expert_name"])
+    print_key_value("Proposal", payload["proposal_id"])
+    print_key_value("Target", payload["target"])
+    print_key_value("Status", payload["status"])
+    accepted = payload["accepted_update"]
+    console.print(f"\n[bold]{accepted['title']}[/bold]")
+    console.print(f"  update kind: {accepted['update_kind']}")
+    console.print(f"  expected effect: {accepted['expected_effect']}")
+    for action in payload.get("actions", []) or []:
+        if action.get("path"):
+            console.print(f"\n[dim]{action['path']}[/dim]")
+        elif action.get("would_write"):
+            console.print(f"\n[dim]would write: {action['would_write']}[/dim]")
+    if not payload["applied"]:
+        console.print("\n[dim]Preview only. Re-run with --apply after review to write the acceptance.[/dim]")
+
+
 @expert.command(name="monitor")
 @click.argument("name")
 @click.option("--limit", type=int, default=20, show_default=True, help="Recent loop runs and traces to inspect.")
@@ -282,3 +301,59 @@ def expert_propose_self_model(
         click.echo(json.dumps(payload, indent=2, default=str))
         return
     _render_self_model_update(payload)
+
+
+@expert.command(name="accept-self-model")
+@click.argument("name")
+@click.argument("record_path", type=click.Path(dir_okay=False, path_type=Path))
+@click.option(
+    "--outcome-evidence",
+    "outcome_evidence_refs",
+    multiple=True,
+    required=True,
+    help="Outcome evidence ref such as loop_run:ID, eval:ID, source_pack:PATH, or human_review:ID.",
+)
+@click.option("--reviewer", required=True, help="Human reviewer or review system id.")
+@click.option("--apply", "apply_change", is_flag=True, help="Write the acceptance record. Default is preview.")
+@click.option(
+    "--output-dir",
+    type=click.Path(file_okay=False, path_type=Path),
+    default=None,
+    help="Optional directory for acceptance records.",
+)
+@click.option("--json", "json_output", is_flag=True, help="Emit machine-readable JSON.")
+def expert_accept_self_model(
+    name: str,
+    record_path: Path,
+    outcome_evidence_refs: tuple[str, ...],
+    reviewer: str,
+    apply_change: bool,
+    output_dir: Path | None,
+    json_output: bool,
+) -> None:
+    """Preview or write acceptance for a self-model update record."""
+    from deepr.experts.self_model_updates import SelfModelUpdateError, accept_self_model_update_record
+
+    store = ExpertStore()
+    profile = store.load(name)
+    if profile is None:
+        print_error(f"Expert '{name}' not found")
+        raise click.Abort()
+
+    try:
+        payload = accept_self_model_update_record(
+            record_path,
+            expert_name=profile.name,
+            outcome_evidence_refs=list(outcome_evidence_refs),
+            reviewer=reviewer,
+            apply=apply_change,
+            output_dir=output_dir,
+        )
+    except SelfModelUpdateError as exc:
+        print_error(str(exc))
+        raise click.Abort() from exc
+
+    if json_output:
+        click.echo(json.dumps(payload, indent=2, default=str))
+        return
+    _render_self_model_acceptance(payload)

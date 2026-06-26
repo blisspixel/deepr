@@ -133,3 +133,28 @@ def test_consult_trace_candidates_for_expert_filters_other_experts(tmp_path):
 
     assert payload["candidate_count"] == 1
     assert payload["candidates"][0]["trace_id"] == "consult_harness"
+
+
+def test_metacognitive_monitor_recommends_gap_eval_preview_command():
+    profile = _profile(_healthy_manifest())
+    candidate_payload = {
+        "candidate_count": 1,
+        "candidates": [
+            {
+                "trace_id": "consult_failed",
+                "reason": "failed_consult",
+                "question_preview": "How should the expert recover from synthesis failure?",
+            }
+        ],
+    }
+
+    payload = build_metacognitive_monitor_report(
+        profile,
+        loop_runs=[],
+        consult_trace_candidates=candidate_payload,
+    )
+    proposal = next(item for item in payload["proposals"] if item["proposal_type"] == "gap_or_eval_candidate")
+
+    assert "deepr expert promote-monitor" in proposal["recommended_command"]
+    assert "--json" in proposal["recommended_command"]
+    assert "--apply" not in proposal["recommended_command"]

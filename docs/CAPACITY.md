@@ -71,15 +71,18 @@ when the optional `ddgs` dependency is installed. They do not use Brave, Tavily,
 or other API-key search backends. If no fresh sources are retrieved, Deepr
 records no changes instead of absorbing uncertainty as permanent beliefs.
 
-Context-bearing sync runs write a source-pack artifact under the expert
-knowledge directory:
+Context-bearing sync runs write a source-pack artifact and deterministic
+compiler manifest under the expert knowledge directory:
 
 ```text
 sync_artifacts/source_packs/<timestamp>_<topic>.json
+sync_artifacts/source_pack_manifests/<timestamp>_<topic>.json
 ```
 
-If the source pack cannot be persisted, Deepr fails closed and does not absorb
-the context-grounded answer.
+The manifest records provenance shape, excerpt hashes, content-hash validity,
+and readiness for a later semantic compile. It makes no model calls and emits no
+semantic verdicts. If the source pack cannot be persisted, Deepr fails closed
+and does not absorb the context-grounded answer.
 
 ## Local Admission
 
