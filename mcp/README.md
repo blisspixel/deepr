@@ -32,11 +32,14 @@ capable), `medium`/`high` (metered, confirm budget first).
 - A deep autonomous investigation -> `deepr_agentic_research` (Plan-Execute-Review,
   $1-$10; confirm budget with the human first).
 
-**Spend $0 by default.** For consult and query, pass
+**Spend $0 by default.** For cross-expert consults, pass
 `synthesis_backend: "local"` (Ollama) or `"plan"` with `plan: "codex"` (also
 claude/grok) to run synthesis on owned or prepaid capacity. In those modes Deepr
 disables silent metered fallback, so a missing-context answer is an honest "no
-context" rather than a surprise charge. A zero API budget is allowed.
+context" rather than a surprise charge. Local and plan consults allow a zero
+budget. API-backed consults require a positive budget. `deepr_query_expert` is
+still the legacy chat path and does not yet accept local, plan, provider, or
+model selection; treat it as metered-capable unless the operator approves it.
 
 **Errors are structured, not prose.** A failed call returns
 `{error_code, category, retryable, message}` (e.g. `CONSULT_BACKEND_UNAVAILABLE`,
