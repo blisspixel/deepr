@@ -108,6 +108,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   improvements.
 
 ### Fixed
+- The free DuckDuckGo retrieval path now retries with exponential backoff (3
+  attempts) instead of a single attempt. DuckDuckGo rate-limits aggressively, so
+  one transient failure was degrading to "no sources -> no report" and starving
+  `$0` expert maintenance; a bounded retry recovers most transient rate limits
+  before falling back.
 - Belief extraction now de-references source pointers: a claim states the bare
   domain fact ("Llama 3.1:8B is a tier-1 model for 8-12GB VRAM") instead of
   copying the report's citation numbering ("Source [5] lists ..."), and never
