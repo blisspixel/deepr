@@ -66,6 +66,10 @@ This file captures repo-specific operating lessons from autonomous work cycles.
   profile and manifest. Capabilities, limits, goals, calibration, risks, and
   current-focus packets are safe to expose before they are safe to mutate. Wire
   mutation later through reviewed metacognitive proposals and verifier gates.
+- Put loop metadata in `run_context`, not `next_action`. `next_action` should
+  stay executable or human-actionable; read-only focus packets, calibration, and
+  context hints belong in additive metadata so dashboards and schedulers do not
+  mistake state for an instruction.
 - Treat schema-adjacent model output as expected. If a model returns one
   `evidence` string despite the requested array, preserve it as one excerpt.
   Splitting it into characters corrupts provenance and can falsely lift

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 from datetime import datetime
 from typing import TYPE_CHECKING, Any
 
@@ -11,6 +12,7 @@ if TYPE_CHECKING:
 
 EXPERT_SELF_MODEL_SCHEMA_VERSION = "deepr-expert-self-model-v1"
 EXPERT_SELF_MODEL_KIND = "deepr.expert.self_model"
+logger = logging.getLogger(__name__)
 
 
 def _iso(value: datetime | None) -> str:
@@ -189,6 +191,75 @@ def build_expert_self_model(
                 "deepr expert why",
             ],
             "expected_stop_condition": "stop when evidence is sufficient, budget is exhausted, or review is required",
+        },
+    }
+
+
+def build_expert_self_model_context_from_profile(
+    profile: ExpertProfile,
+    *,
+    focus_limit: int = 3,
+) -> dict[str, Any]:
+    """Return bounded read-only self-model metadata for trace and loop context."""
+    try:
+        payload = build_expert_self_model(profile, profile.get_manifest(), focus_limit=focus_limit)
+    except Exception as exc:
+        logger.debug("Self-model context unavailable for %s", getattr(profile, "name", "unknown"), exc_info=True)
+        return _unavailable_context(exc)
+    return _compact_context(payload)
+
+
+def build_expert_self_model_context(
+    expert_name: str,
+    *,
+    focus_limit: int = 3,
+) -> dict[str, Any]:
+    """Load an expert and return bounded read-only self-model metadata."""
+    from deepr.experts.profile import ExpertStore
+
+    try:
+        profile = ExpertStore().load(expert_name)
+        if profile is None:
+            return {}
+    except Exception as exc:
+        logger.debug("Self-model profile load failed for %s", expert_name, exc_info=True)
+        return _unavailable_context(exc)
+    return build_expert_self_model_context_from_profile(profile, focus_limit=focus_limit)
+
+
+def _unavailable_context(exc: Exception) -> dict[str, Any]:
+    return {
+        "schema_version": EXPERT_SELF_MODEL_SCHEMA_VERSION,
+        "kind": EXPERT_SELF_MODEL_KIND,
+        "status": "unavailable",
+        "error_type": type(exc).__name__,
+    }
+
+
+def _compact_context(payload: dict[str, Any]) -> dict[str, Any]:
+    focus = payload["current_focus_packet"]
+    contract = payload["contract"]
+    return {
+        "schema_version": payload["schema_version"],
+        "kind": payload["kind"],
+        "status": "available",
+        "contract": {
+            "read_only": contract["read_only"],
+            "cost_usd": contract["cost_usd"],
+            "derived_view": contract["derived_view"],
+            "goal_changes_require_review": contract["goal_changes_require_review"],
+        },
+        "current_goals": list(payload["current_goals"]),
+        "calibration": dict(payload["calibration"]),
+        "blocked_capability_count": len(payload["blocked_capabilities"]),
+        "unresolved_risk_count": len(payload["unresolved_risks"]),
+        "current_focus_packet": {
+            "selected_beliefs": list(focus["selected_beliefs"]),
+            "selected_gaps": list(focus["selected_gaps"]),
+            "active_contradictions": list(focus["active_contradictions"]),
+            "goal": focus["goal"],
+            "allowed_tools": list(focus["allowed_tools"]),
+            "expected_stop_condition": focus["expected_stop_condition"],
         },
     }
 

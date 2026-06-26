@@ -10,6 +10,8 @@ from deepr.experts.self_model import (
     EXPERT_SELF_MODEL_KIND,
     EXPERT_SELF_MODEL_SCHEMA_VERSION,
     build_expert_self_model,
+    build_expert_self_model_context,
+    build_expert_self_model_context_from_profile,
 )
 
 
@@ -111,3 +113,57 @@ def test_build_expert_self_model_does_not_mutate_inputs():
 
     assert profile.to_dict() == profile_before
     assert manifest.to_dict() == manifest_before
+
+
+def test_build_expert_self_model_context_from_profile_is_bounded():
+    payload = build_expert_self_model_context_from_profile(_profile(), focus_limit=1)
+
+    assert payload["schema_version"] == EXPERT_SELF_MODEL_SCHEMA_VERSION
+    assert payload["kind"] == EXPERT_SELF_MODEL_KIND
+    assert payload["status"] == "available"
+    assert payload["contract"] == {
+        "read_only": True,
+        "cost_usd": 0.0,
+        "derived_view": True,
+        "goal_changes_require_review": True,
+    }
+    assert set(payload) == {
+        "schema_version",
+        "kind",
+        "status",
+        "contract",
+        "current_goals",
+        "calibration",
+        "blocked_capability_count",
+        "unresolved_risk_count",
+        "current_focus_packet",
+    }
+    assert payload["current_focus_packet"]["allowed_tools"]
+
+
+def test_build_expert_self_model_context_handles_missing_profile(monkeypatch):
+    class EmptyExpertStore:
+        def load(self, name):
+            assert name == "Ghost Expert"
+            return None
+
+    monkeypatch.setattr("deepr.experts.profile.ExpertStore", EmptyExpertStore)
+
+    assert build_expert_self_model_context("Ghost Expert") == {}
+
+
+def test_build_expert_self_model_context_reports_unavailable_without_paths(monkeypatch):
+    class ExplodingExpertStore:
+        def load(self, name):
+            raise RuntimeError(f"cannot read local path for {name}")
+
+    monkeypatch.setattr("deepr.experts.profile.ExpertStore", ExplodingExpertStore)
+
+    payload = build_expert_self_model_context("Broken Expert")
+
+    assert payload == {
+        "schema_version": EXPERT_SELF_MODEL_SCHEMA_VERSION,
+        "kind": EXPERT_SELF_MODEL_KIND,
+        "status": "unavailable",
+        "error_type": "RuntimeError",
+    }

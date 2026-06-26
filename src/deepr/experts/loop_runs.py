@@ -154,6 +154,7 @@ class ExpertLoopRun:
     stop_reason: LoopStopReason | None = None
     failure_reason: str = ""
     next_action: dict[str, Any] = field(default_factory=dict)
+    run_context: dict[str, Any] = field(default_factory=dict)
 
     @property
     def acceptance_rate(self) -> float:
@@ -242,6 +243,7 @@ class ExpertLoopRun:
             "stop_reason": self.stop_reason.value if self.stop_reason else None,
             "failure_reason": self.failure_reason,
             "next_action": self.next_action,
+            "run_context": self.run_context,
         }
 
     @classmethod
@@ -284,6 +286,7 @@ class ExpertLoopRun:
             stop_reason=LoopStopReason(str(data["stop_reason"])) if data.get("stop_reason") else None,
             failure_reason=str(data.get("failure_reason", "")),
             next_action=_dict_or_empty(data.get("next_action")),
+            run_context=_dict_or_empty(data.get("run_context")),
         )
 
 
@@ -358,6 +361,7 @@ def record_loop_run(
     verifier_outcome: str = "",
     verifier_score: float | None = None,
     verifier_threshold: float | None = None,
+    run_context: dict[str, Any] | None = None,
 ) -> ExpertLoopRun:
     run = ExpertLoopRun(
         run_id=new_loop_run_id(),
@@ -378,5 +382,6 @@ def record_loop_run(
         verifier_outcome=verifier_outcome,
         verifier_score=verifier_score,
         verifier_threshold=verifier_threshold,
+        run_context=run_context or {},
     )
     return ExpertLoopRunStore(expert_name).append(run)

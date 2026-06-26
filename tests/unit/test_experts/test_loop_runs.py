@@ -33,6 +33,7 @@ def _run(run_id: str = "loop_1", *, status: LoopRunStatus = LoopRunStatus.WAITIN
         rejected_changes=1,
         stop_reason=LoopStopReason.CAPACITY_UNAVAILABLE,
         next_action={"status": "wait", "title": "Wait for cheap capacity"},
+        run_context={"self_model": {"status": "available"}},
     )
 
 
@@ -46,6 +47,7 @@ def test_loop_run_round_trips_metrics():
     assert payload["acceptance_rate"] == 0.6667
     assert payload["cost_per_accepted_change"] == 0.0
     assert payload["stop_reason"] == "capacity_unavailable"
+    assert payload["run_context"] == {"self_model": {"status": "available"}}
 
 
 def test_loop_run_validates_required_fields():
@@ -170,6 +172,7 @@ def test_record_loop_run_appends_snapshot():
             status=LoopRunStatus.WAITING,
             stop_reason=LoopStopReason.CAPACITY_UNAVAILABLE,
             next_action={"status": "wait"},
+            run_context={"self_model": {"status": "available"}},
             budget_limit=1.5,
             budget_spent=0.25,
             capacity_source="owned/prepaid",
@@ -185,6 +188,7 @@ def test_record_loop_run_appends_snapshot():
     assert run.status == LoopRunStatus.WAITING
     assert run.stop_reason == LoopStopReason.CAPACITY_UNAVAILABLE
     assert run.next_action == {"status": "wait"}
+    assert run.run_context == {"self_model": {"status": "available"}}
     assert run.budget_spent == 0.25
     assert run.accepted_changes == 2
     assert run.rejected_changes == 1

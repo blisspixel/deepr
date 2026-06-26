@@ -82,6 +82,7 @@ def _make_sync_one(*, use_local: bool, local_model: str | None, include_all: boo
                 scheduled=scheduled,
                 sync_all=include_all,
                 capacity_source=capacity_source,
+                profile=profile,
             )
         return result, capacity_source
 

@@ -173,7 +173,8 @@
             null
           ]
         },
-        "next_action": {"type": "object", "additionalProperties": true}
+        "next_action": {"type": "object", "additionalProperties": true},
+        "run_context": {"type": "object", "additionalProperties": true}
       }
     }
   }

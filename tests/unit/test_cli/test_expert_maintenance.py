@@ -17,6 +17,7 @@ from deepr.backends.capacity_actions import CAPACITY_NEXT_KIND, CAPACITY_NEXT_SC
 from deepr.cli.commands.semantic.expert_maintenance import (
     SYNC_CAPACITY_GATE_KIND,
     SYNC_CAPACITY_GATE_SCHEMA_VERSION,
+    _build_sync_capacity_payload,
 )
 from deepr.cli.commands.semantic.experts import expert
 
@@ -105,6 +106,11 @@ class TestBackendFlagGuard:
         profile = SimpleNamespace(name="UI Experience Expert")
         client = object()
         research_fn = object()
+        self_model_context = {
+            "schema_version": "deepr-expert-self-model-v1",
+            "kind": "deepr.expert.self_model",
+            "status": "available",
+        }
 
         class FakeExpertStore:
             def load(self, name):
@@ -155,6 +161,10 @@ class TestBackendFlagGuard:
             lambda model, *, context_builder=None: research_fn,
         )
         monkeypatch.setattr("deepr.experts.report_absorber.ReportAbsorber", FakeReportAbsorber)
+        monkeypatch.setattr(
+            "deepr.experts.self_model.build_expert_self_model_context_from_profile",
+            lambda profile, *, focus_limit=3: self_model_context,
+        )
 
         def fake_record_loop_run(**kwargs):
             captured["loop_run_kwargs"] = kwargs
@@ -170,6 +180,7 @@ class TestBackendFlagGuard:
         assert captured["loop_run_kwargs"]["status"].value == "completed"
         assert captured["loop_run_kwargs"]["stop_reason"].value == "no_due_work"
         assert captured["loop_run_kwargs"]["capacity_source"] == "local"
+        assert captured["loop_run_kwargs"]["run_context"] == {"self_model": self_model_context}
         assert captured["absorber_profile"] is profile
         assert captured["absorber_model"] == "qwen-local"
         assert captured["absorber_client"] is client
@@ -178,6 +189,29 @@ class TestBackendFlagGuard:
         assert captured["research_fn"] is research_fn
         assert captured["engine_absorber"] is captured["absorber"]
         assert captured["sync_kwargs"]["budget"] == 2.0
+
+    def test_sync_capacity_payload_includes_self_model_focus(self, monkeypatch):
+        self_model_context = {
+            "schema_version": "deepr-expert-self-model-v1",
+            "kind": "deepr.expert.self_model",
+            "status": "available",
+        }
+
+        monkeypatch.setattr("deepr.backends.capacity_actions.build_capacity_next_actions", lambda **_: [])
+        monkeypatch.setattr(
+            "deepr.experts.self_model.build_expert_self_model_context",
+            lambda expert_name, *, focus_limit=3: self_model_context,
+        )
+
+        payload = _build_sync_capacity_payload(
+            "UI Experience Expert",
+            context_mode="fresh",
+            scheduled=True,
+            status="waiting_for_capacity",
+            detail="waiting for local capacity",
+        )
+
+        assert payload["self_model"] == self_model_context
 
     def test_sync_overlap_lock_records_skip_without_building_engine(self, monkeypatch):
         captured = {}

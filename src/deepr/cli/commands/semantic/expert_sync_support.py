@@ -20,6 +20,22 @@ SYNC_CAPACITY_GATE_KIND = "deepr.expert.sync_capacity_gate"
 SYNC_CAPACITY_GATE_SCHEMA_VERSION = "deepr-sync-capacity-gate-v1"
 
 
+def _self_model_context(expert_name: str, *, profile: Any | None = None) -> dict[str, Any]:
+    from deepr.experts.self_model import (
+        build_expert_self_model_context,
+        build_expert_self_model_context_from_profile,
+    )
+
+    if profile is not None:
+        return build_expert_self_model_context_from_profile(profile, focus_limit=3)
+    return build_expert_self_model_context(expert_name, focus_limit=3)
+
+
+def _self_model_run_context(expert_name: str, *, profile: Any | None = None) -> dict[str, Any]:
+    self_model = _self_model_context(expert_name, profile=profile)
+    return {"self_model": self_model} if self_model else {}
+
+
 def _sync_context_mode(*, fresh_context: bool, deep_context: bool) -> str:
     if deep_context:
         return "deep"
@@ -35,6 +51,7 @@ def _build_sync_capacity_payload(
     scheduled: bool,
     status: str,
     detail: str,
+    profile: Any | None = None,
 ) -> dict[str, Any]:
     from deepr.backends.admission import TASK_CLASS_SYNC
     from deepr.backends.capacity_actions import (
@@ -50,7 +67,7 @@ def _build_sync_capacity_payload(
         scheduled=scheduled,
     )
     actions = build_capacity_next_actions(task_class=TASK_CLASS_SYNC, job_context=job_context)
-    return {
+    payload = {
         "schema_version": SYNC_CAPACITY_GATE_SCHEMA_VERSION,
         "kind": SYNC_CAPACITY_GATE_KIND,
         "contract": {
@@ -68,6 +85,10 @@ def _build_sync_capacity_payload(
         "detail": detail,
         "capacity_next": build_capacity_next_payload(job_context, actions),
     }
+    self_model = _self_model_context(expert_name, profile=profile)
+    if self_model:
+        payload["self_model"] = self_model
+    return payload
 
 
 def _print_capacity_payload(payload: dict[str, Any]) -> None:
@@ -85,6 +106,7 @@ def _emit_scheduled_capacity_wait(
     context_mode: str,
     json_output: bool,
     detail: str,
+    profile: Any | None = None,
 ) -> None:
     payload = _build_sync_capacity_payload(
         expert_name,
@@ -92,6 +114,7 @@ def _emit_scheduled_capacity_wait(
         scheduled=True,
         status="waiting_for_capacity",
         detail=detail,
+        profile=profile,
     )
     from deepr.experts.loop_runs import LoopRunStatus, LoopStopReason, record_loop_run
 
@@ -103,6 +126,7 @@ def _emit_scheduled_capacity_wait(
         status=LoopRunStatus.WAITING,
         stop_reason=LoopStopReason.CAPACITY_UNAVAILABLE,
         next_action=(payload["capacity_next"]["actions"][0] if payload["capacity_next"]["actions"] else {}),
+        run_context=_self_model_run_context(expert_name, profile=profile),
         capacity_source="owned/prepaid",
     )
     payload["loop_run"] = loop_run.to_dict()
@@ -121,6 +145,7 @@ def _emit_capacity_block(
     context_mode: str,
     json_output: bool,
     detail: str,
+    profile: Any | None = None,
 ) -> None:
     payload = _build_sync_capacity_payload(
         expert_name,
@@ -128,6 +153,7 @@ def _emit_capacity_block(
         scheduled=False,
         status="capacity_blocked",
         detail=detail,
+        profile=profile,
     )
     if json_output:
         click.echo(json.dumps(payload, indent=2))
@@ -145,6 +171,7 @@ def _record_completed_sync_loop(
     scheduled: bool,
     sync_all: bool,
     capacity_source: str,
+    profile: Any | None = None,
 ) -> Any:
     from deepr.experts.loop_runs import LoopRunStatus, LoopStopReason, record_loop_run
 
@@ -175,6 +202,7 @@ def _record_completed_sync_loop(
         status=status,
         stop_reason=stop_reason,
         next_action=next_action,
+        run_context=_self_model_run_context(expert_name, profile=profile),
         budget_limit=budget,
         budget_spent=float(getattr(result, "total_cost", 0.0) or 0.0),
         capacity_source=capacity_source,
@@ -190,6 +218,7 @@ def _record_sync_overlap_loop(
     scheduled: bool,
     sync_all: bool,
     capacity_source: str,
+    profile: Any | None = None,
 ) -> Any:
     from deepr.experts.loop_runs import LoopRunStatus, LoopStopReason, record_loop_run
 
@@ -206,6 +235,7 @@ def _record_sync_overlap_loop(
             "detail": "This run skipped because the same expert sync verb already holds the overlap lock.",
             "command": f'deepr expert sync "{expert_name}" --scheduled',
         },
+        run_context=_self_model_run_context(expert_name, profile=profile),
         budget_limit=budget,
         budget_spent=0.0,
         capacity_source=capacity_source,
@@ -294,6 +324,7 @@ def _run_sync_with_loop_guard(
                 scheduled=scheduled,
                 sync_all=sync_all,
                 capacity_source=capacity_source,
+                profile=profile,
             )
             return result, loop_run, capacity_source
         result, capacity_source = run_once()
@@ -304,6 +335,7 @@ def _run_sync_with_loop_guard(
             scheduled=scheduled,
             sync_all=sync_all,
             capacity_source=capacity_source,
+            profile=profile,
         )
         return result, loop_run, capacity_source
 
