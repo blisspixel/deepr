@@ -80,6 +80,15 @@ predicted observations or disconfirming signals; a learning agenda needs a
 reason it is worth exploring. Deterministic gates protect form, spend, writes,
 and provenance. They must not reduce expertise to checklist matching.
 
+**Unknown-wrongness principle:** a model or artifact being old is not the whole
+problem. The deeper failure is that it usually does not know which parts of its
+own worldview are stale, incomplete, disproven, or now misleading. A historical
+"fact" can be useful evidence about what people once believed, while being
+harmful if promoted as current understanding. Deepr treats stale knowledge as a
+prior to re-check, not an authority. Currentness means active watchlists,
+contradiction discovery, news refresh, perspective deltas, and willingness to
+revise when the world or the conceptual frame changes.
+
 **Context-engineering principle:** context is an engineered runtime substrate,
 not a bag of chunks. Deepr should assemble compact task context from canonical
 expert state: current goals, source notes, belief graph slices, contradictions,
