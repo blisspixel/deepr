@@ -711,6 +711,10 @@ Deepr consults its own experts about its own work (the self-consultation loop).
 Every CLI and MCP consult writes a local `deepr-consult-trace-v1` record for the
 improvement loop: question, requested experts, selected context metadata, capacity
 posture, checks run, output artifact, and first-class synthesis failure events.
+When the consulted expert profile exists, the perspective context also includes a
+bounded read-only `self_model` block with current goals, calibration, blockers,
+risks, and the current-focus packet. This is trace and handoff metadata, not an
+automatic goal update.
 Review those traces with:
 
 ```bash

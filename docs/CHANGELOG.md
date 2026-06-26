@@ -91,6 +91,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   confidence, provenance, temporal context, and a next learning plan.
 
 ### Changed
+- `deepr expert consult` perspective context now includes bounded read-only
+  self-model metadata when the expert profile exists. The embedded block carries
+  current goals, calibration, blocker/risk counts, and the current-focus packet
+  for traces and host handoffs without changing synthesis prompts or mutating
+  expert state.
+- Tightened the flake8-bandit ratchet baseline from 97 findings to 96 after
+  replacing a silent council progress-callback no-op with debug logging.
 - `deepr expert consult` now prefers stored belief context for expert
   perspectives before falling back to a live expert chat session. Explicit
   expert names are resolved through profile display names and slugs, and

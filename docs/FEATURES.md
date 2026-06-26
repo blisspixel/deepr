@@ -511,6 +511,9 @@ context metadata, capacity posture, checks run, and synthesis failure events.
 `deepr expert consult-traces` reviews those local records and emits sanitized
 `deepr-consult-trace-candidates-v1` gap/eval candidates for failed or
 low-context consults.
+When an expert profile exists, consult perspective context includes a bounded
+read-only `self_model` block with current goals, calibration, blockers, risks,
+and current-focus packet metadata.
 `deepr expert self-model NAME --json` emits a read-only
 `deepr-expert-self-model-v1` record with capabilities, limits, goals,
 calibration, risks, and the bounded current-focus packet.

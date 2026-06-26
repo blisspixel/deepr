@@ -125,6 +125,48 @@ async def test_consult_uses_stored_beliefs_before_live_session():
 
 
 @pytest.mark.asyncio
+async def test_consult_context_includes_read_only_self_model_focus():
+    ExpertStore().save(
+        ExpertProfile(
+            name="Self Modeling Consult Expert",
+            vector_store_id="vs-self-model",
+            domain="agent harnesses",
+            installed_skills=["consult-review"],
+        )
+    )
+    store = BeliefStore("Self Modeling Consult Expert")
+    store.add_belief(
+        Belief(
+            claim="Consult traces should carry bounded current-focus metadata.",
+            confidence=0.9,
+            domain="agent harnesses",
+            trust_class="secondary",
+        ),
+        check_conflicts=False,
+    )
+
+    council = ExpertCouncil()
+    with patch.object(council, "_synthesise", new_callable=AsyncMock) as synth:
+        synth.return_value = {"text": "Grounded answer", "agreements": [], "disagreements": [], "cost": 0.0}
+        result = await council.consult(
+            "How should consult traces carry focus?",
+            experts=[{"name": "Self Modeling Consult Expert", "domain": "agent harnesses"}],
+            budget=1.0,
+        )
+
+    self_model = result["perspectives"][0]["context"]["self_model"]
+    assert self_model["schema_version"] == "deepr-expert-self-model-v1"
+    assert self_model["kind"] == "deepr.expert.self_model"
+    assert self_model["status"] == "available"
+    assert self_model["contract"]["read_only"] is True
+    assert self_model["contract"]["cost_usd"] == 0.0
+    assert self_model["current_focus_packet"]["selected_beliefs"][0]["statement"] == (
+        "Consult traces should carry bounded current-focus metadata."
+    )
+    assert "deepr expert why" in self_model["current_focus_packet"]["allowed_tools"]
+
+
+@pytest.mark.asyncio
 async def test_consult_uses_high_confidence_fallback_when_query_terms_do_not_match():
     store = BeliefStore("Grounded Harness Expert")
     store.add_belief(
@@ -190,6 +232,39 @@ async def test_consult_blocks_live_session_fallback_when_disabled():
     assert perspective["confidence"] == 0.0
     assert perspective["cost"] == 0.0
     assert perspective["context"] == {"source": "no_stored_context"}
+
+
+@pytest.mark.asyncio
+async def test_no_context_consult_includes_self_model_when_profile_exists():
+    ExpertStore().save(
+        ExpertProfile(
+            name="No Context Self Model Expert",
+            vector_store_id="",
+            domain="empty domain",
+            installed_skills=[],
+        )
+    )
+    council = ExpertCouncil(allow_live_fallback=False)
+
+    with patch("deepr.experts.chat.start_chat_session", side_effect=AssertionError("live session should not start")):
+        with patch.object(council, "_synthesise", new_callable=AsyncMock) as synth:
+            synth.return_value = {
+                "text": "No valid perspectives to synthesise.",
+                "agreements": [],
+                "disagreements": [],
+                "cost": 0.0,
+            }
+            result = await council.consult(
+                "Question without stored beliefs",
+                experts=[{"name": "No Context Self Model Expert", "domain": "empty domain"}],
+                budget=1.0,
+            )
+
+    context = result["perspectives"][0]["context"]
+    assert context["source"] == "no_stored_context"
+    assert context["self_model"]["schema_version"] == "deepr-expert-self-model-v1"
+    assert context["self_model"]["blocked_capability_count"] >= 2
+    assert context["self_model"]["current_focus_packet"]["selected_beliefs"] == []
 
 
 @pytest.mark.asyncio
