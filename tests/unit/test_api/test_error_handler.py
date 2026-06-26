@@ -298,7 +298,7 @@ class TestErrorLogging:
 
         @app.route("/test-log-deepr")
         def raise_for_log():
-            raise DeeprError("Error with api_key=sk-proj-secret123")
+            raise DeeprError("Error with api_key=fixture-value")
 
         # Patch the module's logger and sanitize function directly
         with patch.object(errors_module, "logger") as mock_logger:
