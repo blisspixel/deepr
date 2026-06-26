@@ -90,7 +90,7 @@ def _self_model_proposals(profile: ExpertProfile, self_model: dict[str, Any]) ->
                 title="Review self-model blockers and risks",
                 rationale=f"{len(blocked)} blocker(s) and {len(risks)} active risk(s) require review.",
                 evidence_refs=[f"self_model:{self_model['schema_version']}"],
-                recommended_command=f'deepr expert self-model "{profile.name}" --json',
+                recommended_command=f'deepr expert propose-self-model "{profile.name}" {{proposal_id}} --json',
                 expected_effect="Clarify whether the expert needs gap-fill, source refresh, or operator setup.",
             )
         )
@@ -107,7 +107,7 @@ def _self_model_proposals(profile: ExpertProfile, self_model: dict[str, Any]) ->
                 title="Review low-confidence belief calibration",
                 rationale=f"Average belief confidence is {avg_confidence:.2f} across {claim_count} claim(s).",
                 evidence_refs=[f"self_model:{self_model['schema_version']}"],
-                recommended_command=f'deepr expert self-model "{profile.name}" --json',
+                recommended_command=f'deepr expert propose-self-model "{profile.name}" {{proposal_id}} --json',
                 expected_effect="Decide whether to refresh sources, lower reliance, or create targeted eval cases.",
             )
         )
@@ -133,7 +133,7 @@ def _loop_proposals(profile: ExpertProfile, loop_runs: list[ExpertLoopRun]) -> l
                     title=f"Review failed {run.loop_type} loop",
                     rationale=f"Loop stopped with status {run.status.value} and reason {run.stop_reason.value if run.stop_reason else 'unknown'}.",
                     evidence_refs=evidence_refs,
-                    recommended_command=f'deepr expert loop-status "{profile.name}" --json',
+                    recommended_command=f'deepr expert propose-self-model "{profile.name}" {{proposal_id}} --json',
                     expected_effect="Turn the failed run into a reviewed gap, eval case, or safer retry strategy.",
                 )
             )
@@ -146,7 +146,7 @@ def _loop_proposals(profile: ExpertProfile, loop_runs: list[ExpertLoopRun]) -> l
                     title=f"Review blocked {run.loop_type} capacity",
                     rationale="A learning loop is waiting for owned or prepaid capacity.",
                     evidence_refs=evidence_refs,
-                    recommended_command=f'deepr expert loop-status "{profile.name}" --json',
+                    recommended_command=f'deepr expert propose-self-model "{profile.name}" {{proposal_id}} --json',
                     expected_effect="Decide whether to wait, admit local capacity, use explicit plan quota, or approve metered fallback.",
                 )
             )

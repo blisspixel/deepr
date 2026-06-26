@@ -8,7 +8,12 @@ from unittest.mock import MagicMock, patch
 
 from click.testing import CliRunner
 
-from deepr.cli.commands.semantic.expert_self_model import expert_monitor, expert_promote_monitor, expert_self_model
+from deepr.cli.commands.semantic.expert_self_model import (
+    expert_monitor,
+    expert_promote_monitor,
+    expert_propose_self_model,
+    expert_self_model,
+)
 from deepr.cli.main import cli
 from deepr.core.contracts import Claim, ExpertManifest, Gap
 from deepr.experts.profile import ExpertProfile
@@ -58,6 +63,13 @@ def test_promote_monitor_registered_in_expert_help():
 
     assert result.exit_code == 0
     assert "reviewed metacognitive monitor proposal" in result.output.lower()
+
+
+def test_propose_self_model_registered_in_expert_help():
+    result = CliRunner().invoke(cli, ["expert", "propose-self-model", "--help"])
+
+    assert result.exit_code == 0
+    assert "self-model update record" in result.output.lower()
 
 
 def test_self_model_json_output():
@@ -214,3 +226,46 @@ def test_promote_monitor_json_output(monkeypatch):
     assert captured["proposal_id"] == "meta_123"
     assert captured["kwargs"]["target"] == "eval"
     assert captured["kwargs"]["apply"] is True
+
+
+def test_propose_self_model_json_output(monkeypatch):
+    profile = _profile()
+    captured = {}
+    payload = {
+        "schema_version": "deepr-expert-self-model-update-v1",
+        "kind": "deepr.expert.self_model_update",
+        "expert_name": profile.name,
+        "proposal_id": "meta_self",
+        "proposal_type": "self_model_review",
+        "target": "self_model.blocked_capabilities",
+        "applied": True,
+        "status": "recorded",
+        "proposed_update": {
+            "title": "Review blockers",
+            "rationale": "Measured blockers require review.",
+            "expected_effect": "Clarify next action.",
+        },
+        "verifier": {"status": "passed", "checks": []},
+        "source": {"monitor_schema_version": "deepr-metacognitive-monitor-v1", "evidence_refs": ["self_model:v1"]},
+        "actions": [],
+    }
+
+    def fake_propose(loaded_profile, proposal_id, **kwargs):
+        captured["proposal_id"] = proposal_id
+        captured["kwargs"] = kwargs
+        assert loaded_profile is profile
+        return payload
+
+    monkeypatch.setattr("deepr.experts.self_model_updates.propose_self_model_update", fake_propose)
+
+    with _patch_store(profile):
+        result = CliRunner().invoke(
+            expert_propose_self_model,
+            [profile.name, "meta_self", "--apply", "--json", "--output-dir", "data/self_model_updates"],
+        )
+
+    assert result.exit_code == 0, result.output
+    assert json.loads(result.output)["kind"] == "deepr.expert.self_model_update"
+    assert captured["proposal_id"] == "meta_self"
+    assert captured["kwargs"]["apply"] is True
+    assert captured["kwargs"]["output_dir"].as_posix() == "data/self_model_updates"

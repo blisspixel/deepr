@@ -45,7 +45,7 @@ from deepr.cli.output import (
     CLI_OPERATION_RESULT_SCHEMA_VERSION,
     OperationResult,
 )
-from deepr.core.contracts import Claim, ExpertManifest
+from deepr.core.contracts import Claim, ExpertManifest, Gap
 from deepr.experts.consult_traces import (
     CONSULT_TRACE_CANDIDATES_KIND,
     CONSULT_TRACE_CANDIDATES_SCHEMA_VERSION,
@@ -73,6 +73,11 @@ from deepr.experts.self_model import (
     EXPERT_SELF_MODEL_KIND,
     EXPERT_SELF_MODEL_SCHEMA_VERSION,
     build_expert_self_model,
+)
+from deepr.experts.self_model_updates import (
+    SELF_MODEL_UPDATE_KIND,
+    SELF_MODEL_UPDATE_SCHEMA_VERSION,
+    propose_self_model_update,
 )
 from deepr.mcp.security.scoped_keys import AUDIT_KIND, AUDIT_SCHEMA_VERSION, RemoteMCPAuditEvent
 from deepr.mcp.security.tool_allowlist import ResearchMode
@@ -310,6 +315,42 @@ def test_metacognitive_monitor_schema_validates_runtime_payload():
     assert payload["schema_version"] == METACOGNITIVE_MONITOR_SCHEMA_VERSION
     assert payload["kind"] == METACOGNITIVE_MONITOR_KIND
     assert payload["contract"]["auto_apply"] is False
+
+
+def test_self_model_update_schema_validates_runtime_payload(tmp_path):
+    profile = ExpertProfile(
+        name="Self Model Update Contract Expert",
+        vector_store_id="",
+        domain="self-model updates",
+        knowledge_cutoff_date=datetime(2026, 6, 26, 12, 0, tzinfo=UTC),
+        last_knowledge_refresh=datetime(2026, 6, 26, 12, 0, tzinfo=UTC),
+    )
+    manifest = ExpertManifest(
+        expert_name=profile.name,
+        domain="self-model updates",
+        gaps=[Gap.create("missing baseline", questions=["What failed?"], ev_cost_ratio=4.0)],
+    )
+    profile.get_manifest = lambda: manifest  # type: ignore[method-assign]
+    monitor = build_metacognitive_monitor_report(
+        profile,
+        loop_runs=[],
+        consult_trace_candidates={"candidate_count": 0, "candidates": []},
+    )
+    proposal_id = str(monitor["proposals"][0]["proposal_id"])
+    payload = propose_self_model_update(
+        profile,
+        proposal_id,
+        apply=False,
+        limit=0,
+        trace_path=tmp_path / "consult_traces.jsonl",
+        output_dir=tmp_path / "updates",
+    )
+    schema = _load_schema("expert-self-model-update-v1.json")
+
+    _validate(schema, payload)
+    assert payload["schema_version"] == SELF_MODEL_UPDATE_SCHEMA_VERSION
+    assert payload["kind"] == SELF_MODEL_UPDATE_KIND
+    assert payload["contract"]["mutates_derived_self_model"] is False
 
 
 def test_metacognitive_promotion_schema_validates_runtime_payload(tmp_path):
