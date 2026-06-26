@@ -323,7 +323,7 @@ class StreamingHttpTransport:
 
     def _tool_call_parts(self, message: HttpMessage) -> tuple[str, dict[str, Any]]:
         if message.method != "tools/call" or not isinstance(message.params, dict):
-            return message.method or "", {}
+            return "", {}
         tool_name = str(message.params.get("name") or "")
         arguments = message.params.get("arguments", {})
         return tool_name, dict(arguments) if isinstance(arguments, dict) else {}
