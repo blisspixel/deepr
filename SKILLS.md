@@ -17,6 +17,56 @@ This file captures repo-specific operating lessons from autonomous work cycles.
 - Driving a chat seam from raw `python -c` on Windows hits cp1252 emoji crashes (the CLI sets UTF-8 at entry). Use `PYTHONUTF8=1` for ad-hoc scripts.
 - The web dev server (vite) must proxy `/portraits` (and any backend static route) or `<img>` tags get the SPA index.html (200, wrong type) and fall back silently. Dev must mirror the prod static routes.
 
+## Plan-quota CLIs: headless prompt delivery and per-CLI quirks
+
+- Long prompts (a synthesis prompt with several experts' perspectives, a research
+  prompt with fetched page text) must NOT be passed as a command-line argument to
+  a plan CLI. Two distinct Windows failures result: cmd.exe mangles a multi-line
+  arg to a `.cmd` shim (the CLI sees an empty task and answers conversationally at
+  $0 - a silent quality failure, not an error), and a very long arg trips
+  `WinError 206` (command line too long). Use stdin or a prompt file.
+- Per-CLI delivery (set on the adapter, resolved by `client._build_invocation`):
+  Codex `codex exec -` (stdin), Claude `claude -p -` (stdin), Grok
+  `--prompt-file <path>` (file - it has no stdin path: `grok -p` requires the
+  prompt as the flag value, and `-p -` reads interactively). Short-prompt CLIs
+  keep plain argv.
+- Validate a plan CLI by reading its real `--help` on the target machine before
+  trusting an adapter argv - vendor CLIs churn quarterly. `grok --help` revealed
+  `--prompt-file` and `--output-format json`; `agy --help` revealed `--print` has
+  a 5m default `--print-timeout` (Deepr's 60s probe undershoots it).
+- Antigravity (`agy -p`) drops stdout under a non-TTY pipe (exit 0, empty
+  output) and is not fixable by a flag. The headless answer is persisted to
+  `~/.gemini/antigravity-cli/brain/<conv-id>/.system_generated/logs/transcript.jsonl`
+  as the last `PLANNER_RESPONSE` record; Deepr recovers it there
+  (`antigravity_transcript.recover_answer`, adapter `answer_from_transcript`),
+  validated end to end. Pick the newest transcript touched at/after the run start
+  so an older conversation is never mistaken for this run's.
+- The no-surprise-bills gate strips the metered key (`OPENAI_API_KEY`,
+  `ANTHROPIC_API_KEY`, `XAI_API_KEY`, `GEMINI_API_KEY`) from the child env, so the
+  CLI falls back to plan/subscription auth. To reproduce a plan run in a raw
+  shell, `unset` that key first or you get "Invalid API key".
+- Plan windows are real and opportunistic: a few probes plus a couple of `learn`
+  runs exhausted Codex's 5h window. Rotate fills across the plans the operator has
+  (codex/claude/grok) so no single window drains; treat plan capacity as a pool,
+  not a single backend.
+
+## Expert learning is processing, not warmup
+
+- Adding docs, source packs, or refreshed context to an expert does not by
+  itself improve the expert. Improvement happens when the system processes the
+  material into canonical state: atomic beliefs, provenance refs, typed temporal
+  graph edges, contradiction signals, and a gap agenda.
+- Keep three layers distinct: raw/source artifacts, canonical structured belief
+  state, and derived wiki/digest/handoff views. Derived views are regenerated
+  and never authoritative.
+- A "fresh" timestamp is weak evidence. Measure quality through populated
+  beliefs, cited sources, grounding assurance, open contradictions, gap closure,
+  and replayable eval traces.
+- Treat schema-adjacent model output as expected. If a model returns one
+  `evidence` string despite the requested array, preserve it as one excerpt.
+  Splitting it into characters corrupts provenance and can falsely lift
+  tertiary source-trust ceilings.
+
 ## One expert = one directory (resolve through paths.canonical_expert_dir)
 
 - An expert's profile, beliefs, loop-runs, subscriptions, conversations, and documents must ALL live under one directory. Resolve it through `deepr/experts/paths.py:canonical_expert_dir(name)` (slug = `sanitize_name(name).lower()`, containment-checked) - never build `experts_root() / name` with the raw display name. The original bug: `ExpertStore` slugified but `BeliefStore`/`loop_runs` used the raw name, splitting one expert across `ai_expert/` (profile) and `AI Expert/` (beliefs); `expert list` then showed phantom-empty experts. The display name lives in `profile.json`, not the path.
@@ -37,10 +87,60 @@ This file captures repo-specific operating lessons from autonomous work cycles.
 - The reserve-then-settle pattern in `CostSafetyManager.check_and_reserve` only prevents over-commit if the cap *projection* counts in-flight reservations. Every cap (daily AND monthly) needs its own `_reserved_*` pool included in the projection, incremented on reserve, released on both settle (`record_cost`) and `refund_reservation`, all under the one `_budget_lock`. Asymmetry is a real bug: the monthly projection omitted reservations while daily included them, so a *low monthly* reserve (the $20/month fleet) over-committed under parallelism even though daily looked fine. When you touch one cap's reservation accounting, mirror it in the other.
 - Test the concurrency guard by making the *other* cap roomy and the cap-under-test binding (e.g. `max_daily=100, max_monthly=5`), then assert the second parallel `check_and_reserve` is rejected and names the right limit. Same shape for daily.
 - `cost_safety.py` sits right at the 1000-line file-size ceiling. Necessary functional lines win; claw back the budget by tightening prose/docstrings, NOT by splitting the file for tidiness (STOP-banner: low-value churn). A net +1 line trips the BLOCKING ratchet.
+- Council synthesis is still a paid model call when expert perspectives come
+  from stored beliefs. Settle the council reservation with `record_cost` and
+  write source `expert_council.synthesis`; do not rely on the consult payload's
+  returned `cost_usd` as accounting.
+
+## Expert consult grounding
+
+- `expert consult` perspectives should prefer the expert's stored `BeliefStore`
+  before starting a live expert chat session. Live chat is a fallback for empty
+  or missing stores, not the default when durable beliefs exist.
+- Query-token overlap may select which beliefs enter the context packet, but it
+  must never conclude truth, contradiction, completeness, or agreement. The
+  selected context still carries confidence, sources, and contested flags into
+  synthesis.
+- Consult perspective context metadata is a replay/debug surface, not a verdict:
+  include source, selection reason, included and available belief counts, and
+  matched terms when known, but keep semantic acceptance in the verifier and
+  synthesis layers.
+- Parse synthesis sections by heading prefix, checking `DISAGREEMENTS` before
+  `AGREEMENTS`. Substring checks invert the result because `DISAGREEMENTS`
+  contains `AGREEMENTS`.
+- Dogfood consult failures should become local eval cases: routing to the wrong
+  expert, generic prior instead of stored beliefs, parser drift, and missing
+  ledger writes are harness failures, not prompt anecdotes.
+- `deepr eval consult` is the `$0` seed for those harness failures. Add cases
+  there when a consult bug can be reproduced through deterministic contracts;
+  reserve model-judged cases for semantic quality after the trace artifact is
+  persisted.
+- Consult synthesis should be capability-adaptive through the existing
+  chat-completions seam. Inject `ollama_chat_client()` for `--local` and
+  `PlanQuotaChatClient` for `--plan`; do not create a second orchestration path.
+- Owned-capacity consult modes must disable live metered expert fallback unless
+  there is an explicit API choice. Stored beliefs are safe to read at `$0`; a
+  missing belief store should produce no-context output, not an accidental paid
+  chat session.
+- Once owned-capacity consult modes disable live metered fallback, they should
+  also skip paid-budget reservations. Cost safety should still guard the default
+  metered path, but an exhausted API budget must not block a genuinely `$0`
+  local or explicit plan synthesis path.
+- Treat synthesis backend failures as trace-quality work. A plan CLI returning
+  exhaustion should leave the consult at `$0` with an unavailable synthesis
+  result, never fall through to metered API. The next improvement is a durable
+  trace event and eval case, not a hidden fallback.
+- Local model synthesis often uses Markdown emphasis in bullets. Parse one
+  bullet marker explicitly, then normalize harmless bold labels; broad `lstrip`
+  can delete the opening `**` and leave a dangling closing marker.
+- Current 2026 harness guidance is a fit for Deepr when translated into
+  artifacts: selected context packs, durable traces, reusable eval cases,
+  explicit handoff files, and deterministic gates around spend, writes, and
+  permissions. It does not imply turning Deepr into the outer orchestrator.
 
 ## Plan-quota CLI backends
 
-- Run the value-prop honesty test before building any "plan capacity" CLI: is the next headless call free at the margin on a flat subscription, or metered per use? A metered CLI (Copilot post-2026-06-01) is the API in a costume — `enabled_by_default=False`, never marketed as free. The check belongs in the adapter spec, not in prose.
+- Run the value-prop honesty test before building any "plan capacity" CLI: is the next headless call free at the margin on a flat subscription, or metered per use? A metered CLI (Copilot post-2026-06-01) is the API in a costume - `enabled_by_default=False`, never marketed as free. The check belongs in the adapter spec, not in prose.
 - Quotabot's reusable lesson is the quota snapshot contract: provider-specific probes should emit normalized windows, mark stale cache explicitly, compute headroom from the most constrained window, treat passed reset times as fresh, and then write one conservative ledger event through `snapshot_to_ledger_event`. Do not let each vendor probe invent routing semantics.
 - Codex has the first trusted metadata path: `deepr capacity refresh-quota codex` reads newest local `~/.codex/sessions/**/rollout-*.jsonl` files for a nested `rate_limits` object, maps primary to 5h and secondary to weekly, then writes a quota-ledger event. This is a local metadata read, not a model call.
 - Claude Code quota refresh is a live metadata call, not a generation call:
@@ -50,19 +150,30 @@ This file captures repo-specific operating lessons from autonomous work cycles.
   `seven_day`, and `seven_day_opus` windows into `QuotaSnapshot`, and never
   persists credential material. Keep it explicit because the endpoint is
   reported to rate-limit aggressive polling.
+- Grok quota refresh is also metadata-only:
+  `deepr capacity refresh-quota grok` reads the current user's
+  `auth.json` from `GROK_CONFIG_DIR` or `~/.grok`, uses the bearer token only
+  for Grok billing metadata, parses the gRPC-web response into a monthly
+  `QuotaSnapshot`, and never persists credential material. Keep Antigravity
+  passive-first until its metadata surface is verified.
 - Provider prompt caching is a metered cost-control feature, not free capacity.
   Treat cache writes, long TTLs, cache keys, and pre-warm requests as billable
   until the provider usage record proves otherwise. For Anthropic in
   particular, do not enable automatic pre-warming or 1-hour TTLs without an
   estimator, actual `cache_creation_input_tokens` / `cache_read_input_tokens`
   ingestion, and an explicit user budget ceiling.
-- Two execution seams exist. For maintenance, the light `research_fn` `(query, budget) -> {answer, cost}` / chat-client seam is correct; the API-shaped `DeepResearchProvider` is wrong for a subprocess CLI. `expert sync` needs research AND extraction, so expose the CLI as a minimal `client.chat.completions.create -> .choices[0].message.content` shim (like `ollama_chat_client`) and use ONE instance for both — otherwise extraction silently falls back to metered.
+- Two execution seams exist. For maintenance, the light `research_fn` `(query, budget) -> {answer, cost}` / chat-client seam is correct; the API-shaped `DeepResearchProvider` is wrong for a subprocess CLI. `expert sync` needs research AND extraction, so expose the CLI as a minimal `client.chat.completions.create -> .choices[0].message.content` shim (like `ollama_chat_client`) and use ONE instance for both - otherwise extraction silently falls back to metered.
 - The shim must ignore the caller's model name: Deepr's internal ids (gpt-5-mini) are meaningless to a vendor CLI and would be passed as a bad `--model`. Use the operator's `--plan-model` or the plan default.
-- No-surprise-bills is deterministic and lives before the subprocess: if a metered-env var is set the CLI would bill that key (every vendor's precedence), so refuse the "plan" classification and tell the operator to unset it or use `--api`.
-- Auto-routing requires an *observed remaining* quota window. Vendor CLIs don't expose remaining quota, so record `remaining_confidence=UNKNOWN` and let the eligibility gate return `QUOTA_UNKNOWN` — auto-routing stays off until a real signal exists. Explicit `--plan` is the works-now path. This keeps the waterfall honest without lying about readiness.
+- No-surprise-bills is deterministic and lives before the subprocess: remove backend-specific metered API-key variables from the child environment, evaluate the sanitized child env, and include the sanitization in the safety reason. Do not require the operator to mutate a normal API-capable shell just to run an explicit plan command.
+- Auto-routing requires an *observed remaining* quota window. Do not infer headroom from an installed CLI. Codex, Claude Code, and Grok metadata observations can satisfy that gate for their own backend; unobserved backends stay `QUOTA_UNKNOWN`. Explicit `--plan` is the works-now path for every registered CLI.
 - Drive the agentic CLI safely: explicit argv (never shell), read-only sandbox / `--deny-tool shell,write`, a scratch cwd so it can't wander the repo, and a hard timeout that kills the process.
 - Record both ledgers per call: `quota_ledger.jsonl` (usage / terminal exhaustion) and a `$0` `cost_ledger.jsonl` entry with quota units, so `costs show` and anomaly detection see volume even at $0. Both writes are best-effort (never break a run).
 - Test the subprocess runner with real hermetic subprocesses via `sys.executable` (cross-platform, $0); mock the runner for adapter/shim tests.
+- Fetched context can contain NUL bytes even when every upstream guard was
+  "text" shaped. Normalize argv parts before `create_subprocess_exec`, drop env
+  entries with invalid names, `None`, or NUL values, and keep the launcher
+  structured. This is a form guard that prevents process-launch failure, not a
+  semantic content filter.
 
 ## Capacity QOL Work
 
@@ -151,3 +262,11 @@ This file captures repo-specific operating lessons from autonomous work cycles.
 - Before widening autonomy, name the rollout stage: prototype, shadow, pilot, limited production, or full production. A loop without verifier metrics and recovery evidence should stay shadow or pilot.
 - Version prompts, tool specs, schemas, eval sets, memory policy, and orchestration graphs once any host, scheduler, or stored artifact depends on them. Versioning makes failures bisectable and lets old handoffs remain interpretable.
 - State-changing agentic paths need documented retry behavior plus idempotency keys, deduplication, rollback, or compensation before they move beyond pilot. Planning and irreversible execution stay separated by deterministic workflow gates.
+
+## Plan-quota expert bootstrap
+
+- Windows plan CLI execution must resolve through `PATHEXT` while keeping `shell=False`. Resolve the executable with `shutil.which` before subprocess launch so `codex` finds `codex.cmd`.
+- Explicit plan capacity should sanitize metered API-key variables in the child environment instead of requiring the user to mutate their shell. Record the sanitization in the safety reason, then run the CLI with the sanitized environment.
+- Long Codex prompts should go through stdin with prompt argument `-`; fresh-context and topic learn or learn-web prompts can exceed the Windows command-line length if passed as argv.
+- Local and plan-backed `ReportAbsorber` callers must pass `estimated_cost=0.0`. The default extraction estimate is correct only for the metered API path; owned/prepaid capacity still records `$0` events through the canonical ledger.
+- Web-grounded `$0` expert bootstrap should default to keyless retrieval. Do not use `WebSearchTool(backend="auto")` in a no-surprise-bills path because hidden Brave or Tavily keys can become silent spend.

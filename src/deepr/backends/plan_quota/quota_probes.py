@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import json
 import os
+import struct
 from collections.abc import Iterable
 from datetime import UTC, datetime
 from pathlib import Path
@@ -27,6 +28,10 @@ CLAUDE_USAGE_TIMEOUT_SECONDS = 10.0
 CODEX_QUOTA_BACKEND_ID = "codex"
 CODEX_QUOTA_DISPLAY_NAME = "Codex"
 CODEX_RECENT_ROLLOUT_LIMIT = 5
+GROK_BILLING_ENDPOINT = "https://grok.com/grok_api_v2.GrokBuildBilling/GetGrokCreditsConfig"
+GROK_QUOTA_BACKEND_ID = "grok"
+GROK_QUOTA_DISPLAY_NAME = "Grok Build"
+GROK_USAGE_TIMEOUT_SECONDS = 12.0
 
 
 class QuotaProbeUnsupportedError(ValueError):
@@ -34,7 +39,7 @@ class QuotaProbeUnsupportedError(ValueError):
 
 
 def supported_quota_probe_backends() -> tuple[str, ...]:
-    return (CODEX_QUOTA_BACKEND_ID, CLAUDE_QUOTA_BACKEND_ID)
+    return (CODEX_QUOTA_BACKEND_ID, CLAUDE_QUOTA_BACKEND_ID, GROK_QUOTA_BACKEND_ID)
 
 
 def collect_plan_quota_snapshot(
@@ -44,12 +49,16 @@ def collect_plan_quota_snapshot(
     codex_sessions_dir: Path | None = None,
     claude_config_dir: Path | None = None,
     claude_http_get: Any | None = None,
+    grok_config_dir: Path | None = None,
+    grok_http_post: Any | None = None,
 ) -> QuotaSnapshot:
     """Collect a metadata-only quota snapshot for ``backend_id``."""
     if backend_id == CODEX_QUOTA_BACKEND_ID:
         return collect_codex_quota_snapshot(sessions_dir=codex_sessions_dir, now=now)
     if backend_id == CLAUDE_QUOTA_BACKEND_ID:
         return collect_claude_quota_snapshot(config_dir=claude_config_dir, now=now, http_get=claude_http_get)
+    if backend_id == GROK_QUOTA_BACKEND_ID:
+        return collect_grok_quota_snapshot(config_dir=grok_config_dir, now=now, http_post=grok_http_post)
     raise QuotaProbeUnsupportedError(f"no live quota probe for {backend_id!r}")
 
 
@@ -71,6 +80,13 @@ def default_claude_credentials_path(
     if configured and configured.strip():
         return Path(configured).expanduser() / ".credentials.json"
     return (home or Path.home()) / ".claude" / ".credentials.json"
+
+
+def default_grok_auth_path(*, config_dir: Path | None = None, home: Path | None = None) -> Path:
+    """Return the Grok CLI auth file path for this machine."""
+    if config_dir is not None:
+        return config_dir / "auth.json"
+    return (home or Path.home()) / ".grok" / "auth.json"
 
 
 def collect_codex_quota_snapshot(
@@ -166,6 +182,71 @@ def collect_claude_quota_snapshot(
     return _claude_snapshot_from_usage(data, stamp, plan=plan)
 
 
+def collect_grok_quota_snapshot(
+    *,
+    config_dir: Path | None = None,
+    now: datetime | None = None,
+    http_post: Any | None = None,
+    timeout_seconds: float = GROK_USAGE_TIMEOUT_SECONDS,
+) -> QuotaSnapshot:
+    """Read Grok Build credit usage from its billing metadata endpoint.
+
+    This is an explicit metadata refresh, not a model call. It reuses the Grok
+    CLI bearer token long enough to call the billing-config endpoint, then
+    records normalized quota windows. The token is never returned, logged, or
+    written to Deepr state.
+    """
+    stamp = now or datetime.now(UTC)
+    auth = _read_grok_auth(default_grok_auth_path(config_dir=config_dir))
+    if not auth["ok"]:
+        return _grok_error_snapshot(str(auth["error"]), stamp)
+
+    token = str(auth["access_token"])
+    account = str(auth["account"])
+    plan = _string_or_none(auth.get("plan")) or "SuperGrok"
+    poster = http_post or httpx.post
+    try:
+        response = poster(
+            GROK_BILLING_ENDPOINT,
+            headers={
+                "Authorization": f"Bearer {token}",
+                "Content-Type": "application/grpc-web+proto",
+                "x-grpc-web": "1",
+                "User-Agent": "grok-cli",
+            },
+            content=b"\x00\x00\x00\x00\x00",
+            timeout=timeout_seconds,
+        )
+    except (httpx.HTTPError, TimeoutError, OSError) as exc:
+        return _grok_error_snapshot(f"billing endpoint request failed: {exc}", stamp, account=account, plan=plan)
+
+    status_code = int(getattr(response, "status_code", 0))
+    if status_code == 401:
+        return _grok_error_snapshot("Grok token expired or unauthorized; re-run grok login", stamp, account=account)
+    if status_code == 429:
+        return _grok_error_snapshot("Grok billing endpoint rate-limited", stamp, account=account, plan=plan)
+    if status_code != 200:
+        return _grok_error_snapshot(f"Grok billing endpoint returned HTTP {status_code}", stamp, account=account)
+    if _response_header(response, "grpc-status") not in (None, "0"):
+        return _grok_error_snapshot("Grok billing endpoint returned a non-zero grpc-status", stamp, account=account)
+
+    content = getattr(response, "content", b"")
+    window = _grok_window_from_grpc_web(bytes(content), stamp)
+    if window is None:
+        return _grok_error_snapshot("Grok billing endpoint returned no usable quota window", stamp, account=account)
+    return QuotaSnapshot(
+        backend_id=GROK_QUOTA_BACKEND_ID,
+        display_name=GROK_QUOTA_DISPLAY_NAME,
+        account_id=account,
+        plan=plan,
+        cost_model=CostModel.CREDIT_POOL,
+        ok=True,
+        windows=(window,),
+        as_of=stamp,
+        metadata={"source": "grok_billing_config"},
+    )
+
+
 def _codex_error_snapshot(error: str, stamp: datetime) -> QuotaSnapshot:
     return QuotaSnapshot(
         backend_id=CODEX_QUOTA_BACKEND_ID,
@@ -198,6 +279,25 @@ def _claude_error_snapshot(
     )
 
 
+def _grok_error_snapshot(
+    error: str,
+    stamp: datetime,
+    *,
+    account: str = "unknown",
+    plan: str | None = None,
+) -> QuotaSnapshot:
+    return QuotaSnapshot(
+        backend_id=GROK_QUOTA_BACKEND_ID,
+        display_name=GROK_QUOTA_DISPLAY_NAME,
+        account_id=account,
+        plan=plan,
+        cost_model=CostModel.CREDIT_POOL,
+        ok=False,
+        error=error,
+        as_of=stamp,
+    )
+
+
 def _read_claude_oauth(credentials_path: Path) -> dict[str, object]:
     if not credentials_path.exists():
         return {"ok": False, "error": f"no Claude Code credentials file: {credentials_path}"}
@@ -218,6 +318,39 @@ def _read_claude_oauth(credentials_path: Path) -> dict[str, object]:
         "access_token": token,
         "plan": _string_or_none(oauth.get("subscriptionType")),
     }
+
+
+def _read_grok_auth(auth_path: Path) -> dict[str, object]:
+    if not auth_path.exists():
+        return {"ok": False, "error": f"no Grok auth file: {auth_path}"}
+    try:
+        raw = json.loads(auth_path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as exc:
+        return {"ok": False, "error": f"cannot read Grok auth: {exc}"}
+    if not isinstance(raw, dict) or not raw:
+        return {"ok": False, "error": "Grok auth file is not a populated JSON object"}
+
+    account = _grok_auth_account(raw)
+    if account is None:
+        return {"ok": False, "error": "Grok auth file has no account object"}
+    token = _string_or_none(account.get("key") or account.get("accessToken") or account.get("access_token"))
+    if token is None:
+        return {"ok": False, "error": "Grok auth file has no bearer token"}
+    return {
+        "ok": True,
+        "access_token": token,
+        "account": _string_or_none(account.get("email") or account.get("user") or account.get("account")) or "default",
+        "plan": _string_or_none(account.get("plan") or account.get("subscriptionType")),
+    }
+
+
+def _grok_auth_account(raw: dict[str, Any]) -> dict[str, Any] | None:
+    if any(key in raw for key in ("key", "accessToken", "access_token")):
+        return raw
+    for value in raw.values():
+        if isinstance(value, dict):
+            return value
+    return None
 
 
 def _recent_rollout_files(root: Path, *, limit: int) -> list[Path]:
@@ -336,6 +469,136 @@ def _claude_windows(data: dict[str, Any]) -> Iterable[QuotaWindowSnapshot]:
             unit_name="plan_request",
             metadata={"source_key": key},
         )
+
+
+def _grok_window_from_grpc_web(content: bytes, stamp: datetime) -> QuotaWindowSnapshot | None:
+    message = _grpc_web_message(content)
+    if not message:
+        return None
+    floats: list[float] = []
+    timestamps: list[int] = []
+    _walk_grok_proto(message, floats=floats, timestamps=timestamps)
+    percent = _first_percent(floats)
+    if percent is None:
+        return None
+    return QuotaWindowSnapshot(
+        label="monthly",
+        window_kind=QuotaWindowKind.MONTHLY_CREDIT_POOL,
+        used_fraction=percent / 100.0,
+        reset_at=_nearest_future_timestamp(timestamps, stamp),
+        unit_name="plan_request",
+        metadata={"source_key": "grok_billing_config"},
+    )
+
+
+def _grpc_web_message(content: bytes) -> bytes:
+    if len(content) < 5 or content[0] & 0x80:
+        return b""
+    length = int.from_bytes(content[1:5], byteorder="big", signed=False)
+    if 5 + length > len(content):
+        return b""
+    return content[5 : 5 + length]
+
+
+def _walk_grok_proto(
+    data: bytes,
+    *,
+    floats: list[float],
+    timestamps: list[int],
+    depth: int = 0,
+) -> None:
+    if depth > 8:
+        return
+    index = 0
+    while index < len(data):
+        next_index = _walk_grok_field(data, index, floats=floats, timestamps=timestamps, depth=depth)
+        if next_index is None:
+            return
+        index = next_index
+
+
+def _walk_grok_field(
+    data: bytes,
+    index: int,
+    *,
+    floats: list[float],
+    timestamps: list[int],
+    depth: int,
+) -> int | None:
+    tag, index = _read_varint(data, index)
+    if tag is None:
+        return None
+    wire_type = tag & 7
+    if wire_type == 0:
+        return _consume_grok_varint(data, index, timestamps=timestamps)
+    if wire_type == 5:
+        return _consume_grok_float(data, index, floats=floats)
+    if wire_type == 1:
+        return index + 8 if index + 8 <= len(data) else None
+    if wire_type == 2:
+        return _consume_grok_message(data, index, floats=floats, timestamps=timestamps, depth=depth)
+    return None
+
+
+def _consume_grok_varint(data: bytes, index: int, *, timestamps: list[int]) -> int | None:
+    value, index = _read_varint(data, index)
+    if value is None:
+        return None
+    if 1_600_000_000 < value < 2_000_000_000:
+        timestamps.append(value)
+    return index
+
+
+def _consume_grok_float(data: bytes, index: int, *, floats: list[float]) -> int | None:
+    if index + 4 > len(data):
+        return None
+    floats.append(struct.unpack("<f", data[index : index + 4])[0])
+    return index + 4
+
+
+def _consume_grok_message(
+    data: bytes,
+    index: int,
+    *,
+    floats: list[float],
+    timestamps: list[int],
+    depth: int,
+) -> int | None:
+    length, index = _read_varint(data, index)
+    if length is None or index + length > len(data):
+        return None
+    _walk_grok_proto(data[index : index + length], floats=floats, timestamps=timestamps, depth=depth + 1)
+    return index + length
+
+
+def _read_varint(data: bytes, start: int) -> tuple[int | None, int]:
+    value = 0
+    shift = 0
+    index = start
+    while index < len(data) and shift < 70:
+        byte = data[index]
+        index += 1
+        value |= (byte & 0x7F) << shift
+        if not byte & 0x80:
+            return value, index
+        shift += 7
+    return None, index
+
+
+def _first_percent(values: Iterable[float]) -> float | None:
+    for value in values:
+        if value == value and 0.0 <= value <= 100.0:
+            return round(value, 2)
+    return None
+
+
+def _nearest_future_timestamp(values: Iterable[int], stamp: datetime) -> datetime | None:
+    now_epoch = int(stamp.timestamp())
+    future = sorted(value for value in values if value > now_epoch)
+    if future:
+        return _epoch_to_datetime(future[0])
+    past = list(values)
+    return _epoch_to_datetime(max(past)) if past else None
 
 
 def _codex_label(minutes: object, fallback: str) -> str:

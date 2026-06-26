@@ -182,6 +182,17 @@ class TestSyncEngine:
         assert store.subscriptions[0].last_synced is not None  # cadence advanced
 
     @pytest.mark.asyncio
+    async def test_markdown_wrapped_no_changes_skips_absorb(self, tmp_path):
+        store = _sub_store(tmp_path, Subscription(topic="Quiet Topic"))
+        engine = _engine(tmp_path, store, {"Quiet Topic": {"answer": "**no significant changes**", "cost": 0.0}})
+
+        result = await engine.sync(budget=1.0)
+
+        assert result.outcomes[0].status == "no_changes"
+        assert len(engine.belief_store.beliefs) == 0
+        assert store.subscriptions[0].last_synced is not None
+
+    @pytest.mark.asyncio
     async def test_unchanged_sources_skip_absorb_on_second_sync(self, tmp_path):
         # Same sources (same content hashes) as last sync -> skip the paid
         # absorb even though the model wrote a substantive (non-marker) answer.

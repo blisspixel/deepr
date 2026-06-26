@@ -158,6 +158,31 @@ class TestScopedMCPAuthorization:
         assert not decision.allowed
         assert decision.estimated_cost_usd == 10.0
 
+    def test_consult_experts_cost_estimate_respects_owned_capacity_backend(self):
+        assert estimate_scoped_mcp_tool_cost("deepr_consult_experts", {}) == 2.0
+        assert estimate_scoped_mcp_tool_cost("deepr_consult_experts", {"budget": 0.75}) == 0.75
+        assert estimate_scoped_mcp_tool_cost(
+            "deepr_consult_experts",
+            {"synthesis_backend": "local", "budget": 2.0},
+        ) == 0.0
+        assert estimate_scoped_mcp_tool_cost(
+            "deepr_consult_experts",
+            {"synthesis_backend": "plan", "budget": 2.0},
+        ) == 0.0
+
+    def test_consult_experts_budget_injection_uses_remaining_key_budget(self):
+        context = ScopedMCPKeyContext("agent", ResearchMode.UNRESTRICTED, budget_limit_usd=0.8)
+
+        arguments = constrain_scoped_mcp_budget_arguments(
+            context,
+            "deepr_consult_experts",
+            {"question": "q"},
+            spent_usd=0.3,
+        )
+
+        assert arguments["budget"] == 0.5
+        assert estimate_scoped_mcp_tool_cost("deepr_consult_experts", arguments) == 0.5
+
     def test_metered_tool_without_estimate_fails_closed(self):
         context = ScopedMCPKeyContext("agent", ResearchMode.UNRESTRICTED, budget_limit_usd=1.0)
         allowlist = ToolAllowlist()

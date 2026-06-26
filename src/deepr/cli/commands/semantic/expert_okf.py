@@ -57,7 +57,7 @@ def _make_absorber_or_exit(profile, *, use_local: bool, model: str | None):
     if not local_model:
         print_error("No local model available. Is Ollama running? Check: deepr capacity --probe")
         sys.exit(2)
-    absorber = ReportAbsorber(profile, model=local_model, client=ollama_chat_client())
+    absorber = ReportAbsorber(profile, model=local_model, client=ollama_chat_client(), estimated_cost=0.0)
     return absorber, f"$0 (local model {local_model})"
 
 

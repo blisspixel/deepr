@@ -40,6 +40,7 @@ class TestLearnCommandRegistration:
         assert "Add knowledge to an expert on demand" in result.output
         assert "--files" in result.output
         assert "--budget" in result.output
+        assert "--plan" in result.output
         assert "--synthesize" in result.output
 
 
@@ -159,43 +160,64 @@ class TestLearnCommandOptions:
             if param.name == "budget":
                 assert param.type.name.lower() == "float"
 
+    def test_dry_run_rejects_files(self, tmp_path):
+        """File upload has no dry-run mode, so reject the mixed request."""
+        from deepr.cli.commands.semantic import expert
+
+        doc = tmp_path / "doc.md"
+        doc.write_text("# Doc", encoding="utf-8")
+
+        result = CliRunner().invoke(expert, ["learn", "Test Expert", "--files", str(doc), "--dry-run"])
+
+        assert result.exit_code == 0
+        assert "--dry-run is only supported for topic learning without files" in result.output
+
 
 class TestLearnOutputMessages:
     """Test output messages and formatting."""
 
-    def test_learn_header_format(self):
-        """Test that learn command shows proper header."""
+    def test_learn_topic_delegates_to_web_pipeline(self):
+        """Topic learning should use the verified web absorption pipeline."""
         from deepr.cli.commands.semantic import expert
 
+        captured = {}
+
+        def fake_pipeline(**kwargs):
+            captured.update(kwargs)
+            print(kwargs["title"])
+
         runner = CliRunner()
-        with (
-            patch("deepr.experts.profile.ExpertStore") as mock_store,
-            patch("asyncio.run", side_effect=_discard_coroutine),
-        ):
-            mock_profile = Mock()
-            mock_profile.name = "Test Expert"
-            mock_store.return_value.load.return_value = mock_profile
+        with patch("deepr.cli.commands.semantic.expert_maintenance.run_learn_web_pipeline", fake_pipeline):
+            result = runner.invoke(
+                expert,
+                ["learn", "Test Expert", "Topic", "--plan", "codex", "--plan-model", "gpt-5", "-y"],
+            )
 
-            result = runner.invoke(expert, ["learn", "Test Expert", "Topic", "-y"])
-
+        assert result.exit_code == 0
         assert "Learn: Test Expert" in result.output
+        assert captured["name"] == "Test Expert"
+        assert captured["topic"] == "Topic"
+        assert captured["plan"] == "codex"
+        assert captured["plan_model"] == "gpt-5"
+        assert captured["yes"] is True
 
     def test_learn_shows_topic(self):
-        """Test that learn command shows the topic being researched."""
+        """Test that learn command forwards the topic being researched."""
         from deepr.cli.commands.semantic import expert
 
-        runner = CliRunner()
-        with (
-            patch("deepr.experts.profile.ExpertStore") as mock_store,
-            patch("asyncio.run", side_effect=_discard_coroutine),
-        ):
-            mock_profile = Mock()
-            mock_profile.name = "Test Expert"
-            mock_store.return_value.load.return_value = mock_profile
+        captured = {}
 
+        def fake_pipeline(**kwargs):
+            captured.update(kwargs)
+            print(f"Topic: {kwargs['topic']}")
+
+        runner = CliRunner()
+        with patch("deepr.cli.commands.semantic.expert_maintenance.run_learn_web_pipeline", fake_pipeline):
             result = runner.invoke(expert, ["learn", "Test Expert", "Quantum computing", "-y"])
 
-        assert "Topic to research: Quantum computing" in result.output
+        assert result.exit_code == 0
+        assert "Topic: Quantum computing" in result.output
+        assert captured["topic"] == "Quantum computing"
 
 
 class TestLearnExamples:
@@ -206,11 +228,8 @@ class TestLearnExamples:
         from deepr.cli.commands.semantic import expert
 
         runner = CliRunner()
-        # Just verify the command parses correctly
         result = runner.invoke(expert, ["learn", "--help"])
-        # The help text wraps, so check for key parts
-        assert "AWS Expert" in result.output
-        assert "Lambda features" in result.output
+        assert "live web retrieval plus verified belief absorption" in result.output
 
     def test_example_with_files(self):
         """Test example: deepr expert learn 'Python Expert' --files docs/*.md"""
@@ -218,7 +237,7 @@ class TestLearnExamples:
 
         runner = CliRunner()
         result = runner.invoke(expert, ["learn", "--help"])
-        assert "--files docs/*.md" in result.output
+        assert "--files" in result.output
 
     def test_example_with_budget(self):
         """Test example: deepr expert learn 'Tech Expert' 'Topic' --budget 5"""
@@ -226,4 +245,4 @@ class TestLearnExamples:
 
         runner = CliRunner()
         result = runner.invoke(expert, ["learn", "--help"])
-        assert "--budget 5" in result.output
+        assert "--budget" in result.output

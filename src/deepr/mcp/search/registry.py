@@ -9,6 +9,8 @@ import re
 from dataclasses import dataclass, field
 from typing import Any
 
+from deepr.mcp.consult_tool import CONSULT_EXPERTS_INPUT_SCHEMA
+
 
 @dataclass
 class ToolSchema:
@@ -280,6 +282,23 @@ def create_default_registry() -> ToolRegistry:
     """
     registry = ToolRegistry()
 
+    # Discovery: the one free call a connecting agent should make first.
+    registry.register(
+        ToolSchema(
+            name="deepr_capabilities",
+            description=(
+                "Discovery: one free call returning what Deepr offers and how to use it well. "
+                "Returns the versioned deepr-capabilities-v1 map: the expert roster, the key "
+                "tools with their cost tiers and when-to-use, the $0 owned/prepaid synthesis "
+                "paths, the cost-tier legend, and the structured-error contract. Call this first "
+                "when you connect."
+            ),
+            input_schema={"type": "object", "properties": {}},
+            category="system",
+            cost_tier="free",
+        )
+    )
+
     # Research tools
     registry.register(
         ToolSchema(
@@ -402,6 +421,23 @@ def create_default_registry() -> ToolRegistry:
                 },
                 "required": ["expert_name", "question"],
             },
+            category="experts",
+            cost_tier="low",
+        )
+    )
+
+    registry.register(
+        ToolSchema(
+            name="deepr_consult_experts",
+            description=(
+                "Consult a TEAM of domain experts on a question and get one synthesized, "
+                "calibrated answer (the deepr-consult-v1 artifact: answer, each expert's "
+                "perspective with confidence, points of agreement and dissent, and cost). "
+                "Routes to the most relevant experts automatically, or pass 'experts' to name "
+                "them. Use synthesis_backend='local' or 'plan' to keep synthesis on owned or "
+                "explicit plan capacity with live metered expert fallback disabled."
+            ),
+            input_schema=CONSULT_EXPERTS_INPUT_SCHEMA,
             category="experts",
             cost_tier="low",
         )
