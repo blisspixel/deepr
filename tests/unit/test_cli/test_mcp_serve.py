@@ -128,6 +128,30 @@ def test_mcp_smoke_http_exits_nonzero_on_failure():
     assert "Result: failed" in result.output
 
 
+def test_mcp_test_uses_only_read_only_no_cost_calls():
+    class FakeServer:
+        async def list_experts(self):
+            return [{"name": "Temporal Knowledge Graphs", "domain": "temporal memory"}]
+
+        async def get_expert_info(self, expert_name):
+            return {"stats": {"documents": 0, "conversations": 0}}
+
+        async def deepr_capabilities(self):
+            return {"schema_version": "deepr-capabilities-v1", "tools": [{}, {}]}
+
+        async def query_expert(self, *args, **kwargs):
+            raise AssertionError("mcp test must not call query_expert")
+
+    with patch("deepr.mcp.server.DeeprMCPServer", new=FakeServer):
+        result = CliRunner().invoke(mcp, ["test"])
+
+    assert result.exit_code == 0, result.output
+    assert "Testing deepr_capabilities" in result.output
+    assert "No model calls were run." in result.output
+    assert "Testing query_expert" not in result.output
+    assert "Cost:" not in result.output
+
+
 def test_mcp_registration_manifest_outputs_token_redacted_json():
     calls: list[dict] = []
     report = MCPHttpSmokeReport(
