@@ -67,22 +67,21 @@ Planning Principles), and [docs/plans/AGENTIC_BALANCE.md](docs/plans/AGENTIC_BAL
 
 ## Current Cycle Alignment - 2026-06-26
 
-Active task: persist replayable consult traces without widening autonomy.
+Active task: add read-only expert self-model records without widening autonomy.
 
 Target score before merge:
 
 | Category | Required score | Evidence |
 |---|---:|---|
-| Correctness | 5/5 | Trace builders, CLI/MCP trace wiring, consult eval, and published schema tests must pass. |
-| Security | 5/5 | Trace reference returned to hosts must avoid local file paths and secrets; owned-capacity fallback checks remain explicit. |
-| Performance | 5/5 | Append one bounded JSONL record per consult; no provider calls, embeddings, or paid validation. |
-| Readability | 5/5 | One focused trace module; CLI/MCP handlers stay thin. |
+| Correctness | 5/5 | Self-model builder, CLI command, and published schema tests must pass. |
+| Security | 5/5 | Payload is read-only, `$0`, path-free, and secret-free; goal changes require review. |
+| Performance | 5/5 | Build from an already loaded profile and manifest; no provider calls, embeddings, or paid validation. |
+| Readability | 5/5 | One focused self-model module; CLI handler stays thin. |
 | Maintainability | 5/5 | Published schema, registry entry, and tests keep contract drift visible. |
-| Simplicity | 5/5 | No new dependency, no parallel consult path, no speculative trace UI. |
+| Simplicity | 5/5 | No new dependency, no persistence store, no speculative monitor writer. |
 
-Cycle 2 extension: convert failed or low-context traces into sanitized candidate
-records. The same bar applies, with two added gates: no local trace path or raw
-trace payload in review output, and no semantic answer-quality verdict from
+Cycle 3 adds the self-model as a derived contract only. The same bar applies,
+with two added gates: no mutation of expert state, and no semantic verdict from
 lexical rules.
 
 ## How to score (maker-checker)
