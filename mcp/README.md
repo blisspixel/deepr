@@ -320,6 +320,18 @@ filters.
 HTTP POST concurrency is capped at 32 by default. Override it with
 `DEEPR_MCP_HTTP_MAX_CONCURRENCY` or `deepr mcp serve --http --max-concurrency`.
 
+To create a trial key and a copy-ready handoff for another agent, use:
+
+```bash
+deepr mcp agent-guide --host 0.0.0.0 --public-host 192.168.44.62 --key-id agent-trial --budget 0 --rate-limit 30
+```
+
+The guide includes the server command, endpoint, bearer token, allowed tool
+rules, and a no-metered `deepr_consult_experts` example. Use `--expert "Name"`
+to scope the key to one expert, `--synthesis-backend plan --plan codex` for an
+explicit plan-capacity consult, or `--output docs/agent-guide.md` to write a
+file.
+
 ## HTTP Serve Mode
 
 Stdio remains the default MCP transport. For a remote-capable local endpoint,
