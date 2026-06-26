@@ -105,6 +105,7 @@ def test_metacognitive_monitor_proposes_self_model_review_for_blockers():
     assert payload["signals"]["blocked_capability_count"] >= 1
     assert payload["proposals"][0]["proposal_type"] == "self_model_review"
     assert payload["proposals"][0]["requires_human_review"] is True
+    assert "deepr expert propose-self-model" in payload["proposals"][0]["recommended_command"]
 
 
 def test_consult_trace_candidates_for_expert_filters_other_experts(tmp_path):

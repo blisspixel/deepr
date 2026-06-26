@@ -25,6 +25,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 </details>
 
 ### Added
+- Added `deepr expert propose-self-model`, a `$0` verifier-gated self-model
+  update review-record surface backed by the published
+  `deepr-expert-self-model-update-v1` schema. It previews by default and
+  requires `--apply` before writing an append-only local artifact; the gate
+  validates proposal type, target path, evidence refs, human review, zero cost,
+  no derived self-model mutation, and no authority expansion.
 - Added `deepr mcp agent-guide`, a scoped-key and copy-ready handoff generator
   for letting another agent test Deepr experts over HTTP MCP with a zero-dollar
   budget ceiling, rate limit, endpoint, server command, and no-metered consult
