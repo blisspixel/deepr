@@ -22,6 +22,34 @@ def _request(body: dict, token: str):
 
 class TestStreamingHttpScopedKeys:
     @pytest.mark.asyncio
+    async def test_scoped_key_allows_protocol_handshake_without_confirmation(self, tmp_path):
+        store = ScopedMCPKeyStore(tmp_path / "keys.json")
+        secret, _record = store.create_key("agent", mode=ResearchMode.STANDARD, secret="secret")
+        audit = RemoteMCPAuditLog(tmp_path / "audit.jsonl")
+        transport = StreamingHttpTransport(scoped_key_store=store, audit_log=audit)
+        handler = AsyncMock(return_value=HttpMessage(id="1", result={"ok": True}))
+        transport.on_message(handler)
+
+        for method in ("initialize", "tools/list"):
+            response = await transport._handle_post(
+                _request(
+                    {
+                        "jsonrpc": "2.0",
+                        "id": method,
+                        "method": method,
+                        "params": {},
+                    },
+                    secret,
+                )
+            )
+
+            assert response.status == 200
+            assert json.loads(response.text)["result"] == {"ok": True}
+
+        assert handler.await_count == 2
+        assert [call.args[0].method for call in handler.await_args_list] == ["initialize", "tools/list"]
+
+    @pytest.mark.asyncio
     async def test_scoped_key_auth_injects_context_and_audits_success(self, tmp_path):
         store = ScopedMCPKeyStore(tmp_path / "keys.json")
         secret, _record = store.create_key("agent", mode=ResearchMode.UNRESTRICTED, secret="secret")
