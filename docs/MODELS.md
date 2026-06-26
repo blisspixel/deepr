@@ -150,10 +150,10 @@ The agent automatically uses Bing web grounding to find and cite current sources
 | Deep Research (OpenAI) | o3-deep-research | see registry | 5-20 min | Async, highest-quality deep research baseline |
 | Deep Research (Gemini) | deep-research-pro-preview | ~$2.50 | 5-20 min | Async, Google Search built-in, powered by Gemini 3.1 Pro |
 | Deep Research (Azure) | o3-deep-research | $0.50 | 5-20 min | Bing grounding, enterprise |
-| Deep Research (xAI) | grok-4.20-multi-agent | ~$0.50 | 30-120s | 4/16 parallel agents, web + X search |
+| Deep Research (xAI) | grok-4.20-multi-agent | see registry | 30-120s | 4/16 parallel agents, web + X search |
 | Complex Research | gpt-5.4 | see registry | ~seconds to minutes | strong reasoning/synthesis default |
 | Agentic / Tool Calling | Grok 4.3 | ~$0.08 | ~2s | #1 agentic tool calling + instruction following |
-| Quality Research (xAI) | Grok 4.20 Reasoning | ~$0.10 | ~3s | Flagship xAI, lowest hallucination rate |
+| Quality Research (xAI) | Grok 4.20 Reasoning | see registry | ~3s | Flagship xAI, lowest hallucination rate |
 | Planning/Curriculum | GPT-4.1 | $0.04 | ~2s | 1M+ context, cost-effective |
 | Quick Lookups | Grok 4.20 Non-Reasoning | see registry | ~1s | best value for freshness/citation tasks |
 | Latest News / Web | Grok 4.20 Non-Reasoning | see registry | ~1s | real-time web + strong value |
@@ -171,13 +171,13 @@ The agent automatically uses Bing web grounding to find and cite current sources
 
 ### Deep Research (~20% of operations)
 - **Models**: o4-mini-deep-research, o3-deep-research, Gemini Deep Research Agent, Grok 4.20 Multi-Agent
-- **Cost**: $0.50-$2.00 per query (OpenAI), ~$2.50 (Gemini), ~$0.50 (Grok multi-agent)
+- **Cost**: see registry for current provider rates; multi-agent xAI cost scales with agent count
 - **Use for**: Novel problem-solving, critical decisions, complex synthesis
 - **Note**: OpenAI and Gemini use async background jobs; Grok 4.20 multi-agent uses 4/16 parallel agents
 
 ### Fast/General Operations (~80% of operations)
 - **Models**: Grok 4.20 Non-Reasoning, Grok 4.3 (low effort), Gemini 2.5 Flash
-- **Cost**: $0.001-$0.01 per query (96-99% cheaper)
+- **Cost**: usually lower than deep research; use `--dry-run` or the registry-backed estimator before spending
 - **Use for**: News, docs, team research, learning, expert chat, planning
 
 **Result**: Using fast models for routine operations reduces total costs by ~90%.
@@ -200,7 +200,7 @@ deepr research "Topic" --model gemini-deep-research
 - **Campaign mode (deep)**: o3-deep-research / o4-mini-deep-research (provider + budget dependent)
 - **Focus mode (quick)**: GPT-4.1 ($0.04/query, 1M+ context)
 - **Expert chat**: Provider-dependent (OpenAI for vector store experts)
-- **Quick lookups**: Grok 4.20 Non-Reasoning ($0.01, when XAI_API_KEY available)
+- **Quick lookups**: Grok 4.20 Non-Reasoning when `XAI_API_KEY` is available; use the registry-backed estimator before spending
 
 ### Adaptive Routing
 Deepr's model router (`src/deepr/experts/router.py`) automatically selects models based on:

@@ -3,14 +3,14 @@
 Regression: ``get_token_pricing`` previously did substring match with
 no normalization, so the Grok provider's reported model
 ``grok-4.20-multi-agent-0309`` fell through to the o4-mini default
-(~80% undercharge).
+instead of the Grok registry entry.
 """
 
 from __future__ import annotations
 
 import pytest
 
-from deepr.providers.registry import get_cost_estimate, get_token_pricing
+from deepr.providers.registry import get_cached_input_pricing, get_cost_estimate, get_token_pricing
 
 
 class TestGrokAliasNormalization:
@@ -26,13 +26,14 @@ class TestGrokAliasNormalization:
         prices = get_token_pricing(model)
         # All three should hit the multi-agent entry, NOT fall through
         # to the o4-mini default ($1.10 input / $4.40 output).
-        assert prices["input"] == 2.0
-        assert prices["output"] == 6.0
+        assert prices["input"] == 1.25
+        assert prices["output"] == 2.5
 
     def test_reasoning_variant_dotted_form_matches(self):
         prices = get_token_pricing("grok-4.20-reasoning")
-        assert prices["input"] == 2.0
-        assert prices["output"] == 6.0
+        assert prices["input"] == 1.25
+        assert prices["output"] == 2.5
+        assert get_cached_input_pricing("grok-4.20-reasoning") == pytest.approx(0.20)
 
 
 class TestAliasResolution:
@@ -57,5 +58,5 @@ class TestPartialMatchOrdering:
         ~3x overcharge on Flash-Lite requests)."""
         lite_prices = get_token_pricing("gemini-2.5-flash-lite")
         flash_prices = get_token_pricing("gemini-2.5-flash")
-        # The two should be distinct — Flash-Lite is cheaper.
+        # The two should be distinct: Flash-Lite is cheaper.
         assert lite_prices["input"] <= flash_prices["input"]

@@ -19,6 +19,8 @@ from .base import (
     ResearchResponse,
     UsageStats,
     VectorStore,
+    get_usage_detail_int,
+    get_usage_int,
 )
 
 
@@ -194,8 +196,18 @@ class OpenAIProvider(DeepResearchProvider):
             # Parse usage stats
             usage = None
             if hasattr(response, "usage") and response.usage:
-                input_tokens = getattr(response.usage, "input_tokens", 0)
-                output_tokens = getattr(response.usage, "output_tokens", 0)
+                input_tokens = get_usage_int(response.usage, "input_tokens")
+                output_tokens = get_usage_int(response.usage, "output_tokens")
+                cached_input_tokens = get_usage_detail_int(
+                    response.usage,
+                    "input_tokens_details",
+                    "cached_tokens",
+                )
+                reasoning_tokens = get_usage_detail_int(
+                    response.usage,
+                    "output_tokens_details",
+                    "reasoning_tokens",
+                ) or get_usage_int(response.usage, "reasoning_tokens")
                 # If response.model is missing, log a warning rather than
                 # silently defaulting to o4-mini pricing — for an
                 # o3-deep-research job (10x more expensive: $11/$44 per
@@ -209,9 +221,15 @@ class OpenAIProvider(DeepResearchProvider):
                 usage = UsageStats(
                     input_tokens=input_tokens,
                     output_tokens=output_tokens,
-                    total_tokens=getattr(response.usage, "total_tokens", 0),
-                    reasoning_tokens=getattr(response.usage, "reasoning_tokens", 0),
-                    cost=UsageStats.calculate_cost(input_tokens, output_tokens, model),
+                    total_tokens=get_usage_int(response.usage, "total_tokens"),
+                    reasoning_tokens=reasoning_tokens,
+                    cached_input_tokens=cached_input_tokens,
+                    cost=UsageStats.calculate_cost_with_cached_input(
+                        input_tokens,
+                        output_tokens,
+                        model,
+                        cached_input_tokens=cached_input_tokens,
+                    ),
                 )
 
             # Parse output

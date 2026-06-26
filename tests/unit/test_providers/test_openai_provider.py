@@ -355,6 +355,38 @@ class TestResponseParsing:
             assert status.metadata == {"task": "research"}
 
     @pytest.mark.asyncio
+    async def test_get_status_prices_cached_input_tokens(self, provider):
+        """Cached input tokens should use the registry cached-input rate."""
+        mock_usage = MagicMock()
+        mock_usage.input_tokens = 1000
+        mock_usage.output_tokens = 500
+        mock_usage.total_tokens = 1500
+        mock_usage.input_tokens_details = MagicMock(cached_tokens=400)
+        mock_usage.output_tokens_details = MagicMock(reasoning_tokens=125)
+        mock_usage.reasoning_tokens = 0
+
+        mock_response = MagicMock()
+        mock_response.id = "resp_cached"
+        mock_response.status = "completed"
+        mock_response.model = "gpt-5"
+        mock_response.usage = mock_usage
+        mock_response.output = []
+        mock_response.created_at = None
+        mock_response.completed_at = None
+        mock_response.metadata = None
+        mock_response.error = None
+
+        with patch.object(provider.client.responses, "retrieve", new_callable=AsyncMock) as mock_retrieve:
+            mock_retrieve.return_value = mock_response
+
+            status = await provider.get_status("resp_cached")
+
+        assert status.usage is not None
+        assert status.usage.cached_input_tokens == 400
+        assert status.usage.reasoning_tokens == 125
+        assert status.usage.cost == pytest.approx(0.0058)
+
+    @pytest.mark.asyncio
     async def test_get_status_with_output_content(self, provider):
         """Test job status retrieval with output content parsing."""
         # Create mock output blocks

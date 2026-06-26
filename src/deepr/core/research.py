@@ -101,6 +101,7 @@ class ResearchOrchestrator:
 
         # Track active vector stores for cleanup
         self.active_vector_stores: dict[str, str] = {}  # job_id -> vector_store_id
+        self._cost_tracking: dict[str, dict[str, Any]] = {}
 
     def _load_default_system_message(self) -> str:
         """Load system message from file or return default."""
@@ -202,6 +203,11 @@ class ResearchOrchestrator:
             estimated_cost = get_cost_estimate(model)
             op.set_attribute("estimated_cost", estimated_cost)
 
+            # Check against explicit budget limit if provided
+            if budget_limit is not None and estimated_cost > budget_limit:
+                op.add_event("budget_exceeded", {"limit": budget_limit, "estimated": estimated_cost})
+                raise ValueError(f"Estimated cost ${estimated_cost:.2f} exceeds budget limit ${budget_limit:.2f}")
+
             # Import cost safety manager for budget validation
             from ..experts.cost_safety import get_cost_safety_manager
 
@@ -212,21 +218,15 @@ class ResearchOrchestrator:
             op.set_attribute("session_id", tracking_session_id)
 
             # Check against global limits (daily/monthly)
-            allowed, reason, _needs_confirm = cost_safety.check_operation(
+            allowed, reason, _needs_confirm, reservation_id = self._check_and_reserve_cost(
+                cost_safety=cost_safety,
                 session_id=tracking_session_id,
-                operation_type="research_submit",
                 estimated_cost=estimated_cost,
-                require_confirmation=False,  # CLI/API handles confirmation
             )
 
             if not allowed:
                 op.add_event("budget_blocked", {"reason": reason})
                 raise ValueError(f"Research blocked by cost safety: {reason}")
-
-            # Check against explicit budget limit if provided
-            if budget_limit is not None and estimated_cost > budget_limit:
-                op.add_event("budget_exceeded", {"limit": budget_limit, "estimated": estimated_cost})
-                raise ValueError(f"Estimated cost ${estimated_cost:.2f} exceeds budget limit ${budget_limit:.2f}")
 
             op.add_event("budget_validated", {"estimated_cost": estimated_cost})
 
@@ -307,21 +307,135 @@ class ResearchOrchestrator:
 
             # Submit to provider
             op.add_event("provider_submit_start", {"model": model})
-            response_id = await self.provider.submit_research(request)
+            try:
+                response_id = await self.provider.submit_research(request)
+            except Exception:
+                self._refund_cost_reservation(cost_safety, reservation_id)
+                raise
             op.add_event("provider_submit_complete", {"response_id": response_id})
 
-            # Record cost in safety manager for tracking
-            cost_safety.record_cost(
-                session_id=tracking_session_id,
-                operation_type="research_submit",
-                actual_cost=estimated_cost,
-                details=f"Job {response_id}: {prompt[:50]}...",
-            )
+            if reservation_id:
+                self._cost_tracking[response_id] = {
+                    "session_id": tracking_session_id,
+                    "reservation_id": reservation_id,
+                    "estimated_cost": estimated_cost,
+                    "provider": self.provider.__class__.__name__,
+                    "model": model,
+                    "prompt_preview": prompt[:50],
+                }
+            else:
+                # Compatibility path for legacy or mocked cost managers that
+                # do not expose check_and_reserve().
+                cost_safety.record_cost(
+                    session_id=tracking_session_id,
+                    operation_type="research_submit",
+                    actual_cost=estimated_cost,
+                    details=f"Job {response_id}: {prompt[:50]}...",
+                )
 
             # Set final cost on span
             op.set_cost(estimated_cost)
 
             return response_id
+
+    @staticmethod
+    def _check_and_reserve_cost(
+        *,
+        cost_safety: Any,
+        session_id: str,
+        estimated_cost: float,
+    ) -> tuple[bool, str, bool, str]:
+        """Reserve estimated research cost when the manager supports it."""
+        check_and_reserve = getattr(cost_safety, "check_and_reserve", None)
+        if callable(check_and_reserve):
+            result = check_and_reserve(
+                session_id=session_id,
+                operation_type="research_submit",
+                estimated_cost=estimated_cost,
+                require_confirmation=False,
+                reserve=True,
+            )
+            if isinstance(result, tuple) and len(result) == 4:
+                allowed, reason, needs_confirm, reservation_id = result
+                return bool(allowed), str(reason), bool(needs_confirm), str(reservation_id)
+
+        allowed, reason, needs_confirm = cost_safety.check_operation(
+            session_id=session_id,
+            operation_type="research_submit",
+            estimated_cost=estimated_cost,
+            require_confirmation=False,
+        )
+        return bool(allowed), str(reason), bool(needs_confirm), ""
+
+    @staticmethod
+    def _refund_cost_reservation(cost_safety: Any, reservation_id: str) -> None:
+        """Refund a cost reservation if the manager supports refunds."""
+        if not reservation_id:
+            return
+        refund = getattr(cost_safety, "refund_reservation", None)
+        if callable(refund):
+            refund(reservation_id)
+
+    def _settle_research_cost(self, job_id: str, response: Any, op: Any) -> None:
+        """Settle reserved research cost using provider-reported usage."""
+        tracking = self._cost_tracking.pop(job_id, None)
+        if not tracking:
+            return
+
+        from ..experts.cost_safety import get_cost_safety_manager
+
+        usage = getattr(response, "usage", None)
+        estimated_cost = float(tracking.get("estimated_cost", 0.0) or 0.0)
+        raw_actual_cost = getattr(usage, "cost", None) if usage is not None else None
+        if isinstance(raw_actual_cost, (int, float)):
+            actual_cost = max(float(raw_actual_cost), 0.0)
+            cost_source = "provider_usage"
+        else:
+            actual_cost = estimated_cost
+            cost_source = "estimate_fallback"
+
+        tokens_input = getattr(usage, "input_tokens", 0) if usage is not None else 0
+        tokens_output = getattr(usage, "output_tokens", 0) if usage is not None else 0
+        metadata = {
+            "estimated_cost": estimated_cost,
+            "cost_source": cost_source,
+        }
+        if usage is not None:
+            for field in (
+                "cached_input_tokens",
+                "cache_creation_input_tokens",
+                "cache_read_input_tokens",
+                "reasoning_tokens",
+            ):
+                value = getattr(usage, field, 0)
+                if isinstance(value, int) and value > 0:
+                    metadata[field] = value
+
+        cost_safety = get_cost_safety_manager()
+        cost_safety.record_cost(
+            session_id=str(tracking.get("session_id", "")),
+            operation_type="research_submit",
+            actual_cost=actual_cost,
+            details=f"Job {job_id}: {tracking.get('prompt_preview', '')}...",
+            provider=str(tracking.get("provider", "unknown")),
+            model=str(getattr(response, "model", None) or tracking.get("model", "")),
+            tokens_input=tokens_input if isinstance(tokens_input, int) else 0,
+            tokens_output=tokens_output if isinstance(tokens_output, int) else 0,
+            request_id=job_id,
+            idempotency_key=f"{job_id}:research_submit:settle",
+            source="research_orchestrator.process_completion",
+            metadata=metadata,
+            reservation_id=str(tracking.get("reservation_id", "")),
+        )
+        op.add_event(
+            "cost_settled",
+            {
+                "actual_cost": actual_cost,
+                "estimated_cost": estimated_cost,
+                "cost_source": cost_source,
+            },
+        )
+        op.set_cost(actual_cost)
 
     def _enhance_prompt(self, prompt: str, has_documents: bool) -> str:
         """Enhance prompt with citation instructions."""
@@ -388,6 +502,7 @@ class ResearchOrchestrator:
                 raise ValueError(f"Job {job_id} is not completed (status: {response.status})")
 
             op.add_event("fetch_status_complete", {"status": response.status})
+            self._settle_research_cost(job_id, response, op)
 
             # Extract text from response
             raw_text = self.report_generator.extract_text_from_response(response)

@@ -150,6 +150,74 @@ class TestBudgetValidation:
             orchestrator.provider.submit_research.assert_called_once()
 
     @pytest.mark.asyncio
+    async def test_submit_failure_refunds_cost_reservation(self, orchestrator):
+        """A failed provider submit should release the reserved budget."""
+        with patch("deepr.experts.cost_safety.get_cost_safety_manager") as mock_csm:
+            mock_manager = MagicMock()
+            mock_manager.check_and_reserve.return_value = (True, "OK", False, "res-123")
+            mock_manager.refund_reservation = MagicMock()
+            mock_manager.record_cost = MagicMock()
+            mock_csm.return_value = mock_manager
+
+            orchestrator.provider.submit_research = AsyncMock(side_effect=RuntimeError("provider down"))
+
+            with pytest.raises(RuntimeError, match="provider down"):
+                await orchestrator.submit_research(
+                    prompt="Test research",
+                    model="o3-deep-research",
+                )
+
+            mock_manager.refund_reservation.assert_called_once_with("res-123")
+            mock_manager.record_cost.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_completion_settles_reserved_cost_with_actual_usage(self, orchestrator):
+        """Completion should record provider actual cost, not submit estimate."""
+        from deepr.providers.base import ResearchResponse, UsageStats
+
+        with patch("deepr.experts.cost_safety.get_cost_safety_manager") as mock_csm:
+            mock_manager = MagicMock()
+            mock_manager.check_and_reserve.return_value = (True, "OK", False, "res-456")
+            mock_manager.record_cost = MagicMock()
+            mock_csm.return_value = mock_manager
+
+            orchestrator.provider.submit_research = AsyncMock(return_value="job-actual")
+
+            result = await orchestrator.submit_research(
+                prompt="Test research",
+                model="o3-deep-research",
+            )
+
+            assert result == "job-actual"
+            mock_manager.record_cost.assert_not_called()
+
+            response = ResearchResponse(
+                id="job-actual",
+                status="completed",
+                model="o3-deep-research",
+                output=[{"type": "message", "content": [{"type": "text", "text": "done"}]}],
+                metadata={},
+                usage=UsageStats(
+                    input_tokens=1000,
+                    output_tokens=500,
+                    cached_input_tokens=400,
+                    cost=0.42,
+                ),
+            )
+            orchestrator.provider.get_status = AsyncMock(return_value=response)
+
+            await orchestrator.process_completion("job-actual")
+
+            mock_manager.record_cost.assert_called_once()
+            kwargs = mock_manager.record_cost.call_args.kwargs
+            assert kwargs["actual_cost"] == 0.42
+            assert kwargs["reservation_id"] == "res-456"
+            assert kwargs["tokens_input"] == 1000
+            assert kwargs["tokens_output"] == 500
+            assert kwargs["metadata"]["cached_input_tokens"] == 400
+            assert kwargs["metadata"]["cost_source"] == "provider_usage"
+
+    @pytest.mark.asyncio
     async def test_cost_safety_blocks_daily_limit(self, orchestrator):
         """Test that cost safety manager can block based on daily limits."""
         # Patch at source module since import is inside function

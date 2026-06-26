@@ -71,6 +71,38 @@ class TestAnthropicUsageAccumulation:
         assert stored.output
 
     @pytest.mark.asyncio
+    async def test_prompt_cache_buckets_use_anthropic_cache_rates(self, provider):
+        """Cache writes and reads should use their own Anthropic rates."""
+        from deepr.providers.base import ResearchRequest
+
+        provider.model = "claude-opus-4-5"
+        text_block = SimpleNamespace(type="text", text="Cached answer.")
+        fake_response = SimpleNamespace(
+            content=[text_block],
+            usage=SimpleNamespace(
+                input_tokens=1000,
+                output_tokens=500,
+                cache_read_input_tokens=2000,
+                cache_creation_input_tokens=1000,
+            ),
+        )
+        provider.client.messages = MagicMock()
+        provider.client.messages.create = MagicMock(return_value=fake_response)
+
+        req = ResearchRequest(prompt="Use cache", model="claude-opus-4-5", system_message="sys")
+
+        job_id = await provider.submit_research(req)
+        stored = provider._jobs[job_id]
+
+        assert stored.usage is not None
+        assert stored.usage.input_tokens == 4000
+        assert stored.usage.output_tokens == 500
+        assert stored.usage.cache_creation_input_tokens == 1000
+        assert stored.usage.cache_read_input_tokens == 2000
+        assert stored.usage.total_tokens == 4500
+        assert stored.usage.cost == pytest.approx(0.02475)
+
+    @pytest.mark.asyncio
     async def test_get_status_returns_stored_data(self, provider):
         """get_status round-trips the stored ResearchResponse."""
         from deepr.providers.base import ResearchResponse, UsageStats

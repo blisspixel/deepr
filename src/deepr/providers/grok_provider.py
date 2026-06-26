@@ -24,6 +24,7 @@ from .base import (
     ResearchResponse,
     UsageStats,
     VectorStore,
+    get_usage_detail_int,
 )
 
 
@@ -75,7 +76,7 @@ class GrokProvider(DeepResearchProvider):
             "grok-4.20": "grok-4.20-0309-non-reasoning",
             # Hyphenated registry forms (registry keys use grok-4-20-*, not the
             # dotted API form). Without these, a routed "grok-4-20-reasoning"
-            # falls through unmapped → wrong API id + ~11x cost undercharge.
+            # falls through unmapped to the wrong API id and pricing.
             "grok-4-20-reasoning": "grok-4.20-0309-reasoning",
             "grok-4-20-non-reasoning": "grok-4.20-0309-non-reasoning",
             "grok-4-20-multi-agent": "grok-4.20-multi-agent-0309",
@@ -89,7 +90,7 @@ class GrokProvider(DeepResearchProvider):
             "grok-3": "grok-3",
             "grok-3-mini": "grok-3-mini",
             "grok-code-fast": "grok-code-fast-1",
-            # Aliases — map to canonical "grok-4.3" so the pricing table lookup
+            # Aliases - map to canonical "grok-4.3" so the pricing table lookup
             # matches and cost accounting does not silently fall back to the
             # much cheaper Grok 4.1 Fast pricing.
             "grok": "grok-4.3",  # Default: newest flagship (reasoning + agentic)
@@ -101,31 +102,48 @@ class GrokProvider(DeepResearchProvider):
         }
 
         # Pricing (per million tokens) -- from registry where possible
-        from .registry import get_token_pricing
+        from .registry import get_cached_input_pricing, get_token_pricing
 
+        def _rates(model: str) -> dict[str, float]:
+            token_rates = get_token_pricing(model)
+            cached_rate = get_cached_input_pricing(model)
+            return {
+                "input": token_rates["input"],
+                "output": token_rates["output"],
+                "cached_input": cached_rate if cached_rate is not None else token_rates["input"],
+            }
+
+        _grok_4_20 = _rates("grok-4-20-reasoning")
+        _grok_4_3 = _rates("grok-4-3")
         _grok_4_1_fast = get_token_pricing("grok-4-1-fast-non-reasoning")
+        _grok_4_1_fast_cached = get_cached_input_pricing("grok-4-1-fast-non-reasoning")
+        _grok_4_1_fast_rates = {
+            "input": _grok_4_1_fast["input"],
+            "output": _grok_4_1_fast["output"],
+            "cached_input": _grok_4_1_fast_cached if _grok_4_1_fast_cached is not None else _grok_4_1_fast["input"],
+        }
         self.pricing = {
-            # Grok 4.20 flagship ($2/$6 per MTok). Keyed under the dotted API
+            # Grok 4.20 flagship. Keyed under the dotted API
             # ids and the hyphenated registry forms so cost accounting is correct
             # regardless of which name reaches _calculate_cost.
-            "grok-4.20-0309-reasoning": {"input": 2.00, "output": 6.00},
-            "grok-4.20-0309-non-reasoning": {"input": 2.00, "output": 6.00},
-            "grok-4.20-multi-agent-0309": {"input": 2.00, "output": 6.00},
-            "grok-4-20-reasoning": {"input": 2.00, "output": 6.00},
-            "grok-4-20-non-reasoning": {"input": 2.00, "output": 6.00},
-            "grok-4-20-multi-agent": {"input": 2.00, "output": 6.00},
-            # Grok 4.3 ($1.25/$2.50 per MTok). Listed under both the canonical
+            "grok-4.20-0309-reasoning": _grok_4_20,
+            "grok-4.20-0309-non-reasoning": _grok_4_20,
+            "grok-4.20-multi-agent-0309": _grok_4_20,
+            "grok-4-20-reasoning": _grok_4_20,
+            "grok-4-20-non-reasoning": _grok_4_20,
+            "grok-4-20-multi-agent": _grok_4_20,
+            # Grok 4.3. Listed under both the canonical
             # name and the hyphenated alias so any caller / older code path
             # that submits "grok-4-3" still gets accurate cost accounting.
-            "grok-4.3": {"input": 1.25, "output": 2.50},
-            "grok-4-3": {"input": 1.25, "output": 2.50},
+            "grok-4.3": _grok_4_3,
+            "grok-4-3": _grok_4_3,
             # Grok 4.1 Fast budget ($0.20/$0.50 per MTok)
-            "grok-4-1-fast-reasoning": _grok_4_1_fast,
-            "grok-4-1-fast-non-reasoning": _grok_4_1_fast,
+            "grok-4-1-fast-reasoning": _grok_4_1_fast_rates,
+            "grok-4-1-fast-non-reasoning": _grok_4_1_fast_rates,
             # Other
-            "grok-3": {"input": 3.00, "output": 15.00},
-            "grok-3-mini": {"input": 0.30, "output": 0.50},
-            "grok-code-fast-1": {"input": 0.20, "output": 1.50},
+            "grok-3": _rates("grok-3"),
+            "grok-3-mini": {"input": 0.30, "output": 0.50, "cached_input": 0.30},
+            "grok-code-fast-1": _rates("grok-code-fast-1"),
         }
 
         # Store completed jobs in memory (simple implementation)
@@ -221,13 +239,14 @@ class GrokProvider(DeepResearchProvider):
 
             # Calculate cost
             usage = response.usage
+            cached_input_tokens = get_usage_detail_int(usage, "prompt_tokens_details", "cached_tokens")
+            reasoning_tokens = get_usage_detail_int(usage, "completion_tokens_details", "reasoning_tokens")
             cost = self._calculate_cost(
                 usage.prompt_tokens,
                 usage.completion_tokens,
                 model,
-                getattr(usage.completion_tokens_details, "reasoning_tokens", 0)
-                if hasattr(usage, "completion_tokens_details")
-                else 0,
+                reasoning_tokens,
+                cached_input_tokens=cached_input_tokens,
             )
 
             # Store completion
@@ -247,7 +266,7 @@ class GrokProvider(DeepResearchProvider):
             # from inside submit_research. The previous behaviour caused
             # submit_research to throw mid-call so the caller never got
             # the job_id back, while the failure was simultaneously stored
-            # under that orphaned id — making the failure invisible.
+            # under that orphaned id, making the failure invisible.
             self.jobs[job_id].update(
                 {
                     "status": "failed",
@@ -287,6 +306,12 @@ class GrokProvider(DeepResearchProvider):
                     input_tokens=usage_data.prompt_tokens,
                     output_tokens=usage_data.completion_tokens,
                     total_tokens=usage_data.total_tokens,
+                    reasoning_tokens=get_usage_detail_int(
+                        usage_data,
+                        "completion_tokens_details",
+                        "reasoning_tokens",
+                    ),
+                    cached_input_tokens=get_usage_detail_int(usage_data, "prompt_tokens_details", "cached_tokens"),
                     cost=job_data.get("cost", 0.0),
                 )
 
@@ -444,10 +469,14 @@ class GrokProvider(DeepResearchProvider):
                 usage = response.usage
                 prompt_tokens = usage.prompt_tokens if usage else 0
                 completion_tokens = usage.completion_tokens if usage else 0
+                cached_input_tokens = get_usage_detail_int(usage, "prompt_tokens_details", "cached_tokens")
+                reasoning_tokens = get_usage_detail_int(usage, "completion_tokens_details", "reasoning_tokens")
                 cost = self._calculate_cost(
                     prompt_tokens,
                     completion_tokens,
                     single_model,
+                    reasoning_tokens,
+                    cached_input_tokens=cached_input_tokens,
                 )
                 budget.record(cost)
 
@@ -485,7 +514,7 @@ class GrokProvider(DeepResearchProvider):
             agent_outputs = [r.output for r in fan_out_result.results if r.status == AgentStatus.SUCCESS]
 
             # Refuse synthesis if the operation budget has already been
-            # consumed by the worker fan-out — otherwise an exhausted budget
+            # consumed by the worker fan-out. Otherwise an exhausted budget
             # would still pay for one more provider call here.
             synthesis_reserve = total_budget * fan_out_config.synthesis_reserve_fraction
             remaining = max(0.0, total_budget - fan_out_result.total_cost)
@@ -614,7 +643,15 @@ class GrokProvider(DeepResearchProvider):
             usage = response.usage
             prompt_tokens = usage.prompt_tokens if usage else 0
             completion_tokens = usage.completion_tokens if usage else 0
-            cost = self._calculate_cost(prompt_tokens, completion_tokens, model)
+            cached_input_tokens = get_usage_detail_int(usage, "prompt_tokens_details", "cached_tokens")
+            reasoning_tokens = get_usage_detail_int(usage, "completion_tokens_details", "reasoning_tokens")
+            cost = self._calculate_cost(
+                prompt_tokens,
+                completion_tokens,
+                model,
+                reasoning_tokens,
+                cached_input_tokens=cached_input_tokens,
+            )
             return {
                 "content": content,
                 "cost": cost,
@@ -631,28 +668,38 @@ class GrokProvider(DeepResearchProvider):
             }
 
     def _calculate_cost(
-        self, prompt_tokens: int, completion_tokens: int, model: str, reasoning_tokens: int = 0
+        self,
+        prompt_tokens: int,
+        completion_tokens: int,
+        model: str,
+        reasoning_tokens: int = 0,
+        *,
+        cached_input_tokens: int = 0,
     ) -> float:
         """Calculate cost for Grok models including reasoning tokens."""
         # Get pricing for model
         prices = self.pricing.get(model, self.pricing["grok-4-1-fast-reasoning"])
 
-        # Input cost (prompt tokens)
-        input_cost = (prompt_tokens / 1_000_000) * prices["input"]
+        normalized_prompt_tokens = max(prompt_tokens, 0)
+        normalized_cached_tokens = min(max(cached_input_tokens, 0), normalized_prompt_tokens)
+        non_cached_prompt_tokens = normalized_prompt_tokens - normalized_cached_tokens
 
-        # Output cost (completion + reasoning tokens)
-        # Reasoning tokens are billed as output tokens
-        total_output_tokens = completion_tokens + reasoning_tokens
+        input_cost = (non_cached_prompt_tokens / 1_000_000) * prices["input"]
+        cached_input_cost = (normalized_cached_tokens / 1_000_000) * prices["cached_input"]
+
+        # Output cost (completion plus reasoning tokens).
+        # Reasoning tokens are billed as output tokens.
+        total_output_tokens = max(completion_tokens, 0) + max(reasoning_tokens, 0)
         output_cost = (total_output_tokens / 1_000_000) * prices["output"]
 
-        return round(input_cost + output_cost, 6)
+        return round(input_cost + cached_input_cost + output_cost, 6)
 
     async def upload_document(self, file_path: str, purpose: str = "assistants") -> str:
         """
         Upload document to Grok collections.
 
-        TODO: Implement when document collections are needed. Signature matches
-        the base ``DeepResearchProvider`` contract (Liskov-compatible stub).
+        Document collections are not currently supported by this provider.
+        Signature matches the base ``DeepResearchProvider`` contract.
         """
         raise NotImplementedError("Grok document upload not yet implemented")
 
@@ -660,8 +707,8 @@ class GrokProvider(DeepResearchProvider):
         """
         Create Grok collection for document storage.
 
-        TODO: Implement when document collections are needed. Signature matches
-        the base ``DeepResearchProvider`` contract.
+        Document collections are not currently supported by this provider.
+        Signature matches the base ``DeepResearchProvider`` contract.
         """
         raise NotImplementedError("Grok vector store not yet implemented")
 
@@ -683,15 +730,15 @@ class GrokProvider(DeepResearchProvider):
 # 1. Grok 4.20 Flagship (grok-4.20-0309-reasoning/non-reasoning)
 #    - Lowest hallucination rate, strict prompt adherence
 #    - Full agentic tool calling, native vision
-#    - $2/$6 per MTok (input/output), 2M context, 607 RPM
+#    - $1.25/$2.50 per MTok (input/output), 2M context, 607 RPM
 #
 # 2. Grok 4.20 Multi-Agent (grok-4.20-multi-agent-0309)
 #    - 4 or 16 parallel agents for deep research
 #    - Server-side orchestration via Responses API
-#    - Same pricing as flagship ($2/$6 per MTok)
+#    - Same pricing as flagship ($1.25/$2.50 per MTok)
 #
 # 3. Grok 4.1 Fast Budget (grok-4-1-fast-reasoning/non-reasoning)
-#    - $0.20/$0.50 per MTok — cheapest option
+#    - $0.20/$0.50 per MTok, cheapest option
 #    - 2M context, good for high-volume factual tasks
 #
 # 4. Server-Side Tools (autonomous execution)

@@ -41,6 +41,7 @@ from deepr.providers.base import (
     ResearchResponse,
     UsageStats,
     VectorStore,
+    coerce_usage_int,
 )
 from deepr.tools import ToolRegistry
 
@@ -132,6 +133,37 @@ class AnthropicProvider(DeepResearchProvider):
         # Initialize tool executor
         self.tool_executor = ToolRegistry.create_executor(web_search=True, backend=web_search_backend)
 
+    def _calculate_usage_cost(
+        self,
+        *,
+        input_tokens: int,
+        output_tokens: int,
+        cache_creation_tokens: int = 0,
+        cache_read_tokens: int = 0,
+    ) -> float:
+        """Calculate Anthropic cost across regular and prompt-cache buckets."""
+        from deepr.providers.registry import get_token_pricing
+
+        token_rates = get_token_pricing(self.model, input_tokens=input_tokens)
+        cache_rates = self._cache_rates_for_model(token_rates["input"])
+
+        input_cost = (max(input_tokens, 0) / 1_000_000) * token_rates["input"]
+        output_cost = (max(output_tokens, 0) / 1_000_000) * token_rates["output"]
+        cache_creation_cost = (max(cache_creation_tokens, 0) / 1_000_000) * cache_rates["cache_write"]
+        cache_read_cost = (max(cache_read_tokens, 0) / 1_000_000) * cache_rates["cache_read"]
+
+        return round(input_cost + output_cost + cache_creation_cost + cache_read_cost, 6)
+
+    def _cache_rates_for_model(self, input_rate: float) -> dict[str, float]:
+        """Return Anthropic prompt-cache rates for the configured model."""
+        for model, rates in ANTHROPIC_CACHE_PRICING.items():
+            if self.model.startswith(model):
+                return rates
+        return {
+            "cache_write": round(input_rate * 1.25, 6),
+            "cache_read": round(input_rate * 0.10, 6),
+        }
+
     def _build_thinking_param(self) -> dict[str, Any] | None:
         """Return the thinking config appropriate for the configured model.
 
@@ -220,10 +252,12 @@ class AnthropicProvider(DeepResearchProvider):
                 # Accumulate usage from this turn
                 turn_usage = getattr(response, "usage", None)
                 if turn_usage is not None:
-                    total_input_tokens += getattr(turn_usage, "input_tokens", 0) or 0
-                    total_output_tokens += getattr(turn_usage, "output_tokens", 0) or 0
-                    total_cache_read_tokens += getattr(turn_usage, "cache_read_input_tokens", 0) or 0
-                    total_cache_creation_tokens += getattr(turn_usage, "cache_creation_input_tokens", 0) or 0
+                    total_input_tokens += coerce_usage_int(getattr(turn_usage, "input_tokens", 0))
+                    total_output_tokens += coerce_usage_int(getattr(turn_usage, "output_tokens", 0))
+                    total_cache_read_tokens += coerce_usage_int(getattr(turn_usage, "cache_read_input_tokens", 0))
+                    total_cache_creation_tokens += coerce_usage_int(
+                        getattr(turn_usage, "cache_creation_input_tokens", 0)
+                    )
 
                 # Extract thinking + content + collect tool uses
                 has_tool_use = False
@@ -295,20 +329,24 @@ class AnthropicProvider(DeepResearchProvider):
             # Generate job ID (Anthropic doesn't return one)
             job_id = f"anthropic-{datetime.now(UTC).strftime('%Y%m%d%H%M%S%f')}"
 
-            # Compute cost from accumulated usage. Anthropic bills cache
-            # reads at a reduced rate (0.1x base input) and cache creation
-            # at 1.25x base input; the registry's UsageStats.calculate_cost
-            # treats prompt+completion at the base rate so we settle the
-            # cache adjustment by passing the effective billable tokens.
-            billable_input = total_input_tokens + total_cache_creation_tokens
+            # Compute cost from accumulated usage. Anthropic reports regular
+            # input, cache writes, and cache reads as separate token buckets.
+            total_prompt_tokens = total_input_tokens + total_cache_creation_tokens + total_cache_read_tokens
             usage_stats = UsageStats(
-                input_tokens=billable_input,
+                input_tokens=total_prompt_tokens,
                 output_tokens=total_output_tokens,
+                cache_creation_input_tokens=total_cache_creation_tokens,
+                cache_read_input_tokens=total_cache_read_tokens,
                 reasoning_tokens=0,
-                total_tokens=billable_input + total_output_tokens + total_cache_read_tokens,
+                total_tokens=total_prompt_tokens + total_output_tokens,
             )
             try:
-                usage_stats.cost = UsageStats.calculate_cost(billable_input, total_output_tokens, self.model)
+                usage_stats.cost = self._calculate_usage_cost(
+                    input_tokens=total_input_tokens,
+                    output_tokens=total_output_tokens,
+                    cache_creation_tokens=total_cache_creation_tokens,
+                    cache_read_tokens=total_cache_read_tokens,
+                )
             except Exception:
                 usage_stats.cost = 0.0
 

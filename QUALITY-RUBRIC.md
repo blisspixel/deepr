@@ -67,22 +67,24 @@ Planning Principles), and [docs/plans/AGENTIC_BALANCE.md](docs/plans/AGENTIC_BAL
 
 ## Current Cycle Alignment - 2026-06-26
 
-Active task: add reviewed monitor proposal promotion for gap/eval candidates,
-with dry-run default, explicit `--apply`, and no model calls.
+Active task: close provider cost-settlement gaps for cached input, prompt-cache
+buckets, tiered provider pricing, and research reservation settlement without
+making paid API calls.
 
 Target score before merge:
 
 | Category | Required score | Evidence |
 |---|---:|---|
-| Correctness | 5/5 | Promotion tests prove preview is non-mutating, gap apply is idempotent, eval apply writes a bounded artifact, CLI JSON works, and the published schema validates runtime payloads. |
-| Security | 5/5 | `--apply` is required for writes; trace paths are not exposed; outputs stay `$0`; only sanitized candidate fields are promoted. |
-| Performance | 5/5 | Work is bounded to recent local loop/trace records; no provider calls, embeddings, or paid validation. |
-| Readability | 5/5 | Promotion is a small service over existing monitor and metacognition primitives. |
-| Maintainability | 5/5 | Published v1 schema, registry entry, CLI surface, and docs keep the promotion artifact consumable by agents. |
-| Simplicity | 5/5 | No new dependency, no broad state store, no prompt mutation, no self-model writer. |
+| Correctness | 5/5 | Provider tests pin cached OpenAI/Azure/xAI input, Anthropic cache buckets, Gemini large-context tiering, Grok 4.20 rates, and core reserve/refund/settle behavior. |
+| Security | 5/5 | Local and explicit plan-quota paths remain `$0`; API spend reserves before dispatch, refunds on failure, and settles once from provider usage. |
+| Performance | 5/5 | No provider calls, embeddings, or paid validation; cached-token accounting reduces overcharge risk without enabling pre-warm traffic. |
+| Readability | 5/5 | Shared usage helpers and registry pricing keep provider-specific parsing small and explicit. |
+| Maintainability | 5/5 | Token pricing, cached rates, and provider usage buckets live behind shared APIs instead of duplicated arithmetic. |
+| Simplicity | 5/5 | No new dependency or cache-control feature; only accounting and settlement were changed. |
 
-Cycle 7 adds reviewed promotion for gap/eval proposals only. Self-model,
-prompt, tool, and skill changes remain gated future work.
+Cycle 8 ships accounting and ledger settlement only. Provider cache controls,
+pre-warming, keep-warm jobs, longer TTL defaults, and self-model mutation remain
+gated future work.
 
 ## How to score (maker-checker)
 

@@ -290,6 +290,35 @@ class TestGetStatus:
             assert out.usage.input_tokens == 10
 
     @pytest.mark.asyncio
+    async def test_status_prices_cached_input_tokens(self, provider):
+        resp = MagicMock()
+        resp.id = "j_cached"
+        resp.status = "completed"
+        resp.model = "gpt-5"
+        resp.usage = MagicMock(
+            input_tokens=1000,
+            output_tokens=500,
+            total_tokens=1500,
+            reasoning_tokens=0,
+        )
+        resp.usage.input_tokens_details = MagicMock(cached_tokens=400)
+        resp.usage.output_tokens_details = MagicMock(reasoning_tokens=125)
+        resp.output = []
+        resp.created_at = None
+        resp.completed_at = None
+        resp.metadata = None
+        resp.error = None
+
+        with patch.object(provider.client.responses, "retrieve", new_callable=AsyncMock) as r:
+            r.return_value = resp
+            out = await provider.get_status("j_cached")
+
+        assert out.usage is not None
+        assert out.usage.cached_input_tokens == 400
+        assert out.usage.reasoning_tokens == 125
+        assert out.usage.cost == pytest.approx(0.0058)
+
+    @pytest.mark.asyncio
     async def test_status_parses_output_blocks(self, provider):
         resp = MagicMock()
         resp.id = "j3"

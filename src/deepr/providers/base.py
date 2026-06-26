@@ -49,6 +49,9 @@ class UsageStats:
     output_tokens: int = 0
     total_tokens: int = 0
     reasoning_tokens: int = 0
+    cached_input_tokens: int = 0
+    cache_creation_input_tokens: int = 0
+    cache_read_input_tokens: int = 0
     cost: float = 0.0  # Calculated cost in USD
 
     @classmethod
@@ -69,6 +72,56 @@ class UsageStats:
         output_cost = (output_tokens / 1_000_000) * prices["output"]
 
         return round(input_cost + output_cost, 6)
+
+    @classmethod
+    def calculate_cost_with_cached_input(
+        cls,
+        input_tokens: int,
+        output_tokens: int,
+        model: str,
+        *,
+        cached_input_tokens: int = 0,
+    ) -> float:
+        """Calculate cost when a provider reports discounted cached input."""
+        from .registry import get_cached_input_pricing, get_token_pricing
+
+        normalized_input = max(int(input_tokens), 0)
+        normalized_output = max(int(output_tokens), 0)
+        normalized_cached = min(max(int(cached_input_tokens), 0), normalized_input)
+        non_cached_input = normalized_input - normalized_cached
+
+        prices = get_token_pricing(model, input_tokens=normalized_input)
+        cached_input_rate = get_cached_input_pricing(model, input_tokens=normalized_input)
+        if cached_input_rate is None:
+            cached_input_rate = prices["input"]
+
+        input_cost = (non_cached_input / 1_000_000) * prices["input"]
+        cached_input_cost = (normalized_cached / 1_000_000) * cached_input_rate
+        output_cost = (normalized_output / 1_000_000) * prices["output"]
+
+        return round(input_cost + cached_input_cost + output_cost, 6)
+
+
+def coerce_usage_int(value: Any) -> int:
+    """Convert provider SDK usage fields to non-negative integers."""
+    if isinstance(value, bool) or value is None:
+        return 0
+    if isinstance(value, (int, float)):
+        return max(int(value), 0)
+    return 0
+
+
+def get_usage_int(usage: Any, field: str) -> int:
+    """Read a top-level usage integer from a provider SDK object."""
+    return coerce_usage_int(getattr(usage, field, 0))
+
+
+def get_usage_detail_int(usage: Any, detail_field: str, field: str) -> int:
+    """Read a nested usage detail integer from a provider SDK object."""
+    detail = getattr(usage, detail_field, None)
+    if detail is None:
+        return 0
+    return coerce_usage_int(getattr(detail, field, 0))
 
 
 @dataclass
@@ -116,7 +169,7 @@ class DeepResearchProvider(ABC):
         Raises:
             ProviderError: If submission fails
         """
-        pass
+        raise NotImplementedError
 
     @abstractmethod
     async def get_status(self, job_id: str) -> ResearchResponse:
@@ -132,7 +185,7 @@ class DeepResearchProvider(ABC):
         Raises:
             ProviderError: If retrieval fails
         """
-        pass
+        raise NotImplementedError
 
     @abstractmethod
     async def cancel_job(self, job_id: str) -> bool:
@@ -148,7 +201,7 @@ class DeepResearchProvider(ABC):
         Raises:
             ProviderError: If cancellation fails
         """
-        pass
+        raise NotImplementedError
 
     @abstractmethod
     async def upload_document(self, file_path: str, purpose: str = "assistants") -> str:
@@ -165,7 +218,7 @@ class DeepResearchProvider(ABC):
         Raises:
             ProviderError: If upload fails
         """
-        pass
+        raise NotImplementedError
 
     @abstractmethod
     async def create_vector_store(self, name: str, file_ids: list[str]) -> VectorStore:
@@ -182,7 +235,7 @@ class DeepResearchProvider(ABC):
         Raises:
             ProviderError: If creation fails
         """
-        pass
+        raise NotImplementedError
 
     @abstractmethod
     async def wait_for_vector_store(self, vector_store_id: str, timeout: int = 900, poll_interval: float = 2.0) -> bool:
@@ -201,7 +254,7 @@ class DeepResearchProvider(ABC):
             TimeoutError: If ingestion doesn't complete within timeout
             ProviderError: If ingestion fails
         """
-        pass
+        raise NotImplementedError
 
     @abstractmethod
     async def list_vector_stores(self, limit: int = 100) -> list[VectorStore]:
@@ -217,7 +270,7 @@ class DeepResearchProvider(ABC):
         Raises:
             ProviderError: If listing fails
         """
-        pass
+        raise NotImplementedError
 
     @abstractmethod
     async def delete_vector_store(self, vector_store_id: str) -> bool:
@@ -233,7 +286,7 @@ class DeepResearchProvider(ABC):
         Raises:
             ProviderError: If deletion fails
         """
-        pass
+        raise NotImplementedError
 
     @abstractmethod
     def get_model_name(self, model_key: str) -> str:
@@ -250,7 +303,7 @@ class DeepResearchProvider(ABC):
             OpenAI: "o3-deep-research" -> "o3-deep-research"
             Azure: "o3-deep-research" -> "my-o3-deployment"
         """
-        pass
+        raise NotImplementedError
 
 
 class ProviderError(Exception):

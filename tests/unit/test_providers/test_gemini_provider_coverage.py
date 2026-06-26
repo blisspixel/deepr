@@ -40,8 +40,12 @@ class TestCalculateCost:
     def test_large_context_doubles_3_1_pro(self, provider):
         small = provider._calculate_cost(199_000, 10_000, "gemini-3.1-pro-preview")
         big = provider._calculate_cost(201_000, 10_000, "gemini-3.1-pro-preview")
-        # The big-context multiplier is 2.0 on both input and output components.
-        assert big > small * 1.9
+        prices = provider.pricing["gemini-3.1-pro-preview"]
+        expected_big = round(
+            (201_000 / 1_000_000) * prices["input"] * 2.0 + (10_000 / 1_000_000) * prices["output"] * 1.5, 6
+        )
+        assert big == expected_big
+        assert big > small
 
     def test_large_context_does_not_affect_flash(self, provider):
         small = provider._calculate_cost(199_000, 10_000, "gemini-2.5-flash")

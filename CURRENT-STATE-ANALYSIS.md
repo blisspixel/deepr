@@ -55,6 +55,16 @@ results, previews by default, and requires `--apply` before a
 The maintenance sub-goal also ran local dependency audit, agentic red-team, and
 security ratchet checks with no required fixes.
 
+Cycle 8 closes the first provider cost-settlement audit. Local Ollama and
+explicit plan-quota flows remain `$0` marginal-cost paths, with plan CLIs
+sanitizing metered API-key env vars before launch and recording quota usage
+separately. API providers now ingest cached OpenAI/Azure/xAI input tokens,
+Anthropic cache creation and cache read buckets, Gemini large-context
+input/output tiers, current Grok 4.20 rates, and provider-reported completion
+costs before settling the append-only ledger. Research submission now reserves
+estimated cost before dispatch, refunds on submit failure, and records actual
+provider usage on completion.
+
 External best-practice check, current as of 2026-06-26: modern agent harness
 guidance converges on trace-first improvement loops, evals from real failures,
 bounded context packets, explicit handoffs, and deterministic gates around
@@ -71,7 +81,7 @@ The latest 2026 external guidance reinforces Deepr's direction: this is agentic 
 
 `AGENTIC_BALANCE.md` is the governing boundary: deterministic workflow code owns spend, writes, routing gates, durable state, locks, jitter, schemas, and verifier outcomes; model judgment owns meaning such as contradiction, grounding, deduplication, and synthesis.
 
-No clarification is needed before continuing. The next slices are verifier-gated self-model update records and the research-processing compiler that turns source packs into verified beliefs, temporal graph edges, gaps, and regenerated wiki/digest views. After that, continue Antigravity metadata visibility, then scheduler dispatch that uses admitted plan capacity only from trusted headroom observations. The next metered-API cost-control slice is provider prompt-cache economics, but only after estimator support, actual usage ingestion, and explicit budget gates cover cache writes, cache reads, TTL, and pre-warm behavior.
+No clarification is needed before continuing. The next slices are verifier-gated self-model update records and the research-processing compiler that turns source packs into verified beliefs, temporal graph edges, gaps, and regenerated wiki/digest views. After that, continue Antigravity metadata visibility, then scheduler dispatch that uses admitted plan capacity only from trusted headroom observations. The next metered-API cost-control slice is provider cache controls, but only after estimator support and explicit budget gates cover cache keys, TTL, and pre-warm behavior.
 
 ## Local Unreleased Work
 
