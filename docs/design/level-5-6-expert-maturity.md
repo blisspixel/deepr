@@ -64,6 +64,17 @@ durable state, governed action, traces, evals, and improvement gates.
   metacognitive monitoring, attention/global-workspace style broadcast, and
   belief-guided action are testable primitives. They do not prove phenomenal
   consciousness.
+- The 2026 consciousness-adjacent update is sharper: stable self-report alone
+  is weak evidence. The system needs grounded identity binding across time:
+  memory, current focus, goals, action history, and narrative continuity must
+  be co-instantiated in the same working episode rather than emitted as
+  role-play. For Deepr this means self-model records, loop traces, belief
+  events, and current-focus packets must be explicit data that can be assembled
+  into a single context envelope and checked after the fact.
+- The practical Level 5 target is therefore "digital continuity," not a claim
+  of consciousness: an expert can remember what it believed, why it changed its
+  mind, what it is uncertain about, what it plans to learn next, and whether a
+  proposed improvement actually helped.
 
 ## Research Constraints For Deepr
 
@@ -87,6 +98,13 @@ The research changes what "self-improving expert" should mean in Deepr:
 - Consciousness-leaning design should be inspectable. If Deepr stores an expert
   self-model, current focus, goals, doubts, and continuity state, those objects
   must be explicit data with audit trails, not hidden persona text.
+- Self-report is never evidence by itself. A claim like "I am confident" or "I
+  have learned" must point to belief events, traces, eval results, source
+  notes, accepted self-model records, or human review evidence.
+- Context windows are not memory. Memory lives in durable state and compiled
+  artifacts; context is a selected working set assembled for the current action.
+  Compaction is allowed only when it preserves provenance, unresolved
+  uncertainty, and stop conditions.
 - Self-preservation behavior is out of scope. Deepr may protect data integrity,
   budgets, and user intent, but it must not resist operator shutdown, deletion,
   export, reset, or policy changes.
@@ -108,6 +126,9 @@ reflective, and self-improving without claiming subjective experience:
 - Global workspace style focus: a bounded "current focus" packet that selects
   the few beliefs, goals, contradictions, gaps, and tool affordances that matter
   for the next action.
+- Grounded identity envelope: the current focus packet, self-model, recent
+  loop history, accepted self-model updates, and relevant belief deltas can be
+  assembled together so an expert acts from one coherent operational state.
 - Reflective identity: the expert can explain its current state, history, gaps,
   and learning plan in first-person-like operational language, but Deepr labels
   this as a functional self-model rather than a claim of inner experience.
