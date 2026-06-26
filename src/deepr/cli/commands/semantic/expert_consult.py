@@ -115,8 +115,8 @@ def expert_consult(
       deepr expert consult "Cost vs quality tradeoff?" -e "AI Cost Optimization" -e "LLM Evaluation and Calibration"
       deepr expert consult "What changed in MCP?" --json
     """
-    if budget <= 0:
-        print_error("--budget must be positive.")
+    if budget < 0 or (budget <= 0 and not use_local and not plan_backend):
+        print_error("--budget must be positive for API-backed consults.")
         sys.exit(2)
     try:
         synthesis_backend = _build_cli_synthesis_backend(

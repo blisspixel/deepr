@@ -200,6 +200,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   improvements.
 
 ### Fixed
+- Allowed `deepr expert consult --local --budget 0` and
+  `deepr expert consult --plan <id> --budget 0` to run through the documented
+  no-metered synthesis path while keeping API-backed consults positive-budget
+  only.
+- Changed `deepr mcp test` to use only read-only `$0` MCP calls. It no longer
+  probes `deepr_query_expert`, which can reach expert chat and spend despite a
+  caller intending a no-cost diagnostic.
 - Hardened self-model update evidence refs so accepted prefixes must also carry
   a non-empty value, and malformed local review records fail closed before an
   acceptance artifact can be emitted.

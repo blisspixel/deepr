@@ -118,9 +118,10 @@ def test_consult_no_experts_exits_2(monkeypatch):
     assert result.exit_code == 2
 
 
-def test_budget_must_be_positive():
+def test_api_budget_must_be_positive():
     result = CliRunner().invoke(expert_consult, ["q", "--budget", "0", "-y"])
     assert result.exit_code == 2
+    assert "--budget must be positive for API-backed consults" in result.output
 
 
 def test_failure_surfaced_not_silent(monkeypatch, consult_trace_path):
@@ -159,14 +160,16 @@ def test_consult_local_synthesis_passes_client_and_disables_live_fallback(monkey
     monkeypatch.setattr("deepr.backends.local.ollama_chat_client", lambda: sentinel_client)
 
     async def fake(question, experts, max_experts, budget, **kwargs):
+        captured["budget"] = budget
         captured.update(kwargs)
         return _result(total_cost=0.0)
 
     monkeypatch.setattr(mod, "run_consult", fake)
 
-    result = CliRunner().invoke(expert_consult, ["q", "--local", "--json"])
+    result = CliRunner().invoke(expert_consult, ["q", "--local", "--budget", "0", "--json"])
 
     assert result.exit_code == 0
+    assert captured["budget"] == 0.0
     assert captured["synthesis_client"] is sentinel_client
     assert captured["synthesis_model"] == "qwen-local"
     assert captured["synthesis_provider"] == "local"
@@ -201,14 +204,19 @@ def test_consult_plan_synthesis_vets_backend_and_disables_live_fallback(monkeypa
     monkeypatch.setattr("deepr.backends.plan_quota.PlanQuotaChatClient", FakePlanClient)
 
     async def fake(question, experts, max_experts, budget, **kwargs):
+        captured["budget"] = budget
         captured.update(kwargs)
         return _result(total_cost=0.0)
 
     monkeypatch.setattr(mod, "run_consult", fake)
 
-    result = CliRunner().invoke(expert_consult, ["q", "--plan", "grok", "--plan-model", "fast", "--json"])
+    result = CliRunner().invoke(
+        expert_consult,
+        ["q", "--plan", "grok", "--plan-model", "fast", "--budget", "0", "--json"],
+    )
 
     assert result.exit_code == 0
+    assert captured["budget"] == 0.0
     assert isinstance(captured["synthesis_client"], FakePlanClient)
     assert captured["synthesis_model"] == "fast"
     assert captured["synthesis_provider"] == "plan_quota:grok"

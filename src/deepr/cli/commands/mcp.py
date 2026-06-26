@@ -851,14 +851,18 @@ def test():
             else:
                 click.echo(f"   Error: {info['error']}")
 
-            # Test 3: Query expert
-            click.echo("\n3. Testing query_expert...")
-            result = await server.query_expert(expert_name, "What is your domain expertise?", budget=0.0, agentic=False)
-            if "error" not in result:
-                click.echo(f"   Answer: {result['answer'][:200]}...")
-                click.echo(f"   Cost: ${result['cost']:.4f}")
+            # Test 3: Capability map. Keep this diagnostic read-only and $0.
+            # Do not call deepr_query_expert here: expert chat can reach a
+            # metered model even when the caller intends a no-spend smoke test.
+            click.echo("\n3. Testing deepr_capabilities...")
+            capabilities = await server.deepr_capabilities()
+            if "error" not in capabilities:
+                tools = capabilities.get("tools", [])
+                click.echo(f"   Schema: {capabilities.get('schema_version', 'unknown')}")
+                click.echo(f"   Key tools: {len(tools)}")
+                click.echo("   No model calls were run.")
             else:
-                click.echo(f"   Error: {result['error']}")
+                click.echo(f"   Error: {capabilities['error']}")
 
         click.echo("\n✓ MCP server tests completed")
 
