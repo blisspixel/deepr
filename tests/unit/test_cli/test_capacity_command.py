@@ -12,7 +12,7 @@ from datetime import UTC, datetime
 from click.testing import CliRunner
 
 from deepr.backends.capacity import CostModel
-from deepr.backends.quota_ledger import load_quota_events
+from deepr.backends.quota_ledger import QuotaWindowKind, load_quota_events
 from deepr.backends.quota_snapshot import QuotaSnapshot, QuotaWindowSnapshot
 from deepr.cli.commands.capacity import capacity
 
@@ -70,12 +70,13 @@ class TestAdmitPlan:
         assert r2.exit_code == 0
         assert not is_admitted("plan:codex", "sync")
 
-    def test_admit_blocked_when_api_key_present(self, monkeypatch, tmp_path):
+    def test_admit_sanitizes_api_key_present(self, monkeypatch, tmp_path):
         monkeypatch.setenv("DEEPR_CAPACITY_DATA_DIR", str(tmp_path))
         monkeypatch.setenv("OPENAI_API_KEY", "sk-should-block")
         r = CliRunner().invoke(capacity, ["admit-plan", "codex"])
-        assert r.exit_code == 2
+        assert r.exit_code == 0
         assert "OPENAI_API_KEY" in r.output
+        assert "removed" in r.output
 
     def test_admit_choice_restricted_to_auto_routable(self):
         # ToS-gray / metered backends cannot be admitted for auto-routing.
@@ -94,12 +95,14 @@ class TestProbePlan:
     def test_registered(self):
         assert "probe-plan" in capacity.commands
 
-    def test_blocked_when_api_key_present(self, monkeypatch):
+    def test_api_key_present_is_sanitized_for_probe(self, monkeypatch):
         monkeypatch.setenv("OPENAI_API_KEY", "sk-should-block")
+        _stub_probe(monkeypatch, ok=True, reply="OK", latency_ms=7)
         r = CliRunner().invoke(capacity, ["probe-plan", "codex"])
-        assert r.exit_code == 2
+        assert r.exit_code == 0
         assert "OPENAI_API_KEY" in r.output
-        assert "--api" in r.output
+        assert "removed" in r.output
+        assert "OK" in r.output
 
     def test_ok_round_trip(self, monkeypatch):
         _clean_env(monkeypatch)
@@ -196,6 +199,38 @@ class TestRefreshQuota:
         events = load_quota_events(tmp_path / "quota_ledger.jsonl")
         assert len(events) == 1
         assert events[0].backend_id == "claude"
+
+    def test_refresh_quota_accepts_grok_backend(self, monkeypatch, tmp_path):
+        monkeypatch.setenv("DEEPR_CAPACITY_DATA_DIR", str(tmp_path))
+
+        def fake(backend):
+            assert backend == "grok"
+            return QuotaSnapshot(
+                backend_id="grok",
+                display_name="Grok Build",
+                account_id="dev@example.com",
+                plan="SuperGrok",
+                cost_model=CostModel.CREDIT_POOL,
+                windows=(
+                    QuotaWindowSnapshot(
+                        label="monthly",
+                        window_kind=QuotaWindowKind.MONTHLY_CREDIT_POOL,
+                        used_fraction=0.35,
+                        unit_name="plan_request",
+                    ),
+                ),
+                as_of=T0,
+            )
+
+        monkeypatch.setattr("deepr.backends.plan_quota.collect_plan_quota_snapshot", fake)
+
+        r = CliRunner().invoke(capacity, ["refresh-quota", "grok"])
+
+        assert r.exit_code == 0, r.output
+        assert "Grok Build quota snapshot recorded" in r.output
+        events = load_quota_events(tmp_path / "quota_ledger.jsonl")
+        assert len(events) == 1
+        assert events[0].backend_id == "grok"
 
     def test_refresh_quota_json_payload(self, monkeypatch, tmp_path):
         monkeypatch.setenv("DEEPR_CAPACITY_DATA_DIR", str(tmp_path))

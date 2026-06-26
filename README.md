@@ -7,6 +7,11 @@
 
 **Domain experts, not another chat window.**
 
+Deepr is a deep research and understanding loop. It does not stop at a report:
+it gathers evidence, turns evidence into beliefs, gaps, contradictions,
+confidence, and provenance, remembers what changed, and exposes that evolving
+understanding to humans and other agents.
+
 In plain terms: you bring the capacity you already have. Cloud APIs give Deepr
 the strongest full research path when you provide keys and a budget ceiling.
 Plan-quota agent services are modeled as prepaid capacity and are being wired
@@ -15,6 +20,13 @@ high-volume expert maintenance. Deepr routes each research question toward the
 cheapest capable option, then builds experts that remember what they learned.
 
 ChatGPT, Gemini, and Copilot each give you deep research from one vendor behind a chat UI. Deepr is the layer underneath - it routes across all of them and builds persistent expert agents that learn over time. Each expert is a named role ("AI Strategy Expert", "Security Specialist", "Fabric Architect") that accumulates domain knowledge, tracks its own gaps, and can be consulted by humans or other agents alike. Deepr runs from scripts, cron jobs, and AI agent workflows - so your experts are always available as team members, not just tools you invoke manually.
+
+The longer-term aim is persistent, self-auditing understanding: experts that
+can explain what they know, what they do not know, why their confidence changed,
+what evidence moved them, and what they should learn next. Deepr treats
+self-models, metacognitive monitoring, continuity traces, and bounded agency as
+consciousness-leaning architecture primitives, while staying honest that these
+are functional structures and not proof of subjective experience.
 
 ```bash
 # Auto-routes to the best model per query: Grok 4.20 Non-Reasoning -> GPT-5.4 -> o3-deep-research
@@ -49,6 +61,9 @@ Multi-provider (OpenAI, Gemini, Grok, Anthropic, Azure). Callable from AI agents
 
 - **Scaling research** - Batch 50 queries at $2 instead of clicking "Deep Research" 50 times. Auto-mode routes each query to the cheapest model that can handle it.
 - **Building persistent experts** - Agents that accumulate knowledge across sessions, track beliefs with confidence, detect their own gaps, and research to fill them.
+- **Growing understanding over time** - Each research pass can update beliefs,
+  gaps, contradictions, confidence, provenance, and the expert's own learning
+  plan instead of producing a disposable answer.
 - **Feeding AI workflows** - Your coding agents call Deepr experts via MCP mid-task. They get living knowledge with citations, not hallucinations or stale training data.
 - **Grounding always-on agents** - The autopilot platforms (Microsoft Autopilots, OpenAI Workspace Agents, Google Antigravity, AWS AgentCore) run agents for months, but their memory is shallow session state. An always-on agent has exactly the problem Deepr experts solve: it needs durable, verified, current domain knowledge with provenance, and a cheap way to re-sync with what changed since it last asked.
 - **Composing into agent teams** - Experts expose structured outputs with handoff-ready artifacts. An upstream signal agent can feed findings into a Deepr expert, which produces research that a downstream strategy or proposal agent consumes. Deepr doesn't orchestrate the team - it plays a role on it.
@@ -152,6 +167,9 @@ See [docs/FEATURES.md](docs/FEATURES.md) for the full command reference.
 ### Domain Experts
 
 Deepr experts persist across sessions. They recognize knowledge gaps, research to fill them, and integrate findings permanently.
+Learning is a processing loop, not passive RAG: new sources are converted into
+atomic beliefs, provenance refs, temporal edges, contradiction signals, gap
+backlogs, and regenerated handoff or digest views.
 
 ```bash
 # Create an expert with autonomous learning
@@ -163,6 +181,10 @@ deepr expert chat "AI Policy Expert" --budget 3
 # Fill the highest-value knowledge gaps
 deepr expert fill-gaps "Energy Transition Expert" --top 2 --budget 4
 
+# Consult multiple experts as one bounded knowledge transaction
+deepr expert consult "What should this agentic harness improve next?" --local
+deepr expert consult "What changed in plan-quota capacity?" --plan grok --json
+
 # Create from your own docs
 deepr expert make "Platform Team Expert" --files docs/*.md
 
@@ -171,18 +193,19 @@ deepr expert make "UI Experience Expert" --local -d "UI/UX for agentic research 
 deepr expert subscribe "UI Experience Expert" "UI/UX for agentic research tools"
 deepr expert sync "UI Experience Expert" --local --fresh-context -y
 deepr expert sync "UI Experience Expert" --local --deep-context -y
+deepr expert learn "UI Experience Expert" "latest UI/UX for agentic research tools" --plan codex -y
 deepr expert loop-status "UI Experience Expert" --json
 deepr expert export-okf "UI Experience Expert" ./okf/ui-experience
 deepr expert absorb-okf "UI Experience Expert" ./okf/ui-experience --local --dry-run
 ```
 
-Agentic chat supports 27 slash commands (`/ask`, `/research`, `/advise`, `/focus`, `/council`, `/plan`, `/compact`, and more), visible reasoning, human-in-the-loop approval for expensive operations, multi-expert council, and hierarchical task decomposition.
+Agentic chat supports 27 slash commands (`/ask`, `/research`, `/advise`, `/focus`, `/council`, `/plan`, `/compact`, and more), visible reasoning, human-in-the-loop approval for expensive operations, multi-expert council, and hierarchical task decomposition. `deepr expert consult` exposes the same council as a first-class CLI and MCP knowledge transaction; stored beliefs are used before live chat fallback, and explicit `--local` or `--plan <id>` synthesis keeps consults on owned or prepaid capacity without silent metered fallback.
 
 See [docs/EXPERTS.md](docs/EXPERTS.md) for the full expert system guide.
 
 ### MCP Integration - Experts as Consultable Roles
 
-Your AI agents (Claude Code, Cursor, VS Code) can call Deepr experts via MCP - not as a generic "research tool" but as named domain roles. An agent working on a proposal can consult "AI Strategy Expert" for market context, then hand that context to a downstream agent for solution design. 29 MCP tools, resource subscriptions, prompt templates, budget propagation, and trace ID stitching across agent boundaries. See [mcp/README.md](mcp/README.md) for setup.
+Your AI agents (Claude Code, Cursor, VS Code) can call Deepr experts via MCP - not as a generic "research tool" but as named domain roles. An agent working on a proposal can consult "AI Strategy Expert" for market context, then hand that context to a downstream agent for solution design. 30 MCP tools, resource subscriptions, prompt templates, budget propagation, and trace ID stitching across agent boundaries. See [mcp/README.md](mcp/README.md) for setup.
 
 This matters most for the new generation of always-on agents: an agent that runs for months needs durable, verified, current domain knowledge with provenance - and a cheap way to re-sync ("what changed since I last consulted you?") instead of re-reading everything. Deepr experts are that knowledge layer; the host platform keeps the schedule, Deepr keeps the perspective.
 
@@ -243,7 +266,7 @@ The dashboard reads `data/benchmarks/routing_preferences.json` and shows per-tas
 
 ### Setup and Capacity
 
-`deepr init` detects API keys, writes `.env`, sets a budget ceiling, and can point your data at a synced folder. `deepr doctor` verifies connectivity and storage. `deepr capacity` shows local hardware, plan-based CLIs, and metered APIs. Automatic execution is local-first today: a scored, admitted Ollama model can run expert maintenance at `$0`. Plan-quota CLIs now execute too, via explicit opt-in: `deepr expert sync "Expert" --plan codex` (also `claude`, `opencode`, and more; `expert absorb --plan` as well) runs the whole job on a subscription you already pay for, behind a deterministic auth-mode + no-surprise-bills gate. `--check-grounding` adds a fresh-context maker-checker to `expert absorb` and `expert sync`; add `--checker-plan <id>` to use a different plan CLI as the checker. No checker runs unless requested, and metered API checking is not automatic. `deepr capacity probe-plan codex` validates one works. `deepr capacity refresh-quota codex` reads Codex's local `rate_limits` metadata, and `deepr capacity refresh-quota claude` reads Claude Code's OAuth usage metadata, both into the quota ledger without running a model call. `deepr capacity fleet` shows every plan CLI at a glance - installed, auth mode, routable, and quota state (e.g. "codex exhausted, resets ~2h41m") in one read-only $0 view. To let scheduled maintenance route to a plan automatically, opt in with `deepr capacity admit-plan codex` (codex/claude/opencode; reset-aware, revocable). *Automatic* routing to a plan CLI is still conservative: it needs trusted remaining-quota observations, and Codex plus Claude Code are the first probe-backed backends. Grok and Antigravity explicit-only metadata probes are next.
+`deepr init` detects API keys, writes `.env`, sets a budget ceiling, and can point your data at a synced folder. `deepr doctor` verifies connectivity and storage. `deepr capacity` shows local hardware, plan-based CLIs, and metered APIs. Automatic execution is local-first today: a scored, admitted Ollama model can run expert maintenance at `$0`. Plan-quota CLIs now execute too, via explicit opt-in: `deepr expert sync "Expert" --plan codex` (also `claude`, `opencode`, and more; `expert absorb --plan` and topic learning via `expert learn --plan`) runs the whole job on a subscription you already pay for, behind a deterministic auth-mode + no-surprise-bills gate. `expert learn-web --plan` remains as the explicit live-web compatibility verb. `--check-grounding` adds a fresh-context maker-checker to `expert absorb` and `expert sync`; add `--checker-plan <id>` to use a different plan CLI as the checker. No checker runs unless requested, and metered API checking is not automatic. `deepr capacity probe-plan codex` validates one works. `deepr capacity refresh-quota codex` reads Codex's local `rate_limits` metadata, `deepr capacity refresh-quota claude` reads Claude Code's OAuth usage metadata, and `deepr capacity refresh-quota grok` reads Grok billing metadata, all into the quota ledger without running a model call. `deepr capacity fleet` shows every plan CLI at a glance - installed, auth mode, routable, and quota state (e.g. "codex exhausted, resets ~2h41m") in one read-only $0 view. To let scheduled maintenance route to a plan automatically, opt in with `deepr capacity admit-plan codex` (codex/claude/opencode; reset-aware, revocable). *Automatic* routing to a plan CLI is still conservative: it needs trusted remaining-quota observations, and Codex, Claude Code, and Grok are the first probe-backed backends. Antigravity explicit-only metadata visibility is next.
 
 Current capacity support:
 
@@ -251,7 +274,7 @@ Current capacity support:
 |---|---|---|
 | Local Ollama | Works for local expert profiles, `sync`/`absorb --local`, `sync --local --fresh-context`, `sync --local --deep-context`, `eval local`, `eval local-context`, and scored local admission | High-volume `$0` expert maintenance and validation loops |
 | Provider APIs | Works for full research when you provide keys and a budget ceiling | Deep research, high-quality synthesis, fallback |
-| Plan CLIs: Codex, Claude Code, OpenCode (auto-routable); Kiro, Grok Build, Antigravity, GitHub Copilot (explicit only) | Execute via `expert sync --plan <id>` behind an auth-mode + no-surprise-bills gate; Codex and Claude Code have `refresh-quota` metadata probes; other live probes are next | $0-at-margin expert maintenance on subscriptions you already pay for |
+| Plan CLIs: Codex, Claude Code, OpenCode (auto-routable); Kiro, Grok Build, Antigravity, GitHub Copilot (explicit only) | Execute via `expert sync --plan <id>`, `expert absorb --plan <id>`, `expert learn --plan <id>` for topic learning, `expert learn-web --plan <id>` as an explicit live-web alias, and `expert consult --plan <id>` behind an auth-mode + no-surprise-bills gate; Codex, Claude Code, and Grok have `refresh-quota` metadata probes; Antigravity is next | $0-at-margin expert maintenance, bootstrap, and consult synthesis on subscriptions you already pay for |
 | Explicit CLI judge | Opt-in only for local evals with `--allow-cli-judge` | Human-approved comparison signal, not automatic routing |
 
 ```bash
@@ -260,6 +283,7 @@ deepr doctor                                               # connectivity + stor
 deepr capacity --probe                                     # what's available, incl. local models
 deepr capacity refresh-quota codex                         # record Codex quota windows from local logs
 deepr capacity refresh-quota claude                        # record Claude Code usage windows when configured
+deepr capacity refresh-quota grok                          # record Grok billing metadata when configured
 deepr capacity next --task-class sync                      # ranked next actions for cheap capacity
 deepr capacity next --task-class sync --context-mode fresh --scheduled
 deepr expert sync "Platform Team Expert" --scheduled --fresh-context -y
@@ -446,7 +470,9 @@ contract and [ROADMAP.md](ROADMAP.md) for detailed status.
 | [Models](docs/MODELS.md) | Provider comparison and model selection |
 | [Architecture](docs/ARCHITECTURE.md) | Technical architecture, security, budget protection |
 | [MCP Integration](mcp/README.md) | MCP server setup and agent integration |
+| [MCP Agent Test Guide](docs/MCP_AGENT_TEST_GUIDE.md) | No-surprise-cost agent test path for expert discovery, handoff, and consult |
 | [Integrations](docs/INTEGRATIONS.md) | First-party tool integrations (recon, distillr, primr) |
+| [Level 5/6 Expert Maturity](docs/design/level-5-6-expert-maturity.md) | Bounded self-improvement, expert self-models, metacognitive monitoring, and fleet gates |
 | [Agentic Vision](docs/AGENTIC_VISION.md) | Agentic architecture, A2A, reflection, campaigns |
 | [Supported Surface](docs/SUPPORTED_SURFACE.md) | Stable, experimental, planned, and export guarantees |
 | [Deployment](deploy/README.md) | Cloud deployment (AWS, Azure, GCP) |
@@ -464,7 +490,7 @@ contract and [ROADMAP.md](ROADMAP.md) for detailed status.
   - [xAI Grok](https://console.x.ai/) - Grok 4.3 flagship, Grok 4.20 research/freshness tiers, real-time web search
   - [Anthropic](https://console.anthropic.com/settings/keys) - complex reasoning
 - For $0 local expert maintenance, optional [Ollama](https://ollama.com/) plus a local model. This supports `deepr capacity`, `deepr eval local` with a local judge, `deepr eval local-context`, `expert make --local`, explicit `expert sync`/`absorb --local`, and automatic local maintenance after scored admission.
-- Plan-quota CLIs are optional. When installed, they execute via explicit `deepr expert sync --plan <id>` (Codex, Claude Code, OpenCode, Kiro, Grok Build, Antigravity, GitHub Copilot) behind an auth-mode + no-surprise-bills gate; `deepr capacity probe-plan <id>` validates one. `deepr capacity refresh-quota codex` records Codex local session-log quota windows, and `deepr capacity refresh-quota claude` records Claude Code usage windows when that user's Claude Code OAuth credentials are present. *Automatic* routing to plan capacity remains conservative until each backend has trusted remaining-quota observations.
+- Plan-quota CLIs are optional. When installed, they execute via explicit `deepr expert sync --plan <id>`, `deepr expert absorb --plan <id>`, and topic `deepr expert learn --plan <id>` (Codex, Claude Code, OpenCode, Kiro, Grok Build, Antigravity, GitHub Copilot) behind an auth-mode + no-surprise-bills gate; `deepr expert learn-web --plan <id>` remains an explicit live-web alias, and `deepr capacity probe-plan <id>` validates one. `deepr capacity refresh-quota codex` records Codex local session-log quota windows, `deepr capacity refresh-quota claude` records Claude Code usage windows when that user's Claude Code OAuth credentials are present, and `deepr capacity refresh-quota grok` records Grok billing metadata when the Grok CLI auth file is present. *Automatic* routing to plan capacity remains conservative until each backend has trusted remaining-quota observations.
 - Optional: More API keys for smarter auto-routing and fallback
 - Optional: Node.js 18+ for web dashboard development
 
@@ -476,7 +502,8 @@ Contributions welcome. Run `ruff check . && ruff format .` and `pytest` before s
 
 6100+ tests (Python 3.12-3.14). Pre-commit hooks run ruff; CI also runs mypy (kernel is `--strict`) and pip-audit. Input validation, prompt-injection sanitization for user prompts and untrusted source/tool spans, including retrieved snippets, reports, document previews, campaign context, and team outputs. SSRF protection, API key redaction, and budget enforcement are covered in [Architecture](docs/ARCHITECTURE.md).
 
-**Report vulnerabilities:** [nick@pueo.io](mailto:nick@pueo.io) (not via public issues)
+Use GitHub private vulnerability reporting when available. Do not post exploit
+details publicly.
 
 ## License
 
@@ -484,7 +511,7 @@ Contributions welcome. Run `ruff check . && ruff format .` and `pytest` before s
 
 ---
 
-Deepr is an independent project by [Nick Seal](mailto:nick@pueo.io), maintained in spare time. It started as a weekend experiment with deep research APIs and grew into an exploration of how autonomous research systems should work - budgets, reliability, memory, auditability. The patterns here are transferable beyond research, but at minimum it's useful tooling for people who need research that goes beyond a chat window.
+Deepr is an independent project by Nick Seal (GitHub: [blisspixel](https://github.com/blisspixel)), maintained in spare time. It started as a weekend experiment with deep research APIs and grew into an exploration of how autonomous research systems should work - budgets, reliability, memory, auditability. The patterns here are transferable beyond research, but at minimum it's useful tooling for people who need research that goes beyond a chat window.
 
 No SLA or commercial backing. If you find it useful, great. If you hit a rough edge, [open an issue](https://github.com/blisspixel/deepr/issues) or [start a discussion](https://github.com/blisspixel/deepr/discussions).
 

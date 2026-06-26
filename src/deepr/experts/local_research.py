@@ -132,7 +132,9 @@ async def research_web_local(
     if search is None:
         from deepr.tools.web_search import WebSearchTool
 
-        search = WebSearchTool(backend="auto")  # keyed Brave/Tavily if set, else free DuckDuckGo
+        # Expert bootstrapping must not silently consume keyed search APIs just
+        # because a developer has BRAVE_API_KEY or TAVILY_API_KEY in their shell.
+        search = WebSearchTool(backend="duckduckgo")
     if browser is None:
         from deepr.tools.browser_backend import BuiltinBrowserBackend
 

@@ -15,8 +15,9 @@ durable academic knowledge with provenance.
 ## Spend discipline (important)
 Distillr spends model budget and ingestion runs take minutes. Respect the budget:
 
-1. **Always `find_insights` first (then `read_insight` for the documents).** The expert may already hold a synthesized
-   corpus on the topic. If it does, answer from that and do not pay to ingest again.
+1. **Always `list_topics` first, then `find_insights` (then `read_insight` or
+   `list_topic_summary`).** The expert may already hold a synthesized corpus on
+   the topic. If it does, answer from that and do not pay to ingest again.
 2. **Use `discover` to preview** candidate sources before committing to ingestion.
    It is cheap and tells you whether ingestion is worth it.
 3. **Only then ingest** (`papers` / `learn_topic` / `site_batch`),
@@ -49,8 +50,12 @@ absorb at moderate confidence and keep the citation to the corpus artifact so th
 expert can trace and refresh it later.
 
 ## Invariants you must respect
-- Searching the corpus (`find_insights` / `read_insight` / `research_gaps`) is free; ingestion costs money. Never
-  ingest when a corpus query would have answered the question.
+- Searching the corpus (`list_topics` / `find_insights` / `read_insight` /
+  `list_topic_summary` / `research_gaps`) is free; ingestion costs money.
+  Never ingest when a corpus query would have answered the question.
+- Treat `ask`, `find_insights_summary`, and `okf_export` as approval-gated
+  unless the host explicitly provides a zero-cost guarantee. They synthesize or
+  write derived artifacts and should not be auto-run as background reads.
 - Always pass a `budget` on ingestion/refresh and honor approval gates.
 - Keep provenance: every absorbed belief should point back to the synthesis path.
 

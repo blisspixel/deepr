@@ -4,13 +4,11 @@ Determinism belongs on the money side-effect, not on meaning (AGENTIC_BALANCE.md
 This module is that deterministic gate. Before Deepr runs research through a
 vendor CLI as "prepaid plan capacity", two things must hold:
 
-1. **Auth mode is plan/subscription, not a metered API key.** A CLI
-   authenticated by an API key is metered spend wearing a CLI costume; treating
-   it as free plan capacity is exactly the surprise bill the waterfall exists to
-   prevent (ROADMAP Phase 6: "refuse to classify an API-key CLI as plan_quota").
-   Detection is env-based and deterministic: if a backend's metered-env var is
-   set, the next subprocess run would bill that key, so we block and tell the
-   operator to unset it (or use the metered API backend on purpose).
+1. **Child auth mode is plan/subscription, not a metered API key.** A CLI
+   authenticated by an API key is metered spend wearing a CLI costume. Deepr
+   removes known metered env vars from the child process before launch, then
+   evaluates that sanitized env so a normal API-capable shell can still run
+   explicit plan-quota commands without mutating the user's environment.
 
 2. **The operator accepts the billing shape of a metered-by-nature CLI.** A few
    supported CLIs (e.g. Copilot, post-2026-06 usage-based) are not free at the
@@ -67,7 +65,8 @@ def detect_auth_mode(adapter: PlanQuotaAdapter, env: Mapping[str, str]) -> AuthM
     Otherwise the CLI uses its stored subscription/OAuth session -> PLAN. This
     is intentionally conservative on the money side: a key in the env always
     wins on every vendor's precedence rules, so its mere presence is enough to
-    refuse the "plan capacity" classification.
+    refuse the "plan capacity" classification unless the caller sanitizes the
+    child environment first.
     """
     for var in adapter.metered_env_vars:
         value = env.get(var)
@@ -76,23 +75,17 @@ def detect_auth_mode(adapter: PlanQuotaAdapter, env: Mapping[str, str]) -> AuthM
     return AuthMode.PLAN
 
 
+def plan_quota_child_env(adapter: PlanQuotaAdapter, env: Mapping[str, str]) -> dict[str, str]:
+    """Return a subprocess env that cannot authenticate this adapter by API key."""
+    blocked = set(adapter.metered_env_vars)
+    return {key: value for key, value in env.items() if key not in blocked}
+
+
 def evaluate_plan_quota_safety(adapter: PlanQuotaAdapter, *, env: Mapping[str, str]) -> SafetyDecision:
     """Return the pre-run safety decision for ``adapter``. Deterministic, $0."""
-    mode = detect_auth_mode(adapter, env)
-
-    if mode == AuthMode.METERED:
-        blocking_var = _first_set(adapter.metered_env_vars, env)
-        return SafetyDecision(
-            backend_id=adapter.backend_id,
-            safe=False,
-            auth_mode=mode,
-            requires_ack=False,
-            reason=(
-                f"{blocking_var} is set, so {adapter.exe!r} would authenticate with a metered API key "
-                f"and bill per call - not plan capacity. Unset {blocking_var} to run on your "
-                f"subscription, or use the metered API backend on purpose (--api)."
-            ),
-        )
+    sanitized_env = plan_quota_child_env(adapter, env)
+    mode = detect_auth_mode(adapter, sanitized_env)
+    removed_var = _first_set(adapter.metered_env_vars, env)
 
     if adapter.metered_at_margin:
         return SafetyDecision(
@@ -106,13 +99,14 @@ def evaluate_plan_quota_safety(adapter: PlanQuotaAdapter, *, env: Mapping[str, s
             ),
         )
 
+    removed_note = f"; removed {removed_var} from child env" if removed_var else ""
     note = f"; note: {adapter.tos_note}" if adapter.tos_note else ""
     return SafetyDecision(
         backend_id=adapter.backend_id,
         safe=True,
         auth_mode=mode,
         requires_ack=False,
-        reason=f"{adapter.display_name} in plan mode; prepaid capacity before metered API{note}",
+        reason=f"{adapter.display_name} in plan mode; prepaid capacity before metered API{removed_note}{note}",
     )
 
 

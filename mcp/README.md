@@ -2,7 +2,52 @@
 
 **Status**: dynamic discovery, resource subscriptions, prompt templates, structured errors
 
-Deepr exposes research and expert capabilities via Model Context Protocol (MCP) for AI agents including OpenClaw, Claude Desktop, Cursor, VS Code, and Zed.
+Deepr exposes research and expert capabilities via Model Context Protocol (MCP) for AI agents including OpenClaw, Claude Desktop, Cursor, VS Code, and Zed. For a no-surprise-cost agent test path, see [docs/MCP_AGENT_TEST_GUIDE.md](../docs/MCP_AGENT_TEST_GUIDE.md).
+
+---
+
+## For the consuming agent (start here)
+
+If you are an agent that just connected, this is how to use Deepr well. The
+design follows current MCP guidance: outcome-oriented tools, a free discovery
+path, explicit cost tiers, and structured errors so you never have to guess or
+loop.
+
+**Orient first, for free.** `deepr_status` returns version, active jobs, and the
+day/month cost summary. `deepr_list_experts` returns the roster (each expert is a
+named domain role, not a generic search box). Both are `cost_tier: free`. Read
+the tool's `cost_tier` before calling: `free` ($0), `low` (cents, owned/prepaid
+capable), `medium`/`high` (metered, confirm budget first).
+
+**Pick the smallest tool that gets the outcome:**
+- One expert, a direct question -> `deepr_query_expert` (add `agentic: true` to let
+  it research if the answer is outside its knowledge).
+- A cross-domain question -> `deepr_consult_experts`: it routes to the relevant
+  experts (or pass `experts`), fans out up to `max_experts` (<=10), and returns
+  one synthesized `deepr-consult-v1` artifact (answer, each expert's perspective
+  with confidence, agreements, dissent, cost). One call, aggregated result.
+- "What changed since I last asked?" -> `deepr_what_changed`; a handoff snapshot
+  -> `deepr_expert_handoff`; why a claim is held -> `deepr_explain_belief`. All
+  `$0`, read-only, versioned.
+- A deep autonomous investigation -> `deepr_agentic_research` (Plan-Execute-Review,
+  $1-$10; confirm budget with the human first).
+
+**Spend $0 by default.** For consult and query, pass
+`synthesis_backend: "local"` (Ollama) or `"plan"` with `plan: "codex"` (also
+claude/grok) to run synthesis on owned or prepaid capacity. In those modes Deepr
+disables silent metered fallback, so a missing-context answer is an honest "no
+context" rather than a surprise charge. A zero API budget is allowed.
+
+**Errors are structured, not prose.** A failed call returns
+`{error_code, category, retryable, message}` (e.g. `CONSULT_BACKEND_UNAVAILABLE`,
+`INVALID_BUDGET`). Branch on `error_code` and respect `retryable`; do not retry a
+non-retryable error in a loop.
+
+**Handoff is machine-validated.** Every artifact carries `schema_version` and
+`kind` and is validated before it leaves Deepr; read those instead of
+pattern-matching prose. Deepr recommends and returns artifacts; your harness
+decides and enacts. See [docs/MCP_AGENT_TEST_GUIDE.md](../docs/MCP_AGENT_TEST_GUIDE.md)
+for a $0 end-to-end script.
 
 ---
 
@@ -32,7 +77,7 @@ Copy `mcp/openclaw-config.json` to your OpenClaw MCP configuration:
 }
 ```
 
-The `autoAllow` list includes read-only tools that don't incur costs. Cost-incurring tools (`deepr_research`, `deepr_agentic_research`, `deepr_query_expert`) require approval.
+The `autoAllow` list includes read-only tools that don't incur costs. Cost-incurring tools (`deepr_research`, `deepr_agentic_research`, `deepr_query_expert`) require approval. For no-cost expert synthesis, use `deepr_consult_experts` with `synthesis_backend="local"` or `synthesis_backend="plan"` and verify `capacity.live_metered_fallback=false`.
 
 For Docker deployment, use `mcp/openclaw-docker-config.json` instead.
 
@@ -109,6 +154,7 @@ Add to `~/.config/zed/settings.json` under `"language_models"` -> `"mcp"`:
 
 | Tool | Purpose | Cost |
 |------|---------|------|
+| `deepr_capabilities` | Discovery: versioned capability map (roster, key tools + cost tiers, $0 paths, error contract). Call first | Free |
 | `deepr_tool_search` | Dynamic tool discovery via BM25 search | Free |
 | `deepr_status` | Health check (version, uptime, active jobs, spending) | Free |
 
@@ -128,6 +174,7 @@ Add to `~/.config/zed/settings.json` under `"language_models"` -> `"mcp"`:
 |------|---------|------|
 | `deepr_list_experts` | List domain experts | Free |
 | `deepr_query_expert` | Query expert with question | Low |
+| `deepr_consult_experts` | Consult one or more experts and synthesize a versioned `deepr-consult-v1` artifact; supports `synthesis_backend=local|plan` to avoid live metered fallback | Free to low |
 | `deepr_get_expert_info` | Expert details and stats | Free |
 | `deepr_expert_manifest` | Expert manifest (policy + knowledge snapshot) | Free |
 | `deepr_expert_validate` | Validate a claim against expert knowledge (guardrail mode) | Low |
@@ -287,6 +334,30 @@ The HTTP listener binds to loopback by default. A reachable bind such as
 `--host 0.0.0.0` must have a shared token or at least one active scoped key,
 otherwise startup is refused.
 
+### Reaching experts from another machine on your LAN
+
+An agent on a different machine on the same network can consult your experts.
+Bind to a reachable interface with auth, then point the agent at this host's LAN
+IP:
+
+```bash
+# On the host that has the experts (find its LAN IP, e.g. 192.168.44.62):
+deepr mcp serve --http --host 0.0.0.0 --port 8765 --auth-token "$DEEPR_MCP_TOKEN"
+
+# From the other machine (or to validate locally over the LAN IP):
+deepr mcp smoke-http http://192.168.44.62:8765/mcp --auth-token "$DEEPR_MCP_TOKEN"
+```
+
+Validated 2026-06-25: the LAN-IP endpoint with the token passes health,
+initialize, tools/list, and tools/call; the same endpoint **without** the token
+is rejected `Unauthorized` on every call except the unauthenticated health ping.
+Two operational notes: open the chosen port in the host firewall (Windows will
+prompt on first bind), and prefer scoped keys (`--keys-path`) over a shared
+`--auth-token` so you can scope an agent to specific experts and a budget and
+revoke it independently. For anything beyond a trusted LAN, terminate TLS at a
+reverse proxy (see [deploy/mcp-http.md](../deploy/mcp-http.md)) rather than
+exposing plaintext HTTP.
+
 Validate a local or proxied endpoint without provider calls:
 
 ```bash
@@ -359,6 +430,6 @@ StdioServer (JSON-RPC transport)
 
 ---
 
-**Tools:** 29 (2 system + 5 research + 16 expert + 4 task management + 2 skills)
+**Tools:** 30 (3 system + 5 research + 16 expert + 4 task management + 2 skills)
 **Resources:** 10 URI schemes across 4 resource types
 **Prompts:** 3 templates

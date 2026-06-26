@@ -1365,33 +1365,35 @@ def delete_expert(name: str, purge: bool, yes: bool):
 @click.option(
     "--synthesize/--no-synthesize", default=True, help="Re-synthesize consciousness after learning (default: yes)"
 )
+@click.option("--model", default=None, help="Local Ollama model for topic research + extraction")
+@click.option("--plan", "plan", default=None, help="Use a plan-quota CLI backend for topic learning")
+@click.option("--plan-model", "plan_model", default=None, help="Model to pass to the plan-quota CLI")
+@click.option(
+    "--num-results", type=int, default=8, show_default=True, help="Web results to retrieve for topic learning"
+)
+@click.option("--max-pages", type=int, default=5, show_default=True, help="Top web results to fetch in full")
+@click.option("--min-confidence", type=float, default=0.6, show_default=True, help="Drop weaker extracted claims")
+@click.option("--dry-run", is_flag=True, help="Preview topic claims; write no beliefs")
 @click.option("--yes", "-y", is_flag=True, help="Skip confirmation")
-def learn_expert(name: str, topic: str | None, files: tuple, budget: float, synthesize: bool, yes: bool):
+def learn_expert(
+    name: str,
+    topic: str | None,
+    files: tuple,
+    budget: float,
+    synthesize: bool,
+    model: str | None,
+    plan: str | None,
+    plan_model: str | None,
+    num_results: int,
+    max_pages: int,
+    min_confidence: float,
+    dry_run: bool,
+    yes: bool,
+):
     """Add knowledge to an expert on demand.
 
-    Allows you to teach an expert new things by either:
-    1. Researching a topic (uses web search to gather information)
-    2. Uploading files directly to the knowledge base
-    3. Both at the same time
-
-    After adding knowledge, the expert re-synthesizes its consciousness
-    to integrate the new information into its beliefs and worldview.
-
-    EXAMPLES:
-      # Research a topic and add to expert's knowledge
-      deepr expert learn "AWS Expert" "Latest Lambda features 2026"
-
-      # Add files to expert's knowledge base
-      deepr expert learn "Python Expert" --files docs/*.md
-
-      # Research topic AND add files
-      deepr expert learn "AI Expert" "Transformer architectures" -f papers/*.pdf
-
-      # Research with higher budget
-      deepr expert learn "Tech Expert" "Quantum computing advances" --budget 5
-
-      # Skip synthesis (faster, but expert won't form new beliefs)
-      deepr expert learn "Expert" "Topic" --no-synthesize
+    Topic learning uses live web retrieval plus verified belief absorption on
+    local or explicit plan capacity. Files still use the document-upload path.
     """
     import asyncio
     import os
@@ -1404,16 +1406,42 @@ def learn_expert(name: str, topic: str | None, files: tuple, budget: float, synt
     from deepr.experts.synthesis import KnowledgeSynthesizer, Worldview
     from deepr.providers import create_provider
 
-    # Validate inputs
     if not topic and not files:
         click.echo("Error: Must provide either a topic to research or files to upload.")
-        click.echo("\nExamples:")
         click.echo('  deepr expert learn "Expert Name" "Topic to research"')
         click.echo('  deepr expert learn "Expert Name" --files docs/*.md')
-        click.echo('  deepr expert learn "Expert Name" "Topic" -f docs/*.md')
         return
 
-    # Validate budget - warns for high amounts
+    if dry_run and files:
+        click.echo("Error: --dry-run is only supported for topic learning without files.")
+        return
+
+    if topic:
+        from deepr.cli.commands.semantic.expert_maintenance import run_learn_web_pipeline
+
+        if budget != 1.0 and not dry_run:
+            console.print(
+                "[dim]Topic learning uses owned/prepaid capacity; --budget is ignored unless files use legacy upload.[/dim]"
+            )
+        run_learn_web_pipeline(
+            name=name,
+            topic=topic,
+            model=model,
+            plan=plan,
+            plan_model=plan_model,
+            num_results=num_results,
+            max_pages=max_pages,
+            min_confidence=min_confidence,
+            save_path=None,
+            dry_run=dry_run,
+            yes=yes,
+            json_output=False,
+            title=f"Learn: {name}",
+        )
+        if not files:
+            return
+        topic = None
+
     if not yes:
         try:
             budget = validate_budget(budget, min_budget=0.1)
@@ -1426,7 +1454,6 @@ def learn_expert(name: str, topic: str | None, files: tuple, budget: float, synt
 
     print_header(f"Learn: {name}")
 
-    # Load expert
     store = ExpertStore()
     profile = store.load(name)
 
@@ -1436,7 +1463,6 @@ def learn_expert(name: str, topic: str | None, files: tuple, budget: float, synt
         console.print("  deepr expert list")
         return
 
-    # Display what we're going to do
     if topic:
         print_key_value("Topic to research", topic)
         print_key_value("Research budget", f"${budget:.2f}")
@@ -1465,11 +1491,9 @@ def learn_expert(name: str, topic: str | None, files: tuple, budget: float, synt
         documents_added = 0
         research_results = []
 
-        # Phase 1: Research topic if provided
         if topic:
             print_section_header("Phase 1: Researching Topic")
 
-            # Create a chat session for research (agentic mode)
             session = ExpertChatSession(profile, budget=budget, agentic=True)
 
             console.print(f"[dim]Query:[/dim] {topic[:80]}{'...' if len(topic) > 80 else ''}")
@@ -1487,7 +1511,6 @@ def learn_expert(name: str, topic: str | None, files: tuple, budget: float, synt
                     research_results.append(result)
                     print_success(f"Research complete (${cost:.4f})")
 
-                    # Show snippet of what was learned
                     answer = result.get("answer", "")
                     if answer:
                         snippet = answer[:200] + "..." if len(answer) > 200 else answer
@@ -1496,11 +1519,9 @@ def learn_expert(name: str, topic: str | None, files: tuple, budget: float, synt
             except Exception as e:
                 print_error(f"Research error: {e}")
 
-        # Phase 2: Upload files if provided
         if files:
             print_section_header("Phase 2: Uploading Files")
 
-            # Get documents directory
             docs_dir = store.get_documents_dir(name)
             docs_dir.mkdir(parents=True, exist_ok=True)
 
@@ -1510,7 +1531,6 @@ def learn_expert(name: str, topic: str | None, files: tuple, budget: float, synt
                     src_path = Path(file_path)
                     dst_path = docs_dir / src_path.name
 
-                    # Copy file to expert's documents folder
                     import shutil
 
                     shutil.copy2(src_path, dst_path)
@@ -1520,7 +1540,6 @@ def learn_expert(name: str, topic: str | None, files: tuple, budget: float, synt
                 except Exception as e:
                     print_error(f"Failed to copy {file_path}: {e}")
 
-            # Upload to vector store
             if uploaded_files:
                 click.echo(f"\nUploading {len(uploaded_files)} files to vector store...")
 
@@ -1531,7 +1550,6 @@ def learn_expert(name: str, topic: str | None, files: tuple, budget: float, synt
                         documents_added += 1
                         console.print(f"[success]Indexed: {file_path.name}[/success]")
 
-                    # Update profile
                     profile.total_documents += len(uploaded_files)
                     profile.source_files.extend([str(f) for f in uploaded_files])
                     profile.updated_at = datetime.now(UTC)
@@ -1540,7 +1558,6 @@ def learn_expert(name: str, topic: str | None, files: tuple, budget: float, synt
                 except Exception as e:
                     print_error(f"Vector store upload failed: {e}")
 
-        # Phase 3: Re-synthesize consciousness
         if synthesize and documents_added > 0:
             print_section_header("Phase 3: Re-synthesizing Consciousness")
             console.print("Expert is integrating new knowledge into beliefs...")
@@ -1548,7 +1565,6 @@ def learn_expert(name: str, topic: str | None, files: tuple, budget: float, synt
             try:
                 synthesizer = KnowledgeSynthesizer(provider.client)
 
-                # Load existing worldview if it exists
                 knowledge_dir = store.get_knowledge_dir(name)
                 worldview_path = knowledge_dir / "worldview.json"
                 existing_worldview = None
@@ -1559,7 +1575,6 @@ def learn_expert(name: str, topic: str | None, files: tuple, budget: float, synt
                     except Exception:
                         pass  # Will create new worldview (corrupt or missing is recoverable)
 
-                # Get all documents for synthesis
                 docs_dir = store.get_documents_dir(name)
                 all_docs = list(docs_dir.glob("*.md"))
                 docs_to_process = [{"path": str(f)} for f in all_docs[:20]]  # Limit to 20
@@ -1575,7 +1590,6 @@ def learn_expert(name: str, topic: str | None, files: tuple, budget: float, synt
                     new_worldview = synthesis_result["worldview"]
                     new_worldview.save(worldview_path)
 
-                    # Also save markdown version
                     worldview_md_path = knowledge_dir / "worldview.md"
                     try:
                         worldview_doc = await synthesizer.generate_worldview_document(
@@ -1601,7 +1615,6 @@ def learn_expert(name: str, topic: str | None, files: tuple, budget: float, synt
 
     result = asyncio.run(do_learn())
 
-    # Summary
     print_header("Learning Complete")
     print_key_value("Documents added", str(result["documents_added"]))
     if result["research_results"] > 0:
@@ -1623,26 +1636,7 @@ def learn_expert(name: str, topic: str | None, files: tuple, budget: float, synt
 )
 @click.option("--yes", "-y", is_flag=True, help="Skip confirmation")
 def resume_expert_learning(name: str, budget: float | None, yes: bool):
-    """Resume paused learning for an expert.
-
-    When autonomous learning hits a daily or monthly spending limit, progress
-    is automatically saved. Use this command to resume where you left off.
-
-    The command will:
-    1. Load saved progress (completed topics, remaining topics)
-    2. Continue with remaining topics
-    3. Clear saved progress on successful completion
-
-    EXAMPLES:
-      # Resume learning for an expert
-      deepr expert resume "AWS Expert"
-
-      # Resume with a different budget
-      deepr expert resume "AWS Expert" --budget 10
-
-      # Skip confirmation
-      deepr expert resume "AWS Expert" -y
-    """
+    """Resume paused autonomous learning for an expert."""
     import asyncio
 
     from deepr.cli.validation import validate_budget, validate_expert_name
@@ -1651,7 +1645,6 @@ def resume_expert_learning(name: str, budget: float | None, yes: bool):
     from deepr.experts.learner import AutonomousLearner
     from deepr.experts.profile import ExpertStore
 
-    # Validate expert name
     try:
         name = validate_expert_name(name)
     except click.UsageError as e:
@@ -1660,7 +1653,6 @@ def resume_expert_learning(name: str, budget: float | None, yes: bool):
 
     print_header(f"Resume Learning: {name}")
 
-    # Load expert
     store = ExpertStore()
     profile = store.load(name)
 
@@ -1670,7 +1662,6 @@ def resume_expert_learning(name: str, budget: float | None, yes: bool):
         console.print("  deepr expert list")
         return
 
-    # Load saved progress
     config = AppConfig.from_env()
     learner = AutonomousLearner(config)
     saved_progress = learner.load_learning_progress(name)
@@ -1682,7 +1673,6 @@ def resume_expert_learning(name: str, budget: float | None, yes: bool):
         console.print(f'  deepr expert learn "{name}" "topic to research"')
         return
 
-    # Display saved progress info
     remaining_topics = saved_progress.get("remaining_topics", [])
     completed_topics = saved_progress.get("completed_topics", [])
     failed_topics = saved_progress.get("failed_topics", [])

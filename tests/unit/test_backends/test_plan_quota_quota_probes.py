@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import os
+import struct
 from datetime import UTC, datetime
 
 import pytest
@@ -12,9 +13,11 @@ from deepr.backends.plan_quota.quota_probes import (
     QuotaProbeUnsupportedError,
     collect_claude_quota_snapshot,
     collect_codex_quota_snapshot,
+    collect_grok_quota_snapshot,
     collect_plan_quota_snapshot,
     default_claude_credentials_path,
     default_codex_sessions_dir,
+    default_grok_auth_path,
     supported_quota_probe_backends,
 )
 from deepr.backends.quota_ledger import QuotaWindowKind
@@ -59,6 +62,35 @@ def _claude_usage_payload() -> dict[str, object]:
         "seven_day": {"utilization": 80.0, "resets_at": "2026-06-30T00:00:00Z"},
         "seven_day_opus": {"utilization": 5.0, "resets_at": "2026-06-30T00:00:00Z"},
     }
+
+
+def _write_grok_auth(config_dir, *, token: str = "xai-token", email: str = "user@example.com"):
+    config_dir.mkdir(parents=True, exist_ok=True)
+    (config_dir / "auth.json").write_text(
+        json.dumps({"default": {"email": email, "key": token, "plan": "SuperGrok"}}),
+        encoding="utf-8",
+    )
+
+
+def _varint(value: int) -> bytes:
+    out = bytearray()
+    while value >= 0x80:
+        out.append((value & 0x7F) | 0x80)
+        value >>= 7
+    out.append(value)
+    return bytes(out)
+
+
+def _grok_billing_frame(*, used_percent: float = 42.5, reset_epoch: int = 1781935855) -> bytes:
+    message = b"".join(
+        [
+            _varint((1 << 3) | 5),
+            struct.pack("<f", used_percent),
+            _varint((2 << 3) | 0),
+            _varint(reset_epoch),
+        ]
+    )
+    return b"\x00" + len(message).to_bytes(4, byteorder="big") + message
 
 
 class TestCodexQuotaProbe:
@@ -214,9 +246,66 @@ class TestClaudeQuotaProbe:
         assert snapshot.windows == ()
 
 
+class TestGrokQuotaProbe:
+    def test_default_auth_path_uses_home(self, tmp_path):
+        assert default_grok_auth_path(home=tmp_path) == tmp_path / ".grok" / "auth.json"
+
+    def test_missing_auth_returns_error_snapshot(self, tmp_path):
+        snapshot = collect_grok_quota_snapshot(config_dir=tmp_path / "missing", now=T0, http_post=lambda **_: None)
+
+        assert not snapshot.ok
+        assert snapshot.backend_id == "grok"
+        assert "no Grok auth file" in snapshot.error
+        assert snapshot.windows == ()
+
+    def test_reads_monthly_window_from_billing_endpoint(self, tmp_path):
+        _write_grok_auth(tmp_path, token="xai-secret", email="dev@example.com")
+        seen: dict[str, object] = {}
+
+        response = _FakeResponse(200, payload=None, headers={"grpc-status": "0"})
+        response.content = _grok_billing_frame(used_percent=42.5, reset_epoch=1781935855)
+
+        def fake_post(url, *, headers, content, timeout):
+            seen["url"] = url
+            seen["auth"] = headers["Authorization"]
+            seen["content"] = content
+            seen["timeout"] = timeout
+            return response
+
+        snapshot = collect_grok_quota_snapshot(config_dir=tmp_path, now=T0, http_post=fake_post)
+
+        assert snapshot.ok
+        assert snapshot.backend_id == "grok"
+        assert snapshot.account_id == "dev@example.com"
+        assert snapshot.plan == "SuperGrok"
+        assert snapshot.metadata == {"source": "grok_billing_config"}
+        assert seen["url"] == "https://grok.com/grok_api_v2.GrokBuildBilling/GetGrokCreditsConfig"
+        assert seen["auth"] == "Bearer xai-secret"
+        assert seen["content"] == b"\x00\x00\x00\x00\x00"
+        assert seen["timeout"] == 12.0
+        assert snapshot.windows[0].label == "monthly"
+        assert snapshot.windows[0].window_kind == QuotaWindowKind.MONTHLY_CREDIT_POOL
+        assert snapshot.windows[0].used_fraction == pytest.approx(0.425)
+        assert snapshot.windows[0].reset_at == datetime.fromtimestamp(1781935855, tz=UTC)
+
+    def test_unparseable_billing_payload_returns_error_snapshot(self, tmp_path):
+        _write_grok_auth(tmp_path)
+        response = _FakeResponse(200, payload=None, headers={"grpc-status": "0"})
+        response.content = b"\x00\x00\x00\x00\x00"
+
+        snapshot = collect_grok_quota_snapshot(
+            config_dir=tmp_path,
+            now=T0,
+            http_post=lambda *_, **__: response,
+        )
+
+        assert not snapshot.ok
+        assert "no usable quota window" in snapshot.error
+
+
 class TestProbeRegistry:
     def test_supported_backends(self):
-        assert supported_quota_probe_backends() == ("codex", "claude")
+        assert supported_quota_probe_backends() == ("codex", "claude", "grok")
 
     def test_collect_plan_quota_snapshot_dispatches_codex(self, tmp_path):
         _write_rollout(tmp_path / "rollout-codex.jsonl", [{"rate_limits": _rate_limits()}])
@@ -239,6 +328,21 @@ class TestProbeRegistry:
         assert snapshot.ok
         assert snapshot.backend_id == "claude"
 
+    def test_collect_plan_quota_snapshot_dispatches_grok(self, tmp_path):
+        _write_grok_auth(tmp_path)
+        response = _FakeResponse(200, payload=None, headers={"grpc-status": "0"})
+        response.content = _grok_billing_frame()
+
+        snapshot = collect_plan_quota_snapshot(
+            "grok",
+            now=T0,
+            grok_config_dir=tmp_path,
+            grok_http_post=lambda *_, **__: response,
+        )
+
+        assert snapshot.ok
+        assert snapshot.backend_id == "grok"
+
     def test_collect_plan_quota_snapshot_rejects_unsupported_backend(self):
         with pytest.raises(QuotaProbeUnsupportedError, match="no live quota probe"):
-            collect_plan_quota_snapshot("grok", now=T0)
+            collect_plan_quota_snapshot("antigravity", now=T0)

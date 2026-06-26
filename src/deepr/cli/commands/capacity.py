@@ -399,7 +399,7 @@ def capacity_fleet(json_output: bool):
 
 
 @capacity.command(name="refresh-quota")
-@click.argument("backend", type=click.Choice(["codex", "claude"]))
+@click.argument("backend", type=click.Choice(["codex", "claude", "grok"]))
 @click.option("--json", "json_output", is_flag=True, help="Emit machine-readable JSON.")
 def capacity_refresh_quota(backend: str, json_output: bool):
     """Refresh trusted plan-quota metadata and record a quota-ledger event.
@@ -515,6 +515,8 @@ def capacity_probe_plan(backend: str, model: str | None, yes: bool, json_output:
         if not click.confirm(f"{adapter.display_name} bills per use. Run one probe call?", default=False):
             click.echo("Cancelled.")
             return
+    if not json_output:
+        click.echo(decision.reason)
     if adapter.tos_note and not json_output:
         click.echo(f"Note: {adapter.tos_note}")
 
@@ -563,6 +565,7 @@ def capacity_admit_plan(backend: str, task_class: str, days: int | None):
     if not decision.safe:
         click.echo(f"Cannot admit {adapter.display_name}: {decision.reason}", err=True)
         sys.exit(2)
+    click.echo(decision.reason)
 
     record_admission(
         f"{PLAN_ADMISSION_PREFIX}{backend}",

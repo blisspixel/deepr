@@ -7,6 +7,148 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- Added `deepr_capabilities`, a free MCP discovery tool returning the versioned
+  `deepr-capabilities-v1` map: expert roster, key tools with live registry-sourced
+  cost tiers and outcome-oriented when-to-use, the `$0` owned/prepaid synthesis
+  paths, the cost-tier legend, and the structured-error contract. Cost tiers are
+  read from the live registry so the map cannot drift from the tools served.
+- Raised consult auto-fan-out breadth from 5 to 10 (`MAX_CONSULT_EXPERTS`,
+  `ExpertCouncil.MAX_EXPERTS`) with a relevance floor so a wide fan-out drops
+  zero-overlap experts instead of padding the council, and never returns empty
+  when experts exist. `deepr_consult_experts.max_experts` accepts up to 10.
+- Made all four plan-quota CLIs run headless: Codex and Claude over stdin, Grok
+  over `--prompt-file` (long research prompts exceeded the Windows command-line
+  limit as an argument), and Antigravity by recovering its answer from its
+  transcript (`antigravity_transcript.recover_answer`) since `agy -p` drops stdout
+  under a non-TTY pipe. A shared `client._build_invocation` resolves file/stdin/argv
+  delivery for the chat seam and the probe.
+- Documented agent quality-of-life in `mcp/README.md`: a "For the consuming agent"
+  guide grounded in current MCP best practices, plus a LAN-access recipe validated
+  end to end (LAN-IP endpoint with a token passes; without it every real call is
+  Unauthorized). Added `QUALITY-RUBRIC.md`, the 6-category merge bar.
+- Added `deepr capacity refresh-quota grok`, a metadata-only `$0` probe that
+  reads the current user's Grok CLI auth file, calls the Grok billing metadata
+  endpoint, parses the returned gRPC-web quota frame, and records a normalized
+  monthly quota window without running a model call or storing credential
+  material.
+- Added `deepr expert learn-web --plan <id>`, an explicit plan-quota expert
+  bootstrap path. It uses free DuckDuckGo retrieval, then runs both cited-report
+  synthesis and verified belief extraction through one plan-quota CLI client
+  with `$0` cost-ledger entries.
+- Added `deepr eval consult`, a `$0` consult harness regression suite covering
+  explicit expert slug resolution, stored-belief context packet shape,
+  synthesis agreement/disagreement parsing, and `deepr-consult-v1` context
+  preservation. It can emit JSON and save artifacts under `data/benchmarks`.
+- Added owned-capacity consult synthesis flags:
+  `deepr expert consult --local` uses local Ollama synthesis at `$0`, and
+  `deepr expert consult --plan <id>` uses an explicit plan-quota CLI for
+  synthesis. Both modes disable live metered expert fallback when an expert has
+  no stored belief context, so owned/prepaid consults cannot silently become API
+  calls.
+- Added `docs/MCP_AGENT_TEST_GUIDE.md`, a host-agent test guide for connecting
+  to Deepr over MCP, listing experts, reading handoff and loop state, and
+  running no-metered expert consults through local or explicit plan capacity.
+- Added `docs/design/level-5-6-expert-maturity.md`, defining Deepr's concrete
+  gates for Level 5 bounded learning experts, explicit expert self-models,
+  metacognitive monitoring, reflective continuity, and the Level 6 expert-fleet
+  improvement control plane.
+- Added an explicit product framing for Deepr as a deep research and
+  understanding loop: evidence compiles into beliefs, gaps, contradictions,
+  confidence, provenance, temporal context, and a next learning plan.
+
+### Changed
+- `deepr expert consult` now prefers stored belief context for expert
+  perspectives before falling back to a live expert chat session. Explicit
+  expert names are resolved through profile display names and slugs, and
+  auto-selection uses normalized profile terms so "agentic" queries route to
+  agent experts more reliably without using lexical checks as truth verdicts.
+- `deepr-consult-v1` perspective artifacts now include optional context
+  metadata when available: context source, stored-belief selection reason,
+  included and available belief counts, and matched query terms. This makes
+  consult runs easier to replay and turn into eval cases without changing the
+  human-rendered CLI output.
+- Expert council synthesis now accepts an injected local or plan-quota
+  chat-completions client. Local and plan-quota synthesis report `$0` cost,
+  while the default metered synthesis path still records actual cost through
+  the canonical ledger.
+- MCP `deepr_consult_experts` now exposes `synthesis_backend=api|local|plan`,
+  `local_model`, `plan`, and `plan_model`, and returns a `capacity` block so host
+  agents can verify whether live metered fallback was disabled.
+- Owned-capacity consult modes skip paid-budget reservation when live metered
+  fallback is disabled, so `$0` local or explicit plan consults remain usable
+  even after the metered API budget is exhausted.
+- Web-grounded expert bootstrap now defaults to DuckDuckGo instead of the
+  `auto` search backend, so hidden Brave or Tavily keys in a developer shell are
+  not consumed by surprise.
+- Topic-based `deepr expert learn "Expert" "topic"` now routes through the
+  verified live-web absorption pipeline by default. Use `--plan <id>` for an
+  explicit plan-quota backend or `--model` for a local Ollama model; `learn-web`
+  remains as an explicit compatibility verb.
+- Local and plan-backed absorbers now inject `estimated_cost=0.0`, so expert
+  profile spend accounting stays aligned with the canonical `$0` ledger events
+  for owned or prepaid capacity.
+- The roadmap now frames expert improvement as a research-processing compiler:
+  source packs become atomic beliefs, typed temporal graph edges,
+  contradiction and gap agendas, and regenerated wiki/digest views instead of
+  passive document accumulation.
+- Report-absorbed belief creation events and auto-related graph edges now carry
+  report provenance, making `expert why`, digest, and handoff views more
+  replayable from the original source pack.
+- README security and project-footer copy now uses GitHub-native contact
+  surfaces, and package/public docs keep authorship as Nick Seal with GitHub
+  identity `blisspixel`.
+- Distillr's first-party MCP profile now classifies all 27 live tools from the
+  installed `distill-mcp` server. Free existing-corpus reads remain
+  auto-approved, while corpus synthesis, derived-export writes, ingestion,
+  refresh, and watch-list mutation stay approval-gated.
+- Roadmap and agentic-balance docs now treat Level 5/6 expert maturity as
+  self-improvement under verification gates: trace first, update a bounded
+  self-model and learning plan, evaluate, then promote only measured
+  improvements.
+
+### Fixed
+- Belief extraction now de-references source pointers: a claim states the bare
+  domain fact ("Llama 3.1:8B is a tier-1 model for 8-12GB VRAM") instead of
+  copying the report's citation numbering ("Source [5] lists ..."), and never
+  emits meta-commentary about the author/assistant's own knowledge or limits.
+  Provenance still lives in `evidence`/`evidence_refs`.
+- Fixed Claude plan synthesis on Windows: a multi-line synthesis prompt passed as
+  a `claude.cmd` argument was mangled by cmd.exe, so Claude saw an empty task and
+  answered conversationally at `$0`. The prompt now goes over stdin.
+- Fixed a false-exhaustion bug: the plan-quota client scanned the whole CLI
+  output for keywords like "rate limit"/"quota"/"credits", so a good report about
+  provider rate limits was misread as a depleted plan and a bogus EXHAUSTED event
+  was written. Exhaustion is now scoped to the error channel (stderr on success,
+  everything on failure); the answer body is never scanned.
+- Council synthesis now records its model cost in the canonical append-only cost
+  ledger instead of returning a cost only in the consult payload.
+- Council synthesis parsing now keeps `DISAGREEMENTS` separate from
+  `AGREEMENTS`; the previous substring order could classify disagreement
+  bullets as agreements.
+- Council synthesis parsing now normalizes Markdown-bold bullet labels so local
+  model outputs like `- **Topic**: detail` do not leave stray emphasis markers
+  in agreement or disagreement artifacts.
+- Plan-quota CLI execution now normalizes NUL bytes in argv text and drops
+  invalid subprocess environment entries before launch. Fresh web context or
+  cleared environment variables can no longer make an otherwise valid
+  plan-quota run fail before the vendor CLI starts.
+- Plan-quota CLI execution now resolves Windows `PATHEXT` launch targets such as
+  `codex.cmd`, removes metered API-key variables from child environments, and
+  sends Codex prompts through stdin so long fresh-context prompts do not exceed
+  the Windows command-line limit.
+- Expert sync now treats Markdown-wrapped `no significant changes` responses as
+  no-change markers instead of absorbing them as domain beliefs. Report
+  absorption also rejects exact no-change meta statements as non-domain claims.
+- Report absorption now preserves scalar model `evidence` output as one excerpt
+  instead of splitting it into character refs. This keeps provenance,
+  source-trust ceilings, and grounding-check prompts aligned when a model
+  returns a string despite the requested evidence array.
+- Expert health checks now treat heuristic-only contradiction candidates as
+  advisory `info` instead of creating a capacity action. Recorded contested
+  pairs still produce a warning and an adjudication action, and small gap
+  backlogs no longer block scheduled health loops.
+
 ## [2.23.0] - 2026-06-25
 
 Claude quota metadata release.
@@ -71,7 +213,7 @@ Licensing, safe-defaults, and model-freshness release.
   the metered chat / synthesis / planning / documentation / strategy tasks,
   replacing the stale `gpt-5.2` defaults. Pricing is unaffected (`gpt-5.5` is
   registered).
-- **README** reformatted to the conventional layout — title, badges, and
+- **README** reformatted to the conventional layout - title, badges, and
   tagline lead; license and authorship details move to the License section at
   the foot of the document.
 

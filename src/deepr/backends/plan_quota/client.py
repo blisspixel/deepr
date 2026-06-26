@@ -21,6 +21,8 @@ the scheduler reschedules instead of silently failing.
 from __future__ import annotations
 
 import logging
+import os
+import time
 from collections.abc import Awaitable, Callable
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
@@ -29,6 +31,7 @@ from typing import Any
 from deepr.backends.local import _local_prompt  # shared research-prompt builder
 from deepr.backends.plan_quota.adapters import PlanQuotaAdapter, parse_reset_after_seconds
 from deepr.backends.plan_quota.cli_runner import DEFAULT_TIMEOUT_S, CliResult, run_cli
+from deepr.backends.plan_quota.safety import plan_quota_child_env
 from deepr.backends.quota_ledger import (
     QuotaConfidence,
     QuotaEventType,
@@ -101,7 +104,7 @@ class PlanQuotaChatClient:
         self.adapter = adapter
         self.model = model
         self._runner = runner
-        self._env = env
+        self._env = plan_quota_child_env(adapter, env if env is not None else dict(os.environ))
         self._cwd = cwd
         self._timeout = timeout
         self._account_id = account_id
@@ -119,20 +122,51 @@ class PlanQuotaChatClient:
         # operator's explicit --plan-model. Passing the wrong --model would fail.
         model = self.model
 
-        result = await self._runner(
-            self.adapter.build_argv(prompt, model),
-            timeout=self._timeout,
-            env=self._env,
-            cwd=self._cwd,
-        )
-        answer = self._interpret(result)
+        argv, stdin, temp_path = _build_invocation(self.adapter, prompt, model)
+        started_at = time.time()
+        try:
+            result = await self._runner(
+                argv,
+                stdin=stdin,
+                timeout=self._timeout,
+                env=self._env,
+                cwd=self._cwd,
+            )
+        finally:
+            _cleanup_prompt_file(temp_path)
+        answer = self._interpret(result, answer_override=self._recover_transcript_answer(started_at))
         return _Response(answer)
 
-    def _interpret(self, result: CliResult) -> str:
-        """Turn a CliResult into an answer or raise a typed error. Records quota."""
-        combined = f"{result.stdout}\n{result.stderr}"
-        if self.adapter.looks_exhausted(combined):
-            reset_at = self._reset_at_from(combined)
+    def _recover_transcript_answer(self, started_at: float) -> str | None:
+        """Read the answer from the CLI's transcript when it drops stdout.
+
+        Antigravity exits 0 with empty stdout under a non-TTY pipe; its reply is
+        only in its per-conversation transcript. None means "use stdout" (every
+        other CLI) or "no transcript answer found" (which then fails as no output).
+        """
+        if not self.adapter.answer_from_transcript:
+            return None
+        from deepr.backends.plan_quota.antigravity_transcript import antigravity_brain_dir, recover_answer
+
+        return recover_answer(antigravity_brain_dir(), since=started_at)
+
+    def _interpret(self, result: CliResult, *, answer_override: str | None = None) -> str:
+        """Turn a CliResult into an answer or raise a typed error. Records quota.
+
+        ``answer_override`` supplies the answer when the CLI does not print it to
+        stdout (Antigravity, recovered from its transcript). None means parse
+        stdout as usual.
+        """
+        # Exhaustion is an error condition, so scope the keyword scan to where a
+        # CLI reports errors. On a SUCCESSFUL run only stderr (the status/progress
+        # stream) can carry a limit notice; the answer on stdout must never be
+        # scanned, or a report that is ABOUT rate limits/quotas/credits (e.g. a
+        # provider-API research topic) would be misread as a depleted plan and the
+        # good answer thrown away. On a FAILED run the answer is not trustworthy,
+        # so scan everything.
+        exhaustion_text = result.stderr if result.ok else f"{result.stdout}\n{result.stderr}"
+        if self.adapter.looks_exhausted(exhaustion_text):
+            reset_at = self._reset_at_from(exhaustion_text)
             self._record_quota(QuotaEventType.EXHAUSTED, detail="exhaustion signature in CLI output", reset_at=reset_at)
             when = f" (resets ~{reset_at:%H:%M UTC})" if reset_at else ""
             raise PlanQuotaExhausted(
@@ -145,9 +179,13 @@ class PlanQuotaChatClient:
         if not result.ok:
             raise PlanQuotaError(f"{self.adapter.exe} exited {result.returncode}: {result.stderr.strip()[:200]}")
 
-        answer = self.adapter.parse_answer(result.stdout)
+        answer = answer_override if answer_override is not None else self.adapter.parse_answer(result.stdout)
         if not answer:
-            hint = " (agy drops stdout under a non-TTY pipe; a PTY is required)" if self.adapter.needs_pty else ""
+            hint = (
+                " (agy drops stdout under a non-TTY pipe; transcript recovery found no answer)"
+                if self.adapter.needs_pty
+                else ""
+            )
             raise PlanQuotaError(f"{self.adapter.exe} returned no output{hint}")
 
         self._record_quota(QuotaEventType.USAGE_OBSERVED, detail="one plan-quota call")
@@ -220,6 +258,38 @@ def _flatten_messages(messages: list[dict[str, Any]], *, wants_json: bool) -> st
     return prompt
 
 
+def _build_invocation(
+    adapter: PlanQuotaAdapter, prompt: str, model: str | None
+) -> tuple[list[str], str | None, str | None]:
+    """Resolve how this CLI receives the prompt: file, stdin, or argv.
+
+    Returns ``(argv, stdin, temp_path)``. ``temp_path`` is non-None only for
+    file-delivery adapters and must be removed by the caller after the run.
+    Long research/synthesis prompts exceed the OS command-line length limit when
+    passed as an argument (WinError 206 on Windows), so file and stdin delivery
+    are the headless-safe paths; argv stays for short-prompt CLIs.
+    """
+    if adapter.prompt_is_file:
+        import tempfile
+
+        fd, path = tempfile.mkstemp(prefix="deepr-plan-", suffix=".txt")
+        with os.fdopen(fd, "w", encoding="utf-8") as handle:
+            handle.write(prompt)
+        return adapter.build_argv(path, model), None, path
+    if adapter.stdin_prompt:
+        return adapter.build_argv("-", model), prompt, None
+    return adapter.build_argv(prompt, model), None, None
+
+
+def _cleanup_prompt_file(temp_path: str | None) -> None:
+    if not temp_path:
+        return
+    try:
+        os.unlink(temp_path)
+    except OSError:  # best-effort; a leaked temp file never breaks a run
+        logger.debug("could not remove plan-quota prompt temp file %s", temp_path)
+
+
 def make_plan_quota_research_fn(
     adapter: PlanQuotaAdapter,
     *,
@@ -274,12 +344,20 @@ async def probe_plan_quota(
     literally free like the local probe - the caller decides when to run it.
     Returns ``{ok, backend, reply, latency_ms, error}``.
     """
-    result = await runner(
-        adapter.build_argv("Reply with exactly: OK", model),
-        timeout=timeout,
-        env=env,
-        cwd=cwd,
-    )
+    run_env = plan_quota_child_env(adapter, env if env is not None else dict(os.environ))
+    prompt = "Reply with exactly: OK"
+    argv, stdin, temp_path = _build_invocation(adapter, prompt, model)
+    started_at = time.time()
+    try:
+        result = await runner(
+            argv,
+            stdin=stdin,
+            timeout=timeout,
+            env=run_env,
+            cwd=cwd,
+        )
+    finally:
+        _cleanup_prompt_file(temp_path)
     if adapter.looks_exhausted(f"{result.stdout}\n{result.stderr}"):
         return {
             "ok": False,
@@ -293,7 +371,12 @@ async def probe_plan_quota(
             "timed out" if result.timed_out else f"exit {result.returncode}: {result.stderr.strip()[:160]}"
         )
         return {"ok": False, "backend": adapter.backend_id, "reply": "", "latency_ms": result.duration_ms, "error": err}
-    reply = adapter.parse_answer(result.stdout)
+    if adapter.answer_from_transcript:
+        from deepr.backends.plan_quota.antigravity_transcript import antigravity_brain_dir, recover_answer
+
+        reply = recover_answer(antigravity_brain_dir(), since=started_at) or ""
+    else:
+        reply = adapter.parse_answer(result.stdout)
     return {
         "ok": bool(reply),
         "backend": adapter.backend_id,

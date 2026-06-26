@@ -9,7 +9,7 @@ description = "Research automation platform that replicates human research team 
 readme = "README.md"
 license = {text = "Apache-2.0"}
 authors = [
-    {name = "Nick Seal", email = "nick@pueo.io"}
+    {name = "Nick Seal"}
 ]
 requires-python = ">=3.12"
 classifiers = [

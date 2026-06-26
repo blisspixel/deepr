@@ -3,7 +3,12 @@
 from __future__ import annotations
 
 from deepr.backends.plan_quota.adapters import get_adapter
-from deepr.backends.plan_quota.safety import AuthMode, detect_auth_mode, evaluate_plan_quota_safety
+from deepr.backends.plan_quota.safety import (
+    AuthMode,
+    detect_auth_mode,
+    evaluate_plan_quota_safety,
+    plan_quota_child_env,
+)
 
 
 class TestDetectAuthMode:
@@ -27,12 +32,16 @@ class TestSafetyGate:
         assert not d.requires_ack
         assert d.auth_mode == AuthMode.PLAN
 
-    def test_api_key_present_blocks_with_guidance(self):
+    def test_api_key_present_is_removed_from_child_env(self):
         d = evaluate_plan_quota_safety(get_adapter("codex"), env={"OPENAI_API_KEY": "sk-xxx"})
-        assert not d.safe
-        assert d.auth_mode == AuthMode.METERED
+        assert d.safe
+        assert d.auth_mode == AuthMode.PLAN
         assert "OPENAI_API_KEY" in d.reason
-        assert "--api" in d.reason
+        assert "removed" in d.reason
+
+    def test_child_env_drops_metered_vars(self):
+        env = {"OPENAI_API_KEY": "sk-xxx", "PATH": "x"}
+        assert plan_quota_child_env(get_adapter("codex"), env) == {"PATH": "x"}
 
     def test_metered_at_margin_backend_requires_ack(self):
         d = evaluate_plan_quota_safety(get_adapter("copilot"), env={})

@@ -1,6 +1,6 @@
 # Supported Surface
 
-Status: v2.20.0 current main, 2026-06-25. This document defines what users and host
+Status: v2.23.0 current main, 2026-06-25. This document defines what users and host
 agents can rely on today, what is experimental, what is planned only, and what
 data remains portable if development stops.
 
@@ -84,11 +84,17 @@ must not be described as usable capacity.
 - Host-facing MCP expert handoff and loop-status payloads sanitize derived
   string fields before downstream host consumption. The structured expert store
   remains canonical.
+- MCP `deepr_consult_experts` can synthesize through local Ollama or an
+  explicit plan-quota CLI with live metered fallback disabled, and the returned
+  `deepr-consult-v1` artifact includes a `capacity` block describing the
+  selected synthesis backend.
 - Local Ollama expert maintenance, local evals, local context evals, local
   red-team attack-success-rate metrics including MCP read-path canaries and
   saved trend artifacts, and scored local admission.
-- Explicit plan-quota CLI execution for expert maintenance:
-  `deepr expert sync --plan <id>`, `deepr expert absorb --plan <id>`, and
+- Explicit plan-quota CLI execution for expert maintenance and bootstrap:
+  `deepr expert sync --plan <id>`, `deepr expert absorb --plan <id>`,
+  topic learning via `deepr expert learn --plan <id>`, the explicit
+  `deepr expert learn-web --plan <id>` alias, and
   `deepr capacity probe-plan <id>` run through deterministic auth-mode and
   no-surprise-bills guards. Codex, Claude Code, and OpenCode are eligible for
   operator admission; Kiro, Grok Build, Antigravity, and GitHub Copilot remain
@@ -96,9 +102,11 @@ must not be described as usable capacity.
 - Quota metadata refresh:
   `deepr capacity refresh-quota codex` reads local Codex session `rate_limits`
   metadata, and `deepr capacity refresh-quota claude` reads Claude Code OAuth
-  usage metadata when the current user has Claude Code configured. Both record
-  conservative quota-ledger events without running a model call or storing
-  credential material.
+  usage metadata when the current user has Claude Code configured.
+  `deepr capacity refresh-quota grok` reads the Grok CLI auth file, calls the
+  Grok billing metadata endpoint, and records a monthly quota window when
+  available. These refreshes record conservative quota-ledger events without
+  running a model call or storing credential material.
 - Hosted MCP deployment recipes, including the local container, Azure Container
   Apps template, AWS ECS Fargate template, GCP Cloud Run template, and
   Cloudflare Worker edge ingress recipe.
@@ -106,9 +114,9 @@ must not be described as usable capacity.
 ## Visible Or Planned Only
 
 - Automatic routing to plan-quota CLIs remains gated until Deepr has trusted
-  live remaining-quota signals for the candidate backend. Codex and Claude Code
-  now have metadata probes; Grok, Antigravity, and other sources remain planned
-  or explicit-only. Explicit `--plan` is still the works-now path and automatic
+  live remaining-quota signals for the candidate backend. Codex, Claude Code,
+  and Grok now have metadata probes; Antigravity and other sources remain
+  planned or explicit-only. Explicit `--plan` is still the works-now path and automatic
   plan dispatch must stay opt-in and conservative.
 - Multi-account capacity pools are planned after a single-account mechanism is
   complete.

@@ -127,7 +127,7 @@ def _build_gap_fill_engine(
         engine = GapFillEngine(
             profile,
             research_fn=make_local_research_fn(local_model),
-            absorber=ReportAbsorber(profile, model=local_model, client=ollama_chat_client()),
+            absorber=ReportAbsorber(profile, model=local_model, client=ollama_chat_client(), estimated_cost=0.0),
         )
         return engine, "local"
 
@@ -144,7 +144,7 @@ def _build_gap_fill_engine(
         engine = GapFillEngine(
             profile,
             research_fn=make_plan_quota_research_fn(adapter, model=plan_model, client=client),
-            absorber=ReportAbsorber(profile, model=plan_model or adapter.backend_id, client=client),
+            absorber=ReportAbsorber(profile, model=plan_model or adapter.backend_id, client=client, estimated_cost=0.0),
         )
         return engine, f"plan_quota:{adapter.backend_id}"
 

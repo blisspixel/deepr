@@ -28,6 +28,7 @@ _EXPERT_ARG_NAMES = ("expert_name", "name")
 _BUDGET_ARGUMENT_TOOLS = frozenset(
     {
         "deepr_agentic_research",
+        "deepr_consult_experts",
         "deepr_query_expert",
         "deepr_research",
     }
@@ -129,8 +130,20 @@ def _estimate_research_cost(arguments: dict[str, Any]) -> float:
     return max(registry_cost, 0.20)
 
 
+def _estimate_expert_consult_cost(arguments: dict[str, Any]) -> float:
+    backend = str(arguments.get("synthesis_backend") or "api").strip().lower()
+    if backend in {"local", "plan"}:
+        return 0.0
+    requested_budget = _coerce_nonnegative_float(arguments.get("budget"))
+    if requested_budget is not None and requested_budget > 0:
+        return requested_budget
+    return 2.0
+
+
 def estimate_scoped_mcp_tool_cost(tool_name: str, arguments: dict[str, Any]) -> float | None:
     """Return deterministic estimated spend for a scoped remote MCP call."""
+    if tool_name == "deepr_consult_experts":
+        return _estimate_expert_consult_cost(arguments)
     requested_budget = _coerce_nonnegative_float(arguments.get("budget"))
     if requested_budget is not None and tool_name in _BUDGET_ARGUMENT_TOOLS:
         return requested_budget

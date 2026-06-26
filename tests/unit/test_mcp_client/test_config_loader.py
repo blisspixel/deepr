@@ -255,8 +255,14 @@ class TestDistillrFirstParty:
         assert profile.command == "distill-mcp"
         assert profile.budget_limit == 2.0  # spends money: per-call cap exists
         assert profile.progress is True
+        assert "list_topics" in profile.auto_approve  # free corpus inventory
         assert "find_insights" in profile.auto_approve  # free read-side corpus search
+        assert "list_topic_summary" in profile.auto_approve  # free topic orientation
+        assert "okf_validate" in profile.auto_approve  # read-only structural check
         assert "papers" in profile.require_approval
+        assert "ask" in profile.require_approval  # corpus synthesis, not free by contract
+        assert "find_insights_summary" in profile.require_approval
+        assert "okf_export" in profile.require_approval  # writes a derived bundle
 
     def test_discover_returns_profile_when_binary_present(self) -> None:
         from deepr.mcp.client.config_loader import discover_distillr_profile

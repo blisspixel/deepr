@@ -505,6 +505,43 @@ def eval_red_team(json_output: bool, save: bool, fail_on_attack: bool):
         raise click.ClickException(f"{report.attack_successes} red-team attack(s) succeeded.")
 
 
+@evaluate.command("consult")
+@click.option("--json", "json_output", is_flag=True, help="Emit machine-readable JSON.")
+@click.option("--save", is_flag=True, help="Save JSON artifact under data/benchmarks.")
+@click.option(
+    "--fail-on-regression/--no-fail-on-regression",
+    default=True,
+    show_default=True,
+    help="Exit non-zero if a built-in consult regression fails.",
+)
+def eval_consult(json_output: bool, save: bool, fail_on_regression: bool):
+    """Run the local consult harness regression suite (cost $0)."""
+    from deepr.evals.consult import run_consult_eval, write_consult_eval_report
+
+    report = run_consult_eval()
+    path = write_consult_eval_report(report) if save else None
+
+    if json_output:
+        data = report.to_dict()
+        if path:
+            data["saved_to"] = str(path)
+        click.echo(json.dumps(data, indent=2))
+    else:
+        click.echo(f"Consult harness eval  (methodology v{report.methodology_version})")
+        click.echo(f"Deepr metered cost: ${report.cost_usd:.2f}")
+        click.echo(f"Score: {report.score:.1%} ({report.passed_cases}/{report.total_cases})")
+        click.echo("")
+        for outcome in report.outcomes:
+            status = "pass" if outcome.passed else "fail"
+            click.echo(f"  - {outcome.case_id:32s} {status:4s} [{outcome.category}]")
+        if path:
+            click.echo("")
+            click.echo(f"Saved {path}")
+
+    if fail_on_regression and report.failed_cases:
+        raise click.ClickException(f"{report.failed_cases} consult regression(s) failed.")
+
+
 def _load_corpus(corpus_dir: str, sample: int) -> dict[str, str]:
     """Load .md/.txt reports from a directory (optionally capped to `sample`)."""
     paths = sorted(p for p in Path(corpus_dir).iterdir() if p.suffix.lower() in (".md", ".txt"))

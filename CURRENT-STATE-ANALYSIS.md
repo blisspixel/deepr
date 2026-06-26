@@ -4,13 +4,98 @@ Date: 2026-06-25
 
 ## Alignment Summary
 
-Deepr is aligned around one active product bet: persistent domain experts that keep verified knowledge current without silent spend. The README sells this as research infrastructure and a consultable knowledge role, not another chat window and not generic RAG. Current main is `v2.23.0`: local Ollama is usable for `$0` expert maintenance; explicit plan-quota execution works for `expert sync --plan <id>`, `expert absorb --plan <id>`, and `capacity probe-plan <id>` behind auth-mode and no-surprise-bills gates; Codex quota metadata refresh works through `capacity refresh-quota codex`; Claude Code quota metadata refresh works through `capacity refresh-quota claude` when that user has Claude Code OAuth credentials configured; both refresh paths write quota-ledger events without model calls or credential persistence; durable loop status is observable across CLI, MCP, and web surfaces; OKF import/export is a verified interchange path; hosted MCP has scoped keys, per-key budgets, rate limits, concurrency caps, audit records, smoke checks, registration manifests, and deployment recipes; red-team metrics measure prompt-boundary, MCP read-path, tool-spoofing, and memory trust-floor probes at `$0`; expert handoff payloads carry per-claim grounding assurance with verified and cross-vendor verified summary counts.
+Deepr is aligned around one active product bet: persistent domain experts that keep verified knowledge current without silent spend. The README now frames Deepr as a deep research and understanding loop, not another chat window and not generic RAG: evidence becomes beliefs, gaps, contradictions, confidence, provenance, temporal context, and a next learning plan that can be reused by humans or agents. Current main is `v2.23.0`: local Ollama is usable for `$0` expert maintenance; explicit plan-quota execution works for `expert sync --plan <id>`, `expert absorb --plan <id>`, topic `expert learn --plan <id>` with `learn-web` retained as an explicit live-web alias, and `capacity probe-plan <id>` behind auth-mode and no-surprise-bills gates; Codex quota metadata refresh works through `capacity refresh-quota codex`; Claude Code quota metadata refresh works through `capacity refresh-quota claude` when that user has Claude Code OAuth credentials configured; Grok quota metadata refresh works through `capacity refresh-quota grok` when that user has Grok CLI auth configured; all three refresh paths write quota-ledger events without model calls or credential persistence; durable loop status is observable across CLI, MCP, and web surfaces; OKF import/export is a verified interchange path; hosted MCP has scoped keys, per-key budgets, rate limits, concurrency caps, audit records, smoke checks, registration manifests, and deployment recipes; red-team metrics measure prompt-boundary, MCP read-path, tool-spoofing, and memory trust-floor probes at `$0`; expert handoff payloads carry per-claim grounding assurance with verified and cross-vendor verified summary counts.
 
 The latest 2026 external guidance reinforces Deepr's direction: this is agentic harness, context engineering, loop engineering, and harness-first verification work. The useful primitives are durable progress files, tight high-signal context, independent verification, trace/eval loops, typed stop conditions, scoped tools, and explicit spend/security gates. Deepr already has most of the harness substrate: `ExpertLoopRun`, loop-status rollups, context source packs, capacity previews, budget gates, scoped MCP, red-team metrics, and derived handoff contracts. The remaining work is not "more RAG"; it is closing verifier loops and making the scheduled verbs safer and more observable.
 
 `AGENTIC_BALANCE.md` is the governing boundary: deterministic workflow code owns spend, writes, routing gates, durable state, locks, jitter, schemas, and verifier outcomes; model judgment owns meaning such as contradiction, grounding, deduplication, and synthesis.
 
-No clarification is needed before continuing. The next slice is live trusted quota probes for the explicit-only backends, starting with Grok and Antigravity metadata visibility, because auto-routing to prepaid capacity must be based on observed remaining headroom instead of CLI presence. The next metered-API cost-control slice is provider prompt-cache economics, but only after estimator support, actual usage ingestion, and explicit budget gates cover cache writes, cache reads, TTL, and pre-warm behavior.
+No clarification is needed before continuing. The next slices are the consult trace quality flywheel, the expert self-model and metacognitive monitor, and the research-processing compiler that turns source packs into verified beliefs, temporal graph edges, gaps, and regenerated wiki/digest views. After that, continue Antigravity metadata visibility, then scheduler dispatch that uses admitted plan capacity only from trusted headroom observations. The next metered-API cost-control slice is provider prompt-cache economics, but only after estimator support, actual usage ingestion, and explicit budget gates cover cache writes, cache reads, TTL, and pre-warm behavior.
+
+## Local Unreleased Work
+
+Local work after `v2.23.0` improves `deepr expert consult` but has not been
+pushed or released. Council perspectives now prefer stored belief context before
+live expert chat fallback, explicit expert slugs resolve to profile display
+names, auto-selection tokenizes profile terms more robustly, synthesis
+disagreement parsing no longer collapses into agreements, and council synthesis
+settles its cost through the canonical append-only ledger. Consult perspectives
+also carry optional context metadata for stored-belief and live-session paths,
+so dogfood failures can become replayable eval inputs. `deepr eval consult` now
+adds a `$0` regression seed for explicit slug resolution, stored context packet
+shape, synthesis parser drift, and consult artifact context preservation. This
+keeps consult closer to the 2026 context-engineering pattern: selected durable
+context first, bounded synthesis second, visible cost and trace always.
+
+The next consult slice is also local but unreleased. Use `deepr expert consult --local`
+for local Ollama synthesis at `$0`, or `deepr expert consult --plan <id>` for an
+explicit plan-quota CLI synthesis backend. Both modes disable live metered
+expert fallback when stored beliefs are missing, so users with only local or
+subscription capacity get honest no-context responses instead of an accidental
+API call. Live validation on 2026-06-25 showed the local path works end to end
+at `$0`; the Grok plan path correctly stayed `$0` and surfaced quota exhaustion
+as `Synthesis unavailable` rather than falling back to a metered API. That makes
+synthesis failures the next trace/event quality target.
+
+The same owned-capacity consult path is now exposed over MCP in local
+unreleased work. `deepr_consult_experts` accepts `synthesis_backend=local` or
+`synthesis_backend=plan`, disables live metered expert fallback in those modes,
+allows a zero API budget ceiling, and returns a `capacity` block so host agents
+can verify the selected backend. `docs/MCP_AGENT_TEST_GUIDE.md` is the
+agent-facing test script for listing experts, reading handoff and loop state,
+explaining beliefs, and running a no-metered consult through local or explicit
+plan capacity.
+
+Level 5/6 expert maturity is now defined as self-improvement and reflective
+continuity under gates, not a vague autonomy claim or a claim of subjective
+experience. Level 5 means a bounded expert can detect failures or gaps, gather
+evidence through the cheapest capable capacity, compile it into the belief
+graph, verify it, and update an explicit self-model only when quality is
+measured. Level 6 means the fleet has a control plane for improving expert
+self-models, prompts, tools, skills, context policies, and learning strategies
+through trace-derived proposals, sandbox runs, regression checks, budget gates,
+and human review where required. The next Deepr slice is the self-model and
+metacognitive monitor: capabilities, limits, goals, calibration, learning
+strategy, continuity summary, blocked capabilities, current focus, and allowed
+tools. See `docs/design/level-5-6-expert-maturity.md`.
+
+Distillr is available on this machine as `distill-mcp`, and the live `$0`
+`tools/list` handshake now passes with all 27 live tools classified. Existing
+corpus reads are auto-approved; corpus synthesis, exports, ingestion, refresh,
+and watch-list mutation are approval-gated. Free `list_topics`,
+`list_topic_summary`, and `find_insights` probes found useful existing coverage
+in the `long-running-agentic-workflows` corpus, so no paid papers ingestion was
+run.
+
+Plan-quota expert bootstrapping is also local but unreleased. Topic
+`deepr expert learn --plan <id>` retrieves current web sources through free
+DuckDuckGo, then runs report synthesis and verified belief extraction through
+one explicit plan-quota CLI client. `learn-web --plan <id>` remains the
+explicit live-web alias. Windows launch is fixed for `codex.cmd`, Codex long
+prompts go through stdin, metered API-key environment variables are removed
+from child processes, and local/plan absorbers report `estimated_cost=0.0`.
+Live validation on 2026-06-25 used Codex plan capacity to bootstrap the
+`Release Engineering and CI Reliability` expert, added 25 beliefs from 3 live
+sources, wrote `$0` `plan_quota_learn_web` ledger events, and left that
+expert's `total_research_cost` at `0.0`. The full local unit suite now passes
+from the project environment (`uv run pytest tests/unit/ -q`: `6639 passed,
+8 skipped`). Waterfall tests assert the current no-surprise-bills posture:
+parent API-key variables are removed from plan CLI child environments instead
+of forcing a metered fallback.
+
+Research-processing dogfood on 2026-06-25 clarified the next quality gap.
+`deepr expert list` shows current timestamps, but freshness is not the same as
+excellence: nine newly created project experts still have empty belief stores,
+and audited absorbed beliefs had no cross-vendor grounding assurance yet. The
+needed layer is not doc upload or model "warmup"; it is a compiler-like
+learning pass that reads sources, extracts atomic beliefs, preserves
+provenance, updates temporal graph edges, flags contradictions, creates a gap
+agenda, and regenerates derived wiki/digest views from canonical state. The
+first reliability fix in this slice normalizes scalar model `evidence` output
+as one excerpt instead of splitting it into character refs, preserving source
+trust floors and grounding-check inputs. Report-absorbed belief creation events
+and auto-related typed graph edges also now carry report provenance, making
+`expert why`, digest, and handoff views easier to replay from the source pack.
 
 ## What Works Now
 
@@ -19,7 +104,7 @@ No clarification is needed before continuing. The next slice is live trusted quo
 - Capacity visibility is in place through `deepr capacity`, quota observations, normalized backend profiles, eligibility decisions, pure backend selection, and `deepr capacity next`.
 - The evidence layer is present through `eval continuity`, `eval calibrate`, `eval red-team`, source-trust floors, event logs, typed edges, lifecycle archival, and model-verdict routing for semantic absorb checks.
 - Portable data is in place through `DEEPR_DATA_DIR`, `DEEPR_EXPERTS_PATH`, and `DEEPR_REPORTS_PATH`, with the cost ledger deliberately machine-local.
-- Explicit plan-quota CLI execution is in place for maintenance through the lightweight `research_fn` and chat-client seams, with quota and `$0` cost-ledger writes. The quota availability substrate now has a normalized `QuotaSnapshot` contract with binding-window/headroom calculation. `deepr capacity refresh-quota codex` records Codex local session-log `rate_limits`, and `deepr capacity refresh-quota claude` records Claude Code OAuth usage metadata when configured. Both write `quota_ledger.jsonl` without a model call and without storing credential material. Grok and Antigravity metadata probes can use the same substrate next. Automatic plan routing remains gated until trustworthy live remaining-quota signals exist.
+- Explicit plan-quota CLI execution is in place for maintenance and bootstrap through the lightweight `research_fn` and chat-client seams, with quota and `$0` cost-ledger writes. `expert sync --plan`, `expert absorb --plan`, topic `expert learn --plan`, the explicit `expert learn-web --plan` alias, and `capacity probe-plan` can run on prepaid plan capacity without silent metered fallback. The quota availability substrate now has a normalized `QuotaSnapshot` contract with binding-window/headroom calculation. `deepr capacity refresh-quota codex` records Codex local session-log `rate_limits`, `deepr capacity refresh-quota claude` records Claude Code OAuth usage metadata when configured, and `deepr capacity refresh-quota grok` records Grok billing metadata when Grok CLI auth is present. These write `quota_ledger.jsonl` without a model call and without storing credential material. Antigravity metadata can use the same substrate next. Automatic plan routing remains gated until trustworthy live remaining-quota signals exist.
 - Explicit maker-checker grounding is in place for `expert absorb` and `expert sync` through `--check-grounding`, with optional `--checker-plan <id>` for cross-plan checking. It is off by default, dry runs do not check, and metered API checker construction remains future work behind spend-policy gates. Handoff payloads now preserve per-claim `grounding_assurance` and summarize verified and cross-vendor verified claim counts.
 - Fleet loop primitives are in place: `fleet status`, `expert sync-all`, `fleet install-schedule`, content-hash pre-sync change detection, per-verb locks, startup jitter, and durable loop-run records.
 
@@ -266,13 +351,28 @@ contradiction, dedup, and trust-floor gates.
 
 ## Next Work
 
-Next slice: wire Grok and Antigravity metadata probes into the same
-`QuotaSnapshot` contract for explicit-only visibility, then validate the
-project-expert refresh and consultation path using free/local capacity or
-explicit plan-quota capacity only.
+The consult path for external agents is now validated end to end at $0: a wide
+auto-fan-out (up to 10 experts, relevance-floored) synthesizes through claude
+plan after fixing the cmd.exe arg-mangling bug that silently broke claude-plan
+synthesis on Windows (now routed over stdin like codex). The MCP surface
+(`deepr_list_experts`, `deepr_query_expert`, `deepr_consult_experts`) boots and
+serves the roster. The self-consultation loop is real: Deepr consulted its own
+experts about its own design and got an excellent calibrated answer at $0.
+
+Next slices:
+- Multi-turn consult sessions over MCP/A2A so an external agent can hold a
+  back-and-forth with the expert team, not just one-shot consults.
+- Expose the multi-expert council as an A2A skill on the Agent Card.
+- Fill and re-ground the remaining empty/older experts through the now-fixed
+  extraction pipeline (de-referenced claims, no disclaimer boilerplate), on
+  free/local or plan capacity.
+- Wire Antigravity metadata visibility into the same `QuotaSnapshot` contract.
 
 ## Spend Ledger For This Run
 
 External paid spend: `$0.00`.
 
-Only local filesystem reads, local tests, lint, and git operations are planned. No provider APIs, embeddings, paid evals, or paid research runs will be used.
+This run used one metadata-only Grok billing refresh in a temporary capacity
+data directory to validate `deepr capacity refresh-quota grok`; it did not run a
+model call. No provider generation APIs, embeddings, paid evals, or paid
+research runs were used.

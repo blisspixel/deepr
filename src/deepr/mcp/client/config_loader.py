@@ -82,9 +82,9 @@ RECON_PROFILE_TEMPLATE: dict[str, Any] = {
 # progress notifications, and only auto-approves the free read-side corpus
 # tools (find/read insights and concepts, gap/cost/doctor reads). Ingestion,
 # synthesis, and watch-list mutation require approval.
-# Tool names verified against distillr v0.11.1's shipped surface (2026-06-11);
-# the v2.12-era names (query_library, ingest_papers/youtube/sites, refresh)
-# no longer exist.
+# Tool names live-verified against the installed distill-mcp server
+# (2026-06-25). The v2.12-era names (query_library,
+# ingest_papers/youtube/sites, refresh) no longer exist.
 DISTILLR_PROFILE_TEMPLATE: dict[str, Any] = {
     "name": "distillr",
     "description": "Source ingestion engine: YouTube, websites, and arXiv papers into a structured Markdown corpus with cross-source synthesis. Absorbed as academic/strategic knowledge with provenance.",
@@ -97,6 +97,7 @@ DISTILLR_PROFILE_TEMPLATE: dict[str, Any] = {
     "cost_per_call": 0.0,  # actual cost is reported by the tool response
     "auto_approve": [
         # Free read-side: search/read the existing corpus, no new ingestion
+        "list_topics",
         "find_insights",
         "read_insight",
         "find_concepts",
@@ -104,11 +105,13 @@ DISTILLR_PROFILE_TEMPLATE: dict[str, Any] = {
         "concept_history",
         "concept_diff",
         "research_gaps",
+        "list_topic_summary",
+        "okf_validate",
         "costs",
         "doctor",
     ],
     "require_approval": [
-        # Ingestion / synthesis (spend money) and watch-list mutation
+        # Ingestion, synthesis, derived-export writes, and watch-list mutation
         "discover",
         "papers",
         "learn_topic",
@@ -119,6 +122,9 @@ DISTILLR_PROFILE_TEMPLATE: dict[str, Any] = {
         "synthesize",
         "resynthesize_topic",
         "generate_report",
+        "ask",
+        "find_insights_summary",
+        "okf_export",
         "watch_add",
         "watch_remove",
     ],

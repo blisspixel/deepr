@@ -159,6 +159,9 @@ class ToolAllowlist:
         # ----------------------------------------------------------------
         # Status / discovery (safe reads)
         "deepr_status": ToolConfig(name="deepr_status", category=ToolCategory.READ, description="Server status"),
+        "deepr_capabilities": ToolConfig(
+            name="deepr_capabilities", category=ToolCategory.READ, description="Capability map for a consuming agent"
+        ),
         "deepr_tool_search": ToolConfig(
             name="deepr_tool_search", category=ToolCategory.READ, description="Search MCP tool registry"
         ),

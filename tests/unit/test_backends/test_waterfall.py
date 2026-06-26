@@ -143,10 +143,12 @@ class TestExplicitPlanQuota:
         assert choice.is_plan_quota
         assert choice.plan_backend_id == "codex"
 
-    def test_api_key_present_falls_to_metered(self):
+    def test_api_key_present_uses_sanitized_plan_child_env(self):
         choice = choose_plan_quota_backend("codex", env={"OPENAI_API_KEY": "sk-x"})
-        assert choice.backend == BACKEND_API_METERED
-        assert "OPENAI_API_KEY" in choice.reason
+        assert choice.backend == BACKEND_PLAN_QUOTA
+        assert choice.is_plan_quota
+        assert choice.plan_backend_id == "codex"
+        assert "removed OPENAI_API_KEY from child env" in choice.reason
 
     def test_unknown_backend_falls_to_metered(self):
         choice = choose_plan_quota_backend("bogus", env={})
@@ -203,9 +205,10 @@ class TestPlanQuotaAutoRung:
         choice = self._auto(which=_fake_which("codex"), path=tmp_path)
         assert choice.backend == BACKEND_PLAN_QUOTA
 
-    def test_api_key_env_blocks_even_when_admitted(self, tmp_path):
+    def test_api_key_env_is_sanitized_even_when_admitted(self, tmp_path):
         choice = self._auto(which=_fake_which("codex"), path=tmp_path, plan_env={"OPENAI_API_KEY": "sk-x"})
-        assert choice.backend == BACKEND_API_METERED
+        assert choice.backend == BACKEND_PLAN_QUOTA
+        assert choice.plan_backend_id == "codex"
 
     def test_metered_at_margin_cli_not_auto_routed(self, tmp_path):
         # copilot is metered-per-use, so it is not auto-routable even if a stray

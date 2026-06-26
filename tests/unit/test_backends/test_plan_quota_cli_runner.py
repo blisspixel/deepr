@@ -7,9 +7,11 @@ for real rather than mocked.
 
 from __future__ import annotations
 
+import json
+import os
 import sys
 
-from deepr.backends.plan_quota.cli_runner import run_cli
+from deepr.backends.plan_quota.cli_runner import _clean_argv, run_cli
 
 
 class TestRunCli:
@@ -53,3 +55,35 @@ class TestRunCli:
         assert not result.ok
         assert result.launch_error
         assert result.returncode is None
+
+    async def test_null_bytes_in_prompt_argument_are_normalized(self):
+        result = await run_cli([sys.executable, "-c", "import sys; sys.stdout.write(sys.argv[1])", "fresh\x00context"])
+        assert result.ok
+        assert result.stdout == "fresh context"
+
+    def test_executable_is_resolved_with_pathext(self, monkeypatch):
+        monkeypatch.setattr(
+            "deepr.backends.plan_quota.cli_runner.shutil.which",
+            lambda exe: "C:/bin/codex.cmd" if exe == "codex" else None,
+        )
+
+        assert _clean_argv(["codex", "exec"]) == ["C:/bin/codex.cmd", "exec"]
+
+    async def test_invalid_environment_entries_are_omitted(self):
+        env: dict[str, object] = dict(os.environ)
+        env["DEEPR_BAD"] = "x\x00y"
+        env["DEEPR_NONE"] = None
+        result = await run_cli(
+            [
+                sys.executable,
+                "-c",
+                (
+                    "import json, os; "
+                    "print(json.dumps({'bad': os.environ.get('DEEPR_BAD'), "
+                    "'none': os.environ.get('DEEPR_NONE')}, sort_keys=True))"
+                ),
+            ],
+            env=env,
+        )
+        assert result.ok
+        assert json.loads(result.stdout) == {"bad": None, "none": None}

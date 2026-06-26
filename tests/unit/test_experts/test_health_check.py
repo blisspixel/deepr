@@ -128,18 +128,17 @@ class TestFreshness:
 
 
 class TestContradictions:
-    def test_detects_opposed_beliefs(self, monkeypatch):
+    def test_heuristic_only_candidates_are_advisory(self, monkeypatch):
         beliefs = [
             Belief(claim="Rust is memory safe by default guaranteed", domain="d", confidence=0.8),
             Belief(claim="Rust is not memory safe by default", domain="d", confidence=0.8),
         ]
         report = _run(monkeypatch, _profile(), beliefs)
         finding = _finding(report, "contradictions")
-        assert finding.severity == "warning"
+        assert finding.severity == "info"
         assert finding.detail["count"] == 1
-        action = _action(report, "contradictions")
-        assert action is not None
-        assert "resolve-conflicts" in action.command
+        assert "advisory" in finding.summary
+        assert _action(report, "contradictions") is None
 
     def test_no_beliefs_is_ok(self, monkeypatch):
         report = _run(monkeypatch, _profile(), [])
@@ -192,6 +191,7 @@ class TestGapBacklog:
         gaps = [Gap.create(topic="one gap", priority=3)]
         report = _run(monkeypatch, _profile(gaps=gaps))
         assert _finding(report, "gaps").severity == "info"
+        assert _action(report, "gaps") is None
 
     def test_no_gaps_is_ok(self, monkeypatch):
         report = _run(monkeypatch, _profile(gaps=[]))
@@ -340,6 +340,9 @@ class TestRecordedContestedPairs:
         assert finding.detail["count"] == 1  # the heuristic re-detection is deduped
         assert "1 recorded" in finding.summary
         assert "0 newly detected" in finding.summary
+        action = _action(report, "contradictions")
+        assert action is not None
+        assert "1 recorded contradiction" in action.description
 
     def test_read_only_audit_does_not_create_store_dirs(self, monkeypatch, tmp_path):
         import os

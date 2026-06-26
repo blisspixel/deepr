@@ -12,10 +12,11 @@ surface.
 
 Phase 6's promise is "your existing subscriptions become research capacity": a
 flat monthly plan you already pay for runs Deepr's non-urgent, batchable
-maintenance (scheduled `expert sync`, gap-fill, health-check) at **$0 at the
-margin**, before any metered API dollar. That promise only holds for a CLI where
-the marginal request inside the plan window is genuinely free. So every
-candidate CLI is run through one test:
+maintenance and expert bootstrapping (`expert sync`, `expert absorb`, topic
+`expert learn`, `learn-web`, gap-fill, health-check) at **$0 at the margin**, before any metered
+API dollar. That promise only holds for a CLI where the marginal request inside
+the plan window is genuinely free. So every candidate CLI is run through one
+test:
 
 > Is the next headless call free at the margin on a flat subscription, or does it
 > bill per use?
@@ -30,7 +31,7 @@ no place as "free capacity". The June-2026 survey:
 | OpenCode (`opencode run`) | yes | yes if routed to an OAuth/local provider | **yes** | BYO-provider, MIT |
 | Kiro (`kiro-cli chat`) | yes | yes (monthly credits, overage off by default) | no | ToS prohibits third-party-harness use |
 | Grok Build (`grok -p`) | yes | subscription quota, but gray | no | xAI steers automation to the metered key |
-| Antigravity (`agy -p`) | brittle (non-TTY stdout drop) | weekly hard-stop | no | active automation ban wave + stdout bug |
+| Antigravity (`agy -p`) | yes (answer read from transcript, not stdout) | weekly hard-stop | no | active automation ban wave |
 | Copilot (`copilot -p`) | yes | **no** - usage-based since 2026-06-01 | no | metered per token |
 
 "Auto-routable" means Deepr's waterfall may *automatically* select it. The rest
@@ -45,26 +46,38 @@ light `research_fn` seam - `(query, budget) -> {"answer", "cost", ...}`, the sam
 one the local Ollama backend uses - is exactly right and is what the flagship
 payoff (scheduled expert maintenance) flows through.
 
-`expert sync` does both research *and* verified belief extraction. A CLI is not
-an OpenAI client, so to run the **whole** sync on prepaid capacity (no silent
-metered extraction) the adapter is exposed as a `PlanQuotaChatClient`: it
-satisfies the minimal `client.chat.completions.create(model=, messages=) ->
+`expert sync` and topic `expert learn` both perform model synthesis and verified
+belief extraction. A CLI is not an OpenAI client, so to run the **whole** run on
+prepaid capacity (no silent metered extraction) the adapter is exposed as a
+`PlanQuotaChatClient`: it satisfies the minimal
+`client.chat.completions.create(model=, messages=) ->
 .choices[0].message.content` surface every Deepr chat seam already uses, exactly
-like `ollama_chat_client`. One client instance serves research and the
-`ReportAbsorber`, so the entire loop runs on the plan.
+like `ollama_chat_client`. One client instance serves synthesis and the
+`ReportAbsorber`, so the entire loop runs on the plan. The same client backs the
+multi-expert **consult** synthesis seam (`ExpertCouncil`), so an external agent
+can run a whole fan-out consult on prepaid capacity.
+
+**Prompt delivery is over stdin, not argv.** A multi-line prompt (a synthesis
+prompt with several experts' perspectives, a long report) passed as a
+command-line argument to a `.cmd` shim is mangled by `cmd.exe` on Windows: the
+child sees an empty task and answers conversationally at $0 - a silent quality
+failure, not an error. Codex and Claude therefore set `stdin_prompt=True` and
+receive the prompt on stdin (`codex exec -` / `claude -p -`). Any plan adapter
+that may receive long or multi-line prompts should do the same.
 
 ## The deterministic safety gate (no-surprise-bills)
 
 Money side-effects are gated deterministically; nothing here judges answer
 quality. Before any subprocess runs (`safety.evaluate_plan_quota_safety`):
 
-1. **Auth mode must be plan, not a metered API key.** If a backend's metered-env
-   var is set (`OPENAI_API_KEY`/`CODEX_API_KEY` for codex, `ANTHROPIC_API_KEY`
-   for claude, `XAI_API_KEY` for grok, ...), the next call would bill that key on
-   every vendor's precedence rules - so the gate **blocks** and tells the
-   operator to unset it or use `--api` on purpose. (`codex doctor` /
-   `codex login status` can confirm the *stored* mode too, but env presence is
-   the decisive, deterministic signal.)
+1. **Child auth mode must be plan, not a metered API key.** If a backend's
+   metered-env var is set (`OPENAI_API_KEY`/`CODEX_API_KEY` for codex,
+   `ANTHROPIC_API_KEY` for claude, `XAI_API_KEY` for grok, ...), a normal CLI
+   launch could bill that key on vendor precedence rules. Deepr therefore
+   removes those known metered vars from the child environment first, records
+   that sanitization in the safety reason, and evaluates the sanitized child
+   env as the plan path. (`codex doctor` / `codex login status` can confirm the
+   stored mode too, but the child env is the deterministic launch contract.)
 2. **A metered-at-margin CLI requires explicit acknowledgement.** Copilot is
    `metered_at_margin=True`: it is off by default and, when invoked, the CLI asks
    before spending. A paid call is never a side effect.
@@ -99,7 +112,8 @@ resort.
 
 The explicit path needs no admission (the operator chose it directly):
 
-- `deepr expert sync NAME --plan codex` (also `absorb`, `route-gaps --execute`).
+- `deepr expert sync NAME --plan codex` (also `absorb`, topic `learn`, `learn-web`,
+  `route-gaps --execute`).
 - `deepr capacity probe-plan codex` - validate auth + one round-trip.
 
 `choose_plan_quota_backend` resolves an explicit `--plan` request through the
@@ -122,9 +136,12 @@ supports proactive metadata refresh: `deepr capacity refresh-quota codex` reads
 local session-log `rate_limits`. Claude Code supports
 `deepr capacity refresh-quota claude`, which reads the current user's Claude
 Code OAuth usage metadata from the read-only usage endpoint when credentials
-are present. Both normalize the binding window through `QuotaSnapshot` and
-write `VENDOR_REPORTED` ledger events without running a model call. Published
-as the versioned `deepr-plan-fleet-v1` envelope.
+are present. Grok supports `deepr capacity refresh-quota grok`, which reads the
+current user's Grok CLI auth file and calls the Grok billing metadata endpoint
+to parse a monthly gRPC-web quota frame. These refreshes normalize the binding
+window through `QuotaSnapshot` and write `VENDOR_REPORTED` ledger events
+without running a model call. Published as the versioned
+`deepr-plan-fleet-v1` envelope.
 
 ## What is deterministic vs model judgment (AGENTIC_BALANCE)
 
@@ -142,14 +159,33 @@ high-confidence belief.
 
 - Live quota probes that record a *trusted remaining* signal let the
   auto-routing rung light up only when the candidate backend has observed
-  headroom. The shared snapshot contract exists, and Codex plus Claude Code now
-  write `VENDOR_REPORTED` ledger events from metadata-only refreshes. Next
-  probes: Grok and Antigravity as explicit-only metadata probes.
+  headroom. The shared snapshot contract exists, and Codex, Claude Code, and
+  Grok now write `VENDOR_REPORTED` ledger events from metadata-only
+  refreshes. Next probe: Antigravity as explicit-only metadata visibility.
 - `deepr capacity` detection ids are exe-based (`kiro-cli`, `agy`) while
   execution ids are canonical (`kiro`, `antigravity`); the capacity quota display
   for those two does not yet join to execution-recorded usage. Cosmetic.
-- Antigravity headless needs a PTY wrapper (non-TTY stdout drop); the adapter
-  detects empty output and errors with that hint rather than silently passing.
+- Prompt delivery is now per-adapter: `prompt_is_file` (Grok `--prompt-file`),
+  `stdin_prompt` (Codex `codex exec -`, Claude `claude -p -`), or a plain argv
+  (short-prompt CLIs). `client._build_invocation` resolves the mode, writes a
+  temp file for file-mode and removes it after the run, and both `_run_chat` and
+  the probe share it. Validated headless on a Windows build 2026-06-25: Codex,
+  Claude, and Grok all run end to end with long research/synthesis prompts (Grok
+  previously failed with WinError 206 - the prompt exceeded the command-line
+  length limit - until it was moved to `--prompt-file`).
+- Antigravity drops stdout under a non-TTY pipe (confirmed v1.0.12: `agy -p`
+  exits 0 with empty stdout when piped); the fix is not a flag. It now works
+  headless by recovering the answer from antigravity's own transcript
+  (`~/.gemini/antigravity-cli/brain/<conv-id>/.system_generated/logs/transcript.jsonl`):
+  each line is a JSON record, and the reply is the last `PLANNER_RESPONSE`
+  record's `content`. `antigravity_transcript.recover_answer` reads the newest
+  transcript touched at or after the run start; the adapter sets
+  `answer_from_transcript=True` and the client uses it instead of stdout.
+  Validated end to end 2026-06-25: `probe_plan_quota(antigravity)` returned the
+  expected reply in ~5.5s on plan auth. Antigravity stays explicit-only and ToS
+  gray-zone (active ban wave) despite working. Grok also runs but stays
+  explicit-only and gray-zone. A ConPTY wrapper remains a possible alternative if
+  the transcript path ever changes.
 - OpenCode is BYO-provider: today the safety gate treats it as plan-clean, but a
   per-run check of the resolved provider's `auth.json` `type` (oauth vs api)
   would make "don't bill a metered provider" enforcement exact.

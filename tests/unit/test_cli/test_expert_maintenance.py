@@ -121,10 +121,11 @@ class TestBackendFlagGuard:
                 return list(self.subscriptions)
 
         class FakeReportAbsorber:
-            def __init__(self, loaded_profile, *, model, client):
+            def __init__(self, loaded_profile, *, model, client, estimated_cost=0.0):
                 captured["absorber_profile"] = loaded_profile
                 captured["absorber_model"] = model
                 captured["absorber_client"] = client
+                captured["absorber_estimated_cost"] = estimated_cost
                 captured["absorber"] = self
 
         class FakeSyncResult:
@@ -172,6 +173,7 @@ class TestBackendFlagGuard:
         assert captured["absorber_profile"] is profile
         assert captured["absorber_model"] == "qwen-local"
         assert captured["absorber_client"] is client
+        assert captured["absorber_estimated_cost"] == 0.0
         assert captured["engine_profile"] is profile
         assert captured["research_fn"] is research_fn
         assert captured["engine_absorber"] is captured["absorber"]
@@ -438,10 +440,11 @@ class TestBackendFlagGuard:
                 return list(self.subscriptions)
 
         class FakeReportAbsorber:
-            def __init__(self, loaded_profile, *, model, client):
+            def __init__(self, loaded_profile, *, model, client, estimated_cost=0.0):
                 captured["absorber_profile"] = loaded_profile
                 captured["absorber_model"] = model
                 captured["absorber_client"] = client
+                captured["absorber_estimated_cost"] = estimated_cost
                 captured["absorber"] = self
 
         class FakeSyncResult:
@@ -489,6 +492,7 @@ class TestBackendFlagGuard:
         assert captured["context_builder"] is deep_context_builder
         assert captured["research_fn"] is research_fn
         assert captured["engine_absorber"] is captured["absorber"]
+        assert captured["absorber_estimated_cost"] == 0.0
 
     def test_sync_dry_run_grounding_flag_does_not_construct_checker(self, monkeypatch):
         captured = {}
@@ -587,9 +591,10 @@ class TestPlanQuotaSync:
             monkeypatch.delenv(var, raising=False)
 
         class FakeReportAbsorber:
-            def __init__(self, loaded_profile, *, model, client):
+            def __init__(self, loaded_profile, *, model, client, estimated_cost=0.0):
                 captured["absorber_model"] = model
                 captured["absorber_client"] = client
+                captured["absorber_estimated_cost"] = estimated_cost
 
         monkeypatch.setattr("deepr.experts.report_absorber.ReportAbsorber", FakeReportAbsorber)
         monkeypatch.setattr("deepr.backends.plan_quota.PlanQuotaChatClient", lambda adapter, *, model=None: chat_client)
@@ -620,8 +625,9 @@ class TestPlanQuotaSync:
             monkeypatch.delenv(var, raising=False)
 
         class FakeReportAbsorber:
-            def __init__(self, loaded_profile, *, model, client, grounding_checker=None):
+            def __init__(self, loaded_profile, *, model, client, grounding_checker=None, estimated_cost=0.0):
                 captured["grounding_checker"] = grounding_checker
+                captured["absorber_estimated_cost"] = estimated_cost
 
         monkeypatch.setattr("deepr.experts.report_absorber.ReportAbsorber", FakeReportAbsorber)
 
@@ -657,6 +663,7 @@ class TestPlanQuotaSync:
         assert r.exit_code == 0, r.output
         assert clients == ["claude", "codex"]
         assert callable(captured["grounding_checker"])
+        assert captured["absorber_estimated_cost"] == 0.0
 
     def test_auto_routes_to_admitted_plan_backend(self, monkeypatch):
         # The flagship: a plain `sync` (no --plan) auto-routes to a plan backend
@@ -677,8 +684,9 @@ class TestPlanQuotaSync:
         monkeypatch.setattr("deepr.backends.waterfall.choose_maintenance_backend", lambda _task: PlanChoice())
 
         class FakeReportAbsorber:
-            def __init__(self, loaded_profile, *, model, client):
+            def __init__(self, loaded_profile, *, model, client, estimated_cost=0.0):
                 captured["absorber_client"] = client
+                captured["absorber_estimated_cost"] = estimated_cost
 
         monkeypatch.setattr("deepr.experts.report_absorber.ReportAbsorber", FakeReportAbsorber)
         monkeypatch.setattr("deepr.backends.plan_quota.PlanQuotaChatClient", lambda adapter, *, model=None: chat_client)
@@ -700,22 +708,38 @@ class TestPlanQuotaSync:
         assert captured["absorber_client"] is chat_client
         assert captured["loop_run_kwargs"]["capacity_source"] == "plan_quota:codex"
 
-    def test_plan_blocked_when_api_key_present(self, monkeypatch):
+    def test_plan_sanitizes_api_key_env_before_running(self, monkeypatch):
         captured = {}
+        research_fn = object()
+        chat_client = object()
         self._fakes(monkeypatch, captured)
         monkeypatch.setenv("OPENAI_API_KEY", "sk-should-block")
 
-        class ExplodingSyncEngine:
-            def __init__(self, *a, **k):
-                raise AssertionError("must not run sync when the gate blocks")
+        class FakeReportAbsorber:
+            def __init__(self, loaded_profile, *, model, client, estimated_cost=0.0):
+                captured["absorber_client"] = client
+                captured["absorber_estimated_cost"] = estimated_cost
 
-        monkeypatch.setattr("deepr.experts.sync.ExpertSyncEngine", ExplodingSyncEngine)
+        monkeypatch.setattr("deepr.experts.report_absorber.ReportAbsorber", FakeReportAbsorber)
+        monkeypatch.setattr("deepr.backends.plan_quota.PlanQuotaChatClient", lambda adapter, *, model=None: chat_client)
+        monkeypatch.setattr(
+            "deepr.backends.plan_quota.make_plan_quota_research_fn",
+            lambda adapter, *, model=None, context_builder=None, client=None: research_fn,
+        )
+        monkeypatch.setattr(
+            "deepr.experts.loop_runs.record_loop_run",
+            lambda **kwargs: (
+                captured.update(loop_run_kwargs=kwargs) or SimpleNamespace(to_dict=lambda: {"run_id": "x"})
+            ),
+        )
 
-        r = CliRunner().invoke(expert, ["sync", "Plan Expert", "--plan", "codex", "-y"])
+        r = CliRunner().invoke(expert, ["sync", "Plan Expert", "--plan", "codex", "-y", "--json"])
 
-        assert r.exit_code == 2
-        assert "OPENAI_API_KEY" in r.output
-        assert "--api" in r.output
+        assert r.exit_code == 0, r.output
+        assert captured["research_fn"] is research_fn
+        assert captured["absorber_client"] is chat_client
+        assert captured["absorber_estimated_cost"] == 0.0
+        assert captured["loop_run_kwargs"]["capacity_source"] == "plan_quota:codex"
 
     def test_absorb_has_plan_flags(self):
         opts = {p.name for p in expert.commands["absorb"].params}
@@ -745,9 +769,10 @@ class TestPlanQuotaSync:
                 return {"absorbed": []}
 
         class FakeReportAbsorber:
-            def __init__(self, loaded_profile, *, model, client=None):
+            def __init__(self, loaded_profile, *, model, client=None, estimated_cost=0.0):
                 captured["model"] = model
                 captured["client"] = client
+                captured["estimated_cost"] = estimated_cost
 
             async def absorb(self, *a, **k):
                 return FakeResult()
@@ -790,9 +815,10 @@ class TestPlanQuotaSync:
                 return {"absorbed": []}
 
         class FakeReportAbsorber:
-            def __init__(self, loaded_profile, *, model, client=None, grounding_checker=None):
+            def __init__(self, loaded_profile, *, model, client=None, grounding_checker=None, estimated_cost=0.0):
                 captured["client"] = client
                 captured["grounding_checker"] = grounding_checker
+                captured["estimated_cost"] = estimated_cost
 
             async def absorb(self, *a, **k):
                 return FakeResult()
@@ -828,31 +854,53 @@ class TestPlanQuotaSync:
         assert r.exit_code == 0, r.output
         assert clients == ["codex", "claude"]
         assert callable(captured["grounding_checker"])
+        assert captured["estimated_cost"] == 0.0
 
-    def test_absorb_plan_blocked_when_api_key_present(self, monkeypatch):
-        profile = SimpleNamespace(name="Plan Expert")
+    def test_absorb_plan_sanitizes_api_key_env_before_running(self, monkeypatch):
+        captured = {}
+        profile = SimpleNamespace(name="Plan Expert", total_research_cost=0.0, last_knowledge_refresh=None)
+        sentinel_client = object()
 
         class FakeExpertStore:
             def load(self, name):
                 return profile
 
+            def save(self, p):
+                captured["saved"] = p
+
         class FakeIndex:
             def get_report_content(self, report_id, max_chars=0):
                 return "report text"
 
-        class ExplodingAbsorber:
-            def __init__(self, *a, **k):
-                raise AssertionError("must not construct absorber when the gate blocks")
+        class FakeResult:
+            dry_run = False
+            estimated_cost = 0.0
+
+            def to_dict(self):
+                return {"absorbed": []}
+
+        class FakeReportAbsorber:
+            def __init__(self, loaded_profile, *, model, client=None, estimated_cost=0.0):
+                captured["client"] = client
+                captured["estimated_cost"] = estimated_cost
+
+            async def absorb(self, *a, **k):
+                return FakeResult()
 
         monkeypatch.setenv("OPENAI_API_KEY", "sk-should-block")
         monkeypatch.setattr("deepr.experts.profile.ExpertStore", FakeExpertStore)
         monkeypatch.setattr("deepr.services.context_index.ContextIndex", FakeIndex)
-        monkeypatch.setattr("deepr.experts.report_absorber.ReportAbsorber", ExplodingAbsorber)
+        monkeypatch.setattr("deepr.experts.report_absorber.ReportAbsorber", FakeReportAbsorber)
+        monkeypatch.setattr(
+            "deepr.backends.plan_quota.PlanQuotaChatClient", lambda adapter, *, model=None: sentinel_client
+        )
 
-        r = CliRunner().invoke(expert, ["absorb", "Plan Expert", "job1", "--plan", "codex", "-y"])
+        r = CliRunner().invoke(expert, ["absorb", "Plan Expert", "job1", "--plan", "codex", "-y", "--json"])
 
-        assert r.exit_code == 2
-        assert "OPENAI_API_KEY" in r.output
+        assert r.exit_code == 0, r.output
+        assert captured["client"] is sentinel_client
+        assert captured["estimated_cost"] == 0.0
+        assert captured["estimated_cost"] == 0.0
 
 
 class TestAbsorbFromFile:
@@ -891,9 +939,10 @@ class TestAbsorbFromFile:
                 return {"absorbed": [], "dry_run": True}
 
         class FakeReportAbsorber:
-            def __init__(self, loaded_profile, *, model, client):
+            def __init__(self, loaded_profile, *, model, client, estimated_cost=0.0):
                 captured["model"] = model
                 captured["client"] = client
+                captured["estimated_cost"] = estimated_cost
 
             async def absorb(self, report_id, report_text, *, min_confidence, dry_run):
                 captured["report_id"] = report_id
@@ -916,6 +965,7 @@ class TestAbsorbFromFile:
         assert "Model Context Protocol" in captured["report_text"]
         assert captured["model"] == "qwen-local"
         assert captured["client"] is client
+        assert captured["estimated_cost"] == 0.0
 
     def test_absorb_dry_run_grounding_flag_does_not_require_checker(self, monkeypatch):
         captured = {}
@@ -961,7 +1011,7 @@ class TestLearnWeb:
     def test_learn_web_registered_with_options(self):
         assert "learn-web" in expert.commands
         opts = {p.name for p in expert.commands["learn-web"].params}
-        assert {"name", "topic", "model", "num_results", "max_pages", "dry_run"} <= opts
+        assert {"name", "topic", "model", "plan", "plan_model", "num_results", "max_pages", "dry_run"} <= opts
 
     def test_learn_web_runs_research_then_absorbs_local(self, monkeypatch):
         captured = {}
@@ -994,8 +1044,9 @@ class TestLearnWeb:
                 return {"absorbed": 1}
 
         class FakeReportAbsorber:
-            def __init__(self, loaded_profile, *, model, client):
+            def __init__(self, loaded_profile, *, model, client, estimated_cost=0.0):
                 captured["absorb_model"] = model
+                captured["absorb_estimated_cost"] = estimated_cost
 
             async def absorb(self, report_id, report_text, *, min_confidence, dry_run):
                 captured["report_id"] = report_id
@@ -1013,10 +1064,82 @@ class TestLearnWeb:
         assert r.exit_code == 0, r.output
         assert captured["research"]["topic"] == "latest TKG research 2026"
         assert captured["absorb_model"] == "qwen-local"
+        assert captured["absorb_estimated_cost"] == 0.0
         # Provenance marks it as web-sourced; the synthesized report is what gets absorbed.
         assert captured["report_id"] == "web:latest TKG research 2026"
         assert "Sources" in captured["report_text"]
         assert captured.get("saved") is profile  # belief refresh persisted
+
+    def test_learn_web_plan_runs_research_then_absorbs_with_plan_client(self, monkeypatch):
+        captured = {}
+        profile = SimpleNamespace(name="Release Expert", last_knowledge_refresh=None)
+        sentinel_client = object()
+
+        class FakeExpertStore:
+            def load(self, name):
+                return profile
+
+            def save(self, p):
+                captured["saved"] = p
+
+        async def fake_research(topic, *, model, client, num_results, max_pages):
+            captured["research"] = {"topic": topic, "model": model, "client": client}
+            return {
+                "answer": f"# {topic}\n\nBody [1].\n\n## Sources\n[1] T - http://a\n",
+                "sources": [{"n": 1}],
+                "cost": 0.0,
+            }
+
+        class FakeResult:
+            dry_run = False
+            total_candidates = 1
+            absorbed = [SimpleNamespace(statement="release fact", confidence=0.88, outcome="added")]
+            rejected = []
+            added_count = 1
+            merged_count = 0
+
+            def to_dict(self):
+                return {"absorbed": 1}
+
+        class FakeReportAbsorber:
+            def __init__(self, loaded_profile, *, model, client, estimated_cost=0.0):
+                captured["absorb_model"] = model
+                captured["absorb_estimated_cost"] = estimated_cost
+                captured["absorb_client"] = client
+
+            async def absorb(self, report_id, report_text, *, min_confidence, dry_run):
+                captured["report_id"] = report_id
+                captured["report_text"] = report_text
+                return FakeResult()
+
+        def fake_plan_client(adapter, **kwargs):
+            captured["plan_backend"] = adapter.backend_id
+            captured["plan_model"] = kwargs.get("model")
+            captured["plan_operation"] = kwargs.get("operation")
+            return sentinel_client
+
+        for var in ("OPENAI_API_KEY", "CODEX_API_KEY", "CODEX_ACCESS_TOKEN"):
+            monkeypatch.delenv(var, raising=False)
+        monkeypatch.setattr("deepr.experts.profile.ExpertStore", FakeExpertStore)
+        monkeypatch.setattr("deepr.experts.local_research.research_web_local", fake_research)
+        monkeypatch.setattr("deepr.experts.report_absorber.ReportAbsorber", FakeReportAbsorber)
+        monkeypatch.setattr("deepr.backends.plan_quota.PlanQuotaChatClient", fake_plan_client)
+
+        r = CliRunner().invoke(
+            expert, ["learn-web", "Release Expert", "release reliability 2026", "--plan", "codex", "-y"]
+        )
+
+        assert r.exit_code == 0, r.output
+        assert captured["plan_backend"] == "codex"
+        assert captured["plan_model"] is None
+        assert captured["plan_operation"] == "plan_quota_learn_web"
+        assert captured["research"]["model"] == "codex"
+        assert captured["research"]["client"] is sentinel_client
+        assert captured["absorb_model"] == "codex"
+        assert captured["absorb_client"] is sentinel_client
+        assert captured["absorb_estimated_cost"] == 0.0
+        assert captured["report_id"] == "web:release reliability 2026"
+        assert captured.get("saved") is profile
 
     def test_learn_web_errors_when_no_report(self, monkeypatch):
         profile = SimpleNamespace(name="TKG Expert")

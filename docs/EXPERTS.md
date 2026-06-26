@@ -5,6 +5,9 @@
 ## Overview
 
 Deepr's expert system creates domain experts from documents that can answer questions, recognize knowledge gaps, and autonomously research to fill them.
+Expert learning is not passive document accumulation. New material is processed
+into canonical beliefs, provenance refs, temporal graph edges, contradiction
+signals, gap backlogs, and regenerated digest or handoff views.
 
 ## What Makes It Different
 
@@ -670,7 +673,30 @@ deepr expert council "Build vs buy?" --experts "Tech Architect,Business Strategi
 POST /api/experts/council
 ```
 
-Budget is split evenly among consulted experts with a 10% reserve for synthesis. Max 5 experts per council query.
+Budget is split evenly among consulted experts with a 10% reserve for synthesis,
+reserved upfront against the global cost-safety manager so a parallel fan-out
+cannot over-commit the daily cap. Auto-selection fans out to up to 10 experts
+(default 3; pass `--max-experts`), with a relevance floor so a wide fan-out drops
+zero-overlap experts instead of padding the council; naming experts explicitly is
+uncapped. Parallelism is bounded so a 10-expert fan-out runs in waves, not all at
+once.
+
+#### Consulting on owned or prepaid capacity ($0)
+
+`deepr expert consult` and the `deepr_consult_experts` MCP tool share one core, so
+an external agent gets the same calibrated, versioned `deepr-consult-v1` artifact
+(answer, each expert's perspective with confidence, agreements, dissent, cost).
+Run the synthesis without touching a metered API key:
+
+```bash
+deepr expert consult "How do we keep expert knowledge current and cheap?" --plan claude
+deepr expert consult "Cost vs quality tradeoff?" --local --max-experts 8
+```
+
+`--plan <id>` (codex, claude, ...) and `--local` run synthesis on prepaid or local
+capacity and disable live metered fallback, so a consult never silently bills an
+API key. Over MCP this is `synthesis_backend: "plan" | "local"`. This is also how
+Deepr consults its own experts about its own work (the self-consultation loop).
 
 ## Limitations
 

@@ -82,6 +82,9 @@ class PlanQuotaAdapter:
     metered_at_margin: bool = False
     experimental: bool = False
     needs_pty: bool = False
+    stdin_prompt: bool = False
+    prompt_is_file: bool = False
+    answer_from_transcript: bool = False
     tos_note: str = ""
     value_note: str = ""
 
@@ -122,10 +125,10 @@ def _codex_argv(prompt: str, model: str | None) -> list[str]:
     args = [
         "codex",
         "exec",
+        "-c",
+        'approval_policy="never"',
         "--sandbox",
         "read-only",
-        "--ask-for-approval",
-        "never",
         "--skip-git-repo-check",
     ]
     return [*_append_model(args, "--model", model), prompt]
@@ -133,7 +136,10 @@ def _codex_argv(prompt: str, model: str | None) -> list[str]:
 
 def _claude_argv(prompt: str, model: str | None) -> list[str]:
     # `claude -p` is print/non-interactive. No tools are granted, so it answers
-    # as text. Plan window again post the 2026-06-15 reversal.
+    # as text. Plan window again post the 2026-06-15 reversal. The prompt is fed
+    # over stdin (prompt == "-"): a multi-line prompt passed as a command-line arg
+    # to claude.cmd is mangled by cmd.exe on Windows, so claude silently sees an
+    # empty task. `claude -p -` reads the real prompt from stdin instead.
     args = _append_model(["claude"], "--model", model)
     return [*args, "-p", prompt]
 
@@ -152,12 +158,16 @@ def _kiro_argv(prompt: str, model: str | None) -> list[str]:
     return [*_append_model(args, "--model", model), prompt]
 
 
-def _grok_argv(prompt: str, model: str | None) -> list[str]:
+def _grok_argv(prompt_path: str, model: str | None) -> list[str]:
     # Grok Build. --no-auto-update/--no-alt-screen for scripts; --always-approve
-    # so a headless run never hangs on a tool-approval prompt.
+    # so a headless run never hangs on a tool-approval prompt. The prompt is read
+    # from a file (prompt_is_file): a long research/synthesis prompt passed as
+    # `-p <arg>` exceeds the Windows command-line length limit (WinError 206), so
+    # `--prompt-file <path>` is the only headless-safe delivery. The client writes
+    # the prompt to the temp file at prompt_path.
     args = ["grok", "--no-auto-update", "--no-alt-screen", "--always-approve"]
     args = _append_model(args, "--model", model)
-    return [*args, "-p", prompt]
+    return [*args, "--prompt-file", prompt_path]
 
 
 def _antigravity_argv(prompt: str, model: str | None) -> list[str]:
@@ -190,6 +200,7 @@ _ADAPTERS: tuple[PlanQuotaAdapter, ...] = (
         metered_env_vars=("OPENAI_API_KEY", "CODEX_API_KEY", "CODEX_ACCESS_TOKEN"),
         exhaustion_signals=("usage_limit_reached", "5-hour message limit", "weekly limit", "429"),
         enabled_by_default=True,
+        stdin_prompt=True,
         value_note="flat ChatGPT plan, 5h rolling windows: $0 at the margin for batched research",
     ),
     PlanQuotaAdapter(
@@ -203,6 +214,7 @@ _ADAPTERS: tuple[PlanQuotaAdapter, ...] = (
         metered_env_vars=("ANTHROPIC_API_KEY",),
         exhaustion_signals=("usage limit", "rate limit", "plan limit", "429"),
         enabled_by_default=True,
+        stdin_prompt=True,
         value_note="Pro/Max plan window (headless billing reverted 2026-06-15): $0 at the margin",
     ),
     PlanQuotaAdapter(
@@ -252,6 +264,7 @@ _ADAPTERS: tuple[PlanQuotaAdapter, ...] = (
         exhaustion_signals=("rate limit", "quota", "credits", "429"),
         enabled_by_default=False,
         experimental=True,
+        prompt_is_file=True,
         tos_note=(
             "subscription (SuperGrok/X Premium+) headless use is ToS gray-zone; xAI steers "
             "automation to the metered API key. Verify the exhaustion signature on your build."
@@ -271,9 +284,11 @@ _ADAPTERS: tuple[PlanQuotaAdapter, ...] = (
         enabled_by_default=False,
         experimental=True,
         needs_pty=True,
+        answer_from_transcript=True,
         tos_note=(
             "automated/headless use is ToS gray-zone amid an active account-ban wave; "
-            "the CLI also drops stdout under a non-TTY pipe (June 2026). Use at your own risk."
+            "the CLI also drops stdout under a non-TTY pipe (June 2026), so the answer is "
+            "recovered from its transcript file. Use at your own risk."
         ),
         value_note="Google AI plan weekly compute cap, hard-stop (no overage)",
     ),

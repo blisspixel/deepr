@@ -354,11 +354,21 @@ Nice to have:
 ### Distillr (`distillr`)
 
 Already done:
-- [x] MCP server (8 tools, 12 resources, 4 prompts)
+- [x] MCP server with 27 live tools verified by Deepr's `$0`
+  `tools/list` handshake on 2026-06-25
 - [x] Markdown + YAML frontmatter output format
 - [x] Cost logging per run
-- [x] `query_library` for searching existing corpus
-- [x] Goal-aware discovery (`discover` command)
+- [x] Free existing-corpus reads: `list_topics`, `find_insights`,
+  `read_insight`, `find_concepts`, `read_concept`, `concept_history`,
+  `concept_diff`, `research_gaps`, `list_topic_summary`, `okf_validate`,
+  `costs`, and `doctor`
+- [x] Approval-gated corpus synthesis or writes: `ask`,
+  `find_insights_summary`, `okf_export`, `synthesize`,
+  `resynthesize_topic`, and `generate_report`
+- [x] Approval-gated ingestion and refresh: `discover`, `papers`,
+  `learn_topic`, `process_video_url`, `search_videos`, `site_batch`, and
+  `catch_up`
+- [x] Watch-list mutation tools: `watch_add` and `watch_remove`
 
 Needed for Deepr integration:
 - [ ] Accept `trace_id` param in all MCP tools
@@ -369,9 +379,12 @@ Needed for Deepr integration:
   - Include: topic, count ingested, synthesis path, key findings preview, cost
 
 Nice to have:
-- [ ] `refresh` tool: re-run on existing topic, return only new material
+- [x] `catch_up` tool: re-run on existing topic and integrate new material
 - [ ] `estimate` tool: preview cost before ingestion (like `--preview` but via MCP)
-- [ ] Corpus metadata endpoint: list all topics, paper counts, last-updated timestamps
+- [ ] Add last-updated timestamps to `list_topics` corpus metadata
+- [ ] Explicit zero-cost metadata on `ask` and `find_insights_summary` if they
+  are guaranteed not to call a model. Until then, Deepr keeps them
+  approval-gated.
 
 ### Primr (`primr`)
 
