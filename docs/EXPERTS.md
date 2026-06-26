@@ -27,6 +27,12 @@ Deepr experts:
 - Explore new possibilities instead of only recalling stored claims
 - Build on previous learning
 
+The point is not to preserve old answers. A stale expert can be worse than no
+expert because it may confidently carry forward assumptions it does not know are
+wrong. Deepr treats older beliefs and summaries as revisable priors, then uses
+freshness checks, contradiction surfacing, perspective deltas, and watchlists to
+find where the expert needs to update its understanding.
+
 ## Quick Start
 
 ```bash
