@@ -25,6 +25,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 </details>
 
 ### Added
+- Added `deepr expert self-model`, a `$0` read-only expert self-model surface
+  backed by the published `deepr-expert-self-model-v1` schema. The payload is
+  derived from the profile and manifest and includes capabilities, limits,
+  current goals, calibration, learning strategy, continuity, blockers, risks,
+  and a bounded current-focus packet without mutating expert state.
 - Added persisted consult traces. CLI and MCP consults now append local
   `deepr-consult-trace-v1` records with the question, requested experts,
   selected context metadata, capacity posture, output artifact, checks run, and
@@ -2240,7 +2245,7 @@ adds explicit opt-out flags for previously implicit unsafe behavior.
 - Dockerfile uses `pip install --no-cache-dir .` instead of editable install
 
 - Removed redundant `black` from pre-commit hooks (ruff-format covers formatting) and `[tool.black]` from `pyproject.toml`
-- Replaced 10 stub TODO comments in API routes with explanatory comments noting CLI-managed features
+- Replaced 10 stub comments in API routes with explanatory comments noting CLI-managed features
 - Cleaned up API route stubs in `config.py`, `jobs.py`, `cost.py`, `results.py`
 
 ### Removed

@@ -62,6 +62,10 @@ This file captures repo-specific operating lessons from autonomous work cycles.
 - A "fresh" timestamp is weak evidence. Measure quality through populated
   beliefs, cited sources, grounding assurance, open contradictions, gap closure,
   and replayable eval traces.
+- Expert self-models should start as read-only derived contracts over the
+  profile and manifest. Capabilities, limits, goals, calibration, risks, and
+  current-focus packets are safe to expose before they are safe to mutate. Wire
+  mutation later through reviewed metacognitive proposals and verifier gates.
 - Treat schema-adjacent model output as expected. If a model returns one
   `evidence` string despite the requested array, preserve it as one excerpt.
   Splitting it into characters corrupts provenance and can falsely lift

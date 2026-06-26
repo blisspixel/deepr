@@ -3308,7 +3308,6 @@ def run_skill_cmd(name: str, skill_name: str, tool_name: str, tool_args: str):
             await executor.cleanup()
 
     result = asyncio.run(do_run())
-
     if "error" in result:
         print_error(f"Tool error: {result['error']}")
     else:
@@ -3327,3 +3326,4 @@ from deepr.cli.commands.semantic import expert_loop_status as _expert_loop_statu
 from deepr.cli.commands.semantic import expert_maintenance as _expert_maintenance  # noqa: F401
 from deepr.cli.commands.semantic import expert_okf as _expert_okf  # noqa: F401
 from deepr.cli.commands.semantic import expert_portrait as _expert_portrait  # noqa: F401
+from deepr.cli.commands.semantic import expert_self_model as _expert_self_model  # noqa: F401

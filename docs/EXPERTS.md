@@ -362,6 +362,17 @@ deepr expert why "Azure Architect" "landing zone subscription vending"
 deepr expert why "Azure Architect" belief-a1b2c3 --depth 3 --json
 ```
 
+### Self-Model (read-only current state)
+Build a derived `deepr-expert-self-model-v1` record from the profile and
+manifest. It reports capabilities, limits, current goals, calibration, learning
+strategy, continuity, blockers, unresolved risks, and a bounded current-focus
+packet for consult or learning runs. It does not change goals, write expert
+state, or run a model.
+```bash
+deepr expert self-model "Azure Architect"
+deepr expert self-model "Azure Architect" --focus-limit 3 --json
+```
+
 ### Digest (browsable derived view)
 Compile the belief store into a browsable Markdown digest: beliefs by domain
 sorted by confidence, open contradictions with both sides, graph stats. $0, no
@@ -704,6 +715,7 @@ Review those traces with:
 
 ```bash
 deepr expert consult-traces --json
+deepr expert self-model "AI Strategy Expert" --json
 ```
 
 The review output is `deepr-consult-trace-candidates-v1`: sanitized gap and eval

@@ -1,0 +1,155 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/blisspixel/deepr/docs/schemas/expert-self-model-v1.json",
+  "title": "Deepr Expert Self-Model v1",
+  "type": "object",
+  "additionalProperties": true,
+  "required": [
+    "schema_version",
+    "kind",
+    "contract",
+    "expert",
+    "capabilities",
+    "limitations",
+    "calibration",
+    "current_goals",
+    "learning_strategy",
+    "continuity_summary",
+    "blocked_capabilities",
+    "unresolved_risks",
+    "current_focus_packet"
+  ],
+  "properties": {
+    "schema_version": {"const": "deepr-expert-self-model-v1"},
+    "kind": {"const": "deepr.expert.self_model"},
+    "contract": {
+      "type": "object",
+      "required": ["read_only", "cost_usd", "stability", "derived_view", "goal_changes_require_review"],
+      "properties": {
+        "read_only": {"const": true},
+        "cost_usd": {"type": "number", "minimum": 0},
+        "stability": {"type": "string"},
+        "derived_view": {"const": true},
+        "goal_changes_require_review": {"const": true}
+      },
+      "additionalProperties": true
+    },
+    "expert": {
+      "type": "object",
+      "required": ["name", "domain", "provider", "model"],
+      "properties": {
+        "name": {"type": "string"},
+        "domain": {"type": "string"},
+        "provider": {"type": "string"},
+        "model": {"type": "string"}
+      },
+      "additionalProperties": true
+    },
+    "capabilities": {
+      "type": "object",
+      "required": ["domain", "documents", "claim_count", "open_gap_count", "installed_skills", "velocity"],
+      "properties": {
+        "domain": {"type": "string"},
+        "documents": {"type": "integer", "minimum": 0},
+        "claim_count": {"type": "integer", "minimum": 0},
+        "open_gap_count": {"type": "integer", "minimum": 0},
+        "installed_skills": {"type": "array", "items": {"type": "string"}},
+        "velocity": {"type": "string"}
+      },
+      "additionalProperties": true
+    },
+    "limitations": {"type": "array", "items": {"type": "string"}},
+    "calibration": {
+      "type": "object",
+      "required": ["avg_confidence", "claim_count", "open_gap_count", "freshness_status", "freshness_score"],
+      "properties": {
+        "avg_confidence": {"type": "number", "minimum": 0, "maximum": 1},
+        "claim_count": {"type": "integer", "minimum": 0},
+        "open_gap_count": {"type": "integer", "minimum": 0},
+        "freshness_status": {"type": "string"},
+        "freshness_score": {"type": ["number", "null"]}
+      },
+      "additionalProperties": true
+    },
+    "current_goals": {"type": "array", "items": {"type": "string"}},
+    "learning_strategy": {
+      "type": "object",
+      "required": ["capacity_order", "domain_velocity", "refresh_frequency_days", "preferred_actions"],
+      "properties": {
+        "capacity_order": {"type": "array", "items": {"type": "string"}},
+        "domain_velocity": {"type": "string"},
+        "refresh_frequency_days": {"type": "integer", "minimum": 1},
+        "preferred_actions": {"type": "array", "items": {"type": "string"}}
+      },
+      "additionalProperties": true
+    },
+    "continuity_summary": {
+      "type": "object",
+      "required": [
+        "created_at",
+        "updated_at",
+        "knowledge_cutoff",
+        "last_knowledge_refresh",
+        "research_jobs",
+        "conversations",
+        "research_triggered"
+      ],
+      "additionalProperties": true
+    },
+    "blocked_capabilities": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["code", "reason", "next_action"],
+        "properties": {
+          "code": {"type": "string"},
+          "reason": {"type": "string"},
+          "next_action": {"type": "string"}
+        },
+        "additionalProperties": true
+      }
+    },
+    "unresolved_risks": {"type": "array", "items": {"type": "string"}},
+    "current_focus_packet": {
+      "type": "object",
+      "required": [
+        "selected_beliefs",
+        "selected_gaps",
+        "active_contradictions",
+        "goal",
+        "allowed_tools",
+        "expected_stop_condition"
+      ],
+      "properties": {
+        "selected_beliefs": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["id", "statement", "confidence", "source_count", "contradicts"],
+            "additionalProperties": true
+          }
+        },
+        "selected_gaps": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["id", "topic", "priority", "ev_cost_ratio", "questions"],
+            "additionalProperties": true
+          }
+        },
+        "active_contradictions": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["claim_id", "statement", "contradicts"],
+            "additionalProperties": true
+          }
+        },
+        "goal": {"type": "string"},
+        "allowed_tools": {"type": "array", "items": {"type": "string"}},
+        "expected_stop_condition": {"type": "string"}
+      },
+      "additionalProperties": true
+    }
+  }
+}

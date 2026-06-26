@@ -6,9 +6,9 @@ Date: 2026-06-26
 
 README.md and ROADMAP.md are present and non-empty; no architecture rebuild or
 HITL architecture gate is required. The active roadmap edge is the Level 5
-consult trace and semantic quality flywheel, followed by expert self-models,
-metacognitive monitors, and the research-processing compiler. The code confirms
-the same constraint: consult already has one shared core for CLI and MCP, stored
+expert quality flywheel: consult traces, expert self-models, metacognitive
+monitors, and the research-processing compiler. The code confirms the same
+constraint: consult already has one shared core for CLI and MCP, stored
 belief context packets, owned-capacity synthesis, and a `$0` consult eval, but it
 needed a replayable local trace artifact before failed consults could become
 durable eval or gap candidates.
@@ -22,13 +22,21 @@ without exposing local trace file paths or raw payloads. This keeps determinism
 on structure, capacity, and side effects while leaving answer meaning to model
 synthesis and later semantic evals.
 
+Cycle 3 adds the first read-only self-model slice. `deepr expert self-model`
+now emits a published `deepr-expert-self-model-v1` derived record with
+capabilities, limits, current goals, calibration, learning strategy, continuity,
+blocked capabilities, unresolved risks, and a bounded current-focus packet. It
+does not mutate expert goals or call a model; it is a contract for later consult,
+learning, and metacognitive-monitor integration.
+
 External best-practice check, current as of 2026-06-26: modern agent harness
 guidance converges on trace-first improvement loops, evals from real failures,
 bounded context packets, explicit handoffs, and deterministic gates around
 spend, writes, tools, and credentials. Deepr's next implementation slices should
 continue that shape: promote selected trace candidates through a reviewed
-gap/eval path, then add the expert self-model and current-focus packet, rather
-than widening autonomy or building broader orchestration.
+gap/eval path, wire the self-model into consult and learning context, then add
+the metacognitive monitor, rather than widening autonomy or building broader
+orchestration.
 
 ## Alignment Summary
 
@@ -82,10 +90,11 @@ graph, verify it, and update an explicit self-model only when quality is
 measured. Level 6 means the fleet has a control plane for improving expert
 self-models, prompts, tools, skills, context policies, and learning strategies
 through trace-derived proposals, sandbox runs, regression checks, budget gates,
-and human review where required. The next Deepr slice is the self-model and
-metacognitive monitor: capabilities, limits, goals, calibration, learning
-strategy, continuity summary, blocked capabilities, current focus, and allowed
-tools. See `docs/design/level-5-6-expert-maturity.md`.
+and human review where required. The self-model now exists as a read-only
+derived contract; the next Deepr slice is wiring that current-focus packet into
+consult and learning runs, then adding the metacognitive monitor that proposes
+reviewed goal or strategy updates. See
+`docs/design/level-5-6-expert-maturity.md`.
 
 Distillr is available on this machine as `distill-mcp`, and the live `$0`
 `tools/list` handshake now passes with all 27 live tools classified. Existing
