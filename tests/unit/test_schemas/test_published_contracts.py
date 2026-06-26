@@ -57,6 +57,11 @@ from deepr.experts.consult_traces import (
 from deepr.experts.handoff import build_expert_handoff
 from deepr.experts.loop_runs import ExpertLoopRun, ExpertLoopRunStore, LoopRunStatus, LoopStopReason
 from deepr.experts.loop_status_rollup import build_loop_status_rollup
+from deepr.experts.metacognitive_monitor import (
+    METACOGNITIVE_MONITOR_KIND,
+    METACOGNITIVE_MONITOR_SCHEMA_VERSION,
+    build_metacognitive_monitor_report,
+)
 from deepr.experts.profile import ExpertProfile
 from deepr.experts.self_model import (
     EXPERT_SELF_MODEL_KIND,
@@ -272,6 +277,33 @@ def test_expert_self_model_schema_validates_runtime_payload():
     assert payload["schema_version"] == EXPERT_SELF_MODEL_SCHEMA_VERSION
     assert payload["kind"] == EXPERT_SELF_MODEL_KIND
     assert payload["contract"]["goal_changes_require_review"] is True
+
+
+def test_metacognitive_monitor_schema_validates_runtime_payload():
+    profile = ExpertProfile(
+        name="Monitor Expert",
+        vector_store_id="vs-monitor",
+        domain="monitoring",
+        knowledge_cutoff_date=datetime(2026, 6, 26, 12, 0, tzinfo=UTC),
+        last_knowledge_refresh=datetime(2026, 6, 26, 12, 0, tzinfo=UTC),
+    )
+    manifest = ExpertManifest(
+        expert_name="Monitor Expert",
+        domain="monitoring",
+        claims=[Claim.create("Measured failures should become reviewed proposals.", "monitoring", 0.86)],
+    )
+    profile.get_manifest = lambda: manifest  # type: ignore[method-assign]
+    payload = build_metacognitive_monitor_report(
+        profile,
+        loop_runs=[],
+        consult_trace_candidates={"candidate_count": 0, "candidates": []},
+    )
+    schema = _load_schema("metacognitive-monitor-v1.json")
+
+    _validate(schema, payload)
+    assert payload["schema_version"] == METACOGNITIVE_MONITOR_SCHEMA_VERSION
+    assert payload["kind"] == METACOGNITIVE_MONITOR_KIND
+    assert payload["contract"]["auto_apply"] is False
 
 
 def test_mcp_remote_audit_schema_validates_runtime_event_payload():

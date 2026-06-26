@@ -96,6 +96,7 @@ class PathHandler:
         if path.startswith("~"):
             path = os.path.expanduser(path)
 
+        path = _normalize_windows_slash_root(path)
         p = Path(path)
         return p.resolve()
 
@@ -237,9 +238,26 @@ def resolve_path(path_str: str) -> Path:
     # Expand user home directory (~)
     path_str = os.path.expanduser(path_str)
 
+    path_str = _normalize_windows_slash_root(path_str)
     # Convert to Path object and resolve to absolute
     path = Path(path_str).resolve()
 
+    return path
+
+
+def _normalize_windows_slash_root(path: str) -> str:
+    if os.name != "nt" or not path:
+        return path
+
+    separators = {"\\", "/"}
+    current_drive_root = Path.cwd().anchor or "\\"
+    if all(ch in separators for ch in path):
+        return current_drive_root
+
+    if len(path) >= 2 and path[0] in separators and path[1] in separators:
+        unc_parts = [part for part in path.replace("/", "\\").split("\\") if part]
+        if len(unc_parts) < 2:
+            return str(Path(current_drive_root, *unc_parts))
     return path
 
 

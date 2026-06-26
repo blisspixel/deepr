@@ -350,6 +350,14 @@ class TestPathHandler:
 
         assert path.is_absolute()
 
+    @pytest.mark.skipif(os.name != "nt", reason="Windows slash-root normalization")
+    def test_normalize_windows_double_backslash_root(self):
+        """Bare Windows slash roots normalize to the current drive root."""
+        path = PathHandler.normalize("\\\\")
+
+        assert path.is_absolute()
+        assert str(path).endswith(":\\")
+
     def test_escape_for_shell_cmd(self, monkeypatch):
         """Test escaping path for Windows CMD."""
         monkeypatch.setenv("DEEPR_SHELL", "cmd")

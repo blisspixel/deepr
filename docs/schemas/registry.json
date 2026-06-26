@@ -23,6 +23,14 @@
       "compatibility": "additive-within-v1"
     },
     {
+      "name": "metacognitive-monitor",
+      "schema_version": "deepr-metacognitive-monitor-v1",
+      "kind": "deepr.expert.metacognitive_monitor",
+      "path": "metacognitive-monitor-v1.json",
+      "status": "experimental",
+      "compatibility": "additive-within-v1"
+    },
+    {
       "name": "loop-status",
       "schema_version": "deepr-loop-status-v1",
       "kind": "deepr.expert.loop_status",

@@ -180,6 +180,9 @@ strategies."
   `capacity.live_metered_fallback=false`.
 - Expert loops already persist sync, gap-fill, reflection, and health-check
   state with typed stop reasons.
+- `deepr expert monitor` emits read-only, review-required metacognitive
+  proposals from self-model state, loop-run failures or capacity waits, and
+  sanitized consult trace candidates.
 - Beliefs already carry confidence, provenance, typed edges, event history,
   contradiction handling, and trust floors.
 - Handoff payloads expose bounded context packets instead of dumping whole
@@ -204,8 +207,8 @@ strategies."
 - The consult flow needs a global-workspace packet: selected beliefs, selected
   gaps, active contradictions, current goal, and allowed tools for the next
   step.
-- The metacognitive monitor needs local tests for confidence calibration,
-  uncertainty explanation quality, and failure-to-gap conversion.
+- Reviewed monitor proposals still need explicit promotion commands for
+  gap/eval creation and verifier-gated self-model update records.
 
 ## Level 6 Gaps
 

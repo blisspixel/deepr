@@ -520,6 +520,11 @@ is available.
 `deepr expert self-model NAME --json` emits a read-only
 `deepr-expert-self-model-v1` record with capabilities, limits, goals,
 calibration, risks, and the bounded current-focus packet.
+`deepr expert monitor NAME --json` emits a read-only
+`deepr-metacognitive-monitor-v1` artifact that converts self-model risks,
+failed loop runs, capacity waits, and consult trace candidates into
+review-required proposals. It never applies the proposed goal, strategy, gap, or
+eval changes.
 
 **Task Planning** decomposes complex queries into subtasks:
 
@@ -638,6 +643,9 @@ deepr expert why "Azure Architect" "landing zone subscription vending"
 
 # Derived self-model: capabilities, limits, goals, calibration, current focus.
 deepr expert self-model "Azure Architect" --json
+
+# Monitor proposals: measured failures and risks become reviewed next steps.
+deepr expert monitor "Azure Architect" --json
 
 # Browsable derived view: beliefs by domain, conflicts surfaced, byte-stable
 deepr expert digest "Azure Architect" --print
