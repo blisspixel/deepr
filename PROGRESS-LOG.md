@@ -1,5 +1,24 @@
 # Progress Log
 
+## 2026-06-26 - Free-web retrieval hardening + repo hygiene
+
+- Hardened the `$0` web retrieval path, the single recurring limiter that kept
+  starving provider-relevant expert fills. DuckDuckGo's keyless endpoint
+  rate-limits aggressively and `_search_duckduckgo` made one attempt with no
+  retry, so a transient failure became "no sources -> no report". Added a small
+  injectable-sleep `_retry_async` helper and wired the DDGS call through it (3
+  attempts, exponential backoff 1.5s/3s). Tests cover success-first (no sleep),
+  retry-then-succeed, exhaust-and-reraise, exponential backoff growth, and the
+  integration (degrade after 3, retry-then-succeed). The first draft used an
+  `assert` for the unreachable branch, which tripped the S ratchet (S101); the
+  re-raise was restructured to surface the last failure directly with no new S
+  debt. 40 web-search tests green, ratchets at baseline, ruff/format clean.
+- Repo hygiene + first commit checkpoint: removed the one-off expert-fill scripts
+  (session scaffolding), added `QUALITY-RUBRIC.md` (the 6-category merge bar),
+  updated `docs/CHANGELOG.md` (canonical, not a duplicate root file), and
+  committed the accumulated multi-cycle work to a feature branch with a clean
+  message.
+
 ## 2026-06-26 - Agent QOL: deepr_capabilities discovery tool + validated LAN access
 
 - Fixed a false-exhaustion bug that was corrupting the capacity signal. The
