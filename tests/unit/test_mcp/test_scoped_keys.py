@@ -14,6 +14,7 @@ from deepr.mcp.security.scoped_keys import (
     authorize_scoped_mcp_rate_limit,
     authorize_scoped_mcp_tool_call,
     constrain_scoped_mcp_budget_arguments,
+    constrain_scoped_mcp_expert_arguments,
     estimate_scoped_mcp_tool_cost,
     requires_scoped_mcp_cost_estimate,
 )
@@ -110,6 +111,29 @@ class TestScopedMCPAuthorization:
         assert not list_all.allowed
         assert list_all.error_code == "EXPERT_SCOPE_REQUIRED"
 
+    def test_expert_allowlist_constrains_consult_auto_selection(self):
+        context = ScopedMCPKeyContext("agent", ResearchMode.UNRESTRICTED, ("alpha",))
+
+        missing_scope = authorize_scoped_mcp_tool_call(context, "deepr_consult_experts", {"question": "q"})
+        outside_scope = authorize_scoped_mcp_tool_call(
+            context,
+            "deepr_consult_experts",
+            {"question": "q", "experts": ["beta"]},
+        )
+        constrained = constrain_scoped_mcp_expert_arguments(
+            context,
+            "deepr_consult_experts",
+            {"question": "q"},
+        )
+        allowed = authorize_scoped_mcp_tool_call(context, "deepr_consult_experts", constrained)
+
+        assert not missing_scope.allowed
+        assert missing_scope.error_code == "EXPERT_SCOPE_REQUIRED"
+        assert not outside_scope.allowed
+        assert outside_scope.error_code == "EXPERT_SCOPE_DENIED"
+        assert constrained["experts"] == ["alpha"]
+        assert allowed.allowed
+
     def test_key_budget_blocks_when_estimate_exceeds_remaining(self):
         context = ScopedMCPKeyContext("agent", ResearchMode.UNRESTRICTED, budget_limit_usd=1.0)
 
@@ -161,14 +185,20 @@ class TestScopedMCPAuthorization:
     def test_consult_experts_cost_estimate_respects_owned_capacity_backend(self):
         assert estimate_scoped_mcp_tool_cost("deepr_consult_experts", {}) == 2.0
         assert estimate_scoped_mcp_tool_cost("deepr_consult_experts", {"budget": 0.75}) == 0.75
-        assert estimate_scoped_mcp_tool_cost(
-            "deepr_consult_experts",
-            {"synthesis_backend": "local", "budget": 2.0},
-        ) == 0.0
-        assert estimate_scoped_mcp_tool_cost(
-            "deepr_consult_experts",
-            {"synthesis_backend": "plan", "budget": 2.0},
-        ) == 0.0
+        assert (
+            estimate_scoped_mcp_tool_cost(
+                "deepr_consult_experts",
+                {"synthesis_backend": "local", "budget": 2.0},
+            )
+            == 0.0
+        )
+        assert (
+            estimate_scoped_mcp_tool_cost(
+                "deepr_consult_experts",
+                {"synthesis_backend": "plan", "budget": 2.0},
+            )
+            == 0.0
+        )
 
     def test_consult_experts_budget_injection_uses_remaining_key_budget(self):
         context = ScopedMCPKeyContext("agent", ResearchMode.UNRESTRICTED, budget_limit_usd=0.8)

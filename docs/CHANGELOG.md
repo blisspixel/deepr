@@ -29,6 +29,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   for letting another agent test Deepr experts over HTTP MCP with a zero-dollar
   budget ceiling, rate limit, endpoint, server command, and no-metered consult
   instructions.
+- Hardened scoped HTTP MCP keys so expert-scoped consult calls are constrained
+  to the key's expert allowlist before dispatch, and `agent-guide --output`
+  refuses git-trackable bearer-token files by default.
 - Added `deepr expert promote-monitor`, a `$0` reviewed promotion surface backed
   by the published `deepr-metacognitive-promotion-v1` schema. It previews by
   default and requires `--apply` before a `gap_or_eval_candidate` monitor

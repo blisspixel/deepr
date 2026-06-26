@@ -90,6 +90,46 @@ class TestStreamingHttpScopedKeys:
         assert audit.read_recent()[0].error_code == "EXPERT_SCOPE_DENIED"
 
     @pytest.mark.asyncio
+    async def test_scoped_key_constrains_consult_auto_selection_before_handler(self, tmp_path):
+        store = ScopedMCPKeyStore(tmp_path / "keys.json")
+        secret, _record = store.create_key(
+            "agent",
+            mode=ResearchMode.UNRESTRICTED,
+            expert_allowlist=["alpha"],
+            budget_limit_usd=0.0,
+            secret="secret",
+        )
+        audit = RemoteMCPAuditLog(tmp_path / "audit.jsonl")
+        transport = StreamingHttpTransport(scoped_key_store=store, audit_log=audit)
+
+        async def handler(message: HttpMessage):
+            assert isinstance(message.params, dict)
+            assert message.params["arguments"]["experts"] == ["alpha"]
+            return HttpMessage(id=message.id, result={"ok": True})
+
+        transport.on_message(handler)
+        response = await transport._handle_post(
+            _request(
+                {
+                    "jsonrpc": "2.0",
+                    "id": "1",
+                    "method": "tools/call",
+                    "params": {
+                        "name": "deepr_consult_experts",
+                        "arguments": {"question": "q", "synthesis_backend": "local", "budget": 0},
+                    },
+                },
+                secret,
+            )
+        )
+
+        assert response.status == 200
+        assert json.loads(response.text)["result"] == {"ok": True}
+        event = audit.read_recent()[0]
+        assert event.tool == "deepr_consult_experts"
+        assert event.expert_names == ("alpha",)
+
+    @pytest.mark.asyncio
     async def test_scoped_key_blocks_over_budget_before_handler(self, tmp_path):
         store = ScopedMCPKeyStore(tmp_path / "keys.json")
         secret, _record = store.create_key(
