@@ -42,6 +42,9 @@ The reasoning behind contract-spanning choices, kept versioned with the code.
   how Deepr uses correlation math for evidence dependence, hypothesis memory,
   freshness priority, and candidate routing without turning scores into meaning
   verdicts.
+- **[design/expert-chat-capacity-backends.md](design/expert-chat-capacity-backends.md)** -
+  how expert consult and chat should support local, plan-quota, and paid API
+  backends without silent fallback or provider-shaped cost leaks.
 - **[design/](design/)** - Design notes (the why, with literature grounding):
   belief lifecycle, temporal knowledge graph, calibration and trust,
   deterministic-vs-agentic checks, capacity waterfall, local fresh context,

@@ -25,6 +25,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 </details>
 
 ### Added
+- Added `docs/design/expert-chat-capacity-backends.md`, clarifying the path to
+  local, plan-quota, OpenAI, and Anthropic expert chat backends without silent
+  fallback or provider-shaped cost leaks. The MCP guide now correctly limits
+  local and plan backend claims to `deepr_consult_experts` until
+  `deepr_query_expert` has a backend-neutral chat runner.
 - Added `deepr expert accept-self-model`, a `$0` outcome-evidence acceptance
   gate for recorded self-model update review artifacts. It publishes
   `deepr-expert-self-model-update-acceptance-v1`, requires explicit reviewer
