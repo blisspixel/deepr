@@ -16,6 +16,7 @@ from typing import Any
 
 from deepr.experts.beliefs import Belief
 from deepr.experts.consult import build_consult_payload, resolve_explicit_expert_choices
+from deepr.experts.consult_traces import build_consult_trace
 from deepr.experts.council import ExpertCouncil, parse_synthesis_sections
 from deepr.experts.profile import ExpertProfile
 
@@ -89,6 +90,7 @@ def run_consult_eval() -> ConsultEvalReport:
             _check_stored_belief_context_packet(),
             _check_synthesis_section_parser(),
             _check_payload_context_preservation(),
+            _check_consult_trace_contract(),
         )
     )
 
@@ -204,4 +206,47 @@ def _check_payload_context_preservation() -> ConsultEvalOutcome:
         category="artifact",
         passed=passed,
         detail={"first": first, "second_has_context": "context" in second},
+    )
+
+
+def _check_consult_trace_contract() -> ConsultEvalOutcome:
+    payload = build_consult_payload(
+        "q",
+        {
+            "perspectives": [
+                {
+                    "expert_name": "A",
+                    "domain": "alpha",
+                    "response": "answer",
+                    "confidence": 0.9,
+                    "context": {"source": "belief_store", "selection": "query_overlap"},
+                }
+            ],
+            "synthesis": "summary",
+            "agreements": [],
+            "disagreements": [],
+            "total_cost": 0.0,
+        },
+    )
+    trace = build_consult_trace(
+        question="q",
+        requested_experts=["A"],
+        max_experts=3,
+        budget=0.0,
+        payload=payload,
+        result={"perspectives": [{}], "synthesis_status": "failed", "synthesis_error_type": "RuntimeError"},
+        trace_id="consult_abcdef123456",
+    )
+    synthesis_check = next(check for check in trace["checks"] if check["name"] == "synthesis_status")
+    passed = (
+        trace["schema_version"] == "deepr-consult-trace-v1"
+        and trace["context_packet"]["selected"][0]["context"]["source"] == "belief_store"
+        and any(event["name"] == "synthesis_failed" for event in trace["events"])
+        and synthesis_check["status"] == "failed"
+    )
+    return ConsultEvalOutcome(
+        case_id="consult_trace_contract",
+        category="trace",
+        passed=passed,
+        detail={"trace_id": trace["trace_id"], "synthesis_check": synthesis_check},
     )

@@ -65,6 +65,21 @@ Planning Principles), and [docs/plans/AGENTIC_BALANCE.md](docs/plans/AGENTIC_BAL
 - No AI attribution, emojis, or em/en dashes in any output or artifact.
 - Lifetime external spend <= $5; owned/prepaid/$0 paths preferred by default.
 
+## Current Cycle Alignment - 2026-06-26
+
+Active task: persist replayable consult traces without widening autonomy.
+
+Target score before merge:
+
+| Category | Required score | Evidence |
+|---|---:|---|
+| Correctness | 5/5 | Trace builders, CLI/MCP trace wiring, consult eval, and published schema tests must pass. |
+| Security | 5/5 | Trace reference returned to hosts must avoid local file paths and secrets; owned-capacity fallback checks remain explicit. |
+| Performance | 5/5 | Append one bounded JSONL record per consult; no provider calls, embeddings, or paid validation. |
+| Readability | 5/5 | One focused trace module; CLI/MCP handlers stay thin. |
+| Maintainability | 5/5 | Published schema, registry entry, and tests keep contract drift visible. |
+| Simplicity | 5/5 | No new dependency, no parallel consult path, no speculative trace UI. |
+
 ## How to score (maker-checker)
 
 Maker implements test-first. Then two independent checker passes: one for

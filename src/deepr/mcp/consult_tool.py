@@ -6,6 +6,7 @@ from typing import Any
 
 from deepr.core.errors import DeeprError
 from deepr.experts import consult as consult_core
+from deepr.experts.consult_traces import record_consult_trace
 
 CONSULT_EXPERTS_INPUT_SCHEMA: dict[str, Any] = {
     "type": "object",
@@ -59,6 +60,15 @@ def _error(code: str, message: str) -> dict[str, Any]:
     }
 
 
+def _capacity_payload(backend_mode: str, backend: consult_core.ConsultSynthesisBackend) -> dict[str, Any]:
+    return {
+        "synthesis_backend": backend_mode,
+        "provider": backend.provider,
+        "model": backend.model,
+        "live_metered_fallback": backend.allow_live_fallback,
+    }
+
+
 async def consult_experts_tool(
     *,
     question: str,
@@ -79,6 +89,8 @@ async def consult_experts_tool(
     if backend_mode == "plan" and not plan:
         return _error("INVALID_BACKEND", "plan is required when synthesis_backend='plan'")
 
+    backend: consult_core.ConsultSynthesisBackend | None = None
+    requested_experts = list(experts or [])
     try:
         backend = consult_core.build_synthesis_backend(
             use_local=backend_mode == "local",
@@ -88,7 +100,7 @@ async def consult_experts_tool(
         )
         result = await consult_core.run_consult(
             question,
-            list(experts or []),
+            requested_experts,
             max_experts,
             budget,
             synthesis_client=backend.client,
@@ -99,13 +111,26 @@ async def consult_experts_tool(
     except consult_core.ConsultBackendError as exc:
         return _error("CONSULT_BACKEND_UNAVAILABLE", str(exc))
     except (OSError, KeyError, ValueError, DeeprError) as exc:
+        if backend is not None:
+            record_consult_trace(
+                question=question,
+                requested_experts=requested_experts,
+                max_experts=max_experts,
+                budget=budget,
+                capacity=_capacity_payload(backend_mode, backend),
+                failure={"stage": "run_consult", "error_type": type(exc).__name__, "message": str(exc)},
+            )
         return _error("CONSULT_FAILED", str(exc))
 
     payload = consult_core.build_consult_payload(question, result)
-    payload["capacity"] = {
-        "synthesis_backend": backend_mode,
-        "provider": backend.provider,
-        "model": backend.model,
-        "live_metered_fallback": backend.allow_live_fallback,
-    }
+    payload["capacity"] = _capacity_payload(backend_mode, backend)
+    payload["trace"] = record_consult_trace(
+        question=question,
+        requested_experts=requested_experts,
+        max_experts=max_experts,
+        budget=budget,
+        payload=payload,
+        result=result,
+        capacity=payload["capacity"],
+    )
     return payload

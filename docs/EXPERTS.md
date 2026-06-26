@@ -697,6 +697,9 @@ deepr expert consult "Cost vs quality tradeoff?" --local --max-experts 8
 capacity and disable live metered fallback, so a consult never silently bills an
 API key. Over MCP this is `synthesis_backend: "plan" | "local"`. This is also how
 Deepr consults its own experts about its own work (the self-consultation loop).
+Every CLI and MCP consult writes a local `deepr-consult-trace-v1` record for the
+improvement loop: question, requested experts, selected context metadata, capacity
+posture, checks run, output artifact, and first-class synthesis failure events.
 
 ## Limitations
 
