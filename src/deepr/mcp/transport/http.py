@@ -37,6 +37,7 @@ from deepr.mcp.security.scoped_keys import (
     authorize_scoped_mcp_rate_limit,
     authorize_scoped_mcp_tool_call,
     constrain_scoped_mcp_budget_arguments,
+    constrain_scoped_mcp_expert_arguments,
 )
 
 logger = logging.getLogger(__name__)
@@ -542,6 +543,7 @@ class StreamingHttpTransport:
     ) -> web.Response | None:
         tool_name, arguments = self._tool_call_parts(message)
         if tool_name:
+            arguments = constrain_scoped_mcp_expert_arguments(context, tool_name, arguments)
             denied = self._scoped_authorization_response(context, message, tool_name, arguments)
             if denied is not None:
                 return denied

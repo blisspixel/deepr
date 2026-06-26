@@ -24,7 +24,8 @@ AUDIT_SCHEMA_VERSION = "deepr-mcp-remote-audit-v1"
 AUDIT_KIND = "deepr.mcp.remote_audit"
 _HASH_ALGORITHM = "pbkdf2_sha256"
 _HASH_ITERATIONS = 210_000
-_EXPERT_ARG_NAMES = ("expert_name", "name")
+_EXPERT_ARG_NAMES = ("expert_name", "name", "experts")
+_ALLOWLIST_INJECTED_EXPERT_TOOLS = frozenset({"deepr_consult_experts"})
 _BUDGET_ARGUMENT_TOOLS = frozenset(
     {
         "deepr_agentic_research",
@@ -423,6 +424,19 @@ def _extract_requested_experts(arguments: dict[str, Any]) -> tuple[str, ...]:
     return tuple(dict.fromkeys(experts))
 
 
+def constrain_scoped_mcp_expert_arguments(
+    context: ScopedMCPKeyContext,
+    tool_name: str,
+    arguments: dict[str, Any],
+) -> dict[str, Any]:
+    """Constrain auto-selecting expert tools to a scoped key's expert allowlist."""
+    if not context.expert_allowlist or tool_name not in _ALLOWLIST_INJECTED_EXPERT_TOOLS:
+        return arguments
+    if _extract_requested_experts(arguments):
+        return arguments
+    return {**arguments, "experts": list(context.expert_allowlist)}
+
+
 def authorize_scoped_mcp_tool_call(
     context: ScopedMCPKeyContext,
     tool_name: str,
@@ -454,6 +468,13 @@ def authorize_scoped_mcp_tool_call(
             return ScopedMCPAuthzDecision(
                 allowed=False,
                 reason="Expert-scoped keys cannot list every expert",
+                error_code="EXPERT_SCOPE_REQUIRED",
+                requested_experts=requested_experts,
+            )
+        if tool_name in _ALLOWLIST_INJECTED_EXPERT_TOOLS and not requested_experts:
+            return ScopedMCPAuthzDecision(
+                allowed=False,
+                reason="Expert-scoped calls must target the key's expert allowlist",
                 error_code="EXPERT_SCOPE_REQUIRED",
                 requested_experts=requested_experts,
             )

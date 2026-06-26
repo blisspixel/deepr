@@ -3,7 +3,11 @@
 from __future__ import annotations
 
 import json
+import shutil
+import subprocess
+from pathlib import Path
 
+import pytest
 from click.testing import CliRunner
 
 from deepr.cli.commands.mcp import mcp
@@ -68,6 +72,56 @@ def test_mcp_agent_guide_can_write_existing_token_guide(tmp_path):
     assert "Use only these experts: AI Agent Harnesses." in text
     assert "deepr_list_experts" not in text
     assert not keys_path.exists()
+
+
+def test_mcp_agent_guide_rejects_git_trackable_output_before_key_creation():
+    if shutil.which("git") is None:
+        pytest.skip("git is required for git-trackable output validation")
+
+    runner = CliRunner()
+    with runner.isolated_filesystem():
+        subprocess.run(["git", "init"], check=True, capture_output=True, text=True)
+        result = runner.invoke(
+            mcp,
+            [
+                "agent-guide",
+                "--key-id",
+                "agent-trial",
+                "--output",
+                "docs/agent-guide.md",
+            ],
+        )
+
+        assert result.exit_code != 0
+        assert "tracked or unignored git path" in result.output
+        assert not Path("docs/agent-guide.md").exists()
+        assert not Path("data/security/mcp_keys.json").exists()
+
+
+def test_mcp_agent_guide_allows_git_ignored_output():
+    if shutil.which("git") is None:
+        pytest.skip("git is required for git-ignored output validation")
+
+    runner = CliRunner()
+    with runner.isolated_filesystem():
+        subprocess.run(["git", "init"], check=True, capture_output=True, text=True)
+        Path(".gitignore").write_text("/data/\n", encoding="utf-8")
+        result = runner.invoke(
+            mcp,
+            [
+                "agent-guide",
+                "--key-id",
+                "agent-trial",
+                "--keys-path",
+                "data/security/mcp_keys.json",
+                "--output",
+                "data/security/agent-guide.md",
+            ],
+        )
+
+        assert result.exit_code == 0, result.output
+        assert Path("data/security/agent-guide.md").exists()
+        assert Path("data/security/mcp_keys.json").exists()
 
 
 def test_mcp_agent_guide_requires_token_when_not_creating_key(tmp_path):
