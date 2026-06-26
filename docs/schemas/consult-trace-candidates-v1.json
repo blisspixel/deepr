@@ -1,0 +1,79 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/blisspixel/deepr/docs/schemas/consult-trace-candidates-v1.json",
+  "title": "Deepr Consult Trace Candidates v1",
+  "type": "object",
+  "additionalProperties": true,
+  "required": [
+    "schema_version",
+    "kind",
+    "contract",
+    "trace_count",
+    "candidate_count",
+    "failed_trace_count",
+    "failed_check_count",
+    "low_context_trace_count",
+    "candidates"
+  ],
+  "properties": {
+    "schema_version": {"const": "deepr-consult-trace-candidates-v1"},
+    "kind": {"const": "deepr.expert.consult_trace_candidates"},
+    "contract": {
+      "type": "object",
+      "required": ["read_only", "cost_usd", "stability", "path_exposed"],
+      "properties": {
+        "read_only": {"const": true},
+        "cost_usd": {"type": "number", "minimum": 0},
+        "stability": {"type": "string"},
+        "path_exposed": {"const": false}
+      },
+      "additionalProperties": true
+    },
+    "trace_count": {"type": "integer", "minimum": 0},
+    "candidate_count": {"type": "integer", "minimum": 0},
+    "failed_trace_count": {"type": "integer", "minimum": 0},
+    "failed_check_count": {"type": "integer", "minimum": 0},
+    "low_context_trace_count": {"type": "integer", "minimum": 0},
+    "candidates": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "trace_id",
+          "recorded_at",
+          "reason",
+          "severity",
+          "question_hash",
+          "question_preview",
+          "failed_checks",
+          "warning_checks",
+          "selected_context_count",
+          "gap",
+          "eval_case"
+        ],
+        "properties": {
+          "trace_id": {"type": "string"},
+          "recorded_at": {"type": "string"},
+          "reason": {"type": "string", "enum": ["failed_consult", "failed_check", "low_context"]},
+          "severity": {"type": "integer", "minimum": 1, "maximum": 5},
+          "question_hash": {"type": "string"},
+          "question_preview": {"type": "string"},
+          "failed_checks": {"type": "array", "items": {"type": "string"}},
+          "warning_checks": {"type": "array", "items": {"type": "string"}},
+          "selected_context_count": {"type": "integer", "minimum": 0},
+          "gap": {
+            "type": "object",
+            "required": ["id", "topic", "questions", "priority"],
+            "additionalProperties": true
+          },
+          "eval_case": {
+            "type": "object",
+            "required": ["case_id", "category", "source_trace_id", "input", "expected_failure_mode", "acceptance_check"],
+            "additionalProperties": true
+          }
+        },
+        "additionalProperties": true
+      }
+    }
+  }
+}

@@ -24,6 +24,7 @@ All v1 schemas are additive within the same schema version:
 | `deepr-mcp-registration-manifest-v1` | [mcp-registration-manifest-v1.json](mcp-registration-manifest-v1.json) | Token-redacted hosted MCP endpoint registration metadata plus optional smoke results |
 | `deepr-a2a-task-v1` | [a2a-task-v1.json](a2a-task-v1.json) | Agent-to-agent task state envelope for A2A create, status, cancel, and result responses |
 | `deepr-consult-trace-v1` | [consult-trace-v1.json](consult-trace-v1.json) | Local replayable consult trace records for turning consult failures into eval and gap candidates |
+| `deepr-consult-trace-candidates-v1` | [consult-trace-candidates-v1.json](consult-trace-candidates-v1.json) | Sanitized gap and eval candidates mined from failed or low-context consult traces |
 | `deepr-capacity-next-v1` | [capacity-next-v1.json](capacity-next-v1.json) | Read-only `$0` capacity guidance payload for scheduler and CLI consumers |
 | `deepr-sync-capacity-gate-v1` | [sync-capacity-gate-v1.json](sync-capacity-gate-v1.json) | Read-only sync capacity wait/block payload with embedded capacity guidance |
 | `deepr-scheduled-gap-fill-wait-v1` | [scheduled-gap-fill-wait-v1.json](scheduled-gap-fill-wait-v1.json) | Read-only scheduled gap-fill wait payload with routed gaps and safe next actions |
