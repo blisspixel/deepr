@@ -514,6 +514,9 @@ low-context consults.
 When an expert profile exists, consult perspective context includes a bounded
 read-only `self_model` block with current goals, calibration, blockers, risks,
 and current-focus packet metadata.
+Sync learning loop records and sync capacity wait/block payloads include the
+same compact `self_model` block as read-only run context when an expert profile
+is available.
 `deepr expert self-model NAME --json` emits a read-only
 `deepr-expert-self-model-v1` record with capabilities, limits, goals,
 calibration, risks, and the bounded current-focus packet.

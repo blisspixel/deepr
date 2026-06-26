@@ -97,7 +97,9 @@ must not be described as usable capacity.
   strategy, continuity, blockers, risks, and a bounded current-focus packet.
   It is a derived view and does not mutate expert state. Consult perspective
   context includes this bounded self-model focus metadata when the expert
-  profile is available.
+  profile is available. Sync learning loop records expose it under
+  `run_context.self_model`, and sync capacity wait/block payloads expose the
+  same compact block as read-only scheduler context.
 - Local Ollama expert maintenance, local evals, local context evals, local
   red-team attack-success-rate metrics including MCP read-path canaries and
   saved trend artifacts, and scored local admission.

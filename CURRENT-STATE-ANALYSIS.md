@@ -35,14 +35,19 @@ when the expert profile exists, so consult traces and host handoffs can see the
 expert's current goals, calibration, blockers, risks, and focus packet without
 changing synthesis prompts or mutating state.
 
+Cycle 5 wires the same bounded packet into sync learning metadata. The shared
+self-model context builder now feeds consults, sync `ExpertLoopRun`
+`run_context.self_model`, and sync capacity wait/block payloads. `next_action`
+stays action-only, and the self-model still does not change prompts, goals,
+spend, or expert state.
+
 External best-practice check, current as of 2026-06-26: modern agent harness
 guidance converges on trace-first improvement loops, evals from real failures,
 bounded context packets, explicit handoffs, and deterministic gates around
 spend, writes, tools, and credentials. Deepr's next implementation slices should
 continue that shape: promote selected trace candidates through a reviewed
-gap/eval path, wire the self-model into learning context, then add the
-metacognitive monitor, rather than widening autonomy or building broader
-orchestration.
+gap/eval path and add the metacognitive monitor, rather than widening autonomy
+or building broader orchestration.
 
 ## Alignment Summary
 
@@ -97,9 +102,10 @@ measured. Level 6 means the fleet has a control plane for improving expert
 self-models, prompts, tools, skills, context policies, and learning strategies
 through trace-derived proposals, sandbox runs, regression checks, budget gates,
 and human review where required. The self-model now exists as a read-only
-derived contract and consult metadata now carries its current-focus packet. The
-next Deepr slice is wiring the same packet into learning runs, then adding the
-metacognitive monitor that proposes reviewed goal or strategy updates. See
+derived contract, consult metadata carries its current-focus packet, and sync
+learning records carry the same compact packet as read-only run context. The
+next Deepr slice is the metacognitive monitor that proposes reviewed goal or
+strategy updates. See
 `docs/design/level-5-6-expert-maturity.md`.
 
 Distillr is available on this machine as `distill-mcp`, and the live `$0`

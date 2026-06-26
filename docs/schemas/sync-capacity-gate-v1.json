@@ -45,6 +45,10 @@
     "loop_run": {
       "type": "object",
       "additionalProperties": true
+    },
+    "self_model": {
+      "type": "object",
+      "additionalProperties": true
     }
   }
 }

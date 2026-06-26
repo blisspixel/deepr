@@ -301,50 +301,9 @@ class ExpertCouncil:
 
     def _self_model_context(self, name: str) -> dict[str, Any]:
         """Return bounded self-model metadata for consult traces."""
-        from deepr.experts.profile import ExpertStore
-        from deepr.experts.self_model import EXPERT_SELF_MODEL_KIND, EXPERT_SELF_MODEL_SCHEMA_VERSION
+        from deepr.experts.self_model import build_expert_self_model_context
 
-        try:
-            profile = ExpertStore().load(name)
-            if profile is None:
-                return {}
-
-            from deepr.experts.self_model import build_expert_self_model
-
-            payload = build_expert_self_model(profile, profile.get_manifest(), focus_limit=3)
-        except Exception as exc:
-            logger.debug("Council: self-model context unavailable for %s", name, exc_info=True)
-            return {
-                "schema_version": EXPERT_SELF_MODEL_SCHEMA_VERSION,
-                "kind": EXPERT_SELF_MODEL_KIND,
-                "status": "unavailable",
-                "error_type": type(exc).__name__,
-            }
-
-        focus = payload["current_focus_packet"]
-        return {
-            "schema_version": payload["schema_version"],
-            "kind": payload["kind"],
-            "status": "available",
-            "contract": {
-                "read_only": payload["contract"]["read_only"],
-                "cost_usd": payload["contract"]["cost_usd"],
-                "derived_view": payload["contract"]["derived_view"],
-                "goal_changes_require_review": payload["contract"]["goal_changes_require_review"],
-            },
-            "current_goals": list(payload["current_goals"]),
-            "calibration": dict(payload["calibration"]),
-            "blocked_capability_count": len(payload["blocked_capabilities"]),
-            "unresolved_risk_count": len(payload["unresolved_risks"]),
-            "current_focus_packet": {
-                "selected_beliefs": list(focus["selected_beliefs"]),
-                "selected_gaps": list(focus["selected_gaps"]),
-                "active_contradictions": list(focus["active_contradictions"]),
-                "goal": focus["goal"],
-                "allowed_tools": list(focus["allowed_tools"]),
-                "expected_stop_condition": focus["expected_stop_condition"],
-            },
-        }
+        return build_expert_self_model_context(name, focus_limit=3)
 
     def _attach_self_model_context(self, context: dict[str, Any], name: str) -> None:
         self_model = self._self_model_context(name)

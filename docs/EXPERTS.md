@@ -366,8 +366,8 @@ deepr expert why "Azure Architect" belief-a1b2c3 --depth 3 --json
 Build a derived `deepr-expert-self-model-v1` record from the profile and
 manifest. It reports capabilities, limits, current goals, calibration, learning
 strategy, continuity, blockers, unresolved risks, and a bounded current-focus
-packet for consult or learning runs. It does not change goals, write expert
-state, or run a model.
+packet for consults, sync learning loop records, and sync capacity waits. It
+does not change goals, write expert state, or run a model.
 ```bash
 deepr expert self-model "Azure Architect"
 deepr expert self-model "Azure Architect" --focus-limit 3 --json
