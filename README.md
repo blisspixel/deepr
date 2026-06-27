@@ -282,7 +282,7 @@ See [docs/SUPPORTED_SURFACE.md](docs/SUPPORTED_SURFACE.md) for the contract.
 
 ## Project Notes
 
-The test suite has 6600+ tests (Python 3.12-3.14), with an 80% coverage gate.
+The test suite has 6700+ tests (Python 3.12-3.14), with an 80% coverage gate.
 Pre-commit and CI run ruff, mypy on strict islands, docs consistency checks,
 file-size ratchets, and security/complexity ratchets.
 

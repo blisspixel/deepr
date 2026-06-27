@@ -330,6 +330,7 @@ class TestSyncEngine:
         assert outcome.status == "synced"
         assert outcome.source_count == 1
         assert outcome.context_mode == "deep"
+        assert outcome.source_note_artifact.endswith("_topic-x.json")
         artifact = tmp_path / "knowledge" / outcome.source_pack_artifact
         assert artifact.exists()
         data = json.loads(artifact.read_text(encoding="utf-8"))
@@ -349,6 +350,18 @@ class TestSyncEngine:
         assert manifest["manifest"]["ready_for_semantic_compile"] is False
         assert manifest["sources"][0]["url"] == "https://example.com/release"
         assert manifest["sources"][0]["excerpt_hash"]
+        source_note_path = tmp_path / "knowledge" / outcome.source_note_artifact
+        source_notes = json.loads(source_note_path.read_text(encoding="utf-8"))
+        assert source_notes["schema_version"] == "deepr-source-note-v1"
+        assert source_notes["kind"] == "deepr.expert.source_notes"
+        assert source_notes["contract"]["semantic_judgment"] is False
+        assert source_notes["contract"]["model_calls"] is False
+        assert source_notes["source_pack"]["artifact_path"] == outcome.source_pack_artifact
+        assert source_notes["source_pack"]["manifest_artifact_path"] == outcome.source_pack_manifest_artifact
+        assert source_notes["summary"]["ready_for_claim_extraction"] is False
+        assert source_notes["summary"]["failure_reasons"] == ["invalid_or_missing_content_hash"]
+        assert source_notes["notes"][0]["source_pointer"] == "/source_pack/sources/0"
+        assert source_notes["notes"][0]["windows"][0]["source_text_ref"] == "excerpt"
 
     @pytest.mark.asyncio
     async def test_source_pack_write_failure_blocks_absorb(self, tmp_path, monkeypatch):

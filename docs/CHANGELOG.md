@@ -25,6 +25,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 </details>
 
 ### Added
+- Added `deepr-source-note-v1`, the second deterministic compiler stage after
+  source-pack manifests. Sync now writes source-note cards with stable IDs,
+  note hashes, provenance refs, source-window pointers, and fail-closed
+  readiness flags beside each source pack, then attaches those artifact refs to
+  sync loop-run context. The stage is `$0`, read-only, and performs no semantic
+  judgment or model calls.
 - Added `docs/design/expert-chat-capacity-backends.md`, clarifying the path to
   local, plan-quota, OpenAI, and Anthropic expert chat backends without silent
   fallback or provider-shaped cost leaks. The MCP guide now correctly limits
