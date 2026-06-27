@@ -1,0 +1,154 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/blisspixel/deepr/docs/schemas/consult-quality-review-v1.json",
+  "title": "Deepr Consult Quality Review v1",
+  "type": "object",
+  "additionalProperties": true,
+  "required": [
+    "schema_version",
+    "kind",
+    "contract",
+    "expert_name",
+    "review_id",
+    "source",
+    "judge",
+    "decision",
+    "scores",
+    "mean_score",
+    "failure_labels",
+    "acceptance_policy",
+    "review_status",
+    "eligible_for_promotion",
+    "promotion_policy",
+    "generated_at"
+  ],
+  "properties": {
+    "schema_version": {"const": "deepr-consult-quality-review-v1"},
+    "kind": {"const": "deepr.eval.consult_quality_review"},
+    "contract": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": [
+        "read_only",
+        "cost_usd",
+        "writes_expert_state",
+        "writes_beliefs",
+        "semantic_scores_from_reviewer",
+        "lexical_verdict_allowed",
+        "requires_reviewer",
+        "auto_apply",
+        "derived_from"
+      ],
+      "properties": {
+        "read_only": {"type": "boolean"},
+        "cost_usd": {"type": "number", "minimum": 0},
+        "writes_expert_state": {"const": false},
+        "writes_beliefs": {"const": false},
+        "semantic_scores_from_reviewer": {"const": true},
+        "lexical_verdict_allowed": {"const": false},
+        "requires_reviewer": {"const": true},
+        "auto_apply": {"const": false},
+        "derived_from": {"const": "deepr-consult-quality-eval-case-v1"}
+      }
+    },
+    "expert_name": {"type": "string", "minLength": 1},
+    "review_id": {"type": "string", "minLength": 1},
+    "source": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": [
+        "case_schema_version",
+        "case_id",
+        "source_trace_id",
+        "category",
+        "reason",
+        "question_hash",
+        "question_preview"
+      ],
+      "properties": {
+        "case_schema_version": {"const": "deepr-consult-quality-eval-case-v1"},
+        "case_id": {"type": "string"},
+        "source_trace_id": {"type": "string"},
+        "category": {"const": "consult_semantic_quality"},
+        "reason": {"type": "string"},
+        "question_hash": {"type": "string"},
+        "question_preview": {"type": "string"}
+      }
+    },
+    "judge": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": ["type", "reviewer", "calibration_ref"],
+      "properties": {
+        "type": {"enum": ["human", "calibrated_model"]},
+        "reviewer": {"type": "string", "minLength": 1},
+        "calibration_ref": {"type": "string"}
+      }
+    },
+    "decision": {"enum": ["accept", "needs_improvement", "reject"]},
+    "scores": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": true,
+        "required": ["dimension", "score", "score_min", "score_max", "judge_question"],
+        "properties": {
+          "dimension": {"type": "string", "minLength": 1},
+          "score": {"type": "number"},
+          "score_min": {"type": "number"},
+          "score_max": {"type": "number"},
+          "judge_question": {"type": "string"}
+        }
+      }
+    },
+    "mean_score": {"type": "number", "minimum": 0},
+    "failure_labels": {"type": "array", "items": {"type": "string"}},
+    "notes": {"type": "string"},
+    "acceptance_policy": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": ["minimum_mean_score", "eligible_promotions", "never_commits_beliefs", "requires_reviewer"],
+      "properties": {
+        "minimum_mean_score": {"type": "number", "minimum": 0},
+        "eligible_promotions": {"type": "array", "items": {"type": "string"}},
+        "never_commits_beliefs": {"const": true},
+        "requires_reviewer": {"const": true}
+      }
+    },
+    "review_status": {"enum": ["accepted", "needs_improvement", "rejected", "policy_blocked"]},
+    "eligible_for_promotion": {"type": "boolean"},
+    "promotion_policy": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": ["eligible_targets", "requires_apply", "never_commits_beliefs", "gap_or_eval_only"],
+      "properties": {
+        "eligible_targets": {"type": "array", "items": {"type": "string"}},
+        "requires_apply": {"const": true},
+        "never_commits_beliefs": {"const": true},
+        "gap_or_eval_only": {"const": true}
+      }
+    },
+    "target": {"enum": ["none", "gap", "eval", "both"]},
+    "applied": {"type": "boolean"},
+    "status": {"enum": ["preview", "review_recorded", "promoted", "already_exists"]},
+    "actions": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": true,
+        "required": ["action", "status"],
+        "properties": {
+          "action": {"enum": ["write_quality_review", "promote_gap", "write_eval_case"]},
+          "status": {"enum": ["preview", "written", "promoted", "already_exists", "blocked_by_review"]},
+          "path": {"type": "string"},
+          "would_write": {"type": "string"},
+          "artifact": {"type": "object"},
+          "gap": {"type": "object"},
+          "reason": {"type": "string"}
+        }
+      }
+    },
+    "generated_at": {"type": "string", "format": "date-time"}
+  }
+}

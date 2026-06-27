@@ -157,6 +157,7 @@ deepr expert consult "What should our agentic harness improve next?" --local
 deepr eval consult --json
 deepr expert self-model "AI Policy Expert" --json
 deepr expert monitor "AI Policy Expert" --json
+deepr expert review-consult-quality "AI Policy Expert" consult_abc123 --score uses_expert_state=5 --score surfaces_uncertainty=5 --score preserves_dissent=5 --score actionability=5 --score grounded_when_factual=5 --score original_thought=5 --reviewer operator --decision accept --target eval --apply
 deepr expert promote-monitor "AI Policy Expert" meta_abc123 --target gap --apply
 deepr expert propose-self-model "AI Policy Expert" meta_def456 --json
 deepr expert accept-self-model "AI Policy Expert" ./data/self_model_updates/ai-policy/self_model_update_meta_def456_20260626_120000000000.json --outcome-evidence loop_run:loop_123 --reviewer operator --json
@@ -182,6 +183,12 @@ contracts for expert routing, context packets, collaboration metadata,
 no-metered capacity posture, dissent preservation, replayable traces, and
 sanitized semantic quality review cases. It does not score answer meaning with
 brittle lexical rules.
+
+`deepr expert review-consult-quality` turns one review-ready consult trace case
+into a `deepr-consult-quality-review-v1` artifact. Human or calibrated-model
+scores own semantic judgment; Deepr only validates score shape, records the
+review, enforces the acceptance policy, and can promote accepted cases into gap
+or eval artifacts. This path costs `$0` and never commits beliefs.
 
 ### Capacity
 

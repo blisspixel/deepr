@@ -25,6 +25,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 </details>
 
 ### Added
+- Added `deepr expert review-consult-quality` and the published
+  `deepr-consult-quality-review-v1` schema. Operators can now score a sanitized
+  consult quality case with human or calibrated-model judgment, persist the
+  reviewed score artifact, and promote accepted cases into gap or eval artifacts
+  without committing beliefs or using lexical verdicts.
 - Added `deepr-consult-quality-eval-case-v1`, a published semantic review-case
   packet generated from failed or low-context consult traces. `deepr eval
   consult` now checks collaboration metadata, no-metered capacity posture,

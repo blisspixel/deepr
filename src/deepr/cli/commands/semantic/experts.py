@@ -3320,6 +3320,7 @@ def run_skill_cmd(name: str, skill_name: str, tool_name: str, tool_args: str):
 # group (Phase Q3 decomposition).
 from deepr.cli.commands.semantic import expert_cleanup as _expert_cleanup  # noqa: F401
 from deepr.cli.commands.semantic import expert_consult as _expert_consult  # noqa: F401
+from deepr.cli.commands.semantic import expert_consult_quality as _expert_consult_quality  # noqa: F401
 from deepr.cli.commands.semantic import expert_consult_traces as _expert_consult_traces  # noqa: F401
 from deepr.cli.commands.semantic import expert_gap_routes as _expert_gap_routes  # noqa: F401
 from deepr.cli.commands.semantic import expert_loop_status as _expert_loop_status  # noqa: F401

@@ -514,6 +514,25 @@ low-context consults. Candidate payloads include
 `deepr-consult-quality-eval-case-v1` semantic review packets with rubric
 dimensions for a human or calibrated model judge. They are `$0`, read-only,
 non-verdict artifacts and cannot commit beliefs.
+`deepr expert review-consult-quality NAME TRACE_ID` records reviewed rubric
+scores as a `deepr-consult-quality-review-v1` artifact. Preview is the default;
+`--apply` writes the review artifact, and `--target gap`, `--target eval`, or
+`--target both` can promote only accepted reviews into gap or eval artifacts.
+The reviewer or calibrated judge owns semantic judgment. Deepr validates score
+shape, failure-label membership, acceptance policy, and write boundaries.
+```bash
+deepr expert review-consult-quality "Azure Architect" consult_abc123 \
+  --score uses_expert_state=5 \
+  --score surfaces_uncertainty=5 \
+  --score preserves_dissent=5 \
+  --score actionability=5 \
+  --score grounded_when_factual=5 \
+  --score original_thought=5 \
+  --reviewer operator \
+  --decision accept \
+  --target eval \
+  --apply
+```
 When an expert profile exists, consult perspective context includes a bounded
 read-only `self_model` block with current goals, calibration, blockers, risks,
 and current-focus packet metadata.
