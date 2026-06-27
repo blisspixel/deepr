@@ -1,0 +1,184 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/blisspixel/deepr/docs/schemas/claim-verification-v1.json",
+  "title": "Deepr Claim Verification v1",
+  "type": "object",
+  "additionalProperties": true,
+  "required": [
+    "schema_version",
+    "kind",
+    "contract",
+    "input",
+    "prompt",
+    "model",
+    "summary",
+    "decisions",
+    "compiler",
+    "generated_at"
+  ],
+  "properties": {
+    "schema_version": {"const": "deepr-claim-verification-v1"},
+    "kind": {"const": "deepr.expert.claim_verification"},
+    "contract": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": [
+        "read_only",
+        "derived_view",
+        "semantic_judgment",
+        "model_calls",
+        "cost_usd",
+        "writes_graph"
+      ],
+      "properties": {
+        "read_only": {"const": true},
+        "derived_view": {"const": true},
+        "semantic_judgment": {"const": true},
+        "model_calls": {"const": true},
+        "cost_usd": {"type": "number", "minimum": 0},
+        "writes_graph": {"const": false},
+        "breaking_changes_require_new_schema_version": {"const": true}
+      }
+    },
+    "input": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": [
+        "claim_extraction_schema_version",
+        "claim_extraction_kind",
+        "candidate_count",
+        "ready_candidate_count"
+      ],
+      "properties": {
+        "claim_extraction_artifact": {"type": "string"},
+        "claim_extraction_schema_version": {"type": "string"},
+        "claim_extraction_kind": {"type": "string"},
+        "candidate_count": {"type": "integer", "minimum": 0},
+        "ready_candidate_count": {"type": "integer", "minimum": 0}
+      }
+    },
+    "prompt": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": [
+        "prompt_version",
+        "prompt_hash",
+        "prompt_text_included",
+        "response_schema_version",
+        "response_schema_ref",
+        "structured_output_mode",
+        "app_side_schema_validation_required"
+      ],
+      "properties": {
+        "prompt_version": {"type": "string"},
+        "prompt_ref": {"type": "string"},
+        "prompt_hash": {"type": "string", "pattern": "^[a-f0-9]{64}$"},
+        "prompt_text_included": {"const": false},
+        "response_schema_version": {"const": "deepr-claim-verification-v1"},
+        "response_schema_ref": {"type": "string"},
+        "structured_output_mode": {"type": "string"},
+        "app_side_schema_validation_required": {"const": true}
+      }
+    },
+    "model": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": ["provider", "model", "capacity_source", "raw_response_hash", "response_failure"],
+      "properties": {
+        "provider": {"type": "string"},
+        "model": {"type": "string"},
+        "capacity_source": {"type": "string"},
+        "raw_response_hash": {"type": "string", "pattern": "^[a-f0-9]{64}$"},
+        "response_failure": {"type": "string"}
+      }
+    },
+    "summary": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": [
+        "status",
+        "parsed_decision_count",
+        "ready_for_commit_envelope_count",
+        "blocked_decision_count",
+        "failure_reasons"
+      ],
+      "properties": {
+        "status": {"enum": ["ready_for_commit_envelope", "blocked", "empty"]},
+        "parsed_decision_count": {"type": "integer", "minimum": 0},
+        "ready_for_commit_envelope_count": {"type": "integer", "minimum": 0},
+        "blocked_decision_count": {"type": "integer", "minimum": 0},
+        "failure_reasons": {"type": "array", "items": {"type": "string"}}
+      }
+    },
+    "decisions": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": true,
+        "required": [
+          "candidate_id",
+          "claim_kind",
+          "state_policy",
+          "verdicts",
+          "model_judgment",
+          "readiness",
+          "commit_gate"
+        ],
+        "properties": {
+          "candidate_id": {"type": "string"},
+          "claim_kind": {"type": "string"},
+          "state_policy": {"type": "object", "additionalProperties": true},
+          "verdicts": {
+            "type": "object",
+            "additionalProperties": true,
+            "required": ["support", "contradiction", "deduplication", "temporal_scope"],
+            "properties": {
+              "support": {"enum": ["supported", "refuted", "insufficient", "not_applicable", "unverified"]},
+              "contradiction": {"enum": ["none", "possible", "contradiction", "unverified"]},
+              "deduplication": {"enum": ["new", "same_as_existing", "uncertain", "unverified"]},
+              "temporal_scope": {"enum": ["valid", "unclear", "outdated", "not_applicable"]}
+            }
+          },
+          "model_judgment": {"type": "object", "additionalProperties": true},
+          "readiness": {
+            "type": "object",
+            "additionalProperties": true,
+            "required": ["ready_for_commit_envelope", "failure_reasons"],
+            "properties": {
+              "ready_for_commit_envelope": {"type": "boolean"},
+              "failure_reasons": {"type": "array", "items": {"type": "string"}}
+            }
+          },
+          "commit_gate": {
+            "type": "object",
+            "additionalProperties": true,
+            "required": ["status", "writes_graph", "requires_commit_envelope"],
+            "properties": {
+              "status": {"enum": ["ready_for_commit_envelope", "blocked"]},
+              "writes_graph": {"const": false},
+              "requires_commit_envelope": {"const": true}
+            }
+          }
+        }
+      }
+    },
+    "compiler": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": [
+        "stage",
+        "previous_stage",
+        "next_stage",
+        "graph_writes_require_commit_envelope"
+      ],
+      "properties": {
+        "stage": {"const": "claim_verification"},
+        "previous_stage": {"const": "semantic_claim_extraction"},
+        "next_stage": {"const": "graph_commit_envelope"},
+        "next_stage_requires_model_judgment": {"const": false},
+        "graph_writes_require_commit_envelope": {"const": true}
+      }
+    },
+    "generated_at": {"type": "string"}
+  }
+}

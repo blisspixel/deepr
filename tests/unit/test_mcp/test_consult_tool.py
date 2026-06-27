@@ -28,6 +28,7 @@ _RESULT = {
     "synthesis": "the synthesized answer",
     "agreements": ["both agree"],
     "disagreements": [],
+    "requested_budget_usd": 1.0,
     "total_cost": 0.0212,
 }
 
@@ -67,6 +68,9 @@ async def test_consult_returns_versioned_artifact(server, monkeypatch):
     assert out["perspectives"][0]["context"]["selection"] == "query_overlap"
     assert out["cost_usd"] == 0.0212
     assert out["trace"]["schema_version"] == "deepr-consult-trace-v1"
+    assert out["collaboration"]["schema_version"] == "deepr-expert-collaboration-v1"
+    assert out["collaboration"]["task"]["consult_trace_id"] == out["trace"]["trace_id"]
+    assert out["collaboration"]["evidence_packet"]["belief_store_perspective_count"] == 1
 
 
 @pytest.mark.asyncio

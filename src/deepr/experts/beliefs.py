@@ -1197,6 +1197,11 @@ class BeliefStore:
                 logger.warning("Skipping malformed change record in %s: %s", self.storage_path, exc)
 
 
+from deepr.experts.semantic_recall import install_belief_store_recall_methods as _install_recall_methods
+
+_install_recall_methods(BeliefStore)
+
+
 class SharedBeliefStore:
     """Shared belief store for cross-expert knowledge sharing.
 

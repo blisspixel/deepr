@@ -49,6 +49,20 @@ def _record_exhausted(path, backend_id="codex", *, reset_at=None):
     )
 
 
+def _record_quota_available(path, backend_id="codex", *, remaining=10.0):
+    QuotaLedger(path).record_event(
+        QuotaLedgerEvent(
+            backend_id=backend_id,
+            event_type=QuotaEventType.WINDOW_OBSERVED,
+            cost_model=CostModel.ROLLING_WINDOW,
+            window_kind=QuotaWindowKind.ROLLING_5H,
+            unit_name="plan_request",
+            units_remaining=remaining,
+            remaining_confidence=QuotaConfidence.VENDOR_REPORTED,
+        )
+    )
+
+
 def _admit_plan(path, backend="codex", task_class="sync"):
     record_admission(f"plan:{backend}", task_class, now=T0, path=path)
 
@@ -157,8 +171,7 @@ class TestExplicitPlanQuota:
 
 
 class TestPlanQuotaAutoRung:
-    """Auto-routing to a plan CLI is opt-in: it requires an operator plan
-    admission (vendors don't expose remaining quota, so Deepr never guesses)."""
+    """Auto-routing to a plan CLI needs both operator intent and quota evidence."""
 
     def _auto(self, *, which, path, plan_env=None, admit=True):
         adm = path / "adm.jsonl"
@@ -183,11 +196,16 @@ class TestPlanQuotaAutoRung:
         choice = self._auto(which=_fake_which(), path=tmp_path)
         assert choice.backend == BACKEND_API_METERED
 
-    def test_admitted_and_installed_auto_routes(self, tmp_path):
+    def test_admitted_and_installed_without_quota_stays_metered(self, tmp_path):
+        choice = self._auto(which=_fake_which("codex"), path=tmp_path)
+        assert choice.backend == BACKEND_API_METERED
+
+    def test_admitted_installed_and_quota_observed_auto_routes(self, tmp_path):
+        _record_quota_available(tmp_path / "quota.jsonl", "codex")
         choice = self._auto(which=_fake_which("codex"), path=tmp_path)
         assert choice.backend == BACKEND_PLAN_QUOTA
         assert choice.plan_backend_id == "codex"
-        assert "operator-admitted" in choice.reason
+        assert "operator-admitted, quota-observed" in choice.reason
 
     def test_exhausted_future_reset_stays_metered(self, tmp_path):
         _record_exhausted(tmp_path / "quota.jsonl", "codex", reset_at=datetime(2026, 6, 13, 3, tzinfo=UTC))
@@ -200,12 +218,15 @@ class TestPlanQuotaAutoRung:
         assert choice.backend == BACKEND_API_METERED
 
     def test_exhausted_past_reset_re_routes(self, tmp_path):
-        # Once the observed reset has passed, the admitted backend self-heals.
+        # Once the observed reset has passed, the backend still needs a fresh
+        # trusted quota observation before auto-routing.
         _record_exhausted(tmp_path / "quota.jsonl", "codex", reset_at=datetime(2026, 6, 12, 23, tzinfo=UTC))
+        _record_quota_available(tmp_path / "quota.jsonl", "codex")
         choice = self._auto(which=_fake_which("codex"), path=tmp_path)
         assert choice.backend == BACKEND_PLAN_QUOTA
 
     def test_api_key_env_is_sanitized_even_when_admitted(self, tmp_path):
+        _record_quota_available(tmp_path / "quota.jsonl", "codex")
         choice = self._auto(which=_fake_which("codex"), path=tmp_path, plan_env={"OPENAI_API_KEY": "sk-x"})
         assert choice.backend == BACKEND_PLAN_QUOTA
         assert choice.plan_backend_id == "codex"

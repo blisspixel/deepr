@@ -166,7 +166,7 @@ def _print_admissions_summary() -> None:
 
     if plan:
         click.echo("")
-        click.echo("Plan-quota CLIs admitted for auto-routing (prepaid, operator-attested):")
+        click.echo("Plan-quota CLIs with recorded routing intent (quota observation still required):")
         for a in plan:
             exp = a.expires_at.strftime("%Y-%m-%d") if a.expires_at else "never"
             click.echo(f"  [+] {a.model.removeprefix(PLAN_ADMISSION_PREFIX)} for {a.task_class} (expires {exp})")
@@ -540,14 +540,14 @@ def capacity_probe_plan(backend: str, model: str | None, yes: bool, json_output:
 @click.option("--task-class", "task_class", type=click.Choice(["sync", "absorb"]), default="sync", show_default=True)
 @click.option("--days", type=int, default=None, help="Admission lifetime in days (default 90).")
 def capacity_admit_plan(backend: str, task_class: str, days: int | None):
-    """Opt a plan-quota CLI into AUTO-routing for TASK-CLASS (you accept plan-window use).
+    """Record operator intent for plan-quota routing on TASK-CLASS.
 
     Vendor CLIs do not expose remaining quota, so Deepr never auto-routes to one
-    on a guess. This is the explicit, dated attestation that draining your
-    subscription window for background maintenance is intended; the deterministic
-    auth-mode / no-surprise-bills gate still applies, and a backend seen
-    exhausted waits for its reset. Only the genuinely free-at-margin, ToS-clean
-    backends (codex/claude/opencode) can be admitted; revoke with `revoke-plan`.
+    on a guess. This dated admission says draining your subscription window for
+    background maintenance is intended, but auto-routing still needs a trusted
+    remaining-quota observation. The deterministic auth-mode/no-surprise-bills
+    gate still applies. Explicit `--plan <id>` remains available without
+    admission.
     """
     import os
     import sys
@@ -571,10 +571,11 @@ def capacity_admit_plan(backend: str, task_class: str, days: int | None):
         f"{PLAN_ADMISSION_PREFIX}{backend}",
         task_class,
         days=days or DEFAULT_ADMISSION_DAYS,
-        note=f"operator-attested plan auto-routing for {adapter.display_name}",
+        note=f"operator-attested plan routing intent for {adapter.display_name}",
     )
     click.echo(
-        f"Admitted {adapter.display_name} for auto-routed {task_class!r} maintenance (prepaid plan, $0 at the margin).\n"
+        f"Recorded plan-routing intent for {adapter.display_name} on {task_class!r} maintenance.\n"
+        "Auto-routing also requires a trusted remaining-quota observation; explicit --plan still works now.\n"
         f"Revoke: deepr capacity revoke-plan {backend} --task-class {task_class}"
     )
 
@@ -583,7 +584,7 @@ def capacity_admit_plan(backend: str, task_class: str, days: int | None):
 @click.argument("backend", type=click.Choice(["codex", "claude", "opencode"]))
 @click.option("--task-class", "task_class", type=click.Choice(["sync", "absorb"]), required=True)
 def capacity_revoke_plan(backend: str, task_class: str):
-    """Revoke a plan-quota backend's auto-routing admission for TASK-CLASS."""
+    """Revoke a plan-quota backend's routing admission for TASK-CLASS."""
     from deepr.backends.admission import is_admitted, revoke_admission
     from deepr.backends.waterfall import PLAN_ADMISSION_PREFIX
 
@@ -592,4 +593,6 @@ def capacity_revoke_plan(backend: str, task_class: str):
         click.echo(f"No active plan admission for '{backend}' on '{task_class}'. Nothing to revoke.")
         return
     revoke_admission(model, task_class)
-    click.echo(f"Revoked auto-routing for '{backend}' on '{task_class}'. It stays available via --plan {backend}.")
+    click.echo(
+        f"Revoked plan-routing intent for '{backend}' on '{task_class}'. It stays available via --plan {backend}."
+    )

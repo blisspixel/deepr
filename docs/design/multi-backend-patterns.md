@@ -14,12 +14,13 @@ A common worry: are the subscription CLIs picked by dumb rotation? No.
 `waterfall.py:_choose_plan_quota` selects a backend only when it is **installed**
 (`shutil.which`) **and operator-admitted** for the task class **and** passes the
 deterministic auth/billing safety gate (`evaluate_plan_quota_safety`: auth mode
-is plan, no metered key would bill, billing acknowledged) **and** is not inside
-an exhaustion cooldown. Exhaustion is **reset-aware**: an observed `EXHAUSTED`
-event with a future `reset_at` blocks the backend; once the reset passes it
-self-heals (`_exhaustion_cleared`). It picks one backend with a human-readable
-reason - never blind rotation. (`deepr capacity probe-plan` additionally does a
-real `$0`/quota round-trip to confirm a CLI actually works.)
+is plan, no metered key would bill, billing acknowledged) **and** has a trusted
+remaining-quota observation in the local quota ledger. Exhaustion is
+**reset-aware**: an observed `EXHAUSTED` event with a future `reset_at` blocks
+the backend; once the reset passes it no longer blocks, but auto-routing still
+needs a fresh trusted remaining-quota observation. It picks one backend with a
+human-readable reason - never blind rotation. (`deepr capacity probe-plan`
+additionally does a real `$0`/quota round-trip to confirm a CLI actually works.)
 
 **Honest limitation:** most vendor CLIs do **not** expose *remaining* quota
 through the execution command, so "has quota" cannot be guessed from CLI
@@ -29,8 +30,9 @@ metadata probes are Codex and Claude Code: `deepr capacity refresh-quota codex`
 reads local session-log `rate_limits`, and `deepr capacity refresh-quota claude`
 reads Claude Code OAuth usage metadata when the current user has Claude Code
 configured. Other backends stay explicit or reactive until their own metadata
-probes exist, which is why auto-routing onto a subscription stays opt-in
-(`admit-plan`) and explicit `--plan` remains the works-now path.
+probes exist, which is why auto-routing onto a subscription requires both
+operator intent (`admit-plan`) and a trusted remaining-quota observation.
+Explicit `--plan` remains the works-now path.
 
 ## 2. The evidence: averaging adds cost, challenging adds truth
 

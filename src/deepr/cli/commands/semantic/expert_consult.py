@@ -22,7 +22,13 @@ from deepr.cli.commands.semantic.experts import expert
 
 # Shared core (also used by the deepr_consult_experts MCP tool). Re-exported so
 # existing importers/tests keep working.
-from deepr.experts.consult import ConsultBackendError, build_consult_payload, build_synthesis_backend, run_consult
+from deepr.experts.consult import (
+    ConsultBackendError,
+    attach_collaboration_runtime,
+    build_consult_payload,
+    build_synthesis_backend,
+    run_consult,
+)
 from deepr.experts.consult_traces import record_consult_trace
 
 __all__ = ["build_consult_payload", "expert_consult", "run_consult"]
@@ -162,6 +168,8 @@ def expert_consult(
         sys.exit(1)
 
     payload = build_consult_payload(question, result)
+    capacity = _capacity_payload("local" if use_local else "plan" if plan_backend else "api", synthesis_backend)
+    payload["capacity"] = capacity
     payload["trace"] = record_consult_trace(
         question=question,
         requested_experts=list(experts),
@@ -169,8 +177,9 @@ def expert_consult(
         budget=budget,
         payload=payload,
         result=result,
-        capacity=_capacity_payload("local" if use_local else "plan" if plan_backend else "api", synthesis_backend),
+        capacity=capacity,
     )
+    attach_collaboration_runtime(payload, result=result, capacity=capacity, trace=payload["trace"])
     if json_output:
         click.echo(_json.dumps(payload, indent=2))
     else:

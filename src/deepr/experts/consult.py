@@ -10,12 +10,15 @@ server never has to depend on the CLI layer.
 
 from __future__ import annotations
 
+import hashlib
 from collections.abc import Iterable
 from dataclasses import dataclass
 from typing import Any
 
 CONSULT_SCHEMA_VERSION = "deepr-consult-v1"
 CONSULT_KIND = "deepr.expert.consult"
+COLLABORATION_SCHEMA_VERSION = "deepr-expert-collaboration-v1"
+COLLABORATION_KIND = "deepr.expert.collaboration"
 # Hard ceiling on how many experts one consult transaction may fan out to when
 # auto-selecting. A harness opts into wider fan-out by passing a larger
 # max_experts (e.g. 10 for a Grok-Heavy style cross-domain sweep); the default
@@ -38,6 +41,10 @@ class ConsultSynthesisBackend:
     allow_live_fallback: bool = True
     note: str = ""
     tos_note: str = ""
+
+
+def _sha256(value: str) -> str:
+    return hashlib.sha256(value.encode("utf-8")).hexdigest()
 
 
 def build_synthesis_backend(
@@ -122,7 +129,114 @@ def build_consult_payload(question: str, result: dict[str, Any]) -> dict[str, An
         "agreements": list(result.get("agreements", []) or []),
         "disagreements": list(result.get("disagreements", []) or []),
         "cost_usd": cost,
+        "collaboration": build_collaboration_contract(question, result),
     }
+
+
+def build_collaboration_contract(
+    question: str,
+    result: dict[str, Any],
+    *,
+    capacity: dict[str, Any] | None = None,
+    trace: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    """Build the protocol-native expert collaboration metadata.
+
+    This is a deterministic artifact contract over one council transaction. It
+    records the roster, roles, budget and capacity posture, evidence packet, and
+    dissent handling without changing the answer or adjudicating truth.
+    """
+    perspectives = result.get("perspectives", []) or []
+    agreements = list(result.get("agreements", []) or [])
+    disagreements = list(result.get("disagreements", []) or [])
+    requested_budget = round(float(result.get("requested_budget_usd", 0.0) or 0.0), 4)
+    actual_cost = round(float(result.get("total_cost", 0.0) or 0.0), 4)
+    trace_id = str((trace or {}).get("trace_id", "") or result.get("shared_task_trace_id", "") or "")
+
+    roster = []
+    context_sources: dict[str, int] = {}
+    for index, perspective in enumerate(perspectives):
+        context = perspective.get("context") if isinstance(perspective, dict) else {}
+        context = context if isinstance(context, dict) else {}
+        source = str(context.get("source", "unknown") or "unknown")
+        context_sources[source] = context_sources.get(source, 0) + 1
+        roster.append(
+            {
+                "expert": str(perspective.get("expert_name", "") or ""),
+                "domain": str(perspective.get("domain", "") or ""),
+                "role": "domain_perspective",
+                "order": index,
+                "confidence": round(float(perspective.get("confidence", 0.0) or 0.0), 3),
+                "context_source": source,
+                "context_selection": str(context.get("selection", "") or ""),
+                "beliefs_included": int(context.get("beliefs_included", 0) or 0),
+                "cost_usd": round(float(perspective.get("cost", 0.0) or 0.0), 4),
+            }
+        )
+
+    return {
+        "schema_version": COLLABORATION_SCHEMA_VERSION,
+        "kind": COLLABORATION_KIND,
+        "contract": {
+            "cost_usd": actual_cost,
+            "host_orchestrated": True,
+            "deepr_enacts_downstream_actions": False,
+            "semantic_verdict": False,
+            "derived_from_consult_result": True,
+            "breaking_changes_require_new_schema_version": True,
+        },
+        "task": {
+            "question_hash": _sha256(question),
+            "consult_trace_id": trace_id,
+            "shared_task_trace_id": trace_id,
+            "input_field": "question",
+        },
+        "roster": roster,
+        "budget_capacity_contract": {
+            "requested_budget_usd": requested_budget,
+            "actual_cost_usd": actual_cost,
+            "capacity": capacity or {},
+            "metered_fallback_allowed": bool((capacity or {}).get("live_metered_fallback", True)),
+        },
+        "evidence_packet": {
+            "perspective_count": len(perspectives),
+            "context_sources": context_sources,
+            "belief_store_perspective_count": context_sources.get("belief_store", 0),
+            "failed_perspective_count": context_sources.get("failed", 0),
+            "agreement_count": len(agreements),
+            "disagreement_count": len(disagreements),
+        },
+        "dissent_handling": {
+            "agreements_field": "agreements",
+            "disagreements_field": "disagreements",
+            "dissent_preserved": True,
+            "synthesis_is_not_truth_adjudication": True,
+        },
+        "result_artifact": {
+            "schema_version": CONSULT_SCHEMA_VERSION,
+            "kind": CONSULT_KIND,
+            "answer_field": "answer",
+            "perspectives_field": "perspectives",
+            "agreements_field": "agreements",
+            "disagreements_field": "disagreements",
+        },
+    }
+
+
+def attach_collaboration_runtime(
+    payload: dict[str, Any],
+    *,
+    result: dict[str, Any],
+    capacity: dict[str, Any] | None = None,
+    trace: dict[str, Any] | None = None,
+) -> None:
+    """Attach runtime trace and capacity refs to the consult collaboration block."""
+    payload["collaboration"] = build_collaboration_contract(
+        str(payload.get("question", "")),
+        result,
+        capacity=capacity,
+        trace=trace,
+    )
 
 
 def resolve_explicit_expert_choices(experts: list[str], profiles: Iterable[Any] | None = None) -> list[dict[str, str]]:

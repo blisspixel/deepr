@@ -1,0 +1,176 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/blisspixel/deepr/docs/schemas/expert-memory-card-v1.json",
+  "title": "Deepr Expert Memory Card v1",
+  "type": "object",
+  "additionalProperties": true,
+  "required": [
+    "schema_version",
+    "kind",
+    "contract",
+    "artifact",
+    "expert",
+    "memory_layers",
+    "continuity",
+    "calibration",
+    "current_goals",
+    "learning_strategy",
+    "current_stance",
+    "perspective",
+    "beliefs",
+    "gaps",
+    "active_contradictions",
+    "recent_belief_events",
+    "collaboration",
+    "update_policy"
+  ],
+  "properties": {
+    "schema_version": {"const": "deepr-expert-memory-card-v1"},
+    "kind": {"const": "deepr.expert.memory_card"},
+    "contract": {
+      "type": "object",
+      "required": [
+        "read_only",
+        "cost_usd",
+        "derived_view",
+        "authoritative",
+        "stability",
+        "model_calls",
+        "writes",
+        "regeneration_command"
+      ],
+      "properties": {
+        "read_only": {"const": true},
+        "cost_usd": {"type": "number", "minimum": 0},
+        "derived_view": {"const": true},
+        "authoritative": {"const": false},
+        "stability": {"type": "string"},
+        "model_calls": {"type": "integer", "minimum": 0},
+        "writes": {"type": "string"},
+        "regeneration_command": {"type": "string"}
+      },
+      "additionalProperties": true
+    },
+    "artifact": {
+      "type": "object",
+      "required": ["filename", "path", "generated_at", "canonical_state", "frontmatter_marker"],
+      "properties": {
+        "filename": {"const": "EXPERT.md"},
+        "path": {"type": "string"},
+        "generated_at": {"type": "string"},
+        "canonical_state": {"type": "string"},
+        "frontmatter_marker": {"const": "deepr.expert.memory_card"}
+      },
+      "additionalProperties": true
+    },
+    "expert": {
+      "type": "object",
+      "required": ["name", "preferred_name", "domain", "description", "identity_policy"],
+      "properties": {
+        "name": {"type": "string"},
+        "preferred_name": {"type": "string"},
+        "domain": {"type": "string"},
+        "description": {"type": "string"},
+        "identity_policy": {"type": "string"}
+      },
+      "additionalProperties": true
+    },
+    "memory_layers": {
+      "type": "object",
+      "required": ["profile", "belief_graph", "event_log", "self_model", "wiki_card"],
+      "additionalProperties": true
+    },
+    "continuity": {"type": "object", "additionalProperties": true},
+    "calibration": {"type": "object", "additionalProperties": true},
+    "current_goals": {"type": "array", "items": {"type": "string"}},
+    "learning_strategy": {"type": "object", "additionalProperties": true},
+    "current_stance": {
+      "type": "object",
+      "required": ["summary", "belief_count", "open_gap_count", "top_focus_beliefs", "top_focus_gaps", "interpretation_policy"],
+      "properties": {
+        "summary": {"type": "string"},
+        "belief_count": {"type": "integer", "minimum": 0},
+        "open_gap_count": {"type": "integer", "minimum": 0},
+        "top_focus_beliefs": {"type": "array"},
+        "top_focus_gaps": {"type": "array"},
+        "interpretation_policy": {"type": "string"}
+      },
+      "additionalProperties": true
+    },
+    "perspective": {
+      "type": "object",
+      "required": [
+        "position",
+        "working_theories",
+        "insight_candidates",
+        "self_research_agenda",
+        "what_would_change_my_mind",
+        "agency_scope"
+      ],
+      "properties": {
+        "position": {"type": "string"},
+        "working_theories": {"type": "array"},
+        "insight_candidates": {"type": "array"},
+        "self_research_agenda": {"type": "array"},
+        "what_would_change_my_mind": {"type": "array", "items": {"type": "string"}},
+        "agency_scope": {
+          "type": "object",
+          "required": ["can_do_without_metered_spend", "requires_explicit_gate", "autonomy_boundary"],
+          "properties": {
+            "can_do_without_metered_spend": {"type": "array", "items": {"type": "string"}},
+            "requires_explicit_gate": {"type": "array", "items": {"type": "string"}},
+            "autonomy_boundary": {"type": "string"}
+          },
+          "additionalProperties": true
+        }
+      },
+      "additionalProperties": true
+    },
+    "beliefs": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "id",
+          "statement",
+          "domain",
+          "confidence",
+          "grounding_assurance",
+          "source_count",
+          "sources",
+          "contradicts",
+          "tags",
+          "created_at",
+          "updated_at"
+        ],
+        "additionalProperties": true
+      }
+    },
+    "gaps": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["id", "topic", "priority", "ev_cost_ratio", "questions", "times_asked", "estimated_cost", "filled"],
+        "additionalProperties": true
+      }
+    },
+    "active_contradictions": {"type": "array"},
+    "recent_belief_events": {"type": "array"},
+    "collaboration": {
+      "type": "object",
+      "required": ["best_used_for", "host_agent_guidance", "next_commands"],
+      "additionalProperties": true
+    },
+    "update_policy": {
+      "type": "object",
+      "required": ["manual_edit_authority", "canonical_update_paths", "review_required_for", "regeneration"],
+      "properties": {
+        "manual_edit_authority": {"type": "string"},
+        "canonical_update_paths": {"type": "array", "items": {"type": "string"}},
+        "review_required_for": {"type": "array", "items": {"type": "string"}},
+        "regeneration": {"type": "string"}
+      },
+      "additionalProperties": true
+    }
+  }
+}
