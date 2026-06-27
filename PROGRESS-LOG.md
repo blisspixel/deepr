@@ -3,6 +3,37 @@
 Working log only. Keep the latest five cycles plus the active cycle here; older
 completed milestones are summarized in `docs/CHANGELOG.md`.
 
+## 2026-06-27 - Cycle 10 - Budget-gated claim compiler invocation
+
+- Added `SemanticClaimExtractor`, a budget-gated, OpenAI-shaped chat-client
+  invocation layer for `deepr-semantic-claim-extraction-v1`.
+- Built bounded source-window prompts from source-pack payloads plus source
+  notes, quarantined untrusted source excerpts with the existing prompt
+  sanitizer, and kept raw prompt text out of persisted envelopes.
+- Enforced no-surprise spend rules: local and plan paths can run at `$0` inside
+  Deepr, metered paths require explicit opt-in, budget headroom, cost-safety
+  reservation, cost-ledger settlement, and prompt-visible estimates for known
+  claim-compilation spend on metered plan paths.
+- Added explicit `deepr expert sync --compile-claims`, wired through the shared
+  maintenance backend builder for local, plan-quota, and metered OpenAI-shaped
+  clients. The sidecar writes claim-extraction artifacts only; graph writes
+  remain disabled.
+- Attached claim-extraction artifact refs to sync outcomes and loop context
+  when present, without changing default sync behavior or absorbing verifier
+  pending candidates as beliefs.
+- Updated README, ROADMAP, capacity docs, feature docs, changelog, and
+  `AGENTIC_BALANCE.md` so the shipped state and next work are clear: claim
+  verification and the commit envelope remain next.
+- Validation passed: `ruff check`; `ruff format --check`; strict mypy gate for
+  `core/providers/mcp`; docs consistency; file-size ratchet; complexity and
+  security ratchets; Gitleaks full-history scan; `pip-audit`; focused tests `78
+  passed`; full unit suite `6772 passed, 8 skipped`; branch coverage `83%`.
+- Maker-checker score: correctness 5/5, security 5/5, performance 5/5,
+  maintainability 5/5, simplicity 5/5, testability 5/5.
+- Spend: `$0.00`.
+
+Cycle health: 5/5 | Simplicity: 5/5 | Est. spend: $0.00 | New skill distilled: sidecar compiler invocation
+
 ## 2026-06-26 - Cycle 9 - README and docs clarity pass
 
 - Reworked README into a concise front door: product framing, quick start, what
@@ -121,28 +152,3 @@ completed milestones are summarized in `docs/CHANGELOG.md`.
 - Maker-checker target score: correctness 5/5, security 5/5, performance 5/5,
   maintainability 5/5, simplicity 5/5, testability 5/5.
 - Spend: `$0.00`.
-
-## 2026-06-26 - Cycle 5 - Sync self-model run context
-
-- Added one shared compact self-model context builder and refactored council
-  consults to use it, eliminating duplicate shaping logic.
-- Added additive `ExpertLoopRun.run_context` metadata and kept `next_action`
-  action-only.
-- Attached bounded read-only `self_model` metadata to completed sync loop
-  records, overlap-locked sync records, scheduled sync capacity waits, and sync
-  capacity blocks when an expert profile exists.
-- Updated loop-status and sync-capacity schemas with optional additive fields.
-- Updated README, roadmap, expert docs, features, supported surface, schema
-  docs, changelog, current-state analysis, and quality rubric to mark
-  learning-run self-model context as shipped while keeping metacognitive
-  mutation as the next gated step.
-- Validation passed: 66 focused self-model, loop-run, council, and maintenance
-  tests; `ruff check src/deepr/`; `ruff format --check src/deepr/`; strict mypy
-  gate for `core/providers/mcp`; docs consistency; file-size ratchet;
-  complexity/security ratchets; full unit suite `6702 passed, 8 skipped`,
-  branch coverage `83.04%`.
-- Maker-checker score: correctness 5/5, security 5/5, performance 5/5,
-  maintainability 5/5, simplicity 5/5, testability 5/5.
-- Spend: `$0.00`.
-
-Cycle health: 5/5 | Simplicity: 5/5 | Est. spend: $0.00 | New skill distilled: loop run context metadata

@@ -67,6 +67,7 @@ deepr expert absorb "Platform Team Expert" report.md --local
 deepr expert sync "Platform Team Expert" --local
 deepr expert sync "Platform Team Expert" --local --fresh-context
 deepr expert sync "Platform Team Expert" --local --deep-context
+deepr expert sync "Platform Team Expert" --local --fresh-context --compile-claims
 ```
 
 `--fresh-context` builds a small free-only retrieval pack. `--deep-context`
@@ -77,17 +78,27 @@ or other API-key search backends. If no fresh sources are retrieved, Deepr
 records no changes instead of absorbing uncertainty as permanent beliefs.
 
 Context-bearing sync runs write a source-pack artifact and deterministic
-compiler manifest under the expert knowledge directory:
+compiler artifacts under the expert knowledge directory:
 
 ```text
 sync_artifacts/source_packs/<timestamp>_<topic>.json
 sync_artifacts/source_pack_manifests/<timestamp>_<topic>.json
+sync_artifacts/source_notes/<timestamp>_<topic>.json
+sync_artifacts/claim_extractions/<timestamp>_<topic>.json
 ```
 
-The manifest records provenance shape, excerpt hashes, content-hash validity,
-and readiness for a later semantic compile. It makes no model calls and emits no
-semantic verdicts. If the source pack cannot be persisted, Deepr fails closed
-and does not absorb the context-grounded answer.
+The manifest and source notes record provenance shape, excerpt hashes,
+content-hash validity, source windows, and readiness for semantic compile. They
+make no model calls and emit no semantic verdicts. `--compile-claims` adds an
+explicit sidecar model call over ready source-note windows and writes
+verifier-pending `deepr-semantic-claim-extraction-v1` candidates. The sidecar
+does not write beliefs. On local capacity it costs `$0`; on non-metered plan
+capacity it costs `$0` inside Deepr but consumes subscription quota. A
+metered-at-margin plan CLI is explicit-only, shows the run budget ceiling and
+known claim-compilation estimate in the confirmation prompt, and must pass the
+budget and cost-ledger gate before dispatch. Metered API capacity uses the same
+budget and cost-ledger gate. If the source pack cannot be persisted, Deepr
+fails closed and does not absorb the context-grounded answer.
 
 ## Local Admission
 
