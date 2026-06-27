@@ -187,6 +187,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   confidence, provenance, temporal context, and a next learning plan.
 
 ### Changed
+- Refreshed user-facing docs for the compiled expert memory loop: README usage,
+  the expert guide, supported-surface contract, schema registry docs, and
+  ROADMAP order now distinguish shipped compiler, memory-card, collaboration,
+  and recall surfaces from the future graph commit envelope.
 - `ExpertProfile.get_manifest()` now reads synthesis worldview and decision-log
   files through the canonical expert directory, so generated self-model and
   memory-card surfaces do not miss state for display names that slug differently

@@ -19,6 +19,7 @@ All v1 schemas are additive within the same schema version:
 |---|---|---|
 | `deepr-expert-handoff-v1` | [expert-handoff-v1.json](expert-handoff-v1.json) | Bounded read-only expert handoff payload for MCP and web consumers |
 | `deepr-expert-self-model-v1` | [expert-self-model-v1.json](expert-self-model-v1.json) | Read-only expert capabilities, limits, goals, calibration, risks, and current-focus packet |
+| `deepr-expert-memory-card-v1` | [expert-memory-card-v1.json](expert-memory-card-v1.json) | Generated `EXPERT.md` orientation view over profile, manifest, belief events, and self-model state |
 | `deepr-expert-self-model-update-v1` | [expert-self-model-update-v1.json](expert-self-model-update-v1.json) | Verifier-gated review record for monitor proposals that would change self-model interpretation |
 | `deepr-expert-self-model-update-acceptance-v1` | [expert-self-model-update-acceptance-v1.json](expert-self-model-update-acceptance-v1.json) | Human-reviewed acceptance record with outcome evidence and policy gates for a recorded self-model update |
 | `deepr-metacognitive-monitor-v1` | [metacognitive-monitor-v1.json](metacognitive-monitor-v1.json) | Read-only reviewed proposals from self-model, loop-run, and consult-trace evidence |
@@ -33,6 +34,7 @@ All v1 schemas are additive within the same schema version:
 | `deepr-source-pack-manifest-v1` | [source-pack-manifest-v1.json](source-pack-manifest-v1.json) | Deterministic source-pack compiler manifest with provenance hashes and no semantic verdicts |
 | `deepr-source-note-v1` | [source-note-v1.json](source-note-v1.json) | Deterministic source-note cards with stable IDs, source windows, hashes, and provenance refs |
 | `deepr-semantic-claim-extraction-v1` | [semantic-claim-extraction-v1.json](semantic-claim-extraction-v1.json) | Verifier-gated semantic claim candidates from source notes with prompt/schema version capture and no graph writes |
+| `deepr-claim-verification-v1` | [claim-verification-v1.json](claim-verification-v1.json) | Verifier decisions for support, contradiction, deduplication, temporal scope, and type-specific policy gates |
 | `deepr-capacity-next-v1` | [capacity-next-v1.json](capacity-next-v1.json) | Read-only `$0` capacity guidance payload for scheduler and CLI consumers |
 | `deepr-sync-capacity-gate-v1` | [sync-capacity-gate-v1.json](sync-capacity-gate-v1.json) | Read-only sync capacity wait/block payload with embedded capacity and self-model guidance |
 | `deepr-scheduled-gap-fill-wait-v1` | [scheduled-gap-fill-wait-v1.json](scheduled-gap-fill-wait-v1.json) | Read-only scheduled gap-fill wait payload with routed gaps and safe next actions |
