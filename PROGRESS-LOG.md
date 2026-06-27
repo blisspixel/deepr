@@ -3,6 +3,33 @@
 Working log only. Keep the latest five cycles plus the active cycle here; older
 completed milestones are summarized in `docs/CHANGELOG.md`.
 
+## 2026-06-27 - Cycle 13 - Consult semantic quality review cases
+
+- Researched current primary guidance on multi-agent orchestration, trace-first
+  improvement loops, MCP tool boundaries, and A2A task artifacts. The usable
+  pattern for Deepr remains one or many experts, one bounded consult artifact,
+  with deterministic gates around cost, schemas, credentials, and writes.
+- Added `deepr-consult-quality-eval-case-v1`, a published `$0` review-case
+  packet emitted from failed or low-context consult trace candidates. It carries
+  sanitized trace refs, capacity posture, structural failure signals, rubric
+  dimensions, failure labels, and an acceptance policy for human or calibrated
+  model judging. It is read-only, non-verdict, and cannot write beliefs.
+- Extended `deepr eval consult` to methodology v1.1 with eight cases, including
+  collaboration capacity posture, dissent preservation, trace candidate shape,
+  and semantic review-case boundaries. No lexical or keyword check scores answer
+  meaning.
+- Updated README, ROADMAP, features, supported surface, schema docs, changelog,
+  current-state analysis, quality rubric, and skills so docs now say review
+  cases are shipped while judged scoring and reviewed promotion remain next.
+- Validation passed: focused consult eval, consult trace, CLI eval, and schema
+  tests `46 passed`; full unit suite `6797 passed, 8 skipped`; `ruff check`;
+  `ruff format --check`; strict mypy gate for `core/providers/mcp`; docs
+  consistency; file-size ratchet; complexity/security ratchets; diff
+  whitespace check; changed-file punctuation, emoji, and attribution scans; and
+  Gitleaks full-history scan.
+- Maker-checker score: correctness 5/5, security 5/5, performance 5/5,
+  maintainability 5/5, simplicity 5/5, testability 5/5.
+- Spend: `$0.00`.
 ## 2026-06-27 - Cycle 12 - MCP expert consult contract hardening
 
 - Researched current multi-agent orchestration patterns from Anthropic,
@@ -132,33 +159,5 @@ Cycle health: 5/5 | Simplicity: 5/5 | Est. spend: $0.00 | New skill distilled: s
   complexity/security ratchets; full unit suite `6726 passed, 8 skipped`,
   branch coverage `83.20%`.
 - Maker-checker score: correctness 5/5, security 5/5, performance 5/5,
-  maintainability 5/5, simplicity 5/5, testability 5/5.
-- Spend: `$0.00`.
-
-## 2026-06-26 - Cycle 7 - Reviewed monitor promotion
-
-- Ran the cycle-7 maintenance sub-goal before feature work: dependency audit
-  found no known vulnerabilities, the local agentic red-team verifier blocked
-  13/13 attacks at `$0`, and security/complexity ratchets stayed at baseline.
-- Added `deepr-metacognitive-promotion-v1`, a preview/apply result contract for
-  reviewed monitor proposal promotion.
-- Added idempotent metacognition gap candidate promotion so re-running the same
-  reviewed proposal does not keep bumping the gap backlog.
-- Added `deepr expert promote-monitor NAME PROPOSAL_ID`, defaulting to preview
-  and requiring `--apply` before writing a metacognition gap, a local eval-case
-  artifact under `data/benchmarks`, or both.
-- Updated monitor `gap_or_eval_candidate` proposals to recommend the exact
-  promotion command with the stable proposal id.
-- Published and registered `docs/schemas/metacognitive-promotion-v1.json`.
-- Updated README, roadmap, expert docs, features, supported surface, schema
-  docs, design note, changelog, current-state analysis, and quality rubric to
-  mark reviewed gap/eval promotion as shipped while keeping self-model updates
-  gated.
-- Validation passed: 37 focused monitor promotion, monitor, CLI, and schema
-  tests; `ruff check src/deepr/`; `ruff format --check src/deepr/`; strict
-  mypy gate for `core/providers/mcp`; docs consistency; file-size ratchet;
-  complexity/security ratchets; full unit suite `6718 passed, 8 skipped`,
-  branch coverage `83.08%`.
-- Maker-checker target score: correctness 5/5, security 5/5, performance 5/5,
   maintainability 5/5, simplicity 5/5, testability 5/5.
 - Spend: `$0.00`.

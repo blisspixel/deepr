@@ -15,12 +15,12 @@ from pathlib import Path
 from typing import Any
 
 from deepr.experts.beliefs import Belief
-from deepr.experts.consult import build_consult_payload, resolve_explicit_expert_choices
+from deepr.experts.consult import attach_collaboration_runtime, build_consult_payload, resolve_explicit_expert_choices
 from deepr.experts.consult_traces import build_consult_trace, build_consult_trace_candidates
 from deepr.experts.council import ExpertCouncil, parse_synthesis_sections
 from deepr.experts.profile import ExpertProfile
 
-CONSULT_EVAL_METHODOLOGY_VERSION = "1.0"
+CONSULT_EVAL_METHODOLOGY_VERSION = "1.1"
 
 
 @dataclass(frozen=True)
@@ -92,6 +92,8 @@ def run_consult_eval() -> ConsultEvalReport:
             _check_payload_context_preservation(),
             _check_consult_trace_contract(),
             _check_consult_trace_candidate_contract(),
+            _check_collaboration_capacity_contract(),
+            _check_semantic_quality_eval_case_contract(),
         )
     )
 
@@ -276,4 +278,119 @@ def _check_consult_trace_candidate_contract() -> ConsultEvalOutcome:
         category="trace",
         passed=passed,
         detail={"candidate_count": payload["candidate_count"], "reason": first["reason"]},
+    )
+
+
+def _check_collaboration_capacity_contract() -> ConsultEvalOutcome:
+    result = {
+        "perspectives": [
+            {
+                "expert_name": "Agent Harness Expert",
+                "domain": "agent harnesses",
+                "response": "Use bounded trace artifacts.",
+                "confidence": 0.9,
+                "cost": 0.0,
+                "context": {"source": "belief_store", "selection": "query_overlap", "beliefs_included": 2},
+            },
+            {
+                "expert_name": "TKG Expert",
+                "domain": "temporal graphs",
+                "response": "Preserve temporal disagreement.",
+                "confidence": 0.84,
+                "cost": 0.0,
+                "context": {"source": "belief_store", "selection": "query_overlap", "beliefs_included": 1},
+            },
+        ],
+        "synthesis": "Bounded guidance with preserved dissent.",
+        "agreements": ["Use traceable context."],
+        "disagreements": ["How much graph mutation should be allowed immediately."],
+        "requested_budget_usd": 0.0,
+        "total_cost": 0.0,
+        "shared_task_trace_id": "consult_abcdef123456",
+    }
+    payload = build_consult_payload("How should expert consult improve?", result)
+    trace = build_consult_trace(
+        question="How should expert consult improve?",
+        requested_experts=["Agent Harness Expert", "TKG Expert"],
+        max_experts=3,
+        budget=0.0,
+        payload=payload,
+        result={**result, "synthesis_status": "completed"},
+        capacity={"synthesis_backend": "local", "provider": "local", "model": "qwen", "live_metered_fallback": False},
+        trace_id="consult_abcdef123456",
+    )
+    attach_collaboration_runtime(
+        payload,
+        result=result,
+        capacity={"synthesis_backend": "local", "provider": "local", "model": "qwen", "live_metered_fallback": False},
+        trace=trace,
+    )
+    collaboration = payload["collaboration"]
+    passed = (
+        collaboration["schema_version"] == "deepr-expert-collaboration-v1"
+        and collaboration["contract"]["host_orchestrated"] is True
+        and collaboration["contract"]["semantic_verdict"] is False
+        and collaboration["budget_capacity_contract"]["capacity"]["live_metered_fallback"] is False
+        and collaboration["evidence_packet"]["belief_store_perspective_count"] == 2
+        and collaboration["evidence_packet"]["disagreement_count"] == 1
+        and collaboration["dissent_handling"]["dissent_preserved"] is True
+        and collaboration["task"]["consult_trace_id"] == "consult_abcdef123456"
+    )
+    return ConsultEvalOutcome(
+        case_id="collaboration_capacity_contract",
+        category="collaboration",
+        passed=passed,
+        detail={
+            "capacity": collaboration["budget_capacity_contract"]["capacity"],
+            "dissent": collaboration["dissent_handling"],
+        },
+    )
+
+
+def _check_semantic_quality_eval_case_contract() -> ConsultEvalOutcome:
+    trace = build_consult_trace(
+        question="How should an expert answer when the useful idea is not yet online?",
+        requested_experts=["A"],
+        max_experts=3,
+        budget=0.0,
+        payload={
+            "schema_version": "deepr-consult-v1",
+            "kind": "deepr.expert.consult",
+            "question": "How should an expert answer when the useful idea is not yet online?",
+            "answer": "Thin answer.",
+            "experts_consulted": ["A"],
+            "perspectives": [{"expert": "A", "confidence": 0.2, "response": "thin"}],
+            "agreements": [],
+            "disagreements": [],
+            "cost_usd": 0.0,
+        },
+        result={"perspectives": [{}], "synthesis_status": "completed"},
+        capacity={"synthesis_backend": "local", "provider": "local", "model": "qwen", "live_metered_fallback": False},
+        trace_id="consult_abcdef123456",
+    )
+    payload = build_consult_trace_candidates([trace])
+    first = payload["candidates"][0]
+    case = first["semantic_eval_case"]
+    dimensions = {item["dimension"] for item in case["rubric"]}
+    serialized = json.dumps(case, sort_keys=True)
+    passed = (
+        payload["semantic_eval_case_count"] == 1
+        and case["schema_version"] == "deepr-consult-quality-eval-case-v1"
+        and case["kind"] == "deepr.eval.consult_quality_case"
+        and case["contract"]["cost_usd"] == 0.0
+        and case["contract"]["writes_state"] is False
+        and case["contract"]["semantic_verdict"] is False
+        and case["contract"]["lexical_verdict_allowed"] is False
+        and case["contract"]["requires_human_or_calibrated_model_judge"] is True
+        and {"uses_expert_state", "preserves_dissent", "grounded_when_factual", "original_thought"} <= dimensions
+        and case["acceptance_policy"]["never_commits_beliefs"] is True
+        and "output" not in first
+        and "failure" not in first
+        and "Thin answer." not in serialized
+    )
+    return ConsultEvalOutcome(
+        case_id="semantic_quality_eval_case_contract",
+        category="semantic_eval",
+        passed=passed,
+        detail={"dimensions": sorted(dimensions), "reason": first["reason"]},
     )

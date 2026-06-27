@@ -107,14 +107,26 @@ metered-capable chat path until the backend-neutral runner exists. The legacy
 chat path now checks the selected-model estimate before its first direct model
 path in both normal and streaming chat.
 
+Cycle 13 adds the consult semantic quality review substrate without adding a
+brittle meaning rule. Failed or low-context consult traces now produce
+`deepr-consult-quality-eval-case-v1` packets inside sanitized trace candidates.
+Those packets carry question hashes/previews, capacity posture, structural
+failure signals, rubric dimensions, failure labels, and an acceptance policy for
+human or calibrated-model judging. They are `$0`, read-only, non-verdict
+artifacts and cannot commit beliefs. `deepr eval consult` now covers eight
+zero-cost cases, including collaboration metadata, no-metered capacity posture,
+dissent preservation, trace contracts, trace candidate shape, and semantic
+review-case boundaries.
+
 External best-practice check, current as of 2026-06-27: modern agent harness
 guidance converges on trace-first improvement loops, evals from real failures,
 bounded context packets, explicit handoffs, and deterministic gates around
 spend, writes, tools, and credentials. Deepr's next implementation slices should
-continue that shape: verify externally factual claim candidates, add concept,
-hypothesis, stance, and original-idea envelopes with state-appropriate gates,
-then add the one commit envelope that writes typed expert graph updates only
-after the right checks pass.
+continue that shape: run human or calibrated-model scoring over consult quality
+cases, verify externally factual claim candidates, add concept, hypothesis,
+stance, and original-idea envelopes with state-appropriate gates, then add the
+one commit envelope that writes typed expert graph updates only after the right
+checks pass.
 
 ## Alignment Summary
 

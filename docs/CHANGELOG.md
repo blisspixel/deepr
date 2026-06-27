@@ -25,6 +25,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 </details>
 
 ### Added
+- Added `deepr-consult-quality-eval-case-v1`, a published semantic review-case
+  packet generated from failed or low-context consult traces. `deepr eval
+  consult` now checks collaboration metadata, no-metered capacity posture,
+  dissent preservation, trace candidate shape, and semantic quality review-case
+  boundaries at `$0` without turning lexical checks into meaning verdicts.
 - Added `deepr expert memory-card`, a `$0` generated `EXPERT.md` surface backed
   by the published `deepr-expert-memory-card-v1` schema. The card is derived
   from profile, manifest, belief events, and self-model state, then renders a

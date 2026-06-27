@@ -510,7 +510,10 @@ Each run appends a local `deepr-consult-trace-v1` record with input, selected
 context metadata, capacity posture, checks run, and synthesis failure events.
 `deepr expert consult-traces` reviews those local records and emits sanitized
 `deepr-consult-trace-candidates-v1` gap/eval candidates for failed or
-low-context consults.
+low-context consults. Candidate payloads include
+`deepr-consult-quality-eval-case-v1` semantic review packets with rubric
+dimensions for a human or calibrated model judge. They are `$0`, read-only,
+non-verdict artifacts and cannot commit beliefs.
 When an expert profile exists, consult perspective context includes a bounded
 read-only `self_model` block with current goals, calibration, blockers, risks,
 and current-focus packet metadata.
@@ -529,6 +532,12 @@ eval changes.
 gap/eval proposal, and `--apply` is required before it writes a metacognition
 gap or local eval-case artifact. This keeps monitor output advisory while
 making reviewed failures durable.
+
+`deepr eval consult` runs the built-in `$0` consult harness regression suite.
+It checks deterministic contracts for explicit expert routing, stored context,
+synthesis section parsing, collaboration metadata, no-metered capacity posture,
+dissent preservation, replayable traces, trace candidates, and semantic quality
+review-case shape. It does not judge answer meaning through keyword matching.
 
 **Task Planning** decomposes complex queries into subtasks:
 
