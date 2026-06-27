@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import hashlib
+import json
 import re
 from datetime import UTC, datetime
 from typing import Any
@@ -11,6 +12,9 @@ SOURCE_PACK_MANIFEST_SCHEMA_VERSION = "deepr-source-pack-manifest-v1"
 SOURCE_PACK_MANIFEST_KIND = "deepr.expert.source_pack_manifest"
 SOURCE_NOTE_SCHEMA_VERSION = "deepr-source-note-v1"
 SOURCE_NOTE_KIND = "deepr.expert.source_notes"
+SEMANTIC_CLAIM_EXTRACTION_SCHEMA_VERSION = "deepr-semantic-claim-extraction-v1"
+SEMANTIC_CLAIM_EXTRACTION_KIND = "deepr.expert.semantic_claim_extraction"
+SEMANTIC_CLAIM_EXTRACTION_PROMPT_VERSION = "deepr-semantic-claim-extraction-prompt-v1"
 _SHA256_HEX = re.compile(r"^[a-fA-F0-9]{64}$")
 
 
@@ -30,6 +34,14 @@ def _int_or_zero(value: Any, *, default: int = 0) -> int:
     except (TypeError, ValueError):
         return default
     return max(parsed, 0)
+
+
+def _float_0_1(value: Any, *, default: float = 0.0) -> float:
+    try:
+        parsed = float(value)
+    except (TypeError, ValueError):
+        return default
+    return max(0.0, min(1.0, parsed))
 
 
 def _source_pack_from_payload(payload: dict[str, Any]) -> dict[str, Any]:
@@ -171,9 +183,167 @@ def _source_note(
 
 def _json_hash_material(value: Any) -> str:
     """Stable JSON material for non-cryptographic artifact hashing."""
-    import json
-
     return json.dumps(value, sort_keys=True, separators=(",", ":"), ensure_ascii=False)
+
+
+def _note_index(source_notes: dict[str, Any]) -> tuple[dict[str, dict[str, Any]], dict[str, set[str]]]:
+    notes: dict[str, dict[str, Any]] = {}
+    windows_by_note: dict[str, set[str]] = {}
+    for raw_note in source_notes.get("notes", []) or []:
+        if not isinstance(raw_note, dict):
+            continue
+        note_id = str(raw_note.get("note_id", "") or "")
+        if not note_id:
+            continue
+        notes[note_id] = raw_note
+        windows_by_note[note_id] = {
+            str(window.get("window_id", "") or "")
+            for window in raw_note.get("windows", []) or []
+            if isinstance(window, dict)
+        }
+    return notes, windows_by_note
+
+
+def _candidate_source_refs(item: dict[str, Any]) -> list[dict[str, Any]]:
+    raw_refs = item.get("source_refs", item.get("evidence_refs", item.get("sources", [])))
+    if isinstance(raw_refs, dict):
+        raw_refs = [raw_refs]
+    if not isinstance(raw_refs, list):
+        return []
+
+    refs: list[dict[str, Any]] = []
+    for raw_ref in raw_refs:
+        if isinstance(raw_ref, dict):
+            refs.append(
+                {
+                    "note_id": str(raw_ref.get("note_id", "") or ""),
+                    "window_id": str(raw_ref.get("window_id", "") or ""),
+                    "quote": str(raw_ref.get("quote", "") or ""),
+                }
+            )
+        elif isinstance(raw_ref, str):
+            refs.append({"note_id": raw_ref, "window_id": "", "quote": ""})
+    return refs
+
+
+def _validated_source_refs(
+    item: dict[str, Any],
+    *,
+    notes: dict[str, dict[str, Any]],
+    windows_by_note: dict[str, set[str]],
+) -> tuple[list[dict[str, Any]], list[str]]:
+    refs: list[dict[str, Any]] = []
+    failure_reasons: list[str] = []
+    raw_refs = _candidate_source_refs(item)
+    if not raw_refs:
+        failure_reasons.append("missing_source_refs")
+        return refs, failure_reasons
+
+    for raw_ref in raw_refs:
+        note_id = raw_ref["note_id"]
+        window_id = raw_ref["window_id"]
+        note = notes.get(note_id)
+        note_exists = note is not None
+        window_exists = bool(window_id and window_id in windows_by_note.get(note_id, set()))
+        if not note_exists:
+            failure_reasons.append("unknown_note_ref")
+        elif not window_exists:
+            failure_reasons.append("unknown_window_ref")
+        refs.append(
+            {
+                "note_id": note_id,
+                "window_id": window_id,
+                "valid_ref": bool(note_exists and window_exists),
+                "source_pointer": str((note or {}).get("source_pointer", "") or ""),
+                "source_index": _int_or_zero((note or {}).get("source_index")),
+                "quote_hash": _sha256_text(raw_ref["quote"]),
+                "quote_chars": len(raw_ref["quote"]),
+            }
+        )
+    return refs, sorted(set(failure_reasons))
+
+
+def _candidate_id(statement: str, source_refs: list[dict[str, Any]]) -> str:
+    material = {
+        "statement": statement,
+        "source_refs": [
+            {
+                "note_id": ref.get("note_id", ""),
+                "window_id": ref.get("window_id", ""),
+            }
+            for ref in source_refs
+        ],
+    }
+    return f"cc_{_sha256_text(_json_hash_material(material))[:20]}"
+
+
+def _response_from_model_output(model_output: dict[str, Any] | str) -> tuple[dict[str, Any], str, str]:
+    if isinstance(model_output, str):
+        raw = model_output
+        try:
+            parsed = json.loads(model_output)
+        except json.JSONDecodeError:
+            return {}, _sha256_text(raw), "invalid_json_response"
+        if not isinstance(parsed, dict):
+            return {}, _sha256_text(raw), "non_object_response"
+        return parsed, _sha256_text(raw), ""
+    return model_output, _sha256_text(_json_hash_material(model_output)), ""
+
+
+def _raw_claim_items(parsed: dict[str, Any]) -> list[dict[str, Any]]:
+    raw_claims = parsed.get("claims", [])
+    if not isinstance(raw_claims, list):
+        return []
+    return [item for item in raw_claims if isinstance(item, dict)]
+
+
+def _claim_response_shape_failure(parsed: dict[str, Any]) -> str:
+    if "claims" not in parsed:
+        return "missing_claims_field"
+    if not isinstance(parsed.get("claims"), list):
+        return "invalid_claims_field"
+    return ""
+
+
+def _claim_candidate(
+    item: dict[str, Any],
+    *,
+    notes: dict[str, dict[str, Any]],
+    windows_by_note: dict[str, set[str]],
+) -> dict[str, Any]:
+    statement = str(item.get("statement", item.get("claim", "")) or "").strip()
+    evidence_refs, ref_failures = _validated_source_refs(item, notes=notes, windows_by_note=windows_by_note)
+    valid_source_ref_count = sum(1 for ref in evidence_refs if ref["valid_ref"])
+    failure_reasons = list(ref_failures)
+    if not statement:
+        failure_reasons.append("missing_statement")
+    if valid_source_ref_count == 0:
+        failure_reasons.append("no_valid_source_refs")
+    failure_reasons = sorted(set(failure_reasons))
+    ready = bool(statement) and valid_source_ref_count > 0
+    return {
+        "candidate_id": _candidate_id(statement, evidence_refs),
+        "statement": statement,
+        "claim_kind": str(item.get("claim_kind", item.get("type", "factual_claim")) or "factual_claim"),
+        "confidence": _float_0_1(item.get("confidence")),
+        "model_judgment": {
+            "atomicity": str(item.get("atomicity", "") or ""),
+            "temporal_scope": str(item.get("temporal_scope", "") or ""),
+            "support_summary": str(item.get("support_summary", item.get("rationale", "")) or ""),
+        },
+        "evidence_refs": evidence_refs,
+        "readiness": {
+            "ready_for_verification": ready,
+            "valid_source_ref_count": valid_source_ref_count,
+            "invalid_source_ref_count": len(evidence_refs) - valid_source_ref_count,
+            "failure_reasons": failure_reasons,
+        },
+        "verifier_gate": {
+            "status": "pending",
+            "required_checks": ["grounding", "contradiction", "deduplication", "temporal_scope"],
+            "writes_graph": False,
+        },
+    }
 
 
 def build_source_pack_manifest(
@@ -303,11 +473,116 @@ def build_source_notes(
     }
 
 
+def build_semantic_claim_extraction(
+    source_notes: dict[str, Any],
+    model_output: dict[str, Any] | str,
+    *,
+    source_note_artifact: str = "",
+    provider: str = "",
+    model: str = "",
+    capacity_source: str = "",
+    cost_usd: float = 0.0,
+    prompt_version: str = SEMANTIC_CLAIM_EXTRACTION_PROMPT_VERSION,
+    prompt_ref: str = "",
+    prompt_text: str = "",
+    prompt_hash: str = "",
+    generated_at: str = "",
+) -> dict[str, Any]:
+    """Compile model claim output into a verifier-gated candidate envelope.
+
+    This stage records semantic model judgment, but it still writes no expert
+    state. Deterministic code checks only shape, score bounds, source-note
+    references, prompt/schema versions, and the graph-write gate. Grounding,
+    contradiction, deduplication, novelty, and temporal interpretation remain
+    downstream model-verifier work.
+    """
+    parsed, raw_response_hash, response_failure = _response_from_model_output(model_output)
+    response_failure = response_failure or _claim_response_shape_failure(parsed)
+    notes, windows_by_note = _note_index(source_notes)
+    candidates = [
+        _claim_candidate(item, notes=notes, windows_by_note=windows_by_note) for item in _raw_claim_items(parsed)
+    ]
+    ready_count = sum(1 for candidate in candidates if candidate["readiness"]["ready_for_verification"])
+    invalid_ref_count = sum(candidate["readiness"]["invalid_source_ref_count"] for candidate in candidates)
+    failure_reasons = sorted(
+        {reason for candidate in candidates for reason in candidate["readiness"]["failure_reasons"]}
+        | ({response_failure} if response_failure else set())
+    )
+    prompt_material = prompt_text if prompt_text else prompt_ref or prompt_version
+    resolved_prompt_hash = prompt_hash or _sha256_text(prompt_material)
+    status = (
+        "ready_for_verification"
+        if candidates and ready_count == len(candidates) and not response_failure
+        else "blocked"
+    )
+    if not candidates and not response_failure:
+        status = "empty"
+    return {
+        "schema_version": SEMANTIC_CLAIM_EXTRACTION_SCHEMA_VERSION,
+        "kind": SEMANTIC_CLAIM_EXTRACTION_KIND,
+        "contract": {
+            "read_only": True,
+            "derived_view": True,
+            "semantic_judgment": True,
+            "model_calls": True,
+            "cost_usd": round(max(cost_usd, 0.0), 6),
+            "writes_graph": False,
+            "breaking_changes_require_new_schema_version": True,
+        },
+        "input": {
+            "source_note_artifact": source_note_artifact,
+            "source_note_schema_version": str(source_notes.get("schema_version", "")),
+            "source_note_kind": str(source_notes.get("kind", "")),
+            "source_note_count": len(notes),
+            "ready_note_count": _int_or_zero((source_notes.get("summary", {}) or {}).get("ready_note_count")),
+            "source_pack": source_notes.get("source_pack", {}),
+        },
+        "prompt": {
+            "prompt_version": prompt_version,
+            "prompt_ref": prompt_ref,
+            "prompt_hash": resolved_prompt_hash,
+            "prompt_text_included": False,
+            "response_schema_version": SEMANTIC_CLAIM_EXTRACTION_SCHEMA_VERSION,
+            "response_schema_ref": "docs/schemas/semantic-claim-extraction-v1.json",
+            "structured_output_mode": "json_schema_or_tool_schema",
+            "app_side_schema_validation_required": True,
+        },
+        "model": {
+            "provider": provider,
+            "model": model,
+            "capacity_source": capacity_source,
+            "raw_response_hash": raw_response_hash,
+            "response_failure": response_failure,
+        },
+        "summary": {
+            "status": status,
+            "parsed_candidate_count": len(candidates),
+            "ready_for_verification_count": ready_count,
+            "blocked_candidate_count": len(candidates) - ready_count,
+            "invalid_source_ref_count": invalid_ref_count,
+            "failure_reasons": failure_reasons,
+        },
+        "candidates": candidates,
+        "compiler": {
+            "stage": "semantic_claim_extraction",
+            "previous_stage": "source_notes",
+            "next_stage": "claim_verification",
+            "next_stage_requires_model_judgment": True,
+            "graph_writes_require_commit_envelope": True,
+        },
+        "generated_at": generated_at or _artifact_generated_at({}, source_notes),
+    }
+
+
 __all__ = [
+    "SEMANTIC_CLAIM_EXTRACTION_KIND",
+    "SEMANTIC_CLAIM_EXTRACTION_PROMPT_VERSION",
+    "SEMANTIC_CLAIM_EXTRACTION_SCHEMA_VERSION",
     "SOURCE_NOTE_KIND",
     "SOURCE_NOTE_SCHEMA_VERSION",
     "SOURCE_PACK_MANIFEST_KIND",
     "SOURCE_PACK_MANIFEST_SCHEMA_VERSION",
+    "build_semantic_claim_extraction",
     "build_source_notes",
     "build_source_pack_manifest",
 ]

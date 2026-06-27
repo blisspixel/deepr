@@ -25,6 +25,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 </details>
 
 ### Added
+- Added `deepr-semantic-claim-extraction-v1`, the first model-judgment
+  compiler envelope after source notes. It records prompt/schema version
+  metadata, provider/model/capacity refs, raw response hashes, source-note and
+  source-window refs, normalized candidate IDs, model-reported confidence and
+  claim metadata, and verifier-pending gates while explicitly keeping graph
+  writes disabled until a later commit envelope.
 - Added `deepr-source-note-v1`, the second deterministic compiler stage after
   source-pack manifests. Sync now writes source-note cards with stable IDs,
   note hashes, provenance refs, source-window pointers, and fail-closed

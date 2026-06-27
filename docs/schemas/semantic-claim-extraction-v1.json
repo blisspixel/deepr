@@ -1,0 +1,221 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/blisspixel/deepr/docs/schemas/semantic-claim-extraction-v1.json",
+  "title": "Deepr Semantic Claim Extraction v1",
+  "type": "object",
+  "additionalProperties": true,
+  "required": [
+    "schema_version",
+    "kind",
+    "contract",
+    "input",
+    "prompt",
+    "model",
+    "summary",
+    "candidates",
+    "compiler",
+    "generated_at"
+  ],
+  "properties": {
+    "schema_version": {"const": "deepr-semantic-claim-extraction-v1"},
+    "kind": {"const": "deepr.expert.semantic_claim_extraction"},
+    "contract": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": [
+        "read_only",
+        "derived_view",
+        "semantic_judgment",
+        "model_calls",
+        "cost_usd",
+        "writes_graph"
+      ],
+      "properties": {
+        "read_only": {"const": true},
+        "derived_view": {"const": true},
+        "semantic_judgment": {"const": true},
+        "model_calls": {"const": true},
+        "cost_usd": {"type": "number", "minimum": 0},
+        "writes_graph": {"const": false},
+        "breaking_changes_require_new_schema_version": {"const": true}
+      }
+    },
+    "input": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": [
+        "source_note_artifact",
+        "source_note_schema_version",
+        "source_note_kind",
+        "source_note_count",
+        "ready_note_count"
+      ],
+      "properties": {
+        "source_note_artifact": {"type": "string"},
+        "source_note_schema_version": {"type": "string"},
+        "source_note_kind": {"type": "string"},
+        "source_note_count": {"type": "integer", "minimum": 0},
+        "ready_note_count": {"type": "integer", "minimum": 0},
+        "source_pack": {"type": "object", "additionalProperties": true}
+      }
+    },
+    "prompt": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": [
+        "prompt_version",
+        "prompt_hash",
+        "prompt_text_included",
+        "response_schema_version",
+        "response_schema_ref",
+        "structured_output_mode",
+        "app_side_schema_validation_required"
+      ],
+      "properties": {
+        "prompt_version": {"type": "string"},
+        "prompt_ref": {"type": "string"},
+        "prompt_hash": {"type": "string", "pattern": "^[a-f0-9]{64}$"},
+        "prompt_text_included": {"const": false},
+        "response_schema_version": {"const": "deepr-semantic-claim-extraction-v1"},
+        "response_schema_ref": {"type": "string"},
+        "structured_output_mode": {"type": "string"},
+        "app_side_schema_validation_required": {"const": true}
+      }
+    },
+    "model": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": ["provider", "model", "capacity_source", "raw_response_hash", "response_failure"],
+      "properties": {
+        "provider": {"type": "string"},
+        "model": {"type": "string"},
+        "capacity_source": {"type": "string"},
+        "raw_response_hash": {"type": "string", "pattern": "^[a-f0-9]{64}$"},
+        "response_failure": {"type": "string"}
+      }
+    },
+    "summary": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": [
+        "status",
+        "parsed_candidate_count",
+        "ready_for_verification_count",
+        "blocked_candidate_count",
+        "invalid_source_ref_count",
+        "failure_reasons"
+      ],
+      "properties": {
+        "status": {"enum": ["ready_for_verification", "blocked", "empty"]},
+        "parsed_candidate_count": {"type": "integer", "minimum": 0},
+        "ready_for_verification_count": {"type": "integer", "minimum": 0},
+        "blocked_candidate_count": {"type": "integer", "minimum": 0},
+        "invalid_source_ref_count": {"type": "integer", "minimum": 0},
+        "failure_reasons": {"type": "array", "items": {"type": "string"}}
+      }
+    },
+    "candidates": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": true,
+        "required": [
+          "candidate_id",
+          "statement",
+          "claim_kind",
+          "confidence",
+          "model_judgment",
+          "evidence_refs",
+          "readiness",
+          "verifier_gate"
+        ],
+        "properties": {
+          "candidate_id": {"type": "string", "pattern": "^cc_[a-f0-9]{20}$"},
+          "statement": {"type": "string"},
+          "claim_kind": {"type": "string"},
+          "confidence": {"type": "number", "minimum": 0, "maximum": 1},
+          "model_judgment": {
+            "type": "object",
+            "additionalProperties": true,
+            "required": ["atomicity", "temporal_scope", "support_summary"],
+            "properties": {
+              "atomicity": {"type": "string"},
+              "temporal_scope": {"type": "string"},
+              "support_summary": {"type": "string"}
+            }
+          },
+          "evidence_refs": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "additionalProperties": true,
+              "required": [
+                "note_id",
+                "window_id",
+                "valid_ref",
+                "source_pointer",
+                "source_index",
+                "quote_hash",
+                "quote_chars"
+              ],
+              "properties": {
+                "note_id": {"type": "string"},
+                "window_id": {"type": "string"},
+                "valid_ref": {"type": "boolean"},
+                "source_pointer": {"type": "string"},
+                "source_index": {"type": "integer", "minimum": 0},
+                "quote_hash": {"type": "string"},
+                "quote_chars": {"type": "integer", "minimum": 0}
+              }
+            }
+          },
+          "readiness": {
+            "type": "object",
+            "additionalProperties": true,
+            "required": [
+              "ready_for_verification",
+              "valid_source_ref_count",
+              "invalid_source_ref_count",
+              "failure_reasons"
+            ],
+            "properties": {
+              "ready_for_verification": {"type": "boolean"},
+              "valid_source_ref_count": {"type": "integer", "minimum": 0},
+              "invalid_source_ref_count": {"type": "integer", "minimum": 0},
+              "failure_reasons": {"type": "array", "items": {"type": "string"}}
+            }
+          },
+          "verifier_gate": {
+            "type": "object",
+            "additionalProperties": true,
+            "required": ["status", "required_checks", "writes_graph"],
+            "properties": {
+              "status": {"const": "pending"},
+              "required_checks": {"type": "array", "items": {"type": "string"}},
+              "writes_graph": {"const": false}
+            }
+          }
+        }
+      }
+    },
+    "compiler": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": [
+        "stage",
+        "previous_stage",
+        "next_stage",
+        "next_stage_requires_model_judgment",
+        "graph_writes_require_commit_envelope"
+      ],
+      "properties": {
+        "stage": {"const": "semantic_claim_extraction"},
+        "previous_stage": {"const": "source_notes"},
+        "next_stage": {"const": "claim_verification"},
+        "next_stage_requires_model_judgment": {"const": true},
+        "graph_writes_require_commit_envelope": {"const": true}
+      }
+    },
+    "generated_at": {"type": "string"}
+  }
+}
