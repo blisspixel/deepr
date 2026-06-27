@@ -37,6 +37,9 @@ deepr expert consult "What should this agentic harness improve next?" --local
 
 # Keep an expert current with local model plus free retrieval context.
 deepr expert sync "Platform Team Expert" --local --fresh-context -y
+
+# Also compile source-note claim candidates as a verifier-pending sidecar.
+deepr expert sync "Platform Team Expert" --local --fresh-context --compile-claims -y
 ```
 
 Multi-provider support includes OpenAI, Gemini, Grok, Anthropic, Azure, local
@@ -166,6 +169,11 @@ contradiction signals, gap backlogs, freshness watchlists, and regenerated
 digest or handoff views. Generated reports, digests, OKF bundles, and handoff
 payloads are derived views over structured state.
 
+`deepr expert sync --compile-claims` can now run the first semantic compiler
+model call as an explicit sidecar over source-note windows. It writes
+verifier-pending claim artifacts with prompt, schema, provider, model, capacity,
+cost, and source-window refs, but it does not write beliefs.
+
 ### Capacity
 
 ```bash
@@ -177,9 +185,11 @@ deepr eval local-context --model qwen2.5:14b --judge-model qwen2.5:14b --save
 deepr capacity admit --from-eval latest --task-class sync --yes
 ```
 
-Local and plan-backed services must not create dollar cost inside Deepr. They
-may consume hardware time, subscription quota, or external credits that Deepr
-cannot prove, so explicit plan and CLI-judge paths stay opt-in and documented.
+Local and non-metered plan-backed services must not create dollar cost inside
+Deepr. They may consume hardware time, subscription quota, or external credits
+that Deepr cannot prove, so explicit plan and CLI-judge paths stay opt-in and
+documented. Metered-at-margin plan CLIs are billed per use and remain
+explicit-only behind budget and cost-ledger gates.
 
 ### MCP and Agents
 
@@ -212,9 +222,9 @@ Deepr deliberately separates workflow control from model judgment.
   accepted-record gates, and explicit outcome evidence before they affect a
   learning transaction. They do not grant new authority.
 - The research-processing compiler starts with deterministic source snapshots,
-  source notes, content hashes, prompt/schema versions, and verifier-gated
-  claim envelopes, while leaving extraction meaning and semantic edges to
-  calibrated model judgment.
+  source notes, content hashes, prompt/schema versions, and explicit
+  `--compile-claims` verifier-pending claim envelopes, while leaving extraction
+  meaning and semantic edges to calibrated model judgment.
 
 This boundary is tracked in
 [docs/plans/AGENTIC_BALANCE.md](docs/plans/AGENTIC_BALANCE.md) and the active

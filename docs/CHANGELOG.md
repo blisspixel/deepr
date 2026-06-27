@@ -25,6 +25,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 </details>
 
 ### Added
+- Added explicit `deepr expert sync --compile-claims` semantic compiler
+  invocation. Sync can now run a budget-gated local, plan-quota, or metered
+  OpenAI-shaped chat client over ready source-note windows, quarantine
+  untrusted source excerpts in the prompt, persist
+  `deepr-semantic-claim-extraction-v1` sidecar artifacts, and keep graph writes
+  disabled until verification and a commit envelope exist.
 - Added `deepr-semantic-claim-extraction-v1`, the first model-judgment
   compiler envelope after source notes. It records prompt/schema version
   metadata, provider/model/capacity refs, raw response hashes, source-note and

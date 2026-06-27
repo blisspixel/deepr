@@ -48,15 +48,17 @@ def _source_note_run_context(result: Any) -> dict[str, Any]:
         source_note_artifact = str(getattr(outcome, "source_note_artifact", "") or "")
         if not source_note_artifact:
             continue
-        artifacts.append(
-            {
-                "topic": str(getattr(outcome, "topic", "") or ""),
-                "status": str(getattr(outcome, "status", "") or ""),
-                "source_note_artifact": source_note_artifact,
-                "source_pack_artifact": str(getattr(outcome, "source_pack_artifact", "") or ""),
-                "source_pack_manifest_artifact": str(getattr(outcome, "source_pack_manifest_artifact", "") or ""),
-            }
-        )
+        artifact = {
+            "topic": str(getattr(outcome, "topic", "") or ""),
+            "status": str(getattr(outcome, "status", "") or ""),
+            "source_note_artifact": source_note_artifact,
+            "source_pack_artifact": str(getattr(outcome, "source_pack_artifact", "") or ""),
+            "source_pack_manifest_artifact": str(getattr(outcome, "source_pack_manifest_artifact", "") or ""),
+        }
+        claim_extraction_artifact = str(getattr(outcome, "claim_extraction_artifact", "") or "")
+        if claim_extraction_artifact:
+            artifact["claim_extraction_artifact"] = claim_extraction_artifact
+        artifacts.append(artifact)
     if not artifacts:
         return {}
     return {
@@ -322,6 +324,7 @@ def _run_sync_with_loop_guard(
     plan_model: str | None,
     context_builder: Any,
     grounding_checker: Any | None = None,
+    compile_claims: bool = False,
 ) -> tuple[Any, Any | None, str]:
     from deepr.experts.maintenance_engine import build_sync_engine
 
@@ -335,6 +338,7 @@ def _run_sync_with_loop_guard(
             plan_model=plan_model,
             context_builder=context_builder,
             grounding_checker=grounding_checker,
+            compile_claims=compile_claims,
         )
         result = asyncio.run(engine.sync(budget=budget, only_due=not sync_all, dry_run=dry_run))
         return result, capacity_source

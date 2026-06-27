@@ -1,6 +1,6 @@
 # Current State Analysis
 
-Date: 2026-06-26
+Date: 2026-06-27
 
 ## Startup Alignment - 2026-06-26
 
@@ -78,13 +78,23 @@ judgment owns meaning. Markdown docs were cleaned of emoji markers and
 AI-attribution-shaped phrases, and tracked text files were cleaned of literal
 em/en dash characters.
 
-External best-practice check, current as of 2026-06-26: modern agent harness
+Cycle 10 wires live semantic claim extraction into the research-processing
+compiler. `deepr expert sync --compile-claims` now runs an explicit local,
+plan-quota, or metered OpenAI-shaped chat-client sidecar over ready source-note
+windows, behind budget gates and cost-ledger settlement for metered paths.
+Source excerpts are bounded, sanitized, and delimited as untrusted data before
+prompt use. The result is a `deepr-semantic-claim-extraction-v1` sidecar
+artifact with prompt/schema/provider/model/capacity/cost/source-window metadata
+and verifier-pending candidates. It writes no beliefs and does not change the
+graph until claim verification and a commit envelope exist.
+
+External best-practice check, current as of 2026-06-27: modern agent harness
 guidance converges on trace-first improvement loops, evals from real failures,
 bounded context packets, explicit handoffs, and deterministic gates around
 spend, writes, tools, and credentials. Deepr's next implementation slices should
-continue that shape: add verifier-gated self-model update records, then route
-selected learning transactions through the research-processing compiler rather
-than widening autonomy or building broader orchestration.
+continue that shape: verify claim candidates, add concept/hypothesis/stance
+candidate envelopes, then add the one commit envelope that writes typed expert
+graph updates only after the right checks pass.
 
 ## Alignment Summary
 
@@ -94,7 +104,14 @@ The latest 2026 external guidance reinforces Deepr's direction: this is agentic 
 
 `AGENTIC_BALANCE.md` is the governing boundary: deterministic workflow code owns spend, writes, routing gates, durable state, locks, jitter, schemas, and verifier outcomes; model judgment owns meaning such as contradiction, grounding, deduplication, and synthesis.
 
-No clarification is needed before continuing. The next slices are verifier-gated self-model update records and the research-processing compiler that turns source packs into verified beliefs, temporal graph edges, gaps, and regenerated wiki/digest views. After that, continue Antigravity metadata visibility, then scheduler dispatch that uses admitted plan capacity only from trusted headroom observations. The next metered-API cost-control slice is provider cache controls, but only after estimator support and explicit budget gates cover cache keys, TTL, and pre-warm behavior.
+No clarification is needed before continuing. The next slices are claim
+verification, concept/hypothesis/stance envelopes, and the commit envelope that
+turns source-pack compiler candidates into verified beliefs, temporal graph
+edges, gaps, and regenerated wiki/digest views. After that, continue Antigravity
+metadata visibility, then scheduler dispatch that uses admitted plan capacity
+only from trusted headroom observations. The next metered-API cost-control slice
+is provider cache controls, but only after estimator support and explicit budget
+gates cover cache keys, TTL, and pre-warm behavior.
 
 ## Local Unreleased Work
 

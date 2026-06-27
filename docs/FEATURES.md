@@ -593,6 +593,7 @@ deepr expert subscribe "Azure Architect" "Azure Landing Zone updates" --every 7 
 deepr expert subscriptions "Azure Architect"
 deepr expert sync "Azure Architect" --dry-run
 deepr expert sync "Azure Architect" -y
+deepr expert sync "Azure Architect" --local --fresh-context --compile-claims -y
 deepr expert loop-status "Azure Architect"
 deepr expert loop-status "Azure Architect" --json
 
@@ -929,6 +930,7 @@ deepr expert absorb "Platform Team Expert" report.md --local   # force local, $0
 deepr expert sync "Platform Team Expert" --api                 # force metered API
 deepr expert sync "Platform Team Expert" --local --fresh-context # local model + free retrieval context
 deepr expert sync "Platform Team Expert" --local --deep-context  # multi-query free retrieval context
+deepr expert sync "Platform Team Expert" --local --fresh-context --compile-claims # sidecar claim compile
 
 # Review local quality first, then admit it for automatic use.
 deepr expert absorb "Platform Team Expert" report.md --local --dry-run
@@ -956,14 +958,21 @@ context. For sync runs that need freshness, add `--fresh-context`; for broader
 source coverage, add `--deep-context`. Both require an owned or prepaid sync
 backend, either explicit `--local`, explicit `--plan <id>`, or an admitted local
 model, so a freshness request cannot silently fall through to metered APIs.
+Add `--compile-claims` when you want the source-note compiler to run a
+verifier-pending semantic claim extraction sidecar for the sync. It persists
+`sync_artifacts/claim_extractions/<timestamp>_<topic>.json`, records prompt,
+schema, provider, model, capacity, cost, and source-window refs, and keeps graph
+writes disabled until the later verification and commit envelope. Local and
+non-metered plan claim compilation is `$0` inside Deepr; metered API and
+metered-at-margin plan paths require budget and cost-ledger gates.
 Deepr builds a bounded source pack first, then prepends it to the prompt and
-asks the model to cite source labels. This path is free-only inside Deepr: it
-can fetch explicit URLs, can use a configured self-hosted SearXNG endpoint
-(`DEEPR_SEARXNG_URL`), and otherwise can use DuckDuckGo when `ddgs` is
-installed. It does not use Brave, Tavily, or other API-key search providers. If
-no fresh sources are available, the model is told to say that current context is
-unavailable, and sync records no changes instead of absorbing that uncertainty
-as permanent beliefs.
+asks the model to cite source labels. The fresh/deep retrieval path is free-only
+inside Deepr: it can fetch explicit URLs, can use a configured self-hosted
+SearXNG endpoint (`DEEPR_SEARXNG_URL`), and otherwise can use DuckDuckGo when
+`ddgs` is installed. It does not use Brave, Tavily, or other API-key search
+providers. If no fresh sources are available, the model is told to say that
+current context is unavailable, and sync records no changes instead of absorbing
+that uncertainty as permanent beliefs.
 
 When a sync run uses fresh/deep context, Deepr writes a bounded JSON source pack
 under the expert knowledge directory at

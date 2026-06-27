@@ -25,6 +25,32 @@ if TYPE_CHECKING:
     from deepr.experts.sync import ExpertSyncEngine
 
 
+def _with_claim_extractor(engine_kwargs: dict[str, Any], claim_extractor: Any | None) -> dict[str, Any]:
+    if claim_extractor is None:
+        return engine_kwargs
+    return {**engine_kwargs, "claim_extractor": claim_extractor}
+
+
+def _local_research_kwargs(context_builder: Any, client: Any, claim_extractor: Any | None) -> dict[str, Any]:
+    kwargs: dict[str, Any] = {"context_builder": context_builder}
+    if claim_extractor is not None:
+        kwargs["client"] = client
+    return kwargs
+
+
+def _metered_claim_extractor(compile_claims: bool) -> Any | None:
+    if not compile_claims:
+        return None
+    from deepr.experts.claim_extraction import SemanticClaimExtractor
+
+    return SemanticClaimExtractor(
+        provider="openai",
+        model="gpt-5-mini",
+        capacity_source="api_metered",
+        allow_metered=True,
+    )
+
+
 def build_sync_engine(
     profile: ExpertProfile,
     *,
@@ -35,6 +61,7 @@ def build_sync_engine(
     plan_model: str | None = None,
     context_builder: Callable[[str], Awaitable[FreshContext]] | None = None,
     grounding_checker: GroundingChecker | None = None,
+    compile_claims: bool = False,
 ) -> tuple[ExpertSyncEngine, str]:
     """Construct a sync engine for the resolved backend and report its source.
 
@@ -49,6 +76,7 @@ def build_sync_engine(
 
     if use_local:
         from deepr.backends.local import make_local_research_fn, ollama_chat_client
+        from deepr.experts.claim_extraction import SemanticClaimExtractor
         from deepr.experts.report_absorber import ReportAbsorber
 
         # The caller resolves and validates the local model before choosing the
@@ -56,20 +84,35 @@ def build_sync_engine(
         # contract with a real raise (asserts are stripped under -O).
         if local_model is None:
             raise ValueError("use_local requires a resolved local_model")
-        absorber_kwargs = {"model": local_model, "client": ollama_chat_client(), "estimated_cost": 0.0}
+        client = ollama_chat_client()
+        absorber_kwargs = {"model": local_model, "client": client, "estimated_cost": 0.0}
         if grounding_checker is not None:
             absorber_kwargs["grounding_checker"] = grounding_checker
         absorber = ReportAbsorber(profile, **absorber_kwargs)
-        engine = ExpertSyncEngine(
-            profile,
-            research_fn=make_local_research_fn(local_model, context_builder=context_builder),
-            absorber=absorber,
+        claim_extractor = (
+            SemanticClaimExtractor(
+                provider="local",
+                model=local_model,
+                capacity_source="local",
+                client=client,
+                estimated_cost_usd=0.0,
+            )
+            if compile_claims
+            else None
         )
+        engine_kwargs: dict[str, Any] = {
+            "research_fn": make_local_research_fn(
+                local_model, **_local_research_kwargs(context_builder, client, claim_extractor)
+            ),
+            "absorber": absorber,
+        }
+        engine = ExpertSyncEngine(profile, **_with_claim_extractor(engine_kwargs, claim_extractor))
         return engine, "local"
 
     if use_plan and plan_adapter is not None:
         from deepr.backends.plan_quota import PlanQuotaChatClient, make_plan_quota_research_fn
-        from deepr.experts.report_absorber import ReportAbsorber
+        from deepr.experts.claim_extraction import SemanticClaimExtractor
+        from deepr.experts.report_absorber import ESTIMATED_EXTRACTION_COST, ReportAbsorber
 
         # One client serves research and verified extraction, so the whole sync
         # stays on prepaid plan capacity with no silent metered call.
@@ -78,20 +121,44 @@ def build_sync_engine(
         if grounding_checker is not None:
             absorber_kwargs["grounding_checker"] = grounding_checker
         absorber = ReportAbsorber(profile, **absorber_kwargs)
-        engine = ExpertSyncEngine(
-            profile,
-            research_fn=make_plan_quota_research_fn(
+        claim_extractor = (
+            SemanticClaimExtractor(
+                provider=plan_adapter.backend_id,
+                model=plan_model or plan_adapter.backend_id,
+                capacity_source=f"plan_quota:{plan_adapter.backend_id}",
+                client=client,
+                estimated_cost_usd=ESTIMATED_EXTRACTION_COST
+                if bool(getattr(plan_adapter, "metered_at_margin", False))
+                else 0.0,
+                allow_metered=bool(getattr(plan_adapter, "metered_at_margin", False)),
+            )
+            if compile_claims
+            else None
+        )
+        engine_kwargs = {
+            "research_fn": make_plan_quota_research_fn(
                 plan_adapter, model=plan_model, context_builder=context_builder, client=client
             ),
-            absorber=absorber,
-        )
+            "absorber": absorber,
+        }
+        engine = ExpertSyncEngine(profile, **_with_claim_extractor(engine_kwargs, claim_extractor))
         return engine, f"plan_quota:{plan_adapter.backend_id}"
 
     if grounding_checker is not None:
         from deepr.experts.report_absorber import ReportAbsorber
 
         return ExpertSyncEngine(
-            profile, absorber=ReportAbsorber(profile, grounding_checker=grounding_checker)
+            profile,
+            **_with_claim_extractor(
+                {"absorber": ReportAbsorber(profile, grounding_checker=grounding_checker)},
+                _metered_claim_extractor(compile_claims),
+            ),
+        ), "api_metered"
+
+    if compile_claims:
+        return ExpertSyncEngine(
+            profile,
+            claim_extractor=_metered_claim_extractor(True),
         ), "api_metered"
 
     return ExpertSyncEngine(profile), "api_metered"

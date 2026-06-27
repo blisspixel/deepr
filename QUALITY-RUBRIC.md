@@ -65,28 +65,27 @@ Planning Principles), and [docs/plans/AGENTIC_BALANCE.md](docs/plans/AGENTIC_BAL
 - No AI attribution, emojis, or em/en dashes in any output or artifact.
 - Lifetime external spend <= $5; owned/prepaid/$0 paths preferred by default.
 
-## Current Cycle Alignment - 2026-06-26
+## Current Cycle Alignment - 2026-06-27
 
-Active task: clarify README and docs, move capacity detail out of the front
-door, make the next self-model/compiler work explicit about the
-agentic-balance boundary, and clean literal em/en dash usage from tracked text
-files without changing runtime logic or making paid calls.
+Active task: wire live semantic claim extraction for the research-processing
+compiler as an explicit, budget-gated sidecar over source-note windows, while
+keeping verifier-pending candidates out of the belief graph until claim
+verification and a commit envelope exist.
 
 Target score before merge:
 
 | Category | Required score | Evidence |
 |---|---:|---|
-| Correctness | 5/5 | README states what works now, what remains conservative, and where detailed capacity docs live; `docs/CAPACITY.md` captures provider-specific cost buckets; docs consistency remains green. |
-| Security | 5/5 | No surprise-spend claims are tightened, plan routing remains explicit/conservative, and self-model updates are documented as gated proposals. |
-| Performance | 5/5 | Text-only cleanup and docs; no provider calls, embeddings, paid validation, or new runtime paths. |
-| Readability | 5/5 | README is shorter and scannable; capacity operations are in a focused guide. |
-| Maintainability | 5/5 | Volatile capacity and cost detail is linked from README instead of duplicated in the front door; punctuation policy is enforced consistently. |
-| Simplicity | 5/5 | No new architecture or feature surface; one focused capacity doc plus mechanical text hygiene. |
+| Correctness | 5/5 | Focused tests prove successful invocation, budget denial, metered opt-in denial, cost reservation settlement, no-ready-window blocking, sync sidecar persistence, and backend wiring. Full unit suite is green. |
+| Security | 5/5 | Untrusted source excerpts are sanitized and delimited before prompt use; metered calls require explicit opt-in, budget headroom, cost-safety reservation, and ledger settlement; Gitleaks found no leaks. |
+| Performance | 5/5 | Default sync behavior is unchanged. The extra model call runs only with `--compile-claims`, uses bounded source windows, and reuses the local or plan client when enabled. |
+| Readability | 5/5 | Claim extraction lives in a focused module, sync owns artifact plumbing, and backend construction keeps local, plan, and metered capacity wiring explicit. |
+| Maintainability | 5/5 | Graph writes stay disabled, claim artifacts remain derived sidecars, docs distinguish works-now from next work, and file-size plus C901/S ratchets remain at baseline. |
+| Simplicity | 5/5 | One explicit flag and one service close the live invocation gap without adding a new provider abstraction or automatic scheduler behavior. |
 
-Cycle 9 is documentation and text hygiene only. It keeps the next self-model and
-compiler work inside the workflow-vs-agent boundary: deterministic gates own
-spend, writes, schemas, rollout, review, provenance, and commit points;
-calibrated model judgment owns meaning.
+Cycle 10 keeps the compiler inside the workflow-vs-agent boundary:
+deterministic gates own spend, prompt/schema metadata, source refs, artifacts,
+and write brakes; calibrated model judgment owns claim extraction meaning.
 
 ## How to score (maker-checker)
 
