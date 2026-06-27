@@ -3,6 +3,19 @@
 Working log only. Keep the latest five cycles plus the active cycle here; older
 completed milestones are summarized in `docs/CHANGELOG.md`.
 
+## 2026-06-27 - Cycle 11 - Expert thought boundary clarification
+
+- Clarified that externally factual claims need support checks, while original
+  ideas, hypotheses, stances, proposals, and exploration agendas are first-class
+  expert state.
+- Updated the roadmap and agentic-balance boundary so absence from the live web
+  is not treated as refutation. Novel ideas must carry origin, rationale,
+  assumptions, uncertainty, review status, expected observations, and
+  disconfirming signals instead of masquerading as verified external facts.
+- Validation passed: docs consistency, whitespace diff check, punctuation and
+  attribution scan, and Gitleaks full-history scan.
+- Spend: `$0.00`.
+
 ## 2026-06-27 - Cycle 10 - Budget-gated claim compiler invocation
 
 - Added `SemanticClaimExtractor`, a budget-gated, OpenAI-shaped chat-client

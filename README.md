@@ -218,6 +218,9 @@ Deepr deliberately separates workflow control from model judgment.
   gap selection, and narrative quality.
 - Cheap lexical or structural checks may route work, but they must not conclude
   semantic truth.
+- Original ideas, hypotheses, and stances are first-class expert state. They
+  need origin, rationale, uncertainty, and disconfirming signals, not an online
+  source requirement. They must not masquerade as verified external facts.
 - Self-model updates must be proposals with evidence, verifier results,
   accepted-record gates, and explicit outcome evidence before they affect a
   learning transaction. They do not grant new authority.
