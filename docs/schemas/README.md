@@ -32,6 +32,7 @@ All v1 schemas are additive within the same schema version:
 | `deepr-consult-trace-candidates-v1` | [consult-trace-candidates-v1.json](consult-trace-candidates-v1.json) | Sanitized gap and eval candidates mined from failed or low-context consult traces |
 | `deepr-source-pack-manifest-v1` | [source-pack-manifest-v1.json](source-pack-manifest-v1.json) | Deterministic source-pack compiler manifest with provenance hashes and no semantic verdicts |
 | `deepr-source-note-v1` | [source-note-v1.json](source-note-v1.json) | Deterministic source-note cards with stable IDs, source windows, hashes, and provenance refs |
+| `deepr-semantic-claim-extraction-v1` | [semantic-claim-extraction-v1.json](semantic-claim-extraction-v1.json) | Verifier-gated semantic claim candidates from source notes with prompt/schema version capture and no graph writes |
 | `deepr-capacity-next-v1` | [capacity-next-v1.json](capacity-next-v1.json) | Read-only `$0` capacity guidance payload for scheduler and CLI consumers |
 | `deepr-sync-capacity-gate-v1` | [sync-capacity-gate-v1.json](sync-capacity-gate-v1.json) | Read-only sync capacity wait/block payload with embedded capacity and self-model guidance |
 | `deepr-scheduled-gap-fill-wait-v1` | [scheduled-gap-fill-wait-v1.json](scheduled-gap-fill-wait-v1.json) | Read-only scheduled gap-fill wait payload with routed gaps and safe next actions |
