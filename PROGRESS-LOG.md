@@ -3,6 +3,22 @@
 Working log only. Keep the latest five cycles plus the active cycle here; older
 completed milestones are summarized in `docs/CHANGELOG.md`.
 
+## 2026-06-27 - Cycle 14 - Reviewed consult-quality scoring
+
+- Added `deepr expert review-consult-quality`, a `$0` preview-first command for
+  scoring one sanitized consult quality case from a trace candidate.
+- Added `deepr-consult-quality-review-v1`, a published review artifact that
+  records human or calibrated-model rubric scores, reviewer identity, failure
+  labels, acceptance policy, promotion eligibility, and no-belief-write gates.
+- Wired safe promotion from accepted reviews into metacognition gaps and local
+  eval-case artifacts. Policy-blocked, rejected, or needs-improvement reviews
+  can still be recorded but cannot promote.
+- Preserved the agentic boundary: reviewer or calibrated model owns semantic
+  scoring; Deepr validates shape, policy, cost, and writes only.
+- Validation so far: focused consult quality, CLI, and schema tests `37 passed`;
+  focused ruff checks passed.
+- Spend: `$0.00`.
+
 ## 2026-06-27 - Cycle 13 - Consult semantic quality review cases
 
 - Researched current primary guidance on multi-agent orchestration, trace-first
@@ -125,39 +141,5 @@ Cycle health: 5/5 | Simplicity: 5/5 | Est. spend: $0.00 | New skill distilled: s
   `npx tsc --noEmit`, and `npx vite build`; full unit suite `6726 passed, 8
   skipped`, branch coverage `83.20%`.
 - Maker-checker target score: correctness 5/5, security 5/5, performance 5/5,
-  maintainability 5/5, simplicity 5/5, testability 5/5.
-- Spend: `$0.00`.
-
-## 2026-06-26 - Cycle 8 - Provider cost settlement audit
-
-- Audited the money paths the user called out: local Ollama still reports
-  `$0`, explicit plan-quota execution strips metered API-key env vars before
-  subprocess launch and records quota usage separately from dollar cost, and
-  API provider calls now settle from provider usage after completion.
-- Added cached-input usage fields and registry pricing so OpenAI, Azure, and
-  xAI cached input tokens no longer price as ordinary input or disappear from
-  ledger metadata.
-- Added Anthropic cache creation and cache read bucket accounting, including
-  Opus 4.5 registry coverage, so cache writes and reads settle at provider
-  cache rates instead of being folded into base input.
-- Fixed Gemini large-context settlement to apply the published input tier to
-  input and the published output tier to output.
-- Updated Grok 4.20 rates and alias settlement, including cached input rates,
-  so dotted provider model ids and hyphenated registry ids hit the same pricing
-  record.
-- Changed research submission accounting to reserve estimated cost before
-  provider dispatch, refund on submit failure, and settle the append-only cost
-  ledger from provider-reported usage on completion.
-- Extracted registry pricing lookup logic to `registry_pricing.py`, keeping
-  `registry.py` below its grandfathered file-size cap while preserving existing
-  public imports.
-- Updated roadmap, model docs, changelog, current-state analysis, quality
-  rubric, and skills with the cost-safety lessons from the audit.
-- Validation passed: 196 focused provider/core cost tests with 1 skipped;
-  `ruff check src/deepr/`; `ruff format --check src/deepr/`; strict mypy gate
-  for `core/providers/mcp`; docs consistency; file-size ratchet;
-  complexity/security ratchets; full unit suite `6726 passed, 8 skipped`,
-  branch coverage `83.20%`.
-- Maker-checker score: correctness 5/5, security 5/5, performance 5/5,
   maintainability 5/5, simplicity 5/5, testability 5/5.
 - Spend: `$0.00`.

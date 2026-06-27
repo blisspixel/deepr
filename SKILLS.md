@@ -84,6 +84,12 @@ This file captures repo-specific operating lessons from autonomous work cycles.
   self-model updates behind verifier gates. Promotion commands should preview
   by default, require an explicit apply flag for writes, and be idempotent when
   re-run against the same proposal.
+- Semantic quality scoring belongs in reviewed artifacts, not deterministic
+  lexical rules. Let a human or calibrated model supply rubric scores and
+  failure labels; deterministic code should validate score ranges, known labels,
+  reviewer presence, acceptance policy, and explicit write targets. Promotion
+  can use those reviewed scores, but it should only create gap/eval artifacts
+  and must never commit beliefs.
 - Treat schema-adjacent model output as expected. If a model returns one
   `evidence` string despite the requested array, preserve it as one excerpt.
   Splitting it into characters corrupts provenance and can falsely lift

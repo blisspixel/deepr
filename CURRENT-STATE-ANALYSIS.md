@@ -118,15 +118,25 @@ zero-cost cases, including collaboration metadata, no-metered capacity posture,
 dissent preservation, trace contracts, trace candidate shape, and semantic
 review-case boundaries.
 
+Cycle 14 closes the first reviewed scoring loop. `deepr expert
+review-consult-quality` now takes one sanitized consult quality case, records
+human or calibrated-model rubric scores as `deepr-consult-quality-review-v1`,
+enforces reviewer, score-range, failure-label, acceptance, and no-belief-write
+gates, then promotes only accepted reviews into gap or eval artifacts when
+`--apply` is explicit. Deterministic code still does not judge answer meaning;
+it stores the semantic judgment supplied by the reviewer and owns the side
+effects.
+
 External best-practice check, current as of 2026-06-27: modern agent harness
 guidance converges on trace-first improvement loops, evals from real failures,
 bounded context packets, explicit handoffs, and deterministic gates around
 spend, writes, tools, and credentials. Deepr's next implementation slices should
-continue that shape: run human or calibrated-model scoring over consult quality
-cases, verify externally factual claim candidates, add concept, hypothesis,
-stance, and original-idea envelopes with state-appropriate gates, then add the
-one commit envelope that writes typed expert graph updates only after the right
-checks pass.
+continue that shape: use reviewed consult-quality artifacts for trend reporting
+and regression selection, add calibrated-model judge runs only behind explicit
+local, plan, or budgeted API capacity, verify externally factual claim
+candidates, add concept, hypothesis, stance, and original-idea envelopes with
+state-appropriate gates, then add the one commit envelope that writes typed
+expert graph updates only after the right checks pass.
 
 ## Alignment Summary
 

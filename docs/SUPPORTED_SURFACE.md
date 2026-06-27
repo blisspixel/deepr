@@ -120,6 +120,11 @@ must not be described as usable capacity.
   preview or apply results. It previews by default and requires `--apply` before
   promoting a reviewed gap/eval proposal into the metacognition gap backlog or
   a local eval-case artifact.
+- `deepr expert review-consult-quality` emits and can write
+  `deepr-consult-quality-review-v1` artifacts. The semantic scores come from a
+  human or calibrated-model judge; Deepr validates score shape, known labels,
+  acceptance gates, and write boundaries. Accepted reviews can promote only gap
+  or eval artifacts, never beliefs.
 - Local Ollama expert maintenance, local evals, local context evals, local
   red-team attack-success-rate metrics including MCP read-path canaries and
   saved trend artifacts, and scored local admission.

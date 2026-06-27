@@ -67,23 +67,23 @@ Planning Principles), and [docs/plans/AGENTIC_BALANCE.md](docs/plans/AGENTIC_BAL
 
 ## Current Cycle Alignment - 2026-06-27
 
-Active task: add a consult semantic quality review substrate without widening
-brittle rules or turning trace review into a hidden meaning verdict.
+Active task: add reviewed consult-quality scoring and safe promotion without
+widening brittle rules or turning Deepr into a hidden semantic judge.
 
 Target score before merge:
 
 | Category | Required score | Evidence |
 |---|---:|---|
-| Correctness | 5/5 | Focused tests prove the consult eval now covers collaboration capacity, dissent preservation, trace candidates, and semantic review-case contracts. Published schema tests validate both the candidate payload and the standalone quality eval case. |
-| Security | 5/5 | The new packets are `$0`, read-only, sanitized, and non-verdict. They carry trace refs and rubrics, not raw local trace files, secrets, spend authority, or belief-write authority. |
-| Performance | 5/5 | The path is deterministic artifact generation from already-recorded traces. No provider calls, embeddings, polling, or new fan-out were added. |
-| Readability | 5/5 | The trace candidate builder keeps structural routing separate from the semantic review packet. Docs name the packet as a review case, not a score. |
-| Maintainability | 5/5 | The schema is additive, registry-backed, and tested. Deterministic code owns artifact shape and side-effect policy; human or calibrated model judgment owns answer quality. |
-| Simplicity | 5/5 | The change adds one small generated packet to existing trace candidates and two focused consult eval cases, avoiding a new eval runner until judged scoring is actually implemented. |
+| Correctness | 5/5 | Focused tests prove preview is write-free, apply writes review artifacts, accepted reviews can promote gap/eval artifacts, policy-blocked reviews cannot promote, CLI JSON works, and the published review schema validates runtime payloads. |
+| Security | 5/5 | The path is `$0`, requires a reviewer, validates score shape and known labels, writes only explicit artifacts under `--apply`, never commits beliefs, and never makes provider calls. |
+| Performance | 5/5 | The path reuses existing trace candidates and local file writes. No model calls, embeddings, polling, or additional fan-out were added. |
+| Readability | 5/5 | `consult_quality.py` separates scoring validation, artifact writing, and promotion actions. The CLI module follows the sibling command pattern and keeps `experts.py` at registration only. |
+| Maintainability | 5/5 | The schema is registry-backed and tested. Deterministic code owns artifact shape, policy gates, and writes; reviewer or calibrated model judgment owns semantic quality. |
+| Simplicity | 5/5 | One focused review command closes the scoring loop without adding a judge runner, scheduler, or backend abstraction before it is needed. |
 
-Cycle 13 keeps the agentic boundary intact: structural trace signals can route
-a consult into review, but only a human or calibrated model judge may score
-answer meaning. The packet itself never writes beliefs.
+Cycle 14 keeps the agentic boundary intact: trace signals can route a consult
+into review, and reviewer-provided scores can gate promotion, but Deepr does
+not infer semantic quality from words or keywords.
 
 ## How to score (maker-checker)
 

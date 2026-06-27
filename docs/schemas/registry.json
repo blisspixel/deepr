@@ -127,6 +127,14 @@
       "compatibility": "additive-within-v1"
     },
     {
+      "name": "consult-quality-review",
+      "schema_version": "deepr-consult-quality-review-v1",
+      "kind": "deepr.eval.consult_quality_review",
+      "path": "consult-quality-review-v1.json",
+      "status": "experimental",
+      "compatibility": "additive-within-v1"
+    },
+    {
       "name": "source-pack-manifest",
       "schema_version": "deepr-source-pack-manifest-v1",
       "kind": "deepr.expert.source_pack_manifest",

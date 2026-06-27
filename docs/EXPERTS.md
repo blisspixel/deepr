@@ -429,6 +429,39 @@ deepr expert promote-monitor "Azure Architect" meta_abc123 --target eval --apply
 deepr expert promote-monitor "Azure Architect" meta_abc123 --target both --apply
 ```
 
+### Review Consult Quality (scored review artifact)
+Score one sanitized consult quality case from a trace candidate. The command
+costs `$0` and makes no model call. A human or calibrated-model judge supplies
+the semantic scores; Deepr validates only schema, score ranges, known failure
+labels, reviewer presence, and the acceptance policy. Preview is the default.
+`--apply` writes a `deepr-consult-quality-review-v1` artifact, and accepted
+reviews can promote a gap, an eval case, or both. This path never commits
+beliefs.
+```bash
+deepr expert consult-traces --json
+deepr expert review-consult-quality "Azure Architect" consult_abc123 \
+  --score uses_expert_state=5 \
+  --score surfaces_uncertainty=5 \
+  --score preserves_dissent=5 \
+  --score actionability=5 \
+  --score grounded_when_factual=5 \
+  --score original_thought=5 \
+  --reviewer operator \
+  --decision accept \
+  --target both
+deepr expert review-consult-quality "Azure Architect" consult_abc123 \
+  --score uses_expert_state=5 \
+  --score surfaces_uncertainty=5 \
+  --score preserves_dissent=5 \
+  --score actionability=5 \
+  --score grounded_when_factual=5 \
+  --score original_thought=5 \
+  --reviewer operator \
+  --decision accept \
+  --target both \
+  --apply
+```
+
 ### Propose Self-Model Updates (review record)
 Preview or write a verifier-gated self-model update review record for a
 self-model-related monitor proposal. The command costs `$0`, never calls a

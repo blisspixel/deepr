@@ -46,6 +46,11 @@ from deepr.cli.output import (
     OperationResult,
 )
 from deepr.core.contracts import Claim, ExpertManifest, Gap
+from deepr.experts.consult_quality import (
+    CONSULT_QUALITY_REVIEW_KIND,
+    CONSULT_QUALITY_REVIEW_SCHEMA_VERSION,
+    build_consult_quality_review,
+)
 from deepr.experts.consult_traces import (
     CONSULT_QUALITY_EVAL_CASE_KIND,
     CONSULT_QUALITY_EVAL_CASE_SCHEMA_VERSION,
@@ -628,6 +633,41 @@ def test_consult_quality_eval_case_schema_validates_runtime_payload():
     assert payload["contract"]["semantic_verdict"] is False
     assert payload["contract"]["lexical_verdict_allowed"] is False
     assert payload["acceptance_policy"]["never_commits_beliefs"] is True
+
+
+def test_consult_quality_review_schema_validates_runtime_payload():
+    trace = build_consult_trace(
+        question="What should the expert loop improve next?",
+        requested_experts=["AI Agent Harnesses"],
+        max_experts=3,
+        budget=0.0,
+        failure={"stage": "run_consult", "error_type": "RuntimeError", "message": "boom"},
+        trace_id="consult_abcdef123456",
+        recorded_at=datetime(2026, 6, 26, 12, 0, tzinfo=UTC),
+    )
+    candidate = build_consult_trace_candidates([trace])["candidates"][0]
+    payload = build_consult_quality_review(
+        expert_name="AI Agent Harnesses",
+        case=candidate["semantic_eval_case"],
+        scores={
+            "uses_expert_state": 5,
+            "surfaces_uncertainty": 5,
+            "preserves_dissent": 5,
+            "actionability": 5,
+            "grounded_when_factual": 5,
+            "original_thought": 5,
+        },
+        reviewer="operator",
+        decision="accept",
+        candidate=candidate,
+    )
+    schema = _load_schema("consult-quality-review-v1.json")
+
+    _validate(schema, payload)
+    assert payload["schema_version"] == CONSULT_QUALITY_REVIEW_SCHEMA_VERSION
+    assert payload["kind"] == CONSULT_QUALITY_REVIEW_KIND
+    assert payload["contract"]["writes_beliefs"] is False
+    assert payload["review_status"] == "accepted"
 
 
 def test_source_pack_manifest_schema_validates_runtime_payload():
