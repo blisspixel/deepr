@@ -649,6 +649,11 @@ deepr expert why "Azure Architect" "landing zone subscription vending"
 # Derived self-model: capabilities, limits, goals, calibration, current focus.
 deepr expert self-model "Azure Architect" --json
 
+# Generated EXPERT.md orientation for humans and host agents. This is a
+# derived view, not canonical memory.
+deepr expert memory-card "Azure Architect"
+deepr expert memory-card "Azure Architect" --write
+
 # Monitor proposals: measured failures and risks become reviewed next steps.
 deepr expert monitor "Azure Architect" --json
 deepr expert promote-monitor "Azure Architect" meta_abc123 --target gap

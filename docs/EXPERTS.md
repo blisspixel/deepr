@@ -8,7 +8,13 @@ Deepr's expert system creates domain experts from documents that can answer ques
 Expert learning is not passive document accumulation. New material is processed
 into canonical beliefs, concepts, hypotheses, stance, provenance refs, temporal
 graph edges, contradiction signals, gap backlogs, freshness watchlists, and
-regenerated digest or handoff views.
+regenerated digest, memory-card, or handoff views.
+
+`deepr expert memory-card NAME` previews a generated `EXPERT.md` orientation
+view. Add `--write` to atomically write it under the expert directory. The card
+is a `$0`, read-only derived view over profile, manifest, belief events, and
+self-model state. It is useful for humans and host agents, but it is never
+canonical memory and should not be hand-edited as authority.
 
 ## What Makes It Different
 
@@ -47,6 +53,9 @@ deepr expert chat "Azure Architect"
 
 # Chat with research capability
 deepr expert chat "Azure Architect" --budget 5  # agentic by default
+
+# Regenerate the expert's derived memory card for humans and host agents
+deepr expert memory-card "Azure Architect" --write
 ```
 
 ## Creating Experts
@@ -381,6 +390,19 @@ does not change goals, write expert state, or run a model.
 ```bash
 deepr expert self-model "Azure Architect"
 deepr expert self-model "Azure Architect" --focus-limit 3 --json
+```
+
+### Memory Card (generated `EXPERT.md`)
+Preview or regenerate a durable orientation card for humans and host agents.
+It includes identity policy, current stance, explicitly tagged theories and
+insights, self-research agenda, what would change the expert's mind, agency
+scope, calibration, goals, beliefs, gaps, contradictions, collaboration
+guidance, and update policy. The card is derived from structured expert state,
+costs `$0`, and is not canonical memory.
+```bash
+deepr expert memory-card "Azure Architect"
+deepr expert memory-card "Azure Architect" --write
+deepr expert memory-card "Azure Architect" --json
 ```
 
 ### Monitor (read-only proposal review)
