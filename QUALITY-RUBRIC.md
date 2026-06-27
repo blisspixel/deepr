@@ -67,25 +67,25 @@ Planning Principles), and [docs/plans/AGENTIC_BALANCE.md](docs/plans/AGENTIC_BAL
 
 ## Current Cycle Alignment - 2026-06-27
 
-Active task: wire live semantic claim extraction for the research-processing
-compiler as an explicit, budget-gated sidecar over source-note windows, while
-keeping verifier-pending candidates out of the belief graph until claim
-verification and a commit envelope exist.
+Active task: harden the MCP expert consult contract for external agents and
+lock the legacy expert-chat spend boundary without widening brittle agentic
+rules.
 
 Target score before merge:
 
 | Category | Required score | Evidence |
 |---|---:|---|
-| Correctness | 5/5 | Focused tests prove successful invocation, budget denial, metered opt-in denial, cost reservation settlement, no-ready-window blocking, sync sidecar persistence, and backend wiring. Full unit suite is green. |
-| Security | 5/5 | Untrusted source excerpts are sanitized and delimited before prompt use; metered calls require explicit opt-in, budget headroom, cost-safety reservation, and ledger settlement; Gitleaks found no leaks. |
-| Performance | 5/5 | Default sync behavior is unchanged. The extra model call runs only with `--compile-claims`, uses bounded source windows, and reuses the local or plan client when enabled. |
-| Readability | 5/5 | Claim extraction lives in a focused module, sync owns artifact plumbing, and backend construction keeps local, plan, and metered capacity wiring explicit. |
-| Maintainability | 5/5 | Graph writes stay disabled, claim artifacts remain derived sidecars, docs distinguish works-now from next work, and file-size plus C901/S ratchets remain at baseline. |
-| Simplicity | 5/5 | One explicit flag and one service close the live invocation gap without adding a new provider abstraction or automatic scheduler behavior. |
+| Correctness | 5/5 | Focused tests prove zero-budget non-streaming and streaming expert chat block before provider dispatch; MCP capability, registry, and agent-guide tests pin the consult-vs-query boundary. Full unit suite is green. |
+| Security | 5/5 | Legacy chat now denies before direct model paths when budget is insufficient; no-metered external-agent docs require local or explicit plan consult with no live metered fallback; Gitleaks git history scan found no tracked leaks. |
+| Performance | 5/5 | The no-metered path stays on existing local or plan consult synthesis. No new model calls, polling, pre-warm, or auto-fan-out behavior was added. |
+| Readability | 5/5 | Reusable chat-turn budget and routing helpers live in a small module; docs name works-now surfaces plainly and do not market planned chat backends as shipped. |
+| Maintainability | 5/5 | The `experts/chat.py` grandfathered file-size ratchet stays green; deterministic code owns budgets, backend choice, schemas, and no-fallback, while model judgment still owns synthesis meaning. |
+| Simplicity | 5/5 | One small helper module plus precise docs and tests close the safety gap without inventing a new expert-chat backend before the design contract is ready. |
 
-Cycle 10 keeps the compiler inside the workflow-vs-agent boundary:
-deterministic gates own spend, prompt/schema metadata, source refs, artifacts,
-and write brakes; calibrated model judgment owns claim extraction meaning.
+Cycle 12 keeps the MCP expert collaboration boundary intact: deterministic
+workflow code owns spend, backend choice, scoped-tool guidance, schema language,
+and no-fallback behavior; expert and synthesis models own perspective,
+disagreement, uncertainty, and novel ideas.
 
 ## How to score (maker-checker)
 

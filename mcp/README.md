@@ -20,12 +20,16 @@ the tool's `cost_tier` before calling: `free` ($0), `low` (cents, owned/prepaid
 capable), `medium`/`high` (metered, confirm budget first).
 
 **Pick the smallest tool that gets the outcome:**
-- One expert, a direct question -> `deepr_query_expert` (add `agentic: true` to let
-  it research if the answer is outside its knowledge).
+- One expert or many experts, no-metered trial -> `deepr_consult_experts`.
+  Pass one name in `experts` for a one-expert consult, or pass several names for
+  a council. Set `synthesis_backend: "local"` or `"plan"` and `budget: 0`.
 - A cross-domain question -> `deepr_consult_experts`: it routes to the relevant
   experts (or pass `experts`), fans out up to `max_experts` (<=10), and returns
   one synthesized `deepr-consult-v1` artifact (answer, each expert's perspective
   with confidence, agreements, dissent, cost). One call, aggregated result.
+- Legacy single-expert chat -> `deepr_query_expert`. This path is
+  metered-capable, does not yet accept local or plan backend selection, and
+  should only be used when the operator approves its budget.
 - "What changed since I last asked?" -> `deepr_what_changed`; a handoff snapshot
   -> `deepr_expert_handoff`; why a claim is held -> `deepr_explain_belief`. All
   `$0`, read-only, versioned.
@@ -56,6 +60,11 @@ for a $0 end-to-end script.
 
 ## Setup by Runtime
 
+For no-metered local or LAN tests, remove provider API keys from the MCP server
+environment in every template below. Use `deepr_consult_experts` with
+`synthesis_backend="local"` or `synthesis_backend="plan"` and verify
+`capacity.live_metered_fallback=false` plus `cost_usd=0`.
+
 ### OpenClaw
 
 Copy `mcp/openclaw-config.json` to your OpenClaw MCP configuration:
@@ -81,6 +90,7 @@ Copy `mcp/openclaw-config.json` to your OpenClaw MCP configuration:
 ```
 
 The `autoAllow` list includes read-only tools that don't incur costs. Cost-incurring tools (`deepr_research`, `deepr_agentic_research`, `deepr_query_expert`) require approval. For no-cost expert synthesis, use `deepr_consult_experts` with `synthesis_backend="local"` or `synthesis_backend="plan"` and verify `capacity.live_metered_fallback=false`.
+For no-metered trials, omit provider API keys from the MCP server environment.
 
 For Docker deployment, use `mcp/openclaw-docker-config.json` instead.
 
@@ -176,7 +186,7 @@ Add to `~/.config/zed/settings.json` under `"language_models"` -> `"mcp"`:
 | Tool | Purpose | Cost |
 |------|---------|------|
 | `deepr_list_experts` | List domain experts | Free |
-| `deepr_query_expert` | Query expert with question | Low |
+| `deepr_query_expert` | Legacy single-expert chat with a metered-capable backend; use only with operator-approved budget | Low |
 | `deepr_consult_experts` | Consult one or more experts and synthesize a versioned `deepr-consult-v1` artifact; supports `synthesis_backend=local|plan` to avoid live metered fallback | Free to low |
 | `deepr_get_expert_info` | Expert details and stats | Free |
 | `deepr_expert_manifest` | Expert manifest (policy + knowledge snapshot) | Free |
@@ -331,10 +341,11 @@ deepr mcp agent-guide --host 0.0.0.0 --public-host 192.168.44.62 --key-id agent-
 
 The guide includes the server command, endpoint, bearer token, allowed tool
 rules, and a no-metered `deepr_consult_experts` example. Use `--expert "Name"`
-to scope the key to one expert, `--synthesis-backend plan --plan codex` for an
-explicit plan-capacity consult, or `--output data/security/agent-guide.md` to
-write a file. Because the guide contains a bearer token, repo-local output paths
-must be git-ignored unless `--allow-tracked-output` is passed intentionally.
+once for a single-expert consult or repeat it for a fixed expert council. Use
+`--synthesis-backend plan --plan codex` for an explicit plan-capacity consult,
+or `--output data/security/agent-guide.md` to write a file. Because the guide
+contains a bearer token, repo-local output paths must be git-ignored unless
+`--allow-tracked-output` is passed intentionally.
 
 ## HTTP Serve Mode
 

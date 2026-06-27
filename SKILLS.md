@@ -8,6 +8,10 @@ This file captures repo-specific operating lessons from autonomous work cycles.
 - There are TWO ratchet scripts: `scripts/check_file_sizes.py` AND `scripts/check_ratchets.py` (C901 + S). Run BOTH, full output - never `head` the C901 line off. A file-size failure (CI runs `bash -e`) masks the later C901 check in the same step, so fixing one can unmask the other (two red pushes in a row if you only fix what you see).
 - Before pushing, run the **full lint-job mirror** locally: `ruff check src/deepr/` + `ruff format --check src/deepr/` + `check_file_sizes.py` + `check_ratchets.py` + `check_docs_consistency.py` + `mypy --strict ... core providers mcp`. CI's "lint" job is exactly these; reproducing them avoids red-main ping-pong. (`ruff` is pinned to 0.15.17 so counts match CI.)
 - A new click command that resolves targets + confirms + runs a batch easily hits C901 11. Extract target resolution and the batch runner into module-level helpers - ruff rolls a nested function's branches into its parent, so a nested `async def _run()` inflates the command's complexity.
+- `experts/chat.py` is also at a hard file-size cap. Put reusable chat-turn
+  helpers in small sibling modules such as `experts/chat_turns.py`; do not add
+  new budget, routing, or trace helper blocks directly inside the chat session
+  class unless you remove at least as many lines.
 - README should stay the front door, not the operations manual. Put volatile
   capacity, scheduler, and no-surprise-bills details in focused docs such as
   `docs/CAPACITY.md`, then link from README with works-now versus planned
@@ -117,6 +121,10 @@ This file captures repo-specific operating lessons from autonomous work cycles.
   Anthropic cache creation, Anthropic cache reads, reasoning tokens, and tiered
   large-context pricing. If a provider omits a cached-input rate, charge cached
   tokens at the normal input rate to fail safe against undercounting.
+- A zero-budget legacy expert chat turn must deny before any direct model path,
+  including streaming and advanced-reasoning setup. Use
+  `check_chat_generation_budget` before retrieval, ToT, or chat completions
+  that may reach provider-backed embeddings or generation.
 
 ## Expert consult grounding
 
