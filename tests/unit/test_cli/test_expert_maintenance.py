@@ -19,7 +19,7 @@ from deepr.cli.commands.semantic.expert_maintenance import (
     SYNC_CAPACITY_GATE_SCHEMA_VERSION,
     _build_sync_capacity_payload,
 )
-from deepr.cli.commands.semantic.expert_sync_support import _self_model_run_context
+from deepr.cli.commands.semantic.expert_sync_support import _self_model_run_context, _sync_run_context
 from deepr.cli.commands.semantic.experts import expert
 
 
@@ -248,6 +248,51 @@ class TestBackendFlagGuard:
         assert _self_model_run_context("UI Experience Expert") == {
             "self_model": self_model_context,
             "self_model_updates": update_context,
+        }
+
+    def test_sync_run_context_includes_source_note_refs(self, monkeypatch):
+        monkeypatch.setattr(
+            "deepr.experts.self_model.build_expert_self_model_context",
+            lambda expert_name, *, focus_limit=3: {},
+        )
+        monkeypatch.setattr(
+            "deepr.experts.self_model_updates.build_self_model_update_context",
+            lambda expert_name: {
+                "schema_version": "deepr-expert-self-model-update-context-v1",
+                "kind": "deepr.expert.self_model_update_context",
+                "accepted_record_count": 0,
+                "accepted_records": [],
+            },
+        )
+        result = SimpleNamespace(
+            outcomes=[
+                SimpleNamespace(
+                    topic="TKG",
+                    status="synced",
+                    source_note_artifact="sync_artifacts/source_notes/pack.json",
+                    source_pack_artifact="sync_artifacts/source_packs/pack.json",
+                    source_pack_manifest_artifact="sync_artifacts/source_pack_manifests/pack.json",
+                )
+            ]
+        )
+
+        context = _sync_run_context("UI Experience Expert", result)
+
+        assert context == {
+            "source_notes": {
+                "schema_version": "deepr-source-note-v1",
+                "kind": "deepr.expert.source_notes",
+                "artifact_count": 1,
+                "artifacts": [
+                    {
+                        "topic": "TKG",
+                        "status": "synced",
+                        "source_note_artifact": "sync_artifacts/source_notes/pack.json",
+                        "source_pack_artifact": "sync_artifacts/source_packs/pack.json",
+                        "source_pack_manifest_artifact": "sync_artifacts/source_pack_manifests/pack.json",
+                    }
+                ],
+            }
         }
 
     def test_sync_overlap_lock_records_skip_without_building_engine(self, monkeypatch):
