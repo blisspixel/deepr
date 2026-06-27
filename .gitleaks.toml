@@ -1,0 +1,22 @@
+title = "Deepr Gitleaks configuration"
+minVersion = "v8.25.0"
+
+[extend]
+useDefault = true
+
+[[allowlists]]
+description = "Historical fake generic API key fixtures used by redaction tests"
+targetRules = ["generic-api-key"]
+regexTarget = "match"
+regexes = [
+  '''api-key:\s*secret_key_here''',
+  '''api_key=sk_live_12345''',
+  '''api_key=sk-proj-secret123''',
+  '''api_key=verysecretapikey12345678''',
+  '''password=supersecretpassword123''',
+  '''sk-ant-abcdefghijklmnopqrstuvwxyz123456''',
+  '''sk-proj-abc123''',
+  '''sk-proj-abc123xyz''',
+  '''sk-proj-abcdefghijklmnopqrstuvwxyz123456''',
+  '''xai-abcdefghijklmnopqrstuvwxyz123456''',
+]
