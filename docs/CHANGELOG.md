@@ -58,6 +58,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Added a blocking Gitleaks history scan in CI, removed scanner-triggering fake
   key literals from current test fixtures, and documented the historical
   redaction-test false positives in `.gitleaksignore`.
+- Added repo-root `.gitleaks.toml` so CI keeps the default Gitleaks rules while
+  allowing only exact historical fake redaction-test fixtures. This makes the
+  full-history secret scan pass without skipping files, commits, or
+  `generic-api-key`.
 - Added `deepr expert promote-monitor`, a `$0` reviewed promotion surface backed
   by the published `deepr-metacognitive-promotion-v1` schema. It previews by
   default and requires `--apply` before a `gap_or_eval_candidate` monitor
@@ -205,6 +209,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   improvements.
 
 ### Fixed
+- Fixed GitHub secret-scan drift where historical redaction-test fingerprints
+  could pass locally but fail in CI. The scan now relies on an explicit
+  default-extending config and the current `main` security job is green.
 - Allowed `deepr expert consult --local --budget 0` and
   `deepr expert consult --plan <id> --budget 0` to run through the documented
   no-metered synthesis path while keeping API-backed consults positive-budget
