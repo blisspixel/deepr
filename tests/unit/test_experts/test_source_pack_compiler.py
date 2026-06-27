@@ -3,12 +3,15 @@
 from __future__ import annotations
 
 from deepr.experts.source_pack_compiler import (
+    CLAIM_VERIFICATION_KIND,
+    CLAIM_VERIFICATION_SCHEMA_VERSION,
     SEMANTIC_CLAIM_EXTRACTION_KIND,
     SEMANTIC_CLAIM_EXTRACTION_SCHEMA_VERSION,
     SOURCE_NOTE_KIND,
     SOURCE_NOTE_SCHEMA_VERSION,
     SOURCE_PACK_MANIFEST_KIND,
     SOURCE_PACK_MANIFEST_SCHEMA_VERSION,
+    build_claim_verification,
     build_semantic_claim_extraction,
     build_source_notes,
     build_source_pack_manifest,
@@ -176,6 +179,7 @@ def test_semantic_claim_extraction_records_prompt_and_verifier_gates():
     candidate = extraction["candidates"][0]
     assert candidate["candidate_id"].startswith("cc_")
     assert candidate["confidence"] == 1.0
+    assert candidate["state_policy"]["requires_external_support"] is True
     assert candidate["readiness"]["ready_for_verification"] is True
     assert candidate["readiness"]["failure_reasons"] == []
     assert candidate["evidence_refs"][0]["valid_ref"] is True
@@ -245,3 +249,207 @@ def test_source_pack_manifest_rejects_invalid_hash_shape_for_semantic_compile():
     assert manifest["manifest"]["missing_content_hash_count"] == 0
     assert manifest["sources"][0]["content_hash_valid"] is False
     assert manifest["source_pack"]["search_queries"] == []
+
+
+def test_claim_verification_allows_supported_factual_claim_for_commit_envelope():
+    notes = build_source_notes(_source_pack_payload())
+    note = notes["notes"][0]
+    window = note["windows"][0]
+    extraction = build_semantic_claim_extraction(
+        notes,
+        {
+            "claims": [
+                {
+                    "statement": "Release text changed the compiler behavior.",
+                    "claim_kind": "factual_claim",
+                    "confidence": 0.9,
+                    "source_refs": [{"note_id": note["note_id"], "window_id": window["window_id"]}],
+                }
+            ]
+        },
+    )
+    candidate_id = extraction["candidates"][0]["candidate_id"]
+
+    verification = build_claim_verification(
+        extraction,
+        {
+            "verifications": [
+                {
+                    "candidate_id": candidate_id,
+                    "support_verdict": "supported",
+                    "contradiction_verdict": "none",
+                    "dedup_verdict": "new",
+                    "temporal_scope_verdict": "valid",
+                    "confidence": 0.88,
+                    "rationale": "The cited source window supports the claim.",
+                }
+            ]
+        },
+        provider="local",
+        model="qwen",
+        capacity_source="local",
+        cost_usd=0.0,
+    )
+
+    assert verification["schema_version"] == CLAIM_VERIFICATION_SCHEMA_VERSION
+    assert verification["kind"] == CLAIM_VERIFICATION_KIND
+    assert verification["contract"]["writes_graph"] is False
+    assert verification["summary"]["status"] == "ready_for_commit_envelope"
+    decision = verification["decisions"][0]
+    assert decision["verdicts"]["support"] == "supported"
+    assert decision["readiness"]["ready_for_commit_envelope"] is True
+    assert decision["commit_gate"]["writes_graph"] is False
+
+
+def test_claim_verification_blocks_refuted_factual_claim():
+    notes = build_source_notes(_source_pack_payload())
+    extraction = build_semantic_claim_extraction(
+        notes,
+        {
+            "claims": [
+                {
+                    "statement": "The release removed the compiler.",
+                    "claim_kind": "factual_claim",
+                    "confidence": 0.8,
+                    "source_refs": [
+                        {
+                            "note_id": notes["notes"][0]["note_id"],
+                            "window_id": notes["notes"][0]["windows"][0]["window_id"],
+                        }
+                    ],
+                }
+            ]
+        },
+    )
+    candidate_id = extraction["candidates"][0]["candidate_id"]
+
+    verification = build_claim_verification(
+        extraction,
+        {
+            "verifications": [
+                {
+                    "candidate_id": candidate_id,
+                    "support_verdict": "refuted",
+                    "contradiction_verdict": "none",
+                    "dedup_verdict": "new",
+                    "temporal_scope_verdict": "valid",
+                }
+            ]
+        },
+    )
+
+    assert verification["summary"]["status"] == "blocked"
+    assert verification["summary"]["failure_reasons"] == ["factual_support_not_verified"]
+    assert verification["decisions"][0]["readiness"]["ready_for_commit_envelope"] is False
+
+
+def test_claim_verification_treats_hypotheses_as_non_fact_state():
+    notes = build_source_notes(_source_pack_payload())
+    note = notes["notes"][0]
+    window = note["windows"][0]
+    extraction = build_semantic_claim_extraction(
+        notes,
+        {
+            "claims": [
+                {
+                    "statement": "The compiler may need a new cache invalidation strategy.",
+                    "claim_kind": "hypothesis",
+                    "confidence": 0.62,
+                    "source_refs": [{"note_id": note["note_id"], "window_id": window["window_id"]}],
+                }
+            ]
+        },
+    )
+    candidate = extraction["candidates"][0]
+
+    verification = build_claim_verification(
+        extraction,
+        {
+            "verifications": [
+                {
+                    "candidate_id": candidate["candidate_id"],
+                    "support_verdict": "not_applicable",
+                    "contradiction_verdict": "none",
+                    "dedup_verdict": "new",
+                    "temporal_scope_verdict": "not_applicable",
+                    "origin": "Synthesis over the source-note window.",
+                    "rationale": "The cited release text suggests a plausible future design pressure.",
+                    "uncertainty": "Speculative until follow-up evidence appears.",
+                    "disconfirming_signals": ["No cache-invalidation incidents appear in future notes."],
+                }
+            ]
+        },
+    )
+
+    assert candidate["state_policy"]["requires_external_support"] is False
+    assert candidate["state_policy"]["must_not_present_as_verified_fact"] is True
+    assert verification["summary"]["status"] == "ready_for_commit_envelope"
+    decision = verification["decisions"][0]
+    assert decision["state_policy"]["requires_origin_and_rationale"] is True
+    assert decision["readiness"]["ready_for_commit_envelope"] is True
+    assert decision["verdicts"]["support"] == "not_applicable"
+
+
+def test_claim_verification_blocks_hypothesis_without_origin_metadata():
+    notes = build_source_notes(_source_pack_payload())
+    note = notes["notes"][0]
+    window = note["windows"][0]
+    extraction = build_semantic_claim_extraction(
+        notes,
+        {
+            "claims": [
+                {
+                    "statement": "The compiler may need a new cache invalidation strategy.",
+                    "claim_kind": "hypothesis",
+                    "confidence": 0.62,
+                    "source_refs": [{"note_id": note["note_id"], "window_id": window["window_id"]}],
+                }
+            ]
+        },
+    )
+
+    verification = build_claim_verification(
+        extraction,
+        {
+            "verifications": [
+                {
+                    "candidate_id": extraction["candidates"][0]["candidate_id"],
+                    "support_verdict": "not_applicable",
+                    "contradiction_verdict": "none",
+                    "dedup_verdict": "new",
+                    "temporal_scope_verdict": "not_applicable",
+                    "rationale": "Maybe useful.",
+                }
+            ]
+        },
+    )
+
+    assert verification["summary"]["status"] == "blocked"
+    assert verification["summary"]["failure_reasons"] == [
+        "missing_disconfirming_signals",
+        "missing_origin",
+        "missing_uncertainty",
+    ]
+
+
+def test_claim_verification_blocks_unknown_candidate_ids():
+    notes = build_source_notes(_source_pack_payload())
+    extraction = build_semantic_claim_extraction(notes, {"claims": []})
+
+    verification = build_claim_verification(
+        extraction,
+        {
+            "verifications": [
+                {
+                    "candidate_id": "cc_missing",
+                    "support_verdict": "supported",
+                    "contradiction_verdict": "none",
+                    "dedup_verdict": "new",
+                    "temporal_scope_verdict": "valid",
+                }
+            ]
+        },
+    )
+
+    assert verification["summary"]["status"] == "blocked"
+    assert verification["summary"]["failure_reasons"] == ["unknown_candidate_id"]

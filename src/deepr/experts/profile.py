@@ -22,7 +22,6 @@ from typing import TYPE_CHECKING, Any
 if TYPE_CHECKING:
     from deepr.core.contracts import ExpertManifest
 
-from deepr.config import experts_root
 from deepr.experts.activity_tracker import ActivityTracker
 from deepr.experts.budget_manager import BudgetManager
 from deepr.experts.freshness import FreshnessChecker, FreshnessLevel
@@ -375,9 +374,10 @@ class ExpertProfile:
 
         # Load worldview beliefs from synthesis
         try:
+            from deepr.experts.paths import canonical_expert_dir
             from deepr.experts.synthesis import Worldview
 
-            wv_path = experts_root() / self.name / "worldview.json"
+            wv_path = canonical_expert_dir(self.name) / "knowledge" / "worldview.json"
             if wv_path.exists():
                 wv = Worldview.load(wv_path)
                 for belief in wv.beliefs:
@@ -408,9 +408,10 @@ class ExpertProfile:
 
         # Load gaps from synthesis worldview
         try:
+            from deepr.experts.paths import canonical_expert_dir
             from deepr.experts.synthesis import Worldview
 
-            wv_path = experts_root() / self.name / "worldview.json"
+            wv_path = canonical_expert_dir(self.name) / "knowledge" / "worldview.json"
             if wv_path.exists():
                 wv = Worldview.load(wv_path)
                 for kg in wv.knowledge_gaps:
@@ -428,8 +429,9 @@ class ExpertProfile:
             import json as _json
 
             from deepr.core.contracts import DecisionRecord
+            from deepr.experts.paths import canonical_expert_dir
 
-            log_dir = experts_root() / self.name / "logs"
+            log_dir = canonical_expert_dir(self.name) / "logs"
             if log_dir.exists():
                 for json_file in sorted(log_dir.glob("decisions*.json"), reverse=True):
                     with open(json_file, encoding="utf-8") as f:

@@ -3324,6 +3324,7 @@ from deepr.cli.commands.semantic import expert_consult_traces as _expert_consult
 from deepr.cli.commands.semantic import expert_gap_routes as _expert_gap_routes  # noqa: F401
 from deepr.cli.commands.semantic import expert_loop_status as _expert_loop_status  # noqa: F401
 from deepr.cli.commands.semantic import expert_maintenance as _expert_maintenance  # noqa: F401
+from deepr.cli.commands.semantic import expert_memory_card as _expert_memory_card  # noqa: F401
 from deepr.cli.commands.semantic import expert_okf as _expert_okf  # noqa: F401
 from deepr.cli.commands.semantic import expert_portrait as _expert_portrait  # noqa: F401
 from deepr.cli.commands.semantic import expert_self_model as _expert_self_model  # noqa: F401

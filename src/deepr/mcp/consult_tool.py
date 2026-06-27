@@ -133,4 +133,10 @@ async def consult_experts_tool(
         result=result,
         capacity=payload["capacity"],
     )
+    consult_core.attach_collaboration_runtime(
+        payload,
+        result=result,
+        capacity=payload["capacity"],
+        trace=payload["trace"],
+    )
     return payload

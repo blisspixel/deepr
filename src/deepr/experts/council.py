@@ -468,6 +468,7 @@ class ExpertCouncil:
                 "disagreements": [],
                 "synthesis_status": "skipped_no_valid_perspectives",
                 "synthesis_error_type": "",
+                "requested_budget_usd": budget,
                 "total_cost": 0.0,
             }
 
@@ -500,6 +501,7 @@ class ExpertCouncil:
                     "synthesis": f"Council blocked: {deny_reason}",
                     "agreements": [],
                     "disagreements": [],
+                    "requested_budget_usd": budget,
                     "total_cost": 0.0,
                 }
 
@@ -583,6 +585,7 @@ class ExpertCouncil:
             "disagreements": synthesis.get("disagreements", []),
             "synthesis_status": synthesis.get("synthesis_status", "completed"),
             "synthesis_error_type": synthesis.get("synthesis_error_type", ""),
+            "requested_budget_usd": budget,
             "total_cost": round(total_cost, 4),
         }
 
