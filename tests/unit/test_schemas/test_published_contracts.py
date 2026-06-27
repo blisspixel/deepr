@@ -57,6 +57,11 @@ from deepr.experts.consult_traces import (
 from deepr.experts.handoff import build_expert_handoff
 from deepr.experts.loop_runs import ExpertLoopRun, ExpertLoopRunStore, LoopRunStatus, LoopStopReason
 from deepr.experts.loop_status_rollup import build_loop_status_rollup
+from deepr.experts.memory_card import (
+    EXPERT_MEMORY_CARD_KIND,
+    EXPERT_MEMORY_CARD_SCHEMA_VERSION,
+    build_expert_memory_card,
+)
 from deepr.experts.metacognitive_monitor import (
     METACOGNITIVE_MONITOR_KIND,
     METACOGNITIVE_MONITOR_SCHEMA_VERSION,
@@ -83,12 +88,15 @@ from deepr.experts.self_model_updates import (
     propose_self_model_update,
 )
 from deepr.experts.source_pack_compiler import (
+    CLAIM_VERIFICATION_KIND,
+    CLAIM_VERIFICATION_SCHEMA_VERSION,
     SEMANTIC_CLAIM_EXTRACTION_KIND,
     SEMANTIC_CLAIM_EXTRACTION_SCHEMA_VERSION,
     SOURCE_NOTE_KIND,
     SOURCE_NOTE_SCHEMA_VERSION,
     SOURCE_PACK_MANIFEST_KIND,
     SOURCE_PACK_MANIFEST_SCHEMA_VERSION,
+    build_claim_verification,
     build_semantic_claim_extraction,
     build_source_notes,
     build_source_pack_manifest,
@@ -302,6 +310,30 @@ def test_expert_self_model_schema_validates_runtime_payload():
     assert payload["schema_version"] == EXPERT_SELF_MODEL_SCHEMA_VERSION
     assert payload["kind"] == EXPERT_SELF_MODEL_KIND
     assert payload["contract"]["goal_changes_require_review"] is True
+
+
+def test_expert_memory_card_schema_validates_runtime_payload():
+    profile = ExpertProfile(
+        name="Memory Card Contract Expert",
+        vector_store_id="vs-memory-contract",
+        domain="expert memory",
+        knowledge_cutoff_date=datetime(2026, 6, 26, 12, 0, tzinfo=UTC),
+        last_knowledge_refresh=datetime(2026, 6, 26, 12, 0, tzinfo=UTC),
+    )
+    manifest = ExpertManifest(
+        expert_name=profile.name,
+        domain="expert memory",
+        claims=[Claim.create("Memory cards are derived views.", "expert memory", 0.87)],
+        gaps=[Gap.create("generated wiki quality", questions=["Which sections help host agents?"], ev_cost_ratio=4.0)],
+    )
+    payload = build_expert_memory_card(profile, manifest=manifest)
+    schema = _load_schema("expert-memory-card-v1.json")
+
+    _validate(schema, payload)
+    assert payload["schema_version"] == EXPERT_MEMORY_CARD_SCHEMA_VERSION
+    assert payload["kind"] == EXPERT_MEMORY_CARD_KIND
+    assert payload["contract"]["authoritative"] is False
+    assert payload["artifact"]["filename"] == "EXPERT.md"
 
 
 def test_metacognitive_monitor_schema_validates_runtime_payload():
@@ -705,6 +737,71 @@ def test_semantic_claim_extraction_schema_validates_runtime_payload():
     assert payload["kind"] == SEMANTIC_CLAIM_EXTRACTION_KIND
     assert payload["contract"]["writes_graph"] is False
     assert payload["candidates"][0]["verifier_gate"]["writes_graph"] is False
+
+
+def test_claim_verification_schema_validates_runtime_payload():
+    notes = build_source_notes(
+        {
+            "started_at": "2026-06-27T12:00:00+00:00",
+            "source_pack": {
+                "schema_version": "deepr.source_pack.v1",
+                "sources": [
+                    {
+                        "label": "S1",
+                        "title": "Release notes",
+                        "url": "https://example.com/release",
+                        "source": "duckduckgo+builtin",
+                        "fetched": True,
+                        "excerpt": "Release text",
+                        "content_hash": "a" * 64,
+                    }
+                ],
+            },
+        }
+    )
+    note = notes["notes"][0]
+    window = note["windows"][0]
+    extraction = build_semantic_claim_extraction(
+        notes,
+        {
+            "claims": [
+                {
+                    "statement": "Release text changed the compiler behavior.",
+                    "confidence": 0.84,
+                    "claim_kind": "factual_claim",
+                    "source_refs": [{"note_id": note["note_id"], "window_id": window["window_id"]}],
+                }
+            ]
+        },
+    )
+    payload = build_claim_verification(
+        extraction,
+        {
+            "verifications": [
+                {
+                    "candidate_id": extraction["candidates"][0]["candidate_id"],
+                    "support_verdict": "supported",
+                    "contradiction_verdict": "none",
+                    "dedup_verdict": "new",
+                    "temporal_scope_verdict": "valid",
+                    "confidence": 0.9,
+                    "rationale": "The cited note supports the factual claim.",
+                }
+            ]
+        },
+        provider="local",
+        model="qwen",
+        capacity_source="local-ollama",
+        prompt_text="Verify extracted claims.",
+        generated_at="2026-06-27T12:02:00+00:00",
+    )
+    schema = _load_schema("claim-verification-v1.json")
+
+    _validate(schema, payload)
+    assert payload["schema_version"] == CLAIM_VERIFICATION_SCHEMA_VERSION
+    assert payload["kind"] == CLAIM_VERIFICATION_KIND
+    assert payload["contract"]["writes_graph"] is False
+    assert payload["decisions"][0]["commit_gate"]["requires_commit_envelope"] is True
 
 
 def test_capacity_next_schema_validates_runtime_payload():

@@ -88,12 +88,12 @@ depleted plan) and a `$0` `cost_ledger.jsonl` event with the quota units in
 metadata, so `costs show` and anomaly detection see volume even at $0 marginal
 cost. The cost ledger stays the single record of every spend source.
 
-## Auto-routing is opt-in, not guessed
+## Auto-routing requires intent and quota evidence
 
 Vendor CLI execution commands generally do not expose trustworthy *remaining*
-quota, so Deepr never auto-routes on a guess. Instead the operator opts in with
-an explicit, dated admission - the attestation that draining that subscription
-window for background maintenance is intended:
+quota, so Deepr never auto-routes on a guess. An explicit, dated admission is
+still useful, but it records operator intent only. It does not replace the
+remaining-quota gate:
 
 - `deepr capacity admit-plan codex --task-class sync` (and `revoke-plan`) records
   a plan admission in the shared admission store, namespaced `plan:<id>` so the
@@ -101,14 +101,12 @@ window for background maintenance is intended:
   free-at-margin, ToS-clean backends (codex/claude/opencode) can be admitted.
 
 The waterfall's plan-quota rung (`choose_maintenance_backend` ->
-`_choose_plan_quota`) then auto-selects a CLI that is installed, in plan auth
-mode, **admitted** for the task class, and **not in an exhaustion cooldown**. The
-admission replaces the observed-remaining requirement (`require_observed_quota=
-False`); the safety gate (API-key -> refused) and the exhaustion check still
-apply. A backend seen `EXHAUSTED` with a future `reset_at` is skipped and falls
-to metered; once the reset passes it auto-routes again, so a depleted plan
-self-heals without re-routing into the wall. Metered stays the budget-gated last
-resort.
+`_choose_plan_quota`) auto-selects a CLI only when it is installed, in plan auth
+mode, admitted for the task class, **and has a trusted remaining-quota
+observation** in the local quota ledger. A backend seen `EXHAUSTED` with a
+future `reset_at` is skipped. Once the reset passes, the exhaustion no longer
+blocks it, but a fresh trusted remaining-quota observation is still required
+before auto-routing resumes. Metered stays the budget-gated last resort.
 
 The explicit path needs no admission (the operator chose it directly):
 

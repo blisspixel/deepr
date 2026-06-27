@@ -46,6 +46,7 @@ def _result(**over):
         "synthesis": "the synthesized answer",
         "agreements": ["both agree X"],
         "disagreements": ["they differ on Y"],
+        "requested_budget_usd": 1.5,
         "total_cost": 0.0123,
     }
     base.update(over)
@@ -76,6 +77,10 @@ def test_build_payload_shape():
     assert "context" not in p["perspectives"][1]
     assert p["agreements"] == ["both agree X"]
     assert p["cost_usd"] == 0.0123
+    assert p["collaboration"]["schema_version"] == "deepr-expert-collaboration-v1"
+    assert p["collaboration"]["roster"][0]["role"] == "domain_perspective"
+    assert p["collaboration"]["dissent_handling"]["dissent_preserved"] is True
+    assert p["collaboration"]["budget_capacity_contract"]["requested_budget_usd"] == 1.5
 
 
 def test_consult_json_emits_versioned_artifact(monkeypatch):
@@ -87,6 +92,8 @@ def test_consult_json_emits_versioned_artifact(monkeypatch):
     assert parsed["answer"] == "the synthesized answer"
     assert parsed["cost_usd"] == 0.0123
     assert parsed["trace"]["schema_version"] == "deepr-consult-trace-v1"
+    assert parsed["collaboration"]["task"]["consult_trace_id"] == parsed["trace"]["trace_id"]
+    assert parsed["collaboration"]["budget_capacity_contract"]["capacity"]["synthesis_backend"] == "api"
 
 
 def test_consult_writes_replayable_trace(monkeypatch, consult_trace_path):

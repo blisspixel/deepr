@@ -30,8 +30,9 @@ from deepr.backends.capacity import BackendKind, CostModel, available_local_mode
 from deepr.backends.quota_ledger import QuotaState, summarize_quota_state
 
 # Plan-quota admissions share the local admission store, namespaced so the local
-# rung never mistakes one for an Ollama model. A plan admission is the operator's
-# explicit opt-in to auto-route maintenance onto that subscription.
+# rung never mistakes one for an Ollama model. Admission is necessary operator
+# intent, but never sufficient for auto-routing: the plan rung also needs a
+# trusted remaining-quota observation.
 PLAN_ADMISSION_PREFIX = "plan:"
 from deepr.backends.research_backend import ResearchBackend
 from deepr.backends.selection import BackendSelection, BackendSelectionStatus, select_capacity_backend
@@ -226,17 +227,12 @@ def _choose_plan_quota(
     quota_ledger_path: Path | None,
     admissions_path: Path | None,
 ) -> BackendChoice | None:
-    """The plan-quota rung: an installed, safe, *operator-admitted* auto-routable
-    CLI that is not currently in an exhaustion cooldown. Returns None (defer to
-    metered) when none qualifies.
+    """The plan-quota rung: installed, safe, admitted, and quota-observed.
 
-    Auto-routing is opt-in: vendor CLIs do not expose trustworthy remaining
-    quota, so instead of guessing, Deepr routes here only when the operator has
-    explicitly admitted the backend (``deepr capacity admit-plan``) - the
-    attestation that consuming that plan window for maintenance is intended. The
-    safety gate (plan auth, not metered/ack) still applies, and a backend seen
-    exhausted stays out until its observed reset time passes, so a depleted plan
-    self-heals without re-routing into the wall.
+    Admission records operator intent, but it does not replace a quota signal.
+    Auto-routing to a plan CLI is allowed only when a trusted local ledger
+    observation says usable quota remains. Without that, the explicit
+    ``--plan`` path is the works-now route.
     """
     from deepr.backends.plan_quota.adapters import auto_routable_adapters
 
@@ -258,14 +254,14 @@ def _choose_plan_quota(
         return None
 
     backends = [_plan_quota_backend(adapter) for adapter in eligible_adapters]
-    # The admission replaces the observed-remaining requirement; an exhaustion
-    # whose reset has passed is dropped so the backend becomes eligible again.
+    # Reset-expired exhaustion events are ignored, but an active trusted
+    # remaining-quota observation is still required before auto-routing.
     states = [s for s in summarize_quota_state(quota_ledger_path) if not _exhaustion_cleared(s, stamp)]
     selection = select_capacity_backend(
         backends,
         quota_states=states,
         task_class=task_class,
-        require_observed_quota=False,
+        require_observed_quota=True,
     )
     if selection.status != BackendSelectionStatus.SELECTED or selection.selected is None:
         return None
@@ -274,8 +270,8 @@ def _choose_plan_quota(
     return BackendChoice(
         BACKEND_PLAN_QUOTA,
         None,
-        f"plan-quota backend {picked!r} (operator-admitted): {selection.selected.eligibility.reason}; "
-        "prepaid capacity before metered API",
+        f"plan-quota backend {picked!r} (operator-admitted, quota-observed): "
+        f"{selection.selected.eligibility.reason}; prepaid capacity before metered API",
         plan_backend_id=picked,
     )
 

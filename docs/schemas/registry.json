@@ -23,6 +23,14 @@
       "compatibility": "additive-within-v1"
     },
     {
+      "name": "expert-memory-card",
+      "schema_version": "deepr-expert-memory-card-v1",
+      "kind": "deepr.expert.memory_card",
+      "path": "expert-memory-card-v1.json",
+      "status": "experimental",
+      "compatibility": "additive-within-v1"
+    },
+    {
       "name": "expert-self-model-update",
       "schema_version": "deepr-expert-self-model-update-v1",
       "kind": "deepr.expert.self_model_update",
@@ -131,6 +139,14 @@
       "schema_version": "deepr-semantic-claim-extraction-v1",
       "kind": "deepr.expert.semantic_claim_extraction",
       "path": "semantic-claim-extraction-v1.json",
+      "status": "experimental",
+      "compatibility": "additive-within-v1"
+    },
+    {
+      "name": "claim-verification",
+      "schema_version": "deepr-claim-verification-v1",
+      "kind": "deepr.expert.claim_verification",
+      "path": "claim-verification-v1.json",
       "status": "experimental",
       "compatibility": "additive-within-v1"
     },

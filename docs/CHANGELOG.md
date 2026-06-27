@@ -25,6 +25,33 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 </details>
 
 ### Added
+- Added `deepr expert memory-card`, a `$0` generated `EXPERT.md` surface backed
+  by the published `deepr-expert-memory-card-v1` schema. The card is derived
+  from profile, manifest, belief events, and self-model state, then renders a
+  compact wiki-style orientation packet with identity policy, current stance,
+  explicitly tagged theories and insights, self-research agenda, what would
+  change the expert's mind, agency scope, calibration, goals, beliefs, gaps,
+  contradictions, collaboration guidance, and update policy. It previews by
+  default and writes only when `--write` is set.
+- Added `deepr-claim-verification-v1`, the verifier-decision compiler envelope
+  after semantic claim extraction. It records support, contradiction,
+  deduplication, temporal-scope, and type-specific policy decisions while
+  keeping graph writes disabled until a later commit envelope. Factual claims
+  require support; hypotheses, stances, concepts, proposals, and original ideas
+  require origin, rationale, uncertainty, and disconfirming signals instead of
+  an online-source veto.
+- Added the `deepr-expert-collaboration-v1` council contract to CLI and MCP
+  consult artifacts. Host agents now receive a machine-readable collaboration
+  packet with the expert roster, per-expert role, shared consult trace id,
+  budget and capacity contract, evidence-packet summary, dissent handling, and
+  result artifact refs without an extra model call or downstream action
+  authority.
+- Added local candidate recall for belief and concept memory. The new recall
+  contract accepts supplied vectors for local cosine routing, falls back to an
+  explicitly labeled lexical router when allowed, returns only `candidate_only`
+  metadata, and exposes `BeliefStore.recall_contradiction_candidates` so
+  paraphrased same-domain conflicts can reach later verifier checks without
+  graph writes, model calls, or confidence changes.
 - Added explicit `deepr expert sync --compile-claims` semantic compiler
   invocation. Sync can now run a budget-gated local, plan-quota, or metered
   OpenAI-shaped chat client over ready source-note windows, quarantine
@@ -160,6 +187,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   confidence, provenance, temporal context, and a next learning plan.
 
 ### Changed
+- `ExpertProfile.get_manifest()` now reads synthesis worldview and decision-log
+  files through the canonical expert directory, so generated self-model and
+  memory-card surfaces do not miss state for display names that slug differently
+  on disk.
 - Reworked the README as a concise front door, moved capacity operations into
   `docs/CAPACITY.md`, added a provider-costing deep dive for cached-token
   buckets, server-side tool costs, exact provider settlement, tier modifiers,

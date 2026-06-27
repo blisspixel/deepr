@@ -15,7 +15,16 @@ SOURCE_NOTE_KIND = "deepr.expert.source_notes"
 SEMANTIC_CLAIM_EXTRACTION_SCHEMA_VERSION = "deepr-semantic-claim-extraction-v1"
 SEMANTIC_CLAIM_EXTRACTION_KIND = "deepr.expert.semantic_claim_extraction"
 SEMANTIC_CLAIM_EXTRACTION_PROMPT_VERSION = "deepr-semantic-claim-extraction-prompt-v1"
+CLAIM_VERIFICATION_SCHEMA_VERSION = "deepr-claim-verification-v1"
+CLAIM_VERIFICATION_KIND = "deepr.expert.claim_verification"
+CLAIM_VERIFICATION_PROMPT_VERSION = "deepr-claim-verification-prompt-v1"
 _SHA256_HEX = re.compile(r"^[a-fA-F0-9]{64}$")
+_FACTUAL_KINDS = {"factual_claim", "fact", "external_fact", "current_fact"}
+_IDEA_KINDS = {"concept", "hypothesis", "stance", "proposal", "original_idea", "original_synthesis"}
+_SUPPORT_VERDICTS = {"supported", "refuted", "insufficient", "not_applicable", "unverified"}
+_CONTRADICTION_VERDICTS = {"none", "possible", "contradiction", "unverified"}
+_DEDUP_VERDICTS = {"new", "same_as_existing", "uncertain", "unverified"}
+_TEMPORAL_VERDICTS = {"valid", "unclear", "outdated", "not_applicable"}
 
 
 def _utc_now() -> datetime:
@@ -42,6 +51,16 @@ def _float_0_1(value: Any, *, default: float = 0.0) -> float:
     except (TypeError, ValueError):
         return default
     return max(0.0, min(1.0, parsed))
+
+
+def _normalized_key(value: Any, *, default: str = "") -> str:
+    text = str(value if value is not None else default).strip().lower()
+    return text.replace("-", "_").replace(" ", "_") or default
+
+
+def _enum_value(value: Any, allowed: set[str], *, default: str) -> str:
+    normalized = _normalized_key(value, default=default)
+    return normalized if normalized in allowed else default
 
 
 def _source_pack_from_payload(payload: dict[str, Any]) -> dict[str, Any]:
@@ -312,6 +331,7 @@ def _claim_candidate(
     windows_by_note: dict[str, set[str]],
 ) -> dict[str, Any]:
     statement = str(item.get("statement", item.get("claim", "")) or "").strip()
+    claim_kind = _normalized_key(item.get("claim_kind", item.get("type", "factual_claim")), default="factual_claim")
     evidence_refs, ref_failures = _validated_source_refs(item, notes=notes, windows_by_note=windows_by_note)
     valid_source_ref_count = sum(1 for ref in evidence_refs if ref["valid_ref"])
     failure_reasons = list(ref_failures)
@@ -324,7 +344,8 @@ def _claim_candidate(
     return {
         "candidate_id": _candidate_id(statement, evidence_refs),
         "statement": statement,
-        "claim_kind": str(item.get("claim_kind", item.get("type", "factual_claim")) or "factual_claim"),
+        "claim_kind": claim_kind,
+        "state_policy": _claim_kind_policy(claim_kind),
         "confidence": _float_0_1(item.get("confidence")),
         "model_judgment": {
             "atomicity": str(item.get("atomicity", "") or ""),
@@ -342,6 +363,168 @@ def _claim_candidate(
             "status": "pending",
             "required_checks": ["grounding", "contradiction", "deduplication", "temporal_scope"],
             "writes_graph": False,
+        },
+    }
+
+
+def _claim_kind_policy(claim_kind: str) -> dict[str, Any]:
+    kind = _normalized_key(claim_kind, default="factual_claim")
+    if kind in _IDEA_KINDS:
+        return {
+            "state_type": kind,
+            "requires_external_support": False,
+            "requires_origin_and_rationale": True,
+            "requires_disconfirming_signals": True,
+            "must_not_present_as_verified_fact": True,
+        }
+    if kind not in _FACTUAL_KINDS:
+        kind = "factual_claim"
+    return {
+        "state_type": kind,
+        "requires_external_support": True,
+        "requires_origin_and_rationale": False,
+        "requires_disconfirming_signals": False,
+        "must_not_present_as_verified_fact": False,
+    }
+
+
+def _raw_verification_items(parsed: dict[str, Any]) -> list[dict[str, Any]]:
+    raw = parsed.get("verifications", parsed.get("decisions", []))
+    if not isinstance(raw, list):
+        return []
+    return [item for item in raw if isinstance(item, dict)]
+
+
+def _verification_response_shape_failure(parsed: dict[str, Any]) -> str:
+    if "verifications" not in parsed and "decisions" not in parsed:
+        return "missing_verifications_field"
+    raw = parsed.get("verifications", parsed.get("decisions"))
+    if not isinstance(raw, list):
+        return "invalid_verifications_field"
+    return ""
+
+
+def _candidate_by_id(extraction: dict[str, Any]) -> dict[str, dict[str, Any]]:
+    candidates: dict[str, dict[str, Any]] = {}
+    for raw_candidate in extraction.get("candidates", []) or []:
+        if not isinstance(raw_candidate, dict):
+            continue
+        candidate_id = str(raw_candidate.get("candidate_id", "") or "")
+        if candidate_id:
+            candidates[candidate_id] = raw_candidate
+    return candidates
+
+
+def _string_field(item: dict[str, Any], key: str) -> str:
+    return str(item.get(key, "") or "").strip()
+
+
+def _string_list_field(item: dict[str, Any], key: str) -> list[str]:
+    value = item.get(key, [])
+    if not isinstance(value, list):
+        return []
+    return [str(entry).strip() for entry in value if str(entry).strip()]
+
+
+def _candidate_policy(candidate: dict[str, Any] | None) -> dict[str, Any]:
+    policy = (candidate or {}).get("state_policy", {})
+    if isinstance(policy, dict):
+        return policy
+    return _claim_kind_policy(str((candidate or {}).get("claim_kind", "factual_claim") or "factual_claim"))
+
+
+def _verification_verdicts(item: dict[str, Any]) -> dict[str, str]:
+    return {
+        "support": _enum_value(item.get("support_verdict"), _SUPPORT_VERDICTS, default="unverified"),
+        "contradiction": _enum_value(item.get("contradiction_verdict"), _CONTRADICTION_VERDICTS, default="unverified"),
+        "deduplication": _enum_value(item.get("dedup_verdict"), _DEDUP_VERDICTS, default="unverified"),
+        "temporal_scope": _enum_value(item.get("temporal_scope_verdict"), _TEMPORAL_VERDICTS, default="unclear"),
+    }
+
+
+def _verification_model_judgment(item: dict[str, Any]) -> dict[str, Any]:
+    return {
+        "confidence": _float_0_1(item.get("confidence")),
+        "rationale": _string_field(item, "rationale"),
+        "support_summary": _string_field(item, "support_summary"),
+        "origin": _string_field(item, "origin"),
+        "uncertainty": _string_field(item, "uncertainty"),
+        "disconfirming_signals": _string_list_field(item, "disconfirming_signals"),
+    }
+
+
+def _candidate_verification_failures(candidate_id: str, candidate: dict[str, Any] | None) -> list[str]:
+    failure_reasons: list[str] = []
+    if not candidate_id:
+        failure_reasons.append("missing_candidate_id")
+    if candidate is None:
+        failure_reasons.append("unknown_candidate_id")
+    elif (candidate.get("readiness", {}) or {}).get("ready_for_verification") is not True:
+        failure_reasons.append("candidate_not_ready_for_verification")
+    return failure_reasons
+
+
+def _idea_policy_failures(policy: dict[str, Any], model_judgment: dict[str, Any]) -> list[str]:
+    if not policy.get("requires_origin_and_rationale"):
+        return []
+    failures: list[str] = []
+    for field, reason in (
+        ("origin", "missing_origin"),
+        ("rationale", "missing_rationale"),
+        ("uncertainty", "missing_uncertainty"),
+    ):
+        if not model_judgment[field]:
+            failures.append(reason)
+    return failures
+
+
+def _policy_verification_failures(
+    policy: dict[str, Any],
+    verdicts: dict[str, str],
+    model_judgment: dict[str, Any],
+) -> list[str]:
+    failure_reasons: list[str] = []
+    if policy.get("requires_external_support") and verdicts["support"] != "supported":
+        failure_reasons.append("factual_support_not_verified")
+    if policy.get("requires_disconfirming_signals") and not model_judgment["disconfirming_signals"]:
+        failure_reasons.append("missing_disconfirming_signals")
+    if verdicts["contradiction"] == "contradiction":
+        failure_reasons.append("contradiction_unresolved")
+    if verdicts["deduplication"] == "same_as_existing":
+        failure_reasons.append("duplicate_existing_belief")
+    if verdicts["temporal_scope"] == "outdated":
+        failure_reasons.append("temporal_scope_rejected")
+    return failure_reasons + _idea_policy_failures(policy, model_judgment)
+
+
+def _verification_decision(
+    item: dict[str, Any],
+    *,
+    candidates_by_id: dict[str, dict[str, Any]],
+) -> dict[str, Any]:
+    candidate_id = str(item.get("candidate_id", "") or "").strip()
+    candidate = candidates_by_id.get(candidate_id)
+    policy = _candidate_policy(candidate)
+    verdicts = _verification_verdicts(item)
+    model_judgment = _verification_model_judgment(item)
+    failure_reasons = _candidate_verification_failures(candidate_id, candidate)
+    failure_reasons.extend(_policy_verification_failures(policy, verdicts, model_judgment))
+    failure_reasons = sorted(set(failure_reasons))
+    ready = bool(candidate is not None and not failure_reasons)
+    return {
+        "candidate_id": candidate_id,
+        "claim_kind": str((candidate or {}).get("claim_kind", item.get("claim_kind", "")) or ""),
+        "state_policy": policy,
+        "verdicts": verdicts,
+        "model_judgment": model_judgment,
+        "readiness": {
+            "ready_for_commit_envelope": ready,
+            "failure_reasons": failure_reasons,
+        },
+        "commit_gate": {
+            "status": "ready_for_commit_envelope" if ready else "blocked",
+            "writes_graph": False,
+            "requires_commit_envelope": True,
         },
     }
 
@@ -574,7 +757,108 @@ def build_semantic_claim_extraction(
     }
 
 
+def build_claim_verification(
+    claim_extraction: dict[str, Any],
+    model_output: dict[str, Any] | str,
+    *,
+    claim_extraction_artifact: str = "",
+    provider: str = "",
+    model: str = "",
+    capacity_source: str = "",
+    cost_usd: float = 0.0,
+    prompt_version: str = CLAIM_VERIFICATION_PROMPT_VERSION,
+    prompt_ref: str = "",
+    prompt_text: str = "",
+    prompt_hash: str = "",
+    generated_at: str = "",
+) -> dict[str, Any]:
+    """Compile verifier output into graph-commit readiness decisions.
+
+    This is still a no-write envelope. It records semantic verifier judgment and
+    type-specific policy gates, but graph mutation waits for a later commit
+    envelope that can atomically write beliefs and temporal edges.
+    """
+    parsed, raw_response_hash, response_failure = _response_from_model_output(model_output)
+    response_failure = response_failure or _verification_response_shape_failure(parsed)
+    candidates_by_id = _candidate_by_id(claim_extraction)
+    decisions = [
+        _verification_decision(item, candidates_by_id=candidates_by_id) for item in _raw_verification_items(parsed)
+    ]
+    ready_count = sum(1 for decision in decisions if decision["readiness"]["ready_for_commit_envelope"])
+    failure_reasons = sorted(
+        {reason for decision in decisions for reason in decision["readiness"]["failure_reasons"]}
+        | ({response_failure} if response_failure else set())
+    )
+    prompt_material = prompt_text if prompt_text else prompt_ref or prompt_version
+    resolved_prompt_hash = prompt_hash or _sha256_text(prompt_material)
+    if not decisions and not response_failure:
+        status = "empty"
+    elif decisions and ready_count == len(decisions) and not response_failure:
+        status = "ready_for_commit_envelope"
+    else:
+        status = "blocked"
+
+    return {
+        "schema_version": CLAIM_VERIFICATION_SCHEMA_VERSION,
+        "kind": CLAIM_VERIFICATION_KIND,
+        "contract": {
+            "read_only": True,
+            "derived_view": True,
+            "semantic_judgment": True,
+            "model_calls": True,
+            "cost_usd": round(max(cost_usd, 0.0), 6),
+            "writes_graph": False,
+            "breaking_changes_require_new_schema_version": True,
+        },
+        "input": {
+            "claim_extraction_artifact": claim_extraction_artifact,
+            "claim_extraction_schema_version": str(claim_extraction.get("schema_version", "")),
+            "claim_extraction_kind": str(claim_extraction.get("kind", "")),
+            "candidate_count": len(candidates_by_id),
+            "ready_candidate_count": _int_or_zero(
+                (claim_extraction.get("summary", {}) or {}).get("ready_for_verification_count")
+            ),
+        },
+        "prompt": {
+            "prompt_version": prompt_version,
+            "prompt_ref": prompt_ref,
+            "prompt_hash": resolved_prompt_hash,
+            "prompt_text_included": False,
+            "response_schema_version": CLAIM_VERIFICATION_SCHEMA_VERSION,
+            "response_schema_ref": "docs/schemas/claim-verification-v1.json",
+            "structured_output_mode": "json_schema_or_tool_schema",
+            "app_side_schema_validation_required": True,
+        },
+        "model": {
+            "provider": provider,
+            "model": model,
+            "capacity_source": capacity_source,
+            "raw_response_hash": raw_response_hash,
+            "response_failure": response_failure,
+        },
+        "summary": {
+            "status": status,
+            "parsed_decision_count": len(decisions),
+            "ready_for_commit_envelope_count": ready_count,
+            "blocked_decision_count": len(decisions) - ready_count,
+            "failure_reasons": failure_reasons,
+        },
+        "decisions": decisions,
+        "compiler": {
+            "stage": "claim_verification",
+            "previous_stage": "semantic_claim_extraction",
+            "next_stage": "graph_commit_envelope",
+            "next_stage_requires_model_judgment": False,
+            "graph_writes_require_commit_envelope": True,
+        },
+        "generated_at": generated_at or _artifact_generated_at({}, claim_extraction),
+    }
+
+
 __all__ = [
+    "CLAIM_VERIFICATION_KIND",
+    "CLAIM_VERIFICATION_PROMPT_VERSION",
+    "CLAIM_VERIFICATION_SCHEMA_VERSION",
     "SEMANTIC_CLAIM_EXTRACTION_KIND",
     "SEMANTIC_CLAIM_EXTRACTION_PROMPT_VERSION",
     "SEMANTIC_CLAIM_EXTRACTION_SCHEMA_VERSION",
@@ -582,6 +866,7 @@ __all__ = [
     "SOURCE_NOTE_SCHEMA_VERSION",
     "SOURCE_PACK_MANIFEST_KIND",
     "SOURCE_PACK_MANIFEST_SCHEMA_VERSION",
+    "build_claim_verification",
     "build_semantic_claim_extraction",
     "build_source_notes",
     "build_source_pack_manifest",

@@ -60,10 +60,22 @@ typed *edges* are the unlock, typed *nodes* are speculative.
    `deepr_explain_belief`: walk `supports`/`derived_from` edges to
    evidence roots, attach the confidence trajectory from the event log,
    and list open `contradicts` edges. Depth-bounded, cycle-safe.
-5. **Regenerated digest.** A compile pass over beliefs + edges + events
-   emits the browsable digest (topic summaries, cross-references, open
-   conflicts) as a derived view (Phase E regeneration invariant: the
-   structured store is canonical, the digest is disposable).
+5. **Read-only candidate recall.** A local recall contract now adapts beliefs
+   and concepts into candidate items and returns `candidate_only` routing
+   metadata. Supplied vectors use local cosine similarity; missing vectors can
+   fall back to the existing lexical router. Neither path writes state or makes
+   model calls. `BeliefStore.recall_contradiction_candidates` narrows same-domain
+   candidates so paraphrased conflicts can reach a verifier, but it never
+   creates contradiction edges or changes confidence. This is the Graphiti-style
+   hybrid retrieval slot without letting retrieval become authority.
+6. **Regenerated digest and memory card.** A compile pass over beliefs + edges
+   + events emits browsable views as derived artifacts. The first card is
+   shipped as `deepr-expert-memory-card-v1`: `deepr expert memory-card NAME
+   --write` regenerates `EXPERT.md` from profile, manifest, belief events, and
+   self-model state. It includes identity policy, current stance, explicitly
+   tagged working theories and insights, self-research agenda, what would change
+   the expert's mind, and agency scope. The structured store is canonical; the
+   card and digest are disposable.
 
 ## Invariants
 
@@ -95,10 +107,13 @@ it changes:
   `invalidated_at` world-time, so "what did we believe on date X" and
   "what was true on date X" become distinct, answerable queries. Cheap to
   add while the event schema is young; painful later.
-- **Adopt later: hybrid retrieval** for the query surface at scale -
+- **Adopt in stages: hybrid retrieval** for the query surface at scale -
   Graphiti's cosine + BM25 + graph-BFS with reranking is the proven shape
-  for memory queries over large stores; relevant when the digest and
-  explain_belief outgrow linear scans.
+  for memory queries over large stores. The first stage is now in code:
+  read-only belief and concept recall with optional local vector scores and
+  explicit `candidate_only` labels. Graph-BFS expansion and reranking wait
+  until verifier outcomes and graph commit envelopes exist, so retrieval stays
+  subordinate to the belief graph.
 - **Blind spot to avoid repeating**: none of the four papers measures
   update/query latency at scale. Keep the read-side $0 and add simple
   query timing to observability once stores grow past a few thousand
@@ -114,5 +129,6 @@ it changes:
 ## Exit criteria
 
 `deepr expert why` answers with a real inference chain on a live expert;
-`what_changed` has no truncation caveat; digest regenerates byte-stable
-from the store; all migrations covered by round-trip tests.
+`what_changed` has no truncation caveat; recall returns verifier candidates
+without writes or model calls; `EXPERT.md` and digest regenerate byte-stable
+from the store; all migrations are covered by round-trip tests.
