@@ -31,6 +31,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   untrusted source excerpts in the prompt, persist
   `deepr-semantic-claim-extraction-v1` sidecar artifacts, and keep graph writes
   disabled until verification and a commit envelope exist.
+- Clarified the expert-state boundary: factual claims need support checks, while
+  original ideas, hypotheses, and stances are first-class state with origin,
+  rationale, uncertainty, review status, and disconfirming signals instead of an
+  online-source veto.
 - Added `deepr-semantic-claim-extraction-v1`, the first model-judgment
   compiler envelope after source notes. It records prompt/schema version
   metadata, provider/model/capacity refs, raw response hashes, source-note and
