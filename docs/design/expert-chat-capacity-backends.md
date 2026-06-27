@@ -1,6 +1,6 @@
 # Expert Chat Capacity Backends
 
-Status: design note, 2026-06-26.
+Status: design note, refreshed 2026-06-27.
 
 Scope: `deepr expert consult`, `deepr_consult_experts`, `deepr expert chat`,
 and `deepr_query_expert`.
@@ -73,6 +73,48 @@ References checked:
   https://docs.anthropic.com/en/docs/build-with-claude/prompt-caching
 - Anthropic Opus 4.8 announcement:
   https://www.anthropic.com/news/claude-opus-4-8
+
+## 2026 Multi-Agent Findings
+
+The expert-chat path should follow the same bounded-collaboration pattern as
+consult, not grow into an unbounded swarm.
+
+- Anthropic's production multi-agent research writeup validates the
+  orchestrator-worker shape for broad, open-ended research: a lead agent plans,
+  delegates to specialists with separate context windows, then consolidates
+  results. It also warns that multi-agent systems burn many more tokens than
+  chat, so fan-out must be value-gated, observable, and bounded.
+- OpenAI's Agents SDK documents two useful patterns: specialists as tools when
+  one manager should own the final answer and handoffs when a specialist should
+  own the next part of the interaction. Deepr consult maps to specialists as
+  tools: Deepr experts contribute bounded perspectives, while the host remains
+  the orchestrator.
+- MCP's current specification centers tools, resources, prompts, consent,
+  authorization, and explicit tool safety. For Deepr that means the protocol
+  surface must make cost tier, backend choice, and no-fallback behavior visible
+  before another agent can call an expert.
+- A2A's current specification centers tasks, messages, artifacts, Agent Cards,
+  streaming, push updates, and authenticated agent discovery. Deepr should map
+  consult outputs to task artifacts, not opaque chat transcripts, so external
+  agents can inspect roster, dissent, capacity, cost, and trace refs.
+- The robust pattern is one or many experts, one bounded artifact. A single
+  expert consult is just `deepr_consult_experts` with one explicit expert. A
+  multi-expert council is the same contract with several experts and preserved
+  dissent. `deepr_query_expert` should remain a legacy chat path until it has
+  the same backend-neutral budget, usage, and no-fallback guarantees.
+
+Additional references checked:
+
+- Anthropic multi-agent research system:
+  https://www.anthropic.com/engineering/built-multi-agent-research-system
+- OpenAI Agents SDK orchestration:
+  https://openai.github.io/openai-agents-python/multi_agent/
+- Model Context Protocol specification:
+  https://modelcontextprotocol.io/specification/2025-06-18
+- MCP security best practices:
+  https://modelcontextprotocol.io/docs/tutorials/security/security_best_practices
+- Agent2Agent protocol specification:
+  https://a2a-protocol.org/latest/specification/
 
 ## Target Architecture
 

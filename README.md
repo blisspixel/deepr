@@ -196,9 +196,9 @@ explicit-only behind budget and cost-ledger gates.
 ### MCP and Agents
 
 Deepr experts are consultable roles for host agents. An agent can list experts,
-read a handoff, inspect loop state, query a single expert, or run a bounded
-multi-expert consult. The host remains the orchestrator; Deepr provides the
-verified knowledge layer.
+read a handoff, inspect loop state, run a one-expert or multi-expert consult,
+or use the legacy single-expert chat path with an operator-approved budget. The
+host remains the orchestrator; Deepr provides the verified knowledge layer.
 
 ```bash
 deepr mcp serve

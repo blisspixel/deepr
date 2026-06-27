@@ -82,3 +82,35 @@ async def test_deep_research_reports_blocked_when_session_budget_is_exhausted(mo
     assert result["mode"] == "deep_research"
     assert result["session_budget"] == 0.0
     assert result["error"].startswith("Session budget exceeded: Insufficient budget")
+
+
+async def test_first_chat_generation_is_preflight_budget_checked(monkeypatch):
+    session = _session(monkeypatch, 0.0)
+    session.should_use_tot = lambda _query: False
+
+    async def fail_if_called(*_args, **_kwargs):
+        raise AssertionError("chat provider call should not run after budget denial")
+
+    monkeypatch.setattr(session.client.chat.completions, "create", fail_if_called)
+
+    result = await session.send_message("What should this expert improve next?")
+
+    assert result.startswith("Chat blocked: Insufficient budget")
+    assert session.reasoning_trace[-1]["step"] == "chat_generation_budget"
+    assert session.reasoning_trace[-1]["allowed"] is False
+
+
+async def test_streaming_first_chat_generation_is_preflight_budget_checked(monkeypatch):
+    session = _session(monkeypatch, 0.0)
+    session.should_use_tot = lambda _query: False
+
+    async def fail_if_called(*_args, **_kwargs):
+        raise AssertionError("streaming chat provider call should not run after budget denial")
+
+    monkeypatch.setattr(session.client.chat.completions, "create", fail_if_called)
+
+    result = await session.send_message_streaming("What should this expert improve next?")
+
+    assert result.startswith("Chat blocked: Insufficient budget")
+    assert session.reasoning_trace[-1]["step"] == "chat_generation_budget"
+    assert session.reasoning_trace[-1]["allowed"] is False

@@ -28,8 +28,11 @@ _MAX_ROSTER = 50
 # description come from the registry at build time, so they never drift.
 _KEY_TOOLS: tuple[tuple[str, str], ...] = (
     ("deepr_list_experts", "List the domain experts available to consult."),
-    ("deepr_query_expert", "Ask one expert; set agentic=true to let it research what it does not know."),
-    ("deepr_consult_experts", "Put a cross-domain question to the team; get one synthesized, calibrated answer."),
+    (
+        "deepr_consult_experts",
+        "Ask one or many experts and get one synthesized answer; use local or plan backend for no-metered trials.",
+    ),
+    ("deepr_query_expert", "Legacy single-expert chat; metered-capable until backend-neutral chat lands."),
     ("deepr_what_changed", "See what an expert learned since a prior point."),
     ("deepr_explain_belief", "Get why an expert holds a claim, with its evidence."),
     ("deepr_expert_handoff", "Get a versioned snapshot of an expert to hand to another agent."),
@@ -56,7 +59,11 @@ def build_capabilities(store: Any, registry: ToolRegistry, *, version: str) -> d
             "prepaid_plans": ["codex", "claude"],
             "how": (
                 "pass synthesis_backend='local', or 'plan' with plan='codex'|'claude', to run "
-                "consult/query at $0 and disable silent metered fallback"
+                "deepr_consult_experts at $0 inside Deepr and disable silent metered fallback"
+            ),
+            "single_expert": (
+                "pass one expert name in deepr_consult_experts.experts for a no-metered one-expert consult; "
+                "deepr_query_expert does not yet support local or plan backend selection"
             ),
         },
         "cost_tiers": {

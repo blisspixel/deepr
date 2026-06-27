@@ -17,6 +17,11 @@ from openai import AsyncOpenAI
 
 logger = logging.getLogger(__name__)
 
+from deepr.experts.chat_turns import (
+    chat_generation_budget_denial,
+    check_chat_generation_budget,
+    record_model_routing,
+)
 from deepr.experts.commands import MODE_CONFIGS, ChatMode
 from deepr.experts.lazy_graph_rag import LazyGraphRAG
 from deepr.experts.memory import Episode, HierarchicalMemory, ReasoningStep
@@ -397,6 +402,18 @@ Budget remaining: ${budget_remaining:.2f}
             provider_constraint="openai",  # Expert vector store requires OpenAI
             allow_research_model=self.agentic,
         )
+
+    async def _finish_blocked_chat_turn(
+        self, op: Any, selected_model: ModelConfig, reason: str, estimated_cost: float
+    ) -> str:
+        self.reasoning_trace.append(chat_generation_budget_denial(selected_model, reason, estimated_cost))
+        for executor in self.skill_executors.values():
+            await executor.cleanup()
+        op.set_cost(self.cost_accumulated)
+        op.set_attribute("blocked", True)
+        op.set_attribute("blocked_reason", reason)
+        self._emitter.complete_task(op)
+        return f"Chat blocked: {reason}"
 
     def should_use_tot(self, query: str) -> bool:
         """Determine if Tree of Thoughts reasoning should be used for a query.
@@ -1333,6 +1350,24 @@ Budget remaining: ${budget_remaining:.2f}
             # Fresh autonomous findings for this turn only
             self._last_recon_findings = []
 
+            # Select and budget-check before any path that can reach a metered
+            # model, including advanced reasoning or embedding-backed recall.
+            selected_model = self._select_model_for_query(user_message)
+
+            if self.enable_router:
+                record_model_routing(
+                    reasoning_trace=self.reasoning_trace,
+                    thought_stream=self.thought_stream,
+                    selected_model=selected_model,
+                    query=user_message,
+                )
+
+            allowed, reason, estimated_cost = check_chat_generation_budget(
+                self.cost_safety, self.session_id, selected_model
+            )
+            if not allowed:
+                return await self._finish_blocked_chat_turn(op, selected_model, reason, estimated_cost)
+
             # Check if query is complex enough for Tree of Thoughts reasoning
             # ToT provides better answers for complex queries through hypothesis
             # generation, claim verification, and self-correction
@@ -1359,6 +1394,10 @@ Budget remaining: ${budget_remaining:.2f}
                         reasoning="Used Tree of Thoughts for complex query",
                     )
 
+                    op.set_cost(self.cost_accumulated)
+                    op.set_attribute("tool_calls_count", 0)
+                    op.set_attribute("response_length", len(tot_result))
+                    self._emitter.complete_task(op)
                     return tot_result
 
                 # Fall through to simple chat if ToT failed
@@ -1475,36 +1514,6 @@ Budget remaining: ${budget_remaining:.2f}
 
             # Add user message to history
             self.messages.append({"role": "user", "content": user_message})
-
-            # Step 0.5: Select optimal model using router (Phase 3a)
-            selected_model = self._select_model_for_query(user_message)
-
-            # Log routing decision to reasoning trace
-            if self.enable_router:
-                self.reasoning_trace.append(
-                    {
-                        "step": "model_routing",
-                        "timestamp": datetime.now(UTC).isoformat(),
-                        "query": user_message[:100],  # First 100 chars
-                        "selected_provider": selected_model.provider,
-                        "selected_model": selected_model.model,
-                        "cost_estimate": selected_model.cost_estimate,
-                        "confidence": selected_model.confidence,
-                        "reasoning_effort": selected_model.reasoning_effort,
-                    }
-                )
-
-                # Emit thought about model selection
-                self.thought_stream.emit(
-                    ThoughtType.PLAN_STEP,
-                    f"Selected model: {selected_model.model}",
-                    private_payload={
-                        "provider": selected_model.provider,
-                        "cost_estimate": selected_model.cost_estimate,
-                        "reasoning_effort": selected_model.reasoning_effort,
-                    },
-                    confidence=selected_model.confidence,
-                )
 
             # Step 1: Ask model (may call search tool)
             # Note: GPT-5 only supports default temperature (1.0)
@@ -1974,6 +1983,22 @@ Budget remaining: ${budget_remaining:.2f}
             # Fresh autonomous findings for this turn only
             self._last_recon_findings = []
 
+            selected_model = self._select_model_for_query(user_message)
+
+            if self.enable_router:
+                record_model_routing(
+                    reasoning_trace=self.reasoning_trace,
+                    thought_stream=self.thought_stream,
+                    selected_model=selected_model,
+                    query=user_message,
+                )
+
+            allowed, reason, estimated_cost = check_chat_generation_budget(
+                self.cost_safety, self.session_id, selected_model
+            )
+            if not allowed:
+                return await self._finish_blocked_chat_turn(op, selected_model, reason, estimated_cost)
+
             # Check if query is complex enough for Tree of Thoughts reasoning
             # In Focus mode, ToT is always on
             force_tot = MODE_CONFIGS.get(self.chat_mode, {}).get("force_tot", False)
@@ -2112,31 +2137,6 @@ Budget remaining: ${budget_remaining:.2f}
                     self._skill_tool_map[qualified] = (skill.name, tool.name)
 
             self.messages.append({"role": "user", "content": user_message})
-            selected_model = self._select_model_for_query(user_message)
-
-            if self.enable_router:
-                self.reasoning_trace.append(
-                    {
-                        "step": "model_routing",
-                        "timestamp": datetime.now(UTC).isoformat(),
-                        "query": user_message[:100],
-                        "selected_provider": selected_model.provider,
-                        "selected_model": selected_model.model,
-                        "cost_estimate": selected_model.cost_estimate,
-                        "confidence": selected_model.confidence,
-                        "reasoning_effort": selected_model.reasoning_effort,
-                    }
-                )
-                self.thought_stream.emit(
-                    ThoughtType.PLAN_STEP,
-                    f"Selected model: {selected_model.model}",
-                    private_payload={
-                        "provider": selected_model.provider,
-                        "cost_estimate": selected_model.cost_estimate,
-                        "reasoning_effort": selected_model.reasoning_effort,
-                    },
-                    confidence=selected_model.confidence,
-                )
 
             report_status("Thinking...")
             api_params = {

@@ -160,6 +160,13 @@ class TestDefaultRegistry:
         assert registry.get("deepr_query_expert") is not None
         assert registry.get("deepr_expert_loop_status") is not None
 
+    def test_query_expert_description_marks_legacy_metered_boundary(self):
+        registry = create_default_registry()
+        tool = registry.get("deepr_query_expert")
+        assert tool is not None
+        assert "Legacy single-expert chat" in tool.description
+        assert "does not yet accept local or plan backend selection" in tool.description
+
 
 class TestGatewayTool:
     """Test Gateway Tool for dynamic discovery."""

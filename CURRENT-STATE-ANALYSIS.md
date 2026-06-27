@@ -88,6 +88,25 @@ artifact with prompt/schema/provider/model/capacity/cost/source-window metadata
 and verifier-pending candidates. It writes no beliefs and does not change the
 graph until claim verification and a commit envelope exist.
 
+Cycle 11 clarifies the expert-thought boundary: externally factual claims need
+support checks, while original ideas, hypotheses, stances, proposals, and
+exploration agendas are first-class expert state with origin, rationale,
+uncertainty, review status, expected observations, and disconfirming signals.
+Absence from the live web is not a refutation, and unsupported ideas must not
+masquerade as verified external facts.
+
+Cycle 12 hardens the external-agent consult contract. Current multi-agent
+practice points to bounded orchestrator-worker collaboration, specialists as
+tools, visible MCP cost and no-fallback contracts, and A2A task artifacts rather
+than opaque transcripts. Deepr maps that to one or many experts, one bounded
+consult artifact, with preserved dissent and visible capacity posture. The safe
+LAN path is `deepr_consult_experts` with one explicit expert or a small council,
+`synthesis_backend=local|plan`, `budget=0`, and
+`capacity.live_metered_fallback=false`. `deepr_query_expert` remains the legacy
+metered-capable chat path until the backend-neutral runner exists. The legacy
+chat path now checks the selected-model estimate before its first direct model
+path in both normal and streaming chat.
+
 External best-practice check, current as of 2026-06-27: modern agent harness
 guidance converges on trace-first improvement loops, evals from real failures,
 bounded context packets, explicit handoffs, and deterministic gates around
@@ -109,11 +128,14 @@ No clarification is needed before continuing. The next slices are support
 verification for factual claims, concept/hypothesis/stance/original-idea
 envelopes, and the commit envelope that turns source-pack compiler candidates
 into verified beliefs, temporal graph edges, gaps, open hypotheses, stances, and
-regenerated wiki/digest views. After that, continue Antigravity
-metadata visibility, then scheduler dispatch that uses admitted plan capacity
-only from trusted headroom observations. The next metered-API cost-control slice
-is provider cache controls, but only after estimator support and explicit budget
-gates cover cache keys, TTL, and pre-warm behavior.
+regenerated wiki/digest views. For expert chat specifically, add
+provider-pluggable API synthesis for consult first, then extract a
+backend-neutral expert-chat runner with local, plan, OpenAI, and Anthropic
+adapters behind no-fallback and budget-ledger gates. After that, continue
+Antigravity metadata visibility, then scheduler dispatch that uses admitted plan
+capacity only from trusted headroom observations. The next metered-API
+cost-control slice is provider cache controls, but only after estimator support
+and explicit budget gates cover cache keys, TTL, and pre-warm behavior.
 
 ## Local Unreleased Work
 

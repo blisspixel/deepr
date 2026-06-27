@@ -398,10 +398,12 @@ def create_default_registry() -> ToolRegistry:
         ToolSchema(
             name="deepr_query_expert",
             description=(
-                "Query a domain expert with a question. Expert answers from their "
-                "knowledge base with citations and confidence levels. For questions "
-                "outside the expert's knowledge, enable agentic=true to let the expert "
-                "trigger new research. Do NOT use for current events or news."
+                "Legacy single-expert chat path. Expert answers from its knowledge "
+                "base with citations and confidence levels, and agentic=true may "
+                "trigger new research. This path is metered-capable and does not "
+                "yet accept local or plan backend selection. Prefer "
+                "deepr_consult_experts for no-metered one-expert or multi-expert "
+                "consults."
             ),
             input_schema={
                 "type": "object",
@@ -415,8 +417,10 @@ def create_default_registry() -> ToolRegistry:
                     },
                     "budget": {
                         "type": "number",
-                        "default": 0.0,
-                        "description": "Budget for agentic research (only used if agentic=true)",
+                        "description": (
+                            "USD ceiling for this metered-capable chat session. Omit to use the server default; "
+                            "0 means no provider spend and should be expected to block generation."
+                        ),
                     },
                 },
                 "required": ["expert_name", "question"],

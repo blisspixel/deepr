@@ -16,6 +16,7 @@ def _registry() -> ToolRegistry:
     registry = ToolRegistry()
     for name, tier in [
         ("deepr_list_experts", "free"),
+        ("deepr_query_expert", "low"),
         ("deepr_consult_experts", "low"),
         ("deepr_agentic_research", "high"),
     ]:
@@ -43,6 +44,8 @@ def test_payload_is_versioned_and_shaped():
     assert {"free", "low", "medium", "high"} == set(caps["cost_tiers"])
     assert caps["error_contract"]["fields"] == ["error_code", "category", "retryable", "message"]
     assert "local" == caps["zero_cost_synthesis"]["owned"]
+    assert "deepr_consult_experts" in caps["zero_cost_synthesis"]["how"]
+    assert "deepr_query_expert does not yet support" in caps["zero_cost_synthesis"]["single_expert"]
 
 
 def test_roster_is_case_insensitively_sorted():
@@ -58,13 +61,16 @@ def test_cost_tiers_come_from_registry_not_hardcoded():
 
     tiers = {tool["tool"]: tool["cost_tier"] for tool in caps["tools"]}
     assert tiers["deepr_list_experts"] == "free"
+    assert tiers["deepr_query_expert"] == "low"
     assert tiers["deepr_consult_experts"] == "low"
     assert tiers["deepr_agentic_research"] == "high"
 
 
 def test_unregistered_key_tools_are_omitted_not_crashing():
     # The minimal registry omits deepr_query_expert; it must be skipped silently.
-    caps = build_capabilities(_Store([]), _registry(), version="1")
+    registry = ToolRegistry()
+    registry.register(ToolSchema(name="deepr_list_experts", description="d", input_schema={}, cost_tier="free"))
+    caps = build_capabilities(_Store([]), registry, version="1")
 
     names = {tool["tool"] for tool in caps["tools"]}
     assert "deepr_query_expert" not in names

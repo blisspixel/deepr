@@ -33,10 +33,13 @@ explicit plan-capacity path.
 - `deepr_consult_experts` can stay off metered APIs when the caller sets
   `synthesis_backend` to `local` or `plan`. These modes disable live metered
   expert fallback and return a `capacity.live_metered_fallback=false` marker.
-- `deepr_query_expert`, `deepr_research`, `deepr_agentic_research`,
-  `deepr_expert_absorb`, `deepr_reflect`, and mutating tools are not safe for
-  automatic no-cost testing unless the caller explicitly sets a zero-cost mode
-  and verifies the returned cost or capacity marker.
+- `deepr_query_expert` is the legacy single-expert chat path. It does not yet
+  accept local or plan backend selection, so use `deepr_consult_experts` with
+  one explicit expert for no-metered single-expert advice.
+- `deepr_research`, `deepr_agentic_research`, `deepr_expert_absorb`,
+  `deepr_reflect`, and mutating tools are not safe for automatic no-cost
+  testing unless the caller explicitly sets a zero-cost mode and verifies the
+  returned cost or capacity marker.
 - Do not pass provider API keys into the MCP server for a no-cost test. For
   plan tests, the plan CLI must be authenticated as subscription or prepaid
   capacity and pass Deepr's no-surprise-bills gate.
@@ -120,6 +123,8 @@ Hard rules:
   `deepr_what_changed`, `deepr_contested`, `deepr_explain_belief`, and
   `deepr_expert_loop_status`.
 - Use `deepr_consult_experts` for synthesis across experts.
+- For focused single-expert advice, still use `deepr_consult_experts` with one
+  explicit expert.
 - For no-metered testing, set `synthesis_backend` to `local` or `plan` and set
   `budget` to `0`.
 - Do not call mutating tools, absorption, reflection, research, or provider API
@@ -172,7 +177,21 @@ deepr expert consult $question --local --max-experts 5 --json
 Prerequisite: Ollama is running and Deepr can see a local model
 (`deepr capacity --probe` from a shell should show local capacity).
 
-Call:
+Single-expert focused call:
+
+```json
+{
+  "name": "deepr_consult_experts",
+  "arguments": {
+    "question": "What should Deepr improve next in the expert learning loop?",
+    "experts": ["AI Agent Harnesses"],
+    "synthesis_backend": "local",
+    "budget": 0
+  }
+}
+```
+
+Council call:
 
 ```json
 {
