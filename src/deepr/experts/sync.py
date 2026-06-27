@@ -25,7 +25,7 @@ from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, Protocol
 
 from deepr.experts.beliefs import BeliefStore
 from deepr.experts.perspective import what_changed
@@ -48,6 +48,19 @@ DEFAULT_SUBSCRIPTION_BUDGET = 0.50
 MIN_PER_TOPIC_BUDGET = 0.05
 
 ResearchFn = Callable[[str, float], Awaitable[dict[str, Any]]]
+
+
+class ClaimExtractionService(Protocol):
+    async def extract(
+        self,
+        source_notes: dict[str, Any],
+        source_pack_payload: dict[str, Any],
+        *,
+        source_note_artifact: str = "",
+        budget_usd: float = 0.0,
+        session_id: str = "semantic_claim_extraction",
+        generated_at: str = "",
+    ) -> dict[str, Any]: ...
 
 
 def _slug(text: str) -> str:
@@ -234,6 +247,7 @@ class SyncOutcome:
     source_pack_artifact: str = ""
     source_pack_manifest_artifact: str = ""
     source_note_artifact: str = ""
+    claim_extraction_artifact: str = ""
     source_count: int = 0
     context_mode: str = ""
 
@@ -248,6 +262,7 @@ class SyncOutcome:
             "source_pack_artifact": self.source_pack_artifact,
             "source_pack_manifest_artifact": self.source_pack_manifest_artifact,
             "source_note_artifact": self.source_note_artifact,
+            "claim_extraction_artifact": self.claim_extraction_artifact,
             "source_count": self.source_count,
             "context_mode": self.context_mode,
         }
@@ -289,12 +304,14 @@ class ExpertSyncEngine:
         subscription_store: SubscriptionStore | None = None,
         belief_store: BeliefStore | None = None,
         absorber: Any | None = None,
+        claim_extractor: ClaimExtractionService | None = None,
     ) -> None:
         self.expert = expert
         self._research_fn = research_fn
         self.subscriptions = subscription_store or SubscriptionStore(expert.name)
         self.belief_store = belief_store or BeliefStore(expert.name)
         self._absorber = absorber
+        self._claim_extractor = claim_extractor
 
     # ------------------------------------------------------------------ #
     # Defaults (built lazily so tests never touch providers)
@@ -467,10 +484,21 @@ class ExpertSyncEngine:
             )
             return outcome, cost
 
+        claim_extraction_path, claim_extraction_cost, claim_extraction_detail = await self._compile_semantic_claims(
+            subscription,
+            source_pack_artifact=source_pack_path,
+            source_note_artifact=source_note_path,
+            budget=max(0.0, budget - cost),
+            started_at=started_at,
+        )
+        cost += claim_extraction_cost
         outcome = await self._absorb_sync_answer(subscription, answer, cost=cost, started_at=started_at)
         self._attach_source_pack_summary(
             outcome, source_pack_path, source_pack_manifest_path, source_note_path, source_count, context_mode
         )
+        outcome.claim_extraction_artifact = claim_extraction_path
+        if claim_extraction_detail:
+            outcome.detail = self._append_detail(outcome.detail, claim_extraction_detail)
         return outcome, cost
 
     def _persist_source_pack(
@@ -554,6 +582,60 @@ class ExpertSyncEngine:
         atomic_write_json(source_note_path, source_notes)
         return relative_path, relative_manifest_path, source_note_path.relative_to(root).as_posix()
 
+    def _read_sync_artifact(self, relative_path: str) -> dict[str, Any]:
+        root = self.subscriptions.path.parent
+        artifact_path = root / relative_path
+        data = json.loads(artifact_path.read_text(encoding="utf-8"))
+        return data if isinstance(data, dict) else {}
+
+    async def _compile_semantic_claims(
+        self,
+        subscription: Subscription,
+        *,
+        source_pack_artifact: str,
+        source_note_artifact: str,
+        budget: float,
+        started_at: datetime,
+    ) -> tuple[str, float, str]:
+        if self._claim_extractor is None or not source_pack_artifact or not source_note_artifact:
+            return "", 0.0, ""
+
+        try:
+            source_pack_payload = self._read_sync_artifact(source_pack_artifact)
+            source_notes = self._read_sync_artifact(source_note_artifact)
+        except (json.JSONDecodeError, OSError, ValueError) as exc:
+            logger.warning("Could not read claim extraction inputs for %s: %s", subscription.topic, exc)
+            return "", 0.0, f"claim extraction skipped: could not read inputs ({exc})"
+
+        try:
+            extraction = await self._claim_extractor.extract(
+                source_notes,
+                source_pack_payload,
+                source_note_artifact=source_note_artifact,
+                budget_usd=budget,
+                session_id=f"sync:{self.expert.name}:{_slug(subscription.topic)}",
+                generated_at=started_at.isoformat(),
+            )
+        except Exception as exc:
+            from deepr.experts.claim_extraction import ClaimExtractionBlocked
+
+            reason = "skipped" if isinstance(exc, ClaimExtractionBlocked) else "failed"
+            logger.warning("Claim extraction %s for %s: %s", reason, subscription.topic, exc)
+            return "", 0.0, f"claim extraction {reason}: {exc}"
+
+        extraction_cost = float((extraction.get("contract", {}) or {}).get("cost_usd", 0.0) or 0.0)
+        root = self.subscriptions.path.parent
+        artifact_dir = root / "sync_artifacts" / "claim_extractions"
+        artifact_dir.mkdir(parents=True, exist_ok=True)
+        timestamp = started_at.strftime("%Y%m%dT%H%M%S%fZ")
+        artifact_path = artifact_dir / f"{timestamp}_{_slug(subscription.topic)}.json"
+        try:
+            atomic_write_json(artifact_path, extraction)
+        except OSError as exc:
+            logger.error("Could not write claim extraction for %s: %s", subscription.topic, exc)
+            return "", extraction_cost, f"claim extraction artifact failed: {exc}"
+        return artifact_path.relative_to(root).as_posix(), extraction_cost, ""
+
     @staticmethod
     def _attach_source_pack_summary(
         outcome: SyncOutcome,
@@ -568,6 +650,12 @@ class ExpertSyncEngine:
         outcome.source_note_artifact = source_note_artifact_path
         outcome.source_count = source_count
         outcome.context_mode = context_mode
+
+    @staticmethod
+    def _append_detail(current: str, addition: str) -> str:
+        if not current:
+            return addition
+        return f"{current}; {addition}"
 
     def _record_no_changes(
         self,

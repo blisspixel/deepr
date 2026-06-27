@@ -422,6 +422,11 @@ def absorb_report(
 )
 @click.option("--check-grounding", is_flag=True, help="Check absorbed claims with a fresh-context verifier")
 @click.option(
+    "--compile-claims",
+    is_flag=True,
+    help="Also compile source-note claim candidates as a sidecar artifact; writes no beliefs",
+)
+@click.option(
     "--checker-plan",
     type=click.Choice(PLAN_BACKEND_CHOICES),
     default=None,
@@ -462,6 +467,7 @@ def sync_cmd(
     plan: str | None,
     plan_model: str | None,
     check_grounding: bool,
+    compile_claims: bool,
     checker_plan: str | None,
     checker_plan_model: str | None,
     fresh_context: bool,
@@ -649,14 +655,31 @@ def sync_cmd(
             sys.exit(2)
 
     if not dry_run and not yes:
-        check_note = " with grounding checks" if run_grounding_checks else ""
+        extras = []
+        if run_grounding_checks:
+            extras.append("grounding checks")
+        if compile_claims:
+            extras.append("claim compilation")
+        check_note = f" with {' and '.join(extras)}" if extras else ""
         if use_local:
             prompt = f"Sync {len(targets)} topic(s){check_note} on the local model at $0?"
         elif use_plan and plan_adapter is not None:
-            cost_desc = "billed per use" if plan_adapter.metered_at_margin else "$0 at the margin (prepaid plan)"
+            if plan_adapter.metered_at_margin:
+                cost_desc = f"billed per use, budget ceiling ${budget:.2f}"
+                if compile_claims:
+                    from deepr.experts.report_absorber import ESTIMATED_EXTRACTION_COST
+
+                    claim_est = len(targets) * ESTIMATED_EXTRACTION_COST
+                    cost_desc += f", claim compilation estimate ${claim_est:.2f}"
+            else:
+                cost_desc = "$0 at the margin (prepaid plan)"
             prompt = f"Sync {len(targets)} topic(s){check_note} via {plan_adapter.display_name} ({cost_desc})?"
         else:
+            from deepr.experts.report_absorber import ESTIMATED_EXTRACTION_COST
+
             est = sum(min(s.budget, budget) for s in targets)
+            if compile_claims:
+                est += len(targets) * ESTIMATED_EXTRACTION_COST
             prompt = f"Sync {len(targets)} topic(s){check_note}, estimated up to ${min(est, budget):.2f}?"
         if not click.confirm(prompt, default=False):
             print_warning("Cancelled.")
@@ -686,6 +709,7 @@ def sync_cmd(
         plan_model=plan_model,
         context_builder=context_builder,
         grounding_checker=grounding_checker,
+        compile_claims=compile_claims,
     )
 
     if json_output:
@@ -711,6 +735,8 @@ def sync_cmd(
             line += f"  [dim]{o.detail[:90]}[/dim]"
         if o.source_pack_artifact:
             line += f"  [dim](sources {o.source_count}; {o.source_pack_artifact})[/dim]"
+        if o.claim_extraction_artifact:
+            line += f"  [dim](claims {o.claim_extraction_artifact})[/dim]"
         console.print(line)
 
     if not dry_run:

@@ -857,6 +857,22 @@ class TestPlanQuotaSync:
         assert captured["absorber_estimated_cost"] == 0.0
         assert captured["loop_run_kwargs"]["capacity_source"] == "plan_quota:codex"
 
+    def test_metered_plan_compile_claims_prompt_shows_budget_and_claim_estimate(self, monkeypatch):
+        captured = {}
+        self._fakes(monkeypatch, captured)
+
+        r = CliRunner().invoke(
+            expert,
+            ["sync", "Plan Expert", "--plan", "copilot", "--compile-claims"],
+            input="n\n",
+        )
+
+        assert r.exit_code == 0, r.output
+        assert "billed per use" in r.output
+        assert "budget ceiling $2.00" in r.output
+        assert "claim compilation estimate $0.03" in r.output
+        assert "Cancelled." in r.output
+
     def test_absorb_has_plan_flags(self):
         opts = {p.name for p in expert.commands["absorb"].params}
         assert {"plan", "plan_model"} <= opts

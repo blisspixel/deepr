@@ -14,6 +14,7 @@ import pytest
 
 from deepr.experts.beliefs import BeliefStore
 from deepr.experts.report_absorber import ReportAbsorber
+from deepr.experts.source_pack_compiler import build_semantic_claim_extraction
 from deepr.experts.sync import (
     _NO_CHANGES_MARKER,
     DEFAULT_SUBSCRIPTION_BUDGET,
@@ -51,6 +52,57 @@ class _FakeExtractionClient:
             return SimpleNamespace(choices=[SimpleNamespace(message=SimpleNamespace(content=content))])
 
         return _create
+
+
+class _FakeClaimExtractor:
+    def __init__(self):
+        self.calls: list[dict] = []
+
+    async def extract(
+        self,
+        source_notes,
+        source_pack_payload,
+        *,
+        source_note_artifact="",
+        budget_usd=0.0,
+        session_id="semantic_claim_extraction",
+        generated_at="",
+    ):
+        self.calls.append(
+            {
+                "source_note_artifact": source_note_artifact,
+                "budget_usd": budget_usd,
+                "session_id": session_id,
+                "generated_at": generated_at,
+                "source_count": len(source_pack_payload["source_pack"]["sources"]),
+            }
+        )
+        note = source_notes["notes"][0]
+        window = note["windows"][0]
+        return build_semantic_claim_extraction(
+            source_notes,
+            {
+                "claims": [
+                    {
+                        "statement": "Topic X gained capability Y in June 2026.",
+                        "confidence": 0.9,
+                        "source_refs": [
+                            {
+                                "note_id": note["note_id"],
+                                "window_id": window["window_id"],
+                                "quote": "Topic X gained capability Y in June 2026",
+                            }
+                        ],
+                    }
+                ]
+            },
+            source_note_artifact=source_note_artifact,
+            provider="local",
+            model="qwen",
+            capacity_source="local",
+            cost_usd=0.0,
+            generated_at=generated_at,
+        )
 
 
 def _engine(tmp_path, sub_store, research_answers: dict[str, dict]):
@@ -362,6 +414,59 @@ class TestSyncEngine:
         assert source_notes["summary"]["failure_reasons"] == ["invalid_or_missing_content_hash"]
         assert source_notes["notes"][0]["source_pointer"] == "/source_pack/sources/0"
         assert source_notes["notes"][0]["windows"][0]["source_text_ref"] == "excerpt"
+
+    @pytest.mark.asyncio
+    async def test_sync_can_write_claim_extraction_sidecar_artifact(self, tmp_path):
+        store = _sub_store(tmp_path, Subscription(topic="Topic X", budget=0.5))
+        source_pack = {
+            "schema_version": "deepr.source_pack.v1",
+            "mode": "fresh",
+            "source_count": 1,
+            "retrieved_source_count": 1,
+            "sources": [
+                {
+                    "label": "S1",
+                    "title": "Release notes",
+                    "url": "https://example.com/release",
+                    "excerpt": "Topic X gained capability Y in June 2026.",
+                    "content_hash": "c" * 64,
+                }
+            ],
+        }
+
+        async def research_fn(query: str, budget: float) -> dict:
+            return {
+                "answer": "Topic X gained capability Y in June 2026. [S1]",
+                "cost": 0.0,
+                "fresh_context": {"source_count": 1, "mode": "fresh"},
+                "source_pack": source_pack,
+            }
+
+        beliefs = BeliefStore("Sync Test Expert", storage_dir=tmp_path / "beliefs")
+        absorber = ReportAbsorber(_expert(), client=_FakeExtractionClient(), belief_store=beliefs)
+        claim_extractor = _FakeClaimExtractor()
+        engine = ExpertSyncEngine(
+            _expert(),
+            research_fn=research_fn,
+            subscription_store=store,
+            belief_store=beliefs,
+            absorber=absorber,
+            claim_extractor=claim_extractor,
+        )
+
+        result = await engine.sync(budget=1.0)
+
+        outcome = result.outcomes[0]
+        assert outcome.status == "synced"
+        assert outcome.claim_extraction_artifact.endswith("_topic-x.json")
+        assert claim_extractor.calls[0]["source_note_artifact"] == outcome.source_note_artifact
+        assert claim_extractor.calls[0]["budget_usd"] == 0.5
+        artifact_path = tmp_path / "knowledge" / outcome.claim_extraction_artifact
+        payload = json.loads(artifact_path.read_text(encoding="utf-8"))
+        assert payload["schema_version"] == "deepr-semantic-claim-extraction-v1"
+        assert payload["contract"]["writes_graph"] is False
+        assert payload["summary"]["status"] == "ready_for_verification"
+        assert result.delta["total_changes"] == 1
 
     @pytest.mark.asyncio
     async def test_source_pack_write_failure_blocks_absorb(self, tmp_path, monkeypatch):

@@ -314,3 +314,15 @@ This file captures repo-specific operating lessons from autonomous work cycles.
 - Long Codex prompts should go through stdin with prompt argument `-`; fresh-context and topic learn or learn-web prompts can exceed the Windows command-line length if passed as argv.
 - Local and plan-backed `ReportAbsorber` callers must pass `estimated_cost=0.0`. The default extraction estimate is correct only for the metered API path; owned/prepaid capacity still records `$0` events through the canonical ledger.
 - Web-grounded `$0` expert bootstrap should default to keyless retrieval. Do not use `WebSearchTool(backend="auto")` in a no-surprise-bills path because hidden Brave or Tavily keys can become silent spend.
+- Semantic compiler sidecars should be explicit, not automatic. Add a user flag
+  such as `--compile-claims`, keep the generated artifact verifier-pending, and
+  leave graph writes disabled until a separate verification and commit envelope
+  exists.
+- Build compiler prompts from structured source refs plus bounded source text.
+  Store prompt hashes and source-window ids, not raw prompt text. Sanitize and
+  delimit untrusted excerpts before model calls, while preserving original
+  source artifacts for audit.
+- For local and plan sidecar calls, reuse the selected chat client so the
+  sidecar cannot fall back to metered extraction. For metered sidecars, require
+  explicit opt-in, budget headroom, cost-safety reservation, and ledger
+  settlement before dispatch.
