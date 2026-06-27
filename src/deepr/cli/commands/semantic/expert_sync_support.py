@@ -42,6 +42,40 @@ def _self_model_run_context(expert_name: str, *, profile: Any | None = None) -> 
     return context
 
 
+def _source_note_run_context(result: Any) -> dict[str, Any]:
+    artifacts = []
+    for outcome in list(getattr(result, "outcomes", []) or []):
+        source_note_artifact = str(getattr(outcome, "source_note_artifact", "") or "")
+        if not source_note_artifact:
+            continue
+        artifacts.append(
+            {
+                "topic": str(getattr(outcome, "topic", "") or ""),
+                "status": str(getattr(outcome, "status", "") or ""),
+                "source_note_artifact": source_note_artifact,
+                "source_pack_artifact": str(getattr(outcome, "source_pack_artifact", "") or ""),
+                "source_pack_manifest_artifact": str(getattr(outcome, "source_pack_manifest_artifact", "") or ""),
+            }
+        )
+    if not artifacts:
+        return {}
+    return {
+        "source_notes": {
+            "schema_version": "deepr-source-note-v1",
+            "kind": "deepr.expert.source_notes",
+            "artifact_count": len(artifacts),
+            "artifacts": artifacts,
+        }
+    }
+
+
+def _sync_run_context(expert_name: str, result: Any | None = None, *, profile: Any | None = None) -> dict[str, Any]:
+    context = _self_model_run_context(expert_name, profile=profile)
+    if result is not None:
+        context.update(_source_note_run_context(result))
+    return context
+
+
 def _sync_context_mode(*, fresh_context: bool, deep_context: bool) -> str:
     if deep_context:
         return "deep"
@@ -208,7 +242,7 @@ def _record_completed_sync_loop(
         status=status,
         stop_reason=stop_reason,
         next_action=next_action,
-        run_context=_self_model_run_context(expert_name, profile=profile),
+        run_context=_sync_run_context(expert_name, result, profile=profile),
         budget_limit=budget,
         budget_spent=float(getattr(result, "total_cost", 0.0) or 0.0),
         capacity_source=capacity_source,

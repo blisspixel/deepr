@@ -1,0 +1,183 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/blisspixel/deepr/docs/schemas/source-note-v1.json",
+  "title": "Deepr Source Note v1",
+  "type": "object",
+  "additionalProperties": true,
+  "required": [
+    "schema_version",
+    "kind",
+    "contract",
+    "source_pack",
+    "summary",
+    "notes",
+    "compiler",
+    "generated_at"
+  ],
+  "properties": {
+    "schema_version": {"const": "deepr-source-note-v1"},
+    "kind": {"const": "deepr.expert.source_notes"},
+    "contract": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": ["read_only", "cost_usd", "derived_view", "semantic_judgment", "model_calls"],
+      "properties": {
+        "read_only": {"const": true},
+        "cost_usd": {"const": 0.0},
+        "derived_view": {"const": true},
+        "semantic_judgment": {"const": false},
+        "model_calls": {"const": false},
+        "breaking_changes_require_new_schema_version": {"const": true}
+      }
+    },
+    "source_pack": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": [
+        "artifact_path",
+        "manifest_artifact_path",
+        "schema_version",
+        "query",
+        "topic",
+        "mode",
+        "source_count",
+        "retrieved_source_count"
+      ],
+      "properties": {
+        "artifact_path": {"type": "string"},
+        "manifest_artifact_path": {"type": "string"},
+        "schema_version": {"type": "string"},
+        "query": {"type": "string"},
+        "topic": {"type": "string"},
+        "mode": {"type": "string"},
+        "generated_at": {"type": "string"},
+        "source_count": {"type": "integer", "minimum": 0},
+        "retrieved_source_count": {"type": "integer", "minimum": 0}
+      }
+    },
+    "summary": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": [
+        "source_entry_count",
+        "ready_note_count",
+        "blocked_note_count",
+        "ready_for_claim_extraction",
+        "failure_reasons"
+      ],
+      "properties": {
+        "source_entry_count": {"type": "integer", "minimum": 0},
+        "ready_note_count": {"type": "integer", "minimum": 0},
+        "blocked_note_count": {"type": "integer", "minimum": 0},
+        "ready_for_claim_extraction": {"type": "boolean"},
+        "failure_reasons": {"type": "array", "items": {"type": "string"}}
+      }
+    },
+    "notes": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": true,
+        "required": [
+          "note_id",
+          "note_hash",
+          "source_index",
+          "source_pointer",
+          "label",
+          "title",
+          "url",
+          "source",
+          "fetched",
+          "timestamps",
+          "hashes",
+          "windows",
+          "artifact_refs",
+          "readiness"
+        ],
+        "properties": {
+          "note_id": {"type": "string", "pattern": "^sn_[a-f0-9]{20}$"},
+          "note_hash": {"type": "string", "pattern": "^[a-f0-9]{64}$"},
+          "source_index": {"type": "integer", "minimum": 0},
+          "source_pointer": {"type": "string"},
+          "label": {"type": "string"},
+          "title": {"type": "string"},
+          "url": {"type": "string"},
+          "source": {"type": "string"},
+          "fetched": {"type": "boolean"},
+          "timestamps": {
+            "type": "object",
+            "additionalProperties": true,
+            "required": ["source_pack_generated_at"],
+            "properties": {
+              "source_pack_generated_at": {"type": "string"}
+            }
+          },
+          "hashes": {
+            "type": "object",
+            "additionalProperties": true,
+            "required": ["content_hash", "content_hash_valid", "excerpt_hash"],
+            "properties": {
+              "content_hash": {"type": "string"},
+              "content_hash_valid": {"type": "boolean"},
+              "excerpt_hash": {"type": "string"}
+            }
+          },
+          "windows": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "additionalProperties": true,
+              "required": ["window_id", "char_start", "char_end", "text_hash", "text_chars", "source_text_ref"],
+              "properties": {
+                "window_id": {"type": "string"},
+                "char_start": {"type": "integer", "minimum": 0},
+                "char_end": {"type": "integer", "minimum": 0},
+                "text_hash": {"type": "string"},
+                "text_chars": {"type": "integer", "minimum": 0},
+                "source_text_ref": {"type": "string"}
+              }
+            }
+          },
+          "artifact_refs": {
+            "type": "object",
+            "additionalProperties": true,
+            "required": ["source_pack", "source_pack_manifest", "source_pointer"],
+            "properties": {
+              "source_pack": {"type": "string"},
+              "source_pack_manifest": {"type": "string"},
+              "source_pointer": {"type": "string"}
+            }
+          },
+          "readiness": {
+            "type": "object",
+            "additionalProperties": true,
+            "required": [
+              "ready_for_claim_extraction",
+              "has_excerpt",
+              "has_valid_content_hash",
+              "failure_reasons"
+            ],
+            "properties": {
+              "ready_for_claim_extraction": {"type": "boolean"},
+              "has_excerpt": {"type": "boolean"},
+              "has_valid_content_hash": {"type": "boolean"},
+              "failure_reasons": {"type": "array", "items": {"type": "string"}}
+            }
+          }
+        }
+      }
+    },
+    "compiler": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": ["stage", "previous_stage", "next_stage", "next_stage_requires_model_judgment"],
+      "properties": {
+        "stage": {"const": "source_notes"},
+        "previous_stage": {"const": "source_pack_manifest"},
+        "next_stage": {"const": "semantic_claim_extraction"},
+        "next_stage_requires_model_judgment": {"const": true}
+      }
+    },
+    "generated_at": {"type": "string"}
+  }
+}

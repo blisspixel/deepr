@@ -83,8 +83,11 @@ from deepr.experts.self_model_updates import (
     propose_self_model_update,
 )
 from deepr.experts.source_pack_compiler import (
+    SOURCE_NOTE_KIND,
+    SOURCE_NOTE_SCHEMA_VERSION,
     SOURCE_PACK_MANIFEST_KIND,
     SOURCE_PACK_MANIFEST_SCHEMA_VERSION,
+    build_source_notes,
     build_source_pack_manifest,
 )
 from deepr.mcp.security.scoped_keys import AUDIT_KIND, AUDIT_SCHEMA_VERSION, RemoteMCPAuditEvent
@@ -601,6 +604,43 @@ def test_source_pack_manifest_schema_validates_runtime_payload():
     assert payload["schema_version"] == SOURCE_PACK_MANIFEST_SCHEMA_VERSION
     assert payload["kind"] == SOURCE_PACK_MANIFEST_KIND
     assert payload["contract"]["semantic_judgment"] is False
+
+
+def test_source_note_schema_validates_runtime_payload():
+    payload = build_source_notes(
+        {
+            "schema_version": "deepr.sync_source_pack.v1",
+            "topic": "source note compiler",
+            "query": "What changed?",
+            "started_at": "2026-06-27T12:00:00+00:00",
+            "source_pack": {
+                "schema_version": "deepr.source_pack.v1",
+                "mode": "fresh",
+                "source_count": 1,
+                "retrieved_source_count": 1,
+                "sources": [
+                    {
+                        "label": "S1",
+                        "title": "Release notes",
+                        "url": "https://example.com/release",
+                        "source": "duckduckgo+builtin",
+                        "fetched": True,
+                        "excerpt": "Release text",
+                        "content_hash": "a" * 64,
+                    }
+                ],
+            },
+        },
+        source_pack_artifact="sync_artifacts/source_packs/pack.json",
+        source_pack_manifest_artifact="sync_artifacts/source_pack_manifests/pack.json",
+    )
+    schema = _load_schema("source-note-v1.json")
+
+    _validate(schema, payload)
+    assert payload["schema_version"] == SOURCE_NOTE_SCHEMA_VERSION
+    assert payload["kind"] == SOURCE_NOTE_KIND
+    assert payload["contract"]["model_calls"] is False
+    assert payload["summary"]["ready_for_claim_extraction"] is True
 
 
 def test_capacity_next_schema_validates_runtime_payload():

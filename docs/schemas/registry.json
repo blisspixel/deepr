@@ -119,6 +119,14 @@
       "compatibility": "additive-within-v1"
     },
     {
+      "name": "source-note",
+      "schema_version": "deepr-source-note-v1",
+      "kind": "deepr.expert.source_notes",
+      "path": "source-note-v1.json",
+      "status": "experimental",
+      "compatibility": "additive-within-v1"
+    },
+    {
       "name": "capacity-next",
       "schema_version": "deepr-capacity-next-v1",
       "kind": "deepr.capacity.next",
