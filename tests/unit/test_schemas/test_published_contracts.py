@@ -83,10 +83,13 @@ from deepr.experts.self_model_updates import (
     propose_self_model_update,
 )
 from deepr.experts.source_pack_compiler import (
+    SEMANTIC_CLAIM_EXTRACTION_KIND,
+    SEMANTIC_CLAIM_EXTRACTION_SCHEMA_VERSION,
     SOURCE_NOTE_KIND,
     SOURCE_NOTE_SCHEMA_VERSION,
     SOURCE_PACK_MANIFEST_KIND,
     SOURCE_PACK_MANIFEST_SCHEMA_VERSION,
+    build_semantic_claim_extraction,
     build_source_notes,
     build_source_pack_manifest,
 )
@@ -641,6 +644,67 @@ def test_source_note_schema_validates_runtime_payload():
     assert payload["kind"] == SOURCE_NOTE_KIND
     assert payload["contract"]["model_calls"] is False
     assert payload["summary"]["ready_for_claim_extraction"] is True
+
+
+def test_semantic_claim_extraction_schema_validates_runtime_payload():
+    notes = build_source_notes(
+        {
+            "schema_version": "deepr.sync_source_pack.v1",
+            "topic": "claim extraction compiler",
+            "query": "What changed?",
+            "started_at": "2026-06-27T12:00:00+00:00",
+            "source_pack": {
+                "schema_version": "deepr.source_pack.v1",
+                "mode": "fresh",
+                "source_count": 1,
+                "retrieved_source_count": 1,
+                "sources": [
+                    {
+                        "label": "S1",
+                        "title": "Release notes",
+                        "url": "https://example.com/release",
+                        "source": "duckduckgo+builtin",
+                        "fetched": True,
+                        "excerpt": "Release text",
+                        "content_hash": "a" * 64,
+                    }
+                ],
+            },
+        },
+        source_pack_artifact="sync_artifacts/source_packs/pack.json",
+        source_pack_manifest_artifact="sync_artifacts/source_pack_manifests/pack.json",
+    )
+    note = notes["notes"][0]
+    window = note["windows"][0]
+    payload = build_semantic_claim_extraction(
+        notes,
+        {
+            "claims": [
+                {
+                    "statement": "Release text changed the compiler behavior.",
+                    "confidence": 0.84,
+                    "claim_kind": "factual_claim",
+                    "atomicity": "atomic",
+                    "temporal_scope": "current",
+                    "support_summary": "The cited note window supports the claim.",
+                    "source_refs": [{"note_id": note["note_id"], "window_id": window["window_id"]}],
+                }
+            ]
+        },
+        source_note_artifact="sync_artifacts/source_notes/pack.json",
+        provider="local",
+        model="qwen",
+        capacity_source="local-ollama",
+        prompt_text="Extract claims from source notes.",
+        generated_at="2026-06-27T12:01:00+00:00",
+    )
+    schema = _load_schema("semantic-claim-extraction-v1.json")
+
+    _validate(schema, payload)
+    assert payload["schema_version"] == SEMANTIC_CLAIM_EXTRACTION_SCHEMA_VERSION
+    assert payload["kind"] == SEMANTIC_CLAIM_EXTRACTION_KIND
+    assert payload["contract"]["writes_graph"] is False
+    assert payload["candidates"][0]["verifier_gate"]["writes_graph"] is False
 
 
 def test_capacity_next_schema_validates_runtime_payload():

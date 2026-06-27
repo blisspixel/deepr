@@ -212,8 +212,9 @@ Deepr deliberately separates workflow control from model judgment.
   accepted-record gates, and explicit outcome evidence before they affect a
   learning transaction. They do not grant new authority.
 - The research-processing compiler starts with deterministic source snapshots,
-  content hashes, prompt/schema versions, and one commit point, while leaving
-  claim extraction and semantic edges to calibrated model judgment.
+  source notes, content hashes, prompt/schema versions, and verifier-gated
+  claim envelopes, while leaving extraction meaning and semantic edges to
+  calibrated model judgment.
 
 This boundary is tracked in
 [docs/plans/AGENTIC_BALANCE.md](docs/plans/AGENTIC_BALANCE.md) and the active

@@ -127,6 +127,14 @@
       "compatibility": "additive-within-v1"
     },
     {
+      "name": "semantic-claim-extraction",
+      "schema_version": "deepr-semantic-claim-extraction-v1",
+      "kind": "deepr.expert.semantic_claim_extraction",
+      "path": "semantic-claim-extraction-v1.json",
+      "status": "experimental",
+      "compatibility": "additive-within-v1"
+    },
+    {
       "name": "capacity-next",
       "schema_version": "deepr-capacity-next-v1",
       "kind": "deepr.capacity.next",
