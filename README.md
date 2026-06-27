@@ -154,6 +154,7 @@ estimates and settlement.
 deepr expert make "AI Policy Expert" -d "EU AI Act enforcement timeline" --learn --budget 5
 deepr expert chat "AI Policy Expert" --budget 3
 deepr expert consult "What should our agentic harness improve next?" --local
+deepr eval consult --json
 deepr expert self-model "AI Policy Expert" --json
 deepr expert monitor "AI Policy Expert" --json
 deepr expert promote-monitor "AI Policy Expert" meta_abc123 --target gap --apply
@@ -175,6 +176,12 @@ structured state.
 model call as an explicit sidecar over source-note windows. It writes
 verifier-pending claim artifacts with prompt, schema, provider, model, capacity,
 cost, and source-window refs, but it does not write beliefs.
+
+`deepr eval consult` runs a `$0` consult harness suite. It checks structural
+contracts for expert routing, context packets, collaboration metadata,
+no-metered capacity posture, dissent preservation, replayable traces, and
+sanitized semantic quality review cases. It does not score answer meaning with
+brittle lexical rules.
 
 ### Capacity
 

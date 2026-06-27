@@ -119,6 +119,14 @@
       "compatibility": "additive-within-v1"
     },
     {
+      "name": "consult-quality-eval-case",
+      "schema_version": "deepr-consult-quality-eval-case-v1",
+      "kind": "deepr.eval.consult_quality_case",
+      "path": "consult-quality-eval-case-v1.json",
+      "status": "experimental",
+      "compatibility": "additive-within-v1"
+    },
+    {
       "name": "source-pack-manifest",
       "schema_version": "deepr-source-pack-manifest-v1",
       "kind": "deepr.expert.source_pack_manifest",

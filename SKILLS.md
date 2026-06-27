@@ -178,6 +178,11 @@ This file captures repo-specific operating lessons from autonomous work cycles.
   candidate; do not let word overlap or phrasing checks conclude answer quality.
   Host-facing review payloads should include trace ids, hashes, short previews,
   checks, and candidate metadata, not raw trace files.
+- For consult answer quality, emit a review packet instead of a verdict.
+  `deepr-consult-quality-eval-case-v1` is the pattern: sanitized trace refs,
+  rubric dimensions, failure labels, and an acceptance policy for human or
+  calibrated-model judging. The packet is `$0`, read-only, and never writes
+  beliefs by itself.
 - Self-model context should enter consults as bounded metadata before it affects
   prompts or writes. Attach the published read-only contract to perspective
   context and traces first; promote it into learning or synthesis only behind a

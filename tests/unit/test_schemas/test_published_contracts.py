@@ -47,6 +47,8 @@ from deepr.cli.output import (
 )
 from deepr.core.contracts import Claim, ExpertManifest, Gap
 from deepr.experts.consult_traces import (
+    CONSULT_QUALITY_EVAL_CASE_KIND,
+    CONSULT_QUALITY_EVAL_CASE_SCHEMA_VERSION,
     CONSULT_TRACE_CANDIDATES_KIND,
     CONSULT_TRACE_CANDIDATES_SCHEMA_VERSION,
     CONSULT_TRACE_KIND,
@@ -604,6 +606,28 @@ def test_consult_trace_candidates_schema_validates_runtime_payload():
     assert payload["schema_version"] == CONSULT_TRACE_CANDIDATES_SCHEMA_VERSION
     assert payload["kind"] == CONSULT_TRACE_CANDIDATES_KIND
     assert payload["candidates"][0]["eval_case"]["source_trace_id"] == "consult_abcdef123456"
+    assert payload["candidates"][0]["semantic_eval_case"]["source_trace_id"] == "consult_abcdef123456"
+
+
+def test_consult_quality_eval_case_schema_validates_runtime_payload():
+    trace = build_consult_trace(
+        question="What should the expert loop improve next?",
+        requested_experts=["AI Agent Harnesses"],
+        max_experts=3,
+        budget=0.0,
+        failure={"stage": "run_consult", "error_type": "RuntimeError", "message": "boom"},
+        trace_id="consult_abcdef123456",
+        recorded_at=datetime(2026, 6, 26, 12, 0, tzinfo=UTC),
+    )
+    payload = build_consult_trace_candidates([trace])["candidates"][0]["semantic_eval_case"]
+    schema = _load_schema("consult-quality-eval-case-v1.json")
+
+    _validate(schema, payload)
+    assert payload["schema_version"] == CONSULT_QUALITY_EVAL_CASE_SCHEMA_VERSION
+    assert payload["kind"] == CONSULT_QUALITY_EVAL_CASE_KIND
+    assert payload["contract"]["semantic_verdict"] is False
+    assert payload["contract"]["lexical_verdict_allowed"] is False
+    assert payload["acceptance_policy"]["never_commits_beliefs"] is True
 
 
 def test_source_pack_manifest_schema_validates_runtime_payload():

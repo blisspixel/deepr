@@ -6,6 +6,8 @@ import json
 from datetime import UTC, datetime
 
 from deepr.experts.consult_traces import (
+    CONSULT_QUALITY_EVAL_CASE_KIND,
+    CONSULT_QUALITY_EVAL_CASE_SCHEMA_VERSION,
     CONSULT_TRACE_CANDIDATES_KIND,
     CONSULT_TRACE_CANDIDATES_SCHEMA_VERSION,
     CONSULT_TRACE_KIND,
@@ -155,9 +157,17 @@ def test_build_consult_trace_candidates_flags_failed_and_low_context_traces():
     assert payload["candidate_count"] == 2
     assert payload["failed_trace_count"] == 1
     assert payload["low_context_trace_count"] == 1
+    assert payload["semantic_eval_case_count"] == 2
     assert [candidate["reason"] for candidate in payload["candidates"]] == ["failed_consult", "low_context"]
     assert payload["candidates"][0]["gap"]["priority"] == 5
     assert payload["candidates"][0]["eval_case"]["source_trace_id"] == "consult_aaaaaaaaaaaa"
+    semantic_case = payload["candidates"][0]["semantic_eval_case"]
+    assert semantic_case["schema_version"] == CONSULT_QUALITY_EVAL_CASE_SCHEMA_VERSION
+    assert semantic_case["kind"] == CONSULT_QUALITY_EVAL_CASE_KIND
+    assert semantic_case["contract"]["semantic_verdict"] is False
+    assert semantic_case["contract"]["lexical_verdict_allowed"] is False
+    assert semantic_case["contract"]["writes_state"] is False
+    assert semantic_case["acceptance_policy"]["never_commits_beliefs"] is True
     assert "output" not in payload["candidates"][0]
     assert "failure" not in payload["candidates"][0]
 

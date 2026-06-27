@@ -25,6 +25,8 @@ CONSULT_TRACE_SCHEMA_VERSION = "deepr-consult-trace-v1"
 CONSULT_TRACE_KIND = "deepr.expert.consult_trace"
 CONSULT_TRACE_CANDIDATES_SCHEMA_VERSION = "deepr-consult-trace-candidates-v1"
 CONSULT_TRACE_CANDIDATES_KIND = "deepr.expert.consult_trace_candidates"
+CONSULT_QUALITY_EVAL_CASE_SCHEMA_VERSION = "deepr-consult-quality-eval-case-v1"
+CONSULT_QUALITY_EVAL_CASE_KIND = "deepr.eval.consult_quality_case"
 
 
 def _utc_now() -> datetime:
@@ -347,6 +349,98 @@ def _eval_case_for_trace(trace: dict[str, Any], reason: str) -> dict[str, Any]:
     }
 
 
+def _check_status(trace: dict[str, Any], name: str) -> str:
+    for check in trace.get("checks", []) or []:
+        if not isinstance(check, dict):
+            continue
+        if str(check.get("name", "")) == name:
+            return str(check.get("status", ""))
+    return ""
+
+
+def _semantic_eval_case_for_trace(trace: dict[str, Any], reason: str) -> dict[str, Any]:
+    input_block = trace.get("input") if isinstance(trace.get("input"), dict) else {}
+    question = str(input_block.get("question", ""))
+    return {
+        "schema_version": CONSULT_QUALITY_EVAL_CASE_SCHEMA_VERSION,
+        "kind": CONSULT_QUALITY_EVAL_CASE_KIND,
+        "case_id": f"{trace.get('trace_id', 'consult_unknown')}_{reason}_quality",
+        "source_trace_id": str(trace.get("trace_id", "")),
+        "category": "consult_semantic_quality",
+        "contract": {
+            "cost_usd": 0.0,
+            "writes_state": False,
+            "semantic_verdict": False,
+            "requires_human_or_calibrated_model_judge": True,
+            "lexical_verdict_allowed": False,
+        },
+        "input": {
+            "question_hash": str(input_block.get("question_hash", _sha256(question))),
+            "question_preview": _preview(question),
+            "reason": reason,
+            "capacity": _capacity_block(trace.get("capacity") if isinstance(trace.get("capacity"), dict) else None),
+            "selected_context_count": _selected_context_count(trace),
+            "failed_checks": _check_names_by_status(trace, {"failed"}),
+            "warning_checks": _check_names_by_status(trace, {"warning"}),
+            "synthesis_status": _check_status(trace, "synthesis_status"),
+        },
+        "rubric": [
+            {
+                "dimension": "uses_expert_state",
+                "score_min": 1,
+                "score_max": 5,
+                "judge_question": "Does the answer use the expert perspectives and current stored context when available?",
+            },
+            {
+                "dimension": "surfaces_uncertainty",
+                "score_min": 1,
+                "score_max": 5,
+                "judge_question": "Does the answer distinguish knowns, unknowns, stale context, hypotheses, and open questions?",
+            },
+            {
+                "dimension": "preserves_dissent",
+                "score_min": 1,
+                "score_max": 5,
+                "judge_question": "Does the answer preserve meaningful disagreements instead of flattening them into false consensus?",
+            },
+            {
+                "dimension": "actionability",
+                "score_min": 1,
+                "score_max": 5,
+                "judge_question": "Does the answer give useful next actions, decision criteria, or research directions for the host agent?",
+            },
+            {
+                "dimension": "grounded_when_factual",
+                "score_min": 1,
+                "score_max": 5,
+                "judge_question": "Are external factual claims grounded or clearly labeled as unverified, stale, or hypothetical?",
+            },
+            {
+                "dimension": "original_thought",
+                "score_min": 1,
+                "score_max": 5,
+                "judge_question": "Does the answer allow useful synthesis, stance, and hypotheses without pretending they are verified facts?",
+            },
+        ],
+        "failure_labels": [
+            "missing_current_context",
+            "unsupported_factual_claim",
+            "stale_claim_promoted_as_current",
+            "false_consensus",
+            "ignored_dissent",
+            "thin_or_generic_answer",
+            "unlabeled_hypothesis",
+            "not_actionable_for_host_agent",
+        ],
+        "acceptance_policy": {
+            "minimum_mean_score": 4.0,
+            "requires_reviewer": True,
+            "eligible_promotions": ["gap_candidate", "eval_artifact"],
+            "never_commits_beliefs": True,
+        },
+    }
+
+
 def _candidate_for_trace(
     trace: dict[str, Any],
     *,
@@ -367,6 +461,7 @@ def _candidate_for_trace(
         "selected_context_count": _selected_context_count(trace),
         "gap": gap.to_dict(),
         "eval_case": _eval_case_for_trace(trace, reason),
+        "semantic_eval_case": _semantic_eval_case_for_trace(trace, reason),
     }
 
 
@@ -421,6 +516,7 @@ def build_consult_trace_candidates(
         "failed_trace_count": failed_trace_count,
         "failed_check_count": failed_check_count,
         "low_context_trace_count": low_context_count,
+        "semantic_eval_case_count": len(candidates),
         "candidates": candidates,
     }
 

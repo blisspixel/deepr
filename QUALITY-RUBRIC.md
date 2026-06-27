@@ -67,25 +67,23 @@ Planning Principles), and [docs/plans/AGENTIC_BALANCE.md](docs/plans/AGENTIC_BAL
 
 ## Current Cycle Alignment - 2026-06-27
 
-Active task: harden the MCP expert consult contract for external agents and
-lock the legacy expert-chat spend boundary without widening brittle agentic
-rules.
+Active task: add a consult semantic quality review substrate without widening
+brittle rules or turning trace review into a hidden meaning verdict.
 
 Target score before merge:
 
 | Category | Required score | Evidence |
 |---|---:|---|
-| Correctness | 5/5 | Focused tests prove zero-budget non-streaming and streaming expert chat block before provider dispatch; MCP capability, registry, and agent-guide tests pin the consult-vs-query boundary. Full unit suite is green. |
-| Security | 5/5 | Legacy chat now denies before direct model paths when budget is insufficient; no-metered external-agent docs require local or explicit plan consult with no live metered fallback; Gitleaks git history scan found no tracked leaks. |
-| Performance | 5/5 | The no-metered path stays on existing local or plan consult synthesis. No new model calls, polling, pre-warm, or auto-fan-out behavior was added. |
-| Readability | 5/5 | Reusable chat-turn budget and routing helpers live in a small module; docs name works-now surfaces plainly and do not market planned chat backends as shipped. |
-| Maintainability | 5/5 | The `experts/chat.py` grandfathered file-size ratchet stays green; deterministic code owns budgets, backend choice, schemas, and no-fallback, while model judgment still owns synthesis meaning. |
-| Simplicity | 5/5 | One small helper module plus precise docs and tests close the safety gap without inventing a new expert-chat backend before the design contract is ready. |
+| Correctness | 5/5 | Focused tests prove the consult eval now covers collaboration capacity, dissent preservation, trace candidates, and semantic review-case contracts. Published schema tests validate both the candidate payload and the standalone quality eval case. |
+| Security | 5/5 | The new packets are `$0`, read-only, sanitized, and non-verdict. They carry trace refs and rubrics, not raw local trace files, secrets, spend authority, or belief-write authority. |
+| Performance | 5/5 | The path is deterministic artifact generation from already-recorded traces. No provider calls, embeddings, polling, or new fan-out were added. |
+| Readability | 5/5 | The trace candidate builder keeps structural routing separate from the semantic review packet. Docs name the packet as a review case, not a score. |
+| Maintainability | 5/5 | The schema is additive, registry-backed, and tested. Deterministic code owns artifact shape and side-effect policy; human or calibrated model judgment owns answer quality. |
+| Simplicity | 5/5 | The change adds one small generated packet to existing trace candidates and two focused consult eval cases, avoiding a new eval runner until judged scoring is actually implemented. |
 
-Cycle 12 keeps the MCP expert collaboration boundary intact: deterministic
-workflow code owns spend, backend choice, scoped-tool guidance, schema language,
-and no-fallback behavior; expert and synthesis models own perspective,
-disagreement, uncertainty, and novel ideas.
+Cycle 13 keeps the agentic boundary intact: structural trace signals can route
+a consult into review, but only a human or calibrated model judge may score
+answer meaning. The packet itself never writes beliefs.
 
 ## How to score (maker-checker)
 

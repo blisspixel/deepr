@@ -34,6 +34,7 @@
     "failed_trace_count": {"type": "integer", "minimum": 0},
     "failed_check_count": {"type": "integer", "minimum": 0},
     "low_context_trace_count": {"type": "integer", "minimum": 0},
+    "semantic_eval_case_count": {"type": "integer", "minimum": 0},
     "candidates": {
       "type": "array",
       "items": {
@@ -69,6 +70,34 @@
           "eval_case": {
             "type": "object",
             "required": ["case_id", "category", "source_trace_id", "input", "expected_failure_mode", "acceptance_check"],
+            "additionalProperties": true
+          },
+          "semantic_eval_case": {
+            "type": "object",
+            "required": [
+              "schema_version",
+              "kind",
+              "case_id",
+              "source_trace_id",
+              "category",
+              "contract",
+              "input",
+              "rubric",
+              "failure_labels",
+              "acceptance_policy"
+            ],
+            "properties": {
+              "schema_version": {"const": "deepr-consult-quality-eval-case-v1"},
+              "kind": {"const": "deepr.eval.consult_quality_case"},
+              "case_id": {"type": "string"},
+              "source_trace_id": {"type": "string"},
+              "category": {"const": "consult_semantic_quality"},
+              "contract": {"type": "object"},
+              "input": {"type": "object"},
+              "rubric": {"type": "array"},
+              "failure_labels": {"type": "array", "items": {"type": "string"}},
+              "acceptance_policy": {"type": "object"}
+            },
             "additionalProperties": true
           }
         },
