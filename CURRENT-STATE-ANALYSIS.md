@@ -92,9 +92,10 @@ External best-practice check, current as of 2026-06-27: modern agent harness
 guidance converges on trace-first improvement loops, evals from real failures,
 bounded context packets, explicit handoffs, and deterministic gates around
 spend, writes, tools, and credentials. Deepr's next implementation slices should
-continue that shape: verify claim candidates, add concept/hypothesis/stance
-candidate envelopes, then add the one commit envelope that writes typed expert
-graph updates only after the right checks pass.
+continue that shape: verify externally factual claim candidates, add concept,
+hypothesis, stance, and original-idea envelopes with state-appropriate gates,
+then add the one commit envelope that writes typed expert graph updates only
+after the right checks pass.
 
 ## Alignment Summary
 
@@ -104,10 +105,11 @@ The latest 2026 external guidance reinforces Deepr's direction: this is agentic 
 
 `AGENTIC_BALANCE.md` is the governing boundary: deterministic workflow code owns spend, writes, routing gates, durable state, locks, jitter, schemas, and verifier outcomes; model judgment owns meaning such as contradiction, grounding, deduplication, and synthesis.
 
-No clarification is needed before continuing. The next slices are claim
-verification, concept/hypothesis/stance envelopes, and the commit envelope that
-turns source-pack compiler candidates into verified beliefs, temporal graph
-edges, gaps, and regenerated wiki/digest views. After that, continue Antigravity
+No clarification is needed before continuing. The next slices are support
+verification for factual claims, concept/hypothesis/stance/original-idea
+envelopes, and the commit envelope that turns source-pack compiler candidates
+into verified beliefs, temporal graph edges, gaps, open hypotheses, stances, and
+regenerated wiki/digest views. After that, continue Antigravity
 metadata visibility, then scheduler dispatch that uses admitted plan capacity
 only from trusted headroom observations. The next metered-API cost-control slice
 is provider cache controls, but only after estimator support and explicit budget
