@@ -187,6 +187,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   confidence, provenance, temporal context, and a next learning plan.
 
 ### Changed
+- Clarified MCP expert-chat guidance for external agents: no-metered
+  single-expert advice now uses `deepr_consult_experts` with one explicit expert
+  and `synthesis_backend=local|plan`, while `deepr_query_expert` is labeled as
+  the legacy metered-capable chat path until the backend-neutral runner exists.
+- Refreshed the expert-chat backend design with 2026 multi-agent findings:
+  bounded orchestrator-worker collaboration, specialists-as-tools, visible MCP
+  cost and no-fallback contracts, A2A task artifacts, and preserved dissent as
+  the default council behavior.
 - Refreshed user-facing docs for the compiled expert memory loop: README usage,
   the expert guide, supported-surface contract, schema registry docs, and
   ROADMAP order now distinguish shipped compiler, memory-card, collaboration,
@@ -266,6 +274,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   improvements.
 
 ### Fixed
+- Blocked legacy expert chat before its first direct model path when the session
+  budget cannot cover the selected-model estimate, including the streaming chat
+  path. This keeps zero-budget remote single-expert calls from reaching a
+  metered chat completion before denial.
 - Fixed GitHub secret-scan drift where historical redaction-test fingerprints
   could pass locally but fail in CI. The scan now relies on an explicit
   default-extending config and the current `main` security job is green.

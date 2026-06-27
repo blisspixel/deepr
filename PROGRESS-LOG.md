@@ -3,6 +3,31 @@
 Working log only. Keep the latest five cycles plus the active cycle here; older
 completed milestones are summarized in `docs/CHANGELOG.md`.
 
+## 2026-06-27 - Cycle 12 - MCP expert consult contract hardening
+
+- Researched current multi-agent orchestration patterns from Anthropic,
+  OpenAI Agents SDK, MCP, and A2A, then folded the findings into the
+  expert-chat backend design note: one or many experts, one bounded artifact,
+  preserved dissent, visible capacity posture, and no silent fallback.
+- Clarified README, ROADMAP, MCP README, supported-surface docs, and
+  `docs/MCP_AGENT_TEST_GUIDE.md` so no-metered one-expert or multi-expert
+  external-agent tests use `deepr_consult_experts` with local or explicit plan
+  synthesis, while `deepr_query_expert` remains labeled as legacy
+  metered-capable chat until backend-neutral chat lands.
+- Fixed legacy expert chat so zero-budget sessions are denied before the first
+  direct model path in both normal and streaming chat. Extracted the reusable
+  budget and routing-trace helpers into `experts/chat_turns.py` so the
+  grandfathered `experts/chat.py` file-size ratchet stays green.
+- Validation passed: focused regression tests, full unit suite `6796 passed, 8
+  skipped`, `ruff check`, `ruff format --check`, strict mypy gate for
+  `core/providers/mcp`, docs consistency, file-size ratchet, diff whitespace
+  check, added-line punctuation and attribution scan, and Gitleaks full-history
+  scan. A separate directory scan found findings only in ignored local files
+  (`.venv` and `data/security`), with zero tracked or unignored files affected.
+- Maker-checker score: correctness 5/5, security 5/5, performance 5/5,
+  maintainability 5/5, simplicity 5/5, testability 5/5.
+- Spend: `$0.00`.
+
 ## 2026-06-27 - Cycle 11 - Expert thought boundary clarification
 
 - Clarified that externally factual claims need support checks, while original
@@ -134,34 +159,6 @@ Cycle health: 5/5 | Simplicity: 5/5 | Est. spend: $0.00 | New skill distilled: s
   mypy gate for `core/providers/mcp`; docs consistency; file-size ratchet;
   complexity/security ratchets; full unit suite `6718 passed, 8 skipped`,
   branch coverage `83.08%`.
-- Maker-checker target score: correctness 5/5, security 5/5, performance 5/5,
-  maintainability 5/5, simplicity 5/5, testability 5/5.
-- Spend: `$0.00`.
-
-## 2026-06-26 - Cycle 6 - Metacognitive monitor proposals
-
-- Added `deepr-metacognitive-monitor-v1`, a read-only monitor artifact that
-  converts self-model blockers, calibration risks, failed loop runs, capacity
-  waits, and sanitized consult trace candidates into `review_required`
-  proposals.
-- Added `deepr expert monitor NAME` with `--json`, `--limit`,
-  `--max-proposals`, and optional `--trace-path`.
-- Kept the monitor non-mutating: proposals do not apply goal, strategy, gap,
-  eval, prompt, tool, or skill changes.
-- Added expert-specific consult trace filtering for monitor input.
-- Published and registered `docs/schemas/metacognitive-monitor-v1.json`.
-- Fixed Windows malformed UNC-like path normalization discovered during full
-  validation, so drive-less forms such as `\\0` normalize to the current drive
-  root instead of a non-absolute `WindowsPath('//0')`.
-- Updated README, roadmap, expert docs, features, supported surface, schema
-  docs, changelog, current-state analysis, and quality rubric to mark the
-  monitor proposal artifact as shipped while keeping promotion and self-model
-  updates gated.
-- Validation passed: 30 focused monitor, CLI, and schema tests; focused path
-  property regression tests; `ruff check src/deepr/`; `ruff format
-  --check src/deepr/`; strict mypy gate for `core/providers/mcp`; docs
-  consistency; file-size ratchet; complexity/security ratchets; full unit suite
-  `6711 passed, 8 skipped`, branch coverage `83.02%`.
 - Maker-checker target score: correctness 5/5, security 5/5, performance 5/5,
   maintainability 5/5, simplicity 5/5, testability 5/5.
 - Spend: `$0.00`.
