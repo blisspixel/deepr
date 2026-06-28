@@ -488,6 +488,54 @@ class ExpertStance:
 
 
 @dataclass
+class ExpertOriginalIdea:
+    id: str
+    title: str
+    statement: str
+    origin: str = ""
+    rationale: str = ""
+    uncertainty: str = ""
+    assumptions: list[str] = field(default_factory=list)
+    implications: list[str] = field(default_factory=list)
+    expected_observations: list[str] = field(default_factory=list)
+    disconfirming_signals: list[str] = field(default_factory=list)
+    priority: int = 3
+    confidence: float = 0.0
+    created_at: datetime = field(default_factory=_utc_now)
+    status: str = "active"
+
+    @classmethod
+    def create(cls, title: str, **kwargs: Any) -> "ExpertOriginalIdea":
+        statement = str(kwargs.pop("statement", "") or title)
+        id_hash = hashlib.sha256(f"{title}|{statement}".encode()).hexdigest()[:12]
+        return cls(id=id_hash, title=title, statement=statement, **kwargs)
+
+    def to_dict(self) -> dict[str, Any]:
+        state = self.__dict__.copy()
+        state["created_at"] = self.created_at.isoformat()
+        return state
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> "ExpertOriginalIdea":
+        return cls(
+            id=data["id"],
+            title=data["title"],
+            statement=data["statement"],
+            origin=str(data.get("origin", "") or ""),
+            rationale=str(data.get("rationale", "") or ""),
+            uncertainty=str(data.get("uncertainty", "") or ""),
+            assumptions=_string_list(data.get("assumptions", [])),
+            implications=_string_list(data.get("implications", [])),
+            expected_observations=_string_list(data.get("expected_observations", [])),
+            disconfirming_signals=_string_list(data.get("disconfirming_signals", [])),
+            priority=int(data.get("priority", 3)),
+            confidence=float(data.get("confidence", 0.0)),
+            created_at=datetime.fromisoformat(data["created_at"]) if data.get("created_at") else _utc_now(),
+            status=str(data.get("status", "active") or "active"),
+        )
+
+
+@dataclass
 class ExpertHypothesis:
     """A verified but not factual expert hypothesis.
 

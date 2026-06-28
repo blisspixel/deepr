@@ -197,6 +197,39 @@ def graph_commit_stance_operation(
     }
 
 
+def graph_commit_original_idea_operation(
+    title: str,
+    idempotency_key: str,
+    *,
+    idea_id: str = "original_idea_test",
+    candidate_id: str = "candidate_original_idea",
+) -> dict:
+    return {
+        "operation_id": f"op_{idea_id}",
+        "operation": "promote_original_idea",
+        "candidate_id": candidate_id,
+        "decision_status": "ready_for_commit",
+        "original_idea": {
+            "id": idea_id,
+            "title": title,
+            "statement": "Use a statistician council to turn agent consults into measurable review packets.",
+            "origin": "A verifier-approved source note raised the original synthesis.",
+            "rationale": "The expert needs a durable original idea before applying it across future plans.",
+            "uncertainty": "The idea has not been validated across repeated consult traces yet.",
+            "assumptions": ["Consult traces can expose variables, outcomes, and tradeoffs."],
+            "implications": ["Future expert councils can emit more measurable plans."],
+            "expected_observations": ["Future consult plans cite variables and acceptance criteria."],
+            "disconfirming_signals": ["Consult quality does not improve after the idea is used."],
+            "priority": 4,
+            "confidence": 0.66,
+            "created_at": "2026-06-26T12:00:00+00:00",
+            "status": "active",
+        },
+        "idempotency_key": idempotency_key,
+        "provenance": {"source_refs": [{"note_id": "note_original_idea", "window_id": "note_original_idea:w0"}]},
+    }
+
+
 def graph_commit_envelope(
     *operations: dict,
     expert_name: str = "Compiler Expert",

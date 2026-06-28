@@ -10,7 +10,7 @@ FACTUAL_KINDS = {"factual_claim", "fact", "external_fact", "current_fact"}
 HYPOTHESIS_KINDS = {"hypothesis", "private_hypothesis", "theory"}
 CONCEPT_KINDS = {"concept", "mental_model", "framework"}
 STANCE_KINDS = {"stance", "position", "judgment"}
-IDEA_KINDS = {"proposal", "original_idea", "original_synthesis"}
+ORIGINAL_IDEA_KINDS = {"proposal", "original_idea", "original_synthesis"}
 GAP_KINDS = {"gap", "knowledge_gap", "research_gap"}
 AGENDA_KINDS = {"exploration_agenda", "research_agenda"}
 
@@ -33,6 +33,10 @@ def is_concept_kind(claim_kind: str) -> bool:
 
 def is_stance_kind(claim_kind: str) -> bool:
     return claim_kind in STANCE_KINDS
+
+
+def is_original_idea_kind(claim_kind: str) -> bool:
+    return claim_kind in ORIGINAL_IDEA_KINDS
 
 
 def claim_kind_policy(claim_kind: str) -> dict[str, Any]:
@@ -86,13 +90,15 @@ def claim_kind_policy(claim_kind: str) -> dict[str, Any]:
             "must_not_present_as_verified_fact": True,
             "writes_stance": True,
         }
-    if kind in IDEA_KINDS:
+    if kind in ORIGINAL_IDEA_KINDS:
         return {
-            "state_type": kind,
+            "state_type": "original_idea",
             "requires_external_support": False,
             "requires_origin_and_rationale": True,
             "requires_disconfirming_signals": True,
+            "requires_expected_observations": True,
             "must_not_present_as_verified_fact": True,
+            "writes_original_idea": True,
         }
     if kind not in FACTUAL_KINDS:
         kind = "factual_claim"

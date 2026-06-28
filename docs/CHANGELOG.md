@@ -25,6 +25,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 </details>
 
 ### Added
+- Added `deepr-graph-commit-envelope-v7` with verifier-gated
+  `promote_original_idea` operations. Verified original-idea candidates now
+  carry title, statement, origin, rationale, uncertainty, assumptions,
+  implications, expected observations, disconfirming signals, priority,
+  confidence, provenance, and an idempotency key through the explicit commit
+  boundary without being treated as factual beliefs.
+- Extended `deepr expert apply-graph-commit` to apply v7 original-idea
+  promotions into the metacognition original-idea backlog while preserving v1
+  through v6 envelope compatibility, dry-run previews, noninteractive `--yes`
+  gating, locks, and `$0` no-model apply semantics.
 - Added `deepr-graph-commit-envelope-v6` with verifier-gated
   `promote_stance` operations. Verified stance candidates now carry title,
   position, origin, rationale, uncertainty, tradeoffs, decision criteria,

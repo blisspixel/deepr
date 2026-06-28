@@ -18,6 +18,7 @@ from tests.unit.graph_commit_helpers import (
     graph_commit_gap_operation,
     graph_commit_hypothesis_operation,
     graph_commit_operation,
+    graph_commit_original_idea_operation,
     graph_commit_stance_operation,
 )
 
@@ -233,6 +234,41 @@ def test_apply_graph_commit_envelope_blocks_stance_without_tracker(tmp_path):
 
     assert result["summary"]["status"] == "blocked"
     assert result["operation_results"][0]["failure_reasons"] == ["stance_tracker_missing"]
+
+
+def test_apply_graph_commit_envelope_promotes_original_idea_and_replays_idempotently(tmp_path):
+    title = "Statistician council packets"
+    envelope = graph_commit_envelope(graph_commit_original_idea_operation(title, "7" * 64))
+    store = BeliefStore("Compiler Expert", storage_dir=tmp_path / "beliefs")
+    tracker = MetaCognitionTracker("Compiler Expert", base_path=str(tmp_path / "experts"))
+
+    result = apply_graph_commit_envelope(envelope, store, gap_tracker=tracker, dry_run=False)
+
+    assert result["summary"]["status"] == "applied"
+    assert result["summary"]["applied_write_count"] == 1
+    assert result["contract"]["writes_graph"] is False
+    assert result["contract"]["writes_expert_state"] is True
+    assert result["operation_results"][0]["original_idea_title"] == title
+    assert result["operation_results"][0]["original_idea_created"] is True
+    assert title in tracker.original_ideas
+
+    replay_tracker = MetaCognitionTracker("Compiler Expert", base_path=str(tmp_path / "experts"))
+    replay = apply_graph_commit_envelope(envelope, store, gap_tracker=replay_tracker, dry_run=False)
+
+    assert replay["summary"]["status"] == "already_applied"
+    assert replay["summary"]["applied_write_count"] == 0
+    assert replay["summary"]["already_applied_count"] == 1
+    assert len(replay_tracker.original_ideas) == 1
+
+
+def test_apply_graph_commit_envelope_blocks_original_idea_without_tracker(tmp_path):
+    envelope = graph_commit_envelope(graph_commit_original_idea_operation("Missing tracker original idea.", "8" * 64))
+    store = BeliefStore("Compiler Expert", storage_dir=tmp_path / "beliefs")
+
+    result = apply_graph_commit_envelope(envelope, store, dry_run=False)
+
+    assert result["summary"]["status"] == "blocked"
+    assert result["operation_results"][0]["failure_reasons"] == ["original_idea_tracker_missing"]
 
 
 def test_apply_graph_commit_envelope_blocks_unready_envelope(tmp_path):

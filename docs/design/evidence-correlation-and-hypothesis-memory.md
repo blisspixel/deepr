@@ -15,8 +15,8 @@ Use correlation math as routing, calibration, and prioritization machinery. Do
 not use it as a semantic truth verdict.
 
 Deepr experts are not fact books. An expert is a maintained perspective over a
-domain: current beliefs, concepts, hypotheses, stance, gaps, contradictions,
-freshness watchlists, exploration agenda, and known uncertainty. Mathematical
+domain: current beliefs, concepts, hypotheses, stance, original ideas, gaps,
+contradictions, freshness watchlists, exploration agenda, and known uncertainty. Mathematical
 correlation should help decide what to inspect, what to ask a model to judge,
 what to refresh, what to cluster, and what to explain. It must not decide what a
 claim means or whether it is true.
@@ -26,22 +26,22 @@ This follows the agentic-balance boundary:
 - Deterministic code owns schemas, provenance, budgets, ranges, write gates,
   source-family accounting, artifact validity, and cost ceilings.
 - Model judgment owns meaning: contradiction, grounding, conceptual fit,
-  novelty, stance quality, and whether a hypothesis is useful.
+  novelty, stance quality, original-idea quality, and whether a hypothesis is useful.
 - Correlation scores may route into model judgment. They may not replace it.
 
 ## Useful Math
 
 ### Evidence graph
 
-Represent observations, sources, claims, concepts, hypotheses, gaps, and stance
-items as graph nodes. Use typed edges such as `supports`, `contradicts`,
+Represent observations, sources, claims, concepts, hypotheses, original ideas,
+gaps, and stance items as graph nodes. Use typed edges such as `supports`, `contradicts`,
 `derived_from`, `enables`, `same_as`, `co_occurs_with`, and `updates`.
 
 Fit for Deepr:
 
 - The temporal knowledge graph already has typed belief edges.
-- The corpus-to-expert compiler can emit candidate source-note, claim,
-  concept, hypothesis, stance, and gap nodes before one verified commit.
+- The corpus-to-expert compiler can emit candidate source-note, claim, concept,
+  hypothesis, stance, original-idea, and gap nodes before one verified commit.
 - `why`, `what_changed`, and `contested` become richer when they can traverse
   source roots, support chains, contradiction clusters, and hypothesis lineage.
 

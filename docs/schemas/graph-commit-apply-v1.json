@@ -127,7 +127,10 @@
           "concept_created": {"type": "boolean"},
           "stance_id": {"type": "string"},
           "stance_title": {"type": "string"},
-          "stance_created": {"type": "boolean"}
+          "stance_created": {"type": "boolean"},
+          "original_idea_id": {"type": "string"},
+          "original_idea_title": {"type": "string"},
+          "original_idea_created": {"type": "boolean"}
         }
       }
     },

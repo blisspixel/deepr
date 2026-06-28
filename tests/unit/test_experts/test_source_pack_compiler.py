@@ -1238,6 +1238,121 @@ def test_stance_verification_requires_expected_observations():
     assert verification["decisions"][0]["readiness"]["failure_reasons"] == ["missing_expected_observations"]
 
 
+def test_graph_commit_envelope_promotes_verified_original_idea(tmp_path):
+    notes = build_source_notes(_source_pack_payload())
+    note = notes["notes"][0]
+    window = note["windows"][0]
+    title = "Statistician council packets"
+    extraction = build_semantic_claim_extraction(
+        notes,
+        {
+            "claims": [
+                {
+                    "statement": "Use a statistician council to turn agent consults into measurable review packets.",
+                    "title": title,
+                    "claim_kind": "original_idea",
+                    "confidence": 0.68,
+                    "priority": 4,
+                    "assumptions": ["Consult traces can expose variables, outcomes, and tradeoffs."],
+                    "implications": ["Future expert councils can emit more measurable plans."],
+                    "source_refs": [{"note_id": note["note_id"], "window_id": window["window_id"]}],
+                }
+            ]
+        },
+        source_note_artifact="sync_artifacts/source_notes/pack.json",
+    )
+    candidate = extraction["candidates"][0]
+    verification = build_claim_verification(
+        extraction,
+        {
+            "verifications": [
+                {
+                    "candidate_id": candidate["candidate_id"],
+                    "support_verdict": "not_applicable",
+                    "contradiction_verdict": "none",
+                    "dedup_verdict": "new",
+                    "temporal_scope_verdict": "not_applicable",
+                    "origin": "The source note exposed a new synthesis direction.",
+                    "rationale": "The expert should retain the original idea without promoting it as fact.",
+                    "uncertainty": "The idea has not been validated across repeated consult traces.",
+                    "expected_observations": ["Future consult plans cite variables and acceptance criteria."],
+                    "disconfirming_signals": ["Consult quality does not improve after the idea is used."],
+                    "confidence": 0.66,
+                }
+            ]
+        },
+    )
+
+    envelope = build_graph_commit_envelope(
+        extraction,
+        verification,
+        claim_extraction_artifact="sync_artifacts/claim_extractions/pack.json",
+        claim_verification_artifact="sync_artifacts/claim_verifications/pack.json",
+        expert_name="Compiler Expert",
+        domain="compiler",
+        generated_at="2026-06-26T12:03:00+00:00",
+    )
+    tracker = MetaCognitionTracker("Compiler Expert", base_path=str(tmp_path / "experts"))
+    result = apply_graph_commit_envelope(
+        envelope,
+        BeliefStore("Compiler Expert", storage_dir=tmp_path / "beliefs"),
+        gap_tracker=tracker,
+        dry_run=False,
+    )
+
+    assert candidate["state_policy"]["state_type"] == "original_idea"
+    assert candidate["state_policy"]["writes_original_idea"] is True
+    assert verification["summary"]["status"] == "ready_for_commit_envelope"
+    assert envelope["summary"]["status"] == "ready_for_commit"
+    operation = envelope["operations"][0]
+    assert operation["operation"] == "promote_original_idea"
+    assert operation["original_idea"]["title"] == title
+    assert operation["original_idea"]["implications"] == ["Future expert councils can emit more measurable plans."]
+    assert result["summary"]["status"] == "applied"
+    assert title in tracker.original_ideas
+
+
+def test_original_idea_verification_requires_expected_observations():
+    notes = build_source_notes(_source_pack_payload())
+    note = notes["notes"][0]
+    window = note["windows"][0]
+    extraction = build_semantic_claim_extraction(
+        notes,
+        {
+            "claims": [
+                {
+                    "statement": "Use a statistician council to make consult plans measurable.",
+                    "claim_kind": "original_idea",
+                    "confidence": 0.68,
+                    "source_refs": [{"note_id": note["note_id"], "window_id": window["window_id"]}],
+                }
+            ]
+        },
+    )
+    verification = build_claim_verification(
+        extraction,
+        {
+            "verifications": [
+                {
+                    "candidate_id": extraction["candidates"][0]["candidate_id"],
+                    "support_verdict": "not_applicable",
+                    "contradiction_verdict": "none",
+                    "dedup_verdict": "new",
+                    "temporal_scope_verdict": "not_applicable",
+                    "origin": "Reviewed source-note evidence.",
+                    "rationale": "The original idea should stay testable rather than factual.",
+                    "uncertainty": "The expected effect is unknown.",
+                    "disconfirming_signals": ["Review quality is unchanged."],
+                    "confidence": 0.66,
+                }
+            ]
+        },
+    )
+
+    assert verification["summary"]["status"] == "blocked"
+    assert verification["decisions"][0]["readiness"]["failure_reasons"] == ["missing_expected_observations"]
+
+
 def test_graph_commit_envelope_blocks_uncertain_deduplication():
     notes = build_source_notes(_source_pack_payload())
     note = notes["notes"][0]
