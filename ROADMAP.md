@@ -340,6 +340,10 @@ The gate targets below are firm commitments, not a soft "raise it when convenien
 - [ ] Fault-injection / chaos tests at provider + network boundaries (timeouts, malformed payloads, provider outages) to validate fallback, circuit breakers, and logging
 - [x] SBOM generation (`uv export`, hash-pinned) published as a CI build artifact
 - [x] Blocking Gitleaks history scan in CI, with current fake redaction-test literals removed and historical fixture false positives constrained by repo-root config
+- [x] Root documentation hygiene for agent-host interop: legacy root-level MCP
+  checklist moved into `docs/MCP_A2A_INTEROP_CHECKLIST.md`, refreshed against
+  current official MCP, A2A, and agentic AI security guidance, and linked from
+  the docs index.
 - [ ] Supply chain (remaining): switch CI installs to `uv sync --frozen`; add a scheduled `uv lock --upgrade` behind review; (if publishing) OIDC trusted publishing + GitHub build-provenance attestation
 - [ ] Align tracing with OpenTelemetry semantic conventions; evaluate `structlog` for the logging surface
 - [ ] Extract a reusable CI workflow + Copier/template repo so sibling projects (recon, distillr, primr) inherit the same standard from day zero

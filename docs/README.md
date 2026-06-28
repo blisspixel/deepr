@@ -20,6 +20,7 @@ understand why it works the way it does.
 - **[EXPERTS.md](EXPERTS.md)** - Domain expert system guide
 - **[MODELS.md](MODELS.md)** - Model selection and provider guide
 - **[../mcp/README.md](../mcp/README.md)** - MCP server setup and tools
+- **[MCP_A2A_INTEROP_CHECKLIST.md](MCP_A2A_INTEROP_CHECKLIST.md)** - Current MCP and A2A host interop review checklist
 
 ## Technical
 
