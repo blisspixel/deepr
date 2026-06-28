@@ -9,7 +9,7 @@ from datetime import UTC, datetime, timedelta
 
 import pytest
 
-from deepr.core.contracts import ExplorationAgenda, ExpertHypothesis
+from deepr.core.contracts import ExpertConcept, ExplorationAgenda, ExpertHypothesis
 from deepr.experts.metacognition import DomainConfidence, KnowledgeGap, MetaCognitionTracker
 
 
@@ -210,6 +210,40 @@ class TestMetaCognitionTracker:
         assert temp_tracker.get_hypotheses()[0].title == hypothesis.title
         assert temp_tracker.uncertainty_log[-1]["action"] == "promoted_hypothesis_candidate"
 
+    def test_promote_concept_candidate(self, temp_tracker):
+        """Test promoting a reviewed expert concept."""
+        concept = ExpertConcept.create(
+            "Statistical variable map",
+            description="A reusable variable map for expert council plan review.",
+            origin="Reviewed compiler output.",
+            rationale="The expert needs a durable concept without treating it as fact.",
+            uncertainty="The concept has not been calibrated across domains yet.",
+            key_properties=["Variables are explicit.", "Outcomes are reviewable."],
+            related_terms=["consult trace", "quality review"],
+            expected_observations=["Future plans cite this variable map."],
+            disconfirming_signals=["Plans become harder to review when it is used."],
+        )
+
+        promoted, created = temp_tracker.promote_concept_candidate(
+            concept,
+            proposal_id="concept-1",
+            evidence_refs=["source_note:note:w0"],
+            source="test",
+        )
+        replayed, replay_created = temp_tracker.promote_concept_candidate(
+            concept,
+            proposal_id="concept-1",
+            evidence_refs=["source_note:note:w0"],
+            source="test",
+        )
+
+        assert created is True
+        assert replay_created is False
+        assert promoted.name == concept.name
+        assert replayed.name == concept.name
+        assert temp_tracker.get_concepts()[0].name == concept.name
+        assert temp_tracker.uncertainty_log[-1]["action"] == "promoted_concept_candidate"
+
     def test_get_knowledge_gaps_default(self, temp_tracker):
         """Test get_knowledge_gaps with default threshold."""
         temp_tracker.record_knowledge_gap("Topic 1")
@@ -396,6 +430,32 @@ class TestMetaCognitionTrackerPersistence:
 
             assert "Use variable-level trace review for expert council math." in tracker2.hypotheses
             assert len(tracker2.get_hypotheses()) == 1
+
+    def test_save_and_load_concepts(self):
+        """Test saving and loading expert concepts."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            tracker1 = MetaCognitionTracker("Test Expert", tmpdir)
+            tracker1.promote_concept_candidate(
+                ExpertConcept.create(
+                    "Statistical variable map",
+                    description="A reusable variable map for expert council plan review.",
+                    origin="Reviewed compiler output.",
+                    rationale="Concept state should be durable before reuse.",
+                    uncertainty="The concept has not been calibrated across domains yet.",
+                    key_properties=["Variables are explicit."],
+                    related_terms=["consult trace"],
+                    expected_observations=["Future plans cite this variable map."],
+                    disconfirming_signals=["Review quality drops when it is used."],
+                ),
+                proposal_id="concept-1",
+                evidence_refs=[],
+                source="test",
+            )
+
+            tracker2 = MetaCognitionTracker("Test Expert", tmpdir)
+
+            assert "Statistical variable map" in tracker2.concepts
+            assert len(tracker2.get_concepts()) == 1
 
     def test_save_and_load_research_triggered(self):
         """Test saving and loading research triggered state."""

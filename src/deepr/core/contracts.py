@@ -347,6 +347,76 @@ class ExplorationAgenda:
 
 
 @dataclass
+class ExpertConcept:
+    """A verified but non-factual expert concept.
+
+    Concepts preserve reusable mental models and vocabulary as perspective
+    state. They can guide future reasoning without becoming factual claims.
+    """
+
+    id: str
+    name: str
+    description: str
+    origin: str = ""
+    rationale: str = ""
+    uncertainty: str = ""
+    key_properties: list[str] = field(default_factory=list)
+    related_terms: list[str] = field(default_factory=list)
+    expected_observations: list[str] = field(default_factory=list)
+    disconfirming_signals: list[str] = field(default_factory=list)
+    priority: int = 3
+    confidence: float = 0.0
+    created_at: datetime = field(default_factory=_utc_now)
+    status: str = "active"
+
+    @classmethod
+    def create(cls, name: str, **kwargs: Any) -> "ExpertConcept":
+        """Create a concept with a content-hash ID."""
+        description = str(kwargs.pop("description", "") or name)
+        id_hash = hashlib.sha256(f"{name}|{description}".encode()).hexdigest()[:12]
+        return cls(id=id_hash, name=name, description=description, **kwargs)
+
+    def to_dict(self) -> dict[str, Any]:
+        """Convert to dictionary for serialization."""
+        return {
+            "id": self.id,
+            "name": self.name,
+            "description": self.description,
+            "origin": self.origin,
+            "rationale": self.rationale,
+            "uncertainty": self.uncertainty,
+            "key_properties": self.key_properties,
+            "related_terms": self.related_terms,
+            "expected_observations": self.expected_observations,
+            "disconfirming_signals": self.disconfirming_signals,
+            "priority": self.priority,
+            "confidence": self.confidence,
+            "created_at": self.created_at.isoformat(),
+            "status": self.status,
+        }
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> "ExpertConcept":
+        """Create from dictionary."""
+        return cls(
+            id=data["id"],
+            name=data["name"],
+            description=data["description"],
+            origin=str(data.get("origin", "") or ""),
+            rationale=str(data.get("rationale", "") or ""),
+            uncertainty=str(data.get("uncertainty", "") or ""),
+            key_properties=_string_list(data.get("key_properties", [])),
+            related_terms=_string_list(data.get("related_terms", [])),
+            expected_observations=_string_list(data.get("expected_observations", [])),
+            disconfirming_signals=_string_list(data.get("disconfirming_signals", [])),
+            priority=int(data.get("priority", 3)),
+            confidence=float(data.get("confidence", 0.0)),
+            created_at=datetime.fromisoformat(data["created_at"]) if data.get("created_at") else _utc_now(),
+            status=str(data.get("status", "active") or "active"),
+        )
+
+
+@dataclass
 class ExpertHypothesis:
     """A verified but not factual expert hypothesis.
 

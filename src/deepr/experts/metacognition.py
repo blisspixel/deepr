@@ -11,7 +11,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
-    from deepr.core.contracts import ExpertHypothesis, ExplorationAgenda, Gap
+    from deepr.core.contracts import ExpertConcept, ExpertHypothesis, ExplorationAgenda, Gap
 
 logger = logging.getLogger(__name__)
 
@@ -102,6 +102,24 @@ def _hypothesis_candidate_log(hypothesis: "ExpertHypothesis") -> dict[str, Any]:
     }
 
 
+def _concept_candidate_log(concept: "ExpertConcept") -> dict[str, Any]:
+    return {
+        "id": concept.id,
+        "name": concept.name,
+        "description": concept.description,
+        "origin": concept.origin,
+        "rationale": concept.rationale,
+        "uncertainty": concept.uncertainty,
+        "key_properties": list(concept.key_properties),
+        "related_terms": list(concept.related_terms),
+        "expected_observations": list(concept.expected_observations),
+        "disconfirming_signals": list(concept.disconfirming_signals),
+        "priority": concept.priority,
+        "confidence": concept.confidence,
+        "status": concept.status,
+    }
+
+
 class MetaCognitionTracker:
     """Tracks expert's awareness of what it knows and doesn't know."""
 
@@ -116,6 +134,7 @@ class MetaCognitionTracker:
         self.knowledge_gaps: dict[str, KnowledgeGap] = {}
         self.exploration_agendas: dict[str, ExplorationAgenda] = {}
         self.hypotheses: dict[str, ExpertHypothesis] = {}
+        self.concepts: dict[str, ExpertConcept] = {}
         self.domain_confidence: dict[str, DomainConfidence] = {}
         self.uncertainty_log: list[dict] = []
 
@@ -149,7 +168,7 @@ class MetaCognitionTracker:
                     )
 
                 # Load exploration agendas
-                from deepr.core.contracts import ExpertHypothesis, ExplorationAgenda
+                from deepr.core.contracts import ExpertConcept, ExpertHypothesis, ExplorationAgenda
 
                 for title, agenda_data in data.get("exploration_agendas", {}).items():
                     self.exploration_agendas[title] = ExplorationAgenda.from_dict(agenda_data)
@@ -157,6 +176,10 @@ class MetaCognitionTracker:
                 # Load hypotheses
                 for title, hypothesis_data in data.get("hypotheses", {}).items():
                     self.hypotheses[title] = ExpertHypothesis.from_dict(hypothesis_data)
+
+                # Load concepts
+                for name, concept_data in data.get("concepts", {}).items():
+                    self.concepts[name] = ExpertConcept.from_dict(concept_data)
 
                 # Load domain confidence
                 for domain, conf_data in data.get("domain_confidence", {}).items():
@@ -195,6 +218,7 @@ class MetaCognitionTracker:
                 },
                 "exploration_agendas": {title: agenda.to_dict() for title, agenda in self.exploration_agendas.items()},
                 "hypotheses": {title: hypothesis.to_dict() for title, hypothesis in self.hypotheses.items()},
+                "concepts": {name: concept.to_dict() for name, concept in self.concepts.items()},
                 "domain_confidence": {
                     domain: {
                         "domain": conf.domain,
@@ -341,6 +365,34 @@ class MetaCognitionTracker:
         self._save()
         return hypothesis, True
 
+    def promote_concept_candidate(
+        self,
+        concept: "ExpertConcept",
+        *,
+        proposal_id: str,
+        evidence_refs: list[str],
+        source: str = "metacognitive_monitor",
+    ) -> tuple["ExpertConcept", bool]:
+        """Persist a reviewed concept without duplicating names."""
+        existing = self.concepts.get(concept.name)
+        if existing is not None:
+            return existing, False
+
+        self.concepts[concept.name] = concept
+        self.uncertainty_log.append(
+            {
+                "timestamp": datetime.now(UTC).isoformat(),
+                "topic": concept.name,
+                "action": "promoted_concept_candidate",
+                "source": source,
+                "proposal_id": proposal_id,
+                "evidence_refs": evidence_refs,
+                "candidate": _concept_candidate_log(concept),
+            }
+        )
+        self._save()
+        return concept, True
+
     def record_research_triggered(self, topic: str, research_mode: str):
         """Record that research was triggered for a knowledge gap.
 
@@ -426,6 +478,10 @@ class MetaCognitionTracker:
         """Get active expert hypotheses."""
         return [hypothesis for hypothesis in self.hypotheses.values() if hypothesis.status == "active"]
 
+    def get_concepts(self) -> list["ExpertConcept"]:
+        """Get active expert concepts."""
+        return [concept for concept in self.concepts.values() if concept.status == "active"]
+
     def get_high_confidence_domains(self, min_confidence: float = 0.7) -> list[DomainConfidence]:
         """Get domains where expert has high confidence.
 
@@ -483,6 +539,7 @@ class MetaCognitionTracker:
             "total_knowledge_gaps": total_gaps,
             "total_exploration_agendas": len(self.exploration_agendas),
             "total_hypotheses": len(self.hypotheses),
+            "total_concepts": len(self.concepts),
             "researched_gaps": researched_gaps,
             "learned_gaps": learned_gaps,
             "learning_rate": learned_gaps / total_gaps if total_gaps > 0 else 0.0,

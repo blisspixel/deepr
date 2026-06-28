@@ -121,7 +121,10 @@
           "agenda_created": {"type": "boolean"},
           "hypothesis_id": {"type": "string"},
           "hypothesis_title": {"type": "string"},
-          "hypothesis_created": {"type": "boolean"}
+          "hypothesis_created": {"type": "boolean"},
+          "concept_id": {"type": "string"},
+          "concept_name": {"type": "string"},
+          "concept_created": {"type": "boolean"}
         }
       }
     },

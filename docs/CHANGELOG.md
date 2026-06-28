@@ -25,6 +25,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 </details>
 
 ### Added
+- Added `deepr-graph-commit-envelope-v5` with verifier-gated
+  `promote_concept` operations. Verified concept candidates now carry name,
+  description, origin, rationale, uncertainty, key properties, related terms,
+  expected observations, disconfirming signals, priority, confidence,
+  provenance, and an idempotency key through the explicit commit boundary
+  without being treated as factual beliefs.
+- Extended `deepr expert apply-graph-commit` to apply v5 concept promotions
+  into the metacognition concept backlog while preserving v1 through v4
+  envelope compatibility, dry-run previews, noninteractive `--yes` gating,
+  locks, and `$0` no-model apply semantics.
 - Added `deepr-graph-commit-envelope-v4` with verifier-gated
   `promote_hypothesis` operations. Verified hypothesis candidates now carry
   title, statement, origin, rationale, uncertainty, assumptions, expected
