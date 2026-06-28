@@ -60,7 +60,7 @@ Each project must remain fully standalone. No circular dependencies, no import-t
 
 **Rules:**
 
-1. **No Python imports between Deepr ↔ sibling tools.** All communication is via MCP (stdio or HTTP). This means any tool can be upgraded, replaced, or removed without breaking the others.
+1. **No Python imports between Deepr and sibling tools.** All communication is via MCP (stdio or HTTP). This means any tool can be upgraded, replaced, or removed without breaking the others.
 2. **Primr -> Recon is the only direct dependency** (Primr imports recon for its DNS pre-flight). This is fine - it's a lightweight, fast, free call that Primr owns.
 3. **Deepr discovers tools at runtime.** If recon isn't installed, the expert skill simply isn't available. No startup errors, no degraded mode - just fewer instruments.
 4. **Each tool ships its own MCP server.** Deepr connects as a client. The tool doesn't know or care that Deepr is calling it vs. Claude Desktop vs. Cursor.

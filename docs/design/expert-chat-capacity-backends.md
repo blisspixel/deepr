@@ -1,6 +1,6 @@
 # Expert Chat Capacity Backends
 
-Status: design note, refreshed 2026-06-27.
+Status: design note, refreshed 2026-06-28.
 
 Scope: `deepr expert consult`, `deepr_consult_experts`, `deepr expert chat`,
 and `deepr_query_expert`.
@@ -63,12 +63,14 @@ The paid API path cannot be a thin OpenAI wrapper.
   cache controls until TTL, cache-key, pre-warm, cache-miss, privacy, and budget
   estimators are explicit.
 
-References checked:
+References checked 2026-06-28:
 
 - Anthropic Claude API primer:
   https://platform.claude.com/docs/en/claude_api_primer
 - Anthropic model migration guide:
   https://platform.claude.com/docs/en/about-claude/models/migration-guide
+- Anthropic Opus 4.8 API migration notes:
+  https://platform.claude.com/docs/en/about-claude/models/whats-new-claude-4-8
 - Anthropic prompt caching:
   https://docs.anthropic.com/en/docs/build-with-claude/prompt-caching
 - Anthropic Opus 4.8 announcement:
@@ -103,7 +105,7 @@ consult, not grow into an unbounded swarm.
   dissent. `deepr_query_expert` should remain a legacy chat path until it has
   the same backend-neutral budget, usage, and no-fallback guarantees.
 
-Additional references checked:
+Additional references checked 2026-06-28:
 
 - Anthropic multi-agent research system:
   https://www.anthropic.com/engineering/built-multi-agent-research-system
