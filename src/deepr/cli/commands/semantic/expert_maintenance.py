@@ -951,4 +951,5 @@ def learn_web(
 # Register the sibling `expert sync-all` maintenance command. It lives in its own
 # module (kept lean) but registers here rather than in experts.py, which is at
 # its grandfathered file-size cap (the registry line would trip the ratchet).
+from deepr.cli.commands.semantic import expert_graph_commit as _expert_graph_commit  # noqa: F401
 from deepr.cli.commands.semantic import expert_sync_all as _expert_sync_all  # noqa: F401
