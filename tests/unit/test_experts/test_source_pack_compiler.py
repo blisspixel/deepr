@@ -10,6 +10,7 @@ from deepr.experts.graph_commit_envelope import (
     build_graph_commit_envelope,
 )
 from deepr.experts.metacognition import MetaCognitionTracker
+from deepr.experts.semantic_recall import RecallCandidate
 from deepr.experts.source_pack_compiler import (
     CLAIM_VERIFICATION_KIND,
     CLAIM_VERIFICATION_SCHEMA_VERSION,
@@ -539,6 +540,75 @@ def test_claim_verification_records_edge_decisions_without_writing_graph():
         }
     ]
     assert decision["edge_decision_failures"] == [{"index": 1, "failure_reasons": ["unknown_target_candidate_id"]}]
+
+
+def test_claim_verification_attaches_recall_context_without_changing_readiness():
+    notes = build_source_notes(_source_pack_payload())
+    note = notes["notes"][0]
+    window = note["windows"][0]
+    extraction = build_semantic_claim_extraction(
+        notes,
+        {
+            "claims": [
+                {
+                    "statement": "The compiler routes recall candidates before graph writes.",
+                    "claim_kind": "factual_claim",
+                    "confidence": 0.91,
+                    "source_refs": [{"note_id": note["note_id"], "window_id": window["window_id"]}],
+                }
+            ]
+        },
+    )
+    candidate_id = extraction["candidates"][0]["candidate_id"]
+    recall_candidate = RecallCandidate(
+        item_id="belief_recall_1",
+        text="The compiler can expose memory candidates for verifier inspection.",
+        kind="belief",
+        score=0.84,
+        method="vector_similarity",
+        domain="compiler",
+        matched_terms=("compiler", "recall"),
+        payload={"must": "not serialize"},
+        metadata={"source_type": "report"},
+    )
+
+    verification = build_claim_verification(
+        extraction,
+        {
+            "verifications": [
+                {
+                    "candidate_id": candidate_id,
+                    "support_verdict": "supported",
+                    "contradiction_verdict": "none",
+                    "dedup_verdict": "new",
+                    "temporal_scope_verdict": "valid",
+                }
+            ]
+        },
+        recall_candidates_by_candidate_id={candidate_id: [recall_candidate]},
+    )
+
+    decision = verification["decisions"][0]
+    assert decision["readiness"]["ready_for_commit_envelope"] is True
+    assert decision["recall_context"]["routing"] == "candidate_only"
+    assert decision["recall_context"]["semantic_verdict"] is False
+    assert decision["recall_context"]["writes_graph"] is False
+    assert decision["recall_context"]["candidate_count"] == 1
+    assert decision["recall_context"]["candidates"] == [
+        {
+            "item_id": "belief_recall_1",
+            "kind": "belief",
+            "domain": "compiler",
+            "text": "The compiler can expose memory candidates for verifier inspection.",
+            "score": 0.84,
+            "method": "vector_similarity",
+            "matched_terms": ["compiler", "recall"],
+            "metadata": {"source_type": "report"},
+            "verdict": "candidate_only",
+            "guidance": "routing_only",
+        }
+    ]
+    assert "payload" not in decision["recall_context"]["candidates"][0]
 
 
 def test_graph_commit_envelope_plans_idempotent_factual_belief_write():

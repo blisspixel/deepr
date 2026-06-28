@@ -1,6 +1,6 @@
 # Supported Surface
 
-Status: v2.23.0 current main, 2026-06-27. This document defines what users and host
+Status: v2.24.0 current main, 2026-06-28. This document defines what users and host
 agents can rely on today, what is experimental, what is planned only, and what
 data remains portable if development stops.
 
@@ -129,7 +129,9 @@ must not be described as usable capacity.
   `candidate_only` routing metadata only. Original-idea candidates are labeled
   as `perspective_state`, include the non-factual promotion policy, and do not
   imply external verification, support, contradiction, deduplication, or graph
-  writes.
+  writes. Claim-verification decisions can carry these hits in a
+  `recall_context` packet for verifier routing only; the packet is read-only
+  and does not affect commit readiness.
 - `deepr expert monitor` emits a read-only `deepr-metacognitive-monitor-v1`
   artifact with review-required proposals derived from self-model risks, failed
   loop runs, capacity waits, and sanitized consult trace candidates. It does
@@ -169,8 +171,9 @@ must not be described as usable capacity.
   notes, semantic claim extraction, claim verification, graph commit envelopes,
   and graph commit apply results are experimental but schema-versioned.
   `--compile-claims` can write verifier-pending claim extraction sidecars;
-  claim-verification envelopes record verifier decisions and optional
-  candidate-to-candidate typed edge decisions; graph commit envelopes plan
+  claim-verification envelopes record verifier decisions, optional
+  candidate-to-candidate typed edge decisions, and `candidate_only` recall
+  context packets; graph commit envelopes plan
   idempotent writes without mutating state. `deepr-graph-commit-envelope-v1`
   is belief-only; `deepr-graph-commit-envelope-v2` adds verifier-gated
   `promote_gap` operations for the metacognition gap backlog;

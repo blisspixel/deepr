@@ -1,6 +1,6 @@
 # MCP and A2A Interop Checklist
 
-Status: current with Deepr v2.23.0. Last reviewed: 2026-06-27.
+Status: current with Deepr v2.24.0. Last reviewed: 2026-06-28.
 
 Use this checklist when connecting Deepr experts to another agent host through
 MCP or A2A. It is a compact integration review, not the command guide. For

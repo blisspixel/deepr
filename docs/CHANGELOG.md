@@ -25,6 +25,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 </details>
 
 ### Added
+- Added compiler-side recall context for claim verification decisions.
+  `build_claim_verification` can now attach caller-supplied belief, concept, or
+  original-idea recall hits under a `candidate_only` `recall_context` packet so
+  the verifier can inspect memory-quality candidates without changing readiness
+  or writing the graph.
 - Added read-only original-idea recall candidates over metacognitive state.
   `recall_original_idea_candidates` and `MetaCognitionTracker` now route active
   original ideas through the existing `candidate_only` recall contract with
