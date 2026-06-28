@@ -382,6 +382,13 @@ deepr expert why "Azure Architect" "landing zone subscription vending"
 deepr expert why "Azure Architect" belief-a1b2c3 --depth 3 --json
 ```
 
+### Recall Boundary
+Local recall is a router, not a verdict. Belief, concept, and original-idea
+recall candidates return `candidate_only` metadata for the next verifier or
+context-selection step. Original-idea candidates are labeled as
+`perspective_state`, carry the non-factual promotion policy, and cannot become
+verified external facts without a later review or graph-commit path.
+
 ### Self-Model (read-only current state)
 Build a derived `deepr-expert-self-model-v1` record from the profile and
 manifest. It reports capabilities, limits, current goals, calibration, learning

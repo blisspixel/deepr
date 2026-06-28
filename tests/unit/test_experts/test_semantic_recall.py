@@ -4,13 +4,16 @@ from __future__ import annotations
 
 from unittest.mock import patch
 
+from deepr.core.contracts import ExpertOriginalIdea
 from deepr.experts.beliefs import Belief, BeliefStore
 from deepr.experts.lazy_graph_rag import Concept
+from deepr.experts.metacognition import MetaCognitionTracker
 from deepr.experts.semantic_recall import (
     CANDIDATE_ONLY,
     LEXICAL_METHOD,
     VECTOR_METHOD,
     recall_concept_candidates,
+    recall_original_idea_candidates,
 )
 
 
@@ -143,3 +146,64 @@ def test_recall_does_not_write_belief_store(tmp_path):
 
     assert len(candidates) == 1
     assert store.get_recent_changes(limit=10)
+
+
+def test_original_idea_recall_is_labeled_as_perspective_state():
+    idea = ExpertOriginalIdea.create(
+        "Statistician council packets",
+        statement="Use a statistician council to turn agent consults into measurable review packets.",
+        rationale="The expert should retain the idea without treating it as an external fact.",
+        uncertainty="The idea still needs repeated consult-trace evidence.",
+        assumptions=["Consult traces can expose variables, outcomes, and tradeoffs."],
+        implications=["Future expert councils can emit more measurable plans."],
+        expected_observations=["Future consult plans cite variables and acceptance criteria."],
+        disconfirming_signals=["Consult quality does not improve after the idea is used."],
+        confidence=0.72,
+        priority=4,
+    )
+
+    candidates = recall_original_idea_candidates(
+        "measurable statistician review packets",
+        [idea],
+        query_embedding=[1.0, 0.0],
+        original_idea_embeddings={idea.id: [0.96, 0.04]},
+        include_lexical_fallback=False,
+    )
+
+    assert len(candidates) == 1
+    assert candidates[0].item_id == idea.id
+    assert candidates[0].kind == "original_idea"
+    assert candidates[0].method == VECTOR_METHOD
+    assert candidates[0].verdict == CANDIDATE_ONLY
+    assert candidates[0].metadata["authority"] == "perspective_state"
+    assert candidates[0].metadata["factual_claim"] is False
+    assert candidates[0].metadata["semantic_verdict"] is False
+    assert candidates[0].metadata["schema_version"] == "deepr-expert-perspective-state-v1"
+    assert candidates[0].payload is idea
+
+
+def test_original_idea_recall_on_tracker_is_read_only(tmp_path):
+    tracker = MetaCognitionTracker("Recall Ideas Expert", base_path=str(tmp_path))
+    idea = ExpertOriginalIdea.create(
+        "Statistical expert council",
+        statement="A role-diverse expert council should expose variables, assumptions, and disconfirmation checks.",
+        rationale="Planning improves when dissent and metrics are first-class.",
+        expected_observations=["Council outputs include variables and acceptance criteria."],
+        disconfirming_signals=["Plans remain vague after repeated use."],
+        confidence=0.8,
+        priority=5,
+    )
+    tracker.promote_original_idea_candidate(
+        idea,
+        proposal_id="original-idea-recall",
+        evidence_refs=["source_note:note:w0"],
+        source="test",
+    )
+
+    with patch.object(tracker, "_save", side_effect=AssertionError("recall wrote tracker state")):
+        candidates = tracker.recall_original_idea_candidates("expert council disconfirmation metrics", top_k=1)
+
+    assert len(candidates) == 1
+    assert candidates[0].item_id == idea.id
+    assert candidates[0].metadata["promotion_policy"].startswith("Not a verified external fact")
+    assert tracker.uncertainty_log[-1]["action"] == "promoted_original_idea_candidate"
