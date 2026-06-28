@@ -128,7 +128,7 @@ def submit(
     if dep_entry:
         retirement_info = f" (retires {dep_entry.sunset_date})" if dep_entry.sunset_date else ""
         msg = (
-            f"⚠ Model '{dep_entry.old_model}' is deprecated{retirement_info}. "
+            f"WARNING: Model '{dep_entry.old_model}' is deprecated{retirement_info}. "
             f"Recommended successor: {dep_entry.new_model}"
         )
         click.echo(msg, err=True)
@@ -780,7 +780,7 @@ def trace(
             console.print("\n[bold]Task Hierarchy:[/bold]")
             for task in emitter.tasks:
                 indent = "  " if task.parent_task_id else ""
-                status_icon = "✓" if task.status == "completed" else "✗" if task.status == "failed" else "○"
+                status_icon = "OK" if task.status == "completed" else "ERROR" if task.status == "failed" else "."
                 console.print(
                     f"{indent}[{'green' if task.status == 'completed' else 'red'}]{status_icon}[/] {task.task_type}"
                 )

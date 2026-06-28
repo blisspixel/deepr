@@ -133,10 +133,10 @@ class TestCircuitBreakerStateMachineProperty:
 
     For any sequence of success/failure events, the circuit breaker state
     transitions SHALL follow the defined state machine:
-    - CLOSED + (failures >= threshold) → OPEN
-    - OPEN + (timeout elapsed) → HALF_OPEN
-    - HALF_OPEN + success → CLOSED
-    - HALF_OPEN + failure → OPEN
+    - CLOSED + (failures >= threshold) -> OPEN
+    - OPEN + (timeout elapsed) -> HALF_OPEN
+    - HALF_OPEN + success -> CLOSED
+    - HALF_OPEN + failure -> OPEN
 
     Feature: code-quality-security-hardening, Property 5: State Machine
     **Validates: Requirements 6.2, 6.4, 6.5, 6.6**
@@ -145,7 +145,7 @@ class TestCircuitBreakerStateMachineProperty:
     @given(provider=provider_names, model=model_names, threshold=failure_thresholds)
     @settings(max_examples=100, suppress_health_check=[HealthCheck.too_slow])
     def test_closed_to_open_on_threshold_failures(self, provider, model, threshold):
-        """CLOSED → OPEN: After failure_threshold consecutive failures.
+        """CLOSED -> OPEN: After failure_threshold consecutive failures.
 
         **Validates: Requirements 6.2**
         """
@@ -168,7 +168,7 @@ class TestCircuitBreakerStateMachineProperty:
     @given(provider=provider_names, model=model_names, timeout=recovery_timeouts)
     @settings(max_examples=100, suppress_health_check=[HealthCheck.too_slow])
     def test_open_to_half_open_after_timeout(self, provider, model, timeout):
-        """OPEN → HALF_OPEN: After recovery_timeout seconds.
+        """OPEN -> HALF_OPEN: After recovery_timeout seconds.
 
         **Validates: Requirements 6.4**
         """
@@ -196,7 +196,7 @@ class TestCircuitBreakerStateMachineProperty:
     @given(provider=provider_names, model=model_names)
     @settings(max_examples=100, suppress_health_check=[HealthCheck.too_slow])
     def test_half_open_to_closed_on_success(self, provider, model):
-        """HALF_OPEN → CLOSED: On successful request.
+        """HALF_OPEN -> CLOSED: On successful request.
 
         **Validates: Requirements 6.5**
         """
@@ -219,7 +219,7 @@ class TestCircuitBreakerStateMachineProperty:
     @given(provider=provider_names, model=model_names, error=error_messages)
     @settings(max_examples=100, suppress_health_check=[HealthCheck.too_slow])
     def test_half_open_to_open_on_failure(self, provider, model, error):
-        """HALF_OPEN → OPEN: On failed request.
+        """HALF_OPEN -> OPEN: On failed request.
 
         **Validates: Requirements 6.6**
         """

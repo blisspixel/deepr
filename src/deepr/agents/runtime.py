@@ -1,6 +1,6 @@
 """Subagent runtime for bounded parallel fan-out orchestration.
 
-Implements the planner → workers → synthesizer pattern with:
+Implements the planner -> workers -> synthesizer pattern with:
 - Per-subagent budget caps
 - Trace ID propagation
 - Circuit breaker integration
@@ -50,7 +50,7 @@ class FanOutResult:
 
 
 class SubagentRuntime:
-    """Orchestrates planner → workers → synthesizer pattern.
+    """Orchestrates planner -> workers -> synthesizer pattern.
 
     Dispatches queries to parallel workers using asyncio.Semaphore for
     max_concurrent enforcement, enforces per-subagent budget caps,

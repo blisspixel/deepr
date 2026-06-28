@@ -218,14 +218,14 @@ class ThoughtStream:
 
     # Icons for thought types
     ICONS = {
-        ThoughtType.PLAN_STEP: "📋",
-        ThoughtType.TOOL_CALL: "🔧",
-        ThoughtType.EVIDENCE_FOUND: "📄",
-        ThoughtType.CONFIDENCE: "📊",
-        ThoughtType.DECISION: "✅",
-        ThoughtType.SEARCH: "🔍",
-        ThoughtType.SYNTHESIS: "🧠",
-        ThoughtType.ERROR: "❌",
+        ThoughtType.PLAN_STEP: "PLAN",
+        ThoughtType.TOOL_CALL: "TOOL",
+        ThoughtType.EVIDENCE_FOUND: "EVIDENCE",
+        ThoughtType.CONFIDENCE: "CONFIDENCE",
+        ThoughtType.DECISION: "OK:",
+        ThoughtType.SEARCH: "SEARCH",
+        ThoughtType.SYNTHESIS: "SYNTHESIS",
+        ThoughtType.ERROR: "ERROR:",
     }
 
     def __init__(self, expert_name: str, verbose: bool = False, quiet: bool = False, log_dir: Path | None = None):
@@ -614,18 +614,18 @@ class ThoughtStream:
 
             elif thought.thought_type == ThoughtType.SEARCH:
                 tools_called.append(("search", thought.public_text))
-                lines.append(f"- 🔍 {thought.public_text}")
+                lines.append(f"- SEARCH {thought.public_text}")
 
             elif thought.thought_type == ThoughtType.TOOL_CALL:
                 tool_name = thought.private_payload.get("tool", "unknown") if thought.private_payload else "tool"
                 tools_called.append((tool_name, thought.public_text))
-                lines.append(f"- 🔧 {thought.public_text}")
+                lines.append(f"- TOOL {thought.public_text}")
 
             elif thought.thought_type == ThoughtType.EVIDENCE_FOUND:
                 if thought.evidence_refs:
                     evidence_used.extend(thought.evidence_refs)
                 conf_str = f" ({thought.confidence:.0%})" if thought.confidence else ""
-                lines.append(f"- 📄 {thought.public_text}{conf_str}")
+                lines.append(f"- EVIDENCE {thought.public_text}{conf_str}")
 
             elif thought.thought_type == ThoughtType.DECISION:
                 decisions.append(thought)
@@ -637,7 +637,7 @@ class ThoughtStream:
                 lines.append("")
 
             elif thought.thought_type == ThoughtType.ERROR:
-                lines.append(f"- ❌ {thought.public_text}")
+                lines.append(f"- ERROR: {thought.public_text}")
 
         # Add typed decisions section if available
         if self.decision_records:

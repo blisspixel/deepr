@@ -173,7 +173,7 @@ These are task-specific winners; routing should prefer `best_value` for cost-sen
 - **openai/gpt-5**: **0.64** quality (40.1s, $0.180) - originally 5/18 timed out at 60s. After increasing timeout to 180s, all 18 passed. Still underperforms cheaper models - slow and expensive for the quality.
 
 *Added 2026-02-19:*
-- **gemini/gemini-3.1-pro-preview**: **0.83** quality (39.0s, $0.220) - tied for #1 with gpt-4.1-mini and gemini-2.5-pro. Strong across all task types, especially document_analysis (0.91) and quick_lookup (0.90). Configurable thinking adds latency (~40s avg) but improves reasoning quality vs 3.0 Pro (0.46 → 0.83).
+- **gemini/gemini-3.1-pro-preview**: **0.83** quality (39.0s, $0.220) - tied for #1 with gpt-4.1-mini and gemini-2.5-pro. Strong across all task types, especially document_analysis (0.91) and quick_lookup (0.90). Configurable thinking adds latency (~40s avg) but improves reasoning quality vs 3.0 Pro (0.46 -> 0.83).
 
 Chat best-by-task: document_analysis (gpt-5-mini), knowledge_base (claude-sonnet-4-5), quick_lookup (gemini-3-pro-preview), reasoning (gpt-4.1-mini), synthesis (gpt-4.1), technical_docs (grok-4-fast).
 

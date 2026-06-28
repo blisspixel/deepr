@@ -450,7 +450,7 @@ class AutoBatchExecutor:
         model = item.force_model or (decision.model if decision else "o4-mini-deep-research")
 
         if progress_callback:
-            progress_callback(f"Starting: {item.query[:40]}... → {provider}/{model}")
+            progress_callback(f"Starting: {item.query[:40]}... -> {provider}/{model}")
 
         try:
             # Create minimal output context for batch execution

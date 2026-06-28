@@ -13,7 +13,7 @@ $expertExists = Test-Path "data/experts/midjourney_expert/profile.json"
 
 if (-not $expertExists) {
     Write-Host ""
-    Write-Host "❌ Midjourney Expert not found" -ForegroundColor Red
+    Write-Host "ERROR: Midjourney Expert not found" -ForegroundColor Red
     Write-Host ""
     Write-Host "Create it first:" -ForegroundColor Yellow
     Write-Host '  deepr expert make "Midjourney Expert" --description "Midjourney AI art" --learn --docs 1 --yes' -ForegroundColor White
@@ -21,7 +21,7 @@ if (-not $expertExists) {
     exit 1
 }
 
-Write-Host "✓ Midjourney Expert found" -ForegroundColor Green
+Write-Host "OK Midjourney Expert found" -ForegroundColor Green
 Write-Host ""
 
 # Menu
@@ -47,7 +47,7 @@ switch ($choice) {
     }
     "3" {
         Write-Host ""
-        Write-Host "⚠ WARNING: This will trigger deep research (costs $0.10-0.30, takes 5-20 min)" -ForegroundColor Yellow
+        Write-Host "WARNING: WARNING: This will trigger deep research (costs $0.10-0.30, takes 5-20 min)" -ForegroundColor Yellow
         $confirm = Read-Host "Continue? (y/n)"
         if ($confirm -eq "y") {
             $env:RUN_EXPENSIVE_TESTS = "1"
@@ -77,10 +77,10 @@ switch ($choice) {
         Write-Host "======================================================================" -ForegroundColor Cyan
 
         if ($quickResult -eq 0 -and $workflowResult -eq 0) {
-            Write-Host "✓ All tests passed!" -ForegroundColor Green
+            Write-Host "OK All tests passed!" -ForegroundColor Green
             exit 0
         } else {
-            Write-Host "❌ Some tests failed" -ForegroundColor Red
+            Write-Host "ERROR: Some tests failed" -ForegroundColor Red
             exit 1
         }
     }
@@ -92,9 +92,9 @@ switch ($choice) {
 
 Write-Host ""
 if ($LASTEXITCODE -eq 0) {
-    Write-Host "✓ Test completed successfully" -ForegroundColor Green
+    Write-Host "OK Test completed successfully" -ForegroundColor Green
 } else {
-    Write-Host "❌ Test failed" -ForegroundColor Red
+    Write-Host "ERROR: Test failed" -ForegroundColor Red
 }
 
 exit $LASTEXITCODE

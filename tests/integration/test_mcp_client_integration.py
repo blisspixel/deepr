@@ -1,4 +1,4 @@
-"""Integration test: config → connect → call → budget → trace.
+"""Integration test: config -> connect -> call -> budget -> trace.
 
 Tests the full MCP client flow with mock subprocess.
 No real external dependencies required.
@@ -108,7 +108,7 @@ profiles:
 
 
 class TestBudgetTraceFlow:
-    """Test budget check → trace span → cost recording flow."""
+    """Test budget check -> trace span -> cost recording flow."""
 
     def test_full_budget_trace_flow(self) -> None:
         """Full flow: check budget, create span, record cost."""

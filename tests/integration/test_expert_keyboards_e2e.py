@@ -73,18 +73,18 @@ each key has its own switch mechanism.
 
         # Upload document
         file_id = await provider.upload_document(str(doc_path))
-        print(f"  ✓ Uploaded document: {file_id}")
+        print(f"  OK Uploaded document: {file_id}")
 
         # Create vector store
         vector_store = await provider.create_vector_store(
             name=f"test-keyboards-{datetime.now(UTC).strftime('%Y%m%d%H%M%S')}", file_ids=[file_id]
         )
-        print(f"  ✓ Created vector store: {vector_store.id}")
+        print(f"  OK Created vector store: {vector_store.id}")
 
         # Wait for indexing
         success = await provider.wait_for_vector_store(vector_store.id, timeout=120)
         assert success, "Vector store indexing failed"
-        print("  ✓ Indexing complete")
+        print("  OK Indexing complete")
 
         # Create expert profile
         now = datetime.now(UTC)
@@ -104,7 +104,7 @@ each key has its own switch mechanism.
         # Save profile
         store = ExpertStore()
         store.save(profile)
-        print("  ✓ Expert profile saved\n")
+        print("  OK Expert profile saved\n")
 
         try:
             # Step 2: Generate curriculum (1 doc + 1 quick)
@@ -125,9 +125,9 @@ each key has its own switch mechanism.
 
             assert curriculum is not None, "Curriculum generation failed"
             assert len(curriculum.topics) == 2, f"Expected 2 topics, got {len(curriculum.topics)}"
-            print(f"  ✓ Generated {len(curriculum.topics)} topics")
-            print(f"  ✓ Estimated cost: ${curriculum.total_estimated_cost:.4f}")
-            print(f"  ✓ Estimated time: {curriculum.total_estimated_minutes}min\n")
+            print(f"  OK Generated {len(curriculum.topics)} topics")
+            print(f"  OK Estimated cost: ${curriculum.total_estimated_cost:.4f}")
+            print(f"  OK Estimated time: {curriculum.total_estimated_minutes}min\n")
 
             # Display topics
             for i, topic in enumerate(curriculum.topics, 1):
@@ -146,12 +146,12 @@ each key has its own switch mechanism.
             )
 
             assert progress is not None, "Curriculum execution failed"
-            print(f"  ✓ Completed: {len(progress.completed_topics)} topics")
-            print(f"  ✓ Failed: {len(progress.failed_topics)} topics")
-            print(f"  ✓ Actual cost: ${progress.total_cost:.4f}")
+            print(f"  OK Completed: {len(progress.completed_topics)} topics")
+            print(f"  OK Failed: {len(progress.failed_topics)} topics")
+            print(f"  OK Actual cost: ${progress.total_cost:.4f}")
 
             duration = (progress.completed_at - progress.started_at).total_seconds()
-            print(f"  ✓ Duration: {duration:.0f}s\n")
+            print(f"  OK Duration: {duration:.0f}s\n")
 
             # Step 4: Validate expert learned something
             print("Step 4: Validating expert knowledge...")
@@ -162,14 +162,14 @@ each key has its own switch mechanism.
 
             # Check metadata updates
             assert updated_profile.total_documents > 1, "No new documents added"
-            print(f"  ✓ Documents: {profile.total_documents} → {updated_profile.total_documents}")
+            print(f"  OK Documents: {profile.total_documents} -> {updated_profile.total_documents}")
 
             assert len(updated_profile.research_jobs) > 0, "No research jobs recorded"
-            print(f"  ✓ Research jobs: {len(updated_profile.research_jobs)}")
+            print(f"  OK Research jobs: {len(updated_profile.research_jobs)}")
 
             # Check beliefs were formed
             if hasattr(updated_profile, "beliefs") and updated_profile.beliefs:
-                print(f"  ✓ Beliefs formed: {len(updated_profile.beliefs)}")
+                print(f"  OK Beliefs formed: {len(updated_profile.beliefs)}")
 
                 # Display sample beliefs
                 for belief_key, belief_data in list(updated_profile.beliefs.items())[:3]:
@@ -177,7 +177,7 @@ each key has its own switch mechanism.
                     statement = belief_data.get("statement", "")[:80]
                     print(f"    - {statement}... (confidence: {confidence:.2f})")
             else:
-                print("  ⚠ No beliefs formed yet (may need synthesis)")
+                print("  WARNING: No beliefs formed yet (may need synthesis)")
 
             print()
 
@@ -210,7 +210,7 @@ each key has its own switch mechanism.
                             term in response_lower for term in ["cherry", "red", "brown", "blue", "linear", "tactile"]
                         )
                         assert has_switches, "Response doesn't mention switch types"
-                        print("  ✓ Mentioned switch types")
+                        print("  OK Mentioned switch types")
 
                     if "benefit" in question.lower():
                         # Should mention benefits
@@ -218,18 +218,18 @@ each key has its own switch mechanism.
                             term in response_lower for term in ["durability", "typing", "customizable", "rollover"]
                         )
                         assert has_benefits, "Response doesn't mention benefits"
-                        print("  ✓ Mentioned benefits")
+                        print("  OK Mentioned benefits")
 
                     # Show excerpt
                     excerpt = response[:150] + "..." if len(response) > 150 else response
                     print(f"  A: {excerpt}")
 
                 except Exception as e:
-                    print(f"  ✗ Error: {e}")
+                    print(f"  ERROR Error: {e}")
                     raise
 
             print(f"\n{'=' * 70}")
-            print("  ✅ E2E Test PASSED")
+            print("  OK: E2E Test PASSED")
             print(f"{'=' * 70}\n")
 
             print("Summary:")
@@ -237,7 +237,7 @@ each key has its own switch mechanism.
             print(f"  - Documents: {updated_profile.total_documents}")
             print(f"  - Research jobs: {len(updated_profile.research_jobs)}")
             print(f"  - Total cost: ${progress.total_cost:.4f}")
-            print("  - Can answer domain questions: ✓")
+            print("  - Can answer domain questions: OK")
 
         finally:
             # Cleanup
@@ -246,10 +246,10 @@ each key has its own switch mechanism.
             # Delete expert profile
             if store.load(expert_name):
                 store.delete(expert_name)
-                print("  ✓ Deleted expert profile")
+                print("  OK Deleted expert profile")
 
             # Note: Vector store cleanup would require API call
-            print(f"  ⚠ Vector store {vector_store.id} should be manually deleted")
+            print(f"  WARNING: Vector store {vector_store.id} should be manually deleted")
             print(f"    Run: deepr knowledge delete {vector_store.id}")
 
 

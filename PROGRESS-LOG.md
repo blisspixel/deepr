@@ -3,6 +3,25 @@
 Working log only. Keep the latest five cycles plus the active cycle here; older
 completed milestones are summarized in `docs/CHANGELOG.md`.
 
+## 2026-06-27 - Cycle 15 - MCP consult validation harness
+
+- Added `deepr mcp validate-consult`, a no-metered validation harness for
+  external-agent expert consult. It supports offline fixture validation,
+  in-process live local or explicit plan capacity, and HTTP endpoint validation.
+- Published `deepr-consult-v1` and `deepr-mcp-consult-validation-v1` schemas.
+  MCP `deepr_consult_experts` now advertises an output schema and JSON-object
+  tool results return `structuredContent` while preserving text JSON.
+- Validation checks cover schema/kind, trace linkage, collaboration metadata,
+  cost ceiling, no-metered fallback posture, dissent preservation, host action
+  boundary, result artifact refs, and secret redaction. They do not judge answer
+  meaning.
+- Updated README, ROADMAP, MCP guide, agent test guide, expert docs, feature
+  docs, supported-surface docs, schema registry, changelog, current-state
+  analysis, quality rubric, and skills.
+- Validation so far: focused consult-validation, MCP CLI, MCP JSON-RPC, and
+  schema tests `78 passed`; offline CLI validation passed at `$0`.
+- Spend: `$0.00`.
+
 ## 2026-06-27 - Cycle 14 - Reviewed consult-quality scoring
 
 - Added `deepr expert review-consult-quality`, a `$0` preview-first command for
@@ -82,64 +101,4 @@ completed milestones are summarized in `docs/CHANGELOG.md`.
   disconfirming signals instead of masquerading as verified external facts.
 - Validation passed: docs consistency, whitespace diff check, punctuation and
   attribution scan, and Gitleaks full-history scan.
-- Spend: `$0.00`.
-
-## 2026-06-27 - Cycle 10 - Budget-gated claim compiler invocation
-
-- Added `SemanticClaimExtractor`, a budget-gated, OpenAI-shaped chat-client
-  invocation layer for `deepr-semantic-claim-extraction-v1`.
-- Built bounded source-window prompts from source-pack payloads plus source
-  notes, quarantined untrusted source excerpts with the existing prompt
-  sanitizer, and kept raw prompt text out of persisted envelopes.
-- Enforced no-surprise spend rules: local and plan paths can run at `$0` inside
-  Deepr, metered paths require explicit opt-in, budget headroom, cost-safety
-  reservation, cost-ledger settlement, and prompt-visible estimates for known
-  claim-compilation spend on metered plan paths.
-- Added explicit `deepr expert sync --compile-claims`, wired through the shared
-  maintenance backend builder for local, plan-quota, and metered OpenAI-shaped
-  clients. The sidecar writes claim-extraction artifacts only; graph writes
-  remain disabled.
-- Attached claim-extraction artifact refs to sync outcomes and loop context
-  when present, without changing default sync behavior or absorbing verifier
-  pending candidates as beliefs.
-- Updated README, ROADMAP, capacity docs, feature docs, changelog, and
-  `AGENTIC_BALANCE.md` so the shipped state and next work are clear: claim
-  verification and the commit envelope remain next.
-- Validation passed: `ruff check`; `ruff format --check`; strict mypy gate for
-  `core/providers/mcp`; docs consistency; file-size ratchet; complexity and
-  security ratchets; Gitleaks full-history scan; `pip-audit`; focused tests `78
-  passed`; full unit suite `6772 passed, 8 skipped`; branch coverage `83%`.
-- Maker-checker score: correctness 5/5, security 5/5, performance 5/5,
-  maintainability 5/5, simplicity 5/5, testability 5/5.
-- Spend: `$0.00`.
-
-Cycle health: 5/5 | Simplicity: 5/5 | Est. spend: $0.00 | New skill distilled: sidecar compiler invocation
-
-## 2026-06-26 - Cycle 9 - README and docs clarity pass
-
-- Reworked README into a concise front door: product framing, quick start, what
-  works now, core workflows, agentic-balance guardrails, cost controls,
-  supported-surface summary, and documentation links.
-- Moved detailed local, plan-quota, metered API, scheduler, and cost-accounting
-  operations into new `docs/CAPACITY.md`.
-- Refined the ROADMAP next-order language so verifier-gated self-model updates
-  are explicitly reviewable evidence-backed proposals, not autonomous
-  self-mutation or authority expansion.
-- Clarified the research-processing compiler boundary: deterministic code owns
-  source snapshots, hashes, prompt/schema versions, commit points, and
-  regenerated views; calibrated model judgment owns meaning.
-- Added a costing deep dive to `docs/CAPACITY.md` from current provider docs:
-  cached-token buckets, server-side tool costs, exact provider settlement,
-  tier modifiers, and why cache controls wait for TTL/cache-key/pre-warm
-  estimators.
-- Ran a Markdown cleanup for emoji markers and AI-attribution-shaped phrases,
-  plus a repository-wide literal em/en dash cleanup in tracked text files.
-- Validation passed: repository-wide literal em/en dash scan; Markdown emoji
-  and AI-attribution scans; `ruff check src/deepr/`; `ruff format --check
-  src/deepr/`; docs consistency; file-size ratchet; complexity/security
-  ratchets; strict mypy gate for `core/providers/mcp`; frontend `npm run lint`,
-  `npx tsc --noEmit`, and `npx vite build`; full unit suite `6726 passed, 8
-  skipped`, branch coverage `83.20%`.
-- Maker-checker target score: correctness 5/5, security 5/5, performance 5/5,
-  maintainability 5/5, simplicity 5/5, testability 5/5.
 - Spend: `$0.00`.

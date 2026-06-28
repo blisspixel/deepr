@@ -32,7 +32,7 @@ async def test_scenario_1_simple_question():
     expert = store.load("Midjourney Expert")
 
     if not expert:
-        print("❌ Midjourney Expert not found. Create it first:")
+        print("ERROR: Midjourney Expert not found. Create it first:")
         print('   deepr expert make "Midjourney Expert" --description "Midjourney AI art" --learn --docs 1 --yes')
         return False
 
@@ -58,28 +58,28 @@ async def test_scenario_1_simple_question():
     try:
         response = await session.send_message(query, status_callback=track_status)
 
-        print(f"\n✓ Response received ({len(response)} chars)")
-        print(f"✓ Cost: ${session.cost_accumulated:.4f}")
-        print(f"✓ Tool calls: {len(tool_calls_made)}")
+        print(f"\nOK Response received ({len(response)} chars)")
+        print(f"OK Cost: ${session.cost_accumulated:.4f}")
+        print(f"OK Tool calls: {len(tool_calls_made)}")
 
         # Check reasoning trace
         kb_searches = [t for t in session.reasoning_trace if t.get("step") == "search_knowledge_base"]
         web_searches = [t for t in session.reasoning_trace if t.get("step") == "standard_research"]
 
-        print(f"✓ Knowledge base searches: {len(kb_searches)}")
-        print(f"✓ Web searches: {len(web_searches)}")
+        print(f"OK Knowledge base searches: {len(kb_searches)}")
+        print(f"OK Web searches: {len(web_searches)}")
 
         # For simple questions, expert might search KB or answer directly
         # Both are acceptable - we just want to verify it works
         if len(response) > 50:
-            print("✓ PASS: Got substantive answer")
+            print("OK PASS: Got substantive answer")
             return True
         else:
-            print("❌ FAIL: Response too short")
+            print("ERROR: FAIL: Response too short")
             return False
 
     except Exception as e:
-        print(f"❌ FAIL: {e}")
+        print(f"ERROR: FAIL: {e}")
         import traceback
 
         traceback.print_exc()
@@ -99,7 +99,7 @@ async def test_scenario_2_domain_question():
     expert = store.load("Midjourney Expert")
 
     if not expert:
-        print("❌ Midjourney Expert not found")
+        print("ERROR: Midjourney Expert not found")
         return False
 
     print(f"Expert: {expert.name}")
@@ -114,34 +114,34 @@ async def test_scenario_2_domain_question():
     try:
         response = await session.send_message(query, status_callback=lambda s: print(f"  Status: {s}"))
 
-        print(f"\n✓ Response received ({len(response)} chars)")
-        print(f"✓ Cost: ${session.cost_accumulated:.4f}")
+        print(f"\nOK Response received ({len(response)} chars)")
+        print(f"OK Cost: ${session.cost_accumulated:.4f}")
 
         # Check reasoning trace
         kb_searches = [t for t in session.reasoning_trace if t.get("step") == "search_knowledge_base"]
         web_searches = [t for t in session.reasoning_trace if t.get("step") == "standard_research"]
 
-        print(f"✓ Knowledge base searches: {len(kb_searches)}")
-        print(f"✓ Web searches: {len(web_searches)}")
+        print(f"OK Knowledge base searches: {len(kb_searches)}")
+        print(f"OK Web searches: {len(web_searches)}")
 
         # Should have searched knowledge base
         if len(kb_searches) > 0:
-            print("✓ PASS: Expert searched knowledge base")
+            print("OK PASS: Expert searched knowledge base")
 
             # Should have comprehensive answer
             if len(response) > 200:
-                print("✓ PASS: Got comprehensive answer")
+                print("OK PASS: Got comprehensive answer")
                 return True
             else:
-                print("⚠ WARNING: Response seems short for comprehensive question")
+                print("WARNING: WARNING: Response seems short for comprehensive question")
                 return True  # Still pass, just warn
         else:
-            print("⚠ WARNING: Expected knowledge base search, but expert may have answered directly")
+            print("WARNING: WARNING: Expected knowledge base search, but expert may have answered directly")
             # This is OK if expert is confident - still pass
             return True
 
     except Exception as e:
-        print(f"❌ FAIL: {e}")
+        print(f"ERROR: FAIL: {e}")
         import traceback
 
         traceback.print_exc()
@@ -161,7 +161,7 @@ async def test_scenario_3_current_info():
     expert = store.load("Midjourney Expert")
 
     if not expert:
-        print("❌ Midjourney Expert not found")
+        print("ERROR: Midjourney Expert not found")
         return False
 
     print(f"Expert: {expert.name}")
@@ -176,33 +176,33 @@ async def test_scenario_3_current_info():
     try:
         response = await session.send_message(query, status_callback=lambda s: print(f"  Status: {s}"))
 
-        print(f"\n✓ Response received ({len(response)} chars)")
-        print(f"✓ Cost: ${session.cost_accumulated:.4f}")
+        print(f"\nOK Response received ({len(response)} chars)")
+        print(f"OK Cost: ${session.cost_accumulated:.4f}")
 
         # Check reasoning trace
         kb_searches = [t for t in session.reasoning_trace if t.get("step") == "search_knowledge_base"]
         web_searches = [t for t in session.reasoning_trace if t.get("step") == "standard_research"]
 
-        print(f"✓ Knowledge base searches: {len(kb_searches)}")
-        print(f"✓ Web searches: {len(web_searches)}")
+        print(f"OK Knowledge base searches: {len(kb_searches)}")
+        print(f"OK Web searches: {len(web_searches)}")
 
         # Should have done web search for current info
         if len(web_searches) > 0:
-            print("✓ PASS: Expert did web search for current information")
+            print("OK PASS: Expert did web search for current information")
             return True
         else:
-            print("⚠ WARNING: Expected web search for current info")
+            print("WARNING: WARNING: Expected web search for current info")
             # Expert might have answered from KB if it has recent docs
             # Check if response mentions it doesn't have current info
             if "don't have" in response.lower() or "not in my" in response.lower():
-                print("✓ PASS: Expert acknowledged knowledge gap")
+                print("OK PASS: Expert acknowledged knowledge gap")
                 return True
             else:
-                print("⚠ Expert answered without web search - may have recent docs")
+                print("WARNING: Expert answered without web search - may have recent docs")
                 return True  # Still pass
 
     except Exception as e:
-        print(f"❌ FAIL: {e}")
+        print(f"ERROR: FAIL: {e}")
         import traceback
 
         traceback.print_exc()
@@ -223,7 +223,7 @@ async def test_scenario_4_complex_question():
         print("\n" + "=" * 70)
         print("SCENARIO 4: Complex Question (Deep Research) - SKIPPED")
         print("=" * 70)
-        print("⚠ Skipping expensive test (costs $0.10-0.30, takes 5-20 min)")
+        print("WARNING: Skipping expensive test (costs $0.10-0.30, takes 5-20 min)")
         print("  Set RUN_EXPENSIVE_TESTS=1 to enable")
         return True  # Pass by default
 
@@ -235,7 +235,7 @@ async def test_scenario_4_complex_question():
     expert = store.load("Midjourney Expert")
 
     if not expert:
-        print("❌ Midjourney Expert not found")
+        print("ERROR: Midjourney Expert not found")
         return False
 
     print(f"Expert: {expert.name}")
@@ -246,29 +246,29 @@ async def test_scenario_4_complex_question():
     query = "Design a comprehensive workflow for a creative agency using Midjourney, including prompt templates, style management, version control, and team collaboration strategies"
     print(f"\nQuery: {query}")
     print("Expected: Recognize complexity, trigger deep research\n")
-    print("⚠ This will cost $0.10-0.30 and take 5-20 minutes")
+    print("WARNING: This will cost $0.10-0.30 and take 5-20 minutes")
 
     try:
         response = await session.send_message(query, status_callback=lambda s: print(f"  Status: {s}"))
 
-        print(f"\n✓ Response received ({len(response)} chars)")
-        print(f"✓ Cost: ${session.cost_accumulated:.4f}")
+        print(f"\nOK Response received ({len(response)} chars)")
+        print(f"OK Cost: ${session.cost_accumulated:.4f}")
 
         # Check reasoning trace
         deep_research = [t for t in session.reasoning_trace if t.get("step") == "deep_research"]
 
-        print(f"✓ Deep research triggered: {len(deep_research)}")
+        print(f"OK Deep research triggered: {len(deep_research)}")
 
         if len(deep_research) > 0:
-            print("✓ PASS: Expert triggered deep research for complex question")
+            print("OK PASS: Expert triggered deep research for complex question")
             return True
         else:
-            print("⚠ WARNING: Expected deep research, but expert may have answered from knowledge")
+            print("WARNING: WARNING: Expected deep research, but expert may have answered from knowledge")
             # This is OK - expert might have sufficient knowledge
             return True
 
     except Exception as e:
-        print(f"❌ FAIL: {e}")
+        print(f"ERROR: FAIL: {e}")
         import traceback
 
         traceback.print_exc()
@@ -281,10 +281,10 @@ async def run_all_tests():
     print("EXPERT AGENTIC WORKFLOW TESTS")
     print("=" * 70)
     print("\nValidating natural expert thinking:")
-    print("1. Simple questions → Direct answer")
-    print("2. Domain questions → Search knowledge base")
-    print("3. Current info → Web search")
-    print("4. Complex questions → Deep research (optional)")
+    print("1. Simple questions -> Direct answer")
+    print("2. Domain questions -> Search knowledge base")
+    print("3. Current info -> Web search")
+    print("4. Complex questions -> Deep research (optional)")
 
     results = []
 
@@ -303,16 +303,16 @@ async def run_all_tests():
     total = len(results)
 
     for name, result in results:
-        status = "✓ PASS" if result else "❌ FAIL"
+        status = "OK PASS" if result else "ERROR: FAIL"
         print(f"{status}: {name}")
 
     print(f"\nResults: {passed}/{total} tests passed")
 
     if passed == total:
-        print("\n✓ ALL TESTS PASSED - Expert agentic workflow working correctly!")
+        print("\nOK ALL TESTS PASSED - Expert agentic workflow working correctly!")
         return True
     else:
-        print(f"\n❌ {total - passed} test(s) failed")
+        print(f"\nERROR: {total - passed} test(s) failed")
         return False
 
 

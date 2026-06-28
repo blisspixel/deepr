@@ -1,6 +1,6 @@
 # MCP Integration Guide
 
-**Status**: dynamic discovery, resource subscriptions, prompt templates, structured errors
+**Status**: dynamic discovery, resource subscriptions, prompt templates, structured errors, structured JSON results
 
 Deepr exposes research and expert capabilities via Model Context Protocol (MCP) for AI agents including OpenClaw, Claude Desktop, Cursor, VS Code, and Zed. For a no-surprise-cost agent test path, see [docs/MCP_AGENT_TEST_GUIDE.md](../docs/MCP_AGENT_TEST_GUIDE.md).
 
@@ -51,10 +51,22 @@ model selection; treat it as metered-capable unless the operator approves it.
 non-retryable error in a loop.
 
 **Handoff is machine-validated.** Every artifact carries `schema_version` and
-`kind` and is validated before it leaves Deepr; read those instead of
+`kind`; JSON-object tool results also return MCP `structuredContent` while
+retaining text JSON for older clients. Read those contracts instead of
 pattern-matching prose. Deepr recommends and returns artifacts; your harness
 decides and enacts. See [docs/MCP_AGENT_TEST_GUIDE.md](../docs/MCP_AGENT_TEST_GUIDE.md)
 for a $0 end-to-end script.
+
+**Validate before a real remote consult.** `deepr mcp smoke-http` proves
+endpoint reachability and free tool dispatch. `deepr mcp validate-consult`
+proves the no-metered expert consult contract through an offline fixture,
+in-process live local or plan capacity, or a remote HTTP endpoint:
+
+```bash
+deepr mcp validate-consult --json
+deepr mcp validate-consult --live --synthesis-backend local --expert "AI Agent Harnesses" --json
+deepr mcp validate-consult http://127.0.0.1:8765/mcp --auth-token "$DEEPR_MCP_KEY" --expert "AI Agent Harnesses" --json
+```
 
 ---
 
@@ -390,6 +402,7 @@ Validate a local or proxied endpoint without provider calls:
 ```bash
 deepr mcp smoke-http http://127.0.0.1:8765/mcp
 deepr mcp smoke-http https://mcp.example.com/mcp --auth-token "$DEEPR_MCP_KEY"
+deepr mcp validate-consult https://mcp.example.com/mcp --auth-token "$DEEPR_MCP_KEY" --expert "AI Agent Harnesses" --json
 ```
 
 For remote host setup, emit a token-redacted registration manifest after the

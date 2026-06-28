@@ -111,7 +111,7 @@ def show(daily_limit: float | None, monthly_limit: float | None):
         for alert in summary["active_alerts"]:
             level_color = "red" if alert["level"] == "critical" else "yellow"
             console.print(
-                f"  [{level_color}]●[/{level_color}] "
+                f"  [{level_color}]>[/{level_color}] "
                 f"{alert['period'].title()}: {alert['threshold'] * 100:.0f}% threshold exceeded "
                 f"(${alert['current_value']:.2f} / ${alert['limit']:.2f})"
             )
@@ -200,14 +200,14 @@ def alerts():
     active = dashboard.get_active_alerts()
 
     if not active:
-        console.print("[green]✓ No active cost alerts[/green]")
+        console.print("[green]OK No active cost alerts[/green]")
         return
 
     console.print(f"[bold red]Active Alerts ({len(active)}):[/bold red]\n")
 
     for alert in active:
         level_color = "red" if alert.level == "critical" else "yellow"
-        level_icon = "🔴" if alert.level == "critical" else "🟡"
+        level_icon = "CRITICAL" if alert.level == "critical" else "WARNING"
 
         console.print(
             Panel(
@@ -249,14 +249,14 @@ def limits(daily: float | None, monthly: float | None):
                 console.print("[red]Daily limit must be >= 0[/red]")
                 raise click.Abort()
             dashboard.daily_limit = daily
-            console.print(f"[green]✓ Daily limit set to ${daily:.2f}[/green]")
+            console.print(f"[green]OK Daily limit set to ${daily:.2f}[/green]")
 
         if monthly is not None:
             if monthly < 0:
                 console.print("[red]Monthly limit must be >= 0[/red]")
                 raise click.Abort()
             dashboard.monthly_limit = monthly
-            console.print(f"[green]✓ Monthly limit set to ${monthly:.2f}[/green]")
+            console.print(f"[green]OK Monthly limit set to ${monthly:.2f}[/green]")
 
         try:
             dashboard._save()

@@ -127,16 +127,29 @@ gates, then promotes only accepted reviews into gap or eval artifacts when
 it stores the semantic judgment supplied by the reviewer and owns the side
 effects.
 
+Cycle 15 adds the external-agent consult validation harness. `deepr mcp
+validate-consult` now validates the no-metered consult path as a `$0` offline
+fixture, an in-process live local or explicit plan-capacity check, or an HTTP
+endpoint check. The command emits `deepr-mcp-consult-validation-v1` and checks
+the `deepr-consult-v1` artifact, collaboration metadata, trace linkage, cost
+ceiling, no live metered fallback, dissent preservation, host action boundary,
+result-artifact refs, and secret redaction. MCP JSON-object tool results now
+include `structuredContent` while retaining text JSON, and
+`deepr_consult_experts` advertises an output schema. This is contract
+validation only; answer meaning still belongs to human or calibrated-model
+review.
+
 External best-practice check, current as of 2026-06-27: modern agent harness
 guidance converges on trace-first improvement loops, evals from real failures,
 bounded context packets, explicit handoffs, and deterministic gates around
 spend, writes, tools, and credentials. Deepr's next implementation slices should
 continue that shape: use reviewed consult-quality artifacts for trend reporting
-and regression selection, add calibrated-model judge runs only behind explicit
-local, plan, or budgeted API capacity, verify externally factual claim
-candidates, add concept, hypothesis, stance, and original-idea envelopes with
-state-appropriate gates, then add the one commit envelope that writes typed
-expert graph updates only after the right checks pass.
+and regression selection, map the collaboration contract to A2A task artifacts,
+add calibrated-model judge runs only behind explicit local, plan, or budgeted API
+capacity, verify externally factual claim candidates, add concept, hypothesis,
+stance, and original-idea envelopes with state-appropriate gates, then add the
+one commit envelope that writes typed expert graph updates only after the right
+checks pass.
 
 ## Alignment Summary
 
@@ -502,28 +515,27 @@ contradiction, dedup, and trust-floor gates.
 
 ## Next Work
 
-The consult path for external agents is now validated end to end at $0: a wide
-auto-fan-out (up to 10 experts, relevance-floored) synthesizes through claude
-plan after fixing the cmd.exe arg-mangling bug that silently broke claude-plan
-synthesis on Windows (now routed over stdin like codex). The MCP surface
-(`deepr_list_experts`, `deepr_query_expert`, `deepr_consult_experts`) boots and
-serves the roster. The self-consultation loop is real: Deepr consulted its own
-experts about its own design and got an excellent calibrated answer at $0.
+The consult path for external agents now has repeatable proof instead of
+anecdotal proof: `deepr mcp validate-consult` validates the contract offline,
+in-process, or over HTTP without metered fallback. It covers the machine
+contract a LAN agent needs before asking real questions; it does not claim that
+the expert answer is semantically excellent.
 
 Next slices:
-- Multi-turn consult sessions over MCP/A2A so an external agent can hold a
-  back-and-forth with the expert team, not just one-shot consults.
-- Expose the multi-expert council as an A2A skill on the Agent Card.
-- Fill and re-ground the remaining empty/older experts through the now-fixed
-  extraction pipeline (de-referenced claims, no disclaimer boilerplate), on
-  free/local or plan capacity.
+- Map `deepr-expert-collaboration-v1` and `deepr-consult-v1` onto A2A task
+  artifacts and Agent Card skill metadata.
+- Connect reviewed consult-quality artifacts to trend reporting and consult
+  prompt regression selection.
+- Add calibrated-model judge runs only behind explicit local, plan, or budgeted
+  API capacity.
+- Fill and re-ground remaining empty or older experts through free local or
+  explicit plan capacity, then compare local versus frontier expert quality.
 - Wire Antigravity metadata visibility into the same `QuotaSnapshot` contract.
 
 ## Spend Ledger For This Run
 
 External paid spend: `$0.00`.
 
-This run used one metadata-only Grok billing refresh in a temporary capacity
-data directory to validate `deepr capacity refresh-quota grok`; it did not run a
-model call. No provider generation APIs, embeddings, paid evals, or paid
-research runs were used.
+This run used web research and local validation only. No provider generation
+APIs, embeddings, paid evals, paid research runs, or plan CLI model calls were
+used.

@@ -108,6 +108,12 @@ from deepr.experts.source_pack_compiler import (
     build_source_notes,
     build_source_pack_manifest,
 )
+from deepr.mcp.consult_validation import (
+    MCP_CONSULT_VALIDATION_KIND,
+    MCP_CONSULT_VALIDATION_SCHEMA_VERSION,
+    build_offline_consult_fixture,
+    run_offline_consult_validation,
+)
 from deepr.mcp.security.scoped_keys import AUDIT_KIND, AUDIT_SCHEMA_VERSION, RemoteMCPAuditEvent
 from deepr.mcp.security.tool_allowlist import ResearchMode
 from deepr.mcp.smoke import (
@@ -549,6 +555,26 @@ def test_a2a_task_schema_validates_runtime_payload():
     assert payload["schema_version"] == A2A_TASK_SCHEMA_VERSION
     assert payload["kind"] == A2A_TASK_KIND
     assert payload["contract"]["result_untrusted"] is True
+
+
+def test_consult_schema_validates_runtime_payload():
+    payload = build_offline_consult_fixture(experts=("Contract Expert",))
+    schema = _load_schema("consult-v1.json")
+
+    _validate(schema, payload)
+    assert payload["schema_version"] == "deepr-consult-v1"
+    assert payload["kind"] == "deepr.expert.consult"
+    assert payload["collaboration"]["dissent_handling"]["dissent_preserved"] is True
+
+
+def test_mcp_consult_validation_schema_validates_runtime_payload():
+    payload = run_offline_consult_validation(experts=("Contract Expert",)).to_dict()
+    schema = _load_schema("mcp-consult-validation-v1.json")
+
+    _validate(schema, payload)
+    assert payload["schema_version"] == MCP_CONSULT_VALIDATION_SCHEMA_VERSION
+    assert payload["kind"] == MCP_CONSULT_VALIDATION_KIND
+    assert payload["contract"]["calls_metered_api"] is False
 
 
 def test_consult_trace_schema_validates_runtime_payload():

@@ -67,23 +67,23 @@ Planning Principles), and [docs/plans/AGENTIC_BALANCE.md](docs/plans/AGENTIC_BAL
 
 ## Current Cycle Alignment - 2026-06-27
 
-Active task: add reviewed consult-quality scoring and safe promotion without
-widening brittle rules or turning Deepr into a hidden semantic judge.
+Active task: add no-metered MCP consult validation so external agents can prove
+the expert-consult path before using it for real questions.
 
 Target score before merge:
 
 | Category | Required score | Evidence |
 |---|---:|---|
-| Correctness | 5/5 | Focused tests prove preview is write-free, apply writes review artifacts, accepted reviews can promote gap/eval artifacts, policy-blocked reviews cannot promote, CLI JSON works, and the published review schema validates runtime payloads. |
-| Security | 5/5 | The path is `$0`, requires a reviewer, validates score shape and known labels, writes only explicit artifacts under `--apply`, never commits beliefs, and never makes provider calls. |
-| Performance | 5/5 | The path reuses existing trace candidates and local file writes. No model calls, embeddings, polling, or additional fan-out were added. |
-| Readability | 5/5 | `consult_quality.py` separates scoring validation, artifact writing, and promotion actions. The CLI module follows the sibling command pattern and keeps `experts.py` at registration only. |
-| Maintainability | 5/5 | The schema is registry-backed and tested. Deterministic code owns artifact shape, policy gates, and writes; reviewer or calibrated model judgment owns semantic quality. |
-| Simplicity | 5/5 | One focused review command closes the scoring loop without adding a judge runner, scheduler, or backend abstraction before it is needed. |
+| Correctness | 5/5 | Focused tests prove offline validation, HTTP validation, secret-echo detection, no-metered fallback failure detection, CLI JSON, MCP structuredContent, outputSchema, and published schema validation. |
+| Security | 5/5 | Validation costs `$0`, writes no state, uses only local/plan backends, fails closed on unavailable capacity, verifies cost ceiling and no live metered fallback, and checks that provided auth secrets are not echoed. |
+| Performance | 5/5 | Offline mode uses no model, endpoint validation makes one initialize and one consult call, and live mode is explicit. No polling, embeddings, hidden provider calls, or extra fan-out were added. |
+| Readability | 5/5 | `consult_validation.py` separates payload checks, offline fixture creation, in-process validation, HTTP validation, and report serialization. CLI rendering is thin. |
+| Maintainability | 5/5 | `deepr-consult-v1` and `deepr-mcp-consult-validation-v1` are registry-backed and tested. Checks guard form and side effects only; answer meaning remains with reviewed semantic judge paths. |
+| Simplicity | 5/5 | One validation command covers offline, live local/plan, and HTTP without adding a new orchestrator or chat path. Existing consult core and HTTP client are reused. |
 
-Cycle 14 keeps the agentic boundary intact: trace signals can route a consult
-into review, and reviewer-provided scores can gate promotion, but Deepr does
-not infer semantic quality from words or keywords.
+Cycle 15 keeps the agentic boundary intact: validation can prove schemas,
+trace linkage, capacity, cost, secret handling, and host action boundaries, but
+it does not infer whether an answer is insightful from words or keywords.
 
 ## How to score (maker-checker)
 

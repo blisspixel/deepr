@@ -24,7 +24,7 @@ Based on current research and production patterns, an agentic system in 2026 has
 | Capability | State of the Art | Deepr Today | Gap |
 |-----------|-----------------|-------------|-----|
 | **Planning** - decompose goals into steps | Multi-step planning with replanning on failure | Expert task planning exists but is chat-driven | Experts should autonomously plan research campaigns |
-| **Reflection** - critique own output, self-correct | Generate → critique → revise loops (20% accuracy improvement) | QA exists but is manual/external | Experts should self-evaluate research quality before delivering |
+| **Reflection** - critique own output, self-correct | Generate -> critique -> revise loops (20% accuracy improvement) | QA exists but is manual/external | Experts should self-evaluate research quality before delivering |
 | **Memory** - persistent, structured, cross-session | Graph-based knowledge networks, Zettelkasten-style linking, temporal awareness | Belief states + gap tracking (good foundation) | Need graph-structured memory with temporal decay and confidence evolution |
 | **Tool use** - dynamic selection based on state | Agents choose tools based on current context, not hardcoded sequences | Skills with auto-triggers (good) | Need dynamic tool selection based on gap analysis, not just pattern matching |
 | **Multi-agent coordination** - handoffs, delegation | A2A protocol, structured task delegation with opaque internals | MCP server (good), but no A2A, no structured handoff protocol | Need A2A support + structured task/artifact contracts |
@@ -49,7 +49,7 @@ Based on current research and production patterns, an agentic system in 2026 has
 **The fix:** Add a reflection step to the expert research pipeline:
 
 ```
-Expert receives question →
+Expert receives question ->
   1. Plan research approach (what sources, what tools, what budget)
   2. Execute research (current behavior)
   3. REFLECT: Evaluate own output against criteria:
@@ -57,7 +57,7 @@ Expert receives question →
      - Are there logical gaps or contradictions?
      - Is confidence calibrated (not over/under-confident)?
      - Are there obvious follow-up questions left unanswered?
-  4. If reflection identifies issues → self-correct and re-research specific gaps
+  4. If reflection identifies issues -> self-correct and re-research specific gaps
   5. Deliver with reflection metadata (what was revised, why)
 ```
 
@@ -134,7 +134,7 @@ Future: knowledge_graph = {
 
 ### 4. Dynamic Tool Selection via Gap Analysis
 
-**The gap:** Expert skills trigger on pattern matching (e.g., "domain mentioned" → run recon). This is reactive, not strategic.
+**The gap:** Expert skills trigger on pattern matching (e.g., "domain mentioned" -> run recon). This is reactive, not strategic.
 
 **The fix:** Experts should select tools based on gap analysis:
 
@@ -265,7 +265,7 @@ Without structured handoffs, downstream agents treat Deepr output as opaque text
 **The fix:** Experts can serve as guardrails/validators for other agents:
 
 ```
-Downstream coding agent about to deploy infrastructure change →
+Downstream coding agent about to deploy infrastructure change ->
   Calls Deepr "Cloud Security Expert" as a guardrail:
     "Validate this Terraform plan against known security best practices
      and the target company's compliance requirements"
@@ -325,16 +325,16 @@ MCP has four capability types: Tools, Resources, Prompts, and Sampling. Deepr cu
 
 ```
 Resources (read-only data the host can pull):
-  deepr://experts/list              → all available experts
-  deepr://experts/{name}/knowledge  → expert's current knowledge state
-  deepr://experts/{name}/gaps       → expert's gap backlog
-  deepr://research/recent           → recent research results
-  deepr://costs/summary             → current budget status
+  deepr://experts/list              -> all available experts
+  deepr://experts/{name}/knowledge  -> expert's current knowledge state
+  deepr://experts/{name}/gaps       -> expert's gap backlog
+  deepr://research/recent           -> recent research results
+  deepr://costs/summary             -> current budget status
 
 Prompts (reusable prompt templates):
-  deepr://prompts/research-workflow  → guided research workflow
-  deepr://prompts/expert-consult    → how to consult an expert effectively
-  deepr://prompts/sector-analysis   → sector mapping workflow
+  deepr://prompts/research-workflow  -> guided research workflow
+  deepr://prompts/expert-consult    -> how to consult an expert effectively
+  deepr://prompts/sector-analysis   -> sector mapping workflow
 ```
 
 **2. MCP Sampling (reverse direction)**

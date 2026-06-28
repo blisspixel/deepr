@@ -1,0 +1,94 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/blisspixel/deepr/docs/schemas/mcp-consult-validation-v1.json",
+  "title": "Deepr MCP Consult Validation v1",
+  "type": "object",
+  "additionalProperties": true,
+  "required": [
+    "schema_version",
+    "kind",
+    "generated_at",
+    "contract",
+    "mode",
+    "endpoint",
+    "backend",
+    "question_hash_source",
+    "requested_experts",
+    "cost_ceiling_usd",
+    "summary",
+    "consult_summary",
+    "checks",
+    "error"
+  ],
+  "properties": {
+    "schema_version": {"const": "deepr-mcp-consult-validation-v1"},
+    "kind": {"const": "deepr.mcp.consult_validation"},
+    "generated_at": {"type": "string", "format": "date-time"},
+    "contract": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": [
+        "cost_usd",
+        "writes_state",
+        "calls_metered_api",
+        "semantic_verdict",
+        "checks_form_and_side_effects_only"
+      ],
+      "properties": {
+        "cost_usd": {"const": 0.0},
+        "writes_state": {"const": false},
+        "calls_metered_api": {"const": false},
+        "semantic_verdict": {"const": false},
+        "checks_form_and_side_effects_only": {"const": true}
+      }
+    },
+    "mode": {"type": "string", "enum": ["offline", "in_process", "http"]},
+    "endpoint": {"type": ["string", "null"]},
+    "backend": {"type": "string", "enum": ["local", "plan"]},
+    "plan": {"type": ["string", "null"]},
+    "question_hash_source": {"const": "question"},
+    "requested_experts": {"type": "array", "items": {"type": "string"}},
+    "cost_ceiling_usd": {"type": "number", "minimum": 0},
+    "summary": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": ["ok", "check_count", "failed_checks"],
+      "properties": {
+        "ok": {"type": "boolean"},
+        "check_count": {"type": "integer", "minimum": 0},
+        "failed_checks": {"type": "array", "items": {"type": "string"}}
+      }
+    },
+    "consult_summary": {
+      "type": "object",
+      "additionalProperties": true,
+      "properties": {
+        "schema_version": {"type": ["string", "null"]},
+        "kind": {"type": ["string", "null"]},
+        "trace_id": {"type": ["string", "null"]},
+        "trace_status": {"type": ["string", "null"]},
+        "experts_consulted": {"type": "array", "items": {"type": "string"}},
+        "perspective_count": {"type": "integer", "minimum": 0},
+        "agreement_count": {"type": "integer", "minimum": 0},
+        "disagreement_count": {"type": "integer", "minimum": 0},
+        "cost_usd": {"type": "number", "minimum": 0},
+        "capacity": {"type": "object"},
+        "metered_fallback_allowed": {"type": ["boolean", "null"]}
+      }
+    },
+    "checks": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": true,
+        "required": ["name", "status", "detail"],
+        "properties": {
+          "name": {"type": "string"},
+          "status": {"type": "string", "enum": ["passed", "failed", "warning", "skipped"]},
+          "detail": {"type": "string"}
+        }
+      }
+    },
+    "error": {"type": "object"}
+  }
+}

@@ -446,7 +446,7 @@ async def _run_single(
     dep_entry = check_deprecation(model)
     if dep_entry and dep_entry.sunset_date:
         msg = (
-            f"⚠ Model '{dep_entry.old_model}' is deprecated (retires {dep_entry.sunset_date}). "
+            f"WARNING: Model '{dep_entry.old_model}' is deprecated (retires {dep_entry.sunset_date}). "
             f"Recommended successor: {dep_entry.new_model}"
         )
         click.echo(msg, err=True)

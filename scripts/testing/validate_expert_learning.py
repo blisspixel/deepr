@@ -27,10 +27,10 @@ async def validate_expert(expert_name: str):
     profile = store.load(expert_name)
 
     if not profile:
-        print(f"❌ Expert not found: {expert_name}")
+        print(f"ERROR: Expert not found: {expert_name}")
         return False
 
-    print(f"✓ Expert loaded: {profile.name}")
+    print(f"OK Expert loaded: {profile.name}")
     print()
 
     # Check 1: Metadata
@@ -41,14 +41,14 @@ async def validate_expert(expert_name: str):
     print(f"   Conversations: {profile.conversations}")
 
     if profile.total_documents < 2:
-        print(f"   ⚠ Warning: Only {profile.total_documents} document(s)")
+        print(f"   WARNING: Warning: Only {profile.total_documents} document(s)")
     else:
-        print("   ✓ Has multiple documents")
+        print("   OK Has multiple documents")
 
     if len(profile.research_jobs) == 0:
-        print("   ⚠ Warning: No research jobs executed")
+        print("   WARNING: Warning: No research jobs executed")
     else:
-        print(f"   ✓ Executed {len(profile.research_jobs)} research job(s)")
+        print(f"   OK Executed {len(profile.research_jobs)} research job(s)")
 
     print()
 
@@ -56,7 +56,7 @@ async def validate_expert(expert_name: str):
     print("2. Beliefs Check")
 
     if hasattr(profile, "beliefs") and profile.beliefs:
-        print(f"   ✓ Formed {len(profile.beliefs)} belief(s)")
+        print(f"   OK Formed {len(profile.beliefs)} belief(s)")
 
         # Show sample beliefs
         for i, (key, belief) in enumerate(list(profile.beliefs.items())[:5], 1):
@@ -69,7 +69,7 @@ async def validate_expert(expert_name: str):
             print(f"     Confidence: {confidence:.2f}")
             print(f"     Sources: {len(sources)}")
     else:
-        print("   ⚠ No beliefs formed (synthesis may not have run)")
+        print("   WARNING: No beliefs formed (synthesis may not have run)")
 
     print()
 
@@ -107,21 +107,21 @@ async def validate_expert(expert_name: str):
 
             # Basic quality checks
             if len(response) < 50:
-                print(f"   ❌ Response too short ({len(response)} chars)")
+                print(f"   ERROR: Response too short ({len(response)} chars)")
                 failed += 1
                 continue
 
             if "I don't know" in response or "I'm not sure" in response:
-                print("   ⚠ Expert uncertain")
+                print("   WARNING: Expert uncertain")
 
             # Check for substantive content
             words = response.split()
             if len(words) < 20:
-                print(f"   ❌ Response lacks detail ({len(words)} words)")
+                print(f"   ERROR: Response lacks detail ({len(words)} words)")
                 failed += 1
                 continue
 
-            print(f"   ✓ Response: {len(response)} chars, {len(words)} words")
+            print(f"   OK Response: {len(response)} chars, {len(words)} words")
 
             # Show excerpt
             excerpt = response[:120] + "..." if len(response) > 120 else response
@@ -130,7 +130,7 @@ async def validate_expert(expert_name: str):
             passed += 1
 
         except Exception as e:
-            print(f"   ❌ Error: {e}")
+            print(f"   ERROR: Error: {e}")
             failed += 1
 
     print()
@@ -164,10 +164,10 @@ async def validate_expert(expert_name: str):
     )
 
     if all_checks_passed:
-        print("  ✅ VALIDATION PASSED")
+        print("  OK: VALIDATION PASSED")
         print("  Expert has learned and can answer domain questions")
     else:
-        print("  ⚠ VALIDATION INCOMPLETE")
+        print("  WARNING: VALIDATION INCOMPLETE")
         print("  Expert may need more learning or synthesis")
 
     print(f"{'=' * 70}\n")

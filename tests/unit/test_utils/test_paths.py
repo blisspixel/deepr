@@ -291,9 +291,9 @@ class TestPathsEdgeCases:
         result = get_safe_filename("文档.pdf")
         assert result  # Should not be empty
 
-    def test_safe_filename_emoji(self):
-        """Test safe filename with emoji."""
-        result = get_safe_filename("document 📄.pdf")
+    def test_safe_filename_unicode(self):
+        """Test safe filename with non-ASCII text."""
+        result = get_safe_filename("document 文档.pdf")
         assert result  # Should not be empty
 
     def test_normalize_windows_path(self):

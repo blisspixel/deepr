@@ -130,8 +130,8 @@ def research(
         cheap/fast models and complex queries to deep research models.
         Enables 20+ queries for $1-2 instead of $20-40.
 
-        deepr research --auto "What is Python?"      # → grok-4-1-fast-non-reasoning ($0.01)
-        deepr research --auto "Analyze Tesla"        # → o3-deep-research ($0.50)
+        deepr research --auto "What is Python?"      # -> grok-4-1-fast-non-reasoning ($0.01)
+        deepr research --auto "Analyze Tesla"        # -> o3-deep-research ($0.50)
 
     BATCH MODE (--auto --batch):
         Process multiple queries from a file with optimal routing per query.

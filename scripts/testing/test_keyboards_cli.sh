@@ -31,7 +31,7 @@ providing tactile feedback and durability.
 - Customizable keycaps
 EOF
 
-echo "✓ Created test document"
+echo "OK Created test document"
 echo ""
 
 # Create expert with learning
@@ -46,7 +46,7 @@ deepr expert make "Keyboards Test" \
   --yes
 
 echo ""
-echo "✓ Expert created"
+echo "OK Expert created"
 echo ""
 
 # List experts
@@ -68,7 +68,7 @@ echo "What are the main types of mechanical keyboard switches?" | \
 
 echo ""
 echo "=========================================="
-echo "  ✅ Test Complete"
+echo "  OK: Test Complete"
 echo "=========================================="
 echo ""
 echo "Cleanup:"

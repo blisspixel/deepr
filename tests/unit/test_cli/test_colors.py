@@ -54,19 +54,19 @@ class TestSymbolMapping:
         assert result in UNICODE_SYMBOLS.values() or result in ASCII_SYMBOLS.values()
 
     def test_all_status_types_have_symbols(self):
-        """All required status types have both Unicode and ASCII symbols."""
+        """All required status types have primary and fallback labels."""
         required_types = ["success", "error", "warning", "info", "progress"]
         for status_type in required_types:
             assert status_type in UNICODE_SYMBOLS
             assert status_type in ASCII_SYMBOLS
 
-    def test_unicode_symbols_are_text_labels(self):
-        """Symbols should be clean text labels (modern 2026 CLI design)."""
+    def test_primary_symbols_are_text_labels(self):
+        """Symbols should be clean text labels."""
         for name, symbol in UNICODE_SYMBOLS.items():
-            # Modern CLI uses text labels, not Unicode symbols or [OK] style markers
+            # Modern CLI uses text labels, not bracketed legacy markers.
             assert len(symbol) <= 5, f"{name} symbol '{symbol}' is too long"
             assert not symbol.startswith("["), f"{name} symbol '{symbol}' looks like legacy ASCII"
-            # Should be alphanumeric or punctuation, not Unicode symbols
+            # Should be alphanumeric or punctuation.
             assert all(c.isalnum() or c in ".-" for c in symbol), (
                 f"{name} symbol '{symbol}' contains unexpected characters"
             )

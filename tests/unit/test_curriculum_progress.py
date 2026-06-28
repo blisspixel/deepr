@@ -61,7 +61,7 @@ class TestProgressFeedback:
 
     @given(error_message=st.text(min_size=1, max_size=100))
     def test_error_displays_error_marker(self, error_message):
-        """Property: error() should display error with error symbol (✗ or [X])."""
+        """Property: error() should display an error marker."""
         from deepr.cli.colors import get_symbol
 
         messages = []
@@ -70,7 +70,7 @@ class TestProgressFeedback:
         progress.error(error_message)
 
         assert len(messages) == 1
-        # Modern CLI uses symbols: ✗ (Unicode) or [X] (ASCII fallback)
+        # Modern CLI uses ASCII status labels.
         error_symbol = get_symbol("error")
         assert error_symbol in messages[0]
         assert error_message in messages[0]
@@ -230,7 +230,7 @@ class TestProgressMessageFormatting:
         assert messages[0].startswith("  ")
 
     def test_complete_message_has_success_symbol(self):
-        """Complete message should have success symbol (✓ or [OK])."""
+        """Complete message should have a success marker."""
         from deepr.cli.colors import get_symbol
 
         messages = []
@@ -240,13 +240,13 @@ class TestProgressMessageFormatting:
         messages.clear()
         progress.complete("Done")
 
-        # Modern CLI uses symbols: ✓ (Unicode) or [OK] (ASCII fallback)
+        # Modern CLI uses ASCII status labels.
         success_symbol = get_symbol("success")
         assert success_symbol in messages[0]
         assert "Done" in messages[0]
 
     def test_error_message_has_error_marker(self):
-        """Error message should have error symbol (✗ or [X])."""
+        """Error message should have an error marker."""
         from deepr.cli.colors import get_symbol
 
         messages = []
@@ -254,7 +254,7 @@ class TestProgressMessageFormatting:
 
         progress.error("Something failed")
 
-        # Modern CLI uses symbols: ✗ (Unicode) or [X] (ASCII fallback)
+        # Modern CLI uses ASCII status labels.
         error_symbol = get_symbol("error")
         assert error_symbol in messages[0]
 

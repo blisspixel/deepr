@@ -41,7 +41,7 @@ class TestValidateIdentifier:
             "-leading",
             "_underscore_edge",
             "weird!char",
-            "emoji-\U0001f600",
+            "nonascii-文档",
         ],
     )
     def test_invalid_identifiers_raise(self, value):

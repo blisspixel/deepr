@@ -44,6 +44,40 @@ explicit plan-capacity path.
   plan tests, the plan CLI must be authenticated as subscription or prepaid
   capacity and pass Deepr's no-surprise-bills gate.
 
+## Operator Self-Validation
+
+Before handing the endpoint to another machine, validate the consult contract
+from the operator shell:
+
+```powershell
+deepr mcp validate-consult --json
+```
+
+This offline fixture costs `$0` and proves the `deepr-consult-v1` artifact,
+`deepr-expert-collaboration-v1` metadata, trace linkage, no-metered capacity
+posture, cost fields, dissent handling, host action boundary, and secret
+redaction checks without requiring Ollama or a plan CLI.
+
+To exercise real local or plan capacity on the host machine:
+
+```powershell
+deepr mcp validate-consult --live --synthesis-backend local --expert "AI Agent Harnesses" --json
+deepr mcp validate-consult --live --synthesis-backend plan --plan codex --expert "AI Agent Harnesses" --json
+```
+
+To validate the same path over HTTP from the endpoint an external agent will
+use:
+
+```powershell
+deepr mcp validate-consult http://127.0.0.1:8765/mcp --auth-token "$DEEPR_MCP_KEY" --expert "AI Agent Harnesses" --json
+```
+
+Expected: `schema_version="deepr-mcp-consult-validation-v1"`,
+`summary.ok=true`, `consult_summary.schema_version="deepr-consult-v1"`,
+`consult_summary.capacity.live_metered_fallback=false`, and no failed checks.
+If local or plan capacity is unavailable, the validation should fail with a
+structured backend error rather than falling through to a metered API.
+
 ## Start The Server
 
 Use stdio for local agent tests:
@@ -152,6 +186,8 @@ without creating brittle rule-based failure patterns?"
 
 Expected output:
 - A structured `deepr-consult-v1` artifact.
+- A `structuredContent` object when the host supports MCP structured tool
+  results, with text JSON retained for older clients.
 - Per-expert perspective with confidence and citations where available.
 - Agreements and dissent.
 - Gaps and freshness risks.

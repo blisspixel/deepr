@@ -44,7 +44,7 @@ def test_task_lifecycle_valid_transitions(
 ) -> None:
     """Property 17: Task lifecycle state machine.
 
-    Valid path: submitted → working → completed with cost and trace_id.
+    Valid path: submitted -> working -> completed with cost and trace_id.
 
     **Validates: Requirements 8.3, 8.5, 8.6**
     """
@@ -84,7 +84,7 @@ def test_task_lifecycle_failure_path(
 ) -> None:
     """Property 17: Failed tasks contain structured error.
 
-    Valid path: submitted → working → failed with error info.
+    Valid path: submitted -> working -> failed with error info.
 
     **Validates: Requirements 8.3, 8.6**
     """
@@ -127,7 +127,7 @@ def test_invalid_transitions_rejected(
 
     try:
         manager.transition(task.id, invalid_target)
-        raise AssertionError(f"Should have rejected {TaskState.SUBMITTED} → {invalid_target}")
+        raise AssertionError(f"Should have rejected {TaskState.SUBMITTED} -> {invalid_target}")
     except InvalidTransitionError as e:
         assert e.current_state == TaskState.SUBMITTED
         assert e.target_state == invalid_target

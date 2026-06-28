@@ -30,11 +30,11 @@ class CircuitBreakerStateMachine(RuleBasedStateMachine):
     """State machine test for circuit breaker transitions.
 
     Verifies all valid state transitions:
-    - CLOSED + threshold failures → OPEN
-    - OPEN + recovery elapsed → HALF_OPEN
-    - HALF_OPEN + success → CLOSED
-    - HALF_OPEN + failure → OPEN
-    - Any state + success → CLOSED
+    - CLOSED + threshold failures -> OPEN
+    - OPEN + recovery elapsed -> HALF_OPEN
+    - HALF_OPEN + success -> CLOSED
+    - HALF_OPEN + failure -> OPEN
+    - Any state + success -> CLOSED
 
     **Validates: Requirements 5.1, 5.2, 5.3, 5.4, 5.5**
     """
@@ -63,7 +63,7 @@ class CircuitBreakerStateMachine(RuleBasedStateMachine):
         self.expected_failures += 1
 
         if prev_state == CircuitState.HALF_OPEN:
-            # Probe failed → re-open
+            # Probe failed -> re-open
             assert self.cb.state == CircuitState.OPEN
         elif self.expected_failures >= self.cb.threshold:
             assert self.cb.state == CircuitState.OPEN

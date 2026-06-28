@@ -9,7 +9,7 @@ import re
 from dataclasses import dataclass, field
 from typing import Any
 
-from deepr.mcp.consult_tool import CONSULT_EXPERTS_INPUT_SCHEMA
+from deepr.mcp.consult_tool import CONSULT_EXPERTS_INPUT_SCHEMA, CONSULT_EXPERTS_OUTPUT_SCHEMA
 
 
 @dataclass
@@ -21,6 +21,7 @@ class ToolSchema:
     input_schema: dict[str, Any]
     category: str = "general"
     cost_tier: str = "free"  # free, low, medium, high
+    output_schema: dict[str, Any] | None = None
 
     _tokens: list[str] = field(default_factory=list, repr=False)
 
@@ -42,7 +43,14 @@ class ToolSchema:
 
     def to_mcp_format(self) -> dict[str, Any]:
         """Convert to MCP tool format."""
-        return {"name": self.name, "description": self.description, "inputSchema": self.input_schema}
+        payload: dict[str, Any] = {
+            "name": self.name,
+            "description": self.description,
+            "inputSchema": self.input_schema,
+        }
+        if self.output_schema is not None:
+            payload["outputSchema"] = self.output_schema
+        return payload
 
 
 class BM25Index:
@@ -442,6 +450,7 @@ def create_default_registry() -> ToolRegistry:
                 "explicit plan capacity with live metered expert fallback disabled."
             ),
             input_schema=CONSULT_EXPERTS_INPUT_SCHEMA,
+            output_schema=CONSULT_EXPERTS_OUTPUT_SCHEMA,
             category="experts",
             cost_tier="low",
         )

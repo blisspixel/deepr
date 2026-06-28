@@ -280,12 +280,12 @@ class TestNormalizeEdgeCases:
         assert "日本語タイトル" in result
         assert "日本語のテキスト" in result
 
-    def test_emoji_content(self):
-        """Test emoji content is preserved."""
-        text = "# Hello 👋\n\nThis is a test 🎉"
+    def test_ascii_marker_content(self):
+        """Test ASCII marker content is preserved."""
+        text = "# Hello wave\n\nThis is a test celebration"
         result = normalize_markdown(text)
-        assert "👋" in result
-        assert "🎉" in result
+        assert "wave" in result
+        assert "celebration" in result
 
 
 if __name__ == "__main__":

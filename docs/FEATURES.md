@@ -310,7 +310,7 @@ deepr research wait abc123 --progress --poll-interval 10
 deepr research wait abc123 --timeout 600
 ```
 
-**Progress phases:** queued → initializing → searching → analyzing → synthesizing → finalizing → completed
+**Progress phases:** queued -> initializing -> searching -> analyzing -> synthesizing -> finalizing -> completed
 
 The progress display shows:
 - Current phase with completion indicators
@@ -506,6 +506,8 @@ The CLI form emits a versioned `deepr-consult-v1` artifact with `--json`.
 By default it preserves the existing metered synthesis path behind the consult
 budget. `--local` and `--plan <id>` use owned or explicit plan-quota synthesis
 and disable live metered expert fallback when stored belief context is missing.
+The MCP result also exposes `structuredContent` for JSON-object clients while
+retaining text JSON for older clients.
 Each run appends a local `deepr-consult-trace-v1` record with input, selected
 context metadata, capacity posture, checks run, and synthesis failure events.
 `deepr expert consult-traces` reviews those local records and emits sanitized
@@ -532,6 +534,18 @@ deepr expert review-consult-quality "Azure Architect" consult_abc123 \
   --decision accept \
   --target eval \
   --apply
+```
+`deepr mcp validate-consult` validates the no-metered external-agent consult
+path before another machine asks real questions. With no URL it runs a `$0`
+offline fixture. With `--live` it exercises local or explicit plan capacity on
+the host. With a URL it calls the HTTP MCP endpoint and validates
+`deepr_consult_experts`, `deepr-consult-v1`, collaboration metadata, trace
+linkage, cost ceiling, no-metered fallback posture, dissent preservation, host
+action boundaries, and secret redaction.
+```bash
+deepr mcp validate-consult --json
+deepr mcp validate-consult --live --synthesis-backend local --expert "AI Agent Harnesses" --json
+deepr mcp validate-consult http://127.0.0.1:8765/mcp --auth-token "$DEEPR_MCP_KEY" --json
 ```
 When an expert profile exists, consult perspective context includes a bounded
 read-only `self_model` block with current goals, calibration, blockers, risks,

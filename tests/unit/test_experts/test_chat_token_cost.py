@@ -36,7 +36,7 @@ class TestChatTokenCost:
     def test_cached_tokens_discount(self):
         """Cached prompt tokens should be billed at 50% of the input rate."""
         # All 1M prompt tokens cached. Output zero. At gpt-5.2 input rate ($1.75/MTok)
-        # half rate → $0.875.
+        # half rate -> $0.875.
         usage = SimpleNamespace(
             prompt_tokens=1_000_000,
             completion_tokens=0,

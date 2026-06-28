@@ -59,7 +59,7 @@ Date: 2025
     expert.source_files.append(str(target_path))
     store.save(expert)
 
-    print("\n✓ MCP documentation added to expert")
+    print("\nOK MCP documentation added to expert")
     print(f"  Total documents: {expert.total_documents}")
     print(f"  Vector store: {expert.vector_store_id}")
 

@@ -1,0 +1,177 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/blisspixel/deepr/docs/schemas/consult-v1.json",
+  "title": "Deepr Consult Artifact v1",
+  "type": "object",
+  "additionalProperties": true,
+  "required": [
+    "schema_version",
+    "kind",
+    "contract",
+    "question",
+    "answer",
+    "experts_consulted",
+    "perspectives",
+    "agreements",
+    "disagreements",
+    "cost_usd",
+    "capacity",
+    "trace",
+    "collaboration"
+  ],
+  "properties": {
+    "schema_version": {"const": "deepr-consult-v1"},
+    "kind": {"const": "deepr.expert.consult"},
+    "contract": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": ["stability", "cost_usd"],
+      "properties": {
+        "stability": {"type": "string"},
+        "cost_usd": {"type": "number", "minimum": 0}
+      }
+    },
+    "question": {"type": "string"},
+    "answer": {"type": "string"},
+    "experts_consulted": {"type": "array", "items": {"type": "string"}},
+    "perspectives": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": true,
+        "required": ["expert", "domain", "confidence", "response"],
+        "properties": {
+          "expert": {"type": "string"},
+          "domain": {"type": "string"},
+          "confidence": {"type": "number", "minimum": 0},
+          "response": {"type": "string"},
+          "context": {"type": "object"}
+        }
+      }
+    },
+    "agreements": {"type": "array", "items": {"type": "string"}},
+    "disagreements": {"type": "array", "items": {"type": "string"}},
+    "cost_usd": {"type": "number", "minimum": 0},
+    "capacity": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": ["synthesis_backend", "provider", "model", "live_metered_fallback"],
+      "properties": {
+        "synthesis_backend": {"type": "string", "enum": ["api", "local", "plan"]},
+        "provider": {"type": "string"},
+        "model": {"type": ["string", "null"]},
+        "live_metered_fallback": {"type": "boolean"}
+      }
+    },
+    "trace": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": ["schema_version", "kind", "trace_id", "status", "recorded", "checks_ran"],
+      "properties": {
+        "schema_version": {"const": "deepr-consult-trace-v1"},
+        "kind": {"const": "deepr.expert.consult_trace"},
+        "trace_id": {"type": "string"},
+        "status": {"type": "string"},
+        "recorded": {"type": "boolean"},
+        "checks_ran": {"type": "array", "items": {"type": "string"}}
+      }
+    },
+    "collaboration": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": [
+        "schema_version",
+        "kind",
+        "contract",
+        "task",
+        "roster",
+        "budget_capacity_contract",
+        "evidence_packet",
+        "dissent_handling",
+        "result_artifact"
+      ],
+      "properties": {
+        "schema_version": {"const": "deepr-expert-collaboration-v1"},
+        "kind": {"const": "deepr.expert.collaboration"},
+        "contract": {
+          "type": "object",
+          "additionalProperties": true,
+          "required": [
+            "host_orchestrated",
+            "deepr_enacts_downstream_actions",
+            "semantic_verdict"
+          ],
+          "properties": {
+            "host_orchestrated": {"const": true},
+            "deepr_enacts_downstream_actions": {"const": false},
+            "semantic_verdict": {"const": false}
+          }
+        },
+        "task": {
+          "type": "object",
+          "additionalProperties": true,
+          "required": ["question_hash", "consult_trace_id", "shared_task_trace_id"],
+          "properties": {
+            "question_hash": {"type": "string"},
+            "consult_trace_id": {"type": "string"},
+            "shared_task_trace_id": {"type": "string"}
+          }
+        },
+        "roster": {"type": "array", "items": {"type": "object"}},
+        "budget_capacity_contract": {
+          "type": "object",
+          "additionalProperties": true,
+          "required": [
+            "requested_budget_usd",
+            "actual_cost_usd",
+            "capacity",
+            "metered_fallback_allowed"
+          ],
+          "properties": {
+            "requested_budget_usd": {"type": "number", "minimum": 0},
+            "actual_cost_usd": {"type": "number", "minimum": 0},
+            "capacity": {"type": "object"},
+            "metered_fallback_allowed": {"type": "boolean"}
+          }
+        },
+        "evidence_packet": {"type": "object"},
+        "dissent_handling": {
+          "type": "object",
+          "additionalProperties": true,
+          "required": [
+            "agreements_field",
+            "disagreements_field",
+            "dissent_preserved",
+            "synthesis_is_not_truth_adjudication"
+          ],
+          "properties": {
+            "agreements_field": {"const": "agreements"},
+            "disagreements_field": {"const": "disagreements"},
+            "dissent_preserved": {"const": true},
+            "synthesis_is_not_truth_adjudication": {"const": true}
+          }
+        },
+        "result_artifact": {
+          "type": "object",
+          "additionalProperties": true,
+          "required": [
+            "schema_version",
+            "kind",
+            "answer_field",
+            "perspectives_field",
+            "agreements_field",
+            "disagreements_field"
+          ],
+          "properties": {
+            "schema_version": {"const": "deepr-consult-v1"},
+            "kind": {"const": "deepr.expert.consult"},
+            "answer_field": {"const": "answer"},
+            "perspectives_field": {"const": "perspectives"},
+            "agreements_field": {"const": "agreements"},
+            "disagreements_field": {"const": "disagreements"}
+          }
+        }
+      }
+    }
+  }
+}

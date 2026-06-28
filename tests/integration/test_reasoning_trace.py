@@ -44,10 +44,10 @@ async def test():
     print(f"Total cost: ${session.cost_accumulated:.4f}")
     print("Total queries: 2")
     print("\nKey improvements:")
-    print("✓ Model explains WHY it searches knowledge base")
-    print("✓ Model explains WHY it needs web search")
-    print("✓ Full transparency into decision-making process")
-    print("✓ Can validate model is making intelligent choices")
+    print("OK Model explains WHY it searches knowledge base")
+    print("OK Model explains WHY it needs web search")
+    print("OK Full transparency into decision-making process")
+    print("OK Can validate model is making intelligent choices")
 
 
 if __name__ == "__main__":

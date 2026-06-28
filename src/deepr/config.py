@@ -126,7 +126,7 @@ class ProviderConfig(BaseModel):
             "strategy": "multi_source_synthesis",
         }
 
-        # Provider → env var mapping (inlined to avoid circular import)
+        # Provider -> env var mapping (inlined to avoid circular import)
         provider_env = {
             "openai": "OPENAI_API_KEY",
             "xai": "XAI_API_KEY",

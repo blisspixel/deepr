@@ -1,6 +1,6 @@
 """Circuit breaker for MCP server connections.
 
-Implements the closed → open → half-open → closed state machine
+Implements the closed -> open -> half-open -> closed state machine
 to protect against cascading failures from unhealthy servers.
 
 Feature: mcp-client-agent-interop
@@ -28,8 +28,8 @@ class CircuitBreaker:
     - CLOSED: Normal operation. Failures increment counter.
     - OPEN: After threshold failures. All calls rejected.
     - HALF_OPEN: After recovery period. One probe call allowed.
-      - Probe success → CLOSED
-      - Probe failure → OPEN (timer resets)
+      - Probe success -> CLOSED
+      - Probe failure -> OPEN (timer resets)
 
     Usage::
 

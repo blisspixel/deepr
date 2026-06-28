@@ -1,7 +1,7 @@
 """CLI color utilities for modern, colorful terminal output.
 
 Uses rich for beautiful formatting and colorama for Windows compatibility.
-Modern 2026 CLI design: Unicode symbols, minimal separators, clean typography.
+Modern 2026 CLI design: ASCII status labels, minimal separators, clean typography.
 """
 
 import os
@@ -39,7 +39,7 @@ def _detect_unicode_support() -> bool:
     return encoding.lower() in ("utf-8", "utf8", "")
 
 
-# Unicode symbols for modern CLI output
+# Primary status labels for modern CLI output.
 UNICODE_SYMBOLS = {
     "success": "OK",
     "error": "ERROR",
@@ -52,7 +52,7 @@ UNICODE_SYMBOLS = {
     "skip": "SKIP",
 }
 
-# ASCII fallback for legacy terminals
+# ASCII fallback for legacy terminals.
 ASCII_SYMBOLS = {
     "success": "OK",
     "error": "ERROR",

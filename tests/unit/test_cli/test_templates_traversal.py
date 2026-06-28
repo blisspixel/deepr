@@ -23,7 +23,7 @@ from deepr.cli.commands.templates import templates as templates_group
 def test_path_traversal_rejected(subcommand, tmp_path, monkeypatch):
     """All three template subcommands must reject path traversal in the
     template name. ``sanitize_name`` flattens the input into a safe
-    filename (e.g. ``../../etc/passwd`` → ``etc_passwd``) so the
+    filename (e.g. ``../../etc/passwd`` -> ``etc_passwd``) so the
     real traversal target outside ``.deepr/templates/`` is never
     touched. We assert the invariant directly: a sentinel file at
     the parent of the working dir must remain untouched even after

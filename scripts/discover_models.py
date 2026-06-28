@@ -280,7 +280,7 @@ API_DISCOVERERS = {
     "anthropic": discover_anthropic_models,
 }
 
-# Provider → (env var, signup URL) for preflight check
+# Provider -> (env var, signup URL) for preflight check
 _PROVIDER_KEYS = {
     "openai": ("OPENAI_API_KEY", "https://platform.openai.com/api-keys"),
     "xai": ("XAI_API_KEY", "https://console.x.ai/"),

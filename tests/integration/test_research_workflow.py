@@ -1,6 +1,6 @@
 """Integration tests for research workflow.
 
-Tests the complete submit → process → report flow with mocked providers.
+Tests the complete submit -> process -> report flow with mocked providers.
 Verifies end-to-end integration of:
 - ResearchOrchestrator
 - Storage backends
@@ -79,7 +79,7 @@ class TestResearchWorkflowIntegration:
     @pytest.mark.asyncio
     @pytest.mark.integration
     async def test_complete_research_workflow(self, orchestrator, mock_provider):
-        """Test complete workflow: submit → status → process → report."""
+        """Test complete workflow: submit -> status -> process -> report."""
         # Patch cost safety
         with patch("deepr.experts.cost_safety.get_cost_safety_manager") as mock_csm:
             mock_manager = MagicMock()

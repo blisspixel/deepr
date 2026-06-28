@@ -12,7 +12,7 @@ echo ""
 echo "Checking prerequisites..."
 if [ ! -f "data/experts/midjourney_expert/profile.json" ]; then
     echo ""
-    echo "❌ Midjourney Expert not found"
+    echo "ERROR: Midjourney Expert not found"
     echo ""
     echo "Create it first:"
     echo '  deepr expert make "Midjourney Expert" --description "Midjourney AI art" --learn --docs 1 --yes'
@@ -20,7 +20,7 @@ if [ ! -f "data/experts/midjourney_expert/profile.json" ]; then
     exit 1
 fi
 
-echo "✓ Midjourney Expert found"
+echo "OK Midjourney Expert found"
 echo ""
 
 # Menu
@@ -46,7 +46,7 @@ case $choice in
         ;;
     3)
         echo ""
-        echo "⚠ WARNING: This will trigger deep research (costs \$0.10-0.30, takes 5-20 min)"
+        echo "WARNING: WARNING: This will trigger deep research (costs \$0.10-0.30, takes 5-20 min)"
         read -p "Continue? (y/n): " confirm
         if [ "$confirm" = "y" ]; then
             export RUN_EXPENSIVE_TESTS=1
@@ -76,10 +76,10 @@ case $choice in
         echo "======================================================================"
 
         if [ $quick_result -eq 0 ] && [ $workflow_result -eq 0 ]; then
-            echo "✓ All tests passed!"
+            echo "OK All tests passed!"
             exit 0
         else
-            echo "❌ Some tests failed"
+            echo "ERROR: Some tests failed"
             exit 1
         fi
         ;;
@@ -91,9 +91,9 @@ esac
 
 echo ""
 if [ $? -eq 0 ]; then
-    echo "✓ Test completed successfully"
+    echo "OK Test completed successfully"
 else
-    echo "❌ Test failed"
+    echo "ERROR: Test failed"
 fi
 
 exit $?

@@ -12,10 +12,10 @@ Usage:
 
     router = AutoModeRouter()
     decision = router.route("What is Python?")
-    # → grok-4.3 ($0.05)
+    # -> grok-4.3 ($0.05)
 
     decision = router.route("Analyze Tesla's competitive position")
-    # → o3-deep-research ($0.50)
+    # -> o3-deep-research ($0.50)
 """
 
 from deepr.routing.auto_mode import AutoModeDecision, AutoModeRouter

@@ -25,6 +25,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 </details>
 
 ### Added
+- Added `deepr mcp validate-consult`, a no-metered external-agent consult
+  validation harness. It can run as a `$0` offline fixture, an in-process live
+  local or explicit plan-capacity check, or an HTTP MCP endpoint check. Reports
+  use `deepr-mcp-consult-validation-v1` and validate consult schema, trace
+  linkage, capacity no-fallback posture, cost ceiling, dissent preservation,
+  host action boundaries, and secret redaction without judging answer meaning.
+- Published `deepr-consult-v1` and added MCP `outputSchema` plus
+  `structuredContent` for JSON-object tool results while preserving text JSON
+  compatibility for older MCP clients.
 - Added `deepr expert review-consult-quality` and the published
   `deepr-consult-quality-review-v1` schema. Operators can now score a sanitized
   consult quality case with human or calibrated-model judgment, persist the
@@ -1782,7 +1791,7 @@ pass. Coverage threshold raised from 60% to 75%.
 - **`observability/routing_log.py`** ``get_events`` returns the LAST N
   rows, not the FIRST N - every analytics query in this module was
   silently analysing the oldest history slice.
-- **`observability/circuit_breaker.py`** OPEN → HALF_OPEN transition
+- **`observability/circuit_breaker.py`** OPEN -> HALF_OPEN transition
   now holds ``self._lock`` so concurrent callers can't both fire a
   probe.
 - **`observability/traces.py`** ``TraceContext.get_current`` uses a
@@ -1918,10 +1927,10 @@ pass. Coverage threshold raised from 60% to 75%.
   is the default, ``--no-research`` disables.
 - ``deploy/azure/README.md`` + ``deploy.sh`` corrected to ``functions/``
   (the ``function_app/`` directory was removed).
-- MCP tool count: 16 → 18 in ``README.md`` and ``mcp/README.md``.
-- Test count: 4300+ → 4341+ in ``README.md``, ``ROADMAP.md``,
+- MCP tool count: 16 -> 18 in ``README.md`` and ``mcp/README.md``.
+- Test count: 4300+ -> 4341+ in ``README.md``, ``ROADMAP.md``,
   ``SECURITY.md``, ``docs/VISION.md``.
-- Coverage threshold: 60% → 75% in ``CONTRIBUTING.md`` and ``ROADMAP.md``.
+- Coverage threshold: 60% -> 75% in ``CONTRIBUTING.md`` and ``ROADMAP.md``.
 
 ---
 
@@ -2069,7 +2078,7 @@ adds explicit opt-out flags for previously implicit unsafe behavior.
 - Progressive disclosure in expert chat: skill summaries always in system prompt, full prompt loaded only on activation
 - Tool namespacing (`skill_name__tool_name`) prevents conflicts across skills
 - Budget tracking per skill with cost tier estimates (free/low/medium/high)
-- Profile schema migration v2→v3 adding `installed_skills` field (backward compatible)
+- Profile schema migration v2->v3 adding `installed_skills` field (backward compatible)
 - 4 built-in skills shipping in `deepr/skills/`:
   - `web-search-enhanced`: structured data extraction from research text
   - `code-analysis`: dependency audit + cyclomatic complexity analysis
@@ -2158,7 +2167,7 @@ adds explicit opt-out flags for previously implicit unsafe behavior.
 - Removed dead code: `api/activity.ts`, `api/traces.ts`, `components/shared/stat-card.tsx` (never imported)
 - Added `p-6` padding to Help page wrapper (missing from all other pages' pattern)
 - Export dropdown in Result Detail now closes on Escape key press
-- "Submit Research" → "New Research" button text consistency in Results Library
+- "Submit Research" -> "New Research" button text consistency in Results Library
 - Unsafe type assertion in Expert Profile history query replaced with proper `ExpertHistoryEvent` interface
 - Gemini provider import hardening:
   - provider initialization now degrades safely when `google-genai` is present but incompatible
@@ -2256,7 +2265,7 @@ adds explicit opt-out flags for previously implicit unsafe behavior.
 **Real-Time Progress (7.3)**
 - `ResearchProgressTracker` for live progress updates during research
 - `--progress` flag in `deepr research wait` shows phase tracking with progress bar
-- Phase detection (queued → initializing → searching → analyzing → synthesizing → finalizing)
+- Phase detection (queued -> initializing -> searching -> analyzing -> synthesizing -> finalizing)
 - Partial results streaming when provider supports it
 - Customizable poll intervals via `--poll-interval`
 
@@ -2323,7 +2332,7 @@ adds explicit opt-out flags for previously implicit unsafe behavior.
 **Documentation Overhaul**
 - Rewrote README to better communicate value proposition for enterprise users (cloud architects, CIOs)
 - Added "MCP + Skills" section highlighting research infrastructure for AI agents
-- New workflow example: Claude Code → query expert → fill knowledge gaps → continue with accurate info
+- New workflow example: Claude Code -> query expert -> fill knowledge gaps -> continue with accurate info
 - Emphasized expert system differentiation: self-aware, self-improving, persistent, portable
 - Enterprise-focused examples: competitive intelligence, due diligence at scale, institutional knowledge retention
 - Updated decision table and "What You Can Do" section with AI agent capabilities first
@@ -2408,7 +2417,7 @@ adds explicit opt-out flags for previously implicit unsafe behavior.
 - Replaced 47 `print()` calls in 13 library modules with structured `logging` (lazy `%s` formatting)
 - Consolidated model pricing into single registry source of truth (`deepr/providers/registry.py`); removed hardcoded pricing from `base.py`, `research.py`, and provider modules
 - Tightened exception handling in core, providers, and MCP server (bare `except Exception` replaced with `openai.OpenAIError`, `GenaiAPIError`, `DeeprError`, `OSError`, etc.)
-- Tightened exception handling in storage and services: `storage/local.py` (5 catches → `OSError`), `storage/blob.py` (7 catches → `AzureError`), `core/jobs.py` (4 catches → `json.JSONDecodeError`/`KeyError`/`TypeError`/`ValueError`), `utils/scrape/fetcher.py` (1 catch → `requests.RequestException`/`json.JSONDecodeError`/`KeyError`/`ValueError`)
+- Tightened exception handling in storage and services: `storage/local.py` (5 catches -> `OSError`), `storage/blob.py` (7 catches -> `AzureError`), `core/jobs.py` (4 catches -> `json.JSONDecodeError`/`KeyError`/`TypeError`/`ValueError`), `utils/scrape/fetcher.py` (1 catch -> `requests.RequestException`/`json.JSONDecodeError`/`KeyError`/`ValueError`)
 - Split monolithic `cli/commands/semantic.py` (3,318 lines) into `cli/commands/semantic/` package: `research.py` (research/learn/team/check commands), `artifacts.py` (make/agentic commands), `experts.py` (expert subcommands). Backward-compatible re-exports in `__init__.py`
 - Removed `sys.path.insert()` hack in MCP server; uses standard package imports
 - Removed 4 DEBUG `print()` statements left in production code (`semantic.py`)
@@ -2662,7 +2671,7 @@ adds explicit opt-out flags for previously implicit unsafe behavior.
 - Updated Agentic Levels table to reflect current progress
 
 ### Fixed
-- Fixed version inconsistencies throughout documentation (v2.1 → v2.2)
+- Fixed version inconsistencies throughout documentation (v2.1 -> v2.2)
 - Fixed port references (backend: 5000, frontend: 3000)
 - Corrected model naming for clarity
 - Improved Unicode handling in CLI output for Windows compatibility

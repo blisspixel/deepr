@@ -297,25 +297,25 @@ class ModelRouter:
 
         # No provider constraint - use best model across all providers
         if complexity == "simple" and task_type == "factual":
-            # Simple factual queries → fast cheap model
+            # Simple factual queries -> fast cheap model
             return ModelConfig(provider="xai", model="grok-4.3", cost_estimate=0.05, confidence=0.95)
 
         if allow_research_model and task_type == "research" and (budget_remaining is None or budget_remaining >= 2.0):
-            # Deep research → o3-deep-research (best quality for deep research)
+            # Deep research -> o3-deep-research (best quality for deep research)
             return ModelConfig(provider="openai", model="o3-deep-research", cost_estimate=2.0, confidence=0.9)
 
         if context_size > 100_000 and (budget_remaining is None or budget_remaining >= 0.20):
-            # Large context → Gemini
+            # Large context -> Gemini
             return ModelConfig(provider="gemini", model="gemini-3.1-pro-preview", cost_estimate=0.20, confidence=0.85)
 
         if complexity == "complex" and (budget_remaining is None or budget_remaining >= 0.25):
-            # Complex reasoning → GPT-5 with high reasoning effort
+            # Complex reasoning -> GPT-5 with high reasoning effort
             return ModelConfig(
                 provider="openai", model="gpt-5.2", cost_estimate=0.30, reasoning_effort="high", confidence=0.9
             )
 
         if complexity == "moderate":
-            # Moderate complexity → GPT-5.2 with medium reasoning or Grok if budget tight
+            # Moderate complexity -> GPT-5.2 with medium reasoning or Grok if budget tight
             if budget_remaining is not None and budget_remaining < 0.20:
                 return ModelConfig(provider="xai", model="grok-4.3", cost_estimate=0.05, confidence=0.75)
             return ModelConfig(

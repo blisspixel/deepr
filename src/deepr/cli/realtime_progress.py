@@ -417,11 +417,11 @@ class ResearchProgressTracker:
         phase_text = Text()
         for _i, phase in enumerate(PHASE_ORDER[:-1]):  # Exclude COMPLETED
             if phase == state.current_phase:
-                phase_text.append(f"● {phase.value} ", style="bold green")
+                phase_text.append(f"> {phase.value} ", style="bold green")
             elif PHASE_ORDER.index(phase) < PHASE_ORDER.index(state.current_phase):
-                phase_text.append(f"✓ {phase.value} ", style="dim green")
+                phase_text.append(f"OK {phase.value} ", style="dim green")
             else:
-                phase_text.append(f"○ {phase.value} ", style="dim")
+                phase_text.append(f". {phase.value} ", style="dim")
 
         content.add_row("Phase:", phase_text)
 

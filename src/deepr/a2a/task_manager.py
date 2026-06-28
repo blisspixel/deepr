@@ -25,7 +25,7 @@ class InvalidTransitionError(Exception):
         self.task_id = task_id
         self.current_state = current
         self.target_state = target
-        super().__init__(f"Invalid transition for task {task_id}: {current.value} → {target.value}")
+        super().__init__(f"Invalid transition for task {task_id}: {current.value} -> {target.value}")
 
 
 class TaskNotFoundError(Exception):
@@ -40,8 +40,8 @@ class TaskManager:
     """Manage A2A task lifecycle with state machine enforcement.
 
     Enforces valid transitions:
-    - submitted → working → (completed | failed | cancelled)
-    - submitted → cancelled
+    - submitted -> working -> (completed | failed | cancelled)
+    - submitted -> cancelled
 
     Completed tasks include cost, trace_id, confidence metadata.
     Failed tasks include error with reason and retryable flag.

@@ -51,9 +51,9 @@ async def test_search():
 
             # Check if file_search was used
             if hasattr(response_message, "attachments") and response_message.attachments:
-                print(f"✅ Found knowledge - Attachments: {len(response_message.attachments)}")
+                print(f"OK: Found knowledge - Attachments: {len(response_message.attachments)}")
             else:
-                print("❌ No knowledge found")
+                print("ERROR: No knowledge found")
 
             # Show response excerpt
             content = response_message.content[0].text.value

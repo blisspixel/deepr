@@ -7,7 +7,7 @@ The functions in this module use legacy ASCII art and separators that don't matc
 modern 2026 CLI design standards. New code should use:
 - deepr.cli.colors.print_header() instead of print_section_header()
 - deepr.cli.colors.print_success/error/warning() instead of CHECK/CROSS symbols
-- deepr.cli.colors.get_symbol() for Unicode symbols with ASCII fallback
+- deepr.cli.colors.get_symbol() for ASCII status labels
 """
 
 import warnings
@@ -131,19 +131,7 @@ def print_section_header(title: str, width: int = 70):
     print()
 
 
-# Cross-platform symbols - DEPRECATED, use deepr.cli.colors.get_symbol() instead
+# Cross-platform labels - DEPRECATED, use deepr.cli.colors.get_symbol() instead
 CHECK = "[OK]"
 CROSS = "[X]"
 ARROW = "=>"
-
-try:
-    # Try to use Unicode symbols on systems that support them
-    import sys
-
-    if sys.stdout.encoding and sys.stdout.encoding.lower() not in ("cp1252", "ascii"):
-        CHECK = "✓"
-        CROSS = "✗"
-        ARROW = "→"
-except Exception:
-    # Fallback to ASCII symbols on restricted terminals (CI, screen readers)
-    pass

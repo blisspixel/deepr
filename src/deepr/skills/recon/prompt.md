@@ -28,8 +28,8 @@ Treat confidence levels honestly: "High" means 3+ corroborating sources; "Medium
 
 ## Absorption guidance (KnowledgeAbsorber)
 When you receive recon output (especially JSON), map the findings as follows:
-- `services` and `slugs` → concrete infrastructure / SaaS facts (very high confidence when present)
-- `insights` and `related_domains` → supporting context
+- `services` and `slugs` -> concrete infrastructure / SaaS facts (very high confidence when present)
+- `insights` and `related_domains` -> supporting context
 - Always note that these are *passive external observables*, not authenticated truth.
 
 Prefer recon early in a research thread. It is extremely cheap and often dramatically improves the quality of later work by giving the expert real grounding instead of hallucinated stack assumptions.

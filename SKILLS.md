@@ -200,6 +200,13 @@ This file captures repo-specific operating lessons from autonomous work cycles.
   artifacts: selected context packs, durable traces, reusable eval cases,
   explicit handoff files, and deterministic gates around spend, writes, and
   permissions. It does not imply turning Deepr into the outer orchestrator.
+- External-agent consult validation needs two layers. First, an offline contract
+  fixture should prove schema, trace linkage, capacity posture, cost ceiling,
+  dissent handling, host action boundary, and secret redaction with no model
+  dependency. Second, explicit live validation should exercise local, plan, or
+  HTTP endpoint capacity with no metered fallback. Endpoint smoke tests alone
+  prove reachability; they do not prove the consult contract another agent will
+  rely on.
 
 ## Plan-quota CLI backends
 

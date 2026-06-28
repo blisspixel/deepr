@@ -96,7 +96,11 @@ must not be described as usable capacity.
   `deepr-consult-trace-candidates-v1` gap/eval candidates with embedded
   `deepr-consult-quality-eval-case-v1` semantic review packets. The review
   packets are `$0`, read-only, non-verdict artifacts for human or calibrated
-  model judging; they cannot commit beliefs.
+  model judging; they cannot commit beliefs. `deepr mcp validate-consult`
+  emits `deepr-mcp-consult-validation-v1` reports for offline fixtures,
+  in-process local or plan validation, and HTTP endpoint validation. MCP
+  JSON-object tool results include `structuredContent` while retaining text
+  JSON compatibility.
 - `deepr expert self-model` emits a read-only `deepr-expert-self-model-v1`
   record with expert capabilities, limits, goals, calibration, learning
   strategy, continuity, blockers, risks, and a bounded current-focus packet.

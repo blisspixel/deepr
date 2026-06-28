@@ -53,12 +53,12 @@ You have access to Deepr - the same deep research APIs behind ChatGPT and Gemini
 
 ```
 Can I answer this confidently from training data?
-  YES → Just answer, skip Deepr
-  NO  → Does it need multi-step autonomous exploration?
-          YES → Agentic Research (confirm budget first)
-          NO  → Is comprehensive, multi-source analysis needed?
-                  YES → Deep Research
-                  NO  → Standard Research (or auto mode)
+  YES -> Just answer, skip Deepr
+  NO  -> Does it need multi-step autonomous exploration?
+          YES -> Agentic Research (confirm budget first)
+          NO  -> Is comprehensive, multi-source analysis needed?
+                  YES -> Deep Research
+                  NO  -> Standard Research (or auto mode)
 ```
 
 See `references/research_modes.md` for model details and async workflow patterns.
@@ -69,20 +69,20 @@ The most common use case: you're working on a task and hit something you're not 
 
 ```
 1. Recognize uncertainty
-   → You're about to make a claim or decision you're not confident about
+   -> You're about to make a claim or decision you're not confident about
 
 2. Research it
-   → deepr_research(query="your question", mode="auto")
-   → Returns: job_id
+   -> deepr_research(query="your question", mode="auto")
+   -> Returns: job_id
 
 3. Wait for results
-   → Subscribe to deepr://campaigns/{job_id}/status (preferred, 70% fewer tokens)
-   → Or poll with deepr_check_status(job_id)
+   -> Subscribe to deepr://campaigns/{job_id}/status (preferred, 70% fewer tokens)
+   -> Or poll with deepr_check_status(job_id)
 
 4. Present cited answer
-   → deepr_get_result(job_id)
-   → Integrate findings into your response with citations preserved
-   → Clearly mark what came from research vs your own knowledge
+   -> deepr_get_result(job_id)
+   -> Integrate findings into your response with citations preserved
+   -> Clearly mark what came from research vs your own knowledge
 ```
 
 ## Working With Experts
@@ -92,28 +92,28 @@ Domain experts are persistent knowledge entities that synthesize beliefs from do
 **Query an expert** when the question falls within their domain - it's faster and cheaper than fresh research:
 
 ```
-deepr_list_experts()           → See what experts exist
-deepr_query_expert(name, question)  → Ask a question
-deepr_get_expert_info(name)    → Check profile, beliefs, gaps
+deepr_list_experts()           -> See what experts exist
+deepr_query_expert(name, question)  -> Ask a question
+deepr_get_expert_info(name)    -> Check profile, beliefs, gaps
 ```
 
 **The expert-research chain** is Deepr's key differentiator. When an expert has low confidence or identifies a knowledge gap, suggest filling it:
 
 ```
-1. Query expert → expert responds with LOW confidence or identifies gap
+1. Query expert -> expert responds with LOW confidence or identifies gap
 2. Tell the user: "The expert doesn't have current info on this.
    Want me to research it? (~$0.15)"
-3. User confirms → deepr_research(query="the gap topic")
+3. User confirms -> deepr_research(query="the gap topic")
 4. Expert integrates the findings permanently
 5. Next time anyone asks, the expert knows
 ```
 
-This loop - query → gap → research → learn - is how experts improve. Actively suggest it when you see low confidence. Use `deepr_query_expert(..., agentic=true)` to let the expert trigger research autonomously (costs more, needs budget confirmation).
+This loop - query -> gap -> research -> learn - is how experts improve. Actively suggest it when you see low confidence. Use `deepr_query_expert(..., agentic=true)` to let the expert trigger research autonomously (costs more, needs budget confirmation).
 
 **When to use experts vs fresh research:**
-- Expert has the domain knowledge → query the expert (fast, cheap)
-- Current events or topic outside their domain → fresh research
-- Expert shows low confidence → fill the gap, then re-query
+- Expert has the domain knowledge -> query the expert (fast, cheap)
+- Current events or topic outside their domain -> fresh research
+- Expert shows low confidence -> fill the gap, then re-query
 
 See `references/expert_system.md` for confidence levels, belief formation, and best practices.
 
@@ -156,7 +156,7 @@ Deepr uses dynamic tool discovery to minimize context window usage. If you need 
 
 ```
 deepr_tool_search(query="what you need to do")
-→ Returns matching tool schemas on demand
+-> Returns matching tool schemas on demand
 ```
 
 ## Conversation Examples
@@ -208,7 +208,7 @@ You: Research complete ($0.35, 23 sources). Here's what I found:
 ```
 User: Ask the security expert about OWASP API Top 10 changes for 2026
 
-You: [calls deepr_list_experts() → finds "Security Analyst"]
+You: [calls deepr_list_experts() -> finds "Security Analyst"]
      [calls deepr_query_expert("Security Analyst", "OWASP API Top 10 2026 changes?")]
 
 You: The Security Analyst has medium confidence here and flagged a knowledge

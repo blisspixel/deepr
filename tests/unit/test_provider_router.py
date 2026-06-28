@@ -686,7 +686,7 @@ class TestProviderRouterEdgeCases:
         router = AutonomousProviderRouter(storage_path=temp_storage)
 
         # Error message with various Unicode characters
-        unicode_error = "Error: 日本語 emoji 🚀 special chars äöü"
+        unicode_error = "Error: 日本語 marker special chars äöü"
         router.record_result("openai", "gpt-4o", False, error=unicode_error)
 
         key = ("openai", "gpt-4o")

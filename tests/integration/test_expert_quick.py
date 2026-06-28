@@ -25,7 +25,7 @@ async def quick_test():
     expert = store.load("Midjourney Expert")
 
     if not expert:
-        print("\n❌ Midjourney Expert not found")
+        print("\nERROR: Midjourney Expert not found")
         print("\nCreate it first:")
         print('  deepr expert make "Midjourney Expert" --description "Midjourney AI art" --learn --docs 1 --yes')
         return False
@@ -37,7 +37,7 @@ async def quick_test():
     # Create session
     print("\nCreating chat session...")
     session = await start_chat_session(expert.name, budget=5.0, agentic=True)
-    print("✓ Session created")
+    print("OK Session created")
 
     # Ask a simple question
     query = "What are the main parameters for Midjourney?"
@@ -55,27 +55,27 @@ async def quick_test():
         print("\n" + "=" * 70)
         print("RESULTS:")
         print("=" * 70)
-        print(f"✓ Response length: {len(response)} chars")
-        print(f"✓ Cost: ${session.cost_accumulated:.4f}")
-        print(f"✓ Messages exchanged: {len([m for m in session.messages if m['role'] == 'user'])}")
+        print(f"OK Response length: {len(response)} chars")
+        print(f"OK Cost: ${session.cost_accumulated:.4f}")
+        print(f"OK Messages exchanged: {len([m for m in session.messages if m['role'] == 'user'])}")
 
         # Check reasoning trace
         kb_searches = len([t for t in session.reasoning_trace if t.get("step") == "search_knowledge_base"])
         web_searches = len([t for t in session.reasoning_trace if t.get("step") == "standard_research"])
 
-        print(f"✓ Knowledge base searches: {kb_searches}")
-        print(f"✓ Web searches: {web_searches}")
+        print(f"OK Knowledge base searches: {kb_searches}")
+        print(f"OK Web searches: {web_searches}")
 
         # Validate response
         if len(response) > 50:
-            print("\n✓ SUCCESS: Expert chat working correctly!")
+            print("\nOK SUCCESS: Expert chat working correctly!")
             return True
         else:
-            print("\n❌ FAIL: Response too short")
+            print("\nERROR: FAIL: Response too short")
             return False
 
     except Exception as e:
-        print(f"\n❌ FAIL: {e}")
+        print(f"\nERROR: FAIL: {e}")
         import traceback
 
         traceback.print_exc()

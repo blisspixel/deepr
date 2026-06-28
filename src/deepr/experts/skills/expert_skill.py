@@ -100,7 +100,7 @@ class ExpertSkillWrapper:
         """Determine which external tools to suggest.
 
         Checks for:
-        1. Company domains in research text → domain_lookup
+        1. Company domains in research text -> domain_lookup
         2. Knowledge gaps matching available tool categories
         """
         suggestions: list[ToolSuggestion] = []
@@ -162,9 +162,9 @@ class ExpertSkillWrapper:
     def _needs_approval(self, tool_name: str) -> bool:
         """Check if a tool requires approval based on profile config.
 
-        - In auto_approve → no approval needed
-        - In require_approval → approval required
-        - In neither → default to requiring approval
+        - In auto_approve -> no approval needed
+        - In require_approval -> approval required
+        - In neither -> default to requiring approval
         """
         if tool_name in self._profile.auto_approve:
             return False

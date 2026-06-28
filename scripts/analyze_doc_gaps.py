@@ -127,7 +127,7 @@ Return ONLY JSON, no other text."""
         with open(output_file, "w") as f:
             json.dump(analysis, f, indent=2)
 
-        print(f"\n✓ Analysis saved to {output_file}")
+        print(f"\nOK Analysis saved to {output_file}")
         return analysis
 
     except Exception as e:
