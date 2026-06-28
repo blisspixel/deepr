@@ -34,7 +34,7 @@ class TestAgentCardEndpoint:
 
     def test_returns_valid_json(self, server: A2AServer) -> None:
         """Agent card endpoint returns valid JSON with skills."""
-        status, body = asyncio.run(server.handle_request("GET", "/.well-known/agent.json"))
+        status, body = asyncio.run(server.handle_request("GET", "/.well-known/agent-card.json"))
 
         assert status == 200
         assert body["name"] == "deepr"
@@ -42,6 +42,13 @@ class TestAgentCardEndpoint:
         assert len(body["skills"]) == 3
         assert body["skills"][0]["name"] == "recon"
         assert body["skills"][1]["name"] == "analyst"
+        assert body["skills"][2]["name"] == CONSULT_SKILL_NAME
+
+    def test_legacy_agent_card_path_still_works(self, server: A2AServer) -> None:
+        """Legacy Agent Card path remains compatible."""
+        status, body = asyncio.run(server.handle_request("GET", "/.well-known/agent.json"))
+
+        assert status == 200
         assert body["skills"][2]["name"] == CONSULT_SKILL_NAME
 
     def test_skills_have_required_fields(self, server: A2AServer) -> None:

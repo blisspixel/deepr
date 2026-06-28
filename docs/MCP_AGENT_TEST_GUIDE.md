@@ -307,9 +307,21 @@ must not fall through to a metered provider.
 
 ## A2A Consult Task Shape
 
-A2A hosts can discover `deepr_consult_experts` in the Agent Card and submit a
-task with the consult question as `input`. The no-metered default is local
-synthesis:
+A2A hosts can discover `deepr_consult_experts` in the Agent Card at the current
+path `/.well-known/agent-card.json`. The legacy `/.well-known/agent.json` path
+is still accepted for older clients. Validate the contract before giving it to a
+host:
+
+```powershell
+deepr a2a validate-host --json
+deepr a2a validate-host http://127.0.0.1:8080 --auth-token "$DEEPR_A2A_TOKEN" --json
+```
+
+The first command is an offline `$0` fixture. The second submits a no-metered
+consult task to a running endpoint and emits `deepr-a2a-host-validation-v1`.
+
+Submit a task with the consult question as `input`. The no-metered default is
+local synthesis:
 
 ```json
 {

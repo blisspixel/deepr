@@ -103,6 +103,14 @@
       "compatibility": "additive-within-v1"
     },
     {
+      "name": "a2a-host-validation",
+      "schema_version": "deepr-a2a-host-validation-v1",
+      "kind": "deepr.a2a.host_validation",
+      "path": "a2a-host-validation-v1.json",
+      "status": "experimental",
+      "compatibility": "additive-within-v1"
+    },
+    {
       "name": "consult",
       "schema_version": "deepr-consult-v1",
       "kind": "deepr.expert.consult",

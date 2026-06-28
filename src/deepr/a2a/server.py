@@ -16,6 +16,7 @@ import os
 from typing import Any
 
 from deepr.a2a.agent_card import AgentCardGenerator
+from deepr.a2a.constants import A2A_AGENT_CARD_PATH, A2A_LEGACY_AGENT_CARD_PATH
 from deepr.a2a.consult_tasks import is_consult_skill, run_consult_task
 from deepr.a2a.models import Task, TaskRequest, TaskState
 from deepr.a2a.output_contracts import (
@@ -40,7 +41,8 @@ class A2AServer:
     """Lightweight A2A HTTP server.
 
     Endpoints:
-    - GET  /.well-known/agent.json  - Agent card
+    - GET  /.well-known/agent-card.json  - Agent card
+    - GET  /.well-known/agent.json       - Legacy Agent Card alias
     - POST /tasks                   - Create task
     - GET  /tasks/{id}              - Get task status
     - POST /tasks/{id}/cancel       - Cancel task
@@ -130,7 +132,7 @@ class A2AServer:
         endpoint (``POST /tasks``, ``POST /tasks/{id}/cancel``).
         """
         # Public endpoints - discovery and read-only status.
-        if method == "GET" and path == "/.well-known/agent.json":
+        if method == "GET" and path in {A2A_AGENT_CARD_PATH, A2A_LEGACY_AGENT_CARD_PATH}:
             return self._handle_agent_card()
 
         # Auth gate for everything else when a token is configured.
