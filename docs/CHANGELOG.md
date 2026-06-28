@@ -228,6 +228,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   confidence, provenance, temporal context, and a next learning plan.
 
 ### Changed
+- Moved the legacy root-level MCP checklist into
+  `docs/MCP_A2A_INTEROP_CHECKLIST.md`, refreshed it against current official
+  MCP, A2A, and agentic AI security guidance, and linked it from the docs index.
 - Clarified MCP expert-chat guidance for external agents: no-metered
   single-expert advice now uses `deepr_consult_experts` with one explicit expert
   and `synthesis_backend=local|plan`, while `deepr_query_expert` is labeled as
