@@ -11,7 +11,14 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
-    from deepr.core.contracts import ExpertConcept, ExpertHypothesis, ExpertStance, ExplorationAgenda, Gap
+    from deepr.core.contracts import (
+        ExpertConcept,
+        ExpertHypothesis,
+        ExpertOriginalIdea,
+        ExpertStance,
+        ExplorationAgenda,
+        Gap,
+    )
 
 logger = logging.getLogger(__name__)
 
@@ -138,6 +145,24 @@ def _stance_candidate_log(stance: "ExpertStance") -> dict[str, Any]:
     }
 
 
+def _original_idea_candidate_log(original_idea: "ExpertOriginalIdea") -> dict[str, Any]:
+    return {
+        "id": original_idea.id,
+        "title": original_idea.title,
+        "statement": original_idea.statement,
+        "origin": original_idea.origin,
+        "rationale": original_idea.rationale,
+        "uncertainty": original_idea.uncertainty,
+        "assumptions": list(original_idea.assumptions),
+        "implications": list(original_idea.implications),
+        "expected_observations": list(original_idea.expected_observations),
+        "disconfirming_signals": list(original_idea.disconfirming_signals),
+        "priority": original_idea.priority,
+        "confidence": original_idea.confidence,
+        "status": original_idea.status,
+    }
+
+
 class MetaCognitionTracker:
     """Tracks expert's awareness of what it knows and doesn't know."""
 
@@ -154,6 +179,7 @@ class MetaCognitionTracker:
         self.hypotheses: dict[str, ExpertHypothesis] = {}
         self.concepts: dict[str, ExpertConcept] = {}
         self.stances: dict[str, ExpertStance] = {}
+        self.original_ideas: dict[str, ExpertOriginalIdea] = {}
         self.domain_confidence: dict[str, DomainConfidence] = {}
         self.uncertainty_log: list[dict] = []
 
@@ -187,7 +213,13 @@ class MetaCognitionTracker:
                     )
 
                 # Load exploration agendas
-                from deepr.core.contracts import ExpertConcept, ExpertHypothesis, ExpertStance, ExplorationAgenda
+                from deepr.core.contracts import (
+                    ExpertConcept,
+                    ExpertHypothesis,
+                    ExpertOriginalIdea,
+                    ExpertStance,
+                    ExplorationAgenda,
+                )
 
                 for title, agenda_data in data.get("exploration_agendas", {}).items():
                     self.exploration_agendas[title] = ExplorationAgenda.from_dict(agenda_data)
@@ -203,6 +235,10 @@ class MetaCognitionTracker:
                 # Load stances
                 for title, stance_data in data.get("stances", {}).items():
                     self.stances[title] = ExpertStance.from_dict(stance_data)
+
+                # Load original ideas
+                for title, original_idea_data in data.get("original_ideas", {}).items():
+                    self.original_ideas[title] = ExpertOriginalIdea.from_dict(original_idea_data)
 
                 # Load domain confidence
                 for domain, conf_data in data.get("domain_confidence", {}).items():
@@ -243,6 +279,9 @@ class MetaCognitionTracker:
                 "hypotheses": {title: hypothesis.to_dict() for title, hypothesis in self.hypotheses.items()},
                 "concepts": {name: concept.to_dict() for name, concept in self.concepts.items()},
                 "stances": {title: stance.to_dict() for title, stance in self.stances.items()},
+                "original_ideas": {
+                    title: original_idea.to_dict() for title, original_idea in self.original_ideas.items()
+                },
                 "domain_confidence": {
                     domain: {
                         "domain": conf.domain,
@@ -445,6 +484,34 @@ class MetaCognitionTracker:
         self._save()
         return stance, True
 
+    def promote_original_idea_candidate(
+        self,
+        original_idea: "ExpertOriginalIdea",
+        *,
+        proposal_id: str,
+        evidence_refs: list[str],
+        source: str = "metacognitive_monitor",
+    ) -> tuple["ExpertOriginalIdea", bool]:
+        """Persist a reviewed original idea without duplicating titles."""
+        existing = self.original_ideas.get(original_idea.title)
+        if existing is not None:
+            return existing, False
+
+        self.original_ideas[original_idea.title] = original_idea
+        self.uncertainty_log.append(
+            {
+                "timestamp": datetime.now(UTC).isoformat(),
+                "topic": original_idea.title,
+                "action": "promoted_original_idea_candidate",
+                "source": source,
+                "proposal_id": proposal_id,
+                "evidence_refs": evidence_refs,
+                "candidate": _original_idea_candidate_log(original_idea),
+            }
+        )
+        self._save()
+        return original_idea, True
+
     def record_research_triggered(self, topic: str, research_mode: str):
         """Record that research was triggered for a knowledge gap.
 
@@ -538,6 +605,10 @@ class MetaCognitionTracker:
         """Get active expert stances."""
         return [stance for stance in self.stances.values() if stance.status == "active"]
 
+    def get_original_ideas(self) -> list["ExpertOriginalIdea"]:
+        """Get active expert original ideas."""
+        return [original_idea for original_idea in self.original_ideas.values() if original_idea.status == "active"]
+
     def get_high_confidence_domains(self, min_confidence: float = 0.7) -> list[DomainConfidence]:
         """Get domains where expert has high confidence.
 
@@ -597,6 +668,7 @@ class MetaCognitionTracker:
             "total_hypotheses": len(self.hypotheses),
             "total_concepts": len(self.concepts),
             "total_stances": len(self.stances),
+            "total_original_ideas": len(self.original_ideas),
             "researched_gaps": researched_gaps,
             "learned_gaps": learned_gaps,
             "learning_rate": learned_gaps / total_gaps if total_gaps > 0 else 0.0,

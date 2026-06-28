@@ -6,7 +6,14 @@ import re
 from datetime import UTC, datetime
 from typing import Any
 
-from deepr.core.contracts import ExpertConcept, ExpertHypothesis, ExpertStance, ExplorationAgenda, Gap
+from deepr.core.contracts import (
+    ExpertConcept,
+    ExpertHypothesis,
+    ExpertOriginalIdea,
+    ExpertStance,
+    ExplorationAgenda,
+    Gap,
+)
 from deepr.experts.beliefs import EDGE_TYPES, Belief, BeliefStore
 from deepr.experts.graph_commit_envelope import (
     GRAPH_COMMIT_ENVELOPE_KIND,
@@ -16,6 +23,7 @@ from deepr.experts.graph_commit_envelope import (
     GRAPH_COMMIT_ENVELOPE_SCHEMA_VERSION_V3,
     GRAPH_COMMIT_ENVELOPE_SCHEMA_VERSION_V4,
     GRAPH_COMMIT_ENVELOPE_SCHEMA_VERSION_V5,
+    GRAPH_COMMIT_ENVELOPE_SCHEMA_VERSION_V6,
 )
 from deepr.experts.metacognition import MetaCognitionTracker
 
@@ -29,6 +37,7 @@ _PROMOTE_EXPLORATION_AGENDA = "promote_exploration_agenda"
 _PROMOTE_HYPOTHESIS = "promote_hypothesis"
 _PROMOTE_CONCEPT = "promote_concept"
 _PROMOTE_STANCE = "promote_stance"
+_PROMOTE_ORIGINAL_IDEA = "promote_original_idea"
 _SUPPORTED_OPERATIONS = {
     _ADD_BELIEF,
     _PROMOTE_GAP,
@@ -36,6 +45,7 @@ _SUPPORTED_OPERATIONS = {
     _PROMOTE_HYPOTHESIS,
     _PROMOTE_CONCEPT,
     _PROMOTE_STANCE,
+    _PROMOTE_ORIGINAL_IDEA,
 }
 _SUPPORTED_ENVELOPE_SCHEMA_VERSIONS = {
     GRAPH_COMMIT_ENVELOPE_SCHEMA_VERSION_V1,
@@ -43,7 +53,32 @@ _SUPPORTED_ENVELOPE_SCHEMA_VERSIONS = {
     GRAPH_COMMIT_ENVELOPE_SCHEMA_VERSION_V3,
     GRAPH_COMMIT_ENVELOPE_SCHEMA_VERSION_V4,
     GRAPH_COMMIT_ENVELOPE_SCHEMA_VERSION_V5,
+    GRAPH_COMMIT_ENVELOPE_SCHEMA_VERSION_V6,
     GRAPH_COMMIT_ENVELOPE_SCHEMA_VERSION,
+}
+_TRACKER_APPLIED_SPECS = {
+    _PROMOTE_GAP: ("gap", "knowledge_gaps", "topic"),
+    _PROMOTE_EXPLORATION_AGENDA: ("agenda", "exploration_agendas", "title"),
+    _PROMOTE_HYPOTHESIS: ("hypothesis", "hypotheses", "title"),
+    _PROMOTE_CONCEPT: ("concept", "concepts", "name"),
+    _PROMOTE_STANCE: ("stance", "stances", "title"),
+    _PROMOTE_ORIGINAL_IDEA: ("original_idea", "original_ideas", "title"),
+}
+_PROMOTION_SPECS = {
+    _PROMOTE_GAP: ("gap", Gap.from_dict, "promote_gap_candidate"),
+    _PROMOTE_EXPLORATION_AGENDA: (
+        "agenda",
+        ExplorationAgenda.from_dict,
+        "promote_exploration_agenda_candidate",
+    ),
+    _PROMOTE_HYPOTHESIS: ("hypothesis", ExpertHypothesis.from_dict, "promote_hypothesis_candidate"),
+    _PROMOTE_CONCEPT: ("concept", ExpertConcept.from_dict, "promote_concept_candidate"),
+    _PROMOTE_STANCE: ("stance", ExpertStance.from_dict, "promote_stance_candidate"),
+    _PROMOTE_ORIGINAL_IDEA: (
+        "original_idea",
+        ExpertOriginalIdea.from_dict,
+        "promote_original_idea_candidate",
+    ),
 }
 
 
@@ -109,6 +144,10 @@ def _is_promote_concept(operation: dict[str, Any]) -> bool:
 
 def _is_promote_stance(operation: dict[str, Any]) -> bool:
     return _operation_name(operation) == _PROMOTE_STANCE
+
+
+def _is_promote_original_idea(operation: dict[str, Any]) -> bool:
+    return _operation_name(operation) == _PROMOTE_ORIGINAL_IDEA
 
 
 def _operation_shape_failures(operation: dict[str, Any]) -> list[str]:
@@ -321,6 +360,42 @@ def _stance_failure_reasons(stance: dict[str, Any], gap_tracker: MetaCognitionTr
     return [failure for failure in failures if failure]
 
 
+def _original_idea_identity_failures(
+    original_idea: dict[str, Any],
+    gap_tracker: MetaCognitionTracker | None,
+) -> list[str]:
+    failures = ["original_idea_tracker_missing"] if gap_tracker is None else []
+    if not str(original_idea.get("id", "")).strip():
+        failures.append("missing_original_idea_id")
+    if not str(original_idea.get("title", "")).strip():
+        failures.append("missing_original_idea_title")
+    if not str(original_idea.get("statement", "")).strip():
+        failures.append("missing_original_idea_statement")
+    return failures
+
+
+def _original_idea_confidence_failure(original_idea: dict[str, Any]) -> str:
+    try:
+        confidence = float(original_idea.get("confidence", 0.0))
+    except (TypeError, ValueError):
+        return "invalid_original_idea_confidence"
+    return "invalid_original_idea_confidence" if confidence < 0.0 or confidence > 1.0 else ""
+
+
+def _original_idea_failure_reasons(
+    original_idea: dict[str, Any],
+    gap_tracker: MetaCognitionTracker | None,
+) -> list[str]:
+    failures = [
+        *_original_idea_identity_failures(original_idea, gap_tracker),
+        *_required_text_failures(original_idea, "original_idea"),
+        _gap_priority_failure(original_idea).replace("gap", "original_idea", 1),
+        _original_idea_confidence_failure(original_idea),
+        _iso_datetime_failure(original_idea, "created_at", "invalid_original_idea_created_at"),
+    ]
+    return [failure for failure in failures if failure]
+
+
 def _belief_failure_reasons(belief: dict[str, Any], store: BeliefStore) -> list[str]:
     failures: list[str] = []
     belief_id = str(belief.get("id", ""))
@@ -409,6 +484,16 @@ def _stance_operation_failures(operation: dict[str, Any], gap_tracker: MetaCogni
     return failures
 
 
+def _original_idea_operation_failures(
+    operation: dict[str, Any],
+    gap_tracker: MetaCognitionTracker | None,
+) -> list[str]:
+    failures = _original_idea_failure_reasons(_as_dict(operation.get("original_idea")), gap_tracker)
+    if _as_list(operation.get("edges")):
+        failures.append("original_idea_operation_edges_not_supported")
+    return failures
+
+
 def _operation_failure_reasons(
     operation: dict[str, Any],
     store: BeliefStore,
@@ -425,6 +510,7 @@ def _operation_failure_reasons(
         _PROMOTE_HYPOTHESIS: _hypothesis_operation_failures(operation, gap_tracker),
         _PROMOTE_CONCEPT: _concept_operation_failures(operation, gap_tracker),
         _PROMOTE_STANCE: _stance_operation_failures(operation, gap_tracker),
+        _PROMOTE_ORIGINAL_IDEA: _original_idea_operation_failures(operation, gap_tracker),
     }
     failures.extend(operation_failures.get(_operation_name(operation), []))
     return sorted(set(failures))
@@ -479,39 +565,15 @@ def _operation_fully_applied(operation: dict[str, Any], store: BeliefStore) -> b
     )
 
 
-def _gap_fully_applied(operation: dict[str, Any], gap_tracker: MetaCognitionTracker | None) -> bool:
+def _tracker_state_fully_applied(operation: dict[str, Any], gap_tracker: MetaCognitionTracker | None) -> bool:
     if gap_tracker is None:
         return False
-    topic = str(_as_dict(operation.get("gap")).get("topic", "")).strip()
-    return bool(topic and topic in gap_tracker.knowledge_gaps)
-
-
-def _agenda_fully_applied(operation: dict[str, Any], gap_tracker: MetaCognitionTracker | None) -> bool:
-    if gap_tracker is None:
+    spec = _TRACKER_APPLIED_SPECS.get(_operation_name(operation))
+    if spec is None:
         return False
-    title = str(_as_dict(operation.get("agenda")).get("title", "")).strip()
-    return bool(title and title in gap_tracker.exploration_agendas)
-
-
-def _hypothesis_fully_applied(operation: dict[str, Any], gap_tracker: MetaCognitionTracker | None) -> bool:
-    if gap_tracker is None:
-        return False
-    title = str(_as_dict(operation.get("hypothesis")).get("title", "")).strip()
-    return bool(title and title in gap_tracker.hypotheses)
-
-
-def _concept_fully_applied(operation: dict[str, Any], gap_tracker: MetaCognitionTracker | None) -> bool:
-    if gap_tracker is None:
-        return False
-    name = str(_as_dict(operation.get("concept")).get("name", "")).strip()
-    return bool(name and name in gap_tracker.concepts)
-
-
-def _stance_fully_applied(operation: dict[str, Any], gap_tracker: MetaCognitionTracker | None) -> bool:
-    if gap_tracker is None:
-        return False
-    title = str(_as_dict(operation.get("stance")).get("title", "")).strip()
-    return bool(title and title in gap_tracker.stances)
+    payload_name, tracker_attr, identity_field = spec
+    identity = str(_as_dict(operation.get(payload_name)).get(identity_field, "")).strip()
+    return bool(identity and identity in getattr(gap_tracker, tracker_attr))
 
 
 def _state_fully_applied(
@@ -521,17 +583,7 @@ def _state_fully_applied(
 ) -> bool:
     if _is_add_belief(operation):
         return _operation_fully_applied(operation, store)
-    if _is_promote_gap(operation):
-        return _gap_fully_applied(operation, gap_tracker)
-    if _is_promote_exploration_agenda(operation):
-        return _agenda_fully_applied(operation, gap_tracker)
-    if _is_promote_hypothesis(operation):
-        return _hypothesis_fully_applied(operation, gap_tracker)
-    if _is_promote_concept(operation):
-        return _concept_fully_applied(operation, gap_tracker)
-    if _is_promote_stance(operation):
-        return _stance_fully_applied(operation, gap_tracker)
-    return False
+    return _tracker_state_fully_applied(operation, gap_tracker)
 
 
 def _operation_result(
@@ -549,6 +601,7 @@ def _operation_result(
     hypothesis = _as_dict(operation.get("hypothesis"))
     concept = _as_dict(operation.get("concept"))
     stance = _as_dict(operation.get("stance"))
+    original_idea = _as_dict(operation.get("original_idea"))
     result = {
         "operation_id": str(operation.get("operation_id", "")),
         "operation": str(operation.get("operation", "")),
@@ -580,6 +633,10 @@ def _operation_result(
         result["stance_id"] = str(stance.get("id", ""))
         result["stance_title"] = str(stance.get("title", ""))
         result["stance_created"] = status == "applied" and _is_promote_stance(operation)
+    if original_idea:
+        result["original_idea_id"] = str(original_idea.get("id", ""))
+        result["original_idea_title"] = str(original_idea.get("title", ""))
+        result["original_idea_created"] = status == "applied" and _is_promote_original_idea(operation)
     return result
 
 
@@ -749,26 +806,6 @@ def _add_missing_edges(operations: list[dict[str, Any]], store: BeliefStore) -> 
     return edge_counts
 
 
-def _gap_from_operation(operation: dict[str, Any]) -> Gap:
-    return Gap.from_dict(_as_dict(operation["gap"]))
-
-
-def _agenda_from_operation(operation: dict[str, Any]) -> ExplorationAgenda:
-    return ExplorationAgenda.from_dict(_as_dict(operation["agenda"]))
-
-
-def _hypothesis_from_operation(operation: dict[str, Any]) -> ExpertHypothesis:
-    return ExpertHypothesis.from_dict(_as_dict(operation["hypothesis"]))
-
-
-def _concept_from_operation(operation: dict[str, Any]) -> ExpertConcept:
-    return ExpertConcept.from_dict(_as_dict(operation["concept"]))
-
-
-def _stance_from_operation(operation: dict[str, Any]) -> ExpertStance:
-    return ExpertStance.from_dict(_as_dict(operation["stance"]))
-
-
 def _gap_evidence_refs(operation: dict[str, Any]) -> list[str]:
     refs = _as_list(_as_dict(operation.get("provenance")).get("source_refs"))
     return [
@@ -778,7 +815,7 @@ def _gap_evidence_refs(operation: dict[str, Any]) -> list[str]:
     ]
 
 
-def _promote_missing_gaps(
+def _promote_missing_tracker_states(
     operations: list[dict[str, Any]],
     gap_tracker: MetaCognitionTracker | None,
     *,
@@ -788,107 +825,13 @@ def _promote_missing_gaps(
         return {}
     applied_changes: dict[str, str] = {}
     for operation in operations:
-        if not _is_promote_gap(operation):
+        spec = _PROMOTION_SPECS.get(_operation_name(operation))
+        if spec is None:
             continue
-        gap = _gap_from_operation(operation)
-        _promoted, created = gap_tracker.promote_gap_candidate(
-            gap,
-            proposal_id=str(operation.get("idempotency_key", "")),
-            evidence_refs=_gap_evidence_refs(operation),
-            source="graph_commit_apply",
-        )
-        if created:
-            applied_changes[str(operation["idempotency_key"])] = generated_at
-    return applied_changes
-
-
-def _promote_missing_agendas(
-    operations: list[dict[str, Any]],
-    gap_tracker: MetaCognitionTracker | None,
-    *,
-    generated_at: str,
-) -> dict[str, str]:
-    if gap_tracker is None:
-        return {}
-    applied_changes: dict[str, str] = {}
-    for operation in operations:
-        if not _is_promote_exploration_agenda(operation):
-            continue
-        agenda = _agenda_from_operation(operation)
-        _promoted, created = gap_tracker.promote_exploration_agenda_candidate(
-            agenda,
-            proposal_id=str(operation.get("idempotency_key", "")),
-            evidence_refs=_gap_evidence_refs(operation),
-            source="graph_commit_apply",
-        )
-        if created:
-            applied_changes[str(operation["idempotency_key"])] = generated_at
-    return applied_changes
-
-
-def _promote_missing_hypotheses(
-    operations: list[dict[str, Any]],
-    gap_tracker: MetaCognitionTracker | None,
-    *,
-    generated_at: str,
-) -> dict[str, str]:
-    if gap_tracker is None:
-        return {}
-    applied_changes: dict[str, str] = {}
-    for operation in operations:
-        if not _is_promote_hypothesis(operation):
-            continue
-        hypothesis = _hypothesis_from_operation(operation)
-        _promoted, created = gap_tracker.promote_hypothesis_candidate(
-            hypothesis,
-            proposal_id=str(operation.get("idempotency_key", "")),
-            evidence_refs=_gap_evidence_refs(operation),
-            source="graph_commit_apply",
-        )
-        if created:
-            applied_changes[str(operation["idempotency_key"])] = generated_at
-    return applied_changes
-
-
-def _promote_missing_concepts(
-    operations: list[dict[str, Any]],
-    gap_tracker: MetaCognitionTracker | None,
-    *,
-    generated_at: str,
-) -> dict[str, str]:
-    if gap_tracker is None:
-        return {}
-    applied_changes: dict[str, str] = {}
-    for operation in operations:
-        if not _is_promote_concept(operation):
-            continue
-        concept = _concept_from_operation(operation)
-        _promoted, created = gap_tracker.promote_concept_candidate(
-            concept,
-            proposal_id=str(operation.get("idempotency_key", "")),
-            evidence_refs=_gap_evidence_refs(operation),
-            source="graph_commit_apply",
-        )
-        if created:
-            applied_changes[str(operation["idempotency_key"])] = generated_at
-    return applied_changes
-
-
-def _promote_missing_stances(
-    operations: list[dict[str, Any]],
-    gap_tracker: MetaCognitionTracker | None,
-    *,
-    generated_at: str,
-) -> dict[str, str]:
-    if gap_tracker is None:
-        return {}
-    applied_changes: dict[str, str] = {}
-    for operation in operations:
-        if not _is_promote_stance(operation):
-            continue
-        stance = _stance_from_operation(operation)
-        _promoted, created = gap_tracker.promote_stance_candidate(
-            stance,
+        payload_name, from_dict, method_name = spec
+        promoted_state = from_dict(_as_dict(operation[payload_name]))
+        _promoted, created = getattr(gap_tracker, method_name)(
+            promoted_state,
             proposal_id=str(operation.get("idempotency_key", "")),
             evidence_refs=_gap_evidence_refs(operation),
             source="graph_commit_apply",
@@ -968,11 +911,7 @@ def apply_graph_commit_envelope(
     pending = _pending_operations(operations, operation_results)
     applied_changes = {
         **_add_missing_beliefs(pending, store),
-        **_promote_missing_gaps(pending, gap_tracker, generated_at=resolved_generated_at),
-        **_promote_missing_agendas(pending, gap_tracker, generated_at=resolved_generated_at),
-        **_promote_missing_hypotheses(pending, gap_tracker, generated_at=resolved_generated_at),
-        **_promote_missing_concepts(pending, gap_tracker, generated_at=resolved_generated_at),
-        **_promote_missing_stances(pending, gap_tracker, generated_at=resolved_generated_at),
+        **_promote_missing_tracker_states(pending, gap_tracker, generated_at=resolved_generated_at),
     }
     edge_counts = _add_missing_edges(pending, store)
     final_results = _applied_operation_results(operations, operation_results, applied_changes, edge_counts)

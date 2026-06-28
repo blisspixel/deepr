@@ -15,7 +15,8 @@ GRAPH_COMMIT_ENVELOPE_SCHEMA_VERSION_V2 = "deepr-graph-commit-envelope-v2"
 GRAPH_COMMIT_ENVELOPE_SCHEMA_VERSION_V3 = "deepr-graph-commit-envelope-v3"
 GRAPH_COMMIT_ENVELOPE_SCHEMA_VERSION_V4 = "deepr-graph-commit-envelope-v4"
 GRAPH_COMMIT_ENVELOPE_SCHEMA_VERSION_V5 = "deepr-graph-commit-envelope-v5"
-GRAPH_COMMIT_ENVELOPE_SCHEMA_VERSION = "deepr-graph-commit-envelope-v6"
+GRAPH_COMMIT_ENVELOPE_SCHEMA_VERSION_V6 = "deepr-graph-commit-envelope-v6"
+GRAPH_COMMIT_ENVELOPE_SCHEMA_VERSION = "deepr-graph-commit-envelope-v7"
 GRAPH_COMMIT_ENVELOPE_KIND = "deepr.expert.graph_commit_envelope"
 
 _BELIEF_STATE_TYPES = {"factual_claim", "fact", "external_fact", "current_fact"}
@@ -24,6 +25,7 @@ _AGENDA_STATE_TYPES = {"exploration_agenda", "research_agenda"}
 _HYPOTHESIS_STATE_TYPES = {"hypothesis"}
 _CONCEPT_STATE_TYPES = {"concept"}
 _STANCE_STATE_TYPES = {"stance"}
+_ORIGINAL_IDEA_STATE_TYPES = {"original_idea"}
 
 
 def _utc_now() -> datetime:
@@ -131,6 +133,10 @@ def _stance_id(title: str, position: str) -> str:
     return hashlib.sha256(f"{title}|{position}".encode()).hexdigest()[:12]
 
 
+def _original_idea_id(title: str, statement: str) -> str:
+    return hashlib.sha256(f"{title}|{statement}".encode()).hexdigest()[:12]
+
+
 def _decision_state_type(candidate: dict[str, Any], decision: dict[str, Any]) -> str:
     policy = decision.get("state_policy", candidate.get("state_policy", {})) or {}
     return str(policy.get("state_type", candidate.get("claim_kind", "")) or "")
@@ -178,6 +184,7 @@ def _commit_failures(candidate: dict[str, Any] | None, decision: dict[str, Any])
     is_hypothesis = state_type in _HYPOTHESIS_STATE_TYPES
     is_concept = state_type in _CONCEPT_STATE_TYPES
     is_stance = state_type in _STANCE_STATE_TYPES
+    is_original_idea = state_type in _ORIGINAL_IDEA_STATE_TYPES
     if (
         state_type not in _BELIEF_STATE_TYPES
         and not is_gap
@@ -185,11 +192,12 @@ def _commit_failures(candidate: dict[str, Any] | None, decision: dict[str, Any])
         and not is_hypothesis
         and not is_concept
         and not is_stance
+        and not is_original_idea
     ):
         failures.append("non_factual_state_requires_perspective_store")
 
     verdicts = decision.get("verdicts", {}) or {}
-    if is_gap or is_agenda or is_hypothesis or is_concept or is_stance:
+    if is_gap or is_agenda or is_hypothesis or is_concept or is_stance or is_original_idea:
         failures.extend(_gap_verdict_ready(verdicts))
     else:
         failures.extend(_belief_verdict_ready(verdicts))
@@ -652,6 +660,71 @@ def _stance_operation(
     }
 
 
+def _original_idea_payload(candidate: dict[str, Any], decision: dict[str, Any], generated_at: str) -> dict[str, Any]:
+    statement = str(candidate.get("statement", "") or "").strip()
+    raw_original_idea = candidate.get("original_idea")
+    original_idea = raw_original_idea if isinstance(raw_original_idea, dict) else {}
+    judgment = decision.get("model_judgment", {}) or {}
+    title = str(original_idea.get("title", statement) or statement).strip()
+    return {
+        "id": _original_idea_id(title, statement),
+        "title": title,
+        "statement": str(original_idea.get("statement", statement) or statement).strip(),
+        "origin": str(judgment.get("origin", original_idea.get("origin", "")) or "").strip(),
+        "rationale": str(judgment.get("rationale", original_idea.get("rationale", "")) or "").strip(),
+        "uncertainty": str(judgment.get("uncertainty", original_idea.get("uncertainty", "")) or "").strip(),
+        "assumptions": _string_items(original_idea.get("assumptions")),
+        "implications": _string_items(original_idea.get("implications")),
+        "expected_observations": _string_items(
+            judgment.get("expected_observations", original_idea.get("expected_observations"))
+        ),
+        "disconfirming_signals": _string_items(
+            judgment.get("disconfirming_signals", original_idea.get("disconfirming_signals"))
+        ),
+        "priority": _int_range(original_idea.get("priority"), default=3, minimum=1, maximum=5),
+        "confidence": _confidence(candidate, decision),
+        "created_at": generated_at,
+        "status": "active",
+    }
+
+
+def _original_idea_operation(
+    candidate: dict[str, Any],
+    decision: dict[str, Any],
+    *,
+    generated_at: str,
+    claim_extraction_artifact: str,
+    claim_verification_artifact: str,
+    source_note_artifact: str,
+) -> dict[str, Any]:
+    evidence_refs = _valid_evidence_refs(candidate)
+    candidate_id = str(candidate.get("candidate_id", "") or "")
+    original_idea = _original_idea_payload(candidate, decision, generated_at)
+    idempotency_material = {
+        "schema_version": GRAPH_COMMIT_ENVELOPE_SCHEMA_VERSION,
+        "operation": "promote_original_idea",
+        "candidate_id": candidate_id,
+        "original_idea_id": original_idea["id"],
+        "original_idea_title": original_idea["title"],
+        "verdicts": decision.get("verdicts", {}),
+        "evidence_refs": evidence_refs,
+    }
+    return {
+        "operation_id": f"op_{_sha256_json(idempotency_material)[:16]}",
+        "operation": "promote_original_idea",
+        "candidate_id": candidate_id,
+        "decision_status": str((decision.get("commit_gate", {}) or {}).get("status", "")),
+        "original_idea": original_idea,
+        "idempotency_key": _sha256_json(idempotency_material),
+        "provenance": {
+            "claim_extraction_artifact": claim_extraction_artifact,
+            "claim_verification_artifact": claim_verification_artifact,
+            "source_note_artifact": source_note_artifact,
+            "source_refs": evidence_refs,
+        },
+    }
+
+
 def _state_operation(
     candidate: dict[str, Any],
     decision: dict[str, Any],
@@ -682,6 +755,8 @@ def _state_operation(
         return _concept_operation(candidate, decision, **common)
     if state_type in _STANCE_STATE_TYPES:
         return _stance_operation(candidate, decision, **common)
+    if state_type in _ORIGINAL_IDEA_STATE_TYPES:
+        return _original_idea_operation(candidate, decision, **common)
     return _write_operation(
         candidate,
         decision,
@@ -842,5 +917,6 @@ __all__ = [
     "GRAPH_COMMIT_ENVELOPE_SCHEMA_VERSION_V3",
     "GRAPH_COMMIT_ENVELOPE_SCHEMA_VERSION_V4",
     "GRAPH_COMMIT_ENVELOPE_SCHEMA_VERSION_V5",
+    "GRAPH_COMMIT_ENVELOPE_SCHEMA_VERSION_V6",
     "build_graph_commit_envelope",
 ]

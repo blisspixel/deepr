@@ -9,7 +9,7 @@ from datetime import UTC, datetime, timedelta
 
 import pytest
 
-from deepr.core.contracts import ExpertConcept, ExpertStance, ExplorationAgenda, ExpertHypothesis
+from deepr.core.contracts import ExpertConcept, ExpertHypothesis, ExpertOriginalIdea, ExpertStance, ExplorationAgenda
 from deepr.experts.metacognition import DomainConfidence, KnowledgeGap, MetaCognitionTracker
 
 
@@ -278,6 +278,40 @@ class TestMetaCognitionTracker:
         assert temp_tracker.get_stances()[0].title == stance.title
         assert temp_tracker.uncertainty_log[-1]["action"] == "promoted_stance_candidate"
 
+    def test_promote_original_idea_candidate(self, temp_tracker):
+        """Test promoting a reviewed original idea."""
+        idea = ExpertOriginalIdea.create(
+            "Statistician council packets",
+            statement="Use a statistician council to turn agent consults into measurable review packets.",
+            origin="Reviewed compiler output.",
+            rationale="The expert needs a durable original idea without treating it as fact.",
+            uncertainty="The idea has not been validated across repeated consult traces yet.",
+            assumptions=["Consult traces can expose variables, outcomes, and tradeoffs."],
+            implications=["Future expert councils can emit more measurable plans."],
+            expected_observations=["Future consult plans cite variables and acceptance criteria."],
+            disconfirming_signals=["Consult quality does not improve after the idea is used."],
+        )
+
+        promoted, created = temp_tracker.promote_original_idea_candidate(
+            idea,
+            proposal_id="original-idea-1",
+            evidence_refs=["source_note:note:w0"],
+            source="test",
+        )
+        replayed, replay_created = temp_tracker.promote_original_idea_candidate(
+            idea,
+            proposal_id="original-idea-1",
+            evidence_refs=["source_note:note:w0"],
+            source="test",
+        )
+
+        assert created is True
+        assert replay_created is False
+        assert promoted.title == idea.title
+        assert replayed.title == idea.title
+        assert temp_tracker.get_original_ideas()[0].title == idea.title
+        assert temp_tracker.uncertainty_log[-1]["action"] == "promoted_original_idea_candidate"
+
     def test_get_knowledge_gaps_default(self, temp_tracker):
         """Test get_knowledge_gaps with default threshold."""
         temp_tracker.record_knowledge_gap("Topic 1")
@@ -516,6 +550,32 @@ class TestMetaCognitionTrackerPersistence:
 
             assert "Prefer variable-first expert council plans" in tracker2.stances
             assert len(tracker2.get_stances()) == 1
+
+    def test_save_and_load_original_ideas(self):
+        """Test saving and loading expert original ideas."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            tracker1 = MetaCognitionTracker("Test Expert", tmpdir)
+            tracker1.promote_original_idea_candidate(
+                ExpertOriginalIdea.create(
+                    "Statistician council packets",
+                    statement="Use a statistician council to turn agent consults into measurable review packets.",
+                    origin="Reviewed compiler output.",
+                    rationale="Original idea state should be durable before reuse.",
+                    uncertainty="The idea has not been validated across repeated consult traces yet.",
+                    assumptions=["Consult traces can expose variables."],
+                    implications=["Future expert councils can emit more measurable plans."],
+                    expected_observations=["Future consult plans cite variables."],
+                    disconfirming_signals=["Review quality does not improve."],
+                ),
+                proposal_id="original-idea-1",
+                evidence_refs=[],
+                source="test",
+            )
+
+            tracker2 = MetaCognitionTracker("Test Expert", tmpdir)
+
+            assert "Statistician council packets" in tracker2.original_ideas
+            assert len(tracker2.get_original_ideas()) == 1
 
     def test_save_and_load_research_triggered(self):
         """Test saving and loading research triggered state."""

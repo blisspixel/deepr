@@ -14,6 +14,7 @@ from deepr.experts.source_pack_policies import is_agenda_kind as _is_agenda_kind
 from deepr.experts.source_pack_policies import is_concept_kind as _is_concept_kind
 from deepr.experts.source_pack_policies import is_gap_kind as _is_gap_kind
 from deepr.experts.source_pack_policies import is_hypothesis_kind as _is_hypothesis_kind
+from deepr.experts.source_pack_policies import is_original_idea_kind as _is_original_idea_kind
 from deepr.experts.source_pack_policies import is_stance_kind as _is_stance_kind
 from deepr.experts.source_pack_values import enum_value as _enum_value
 from deepr.experts.source_pack_values import float_0_1 as _float_0_1
@@ -345,6 +346,17 @@ def _stance_candidate(item: dict[str, Any], statement: str) -> dict[str, Any]:
     }
 
 
+def _original_idea_candidate(item: dict[str, Any], statement: str) -> dict[str, Any]:
+    title = str(item.get("title", statement) or statement).strip()
+    return {
+        "title": title or statement,
+        "statement": statement,
+        "assumptions": _string_list_field(item, "assumptions"),
+        "implications": _string_list_field(item, "implications"),
+        "priority": _int_range(item.get("priority"), default=3, minimum=1, maximum=5),
+    }
+
+
 def _response_from_model_output(model_output: dict[str, Any] | str) -> tuple[dict[str, Any], str, str]:
     if isinstance(model_output, str):
         raw = model_output
@@ -424,6 +436,8 @@ def _claim_candidate(
         candidate["concept"] = _concept_candidate(item, statement)
     if _is_stance_kind(claim_kind):
         candidate["stance"] = _stance_candidate(item, statement)
+    if _is_original_idea_kind(claim_kind):
+        candidate["original_idea"] = _original_idea_candidate(item, statement)
     return candidate
 
 

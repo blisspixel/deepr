@@ -167,8 +167,8 @@ boundaries:
    state, Distillr corpus, Recon, Primr, local/fresh web context, or a metered
    research provider.
 4. Compile material into source notes, concepts, claims, hypotheses, stance,
-   typed temporal graph edges, contradiction records, watch items, and gap
-   updates.
+   original ideas, typed temporal graph edges, contradiction records, watch
+   items, and gap updates.
 5. Verify the result with deterministic gates for schema, provenance, budget,
    writes, and idempotency plus calibrated model judgment for meaning,
    coherence, relevance, and conceptual fit.
