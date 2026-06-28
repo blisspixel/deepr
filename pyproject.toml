@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "deepr-research"
-version = "2.23.0"
+version = "2.24.0"
 description = "Research automation platform that replicates human research team workflows using AI"
 readme = "README.md"
 license = {text = "Apache-2.0"}

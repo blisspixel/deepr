@@ -5,10 +5,14 @@ from __future__ import annotations
 import hashlib
 import json
 import re
+from collections.abc import Iterable, Mapping
 from datetime import UTC, datetime
 from typing import Any
 
 from deepr.experts.beliefs import EDGE_TYPES
+from deepr.experts.source_pack_payloads import artifact_generated_at as _artifact_generated_at
+from deepr.experts.source_pack_payloads import source_pack_from_payload as _source_pack_from_payload
+from deepr.experts.source_pack_payloads import sources_from_pack as _sources
 from deepr.experts.source_pack_policies import claim_kind_policy as _claim_kind_policy
 from deepr.experts.source_pack_policies import is_agenda_kind as _is_agenda_kind
 from deepr.experts.source_pack_policies import is_concept_kind as _is_concept_kind
@@ -16,6 +20,7 @@ from deepr.experts.source_pack_policies import is_gap_kind as _is_gap_kind
 from deepr.experts.source_pack_policies import is_hypothesis_kind as _is_hypothesis_kind
 from deepr.experts.source_pack_policies import is_original_idea_kind as _is_original_idea_kind
 from deepr.experts.source_pack_policies import is_stance_kind as _is_stance_kind
+from deepr.experts.source_pack_recall import build_recall_context as _recall_context
 from deepr.experts.source_pack_values import enum_value as _enum_value
 from deepr.experts.source_pack_values import float_0_1 as _float_0_1
 from deepr.experts.source_pack_values import float_nonnegative as _float_nonnegative
@@ -52,28 +57,6 @@ def _sha256_text(value: str) -> str:
     if not value:
         return ""
     return hashlib.sha256(value.encode("utf-8")).hexdigest()
-
-
-def _source_pack_from_payload(payload: dict[str, Any]) -> dict[str, Any]:
-    source_pack = payload.get("source_pack")
-    if isinstance(source_pack, dict):
-        return source_pack
-    return payload
-
-
-def _sources(source_pack: dict[str, Any]) -> list[dict[str, Any]]:
-    raw_sources = source_pack.get("sources", [])
-    if not isinstance(raw_sources, list):
-        return []
-    return [source for source in raw_sources if isinstance(source, dict)]
-
-
-def _artifact_generated_at(payload: dict[str, Any], source_pack: dict[str, Any]) -> str:
-    for key, source in (("started_at", payload), ("generated_at", source_pack), ("generated_at", payload)):
-        value = source.get(key)
-        if value:
-            return str(value)
-    return "1970-01-01T00:00:00+00:00"
 
 
 def _source_pointer(index: int) -> str:
@@ -616,6 +599,7 @@ def _verification_decision(
     item: dict[str, Any],
     *,
     candidates_by_id: dict[str, dict[str, Any]],
+    recall_candidates_by_candidate_id: Mapping[str, Iterable[Any]],
 ) -> dict[str, Any]:
     candidate_id = str(item.get("candidate_id", "") or "").strip()
     candidate = candidates_by_id.get(candidate_id)
@@ -639,6 +623,7 @@ def _verification_decision(
         "model_judgment": model_judgment,
         "edge_decisions": edge_decisions,
         "edge_decision_failures": edge_decision_failures,
+        "recall_context": _recall_context(recall_candidates_by_candidate_id.get(candidate_id, [])),
         "readiness": {
             "ready_for_commit_envelope": ready,
             "failure_reasons": failure_reasons,
@@ -893,6 +878,7 @@ def build_claim_verification(
     prompt_text: str = "",
     prompt_hash: str = "",
     generated_at: str = "",
+    recall_candidates_by_candidate_id: Mapping[str, Iterable[Any]] | None = None,
 ) -> dict[str, Any]:
     """Compile verifier output into graph-commit readiness decisions.
 
@@ -903,8 +889,14 @@ def build_claim_verification(
     parsed, raw_response_hash, response_failure = _response_from_model_output(model_output)
     response_failure = response_failure or _verification_response_shape_failure(parsed)
     candidates_by_id = _candidate_by_id(claim_extraction)
+    recall_candidates_by_candidate_id = recall_candidates_by_candidate_id or {}
     decisions = [
-        _verification_decision(item, candidates_by_id=candidates_by_id) for item in _raw_verification_items(parsed)
+        _verification_decision(
+            item,
+            candidates_by_id=candidates_by_id,
+            recall_candidates_by_candidate_id=recall_candidates_by_candidate_id,
+        )
+        for item in _raw_verification_items(parsed)
     ]
     ready_count = sum(1 for decision in decisions if decision["readiness"]["ready_for_commit_envelope"])
     failure_reasons = sorted(
