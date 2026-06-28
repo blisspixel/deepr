@@ -166,9 +166,12 @@ must not be described as usable capacity.
   `--compile-claims` can write verifier-pending claim extraction sidecars;
   claim-verification envelopes record verifier decisions and optional
   candidate-to-candidate typed edge decisions; graph commit envelopes plan
-  idempotent writes without mutating state. `deepr expert apply-graph-commit
-  NAME ENVELOPE --yes` is the explicit write boundary for verified factual
-  add-belief and typed-edge operations.
+  idempotent writes without mutating state. `deepr-graph-commit-envelope-v1`
+  is belief-only; `deepr-graph-commit-envelope-v2` adds verifier-gated
+  `promote_gap` operations for the metacognition gap backlog. `deepr expert
+  apply-graph-commit NAME ENVELOPE --yes` is the explicit write boundary for
+  verified factual add-belief operations, typed-edge operations, and verified
+  gap promotions.
 
 ## Visible Or Planned Only
 

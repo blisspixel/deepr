@@ -1033,7 +1033,7 @@ def test_graph_commit_envelope_schema_validates_runtime_payload():
         domain="schemas",
         generated_at="2026-06-26T12:03:00+00:00",
     )
-    schema = _load_schema("graph-commit-envelope-v1.json")
+    schema = _load_schema("graph-commit-envelope-v2.json")
 
     _validate(schema, payload)
     assert payload["schema_version"] == GRAPH_COMMIT_ENVELOPE_SCHEMA_VERSION

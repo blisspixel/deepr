@@ -23,6 +23,7 @@ CLAIM_VERIFICATION_PROMPT_VERSION = "deepr-claim-verification-prompt-v1"
 _SHA256_HEX = re.compile(r"^[a-fA-F0-9]{64}$")
 _FACTUAL_KINDS = {"factual_claim", "fact", "external_fact", "current_fact"}
 _IDEA_KINDS = {"concept", "hypothesis", "stance", "proposal", "original_idea", "original_synthesis"}
+_GAP_KINDS = {"gap", "knowledge_gap", "research_gap"}
 _SUPPORT_VERDICTS = {"supported", "refuted", "insufficient", "not_applicable", "unverified"}
 _CONTRADICTION_VERDICTS = {"none", "possible", "contradiction", "unverified"}
 _DEDUP_VERDICTS = {"new", "same_as_existing", "uncertain", "unverified"}
@@ -54,6 +55,22 @@ def _float_0_1(value: Any, *, default: float = 0.0) -> float:
     except (TypeError, ValueError):
         return default
     return max(0.0, min(1.0, parsed))
+
+
+def _float_nonnegative(value: Any, *, default: float = 0.0) -> float:
+    try:
+        parsed = float(value)
+    except (TypeError, ValueError):
+        return default
+    return max(0.0, parsed)
+
+
+def _int_range(value: Any, *, default: int, minimum: int, maximum: int) -> int:
+    try:
+        parsed = int(value)
+    except (TypeError, ValueError):
+        return default
+    return min(max(parsed, minimum), maximum)
 
 
 def _normalized_key(value: Any, *, default: str = "") -> str:
@@ -299,6 +316,21 @@ def _candidate_id(statement: str, source_refs: list[dict[str, Any]]) -> str:
     return f"cc_{_sha256_text(_json_hash_material(material))[:20]}"
 
 
+def _gap_candidate(item: dict[str, Any], statement: str) -> dict[str, Any]:
+    topic = str(item.get("topic", statement) or statement).strip()
+    estimated_cost = _float_nonnegative(item.get("estimated_cost"))
+    expected_value = _float_0_1(item.get("expected_value"))
+    return {
+        "topic": topic or statement,
+        "questions": _string_list_field(item, "questions"),
+        "priority": _int_range(item.get("priority"), default=3, minimum=1, maximum=5),
+        "estimated_cost": estimated_cost,
+        "expected_value": expected_value,
+        "ev_cost_ratio": expected_value / max(estimated_cost, 0.001) if expected_value else 0.0,
+        "times_asked": max(1, _int_or_zero(item.get("times_asked"), default=1)),
+    }
+
+
 def _response_from_model_output(model_output: dict[str, Any] | str) -> tuple[dict[str, Any], str, str]:
     if isinstance(model_output, str):
         raw = model_output
@@ -344,7 +376,7 @@ def _claim_candidate(
         failure_reasons.append("no_valid_source_refs")
     failure_reasons = sorted(set(failure_reasons))
     ready = bool(statement) and valid_source_ref_count > 0
-    return {
+    candidate: dict[str, Any] = {
         "candidate_id": _candidate_id(statement, evidence_refs),
         "statement": statement,
         "claim_kind": claim_kind,
@@ -368,10 +400,22 @@ def _claim_candidate(
             "writes_graph": False,
         },
     }
+    if claim_kind in _GAP_KINDS:
+        candidate["gap"] = _gap_candidate(item, statement)
+    return candidate
 
 
 def _claim_kind_policy(claim_kind: str) -> dict[str, Any]:
     kind = _normalized_key(claim_kind, default="factual_claim")
+    if kind in _GAP_KINDS:
+        return {
+            "state_type": "knowledge_gap",
+            "requires_external_support": False,
+            "requires_origin_and_rationale": True,
+            "requires_disconfirming_signals": False,
+            "must_not_present_as_verified_fact": True,
+            "writes_gap_backlog": True,
+        }
     if kind in _IDEA_KINDS:
         return {
             "state_type": kind,

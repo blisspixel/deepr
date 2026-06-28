@@ -35,6 +35,7 @@
         "model_calls": {"const": false},
         "cost_usd": {"const": 0.0},
         "writes_graph": {"type": "boolean"},
+        "writes_expert_state": {"type": "boolean"},
         "idempotent_operations": {"const": true},
         "requires_explicit_command": {"const": true},
         "breaking_changes_require_new_schema_version": {"const": true}
@@ -111,7 +112,10 @@
           "status": {"enum": ["would_apply", "applied", "already_applied", "blocked"]},
           "failure_reasons": {"type": "array", "items": {"type": "string"}},
           "change_timestamp": {"type": "string"},
-          "edge_count": {"type": "integer", "minimum": 0}
+          "edge_count": {"type": "integer", "minimum": 0},
+          "gap_id": {"type": "string"},
+          "gap_topic": {"type": "string"},
+          "gap_created": {"type": "boolean"}
         }
       }
     },

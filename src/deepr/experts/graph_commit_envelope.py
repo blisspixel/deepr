@@ -10,10 +10,12 @@ from typing import Any
 from deepr.experts.beliefs import EDGE_TYPES
 from deepr.experts.source_pack_compiler import CLAIM_VERIFICATION_SCHEMA_VERSION
 
-GRAPH_COMMIT_ENVELOPE_SCHEMA_VERSION = "deepr-graph-commit-envelope-v1"
+GRAPH_COMMIT_ENVELOPE_SCHEMA_VERSION_V1 = "deepr-graph-commit-envelope-v1"
+GRAPH_COMMIT_ENVELOPE_SCHEMA_VERSION = "deepr-graph-commit-envelope-v2"
 GRAPH_COMMIT_ENVELOPE_KIND = "deepr.expert.graph_commit_envelope"
 
-_COMMITTABLE_STATE_TYPES = {"factual_claim", "fact", "external_fact", "current_fact"}
+_BELIEF_STATE_TYPES = {"factual_claim", "fact", "external_fact", "current_fact"}
+_GAP_STATE_TYPES = {"gap", "knowledge_gap", "research_gap"}
 
 
 def _utc_now() -> datetime:
@@ -73,10 +75,67 @@ def _confidence(candidate: dict[str, Any], decision: dict[str, Any]) -> float:
     return max(0.0, min(1.0, parsed))
 
 
+def _float_nonnegative(value: Any, *, default: float = 0.0) -> float:
+    try:
+        parsed = float(value)
+    except (TypeError, ValueError):
+        return default
+    return max(0.0, parsed)
+
+
+def _int_range(value: Any, *, default: int, minimum: int, maximum: int) -> int:
+    try:
+        parsed = int(value)
+    except (TypeError, ValueError):
+        return default
+    return min(max(parsed, minimum), maximum)
+
+
+def _string_items(value: Any) -> list[str]:
+    if not isinstance(value, list):
+        return []
+    return [str(item).strip() for item in value if str(item).strip()]
+
+
 def _belief_id(candidate: dict[str, Any]) -> str:
     statement = str(candidate.get("statement", "") or "").strip()
     candidate_id = str(candidate.get("candidate_id", "") or "")
     return f"bg_{_sha256_json({'candidate_id': candidate_id, 'statement': statement})[:16]}"
+
+
+def _gap_id(topic: str) -> str:
+    return hashlib.sha256(topic.encode()).hexdigest()[:12]
+
+
+def _decision_state_type(candidate: dict[str, Any], decision: dict[str, Any]) -> str:
+    policy = decision.get("state_policy", candidate.get("state_policy", {})) or {}
+    return str(policy.get("state_type", candidate.get("claim_kind", "")) or "")
+
+
+def _gap_verdict_ready(verdicts: dict[str, Any]) -> list[str]:
+    failures: list[str] = []
+    if verdicts.get("support") not in {"supported", "not_applicable"}:
+        failures.append("support_not_verified")
+    if verdicts.get("contradiction") != "none":
+        failures.append("contradiction_not_clear")
+    if verdicts.get("deduplication") != "new":
+        failures.append("deduplication_not_new")
+    if verdicts.get("temporal_scope") not in {"valid", "not_applicable"}:
+        failures.append("temporal_scope_not_valid")
+    return failures
+
+
+def _belief_verdict_ready(verdicts: dict[str, Any]) -> list[str]:
+    failures: list[str] = []
+    if verdicts.get("support") != "supported":
+        failures.append("support_not_verified")
+    if verdicts.get("contradiction") != "none":
+        failures.append("contradiction_not_clear")
+    if verdicts.get("deduplication") != "new":
+        failures.append("deduplication_not_new")
+    if verdicts.get("temporal_scope") != "valid":
+        failures.append("temporal_scope_not_valid")
+    return failures
 
 
 def _commit_failures(candidate: dict[str, Any] | None, decision: dict[str, Any]) -> list[str]:
@@ -89,20 +148,16 @@ def _commit_failures(candidate: dict[str, Any] | None, decision: dict[str, Any])
         failures.append("unknown_candidate_id")
         return sorted(set(failures))
 
-    policy = decision.get("state_policy", candidate.get("state_policy", {})) or {}
-    state_type = str(policy.get("state_type", candidate.get("claim_kind", "")) or "")
-    if state_type not in _COMMITTABLE_STATE_TYPES:
+    state_type = _decision_state_type(candidate, decision)
+    is_gap = state_type in _GAP_STATE_TYPES
+    if state_type not in _BELIEF_STATE_TYPES and not is_gap:
         failures.append("non_factual_state_requires_perspective_store")
 
     verdicts = decision.get("verdicts", {}) or {}
-    if verdicts.get("support") != "supported":
-        failures.append("support_not_verified")
-    if verdicts.get("contradiction") != "none":
-        failures.append("contradiction_not_clear")
-    if verdicts.get("deduplication") != "new":
-        failures.append("deduplication_not_new")
-    if verdicts.get("temporal_scope") != "valid":
-        failures.append("temporal_scope_not_valid")
+    if is_gap:
+        failures.extend(_gap_verdict_ready(verdicts))
+    else:
+        failures.extend(_belief_verdict_ready(verdicts))
     if not str(candidate.get("statement", "") or "").strip():
         failures.append("missing_statement")
     if not _valid_evidence_refs(candidate):
@@ -233,6 +288,69 @@ def _write_operation(
     }
 
 
+def _gap_payload(candidate: dict[str, Any], generated_at: str) -> dict[str, Any]:
+    statement = str(candidate.get("statement", "") or "").strip()
+    raw_gap = candidate.get("gap")
+    gap = raw_gap if isinstance(raw_gap, dict) else {}
+    topic = str(gap.get("topic", statement) or statement).strip()
+    questions = _string_items(gap.get("questions"))
+    estimated_cost = _float_nonnegative(gap.get("estimated_cost"))
+    expected_value = _confidence(candidate, {})
+    if "expected_value" in gap:
+        expected_value = max(0.0, min(1.0, _float_nonnegative(gap.get("expected_value"))))
+    return {
+        "id": _gap_id(topic),
+        "topic": topic,
+        "questions": questions,
+        "priority": _int_range(gap.get("priority"), default=3, minimum=1, maximum=5),
+        "estimated_cost": estimated_cost,
+        "expected_value": expected_value,
+        "ev_cost_ratio": expected_value / max(estimated_cost, 0.001) if expected_value else 0.0,
+        "times_asked": max(1, _int_range(gap.get("times_asked"), default=1, minimum=1, maximum=1_000_000)),
+        "identified_at": generated_at,
+        "filled": False,
+        "filled_at": None,
+        "filled_by_job": None,
+    }
+
+
+def _gap_operation(
+    candidate: dict[str, Any],
+    decision: dict[str, Any],
+    *,
+    generated_at: str,
+    claim_extraction_artifact: str,
+    claim_verification_artifact: str,
+    source_note_artifact: str,
+) -> dict[str, Any]:
+    evidence_refs = _valid_evidence_refs(candidate)
+    candidate_id = str(candidate.get("candidate_id", "") or "")
+    gap = _gap_payload(candidate, generated_at)
+    idempotency_material = {
+        "schema_version": GRAPH_COMMIT_ENVELOPE_SCHEMA_VERSION,
+        "operation": "promote_gap",
+        "candidate_id": candidate_id,
+        "gap_id": gap["id"],
+        "gap_topic": gap["topic"],
+        "verdicts": decision.get("verdicts", {}),
+        "evidence_refs": evidence_refs,
+    }
+    return {
+        "operation_id": f"op_{_sha256_json(idempotency_material)[:16]}",
+        "operation": "promote_gap",
+        "candidate_id": candidate_id,
+        "decision_status": str((decision.get("commit_gate", {}) or {}).get("status", "")),
+        "gap": gap,
+        "idempotency_key": _sha256_json(idempotency_material),
+        "provenance": {
+            "claim_extraction_artifact": claim_extraction_artifact,
+            "claim_verification_artifact": claim_verification_artifact,
+            "source_note_artifact": source_note_artifact,
+            "source_refs": evidence_refs,
+        },
+    }
+
+
 def _blocked_entry(
     candidate_id: str,
     candidate: dict[str, Any] | None,
@@ -271,6 +389,7 @@ def build_graph_commit_envelope(
     ready_decisions: list[dict[str, Any]] = []
     operations: list[dict[str, Any]] = []
     blocked: list[dict[str, Any]] = []
+    resolved_generated_at = generated_at or _utc_now().isoformat()
 
     for raw_decision in claim_verification.get("decisions", []) or []:
         if not isinstance(raw_decision, dict):
@@ -297,19 +416,32 @@ def build_graph_commit_envelope(
 
     for candidate, decision in ready_pairs:
         candidate_id = str(candidate.get("candidate_id", "") or "")
-        operations.append(
-            _write_operation(
-                candidate,
-                decision,
-                edges=edges_by_source_candidate.get(candidate_id, []),
-                domain=domain,
-                trust_class=trust_class,
-                grounding_assurance=grounding_assurance,
-                claim_extraction_artifact=claim_extraction_artifact,
-                claim_verification_artifact=claim_verification_artifact,
-                source_note_artifact=str((claim_extraction.get("input", {}) or {}).get("source_note_artifact", "")),
+        source_note_artifact = str((claim_extraction.get("input", {}) or {}).get("source_note_artifact", ""))
+        if _decision_state_type(candidate, decision) in _GAP_STATE_TYPES:
+            operations.append(
+                _gap_operation(
+                    candidate,
+                    decision,
+                    generated_at=resolved_generated_at,
+                    claim_extraction_artifact=claim_extraction_artifact,
+                    claim_verification_artifact=claim_verification_artifact,
+                    source_note_artifact=source_note_artifact,
+                )
             )
-        )
+        else:
+            operations.append(
+                _write_operation(
+                    candidate,
+                    decision,
+                    edges=edges_by_source_candidate.get(candidate_id, []),
+                    domain=domain,
+                    trust_class=trust_class,
+                    grounding_assurance=grounding_assurance,
+                    claim_extraction_artifact=claim_extraction_artifact,
+                    claim_verification_artifact=claim_verification_artifact,
+                    source_note_artifact=source_note_artifact,
+                )
+            )
 
     failure_reasons = sorted({reason for entry in blocked for reason in entry["failure_reasons"]})
     if not operations and not blocked:
@@ -350,7 +482,7 @@ def build_graph_commit_envelope(
         "summary": {
             "status": status,
             "ready_write_count": len(operations),
-            "ready_edge_count": sum(len(operation["edges"]) for operation in operations),
+            "ready_edge_count": sum(len(operation.get("edges", [])) for operation in operations),
             "skipped_edge_count": skipped_edge_count,
             "blocked_decision_count": len(blocked),
             "failure_reasons": failure_reasons,
@@ -365,12 +497,13 @@ def build_graph_commit_envelope(
             "next_stage_requires_model_judgment": False,
             "graph_writes_require_explicit_apply": True,
         },
-        "generated_at": generated_at or _utc_now().isoformat(),
+        "generated_at": resolved_generated_at,
     }
 
 
 __all__ = [
     "GRAPH_COMMIT_ENVELOPE_KIND",
     "GRAPH_COMMIT_ENVELOPE_SCHEMA_VERSION",
+    "GRAPH_COMMIT_ENVELOPE_SCHEMA_VERSION_V1",
     "build_graph_commit_envelope",
 ]

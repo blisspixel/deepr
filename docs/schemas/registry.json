@@ -199,6 +199,14 @@
       "compatibility": "additive-within-v1"
     },
     {
+      "name": "graph-commit-envelope",
+      "schema_version": "deepr-graph-commit-envelope-v2",
+      "kind": "deepr.expert.graph_commit_envelope",
+      "path": "graph-commit-envelope-v2.json",
+      "status": "experimental",
+      "compatibility": "breaking-change-from-v1"
+    },
+    {
       "name": "graph-commit-apply",
       "schema_version": "deepr-graph-commit-apply-v1",
       "kind": "deepr.expert.graph_commit_apply",

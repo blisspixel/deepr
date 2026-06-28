@@ -9,6 +9,7 @@ from deepr.experts.graph_commit_envelope import (
     GRAPH_COMMIT_ENVELOPE_SCHEMA_VERSION,
     build_graph_commit_envelope,
 )
+from deepr.experts.metacognition import MetaCognitionTracker
 from deepr.experts.source_pack_compiler import (
     CLAIM_VERIFICATION_KIND,
     CLAIM_VERIFICATION_SCHEMA_VERSION,
@@ -698,6 +699,80 @@ def test_graph_commit_envelope_applies_verifier_edge_decisions(tmp_path):
     assert edge.src_id == source_operation["belief"]["id"]
     assert edge.dst_id == target_operation["belief"]["id"]
     assert edge.edge_type == "derived_from"
+
+
+def test_graph_commit_envelope_promotes_verified_knowledge_gap(tmp_path):
+    notes = build_source_notes(_source_pack_payload())
+    note = notes["notes"][0]
+    window = note["windows"][0]
+    topic = "What statistical signals should drive expert gap prioritization?"
+    extraction = build_semantic_claim_extraction(
+        notes,
+        {
+            "claims": [
+                {
+                    "statement": topic,
+                    "claim_kind": "knowledge_gap",
+                    "confidence": 0.72,
+                    "priority": 5,
+                    "expected_value": 0.9,
+                    "estimated_cost": 0.0,
+                    "questions": [topic],
+                    "source_refs": [{"note_id": note["note_id"], "window_id": window["window_id"]}],
+                }
+            ]
+        },
+        source_note_artifact="sync_artifacts/source_notes/pack.json",
+    )
+    candidate = extraction["candidates"][0]
+    verification = build_claim_verification(
+        extraction,
+        {
+            "verifications": [
+                {
+                    "candidate_id": candidate["candidate_id"],
+                    "support_verdict": "not_applicable",
+                    "contradiction_verdict": "none",
+                    "dedup_verdict": "new",
+                    "temporal_scope_verdict": "not_applicable",
+                    "origin": "The source note exposed an unresolved prioritization question.",
+                    "rationale": "The expert should retain the gap until a grounded scoring model exists.",
+                    "uncertainty": "The best statistical signal mix is not established by the cited source.",
+                    "confidence": 0.8,
+                }
+            ]
+        },
+    )
+
+    envelope = build_graph_commit_envelope(
+        extraction,
+        verification,
+        claim_extraction_artifact="sync_artifacts/claim_extractions/pack.json",
+        claim_verification_artifact="sync_artifacts/claim_verifications/pack.json",
+        expert_name="Compiler Expert",
+        domain="compiler",
+        generated_at="2026-06-26T12:03:00+00:00",
+    )
+    tracker = MetaCognitionTracker("Compiler Expert", base_path=str(tmp_path / "experts"))
+    result = apply_graph_commit_envelope(
+        envelope,
+        BeliefStore("Compiler Expert", storage_dir=tmp_path / "beliefs"),
+        gap_tracker=tracker,
+        dry_run=False,
+    )
+
+    assert candidate["state_policy"]["state_type"] == "knowledge_gap"
+    assert candidate["state_policy"]["writes_gap_backlog"] is True
+    assert verification["summary"]["status"] == "ready_for_commit_envelope"
+    assert envelope["summary"]["status"] == "ready_for_commit"
+    assert envelope["summary"]["ready_write_count"] == 1
+    operation = envelope["operations"][0]
+    assert operation["operation"] == "promote_gap"
+    assert operation["gap"]["topic"] == topic
+    assert operation["gap"]["priority"] == 5
+    assert operation["gap"]["expected_value"] == 0.9
+    assert result["summary"]["status"] == "applied"
+    assert topic in tracker.knowledge_gaps
 
 
 def test_graph_commit_envelope_blocks_hypothesis_until_perspective_store_exists():

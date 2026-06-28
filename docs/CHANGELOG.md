@@ -25,6 +25,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 </details>
 
 ### Added
+- Added `deepr-graph-commit-envelope-v2` with verifier-gated `promote_gap`
+  operations. Verified knowledge-gap candidates can now carry topic,
+  questions, priority, expected value, cost estimate, provenance, and an
+  idempotency key through the same explicit commit boundary as belief writes.
+- Extended `deepr expert apply-graph-commit` to apply v2 gap promotions into
+  the existing metacognition gap backlog while preserving v1 add-belief envelope
+  compatibility, dry-run previews, noninteractive `--yes` gating, locks, and
+  `$0` no-model apply semantics.
 - Added `deepr a2a validate-host`, a no-metered A2A host-validation harness.
   It validates current Agent Card discovery at `/.well-known/agent-card.json`,
   consult skill advertisement, no-metered consult task completion, artifact
