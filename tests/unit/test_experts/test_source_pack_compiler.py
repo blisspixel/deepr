@@ -383,6 +383,7 @@ def test_claim_verification_treats_hypotheses_as_non_fact_state():
                     "origin": "Synthesis over the source-note window.",
                     "rationale": "The cited release text suggests a plausible future design pressure.",
                     "uncertainty": "Speculative until follow-up evidence appears.",
+                    "expected_observations": ["Future notes show repeated cache-invalidation incidents."],
                     "disconfirming_signals": ["No cache-invalidation incidents appear in future notes."],
                 }
             ]
@@ -390,6 +391,7 @@ def test_claim_verification_treats_hypotheses_as_non_fact_state():
     )
 
     assert candidate["state_policy"]["requires_external_support"] is False
+    assert candidate["state_policy"]["requires_expected_observations"] is True
     assert candidate["state_policy"]["must_not_present_as_verified_fact"] is True
     assert verification["summary"]["status"] == "ready_for_commit_envelope"
     decision = verification["decisions"][0]
@@ -435,6 +437,7 @@ def test_claim_verification_blocks_hypothesis_without_origin_metadata():
     assert verification["summary"]["status"] == "blocked"
     assert verification["summary"]["failure_reasons"] == [
         "missing_disconfirming_signals",
+        "missing_expected_observations",
         "missing_origin",
         "missing_uncertainty",
     ]
@@ -891,18 +894,21 @@ def test_exploration_agenda_verification_requires_expected_observations():
     assert verification["decisions"][0]["readiness"]["failure_reasons"] == ["missing_expected_observations"]
 
 
-def test_graph_commit_envelope_blocks_hypothesis_until_perspective_store_exists():
+def test_graph_commit_envelope_promotes_verified_hypothesis(tmp_path):
     notes = build_source_notes(_source_pack_payload())
     note = notes["notes"][0]
     window = note["windows"][0]
+    title = "Statistical trace variables improve expert council verification."
     extraction = build_semantic_claim_extraction(
         notes,
         {
             "claims": [
                 {
-                    "statement": "The compiler may need a new cache invalidation strategy.",
+                    "statement": title,
                     "claim_kind": "hypothesis",
-                    "confidence": 0.62,
+                    "confidence": 0.74,
+                    "priority": 4,
+                    "assumptions": ["Consult traces preserve variables and scored outcomes."],
                     "source_refs": [{"note_id": note["note_id"], "window_id": window["window_id"]}],
                 }
             ]
@@ -918,25 +924,88 @@ def test_graph_commit_envelope_blocks_hypothesis_until_perspective_store_exists(
                     "contradiction_verdict": "none",
                     "dedup_verdict": "new",
                     "temporal_scope_verdict": "not_applicable",
-                    "origin": "Synthesis over the source-note window.",
-                    "rationale": "The release text suggests a future design pressure.",
-                    "uncertainty": "Speculative until follow-up evidence appears.",
-                    "disconfirming_signals": ["No cache incidents appear in future notes."],
+                    "origin": "The source note exposed an unresolved but testable council-quality idea.",
+                    "rationale": "The expert should retain the hypothesis without promoting it as fact.",
+                    "uncertainty": "The expected improvement has not been measured.",
+                    "expected_observations": ["Review packets include clearer statistical acceptance criteria."],
+                    "disconfirming_signals": ["Review scores do not improve after trace variables are added."],
+                    "confidence": 0.72,
                 }
             ]
         },
     )
 
-    envelope = build_graph_commit_envelope(extraction, verification, domain="compiler")
+    envelope = build_graph_commit_envelope(
+        extraction,
+        verification,
+        claim_extraction_artifact="sync_artifacts/claim_extractions/pack.json",
+        claim_verification_artifact="sync_artifacts/claim_verifications/pack.json",
+        expert_name="Compiler Expert",
+        domain="compiler",
+        generated_at="2026-06-26T12:03:00+00:00",
+    )
+    tracker = MetaCognitionTracker("Compiler Expert", base_path=str(tmp_path / "experts"))
+    result = apply_graph_commit_envelope(
+        envelope,
+        BeliefStore("Compiler Expert", storage_dir=tmp_path / "beliefs"),
+        gap_tracker=tracker,
+        dry_run=False,
+    )
 
-    assert envelope["summary"]["status"] == "blocked"
-    assert envelope["summary"]["ready_write_count"] == 0
-    assert envelope["operations"] == []
-    assert envelope["blocked_decisions"][0]["failure_reasons"] == [
-        "non_factual_state_requires_perspective_store",
-        "support_not_verified",
-        "temporal_scope_not_valid",
+    candidate = extraction["candidates"][0]
+    assert candidate["state_policy"]["state_type"] == "hypothesis"
+    assert candidate["state_policy"]["writes_hypothesis"] is True
+    assert verification["summary"]["status"] == "ready_for_commit_envelope"
+    assert envelope["summary"]["status"] == "ready_for_commit"
+    operation = envelope["operations"][0]
+    assert operation["operation"] == "promote_hypothesis"
+    assert operation["hypothesis"]["title"] == title
+    assert operation["hypothesis"]["expected_observations"] == [
+        "Review packets include clearer statistical acceptance criteria."
     ]
+    assert result["summary"]["status"] == "applied"
+    assert title in tracker.hypotheses
+
+
+def test_hypothesis_verification_requires_expected_observations():
+    notes = build_source_notes(_source_pack_payload())
+    note = notes["notes"][0]
+    window = note["windows"][0]
+    extraction = build_semantic_claim_extraction(
+        notes,
+        {
+            "claims": [
+                {
+                    "statement": "Trace variables may improve council math review.",
+                    "claim_kind": "hypothesis",
+                    "confidence": 0.7,
+                    "source_refs": [{"note_id": note["note_id"], "window_id": window["window_id"]}],
+                }
+            ]
+        },
+    )
+    verification = build_claim_verification(
+        extraction,
+        {
+            "verifications": [
+                {
+                    "candidate_id": extraction["candidates"][0]["candidate_id"],
+                    "support_verdict": "not_applicable",
+                    "contradiction_verdict": "none",
+                    "dedup_verdict": "new",
+                    "temporal_scope_verdict": "not_applicable",
+                    "origin": "Reviewed source-note evidence.",
+                    "rationale": "The idea should stay testable rather than factual.",
+                    "uncertainty": "The expected effect is unknown.",
+                    "disconfirming_signals": ["No quality score change appears."],
+                    "confidence": 0.75,
+                }
+            ]
+        },
+    )
+
+    assert verification["summary"]["status"] == "blocked"
+    assert verification["decisions"][0]["readiness"]["failure_reasons"] == ["missing_expected_observations"]
 
 
 def test_graph_commit_envelope_blocks_uncertain_deduplication():

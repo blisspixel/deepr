@@ -99,6 +99,38 @@ def graph_commit_agenda_operation(
     }
 
 
+def graph_commit_hypothesis_operation(
+    title: str,
+    idempotency_key: str,
+    *,
+    hypothesis_id: str = "hypothesis_test",
+    candidate_id: str = "candidate_hypothesis",
+) -> dict:
+    return {
+        "operation_id": f"op_{hypothesis_id}",
+        "operation": "promote_hypothesis",
+        "candidate_id": candidate_id,
+        "decision_status": "ready_for_commit",
+        "hypothesis": {
+            "id": hypothesis_id,
+            "title": title,
+            "statement": "If consult traces include explicit statistical variables, expert plans become easier to verify.",
+            "origin": "A verifier-approved source note raised the testable idea.",
+            "rationale": "The expert needs a durable hypothesis before treating the idea as established knowledge.",
+            "uncertainty": "The effect size is not measured yet.",
+            "assumptions": ["Consult traces expose reusable variables and outcomes."],
+            "expected_observations": ["Reviewed consult traces show clearer acceptance criteria."],
+            "disconfirming_signals": ["Trace reviews do not improve after variables are added."],
+            "priority": 4,
+            "confidence": 0.72,
+            "created_at": "2026-06-26T12:00:00+00:00",
+            "status": "active",
+        },
+        "idempotency_key": idempotency_key,
+        "provenance": {"source_refs": [{"note_id": "note_hypothesis", "window_id": "note_hypothesis:w0"}]},
+    }
+
+
 def graph_commit_envelope(
     *operations: dict,
     expert_name: str = "Compiler Expert",

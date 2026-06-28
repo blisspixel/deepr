@@ -9,7 +9,7 @@ from datetime import UTC, datetime, timedelta
 
 import pytest
 
-from deepr.core.contracts import ExplorationAgenda
+from deepr.core.contracts import ExplorationAgenda, ExpertHypothesis
 from deepr.experts.metacognition import DomainConfidence, KnowledgeGap, MetaCognitionTracker
 
 
@@ -177,6 +177,39 @@ class TestMetaCognitionTracker:
         assert temp_tracker.get_exploration_agendas()[0].title == agenda.title
         assert temp_tracker.uncertainty_log[-1]["action"] == "promoted_exploration_agenda_candidate"
 
+    def test_promote_hypothesis_candidate(self, temp_tracker):
+        """Test promoting a reviewed expert hypothesis."""
+        hypothesis = ExpertHypothesis.create(
+            "Statistical trace variables improve expert council verification.",
+            statement="If consult traces expose variables and outcomes, later quality review is easier to verify.",
+            origin="Reviewed compiler output.",
+            rationale="The expert needs a durable testable idea without treating it as fact.",
+            uncertainty="The improvement has not been measured yet.",
+            assumptions=["Trace artifacts include variables and acceptance outcomes."],
+            expected_observations=["Review packets cite clearer acceptance criteria."],
+            disconfirming_signals=["Review scores do not improve after variables are added."],
+        )
+
+        promoted, created = temp_tracker.promote_hypothesis_candidate(
+            hypothesis,
+            proposal_id="hypothesis-1",
+            evidence_refs=["source_note:note:w0"],
+            source="test",
+        )
+        replayed, replay_created = temp_tracker.promote_hypothesis_candidate(
+            hypothesis,
+            proposal_id="hypothesis-1",
+            evidence_refs=["source_note:note:w0"],
+            source="test",
+        )
+
+        assert created is True
+        assert replay_created is False
+        assert promoted.title == hypothesis.title
+        assert replayed.title == hypothesis.title
+        assert temp_tracker.get_hypotheses()[0].title == hypothesis.title
+        assert temp_tracker.uncertainty_log[-1]["action"] == "promoted_hypothesis_candidate"
+
     def test_get_knowledge_gaps_default(self, temp_tracker):
         """Test get_knowledge_gaps with default threshold."""
         temp_tracker.record_knowledge_gap("Topic 1")
@@ -338,6 +371,31 @@ class TestMetaCognitionTrackerPersistence:
 
             assert "Design the next perspective-state verifier." in tracker2.exploration_agendas
             assert len(tracker2.get_exploration_agendas()) == 1
+
+    def test_save_and_load_hypotheses(self):
+        """Test saving and loading expert hypotheses."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            tracker1 = MetaCognitionTracker("Test Expert", tmpdir)
+            tracker1.promote_hypothesis_candidate(
+                ExpertHypothesis.create(
+                    "Use variable-level trace review for expert council math.",
+                    statement="Variable-level trace review makes council plans easier to score.",
+                    origin="Reviewed compiler output.",
+                    rationale="A testable idea should be preserved as hypothesis state.",
+                    uncertainty="The scoring gain is not proven yet.",
+                    assumptions=["Trace records carry reusable variables."],
+                    expected_observations=["Accepted review packets cite the variables."],
+                    disconfirming_signals=["Review quality is unchanged after the trace schema expands."],
+                ),
+                proposal_id="hypothesis-1",
+                evidence_refs=[],
+                source="test",
+            )
+
+            tracker2 = MetaCognitionTracker("Test Expert", tmpdir)
+
+            assert "Use variable-level trace review for expert council math." in tracker2.hypotheses
+            assert len(tracker2.get_hypotheses()) == 1
 
     def test_save_and_load_research_triggered(self):
         """Test saving and loading research triggered state."""

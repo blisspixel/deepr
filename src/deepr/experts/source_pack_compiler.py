@@ -9,6 +9,18 @@ from datetime import UTC, datetime
 from typing import Any
 
 from deepr.experts.beliefs import EDGE_TYPES
+from deepr.experts.source_pack_policies import (
+    claim_kind_policy as _claim_kind_policy,
+)
+from deepr.experts.source_pack_policies import (
+    is_agenda_kind as _is_agenda_kind,
+)
+from deepr.experts.source_pack_policies import (
+    is_gap_kind as _is_gap_kind,
+)
+from deepr.experts.source_pack_policies import (
+    is_hypothesis_kind as _is_hypothesis_kind,
+)
 from deepr.experts.source_pack_values import (
     enum_value as _enum_value,
 )
@@ -48,10 +60,6 @@ CLAIM_VERIFICATION_SCHEMA_VERSION = "deepr-claim-verification-v1"
 CLAIM_VERIFICATION_KIND = "deepr.expert.claim_verification"
 CLAIM_VERIFICATION_PROMPT_VERSION = "deepr-claim-verification-prompt-v1"
 _SHA256_HEX = re.compile(r"^[a-fA-F0-9]{64}$")
-_FACTUAL_KINDS = {"factual_claim", "fact", "external_fact", "current_fact"}
-_IDEA_KINDS = {"concept", "hypothesis", "stance", "proposal", "original_idea", "original_synthesis"}
-_GAP_KINDS = {"gap", "knowledge_gap", "research_gap"}
-_AGENDA_KINDS = {"exploration_agenda", "research_agenda"}
 _SUPPORT_VERDICTS = {"supported", "refuted", "insufficient", "not_applicable", "unverified"}
 _CONTRADICTION_VERDICTS = {"none", "possible", "contradiction", "unverified"}
 _DEDUP_VERDICTS = {"new", "same_as_existing", "uncertain", "unverified"}
@@ -328,6 +336,16 @@ def _agenda_candidate(item: dict[str, Any], statement: str) -> dict[str, Any]:
     }
 
 
+def _hypothesis_candidate(item: dict[str, Any], statement: str) -> dict[str, Any]:
+    title = str(item.get("title", statement) or statement).strip()
+    return {
+        "title": title or statement,
+        "statement": statement,
+        "assumptions": _string_list_field(item, "assumptions"),
+        "priority": _int_range(item.get("priority"), default=3, minimum=1, maximum=5),
+    }
+
+
 def _response_from_model_output(model_output: dict[str, Any] | str) -> tuple[dict[str, Any], str, str]:
     if isinstance(model_output, str):
         raw = model_output
@@ -397,51 +415,13 @@ def _claim_candidate(
             "writes_graph": False,
         },
     }
-    if claim_kind in _GAP_KINDS:
+    if _is_gap_kind(claim_kind):
         candidate["gap"] = _gap_candidate(item, statement)
-    if claim_kind in _AGENDA_KINDS:
+    if _is_agenda_kind(claim_kind):
         candidate["agenda"] = _agenda_candidate(item, statement)
+    if _is_hypothesis_kind(claim_kind):
+        candidate["hypothesis"] = _hypothesis_candidate(item, statement)
     return candidate
-
-
-def _claim_kind_policy(claim_kind: str) -> dict[str, Any]:
-    kind = _normalized_key(claim_kind, default="factual_claim")
-    if kind in _GAP_KINDS:
-        return {
-            "state_type": "knowledge_gap",
-            "requires_external_support": False,
-            "requires_origin_and_rationale": True,
-            "requires_disconfirming_signals": False,
-            "must_not_present_as_verified_fact": True,
-            "writes_gap_backlog": True,
-        }
-    if kind in _AGENDA_KINDS:
-        return {
-            "state_type": "exploration_agenda",
-            "requires_external_support": False,
-            "requires_origin_and_rationale": True,
-            "requires_disconfirming_signals": True,
-            "requires_expected_observations": True,
-            "must_not_present_as_verified_fact": True,
-            "writes_exploration_agenda": True,
-        }
-    if kind in _IDEA_KINDS:
-        return {
-            "state_type": kind,
-            "requires_external_support": False,
-            "requires_origin_and_rationale": True,
-            "requires_disconfirming_signals": True,
-            "must_not_present_as_verified_fact": True,
-        }
-    if kind not in _FACTUAL_KINDS:
-        kind = "factual_claim"
-    return {
-        "state_type": kind,
-        "requires_external_support": True,
-        "requires_origin_and_rationale": False,
-        "requires_disconfirming_signals": False,
-        "must_not_present_as_verified_fact": False,
-    }
 
 
 def _raw_verification_items(parsed: dict[str, Any]) -> list[dict[str, Any]]:

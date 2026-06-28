@@ -1,0 +1,308 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/blisspixel/deepr/docs/schemas/graph-commit-envelope-v4.json",
+  "title": "Deepr Graph Commit Envelope v4",
+  "type": "object",
+  "additionalProperties": true,
+  "required": [
+    "schema_version",
+    "kind",
+    "contract",
+    "input",
+    "target",
+    "summary",
+    "operations",
+    "blocked_decisions",
+    "compiler",
+    "generated_at"
+  ],
+  "properties": {
+    "schema_version": {"const": "deepr-graph-commit-envelope-v4"},
+    "kind": {"const": "deepr.expert.graph_commit_envelope"},
+    "contract": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": [
+        "read_only",
+        "derived_view",
+        "semantic_judgment",
+        "model_calls",
+        "cost_usd",
+        "writes_graph",
+        "apply_requires_explicit_command",
+        "idempotent_operations"
+      ],
+      "properties": {
+        "read_only": {"const": true},
+        "derived_view": {"const": true},
+        "semantic_judgment": {"const": false},
+        "model_calls": {"const": false},
+        "cost_usd": {"const": 0.0},
+        "writes_graph": {"const": false},
+        "apply_requires_explicit_command": {"const": true},
+        "idempotent_operations": {"const": true},
+        "breaking_changes_require_new_schema_version": {"const": true}
+      }
+    },
+    "input": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": [
+        "claim_extraction_schema_version",
+        "claim_verification_schema_version",
+        "claim_verification_kind",
+        "decision_count"
+      ],
+      "properties": {
+        "claim_extraction_artifact": {"type": "string"},
+        "claim_extraction_schema_version": {"type": "string"},
+        "claim_verification_artifact": {"type": "string"},
+        "claim_verification_schema_version": {"type": "string"},
+        "claim_verification_kind": {"type": "string"},
+        "decision_count": {"type": "integer", "minimum": 0}
+      }
+    },
+    "target": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": ["expert_name", "domain", "trust_class", "grounding_assurance"],
+      "properties": {
+        "expert_name": {"type": "string"},
+        "domain": {"type": "string"},
+        "trust_class": {"type": "string"},
+        "grounding_assurance": {"type": "string"}
+      }
+    },
+    "summary": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": ["status", "ready_write_count", "blocked_decision_count", "failure_reasons"],
+      "properties": {
+        "status": {"enum": ["ready_for_commit", "blocked", "empty"]},
+        "ready_write_count": {"type": "integer", "minimum": 0},
+        "ready_edge_count": {"type": "integer", "minimum": 0},
+        "skipped_edge_count": {"type": "integer", "minimum": 0},
+        "blocked_decision_count": {"type": "integer", "minimum": 0},
+        "failure_reasons": {"type": "array", "items": {"type": "string"}}
+      }
+    },
+    "operations": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": true,
+        "required": ["operation_id", "operation", "candidate_id", "idempotency_key", "provenance"],
+        "properties": {
+          "operation_id": {"type": "string"},
+          "operation": {"enum": ["add_belief", "promote_gap", "promote_exploration_agenda", "promote_hypothesis"]},
+          "candidate_id": {"type": "string"},
+          "decision_status": {"type": "string"},
+          "belief": {
+            "type": "object",
+            "additionalProperties": true,
+            "required": [
+              "id",
+              "claim",
+              "domain",
+              "confidence",
+              "evidence_refs",
+              "source_type",
+              "trust_class",
+              "grounding_assurance"
+            ],
+            "properties": {
+              "id": {"type": "string"},
+              "claim": {"type": "string"},
+              "domain": {"type": "string"},
+              "confidence": {"type": "number", "minimum": 0, "maximum": 1},
+              "evidence_refs": {"type": "array", "items": {"type": "string"}},
+              "source_type": {"const": "compiled_source_claim"},
+              "trust_class": {"type": "string"},
+              "grounding_assurance": {"type": "string"}
+            }
+          },
+          "edges": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "additionalProperties": true,
+              "required": ["src_id", "dst_id", "edge_type", "provenance"],
+              "properties": {
+                "src_id": {"type": "string"},
+                "dst_id": {"type": "string"},
+                "edge_type": {"enum": ["supports", "contradicts", "enables", "derived_from"]},
+                "provenance": {"type": "string"},
+                "source_candidate_id": {"type": "string"},
+                "target_candidate_id": {"type": "string"},
+                "confidence": {"type": "number", "minimum": 0, "maximum": 1},
+                "rationale": {"type": "string"}
+              }
+            }
+          },
+          "gap": {"$ref": "#/$defs/gap"},
+          "agenda": {"$ref": "#/$defs/agenda"},
+          "hypothesis": {"$ref": "#/$defs/hypothesis"},
+          "idempotency_key": {"type": "string", "pattern": "^[a-f0-9]{64}$"},
+          "provenance": {"type": "object", "additionalProperties": true}
+        },
+        "allOf": [
+          {
+            "if": {"properties": {"operation": {"const": "add_belief"}}},
+            "then": {"required": ["belief", "edges"]}
+          },
+          {
+            "if": {"properties": {"operation": {"const": "promote_gap"}}},
+            "then": {"required": ["gap"]}
+          },
+          {
+            "if": {"properties": {"operation": {"const": "promote_exploration_agenda"}}},
+            "then": {"required": ["agenda"]}
+          },
+          {
+            "if": {"properties": {"operation": {"const": "promote_hypothesis"}}},
+            "then": {"required": ["hypothesis"]}
+          }
+        ]
+      }
+    },
+    "blocked_decisions": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": true,
+        "required": ["candidate_id", "claim_kind", "statement_hash", "failure_reasons"],
+        "properties": {
+          "candidate_id": {"type": "string"},
+          "claim_kind": {"type": "string"},
+          "statement_hash": {"type": "string", "pattern": "^[a-f0-9]{64}$"},
+          "failure_reasons": {"type": "array", "items": {"type": "string"}}
+        }
+      }
+    },
+    "compiler": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": [
+        "stage",
+        "previous_stage",
+        "previous_schema_version",
+        "next_stage",
+        "next_stage_requires_model_judgment",
+        "graph_writes_require_explicit_apply"
+      ],
+      "properties": {
+        "stage": {"const": "graph_commit_envelope"},
+        "previous_stage": {"const": "claim_verification"},
+        "previous_schema_version": {"const": "deepr-claim-verification-v1"},
+        "next_stage": {"const": "graph_commit_apply"},
+        "next_stage_requires_model_judgment": {"const": false},
+        "graph_writes_require_explicit_apply": {"const": true}
+      }
+    },
+    "generated_at": {"type": "string"}
+  },
+  "$defs": {
+    "gap": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": [
+        "id",
+        "topic",
+        "questions",
+        "priority",
+        "estimated_cost",
+        "expected_value",
+        "ev_cost_ratio",
+        "times_asked",
+        "identified_at",
+        "filled"
+      ],
+      "properties": {
+        "id": {"type": "string"},
+        "topic": {"type": "string"},
+        "questions": {"type": "array", "items": {"type": "string"}},
+        "priority": {"type": "integer", "minimum": 1, "maximum": 5},
+        "estimated_cost": {"type": "number", "minimum": 0},
+        "expected_value": {"type": "number", "minimum": 0, "maximum": 1},
+        "ev_cost_ratio": {"type": "number", "minimum": 0},
+        "times_asked": {"type": "integer", "minimum": 1},
+        "identified_at": {"type": "string"},
+        "filled": {"type": "boolean"},
+        "filled_at": {"type": ["string", "null"]},
+        "filled_by_job": {"type": ["string", "null"]}
+      }
+    },
+    "agenda": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": [
+        "id",
+        "title",
+        "questions",
+        "origin",
+        "rationale",
+        "uncertainty",
+        "priority",
+        "estimated_cost",
+        "expected_value",
+        "ev_cost_ratio",
+        "success_criteria",
+        "expected_observations",
+        "disconfirming_signals",
+        "created_at",
+        "status"
+      ],
+      "properties": {
+        "id": {"type": "string"},
+        "title": {"type": "string"},
+        "questions": {"type": "array", "items": {"type": "string"}},
+        "origin": {"type": "string"},
+        "rationale": {"type": "string"},
+        "uncertainty": {"type": "string"},
+        "priority": {"type": "integer", "minimum": 1, "maximum": 5},
+        "estimated_cost": {"type": "number", "minimum": 0},
+        "expected_value": {"type": "number", "minimum": 0, "maximum": 1},
+        "ev_cost_ratio": {"type": "number", "minimum": 0},
+        "success_criteria": {"type": "array", "items": {"type": "string"}},
+        "expected_observations": {"type": "array", "items": {"type": "string"}},
+        "disconfirming_signals": {"type": "array", "items": {"type": "string"}},
+        "created_at": {"type": "string"},
+        "status": {"enum": ["open", "closed", "archived"]}
+      }
+    },
+    "hypothesis": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": [
+        "id",
+        "title",
+        "statement",
+        "origin",
+        "rationale",
+        "uncertainty",
+        "assumptions",
+        "expected_observations",
+        "disconfirming_signals",
+        "priority",
+        "confidence",
+        "created_at",
+        "status"
+      ],
+      "properties": {
+        "id": {"type": "string"},
+        "title": {"type": "string"},
+        "statement": {"type": "string"},
+        "origin": {"type": "string"},
+        "rationale": {"type": "string"},
+        "uncertainty": {"type": "string"},
+        "assumptions": {"type": "array", "items": {"type": "string"}},
+        "expected_observations": {"type": "array", "items": {"type": "string"}},
+        "disconfirming_signals": {"type": "array", "items": {"type": "string"}},
+        "priority": {"type": "integer", "minimum": 1, "maximum": 5},
+        "confidence": {"type": "number", "minimum": 0, "maximum": 1},
+        "created_at": {"type": "string"},
+        "status": {"enum": ["active", "confirmed", "rejected", "archived"]}
+      }
+    }
+  }
+}

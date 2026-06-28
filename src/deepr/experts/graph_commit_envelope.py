@@ -12,12 +12,14 @@ from deepr.experts.source_pack_compiler import CLAIM_VERIFICATION_SCHEMA_VERSION
 
 GRAPH_COMMIT_ENVELOPE_SCHEMA_VERSION_V1 = "deepr-graph-commit-envelope-v1"
 GRAPH_COMMIT_ENVELOPE_SCHEMA_VERSION_V2 = "deepr-graph-commit-envelope-v2"
-GRAPH_COMMIT_ENVELOPE_SCHEMA_VERSION = "deepr-graph-commit-envelope-v3"
+GRAPH_COMMIT_ENVELOPE_SCHEMA_VERSION_V3 = "deepr-graph-commit-envelope-v3"
+GRAPH_COMMIT_ENVELOPE_SCHEMA_VERSION = "deepr-graph-commit-envelope-v4"
 GRAPH_COMMIT_ENVELOPE_KIND = "deepr.expert.graph_commit_envelope"
 
 _BELIEF_STATE_TYPES = {"factual_claim", "fact", "external_fact", "current_fact"}
 _GAP_STATE_TYPES = {"gap", "knowledge_gap", "research_gap"}
 _AGENDA_STATE_TYPES = {"exploration_agenda", "research_agenda"}
+_HYPOTHESIS_STATE_TYPES = {"hypothesis"}
 
 
 def _utc_now() -> datetime:
@@ -113,6 +115,10 @@ def _agenda_id(title: str) -> str:
     return hashlib.sha256(title.encode()).hexdigest()[:12]
 
 
+def _hypothesis_id(title: str, statement: str) -> str:
+    return hashlib.sha256(f"{title}|{statement}".encode()).hexdigest()[:12]
+
+
 def _decision_state_type(candidate: dict[str, Any], decision: dict[str, Any]) -> str:
     policy = decision.get("state_policy", candidate.get("state_policy", {})) or {}
     return str(policy.get("state_type", candidate.get("claim_kind", "")) or "")
@@ -157,11 +163,12 @@ def _commit_failures(candidate: dict[str, Any] | None, decision: dict[str, Any])
     state_type = _decision_state_type(candidate, decision)
     is_gap = state_type in _GAP_STATE_TYPES
     is_agenda = state_type in _AGENDA_STATE_TYPES
-    if state_type not in _BELIEF_STATE_TYPES and not is_gap and not is_agenda:
+    is_hypothesis = state_type in _HYPOTHESIS_STATE_TYPES
+    if state_type not in _BELIEF_STATE_TYPES and not is_gap and not is_agenda and not is_hypothesis:
         failures.append("non_factual_state_requires_perspective_store")
 
     verdicts = decision.get("verdicts", {}) or {}
-    if is_gap or is_agenda:
+    if is_gap or is_agenda or is_hypothesis:
         failures.extend(_gap_verdict_ready(verdicts))
     else:
         failures.extend(_belief_verdict_ready(verdicts))
@@ -428,6 +435,70 @@ def _agenda_operation(
     }
 
 
+def _hypothesis_payload(candidate: dict[str, Any], decision: dict[str, Any], generated_at: str) -> dict[str, Any]:
+    statement = str(candidate.get("statement", "") or "").strip()
+    raw_hypothesis = candidate.get("hypothesis")
+    hypothesis = raw_hypothesis if isinstance(raw_hypothesis, dict) else {}
+    judgment = decision.get("model_judgment", {}) or {}
+    title = str(hypothesis.get("title", statement) or statement).strip()
+    return {
+        "id": _hypothesis_id(title, statement),
+        "title": title,
+        "statement": str(hypothesis.get("statement", statement) or statement).strip(),
+        "origin": str(judgment.get("origin", hypothesis.get("origin", "")) or "").strip(),
+        "rationale": str(judgment.get("rationale", hypothesis.get("rationale", "")) or "").strip(),
+        "uncertainty": str(judgment.get("uncertainty", hypothesis.get("uncertainty", "")) or "").strip(),
+        "assumptions": _string_items(hypothesis.get("assumptions")),
+        "expected_observations": _string_items(
+            judgment.get("expected_observations", hypothesis.get("expected_observations"))
+        ),
+        "disconfirming_signals": _string_items(
+            judgment.get("disconfirming_signals", hypothesis.get("disconfirming_signals"))
+        ),
+        "priority": _int_range(hypothesis.get("priority"), default=3, minimum=1, maximum=5),
+        "confidence": _confidence(candidate, decision),
+        "created_at": generated_at,
+        "status": "active",
+    }
+
+
+def _hypothesis_operation(
+    candidate: dict[str, Any],
+    decision: dict[str, Any],
+    *,
+    generated_at: str,
+    claim_extraction_artifact: str,
+    claim_verification_artifact: str,
+    source_note_artifact: str,
+) -> dict[str, Any]:
+    evidence_refs = _valid_evidence_refs(candidate)
+    candidate_id = str(candidate.get("candidate_id", "") or "")
+    hypothesis = _hypothesis_payload(candidate, decision, generated_at)
+    idempotency_material = {
+        "schema_version": GRAPH_COMMIT_ENVELOPE_SCHEMA_VERSION,
+        "operation": "promote_hypothesis",
+        "candidate_id": candidate_id,
+        "hypothesis_id": hypothesis["id"],
+        "hypothesis_title": hypothesis["title"],
+        "verdicts": decision.get("verdicts", {}),
+        "evidence_refs": evidence_refs,
+    }
+    return {
+        "operation_id": f"op_{_sha256_json(idempotency_material)[:16]}",
+        "operation": "promote_hypothesis",
+        "candidate_id": candidate_id,
+        "decision_status": str((decision.get("commit_gate", {}) or {}).get("status", "")),
+        "hypothesis": hypothesis,
+        "idempotency_key": _sha256_json(idempotency_material),
+        "provenance": {
+            "claim_extraction_artifact": claim_extraction_artifact,
+            "claim_verification_artifact": claim_verification_artifact,
+            "source_note_artifact": source_note_artifact,
+            "source_refs": evidence_refs,
+        },
+    }
+
+
 def _blocked_entry(
     candidate_id: str,
     candidate: dict[str, Any] | None,
@@ -457,9 +528,9 @@ def build_graph_commit_envelope(
     """Build the deterministic write boundary after claim verification.
 
     The envelope makes no model calls and writes no graph state. It only
-    converts verified factual decisions into idempotent write operations and
-    blocks anything that still needs a richer perspective-state store or a
-    clearer semantic verifier decision.
+    converts verified decisions into idempotent write operations and blocks
+    anything that still needs a richer perspective-state store or a clearer
+    semantic verifier decision.
     """
     candidates_by_id = _candidate_by_id(claim_extraction)
     ready_pairs: list[tuple[dict[str, Any], dict[str, Any]]] = []
@@ -509,6 +580,17 @@ def build_graph_commit_envelope(
         elif state_type in _AGENDA_STATE_TYPES:
             operations.append(
                 _agenda_operation(
+                    candidate,
+                    decision,
+                    generated_at=resolved_generated_at,
+                    claim_extraction_artifact=claim_extraction_artifact,
+                    claim_verification_artifact=claim_verification_artifact,
+                    source_note_artifact=source_note_artifact,
+                )
+            )
+        elif state_type in _HYPOTHESIS_STATE_TYPES:
+            operations.append(
+                _hypothesis_operation(
                     candidate,
                     decision,
                     generated_at=resolved_generated_at,
@@ -595,5 +677,6 @@ __all__ = [
     "GRAPH_COMMIT_ENVELOPE_SCHEMA_VERSION",
     "GRAPH_COMMIT_ENVELOPE_SCHEMA_VERSION_V1",
     "GRAPH_COMMIT_ENVELOPE_SCHEMA_VERSION_V2",
+    "GRAPH_COMMIT_ENVELOPE_SCHEMA_VERSION_V3",
     "build_graph_commit_envelope",
 ]
