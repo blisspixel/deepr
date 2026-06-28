@@ -281,7 +281,11 @@ Unified answer.
 """
 
     class FakeCompletions:
-        async def create(self, **_kwargs):
+        async def create(self, **kwargs):
+            prompt = kwargs["messages"][1]["content"]
+            assert "MATH AND STATISTICS" in prompt
+            assert "EXECUTION PLAN" in prompt
+            assert "DISAGREEMENTS" in prompt
             return SimpleNamespace(
                 choices=[SimpleNamespace(message=SimpleNamespace(content=text))],
                 usage=SimpleNamespace(prompt_tokens=100, completion_tokens=50),

@@ -25,6 +25,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 </details>
 
 ### Added
+- Added A2A `deepr_consult_experts` support. The Agent Card now advertises the
+  consult skill, and completed consult tasks return a task-level artifact with
+  the full `deepr-consult-v1` payload, collaboration metadata, capacity posture,
+  cost, trace id, agreements, and disagreements. A2A consult defaults to local
+  no-metered synthesis; API synthesis requires explicit `allow_metered_api=true`
+  and a positive budget.
 - Added `deepr expert apply-graph-commit`, the explicit write boundary for
   verified graph commit envelopes. It supports dry-run JSON previews,
   noninteractive `--yes` gating, per-expert locking, idempotent replay, typed

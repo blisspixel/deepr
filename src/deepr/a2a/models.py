@@ -108,6 +108,7 @@ class Task:
     error: Any = None
     cost: float = 0.0
     trace_id: str = ""
+    artifacts: list[dict[str, Any]] = field(default_factory=list)
     created_at: datetime = field(default_factory=lambda: datetime.now(UTC))
     updated_at: datetime = field(default_factory=lambda: datetime.now(UTC))
     metadata: dict[str, Any] = field(default_factory=dict)
@@ -134,6 +135,7 @@ class Task:
             "error": self.error,
             "cost": self.cost,
             "trace_id": self.trace_id,
+            "artifacts": self.artifacts,
             "created_at": self.created_at.isoformat(),
             "updated_at": self.updated_at.isoformat(),
             "metadata": self.metadata,
