@@ -16,6 +16,9 @@ from deepr.experts.source_pack_policies import (
     is_agenda_kind as _is_agenda_kind,
 )
 from deepr.experts.source_pack_policies import (
+    is_concept_kind as _is_concept_kind,
+)
+from deepr.experts.source_pack_policies import (
     is_gap_kind as _is_gap_kind,
 )
 from deepr.experts.source_pack_policies import (
@@ -346,6 +349,17 @@ def _hypothesis_candidate(item: dict[str, Any], statement: str) -> dict[str, Any
     }
 
 
+def _concept_candidate(item: dict[str, Any], statement: str) -> dict[str, Any]:
+    name = str(item.get("title", item.get("name", statement)) or statement).strip()
+    return {
+        "name": name or statement,
+        "description": str(item.get("description", statement) or statement).strip(),
+        "key_properties": _string_list_field(item, "key_properties"),
+        "related_terms": _string_list_field(item, "related_terms"),
+        "priority": _int_range(item.get("priority"), default=3, minimum=1, maximum=5),
+    }
+
+
 def _response_from_model_output(model_output: dict[str, Any] | str) -> tuple[dict[str, Any], str, str]:
     if isinstance(model_output, str):
         raw = model_output
@@ -421,6 +435,8 @@ def _claim_candidate(
         candidate["agenda"] = _agenda_candidate(item, statement)
     if _is_hypothesis_kind(claim_kind):
         candidate["hypothesis"] = _hypothesis_candidate(item, statement)
+    if _is_concept_kind(claim_kind):
+        candidate["concept"] = _concept_candidate(item, statement)
     return candidate
 
 

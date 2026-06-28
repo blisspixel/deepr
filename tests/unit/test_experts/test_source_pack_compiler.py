@@ -1008,6 +1008,121 @@ def test_hypothesis_verification_requires_expected_observations():
     assert verification["decisions"][0]["readiness"]["failure_reasons"] == ["missing_expected_observations"]
 
 
+def test_graph_commit_envelope_promotes_verified_concept(tmp_path):
+    notes = build_source_notes(_source_pack_payload())
+    note = notes["notes"][0]
+    window = note["windows"][0]
+    name = "Statistical variable map"
+    extraction = build_semantic_claim_extraction(
+        notes,
+        {
+            "claims": [
+                {
+                    "statement": "A statistical variable map makes expert council plans reviewable.",
+                    "title": name,
+                    "claim_kind": "concept",
+                    "confidence": 0.73,
+                    "priority": 4,
+                    "key_properties": ["Variables are explicit.", "Outcomes are reviewable."],
+                    "related_terms": ["consult trace", "quality review"],
+                    "source_refs": [{"note_id": note["note_id"], "window_id": window["window_id"]}],
+                }
+            ]
+        },
+        source_note_artifact="sync_artifacts/source_notes/pack.json",
+    )
+    candidate = extraction["candidates"][0]
+    verification = build_claim_verification(
+        extraction,
+        {
+            "verifications": [
+                {
+                    "candidate_id": candidate["candidate_id"],
+                    "support_verdict": "not_applicable",
+                    "contradiction_verdict": "none",
+                    "dedup_verdict": "new",
+                    "temporal_scope_verdict": "not_applicable",
+                    "origin": "The source note exposed a reusable council-quality concept.",
+                    "rationale": "The expert should retain the concept without promoting it as fact.",
+                    "uncertainty": "The concept has not been calibrated across domains.",
+                    "expected_observations": ["Future plans cite the variable map."],
+                    "disconfirming_signals": ["Plans become harder to review when it is used."],
+                    "confidence": 0.7,
+                }
+            ]
+        },
+    )
+
+    envelope = build_graph_commit_envelope(
+        extraction,
+        verification,
+        claim_extraction_artifact="sync_artifacts/claim_extractions/pack.json",
+        claim_verification_artifact="sync_artifacts/claim_verifications/pack.json",
+        expert_name="Compiler Expert",
+        domain="compiler",
+        generated_at="2026-06-26T12:03:00+00:00",
+    )
+    tracker = MetaCognitionTracker("Compiler Expert", base_path=str(tmp_path / "experts"))
+    result = apply_graph_commit_envelope(
+        envelope,
+        BeliefStore("Compiler Expert", storage_dir=tmp_path / "beliefs"),
+        gap_tracker=tracker,
+        dry_run=False,
+    )
+
+    assert candidate["state_policy"]["state_type"] == "concept"
+    assert candidate["state_policy"]["writes_concept"] is True
+    assert verification["summary"]["status"] == "ready_for_commit_envelope"
+    assert envelope["summary"]["status"] == "ready_for_commit"
+    operation = envelope["operations"][0]
+    assert operation["operation"] == "promote_concept"
+    assert operation["concept"]["name"] == name
+    assert operation["concept"]["key_properties"] == ["Variables are explicit.", "Outcomes are reviewable."]
+    assert result["summary"]["status"] == "applied"
+    assert name in tracker.concepts
+
+
+def test_concept_verification_requires_expected_observations():
+    notes = build_source_notes(_source_pack_payload())
+    note = notes["notes"][0]
+    window = note["windows"][0]
+    extraction = build_semantic_claim_extraction(
+        notes,
+        {
+            "claims": [
+                {
+                    "statement": "A variable map may make plans reviewable.",
+                    "claim_kind": "concept",
+                    "confidence": 0.7,
+                    "source_refs": [{"note_id": note["note_id"], "window_id": window["window_id"]}],
+                }
+            ]
+        },
+    )
+    verification = build_claim_verification(
+        extraction,
+        {
+            "verifications": [
+                {
+                    "candidate_id": extraction["candidates"][0]["candidate_id"],
+                    "support_verdict": "not_applicable",
+                    "contradiction_verdict": "none",
+                    "dedup_verdict": "new",
+                    "temporal_scope_verdict": "not_applicable",
+                    "origin": "Reviewed source-note evidence.",
+                    "rationale": "The concept should stay testable rather than factual.",
+                    "uncertainty": "The expected effect is unknown.",
+                    "disconfirming_signals": ["No quality score change appears."],
+                    "confidence": 0.75,
+                }
+            ]
+        },
+    )
+
+    assert verification["summary"]["status"] == "blocked"
+    assert verification["decisions"][0]["readiness"]["failure_reasons"] == ["missing_expected_observations"]
+
+
 def test_graph_commit_envelope_blocks_uncertain_deduplication():
     notes = build_source_notes(_source_pack_payload())
     note = notes["notes"][0]

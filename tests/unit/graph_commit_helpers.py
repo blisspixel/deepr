@@ -131,6 +131,39 @@ def graph_commit_hypothesis_operation(
     }
 
 
+def graph_commit_concept_operation(
+    name: str,
+    idempotency_key: str,
+    *,
+    concept_id: str = "concept_test",
+    candidate_id: str = "candidate_concept",
+) -> dict:
+    return {
+        "operation_id": f"op_{concept_id}",
+        "operation": "promote_concept",
+        "candidate_id": candidate_id,
+        "decision_status": "ready_for_commit",
+        "concept": {
+            "id": concept_id,
+            "name": name,
+            "description": "A reusable statistical variable map for evaluating expert council plans.",
+            "origin": "A verifier-approved source note raised the reusable concept.",
+            "rationale": "The expert needs a durable concept before applying it across future plans.",
+            "uncertainty": "The concept has not been calibrated across domains yet.",
+            "key_properties": ["Variables are explicit.", "Outcomes are reviewable."],
+            "related_terms": ["consult trace", "quality review"],
+            "expected_observations": ["Future plans cite the same variable map."],
+            "disconfirming_signals": ["Plans become harder to review when the concept is used."],
+            "priority": 4,
+            "confidence": 0.7,
+            "created_at": "2026-06-26T12:00:00+00:00",
+            "status": "active",
+        },
+        "idempotency_key": idempotency_key,
+        "provenance": {"source_refs": [{"note_id": "note_concept", "window_id": "note_concept:w0"}]},
+    }
+
+
 def graph_commit_envelope(
     *operations: dict,
     expert_name: str = "Compiler Expert",

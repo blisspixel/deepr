@@ -13,13 +13,15 @@ from deepr.experts.source_pack_compiler import CLAIM_VERIFICATION_SCHEMA_VERSION
 GRAPH_COMMIT_ENVELOPE_SCHEMA_VERSION_V1 = "deepr-graph-commit-envelope-v1"
 GRAPH_COMMIT_ENVELOPE_SCHEMA_VERSION_V2 = "deepr-graph-commit-envelope-v2"
 GRAPH_COMMIT_ENVELOPE_SCHEMA_VERSION_V3 = "deepr-graph-commit-envelope-v3"
-GRAPH_COMMIT_ENVELOPE_SCHEMA_VERSION = "deepr-graph-commit-envelope-v4"
+GRAPH_COMMIT_ENVELOPE_SCHEMA_VERSION_V4 = "deepr-graph-commit-envelope-v4"
+GRAPH_COMMIT_ENVELOPE_SCHEMA_VERSION = "deepr-graph-commit-envelope-v5"
 GRAPH_COMMIT_ENVELOPE_KIND = "deepr.expert.graph_commit_envelope"
 
 _BELIEF_STATE_TYPES = {"factual_claim", "fact", "external_fact", "current_fact"}
 _GAP_STATE_TYPES = {"gap", "knowledge_gap", "research_gap"}
 _AGENDA_STATE_TYPES = {"exploration_agenda", "research_agenda"}
 _HYPOTHESIS_STATE_TYPES = {"hypothesis"}
+_CONCEPT_STATE_TYPES = {"concept"}
 
 
 def _utc_now() -> datetime:
@@ -119,6 +121,10 @@ def _hypothesis_id(title: str, statement: str) -> str:
     return hashlib.sha256(f"{title}|{statement}".encode()).hexdigest()[:12]
 
 
+def _concept_id(name: str, description: str) -> str:
+    return hashlib.sha256(f"{name}|{description}".encode()).hexdigest()[:12]
+
+
 def _decision_state_type(candidate: dict[str, Any], decision: dict[str, Any]) -> str:
     policy = decision.get("state_policy", candidate.get("state_policy", {})) or {}
     return str(policy.get("state_type", candidate.get("claim_kind", "")) or "")
@@ -164,11 +170,12 @@ def _commit_failures(candidate: dict[str, Any] | None, decision: dict[str, Any])
     is_gap = state_type in _GAP_STATE_TYPES
     is_agenda = state_type in _AGENDA_STATE_TYPES
     is_hypothesis = state_type in _HYPOTHESIS_STATE_TYPES
-    if state_type not in _BELIEF_STATE_TYPES and not is_gap and not is_agenda and not is_hypothesis:
+    is_concept = state_type in _CONCEPT_STATE_TYPES
+    if state_type not in _BELIEF_STATE_TYPES and not is_gap and not is_agenda and not is_hypothesis and not is_concept:
         failures.append("non_factual_state_requires_perspective_store")
 
     verdicts = decision.get("verdicts", {}) or {}
-    if is_gap or is_agenda or is_hypothesis:
+    if is_gap or is_agenda or is_hypothesis or is_concept:
         failures.extend(_gap_verdict_ready(verdicts))
     else:
         failures.extend(_belief_verdict_ready(verdicts))
@@ -499,6 +506,113 @@ def _hypothesis_operation(
     }
 
 
+def _concept_payload(candidate: dict[str, Any], decision: dict[str, Any], generated_at: str) -> dict[str, Any]:
+    statement = str(candidate.get("statement", "") or "").strip()
+    raw_concept = candidate.get("concept")
+    concept = raw_concept if isinstance(raw_concept, dict) else {}
+    judgment = decision.get("model_judgment", {}) or {}
+    name = str(concept.get("name", statement) or statement).strip()
+    description = str(concept.get("description", statement) or statement).strip()
+    return {
+        "id": _concept_id(name, description),
+        "name": name,
+        "description": description,
+        "origin": str(judgment.get("origin", concept.get("origin", "")) or "").strip(),
+        "rationale": str(judgment.get("rationale", concept.get("rationale", "")) or "").strip(),
+        "uncertainty": str(judgment.get("uncertainty", concept.get("uncertainty", "")) or "").strip(),
+        "key_properties": _string_items(concept.get("key_properties")),
+        "related_terms": _string_items(concept.get("related_terms")),
+        "expected_observations": _string_items(
+            judgment.get("expected_observations", concept.get("expected_observations"))
+        ),
+        "disconfirming_signals": _string_items(
+            judgment.get("disconfirming_signals", concept.get("disconfirming_signals"))
+        ),
+        "priority": _int_range(concept.get("priority"), default=3, minimum=1, maximum=5),
+        "confidence": _confidence(candidate, decision),
+        "created_at": generated_at,
+        "status": "active",
+    }
+
+
+def _concept_operation(
+    candidate: dict[str, Any],
+    decision: dict[str, Any],
+    *,
+    generated_at: str,
+    claim_extraction_artifact: str,
+    claim_verification_artifact: str,
+    source_note_artifact: str,
+) -> dict[str, Any]:
+    evidence_refs = _valid_evidence_refs(candidate)
+    candidate_id = str(candidate.get("candidate_id", "") or "")
+    concept = _concept_payload(candidate, decision, generated_at)
+    idempotency_material = {
+        "schema_version": GRAPH_COMMIT_ENVELOPE_SCHEMA_VERSION,
+        "operation": "promote_concept",
+        "candidate_id": candidate_id,
+        "concept_id": concept["id"],
+        "concept_name": concept["name"],
+        "verdicts": decision.get("verdicts", {}),
+        "evidence_refs": evidence_refs,
+    }
+    return {
+        "operation_id": f"op_{_sha256_json(idempotency_material)[:16]}",
+        "operation": "promote_concept",
+        "candidate_id": candidate_id,
+        "decision_status": str((decision.get("commit_gate", {}) or {}).get("status", "")),
+        "concept": concept,
+        "idempotency_key": _sha256_json(idempotency_material),
+        "provenance": {
+            "claim_extraction_artifact": claim_extraction_artifact,
+            "claim_verification_artifact": claim_verification_artifact,
+            "source_note_artifact": source_note_artifact,
+            "source_refs": evidence_refs,
+        },
+    }
+
+
+def _state_operation(
+    candidate: dict[str, Any],
+    decision: dict[str, Any],
+    *,
+    edges: list[dict[str, Any]],
+    domain: str,
+    trust_class: str,
+    grounding_assurance: str,
+    generated_at: str,
+    claim_extraction_artifact: str,
+    claim_verification_artifact: str,
+    source_note_artifact: str,
+) -> dict[str, Any]:
+    state_type = _decision_state_type(candidate, decision)
+    common = {
+        "generated_at": generated_at,
+        "claim_extraction_artifact": claim_extraction_artifact,
+        "claim_verification_artifact": claim_verification_artifact,
+        "source_note_artifact": source_note_artifact,
+    }
+    if state_type in _GAP_STATE_TYPES:
+        return _gap_operation(candidate, decision, **common)
+    if state_type in _AGENDA_STATE_TYPES:
+        return _agenda_operation(candidate, decision, **common)
+    if state_type in _HYPOTHESIS_STATE_TYPES:
+        return _hypothesis_operation(candidate, decision, **common)
+    if state_type in _CONCEPT_STATE_TYPES:
+        return _concept_operation(candidate, decision, **common)
+    return _write_operation(
+        candidate,
+        decision,
+        edges=edges,
+        domain=domain,
+        trust_class=trust_class,
+        grounding_assurance=grounding_assurance,
+        claim_extraction_artifact=claim_extraction_artifact,
+        claim_verification_artifact=claim_verification_artifact,
+        source_note_artifact=source_note_artifact,
+    )
+
+
 def _blocked_entry(
     candidate_id: str,
     candidate: dict[str, Any] | None,
@@ -565,54 +679,20 @@ def build_graph_commit_envelope(
     for candidate, decision in ready_pairs:
         candidate_id = str(candidate.get("candidate_id", "") or "")
         source_note_artifact = str((claim_extraction.get("input", {}) or {}).get("source_note_artifact", ""))
-        state_type = _decision_state_type(candidate, decision)
-        if state_type in _GAP_STATE_TYPES:
-            operations.append(
-                _gap_operation(
-                    candidate,
-                    decision,
-                    generated_at=resolved_generated_at,
-                    claim_extraction_artifact=claim_extraction_artifact,
-                    claim_verification_artifact=claim_verification_artifact,
-                    source_note_artifact=source_note_artifact,
-                )
+        operations.append(
+            _state_operation(
+                candidate,
+                decision,
+                edges=edges_by_source_candidate.get(candidate_id, []),
+                domain=domain,
+                trust_class=trust_class,
+                grounding_assurance=grounding_assurance,
+                generated_at=resolved_generated_at,
+                claim_extraction_artifact=claim_extraction_artifact,
+                claim_verification_artifact=claim_verification_artifact,
+                source_note_artifact=source_note_artifact,
             )
-        elif state_type in _AGENDA_STATE_TYPES:
-            operations.append(
-                _agenda_operation(
-                    candidate,
-                    decision,
-                    generated_at=resolved_generated_at,
-                    claim_extraction_artifact=claim_extraction_artifact,
-                    claim_verification_artifact=claim_verification_artifact,
-                    source_note_artifact=source_note_artifact,
-                )
-            )
-        elif state_type in _HYPOTHESIS_STATE_TYPES:
-            operations.append(
-                _hypothesis_operation(
-                    candidate,
-                    decision,
-                    generated_at=resolved_generated_at,
-                    claim_extraction_artifact=claim_extraction_artifact,
-                    claim_verification_artifact=claim_verification_artifact,
-                    source_note_artifact=source_note_artifact,
-                )
-            )
-        else:
-            operations.append(
-                _write_operation(
-                    candidate,
-                    decision,
-                    edges=edges_by_source_candidate.get(candidate_id, []),
-                    domain=domain,
-                    trust_class=trust_class,
-                    grounding_assurance=grounding_assurance,
-                    claim_extraction_artifact=claim_extraction_artifact,
-                    claim_verification_artifact=claim_verification_artifact,
-                    source_note_artifact=source_note_artifact,
-                )
-            )
+        )
 
     failure_reasons = sorted({reason for entry in blocked for reason in entry["failure_reasons"]})
     if not operations and not blocked:
@@ -678,5 +758,6 @@ __all__ = [
     "GRAPH_COMMIT_ENVELOPE_SCHEMA_VERSION_V1",
     "GRAPH_COMMIT_ENVELOPE_SCHEMA_VERSION_V2",
     "GRAPH_COMMIT_ENVELOPE_SCHEMA_VERSION_V3",
+    "GRAPH_COMMIT_ENVELOPE_SCHEMA_VERSION_V4",
     "build_graph_commit_envelope",
 ]

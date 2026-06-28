@@ -8,7 +8,8 @@ from deepr.experts.source_pack_values import normalized_key
 
 FACTUAL_KINDS = {"factual_claim", "fact", "external_fact", "current_fact"}
 HYPOTHESIS_KINDS = {"hypothesis", "private_hypothesis", "theory"}
-IDEA_KINDS = {"concept", "stance", "proposal", "original_idea", "original_synthesis"}
+CONCEPT_KINDS = {"concept", "mental_model", "framework"}
+IDEA_KINDS = {"stance", "proposal", "original_idea", "original_synthesis"}
 GAP_KINDS = {"gap", "knowledge_gap", "research_gap"}
 AGENDA_KINDS = {"exploration_agenda", "research_agenda"}
 
@@ -23,6 +24,10 @@ def is_agenda_kind(claim_kind: str) -> bool:
 
 def is_hypothesis_kind(claim_kind: str) -> bool:
     return claim_kind in HYPOTHESIS_KINDS
+
+
+def is_concept_kind(claim_kind: str) -> bool:
+    return claim_kind in CONCEPT_KINDS
 
 
 def claim_kind_policy(claim_kind: str) -> dict[str, Any]:
@@ -55,6 +60,16 @@ def claim_kind_policy(claim_kind: str) -> dict[str, Any]:
             "requires_expected_observations": True,
             "must_not_present_as_verified_fact": True,
             "writes_hypothesis": True,
+        }
+    if kind in CONCEPT_KINDS:
+        return {
+            "state_type": "concept",
+            "requires_external_support": False,
+            "requires_origin_and_rationale": True,
+            "requires_disconfirming_signals": True,
+            "requires_expected_observations": True,
+            "must_not_present_as_verified_fact": True,
+            "writes_concept": True,
         }
     if kind in IDEA_KINDS:
         return {

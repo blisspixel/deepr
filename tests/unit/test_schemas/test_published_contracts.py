@@ -142,6 +142,7 @@ from deepr.mcp.smoke import (
 )
 from tests.unit.graph_commit_helpers import (
     graph_commit_agenda_operation,
+    graph_commit_concept_operation,
     graph_commit_envelope,
     graph_commit_hypothesis_operation,
     graph_commit_operation,
@@ -1039,7 +1040,7 @@ def test_graph_commit_envelope_schema_validates_runtime_payload():
         domain="schemas",
         generated_at="2026-06-26T12:03:00+00:00",
     )
-    schema = _load_schema("graph-commit-envelope-v4.json")
+    schema = _load_schema("graph-commit-envelope-v5.json")
 
     _validate(schema, payload)
     assert payload["schema_version"] == GRAPH_COMMIT_ENVELOPE_SCHEMA_VERSION
@@ -1049,7 +1050,7 @@ def test_graph_commit_envelope_schema_validates_runtime_payload():
     assert payload["summary"]["ready_edge_count"] == 1
 
 
-def test_graph_commit_envelope_v4_schema_validates_agenda_payload():
+def test_graph_commit_envelope_v5_schema_validates_agenda_payload():
     notes = build_source_notes(
         {
             "started_at": "2026-06-26T12:00:00+00:00",
@@ -1111,14 +1112,14 @@ def test_graph_commit_envelope_v4_schema_validates_agenda_payload():
         domain="schemas",
         generated_at="2026-06-26T12:03:00+00:00",
     )
-    schema = _load_schema("graph-commit-envelope-v4.json")
+    schema = _load_schema("graph-commit-envelope-v5.json")
 
     _validate(schema, payload)
     assert payload["schema_version"] == GRAPH_COMMIT_ENVELOPE_SCHEMA_VERSION
     assert payload["operations"][0]["operation"] == "promote_exploration_agenda"
 
 
-def test_graph_commit_envelope_v4_schema_validates_hypothesis_payload():
+def test_graph_commit_envelope_v5_schema_validates_hypothesis_payload():
     notes = build_source_notes(
         {
             "started_at": "2026-06-26T12:00:00+00:00",
@@ -1180,11 +1181,81 @@ def test_graph_commit_envelope_v4_schema_validates_hypothesis_payload():
         domain="schemas",
         generated_at="2026-06-26T12:03:00+00:00",
     )
-    schema = _load_schema("graph-commit-envelope-v4.json")
+    schema = _load_schema("graph-commit-envelope-v5.json")
 
     _validate(schema, payload)
     assert payload["schema_version"] == GRAPH_COMMIT_ENVELOPE_SCHEMA_VERSION
     assert payload["operations"][0]["operation"] == "promote_hypothesis"
+
+
+def test_graph_commit_envelope_v5_schema_validates_concept_payload():
+    notes = build_source_notes(
+        {
+            "started_at": "2026-06-26T12:00:00+00:00",
+            "source_pack": {
+                "schema_version": "deepr.source_pack.v1",
+                "sources": [
+                    {
+                        "label": "S1",
+                        "title": "Release notes",
+                        "url": "https://example.com/release",
+                        "source": "duckduckgo+builtin",
+                        "fetched": True,
+                        "excerpt": "Release text",
+                        "content_hash": "a" * 64,
+                    }
+                ],
+            },
+        }
+    )
+    note = notes["notes"][0]
+    window = note["windows"][0]
+    extraction = build_semantic_claim_extraction(
+        notes,
+        {
+            "claims": [
+                {
+                    "statement": "A statistical variable map makes expert council plans reviewable.",
+                    "title": "Statistical variable map",
+                    "confidence": 0.73,
+                    "claim_kind": "concept",
+                    "source_refs": [{"note_id": note["note_id"], "window_id": window["window_id"]}],
+                }
+            ]
+        },
+    )
+    verification = build_claim_verification(
+        extraction,
+        {
+            "verifications": [
+                {
+                    "candidate_id": extraction["candidates"][0]["candidate_id"],
+                    "support_verdict": "not_applicable",
+                    "contradiction_verdict": "none",
+                    "dedup_verdict": "new",
+                    "temporal_scope_verdict": "not_applicable",
+                    "origin": "Reviewed source-note evidence.",
+                    "rationale": "The concept should remain perspective state until calibrated.",
+                    "uncertainty": "The concept has not been calibrated across domains.",
+                    "expected_observations": ["Future plans cite the variable map."],
+                    "disconfirming_signals": ["Review quality drops when it is used."],
+                    "confidence": 0.7,
+                }
+            ]
+        },
+    )
+    payload = build_graph_commit_envelope(
+        extraction,
+        verification,
+        expert_name="Schema Expert",
+        domain="schemas",
+        generated_at="2026-06-26T12:03:00+00:00",
+    )
+    schema = _load_schema("graph-commit-envelope-v5.json")
+
+    _validate(schema, payload)
+    assert payload["schema_version"] == GRAPH_COMMIT_ENVELOPE_SCHEMA_VERSION
+    assert payload["operations"][0]["operation"] == "promote_concept"
 
 
 def test_graph_commit_apply_schema_validates_runtime_payload(tmp_path):
@@ -1234,6 +1305,23 @@ def test_graph_commit_apply_schema_validates_hypothesis_result(tmp_path):
     _validate(schema, payload)
     assert payload["schema_version"] == GRAPH_COMMIT_APPLY_SCHEMA_VERSION
     assert payload["operation_results"][0]["hypothesis_title"] == title
+    assert payload["summary"]["status"] == "applied"
+
+
+def test_graph_commit_apply_schema_validates_concept_result(tmp_path):
+    name = "Statistical variable map for expert council plans"
+    envelope = graph_commit_envelope(
+        graph_commit_concept_operation(name, "d" * 64),
+        expert_name="Schema Expert",
+    )
+    store = BeliefStore("Schema Expert", storage_dir=tmp_path / "beliefs")
+    tracker = MetaCognitionTracker("Schema Expert", base_path=str(tmp_path / "experts"))
+    payload = apply_graph_commit_envelope(envelope, store, gap_tracker=tracker, dry_run=False)
+    schema = _load_schema("graph-commit-apply-v1.json")
+
+    _validate(schema, payload)
+    assert payload["schema_version"] == GRAPH_COMMIT_APPLY_SCHEMA_VERSION
+    assert payload["operation_results"][0]["concept_name"] == name
     assert payload["summary"]["status"] == "applied"
 
 
