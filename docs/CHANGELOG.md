@@ -25,6 +25,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 </details>
 
 ### Added
+- Added `deepr-graph-commit-envelope-v1`, the deterministic no-write boundary
+  after claim verification. It turns verified factual decisions into
+  idempotent add-belief operations, blocks hypotheses and other perspective
+  states until dedicated stores exist, and requires a future explicit apply
+  command before graph mutation.
 - Added `deepr mcp validate-consult`, a no-metered external-agent consult
   validation harness. It can run as a `$0` offline fixture, an in-process live
   local or explicit plan-capacity check, or an HTTP MCP endpoint check. Reports
@@ -1048,8 +1053,8 @@ Security and maintenance release. No functional changes.
   now logs a warning when it finds orphaned reports under the legacy root
   so they are not silently invisible to search and the dashboard.
 - `AGENTS.md` at the repo root: the canonical, vendor-neutral agent guide
-  (dev setup, test/lint/type commands, hard rules). `CLAUDE.md` is a thin
-  pointer to it so Claude Code picks it up without content drift.
+  (dev setup, test/lint/type commands, hard rules), replacing tool-specific
+  instruction shims with one source of truth.
 - Belief lifecycle and salience substrate (design:
   `docs/design/belief-lifecycle.md`), grounded in a nine-corpus review of
   the 2026 agent-memory and claim-verification literature (the documented
@@ -1545,7 +1550,7 @@ Security and maintenance release. No functional changes.
   - **pip-audit** wired into CI and already **blocking**: the baseline it
     surfaced was cleared immediately (see Security), so a new known
     vulnerability now fails the build.
-  - **Dependabot** enabled (pip + github-actions + npm, weekly).
+  - **Dependency update automation** enabled (pip + github-actions + npm, weekly).
   - **Branch coverage** enabled (stricter than line coverage): the gate is now
     ``fail_under = 78`` over branch coverage (was 80 line), ratcheting toward 95.
   - **C901 complexity cap** (max-complexity 10) surfaced as an advisory CI

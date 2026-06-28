@@ -28,7 +28,7 @@ Recorded so the plan is proportional - this is not a rescue, it is a finish.
 - **Tests**: 5,300+ unit tests; **80% branch** coverage gate (stricter than
   line) on Python 3.12 / 3.13 / 3.14.
 - **Lint**: ruff (E/F/W/I/B/UP/RUF) blocking + pre-commit.
-- **Security / supply chain**: `pip-audit` blocking, Dependabot weekly, SBOM
+- **Security / supply chain**: `pip-audit` blocking, weekly dependency update automation, SBOM
   via `uv export`, hash-pinned `uv.lock`.
 - **Invariants**: append-only cost ledger; single sources of truth (pricing
   in `providers/registry.py`, version in `__init__.py`, reports root from
