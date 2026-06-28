@@ -140,6 +140,33 @@
             }
           },
           "model_judgment": {"type": "object", "additionalProperties": true},
+          "edge_decisions": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "additionalProperties": true,
+              "required": ["source_candidate_id", "target_candidate_id", "edge_type"],
+              "properties": {
+                "source_candidate_id": {"type": "string"},
+                "target_candidate_id": {"type": "string"},
+                "edge_type": {"enum": ["supports", "contradicts", "enables", "derived_from"]},
+                "confidence": {"type": "number", "minimum": 0, "maximum": 1},
+                "rationale": {"type": "string"}
+              }
+            }
+          },
+          "edge_decision_failures": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "additionalProperties": true,
+              "required": ["index", "failure_reasons"],
+              "properties": {
+                "index": {"type": "integer", "minimum": 0},
+                "failure_reasons": {"type": "array", "items": {"type": "string"}}
+              }
+            }
+          },
           "readiness": {
             "type": "object",
             "additionalProperties": true,

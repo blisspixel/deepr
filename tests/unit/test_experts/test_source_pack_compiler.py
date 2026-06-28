@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from deepr.experts.beliefs import BeliefStore
+from deepr.experts.graph_commit_apply import apply_graph_commit_envelope
 from deepr.experts.graph_commit_envelope import (
     GRAPH_COMMIT_ENVELOPE_KIND,
     GRAPH_COMMIT_ENVELOPE_SCHEMA_VERSION,
@@ -460,6 +462,81 @@ def test_claim_verification_blocks_unknown_candidate_ids():
     assert verification["summary"]["failure_reasons"] == ["unknown_candidate_id"]
 
 
+def test_claim_verification_records_edge_decisions_without_writing_graph():
+    notes = build_source_notes(_source_pack_payload())
+    note = notes["notes"][0]
+    window = note["windows"][0]
+    extraction = build_semantic_claim_extraction(
+        notes,
+        {
+            "claims": [
+                {
+                    "statement": "The compiler writes stable source notes.",
+                    "claim_kind": "factual_claim",
+                    "confidence": 0.9,
+                    "source_refs": [{"note_id": note["note_id"], "window_id": window["window_id"]}],
+                },
+                {
+                    "statement": "Stable source notes support replayable verification.",
+                    "claim_kind": "factual_claim",
+                    "confidence": 0.88,
+                    "source_refs": [{"note_id": note["note_id"], "window_id": window["window_id"]}],
+                },
+            ]
+        },
+    )
+    source_candidate = extraction["candidates"][0]["candidate_id"]
+    target_candidate = extraction["candidates"][1]["candidate_id"]
+
+    verification = build_claim_verification(
+        extraction,
+        {
+            "verifications": [
+                {
+                    "candidate_id": source_candidate,
+                    "support_verdict": "supported",
+                    "contradiction_verdict": "none",
+                    "dedup_verdict": "new",
+                    "temporal_scope_verdict": "valid",
+                    "edge_decisions": [
+                        {
+                            "target_candidate_id": target_candidate,
+                            "edge_type": "supports",
+                            "confidence": 0.81,
+                            "rationale": "The first claim is required for the second claim's replay guarantee.",
+                        },
+                        {
+                            "target_candidate_id": "cc_missing",
+                            "edge_type": "supports",
+                        },
+                    ],
+                },
+                {
+                    "candidate_id": target_candidate,
+                    "support_verdict": "supported",
+                    "contradiction_verdict": "none",
+                    "dedup_verdict": "new",
+                    "temporal_scope_verdict": "valid",
+                },
+            ]
+        },
+    )
+
+    decision = verification["decisions"][0]
+    assert verification["contract"]["writes_graph"] is False
+    assert decision["readiness"]["ready_for_commit_envelope"] is True
+    assert decision["edge_decisions"] == [
+        {
+            "source_candidate_id": source_candidate,
+            "target_candidate_id": target_candidate,
+            "edge_type": "supports",
+            "confidence": 0.81,
+            "rationale": "The first claim is required for the second claim's replay guarantee.",
+        }
+    ]
+    assert decision["edge_decision_failures"] == [{"index": 1, "failure_reasons": ["unknown_target_candidate_id"]}]
+
+
 def test_graph_commit_envelope_plans_idempotent_factual_belief_write():
     notes = build_source_notes(_source_pack_payload())
     note = notes["notes"][0]
@@ -524,6 +601,103 @@ def test_graph_commit_envelope_plans_idempotent_factual_belief_write():
     assert op["idempotency_key"]
     assert op["provenance"]["claim_verification_artifact"] == "sync_artifacts/claim_verifications/pack.json"
     assert envelope["compiler"]["next_stage_requires_model_judgment"] is False
+
+
+def test_graph_commit_envelope_applies_verifier_edge_decisions(tmp_path):
+    notes = build_source_notes(_source_pack_payload())
+    note = notes["notes"][0]
+    window = note["windows"][0]
+    extraction = build_semantic_claim_extraction(
+        notes,
+        {
+            "claims": [
+                {
+                    "statement": "The compiler writes stable source notes.",
+                    "claim_kind": "factual_claim",
+                    "confidence": 0.9,
+                    "source_refs": [{"note_id": note["note_id"], "window_id": window["window_id"]}],
+                },
+                {
+                    "statement": "Stable source notes support replayable verification.",
+                    "claim_kind": "factual_claim",
+                    "confidence": 0.88,
+                    "source_refs": [{"note_id": note["note_id"], "window_id": window["window_id"]}],
+                },
+            ]
+        },
+        source_note_artifact="sync_artifacts/source_notes/pack.json",
+    )
+    source_candidate = extraction["candidates"][0]["candidate_id"]
+    target_candidate = extraction["candidates"][1]["candidate_id"]
+    verification = build_claim_verification(
+        extraction,
+        {
+            "verifications": [
+                {
+                    "candidate_id": source_candidate,
+                    "support_verdict": "supported",
+                    "contradiction_verdict": "none",
+                    "dedup_verdict": "new",
+                    "temporal_scope_verdict": "valid",
+                    "edge_decisions": [
+                        {
+                            "target_candidate_id": target_candidate,
+                            "edge_type": "derived_from",
+                            "confidence": 0.77,
+                            "rationale": "Replayable verification derives from stable source-note inputs.",
+                        }
+                    ],
+                },
+                {
+                    "candidate_id": target_candidate,
+                    "support_verdict": "supported",
+                    "contradiction_verdict": "none",
+                    "dedup_verdict": "new",
+                    "temporal_scope_verdict": "valid",
+                },
+            ]
+        },
+    )
+
+    envelope = build_graph_commit_envelope(
+        extraction,
+        verification,
+        claim_verification_artifact="sync_artifacts/claim_verifications/pack.json",
+        expert_name="Compiler Expert",
+        domain="compiler",
+    )
+
+    assert envelope["summary"]["status"] == "ready_for_commit"
+    assert envelope["summary"]["ready_write_count"] == 2
+    assert envelope["summary"]["ready_edge_count"] == 1
+    source_operation = envelope["operations"][0]
+    target_operation = envelope["operations"][1]
+    assert source_operation["edges"] == [
+        {
+            "src_id": source_operation["belief"]["id"],
+            "dst_id": target_operation["belief"]["id"],
+            "edge_type": "derived_from",
+            "source_candidate_id": source_candidate,
+            "target_candidate_id": target_candidate,
+            "provenance": (
+                "claim_verification:sync_artifacts/claim_verifications/pack.json:"
+                f"{source_candidate}:{target_candidate}:derived_from"
+            ),
+            "confidence": 0.77,
+            "rationale": "Replayable verification derives from stable source-note inputs.",
+        }
+    ]
+
+    store = BeliefStore("Compiler Expert", storage_dir=tmp_path / "beliefs")
+    result = apply_graph_commit_envelope(envelope, store, dry_run=False)
+
+    assert result["summary"]["status"] == "applied"
+    assert result["operation_results"][0]["edge_count"] == 1
+    assert len(store.edges) == 1
+    edge = next(iter(store.edges.values()))
+    assert edge.src_id == source_operation["belief"]["id"]
+    assert edge.dst_id == target_operation["belief"]["id"]
+    assert edge.edge_type == "derived_from"
 
 
 def test_graph_commit_envelope_blocks_hypothesis_until_perspective_store_exists():

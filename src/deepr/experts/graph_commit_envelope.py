@@ -7,6 +7,7 @@ import json
 from datetime import UTC, datetime
 from typing import Any
 
+from deepr.experts.beliefs import EDGE_TYPES
 from deepr.experts.source_pack_compiler import CLAIM_VERIFICATION_SCHEMA_VERSION
 
 GRAPH_COMMIT_ENVELOPE_SCHEMA_VERSION = "deepr-graph-commit-envelope-v1"
@@ -72,6 +73,12 @@ def _confidence(candidate: dict[str, Any], decision: dict[str, Any]) -> float:
     return max(0.0, min(1.0, parsed))
 
 
+def _belief_id(candidate: dict[str, Any]) -> str:
+    statement = str(candidate.get("statement", "") or "").strip()
+    candidate_id = str(candidate.get("candidate_id", "") or "")
+    return f"bg_{_sha256_json({'candidate_id': candidate_id, 'statement': statement})[:16]}"
+
+
 def _commit_failures(candidate: dict[str, Any] | None, decision: dict[str, Any]) -> list[str]:
     failures: list[str] = []
     readiness = decision.get("readiness", {}) or {}
@@ -103,10 +110,84 @@ def _commit_failures(candidate: dict[str, Any] | None, decision: dict[str, Any])
     return sorted(set(failures))
 
 
+def _edge_decision_items(decision: dict[str, Any]) -> list[dict[str, Any]]:
+    raw_edges = decision.get("edge_decisions", [])
+    if not isinstance(raw_edges, list):
+        return []
+    return [edge for edge in raw_edges if isinstance(edge, dict)]
+
+
+def _edge_operation(
+    edge: dict[str, Any],
+    *,
+    belief_id_by_candidate_id: dict[str, str],
+    claim_verification_artifact: str,
+) -> dict[str, Any] | None:
+    source_candidate_id = str(edge.get("source_candidate_id", "") or "")
+    target_candidate_id = str(edge.get("target_candidate_id", "") or "")
+    source_belief_id = belief_id_by_candidate_id.get(source_candidate_id, "")
+    target_belief_id = belief_id_by_candidate_id.get(target_candidate_id, "")
+    edge_type = str(edge.get("edge_type", "") or "")
+    if not source_belief_id or not target_belief_id or edge_type not in EDGE_TYPES:
+        return None
+    if source_belief_id == target_belief_id:
+        return None
+    result = {
+        "src_id": source_belief_id,
+        "dst_id": target_belief_id,
+        "edge_type": edge_type,
+        "source_candidate_id": source_candidate_id,
+        "target_candidate_id": target_candidate_id,
+        "provenance": (
+            f"claim_verification:{claim_verification_artifact}:{source_candidate_id}:{target_candidate_id}:{edge_type}"
+        ),
+    }
+    if edge.get("confidence") not in (None, ""):
+        try:
+            result["confidence"] = max(0.0, min(1.0, float(edge["confidence"])))
+        except (TypeError, ValueError):
+            pass
+    rationale = str(edge.get("rationale", "") or "").strip()
+    if rationale:
+        result["rationale"] = rationale
+    return result
+
+
+def _edge_operations_by_source_candidate(
+    decisions: list[dict[str, Any]],
+    *,
+    belief_id_by_candidate_id: dict[str, str],
+    claim_verification_artifact: str,
+) -> tuple[dict[str, list[dict[str, Any]]], int]:
+    edges_by_source: dict[str, list[dict[str, Any]]] = {}
+    seen: set[tuple[str, str, str]] = set()
+    skipped_count = 0
+    for decision in decisions:
+        for edge in _edge_decision_items(decision):
+            operation = _edge_operation(
+                edge,
+                belief_id_by_candidate_id=belief_id_by_candidate_id,
+                claim_verification_artifact=claim_verification_artifact,
+            )
+            if operation is None:
+                skipped_count += 1
+                continue
+            key = (operation["src_id"], operation["dst_id"], operation["edge_type"])
+            if operation["edge_type"] == "contradicts":
+                left, right = sorted((operation["src_id"], operation["dst_id"]))
+                key = (left, right, operation["edge_type"])
+            if key in seen:
+                continue
+            seen.add(key)
+            edges_by_source.setdefault(operation["source_candidate_id"], []).append(operation)
+    return edges_by_source, skipped_count
+
+
 def _write_operation(
     candidate: dict[str, Any],
     decision: dict[str, Any],
     *,
+    edges: list[dict[str, Any]],
     domain: str,
     trust_class: str,
     grounding_assurance: str,
@@ -117,13 +198,14 @@ def _write_operation(
     evidence_refs = _valid_evidence_refs(candidate)
     statement = str(candidate.get("statement", "") or "").strip()
     candidate_id = str(candidate.get("candidate_id", "") or "")
-    belief_id = f"bg_{_sha256_json({'candidate_id': candidate_id, 'statement': statement})[:16]}"
+    belief_id = _belief_id(candidate)
     idempotency_material = {
         "schema_version": GRAPH_COMMIT_ENVELOPE_SCHEMA_VERSION,
         "candidate_id": candidate_id,
         "belief_id": belief_id,
         "verdicts": decision.get("verdicts", {}),
         "evidence_refs": evidence_refs,
+        "edges": edges,
     }
     return {
         "operation_id": f"op_{_sha256_json(idempotency_material)[:16]}",
@@ -140,7 +222,7 @@ def _write_operation(
             "trust_class": trust_class,
             "grounding_assurance": grounding_assurance,
         },
-        "edges": [],
+        "edges": edges,
         "idempotency_key": _sha256_json(idempotency_material),
         "provenance": {
             "claim_extraction_artifact": claim_extraction_artifact,
@@ -185,6 +267,8 @@ def build_graph_commit_envelope(
     clearer semantic verifier decision.
     """
     candidates_by_id = _candidate_by_id(claim_extraction)
+    ready_pairs: list[tuple[dict[str, Any], dict[str, Any]]] = []
+    ready_decisions: list[dict[str, Any]] = []
     operations: list[dict[str, Any]] = []
     blocked: list[dict[str, Any]] = []
 
@@ -197,10 +281,27 @@ def build_graph_commit_envelope(
         if failures:
             blocked.append(_blocked_entry(candidate_id, candidate, raw_decision, failures))
             continue
+        ready_pairs.append((candidate or {}, raw_decision))
+        ready_decisions.append(raw_decision)
+
+    belief_id_by_candidate_id = {
+        str(candidate.get("candidate_id", "") or ""): _belief_id(candidate)
+        for candidate, _decision in ready_pairs
+        if str(candidate.get("candidate_id", "") or "")
+    }
+    edges_by_source_candidate, skipped_edge_count = _edge_operations_by_source_candidate(
+        ready_decisions,
+        belief_id_by_candidate_id=belief_id_by_candidate_id,
+        claim_verification_artifact=claim_verification_artifact,
+    )
+
+    for candidate, decision in ready_pairs:
+        candidate_id = str(candidate.get("candidate_id", "") or "")
         operations.append(
             _write_operation(
-                candidate or {},
-                raw_decision,
+                candidate,
+                decision,
+                edges=edges_by_source_candidate.get(candidate_id, []),
                 domain=domain,
                 trust_class=trust_class,
                 grounding_assurance=grounding_assurance,
@@ -249,6 +350,8 @@ def build_graph_commit_envelope(
         "summary": {
             "status": status,
             "ready_write_count": len(operations),
+            "ready_edge_count": sum(len(operation["edges"]) for operation in operations),
+            "skipped_edge_count": skipped_edge_count,
             "blocked_decision_count": len(blocked),
             "failure_reasons": failure_reasons,
         },

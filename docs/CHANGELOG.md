@@ -42,6 +42,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   noninteractive `--yes` gating, per-expert locking, idempotent replay, typed
   edge writes, contradiction mirror updates, and the published
   `deepr-graph-commit-apply-v1` result schema without model calls or spend.
+- Added verifier-supplied candidate edge decisions to the claim-verification
+  and graph-commit envelope contracts. Valid ready-candidate relationships now
+  become idempotent typed edge operations, while malformed edge decisions are
+  reported without blocking the underlying factual belief decision.
 - Added `deepr-graph-commit-envelope-v1`, the deterministic no-write boundary
   after claim verification. It turns verified factual decisions into
   idempotent add-belief operations, blocks hypotheses and other perspective
