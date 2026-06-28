@@ -1583,7 +1583,11 @@ consumers who will exercise all three. Design:
    contract. `deploy/mcp-http/cloudflare-worker/` now provides a stateless edge
    ingress recipe that fronts an existing HTTPS MCP origin, proxies only `/mcp`
    paths, caps request bodies, and leaves auth, budgets, rate limits, audit
-   logs, and provider keys on the origin. Remaining work: live registration
+   logs, and provider keys on the origin. A2A now serves the current
+   `/.well-known/agent-card.json` discovery path while preserving the legacy
+   `/.well-known/agent.json` alias, and `deepr a2a validate-host` validates
+   Agent Card discovery plus no-metered consult task completion against an
+   offline fixture or a remote A2A endpoint. Remaining work: live registration
    smoke against a real hosted-agent platform. The key CLI is shipped as
    `deepr mcp keys`.
 2. [~] Versioned handoff schemas (downstream agents get stability guarantees):
@@ -1594,10 +1598,11 @@ consumers who will exercise all three. Design:
    JSON Schema is published at `docs/schemas/expert-handoff-v1.json`.
    `deepr-loop-status-v1`, `deepr-okf-profile-v1`, and
    `deepr-mcp-remote-audit-v1`, `deepr-mcp-registration-manifest-v1`,
-   `deepr-a2a-task-v1`, and the scheduled maintenance schemas in
+   `deepr-a2a-task-v1`, `deepr-a2a-host-validation-v1`, and the scheduled
+   maintenance schemas in
    `docs/schemas/registry.json` now publish the adjacent loop, OKF mapping,
-   hosted remote-audit, hosted registration, A2A task/result, and scheduler
-   contracts with additive compatibility policy.
+   hosted remote-audit, hosted registration, A2A task/result, A2A host
+   validation, and scheduler contracts with additive compatibility policy.
 3. Expert Crews (Phase 4c) + autonomous research campaigns (Phase 4b) -
    the multi-expert deliverables, now consumable remotely
 4. Ops analytics: cost-vs-quality frontier, routing-drift and anomaly

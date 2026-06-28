@@ -10,6 +10,11 @@ from typing import Any
 from unittest.mock import MagicMock, patch
 
 from deepr.a2a.models import A2A_TASK_KIND, A2A_TASK_SCHEMA_VERSION, Task, TaskState
+from deepr.a2a.validation import (
+    A2A_HOST_VALIDATION_KIND,
+    A2A_HOST_VALIDATION_SCHEMA_VERSION,
+    run_offline_a2a_host_validation,
+)
 from deepr.backends.capacity_actions import (
     CAPACITY_NEXT_KIND,
     CAPACITY_NEXT_SCHEMA_VERSION,
@@ -576,6 +581,17 @@ def test_a2a_task_schema_validates_runtime_payload():
     assert payload["kind"] == A2A_TASK_KIND
     assert payload["contract"]["result_untrusted"] is True
     assert payload["artifacts"][0]["artifact_id"] == "artifact_contract"
+
+
+def test_a2a_host_validation_schema_validates_runtime_payload():
+    payload = run_offline_a2a_host_validation(experts=("Contract Expert",)).to_dict()
+    schema = _load_schema("a2a-host-validation-v1.json")
+
+    _validate(schema, payload)
+    assert payload["schema_version"] == A2A_HOST_VALIDATION_SCHEMA_VERSION
+    assert payload["kind"] == A2A_HOST_VALIDATION_KIND
+    assert payload["contract"]["calls_metered_api"] is False
+    assert payload["summary"]["ok"] is True
 
 
 def test_consult_schema_validates_runtime_payload():

@@ -25,6 +25,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 </details>
 
 ### Added
+- Added `deepr a2a validate-host`, a no-metered A2A host-validation harness.
+  It validates current Agent Card discovery at `/.well-known/agent-card.json`,
+  consult skill advertisement, no-metered consult task completion, artifact
+  linkage, cost and capacity posture, dissent preservation, host action
+  boundaries, and secret redaction. The legacy `/.well-known/agent.json` path
+  remains supported as a compatibility alias.
 - Added A2A `deepr_consult_experts` support. The Agent Card now advertises the
   consult skill, and completed consult tasks return a task-level artifact with
   the full `deepr-consult-v1` payload, collaboration metadata, capacity posture,

@@ -1,0 +1,85 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/blisspixel/deepr/docs/schemas/a2a-host-validation-v1.json",
+  "title": "Deepr A2A Host Validation",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "kind",
+    "generated_at",
+    "contract",
+    "mode",
+    "endpoint",
+    "discovery_path",
+    "backend",
+    "plan",
+    "requested_experts",
+    "question_hash_source",
+    "cost_ceiling_usd",
+    "summary",
+    "agent_card_summary",
+    "task_summary",
+    "checks",
+    "error"
+  ],
+  "properties": {
+    "schema_version": {"const": "deepr-a2a-host-validation-v1"},
+    "kind": {"const": "deepr.a2a.host_validation"},
+    "generated_at": {"type": "string", "format": "date-time"},
+    "contract": {
+      "type": "object",
+      "required": [
+        "cost_usd",
+        "writes_expert_state",
+        "submits_a2a_task",
+        "calls_metered_api",
+        "semantic_verdict",
+        "checks_form_and_side_effects_only"
+      ],
+      "properties": {
+        "cost_usd": {"type": "number", "maximum": 0},
+        "writes_expert_state": {"const": false},
+        "submits_a2a_task": {"type": "boolean"},
+        "calls_metered_api": {"const": false},
+        "semantic_verdict": {"const": false},
+        "checks_form_and_side_effects_only": {"const": true}
+      },
+      "additionalProperties": true
+    },
+    "mode": {"type": "string", "enum": ["offline", "http"]},
+    "endpoint": {"type": ["string", "null"]},
+    "discovery_path": {"type": ["string", "null"]},
+    "backend": {"type": "string", "enum": ["local", "plan"]},
+    "plan": {"type": ["string", "null"]},
+    "requested_experts": {"type": "array", "items": {"type": "string"}},
+    "question_hash_source": {"const": "question"},
+    "cost_ceiling_usd": {"type": "number", "minimum": 0},
+    "summary": {
+      "type": "object",
+      "required": ["ok", "check_count", "failed_checks"],
+      "properties": {
+        "ok": {"type": "boolean"},
+        "check_count": {"type": "integer", "minimum": 0},
+        "failed_checks": {"type": "array", "items": {"type": "string"}}
+      },
+      "additionalProperties": true
+    },
+    "agent_card_summary": {"type": "object"},
+    "task_summary": {"type": "object"},
+    "checks": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["name", "status", "detail"],
+        "properties": {
+          "name": {"type": "string", "minLength": 1},
+          "status": {"type": "string", "enum": ["passed", "failed", "warning", "skipped"]},
+          "detail": {"type": "string"}
+        },
+        "additionalProperties": true
+      }
+    },
+    "error": {"type": "object"}
+  },
+  "additionalProperties": true
+}

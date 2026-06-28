@@ -81,6 +81,7 @@ def cli():
 
 # Import command groups (after cli group to avoid circular imports)
 from deepr.cli.commands import (
+    a2a,
     analytics,
     budget,
     completion,
@@ -173,6 +174,7 @@ cli.add_command(upgrade.upgrade)
 cli.add_command(doctor.doctor)
 cli.add_command(init_cmd.init)
 cli.add_command(diagnostics.diagnostics_cli)
+cli.add_command(a2a.a2a)
 cli.add_command(mcp.mcp)
 cli.add_command(help_cmd.help)
 cli.add_command(costs.costs)

@@ -51,9 +51,11 @@ must not be described as usable capacity.
 - A2A task envelopes for create, status, cancel, and result-bearing completed
   tasks. These use `deepr-a2a-task-v1` and fail closed if schema version, kind,
   lifecycle state, cost, timestamps, or metadata drift before dispatch. The
-  Agent Card advertises `deepr_consult_experts`; completed consult tasks attach
-  the full `deepr-consult-v1` payload as an A2A task artifact. A2A consult
-  defaults to local no-metered synthesis and requires explicit
+  Agent Card is available at `/.well-known/agent-card.json` with
+  `/.well-known/agent.json` kept as a compatibility alias. It advertises
+  `deepr_consult_experts`; completed consult tasks attach the full
+  `deepr-consult-v1` payload as an A2A task artifact. A2A consult defaults to
+  local no-metered synthesis and requires explicit
   `allow_metered_api=true` plus a positive budget before API synthesis.
 - Scheduled expert maintenance JSON contracts for sync capacity gates, gap-fill
   waits, reflection waits, health-check action plans, and health-check archive
@@ -105,7 +107,9 @@ must not be described as usable capacity.
   in-process local or plan validation, and HTTP endpoint validation. MCP
   JSON-object tool results include `structuredContent` while retaining text
   JSON compatibility. A2A consult tasks reuse the same consult artifact contract
-  instead of creating a parallel answer shape.
+  instead of creating a parallel answer shape. `deepr a2a validate-host` emits
+  `deepr-a2a-host-validation-v1` reports for offline fixtures and remote A2A
+  endpoint checks.
 - `deepr expert self-model` emits a read-only `deepr-expert-self-model-v1`
   record with expert capabilities, limits, goals, calibration, learning
   strategy, continuity, blockers, risks, and a bounded current-focus packet.
@@ -195,9 +199,9 @@ If development stops, users keep these portable artifacts:
 - Published JSON Schemas under `docs/schemas/` for handoff, expert self-models,
   metacognitive monitor proposals, reviewed monitor promotion, loop status, OKF
   profile mapping, expert memory cards, compiler envelopes, A2A task envelopes,
-  remote audit events, MCP registration manifests, capacity guidance, sync
-  capacity gates, scheduled maintenance payloads, and the shared CLI
-  operation-result envelope.
+  A2A host validation, remote audit events, MCP registration manifests,
+  capacity guidance, sync capacity gates, scheduled maintenance payloads, and
+  the shared CLI operation-result envelope.
 - Cost ledger JSONL and remote MCP audit JSONL records.
 - Scoped MCP key metadata, excluding plaintext secrets. Created key secrets are
   shown once and cannot be recovered from stored hashes.

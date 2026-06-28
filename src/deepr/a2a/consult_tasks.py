@@ -63,7 +63,7 @@ def build_consult_artifact(payload: dict[str, Any]) -> dict[str, Any]:
     """Wrap a consult payload as a host-inspectable A2A task artifact."""
     trace_id = _trace_id(payload)
     artifact_id = f"deepr-consult:{trace_id}" if trace_id else f"deepr-consult:{_payload_hash(payload)[:16]}"
-    collaboration = payload.get("collaboration") if isinstance(payload.get("collaboration"), dict) else {}
+    collaboration = _dict_value(payload.get("collaboration"))
     dissent = _dict_value(collaboration.get("dissent_handling"))
     contract = _dict_value(collaboration.get("contract"))
     return {
@@ -151,8 +151,8 @@ def _optional_string(value: Any) -> str | None:
 
 
 def _trace_id(payload: dict[str, Any]) -> str:
-    trace = payload.get("trace") if isinstance(payload.get("trace"), dict) else {}
-    collaboration = payload.get("collaboration") if isinstance(payload.get("collaboration"), dict) else {}
+    trace = _dict_value(payload.get("trace"))
+    collaboration = _dict_value(payload.get("collaboration"))
     task = _dict_value(collaboration.get("task"))
     return str(trace.get("trace_id") or task.get("consult_trace_id") or "")
 
