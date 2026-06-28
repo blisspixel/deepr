@@ -111,6 +111,7 @@ class TaskManager:
         error: Any = None,
         cost: float = 0.0,
         trace_id: str = "",
+        artifacts: list[dict[str, Any]] | None = None,
     ) -> Task:
         """Transition task state with validation.
 
@@ -121,6 +122,7 @@ class TaskManager:
             error: Error info (for failed tasks).
             cost: Cost incurred (for completed/failed tasks).
             trace_id: Trace ID for correlation.
+            artifacts: Result artifacts for completed tasks.
 
         Returns:
             The updated Task.
@@ -148,6 +150,8 @@ class TaskManager:
             task.cost = cost
         if trace_id:
             task.trace_id = trace_id
+        if artifacts is not None:
+            task.artifacts = list(artifacts)
 
         logger.debug(
             "Task %s transitioned to %s (cost=%.4f)",

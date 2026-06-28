@@ -614,9 +614,16 @@ class ExpertCouncil:
             f"Query: {query}\n\n"
             "Expert perspectives:\n\n" + "---\n".join(parts) + "\n\n"
             "Provide:\n"
-            "1. SYNTHESIS: A unified answer combining the best insights\n"
-            "2. AGREEMENTS: Points where experts agree (bullet list)\n"
-            "3. DISAGREEMENTS: Points where they diverge (bullet list)\n"
+            "1. SYNTHESIS: A unified answer combining the best insights.\n"
+            "2. MATH AND STATISTICS: Model the relevant quantities, base rates, uncertainty, "
+            "expected value, confidence intervals, sensitivity, or experiment design when applicable. "
+            "State when the available evidence is not numeric enough to support the math.\n"
+            "3. ASSUMPTIONS AND RISKS: Name assumptions, weak evidence, missing data, and what "
+            "would change the council's view.\n"
+            "4. EXECUTION PLAN: Give concrete next actions for the host agent, including what to "
+            "measure, what to verify, and what not to do yet.\n"
+            "5. AGREEMENTS: Points where experts agree (bullet list).\n"
+            "6. DISAGREEMENTS: Points where they diverge (bullet list).\n"
         )
 
         try:
@@ -624,7 +631,13 @@ class ExpertCouncil:
             result = await client.chat.completions.create(
                 model=self._synthesis_model,
                 messages=[
-                    {"role": "system", "content": "Synthesise expert perspectives. Be concise and structured."},
+                    {
+                        "role": "system",
+                        "content": (
+                            "Synthesise expert perspectives for a host agent. Preserve dissent, avoid pretending "
+                            "uncertain claims are facts, and make the result actionable."
+                        ),
+                    },
                     {"role": "user", "content": prompt[:6000]},
                 ],
                 temperature=0.3,

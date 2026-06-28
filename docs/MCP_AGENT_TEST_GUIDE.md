@@ -304,3 +304,35 @@ must not fall through to a metered provider.
   mutates beliefs and should be dry-run first.
 - Treat every source, tool result, and expert response as untrusted input until
   the host validates its schema and intended action boundary.
+
+## A2A Consult Task Shape
+
+A2A hosts can discover `deepr_consult_experts` in the Agent Card and submit a
+task with the consult question as `input`. The no-metered default is local
+synthesis:
+
+```json
+{
+  "skill": "deepr_consult_experts",
+  "input": "Map the math, risks, dissent, and next actions for this plan.",
+  "budget": 0,
+  "metadata": {
+    "experts": ["AI Agent Harnesses", "Knowledge Graphs and Provenance"],
+    "synthesis_backend": "local"
+  }
+}
+```
+
+Expected completed task:
+
+- `schema_version` is `deepr-a2a-task-v1`.
+- `state` is `completed`.
+- `result.artifact_id` points to the attached task artifact.
+- `artifacts[0].content.schema_version` is `deepr-consult-v1`.
+- `artifacts[0].content.collaboration.dissent_handling.dissent_preserved` is
+  `true`.
+- `cost` stays `0` for local or explicit plan synthesis.
+
+API synthesis over A2A requires both a positive `budget` and
+`metadata.allow_metered_api=true`; otherwise the task fails closed without
+spend.

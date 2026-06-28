@@ -62,6 +62,23 @@
     "error": {},
     "cost": {"type": "number", "minimum": 0},
     "trace_id": {"type": "string"},
+    "artifacts": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["artifact_id", "name", "mime_type", "content"],
+        "properties": {
+          "artifact_id": {"type": "string", "minLength": 1},
+          "name": {"type": "string"},
+          "mime_type": {"type": "string"},
+          "schema_version": {"type": "string"},
+          "kind": {"type": "string"},
+          "content": {},
+          "metadata": {"type": "object"}
+        },
+        "additionalProperties": true
+      }
+    },
     "created_at": {"type": "string", "format": "date-time"},
     "updated_at": {"type": "string", "format": "date-time"},
     "metadata": {"type": "object"}

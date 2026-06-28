@@ -556,6 +556,14 @@ def test_a2a_task_schema_validates_runtime_payload():
         result={"summary": "complete"},
         cost=0.0,
         trace_id="trace-a2a",
+        artifacts=[
+            {
+                "artifact_id": "artifact_contract",
+                "name": "summary",
+                "mime_type": "application/json",
+                "content": {"summary": "complete"},
+            }
+        ],
         created_at=datetime(2026, 6, 20, 12, 0, tzinfo=UTC),
         updated_at=datetime(2026, 6, 20, 12, 1, tzinfo=UTC),
         metadata={"budget_cap": 1.0},
@@ -567,6 +575,7 @@ def test_a2a_task_schema_validates_runtime_payload():
     assert payload["schema_version"] == A2A_TASK_SCHEMA_VERSION
     assert payload["kind"] == A2A_TASK_KIND
     assert payload["contract"]["result_untrusted"] is True
+    assert payload["artifacts"][0]["artifact_id"] == "artifact_contract"
 
 
 def test_consult_schema_validates_runtime_payload():

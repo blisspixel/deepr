@@ -16,6 +16,7 @@ import os
 from typing import Any
 
 from deepr.a2a.agent_card import AgentCardGenerator
+from deepr.a2a.consult_tasks import is_consult_skill, run_consult_task
 from deepr.a2a.models import Task, TaskRequest, TaskState
 from deepr.a2a.output_contracts import (
     A2A_TASK_OUTPUT_CONTRACT,
@@ -147,7 +148,7 @@ class A2AServer:
                 return 401, {"error": "Unauthorized"}
 
         if method == "POST" and path == "/tasks":
-            return self._handle_create_task(body)
+            return await self._handle_create_task(body)
 
         if method == "GET" and path.startswith("/tasks/"):
             parts = path.split("/")
@@ -167,7 +168,7 @@ class A2AServer:
         """GET /.well-known/agent.json"""
         return 200, self.get_agent_card()
 
-    def _handle_create_task(self, body: str) -> tuple[int, dict[str, Any]]:
+    async def _handle_create_task(self, body: str) -> tuple[int, dict[str, Any]]:
         """POST /tasks"""
         try:
             data = json.loads(body) if body else {}
@@ -188,6 +189,26 @@ class A2AServer:
         )
 
         task = self._task_manager.create_task(request, budget=request.budget)
+        if is_consult_skill(request.skill):
+            task = self._task_manager.transition(task.id, TaskState.WORKING)
+            outcome = await run_consult_task(request)
+            if outcome.ok:
+                task = self._task_manager.transition(
+                    task.id,
+                    TaskState.COMPLETED,
+                    result=outcome.result,
+                    cost=outcome.cost,
+                    trace_id=outcome.trace_id,
+                    artifacts=outcome.artifacts or [],
+                )
+            else:
+                task = self._task_manager.transition(
+                    task.id,
+                    TaskState.FAILED,
+                    error=outcome.error,
+                    cost=outcome.cost,
+                    trace_id=outcome.trace_id,
+                )
         return self._task_response(201, task)
 
     def _handle_get_task(self, task_id: str) -> tuple[int, dict[str, Any]]:

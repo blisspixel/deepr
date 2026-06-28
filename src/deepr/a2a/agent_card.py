@@ -13,6 +13,7 @@ from dataclasses import dataclass
 from typing import Any
 
 from deepr import __version__ as DEEPR_VERSION
+from deepr.a2a.constants import CONSULT_SKILL_NAME
 from deepr.a2a.models import AgentCard, AgentSkill
 
 logger = logging.getLogger(__name__)
@@ -76,6 +77,18 @@ class AgentCardGenerator:
             )
             for expert in self._experts
         ]
+        skills.append(
+            AgentSkill(
+                name=CONSULT_SKILL_NAME,
+                description=(
+                    "Consult one or more Deepr experts and return a deepr-consult-v1 artifact "
+                    "with roster, dissent, capacity, cost, and trace metadata"
+                ),
+                domain="expert_collaboration",
+                input_modes=["text/plain", "application/json"],
+                output_modes=["application/json"],
+            )
+        )
 
         return AgentCard(
             name=self._name,
