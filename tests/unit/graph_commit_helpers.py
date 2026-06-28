@@ -34,6 +34,37 @@ def graph_commit_operation(
     }
 
 
+def graph_commit_gap_operation(
+    topic: str,
+    idempotency_key: str,
+    *,
+    gap_id: str = "gap_test",
+    candidate_id: str = "candidate_gap",
+) -> dict:
+    return {
+        "operation_id": f"op_{gap_id}",
+        "operation": "promote_gap",
+        "candidate_id": candidate_id,
+        "decision_status": "ready_for_commit",
+        "gap": {
+            "id": gap_id,
+            "topic": topic,
+            "questions": [topic],
+            "priority": 3,
+            "estimated_cost": 0.0,
+            "expected_value": 0.7,
+            "ev_cost_ratio": 700.0,
+            "times_asked": 1,
+            "identified_at": "2026-06-26T12:00:00+00:00",
+            "filled": False,
+            "filled_at": None,
+            "filled_by_job": None,
+        },
+        "idempotency_key": idempotency_key,
+        "provenance": {"source_refs": [{"note_id": "note_gap", "window_id": "note_gap:w0"}]},
+    }
+
+
 def graph_commit_envelope(
     *operations: dict,
     expert_name: str = "Compiler Expert",

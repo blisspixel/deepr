@@ -19,6 +19,7 @@ from deepr.experts.graph_commit_apply import (
     apply_graph_commit_envelope,
 )
 from deepr.experts.loop_lock import expert_verb_lock
+from deepr.experts.metacognition import MetaCognitionTracker
 from deepr.experts.profile import ExpertStore
 
 
@@ -43,6 +44,7 @@ def _blocked_result(preview: dict[str, Any], reason: str) -> dict[str, Any]:
     result = copy.deepcopy(preview)
     result["contract"]["read_only"] = True
     result["contract"]["writes_graph"] = False
+    result["contract"]["writes_expert_state"] = False
     result["summary"]["status"] = "blocked"
     failures = list(result["summary"].get("failure_reasons", []))
     if reason not in failures:
@@ -61,6 +63,7 @@ def _lock_blocked_result(expert_name: str) -> dict[str, Any]:
             "model_calls": False,
             "cost_usd": 0.0,
             "writes_graph": False,
+            "writes_expert_state": False,
             "idempotent_operations": True,
             "requires_explicit_command": True,
             "breaking_changes_require_new_schema_version": True,
@@ -98,7 +101,7 @@ def _confirmed(preview: dict[str, Any], dry_run: bool, yes: bool) -> bool:
     if not sys.stdin.isatty():
         return False
     planned = int(preview["summary"]["planned_write_count"])
-    return click.confirm(f"Apply {planned} graph commit operation(s) to the belief store?", default=False)
+    return click.confirm(f"Apply {planned} graph commit operation(s) to expert state?", default=False)
 
 
 def _emit_human_result(result: dict[str, Any]) -> None:
@@ -143,19 +146,29 @@ def expert_apply_graph_commit(name: str, envelope: Path, dry_run: bool, yes: boo
                 print_warning("Another graph commit apply is already running for this expert.")
             raise click.exceptions.Exit(2)
 
-        preview = apply_graph_commit_envelope(payload, BeliefStore(profile.name), dry_run=True)
+        preview = apply_graph_commit_envelope(
+            payload,
+            BeliefStore(profile.name),
+            gap_tracker=MetaCognitionTracker(profile.name),
+            dry_run=True,
+        )
         if not _confirmed(preview, dry_run, yes):
             result = _blocked_result(preview, "confirmation_required")
             if json_output:
                 click.echo(json.dumps(result, indent=2))
             else:
-                print_error("Refusing to apply graph writes without interactive confirmation or --yes.")
+                print_error("Refusing to apply expert-state writes without interactive confirmation or --yes.")
             raise click.exceptions.Exit(2)
 
         if dry_run:
             result = preview
         else:
-            result = apply_graph_commit_envelope(payload, BeliefStore(profile.name), dry_run=False)
+            result = apply_graph_commit_envelope(
+                payload,
+                BeliefStore(profile.name),
+                gap_tracker=MetaCognitionTracker(profile.name),
+                dry_run=False,
+            )
 
     if json_output:
         click.echo(json.dumps(result, indent=2))

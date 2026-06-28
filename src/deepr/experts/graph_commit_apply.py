@@ -6,13 +6,23 @@ import re
 from datetime import UTC, datetime
 from typing import Any
 
+from deepr.core.contracts import Gap
 from deepr.experts.beliefs import EDGE_TYPES, Belief, BeliefStore
-from deepr.experts.graph_commit_envelope import GRAPH_COMMIT_ENVELOPE_KIND, GRAPH_COMMIT_ENVELOPE_SCHEMA_VERSION
+from deepr.experts.graph_commit_envelope import (
+    GRAPH_COMMIT_ENVELOPE_KIND,
+    GRAPH_COMMIT_ENVELOPE_SCHEMA_VERSION,
+    GRAPH_COMMIT_ENVELOPE_SCHEMA_VERSION_V1,
+)
+from deepr.experts.metacognition import MetaCognitionTracker
 
 GRAPH_COMMIT_APPLY_SCHEMA_VERSION = "deepr-graph-commit-apply-v1"
 GRAPH_COMMIT_APPLY_KIND = "deepr.expert.graph_commit_apply"
 
 _HEX64_RE = re.compile(r"^[a-f0-9]{64}$")
+_ADD_BELIEF = "add_belief"
+_PROMOTE_GAP = "promote_gap"
+_SUPPORTED_OPERATIONS = {_ADD_BELIEF, _PROMOTE_GAP}
+_SUPPORTED_ENVELOPE_SCHEMA_VERSIONS = {GRAPH_COMMIT_ENVELOPE_SCHEMA_VERSION_V1, GRAPH_COMMIT_ENVELOPE_SCHEMA_VERSION}
 
 
 def _utc_now() -> datetime:
@@ -51,14 +61,91 @@ def _same_belief(existing: Belief, payload: dict[str, Any]) -> bool:
     )
 
 
+def _operation_name(operation: dict[str, Any]) -> str:
+    return str(operation.get("operation", "") or "")
+
+
+def _is_add_belief(operation: dict[str, Any]) -> bool:
+    return _operation_name(operation) == _ADD_BELIEF
+
+
+def _is_promote_gap(operation: dict[str, Any]) -> bool:
+    return _operation_name(operation) == _PROMOTE_GAP
+
+
 def _operation_shape_failures(operation: dict[str, Any]) -> list[str]:
     failures: list[str] = []
-    if operation.get("operation") != "add_belief":
+    if _operation_name(operation) not in _SUPPORTED_OPERATIONS:
         failures.append("unsupported_operation")
 
     idempotency_key = str(operation.get("idempotency_key", ""))
     if not _HEX64_RE.match(idempotency_key):
         failures.append("invalid_idempotency_key")
+    return failures
+
+
+def _gap_identity_failures(gap: dict[str, Any], gap_tracker: MetaCognitionTracker | None) -> list[str]:
+    failures = ["gap_tracker_missing"] if gap_tracker is None else []
+    if not str(gap.get("id", "")).strip():
+        failures.append("missing_gap_id")
+    if not str(gap.get("topic", "")).strip():
+        failures.append("missing_gap_topic")
+    return failures
+
+
+def _gap_priority_failure(gap: dict[str, Any]) -> str:
+    try:
+        priority = int(gap.get("priority", 3))
+    except (TypeError, ValueError):
+        return "invalid_gap_priority"
+    return "invalid_gap_priority" if priority < 1 or priority > 5 else ""
+
+
+def _nonnegative_number_failure(gap: dict[str, Any], field: str) -> str:
+    try:
+        value = float(gap.get(field, 0.0))
+    except (TypeError, ValueError):
+        return f"invalid_gap_{field}"
+    return f"invalid_gap_{field}" if value < 0.0 else ""
+
+
+def _gap_expected_value_failure(gap: dict[str, Any]) -> str:
+    try:
+        expected_value = float(gap.get("expected_value", 0.0))
+    except (TypeError, ValueError):
+        return "invalid_gap_expected_value"
+    return "invalid_gap_expected_value" if expected_value < 0.0 or expected_value > 1.0 else ""
+
+
+def _gap_times_asked_failure(gap: dict[str, Any]) -> str:
+    try:
+        times_asked = int(gap.get("times_asked", 1))
+    except (TypeError, ValueError):
+        return "invalid_gap_times_asked"
+    return "invalid_gap_times_asked" if times_asked < 1 else ""
+
+
+def _gap_identified_at_failure(gap: dict[str, Any]) -> str:
+    if not gap.get("identified_at"):
+        return ""
+    try:
+        datetime.fromisoformat(str(gap["identified_at"]))
+    except ValueError:
+        return "invalid_gap_identified_at"
+    return ""
+
+
+def _gap_failure_reasons(gap: dict[str, Any], gap_tracker: MetaCognitionTracker | None) -> list[str]:
+    failures = [
+        *_gap_identity_failures(gap, gap_tracker),
+        _gap_priority_failure(gap),
+        _nonnegative_number_failure(gap, "estimated_cost"),
+        _nonnegative_number_failure(gap, "ev_cost_ratio"),
+        _gap_expected_value_failure(gap),
+        _gap_times_asked_failure(gap),
+        _gap_identified_at_failure(gap),
+    ]
+    failures = [failure for failure in failures if failure]
     return failures
 
 
@@ -103,13 +190,23 @@ def _edge_failure_reasons(operation: dict[str, Any], store: BeliefStore, future_
     return failures
 
 
-def _operation_failure_reasons(operation: dict[str, Any], store: BeliefStore, future_belief_ids: set[str]) -> list[str]:
-    belief = _as_dict(operation.get("belief"))
-    failures = [
-        *_operation_shape_failures(operation),
-        *_belief_failure_reasons(belief, store),
-        *_edge_failure_reasons(operation, store, future_belief_ids),
-    ]
+def _operation_failure_reasons(
+    operation: dict[str, Any],
+    store: BeliefStore,
+    future_belief_ids: set[str],
+    gap_tracker: MetaCognitionTracker | None,
+) -> list[str]:
+    failures = _operation_shape_failures(operation)
+    if "unsupported_operation" in failures:
+        return sorted(set(failures))
+    if _is_add_belief(operation):
+        belief = _as_dict(operation.get("belief"))
+        failures.extend(_belief_failure_reasons(belief, store))
+        failures.extend(_edge_failure_reasons(operation, store, future_belief_ids))
+    if _is_promote_gap(operation):
+        failures.extend(_gap_failure_reasons(_as_dict(operation.get("gap")), gap_tracker))
+        if _as_list(operation.get("edges")):
+            failures.append("gap_operation_edges_not_supported")
     return sorted(set(failures))
 
 
@@ -151,6 +248,8 @@ def _edge_already_applied(store: BeliefStore, raw_edge: dict[str, Any], operatio
 
 
 def _operation_fully_applied(operation: dict[str, Any], store: BeliefStore) -> bool:
+    if not _is_add_belief(operation):
+        return False
     belief = _as_dict(operation.get("belief"))
     existing = store.beliefs.get(str(belief.get("id", "")))
     if existing is None or not _same_belief(existing, belief):
@@ -160,6 +259,25 @@ def _operation_fully_applied(operation: dict[str, Any], store: BeliefStore) -> b
     )
 
 
+def _gap_fully_applied(operation: dict[str, Any], gap_tracker: MetaCognitionTracker | None) -> bool:
+    if gap_tracker is None:
+        return False
+    topic = str(_as_dict(operation.get("gap")).get("topic", "")).strip()
+    return bool(topic and topic in gap_tracker.knowledge_gaps)
+
+
+def _state_fully_applied(
+    operation: dict[str, Any],
+    store: BeliefStore,
+    gap_tracker: MetaCognitionTracker | None,
+) -> bool:
+    if _is_add_belief(operation):
+        return _operation_fully_applied(operation, store)
+    if _is_promote_gap(operation):
+        return _gap_fully_applied(operation, gap_tracker)
+    return False
+
+
 def _operation_result(
     operation: dict[str, Any],
     *,
@@ -167,9 +285,11 @@ def _operation_result(
     failure_reasons: list[str] | None = None,
     change_timestamp: str = "",
     edge_count: int = 0,
+    gap_created: bool = False,
 ) -> dict[str, Any]:
     belief = _as_dict(operation.get("belief"))
-    return {
+    gap = _as_dict(operation.get("gap"))
+    result = {
         "operation_id": str(operation.get("operation_id", "")),
         "operation": str(operation.get("operation", "")),
         "candidate_id": str(operation.get("candidate_id", "")),
@@ -180,9 +300,16 @@ def _operation_result(
         "change_timestamp": change_timestamp,
         "edge_count": edge_count,
     }
+    if gap:
+        result["gap_id"] = str(gap.get("id", ""))
+        result["gap_topic"] = str(gap.get("topic", ""))
+        result["gap_created"] = gap_created
+    return result
 
 
 def _edge_count(operation: dict[str, Any]) -> int:
+    if not _is_add_belief(operation):
+        return 0
     return len(_as_list(operation.get("edges")))
 
 
@@ -220,6 +347,7 @@ def _result(
     already = sum(1 for item in operation_results if item["status"] == "already_applied")
     blocked = sum(1 for item in operation_results if item["status"] == "blocked")
     pending = sum(1 for item in operation_results if item["status"] == "would_apply")
+    graph_applied = any(item["status"] == "applied" and item["operation"] == _ADD_BELIEF for item in operation_results)
     return {
         "schema_version": GRAPH_COMMIT_APPLY_SCHEMA_VERSION,
         "kind": GRAPH_COMMIT_APPLY_KIND,
@@ -228,7 +356,8 @@ def _result(
             "semantic_judgment": False,
             "model_calls": False,
             "cost_usd": 0.0,
-            "writes_graph": not dry_run and applied > 0,
+            "writes_graph": not dry_run and graph_applied,
+            "writes_expert_state": not dry_run and applied > 0,
             "idempotent_operations": True,
             "requires_explicit_command": True,
             "breaking_changes_require_new_schema_version": True,
@@ -258,7 +387,7 @@ def _result(
 
 def _envelope_failure_reasons(envelope: dict[str, Any], store: BeliefStore) -> list[str]:
     failures: list[str] = []
-    if envelope.get("schema_version") != GRAPH_COMMIT_ENVELOPE_SCHEMA_VERSION:
+    if envelope.get("schema_version") not in _SUPPORTED_ENVELOPE_SCHEMA_VERSIONS:
         failures.append("unsupported_envelope_schema_version")
     if envelope.get("kind") != GRAPH_COMMIT_ENVELOPE_KIND:
         failures.append("unsupported_envelope_kind")
@@ -276,15 +405,19 @@ def _envelope_operations(envelope: dict[str, Any]) -> list[dict[str, Any]]:
     return [item for item in _as_list(envelope.get("operations")) if isinstance(item, dict)]
 
 
-def _operation_results(operations: list[dict[str, Any]], store: BeliefStore) -> list[dict[str, Any]]:
-    future_belief_ids = {str(_as_dict(op.get("belief")).get("id", "")) for op in operations}
+def _operation_results(
+    operations: list[dict[str, Any]],
+    store: BeliefStore,
+    gap_tracker: MetaCognitionTracker | None,
+) -> list[dict[str, Any]]:
+    future_belief_ids = {str(_as_dict(op.get("belief")).get("id", "")) for op in operations if _is_add_belief(op)}
     results: list[dict[str, Any]] = []
     for operation in operations:
-        failures = _operation_failure_reasons(operation, store, future_belief_ids)
+        failures = _operation_failure_reasons(operation, store, future_belief_ids, gap_tracker)
         if failures:
             results.append(_operation_result(operation, status="blocked", failure_reasons=failures))
             continue
-        status = "already_applied" if _operation_fully_applied(operation, store) else "would_apply"
+        status = "already_applied" if _state_fully_applied(operation, store, gap_tracker) else "would_apply"
         results.append(_operation_result(operation, status=status))
     return results
 
@@ -304,6 +437,8 @@ def _pending_operations(
 def _add_missing_beliefs(operations: list[dict[str, Any]], store: BeliefStore) -> dict[str, str]:
     applied_changes: dict[str, str] = {}
     for operation in operations:
+        if not _is_add_belief(operation):
+            continue
         if str(_as_dict(operation.get("belief")).get("id", "")) in store.beliefs:
             continue
         belief = _belief_from_operation(operation)
@@ -321,6 +456,8 @@ def _add_missing_beliefs(operations: list[dict[str, Any]], store: BeliefStore) -
 def _add_missing_edges(operations: list[dict[str, Any]], store: BeliefStore) -> dict[str, int]:
     edge_counts: dict[str, int] = {}
     for operation in operations:
+        if not _is_add_belief(operation):
+            continue
         edge_count = 0
         for raw_edge in _as_list(operation.get("edges")):
             edge_payload = _as_dict(raw_edge)
@@ -334,6 +471,43 @@ def _add_missing_edges(operations: list[dict[str, Any]], store: BeliefStore) -> 
     if edge_counts:
         store._save()
     return edge_counts
+
+
+def _gap_from_operation(operation: dict[str, Any]) -> Gap:
+    return Gap.from_dict(_as_dict(operation["gap"]))
+
+
+def _gap_evidence_refs(operation: dict[str, Any]) -> list[str]:
+    refs = _as_list(_as_dict(operation.get("provenance")).get("source_refs"))
+    return [
+        f"source_note:{ref['note_id']}:{ref['window_id']}"
+        for ref in refs
+        if isinstance(ref, dict) and str(ref.get("note_id", "")).strip() and str(ref.get("window_id", "")).strip()
+    ]
+
+
+def _promote_missing_gaps(
+    operations: list[dict[str, Any]],
+    gap_tracker: MetaCognitionTracker | None,
+    *,
+    generated_at: str,
+) -> dict[str, str]:
+    if gap_tracker is None:
+        return {}
+    applied_changes: dict[str, str] = {}
+    for operation in operations:
+        if not _is_promote_gap(operation):
+            continue
+        gap = _gap_from_operation(operation)
+        _promoted, created = gap_tracker.promote_gap_candidate(
+            gap,
+            proposal_id=str(operation.get("idempotency_key", "")),
+            evidence_refs=_gap_evidence_refs(operation),
+            source="graph_commit_apply",
+        )
+        if created:
+            applied_changes[str(operation["idempotency_key"])] = generated_at
+    return applied_changes
 
 
 def _applied_operation_results(
@@ -352,6 +526,7 @@ def _applied_operation_results(
                     status="applied",
                     change_timestamp=applied_changes.get(idempotency_key, ""),
                     edge_count=edge_counts.get(idempotency_key, _edge_count(operation)),
+                    gap_created=_is_promote_gap(operation),
                 )
             )
         else:
@@ -363,21 +538,22 @@ def apply_graph_commit_envelope(
     envelope: dict[str, Any],
     store: BeliefStore,
     *,
+    gap_tracker: MetaCognitionTracker | None = None,
     dry_run: bool = True,
     generated_at: str = "",
 ) -> dict[str, Any]:
-    """Apply a verified graph commit envelope to a belief store.
+    """Apply a verified graph commit envelope to expert state.
 
     The semantic verdicts have already happened upstream. This function only
     validates the write contract, checks idempotency, and performs the explicit
-    graph mutation requested by the caller.
+    state mutation requested by the caller.
     """
     resolved_generated_at = _generated_at(generated_at)
     envelope_failures = _envelope_failure_reasons(envelope, store)
     operations = _envelope_operations(envelope)
     if not operations:
         envelope_failures.append("empty_operations")
-    operation_results = _operation_results(operations, store)
+    operation_results = _operation_results(operations, store, gap_tracker)
     all_failures = _combined_failures(envelope_failures, operation_results)
     if all_failures:
         return _blocked_result(
@@ -402,7 +578,10 @@ def apply_graph_commit_envelope(
         )
 
     pending = _pending_operations(operations, operation_results)
-    applied_changes = _add_missing_beliefs(pending, store)
+    applied_changes = {
+        **_add_missing_beliefs(pending, store),
+        **_promote_missing_gaps(pending, gap_tracker, generated_at=resolved_generated_at),
+    }
     edge_counts = _add_missing_edges(pending, store)
     final_results = _applied_operation_results(operations, operation_results, applied_changes, edge_counts)
     status = "applied" if any(result["status"] == "applied" for result in final_results) else "already_applied"

@@ -1013,11 +1013,13 @@ writes disabled until verification, graph commit envelope construction, and an
 explicit apply command. `deepr expert apply-graph-commit NAME ENVELOPE --dry-run
 --json` validates the commit plan without writing. `deepr expert
 apply-graph-commit NAME ENVELOPE --yes --json` applies verified factual
-add-belief and typed-edge operations idempotently, emits
+add-belief, typed-edge, and gap-promotion operations idempotently, emits
 `deepr-graph-commit-apply-v1`, and refuses noninteractive writes without
-`--yes`. Local and non-metered plan claim compilation is `$0` inside Deepr;
-metered API and metered-at-margin plan paths require budget and cost-ledger
-gates.
+`--yes`. `deepr-graph-commit-envelope-v1` remains the belief-only envelope;
+`deepr-graph-commit-envelope-v2` adds verified gap promotions into the
+metacognition gap backlog. Local and non-metered plan claim compilation is `$0`
+inside Deepr; metered API and metered-at-margin plan paths require budget and
+cost-ledger gates.
 Deepr builds a bounded source pack first, then prepends it to the prompt and
 asks the model to cite source labels. The fresh/deep retrieval path is free-only
 inside Deepr: it can fetch explicit URLs, can use a configured self-hosted
