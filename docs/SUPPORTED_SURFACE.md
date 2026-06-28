@@ -171,10 +171,12 @@ must not be described as usable capacity.
   `promote_gap` operations for the metacognition gap backlog;
   `deepr-graph-commit-envelope-v3` adds verifier-gated
   `promote_exploration_agenda` operations for the metacognition exploration
-  agenda backlog. `deepr expert apply-graph-commit NAME ENVELOPE --yes` is the
-  explicit write boundary for verified factual add-belief operations,
-  typed-edge operations, verified gap promotions, and verified exploration
-  agenda promotions.
+  agenda backlog; `deepr-graph-commit-envelope-v4` adds verifier-gated
+  `promote_hypothesis` operations for the metacognition hypothesis backlog.
+  `deepr expert apply-graph-commit NAME ENVELOPE --yes` is the explicit write
+  boundary for verified factual add-belief operations, typed-edge operations,
+  verified gap promotions, verified exploration agenda promotions, and verified
+  hypothesis promotions.
 
 ## Visible Or Planned Only
 

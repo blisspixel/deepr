@@ -347,6 +347,74 @@ class ExplorationAgenda:
 
 
 @dataclass
+class ExpertHypothesis:
+    """A verified but not factual expert hypothesis.
+
+    Hypotheses preserve testable expert perspective without presenting the idea
+    as an externally verified fact. Later learning can confirm, reject, or
+    refine the hypothesis through explicit evidence and review gates.
+    """
+
+    id: str
+    title: str
+    statement: str
+    origin: str = ""
+    rationale: str = ""
+    uncertainty: str = ""
+    assumptions: list[str] = field(default_factory=list)
+    expected_observations: list[str] = field(default_factory=list)
+    disconfirming_signals: list[str] = field(default_factory=list)
+    priority: int = 3
+    confidence: float = 0.0
+    created_at: datetime = field(default_factory=_utc_now)
+    status: str = "active"
+
+    @classmethod
+    def create(cls, title: str, **kwargs: Any) -> "ExpertHypothesis":
+        """Create a hypothesis with a content-hash ID."""
+        statement = str(kwargs.pop("statement", "") or title)
+        id_hash = hashlib.sha256(f"{title}|{statement}".encode()).hexdigest()[:12]
+        return cls(id=id_hash, title=title, statement=statement, **kwargs)
+
+    def to_dict(self) -> dict[str, Any]:
+        """Convert to dictionary for serialization."""
+        return {
+            "id": self.id,
+            "title": self.title,
+            "statement": self.statement,
+            "origin": self.origin,
+            "rationale": self.rationale,
+            "uncertainty": self.uncertainty,
+            "assumptions": self.assumptions,
+            "expected_observations": self.expected_observations,
+            "disconfirming_signals": self.disconfirming_signals,
+            "priority": self.priority,
+            "confidence": self.confidence,
+            "created_at": self.created_at.isoformat(),
+            "status": self.status,
+        }
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> "ExpertHypothesis":
+        """Create from dictionary."""
+        return cls(
+            id=data["id"],
+            title=data["title"],
+            statement=data["statement"],
+            origin=str(data.get("origin", "") or ""),
+            rationale=str(data.get("rationale", "") or ""),
+            uncertainty=str(data.get("uncertainty", "") or ""),
+            assumptions=_string_list(data.get("assumptions", [])),
+            expected_observations=_string_list(data.get("expected_observations", [])),
+            disconfirming_signals=_string_list(data.get("disconfirming_signals", [])),
+            priority=int(data.get("priority", 3)),
+            confidence=float(data.get("confidence", 0.0)),
+            created_at=datetime.fromisoformat(data["created_at"]) if data.get("created_at") else _utc_now(),
+            status=str(data.get("status", "active") or "active"),
+        )
+
+
+@dataclass
 class DecisionRecord:
     """A structured decision made during research.
 

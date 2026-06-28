@@ -11,7 +11,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
-    from deepr.core.contracts import ExplorationAgenda, Gap
+    from deepr.core.contracts import ExpertHypothesis, ExplorationAgenda, Gap
 
 logger = logging.getLogger(__name__)
 
@@ -85,6 +85,23 @@ def _agenda_candidate_log(agenda: "ExplorationAgenda") -> dict[str, Any]:
     }
 
 
+def _hypothesis_candidate_log(hypothesis: "ExpertHypothesis") -> dict[str, Any]:
+    return {
+        "id": hypothesis.id,
+        "title": hypothesis.title,
+        "statement": hypothesis.statement,
+        "origin": hypothesis.origin,
+        "rationale": hypothesis.rationale,
+        "uncertainty": hypothesis.uncertainty,
+        "assumptions": list(hypothesis.assumptions),
+        "expected_observations": list(hypothesis.expected_observations),
+        "disconfirming_signals": list(hypothesis.disconfirming_signals),
+        "priority": hypothesis.priority,
+        "confidence": hypothesis.confidence,
+        "status": hypothesis.status,
+    }
+
+
 class MetaCognitionTracker:
     """Tracks expert's awareness of what it knows and doesn't know."""
 
@@ -98,6 +115,7 @@ class MetaCognitionTracker:
 
         self.knowledge_gaps: dict[str, KnowledgeGap] = {}
         self.exploration_agendas: dict[str, ExplorationAgenda] = {}
+        self.hypotheses: dict[str, ExpertHypothesis] = {}
         self.domain_confidence: dict[str, DomainConfidence] = {}
         self.uncertainty_log: list[dict] = []
 
@@ -131,10 +149,14 @@ class MetaCognitionTracker:
                     )
 
                 # Load exploration agendas
-                from deepr.core.contracts import ExplorationAgenda
+                from deepr.core.contracts import ExpertHypothesis, ExplorationAgenda
 
                 for title, agenda_data in data.get("exploration_agendas", {}).items():
                     self.exploration_agendas[title] = ExplorationAgenda.from_dict(agenda_data)
+
+                # Load hypotheses
+                for title, hypothesis_data in data.get("hypotheses", {}).items():
+                    self.hypotheses[title] = ExpertHypothesis.from_dict(hypothesis_data)
 
                 # Load domain confidence
                 for domain, conf_data in data.get("domain_confidence", {}).items():
@@ -172,6 +194,7 @@ class MetaCognitionTracker:
                     for topic, gap in self.knowledge_gaps.items()
                 },
                 "exploration_agendas": {title: agenda.to_dict() for title, agenda in self.exploration_agendas.items()},
+                "hypotheses": {title: hypothesis.to_dict() for title, hypothesis in self.hypotheses.items()},
                 "domain_confidence": {
                     domain: {
                         "domain": conf.domain,
@@ -290,6 +313,34 @@ class MetaCognitionTracker:
         self._save()
         return agenda, True
 
+    def promote_hypothesis_candidate(
+        self,
+        hypothesis: "ExpertHypothesis",
+        *,
+        proposal_id: str,
+        evidence_refs: list[str],
+        source: str = "metacognitive_monitor",
+    ) -> tuple["ExpertHypothesis", bool]:
+        """Persist a reviewed hypothesis without duplicating titles."""
+        existing = self.hypotheses.get(hypothesis.title)
+        if existing is not None:
+            return existing, False
+
+        self.hypotheses[hypothesis.title] = hypothesis
+        self.uncertainty_log.append(
+            {
+                "timestamp": datetime.now(UTC).isoformat(),
+                "topic": hypothesis.title,
+                "action": "promoted_hypothesis_candidate",
+                "source": source,
+                "proposal_id": proposal_id,
+                "evidence_refs": evidence_refs,
+                "candidate": _hypothesis_candidate_log(hypothesis),
+            }
+        )
+        self._save()
+        return hypothesis, True
+
     def record_research_triggered(self, topic: str, research_mode: str):
         """Record that research was triggered for a knowledge gap.
 
@@ -371,6 +422,10 @@ class MetaCognitionTracker:
         """Get open expert exploration agenda items."""
         return [agenda for agenda in self.exploration_agendas.values() if agenda.status == "open"]
 
+    def get_hypotheses(self) -> list["ExpertHypothesis"]:
+        """Get active expert hypotheses."""
+        return [hypothesis for hypothesis in self.hypotheses.values() if hypothesis.status == "active"]
+
     def get_high_confidence_domains(self, min_confidence: float = 0.7) -> list[DomainConfidence]:
         """Get domains where expert has high confidence.
 
@@ -427,6 +482,7 @@ class MetaCognitionTracker:
         return {
             "total_knowledge_gaps": total_gaps,
             "total_exploration_agendas": len(self.exploration_agendas),
+            "total_hypotheses": len(self.hypotheses),
             "researched_gaps": researched_gaps,
             "learned_gaps": learned_gaps,
             "learning_rate": learned_gaps / total_gaps if total_gaps > 0 else 0.0,
