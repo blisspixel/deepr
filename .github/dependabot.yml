@@ -28,7 +28,7 @@ updates:
       - "ci"
 
   - package-ecosystem: "npm"
-    directory: "/deepr/web/frontend"
+    directory: "/src/deepr/web/frontend"
     schedule:
       interval: "weekly"
       day: "monday"
