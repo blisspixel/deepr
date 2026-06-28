@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+No unreleased changes.
+
+## [2.24.0] - 2026-06-28
+
+Compiler recall context release.
+
 <details>
 <summary>Archived autonomous progress milestones before the latest five cycles</summary>
 
@@ -306,6 +312,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   confidence, provenance, temporal context, and a next learning plan.
 
 ### Changed
+- Refreshed release-facing docs for v2.24.0, including current test-count
+  floors, roadmap status wording, and no-attribution plain-ASCII documentation
+  hygiene.
 - Moved the legacy root-level MCP checklist into
   `docs/MCP_A2A_INTEROP_CHECKLIST.md`, refreshed it against current official
   MCP, A2A, and agentic AI security guidance, and linked it from the docs index.
