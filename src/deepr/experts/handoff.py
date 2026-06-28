@@ -8,6 +8,7 @@ from typing import Any
 from deepr.experts.dashboard_telemetry import build_expert_dashboard_telemetry
 from deepr.experts.loop_status_rollup import build_loop_status_rollup
 from deepr.experts.okf import OKF_PROFILE_SCHEMA_VERSION, OKF_SCHEMA_VERSION
+from deepr.experts.perspective_state import build_perspective_state_packet
 from deepr.security.output_safety import sanitize_host_facing_payload
 
 HANDOFF_SCHEMA_VERSION = "deepr-expert-handoff-v1"
@@ -116,6 +117,7 @@ def build_expert_handoff(
         if loop_status is not None
         else build_loop_status_rollup(resolved_name, limit=_clamp(loop_limit, minimum=1, maximum=50))
     )
+    perspective_state = build_perspective_state_packet(resolved_name, limit=max_claims)
 
     claim_limit = _clamp(max_claims, minimum=0, maximum=100)
     gap_limit = _clamp(max_gaps, minimum=0, maximum=50)
@@ -147,6 +149,7 @@ def build_expert_handoff(
             "verified_claim_count": verified_claim_count,
             "cross_vendor_verified_claim_count": grounding_assurance.get("cross_vendor", 0),
             "grounding_assurance": grounding_assurance,
+            "original_idea_count": int(perspective_state["counts"]["original_ideas"]),
         },
         "limits": {
             "max_claims": claim_limit if include_claims else 0,
@@ -162,6 +165,7 @@ def build_expert_handoff(
             "avg_confidence": float(getattr(resolved_manifest, "avg_confidence", 0.0) or 0.0),
         },
         "expert_state": resolved_telemetry,
+        "perspective_state": perspective_state,
         "loop_status": resolved_loop_status,
         "okf": {
             "schema_version": OKF_SCHEMA_VERSION,

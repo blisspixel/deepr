@@ -25,6 +25,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 </details>
 
 ### Added
+- Added `deepr-expert-perspective-state-v1`, a read-only metacognitive
+  perspective-state packet that exposes active original ideas with authority,
+  promotion policy, uncertainty, expected observations, and disconfirming
+  signals. Expert memory cards, handoff payloads, and consult contexts now use
+  that packet so original ideas can guide agent planning without being
+  presented as verified external facts.
 - Added `deepr-graph-commit-envelope-v7` with verifier-gated
   `promote_original_idea` operations. Verified original-idea candidates now
   carry title, statement, origin, rationale, uncertainty, assumptions,

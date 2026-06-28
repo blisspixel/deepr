@@ -111,6 +111,7 @@
         "position": {"type": "string"},
         "working_theories": {"type": "array"},
         "insight_candidates": {"type": "array"},
+        "original_ideas": {"type": "array"},
         "self_research_agenda": {"type": "array"},
         "what_would_change_my_mind": {"type": "array", "items": {"type": "string"}},
         "agency_scope": {
@@ -155,6 +156,10 @@
       }
     },
     "active_contradictions": {"type": "array"},
+    "metacognitive_state": {
+      "type": "object",
+      "additionalProperties": true
+    },
     "recent_belief_events": {"type": "array"},
     "collaboration": {
       "type": "object",

@@ -75,6 +75,7 @@
         "loop_run_count": {"type": "integer", "minimum": 0},
         "verified_claim_count": {"type": "integer", "minimum": 0},
         "cross_vendor_verified_claim_count": {"type": "integer", "minimum": 0},
+        "original_idea_count": {"type": "integer", "minimum": 0},
         "grounding_assurance": {
           "type": "object",
           "properties": {
@@ -93,6 +94,10 @@
       "additionalProperties": true
     },
     "expert_state": {
+      "type": "object",
+      "additionalProperties": true
+    },
+    "perspective_state": {
       "type": "object",
       "additionalProperties": true
     },

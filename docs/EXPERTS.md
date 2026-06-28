@@ -12,9 +12,10 @@ regenerated digest, memory-card, or handoff views.
 
 `deepr expert memory-card NAME` previews a generated `EXPERT.md` orientation
 view. Add `--write` to atomically write it under the expert directory. The card
-is a `$0`, read-only derived view over profile, manifest, belief events, and
-self-model state. It is useful for humans and host agents, but it is never
-canonical memory and should not be hand-edited as authority.
+is a `$0`, read-only derived view over profile, manifest, belief events,
+self-model state, and metacognitive perspective state such as original ideas.
+It is useful for humans and host agents, but it is never canonical memory and
+should not be hand-edited as authority.
 
 ## What Makes It Different
 
@@ -831,6 +832,10 @@ When the consulted expert profile exists, the perspective context also includes 
 bounded read-only `self_model` block with current goals, calibration, blockers,
 risks, and the current-focus packet. This is trace and handoff metadata, not an
 automatic goal update.
+If the expert has active original ideas, consult context also includes
+`deepr-expert-perspective-state-v1` and the council response labels those ideas
+as planning inputs, not verified external facts. This lets a host agent ask for
+creative expert synthesis while preserving the fact vs perspective boundary.
 Validate an external-agent consult path before using it for real questions:
 
 ```bash

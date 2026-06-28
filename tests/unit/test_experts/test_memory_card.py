@@ -5,7 +5,7 @@ from __future__ import annotations
 import json
 from datetime import UTC, datetime
 
-from deepr.core.contracts import Claim, ExpertManifest, Gap, Source
+from deepr.core.contracts import Claim, ExpertManifest, ExpertOriginalIdea, Gap, Source
 from deepr.experts.memory_card import (
     EXPERT_MEMORY_CARD_KIND,
     EXPERT_MEMORY_CARD_SCHEMA_VERSION,
@@ -13,6 +13,7 @@ from deepr.experts.memory_card import (
     render_expert_memory_card,
     write_expert_memory_card,
 )
+from deepr.experts.metacognition import MetaCognitionTracker
 from deepr.experts.profile import ExpertProfile
 
 
@@ -109,6 +110,43 @@ def test_build_expert_memory_card_is_read_only_derived_view(tmp_path):
     assert payload["gaps"][0]["topic"] == "identity update review"
     assert payload["recent_belief_events"][0]["new_claim"] == "Memory cards are derived."
     assert "hypothesis or original idea" in payload["collaboration"]["host_agent_guidance"][2]
+
+
+def test_build_expert_memory_card_includes_original_ideas_as_perspective_state():
+    tracker = MetaCognitionTracker("Memory Card Expert")
+    tracker.promote_original_idea_candidate(
+        ExpertOriginalIdea.create(
+            "Statistician council packet",
+            statement="Expert councils should expose variables and disconfirming signals before synthesis.",
+            origin="consult trace review",
+            rationale="Statistical framing makes advice easier to verify.",
+            uncertainty="Needs repeated trace review before trusting the pattern.",
+            assumptions=["The host can inspect structured consult artifacts."],
+            implications=["Expert plans become easier to compare."],
+            expected_observations=["Accepted plans cite measurable variables."],
+            disconfirming_signals=["Reviewers reject the added structure as noise."],
+            priority=5,
+            confidence=0.76,
+        ),
+        proposal_id="proposal_original_idea_memory_card",
+        evidence_refs=["consult_trace:trace_1"],
+    )
+
+    payload = build_expert_memory_card(
+        _profile(),
+        _manifest(),
+        generated_at=datetime(2026, 6, 27, 12, 0, tzinfo=UTC),
+    )
+    markdown = render_expert_memory_card(payload)
+
+    idea = payload["perspective"]["original_ideas"][0]
+    assert payload["metacognitive_state"]["counts"]["original_ideas"] == 1
+    assert payload["memory_layers"]["metacognition"]["authority"] == "canonical"
+    assert idea["title"] == "Statistician council packet"
+    assert idea["authority"] == "perspective_state"
+    assert "Not a verified external fact" in idea["promotion_policy"]
+    assert "## Original Ideas" in markdown
+    assert "disconfirming signals: Reviewers reject the added structure as noise." in markdown
 
 
 def test_render_expert_memory_card_markdown_has_policy_sections():
