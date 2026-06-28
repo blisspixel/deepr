@@ -2,6 +2,11 @@
 
 from __future__ import annotations
 
+from deepr.experts.graph_commit_envelope import (
+    GRAPH_COMMIT_ENVELOPE_KIND,
+    GRAPH_COMMIT_ENVELOPE_SCHEMA_VERSION,
+    build_graph_commit_envelope,
+)
 from deepr.experts.source_pack_compiler import (
     CLAIM_VERIFICATION_KIND,
     CLAIM_VERIFICATION_SCHEMA_VERSION,
@@ -453,3 +458,158 @@ def test_claim_verification_blocks_unknown_candidate_ids():
 
     assert verification["summary"]["status"] == "blocked"
     assert verification["summary"]["failure_reasons"] == ["unknown_candidate_id"]
+
+
+def test_graph_commit_envelope_plans_idempotent_factual_belief_write():
+    notes = build_source_notes(_source_pack_payload())
+    note = notes["notes"][0]
+    window = note["windows"][0]
+    extraction = build_semantic_claim_extraction(
+        notes,
+        {
+            "claims": [
+                {
+                    "statement": "Release text changed the compiler behavior.",
+                    "claim_kind": "factual_claim",
+                    "confidence": 0.84,
+                    "source_refs": [{"note_id": note["note_id"], "window_id": window["window_id"]}],
+                }
+            ]
+        },
+        source_note_artifact="sync_artifacts/source_notes/pack.json",
+    )
+    verification = build_claim_verification(
+        extraction,
+        {
+            "verifications": [
+                {
+                    "candidate_id": extraction["candidates"][0]["candidate_id"],
+                    "support_verdict": "supported",
+                    "contradiction_verdict": "none",
+                    "dedup_verdict": "new",
+                    "temporal_scope_verdict": "valid",
+                    "confidence": 0.91,
+                    "rationale": "The cited source window supports the claim.",
+                }
+            ]
+        },
+    )
+
+    envelope = build_graph_commit_envelope(
+        extraction,
+        verification,
+        claim_extraction_artifact="sync_artifacts/claim_extractions/pack.json",
+        claim_verification_artifact="sync_artifacts/claim_verifications/pack.json",
+        expert_name="Compiler Expert",
+        domain="compiler",
+        generated_at="2026-06-26T12:03:00+00:00",
+    )
+
+    assert envelope["schema_version"] == GRAPH_COMMIT_ENVELOPE_SCHEMA_VERSION
+    assert envelope["kind"] == GRAPH_COMMIT_ENVELOPE_KIND
+    assert envelope["contract"]["semantic_judgment"] is False
+    assert envelope["contract"]["model_calls"] is False
+    assert envelope["contract"]["writes_graph"] is False
+    assert envelope["contract"]["apply_requires_explicit_command"] is True
+    assert envelope["summary"]["status"] == "ready_for_commit"
+    assert envelope["summary"]["ready_write_count"] == 1
+    op = envelope["operations"][0]
+    assert op["operation"] == "add_belief"
+    assert op["belief"]["claim"] == "Release text changed the compiler behavior."
+    assert op["belief"]["confidence"] == 0.91
+    assert op["belief"]["domain"] == "compiler"
+    assert op["belief"]["evidence_refs"] == [
+        f"source_note:{note['note_id']}:{window['window_id']}",
+    ]
+    assert op["idempotency_key"]
+    assert op["provenance"]["claim_verification_artifact"] == "sync_artifacts/claim_verifications/pack.json"
+    assert envelope["compiler"]["next_stage_requires_model_judgment"] is False
+
+
+def test_graph_commit_envelope_blocks_hypothesis_until_perspective_store_exists():
+    notes = build_source_notes(_source_pack_payload())
+    note = notes["notes"][0]
+    window = note["windows"][0]
+    extraction = build_semantic_claim_extraction(
+        notes,
+        {
+            "claims": [
+                {
+                    "statement": "The compiler may need a new cache invalidation strategy.",
+                    "claim_kind": "hypothesis",
+                    "confidence": 0.62,
+                    "source_refs": [{"note_id": note["note_id"], "window_id": window["window_id"]}],
+                }
+            ]
+        },
+    )
+    verification = build_claim_verification(
+        extraction,
+        {
+            "verifications": [
+                {
+                    "candidate_id": extraction["candidates"][0]["candidate_id"],
+                    "support_verdict": "not_applicable",
+                    "contradiction_verdict": "none",
+                    "dedup_verdict": "new",
+                    "temporal_scope_verdict": "not_applicable",
+                    "origin": "Synthesis over the source-note window.",
+                    "rationale": "The release text suggests a future design pressure.",
+                    "uncertainty": "Speculative until follow-up evidence appears.",
+                    "disconfirming_signals": ["No cache incidents appear in future notes."],
+                }
+            ]
+        },
+    )
+
+    envelope = build_graph_commit_envelope(extraction, verification, domain="compiler")
+
+    assert envelope["summary"]["status"] == "blocked"
+    assert envelope["summary"]["ready_write_count"] == 0
+    assert envelope["operations"] == []
+    assert envelope["blocked_decisions"][0]["failure_reasons"] == [
+        "non_factual_state_requires_perspective_store",
+        "support_not_verified",
+        "temporal_scope_not_valid",
+    ]
+
+
+def test_graph_commit_envelope_blocks_uncertain_deduplication():
+    notes = build_source_notes(_source_pack_payload())
+    note = notes["notes"][0]
+    window = note["windows"][0]
+    extraction = build_semantic_claim_extraction(
+        notes,
+        {
+            "claims": [
+                {
+                    "statement": "Release text changed the compiler behavior.",
+                    "claim_kind": "factual_claim",
+                    "confidence": 0.84,
+                    "source_refs": [{"note_id": note["note_id"], "window_id": window["window_id"]}],
+                }
+            ]
+        },
+    )
+    verification = build_claim_verification(
+        extraction,
+        {
+            "verifications": [
+                {
+                    "candidate_id": extraction["candidates"][0]["candidate_id"],
+                    "support_verdict": "supported",
+                    "contradiction_verdict": "none",
+                    "dedup_verdict": "uncertain",
+                    "temporal_scope_verdict": "valid",
+                    "confidence": 0.9,
+                }
+            ]
+        },
+    )
+
+    envelope = build_graph_commit_envelope(extraction, verification)
+
+    assert verification["summary"]["status"] == "ready_for_commit_envelope"
+    assert envelope["summary"]["status"] == "blocked"
+    assert envelope["summary"]["failure_reasons"] == ["deduplication_not_new"]
+    assert envelope["operations"] == []

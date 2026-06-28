@@ -61,6 +61,11 @@ from deepr.experts.consult_traces import (
     build_consult_trace,
     build_consult_trace_candidates,
 )
+from deepr.experts.graph_commit_envelope import (
+    GRAPH_COMMIT_ENVELOPE_KIND,
+    GRAPH_COMMIT_ENVELOPE_SCHEMA_VERSION,
+    build_graph_commit_envelope,
+)
 from deepr.experts.handoff import build_expert_handoff
 from deepr.experts.loop_runs import ExpertLoopRun, ExpertLoopRunStore, LoopRunStatus, LoopStopReason
 from deepr.experts.loop_status_rollup import build_loop_status_rollup
@@ -892,6 +897,72 @@ def test_claim_verification_schema_validates_runtime_payload():
     assert payload["kind"] == CLAIM_VERIFICATION_KIND
     assert payload["contract"]["writes_graph"] is False
     assert payload["decisions"][0]["commit_gate"]["requires_commit_envelope"] is True
+
+
+def test_graph_commit_envelope_schema_validates_runtime_payload():
+    notes = build_source_notes(
+        {
+            "started_at": "2026-06-26T12:00:00+00:00",
+            "source_pack": {
+                "schema_version": "deepr.source_pack.v1",
+                "sources": [
+                    {
+                        "label": "S1",
+                        "title": "Release notes",
+                        "url": "https://example.com/release",
+                        "source": "duckduckgo+builtin",
+                        "fetched": True,
+                        "excerpt": "Release text",
+                        "content_hash": "a" * 64,
+                    }
+                ],
+            },
+        }
+    )
+    note = notes["notes"][0]
+    window = note["windows"][0]
+    extraction = build_semantic_claim_extraction(
+        notes,
+        {
+            "claims": [
+                {
+                    "statement": "Release text changed the compiler behavior.",
+                    "confidence": 0.84,
+                    "claim_kind": "factual_claim",
+                    "source_refs": [{"note_id": note["note_id"], "window_id": window["window_id"]}],
+                }
+            ]
+        },
+    )
+    verification = build_claim_verification(
+        extraction,
+        {
+            "verifications": [
+                {
+                    "candidate_id": extraction["candidates"][0]["candidate_id"],
+                    "support_verdict": "supported",
+                    "contradiction_verdict": "none",
+                    "dedup_verdict": "new",
+                    "temporal_scope_verdict": "valid",
+                    "confidence": 0.9,
+                }
+            ]
+        },
+    )
+    payload = build_graph_commit_envelope(
+        extraction,
+        verification,
+        expert_name="Schema Expert",
+        domain="schemas",
+        generated_at="2026-06-26T12:03:00+00:00",
+    )
+    schema = _load_schema("graph-commit-envelope-v1.json")
+
+    _validate(schema, payload)
+    assert payload["schema_version"] == GRAPH_COMMIT_ENVELOPE_SCHEMA_VERSION
+    assert payload["kind"] == GRAPH_COMMIT_ENVELOPE_KIND
+    assert payload["contract"]["writes_graph"] is False
+    assert payload["summary"]["status"] == "ready_for_commit"
 
 
 def test_capacity_next_schema_validates_runtime_payload():

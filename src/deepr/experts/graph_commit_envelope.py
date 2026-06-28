@@ -1,0 +1,273 @@
+"""Graph commit envelope primitives for verified compiler decisions."""
+
+from __future__ import annotations
+
+import hashlib
+import json
+from datetime import UTC, datetime
+from typing import Any
+
+from deepr.experts.source_pack_compiler import CLAIM_VERIFICATION_SCHEMA_VERSION
+
+GRAPH_COMMIT_ENVELOPE_SCHEMA_VERSION = "deepr-graph-commit-envelope-v1"
+GRAPH_COMMIT_ENVELOPE_KIND = "deepr.expert.graph_commit_envelope"
+
+_COMMITTABLE_STATE_TYPES = {"factual_claim", "fact", "external_fact", "current_fact"}
+
+
+def _utc_now() -> datetime:
+    return datetime.now(UTC)
+
+
+def _json_hash_material(value: Any) -> str:
+    return json.dumps(value, sort_keys=True, separators=(",", ":"), ensure_ascii=False)
+
+
+def _sha256_json(value: Any) -> str:
+    return hashlib.sha256(_json_hash_material(value).encode("utf-8")).hexdigest()
+
+
+def _candidate_by_id(claim_extraction: dict[str, Any]) -> dict[str, dict[str, Any]]:
+    candidates: dict[str, dict[str, Any]] = {}
+    for raw_candidate in claim_extraction.get("candidates", []) or []:
+        if not isinstance(raw_candidate, dict):
+            continue
+        candidate_id = str(raw_candidate.get("candidate_id", "") or "")
+        if candidate_id:
+            candidates[candidate_id] = raw_candidate
+    return candidates
+
+
+def _valid_evidence_refs(candidate: dict[str, Any]) -> list[dict[str, Any]]:
+    refs: list[dict[str, Any]] = []
+    for raw_ref in candidate.get("evidence_refs", []) or []:
+        if not isinstance(raw_ref, dict) or raw_ref.get("valid_ref") is not True:
+            continue
+        note_id = str(raw_ref.get("note_id", "") or "")
+        window_id = str(raw_ref.get("window_id", "") or "")
+        if note_id and window_id:
+            refs.append(
+                {
+                    "note_id": note_id,
+                    "window_id": window_id,
+                    "source_pointer": str(raw_ref.get("source_pointer", "") or ""),
+                    "source_index": int(raw_ref.get("source_index", 0) or 0),
+                }
+            )
+    return refs
+
+
+def _evidence_tokens(refs: list[dict[str, Any]]) -> list[str]:
+    return [f"source_note:{ref['note_id']}:{ref['window_id']}" for ref in refs]
+
+
+def _confidence(candidate: dict[str, Any], decision: dict[str, Any]) -> float:
+    value = (decision.get("model_judgment", {}) or {}).get("confidence")
+    if value in (None, ""):
+        value = candidate.get("confidence")
+    try:
+        parsed = float(value)
+    except (TypeError, ValueError):
+        parsed = 0.0
+    return max(0.0, min(1.0, parsed))
+
+
+def _commit_failures(candidate: dict[str, Any] | None, decision: dict[str, Any]) -> list[str]:
+    failures: list[str] = []
+    readiness = decision.get("readiness", {}) or {}
+    failures.extend(str(reason) for reason in readiness.get("failure_reasons", []) or [])
+    if readiness.get("ready_for_commit_envelope") is not True:
+        failures.append("decision_not_ready_for_commit_envelope")
+    if candidate is None:
+        failures.append("unknown_candidate_id")
+        return sorted(set(failures))
+
+    policy = decision.get("state_policy", candidate.get("state_policy", {})) or {}
+    state_type = str(policy.get("state_type", candidate.get("claim_kind", "")) or "")
+    if state_type not in _COMMITTABLE_STATE_TYPES:
+        failures.append("non_factual_state_requires_perspective_store")
+
+    verdicts = decision.get("verdicts", {}) or {}
+    if verdicts.get("support") != "supported":
+        failures.append("support_not_verified")
+    if verdicts.get("contradiction") != "none":
+        failures.append("contradiction_not_clear")
+    if verdicts.get("deduplication") != "new":
+        failures.append("deduplication_not_new")
+    if verdicts.get("temporal_scope") != "valid":
+        failures.append("temporal_scope_not_valid")
+    if not str(candidate.get("statement", "") or "").strip():
+        failures.append("missing_statement")
+    if not _valid_evidence_refs(candidate):
+        failures.append("missing_valid_evidence_refs")
+    return sorted(set(failures))
+
+
+def _write_operation(
+    candidate: dict[str, Any],
+    decision: dict[str, Any],
+    *,
+    domain: str,
+    trust_class: str,
+    grounding_assurance: str,
+    claim_extraction_artifact: str,
+    claim_verification_artifact: str,
+    source_note_artifact: str,
+) -> dict[str, Any]:
+    evidence_refs = _valid_evidence_refs(candidate)
+    statement = str(candidate.get("statement", "") or "").strip()
+    candidate_id = str(candidate.get("candidate_id", "") or "")
+    belief_id = f"bg_{_sha256_json({'candidate_id': candidate_id, 'statement': statement})[:16]}"
+    idempotency_material = {
+        "schema_version": GRAPH_COMMIT_ENVELOPE_SCHEMA_VERSION,
+        "candidate_id": candidate_id,
+        "belief_id": belief_id,
+        "verdicts": decision.get("verdicts", {}),
+        "evidence_refs": evidence_refs,
+    }
+    return {
+        "operation_id": f"op_{_sha256_json(idempotency_material)[:16]}",
+        "operation": "add_belief",
+        "candidate_id": candidate_id,
+        "decision_status": str((decision.get("commit_gate", {}) or {}).get("status", "")),
+        "belief": {
+            "id": belief_id,
+            "claim": statement,
+            "domain": domain,
+            "confidence": _confidence(candidate, decision),
+            "evidence_refs": _evidence_tokens(evidence_refs),
+            "source_type": "compiled_source_claim",
+            "trust_class": trust_class,
+            "grounding_assurance": grounding_assurance,
+        },
+        "edges": [],
+        "idempotency_key": _sha256_json(idempotency_material),
+        "provenance": {
+            "claim_extraction_artifact": claim_extraction_artifact,
+            "claim_verification_artifact": claim_verification_artifact,
+            "source_note_artifact": source_note_artifact,
+            "source_refs": evidence_refs,
+        },
+    }
+
+
+def _blocked_entry(
+    candidate_id: str,
+    candidate: dict[str, Any] | None,
+    decision: dict[str, Any],
+    failure_reasons: list[str],
+) -> dict[str, Any]:
+    return {
+        "candidate_id": candidate_id,
+        "claim_kind": str((candidate or decision).get("claim_kind", "") or ""),
+        "statement_hash": _sha256_json(str((candidate or {}).get("statement", "") or "")),
+        "failure_reasons": failure_reasons,
+    }
+
+
+def build_graph_commit_envelope(
+    claim_extraction: dict[str, Any],
+    claim_verification: dict[str, Any],
+    *,
+    claim_extraction_artifact: str = "",
+    claim_verification_artifact: str = "",
+    expert_name: str = "",
+    domain: str = "",
+    trust_class: str = "tertiary",
+    grounding_assurance: str = "unverified",
+    generated_at: str = "",
+) -> dict[str, Any]:
+    """Build the deterministic write boundary after claim verification.
+
+    The envelope makes no model calls and writes no graph state. It only
+    converts verified factual decisions into idempotent write operations and
+    blocks anything that still needs a richer perspective-state store or a
+    clearer semantic verifier decision.
+    """
+    candidates_by_id = _candidate_by_id(claim_extraction)
+    operations: list[dict[str, Any]] = []
+    blocked: list[dict[str, Any]] = []
+
+    for raw_decision in claim_verification.get("decisions", []) or []:
+        if not isinstance(raw_decision, dict):
+            continue
+        candidate_id = str(raw_decision.get("candidate_id", "") or "")
+        candidate = candidates_by_id.get(candidate_id)
+        failures = _commit_failures(candidate, raw_decision)
+        if failures:
+            blocked.append(_blocked_entry(candidate_id, candidate, raw_decision, failures))
+            continue
+        operations.append(
+            _write_operation(
+                candidate or {},
+                raw_decision,
+                domain=domain,
+                trust_class=trust_class,
+                grounding_assurance=grounding_assurance,
+                claim_extraction_artifact=claim_extraction_artifact,
+                claim_verification_artifact=claim_verification_artifact,
+                source_note_artifact=str((claim_extraction.get("input", {}) or {}).get("source_note_artifact", "")),
+            )
+        )
+
+    failure_reasons = sorted({reason for entry in blocked for reason in entry["failure_reasons"]})
+    if not operations and not blocked:
+        status = "empty"
+    elif operations and not blocked:
+        status = "ready_for_commit"
+    else:
+        status = "blocked"
+
+    return {
+        "schema_version": GRAPH_COMMIT_ENVELOPE_SCHEMA_VERSION,
+        "kind": GRAPH_COMMIT_ENVELOPE_KIND,
+        "contract": {
+            "read_only": True,
+            "derived_view": True,
+            "semantic_judgment": False,
+            "model_calls": False,
+            "cost_usd": 0.0,
+            "writes_graph": False,
+            "apply_requires_explicit_command": True,
+            "idempotent_operations": True,
+            "breaking_changes_require_new_schema_version": True,
+        },
+        "input": {
+            "claim_extraction_artifact": claim_extraction_artifact,
+            "claim_extraction_schema_version": str(claim_extraction.get("schema_version", "")),
+            "claim_verification_artifact": claim_verification_artifact,
+            "claim_verification_schema_version": str(claim_verification.get("schema_version", "")),
+            "claim_verification_kind": str(claim_verification.get("kind", "")),
+            "decision_count": len(claim_verification.get("decisions", []) or []),
+        },
+        "target": {
+            "expert_name": expert_name,
+            "domain": domain,
+            "trust_class": trust_class,
+            "grounding_assurance": grounding_assurance,
+        },
+        "summary": {
+            "status": status,
+            "ready_write_count": len(operations),
+            "blocked_decision_count": len(blocked),
+            "failure_reasons": failure_reasons,
+        },
+        "operations": operations,
+        "blocked_decisions": blocked,
+        "compiler": {
+            "stage": "graph_commit_envelope",
+            "previous_stage": "claim_verification",
+            "previous_schema_version": CLAIM_VERIFICATION_SCHEMA_VERSION,
+            "next_stage": "graph_commit_apply",
+            "next_stage_requires_model_judgment": False,
+            "graph_writes_require_explicit_apply": True,
+        },
+        "generated_at": generated_at or _utc_now().isoformat(),
+    }
+
+
+__all__ = [
+    "GRAPH_COMMIT_ENVELOPE_KIND",
+    "GRAPH_COMMIT_ENVELOPE_SCHEMA_VERSION",
+    "build_graph_commit_envelope",
+]

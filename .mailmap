@@ -1,5 +1,4 @@
-# Coalesce legacy automation and tooling author emails to the maintainer
-# so the GitHub contributor graph reflects the human author.
+# Normalize legacy commit identities to the maintainer.
 #
 # Format (note the order): Proper-Name <proper-email> <commit-email>
 # i.e. the LEFT identity is the canonical one; the RIGHT email is the one
@@ -7,5 +6,3 @@
 
 Nick Seal <32712898+blisspixel@users.noreply.github.com> <nick@pueo.io>
 Nick Seal <32712898+blisspixel@users.noreply.github.com> <kilo@pueo.io>
-Nick Seal <32712898+blisspixel@users.noreply.github.com> <noreply@anthropic.com>
-Nick Seal <32712898+blisspixel@users.noreply.github.com> <49699333+dependabot[bot]@users.noreply.github.com>

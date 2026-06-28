@@ -66,6 +66,7 @@ archive/
 backups/
 DEPRECATED/
 /docs/archive/
+/docs/.agent/
 /docs/ideas/
 /docs/reference/
 /reports/

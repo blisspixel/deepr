@@ -1,4 +1,4 @@
-# Dependabot keeps dependencies current and surfaces security advisories.
+# Dependency update automation keeps dependencies current and surfaces security advisories.
 # See ROADMAP "Phase E: Engineering Standards". Grouped, weekly, patch/minor
 # only by default - majors are opened separately for explicit review.
 version: 2

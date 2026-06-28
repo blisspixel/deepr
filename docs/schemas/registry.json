@@ -183,6 +183,14 @@
       "compatibility": "additive-within-v1"
     },
     {
+      "name": "graph-commit-envelope",
+      "schema_version": "deepr-graph-commit-envelope-v1",
+      "kind": "deepr.expert.graph_commit_envelope",
+      "path": "graph-commit-envelope-v1.json",
+      "status": "experimental",
+      "compatibility": "additive-within-v1"
+    },
+    {
       "name": "capacity-next",
       "schema_version": "deepr-capacity-next-v1",
       "kind": "deepr.capacity.next",
