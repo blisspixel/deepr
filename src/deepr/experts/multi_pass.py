@@ -69,7 +69,7 @@ class MultiPassResult:
 
 
 class MultiPassPipeline:
-    """3-pass gap-filling pipeline: Extract → Cross-Reference → Synthesize.
+    """3-pass gap-filling pipeline: Extract -> Cross-Reference -> Synthesize.
 
     Attributes:
         client: OpenAI async client (lazily initialized)

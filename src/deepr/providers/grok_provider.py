@@ -95,8 +95,8 @@ class GrokProvider(DeepResearchProvider):
             # much cheaper Grok 4.1 Fast pricing.
             "grok": "grok-4.3",  # Default: newest flagship (reasoning + agentic)
             "grok-fast": "grok-4.20-0309-non-reasoning",  # Fast non-reasoning
-            "grok-flagship": "grok-4.3",  # Explicit flagship → 4.3
-            "grok-reasoning": "grok-4.3",  # Reasoning workloads → 4.3
+            "grok-flagship": "grok-4.3",  # Explicit flagship -> 4.3
+            "grok-reasoning": "grok-4.3",  # Reasoning workloads -> 4.3
             "grok-multi-agent": "grok-4.20-multi-agent-0309",  # Multi-agent stays 4.20
             "grok-mini": "grok-3-mini",
         }

@@ -29,10 +29,12 @@ All v1 schemas are additive within the same schema version:
 | `deepr-mcp-remote-audit-v1` | [mcp-remote-audit-v1.json](mcp-remote-audit-v1.json) | Append-only scoped-key remote MCP tool-call audit events |
 | `deepr-mcp-registration-manifest-v1` | [mcp-registration-manifest-v1.json](mcp-registration-manifest-v1.json) | Token-redacted hosted MCP endpoint registration metadata plus optional smoke results |
 | `deepr-a2a-task-v1` | [a2a-task-v1.json](a2a-task-v1.json) | Agent-to-agent task state envelope for A2A create, status, cancel, and result responses |
+| `deepr-consult-v1` | [consult-v1.json](consult-v1.json) | Expert consult artifact for one-expert and multi-expert MCP or CLI guidance |
 | `deepr-consult-trace-v1` | [consult-trace-v1.json](consult-trace-v1.json) | Local replayable consult trace records for turning consult failures into eval and gap candidates |
 | `deepr-consult-trace-candidates-v1` | [consult-trace-candidates-v1.json](consult-trace-candidates-v1.json) | Sanitized gap and eval candidates mined from failed or low-context consult traces |
 | `deepr-consult-quality-eval-case-v1` | [consult-quality-eval-case-v1.json](consult-quality-eval-case-v1.json) | Read-only semantic quality review case packet for human or calibrated-model consult judging |
 | `deepr-consult-quality-review-v1` | [consult-quality-review-v1.json](consult-quality-review-v1.json) | Reviewed consult-quality score artifact with explicit semantic judge, policy gate, and safe gap/eval promotion actions |
+| `deepr-mcp-consult-validation-v1` | [mcp-consult-validation-v1.json](mcp-consult-validation-v1.json) | No-metered MCP expert-consult validation report for offline fixtures, in-process checks, and HTTP endpoints |
 | `deepr-source-pack-manifest-v1` | [source-pack-manifest-v1.json](source-pack-manifest-v1.json) | Deterministic source-pack compiler manifest with provenance hashes and no semantic verdicts |
 | `deepr-source-note-v1` | [source-note-v1.json](source-note-v1.json) | Deterministic source-note cards with stable IDs, source windows, hashes, and provenance refs |
 | `deepr-semantic-claim-extraction-v1` | [semantic-claim-extraction-v1.json](semantic-claim-extraction-v1.json) | Verifier-gated semantic claim candidates from source notes with prompt/schema version capture and no graph writes |

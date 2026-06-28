@@ -318,7 +318,7 @@ class BeliefChange:
             direction = "more" if conf_change > 0 else "less"
             return (
                 f"I'm now {direction} confident that {self.new_claim} "
-                f"({self.old_confidence:.0%} → {self.new_confidence:.0%})"
+                f"({self.old_confidence:.0%} -> {self.new_confidence:.0%})"
             )
 
         if self.change_type == "archived":

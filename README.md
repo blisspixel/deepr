@@ -127,7 +127,7 @@ Results are saved under the configured reports root, defaulting to
 | Local expert maintenance | Works through Ollama for local expert setup, absorb, sync, fresh/deep local context, eval, and scored admission | [docs/CAPACITY.md](docs/CAPACITY.md) |
 | Explicit plan-quota execution | Works for selected expert sync, absorb, learn, consult, and probe commands behind auth-mode and no-surprise-bills checks | [docs/CAPACITY.md](docs/CAPACITY.md), [docs/design/plan-quota-cli-backends.md](docs/design/plan-quota-cli-backends.md) |
 | Domain experts | Works for expert creation, chat, consult, beliefs, gaps, loop status, OKF export/import, self-model reads, monitor proposals, reviewed monitor promotion, and self-model update review and acceptance records | [docs/EXPERTS.md](docs/EXPERTS.md) |
-| MCP | Works for local stdio and experimental HTTP/SSE with scoped keys, budgets, rate limits, audit logs, smoke checks, and registration manifests | [mcp/README.md](mcp/README.md) |
+| MCP | Works for local stdio and experimental HTTP/SSE with scoped keys, budgets, rate limits, audit logs, smoke checks, no-metered consult validation, and registration manifests | [mcp/README.md](mcp/README.md) |
 | Web dashboard | Experimental but usable for reports, experts, costs, model views, and loop status | [docs/FEATURES.md](docs/FEATURES.md) |
 
 Automatic routing to plan-quota CLIs is still conservative. Explicit `--plan`
@@ -218,7 +218,17 @@ host remains the orchestrator; Deepr provides the verified knowledge layer.
 deepr mcp serve
 deepr mcp serve --http --host 127.0.0.1 --port 8765
 deepr mcp smoke-http http://127.0.0.1:8765/mcp
+deepr mcp validate-consult --json
+deepr mcp validate-consult http://127.0.0.1:8765/mcp --auth-token "$DEEPR_MCP_KEY" --json
 ```
+
+`deepr mcp validate-consult` proves the external-agent consult contract without
+metered fallback. With no URL it runs a deterministic offline fixture. With
+`--live` it exercises local or explicit plan capacity in-process. With a URL it
+calls the HTTP MCP endpoint and validates `deepr_consult_experts`,
+`deepr-consult-v1`, `deepr-expert-collaboration-v1`, trace linkage, cost fields,
+capacity no-fallback posture, dissent preservation, host action boundaries, and
+secret redaction.
 
 See [mcp/README.md](mcp/README.md) and
 [docs/MCP_AGENT_TEST_GUIDE.md](docs/MCP_AGENT_TEST_GUIDE.md).

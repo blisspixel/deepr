@@ -52,19 +52,19 @@ The following legacy models will stop accepting API requests on **May 15, 2026 a
 
 | Deprecated Model | Successor | Migration Notes |
 |-----------------|-----------|-----------------|
-| grok-4-1-fast-reasoning | xai/grok-4-3 | Reasoning workloads → Grok 4.3 |
-| grok-4-fast-reasoning | xai/grok-4-3 | Reasoning workloads → Grok 4.3 |
-| grok-4-0709 | xai/grok-4-3 | Reasoning workloads → Grok 4.3 |
-| grok-3 | xai/grok-4-3 | Reasoning workloads → Grok 4.3 |
-| grok-code-fast-1 | xai/grok-4-3 | Code workloads → Grok 4.3 |
-| grok-4-1-fast-non-reasoning | xai/grok-4-20-non-reasoning | Non-reasoning workloads → Grok 4.20 Non-Reasoning |
-| grok-4-fast-non-reasoning | xai/grok-4-20-non-reasoning | Non-reasoning workloads → Grok 4.20 Non-Reasoning |
-| grok-imagine-image-pro | xai/grok-imagine-image | Image generation → Grok Imagine Image |
+| grok-4-1-fast-reasoning | xai/grok-4-3 | Reasoning workloads -> Grok 4.3 |
+| grok-4-fast-reasoning | xai/grok-4-3 | Reasoning workloads -> Grok 4.3 |
+| grok-4-0709 | xai/grok-4-3 | Reasoning workloads -> Grok 4.3 |
+| grok-3 | xai/grok-4-3 | Reasoning workloads -> Grok 4.3 |
+| grok-code-fast-1 | xai/grok-4-3 | Code workloads -> Grok 4.3 |
+| grok-4-1-fast-non-reasoning | xai/grok-4-20-non-reasoning | Non-reasoning workloads -> Grok 4.20 Non-Reasoning |
+| grok-4-fast-non-reasoning | xai/grok-4-20-non-reasoning | Non-reasoning workloads -> Grok 4.20 Non-Reasoning |
+| grok-imagine-image-pro | xai/grok-imagine-image | Image generation -> Grok Imagine Image |
 
 **Migration recommendations:**
-- **Reasoning workloads** → `xai/grok-4-3` (better quality, competitive pricing)
-- **Non-reasoning workloads** → `xai/grok-4-20-non-reasoning` (optimized for throughput)
-- **Image generation** → `xai/grok-imagine-image` (direct successor)
+- **Reasoning workloads** -> `xai/grok-4-3` (better quality, competitive pricing)
+- **Non-reasoning workloads** -> `xai/grok-4-20-non-reasoning` (optimized for throughput)
+- **Image generation** -> `xai/grok-imagine-image` (direct successor)
 
 ### Anthropic Claude (`ANTHROPIC_API_KEY`)
 - **Deep Research**: No turnkey API - uses Extended Thinking + tool use + web search orchestration

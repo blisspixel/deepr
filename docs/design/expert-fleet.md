@@ -2,7 +2,7 @@
 
 Status: design note, 2026-06-21. Builds directly on
 [expert-library.md](expert-library.md) (the roster vision),
-[capacity-waterfall.md](capacity-waterfall.md) (local → plan → metered),
+[capacity-waterfall.md](capacity-waterfall.md) (local -> plan -> metered),
 [belief-lifecycle.md](belief-lifecycle.md) (decay, bi-temporal, $0 health-check),
 and [verified-expert-loops.md](verified-expert-loops.md) (the loop contract).
 Read [AGENTIC_BALANCE.md](../plans/AGENTIC_BALANCE.md) and the ROADMAP STOP
@@ -52,7 +52,7 @@ cheapest signal first:
 
 1. **HTTP conditional requests** - store each tracked source's `ETag` /
    `Last-Modified` from the last sync; send `If-None-Match` / `If-Modified-Since`.
-   A `304 Not Modified` is essentially free (no body, no parse, no model) → skip
+   A `304 Not Modified` is essentially free (no body, no parse, no model) -> skip
    the source.
 2. **Feeds / sitemaps as hints** - if the expert tracks an RSS/Atom feed or a
    sitemap, read it first and only consider entries whose `lastmod` advanced.
@@ -218,7 +218,7 @@ enable catch-up. The load-bearing **non-default** Task Scheduler settings:
 - Conditions: **uncheck "Start only on AC power"** and **"Stop if switches to
   battery"**; check **"Wake the computer to run this task"** (and enable *Allow
   wake timers* for AC **and** DC in Power Options).
-- Settings: **"If the task is already running → Do not start a new instance."**
+- Settings: **"If the task is already running -> Do not start a new instance."**
 - Action: `deepr expert sync "<Name>" --scheduled` (already returns structured
   waits; never blind-spends).
 
@@ -245,7 +245,7 @@ loop_type:
   `capacity_source` (owned / prepaid / metered).
 - **What failed** - `last_failure` + `failure_reason`.
 - **Overdue / stale** - the load-bearing column:
-  `last_run.finished_at + expected_interval + grace < now → OVERDUE`.
+  `last_run.finished_at + expected_interval + grace < now -> OVERDUE`.
   `expected_interval` is the one new piece of per-expert/verb config (a small
   `schedule.json`); without it Deepr can't tell "idle" from "broken." Default to
   `interval × 3` when unset.
@@ -371,7 +371,7 @@ input to "is this metered dollar worth it."
 
 1. **[SHIPPED 2026-06-21]** Concurrency-safe monthly reservation (Pillar 2.3) -
    the confirmed correctness defect, fixed with regression tests.
-2. **Pre-sync change-detection gate** (Pillar 1.1) - ETag/IMS → 304 skip, feed/
+2. **Pre-sync change-detection gate** (Pillar 1.1) - ETag/IMS -> 304 skip, feed/
    sitemap hint, content-hash; the highest-leverage freshness-per-$0 change.
 3. **`deepr fleet status`** (Pillar 3.3) - cross-expert rollup over existing
    `loop_runs.jsonl`, `deepr-fleet-status-v1`, overdue detection, non-zero exit.

@@ -201,7 +201,7 @@ class TestAutoModeRouter:
             prefer_speed=True,
         )
 
-        # prefer_speed triggers value sorting → cheapest option
+        # prefer_speed triggers value sorting -> cheapest option
         assert decision.cost_estimate <= 0.01
 
     def test_factual_task_type_detected(self, router):
@@ -247,7 +247,7 @@ class TestAutoModeRouterApiKeyAwareness:
 
         router = AutoModeRouter()
 
-        # Simple factual → quick_lookup → best with OpenAI key = gpt-4.1-nano
+        # Simple factual -> quick_lookup -> best with OpenAI key = gpt-4.1-nano
         decision = router.route("What is Python?")
         assert decision.provider == "openai"
 

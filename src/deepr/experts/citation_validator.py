@@ -49,7 +49,7 @@ class CitationValidator:
 
         Args:
             claims: Claims to validate
-            documents: Mapping of source title → content text
+            documents: Mapping of source title -> content text
 
         Returns:
             List of SourceValidation results
@@ -211,7 +211,7 @@ class CitationValidator:
 
         Args:
             source: Source to look up
-            documents: Title → content mapping
+            documents: Title -> content mapping
 
         Returns:
             Content string or None

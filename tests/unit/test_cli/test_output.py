@@ -684,7 +684,7 @@ class TestMinimalOutputFormatProperty:
         assert re.search(r"\$\d+\.\d{2}", output) is not None
 
         # Should contain path with trailing slash
-        assert "->" in output or "→" in output
+        assert "->" in output or "->" in output
 
 
 class TestOutputFormatterJSONMode:

@@ -824,10 +824,24 @@ Deepr consults its own experts about its own work (the self-consultation loop).
 Every CLI and MCP consult writes a local `deepr-consult-trace-v1` record for the
 improvement loop: question, requested experts, selected context metadata, capacity
 posture, checks run, output artifact, and first-class synthesis failure events.
+MCP consult results also return `structuredContent` for clients that support the
+current MCP structured-result contract, while preserving text JSON for older
+hosts.
 When the consulted expert profile exists, the perspective context also includes a
 bounded read-only `self_model` block with current goals, calibration, blockers,
 risks, and the current-focus packet. This is trace and handoff metadata, not an
 automatic goal update.
+Validate an external-agent consult path before using it for real questions:
+
+```bash
+deepr mcp validate-consult --json
+deepr mcp validate-consult --live --synthesis-backend local --expert "AI Strategy Expert" --json
+deepr mcp validate-consult http://127.0.0.1:8765/mcp --auth-token "$DEEPR_MCP_KEY" --expert "AI Strategy Expert" --json
+```
+
+The validation report is `deepr-mcp-consult-validation-v1`. It checks schemas,
+trace linkage, no-metered capacity posture, cost fields, dissent handling, host
+action boundaries, and secret redaction. It does not score answer meaning.
 Review those traces with:
 
 ```bash

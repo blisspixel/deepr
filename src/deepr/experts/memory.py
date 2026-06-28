@@ -1006,7 +1006,7 @@ def _add_reconstruct_method():
             steps = []
             for step in episode.reasoning_chain:
                 steps.append(f"{step.step_type}: {step.content[:100]}")
-            reasoning_summary = " → ".join(steps)
+            reasoning_summary = " -> ".join(steps)
 
         # Find related episodes from same session
         related = []

@@ -270,7 +270,8 @@ class TestToolsCall:
         assert isinstance(result["content"], list)
         assert result["content"][0]["type"] == "text"
         # Text should be valid JSON
-        json.loads(result["content"][0]["text"])
+        parsed = json.loads(result["content"][0]["text"])
+        assert result["structuredContent"] == parsed
 
 
 # ------------------------------------------------------------------ #
@@ -408,3 +409,8 @@ class TestBuildToolsList:
         tools = _build_tools_list(mock_server, use_gateway=False)
         names = [t.get("name", "") for t in tools]
         assert "deepr_status" in names or len(tools) >= 3
+
+    def test_consult_tool_advertises_output_schema(self, mock_server):
+        tools = _build_tools_list(mock_server, use_gateway=False)
+        consult = next(tool for tool in tools if tool.get("name") == "deepr_consult_experts")
+        assert consult["outputSchema"]["properties"]["schema_version"]["const"] == "deepr-consult-v1"

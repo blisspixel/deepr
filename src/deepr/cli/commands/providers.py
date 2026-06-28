@@ -65,7 +65,7 @@ def status(show_all: bool):
         if not show_all and not metrics["healthy"]:
             continue
 
-        status_icon = "[green]●[/green]" if metrics["healthy"] else "[red]●[/red]"
+        status_icon = "[green]>[/green]" if metrics["healthy"] else "[red]>[/red]"
         success_rate = metrics["success_rate"] * 100
         rate_color = "green" if success_rate >= 95 else "yellow" if success_rate >= 80 else "red"
 
@@ -88,14 +88,14 @@ def status(show_all: bool):
     if unhealthy_providers:
         console.print("\n[bold red]Unhealthy Providers:[/bold red]")
         for name, metrics in unhealthy_providers:
-            console.print(f"  [red]●[/red] {name}: {metrics['last_error']}")
+            console.print(f"  [red]>[/red] {name}: {metrics['last_error']}")
 
     # Show auto-disabled providers
     disabled = router.get_disabled_providers()
     if disabled:
         console.print("\n[bold yellow]Auto-Disabled Providers:[/bold yellow]")
         for d in disabled:
-            console.print(f"  [yellow]○[/yellow] {d['provider']}/{d['model']}: {d['reason']}")
+            console.print(f"  [yellow].[/yellow] {d['provider']}/{d['model']}: {d['reason']}")
 
 
 @providers.command()
@@ -119,7 +119,7 @@ def fallbacks(limit: int):
     table.add_column("Success", justify="center")
 
     for event in events[-limit:]:
-        success_icon = "[green]✓[/green]" if event["success"] else "[red]✗[/red]"
+        success_icon = "[green]OK[/green]" if event["success"] else "[red]ERROR[/red]"
         timestamp = event["timestamp"][:16].replace("T", " ")
 
         table.add_row(
@@ -147,13 +147,13 @@ def reset(provider: str | None, model: str | None, reset_all: bool):
         router.metrics.clear()
         router.fallback_events.clear()
         router._save()
-        console.print("[green]✓ All provider metrics reset[/green]")
+        console.print("[green]OK All provider metrics reset[/green]")
     elif provider and model:
         key = (provider, model)
         if key in router.metrics:
             del router.metrics[key]
             router._save()
-            console.print(f"[green]✓ Metrics reset for {provider}/{model}[/green]")
+            console.print(f"[green]OK Metrics reset for {provider}/{model}[/green]")
         else:
             console.print(f"[yellow]No metrics found for {provider}/{model}[/yellow]")
     else:
@@ -259,7 +259,7 @@ def benchmark(quick: bool, target_provider: str | None, iterations: int, history
             name = f"{b['provider']}/{b['model']}"
             success_pct = b["success_rate"] * 100
             success_color = "green" if success_pct >= 95 else "yellow" if success_pct >= 80 else "red"
-            health_icon = "[green]●[/green]" if b["health"]["is_healthy"] else "[red]●[/red]"
+            health_icon = "[green]>[/green]" if b["health"]["is_healthy"] else "[red]>[/red]"
 
             table.add_row(
                 name,
@@ -525,7 +525,7 @@ def list():
 
         if cap.deprecated:
             model_display = f"[dim strikethrough]{cap.model}[/dim strikethrough] [red]\\[DEPRECATED][/red]"
-            successor_info = f"→ {cap.successor}" if cap.successor else "No successor"
+            successor_info = f"-> {cap.successor}" if cap.successor else "No successor"
             status = f"[red]{successor_info}[/red]"
         else:
             model_display = cap.model

@@ -25,20 +25,20 @@ def check_azure_cli():
 
     try:
         result = subprocess.run(["az", "--version"], capture_output=True, text=True, check=True)
-        print("✓ Azure CLI installed")
+        print("OK Azure CLI installed")
     except (subprocess.CalledProcessError, FileNotFoundError):
-        print("✗ Azure CLI not found")
+        print("ERROR Azure CLI not found")
         print("  Install from: https://docs.microsoft.com/en-us/cli/azure/install-azure-cli")
         return False
 
     try:
         result = subprocess.run(["az", "account", "show"], capture_output=True, text=True, check=True)
         account = json.loads(result.stdout)
-        print(f"✓ Logged in as: {account['user']['name']}")
+        print(f"OK Logged in as: {account['user']['name']}")
         print(f"  Subscription: {account['name']}")
         return True
     except subprocess.CalledProcessError:
-        print("✗ Not logged in to Azure")
+        print("ERROR Not logged in to Azure")
         print("  Run: az login")
         return False
 
@@ -53,13 +53,13 @@ def create_resource_group(name, location):
         subprocess.run(
             ["az", "group", "create", "--name", name, "--location", location], check=True, capture_output=True
         )
-        print("  ✓ Resource group created")
+        print("  OK Resource group created")
         return True
     except subprocess.CalledProcessError as e:
         if "already exists" in e.stderr.decode():
-            print("  ✓ Resource group already exists")
+            print("  OK Resource group already exists")
             return True
-        print(f"  ✗ Failed to create resource group: {e.stderr.decode()}")
+        print(f"  ERROR Failed to create resource group: {e.stderr.decode()}")
         return False
 
 
@@ -90,14 +90,14 @@ def create_storage_account(resource_group, name, location):
             check=True,
             capture_output=True,
         )
-        print("  ✓ Storage account created")
+        print("  OK Storage account created")
         return True
     except subprocess.CalledProcessError as e:
         error_msg = e.stderr.decode()
         if "already exists" in error_msg:
-            print("  ✓ Storage account already exists")
+            print("  OK Storage account already exists")
             return True
-        print(f"  ✗ Failed: {error_msg}")
+        print(f"  ERROR Failed: {error_msg}")
         return False
 
 
@@ -126,7 +126,7 @@ def get_storage_connection_string(resource_group, account_name):
         data = json.loads(result.stdout)
         return data["connectionString"]
     except subprocess.CalledProcessError as e:
-        print(f"  ✗ Failed to get connection string: {e.stderr.decode()}")
+        print(f"  ERROR Failed to get connection string: {e.stderr.decode()}")
         return None
 
 
@@ -144,9 +144,9 @@ def create_storage_containers(connection_string):
                 check=True,
                 capture_output=True,
             )
-            print(f"  ✓ {container}")
+            print(f"  OK {container}")
         except subprocess.CalledProcessError:
-            print(f"  ✓ {container} (already exists)")
+            print(f"  OK {container} (already exists)")
 
 
 def create_service_bus(resource_group, namespace, location):
@@ -174,14 +174,14 @@ def create_service_bus(resource_group, namespace, location):
             check=True,
             capture_output=True,
         )
-        print("  ✓ Service Bus namespace created")
+        print("  OK Service Bus namespace created")
         return True
     except subprocess.CalledProcessError as e:
         error_msg = e.stderr.decode()
         if "already exists" in error_msg:
-            print("  ✓ Service Bus namespace already exists")
+            print("  OK Service Bus namespace already exists")
             return True
-        print(f"  ✗ Failed: {error_msg}")
+        print(f"  ERROR Failed: {error_msg}")
         return False
 
 
@@ -208,14 +208,14 @@ def create_service_bus_queue(resource_group, namespace, queue_name):
             check=True,
             capture_output=True,
         )
-        print("  ✓ Queue created")
+        print("  OK Queue created")
         return True
     except subprocess.CalledProcessError as e:
         error_msg = e.stderr.decode()
         if "already exists" in error_msg:
-            print("  ✓ Queue already exists")
+            print("  OK Queue already exists")
             return True
-        print(f"  ✗ Failed: {error_msg}")
+        print(f"  ERROR Failed: {error_msg}")
         return False
 
 
@@ -248,7 +248,7 @@ def get_service_bus_connection_string(resource_group, namespace):
         data = json.loads(result.stdout)
         return data["primaryConnectionString"]
     except subprocess.CalledProcessError as e:
-        print(f"  ✗ Failed to get connection string: {e.stderr.decode()}")
+        print(f"  ERROR Failed to get connection string: {e.stderr.decode()}")
         return None
 
 
@@ -288,7 +288,7 @@ DEEPR_ENABLE_WEB_SEARCH=true
 """
 
     env_path.write_text(config_text)
-    print(f"\n✓ Configuration saved to {env_path}")
+    print(f"\nOK Configuration saved to {env_path}")
     print("  IMPORTANT: Edit this file to add your Azure OpenAI credentials")
 
 
@@ -368,7 +368,7 @@ def main():
     save_azure_config(config_data)
 
     print("\n" + "=" * 60)
-    print("✓ Azure setup complete!")
+    print("OK Azure setup complete!")
     print()
     print("Next steps:")
     print("  1. Edit .env.azure with your Azure OpenAI credentials")

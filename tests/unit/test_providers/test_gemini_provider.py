@@ -223,10 +223,10 @@ class TestGeminiVsOpenAIDifferences:
     def test_tool_naming_differences(self, provider):
         """Document: Different tool names between providers.
 
-        OpenAI → Gemini:
-        - web_search_preview → google_search
-        - code_interpreter → code_execution
-        - file_search (vector stores) → Direct file upload with MIME detection
+        OpenAI -> Gemini:
+        - web_search_preview -> google_search
+        - code_interpreter -> code_execution
+        - file_search (vector stores) -> Direct file upload with MIME detection
         """
         # This is a documentation test
         # Developers need to know these differences when switching providers

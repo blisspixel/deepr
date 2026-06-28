@@ -59,7 +59,7 @@ def list_skills(expert_name):
             console.print("\n[bold]Installed:[/bold]")
             for s in installed:
                 tier_badge = f"[dim][{s.tier}][/dim]"
-                console.print(f"  [green]●[/green] {s.name} - {s.description} {tier_badge}")
+                console.print(f"  [green]>[/green] {s.name} - {s.description} {tier_badge}")
                 console.print(f"    Tools: {', '.join(t.name for t in s.tools)}")
         else:
             console.print("\n[dim]No skills installed.[/dim]")
@@ -71,7 +71,7 @@ def list_skills(expert_name):
             console.print("\n[bold]Available to install:[/bold]")
             for s in not_installed:
                 domains = ", ".join(s.domains[:3]) if s.domains else ""
-                console.print(f"  [dim]○[/dim] {s.name} - {s.description}")
+                console.print(f"  [dim].[/dim] {s.name} - {s.description}")
                 if domains:
                     console.print(f"    [dim]Domains: {domains}[/dim]")
     else:

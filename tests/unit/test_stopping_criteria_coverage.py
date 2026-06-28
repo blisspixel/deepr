@@ -97,7 +97,7 @@ class TestShouldStopBranches:
     def test_high_duplicate_rate_triggers_stop(self):
         c = EntropyStoppingCriteria(entropy_threshold=0.0, min_information_gain=0.0)
         ctx = PhaseContext(phase_num=2, original_query="q", current_focus="q", prior_entropy=0.9, iteration_count=5)
-        # Many identical findings → high dup rate
+        # Many identical findings -> high dup rate
         findings = [_finding("identical text", i) for i in range(10)]
         out = c.evaluate(findings, ctx)
         # Either low-entropy or duplicate-rate branch fires.

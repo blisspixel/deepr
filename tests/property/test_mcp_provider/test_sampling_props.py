@@ -100,7 +100,7 @@ def test_sampling_fallback_trace_logging(prompt: str) -> None:
     """
     trace_log = MockTraceLog()
     fallback = MockFallbackProvider(response="fallback text")
-    # No client → forces fallback
+    # No client -> forces fallback
     handler = SamplingHandler(
         client=None,
         fallback=fallback,

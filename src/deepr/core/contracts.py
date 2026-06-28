@@ -561,7 +561,7 @@ class ManifestDelta:
         if self.gaps_new:
             parts.append(f"+{len(self.gaps_new)} gaps")
         if self.gaps_resolved:
-            parts.append(f"✓{len(self.gaps_resolved)} gaps resolved")
+            parts.append(f"OK{len(self.gaps_resolved)} gaps resolved")
         if self.decisions_added:
             parts.append(f"+{self.decisions_added} decisions")
         return ", ".join(parts) if parts else "no changes"

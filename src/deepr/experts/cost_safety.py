@@ -547,7 +547,7 @@ class CostSafetyManager:
         # then over-commit by N times. Reservation pattern: reserve in
         # check_operation, settle in record_cost.
         self._budget_lock = threading.Lock()
-        # In-flight reservations keyed by (session_id, reservation_id) →
+        # In-flight reservations keyed by (session_id, reservation_id) ->
         # estimated_cost. record_cost / refund_reservation drain them.
         self._reserved_daily: float = 0.0
         self._reserved_monthly: float = 0.0

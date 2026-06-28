@@ -103,6 +103,14 @@
       "compatibility": "additive-within-v1"
     },
     {
+      "name": "consult",
+      "schema_version": "deepr-consult-v1",
+      "kind": "deepr.expert.consult",
+      "path": "consult-v1.json",
+      "status": "experimental",
+      "compatibility": "additive-within-v1"
+    },
+    {
       "name": "consult-trace",
       "schema_version": "deepr-consult-trace-v1",
       "kind": "deepr.expert.consult_trace",
@@ -131,6 +139,14 @@
       "schema_version": "deepr-consult-quality-review-v1",
       "kind": "deepr.eval.consult_quality_review",
       "path": "consult-quality-review-v1.json",
+      "status": "experimental",
+      "compatibility": "additive-within-v1"
+    },
+    {
+      "name": "mcp-consult-validation",
+      "schema_version": "deepr-mcp-consult-validation-v1",
+      "kind": "deepr.mcp.consult_validation",
+      "path": "mcp-consult-validation-v1.json",
       "status": "experimental",
       "compatibility": "additive-within-v1"
     },

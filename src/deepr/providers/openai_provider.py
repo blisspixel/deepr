@@ -157,7 +157,7 @@ class OpenAIProvider(DeepResearchProvider):
                     # the call, retry against a different provider, or persist
                     # it as a decision record. Silently swapping their chosen
                     # model on rate-limit also degraded quality (e.g.
-                    # o3-deep-research $11/$44 → o4-mini-deep-research
+                    # o3-deep-research $11/$44 -> o4-mini-deep-research
                     # $1.10/$4.40 per MTok) without their knowledge.
                     import dataclasses as _dc
 

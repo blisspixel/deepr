@@ -70,9 +70,8 @@ class TestDoctorChecks:
         output = result.output.lower()
 
         # Should show some kind of status indicators
-        assert any(
-            indicator in output for indicator in ["✓", "✗", "pass", "fail", "ok", "error", "✔", "✘", "[ok]", "[error]"]
-        )
+        indicators = ["ok", "error", "pass", "fail", "[ok]", "[error]"]
+        assert any(indicator in output for indicator in indicators)
 
 
 class TestDoctorOutput:

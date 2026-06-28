@@ -81,7 +81,7 @@ class TestAgentCardIntegration:
 
 
 class TestTaskLifecycleIntegration:
-    """Test full task lifecycle: submit → working → completed."""
+    """Test full task lifecycle: submit -> working -> completed."""
 
     def test_full_lifecycle(self, a2a_server: A2AServer) -> None:
         """Task goes through full lifecycle."""

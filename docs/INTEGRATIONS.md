@@ -13,8 +13,8 @@ Deepr, Recon, Distillr, and Primr are four independent tools that each solve one
 | Tool | Solo value | Install |
 |------|-----------|---------|
 | **Recon** | Passive domain intelligence - tech stack, email security, identity providers | `pip install recon-tool` |
-| **Distillr** | Source ingestion - YouTube, websites, arXiv → structured Markdown corpus | `pip install distillr` |
-| **Primr** | Company strategic intelligence - adaptive scraping + AI synthesis → consultant-grade briefs | `pip install primr` |
+| **Distillr** | Source ingestion - YouTube, websites, arXiv -> structured Markdown corpus | `pip install distillr` |
+| **Primr** | Company strategic intelligence - adaptive scraping + AI synthesis -> consultant-grade briefs | `pip install primr` |
 | **Deepr** | Multi-provider research automation with persistent expert agents | `pip install -e .` |
 
 **What Deepr adds that none of them have:**
@@ -61,7 +61,7 @@ Each project must remain fully standalone. No circular dependencies, no import-t
 **Rules:**
 
 1. **No Python imports between Deepr ↔ sibling tools.** All communication is via MCP (stdio or HTTP). This means any tool can be upgraded, replaced, or removed without breaking the others.
-2. **Primr → Recon is the only direct dependency** (Primr imports recon for its DNS pre-flight). This is fine - it's a lightweight, fast, free call that Primr owns.
+2. **Primr -> Recon is the only direct dependency** (Primr imports recon for its DNS pre-flight). This is fine - it's a lightweight, fast, free call that Primr owns.
 3. **Deepr discovers tools at runtime.** If recon isn't installed, the expert skill simply isn't available. No startup errors, no degraded mode - just fewer instruments.
 4. **Each tool ships its own MCP server.** Deepr connects as a client. The tool doesn't know or care that Deepr is calling it vs. Claude Desktop vs. Cursor.
 5. **Structured output is the contract.** Each tool returns JSON (MCP) or Markdown+YAML (filesystem). Deepr consumes the structure; it never screen-scrapes CLI output.
@@ -83,17 +83,17 @@ Expert detects gaps:
   - Full strategic picture (competitive positioning, hiring signals, initiatives)
 
 Expert orchestrates:
-  1. Recon → stripe.com (2s, $0)
+  1. Recon -> stripe.com (2s, $0)
      Returns: Cloudflare CDN, AWS infrastructure, Okta identity,
               DMARC reject, 47 related subdomains
      Expert absorbs as grounding facts.
 
-  2. Distillr → papers "embedded finance platform economics" (6 min, ~$0.80)
+  2. Distillr -> papers "embedded finance platform economics" (6 min, ~$0.80)
      Returns: 12 papers ingested, cross-paper synthesis on platform
               economics, network effects, regulatory moats
      Expert absorbs as academic context.
 
-  3. Primr → stripe.com (40 min, ~$0.60)
+  3. Primr -> stripe.com (40 min, ~$0.60)
      Returns: Full strategic brief - competitive positioning,
               hiring signals (50+ ML roles), API-first architecture,
               regulatory strategy, partnership patterns
@@ -114,15 +114,15 @@ An expert covering a sector (e.g., "AI Infrastructure") can batch across tools:
 ```
 Expert "AI Infrastructure Expert" tasked with sector map:
 
-  1. Recon batch → [anthropic.com, openai.com, together.ai, anyscale.com, ...]
+  1. Recon batch -> [anthropic.com, openai.com, together.ai, anyscale.com, ...]
      Returns: Per-company tech stack fingerprints
      Expert clusters companies by infrastructure patterns.
 
-  2. Distillr → papers "LLM inference optimization" + latest YouTube talks
+  2. Distillr -> papers "LLM inference optimization" + latest YouTube talks
      Returns: Technical landscape corpus
      Expert absorbs as domain knowledge.
 
-  3. Primr batch → top 5 companies by signal density
+  3. Primr batch -> top 5 companies by signal density
      Returns: Per-company strategic briefs
      Expert synthesizes competitive landscape.
 
@@ -138,14 +138,14 @@ For acquisition or partnership evaluation:
 ```
 Expert "M&A Technical Expert" evaluating target company:
 
-  1. Recon → target.com
+  1. Recon -> target.com
      Immediate: What they actually run. Cloud maturity signals.
      Red flags: Outdated email security, no CAA, legacy identity.
 
-  2. Distillr → target's engineering blog + relevant papers
+  2. Distillr -> target's engineering blog + relevant papers
      Deep: Technical depth, innovation velocity, research contributions.
 
-  3. Primr → target.com (full mode)
+  3. Primr -> target.com (full mode)
      Strategic: Hiring patterns, competitive positioning, constraints.
 
   4. Expert synthesizes: Technical due diligence brief with
@@ -159,7 +159,7 @@ Not every workflow needs all three tools. The simplest compound use:
 
 ```
 Expert researching any company topic:
-  1. Recon → domain (2s, $0) - establish facts
+  1. Recon -> domain (2s, $0) - establish facts
   2. Expert proceeds with LLM research, grounded in real data
 
 No Distillr, no Primr needed. Just factual anchoring.
@@ -199,7 +199,7 @@ Not all integrations are equal in complexity or value. Ship them in order of eff
 **What Deepr needs:**
 - MCP client connection to `distill-mcp` (stdio)
 - Async handling (runs take minutes, need progress)
-- Corpus import bridge: read distillr's `library/` output → feed into expert knowledge
+- Corpus import bridge: read distillr's `library/` output -> feed into expert knowledge
 - Budget propagation (cap per-call spend)
 - Approval flow for expensive operations (ingest 50 papers = ~$2.50)
 
@@ -229,7 +229,7 @@ Not all integrations are equal in complexity or value. Ship them in order of eff
 - Progress notifications (phase updates during long runs)
 - Budget propagation with pre-flight estimate (`--dry-run` equivalent)
 - Approval flow (always, given cost and duration)
-- Artifact parsing: Primr's structured output → expert knowledge sections
+- Artifact parsing: Primr's structured output -> expert knowledge sections
 
 **What Primr needs:**
 - Accept `trace_id` in MCP tool params
@@ -254,7 +254,7 @@ Not all integrations are equal in complexity or value. Ship them in order of eff
 
 Each tool produces output in a specific shape. Deepr consumes these shapes without transformation where possible.
 
-### Recon → Deepr
+### Recon -> Deepr
 
 ```json
 {
@@ -278,7 +278,7 @@ Each tool produces output in a specific shape. Deepr consumes these shapes witho
 
 **Deepr absorbs as:** Infrastructure facts with high confidence. Stored as structured beliefs: "stripe.com uses AWS (confidence: high, source: DNS, observed: 2026-05-07)".
 
-### Distillr → Deepr
+### Distillr -> Deepr
 
 Distillr produces filesystem artifacts. The MCP `query_library` tool returns metadata; the actual content lives in `library/topics/<topic>/`.
 
@@ -296,7 +296,7 @@ Distillr produces filesystem artifacts. The MCP `query_library` tool returns met
 
 **Deepr absorbs as:** The synthesis files become expert knowledge (beliefs with citations). Individual paper insights are available for drill-down but not bulk-loaded into the expert's active memory (too much noise). The expert retains: "I have deep knowledge of embedded finance platform economics from 12 papers (ingested 2026-05-07, synthesis confidence: multi-source)."
 
-### Primr → Deepr
+### Primr -> Deepr
 
 Primr produces a full strategic report. The MCP tool returns structured metadata + the report path.
 

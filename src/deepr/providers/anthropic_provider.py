@@ -15,8 +15,8 @@ Key Insight from Research:
 - We replicate this by: Extended Thinking + web search tools + our workflow
 
 Comparison to OpenAI:
-- OpenAI: Submit prompt → get comprehensive report (turnkey)
-- Anthropic: Submit prompt with tools → manage multi-turn workflow ourselves
+- OpenAI: Submit prompt -> get comprehensive report (turnkey)
+- Anthropic: Submit prompt with tools -> manage multi-turn workflow ourselves
 """
 
 import json

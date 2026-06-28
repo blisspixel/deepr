@@ -125,9 +125,9 @@ class KnowledgeAbsorber:
         """Parse structured tool response into findings with confidence.
 
         Confidence assignment:
-        - DNS/infrastructure → 0.8+
-        - academic → 0.7+
-        - strategic → 0.5+
+        - DNS/infrastructure -> 0.8+
+        - academic -> 0.7+
+        - strategic -> 0.5+
 
         Args:
             tool_response: Structured response from external tool.

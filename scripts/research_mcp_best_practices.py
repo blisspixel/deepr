@@ -113,7 +113,7 @@ Provide a structured report with:
     output_path = Path("docs/mcp_implementation_recommendations.md")
     output_path.write_text(report, encoding="utf-8")
 
-    print("\n✓ Research complete!")
+    print("\nOK Research complete!")
     print(f"  Report saved to: {output_path}")
     print(f"\n{report}")
 

@@ -729,7 +729,7 @@ DOCS_MODELS = [
     "xai/grok-4-3",
 ]
 
-# Provider → (env var, API base URL)
+# Provider -> (env var, API base URL)
 _PROVIDER_CONFIG = {
     "openai": ("OPENAI_API_KEY", "https://api.openai.com/v1"),
     "xai": ("XAI_API_KEY", "https://api.x.ai/v1"),
@@ -1370,7 +1370,7 @@ def call_gemini_deep_research(api_key: str, prompt: str) -> tuple[str, int, list
                 f"Gemini deep research timed out after {timeout}s. Interaction {interaction_id} may still be running."
             )
 
-        # Adaptive polling: 5s → 10s → 20s → 30s
+        # Adaptive polling: 5s -> 10s -> 20s -> 30s
         if elapsed < 60:
             time.sleep(5)
         elif elapsed < 300:
@@ -1444,7 +1444,7 @@ def call_gemini_deep_research(api_key: str, prompt: str) -> tuple[str, int, list
     return text, latency_ms, citations
 
 
-# Registry model names → actual API model IDs (where they differ)
+# Registry model names -> actual API model IDs (where they differ)
 _API_MODEL_IDS = {
     "grok-4-20-reasoning": "grok-4.20-0309-reasoning",
     "grok-4-20-non-reasoning": "grok-4.20-0309-non-reasoning",
@@ -1460,7 +1460,7 @@ def call_model(model_key: str, prompt: str, max_tokens: int, tier: str = "chat")
     uses specialized API callers with web search and citation extraction.
     """
     provider, model = model_key.split("/", 1)
-    model = _API_MODEL_IDS.get(model, model)  # Translate registry name → API model ID
+    model = _API_MODEL_IDS.get(model, model)  # Translate registry name -> API model ID
     env_var, base_url = _PROVIDER_CONFIG[provider]
     api_key = os.environ.get(env_var, "")
 
@@ -1482,7 +1482,7 @@ def call_model(model_key: str, prompt: str, max_tokens: int, tier: str = "chat")
         elif provider == "gemini":
             return call_gemini_news(api_key, model, prompt, max_tokens)
 
-    # Research tier: deep research models → background API, others → web search
+    # Research tier: deep research models -> background API, others -> web search
     if tier == "research":
         if model in _DEEP_RESEARCH_NAMES:
             if provider == "openai":
@@ -1772,7 +1772,7 @@ def score_reference(response: str, expected_contains: list[str]) -> float:
 
 
 def score_news_citations(citations: list[dict]) -> float:
-    """Score news-tier citations: 60% count (0-8 → 0-1), 40% domain diversity (0-5 unique → 0-1)."""
+    """Score news-tier citations: 60% count (0-8 -> 0-1), 40% domain diversity (0-5 unique -> 0-1)."""
     # Count score: 0-8 citations maps to 0-1
     count_score = min(len(citations), 8) / 8.0
 
@@ -1798,8 +1798,8 @@ def score_news_citations(citations: list[dict]) -> float:
 def score_research_citations(citations: list[dict], text: str) -> float:
     """Score research-tier citations and report quality.
 
-    35% count (0-20 → 0-1), 25% domain diversity (0-10 → 0-1),
-    25% report length (0-2000 words → 0-1), 15% structure (headings/sections).
+    35% count (0-20 -> 0-1), 25% domain diversity (0-10 -> 0-1),
+    25% report length (0-2000 words -> 0-1), 15% structure (headings/sections).
     """
     # Count score: 0-20 citations maps to 0-1
     count_score = min(len(citations), 20) / 20.0
@@ -1834,7 +1834,7 @@ def score_research_citations(citations: list[dict], text: str) -> float:
 def score_docs_citations(citations: list[dict], text: str) -> float:
     """Score docs-tier citations and documentation quality.
 
-    30% citation count (0-10 → 0-1), 25% domain diversity (0-5 → 0-1),
+    30% citation count (0-10 -> 0-1), 25% domain diversity (0-5 -> 0-1),
     25% code examples (count of code blocks), 20% structure (headings + length).
     """
     # Citation count: 0-10 maps to 0-1

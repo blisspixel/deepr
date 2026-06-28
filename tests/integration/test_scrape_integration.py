@@ -1,6 +1,6 @@
 """Integration test for complete scraping workflow.
 
-Tests the full pipeline: fetch → extract → synthesize
+Tests the full pipeline: fetch -> extract -> synthesize
 """
 
 import os

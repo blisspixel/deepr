@@ -8,6 +8,42 @@ from deepr.core.errors import DeeprError
 from deepr.experts import consult as consult_core
 from deepr.experts.consult_traces import record_consult_trace
 
+CONSULT_EXPERTS_OUTPUT_SCHEMA: dict[str, Any] = {
+    "type": "object",
+    "required": [
+        "schema_version",
+        "kind",
+        "contract",
+        "question",
+        "answer",
+        "experts_consulted",
+        "perspectives",
+        "agreements",
+        "disagreements",
+        "cost_usd",
+        "capacity",
+        "trace",
+        "collaboration",
+    ],
+    "properties": {
+        "schema_version": {"const": consult_core.CONSULT_SCHEMA_VERSION},
+        "kind": {"const": consult_core.CONSULT_KIND},
+        "cost_usd": {"type": "number", "minimum": 0},
+        "capacity": {
+            "type": "object",
+            "required": ["synthesis_backend", "provider", "model", "live_metered_fallback"],
+            "properties": {
+                "synthesis_backend": {"type": "string", "enum": ["api", "local", "plan"]},
+                "provider": {"type": "string"},
+                "model": {"type": ["string", "null"]},
+                "live_metered_fallback": {"type": "boolean"},
+            },
+            "additionalProperties": True,
+        },
+    },
+    "additionalProperties": True,
+}
+
 CONSULT_EXPERTS_INPUT_SCHEMA: dict[str, Any] = {
     "type": "object",
     "properties": {

@@ -79,7 +79,7 @@ def main():
 
     for test_name, success in results.items():
         status = "PASS" if success else "FAIL"
-        symbol = "✓" if success else "✗"
+        symbol = "OK" if success else "ERROR"
         print(f"  {symbol} {test_name.ljust(20)} {status}")
 
     print()
@@ -87,10 +87,10 @@ def main():
     print("=" * 60)
 
     if passed == total:
-        print("\n✓ All tests passed - code validated locally without API costs")
+        print("\nOK All tests passed - code validated locally without API costs")
         return 0
     else:
-        print(f"\n✗ {total - passed} test suite(s) failed")
+        print(f"\nERROR {total - passed} test suite(s) failed")
         return 1
 
 

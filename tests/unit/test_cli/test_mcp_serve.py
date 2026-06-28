@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 from unittest.mock import patch
 
 from click.testing import CliRunner
@@ -126,6 +127,64 @@ def test_mcp_smoke_http_exits_nonzero_on_failure():
     assert result.exit_code == 1
     assert "[fail] tools/call: Denied" in result.output
     assert "Result: failed" in result.output
+
+
+def test_mcp_validate_consult_offline_outputs_json():
+    result = CliRunner().invoke(mcp, ["validate-consult", "--expert", "AI Agent Harnesses", "--json"])
+
+    assert result.exit_code == 0, result.output
+    payload = json.loads(result.output)
+    assert payload["schema_version"] == "deepr-mcp-consult-validation-v1"
+    assert payload["mode"] == "offline"
+    assert payload["summary"]["ok"] is True
+    assert payload["consult_summary"]["capacity"]["live_metered_fallback"] is False
+
+
+def test_mcp_validate_consult_remote_uses_http_runner():
+    from deepr.mcp.consult_validation import MCPConsultValidationCheck, MCPConsultValidationReport
+
+    report = MCPConsultValidationReport(
+        mode="http",
+        backend="local",
+        endpoint="http://127.0.0.1:8765/mcp",
+        question="q",
+        requested_experts=("A",),
+        checks=(MCPConsultValidationCheck("x", "passed", "ok"),),
+    )
+
+    def fake_validate(url, **kwargs):
+        assert url == "http://127.0.0.1:8765/mcp"
+        assert kwargs["auth_token"] == "secret"
+        assert kwargs["experts"] == ("A",)
+        assert kwargs["backend"] == "local"
+        return "validate-coro"
+
+    with (
+        patch("deepr.mcp.consult_validation.run_http_consult_validation", new=fake_validate),
+        patch("deepr.cli.commands.mcp.run_async_command", return_value=report),
+    ):
+        result = CliRunner().invoke(
+            mcp,
+            [
+                "validate-consult",
+                "http://127.0.0.1:8765/mcp",
+                "--auth-token",
+                "secret",
+                "--expert",
+                "A",
+            ],
+        )
+
+    assert result.exit_code == 0, result.output
+    assert "MCP consult validation: http://127.0.0.1:8765/mcp" in result.output
+    assert "[ok] x: ok" in result.output
+
+
+def test_mcp_validate_consult_requires_explicit_plan():
+    result = CliRunner().invoke(mcp, ["validate-consult", "--synthesis-backend", "plan"])
+
+    assert result.exit_code != 0
+    assert "--plan is required" in result.output
 
 
 def test_mcp_test_uses_only_read_only_no_cost_calls():

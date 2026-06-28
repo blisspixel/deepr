@@ -180,7 +180,7 @@ export default function ResearchLive() {
               onClick={() => navigate(`/results/${job.id}`)}
               className="text-sm text-primary hover:underline font-medium"
             >
-              Read full result →
+              Read full result ->
             </button>
           </div>
         )}

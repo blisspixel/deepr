@@ -44,8 +44,8 @@ Primr is the **heaviest, most expensive** instrument: a full analysis takes
 ```
 
 `KnowledgeAbsorber.categorize_primr_response` maps this across categories:
-- `recon_summary` → **infrastructure** facts (factual, higher confidence).
-- the brief, `hiring_signals`, and strategic initiatives → **strategic**
+- `recon_summary` -> **infrastructure** facts (factual, higher confidence).
+- the brief, `hiring_signals`, and strategic initiatives -> **strategic**
   knowledge (synthesized, moderate confidence), each citing the report artifact.
 - `cost` / `duration_minutes` are surfaced for the audit trail, not absorbed.
 
@@ -59,7 +59,7 @@ Keep provenance: every absorbed belief should point back to `report_path` /
   (moderate confidence) when you surface findings.
 - Quick context belongs in recon (free); reserve `research_company` for when a full brief is genuinely needed.
 
-Example good flow: `estimate_run("stripe.com", mode=full)` → on approval,
-`research_company(domain="stripe.com", budget=1.0)` → absorb infrastructure +
-strategic findings with report provenance → re-estimate and re-run later when
+Example good flow: `estimate_run("stripe.com", mode=full)` -> on approval,
+`research_company(domain="stripe.com", budget=1.0)` -> absorb infrastructure +
+strategic findings with report provenance -> re-estimate and re-run later when
 the picture needs refreshing.

@@ -21,7 +21,7 @@ def check_azure_cli():
     try:
         subprocess.run(["az", "--version"], capture_output=True, check=True)
     except (subprocess.CalledProcessError, FileNotFoundError):
-        print("✗ Azure CLI not found")
+        print("ERROR Azure CLI not found")
         return False
 
     try:
@@ -31,7 +31,7 @@ def check_azure_cli():
         print(f"Subscription: {account['name']}")
         return True
     except subprocess.CalledProcessError:
-        print("✗ Not logged in to Azure")
+        print("ERROR Not logged in to Azure")
         return False
 
 
@@ -40,7 +40,7 @@ def delete_resource_group(name, force=False):
     import subprocess
 
     if not force:
-        print(f"\n⚠  WARNING: This will DELETE the entire resource group '{name}'")
+        print(f"\nWARNING:  WARNING: This will DELETE the entire resource group '{name}'")
         print("   All resources in this group will be permanently deleted!")
         response = input("Type the resource group name to confirm: ")
         if response != name:
@@ -52,11 +52,11 @@ def delete_resource_group(name, force=False):
 
     try:
         subprocess.run(["az", "group", "delete", "--name", name, "--yes", "--no-wait"], check=True)
-        print("  ✓ Deletion started (running in background)")
+        print("  OK Deletion started (running in background)")
         print(f"  Check status: az group show --name {name}")
         return True
     except subprocess.CalledProcessError as e:
-        print(f"  ✗ Failed: {e.stderr.decode() if e.stderr else 'Unknown error'}")
+        print(f"  ERROR Failed: {e.stderr.decode() if e.stderr else 'Unknown error'}")
         return False
 
 
@@ -83,14 +83,14 @@ def delete_service_bus_queue(resource_group, namespace, queue_name):
             check=True,
             capture_output=True,
         )
-        print("  ✓ Queue deleted")
+        print("  OK Queue deleted")
         return True
     except subprocess.CalledProcessError as e:
         error_msg = e.stderr.decode()
         if "not found" in error_msg.lower():
             print("  Queue not found (already deleted?)")
             return True
-        print(f"  ✗ Failed: {error_msg}")
+        print(f"  ERROR Failed: {error_msg}")
         return False
 
 
@@ -106,14 +106,14 @@ def delete_service_bus_namespace(resource_group, namespace):
             check=True,
             capture_output=True,
         )
-        print("  ✓ Namespace deleted")
+        print("  OK Namespace deleted")
         return True
     except subprocess.CalledProcessError as e:
         error_msg = e.stderr.decode()
         if "not found" in error_msg.lower():
             print("  Namespace not found (already deleted?)")
             return True
-        print(f"  ✗ Failed: {error_msg}")
+        print(f"  ERROR Failed: {error_msg}")
         return False
 
 
@@ -131,7 +131,7 @@ def delete_storage_containers(connection_string):
                 check=True,
                 capture_output=True,
             )
-            print(f"  ✓ {container}")
+            print(f"  OK {container}")
         except subprocess.CalledProcessError:
             print(f"  Container '{container}' not found (already deleted?)")
 
@@ -176,14 +176,14 @@ def delete_storage_account(resource_group, account_name):
             check=True,
             capture_output=True,
         )
-        print("  ✓ Storage account deleted")
+        print("  OK Storage account deleted")
         return True
     except subprocess.CalledProcessError as e:
         error_msg = e.stderr.decode()
         if "not found" in error_msg.lower():
             print("  Storage account not found (already deleted?)")
             return True
-        print(f"  ✗ Failed: {error_msg}")
+        print(f"  ERROR Failed: {error_msg}")
         return False
 
 
@@ -229,7 +229,7 @@ def main():
     print(f"  Queue: {args.queue_name}")
 
     if not args.force:
-        print("\n⚠  WARNING: This will DELETE Azure resources and all data")
+        print("\nWARNING:  WARNING: This will DELETE Azure resources and all data")
         response = input("Continue? (y/N): ")
         if response.lower() != "y":
             print("Cancelled")
@@ -250,7 +250,7 @@ def main():
     delete_storage_account(args.resource_group, args.storage_account)
 
     print("\n" + "=" * 60)
-    print("✓ Teardown complete")
+    print("OK Teardown complete")
     print()
     print("Note: Resource group still exists (but should be empty)")
     print("To delete resource group: python scripts/destroy_azure.py --delete-resource-group")

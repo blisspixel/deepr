@@ -79,7 +79,7 @@ The repository stays tidy by rule, not by cleanup:
   merge. Auto-delete is on, so no branches linger.
 - **Squash-merge.** The merge commit is the PR title and nothing else - no
   body trailers. No machine attribution ever lands on `main`: no AI
-  attribution, and no bot `Co-authored-by` / `Signed-off-by` (including
+  attribution, and no bot `coauthor or signoff trailers (including
   Dependabot). Repo settings enforce the clean squash message.
 - **Dependencies.** Dependabot opens the PRs. Merge green minor/patch bumps
   promptly; close major bumps that fail CI until they are compatible. Do not

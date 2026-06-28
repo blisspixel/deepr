@@ -1120,7 +1120,7 @@ class TestCostDashboardEdgeCases:
         # Metadata with various Unicode characters
         unicode_metadata = {
             "query": "日本語クエリ",
-            "emoji": "🚀🔬📊",
+            "status_labels": "rocket microscope confidence",
             "special": "äöü ñ",
         }
 

@@ -33,7 +33,7 @@ def cleanup_queue(force=False):
             return
 
     db_path.unlink()
-    print(f"  ✓ Deleted {db_path}")
+    print(f"  OK Deleted {db_path}")
 
 
 def cleanup_results(force=False):
@@ -60,7 +60,7 @@ def cleanup_results(force=False):
         if file.is_file():
             file.unlink()
 
-    print(f"  ✓ Deleted {len(files)} result files")
+    print(f"  OK Deleted {len(files)} result files")
 
 
 def cleanup_logs(force=False):
@@ -86,7 +86,7 @@ def cleanup_logs(force=False):
     for file in files:
         file.unlink()
 
-    print(f"  ✓ Deleted {len(files)} log files")
+    print(f"  OK Deleted {len(files)} log files")
 
 
 def cleanup_uploads(force=False):
@@ -113,7 +113,7 @@ def cleanup_uploads(force=False):
         if file.is_file():
             file.unlink()
 
-    print(f"  ✓ Deleted {len(files)} uploaded files")
+    print(f"  OK Deleted {len(files)} uploaded files")
 
 
 def cleanup_all(force=False):
@@ -121,7 +121,7 @@ def cleanup_all(force=False):
     dirs = ["queue", "results", "logs", "uploads"]
 
     if not force:
-        print("\n⚠  WARNING: This will delete ALL local data")
+        print("\nWARNING:  WARNING: This will delete ALL local data")
         response = input("Continue? (y/N): ")
         if response.lower() != "y":
             print("Cancelled")
@@ -131,7 +131,7 @@ def cleanup_all(force=False):
         dir_path = Path(dir_name)
         if dir_path.exists():
             shutil.rmtree(dir_path)
-            print(f"  ✓ Deleted {dir_name}/")
+            print(f"  OK Deleted {dir_name}/")
 
 
 def main():

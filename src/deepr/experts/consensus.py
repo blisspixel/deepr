@@ -22,7 +22,7 @@ from deepr.core.contracts import ConsensusResult, DecisionRecord, DecisionType
 
 logger = logging.getLogger(__name__)
 
-# Provider → env var mapping (mirrors routing/auto_mode.py)
+# Provider -> env var mapping (mirrors routing/auto_mode.py)
 _PROVIDER_KEY_ENV = {
     "openai": "OPENAI_API_KEY",
     "xai": "XAI_API_KEY",
@@ -30,7 +30,7 @@ _PROVIDER_KEY_ENV = {
     "anthropic": "ANTHROPIC_API_KEY",
 }
 
-# Provider → preferred model for web research
+# Provider -> preferred model for web research
 _PROVIDER_MODELS = {
     "xai": "grok-4.3",
     "openai": "gpt-5.2",

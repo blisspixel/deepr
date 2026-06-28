@@ -63,7 +63,7 @@ from deepr.core.reports import ReportGenerator
 from deepr.core.research import ResearchOrchestrator
 from deepr.experts.chat import ExpertChatSession
 from deepr.experts.profile import ExpertStore
-from deepr.mcp.consult_tool import CONSULT_EXPERTS_INPUT_SCHEMA, consult_experts_tool
+from deepr.mcp.consult_tool import CONSULT_EXPERTS_INPUT_SCHEMA, CONSULT_EXPERTS_OUTPUT_SCHEMA, consult_experts_tool
 from deepr.mcp.expert_reads import get_expert_handoff, get_expert_loop_status
 from deepr.mcp.search.gateway import GatewayTool
 from deepr.mcp.search.registry import ToolRegistry, ToolSchema, create_default_registry
@@ -1395,6 +1395,7 @@ def _register_new_tools(registry: ToolRegistry) -> None:
                 "decides and enacts."
             ),
             input_schema=CONSULT_EXPERTS_INPUT_SCHEMA,
+            output_schema=CONSULT_EXPERTS_OUTPUT_SCHEMA,
             category="experts",
             cost_tier="low",
         )
@@ -1812,7 +1813,7 @@ async def _handle_tools_call(server: DeeprMCPServer, params: dict[str, Any]) -> 
         text = json.dumps(result, default=str)
         is_error = isinstance(result, dict) and "error_code" in result
 
-        return {
+        response: dict[str, Any] = {
             "content": [{"type": "text", "text": text}],
             "isError": is_error,
             # Include verification metadata for audit trail
@@ -1822,6 +1823,9 @@ async def _handle_tools_call(server: DeeprMCPServer, params: dict[str, Any]) -> 
                 "instruction_nonce": signed.nonce,
             },
         }
+        if isinstance(result, dict):
+            response["structuredContent"] = result
+        return response
     except Exception as e:
         logger.exception(f"Tool {name} failed")
         return {

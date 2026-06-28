@@ -40,9 +40,9 @@ Ingestion tools return structured JSON, e.g.:
 ```
 
 Map findings as follows (the absorber's `categorize_distillr_response` does this):
-- `corpus_synthesis_path` / `synthesis_path` plus the `*_ingested` counts → one
+- `corpus_synthesis_path` / `synthesis_path` plus the `*_ingested` counts -> one
   high-value "academic" belief that cites the synthesis artifact for provenance.
-- `insights` / `key_findings` / query `results` → individual "academic" findings.
+- `insights` / `key_findings` / query `results` -> individual "academic" findings.
 - `cost` is surfaced for the audit trail; it is not absorbed as a belief.
 
 Treat distillr knowledge as **multi-source synthesis, not primary fact**:
@@ -59,6 +59,6 @@ expert can trace and refresh it later.
 - Always pass a `budget` on ingestion/refresh and honor approval gates.
 - Keep provenance: every absorbed belief should point back to the synthesis path.
 
-Example good flow: `find_insights("embedded finance economics")` → if thin,
-`discover(...)` to preview → `papers(topic=..., query=..., limit=5)` → absorb the
-synthesis as academic knowledge → later, `catch_up(topic=...)` to stay current.
+Example good flow: `find_insights("embedded finance economics")` -> if thin,
+`discover(...)` to preview -> `papers(topic=..., query=..., limit=5)` -> absorb the
+synthesis as academic knowledge -> later, `catch_up(topic=...)` to stay current.

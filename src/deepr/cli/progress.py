@@ -80,7 +80,7 @@ class ProgressFeedback:
         elapsed = time.time() - self.start_time if self.start_time else 0
 
         cost_str = f", ${cost:.2f}" if cost else ""
-        console.print(f"[green]✓[/green] {message} ({elapsed:.1f}s{cost_str})")
+        console.print(f"[green]OK[/green] {message} ({elapsed:.1f}s{cost_str})")
 
     def phase_error(self, message: str) -> None:
         """Mark phase as failed.
@@ -88,7 +88,7 @@ class ProgressFeedback:
         Args:
             message: Error message
         """
-        console.print(f"[red]✗[/red] {message}")
+        console.print(f"[red]ERROR[/red] {message}")
 
     def long_operation_warning(self) -> None:
         """Show warning for long operations.

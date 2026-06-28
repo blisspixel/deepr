@@ -116,7 +116,7 @@ class BatchRoutingResult:
     total_cost_estimate: float
 
 
-# Provider → environment variable mapping for API key checks
+# Provider -> environment variable mapping for API key checks
 _PROVIDER_KEY_ENV = {
     "openai": "OPENAI_API_KEY",
     "xai": "XAI_API_KEY",
@@ -232,7 +232,7 @@ def _load_benchmark_rankings() -> dict[str, list[_RankingEntry]] | None:
 # Models without benchmark data get synthetic quality scores from registry
 # metadata so they participate in routing immediately.
 
-# Map registry specializations → benchmark task types
+# Map registry specializations -> benchmark task types
 _SPEC_TO_TASK_TYPES: dict[str, list[str]] = {
     "speed": ["quick_lookup"],
     "factual": ["quick_lookup", "knowledge_base"],
@@ -542,7 +542,7 @@ class AutoModeRouter:
     Example:
         router = AutoModeRouter()
         decision = router.route("What is Python?")
-        # → benchmark winner for quick_lookup with available API key
+        # -> benchmark winner for quick_lookup with available API key
     """
 
     def __init__(
@@ -782,7 +782,7 @@ class AutoModeRouter:
         if candidates:
             candidates.sort(key=lambda x: x[2])  # Cheapest first
             p, m, c = candidates[0]
-            return (p, m, c, f"Cheapest available → {p}/{m} (${c:.3f})")
+            return (p, m, c, f"Cheapest available -> {p}/{m} (${c:.3f})")
 
         # Absolute last resort - but pick a USABLE provider. The previous
         # behaviour hard-coded ``openai/gpt-4.1-mini`` regardless of
@@ -795,7 +795,7 @@ class AutoModeRouter:
                     cap.provider,
                     cap.model,
                     cap.cost_per_query,
-                    f"Last resort (no candidates under budget) → {cap.provider}/{cap.model}",
+                    f"Last resort (no candidates under budget) -> {cap.provider}/{cap.model}",
                 )
 
         # If we reach here, no provider is usable at all. Surface that
@@ -834,7 +834,7 @@ class AutoModeRouter:
                 provider,
                 model,
                 cost,
-                f"Benchmark: {bench_task} → {provider}/{model} (quality: {score:.0%}, ${cost:.2f})",
+                f"Benchmark: {bench_task} -> {provider}/{model} (quality: {score:.0%}, ${cost:.2f})",
             )
 
         # Fallback to overall ranking
@@ -845,7 +845,7 @@ class AutoModeRouter:
                 provider,
                 model,
                 cost,
-                f"Overall best available → {provider}/{model}",
+                f"Overall best available -> {provider}/{model}",
             )
 
         # Last resort: cheapest available from registry
