@@ -25,6 +25,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 </details>
 
 ### Added
+- Added `deepr-graph-commit-envelope-v3` with verifier-gated
+  `promote_exploration_agenda` operations. Verified agenda candidates now carry
+  title, questions, origin, rationale, uncertainty, expected observations,
+  disconfirming signals, success criteria, priority, expected value, cost
+  estimate, provenance, and an idempotency key through the explicit commit
+  boundary without being treated as factual beliefs.
+- Extended `deepr expert apply-graph-commit` to apply v3 exploration-agenda
+  promotions into the metacognition agenda backlog while preserving v1
+  add-belief and v2 gap-promotion envelope compatibility, dry-run previews,
+  noninteractive `--yes` gating, locks, and `$0` no-model apply semantics.
 - Added `deepr-graph-commit-envelope-v2` with verifier-gated `promote_gap`
   operations. Verified knowledge-gap candidates can now carry topic,
   questions, priority, expected value, cost estimate, provenance, and an

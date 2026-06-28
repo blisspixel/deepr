@@ -168,10 +168,13 @@ must not be described as usable capacity.
   candidate-to-candidate typed edge decisions; graph commit envelopes plan
   idempotent writes without mutating state. `deepr-graph-commit-envelope-v1`
   is belief-only; `deepr-graph-commit-envelope-v2` adds verifier-gated
-  `promote_gap` operations for the metacognition gap backlog. `deepr expert
-  apply-graph-commit NAME ENVELOPE --yes` is the explicit write boundary for
-  verified factual add-belief operations, typed-edge operations, and verified
-  gap promotions.
+  `promote_gap` operations for the metacognition gap backlog;
+  `deepr-graph-commit-envelope-v3` adds verifier-gated
+  `promote_exploration_agenda` operations for the metacognition exploration
+  agenda backlog. `deepr expert apply-graph-commit NAME ENVELOPE --yes` is the
+  explicit write boundary for verified factual add-belief operations,
+  typed-edge operations, verified gap promotions, and verified exploration
+  agenda promotions.
 
 ## Visible Or Planned Only
 

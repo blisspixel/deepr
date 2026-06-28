@@ -115,7 +115,10 @@
           "edge_count": {"type": "integer", "minimum": 0},
           "gap_id": {"type": "string"},
           "gap_topic": {"type": "string"},
-          "gap_created": {"type": "boolean"}
+          "gap_created": {"type": "boolean"},
+          "agenda_id": {"type": "string"},
+          "agenda_title": {"type": "string"},
+          "agenda_created": {"type": "boolean"}
         }
       }
     },

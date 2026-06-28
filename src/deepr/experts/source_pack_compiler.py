@@ -9,6 +9,33 @@ from datetime import UTC, datetime
 from typing import Any
 
 from deepr.experts.beliefs import EDGE_TYPES
+from deepr.experts.source_pack_values import (
+    enum_value as _enum_value,
+)
+from deepr.experts.source_pack_values import (
+    float_0_1 as _float_0_1,
+)
+from deepr.experts.source_pack_values import (
+    float_nonnegative as _float_nonnegative,
+)
+from deepr.experts.source_pack_values import (
+    int_or_zero as _int_or_zero,
+)
+from deepr.experts.source_pack_values import (
+    int_range as _int_range,
+)
+from deepr.experts.source_pack_values import (
+    normalized_key as _normalized_key,
+)
+from deepr.experts.source_pack_values import (
+    string_field as _string_field,
+)
+from deepr.experts.source_pack_values import (
+    string_list as _string_list,
+)
+from deepr.experts.source_pack_values import (
+    string_list_field as _string_list_field,
+)
 
 SOURCE_PACK_MANIFEST_SCHEMA_VERSION = "deepr-source-pack-manifest-v1"
 SOURCE_PACK_MANIFEST_KIND = "deepr.expert.source_pack_manifest"
@@ -24,6 +51,7 @@ _SHA256_HEX = re.compile(r"^[a-fA-F0-9]{64}$")
 _FACTUAL_KINDS = {"factual_claim", "fact", "external_fact", "current_fact"}
 _IDEA_KINDS = {"concept", "hypothesis", "stance", "proposal", "original_idea", "original_synthesis"}
 _GAP_KINDS = {"gap", "knowledge_gap", "research_gap"}
+_AGENDA_KINDS = {"exploration_agenda", "research_agenda"}
 _SUPPORT_VERDICTS = {"supported", "refuted", "insufficient", "not_applicable", "unverified"}
 _CONTRADICTION_VERDICTS = {"none", "possible", "contradiction", "unverified"}
 _DEDUP_VERDICTS = {"new", "same_as_existing", "uncertain", "unverified"}
@@ -41,48 +69,6 @@ def _sha256_text(value: str) -> str:
     return hashlib.sha256(value.encode("utf-8")).hexdigest()
 
 
-def _int_or_zero(value: Any, *, default: int = 0) -> int:
-    try:
-        parsed = int(value)
-    except (TypeError, ValueError):
-        return default
-    return max(parsed, 0)
-
-
-def _float_0_1(value: Any, *, default: float = 0.0) -> float:
-    try:
-        parsed = float(value)
-    except (TypeError, ValueError):
-        return default
-    return max(0.0, min(1.0, parsed))
-
-
-def _float_nonnegative(value: Any, *, default: float = 0.0) -> float:
-    try:
-        parsed = float(value)
-    except (TypeError, ValueError):
-        return default
-    return max(0.0, parsed)
-
-
-def _int_range(value: Any, *, default: int, minimum: int, maximum: int) -> int:
-    try:
-        parsed = int(value)
-    except (TypeError, ValueError):
-        return default
-    return min(max(parsed, minimum), maximum)
-
-
-def _normalized_key(value: Any, *, default: str = "") -> str:
-    text = str(value if value is not None else default).strip().lower()
-    return text.replace("-", "_").replace(" ", "_") or default
-
-
-def _enum_value(value: Any, allowed: set[str], *, default: str) -> str:
-    normalized = _normalized_key(value, default=default)
-    return normalized if normalized in allowed else default
-
-
 def _source_pack_from_payload(payload: dict[str, Any]) -> dict[str, Any]:
     source_pack = payload.get("source_pack")
     if isinstance(source_pack, dict):
@@ -95,12 +81,6 @@ def _sources(source_pack: dict[str, Any]) -> list[dict[str, Any]]:
     if not isinstance(raw_sources, list):
         return []
     return [source for source in raw_sources if isinstance(source, dict)]
-
-
-def _string_list(value: Any) -> list[str]:
-    if not isinstance(value, list):
-        return []
-    return [str(item) for item in value]
 
 
 def _artifact_generated_at(payload: dict[str, Any], source_pack: dict[str, Any]) -> str:
@@ -331,6 +311,23 @@ def _gap_candidate(item: dict[str, Any], statement: str) -> dict[str, Any]:
     }
 
 
+def _agenda_candidate(item: dict[str, Any], statement: str) -> dict[str, Any]:
+    title = str(item.get("title", statement) or statement).strip()
+    estimated_cost = _float_nonnegative(item.get("estimated_cost"))
+    expected_value = _float_0_1(item.get("expected_value"))
+    return {
+        "title": title or statement,
+        "questions": _string_list_field(item, "questions"),
+        "priority": _int_range(item.get("priority"), default=3, minimum=1, maximum=5),
+        "estimated_cost": estimated_cost,
+        "expected_value": expected_value,
+        "ev_cost_ratio": expected_value / max(estimated_cost, 0.001) if expected_value else 0.0,
+        "success_criteria": _string_list_field(item, "success_criteria"),
+        "expected_observations": _string_list_field(item, "expected_observations"),
+        "disconfirming_signals": _string_list_field(item, "disconfirming_signals"),
+    }
+
+
 def _response_from_model_output(model_output: dict[str, Any] | str) -> tuple[dict[str, Any], str, str]:
     if isinstance(model_output, str):
         raw = model_output
@@ -402,6 +399,8 @@ def _claim_candidate(
     }
     if claim_kind in _GAP_KINDS:
         candidate["gap"] = _gap_candidate(item, statement)
+    if claim_kind in _AGENDA_KINDS:
+        candidate["agenda"] = _agenda_candidate(item, statement)
     return candidate
 
 
@@ -415,6 +414,16 @@ def _claim_kind_policy(claim_kind: str) -> dict[str, Any]:
             "requires_disconfirming_signals": False,
             "must_not_present_as_verified_fact": True,
             "writes_gap_backlog": True,
+        }
+    if kind in _AGENDA_KINDS:
+        return {
+            "state_type": "exploration_agenda",
+            "requires_external_support": False,
+            "requires_origin_and_rationale": True,
+            "requires_disconfirming_signals": True,
+            "requires_expected_observations": True,
+            "must_not_present_as_verified_fact": True,
+            "writes_exploration_agenda": True,
         }
     if kind in _IDEA_KINDS:
         return {
@@ -462,17 +471,6 @@ def _candidate_by_id(extraction: dict[str, Any]) -> dict[str, dict[str, Any]]:
     return candidates
 
 
-def _string_field(item: dict[str, Any], key: str) -> str:
-    return str(item.get(key, "") or "").strip()
-
-
-def _string_list_field(item: dict[str, Any], key: str) -> list[str]:
-    value = item.get(key, [])
-    if not isinstance(value, list):
-        return []
-    return [str(entry).strip() for entry in value if str(entry).strip()]
-
-
 def _candidate_policy(candidate: dict[str, Any] | None) -> dict[str, Any]:
     policy = (candidate or {}).get("state_policy", {})
     if isinstance(policy, dict):
@@ -496,6 +494,7 @@ def _verification_model_judgment(item: dict[str, Any]) -> dict[str, Any]:
         "support_summary": _string_field(item, "support_summary"),
         "origin": _string_field(item, "origin"),
         "uncertainty": _string_field(item, "uncertainty"),
+        "expected_observations": _string_list_field(item, "expected_observations"),
         "disconfirming_signals": _string_list_field(item, "disconfirming_signals"),
     }
 
@@ -603,6 +602,8 @@ def _policy_verification_failures(
     failure_reasons: list[str] = []
     if policy.get("requires_external_support") and verdicts["support"] != "supported":
         failure_reasons.append("factual_support_not_verified")
+    if policy.get("requires_expected_observations") and not model_judgment.get("expected_observations"):
+        failure_reasons.append("missing_expected_observations")
     if policy.get("requires_disconfirming_signals") and not model_judgment["disconfirming_signals"]:
         failure_reasons.append("missing_disconfirming_signals")
     if verdicts["contradiction"] == "contradiction":

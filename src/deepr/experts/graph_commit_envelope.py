@@ -11,11 +11,13 @@ from deepr.experts.beliefs import EDGE_TYPES
 from deepr.experts.source_pack_compiler import CLAIM_VERIFICATION_SCHEMA_VERSION
 
 GRAPH_COMMIT_ENVELOPE_SCHEMA_VERSION_V1 = "deepr-graph-commit-envelope-v1"
-GRAPH_COMMIT_ENVELOPE_SCHEMA_VERSION = "deepr-graph-commit-envelope-v2"
+GRAPH_COMMIT_ENVELOPE_SCHEMA_VERSION_V2 = "deepr-graph-commit-envelope-v2"
+GRAPH_COMMIT_ENVELOPE_SCHEMA_VERSION = "deepr-graph-commit-envelope-v3"
 GRAPH_COMMIT_ENVELOPE_KIND = "deepr.expert.graph_commit_envelope"
 
 _BELIEF_STATE_TYPES = {"factual_claim", "fact", "external_fact", "current_fact"}
 _GAP_STATE_TYPES = {"gap", "knowledge_gap", "research_gap"}
+_AGENDA_STATE_TYPES = {"exploration_agenda", "research_agenda"}
 
 
 def _utc_now() -> datetime:
@@ -107,6 +109,10 @@ def _gap_id(topic: str) -> str:
     return hashlib.sha256(topic.encode()).hexdigest()[:12]
 
 
+def _agenda_id(title: str) -> str:
+    return hashlib.sha256(title.encode()).hexdigest()[:12]
+
+
 def _decision_state_type(candidate: dict[str, Any], decision: dict[str, Any]) -> str:
     policy = decision.get("state_policy", candidate.get("state_policy", {})) or {}
     return str(policy.get("state_type", candidate.get("claim_kind", "")) or "")
@@ -150,11 +156,12 @@ def _commit_failures(candidate: dict[str, Any] | None, decision: dict[str, Any])
 
     state_type = _decision_state_type(candidate, decision)
     is_gap = state_type in _GAP_STATE_TYPES
-    if state_type not in _BELIEF_STATE_TYPES and not is_gap:
+    is_agenda = state_type in _AGENDA_STATE_TYPES
+    if state_type not in _BELIEF_STATE_TYPES and not is_gap and not is_agenda:
         failures.append("non_factual_state_requires_perspective_store")
 
     verdicts = decision.get("verdicts", {}) or {}
-    if is_gap:
+    if is_gap or is_agenda:
         failures.extend(_gap_verdict_ready(verdicts))
     else:
         failures.extend(_belief_verdict_ready(verdicts))
@@ -351,6 +358,76 @@ def _gap_operation(
     }
 
 
+def _agenda_payload(candidate: dict[str, Any], decision: dict[str, Any], generated_at: str) -> dict[str, Any]:
+    statement = str(candidate.get("statement", "") or "").strip()
+    raw_agenda = candidate.get("agenda")
+    agenda = raw_agenda if isinstance(raw_agenda, dict) else {}
+    judgment = decision.get("model_judgment", {}) or {}
+    title = str(agenda.get("title", statement) or statement).strip()
+    estimated_cost = _float_nonnegative(agenda.get("estimated_cost"))
+    expected_value = _confidence(candidate, decision)
+    if "expected_value" in agenda:
+        expected_value = max(0.0, min(1.0, _float_nonnegative(agenda.get("expected_value"))))
+    return {
+        "id": _agenda_id(title),
+        "title": title,
+        "questions": _string_items(agenda.get("questions")),
+        "origin": str(judgment.get("origin", agenda.get("origin", "")) or "").strip(),
+        "rationale": str(judgment.get("rationale", agenda.get("rationale", "")) or "").strip(),
+        "uncertainty": str(judgment.get("uncertainty", agenda.get("uncertainty", "")) or "").strip(),
+        "priority": _int_range(agenda.get("priority"), default=3, minimum=1, maximum=5),
+        "estimated_cost": estimated_cost,
+        "expected_value": expected_value,
+        "ev_cost_ratio": expected_value / max(estimated_cost, 0.001) if expected_value else 0.0,
+        "success_criteria": _string_items(agenda.get("success_criteria")),
+        "expected_observations": _string_items(
+            judgment.get("expected_observations", agenda.get("expected_observations"))
+        ),
+        "disconfirming_signals": _string_items(
+            judgment.get("disconfirming_signals", agenda.get("disconfirming_signals"))
+        ),
+        "created_at": generated_at,
+        "status": "open",
+    }
+
+
+def _agenda_operation(
+    candidate: dict[str, Any],
+    decision: dict[str, Any],
+    *,
+    generated_at: str,
+    claim_extraction_artifact: str,
+    claim_verification_artifact: str,
+    source_note_artifact: str,
+) -> dict[str, Any]:
+    evidence_refs = _valid_evidence_refs(candidate)
+    candidate_id = str(candidate.get("candidate_id", "") or "")
+    agenda = _agenda_payload(candidate, decision, generated_at)
+    idempotency_material = {
+        "schema_version": GRAPH_COMMIT_ENVELOPE_SCHEMA_VERSION,
+        "operation": "promote_exploration_agenda",
+        "candidate_id": candidate_id,
+        "agenda_id": agenda["id"],
+        "agenda_title": agenda["title"],
+        "verdicts": decision.get("verdicts", {}),
+        "evidence_refs": evidence_refs,
+    }
+    return {
+        "operation_id": f"op_{_sha256_json(idempotency_material)[:16]}",
+        "operation": "promote_exploration_agenda",
+        "candidate_id": candidate_id,
+        "decision_status": str((decision.get("commit_gate", {}) or {}).get("status", "")),
+        "agenda": agenda,
+        "idempotency_key": _sha256_json(idempotency_material),
+        "provenance": {
+            "claim_extraction_artifact": claim_extraction_artifact,
+            "claim_verification_artifact": claim_verification_artifact,
+            "source_note_artifact": source_note_artifact,
+            "source_refs": evidence_refs,
+        },
+    }
+
+
 def _blocked_entry(
     candidate_id: str,
     candidate: dict[str, Any] | None,
@@ -417,9 +494,21 @@ def build_graph_commit_envelope(
     for candidate, decision in ready_pairs:
         candidate_id = str(candidate.get("candidate_id", "") or "")
         source_note_artifact = str((claim_extraction.get("input", {}) or {}).get("source_note_artifact", ""))
-        if _decision_state_type(candidate, decision) in _GAP_STATE_TYPES:
+        state_type = _decision_state_type(candidate, decision)
+        if state_type in _GAP_STATE_TYPES:
             operations.append(
                 _gap_operation(
+                    candidate,
+                    decision,
+                    generated_at=resolved_generated_at,
+                    claim_extraction_artifact=claim_extraction_artifact,
+                    claim_verification_artifact=claim_verification_artifact,
+                    source_note_artifact=source_note_artifact,
+                )
+            )
+        elif state_type in _AGENDA_STATE_TYPES:
+            operations.append(
+                _agenda_operation(
                     candidate,
                     decision,
                     generated_at=resolved_generated_at,
@@ -505,5 +594,6 @@ __all__ = [
     "GRAPH_COMMIT_ENVELOPE_KIND",
     "GRAPH_COMMIT_ENVELOPE_SCHEMA_VERSION",
     "GRAPH_COMMIT_ENVELOPE_SCHEMA_VERSION_V1",
+    "GRAPH_COMMIT_ENVELOPE_SCHEMA_VERSION_V2",
     "build_graph_commit_envelope",
 ]

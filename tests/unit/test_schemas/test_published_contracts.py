@@ -85,6 +85,7 @@ from deepr.experts.memory_card import (
     EXPERT_MEMORY_CARD_SCHEMA_VERSION,
     build_expert_memory_card,
 )
+from deepr.experts.metacognition import MetaCognitionTracker
 from deepr.experts.metacognitive_monitor import (
     METACOGNITIVE_MONITOR_KIND,
     METACOGNITIVE_MONITOR_SCHEMA_VERSION,
@@ -139,7 +140,7 @@ from deepr.mcp.smoke import (
     MCPHttpSmokeStep,
     build_http_registration_manifest,
 )
-from tests.unit.graph_commit_helpers import graph_commit_envelope, graph_commit_operation
+from tests.unit.graph_commit_helpers import graph_commit_agenda_operation, graph_commit_envelope, graph_commit_operation
 
 try:
     from jsonschema import Draft202012Validator
@@ -1033,7 +1034,7 @@ def test_graph_commit_envelope_schema_validates_runtime_payload():
         domain="schemas",
         generated_at="2026-06-26T12:03:00+00:00",
     )
-    schema = _load_schema("graph-commit-envelope-v2.json")
+    schema = _load_schema("graph-commit-envelope-v3.json")
 
     _validate(schema, payload)
     assert payload["schema_version"] == GRAPH_COMMIT_ENVELOPE_SCHEMA_VERSION
@@ -1041,6 +1042,75 @@ def test_graph_commit_envelope_schema_validates_runtime_payload():
     assert payload["contract"]["writes_graph"] is False
     assert payload["summary"]["status"] == "ready_for_commit"
     assert payload["summary"]["ready_edge_count"] == 1
+
+
+def test_graph_commit_envelope_v3_schema_validates_agenda_payload():
+    notes = build_source_notes(
+        {
+            "started_at": "2026-06-26T12:00:00+00:00",
+            "source_pack": {
+                "schema_version": "deepr.source_pack.v1",
+                "sources": [
+                    {
+                        "label": "S1",
+                        "title": "Release notes",
+                        "url": "https://example.com/release",
+                        "source": "duckduckgo+builtin",
+                        "fetched": True,
+                        "excerpt": "Release text",
+                        "content_hash": "a" * 64,
+                    }
+                ],
+            },
+        }
+    )
+    note = notes["notes"][0]
+    window = note["windows"][0]
+    extraction = build_semantic_claim_extraction(
+        notes,
+        {
+            "claims": [
+                {
+                    "statement": "Explore replayable evidence for agenda quality.",
+                    "confidence": 0.84,
+                    "claim_kind": "exploration_agenda",
+                    "source_refs": [{"note_id": note["note_id"], "window_id": window["window_id"]}],
+                }
+            ]
+        },
+    )
+    verification = build_claim_verification(
+        extraction,
+        {
+            "verifications": [
+                {
+                    "candidate_id": extraction["candidates"][0]["candidate_id"],
+                    "support_verdict": "not_applicable",
+                    "contradiction_verdict": "none",
+                    "dedup_verdict": "new",
+                    "temporal_scope_verdict": "not_applicable",
+                    "origin": "Reviewed source-note evidence.",
+                    "rationale": "The expert needs an agenda item before wider perspective writes.",
+                    "uncertainty": "The useful acceptance evidence is not complete.",
+                    "expected_observations": ["Future syncs surface repeated agenda-quality failures."],
+                    "disconfirming_signals": ["No later trace depends on this agenda."],
+                    "confidence": 0.82,
+                }
+            ]
+        },
+    )
+    payload = build_graph_commit_envelope(
+        extraction,
+        verification,
+        expert_name="Schema Expert",
+        domain="schemas",
+        generated_at="2026-06-26T12:03:00+00:00",
+    )
+    schema = _load_schema("graph-commit-envelope-v3.json")
+
+    _validate(schema, payload)
+    assert payload["schema_version"] == GRAPH_COMMIT_ENVELOPE_SCHEMA_VERSION
+    assert payload["operations"][0]["operation"] == "promote_exploration_agenda"
 
 
 def test_graph_commit_apply_schema_validates_runtime_payload(tmp_path):
@@ -1056,6 +1126,23 @@ def test_graph_commit_apply_schema_validates_runtime_payload(tmp_path):
     assert payload["schema_version"] == GRAPH_COMMIT_APPLY_SCHEMA_VERSION
     assert payload["kind"] == GRAPH_COMMIT_APPLY_KIND
     assert payload["contract"]["writes_graph"] is True
+    assert payload["summary"]["status"] == "applied"
+
+
+def test_graph_commit_apply_schema_validates_agenda_result(tmp_path):
+    title = "Explore schema validation for agenda promotion."
+    envelope = graph_commit_envelope(
+        graph_commit_agenda_operation(title, "b" * 64),
+        expert_name="Schema Expert",
+    )
+    store = BeliefStore("Schema Expert", storage_dir=tmp_path / "beliefs")
+    tracker = MetaCognitionTracker("Schema Expert", base_path=str(tmp_path / "experts"))
+    payload = apply_graph_commit_envelope(envelope, store, gap_tracker=tracker, dry_run=False)
+    schema = _load_schema("graph-commit-apply-v1.json")
+
+    _validate(schema, payload)
+    assert payload["schema_version"] == GRAPH_COMMIT_APPLY_SCHEMA_VERSION
+    assert payload["operation_results"][0]["agenda_title"] == title
     assert payload["summary"]["status"] == "applied"
 
 

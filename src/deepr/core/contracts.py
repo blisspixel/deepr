@@ -27,6 +27,13 @@ def _utc_now() -> datetime:
     return datetime.now(UTC)
 
 
+def _string_list(value: Any) -> list[str]:
+    """Return trimmed string items from a JSON-like list."""
+    if not isinstance(value, list):
+        return []
+    return [str(item).strip() for item in value if str(item).strip()]
+
+
 class TrustClass(str, Enum):
     """Trust classification for sources."""
 
@@ -263,6 +270,79 @@ class Gap:
             filled=data.get("filled", False),
             filled_at=datetime.fromisoformat(data["filled_at"]) if data.get("filled_at") else None,
             filled_by_job=data.get("filled_by_job"),
+        )
+
+
+@dataclass
+class ExplorationAgenda:
+    """A verified expert exploration agenda item.
+
+    Agenda items are perspective state, not factual beliefs. They preserve the
+    reviewed research direction plus the uncertainty, expected observations,
+    and disconfirmation hooks needed for later expert learning.
+    """
+
+    id: str
+    title: str
+    questions: list[str] = field(default_factory=list)
+    origin: str = ""
+    rationale: str = ""
+    uncertainty: str = ""
+    priority: int = 3
+    estimated_cost: float = 0.0
+    expected_value: float = 0.0
+    ev_cost_ratio: float = 0.0
+    success_criteria: list[str] = field(default_factory=list)
+    expected_observations: list[str] = field(default_factory=list)
+    disconfirming_signals: list[str] = field(default_factory=list)
+    created_at: datetime = field(default_factory=_utc_now)
+    status: str = "open"
+
+    @classmethod
+    def create(cls, title: str, **kwargs: Any) -> "ExplorationAgenda":
+        """Create an agenda item with a content-hash ID."""
+        id_hash = hashlib.sha256(title.encode()).hexdigest()[:12]
+        return cls(id=id_hash, title=title, **kwargs)
+
+    def to_dict(self) -> dict[str, Any]:
+        """Convert to dictionary for serialization."""
+        return {
+            "id": self.id,
+            "title": self.title,
+            "questions": self.questions,
+            "origin": self.origin,
+            "rationale": self.rationale,
+            "uncertainty": self.uncertainty,
+            "priority": self.priority,
+            "estimated_cost": self.estimated_cost,
+            "expected_value": self.expected_value,
+            "ev_cost_ratio": self.ev_cost_ratio,
+            "success_criteria": self.success_criteria,
+            "expected_observations": self.expected_observations,
+            "disconfirming_signals": self.disconfirming_signals,
+            "created_at": self.created_at.isoformat(),
+            "status": self.status,
+        }
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> "ExplorationAgenda":
+        """Create from dictionary."""
+        return cls(
+            id=data["id"],
+            title=data["title"],
+            questions=_string_list(data.get("questions", [])),
+            origin=str(data.get("origin", "") or ""),
+            rationale=str(data.get("rationale", "") or ""),
+            uncertainty=str(data.get("uncertainty", "") or ""),
+            priority=int(data.get("priority", 3)),
+            estimated_cost=float(data.get("estimated_cost", 0.0)),
+            expected_value=float(data.get("expected_value", 0.0)),
+            ev_cost_ratio=float(data.get("ev_cost_ratio", 0.0)),
+            success_criteria=_string_list(data.get("success_criteria", [])),
+            expected_observations=_string_list(data.get("expected_observations", [])),
+            disconfirming_signals=_string_list(data.get("disconfirming_signals", [])),
+            created_at=datetime.fromisoformat(data["created_at"]) if data.get("created_at") else _utc_now(),
+            status=str(data.get("status", "open") or "open"),
         )
 
 

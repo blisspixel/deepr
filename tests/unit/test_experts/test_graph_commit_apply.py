@@ -11,7 +11,12 @@ from deepr.experts.graph_commit_apply import (
     apply_graph_commit_envelope,
 )
 from deepr.experts.metacognition import MetaCognitionTracker
-from tests.unit.graph_commit_helpers import graph_commit_envelope, graph_commit_gap_operation, graph_commit_operation
+from tests.unit.graph_commit_helpers import (
+    graph_commit_agenda_operation,
+    graph_commit_envelope,
+    graph_commit_gap_operation,
+    graph_commit_operation,
+)
 
 
 def test_apply_graph_commit_envelope_writes_and_replays_idempotently(tmp_path):
@@ -85,6 +90,41 @@ def test_apply_graph_commit_envelope_blocks_gap_without_tracker(tmp_path):
 
     assert result["summary"]["status"] == "blocked"
     assert result["operation_results"][0]["failure_reasons"] == ["gap_tracker_missing"]
+
+
+def test_apply_graph_commit_envelope_promotes_agenda_and_replays_idempotently(tmp_path):
+    title = "Map the evidence needed for perspective-state compilation."
+    envelope = graph_commit_envelope(graph_commit_agenda_operation(title, "e" * 64))
+    store = BeliefStore("Compiler Expert", storage_dir=tmp_path / "beliefs")
+    tracker = MetaCognitionTracker("Compiler Expert", base_path=str(tmp_path / "experts"))
+
+    result = apply_graph_commit_envelope(envelope, store, gap_tracker=tracker, dry_run=False)
+
+    assert result["summary"]["status"] == "applied"
+    assert result["summary"]["applied_write_count"] == 1
+    assert result["contract"]["writes_graph"] is False
+    assert result["contract"]["writes_expert_state"] is True
+    assert result["operation_results"][0]["agenda_title"] == title
+    assert result["operation_results"][0]["agenda_created"] is True
+    assert title in tracker.exploration_agendas
+
+    replay_tracker = MetaCognitionTracker("Compiler Expert", base_path=str(tmp_path / "experts"))
+    replay = apply_graph_commit_envelope(envelope, store, gap_tracker=replay_tracker, dry_run=False)
+
+    assert replay["summary"]["status"] == "already_applied"
+    assert replay["summary"]["applied_write_count"] == 0
+    assert replay["summary"]["already_applied_count"] == 1
+    assert len(replay_tracker.exploration_agendas) == 1
+
+
+def test_apply_graph_commit_envelope_blocks_agenda_without_tracker(tmp_path):
+    envelope = graph_commit_envelope(graph_commit_agenda_operation("Missing tracker agenda.", "f" * 64))
+    store = BeliefStore("Compiler Expert", storage_dir=tmp_path / "beliefs")
+
+    result = apply_graph_commit_envelope(envelope, store, dry_run=False)
+
+    assert result["summary"]["status"] == "blocked"
+    assert result["operation_results"][0]["failure_reasons"] == ["agenda_tracker_missing"]
 
 
 def test_apply_graph_commit_envelope_blocks_unready_envelope(tmp_path):
