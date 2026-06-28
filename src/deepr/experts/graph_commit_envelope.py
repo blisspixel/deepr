@@ -14,7 +14,8 @@ GRAPH_COMMIT_ENVELOPE_SCHEMA_VERSION_V1 = "deepr-graph-commit-envelope-v1"
 GRAPH_COMMIT_ENVELOPE_SCHEMA_VERSION_V2 = "deepr-graph-commit-envelope-v2"
 GRAPH_COMMIT_ENVELOPE_SCHEMA_VERSION_V3 = "deepr-graph-commit-envelope-v3"
 GRAPH_COMMIT_ENVELOPE_SCHEMA_VERSION_V4 = "deepr-graph-commit-envelope-v4"
-GRAPH_COMMIT_ENVELOPE_SCHEMA_VERSION = "deepr-graph-commit-envelope-v5"
+GRAPH_COMMIT_ENVELOPE_SCHEMA_VERSION_V5 = "deepr-graph-commit-envelope-v5"
+GRAPH_COMMIT_ENVELOPE_SCHEMA_VERSION = "deepr-graph-commit-envelope-v6"
 GRAPH_COMMIT_ENVELOPE_KIND = "deepr.expert.graph_commit_envelope"
 
 _BELIEF_STATE_TYPES = {"factual_claim", "fact", "external_fact", "current_fact"}
@@ -22,6 +23,7 @@ _GAP_STATE_TYPES = {"gap", "knowledge_gap", "research_gap"}
 _AGENDA_STATE_TYPES = {"exploration_agenda", "research_agenda"}
 _HYPOTHESIS_STATE_TYPES = {"hypothesis"}
 _CONCEPT_STATE_TYPES = {"concept"}
+_STANCE_STATE_TYPES = {"stance"}
 
 
 def _utc_now() -> datetime:
@@ -125,6 +127,10 @@ def _concept_id(name: str, description: str) -> str:
     return hashlib.sha256(f"{name}|{description}".encode()).hexdigest()[:12]
 
 
+def _stance_id(title: str, position: str) -> str:
+    return hashlib.sha256(f"{title}|{position}".encode()).hexdigest()[:12]
+
+
 def _decision_state_type(candidate: dict[str, Any], decision: dict[str, Any]) -> str:
     policy = decision.get("state_policy", candidate.get("state_policy", {})) or {}
     return str(policy.get("state_type", candidate.get("claim_kind", "")) or "")
@@ -171,11 +177,19 @@ def _commit_failures(candidate: dict[str, Any] | None, decision: dict[str, Any])
     is_agenda = state_type in _AGENDA_STATE_TYPES
     is_hypothesis = state_type in _HYPOTHESIS_STATE_TYPES
     is_concept = state_type in _CONCEPT_STATE_TYPES
-    if state_type not in _BELIEF_STATE_TYPES and not is_gap and not is_agenda and not is_hypothesis and not is_concept:
+    is_stance = state_type in _STANCE_STATE_TYPES
+    if (
+        state_type not in _BELIEF_STATE_TYPES
+        and not is_gap
+        and not is_agenda
+        and not is_hypothesis
+        and not is_concept
+        and not is_stance
+    ):
         failures.append("non_factual_state_requires_perspective_store")
 
     verdicts = decision.get("verdicts", {}) or {}
-    if is_gap or is_agenda or is_hypothesis or is_concept:
+    if is_gap or is_agenda or is_hypothesis or is_concept or is_stance:
         failures.extend(_gap_verdict_ready(verdicts))
     else:
         failures.extend(_belief_verdict_ready(verdicts))
@@ -572,6 +586,72 @@ def _concept_operation(
     }
 
 
+def _stance_payload(candidate: dict[str, Any], decision: dict[str, Any], generated_at: str) -> dict[str, Any]:
+    statement = str(candidate.get("statement", "") or "").strip()
+    raw_stance = candidate.get("stance")
+    stance = raw_stance if isinstance(raw_stance, dict) else {}
+    judgment = decision.get("model_judgment", {}) or {}
+    title = str(stance.get("title", statement) or statement).strip()
+    position = str(stance.get("position", statement) or statement).strip()
+    return {
+        "id": _stance_id(title, position),
+        "title": title,
+        "position": position,
+        "origin": str(judgment.get("origin", stance.get("origin", "")) or "").strip(),
+        "rationale": str(judgment.get("rationale", stance.get("rationale", "")) or "").strip(),
+        "uncertainty": str(judgment.get("uncertainty", stance.get("uncertainty", "")) or "").strip(),
+        "tradeoffs": _string_items(stance.get("tradeoffs")),
+        "decision_criteria": _string_items(stance.get("decision_criteria")),
+        "expected_observations": _string_items(
+            judgment.get("expected_observations", stance.get("expected_observations"))
+        ),
+        "disconfirming_signals": _string_items(
+            judgment.get("disconfirming_signals", stance.get("disconfirming_signals"))
+        ),
+        "priority": _int_range(stance.get("priority"), default=3, minimum=1, maximum=5),
+        "confidence": _confidence(candidate, decision),
+        "created_at": generated_at,
+        "status": "active",
+    }
+
+
+def _stance_operation(
+    candidate: dict[str, Any],
+    decision: dict[str, Any],
+    *,
+    generated_at: str,
+    claim_extraction_artifact: str,
+    claim_verification_artifact: str,
+    source_note_artifact: str,
+) -> dict[str, Any]:
+    evidence_refs = _valid_evidence_refs(candidate)
+    candidate_id = str(candidate.get("candidate_id", "") or "")
+    stance = _stance_payload(candidate, decision, generated_at)
+    idempotency_material = {
+        "schema_version": GRAPH_COMMIT_ENVELOPE_SCHEMA_VERSION,
+        "operation": "promote_stance",
+        "candidate_id": candidate_id,
+        "stance_id": stance["id"],
+        "stance_title": stance["title"],
+        "verdicts": decision.get("verdicts", {}),
+        "evidence_refs": evidence_refs,
+    }
+    return {
+        "operation_id": f"op_{_sha256_json(idempotency_material)[:16]}",
+        "operation": "promote_stance",
+        "candidate_id": candidate_id,
+        "decision_status": str((decision.get("commit_gate", {}) or {}).get("status", "")),
+        "stance": stance,
+        "idempotency_key": _sha256_json(idempotency_material),
+        "provenance": {
+            "claim_extraction_artifact": claim_extraction_artifact,
+            "claim_verification_artifact": claim_verification_artifact,
+            "source_note_artifact": source_note_artifact,
+            "source_refs": evidence_refs,
+        },
+    }
+
+
 def _state_operation(
     candidate: dict[str, Any],
     decision: dict[str, Any],
@@ -600,6 +680,8 @@ def _state_operation(
         return _hypothesis_operation(candidate, decision, **common)
     if state_type in _CONCEPT_STATE_TYPES:
         return _concept_operation(candidate, decision, **common)
+    if state_type in _STANCE_STATE_TYPES:
+        return _stance_operation(candidate, decision, **common)
     return _write_operation(
         candidate,
         decision,
@@ -759,5 +841,6 @@ __all__ = [
     "GRAPH_COMMIT_ENVELOPE_SCHEMA_VERSION_V2",
     "GRAPH_COMMIT_ENVELOPE_SCHEMA_VERSION_V3",
     "GRAPH_COMMIT_ENVELOPE_SCHEMA_VERSION_V4",
+    "GRAPH_COMMIT_ENVELOPE_SCHEMA_VERSION_V5",
     "build_graph_commit_envelope",
 ]

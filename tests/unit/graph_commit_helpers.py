@@ -164,6 +164,39 @@ def graph_commit_concept_operation(
     }
 
 
+def graph_commit_stance_operation(
+    title: str,
+    idempotency_key: str,
+    *,
+    stance_id: str = "stance_test",
+    candidate_id: str = "candidate_stance",
+) -> dict:
+    return {
+        "operation_id": f"op_{stance_id}",
+        "operation": "promote_stance",
+        "candidate_id": candidate_id,
+        "decision_status": "ready_for_commit",
+        "stance": {
+            "id": stance_id,
+            "title": title,
+            "position": "Expert council plans should expose statistical variables before synthesis.",
+            "origin": "A verifier-approved source note raised the interpretive position.",
+            "rationale": "The expert needs a durable stance before applying it across future plans.",
+            "uncertainty": "The stance has not been calibrated across project types yet.",
+            "tradeoffs": ["Higher reviewability can add planning overhead."],
+            "decision_criteria": ["Prefer plans with explicit variables and measured outcomes."],
+            "expected_observations": ["Future plans expose variables before synthesis."],
+            "disconfirming_signals": ["Variable-first plans do not improve review quality."],
+            "priority": 4,
+            "confidence": 0.68,
+            "created_at": "2026-06-26T12:00:00+00:00",
+            "status": "active",
+        },
+        "idempotency_key": idempotency_key,
+        "provenance": {"source_refs": [{"note_id": "note_stance", "window_id": "note_stance:w0"}]},
+    }
+
+
 def graph_commit_envelope(
     *operations: dict,
     expert_name: str = "Compiler Expert",

@@ -146,6 +146,7 @@ from tests.unit.graph_commit_helpers import (
     graph_commit_envelope,
     graph_commit_hypothesis_operation,
     graph_commit_operation,
+    graph_commit_stance_operation,
 )
 
 try:
@@ -1040,7 +1041,7 @@ def test_graph_commit_envelope_schema_validates_runtime_payload():
         domain="schemas",
         generated_at="2026-06-26T12:03:00+00:00",
     )
-    schema = _load_schema("graph-commit-envelope-v5.json")
+    schema = _load_schema("graph-commit-envelope-v6.json")
 
     _validate(schema, payload)
     assert payload["schema_version"] == GRAPH_COMMIT_ENVELOPE_SCHEMA_VERSION
@@ -1050,7 +1051,7 @@ def test_graph_commit_envelope_schema_validates_runtime_payload():
     assert payload["summary"]["ready_edge_count"] == 1
 
 
-def test_graph_commit_envelope_v5_schema_validates_agenda_payload():
+def test_graph_commit_envelope_v6_schema_validates_agenda_payload():
     notes = build_source_notes(
         {
             "started_at": "2026-06-26T12:00:00+00:00",
@@ -1112,14 +1113,14 @@ def test_graph_commit_envelope_v5_schema_validates_agenda_payload():
         domain="schemas",
         generated_at="2026-06-26T12:03:00+00:00",
     )
-    schema = _load_schema("graph-commit-envelope-v5.json")
+    schema = _load_schema("graph-commit-envelope-v6.json")
 
     _validate(schema, payload)
     assert payload["schema_version"] == GRAPH_COMMIT_ENVELOPE_SCHEMA_VERSION
     assert payload["operations"][0]["operation"] == "promote_exploration_agenda"
 
 
-def test_graph_commit_envelope_v5_schema_validates_hypothesis_payload():
+def test_graph_commit_envelope_v6_schema_validates_hypothesis_payload():
     notes = build_source_notes(
         {
             "started_at": "2026-06-26T12:00:00+00:00",
@@ -1181,14 +1182,14 @@ def test_graph_commit_envelope_v5_schema_validates_hypothesis_payload():
         domain="schemas",
         generated_at="2026-06-26T12:03:00+00:00",
     )
-    schema = _load_schema("graph-commit-envelope-v5.json")
+    schema = _load_schema("graph-commit-envelope-v6.json")
 
     _validate(schema, payload)
     assert payload["schema_version"] == GRAPH_COMMIT_ENVELOPE_SCHEMA_VERSION
     assert payload["operations"][0]["operation"] == "promote_hypothesis"
 
 
-def test_graph_commit_envelope_v5_schema_validates_concept_payload():
+def test_graph_commit_envelope_v6_schema_validates_concept_payload():
     notes = build_source_notes(
         {
             "started_at": "2026-06-26T12:00:00+00:00",
@@ -1251,11 +1252,81 @@ def test_graph_commit_envelope_v5_schema_validates_concept_payload():
         domain="schemas",
         generated_at="2026-06-26T12:03:00+00:00",
     )
-    schema = _load_schema("graph-commit-envelope-v5.json")
+    schema = _load_schema("graph-commit-envelope-v6.json")
 
     _validate(schema, payload)
     assert payload["schema_version"] == GRAPH_COMMIT_ENVELOPE_SCHEMA_VERSION
     assert payload["operations"][0]["operation"] == "promote_concept"
+
+
+def test_graph_commit_envelope_v6_schema_validates_stance_payload():
+    notes = build_source_notes(
+        {
+            "started_at": "2026-06-26T12:00:00+00:00",
+            "source_pack": {
+                "schema_version": "deepr.source_pack.v1",
+                "sources": [
+                    {
+                        "label": "S1",
+                        "title": "Release notes",
+                        "url": "https://example.com/release",
+                        "source": "duckduckgo+builtin",
+                        "fetched": True,
+                        "excerpt": "Release text",
+                        "content_hash": "a" * 64,
+                    }
+                ],
+            },
+        }
+    )
+    note = notes["notes"][0]
+    window = note["windows"][0]
+    extraction = build_semantic_claim_extraction(
+        notes,
+        {
+            "claims": [
+                {
+                    "statement": "Expert council plans should expose statistical variables before synthesis.",
+                    "title": "Prefer variable-first expert council plans",
+                    "confidence": 0.7,
+                    "claim_kind": "stance",
+                    "source_refs": [{"note_id": note["note_id"], "window_id": window["window_id"]}],
+                }
+            ]
+        },
+    )
+    verification = build_claim_verification(
+        extraction,
+        {
+            "verifications": [
+                {
+                    "candidate_id": extraction["candidates"][0]["candidate_id"],
+                    "support_verdict": "not_applicable",
+                    "contradiction_verdict": "none",
+                    "dedup_verdict": "new",
+                    "temporal_scope_verdict": "not_applicable",
+                    "origin": "Reviewed source-note evidence.",
+                    "rationale": "The stance should remain perspective state until calibrated.",
+                    "uncertainty": "The stance has not been calibrated across project types.",
+                    "expected_observations": ["Future plans expose variables before synthesis."],
+                    "disconfirming_signals": ["Variable-first plans do not improve review quality."],
+                    "confidence": 0.68,
+                }
+            ]
+        },
+    )
+    payload = build_graph_commit_envelope(
+        extraction,
+        verification,
+        expert_name="Schema Expert",
+        domain="schemas",
+        generated_at="2026-06-26T12:03:00+00:00",
+    )
+    schema = _load_schema("graph-commit-envelope-v6.json")
+
+    _validate(schema, payload)
+    assert payload["schema_version"] == GRAPH_COMMIT_ENVELOPE_SCHEMA_VERSION
+    assert payload["operations"][0]["operation"] == "promote_stance"
 
 
 def test_graph_commit_apply_schema_validates_runtime_payload(tmp_path):
@@ -1322,6 +1393,23 @@ def test_graph_commit_apply_schema_validates_concept_result(tmp_path):
     _validate(schema, payload)
     assert payload["schema_version"] == GRAPH_COMMIT_APPLY_SCHEMA_VERSION
     assert payload["operation_results"][0]["concept_name"] == name
+    assert payload["summary"]["status"] == "applied"
+
+
+def test_graph_commit_apply_schema_validates_stance_result(tmp_path):
+    title = "Prefer variable-first expert council plans"
+    envelope = graph_commit_envelope(
+        graph_commit_stance_operation(title, "e" * 64),
+        expert_name="Schema Expert",
+    )
+    store = BeliefStore("Schema Expert", storage_dir=tmp_path / "beliefs")
+    tracker = MetaCognitionTracker("Schema Expert", base_path=str(tmp_path / "experts"))
+    payload = apply_graph_commit_envelope(envelope, store, gap_tracker=tracker, dry_run=False)
+    schema = _load_schema("graph-commit-apply-v1.json")
+
+    _validate(schema, payload)
+    assert payload["schema_version"] == GRAPH_COMMIT_APPLY_SCHEMA_VERSION
+    assert payload["operation_results"][0]["stance_title"] == title
     assert payload["summary"]["status"] == "applied"
 
 

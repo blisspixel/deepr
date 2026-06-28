@@ -9,7 +9,7 @@ from datetime import UTC, datetime, timedelta
 
 import pytest
 
-from deepr.core.contracts import ExpertConcept, ExplorationAgenda, ExpertHypothesis
+from deepr.core.contracts import ExpertConcept, ExpertStance, ExplorationAgenda, ExpertHypothesis
 from deepr.experts.metacognition import DomainConfidence, KnowledgeGap, MetaCognitionTracker
 
 
@@ -244,6 +244,40 @@ class TestMetaCognitionTracker:
         assert temp_tracker.get_concepts()[0].name == concept.name
         assert temp_tracker.uncertainty_log[-1]["action"] == "promoted_concept_candidate"
 
+    def test_promote_stance_candidate(self, temp_tracker):
+        """Test promoting a reviewed expert stance."""
+        stance = ExpertStance.create(
+            "Prefer variable-first expert council plans",
+            position="Expert council plans should expose statistical variables before synthesis.",
+            origin="Reviewed compiler output.",
+            rationale="The expert needs a durable stance without treating it as fact.",
+            uncertainty="The stance has not been calibrated across project types yet.",
+            tradeoffs=["Higher reviewability can add planning overhead."],
+            decision_criteria=["Prefer plans with explicit variables and measured outcomes."],
+            expected_observations=["Future plans expose variables before synthesis."],
+            disconfirming_signals=["Variable-first plans do not improve review quality."],
+        )
+
+        promoted, created = temp_tracker.promote_stance_candidate(
+            stance,
+            proposal_id="stance-1",
+            evidence_refs=["source_note:note:w0"],
+            source="test",
+        )
+        replayed, replay_created = temp_tracker.promote_stance_candidate(
+            stance,
+            proposal_id="stance-1",
+            evidence_refs=["source_note:note:w0"],
+            source="test",
+        )
+
+        assert created is True
+        assert replay_created is False
+        assert promoted.title == stance.title
+        assert replayed.title == stance.title
+        assert temp_tracker.get_stances()[0].title == stance.title
+        assert temp_tracker.uncertainty_log[-1]["action"] == "promoted_stance_candidate"
+
     def test_get_knowledge_gaps_default(self, temp_tracker):
         """Test get_knowledge_gaps with default threshold."""
         temp_tracker.record_knowledge_gap("Topic 1")
@@ -456,6 +490,32 @@ class TestMetaCognitionTrackerPersistence:
 
             assert "Statistical variable map" in tracker2.concepts
             assert len(tracker2.get_concepts()) == 1
+
+    def test_save_and_load_stances(self):
+        """Test saving and loading expert stances."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            tracker1 = MetaCognitionTracker("Test Expert", tmpdir)
+            tracker1.promote_stance_candidate(
+                ExpertStance.create(
+                    "Prefer variable-first expert council plans",
+                    position="Expert council plans should expose statistical variables before synthesis.",
+                    origin="Reviewed compiler output.",
+                    rationale="Stance state should be durable before reuse.",
+                    uncertainty="The stance has not been calibrated across project types yet.",
+                    tradeoffs=["Planning overhead can increase."],
+                    decision_criteria=["Use the stance when acceptance criteria must be scored."],
+                    expected_observations=["Future plans expose variables before synthesis."],
+                    disconfirming_signals=["Review quality drops when it is used."],
+                ),
+                proposal_id="stance-1",
+                evidence_refs=[],
+                source="test",
+            )
+
+            tracker2 = MetaCognitionTracker("Test Expert", tmpdir)
+
+            assert "Prefer variable-first expert council plans" in tracker2.stances
+            assert len(tracker2.get_stances()) == 1
 
     def test_save_and_load_research_triggered(self):
         """Test saving and loading research triggered state."""

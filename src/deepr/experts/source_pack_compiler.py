@@ -9,48 +9,21 @@ from datetime import UTC, datetime
 from typing import Any
 
 from deepr.experts.beliefs import EDGE_TYPES
-from deepr.experts.source_pack_policies import (
-    claim_kind_policy as _claim_kind_policy,
-)
-from deepr.experts.source_pack_policies import (
-    is_agenda_kind as _is_agenda_kind,
-)
-from deepr.experts.source_pack_policies import (
-    is_concept_kind as _is_concept_kind,
-)
-from deepr.experts.source_pack_policies import (
-    is_gap_kind as _is_gap_kind,
-)
-from deepr.experts.source_pack_policies import (
-    is_hypothesis_kind as _is_hypothesis_kind,
-)
-from deepr.experts.source_pack_values import (
-    enum_value as _enum_value,
-)
-from deepr.experts.source_pack_values import (
-    float_0_1 as _float_0_1,
-)
-from deepr.experts.source_pack_values import (
-    float_nonnegative as _float_nonnegative,
-)
-from deepr.experts.source_pack_values import (
-    int_or_zero as _int_or_zero,
-)
-from deepr.experts.source_pack_values import (
-    int_range as _int_range,
-)
-from deepr.experts.source_pack_values import (
-    normalized_key as _normalized_key,
-)
-from deepr.experts.source_pack_values import (
-    string_field as _string_field,
-)
-from deepr.experts.source_pack_values import (
-    string_list as _string_list,
-)
-from deepr.experts.source_pack_values import (
-    string_list_field as _string_list_field,
-)
+from deepr.experts.source_pack_policies import claim_kind_policy as _claim_kind_policy
+from deepr.experts.source_pack_policies import is_agenda_kind as _is_agenda_kind
+from deepr.experts.source_pack_policies import is_concept_kind as _is_concept_kind
+from deepr.experts.source_pack_policies import is_gap_kind as _is_gap_kind
+from deepr.experts.source_pack_policies import is_hypothesis_kind as _is_hypothesis_kind
+from deepr.experts.source_pack_policies import is_stance_kind as _is_stance_kind
+from deepr.experts.source_pack_values import enum_value as _enum_value
+from deepr.experts.source_pack_values import float_0_1 as _float_0_1
+from deepr.experts.source_pack_values import float_nonnegative as _float_nonnegative
+from deepr.experts.source_pack_values import int_or_zero as _int_or_zero
+from deepr.experts.source_pack_values import int_range as _int_range
+from deepr.experts.source_pack_values import normalized_key as _normalized_key
+from deepr.experts.source_pack_values import string_field as _string_field
+from deepr.experts.source_pack_values import string_list as _string_list
+from deepr.experts.source_pack_values import string_list_field as _string_list_field
 
 SOURCE_PACK_MANIFEST_SCHEMA_VERSION = "deepr-source-pack-manifest-v1"
 SOURCE_PACK_MANIFEST_KIND = "deepr.expert.source_pack_manifest"
@@ -360,6 +333,18 @@ def _concept_candidate(item: dict[str, Any], statement: str) -> dict[str, Any]:
     }
 
 
+def _stance_candidate(item: dict[str, Any], statement: str) -> dict[str, Any]:
+    title = str(item.get("title", statement) or statement).strip()
+    position = str(item.get("position", statement) or statement).strip()
+    return {
+        "title": title or statement,
+        "position": position or statement,
+        "tradeoffs": _string_list_field(item, "tradeoffs"),
+        "decision_criteria": _string_list_field(item, "decision_criteria"),
+        "priority": _int_range(item.get("priority"), default=3, minimum=1, maximum=5),
+    }
+
+
 def _response_from_model_output(model_output: dict[str, Any] | str) -> tuple[dict[str, Any], str, str]:
     if isinstance(model_output, str):
         raw = model_output
@@ -437,6 +422,8 @@ def _claim_candidate(
         candidate["hypothesis"] = _hypothesis_candidate(item, statement)
     if _is_concept_kind(claim_kind):
         candidate["concept"] = _concept_candidate(item, statement)
+    if _is_stance_kind(claim_kind):
+        candidate["stance"] = _stance_candidate(item, statement)
     return candidate
 
 

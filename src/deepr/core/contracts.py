@@ -417,6 +417,77 @@ class ExpertConcept:
 
 
 @dataclass
+class ExpertStance:
+    """A verified but non-factual expert position.
+
+    Stances preserve interpretive judgment, taste, and tradeoff posture as
+    perspective state. They can guide future decisions without becoming
+    externally verified factual claims.
+    """
+
+    id: str
+    title: str
+    position: str
+    origin: str = ""
+    rationale: str = ""
+    uncertainty: str = ""
+    tradeoffs: list[str] = field(default_factory=list)
+    decision_criteria: list[str] = field(default_factory=list)
+    expected_observations: list[str] = field(default_factory=list)
+    disconfirming_signals: list[str] = field(default_factory=list)
+    priority: int = 3
+    confidence: float = 0.0
+    created_at: datetime = field(default_factory=_utc_now)
+    status: str = "active"
+
+    @classmethod
+    def create(cls, title: str, **kwargs: Any) -> "ExpertStance":
+        """Create a stance with a content-hash ID."""
+        position = str(kwargs.pop("position", "") or title)
+        id_hash = hashlib.sha256(f"{title}|{position}".encode()).hexdigest()[:12]
+        return cls(id=id_hash, title=title, position=position, **kwargs)
+
+    def to_dict(self) -> dict[str, Any]:
+        """Convert to dictionary for serialization."""
+        return {
+            "id": self.id,
+            "title": self.title,
+            "position": self.position,
+            "origin": self.origin,
+            "rationale": self.rationale,
+            "uncertainty": self.uncertainty,
+            "tradeoffs": self.tradeoffs,
+            "decision_criteria": self.decision_criteria,
+            "expected_observations": self.expected_observations,
+            "disconfirming_signals": self.disconfirming_signals,
+            "priority": self.priority,
+            "confidence": self.confidence,
+            "created_at": self.created_at.isoformat(),
+            "status": self.status,
+        }
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> "ExpertStance":
+        """Create from dictionary."""
+        return cls(
+            id=data["id"],
+            title=data["title"],
+            position=data["position"],
+            origin=str(data.get("origin", "") or ""),
+            rationale=str(data.get("rationale", "") or ""),
+            uncertainty=str(data.get("uncertainty", "") or ""),
+            tradeoffs=_string_list(data.get("tradeoffs", [])),
+            decision_criteria=_string_list(data.get("decision_criteria", [])),
+            expected_observations=_string_list(data.get("expected_observations", [])),
+            disconfirming_signals=_string_list(data.get("disconfirming_signals", [])),
+            priority=int(data.get("priority", 3)),
+            confidence=float(data.get("confidence", 0.0)),
+            created_at=datetime.fromisoformat(data["created_at"]) if data.get("created_at") else _utc_now(),
+            status=str(data.get("status", "active") or "active"),
+        )
+
+
+@dataclass
 class ExpertHypothesis:
     """A verified but not factual expert hypothesis.
 

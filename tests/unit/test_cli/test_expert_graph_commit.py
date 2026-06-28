@@ -17,6 +17,7 @@ from tests.unit.graph_commit_helpers import (
     graph_commit_gap_operation,
     graph_commit_hypothesis_operation,
     graph_commit_operation,
+    graph_commit_stance_operation,
 )
 
 
@@ -174,3 +175,23 @@ def test_apply_graph_commit_json_apply_promotes_concept_with_yes(tmp_path):
     assert payload["summary"]["applied_write_count"] == 1
     assert payload["contract"]["writes_expert_state"] is True
     assert name in MetaCognitionTracker(profile.name).concepts
+
+
+def test_apply_graph_commit_json_apply_promotes_stance_with_yes(tmp_path):
+    profile = _save_profile()
+    title = "Prefer variable-first expert council plans"
+    envelope = graph_commit_envelope(graph_commit_stance_operation(title, "5" * 64), expert_name=profile.name)
+    envelope_path = tmp_path / "envelope.json"
+    _write_envelope(envelope_path, envelope)
+
+    result = CliRunner().invoke(
+        cli,
+        ["expert", "apply-graph-commit", profile.name, str(envelope_path), "--yes", "--json"],
+    )
+
+    assert result.exit_code == 0, result.output
+    payload = json.loads(result.output)
+    assert payload["summary"]["status"] == "applied"
+    assert payload["summary"]["applied_write_count"] == 1
+    assert payload["contract"]["writes_expert_state"] is True
+    assert title in MetaCognitionTracker(profile.name).stances

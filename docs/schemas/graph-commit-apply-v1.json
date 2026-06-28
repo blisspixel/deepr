@@ -124,7 +124,10 @@
           "hypothesis_created": {"type": "boolean"},
           "concept_id": {"type": "string"},
           "concept_name": {"type": "string"},
-          "concept_created": {"type": "boolean"}
+          "concept_created": {"type": "boolean"},
+          "stance_id": {"type": "string"},
+          "stance_title": {"type": "string"},
+          "stance_created": {"type": "boolean"}
         }
       }
     },
