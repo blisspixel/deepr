@@ -1123,6 +1123,121 @@ def test_concept_verification_requires_expected_observations():
     assert verification["decisions"][0]["readiness"]["failure_reasons"] == ["missing_expected_observations"]
 
 
+def test_graph_commit_envelope_promotes_verified_stance(tmp_path):
+    notes = build_source_notes(_source_pack_payload())
+    note = notes["notes"][0]
+    window = note["windows"][0]
+    title = "Prefer variable-first expert council plans"
+    extraction = build_semantic_claim_extraction(
+        notes,
+        {
+            "claims": [
+                {
+                    "statement": "Expert council plans should expose statistical variables before synthesis.",
+                    "title": title,
+                    "claim_kind": "stance",
+                    "confidence": 0.7,
+                    "priority": 4,
+                    "tradeoffs": ["Higher reviewability can add planning overhead."],
+                    "decision_criteria": ["Prefer plans with explicit variables and measured outcomes."],
+                    "source_refs": [{"note_id": note["note_id"], "window_id": window["window_id"]}],
+                }
+            ]
+        },
+        source_note_artifact="sync_artifacts/source_notes/pack.json",
+    )
+    candidate = extraction["candidates"][0]
+    verification = build_claim_verification(
+        extraction,
+        {
+            "verifications": [
+                {
+                    "candidate_id": candidate["candidate_id"],
+                    "support_verdict": "not_applicable",
+                    "contradiction_verdict": "none",
+                    "dedup_verdict": "new",
+                    "temporal_scope_verdict": "not_applicable",
+                    "origin": "The source note exposed a reusable expert position.",
+                    "rationale": "The expert should retain the stance without promoting it as fact.",
+                    "uncertainty": "The stance has not been calibrated across project types.",
+                    "expected_observations": ["Future plans expose variables before synthesis."],
+                    "disconfirming_signals": ["Variable-first plans do not improve review quality."],
+                    "confidence": 0.68,
+                }
+            ]
+        },
+    )
+
+    envelope = build_graph_commit_envelope(
+        extraction,
+        verification,
+        claim_extraction_artifact="sync_artifacts/claim_extractions/pack.json",
+        claim_verification_artifact="sync_artifacts/claim_verifications/pack.json",
+        expert_name="Compiler Expert",
+        domain="compiler",
+        generated_at="2026-06-26T12:03:00+00:00",
+    )
+    tracker = MetaCognitionTracker("Compiler Expert", base_path=str(tmp_path / "experts"))
+    result = apply_graph_commit_envelope(
+        envelope,
+        BeliefStore("Compiler Expert", storage_dir=tmp_path / "beliefs"),
+        gap_tracker=tracker,
+        dry_run=False,
+    )
+
+    assert candidate["state_policy"]["state_type"] == "stance"
+    assert candidate["state_policy"]["writes_stance"] is True
+    assert verification["summary"]["status"] == "ready_for_commit_envelope"
+    assert envelope["summary"]["status"] == "ready_for_commit"
+    operation = envelope["operations"][0]
+    assert operation["operation"] == "promote_stance"
+    assert operation["stance"]["title"] == title
+    assert operation["stance"]["tradeoffs"] == ["Higher reviewability can add planning overhead."]
+    assert result["summary"]["status"] == "applied"
+    assert title in tracker.stances
+
+
+def test_stance_verification_requires_expected_observations():
+    notes = build_source_notes(_source_pack_payload())
+    note = notes["notes"][0]
+    window = note["windows"][0]
+    extraction = build_semantic_claim_extraction(
+        notes,
+        {
+            "claims": [
+                {
+                    "statement": "Expert council plans should expose variables before synthesis.",
+                    "claim_kind": "stance",
+                    "confidence": 0.7,
+                    "source_refs": [{"note_id": note["note_id"], "window_id": window["window_id"]}],
+                }
+            ]
+        },
+    )
+    verification = build_claim_verification(
+        extraction,
+        {
+            "verifications": [
+                {
+                    "candidate_id": extraction["candidates"][0]["candidate_id"],
+                    "support_verdict": "not_applicable",
+                    "contradiction_verdict": "none",
+                    "dedup_verdict": "new",
+                    "temporal_scope_verdict": "not_applicable",
+                    "origin": "Reviewed source-note evidence.",
+                    "rationale": "The stance should stay testable rather than factual.",
+                    "uncertainty": "The expected effect is unknown.",
+                    "disconfirming_signals": ["Review quality is unchanged."],
+                    "confidence": 0.68,
+                }
+            ]
+        },
+    )
+
+    assert verification["summary"]["status"] == "blocked"
+    assert verification["decisions"][0]["readiness"]["failure_reasons"] == ["missing_expected_observations"]
+
+
 def test_graph_commit_envelope_blocks_uncertain_deduplication():
     notes = build_source_notes(_source_pack_payload())
     note = notes["notes"][0]

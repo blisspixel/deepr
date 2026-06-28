@@ -18,6 +18,7 @@ from tests.unit.graph_commit_helpers import (
     graph_commit_gap_operation,
     graph_commit_hypothesis_operation,
     graph_commit_operation,
+    graph_commit_stance_operation,
 )
 
 
@@ -197,6 +198,41 @@ def test_apply_graph_commit_envelope_blocks_concept_without_tracker(tmp_path):
 
     assert result["summary"]["status"] == "blocked"
     assert result["operation_results"][0]["failure_reasons"] == ["concept_tracker_missing"]
+
+
+def test_apply_graph_commit_envelope_promotes_stance_and_replays_idempotently(tmp_path):
+    title = "Prefer variable-first expert council plans"
+    envelope = graph_commit_envelope(graph_commit_stance_operation(title, "5" * 64))
+    store = BeliefStore("Compiler Expert", storage_dir=tmp_path / "beliefs")
+    tracker = MetaCognitionTracker("Compiler Expert", base_path=str(tmp_path / "experts"))
+
+    result = apply_graph_commit_envelope(envelope, store, gap_tracker=tracker, dry_run=False)
+
+    assert result["summary"]["status"] == "applied"
+    assert result["summary"]["applied_write_count"] == 1
+    assert result["contract"]["writes_graph"] is False
+    assert result["contract"]["writes_expert_state"] is True
+    assert result["operation_results"][0]["stance_title"] == title
+    assert result["operation_results"][0]["stance_created"] is True
+    assert title in tracker.stances
+
+    replay_tracker = MetaCognitionTracker("Compiler Expert", base_path=str(tmp_path / "experts"))
+    replay = apply_graph_commit_envelope(envelope, store, gap_tracker=replay_tracker, dry_run=False)
+
+    assert replay["summary"]["status"] == "already_applied"
+    assert replay["summary"]["applied_write_count"] == 0
+    assert replay["summary"]["already_applied_count"] == 1
+    assert len(replay_tracker.stances) == 1
+
+
+def test_apply_graph_commit_envelope_blocks_stance_without_tracker(tmp_path):
+    envelope = graph_commit_envelope(graph_commit_stance_operation("Missing tracker stance.", "6" * 64))
+    store = BeliefStore("Compiler Expert", storage_dir=tmp_path / "beliefs")
+
+    result = apply_graph_commit_envelope(envelope, store, dry_run=False)
+
+    assert result["summary"]["status"] == "blocked"
+    assert result["operation_results"][0]["failure_reasons"] == ["stance_tracker_missing"]
 
 
 def test_apply_graph_commit_envelope_blocks_unready_envelope(tmp_path):
