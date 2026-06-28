@@ -25,11 +25,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 </details>
 
 ### Added
+- Added `deepr expert apply-graph-commit`, the explicit write boundary for
+  verified graph commit envelopes. It supports dry-run JSON previews,
+  noninteractive `--yes` gating, per-expert locking, idempotent replay, typed
+  edge writes, contradiction mirror updates, and the published
+  `deepr-graph-commit-apply-v1` result schema without model calls or spend.
 - Added `deepr-graph-commit-envelope-v1`, the deterministic no-write boundary
   after claim verification. It turns verified factual decisions into
   idempotent add-belief operations, blocks hypotheses and other perspective
-  states until dedicated stores exist, and requires a future explicit apply
-  command before graph mutation.
+  states until dedicated stores exist, and requires the explicit graph commit
+  apply command before graph mutation.
 - Added `deepr mcp validate-consult`, a no-metered external-agent consult
   validation harness. It can run as a `$0` offline fixture, an in-process live
   local or explicit plan-capacity check, or an HTTP MCP endpoint check. Reports
@@ -60,10 +65,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Added `deepr-claim-verification-v1`, the verifier-decision compiler envelope
   after semantic claim extraction. It records support, contradiction,
   deduplication, temporal-scope, and type-specific policy decisions while
-  keeping graph writes disabled until a later commit envelope. Factual claims
-  require support; hypotheses, stances, concepts, proposals, and original ideas
-  require origin, rationale, uncertainty, and disconfirming signals instead of
-  an online-source veto.
+  keeping graph writes disabled until a graph commit envelope is explicitly
+  applied. Factual claims require support; hypotheses, stances, concepts,
+  proposals, and original ideas require origin, rationale, uncertainty, and
+  disconfirming signals instead of an online-source veto.
 - Added the `deepr-expert-collaboration-v1` council contract to CLI and MCP
   consult artifacts. Host agents now receive a machine-readable collaboration
   packet with the expert roster, per-expert role, shared consult trace id,
@@ -91,7 +96,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   metadata, provider/model/capacity refs, raw response hashes, source-note and
   source-window refs, normalized candidate IDs, model-reported confidence and
   claim metadata, and verifier-pending gates while explicitly keeping graph
-  writes disabled until a later commit envelope.
+  writes disabled until verification, a commit envelope, and explicit apply.
 - Added `deepr-source-note-v1`, the second deterministic compiler stage after
   source-pack manifests. Sync now writes source-note cards with stable IDs,
   note hashes, provenance refs, source-window pointers, and fail-closed

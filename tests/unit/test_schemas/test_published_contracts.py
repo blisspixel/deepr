@@ -46,6 +46,7 @@ from deepr.cli.output import (
     OperationResult,
 )
 from deepr.core.contracts import Claim, ExpertManifest, Gap
+from deepr.experts.beliefs import BeliefStore
 from deepr.experts.consult_quality import (
     CONSULT_QUALITY_REVIEW_KIND,
     CONSULT_QUALITY_REVIEW_SCHEMA_VERSION,
@@ -60,6 +61,11 @@ from deepr.experts.consult_traces import (
     CONSULT_TRACE_SCHEMA_VERSION,
     build_consult_trace,
     build_consult_trace_candidates,
+)
+from deepr.experts.graph_commit_apply import (
+    GRAPH_COMMIT_APPLY_KIND,
+    GRAPH_COMMIT_APPLY_SCHEMA_VERSION,
+    apply_graph_commit_envelope,
 )
 from deepr.experts.graph_commit_envelope import (
     GRAPH_COMMIT_ENVELOPE_KIND,
@@ -128,6 +134,7 @@ from deepr.mcp.smoke import (
     MCPHttpSmokeStep,
     build_http_registration_manifest,
 )
+from tests.unit.graph_commit_helpers import graph_commit_envelope, graph_commit_operation
 
 try:
     from jsonschema import Draft202012Validator
@@ -963,6 +970,22 @@ def test_graph_commit_envelope_schema_validates_runtime_payload():
     assert payload["kind"] == GRAPH_COMMIT_ENVELOPE_KIND
     assert payload["contract"]["writes_graph"] is False
     assert payload["summary"]["status"] == "ready_for_commit"
+
+
+def test_graph_commit_apply_schema_validates_runtime_payload(tmp_path):
+    envelope = graph_commit_envelope(
+        graph_commit_operation("b1", "Release text changed the compiler behavior.", "a" * 64),
+        expert_name="Schema Expert",
+    )
+    store = BeliefStore("Schema Expert", storage_dir=tmp_path / "beliefs")
+    payload = apply_graph_commit_envelope(envelope, store, dry_run=False)
+    schema = _load_schema("graph-commit-apply-v1.json")
+
+    _validate(schema, payload)
+    assert payload["schema_version"] == GRAPH_COMMIT_APPLY_SCHEMA_VERSION
+    assert payload["kind"] == GRAPH_COMMIT_APPLY_KIND
+    assert payload["contract"]["writes_graph"] is True
+    assert payload["summary"]["status"] == "applied"
 
 
 def test_capacity_next_schema_validates_runtime_payload():

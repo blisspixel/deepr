@@ -152,10 +152,13 @@ must not be described as usable capacity.
   Apps template, AWS ECS Fargate template, GCP Cloud Run template, and
   Cloudflare Worker edge ingress recipe.
 - Research-processing compiler artifacts through source-pack manifests, source
-  notes, semantic claim extraction, and claim verification are experimental but
-  schema-versioned. `--compile-claims` can write verifier-pending claim
-  extraction sidecars; claim-verification envelopes record verifier decisions.
-  Neither stage writes the expert graph until a future commit envelope exists.
+  notes, semantic claim extraction, claim verification, graph commit envelopes,
+  and graph commit apply results are experimental but schema-versioned.
+  `--compile-claims` can write verifier-pending claim extraction sidecars;
+  claim-verification envelopes record verifier decisions; graph commit
+  envelopes plan idempotent writes without mutating state. `deepr expert
+  apply-graph-commit NAME ENVELOPE --yes` is the explicit write boundary for
+  verified factual add-belief and typed-edge operations.
 
 ## Visible Or Planned Only
 

@@ -40,6 +40,7 @@ All v1 schemas are additive within the same schema version:
 | `deepr-semantic-claim-extraction-v1` | [semantic-claim-extraction-v1.json](semantic-claim-extraction-v1.json) | Verifier-gated semantic claim candidates from source notes with prompt/schema version capture and no graph writes |
 | `deepr-claim-verification-v1` | [claim-verification-v1.json](claim-verification-v1.json) | Verifier decisions for support, contradiction, deduplication, temporal scope, and type-specific policy gates |
 | `deepr-graph-commit-envelope-v1` | [graph-commit-envelope-v1.json](graph-commit-envelope-v1.json) | Deterministic commit boundary for verified factual compiler decisions with idempotent write operations and explicit apply gating |
+| `deepr-graph-commit-apply-v1` | [graph-commit-apply-v1.json](graph-commit-apply-v1.json) | Explicit apply result for idempotent graph commit writes into the canonical belief, event, and edge store |
 | `deepr-capacity-next-v1` | [capacity-next-v1.json](capacity-next-v1.json) | Read-only `$0` capacity guidance payload for scheduler and CLI consumers |
 | `deepr-sync-capacity-gate-v1` | [sync-capacity-gate-v1.json](sync-capacity-gate-v1.json) | Read-only sync capacity wait/block payload with embedded capacity and self-model guidance |
 | `deepr-scheduled-gap-fill-wait-v1` | [scheduled-gap-fill-wait-v1.json](scheduled-gap-fill-wait-v1.json) | Read-only scheduled gap-fill wait payload with routed gaps and safe next actions |

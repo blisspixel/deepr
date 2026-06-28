@@ -1009,9 +1009,15 @@ Add `--compile-claims` when you want the source-note compiler to run a
 verifier-pending semantic claim extraction sidecar for the sync. It persists
 `sync_artifacts/claim_extractions/<timestamp>_<topic>.json`, records prompt,
 schema, provider, model, capacity, cost, and source-window refs, and keeps graph
-writes disabled until the later verification and commit envelope. Local and
-non-metered plan claim compilation is `$0` inside Deepr; metered API and
-metered-at-margin plan paths require budget and cost-ledger gates.
+writes disabled until verification, graph commit envelope construction, and an
+explicit apply command. `deepr expert apply-graph-commit NAME ENVELOPE --dry-run
+--json` validates the commit plan without writing. `deepr expert
+apply-graph-commit NAME ENVELOPE --yes --json` applies verified factual
+add-belief and typed-edge operations idempotently, emits
+`deepr-graph-commit-apply-v1`, and refuses noninteractive writes without
+`--yes`. Local and non-metered plan claim compilation is `$0` inside Deepr;
+metered API and metered-at-margin plan paths require budget and cost-ledger
+gates.
 Deepr builds a bounded source pack first, then prepends it to the prompt and
 asks the model to cite source labels. The fresh/deep retrieval path is free-only
 inside Deepr: it can fetch explicit URLs, can use a configured self-hosted

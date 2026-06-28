@@ -1,0 +1,120 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/blisspixel/deepr/docs/schemas/graph-commit-apply-v1.json",
+  "title": "Deepr Graph Commit Apply v1",
+  "type": "object",
+  "additionalProperties": true,
+  "required": [
+    "schema_version",
+    "kind",
+    "contract",
+    "input",
+    "target",
+    "summary",
+    "operation_results",
+    "generated_at"
+  ],
+  "properties": {
+    "schema_version": {"const": "deepr-graph-commit-apply-v1"},
+    "kind": {"const": "deepr.expert.graph_commit_apply"},
+    "contract": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": [
+        "read_only",
+        "semantic_judgment",
+        "model_calls",
+        "cost_usd",
+        "writes_graph",
+        "idempotent_operations",
+        "requires_explicit_command"
+      ],
+      "properties": {
+        "read_only": {"type": "boolean"},
+        "semantic_judgment": {"const": false},
+        "model_calls": {"const": false},
+        "cost_usd": {"const": 0.0},
+        "writes_graph": {"type": "boolean"},
+        "idempotent_operations": {"const": true},
+        "requires_explicit_command": {"const": true},
+        "breaking_changes_require_new_schema_version": {"const": true}
+      }
+    },
+    "input": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": [
+        "envelope_schema_version",
+        "envelope_kind",
+        "envelope_status",
+        "operation_count"
+      ],
+      "properties": {
+        "envelope_schema_version": {"type": "string"},
+        "envelope_kind": {"type": "string"},
+        "envelope_status": {"type": "string"},
+        "operation_count": {"type": "integer", "minimum": 0}
+      }
+    },
+    "target": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": ["expert_name"],
+      "properties": {
+        "expert_name": {"type": "string"}
+      }
+    },
+    "summary": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": [
+        "status",
+        "dry_run",
+        "planned_write_count",
+        "applied_write_count",
+        "already_applied_count",
+        "blocked_operation_count",
+        "failure_reasons"
+      ],
+      "properties": {
+        "status": {"enum": ["dry_run", "applied", "already_applied", "blocked", "empty"]},
+        "dry_run": {"type": "boolean"},
+        "planned_write_count": {"type": "integer", "minimum": 0},
+        "applied_write_count": {"type": "integer", "minimum": 0},
+        "already_applied_count": {"type": "integer", "minimum": 0},
+        "blocked_operation_count": {"type": "integer", "minimum": 0},
+        "failure_reasons": {"type": "array", "items": {"type": "string"}}
+      }
+    },
+    "operation_results": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": true,
+        "required": [
+          "operation_id",
+          "operation",
+          "candidate_id",
+          "belief_id",
+          "idempotency_key",
+          "status",
+          "failure_reasons",
+          "change_timestamp",
+          "edge_count"
+        ],
+        "properties": {
+          "operation_id": {"type": "string"},
+          "operation": {"type": "string"},
+          "candidate_id": {"type": "string"},
+          "belief_id": {"type": "string"},
+          "idempotency_key": {"type": "string"},
+          "status": {"enum": ["would_apply", "applied", "already_applied", "blocked"]},
+          "failure_reasons": {"type": "array", "items": {"type": "string"}},
+          "change_timestamp": {"type": "string"},
+          "edge_count": {"type": "integer", "minimum": 0}
+        }
+      }
+    },
+    "generated_at": {"type": "string"}
+  }
+}
