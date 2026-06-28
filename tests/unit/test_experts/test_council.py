@@ -11,8 +11,10 @@ from unittest.mock import AsyncMock, patch
 
 import pytest
 
+from deepr.core.contracts import ExpertOriginalIdea
 from deepr.experts.beliefs import Belief, BeliefStore
 from deepr.experts.council import ExpertCouncil, ExpertPerspective
+from deepr.experts.metacognition import MetaCognitionTracker
 from deepr.experts.profile import ExpertProfile, ExpertStore
 from deepr.observability.cost_ledger import CostLedger
 
@@ -164,6 +166,46 @@ async def test_consult_context_includes_read_only_self_model_focus():
         "Consult traces should carry bounded current-focus metadata."
     )
     assert "deepr expert why" in self_model["current_focus_packet"]["allowed_tools"]
+
+
+@pytest.mark.asyncio
+async def test_consult_includes_original_ideas_as_labeled_perspective_state():
+    tracker = MetaCognitionTracker("Original Idea Council Expert")
+    tracker.promote_original_idea_candidate(
+        ExpertOriginalIdea.create(
+            "Statistical planning before synthesis",
+            statement="Expert councils should name random variables, priors, and disconfirming signals.",
+            origin="consult trace review",
+            rationale="Structured math turns creative advice into verifiable plans.",
+            uncertainty="Some domains may not have numeric evidence yet.",
+            assumptions=["The synthesis model preserves labeled perspective state."],
+            implications=["Host agents can compare candidate plans more rigorously."],
+            expected_observations=["Consult artifacts include measurable acceptance criteria."],
+            disconfirming_signals=["Reviewers rate the math block as low signal."],
+            priority=5,
+            confidence=0.82,
+        ),
+        proposal_id="proposal_original_idea_council",
+        evidence_refs=["consult_trace:trace_2"],
+    )
+
+    council = ExpertCouncil(allow_live_fallback=False)
+    with patch.object(council, "_synthesise", new_callable=AsyncMock) as synth:
+        synth.return_value = {"text": "Original idea synthesis", "agreements": [], "disagreements": [], "cost": 0.0}
+        result = await council.consult(
+            "How should expert councils plan mathematically?",
+            experts=[{"name": "Original Idea Council Expert", "domain": "agent planning"}],
+            budget=1.0,
+        )
+
+    perspective = result["perspectives"][0]
+    assert perspective["confidence"] == 0.82
+    assert perspective["context"]["source"] == "perspective_state"
+    assert perspective["context"]["selection"] == "original_ideas_only"
+    assert perspective["context"]["original_ideas_included"] == 1
+    assert perspective["context"]["perspective_state"]["original_ideas"][0]["authority"] == "perspective_state"
+    assert "planning inputs, not verified external facts" in perspective["response"]
+    assert "random variables, priors, and disconfirming signals" in perspective["response"]
 
 
 @pytest.mark.asyncio

@@ -209,7 +209,8 @@ If development stops, users keep these portable artifacts:
 - Expert profiles, belief stores, event logs, edge stores, gap manifests, and
   loop-run records under the configured data root.
 - Generated expert memory cards (`EXPERT.md`) when written. These are derived
-  orientation views over canonical state and can be regenerated.
+  orientation views over canonical state, including labeled original-idea
+  perspective state, and can be regenerated.
 - OKF bundles from `deepr expert export-okf`, including `index.md`,
   `log.md`, concept pages, citations, gaps, and contested claims.
 - Published JSON Schemas under `docs/schemas/` for handoff, expert self-models,

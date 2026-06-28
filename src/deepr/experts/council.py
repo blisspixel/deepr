@@ -16,6 +16,7 @@ from typing import Any
 from openai import AsyncOpenAI
 
 from deepr.experts.constants import MAX_COUNCIL_CONCURRENCY, SYNTHESIS_BUDGET_FRACTION, UTILITY_MODEL
+from deepr.experts.perspective_state import build_perspective_state_packet, render_original_ideas_for_council
 
 logger = logging.getLogger(__name__)
 
@@ -141,6 +142,16 @@ class ExpertPerspective:
     context: dict[str, Any] = field(default_factory=dict)
 
 
+@dataclass(frozen=True)
+class StoredBeliefSelection:
+    """Stored beliefs selected for a consult packet."""
+
+    beliefs: list[Any]
+    selection: str
+    selection_note: str
+    matched_terms: set[str]
+
+
 @dataclass
 class CouncilResult:
     """Result of a council consultation."""
@@ -207,19 +218,15 @@ class ExpertCouncil:
                 break
         return compact
 
-    def build_stored_perspective(
-        self, query: str, name: str, domain: str, beliefs: Iterable[Any]
-    ) -> ExpertPerspective | None:
-        """Build a deterministic perspective from an expert's belief store.
-
-        This is context selection, not adjudication: lexical overlap only decides
-        which stored beliefs enter the council packet. The model synthesis step
-        still receives confidence, source, and contradiction signals rather than
-        a pre-baked verdict.
-        """
-        belief_list = list(beliefs)
-        if not belief_list:
-            return None
+    def _select_stored_beliefs(self, query: str, beliefs: list[Any]) -> StoredBeliefSelection:
+        """Select stored beliefs for routing context, not semantic judgment."""
+        if not beliefs:
+            return StoredBeliefSelection(
+                beliefs=[],
+                selection="original_ideas_only",
+                selection_note="No stored beliefs available; using active original ideas as labeled perspective state.",
+                matched_terms=set(),
+            )
 
         query_terms = self._terms(query)
 
@@ -229,30 +236,61 @@ class ExpertCouncil:
             return (overlap, belief.get_current_confidence(), belief.claim)
 
         scored = sorted(
-            ((_score(belief), belief) for belief in belief_list),
+            ((_score(belief), belief) for belief in beliefs),
             key=lambda item: (-item[0][0], -item[0][1], item[0][2]),
         )
         direct = any(score[0] > 0 for score, _belief in scored)
-        selected_terms: set[str] = set()
-        if direct:
-            selected = [belief for score, belief in scored if score[0] > 0][:_MAX_STORED_BELIEFS]
-            for belief in selected:
-                selected_terms.update(query_terms & self._terms(f"{belief.domain} {belief.claim}"))
-            selection = "query_overlap"
-            selection_note = "Selected stored beliefs by query-token overlap, then confidence."
-        else:
-            selected = [belief for _score_tuple, belief in scored[:_MAX_FALLBACK_BELIEFS]]
-            selection = "confidence_fallback"
-            selection_note = (
-                "No direct stored-belief overlap found; using highest-confidence beliefs as fallback context."
+        if not direct:
+            return StoredBeliefSelection(
+                beliefs=[belief for _score_tuple, belief in scored[:_MAX_FALLBACK_BELIEFS]],
+                selection="confidence_fallback",
+                selection_note="No direct stored-belief overlap found; using highest-confidence beliefs as fallback context.",
+                matched_terms=set(),
             )
 
-        if not selected:
+        selected = [belief for score, belief in scored if score[0] > 0][:_MAX_STORED_BELIEFS]
+        matched_terms: set[str] = set()
+        for belief in selected:
+            matched_terms.update(query_terms & self._terms(f"{belief.domain} {belief.claim}"))
+        return StoredBeliefSelection(
+            beliefs=selected,
+            selection="query_overlap",
+            selection_note="Selected stored beliefs by query-token overlap, then confidence.",
+            matched_terms=matched_terms,
+        )
+
+    def build_stored_perspective(
+        self,
+        query: str,
+        name: str,
+        domain: str,
+        beliefs: Iterable[Any],
+        *,
+        perspective_state: dict[str, Any] | None = None,
+    ) -> ExpertPerspective | None:
+        """Build a deterministic perspective from an expert's belief store.
+
+        This is context selection, not adjudication: lexical overlap only decides
+        which stored beliefs enter the council packet. The model synthesis step
+        still receives confidence, source, and contradiction signals rather than
+        a pre-baked verdict.
+        """
+        perspective_state = perspective_state or build_perspective_state_packet(name, limit=3)
+        original_ideas = list(perspective_state["original_ideas"])
+        belief_list = list(beliefs)
+        if not belief_list and not original_ideas:
             return None
 
+        selected_context = self._select_stored_beliefs(query, belief_list)
+        selected = selected_context.beliefs
+
+        if not selected and not original_ideas:
+            return None
+
+        header = "Stored belief perspective" if selected else "Stored perspective state"
         lines = [
-            f"Stored belief perspective for {name}.",
-            selection_note,
+            f"{header} for {name}.",
+            selected_context.selection_note,
             f"{len(selected)} of {len(belief_list)} active beliefs included.",
             "",
         ]
@@ -267,21 +305,36 @@ class ExpertCouncil:
             if refs:
                 lines.append(f"  Sources: {'; '.join(refs)}")
 
-        confidence = sum(b.get_current_confidence() for b in selected) / len(selected)
+        lines.extend(render_original_ideas_for_council(original_ideas))
+        if selected:
+            confidence = sum(b.get_current_confidence() for b in selected) / len(selected)
+        else:
+            confidence = sum(float(idea["confidence"]) for idea in original_ideas) / len(original_ideas)
+        source = "belief_store" if selected else "perspective_state"
+        context = {
+            "source": source,
+            "selection": selected_context.selection,
+            "selection_note": selected_context.selection_note,
+            "beliefs_available": len(belief_list),
+            "beliefs_included": len(selected),
+            "matched_terms": sorted(selected_context.matched_terms)[:20],
+        }
+        if original_ideas:
+            context.update(
+                {
+                    "perspective_state": perspective_state,
+                    "original_ideas_available": int(perspective_state["counts"]["original_ideas"]),
+                    "original_ideas_included": len(original_ideas),
+                }
+            )
+
         return ExpertPerspective(
             expert_name=name,
             domain=domain,
             response="\n".join(lines),
             confidence=round(confidence, 3),
             cost=0.0,
-            context={
-                "source": "belief_store",
-                "selection": selection,
-                "selection_note": selection_note,
-                "beliefs_available": len(belief_list),
-                "beliefs_included": len(selected),
-                "matched_terms": sorted(selected_terms)[:20],
-            },
+            context=context,
         )
 
     def _load_stored_perspective(self, query: str, name: str, domain: str) -> ExpertPerspective | None:
@@ -289,12 +342,20 @@ class ExpertCouncil:
         from deepr.experts.beliefs import BeliefStore
         from deepr.experts.paths import canonical_expert_dir
 
+        perspective_state = build_perspective_state_packet(name, limit=3)
+        original_ideas = list(perspective_state["original_ideas"])
         belief_file = canonical_expert_dir(name) / "beliefs" / "beliefs.json"
-        if not belief_file.exists():
+        if not belief_file.exists() and not original_ideas:
             return None
 
         store = BeliefStore(name)
-        perspective = self.build_stored_perspective(query, name, domain, store.beliefs.values())
+        perspective = self.build_stored_perspective(
+            query,
+            name,
+            domain,
+            store.beliefs.values(),
+            perspective_state=perspective_state,
+        )
         if perspective is not None:
             self._attach_self_model_context(perspective.context, name)
         return perspective
@@ -309,6 +370,10 @@ class ExpertCouncil:
         self_model = self._self_model_context(name)
         if self_model:
             context["self_model"] = self_model
+        perspective_state = build_perspective_state_packet(name, limit=3)
+        if perspective_state["counts"]["original_ideas"]:
+            context["perspective_state"] = perspective_state
+            context["original_ideas_available"] = int(perspective_state["counts"]["original_ideas"])
 
     async def select_experts(
         self,

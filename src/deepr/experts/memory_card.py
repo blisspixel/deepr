@@ -9,6 +9,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 from deepr.experts.paths import canonical_expert_dir
+from deepr.experts.perspective_state import build_perspective_state_packet
 from deepr.experts.self_model import build_expert_self_model
 from deepr.utils.atomic_io import atomic_write_text
 
@@ -280,15 +281,18 @@ def _perspective_packet(
     beliefs: list[dict[str, Any]],
     gaps: list[dict[str, Any]],
     contradictions: list[dict[str, Any]],
+    metacognitive_state: dict[str, Any],
     limit: int,
 ) -> dict[str, Any]:
     theories = _working_theories(manifest, limit=limit)
+    original_ideas = list(metacognitive_state["original_ideas"])
     return {
         "position": "expertise is a developing perspective, not a fact list",
         "working_theories": theories,
         "insight_candidates": [
             theory for theory in theories if {"insight", "original_idea", "proposal"} & set(theory["state_tags"])
         ],
+        "original_ideas": original_ideas,
         "self_research_agenda": _self_research_agenda(self_model, gaps, limit=limit),
         "what_would_change_my_mind": _what_would_change_my_mind(
             beliefs=beliefs,
@@ -336,6 +340,7 @@ def build_expert_memory_card(
     beliefs = _belief_cards(manifest, limit=focus_limit)
     gaps = _gap_cards(manifest, limit=focus_limit)
     contradictions = _active_contradictions(manifest, limit=focus_limit)
+    metacognitive_state = build_perspective_state_packet(profile.name, limit=focus_limit)
     return {
         "schema_version": EXPERT_MEMORY_CARD_SCHEMA_VERSION,
         "kind": EXPERT_MEMORY_CARD_KIND,
@@ -386,6 +391,12 @@ def build_expert_memory_card(
                 "authority": "derived",
                 "schema_version": self_model["schema_version"],
             },
+            "metacognition": {
+                "role": "non-factual perspective state such as original ideas, hypotheses, stance, and agendas",
+                "authority": "canonical",
+                "path": "meta_knowledge.json",
+                "schema_version": metacognitive_state["schema_version"],
+            },
             "wiki_card": {
                 "role": "compact wiki-style handoff for humans and host agents",
                 "authority": "derived",
@@ -403,8 +414,10 @@ def build_expert_memory_card(
             beliefs=beliefs,
             gaps=gaps,
             contradictions=contradictions,
+            metacognitive_state=metacognitive_state,
             limit=focus_limit,
         ),
+        "metacognitive_state": metacognitive_state,
         "beliefs": beliefs,
         "gaps": gaps,
         "active_contradictions": contradictions,
@@ -522,6 +535,21 @@ def _append_theories_section(lines: list[str], payload: dict[str, Any]) -> None:
             f"(tags: {tags}, confidence {float(theory['confidence']):.3f})"
         )
         lines.append(f"  - {_compact_text(theory['promotion_policy'])}")
+    original_ideas = list(payload["perspective"]["original_ideas"])
+    lines.append("")
+    lines.append("## Original Ideas")
+    if not original_ideas:
+        lines.append("- No active original ideas recorded yet.")
+    for idea in original_ideas:
+        lines.append(
+            f"- [{idea['id']}] {_compact_text(idea['title'])}: {_compact_text(idea['statement'])} "
+            f"(confidence {float(idea['confidence']):.3f}, priority {int(idea['priority'])})"
+        )
+        lines.append(f"  - {_compact_text(idea['promotion_policy'])}")
+        if idea["expected_observations"]:
+            lines.append(f"  - expected observations: {'; '.join(idea['expected_observations'][:3])}")
+        if idea["disconfirming_signals"]:
+            lines.append(f"  - disconfirming signals: {'; '.join(idea['disconfirming_signals'][:3])}")
     lines.extend(
         [
             "",

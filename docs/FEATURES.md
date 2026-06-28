@@ -1025,7 +1025,10 @@ metacognition hypothesis backlog; `deepr-graph-commit-envelope-v5` adds
 verified concepts into the metacognition concept backlog;
 `deepr-graph-commit-envelope-v6` adds verified stances into the metacognition
 stance backlog; and `deepr-graph-commit-envelope-v7` adds verified original
-ideas into the metacognition original-idea backlog. Local and non-metered plan claim compilation is `$0`
+ideas into the metacognition original-idea backlog. Active original ideas then
+surface through memory cards, consult context, and handoff payloads as
+`deepr-expert-perspective-state-v1` perspective state rather than verified
+external facts. Local and non-metered plan claim compilation is `$0`
 inside Deepr; metered API and metered-at-margin plan paths require budget and
 cost-ledger gates.
 Deepr builds a bounded source pack first, then prepends it to the prompt and
@@ -1088,8 +1091,9 @@ For downstream agents that need one stable read contract before choosing a more
 specific tool, `/api/experts/{name}/handoff` and MCP `deepr_expert_handoff`
 return the versioned `deepr-expert-handoff-v1` payload: profile summary,
 manifest counts, bounded claims/gaps, dashboard telemetry, loop-status rollup,
-OKF interchange hints, and an additive compatibility contract. The schema is
-published at [schemas/expert-handoff-v1.json](schemas/expert-handoff-v1.json).
+OKF interchange hints, original-idea perspective-state counts, and an additive
+compatibility contract. The schema is published at
+[schemas/expert-handoff-v1.json](schemas/expert-handoff-v1.json).
 MCP handoff and loop-status responses validate their published envelope before
 dispatch and fail closed with `SCHEMA_VALIDATION_FAILED` if schema version,
 kind, or required envelope fields drift.
