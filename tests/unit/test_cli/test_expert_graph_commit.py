@@ -10,7 +10,12 @@ from deepr.cli.main import cli
 from deepr.experts.beliefs import BeliefStore
 from deepr.experts.metacognition import MetaCognitionTracker
 from deepr.experts.profile import ExpertProfile, ExpertStore
-from tests.unit.graph_commit_helpers import graph_commit_envelope, graph_commit_gap_operation, graph_commit_operation
+from tests.unit.graph_commit_helpers import (
+    graph_commit_agenda_operation,
+    graph_commit_envelope,
+    graph_commit_gap_operation,
+    graph_commit_operation,
+)
 
 
 def _save_profile() -> ExpertProfile:
@@ -107,3 +112,23 @@ def test_apply_graph_commit_json_apply_promotes_gap_with_yes(tmp_path):
     assert payload["summary"]["applied_write_count"] == 1
     assert payload["contract"]["writes_expert_state"] is True
     assert topic in MetaCognitionTracker(profile.name).knowledge_gaps
+
+
+def test_apply_graph_commit_json_apply_promotes_agenda_with_yes(tmp_path):
+    profile = _save_profile()
+    title = "Which agenda signals should guide the next expert sync?"
+    envelope = graph_commit_envelope(graph_commit_agenda_operation(title, "e" * 64), expert_name=profile.name)
+    envelope_path = tmp_path / "envelope.json"
+    _write_envelope(envelope_path, envelope)
+
+    result = CliRunner().invoke(
+        cli,
+        ["expert", "apply-graph-commit", profile.name, str(envelope_path), "--yes", "--json"],
+    )
+
+    assert result.exit_code == 0, result.output
+    payload = json.loads(result.output)
+    assert payload["summary"]["status"] == "applied"
+    assert payload["summary"]["applied_write_count"] == 1
+    assert payload["contract"]["writes_expert_state"] is True
+    assert title in MetaCognitionTracker(profile.name).exploration_agendas

@@ -65,6 +65,40 @@ def graph_commit_gap_operation(
     }
 
 
+def graph_commit_agenda_operation(
+    title: str,
+    idempotency_key: str,
+    *,
+    agenda_id: str = "agenda_test",
+    candidate_id: str = "candidate_agenda",
+) -> dict:
+    return {
+        "operation_id": f"op_{agenda_id}",
+        "operation": "promote_exploration_agenda",
+        "candidate_id": candidate_id,
+        "decision_status": "ready_for_commit",
+        "agenda": {
+            "id": agenda_id,
+            "title": title,
+            "questions": [title],
+            "origin": "A verifier-approved source note raised the exploration direction.",
+            "rationale": "The expert needs a durable research direction before widening state writes.",
+            "uncertainty": "The best next evidence remains unresolved.",
+            "priority": 4,
+            "estimated_cost": 0.0,
+            "expected_value": 0.8,
+            "ev_cost_ratio": 800.0,
+            "success_criteria": ["A follow-up source pack resolves the direction."],
+            "expected_observations": ["Future source packs expose reusable acceptance criteria."],
+            "disconfirming_signals": ["No repeated consults need this agenda."],
+            "created_at": "2026-06-26T12:00:00+00:00",
+            "status": "open",
+        },
+        "idempotency_key": idempotency_key,
+        "provenance": {"source_refs": [{"note_id": "note_agenda", "window_id": "note_agenda:w0"}]},
+    }
+
+
 def graph_commit_envelope(
     *operations: dict,
     expert_name: str = "Compiler Expert",

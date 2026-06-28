@@ -775,6 +775,122 @@ def test_graph_commit_envelope_promotes_verified_knowledge_gap(tmp_path):
     assert topic in tracker.knowledge_gaps
 
 
+def test_graph_commit_envelope_promotes_verified_exploration_agenda(tmp_path):
+    notes = build_source_notes(_source_pack_payload())
+    note = notes["notes"][0]
+    window = note["windows"][0]
+    title = "Explore statistical signals for expert agenda prioritization."
+    extraction = build_semantic_claim_extraction(
+        notes,
+        {
+            "claims": [
+                {
+                    "statement": title,
+                    "claim_kind": "exploration_agenda",
+                    "confidence": 0.76,
+                    "priority": 4,
+                    "expected_value": 0.8,
+                    "estimated_cost": 0.0,
+                    "questions": ["Which uncertainty and usage signals should drive agenda priority?"],
+                    "success_criteria": ["A follow-up verifier accepts agenda priority evidence."],
+                    "source_refs": [{"note_id": note["note_id"], "window_id": window["window_id"]}],
+                }
+            ]
+        },
+        source_note_artifact="sync_artifacts/source_notes/pack.json",
+    )
+    candidate = extraction["candidates"][0]
+    verification = build_claim_verification(
+        extraction,
+        {
+            "verifications": [
+                {
+                    "candidate_id": candidate["candidate_id"],
+                    "support_verdict": "not_applicable",
+                    "contradiction_verdict": "none",
+                    "dedup_verdict": "new",
+                    "temporal_scope_verdict": "not_applicable",
+                    "origin": "The source note exposed a recurring unresolved prioritization direction.",
+                    "rationale": "The expert should retain an agenda before any perspective write broadens.",
+                    "uncertainty": "The optimal statistical signal mix is still unsettled.",
+                    "expected_observations": ["Future source packs reveal repeated priority conflicts."],
+                    "disconfirming_signals": ["No future consult trace needs prioritization evidence."],
+                    "confidence": 0.81,
+                }
+            ]
+        },
+    )
+
+    envelope = build_graph_commit_envelope(
+        extraction,
+        verification,
+        claim_extraction_artifact="sync_artifacts/claim_extractions/pack.json",
+        claim_verification_artifact="sync_artifacts/claim_verifications/pack.json",
+        expert_name="Compiler Expert",
+        domain="compiler",
+        generated_at="2026-06-26T12:03:00+00:00",
+    )
+    tracker = MetaCognitionTracker("Compiler Expert", base_path=str(tmp_path / "experts"))
+    result = apply_graph_commit_envelope(
+        envelope,
+        BeliefStore("Compiler Expert", storage_dir=tmp_path / "beliefs"),
+        gap_tracker=tracker,
+        dry_run=False,
+    )
+
+    assert candidate["state_policy"]["state_type"] == "exploration_agenda"
+    assert candidate["state_policy"]["writes_exploration_agenda"] is True
+    assert verification["summary"]["status"] == "ready_for_commit_envelope"
+    assert envelope["schema_version"] == GRAPH_COMMIT_ENVELOPE_SCHEMA_VERSION
+    assert envelope["summary"]["status"] == "ready_for_commit"
+    operation = envelope["operations"][0]
+    assert operation["operation"] == "promote_exploration_agenda"
+    assert operation["agenda"]["title"] == title
+    assert operation["agenda"]["expected_observations"] == ["Future source packs reveal repeated priority conflicts."]
+    assert result["summary"]["status"] == "applied"
+    assert title in tracker.exploration_agendas
+
+
+def test_exploration_agenda_verification_requires_expected_observations():
+    notes = build_source_notes(_source_pack_payload())
+    note = notes["notes"][0]
+    window = note["windows"][0]
+    extraction = build_semantic_claim_extraction(
+        notes,
+        {
+            "claims": [
+                {
+                    "statement": "Explore compiler perspective-state risks.",
+                    "claim_kind": "exploration_agenda",
+                    "confidence": 0.7,
+                    "source_refs": [{"note_id": note["note_id"], "window_id": window["window_id"]}],
+                }
+            ]
+        },
+    )
+    verification = build_claim_verification(
+        extraction,
+        {
+            "verifications": [
+                {
+                    "candidate_id": extraction["candidates"][0]["candidate_id"],
+                    "support_verdict": "not_applicable",
+                    "contradiction_verdict": "none",
+                    "dedup_verdict": "new",
+                    "temporal_scope_verdict": "not_applicable",
+                    "origin": "Reviewed compiler output.",
+                    "rationale": "The expert needs a future exploration lane.",
+                    "uncertainty": "The target evidence is not yet known.",
+                    "disconfirming_signals": ["No later trace needs this lane."],
+                }
+            ]
+        },
+    )
+
+    assert verification["summary"]["status"] == "blocked"
+    assert verification["decisions"][0]["readiness"]["failure_reasons"] == ["missing_expected_observations"]
+
+
 def test_graph_commit_envelope_blocks_hypothesis_until_perspective_store_exists():
     notes = build_source_notes(_source_pack_payload())
     note = notes["notes"][0]

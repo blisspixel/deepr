@@ -11,7 +11,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
-    from deepr.core.contracts import Gap
+    from deepr.core.contracts import ExplorationAgenda, Gap
 
 logger = logging.getLogger(__name__)
 
@@ -70,6 +70,21 @@ def _gap_candidate_log(gap: "Gap") -> dict[str, Any]:
     }
 
 
+def _agenda_candidate_log(agenda: "ExplorationAgenda") -> dict[str, Any]:
+    return {
+        "id": agenda.id,
+        "title": agenda.title,
+        "questions": list(agenda.questions),
+        "priority": agenda.priority,
+        "estimated_cost": agenda.estimated_cost,
+        "expected_value": agenda.expected_value,
+        "ev_cost_ratio": agenda.ev_cost_ratio,
+        "success_criteria": list(agenda.success_criteria),
+        "expected_observations": list(agenda.expected_observations),
+        "disconfirming_signals": list(agenda.disconfirming_signals),
+    }
+
+
 class MetaCognitionTracker:
     """Tracks expert's awareness of what it knows and doesn't know."""
 
@@ -82,6 +97,7 @@ class MetaCognitionTracker:
         self.meta_file = self.expert_dir / "meta_knowledge.json"
 
         self.knowledge_gaps: dict[str, KnowledgeGap] = {}
+        self.exploration_agendas: dict[str, ExplorationAgenda] = {}
         self.domain_confidence: dict[str, DomainConfidence] = {}
         self.uncertainty_log: list[dict] = []
 
@@ -113,6 +129,12 @@ class MetaCognitionTracker:
                         confidence_before=gap_data.get("confidence_before", 0.0),
                         confidence_after=gap_data.get("confidence_after"),
                     )
+
+                # Load exploration agendas
+                from deepr.core.contracts import ExplorationAgenda
+
+                for title, agenda_data in data.get("exploration_agendas", {}).items():
+                    self.exploration_agendas[title] = ExplorationAgenda.from_dict(agenda_data)
 
                 # Load domain confidence
                 for domain, conf_data in data.get("domain_confidence", {}).items():
@@ -149,6 +171,7 @@ class MetaCognitionTracker:
                     }
                     for topic, gap in self.knowledge_gaps.items()
                 },
+                "exploration_agendas": {title: agenda.to_dict() for title, agenda in self.exploration_agendas.items()},
                 "domain_confidence": {
                     domain: {
                         "domain": conf.domain,
@@ -239,6 +262,34 @@ class MetaCognitionTracker:
         self._save()
         return promoted, True
 
+    def promote_exploration_agenda_candidate(
+        self,
+        agenda: "ExplorationAgenda",
+        *,
+        proposal_id: str,
+        evidence_refs: list[str],
+        source: str = "metacognitive_monitor",
+    ) -> tuple["ExplorationAgenda", bool]:
+        """Persist a reviewed exploration agenda without duplicating titles."""
+        existing = self.exploration_agendas.get(agenda.title)
+        if existing is not None:
+            return existing, False
+
+        self.exploration_agendas[agenda.title] = agenda
+        self.uncertainty_log.append(
+            {
+                "timestamp": datetime.now(UTC).isoformat(),
+                "topic": agenda.title,
+                "action": "promoted_exploration_agenda_candidate",
+                "source": source,
+                "proposal_id": proposal_id,
+                "evidence_refs": evidence_refs,
+                "candidate": _agenda_candidate_log(agenda),
+            }
+        )
+        self._save()
+        return agenda, True
+
     def record_research_triggered(self, topic: str, research_mode: str):
         """Record that research was triggered for a knowledge gap.
 
@@ -316,6 +367,10 @@ class MetaCognitionTracker:
         """
         return [gap for gap in self.knowledge_gaps.values() if gap.times_asked >= min_times_asked]
 
+    def get_exploration_agendas(self) -> list["ExplorationAgenda"]:
+        """Get open expert exploration agenda items."""
+        return [agenda for agenda in self.exploration_agendas.values() if agenda.status == "open"]
+
     def get_high_confidence_domains(self, min_confidence: float = 0.7) -> list[DomainConfidence]:
         """Get domains where expert has high confidence.
 
@@ -371,6 +426,7 @@ class MetaCognitionTracker:
 
         return {
             "total_knowledge_gaps": total_gaps,
+            "total_exploration_agendas": len(self.exploration_agendas),
             "researched_gaps": researched_gaps,
             "learned_gaps": learned_gaps,
             "learning_rate": learned_gaps / total_gaps if total_gaps > 0 else 0.0,

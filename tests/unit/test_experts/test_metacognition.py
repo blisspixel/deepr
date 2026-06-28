@@ -9,6 +9,7 @@ from datetime import UTC, datetime, timedelta
 
 import pytest
 
+from deepr.core.contracts import ExplorationAgenda
 from deepr.experts.metacognition import DomainConfidence, KnowledgeGap, MetaCognitionTracker
 
 
@@ -79,6 +80,7 @@ class TestMetaCognitionTracker:
         """Test creating a metacognition tracker."""
         assert temp_tracker.expert_name == "Test Expert"
         assert len(temp_tracker.knowledge_gaps) == 0
+        assert len(temp_tracker.exploration_agendas) == 0
         assert len(temp_tracker.domain_confidence) == 0
         assert len(temp_tracker.uncertainty_log) == 0
 
@@ -142,6 +144,38 @@ class TestMetaCognitionTracker:
         assert conf.confidence == 0.9
         assert conf.evidence_count == 3
         assert len(conf.sources) == 3
+
+    def test_promote_exploration_agenda_candidate(self, temp_tracker):
+        """Test promoting a reviewed exploration agenda."""
+        agenda = ExplorationAgenda.create(
+            "Map evidence families for agenda prioritization.",
+            questions=["Which evidence families should change the agenda?"],
+            origin="Verifier-approved source note.",
+            rationale="The expert needs a durable exploration direction.",
+            uncertainty="The current source pack does not settle priority.",
+            expected_observations=["Future syncs expose repeated related gaps."],
+            disconfirming_signals=["No future consult trace needs the agenda."],
+        )
+
+        promoted, created = temp_tracker.promote_exploration_agenda_candidate(
+            agenda,
+            proposal_id="proposal-1",
+            evidence_refs=["source_note:note:w0"],
+            source="test",
+        )
+        replayed, replay_created = temp_tracker.promote_exploration_agenda_candidate(
+            agenda,
+            proposal_id="proposal-1",
+            evidence_refs=["source_note:note:w0"],
+            source="test",
+        )
+
+        assert created is True
+        assert replay_created is False
+        assert promoted.title == agenda.title
+        assert replayed.title == agenda.title
+        assert temp_tracker.get_exploration_agendas()[0].title == agenda.title
+        assert temp_tracker.uncertainty_log[-1]["action"] == "promoted_exploration_agenda_candidate"
 
     def test_get_knowledge_gaps_default(self, temp_tracker):
         """Test get_knowledge_gaps with default threshold."""
@@ -280,6 +314,30 @@ class TestMetaCognitionTrackerPersistence:
             tracker2 = MetaCognitionTracker("Test Expert", tmpdir)
 
             assert len(tracker2.uncertainty_log) == 2
+
+    def test_save_and_load_exploration_agendas(self):
+        """Test saving and loading exploration agendas."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            tracker1 = MetaCognitionTracker("Test Expert", tmpdir)
+            tracker1.promote_exploration_agenda_candidate(
+                ExplorationAgenda.create(
+                    "Design the next perspective-state verifier.",
+                    questions=["Which verifier checks should be semantic?"],
+                    origin="Reviewed compiler output.",
+                    rationale="Perspective writes need durable acceptance criteria.",
+                    uncertainty="The correct acceptance threshold is unknown.",
+                    expected_observations=["A verifier run accepts useful agenda items."],
+                    disconfirming_signals=["Agenda items remain unused after repeated syncs."],
+                ),
+                proposal_id="agenda-1",
+                evidence_refs=[],
+                source="test",
+            )
+
+            tracker2 = MetaCognitionTracker("Test Expert", tmpdir)
+
+            assert "Design the next perspective-state verifier." in tracker2.exploration_agendas
+            assert len(tracker2.get_exploration_agendas()) == 1
 
     def test_save_and_load_research_triggered(self):
         """Test saving and loading research triggered state."""
