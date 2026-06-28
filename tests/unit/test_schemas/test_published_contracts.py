@@ -897,7 +897,13 @@ def test_claim_verification_schema_validates_runtime_payload():
                     "confidence": 0.84,
                     "claim_kind": "factual_claim",
                     "source_refs": [{"note_id": note["note_id"], "window_id": window["window_id"]}],
-                }
+                },
+                {
+                    "statement": "The compiler behavior change requires replayable verification.",
+                    "confidence": 0.8,
+                    "claim_kind": "factual_claim",
+                    "source_refs": [{"note_id": note["note_id"], "window_id": window["window_id"]}],
+                },
             ]
         },
     )
@@ -913,7 +919,24 @@ def test_claim_verification_schema_validates_runtime_payload():
                     "temporal_scope_verdict": "valid",
                     "confidence": 0.9,
                     "rationale": "The cited note supports the factual claim.",
-                }
+                    "edge_decisions": [
+                        {
+                            "target_candidate_id": extraction["candidates"][1]["candidate_id"],
+                            "edge_type": "supports",
+                            "confidence": 0.7,
+                            "rationale": "The first claim supports the follow-on verification claim.",
+                        }
+                    ],
+                },
+                {
+                    "candidate_id": extraction["candidates"][1]["candidate_id"],
+                    "support_verdict": "supported",
+                    "contradiction_verdict": "none",
+                    "dedup_verdict": "new",
+                    "temporal_scope_verdict": "valid",
+                    "confidence": 0.88,
+                    "rationale": "The cited note supports the follow-on claim.",
+                },
             ]
         },
         provider="local",
@@ -929,6 +952,7 @@ def test_claim_verification_schema_validates_runtime_payload():
     assert payload["kind"] == CLAIM_VERIFICATION_KIND
     assert payload["contract"]["writes_graph"] is False
     assert payload["decisions"][0]["commit_gate"]["requires_commit_envelope"] is True
+    assert payload["decisions"][0]["edge_decisions"][0]["edge_type"] == "supports"
 
 
 def test_graph_commit_envelope_schema_validates_runtime_payload():
@@ -962,7 +986,13 @@ def test_graph_commit_envelope_schema_validates_runtime_payload():
                     "confidence": 0.84,
                     "claim_kind": "factual_claim",
                     "source_refs": [{"note_id": note["note_id"], "window_id": window["window_id"]}],
-                }
+                },
+                {
+                    "statement": "The compiler behavior change requires replayable verification.",
+                    "confidence": 0.8,
+                    "claim_kind": "factual_claim",
+                    "source_refs": [{"note_id": note["note_id"], "window_id": window["window_id"]}],
+                },
             ]
         },
     )
@@ -977,7 +1007,22 @@ def test_graph_commit_envelope_schema_validates_runtime_payload():
                     "dedup_verdict": "new",
                     "temporal_scope_verdict": "valid",
                     "confidence": 0.9,
-                }
+                    "edge_decisions": [
+                        {
+                            "target_candidate_id": extraction["candidates"][1]["candidate_id"],
+                            "edge_type": "supports",
+                            "confidence": 0.7,
+                        }
+                    ],
+                },
+                {
+                    "candidate_id": extraction["candidates"][1]["candidate_id"],
+                    "support_verdict": "supported",
+                    "contradiction_verdict": "none",
+                    "dedup_verdict": "new",
+                    "temporal_scope_verdict": "valid",
+                    "confidence": 0.88,
+                },
             ]
         },
     )
@@ -995,6 +1040,7 @@ def test_graph_commit_envelope_schema_validates_runtime_payload():
     assert payload["kind"] == GRAPH_COMMIT_ENVELOPE_KIND
     assert payload["contract"]["writes_graph"] is False
     assert payload["summary"]["status"] == "ready_for_commit"
+    assert payload["summary"]["ready_edge_count"] == 1
 
 
 def test_graph_commit_apply_schema_validates_runtime_payload(tmp_path):

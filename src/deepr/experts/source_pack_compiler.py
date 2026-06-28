@@ -8,6 +8,8 @@ import re
 from datetime import UTC, datetime
 from typing import Any
 
+from deepr.experts.beliefs import EDGE_TYPES
+
 SOURCE_PACK_MANIFEST_SCHEMA_VERSION = "deepr-source-pack-manifest-v1"
 SOURCE_PACK_MANIFEST_KIND = "deepr.expert.source_pack_manifest"
 SOURCE_NOTE_SCHEMA_VERSION = "deepr-source-note-v1"
@@ -25,6 +27,7 @@ _SUPPORT_VERDICTS = {"supported", "refuted", "insufficient", "not_applicable", "
 _CONTRADICTION_VERDICTS = {"none", "possible", "contradiction", "unverified"}
 _DEDUP_VERDICTS = {"new", "same_as_existing", "uncertain", "unverified"}
 _TEMPORAL_VERDICTS = {"valid", "unclear", "outdated", "not_applicable"}
+_EDGE_TYPES = set(EDGE_TYPES)
 
 
 def _utc_now() -> datetime:
@@ -453,6 +456,76 @@ def _verification_model_judgment(item: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+def _edge_decision_values(
+    raw_edge: dict[str, Any],
+    *,
+    current_candidate_id: str,
+) -> dict[str, Any]:
+    source_candidate_id = str(raw_edge.get("source_candidate_id", current_candidate_id) or "").strip()
+    target_candidate_id = str(raw_edge.get("target_candidate_id", raw_edge.get("dst_candidate_id", "")) or "").strip()
+    return {
+        "source_candidate_id": source_candidate_id,
+        "target_candidate_id": target_candidate_id,
+        "edge_type": _enum_value(raw_edge.get("edge_type"), _EDGE_TYPES, default=""),
+        "confidence": _float_0_1(raw_edge.get("confidence")),
+        "rationale": _string_field(raw_edge, "rationale"),
+    }
+
+
+def _edge_decision_failures(edge: dict[str, Any], candidates_by_id: dict[str, dict[str, Any]]) -> list[str]:
+    failures: list[str] = []
+    source_candidate_id = str(edge.get("source_candidate_id", "") or "")
+    target_candidate_id = str(edge.get("target_candidate_id", "") or "")
+    if not source_candidate_id:
+        failures.append("missing_source_candidate_id")
+    elif source_candidate_id not in candidates_by_id:
+        failures.append("unknown_source_candidate_id")
+    if not target_candidate_id:
+        failures.append("missing_target_candidate_id")
+    elif target_candidate_id not in candidates_by_id:
+        failures.append("unknown_target_candidate_id")
+    if not str(edge.get("edge_type", "") or ""):
+        failures.append("invalid_edge_type")
+    if source_candidate_id and target_candidate_id and source_candidate_id == target_candidate_id:
+        failures.append("self_edge")
+    return failures
+
+
+def _edge_decision_sets(
+    item: dict[str, Any],
+    *,
+    current_candidate_id: str,
+    candidates_by_id: dict[str, dict[str, Any]],
+) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+    edge_decisions: list[dict[str, Any]] = []
+    edge_failures: list[dict[str, Any]] = []
+    raw_edges = item.get("edge_decisions", [])
+    if "edge_decisions" in item and not isinstance(raw_edges, list):
+        return [], [{"index": 0, "failure_reasons": ["invalid_edge_decisions_field"]}]
+    if not isinstance(raw_edges, list):
+        raw_edges = []
+    for index, raw_edge in enumerate(raw_edges):
+        if not isinstance(raw_edge, dict):
+            edge_failures.append({"index": index, "failure_reasons": ["invalid_edge_decision"]})
+            continue
+        edge = _edge_decision_values(raw_edge, current_candidate_id=current_candidate_id)
+        failures = _edge_decision_failures(edge, candidates_by_id)
+        if failures:
+            edge_failures.append({"index": index, "failure_reasons": sorted(set(failures))})
+            continue
+        edge_decision = {
+            "source_candidate_id": edge["source_candidate_id"],
+            "target_candidate_id": edge["target_candidate_id"],
+            "edge_type": edge["edge_type"],
+        }
+        if "confidence" in raw_edge:
+            edge_decision["confidence"] = edge["confidence"]
+        if edge["rationale"]:
+            edge_decision["rationale"] = edge["rationale"]
+        edge_decisions.append(edge_decision)
+    return edge_decisions, edge_failures
+
+
 def _candidate_verification_failures(candidate_id: str, candidate: dict[str, Any] | None) -> list[str]:
     failure_reasons: list[str] = []
     if not candidate_id:
@@ -507,6 +580,11 @@ def _verification_decision(
     policy = _candidate_policy(candidate)
     verdicts = _verification_verdicts(item)
     model_judgment = _verification_model_judgment(item)
+    edge_decisions, edge_decision_failures = _edge_decision_sets(
+        item,
+        current_candidate_id=candidate_id,
+        candidates_by_id=candidates_by_id,
+    )
     failure_reasons = _candidate_verification_failures(candidate_id, candidate)
     failure_reasons.extend(_policy_verification_failures(policy, verdicts, model_judgment))
     failure_reasons = sorted(set(failure_reasons))
@@ -517,6 +595,8 @@ def _verification_decision(
         "state_policy": policy,
         "verdicts": verdicts,
         "model_judgment": model_judgment,
+        "edge_decisions": edge_decisions,
+        "edge_decision_failures": edge_decision_failures,
         "readiness": {
             "ready_for_commit_envelope": ready,
             "failure_reasons": failure_reasons,

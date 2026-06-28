@@ -6,7 +6,7 @@ import re
 from datetime import UTC, datetime
 from typing import Any
 
-from deepr.experts.beliefs import Belief, BeliefStore
+from deepr.experts.beliefs import EDGE_TYPES, Belief, BeliefStore
 from deepr.experts.graph_commit_envelope import GRAPH_COMMIT_ENVELOPE_KIND, GRAPH_COMMIT_ENVELOPE_SCHEMA_VERSION
 
 GRAPH_COMMIT_APPLY_SCHEMA_VERSION = "deepr-graph-commit-apply-v1"
@@ -96,7 +96,7 @@ def _edge_failure_reasons(operation: dict[str, Any], store: BeliefStore, future_
             failures.append("edge_source_missing")
         if dst_id not in known_ids:
             failures.append("edge_target_missing")
-        if str(edge.get("edge_type", "")) not in {"supports", "contradicts", "enables", "derived_from"}:
+        if str(edge.get("edge_type", "")) not in EDGE_TYPES:
             failures.append("edge_type_invalid")
         if src_id and dst_id and src_id == dst_id:
             failures.append("edge_self_reference")

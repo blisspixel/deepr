@@ -164,10 +164,11 @@ must not be described as usable capacity.
   notes, semantic claim extraction, claim verification, graph commit envelopes,
   and graph commit apply results are experimental but schema-versioned.
   `--compile-claims` can write verifier-pending claim extraction sidecars;
-  claim-verification envelopes record verifier decisions; graph commit
-  envelopes plan idempotent writes without mutating state. `deepr expert
-  apply-graph-commit NAME ENVELOPE --yes` is the explicit write boundary for
-  verified factual add-belief and typed-edge operations.
+  claim-verification envelopes record verifier decisions and optional
+  candidate-to-candidate typed edge decisions; graph commit envelopes plan
+  idempotent writes without mutating state. `deepr expert apply-graph-commit
+  NAME ENVELOPE --yes` is the explicit write boundary for verified factual
+  add-belief and typed-edge operations.
 
 ## Visible Or Planned Only
 

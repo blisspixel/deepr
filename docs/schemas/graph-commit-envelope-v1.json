@@ -119,7 +119,24 @@
               "grounding_assurance": {"type": "string"}
             }
           },
-          "edges": {"type": "array", "items": {"type": "object", "additionalProperties": true}},
+          "edges": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "additionalProperties": true,
+              "required": ["src_id", "dst_id", "edge_type", "provenance"],
+              "properties": {
+                "src_id": {"type": "string"},
+                "dst_id": {"type": "string"},
+                "edge_type": {"enum": ["supports", "contradicts", "enables", "derived_from"]},
+                "provenance": {"type": "string"},
+                "source_candidate_id": {"type": "string"},
+                "target_candidate_id": {"type": "string"},
+                "confidence": {"type": "number", "minimum": 0, "maximum": 1},
+                "rationale": {"type": "string"}
+              }
+            }
+          },
           "idempotency_key": {"type": "string", "pattern": "^[a-f0-9]{64}$"},
           "provenance": {"type": "object", "additionalProperties": true}
         }
