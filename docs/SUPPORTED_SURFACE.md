@@ -125,6 +125,11 @@ must not be described as usable capacity.
   what would change the expert's mind, agency scope, calibration, goals,
   beliefs, gaps, contradictions, collaboration guidance, and update policy. It
   is `$0`, derived, preview-first, and never canonical memory.
+- Local semantic recall over beliefs, concepts, and original ideas emits
+  `candidate_only` routing metadata only. Original-idea candidates are labeled
+  as `perspective_state`, include the non-factual promotion policy, and do not
+  imply external verification, support, contradiction, deduplication, or graph
+  writes.
 - `deepr expert monitor` emits a read-only `deepr-metacognitive-monitor-v1`
   artifact with review-required proposals derived from self-model risks, failed
   loop runs, capacity waits, and sanitized consult trace candidates. It does

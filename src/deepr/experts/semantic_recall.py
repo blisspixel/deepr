@@ -14,6 +14,12 @@ from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass, field
 from typing import Any
 
+from deepr.experts.perspective_state import (
+    ORIGINAL_IDEA_AUTHORITY,
+    ORIGINAL_IDEA_PROMOTION_POLICY,
+    PERSPECTIVE_STATE_SCHEMA_VERSION,
+)
+
 TOKEN_RE = re.compile(r"[a-z0-9]+(?:[.+#][a-z0-9]+)*")
 VECTOR_METHOD = "vector_similarity"
 LEXICAL_METHOD = "lexical_router"
@@ -250,6 +256,63 @@ def concept_recall_items(concepts: Iterable[Any]) -> list[RecallItem]:
     return items
 
 
+def _string_list_attribute(item: Any, attribute: str) -> list[str]:
+    values = getattr(item, attribute, []) or []
+    if isinstance(values, str):
+        values = [values]
+    return [text for value in values if (text := str(value).strip())]
+
+
+def _iso_attribute(item: Any, attribute: str) -> str:
+    value = getattr(item, attribute, None)
+    return value.isoformat() if hasattr(value, "isoformat") else str(value or "")
+
+
+def _original_idea_recall_text(original_idea: Any) -> str:
+    text_parts = [
+        str(getattr(original_idea, "title", "") or ""),
+        str(getattr(original_idea, "statement", "") or ""),
+        str(getattr(original_idea, "rationale", "") or ""),
+        str(getattr(original_idea, "uncertainty", "") or ""),
+        *_string_list_attribute(original_idea, "assumptions"),
+        *_string_list_attribute(original_idea, "implications"),
+        *_string_list_attribute(original_idea, "expected_observations"),
+        *_string_list_attribute(original_idea, "disconfirming_signals"),
+    ]
+    return " ".join(part.strip() for part in text_parts if part.strip())
+
+
+def original_idea_recall_items(original_ideas: Iterable[Any]) -> list[RecallItem]:
+    """Adapt original ideas into perspective-state recall items."""
+    items: list[RecallItem] = []
+    for original_idea in original_ideas:
+        idea_id = str(getattr(original_idea, "id", "") or "")
+        text = _original_idea_recall_text(original_idea)
+        if not idea_id or not text:
+            continue
+        items.append(
+            RecallItem(
+                item_id=idea_id,
+                text=text,
+                kind="original_idea",
+                payload=original_idea,
+                metadata={
+                    "state_type": "original_idea",
+                    "schema_version": PERSPECTIVE_STATE_SCHEMA_VERSION,
+                    "authority": ORIGINAL_IDEA_AUTHORITY,
+                    "promotion_policy": ORIGINAL_IDEA_PROMOTION_POLICY,
+                    "factual_claim": False,
+                    "semantic_verdict": False,
+                    "confidence": getattr(original_idea, "confidence", None),
+                    "priority": getattr(original_idea, "priority", None),
+                    "status": getattr(original_idea, "status", ""),
+                    "created_at": _iso_attribute(original_idea, "created_at"),
+                },
+            )
+        )
+    return items
+
+
 def recall_belief_candidates(
     query: str,
     beliefs: Iterable[Any],
@@ -294,6 +357,28 @@ def recall_concept_candidates(
         min_score=min_score,
         query_embedding=query_embedding,
         item_embeddings=concept_embeddings,
+        include_lexical_fallback=include_lexical_fallback,
+    )
+
+
+def recall_original_idea_candidates(
+    query: str,
+    original_ideas: Iterable[Any],
+    *,
+    top_k: int = 5,
+    min_score: float = 0.0,
+    query_embedding: Sequence[float] | None = None,
+    original_idea_embeddings: Mapping[str, Sequence[float]] | None = None,
+    include_lexical_fallback: bool = True,
+) -> list[RecallCandidate]:
+    """Return original-idea candidates for perspective routing only."""
+    return recall_items(
+        query,
+        original_idea_recall_items(original_ideas),
+        top_k=top_k,
+        min_score=min_score,
+        query_embedding=query_embedding,
+        item_embeddings=original_idea_embeddings,
         include_lexical_fallback=include_lexical_fallback,
     )
 
@@ -353,6 +438,33 @@ def install_belief_store_recall_methods(store_cls: Any) -> None:
     store_cls.recall_contradiction_candidates = _store_recall_contradiction_candidates
 
 
+def _tracker_recall_original_idea_candidates(
+    self: Any,
+    query: str,
+    *,
+    top_k: int = 5,
+    min_score: float = 0.0,
+    query_embedding: Sequence[float] | None = None,
+    original_idea_embeddings: Mapping[str, Sequence[float]] | None = None,
+    include_lexical_fallback: bool = True,
+) -> list[RecallCandidate]:
+    """MetaCognitionTracker-compatible wrapper for read-only idea recall."""
+    return recall_original_idea_candidates(
+        query,
+        self.get_original_ideas(),
+        top_k=top_k,
+        min_score=min_score,
+        query_embedding=query_embedding,
+        original_idea_embeddings=original_idea_embeddings,
+        include_lexical_fallback=include_lexical_fallback,
+    )
+
+
+def install_metacognition_recall_methods(tracker_cls: Any) -> None:
+    """Attach perspective-state recall without growing the tracker module."""
+    tracker_cls.recall_original_idea_candidates = _tracker_recall_original_idea_candidates
+
+
 __all__ = [
     "CANDIDATE_ONLY",
     "LEXICAL_METHOD",
@@ -362,8 +474,11 @@ __all__ = [
     "belief_recall_items",
     "concept_recall_items",
     "install_belief_store_recall_methods",
+    "install_metacognition_recall_methods",
+    "original_idea_recall_items",
     "recall_belief_candidates",
     "recall_concept_candidates",
     "recall_items",
+    "recall_original_idea_candidates",
     "tokenize_for_recall",
 ]

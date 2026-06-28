@@ -678,3 +678,8 @@ class MetaCognitionTracker:
             "high_confidence_domains": len(self.get_high_confidence_domains()),
             "low_confidence_domains": len(self.get_low_confidence_domains()),
         }
+
+
+from deepr.experts.semantic_recall import install_metacognition_recall_methods as _install_recall_methods
+
+_install_recall_methods(MetaCognitionTracker)

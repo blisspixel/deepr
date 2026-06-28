@@ -25,6 +25,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 </details>
 
 ### Added
+- Added read-only original-idea recall candidates over metacognitive state.
+  `recall_original_idea_candidates` and `MetaCognitionTracker` now route active
+  original ideas through the existing `candidate_only` recall contract with
+  perspective-state authority, non-factual promotion policy metadata, and no
+  writes or semantic verdicts.
 - Added `deepr-expert-perspective-state-v1`, a read-only metacognitive
   perspective-state packet that exposes active original ideas with authority,
   promotion policy, uncertainty, expected observations, and disconfirming
