@@ -4,10 +4,13 @@ import json
 import logging
 import os
 import tempfile
+from contextlib import suppress
 from dataclasses import asdict, dataclass
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any
+
+from deepr.config import runtime_data_path
 
 logger = logging.getLogger(__name__)
 
@@ -37,7 +40,9 @@ class JobManager:
     - CosmosDB: Azure Cosmos DB (future)
     """
 
-    def __init__(self, backend_type: str = "jsonl", log_path: str = "data/logs/job_log.jsonl"):
+    def __init__(self, backend_type: str = "jsonl", log_path: str | None = None):
+        if log_path is None:
+            log_path = str(runtime_data_path("logs", "job_log.jsonl"))
         """
         Initialize job manager.
 
@@ -189,10 +194,8 @@ class JobManager:
             os.replace(tmp_path, str(self.log_path))
         except BaseException:
             # Clean up temp file on any failure
-            try:
+            with suppress(OSError):
                 os.unlink(tmp_path)
-            except OSError:
-                pass
             raise
 
     async def _get_jsonl_job(self, response_id: str) -> JobRecord | None:

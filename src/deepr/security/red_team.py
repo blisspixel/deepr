@@ -15,6 +15,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
+from deepr.config import runtime_data_path
 from deepr.experts.beliefs import Belief
 from deepr.security.output_safety import sanitize_host_facing_payload
 from deepr.utils.prompt_security import UntrustedContentResult, sanitize_untrusted_content
@@ -414,8 +415,8 @@ def run_agentic_red_team_suite(
 
 
 def write_red_team_report(report: RedTeamReport, *, output_dir: Path | None = None) -> Path:
-    """Write a red-team artifact under ``data/benchmarks``."""
-    root = output_dir or Path("data/benchmarks")
+    """Write a red-team artifact under the configured benchmarks directory."""
+    root = output_dir or runtime_data_path("benchmarks")
     root.mkdir(parents=True, exist_ok=True)
     timestamp = datetime.now(UTC).strftime("%Y%m%d_%H%M%S_%f")
     path = root / f"red_team_{timestamp}.json"

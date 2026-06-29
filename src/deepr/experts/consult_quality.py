@@ -13,6 +13,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Literal
 
+from deepr.config import runtime_data_path
 from deepr.core.contracts import Gap
 from deepr.experts.consult_traces import (
     CONSULT_QUALITY_EVAL_CASE_KIND,
@@ -254,7 +255,7 @@ def build_consult_quality_review(
 
 
 def _write_review_artifact(artifact: dict[str, Any], *, output_dir: Path | None) -> Path:
-    root = output_dir or Path("data/benchmarks")
+    root = output_dir or runtime_data_path("benchmarks")
     root.mkdir(parents=True, exist_ok=True)
     timestamp = _utc_now().strftime("%Y%m%d_%H%M%S_%f")
     path = root / f"consult_quality_review_{artifact['review_id']}_{timestamp}.json"
@@ -290,7 +291,7 @@ def _eval_case_artifact(profile: ExpertProfile, review: dict[str, Any], candidat
 
 
 def _write_eval_case_artifact(artifact: dict[str, Any], *, output_dir: Path | None) -> Path:
-    root = output_dir or Path("data/benchmarks")
+    root = output_dir or runtime_data_path("benchmarks")
     root.mkdir(parents=True, exist_ok=True)
     timestamp = _utc_now().strftime("%Y%m%d_%H%M%S_%f")
     path = root / f"consult_quality_case_{artifact['proposal_id']}_{timestamp}.json"
@@ -322,7 +323,7 @@ def _review_action(review: dict[str, Any], *, apply: bool, output_dir: Path | No
             "action": "write_quality_review",
             "status": "preview",
             "artifact": review,
-            "would_write": str(output_dir or Path("data/benchmarks")),
+            "would_write": str(output_dir or runtime_data_path("benchmarks")),
         }
     path = _write_review_artifact(review, output_dir=output_dir)
     return {
@@ -400,7 +401,7 @@ def _eval_action(
             "action": "write_eval_case",
             "status": "preview",
             "artifact": artifact,
-            "would_write": str(output_dir or Path("data/benchmarks")),
+            "would_write": str(output_dir or runtime_data_path("benchmarks")),
         }
     path = _write_eval_case_artifact(artifact, output_dir=output_dir)
     return {

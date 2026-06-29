@@ -54,7 +54,7 @@ class Finding:
         if not self.tokens:
             self.tokens = self._tokenize(self.text)
         if not self.content_hash:
-            self.content_hash = hashlib.md5(self.text.encode()).hexdigest()[:12]
+            self.content_hash = hashlib.sha256(self.text.encode()).hexdigest()[:12]
 
     @staticmethod
     def _tokenize(text: str) -> list[str]:

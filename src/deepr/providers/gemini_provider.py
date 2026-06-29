@@ -14,6 +14,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import os
+from contextlib import suppress
 from datetime import UTC, datetime
 from types import SimpleNamespace
 from typing import Any
@@ -42,12 +43,10 @@ from .base import (
 
 # Suppress experimental API warning for Interactions API.
 if genai is not None:
-    try:
+    with suppress(ImportError, AttributeError):
         import google.genai.client as _genai_client
 
         _genai_client._interactions_experimental_warned = True
-    except (ImportError, AttributeError):
-        pass
 
 logger = logging.getLogger(__name__)
 
@@ -71,7 +70,7 @@ class _FallbackGenerateContentConfig(dict[str, Any]):
 
 
 class _UnavailableGeminiClient:
-    """Client placeholder that fails with a clear error when SDK is unavailable."""
+    """Client shim that fails with a clear error when SDK is unavailable."""
 
     def __init__(self) -> None:
         def _unavailable(*_args: Any, **_kwargs: Any) -> Any:
@@ -135,12 +134,14 @@ class GeminiProvider(DeepResearchProvider):
             api_key: Google Gemini API key (defaults to GEMINI_API_KEY env var)
             model_mappings: Custom model name mappings (optional)
         """
+        if api_key in ("***", ""):
+            api_key = None
         self.api_key = api_key or os.getenv("GEMINI_API_KEY")
         if not self.api_key:
             raise ValueError("Gemini API key is required (set GEMINI_API_KEY)")
 
         # Initialize real client when SDK is available, otherwise keep a safe
-        # placeholder so unit tests can patch client behavior.
+        # unavailable-client shim so unit tests can patch client behavior.
         if genai is not None:
             self.client = genai.Client(api_key=self.api_key)
         else:

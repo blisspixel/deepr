@@ -29,6 +29,24 @@ def default_data_dir() -> Path:
         return Path(".deepr")
 
 
+def runtime_data_root() -> Path:
+    """Root for runtime artifacts that historically live under repo-local data.
+
+    ``DEEPR_DATA_DIR`` is the portable-data override. When it is unset, keep the
+    long-standing CWD-local ``data`` default for reports, queues, benchmarks,
+    audit logs, and observability artifacts. This is intentionally different
+    from ``default_data_dir()``, which is used for per-user global config and
+    expert discovery from any working directory.
+    """
+    configured = os.getenv("DEEPR_DATA_DIR")
+    return Path(configured) if configured else Path("data")
+
+
+def runtime_data_path(*parts: str) -> Path:
+    """Build a path below ``runtime_data_root()``."""
+    return runtime_data_root().joinpath(*parts)
+
+
 # Load .env: the current directory first (local/dev), then the per-user global
 # ~/.deepr/.env, so a globally-installed CLI finds its config from ANY working
 # directory. load_dotenv does not override already-set vars, so a local .env
@@ -103,7 +121,7 @@ class ProviderConfig(BaseModel):
         if not use_benchmark_routing:
             return self
 
-        prefs_path = Path("data/benchmarks/routing_preferences.json")
+        prefs_path = runtime_data_path("benchmarks", "routing_preferences.json")
         if not prefs_path.exists():
             return self
         try:

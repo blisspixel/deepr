@@ -43,6 +43,10 @@ class OpenAIProvider(DeepResearchProvider):
             organization: OpenAI organization ID (optional)
             model_mappings: Custom model name mappings (optional)
         """
+        # load_config() and legacy dicts redact api_key to "***"; treat as absent
+        # so env var fallback applies (same guard as create_provider).
+        if api_key in ("***", ""):
+            api_key = None
         self.api_key = api_key or os.getenv("OPENAI_API_KEY")
         if not self.api_key:
             raise ValueError("OpenAI API key is required")

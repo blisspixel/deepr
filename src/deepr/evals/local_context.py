@@ -25,6 +25,7 @@ from deepr.backends.fresh_context import (
     make_free_fresh_context_builder,
 )
 from deepr.backends.local import ollama_chat_client
+from deepr.config import runtime_data_path
 from deepr.evals.local_compare import parse_judge_verdict
 
 METHODOLOGY_VERSION = "1.0"
@@ -231,8 +232,8 @@ async def run_local_context_eval(
 
 
 def write_context_report(report: LocalContextEvalReport, *, output_dir: Path | None = None) -> Path:
-    """Write a local context eval artifact under ``data/benchmarks``."""
-    root = output_dir or Path("data/benchmarks")
+    """Write a local context eval artifact under the configured benchmarks directory."""
+    root = output_dir or runtime_data_path("benchmarks")
     root.mkdir(parents=True, exist_ok=True)
     timestamp = datetime.now(UTC).strftime("%Y%m%d_%H%M%S_%f")
     path = root / f"local_context_{timestamp}.json"

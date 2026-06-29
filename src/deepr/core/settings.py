@@ -35,6 +35,7 @@ from __future__ import annotations
 import json
 import logging
 import os
+from contextlib import suppress
 from dataclasses import dataclass, field
 from enum import Enum
 from pathlib import Path
@@ -848,12 +849,10 @@ class Settings:
         """Find configuration file in standard locations."""
         names = ("config.yaml", "config.yml", "config.json")
         locations = [Path(".deepr") / n for n in names]
-        try:
+        with suppress(RuntimeError):
             # Skip user-level config when the home dir is undeterminable
             # (HOME/USERPROFILE unset) instead of letting Path.home() crash.
             locations += [Path.home() / ".deepr" / n for n in names]
-        except RuntimeError:
-            pass
         for path in locations:
             if path.exists():
                 return path
@@ -1102,13 +1101,12 @@ def load_config() -> dict[str, Any]:
     """
     settings = get_settings()
 
-    api_key = settings.get_api_key("openai")
-    if not api_key:
-        api_key = settings.get_api_key(settings.default_provider)
-
+    # Legacy dict redacts secrets (callers that need real keys use env or
+    # get_settings().get_api_key()). Providers treat "***" or "" as absent
+    # and fall back to environment variables.
     return {
         "provider": settings.default_provider,
-        "api_key": api_key,
+        "api_key": "***",
         "azure_endpoint": settings.providers.get("azure", ProviderSettings("azure")).azure_endpoint,
         "queue": "local",
         "queue_db_path": "queue/research_queue.db",

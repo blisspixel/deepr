@@ -116,6 +116,8 @@ class AnthropicProvider(DeepResearchProvider):
         if not ANTHROPIC_AVAILABLE:
             raise ImportError("Anthropic SDK not installed. Run: pip install anthropic")
 
+        if api_key in ("***", ""):
+            api_key = None
         self.api_key = api_key or os.getenv("ANTHROPIC_API_KEY")
         if not self.api_key:
             raise ValueError("ANTHROPIC_API_KEY not found in environment")

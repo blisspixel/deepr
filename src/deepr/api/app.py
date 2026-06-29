@@ -312,8 +312,8 @@ register_error_handlers(app)
 import uuid
 
 from deepr.config import load_config
+from deepr.providers import create_provider
 from deepr.providers.base import ResearchRequest, ToolConfig
-from deepr.providers.openai_provider import OpenAIProvider
 from deepr.queue.base import JobStatus, ResearchJob
 from deepr.queue.local_queue import SQLiteQueue
 from deepr.storage.local import LocalStorage
@@ -322,7 +322,8 @@ from deepr.storage.local import LocalStorage
 config = load_config()
 queue = SQLiteQueue(config["queue_db_path"])
 storage = LocalStorage(config["results_dir"])
-provider = OpenAIProvider(api_key=config["api_key"])
+# Use factory so masked "api_key" from legacy load_config falls back to env
+provider = create_provider(config.get("provider", "openai"), api_key=config.get("api_key"))
 
 
 @app.route("/api/jobs", methods=["GET"])

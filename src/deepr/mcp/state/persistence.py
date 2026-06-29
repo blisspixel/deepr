@@ -13,10 +13,16 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 
+from deepr.config import runtime_data_path
+
 from .job_manager import JobBeliefs, JobPhase, JobPlan, JobState
 
-# Default database path (relative to project root)
-DEFAULT_DB_PATH = Path("data/mcp_jobs.db")
+
+def _default_mcp_jobs_db() -> Path:
+    return runtime_data_path("mcp_jobs.db")
+
+
+DEFAULT_DB_PATH = _default_mcp_jobs_db()
 
 
 class JobPersistence:
@@ -27,7 +33,7 @@ class JobPersistence:
     """
 
     def __init__(self, db_path: Path | None = None):
-        self._db_path = db_path or DEFAULT_DB_PATH
+        self._db_path = db_path or _default_mcp_jobs_db()
         self._db_path.parent.mkdir(parents=True, exist_ok=True)
         self._conn = sqlite3.connect(
             str(self._db_path),
@@ -169,7 +175,7 @@ class JobPersistence:
         Returns the number of jobs updated.
         """
         terminal = ("completed", "failed", "cancelled")
-        placeholders = ",".join("?" for _ in terminal)
+        terminal_markers = ",".join("?" for _ in terminal)
         now = datetime.now().isoformat()
 
         cursor = self._conn.execute(
@@ -177,7 +183,7 @@ class JobPersistence:
                 SET phase = 'failed',
                     error = 'Server restarted while job was in progress',
                     updated_at = ?
-                WHERE phase NOT IN ({placeholders})""",  # placeholders from fixed terminal tuple; values parameterized
+                WHERE phase NOT IN ({terminal_markers})""",
             (now, *terminal),
         )
         self._conn.commit()

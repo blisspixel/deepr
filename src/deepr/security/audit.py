@@ -17,6 +17,8 @@ from enum import Enum
 from pathlib import Path
 from typing import Any
 
+from deepr.config import runtime_data_path
+
 logger = logging.getLogger(__name__)
 
 
@@ -124,16 +126,18 @@ class AuditLog:
     """
 
     def __init__(self, log_path: Path | None = None):
-        self.log_path = log_path or Path("data/security/audit.jsonl")
+        if log_path is None:
+            log_path = runtime_data_path("security", "audit.jsonl")
+        self.log_path = log_path
         self.log_path.parent.mkdir(parents=True, exist_ok=True)
         self._lock = threading.Lock()
 
     def record(self, event: AuditEvent) -> None:
         """Append an audit event to the log."""
         with self._lock:
-            line = json.dumps(event.to_dict(), ensure_ascii=True)
-            with open(self.log_path, "a", encoding="utf-8") as f:
-                f.write(line + "\n")
+            from deepr.utils.atomic_io import append_jsonl_durable
+
+            append_jsonl_durable(self.log_path, event.to_dict(), fsync=True)
 
     def query(
         self,

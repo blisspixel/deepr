@@ -286,7 +286,7 @@ def capacity_admit(
     EXAMPLES:
       deepr capacity admit llama3.1 --task-class sync
       deepr capacity admit qwen2.5:14b --task-class absorb --days 60 --score 0.74
-      deepr capacity admit --from-eval data/benchmarks/local_compare_20260618_120000.json --task-class sync
+      deepr capacity admit --from-eval <benchmarks-dir>/local_compare_20260618_120000.json --task-class sync
     """
     from deepr.backends.admission import (
         DEFAULT_ADMISSION_DAYS,

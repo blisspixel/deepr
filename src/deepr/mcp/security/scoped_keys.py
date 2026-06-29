@@ -656,9 +656,10 @@ class RemoteMCPAuditLog:
 
     def record(self, event: RemoteMCPAuditEvent) -> None:
         self.path.parent.mkdir(parents=True, exist_ok=True)
-        line = json.dumps(event.to_dict(), sort_keys=True, ensure_ascii=True)
-        with self._lock, self.path.open("a", encoding="utf-8") as handle:
-            handle.write(line + "\n")
+        from deepr.utils.atomic_io import append_jsonl_durable
+
+        with self._lock:
+            append_jsonl_durable(self.path, event.to_dict(), fsync=True)
 
     def record_tool_call(
         self,

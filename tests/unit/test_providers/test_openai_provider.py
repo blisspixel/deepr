@@ -44,6 +44,14 @@ class TestOpenAIProvider:
                 with pytest.raises(ValueError, match="API key is required"):
                     OpenAIProvider(api_key=None)
 
+    def test_provider_initialization_redacted_key_falls_back_to_env(self, monkeypatch):
+        """Direct constructor calls treat the redacted config sentinel as absent."""
+        monkeypatch.setenv("OPENAI_API_KEY", "sk-real-from-env")
+
+        provider = OpenAIProvider(api_key="***")
+
+        assert provider.api_key == "sk-real-from-env"
+
     def test_provider_initialization_with_custom_mappings(self):
         """Test provider accepts custom model mappings."""
         custom_mappings = {"custom-model": "custom-model-v1"}

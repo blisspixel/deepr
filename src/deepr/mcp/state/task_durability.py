@@ -39,6 +39,7 @@ from enum import Enum
 from pathlib import Path
 from typing import Any
 
+from deepr.config import runtime_data_path
 from deepr.core.constants import TASK_CHECKPOINT_INTERVAL, TASK_DEFAULT_TIMEOUT
 
 
@@ -47,8 +48,11 @@ def _utc_now() -> datetime:
     return datetime.now(UTC)
 
 
-# Default database path
-DEFAULT_DB_PATH = Path("data/durable_tasks.db")
+def _default_durable_tasks_db() -> Path:
+    return runtime_data_path("durable_tasks.db")
+
+
+DEFAULT_DB_PATH = _default_durable_tasks_db()
 
 
 class TaskStatus(Enum):
@@ -182,7 +186,7 @@ class TaskDurabilityManager:
             db_path: Path to database (default: data/durable_tasks.db)
             checkpoint_interval: Seconds between checkpoints (default from constants)
         """
-        self._db_path = db_path or DEFAULT_DB_PATH
+        self._db_path = db_path or _default_durable_tasks_db()
         self._db_path.parent.mkdir(parents=True, exist_ok=True)
         self.checkpoint_interval = checkpoint_interval or TASK_CHECKPOINT_INTERVAL
 

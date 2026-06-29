@@ -4,9 +4,9 @@ Routes queries to the best available model using benchmark data to rank
 models by measured quality per task type. Falls back to cheapest available
 model when no benchmark data exists.
 
-When benchmark results exist (data/benchmarks/benchmark_*.json), the router
-uses per-task-type quality rankings to select the best model whose provider
-has an API key configured.
+When benchmark results exist in the configured benchmarks directory, the
+router uses per-task-type quality rankings to select the best model whose
+provider has an API key configured.
 
 Models added to the registry without benchmark data receive provisional
 quality scores derived from pricing tier and specializations, so they
@@ -25,10 +25,12 @@ import sys
 import threading
 import time as _time
 from collections import defaultdict
+from contextlib import suppress
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Literal
 
+from deepr.config import runtime_data_path
 from deepr.experts.router import ModelRouter
 from deepr.observability.provider_router import AutonomousProviderRouter
 from deepr.providers.registry import MODEL_CAPABILITIES
@@ -155,7 +157,7 @@ def _load_benchmark_rankings() -> dict[str, list[_RankingEntry]] | None:
     sorted by quality desc (cost as tiebreaker). Also includes "_overall" key
     for fallback. Returns None if no benchmark data found.
     """
-    bench_dir = Path("data/benchmarks")
+    bench_dir = runtime_data_path("benchmarks")
     if not bench_dir.exists():
         return None
 
@@ -356,7 +358,7 @@ def _get_benchmark_rankings() -> dict[str, list[_RankingEntry]] | None:
 
     _rankings_check_ts = now
 
-    bench_dir = Path("data/benchmarks")
+    bench_dir = runtime_data_path("benchmarks")
     if not bench_dir.exists():
         if _rankings_cache is None:
             _rankings_cache = _enrich_with_provisional(None)
@@ -394,7 +396,9 @@ _auto_eval_lock = threading.Lock()
 def _compute_registry_hash() -> str:
     """Compute a stable hash of all registry model keys."""
     keys = sorted(MODEL_CAPABILITIES.keys())
-    return hashlib.md5("|".join(keys).encode()).hexdigest()
+    return hashlib.sha256("|".join(keys).encode()).hexdigest()[
+        :16
+    ]  # stable short hash for registry change detection (sha256 for collision resistance)
 
 
 def _run_benchmark_eval(cost_cap: float, hash_file: Path, current_hash: str) -> None:
@@ -470,14 +474,12 @@ def trigger_background_eval_if_needed(
             return False
         _auto_eval_started = True
 
-    hash_file = Path("data/benchmarks/.registry_hash")
+    hash_file = runtime_data_path("benchmarks", ".registry_hash")
     current_hash = _compute_registry_hash()
 
-    try:
+    with suppress(OSError):
         if hash_file.exists() and hash_file.read_text().strip() == current_hash:
             return False
-    except OSError:
-        pass
 
     _logger.info(
         "New models detected in registry, starting background eval (cost cap: $%.2f)",

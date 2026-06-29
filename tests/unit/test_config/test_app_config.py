@@ -332,10 +332,9 @@ class TestLoadConfigContract:
 
     These pin the exact contract the ~53 call sites depend on, so the migration
     cannot silently change the dict's shape, the api-key redaction, or the
-    default cost limits. The last test pins the *divergence* from
-    deepr.core.settings.load_config() so a blind unification of the two fails
-    here deliberately rather than shipping a behavior change. See
-    docs/design/code-health.md Q1.1.
+    default cost limits. The last test pins the remaining shape divergence from
+    deepr.core.settings.load_config() while requiring both legacy dictionaries
+    to redact API keys. See docs/design/code-health.md Q1.1.
     """
 
     EXPECTED_KEYS = {
@@ -382,10 +381,17 @@ class TestLoadConfigContract:
         monkeypatch.setenv("DEEPR_REPORTS_PATH", "custom/reports/here")
         assert load_config()["results_dir"] == "custom/reports/here"
 
+    def test_runtime_data_path_honors_data_dir(self, monkeypatch, tmp_path):
+        from deepr.config import runtime_data_path
+
+        monkeypatch.setenv("DEEPR_DATA_DIR", str(tmp_path / "portable"))
+
+        assert runtime_data_path("benchmarks") == tmp_path / "portable" / "benchmarks"
+
     def test_diverges_from_settings_load_config(self, monkeypatch):
         # HAZARD pin (Q1.1): the two load_config implementations disagree, so a
-        # blind unification must trip this test. config.py redacts api_key and
-        # carries experts_dir; core.settings.load_config does neither.
+        # blind unification must trip this test. Both now redact api_key; only
+        # config.py carries experts_dir.
         monkeypatch.delenv("OPENAI_API_KEY", raising=False)
         from deepr.core.settings import get_settings
         from deepr.core.settings import load_config as settings_load_config
@@ -395,9 +401,9 @@ class TestLoadConfigContract:
         settings_cfg = settings_load_config()
 
         assert cfg["api_key"] == "***"
+        assert settings_cfg["api_key"] == "***"
         assert "experts_dir" in cfg
         assert "experts_dir" not in settings_cfg
-        assert settings_cfg["api_key"] != "***"  # settings does not redact
 
 
 class TestLoadConfigSettingsEquivalence:

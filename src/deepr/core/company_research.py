@@ -11,6 +11,7 @@ intelligence, strategic planning, and due diligence.
 import logging
 import os
 import tempfile
+from contextlib import suppress
 from datetime import UTC, datetime
 from typing import Any
 
@@ -152,14 +153,12 @@ class CompanyResearchOrchestrator:
         logger.info("Model: %s", model)
         logger.info("Provider: %s", provider)
 
-        # Submit research job with scraped content as uploaded document.
-        # ``submit_research`` returns a job_id string (not a dict) and
-        # does not accept ``provider``/``uploaded_files``/``skip_confirmation``.
-        # The orchestrator uses its own provider from __init__; the
-        # ``provider`` selection from the caller is honoured at the
-        # CompanyResearchOrchestrator level (TODO: route to a per-provider
-        # orchestrator if needed). Skip-confirmation is irrelevant here
-        # since the CLI handles the confirmation flow before this call.
+        # Submit research job with scraped content as an uploaded document.
+        # ``submit_research`` returns a job_id string and performs document
+        # upload before returning, so the temporary scrape handoff can be
+        # removed after this call completes. Provider selection is owned by
+        # the configured ResearchOrchestrator; CLI confirmation happens before
+        # this wrapper is invoked.
         try:
             job_id = await self.research_orchestrator.submit_research(
                 prompt=research_prompt,
@@ -167,12 +166,14 @@ class CompanyResearchOrchestrator:
                 documents=[scrape_results["scraped_file"]],
                 budget_limit=budget_limit,
             )
+            self._remove_scrape_temp_file(scrape_results.get("scraped_file"))
         except Exception as exc:
+            self._remove_scrape_temp_file(scrape_results.get("scraped_file") if "scrape_results" in locals() else None)
             return {
                 "success": False,
                 "error": f"Research submission failed: {exc}",
-                "scraped_file": scrape_results["scraped_file"],
-                "pages_scraped": scrape_results["pages_scraped"],
+                "scraped_file": scrape_results.get("scraped_file") if "scrape_results" in locals() else None,
+                "pages_scraped": scrape_results.get("pages_scraped") if "scrape_results" in locals() else 0,
             }
 
         logger.info("Research job submitted: %s", job_id)
@@ -190,6 +191,14 @@ class CompanyResearchOrchestrator:
             "status": "research_submitted",
             "message": f"Research job submitted: {job_id}. Check status with 'deepr jobs status {job_id}'",
         }
+
+    @staticmethod
+    def _remove_scrape_temp_file(path: str | None) -> None:
+        """Remove a generated scrape handoff file after upload or failure."""
+        if not path:
+            return
+        with suppress(OSError):
+            os.unlink(path)
 
     async def _scrape_company_website(
         self, company_url: str, company_name: str, config: ScrapeConfig
