@@ -9,6 +9,7 @@ from collections.abc import Iterable, Mapping
 from datetime import UTC, datetime
 from typing import Any
 
+from deepr.experts import source_pack_recall as _recall
 from deepr.experts.beliefs import EDGE_TYPES
 from deepr.experts.source_pack_payloads import artifact_generated_at as _artifact_generated_at
 from deepr.experts.source_pack_payloads import source_pack_from_payload as _source_pack_from_payload
@@ -20,7 +21,6 @@ from deepr.experts.source_pack_policies import is_gap_kind as _is_gap_kind
 from deepr.experts.source_pack_policies import is_hypothesis_kind as _is_hypothesis_kind
 from deepr.experts.source_pack_policies import is_original_idea_kind as _is_original_idea_kind
 from deepr.experts.source_pack_policies import is_stance_kind as _is_stance_kind
-from deepr.experts.source_pack_recall import build_recall_context as _recall_context
 from deepr.experts.source_pack_values import enum_value as _enum_value
 from deepr.experts.source_pack_values import float_0_1 as _float_0_1
 from deepr.experts.source_pack_values import float_nonnegative as _float_nonnegative
@@ -623,7 +623,7 @@ def _verification_decision(
         "model_judgment": model_judgment,
         "edge_decisions": edge_decisions,
         "edge_decision_failures": edge_decision_failures,
-        "recall_context": _recall_context(recall_candidates_by_candidate_id.get(candidate_id, [])),
+        "recall_context": _recall.build_recall_context(recall_candidates_by_candidate_id.get(candidate_id, [])),
         "readiness": {
             "ready_for_commit_envelope": ready,
             "failure_reasons": failure_reasons,
@@ -879,6 +879,10 @@ def build_claim_verification(
     prompt_hash: str = "",
     generated_at: str = "",
     recall_candidates_by_candidate_id: Mapping[str, Iterable[Any]] | None = None,
+    recall_belief_store: Any | None = None,
+    recall_domain: str | None = None,
+    recall_top_k: int = 5,
+    recall_min_score: float = 0.0,
 ) -> dict[str, Any]:
     """Compile verifier output into graph-commit readiness decisions.
 
@@ -889,7 +893,14 @@ def build_claim_verification(
     parsed, raw_response_hash, response_failure = _response_from_model_output(model_output)
     response_failure = response_failure or _verification_response_shape_failure(parsed)
     candidates_by_id = _candidate_by_id(claim_extraction)
-    recall_candidates_by_candidate_id = recall_candidates_by_candidate_id or {}
+    recall_candidates_by_candidate_id = _recall.resolve_verification_recall_candidates(
+        recall_candidates_by_candidate_id,
+        claim_extraction,
+        recall_belief_store,
+        domain=recall_domain,
+        top_k=recall_top_k,
+        min_score=recall_min_score,
+    )
     decisions = [
         _verification_decision(
             item,

@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- Added store-backed, read-only recall routing for claim verification.
+  `build_claim_verification` can now derive `candidate_only` memory-quality
+  recall packets from a `BeliefStore` for ready claim candidates while leaving
+  deduplication, contradiction, and temporal-scope judgment with the verifier.
+
 ### Fixed
 - Unified runtime artifact roots behind configured data directories. Benchmark
   readers and writers, local eval artifacts, red-team artifacts, MCP state

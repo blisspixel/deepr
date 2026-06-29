@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
-from deepr.experts.beliefs import BeliefStore
+from unittest.mock import patch
+
+from deepr.experts.beliefs import Belief, BeliefStore
 from deepr.experts.graph_commit_apply import apply_graph_commit_envelope
 from deepr.experts.graph_commit_envelope import (
     GRAPH_COMMIT_ENVELOPE_KIND,
@@ -609,6 +611,77 @@ def test_claim_verification_attaches_recall_context_without_changing_readiness()
         }
     ]
     assert "payload" not in decision["recall_context"]["candidates"][0]
+
+
+def test_claim_verification_builds_read_only_recall_from_belief_store(tmp_path):
+    notes = build_source_notes(_source_pack_payload())
+    note = notes["notes"][0]
+    window = note["windows"][0]
+    extraction = build_semantic_claim_extraction(
+        notes,
+        {
+            "claims": [
+                {
+                    "statement": "Release text changed the compiler behavior.",
+                    "claim_kind": "factual_claim",
+                    "confidence": 0.91,
+                    "source_refs": [{"note_id": note["note_id"], "window_id": window["window_id"]}],
+                }
+            ]
+        },
+    )
+    store = BeliefStore("Compiler Expert", storage_dir=tmp_path / "beliefs")
+    belief, _ = store.add_belief(
+        Belief(
+            claim="Release text changed compiler behavior for source note verification.",
+            confidence=0.82,
+            domain="compiler",
+            source_type="report",
+        ),
+        check_conflicts=False,
+    )
+
+    with (
+        patch.object(store, "_record_change", side_effect=AssertionError("recall must not write changes")),
+        patch.object(store, "_save", side_effect=AssertionError("recall must not write beliefs")),
+    ):
+        verification = build_claim_verification(
+            extraction,
+            {
+                "verifications": [
+                    {
+                        "candidate_id": extraction["candidates"][0]["candidate_id"],
+                        "support_verdict": "supported",
+                        "contradiction_verdict": "none",
+                        "dedup_verdict": "new",
+                        "temporal_scope_verdict": "valid",
+                    }
+                ]
+            },
+            recall_belief_store=store,
+            recall_domain="compiler",
+            recall_top_k=3,
+        )
+
+    decision = verification["decisions"][0]
+    recall_context = decision["recall_context"]
+    assert decision["readiness"]["ready_for_commit_envelope"] is True
+    assert recall_context["routing"] == "candidate_only"
+    assert recall_context["semantic_verdict"] is False
+    assert recall_context["writes_graph"] is False
+    assert recall_context["candidate_count"] == 1
+    candidate = recall_context["candidates"][0]
+    assert candidate["item_id"] == belief.id
+    assert candidate["kind"] == "belief"
+    assert candidate["domain"] == "compiler"
+    assert candidate["text"] == belief.claim
+    assert candidate["method"] == "lexical_router"
+    assert candidate["verdict"] == "candidate_only"
+    assert candidate["guidance"] == "routing_only"
+    assert candidate["metadata"]["recall_role"] == "memory_quality_candidate"
+    assert candidate["metadata"]["verifier_bands"] == ["deduplication", "contradiction", "temporal_scope"]
+    assert candidate["metadata"]["source_type"] == "report"
+    assert "payload" not in candidate
 
 
 def test_graph_commit_envelope_plans_idempotent_factual_belief_write():
