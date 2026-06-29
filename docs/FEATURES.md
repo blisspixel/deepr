@@ -689,6 +689,10 @@ deepr expert contested "Azure Architect"
 # trajectory (event log), support chains (typed graph), contradictions.
 deepr expert why "Azure Architect" "landing zone subscription vending"
 
+# Recall candidate beliefs for verifier routing. It costs $0 and does not
+# generate embeddings unless a future budgeted embedding path supplies them.
+deepr expert semantic-recall "Azure Architect" "subscription vending guardrails" --json
+
 # MCP-only temporal edge query: filter typed edge qualifiers by valid time,
 # observed time, edge type, or one belief reference.
 # Tool: deepr_temporal_edges

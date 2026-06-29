@@ -133,7 +133,10 @@ must not be described as usable capacity.
   supplies an already-gated query embedding; stale claim vectors are ignored,
   and embedding generation is not automatic. Claim-verification decisions can
   carry these hits in a `recall_context` packet for verifier routing only; the
-  packet is read-only and does not affect commit readiness.
+  packet is read-only and does not affect commit readiness. `deepr expert
+  semantic-recall NAME QUERY` exposes the same `candidate_only` boundary to
+  operators at `$0`; indexed vector recall requires a caller-supplied
+  `--query-embedding` and `--embedding-model`.
 - `deepr expert monitor` emits a read-only `deepr-metacognitive-monitor-v1`
   artifact with review-required proposals derived from self-model risks, failed
   loop runs, capacity waits, and sanitized consult trace candidates. It does

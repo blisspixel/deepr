@@ -12,6 +12,7 @@ Command mapping:
 All flags from the underlying commands are supported.
 """
 
+from deepr.cli.commands.semantic import expert_semantic_recall as _expert_semantic_recall  # noqa: F401
 from deepr.cli.commands.semantic.artifacts import agentic, make
 from deepr.cli.commands.semantic.experts import (
     chat_with_expert,
