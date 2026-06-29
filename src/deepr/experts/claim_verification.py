@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import os
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from typing import Any
@@ -253,6 +254,8 @@ def _candidate_packets(
     recall_domain: str | None,
     recall_top_k: int,
     recall_min_score: float,
+    recall_query_embeddings_by_candidate_id: Mapping[str, Sequence[float]] | None,
+    recall_embedding_model: str | None,
 ) -> list[dict[str, Any]]:
     candidates = _ready_candidates(claim_extraction, max_candidates=max_candidates)
     notes = _notes_by_id(source_notes)
@@ -264,6 +267,8 @@ def _candidate_packets(
         domain=recall_domain,
         top_k=recall_top_k,
         min_score=recall_min_score,
+        query_embeddings_by_candidate_id=recall_query_embeddings_by_candidate_id,
+        embedding_model=recall_embedding_model,
     )
     return [
         _candidate_packet(
@@ -307,6 +312,8 @@ def build_claim_verification_prompt(
     recall_domain: str | None = None,
     recall_top_k: int = DEFAULT_MAX_RECALL_CANDIDATES,
     recall_min_score: float = 0.0,
+    recall_query_embeddings_by_candidate_id: Mapping[str, Sequence[float]] | None = None,
+    recall_embedding_model: str | None = None,
 ) -> ClaimVerificationPrompt:
     """Build bounded messages for claim verification."""
     packets = _candidate_packets(
@@ -320,6 +327,8 @@ def build_claim_verification_prompt(
         recall_domain=recall_domain,
         recall_top_k=recall_top_k,
         recall_min_score=recall_min_score,
+        recall_query_embeddings_by_candidate_id=recall_query_embeddings_by_candidate_id,
+        recall_embedding_model=recall_embedding_model,
     )
     if not packets:
         raise ClaimVerificationBlocked("no ready claim candidates for verification")
@@ -421,6 +430,8 @@ async def verify_claims(
     recall_domain: str | None = None,
     recall_top_k: int = DEFAULT_MAX_RECALL_CANDIDATES,
     recall_min_score: float = 0.0,
+    recall_query_embeddings_by_candidate_id: Mapping[str, Sequence[float]] | None = None,
+    recall_embedding_model: str | None = None,
 ) -> dict[str, Any]:
     """Invoke a chat client and return verifier JSON plus trusted metadata."""
     budget = coerce_nonnegative_float(budget_usd, name="budget_usd", error_type=ClaimVerificationBlocked)
@@ -444,6 +455,8 @@ async def verify_claims(
         recall_domain=recall_domain,
         recall_top_k=recall_top_k,
         recall_min_score=recall_min_score,
+        recall_query_embeddings_by_candidate_id=recall_query_embeddings_by_candidate_id,
+        recall_embedding_model=recall_embedding_model,
     )
     manager = None
     reservation_id = ""

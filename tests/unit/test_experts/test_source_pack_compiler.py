@@ -12,7 +12,7 @@ from deepr.experts.graph_commit_envelope import (
     build_graph_commit_envelope,
 )
 from deepr.experts.metacognition import MetaCognitionTracker
-from deepr.experts.semantic_recall import RecallCandidate
+from deepr.experts.semantic_recall import VECTOR_METHOD, RecallCandidate
 from deepr.experts.source_pack_compiler import (
     CLAIM_VERIFICATION_KIND,
     CLAIM_VERIFICATION_SCHEMA_VERSION,
@@ -701,6 +701,78 @@ def test_claim_verification_builds_read_only_recall_from_belief_store(tmp_path):
     assert candidate["metadata"]["recall_role"] == "memory_quality_candidate"
     assert candidate["metadata"]["verifier_bands"] == ["deduplication", "contradiction", "temporal_scope"]
     assert candidate["metadata"]["source_type"] == "report"
+    assert "payload" not in candidate
+
+
+def test_claim_verification_uses_indexed_belief_vectors_for_recall(tmp_path):
+    notes = build_source_notes(_source_pack_payload())
+    note = notes["notes"][0]
+    window = note["windows"][0]
+    extraction = build_semantic_claim_extraction(
+        notes,
+        {
+            "claims": [
+                {
+                    "statement": "GPU deployment bottlenecks are getting worse.",
+                    "claim_kind": "factual_claim",
+                    "confidence": 0.91,
+                    "source_refs": [{"note_id": note["note_id"], "window_id": window["window_id"]}],
+                }
+            ]
+        },
+    )
+    candidate_id = extraction["candidates"][0]["candidate_id"]
+    store = BeliefStore("Compiler Vector Expert", storage_dir=tmp_path / "beliefs")
+    relevant, _ = store.add_belief(
+        Belief(
+            claim="Advanced packaging capacity constrains accelerator launch schedules.",
+            confidence=0.82,
+            domain="ai-infra",
+            source_type="report",
+        ),
+        check_conflicts=False,
+    )
+    unrelated, _ = store.add_belief(
+        Belief(
+            claim="Audit-log retention drives compliance operating cost.",
+            confidence=0.81,
+            domain="governance",
+            source_type="report",
+        ),
+        check_conflicts=False,
+    )
+    store.upsert_belief_embedding(relevant.id, [1.0, 0.0], model="local-test")
+    store.upsert_belief_embedding(unrelated.id, [0.0, 1.0], model="local-test")
+
+    verification = build_claim_verification(
+        extraction,
+        {
+            "verifications": [
+                {
+                    "candidate_id": candidate_id,
+                    "support_verdict": "supported",
+                    "contradiction_verdict": "none",
+                    "dedup_verdict": "new",
+                    "temporal_scope_verdict": "valid",
+                }
+            ]
+        },
+        recall_belief_store=store,
+        recall_top_k=2,
+        recall_min_score=0.9,
+        recall_query_embeddings_by_candidate_id={candidate_id: [0.99, 0.01]},
+        recall_embedding_model="local-test",
+    )
+
+    recall_context = verification["decisions"][0]["recall_context"]
+    assert recall_context["routing"] == "candidate_only"
+    assert recall_context["semantic_verdict"] is False
+    assert recall_context["writes_graph"] is False
+    assert recall_context["candidate_count"] == 1
+    candidate = recall_context["candidates"][0]
+    assert candidate["item_id"] == relevant.id
+    assert candidate["method"] == VECTOR_METHOD
+    assert candidate["metadata"]["recall_role"] == "memory_quality_candidate"
     assert "payload" not in candidate
 
 

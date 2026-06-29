@@ -8,6 +8,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- Added a persisted local belief-vector index for semantic recall. BeliefStore
+  can now store already-computed belief embeddings, ignore stale vectors when a
+  claim changes, and route claim-verification candidates through indexed
+  vector recall without provider calls or graph writes. Embedding generation
+  remains an explicit, budget-gated caller responsibility.
 - Added temporal edge qualifier rendering to regenerated expert digests.
   `deepr expert digest` now surfaces stored valid time, observed time,
   temporal scope, provenance, and missing-endpoint labels as derived view

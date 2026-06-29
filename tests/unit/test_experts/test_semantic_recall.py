@@ -5,6 +5,7 @@ from __future__ import annotations
 from unittest.mock import patch
 
 from deepr.core.contracts import ExpertOriginalIdea
+from deepr.experts.belief_vector_index import BELIEF_VECTOR_INDEX_SCHEMA_VERSION, BeliefVectorIndex
 from deepr.experts.beliefs import Belief, BeliefStore
 from deepr.experts.lazy_graph_rag import Concept
 from deepr.experts.metacognition import MetaCognitionTracker
@@ -54,6 +55,92 @@ def test_vector_belief_recall_routes_paraphrases_without_claiming_truth(tmp_path
     assert candidates[0].verdict == CANDIDATE_ONLY
     assert candidates[0].guidance == "routing_only"
     assert candidates[0].payload is relevant
+
+
+def test_belief_vector_index_persists_and_filters_stale_claims(tmp_path):
+    store = _store(tmp_path)
+    belief, _ = store.add_belief(
+        Belief(
+            claim="Vector recall finds paraphrased belief memory.",
+            confidence=0.8,
+            domain="memory",
+        )
+    )
+    index = BeliefVectorIndex.for_belief_store(store.storage_dir)
+
+    assert index.upsert_belief(belief, [0.7, 0.3], model="local-test")
+
+    loaded = BeliefVectorIndex.for_belief_store(store.storage_dir)
+    assert loaded.stats(store.beliefs.values(), model="local-test") == {
+        "schema_version": BELIEF_VECTOR_INDEX_SCHEMA_VERSION,
+        "record_count": 1,
+        "current_vector_count": 1,
+        "missing_or_stale_count": 0,
+        "dimensions": [2],
+        "path": str(store.storage_dir / "belief_vectors.json"),
+    }
+    assert loaded.vectors_for(store.beliefs.values(), model="local-test") == {belief.id: (0.7, 0.3)}
+
+    belief.claim = "The claim changed after the vector was generated."
+
+    assert loaded.vectors_for(store.beliefs.values(), model="local-test") == {}
+    assert loaded.missing_or_stale_ids(store.beliefs.values(), model="local-test") == [belief.id]
+
+
+def test_store_recall_uses_persisted_belief_vectors(tmp_path):
+    store = _store(tmp_path)
+    relevant, _ = store.add_belief(
+        Belief(
+            claim="Rack-level power limits delay accelerator deployment.",
+            confidence=0.8,
+            domain="ai-infra",
+        )
+    )
+    unrelated, _ = store.add_belief(
+        Belief(
+            claim="Data retention policies drive compliance review cycles.",
+            confidence=0.8,
+            domain="governance",
+        )
+    )
+    store.upsert_belief_embedding(relevant.id, [1.0, 0.0], model="local-test")
+    store.upsert_belief_embedding(unrelated.id, [0.0, 1.0], model="local-test")
+
+    candidates = store.recall_belief_candidates(
+        "GPU rollout bottleneck",
+        top_k=1,
+        query_embedding=[0.97, 0.03],
+        embedding_model="local-test",
+        include_lexical_fallback=False,
+    )
+
+    assert [candidate.item_id for candidate in candidates] == [relevant.id]
+    assert candidates[0].method == VECTOR_METHOD
+    assert candidates[0].verdict == CANDIDATE_ONLY
+    assert candidates[0].metadata["confidence"] == 0.8
+
+
+def test_store_recall_ignores_stale_index_vectors(tmp_path):
+    store = _store(tmp_path)
+    belief, _ = store.add_belief(
+        Belief(
+            claim="A current claim has a matching vector.",
+            confidence=0.8,
+            domain="memory",
+        )
+    )
+    store.upsert_belief_embedding(belief.id, [1.0, 0.0], model="local-test")
+    belief.claim = "The claim changed after embedding."
+
+    candidates = store.recall_belief_candidates(
+        "current claim",
+        query_embedding=[1.0, 0.0],
+        embedding_model="local-test",
+        include_lexical_fallback=False,
+    )
+
+    assert candidates == []
+    assert store.missing_belief_embedding_ids(embedding_model="local-test") == [belief.id]
 
 
 def test_lexical_fallback_is_labeled_as_router_only(tmp_path):

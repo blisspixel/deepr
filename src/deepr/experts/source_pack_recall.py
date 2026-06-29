@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from collections.abc import Iterable, Mapping
+from collections.abc import Iterable, Mapping, Sequence
 from typing import Any
 
 from deepr.experts.source_pack_values import float_0_1 as _float_0_1
@@ -108,6 +108,8 @@ def build_verification_recall_candidates(
     domain: str | None = None,
     top_k: int = 5,
     min_score: float = 0.0,
+    query_embeddings_by_candidate_id: Mapping[str, Sequence[float]] | None = None,
+    embedding_model: str | None = None,
     include_lexical_fallback: bool = True,
 ) -> dict[str, list[dict[str, Any]]]:
     """Route ready claim candidates to existing beliefs for verifier inspection.
@@ -129,6 +131,10 @@ def build_verification_recall_candidates(
             top_k=top_k,
             min_score=min_score,
             domain=domain,
+            query_embedding=(
+                query_embeddings_by_candidate_id.get(candidate_id) if query_embeddings_by_candidate_id else None
+            ),
+            embedding_model=embedding_model,
             include_lexical_fallback=include_lexical_fallback,
         )
         packets = [_memory_quality_packet(hit) for hit in hits]
@@ -145,6 +151,8 @@ def resolve_verification_recall_candidates(
     domain: str | None = None,
     top_k: int = 5,
     min_score: float = 0.0,
+    query_embeddings_by_candidate_id: Mapping[str, Sequence[float]] | None = None,
+    embedding_model: str | None = None,
 ) -> Mapping[str, Iterable[Any]]:
     if provided is not None:
         return provided
@@ -156,6 +164,8 @@ def resolve_verification_recall_candidates(
         domain=domain,
         top_k=top_k,
         min_score=min_score,
+        query_embeddings_by_candidate_id=query_embeddings_by_candidate_id,
+        embedding_model=embedding_model,
     )
 
 

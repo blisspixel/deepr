@@ -12,8 +12,10 @@ import math
 import re
 from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass, field
+from pathlib import Path
 from typing import Any
 
+from deepr.experts.belief_vector_index import BeliefVectorIndex
 from deepr.experts.perspective_state import (
     ORIGINAL_IDEA_AUTHORITY,
     ORIGINAL_IDEA_PROMOTION_POLICY,
@@ -392,9 +394,16 @@ def _store_recall_belief_candidates(
     domain: str | None = None,
     query_embedding: Sequence[float] | None = None,
     belief_embeddings: Mapping[str, Sequence[float]] | None = None,
+    embedding_model: str | None = None,
     include_lexical_fallback: bool = True,
 ) -> list[RecallCandidate]:
     """BeliefStore-compatible wrapper for local recall routing."""
+    resolved_embeddings = belief_embeddings
+    if resolved_embeddings is None and query_embedding is not None:
+        resolved_embeddings = _store_belief_vector_index(self).vectors_for(
+            self.beliefs.values(),
+            model=embedding_model,
+        )
     return recall_belief_candidates(
         query,
         self.beliefs.values(),
@@ -402,7 +411,7 @@ def _store_recall_belief_candidates(
         min_score=min_score,
         domain=domain,
         query_embedding=query_embedding,
-        belief_embeddings=belief_embeddings,
+        belief_embeddings=resolved_embeddings,
         include_lexical_fallback=include_lexical_fallback,
     )
 
@@ -415,6 +424,7 @@ def _store_recall_contradiction_candidates(
     min_score: float = 0.0,
     query_embedding: Sequence[float] | None = None,
     belief_embeddings: Mapping[str, Sequence[float]] | None = None,
+    embedding_model: str | None = None,
     include_lexical_fallback: bool = True,
 ) -> list[RecallCandidate]:
     """Return same-domain candidates; a verifier still decides contradiction."""
@@ -426,16 +436,72 @@ def _store_recall_contradiction_candidates(
         domain=str(getattr(belief, "domain", "")),
         query_embedding=query_embedding,
         belief_embeddings=belief_embeddings,
+        embedding_model=embedding_model,
         include_lexical_fallback=include_lexical_fallback,
     )
     belief_id = str(getattr(belief, "id", ""))
     return [candidate for candidate in candidates if candidate.item_id != belief_id][:top_k]
 
 
+def _store_belief_vector_index(self: Any) -> BeliefVectorIndex:
+    index = getattr(self, "_belief_vector_index", None)
+    if index is None:
+        index = BeliefVectorIndex.for_belief_store(Path(self.storage_dir))
+        self._belief_vector_index = index
+    return index
+
+
+def _store_upsert_belief_embedding(
+    self: Any,
+    belief_id: str,
+    embedding: Sequence[float],
+    *,
+    model: str = "",
+    embedded_at: str | None = None,
+    metadata: Mapping[str, Any] | None = None,
+) -> bool:
+    """Persist an already computed embedding for one current belief."""
+    belief = self.beliefs.get(str(belief_id))
+    if belief is None:
+        raise ValueError(f"unknown belief id: {belief_id}")
+    return _store_belief_vector_index(self).upsert_belief(
+        belief,
+        embedding,
+        model=model,
+        embedded_at=embedded_at,
+        metadata=metadata,
+    )
+
+
+def _store_missing_belief_embedding_ids(self: Any, *, embedding_model: str | None = None) -> list[str]:
+    """Return current belief ids missing a non-stale indexed vector."""
+    return _store_belief_vector_index(self).missing_or_stale_ids(
+        self.beliefs.values(),
+        model=embedding_model,
+    )
+
+
+def _store_prune_belief_embeddings(self: Any) -> int:
+    """Remove vectors for beliefs no longer present in the canonical store."""
+    return _store_belief_vector_index(self).prune(self.beliefs.keys())
+
+
+def _store_belief_embedding_stats(self: Any, *, embedding_model: str | None = None) -> dict[str, Any]:
+    """Return local belief-vector index statistics."""
+    return _store_belief_vector_index(self).stats(
+        self.beliefs.values(),
+        model=embedding_model,
+    )
+
+
 def install_belief_store_recall_methods(store_cls: Any) -> None:
     """Attach recall convenience methods without growing the store module."""
     store_cls.recall_belief_candidates = _store_recall_belief_candidates
     store_cls.recall_contradiction_candidates = _store_recall_contradiction_candidates
+    store_cls.upsert_belief_embedding = _store_upsert_belief_embedding
+    store_cls.missing_belief_embedding_ids = _store_missing_belief_embedding_ids
+    store_cls.prune_belief_embeddings = _store_prune_belief_embeddings
+    store_cls.belief_embedding_stats = _store_belief_embedding_stats
 
 
 def _tracker_recall_original_idea_candidates(

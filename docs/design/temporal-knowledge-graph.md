@@ -117,8 +117,10 @@ it changes:
 - **Adopt in stages: hybrid retrieval** for the query surface at scale -
   Graphiti's cosine + BM25 + graph-BFS with reranking is the proven shape
   for memory queries over large stores. The first stage is now in code:
-  read-only belief and concept recall with optional local vector scores and
-  explicit `candidate_only` labels. Graph-BFS expansion and reranking wait
+  read-only belief and concept recall with optional local vector scores,
+  explicit `candidate_only` labels, and a persisted belief-vector index that
+  ignores stale claim embeddings. Embedding generation remains an explicit,
+  budget-gated caller responsibility. Graph-BFS expansion and reranking wait
   until verifier outcomes and graph commit envelopes exist, so retrieval stays
   subordinate to the belief graph.
 - **Blind spot to avoid repeating**: none of the four papers measures
