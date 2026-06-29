@@ -12,6 +12,7 @@ from types import SimpleNamespace
 
 import pytest
 
+from deepr.experts import sync as sync_module
 from deepr.experts.beliefs import Belief, BeliefStore
 from deepr.experts.report_absorber import ReportAbsorber
 from deepr.experts.source_pack_compiler import build_semantic_claim_extraction
@@ -34,6 +35,36 @@ def _sub_store(tmp_path, *subs) -> SubscriptionStore:
     for s in subs:
         store.add(s)
     return store
+
+
+def _topic_x_source_pack() -> dict:
+    return {
+        "schema_version": "deepr.source_pack.v1",
+        "mode": "fresh",
+        "source_count": 1,
+        "retrieved_source_count": 1,
+        "sources": [
+            {
+                "label": "S1",
+                "title": "Release notes",
+                "url": "https://example.com/release",
+                "excerpt": "Topic X gained capability Y in June 2026.",
+                "content_hash": "c" * 64,
+            }
+        ],
+    }
+
+
+def _topic_x_research_fn(source_pack: dict):
+    async def research_fn(query: str, budget: float) -> dict:
+        return {
+            "answer": "Topic X gained capability Y in June 2026. [S1]",
+            "cost": 0.0,
+            "fresh_context": {"source_count": 1, "mode": "fresh"},
+            "source_pack": source_pack,
+        }
+
+    return research_fn
 
 
 class _FakeExtractionClient:
@@ -151,6 +182,11 @@ class _FakeClaimVerifier:
                 }
             ],
         }
+
+
+class _InvalidClaimVerifier:
+    async def verify(self, *args, **kwargs):
+        return ["not", "a", "verifier", "object"]
 
 
 def _engine(tmp_path, sub_store, research_answers: dict[str, dict]):
@@ -466,29 +502,8 @@ class TestSyncEngine:
     @pytest.mark.asyncio
     async def test_sync_can_write_claim_extraction_sidecar_artifact(self, tmp_path):
         store = _sub_store(tmp_path, Subscription(topic="Topic X", budget=0.5))
-        source_pack = {
-            "schema_version": "deepr.source_pack.v1",
-            "mode": "fresh",
-            "source_count": 1,
-            "retrieved_source_count": 1,
-            "sources": [
-                {
-                    "label": "S1",
-                    "title": "Release notes",
-                    "url": "https://example.com/release",
-                    "excerpt": "Topic X gained capability Y in June 2026.",
-                    "content_hash": "c" * 64,
-                }
-            ],
-        }
-
-        async def research_fn(query: str, budget: float) -> dict:
-            return {
-                "answer": "Topic X gained capability Y in June 2026. [S1]",
-                "cost": 0.0,
-                "fresh_context": {"source_count": 1, "mode": "fresh"},
-                "source_pack": source_pack,
-            }
+        source_pack = _topic_x_source_pack()
+        research_fn = _topic_x_research_fn(source_pack)
 
         beliefs = BeliefStore("Sync Test Expert", storage_dir=tmp_path / "beliefs")
         absorber = ReportAbsorber(_expert(), client=_FakeExtractionClient(), belief_store=beliefs)
@@ -519,29 +534,8 @@ class TestSyncEngine:
     @pytest.mark.asyncio
     async def test_sync_can_write_claim_verification_and_graph_commit_sidecars(self, tmp_path):
         store = _sub_store(tmp_path, Subscription(topic="Topic X", budget=0.5))
-        source_pack = {
-            "schema_version": "deepr.source_pack.v1",
-            "mode": "fresh",
-            "source_count": 1,
-            "retrieved_source_count": 1,
-            "sources": [
-                {
-                    "label": "S1",
-                    "title": "Release notes",
-                    "url": "https://example.com/release",
-                    "excerpt": "Topic X gained capability Y in June 2026.",
-                    "content_hash": "c" * 64,
-                }
-            ],
-        }
-
-        async def research_fn(query: str, budget: float) -> dict:
-            return {
-                "answer": "Topic X gained capability Y in June 2026. [S1]",
-                "cost": 0.0,
-                "fresh_context": {"source_count": 1, "mode": "fresh"},
-                "source_pack": source_pack,
-            }
+        source_pack = _topic_x_source_pack()
+        research_fn = _topic_x_research_fn(source_pack)
 
         beliefs = BeliefStore("Sync Test Expert", storage_dir=tmp_path / "beliefs")
         existing, _ = beliefs.add_belief(
@@ -597,6 +591,62 @@ class TestSyncEngine:
         assert graph_commit["input"]["claim_verification_artifact"] == outcome.claim_verification_artifact
         assert graph_commit["summary"]["status"] == "ready_for_commit"
         assert len(graph_commit["operations"]) == 1
+
+    @pytest.mark.asyncio
+    async def test_sync_invalid_claim_verifier_output_fails_closed_as_detail(self, tmp_path):
+        store = _sub_store(tmp_path, Subscription(topic="Topic X", budget=0.5))
+        beliefs = BeliefStore("Sync Test Expert", storage_dir=tmp_path / "beliefs")
+        absorber = ReportAbsorber(_expert(), client=_FakeExtractionClient(), belief_store=beliefs)
+        engine = ExpertSyncEngine(
+            _expert(),
+            research_fn=_topic_x_research_fn(_topic_x_source_pack()),
+            subscription_store=store,
+            belief_store=beliefs,
+            absorber=absorber,
+            claim_extractor=_FakeClaimExtractor(),
+            claim_verifier=_InvalidClaimVerifier(),
+        )
+
+        result = await engine.sync(budget=1.0)
+
+        outcome = result.outcomes[0]
+        assert outcome.status == "synced"
+        assert outcome.claim_extraction_artifact.endswith("_topic-x.json")
+        assert outcome.claim_verification_artifact == ""
+        assert outcome.graph_commit_envelope_artifact == ""
+        assert "claim verification failed: invalid verifier output" in outcome.detail
+
+    @pytest.mark.asyncio
+    async def test_sync_graph_commit_write_failure_keeps_verification_artifact(self, tmp_path, monkeypatch):
+        store = _sub_store(tmp_path, Subscription(topic="Topic X", budget=0.5))
+        beliefs = BeliefStore("Sync Test Expert", storage_dir=tmp_path / "beliefs")
+        absorber = ReportAbsorber(_expert(), client=_FakeExtractionClient(), belief_store=beliefs)
+        original_write = sync_module.atomic_write_json
+
+        def fail_graph_commit_write(path, payload):
+            if "graph_commit_envelopes" in str(path):
+                raise OSError("disk full")
+            original_write(path, payload)
+
+        monkeypatch.setattr(sync_module, "atomic_write_json", fail_graph_commit_write)
+        engine = ExpertSyncEngine(
+            _expert(),
+            research_fn=_topic_x_research_fn(_topic_x_source_pack()),
+            subscription_store=store,
+            belief_store=beliefs,
+            absorber=absorber,
+            claim_extractor=_FakeClaimExtractor(),
+            claim_verifier=_FakeClaimVerifier(),
+        )
+
+        result = await engine.sync(budget=1.0)
+
+        outcome = result.outcomes[0]
+        assert outcome.status == "synced"
+        assert outcome.claim_extraction_artifact.endswith("_topic-x.json")
+        assert outcome.claim_verification_artifact.endswith("_topic-x.json")
+        assert outcome.graph_commit_envelope_artifact == ""
+        assert "graph commit envelope artifact failed" in outcome.detail
 
     @pytest.mark.asyncio
     async def test_source_pack_write_failure_blocks_absorb(self, tmp_path, monkeypatch):
