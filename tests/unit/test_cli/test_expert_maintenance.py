@@ -47,6 +47,7 @@ class TestRegistration:
             "checker_plan",
             "checker_plan_model",
             "apply_compiled_claims",
+            "stage_compiled_claims",
         } <= opts
 
     def test_absorb_has_local_and_api_flags(self):
@@ -117,6 +118,33 @@ class TestBackendFlagGuard:
 
         assert r.exit_code == 2
         assert "--apply-compiled-claims cannot be combined with --dry-run" in r.output
+
+    def test_sync_rejects_stage_compiled_claims_without_compile_claims_before_store_work(self, monkeypatch):
+        class ExplodingExpertStore:
+            def load(self, name):
+                raise AssertionError("stage flag validation must run before loading experts")
+
+        monkeypatch.setattr("deepr.experts.profile.ExpertStore", ExplodingExpertStore)
+
+        r = CliRunner().invoke(expert, ["sync", "Whoever", "--stage-compiled-claims"])
+
+        assert r.exit_code == 2
+        assert "--stage-compiled-claims requires --compile-claims" in r.output
+
+    def test_sync_rejects_stage_and_apply_compiled_claims_together_before_store_work(self, monkeypatch):
+        class ExplodingExpertStore:
+            def load(self, name):
+                raise AssertionError("stage/apply flag validation must run before loading experts")
+
+        monkeypatch.setattr("deepr.experts.profile.ExpertStore", ExplodingExpertStore)
+
+        r = CliRunner().invoke(
+            expert,
+            ["sync", "Whoever", "--compile-claims", "--stage-compiled-claims", "--apply-compiled-claims"],
+        )
+
+        assert r.exit_code == 2
+        assert "--stage-compiled-claims cannot be combined with --apply-compiled-claims" in r.output
 
     def test_absorb_rejects_checker_plan_without_grounding_before_store_work(self, monkeypatch):
         class ExplodingExpertStore:
@@ -229,7 +257,7 @@ class TestBackendFlagGuard:
         assert captured["sync_kwargs"]["budget"] == 2.0
         assert captured["sync_kwargs"]["apply_graph_commits"] is False
 
-    def test_sync_apply_compiled_claims_passes_explicit_apply_gate(self, monkeypatch):
+    def test_sync_compile_claims_applies_compiled_graph_commit_by_default(self, monkeypatch):
         captured = {}
         profile = SimpleNamespace(name="UI Experience Expert")
 
@@ -283,7 +311,6 @@ class TestBackendFlagGuard:
                 "UI Experience Expert",
                 "--api",
                 "--compile-claims",
-                "--apply-compiled-claims",
                 "-y",
                 "--json",
             ],
@@ -292,6 +319,70 @@ class TestBackendFlagGuard:
         assert r.exit_code == 0, r.output
         assert captured["build_kwargs"]["compile_claims"] is True
         assert captured["sync_kwargs"]["apply_graph_commits"] is True
+
+    def test_sync_stage_compiled_claims_keeps_no_apply_sidecar_path(self, monkeypatch):
+        captured = {}
+        profile = SimpleNamespace(name="UI Experience Expert")
+
+        class FakeExpertStore:
+            def load(self, name):
+                return profile
+
+        class FakeSubscriptionStore:
+            subscriptions = [SimpleNamespace(topic="UI/UX for agentic research tools", budget=1.0)]
+
+            def __init__(self, name):
+                pass
+
+            def due(self):
+                return list(self.subscriptions)
+
+        class FakeSyncResult:
+            total_cost = 0.0
+            outcomes = []
+            delta = {}
+
+            def to_dict(self):
+                return {"total_cost": 0.0, "outcomes": []}
+
+        class FakeSyncEngine:
+            async def sync(self, **kwargs):
+                captured["sync_kwargs"] = kwargs
+                return FakeSyncResult()
+
+        def fake_build_sync_engine(profile, **kwargs):
+            captured["build_kwargs"] = kwargs
+            return FakeSyncEngine(), "api_metered"
+
+        @contextmanager
+        def acquired_lock(*args, **kwargs):
+            yield True
+
+        monkeypatch.setattr("deepr.experts.profile.ExpertStore", FakeExpertStore)
+        monkeypatch.setattr("deepr.experts.sync.SubscriptionStore", FakeSubscriptionStore)
+        monkeypatch.setattr("deepr.experts.maintenance_engine.build_sync_engine", fake_build_sync_engine)
+        monkeypatch.setattr("deepr.experts.loop_lock.expert_verb_lock", acquired_lock)
+        monkeypatch.setattr(
+            "deepr.experts.loop_runs.record_loop_run",
+            lambda **kwargs: SimpleNamespace(to_dict=lambda: {"run_id": "loop_sync_complete"}),
+        )
+
+        r = CliRunner().invoke(
+            expert,
+            [
+                "sync",
+                "UI Experience Expert",
+                "--api",
+                "--compile-claims",
+                "--stage-compiled-claims",
+                "-y",
+                "--json",
+            ],
+        )
+
+        assert r.exit_code == 0, r.output
+        assert captured["build_kwargs"]["compile_claims"] is True
+        assert captured["sync_kwargs"]["apply_graph_commits"] is False
 
     def test_sync_capacity_payload_includes_self_model_focus(self, monkeypatch):
         self_model_context = {

@@ -68,7 +68,7 @@ deepr expert sync "Platform Team Expert" --local
 deepr expert sync "Platform Team Expert" --local --fresh-context
 deepr expert sync "Platform Team Expert" --local --deep-context
 deepr expert sync "Platform Team Expert" --local --fresh-context --compile-claims
-deepr expert sync "Platform Team Expert" --local --fresh-context --compile-claims --apply-compiled-claims
+deepr expert sync "Platform Team Expert" --local --fresh-context --compile-claims --stage-compiled-claims
 ```
 
 `--fresh-context` builds a small free-only retrieval pack. `--deep-context`
@@ -96,11 +96,12 @@ content-hash validity, source windows, and readiness for semantic compile. They
 make no model calls and emit no semantic verdicts. `--compile-claims` adds
 explicit sidecar model calls over ready source-note windows, writes
 `deepr-semantic-claim-extraction-v1` candidates, runs budget-gated claim
-verification with read-only recall context, and stages a no-apply graph-commit
-envelope. These sidecars do not write beliefs unless `--apply-compiled-claims`
-is also set. That explicit flag requires `--compile-claims`, is rejected with
-`--dry-run`, bypasses the legacy absorber for that topic, applies only the
-verified graph-commit envelope, and writes a graph-commit apply result sidecar.
+verification with read-only recall context, builds a graph-commit envelope,
+applies that verified envelope instead of the legacy absorber, and writes a
+graph-commit apply result sidecar. Use `--stage-compiled-claims` with
+`--compile-claims` to keep graph writes disabled and persist only the compiler
+sidecars. `--apply-compiled-claims` remains a compatibility alias for the
+default compiled apply behavior and is rejected with `--dry-run`.
 On local capacity they cost `$0`;
 on non-metered plan capacity they cost `$0` inside Deepr but consume
 subscription quota. A metered-at-margin plan CLI is explicit-only, shows the run

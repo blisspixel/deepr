@@ -38,11 +38,11 @@ deepr expert consult "What should this agentic harness improve next?" --local
 # Keep an expert current with local model plus free retrieval context.
 deepr expert sync "Platform Team Expert" --local --fresh-context -y
 
-# Also compile, verify, and stage graph-commit sidecars without applying writes.
+# Compile, verify, and apply graph commits instead of legacy absorb.
 deepr expert sync "Platform Team Expert" --local --fresh-context --compile-claims -y
 
-# Apply verified compiled claims during sync instead of legacy absorb.
-deepr expert sync "Platform Team Expert" --local --fresh-context --compile-claims --apply-compiled-claims -y
+# Stage compiler sidecars without applying graph commits.
+deepr expert sync "Platform Team Expert" --local --fresh-context --compile-claims --stage-compiled-claims -y
 ```
 
 Multi-provider support includes OpenAI, Gemini, Grok, Anthropic, Azure, local
@@ -177,14 +177,15 @@ memory cards, OKF bundles, and handoff payloads are derived views over
 structured state.
 
 `deepr expert sync --compile-claims` now runs budget-gated semantic extraction
-and verification over source-note windows. It writes claim-extraction,
-claim-verification, and no-apply graph-commit sidecars with prompt, schema,
-provider, model, capacity, cost, source-window refs, and read-only recall
-context, but it does not write beliefs unless `--apply-compiled-claims` is
-also set. That explicit apply gate reuses the same graph-commit apply contract,
-writes a `graph_commit_apply_results` sidecar, updates sync cadence only after
-an applied or already-applied result, and bypasses the legacy absorber for that
-topic.
+and verification over source-note windows, builds a verified graph-commit
+envelope, and applies that envelope instead of calling the legacy absorber. It
+writes claim-extraction, claim-verification, graph-commit envelope, and
+`graph_commit_apply_results` sidecars with prompt, schema, provider, model,
+capacity, cost, source-window refs, and read-only recall context. Sync cadence
+advances only after an applied or already-applied graph commit result is
+durably recorded. Use `--stage-compiled-claims` with `--compile-claims` when
+you need the old no-write staging behavior; `--apply-compiled-claims` remains a
+compatibility alias for the default apply behavior.
 
 `deepr eval consult` runs a `$0` consult harness suite. It checks structural
 contracts for expert routing, context packets, collaboration metadata,
@@ -259,11 +260,11 @@ Deepr deliberately separates workflow control from model judgment.
   accepted-record gates, and explicit outcome evidence before they affect a
   learning transaction. They do not grant new authority.
 - The research-processing compiler starts with deterministic source snapshots,
-  source notes, content hashes, prompt/schema versions, and explicit
-  `--compile-claims` extraction, verification, no-apply graph-commit
-  envelopes, and opt-in `--apply-compiled-claims` graph-commit apply results,
-  while leaving support, contradiction, deduplication, temporal scope, and
-  semantic edges to calibrated model judgment.
+  source notes, content hashes, prompt/schema versions, explicit
+  `--compile-claims` extraction, verification, graph-commit envelopes, durable
+  graph-commit apply results, and `--stage-compiled-claims` no-write staging
+  when requested, while leaving support, contradiction, deduplication, temporal
+  scope, and semantic edges to calibrated model judgment.
 
 This boundary is tracked in
 [docs/plans/AGENTIC_BALANCE.md](docs/plans/AGENTIC_BALANCE.md) and the active
