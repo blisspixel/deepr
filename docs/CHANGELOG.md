@@ -68,6 +68,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   compatibility alias for the default apply path.
 
 ### Fixed
+- Hardened public-bind detection across A2A, MCP HTTP, Flask API, and the web
+  dashboard. Empty or unset bind hosts are now treated as all-interface binds,
+  not loopback, so unauthenticated public-bind guardrails cannot be bypassed by
+  passing an empty host value.
 - Kept sync graph-commit apply auditability fail-closed. If a compiled apply
   mutates state but the apply-result sidecar cannot be written, the sync outcome
   now fails and leaves cadence due so a later idempotent replay can write the

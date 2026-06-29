@@ -155,6 +155,23 @@ def is_blocked_ip(ip: ipaddress.IPv4Address | ipaddress.IPv6Address, allow_priva
     return False
 
 
+def is_loopback_bind_host(host: str | None) -> bool:
+    """Return True only for bind hosts that stay on the local machine.
+
+    Empty or ``None`` bind hosts are not loopback. Server libraries commonly
+    treat them as "all interfaces", so accepting them as local would bypass
+    public-bind authentication guards.
+    """
+    if host == "localhost":
+        return True
+    if not host:
+        return False
+    try:
+        return ipaddress.ip_address(host).is_loopback
+    except ValueError:
+        return False
+
+
 def resolve_all_ips(hostname: str) -> list[str]:
     """Resolve hostname to all IP addresses (IPv4 and IPv6).
 

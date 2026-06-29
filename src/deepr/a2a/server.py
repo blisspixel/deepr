@@ -29,6 +29,7 @@ from deepr.a2a.task_manager import (
     TaskManager,
     TaskNotFoundError,
 )
+from deepr.utils.security import is_loopback_bind_host
 
 logger = logging.getLogger(__name__)
 
@@ -86,7 +87,7 @@ class A2AServer:
         # / ``::1``, so a caller passing ``host=''`` bypassed the
         # public-bind refusal entirely. Empty/None hosts must be treated
         # as public binds.
-        loopback = host in ("localhost", "127.0.0.1", "::1")
+        loopback = is_loopback_bind_host(host)
         allow_public = os.getenv("DEEPR_A2A_ALLOW_PUBLIC", "").lower() in ("1", "true", "yes")
         if not loopback and not self._auth_token and not allow_public:
             raise RuntimeError(
