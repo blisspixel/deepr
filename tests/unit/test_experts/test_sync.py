@@ -137,10 +137,160 @@ class _FakeClaimExtractor:
         )
 
 
-_GAP_TOPIC = "What statistical signals should drive expert gap prioritization?"
+_PERSPECTIVE_CASES = [
+    {
+        "id": "knowledge_gap",
+        "statement": "What statistical signals should drive expert gap prioritization?",
+        "claim_kind": "knowledge_gap",
+        "claim_fields": {
+            "priority": 5,
+            "expected_value": 0.9,
+            "estimated_cost": 0.0,
+            "questions": ["What statistical signals should drive expert gap prioritization?"],
+        },
+        "verification": {
+            "origin": "The source note exposed an unresolved prioritization question.",
+            "rationale": "The expert should retain the gap until a grounded scoring model exists.",
+            "uncertainty": "The best statistical signal mix is not established by the cited source.",
+            "confidence": 0.8,
+        },
+        "operation": "promote_gap",
+        "payload_key": "gap",
+        "tracker_attr": "knowledge_gaps",
+        "identity_field": "topic",
+        "result_identity_key": "gap_topic",
+    },
+    {
+        "id": "exploration_agenda",
+        "statement": "Map evidence needed for sync-side perspective compilation.",
+        "claim_kind": "exploration_agenda",
+        "claim_fields": {
+            "title": "Map evidence needed for sync-side perspective compilation.",
+            "priority": 4,
+            "expected_value": 0.8,
+            "estimated_cost": 0.0,
+            "questions": ["Which evidence signals should drive sync-side perspective writes?"],
+            "success_criteria": ["A follow-up sync run accepts every promoted state kind."],
+        },
+        "verification": {
+            "origin": "The source note exposed a recurring exploration direction.",
+            "rationale": "The expert should retain the agenda before widening default sync writes.",
+            "uncertainty": "The best sequencing for promotion coverage is not fully settled.",
+            "expected_observations": ["Future sync tests cover all promoted perspective kinds."],
+            "disconfirming_signals": ["Default sync migration happens before coverage exists."],
+            "confidence": 0.81,
+        },
+        "operation": "promote_exploration_agenda",
+        "payload_key": "agenda",
+        "tracker_attr": "exploration_agendas",
+        "identity_field": "title",
+        "result_identity_key": "agenda_title",
+    },
+    {
+        "id": "hypothesis",
+        "statement": "Sync apply coverage reduces unsafe default migration risk.",
+        "claim_kind": "hypothesis",
+        "claim_fields": {
+            "title": "Sync apply coverage reduces unsafe default migration risk.",
+            "priority": 4,
+            "assumptions": ["Every promoted state kind can be replayed through one apply gate."],
+        },
+        "verification": {
+            "origin": "The source note exposed a testable sync-migration idea.",
+            "rationale": "The expert should retain the hypothesis without promoting it as fact.",
+            "uncertainty": "The reduction in migration risk is not measured yet.",
+            "expected_observations": ["Coverage finds promotion failures before defaults change."],
+            "disconfirming_signals": ["Migration bugs occur despite the coverage."],
+            "confidence": 0.72,
+        },
+        "operation": "promote_hypothesis",
+        "payload_key": "hypothesis",
+        "tracker_attr": "hypotheses",
+        "identity_field": "title",
+        "result_identity_key": "hypothesis_title",
+    },
+    {
+        "id": "concept",
+        "statement": "Promotion coverage is a reusable sync migration concept.",
+        "claim_kind": "concept",
+        "claim_fields": {
+            "title": "Promotion coverage",
+            "name": "Promotion coverage",
+            "description": "A reusable coverage pattern for opt-in state writes before default migration.",
+            "priority": 4,
+            "key_properties": ["Opt-in first.", "One apply gate.", "Default migration last."],
+            "related_terms": ["sync apply", "graph commit"],
+        },
+        "verification": {
+            "origin": "The source note exposed a reusable migration concept.",
+            "rationale": "The expert should retain the concept for future graph-write migrations.",
+            "uncertainty": "The concept has not been calibrated across every write surface.",
+            "expected_observations": ["Future migrations reuse the same opt-in coverage pattern."],
+            "disconfirming_signals": ["The pattern adds tests without reducing migration risk."],
+            "confidence": 0.7,
+        },
+        "operation": "promote_concept",
+        "payload_key": "concept",
+        "tracker_attr": "concepts",
+        "identity_field": "name",
+        "result_identity_key": "concept_name",
+    },
+    {
+        "id": "stance",
+        "statement": "Default sync should wait for full promoted-state apply coverage.",
+        "claim_kind": "stance",
+        "claim_fields": {
+            "title": "Default sync should wait for full promoted-state apply coverage.",
+            "position": "Keep legacy absorb as default until every promoted state kind has opt-in apply coverage.",
+            "priority": 4,
+            "tradeoffs": ["Migration speed is slower.", "Default write risk is lower."],
+            "decision_criteria": ["Prefer coverage before widening durable writes."],
+        },
+        "verification": {
+            "origin": "The source note exposed a migration sequencing position.",
+            "rationale": "The expert should retain the stance without promoting it as fact.",
+            "uncertainty": "The exact coverage threshold may change after failure testing.",
+            "expected_observations": ["Default migration waits for all promotion tests."],
+            "disconfirming_signals": ["Coverage blocks useful migration without catching defects."],
+            "confidence": 0.68,
+        },
+        "operation": "promote_stance",
+        "payload_key": "stance",
+        "tracker_attr": "stances",
+        "identity_field": "title",
+        "result_identity_key": "stance_title",
+    },
+    {
+        "id": "original_idea",
+        "statement": "Use sync promotion packets as migration rehearsal artifacts.",
+        "claim_kind": "original_idea",
+        "claim_fields": {
+            "title": "Sync promotion packets",
+            "priority": 4,
+            "assumptions": ["Promotion packets expose each state write without changing defaults."],
+            "implications": ["Future default migration can replay the same evidence path."],
+        },
+        "verification": {
+            "origin": "The source note exposed a new migration rehearsal idea.",
+            "rationale": "The expert should retain the original idea without treating it as verified external fact.",
+            "uncertainty": "The idea has not been validated across repeated sync migrations.",
+            "expected_observations": ["Promotion packets become reusable migration fixtures."],
+            "disconfirming_signals": ["The packets do not predict default migration behavior."],
+            "confidence": 0.66,
+        },
+        "operation": "promote_original_idea",
+        "payload_key": "original_idea",
+        "tracker_attr": "original_ideas",
+        "identity_field": "title",
+        "result_identity_key": "original_idea_title",
+    },
+]
 
 
-class _FakeGapClaimExtractor:
+class _FakePerspectiveClaimExtractor:
+    def __init__(self, case):
+        self.case = case
+
     async def extract(
         self,
         source_notes,
@@ -153,22 +303,16 @@ class _FakeGapClaimExtractor:
     ):
         note = source_notes["notes"][0]
         window = note["windows"][0]
+        claim = {
+            "statement": self.case["statement"],
+            "claim_kind": self.case["claim_kind"],
+            "confidence": 0.72,
+            "source_refs": [{"note_id": note["note_id"], "window_id": window["window_id"]}],
+            **self.case["claim_fields"],
+        }
         return build_semantic_claim_extraction(
             source_notes,
-            {
-                "claims": [
-                    {
-                        "statement": _GAP_TOPIC,
-                        "claim_kind": "knowledge_gap",
-                        "confidence": 0.72,
-                        "priority": 5,
-                        "expected_value": 0.9,
-                        "estimated_cost": 0.0,
-                        "questions": [_GAP_TOPIC],
-                        "source_refs": [{"note_id": note["note_id"], "window_id": window["window_id"]}],
-                    }
-                ]
-            },
+            {"claims": [claim]},
             source_note_artifact=source_note_artifact,
             provider="local",
             model="qwen",
@@ -230,7 +374,10 @@ class _FakeClaimVerifier:
         }
 
 
-class _FakeGapClaimVerifier:
+class _FakePerspectiveClaimVerifier:
+    def __init__(self, case):
+        self.case = case
+
     async def verify(
         self,
         claim_extraction,
@@ -245,6 +392,14 @@ class _FakeGapClaimVerifier:
         recall_belief_store=None,
         recall_domain=None,
     ):
+        verification = {
+            "candidate_id": claim_extraction["candidates"][0]["candidate_id"],
+            "support_verdict": "not_applicable",
+            "contradiction_verdict": "none",
+            "dedup_verdict": "new",
+            "temporal_scope_verdict": "not_applicable",
+            **self.case["verification"],
+        }
         return {
             "contract": {
                 "provider": "local",
@@ -252,19 +407,7 @@ class _FakeGapClaimVerifier:
                 "capacity_source": "local",
                 "cost_usd": 0.0,
             },
-            "verifications": [
-                {
-                    "candidate_id": claim_extraction["candidates"][0]["candidate_id"],
-                    "support_verdict": "not_applicable",
-                    "contradiction_verdict": "none",
-                    "dedup_verdict": "new",
-                    "temporal_scope_verdict": "not_applicable",
-                    "origin": "The source note exposed an unresolved prioritization question.",
-                    "rationale": "The expert should retain the gap until a grounded scoring model exists.",
-                    "uncertainty": "The best statistical signal mix is not established by the cited source.",
-                    "confidence": 0.8,
-                }
-            ],
+            "verifications": [verification],
         }
 
 
@@ -747,8 +890,9 @@ class TestSyncEngine:
         assert store.subscriptions[0].last_synced is None
         assert beliefs.beliefs == {}
 
+    @pytest.mark.parametrize("case", _PERSPECTIVE_CASES, ids=[case["id"] for case in _PERSPECTIVE_CASES])
     @pytest.mark.asyncio
-    async def test_sync_can_apply_compiled_knowledge_gap_with_injected_tracker(self, tmp_path):
+    async def test_sync_can_apply_compiled_perspective_state_with_injected_tracker(self, tmp_path, case):
         store = _sub_store(tmp_path, Subscription(topic="Topic X", budget=0.5))
         beliefs = BeliefStore("Sync Test Expert", storage_dir=tmp_path / "beliefs")
         tracker = MetaCognitionTracker("Sync Test Expert", base_path=str(tmp_path / "experts"))
@@ -758,8 +902,8 @@ class TestSyncEngine:
             subscription_store=store,
             belief_store=beliefs,
             absorber=_FailingAbsorber(),
-            claim_extractor=_FakeGapClaimExtractor(),
-            claim_verifier=_FakeGapClaimVerifier(),
+            claim_extractor=_FakePerspectiveClaimExtractor(case),
+            claim_verifier=_FakePerspectiveClaimVerifier(case),
             metacognition_tracker=tracker,
         )
 
@@ -772,18 +916,21 @@ class TestSyncEngine:
         assert outcome.graph_commit_apply_artifact.endswith("_topic-x.json")
         assert beliefs.beliefs == {}
         assert result.delta["total_changes"] == 0
-        assert _GAP_TOPIC in tracker.knowledge_gaps
-        assert tracker.knowledge_gaps[_GAP_TOPIC].times_asked == 1
-        assert tracker.uncertainty_log[-1]["candidate"]["priority"] == 5
+        identity = case["claim_fields"].get(case["identity_field"], case["statement"])
+        assert identity in getattr(tracker, case["tracker_attr"])
+        assert tracker.uncertainty_log[-1]["topic"] == identity
 
         graph_path = tmp_path / "knowledge" / outcome.graph_commit_envelope_artifact
         graph_commit = json.loads(graph_path.read_text(encoding="utf-8"))
-        assert graph_commit["operations"][0]["operation"] == "promote_gap"
+        operation = graph_commit["operations"][0]
+        assert operation["operation"] == case["operation"]
+        assert operation[case["payload_key"]][case["identity_field"]] == identity
 
         apply_path = tmp_path / "knowledge" / outcome.graph_commit_apply_artifact
         apply_result = json.loads(apply_path.read_text(encoding="utf-8"))
         assert apply_result["summary"]["status"] == "applied"
-        assert apply_result["operation_results"][0]["operation"] == "promote_gap"
+        assert apply_result["operation_results"][0]["operation"] == case["operation"]
+        assert apply_result["operation_results"][0][case["result_identity_key"]] == identity
 
     @pytest.mark.asyncio
     async def test_sync_invalid_claim_verifier_output_fails_closed_as_detail(self, tmp_path):
