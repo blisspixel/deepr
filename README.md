@@ -40,6 +40,9 @@ deepr expert sync "Platform Team Expert" --local --fresh-context -y
 
 # Also compile, verify, and stage graph-commit sidecars without applying writes.
 deepr expert sync "Platform Team Expert" --local --fresh-context --compile-claims -y
+
+# Apply verified compiled claims during sync instead of legacy absorb.
+deepr expert sync "Platform Team Expert" --local --fresh-context --compile-claims --apply-compiled-claims -y
 ```
 
 Multi-provider support includes OpenAI, Gemini, Grok, Anthropic, Azure, local
@@ -177,7 +180,11 @@ structured state.
 and verification over source-note windows. It writes claim-extraction,
 claim-verification, and no-apply graph-commit sidecars with prompt, schema,
 provider, model, capacity, cost, source-window refs, and read-only recall
-context, but it does not write beliefs.
+context, but it does not write beliefs unless `--apply-compiled-claims` is
+also set. That explicit apply gate reuses the same graph-commit apply contract,
+writes a `graph_commit_apply_results` sidecar, updates sync cadence only after
+an applied or already-applied result, and bypasses the legacy absorber for that
+topic.
 
 `deepr eval consult` runs a `$0` consult harness suite. It checks structural
 contracts for expert routing, context packets, collaboration metadata,
@@ -253,9 +260,10 @@ Deepr deliberately separates workflow control from model judgment.
   learning transaction. They do not grant new authority.
 - The research-processing compiler starts with deterministic source snapshots,
   source notes, content hashes, prompt/schema versions, and explicit
-  `--compile-claims` extraction, verification, and no-apply graph-commit
-  envelopes, while leaving support, contradiction, deduplication, temporal
-  scope, and semantic edges to calibrated model judgment.
+  `--compile-claims` extraction, verification, no-apply graph-commit
+  envelopes, and opt-in `--apply-compiled-claims` graph-commit apply results,
+  while leaving support, contradiction, deduplication, temporal scope, and
+  semantic edges to calibrated model judgment.
 
 This boundary is tracked in
 [docs/plans/AGENTIC_BALANCE.md](docs/plans/AGENTIC_BALANCE.md) and the active

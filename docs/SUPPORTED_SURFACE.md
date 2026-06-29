@@ -171,7 +171,10 @@ must not be described as usable capacity.
   notes, semantic claim extraction, claim verification, graph commit envelopes,
   and graph commit apply results are experimental but schema-versioned.
   `--compile-claims` can write claim extraction, claim-verification, and
-  no-apply graph-commit sidecars; claim-verification envelopes record verifier
+  no-apply graph-commit sidecars. `--apply-compiled-claims` requires
+  `--compile-claims`, bypasses the legacy absorber for that topic, applies only
+  verified graph-commit envelopes, and writes graph-commit apply result
+  sidecars. Claim-verification envelopes record verifier
   decisions, optional candidate-to-candidate typed edge decisions, and
   `candidate_only` recall
   context packets; graph commit envelopes plan

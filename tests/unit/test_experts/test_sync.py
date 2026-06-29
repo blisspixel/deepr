@@ -193,6 +193,11 @@ class _InvalidClaimVerifier:
         return ["not", "a", "verifier", "object"]
 
 
+class _FailingAbsorber:
+    async def absorb(self, *args, **kwargs):
+        raise AssertionError("legacy absorber should not run")
+
+
 def _engine(tmp_path, sub_store, research_answers: dict[str, dict]):
     """Engine with injected research + a real absorber on a tmp belief store."""
     beliefs = BeliefStore("Sync Test Expert", storage_dir=tmp_path / "beliefs")
@@ -597,6 +602,70 @@ class TestSyncEngine:
         assert graph_commit["input"]["claim_verification_artifact"] == outcome.claim_verification_artifact
         assert graph_commit["summary"]["status"] == "ready_for_commit"
         assert len(graph_commit["operations"]) == 1
+
+    @pytest.mark.asyncio
+    async def test_sync_can_apply_compiled_graph_commit_instead_of_legacy_absorb(self, tmp_path):
+        store = _sub_store(tmp_path, Subscription(topic="Topic X", budget=0.5))
+        beliefs = BeliefStore("Sync Test Expert", storage_dir=tmp_path / "beliefs")
+        engine = ExpertSyncEngine(
+            _expert(),
+            research_fn=_topic_x_research_fn(_topic_x_source_pack()),
+            subscription_store=store,
+            belief_store=beliefs,
+            absorber=_FailingAbsorber(),
+            claim_extractor=_FakeClaimExtractor(),
+            claim_verifier=_FakeClaimVerifier(),
+        )
+
+        result = await engine.sync(budget=1.0, apply_graph_commits=True)
+
+        outcome = result.outcomes[0]
+        assert outcome.status == "synced"
+        assert outcome.absorbed == 1
+        assert outcome.flagged == 0
+        assert outcome.graph_commit_apply_status == "applied"
+        assert outcome.graph_commit_apply_artifact.endswith("_topic-x.json")
+        assert outcome.claim_extraction_artifact.endswith("_topic-x.json")
+        assert outcome.claim_verification_artifact.endswith("_topic-x.json")
+        assert outcome.graph_commit_envelope_artifact.endswith("_topic-x.json")
+        assert store.subscriptions[0].last_synced is not None
+        assert result.delta["total_changes"] == 1
+        assert len(beliefs.beliefs) == 1
+        belief = next(iter(beliefs.beliefs.values()))
+        assert belief.claim == "Topic X gained capability Y in June 2026."
+
+        apply_path = tmp_path / "knowledge" / outcome.graph_commit_apply_artifact
+        apply_result = json.loads(apply_path.read_text(encoding="utf-8"))
+        assert apply_result["schema_version"] == "deepr-graph-commit-apply-v1"
+        assert apply_result["summary"]["status"] == "applied"
+        assert apply_result["summary"]["dry_run"] is False
+        assert apply_result["summary"]["applied_write_count"] == 1
+
+    @pytest.mark.asyncio
+    async def test_sync_apply_compiled_graph_commit_requires_ready_envelope(self, tmp_path):
+        store = _sub_store(tmp_path, Subscription(topic="Topic X", budget=0.5))
+        beliefs = BeliefStore("Sync Test Expert", storage_dir=tmp_path / "beliefs")
+        engine = ExpertSyncEngine(
+            _expert(),
+            research_fn=_topic_x_research_fn(_topic_x_source_pack()),
+            subscription_store=store,
+            belief_store=beliefs,
+            absorber=_FailingAbsorber(),
+            claim_extractor=_FakeClaimExtractor(),
+            claim_verifier=_InvalidClaimVerifier(),
+        )
+
+        result = await engine.sync(budget=1.0, apply_graph_commits=True)
+
+        outcome = result.outcomes[0]
+        assert outcome.status == "failed"
+        assert outcome.absorbed == 0
+        assert outcome.graph_commit_apply_status == "blocked"
+        assert outcome.graph_commit_apply_artifact == ""
+        assert "claim verification failed: invalid verifier output" in outcome.detail
+        assert "graph commit apply failed: compiled graph commit envelope required" in outcome.detail
+        assert store.subscriptions[0].last_synced is None
+        assert beliefs.beliefs == {}
 
     @pytest.mark.asyncio
     async def test_sync_invalid_claim_verifier_output_fails_closed_as_detail(self, tmp_path):

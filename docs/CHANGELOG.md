@@ -8,6 +8,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- Added explicit sync-side graph-commit apply for compiled claims.
+  `deepr expert sync --compile-claims --apply-compiled-claims` now bypasses the
+  legacy absorber for that topic, applies only the verified graph-commit
+  envelope through the existing idempotent apply service, records a
+  `graph_commit_apply_results` sidecar, and updates cadence only after an
+  applied or already-applied result.
 - Added concrete budget-gated claim verification for `expert sync
   --compile-claims`. Local, explicit plan-quota, and metered API sync paths now
   inject a `SemanticClaimVerifier` alongside extraction, include read-only

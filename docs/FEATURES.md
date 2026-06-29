@@ -636,6 +636,7 @@ deepr expert subscriptions "Azure Architect"
 deepr expert sync "Azure Architect" --dry-run
 deepr expert sync "Azure Architect" -y
 deepr expert sync "Azure Architect" --local --fresh-context --compile-claims -y
+deepr expert sync "Azure Architect" --local --fresh-context --compile-claims --apply-compiled-claims -y
 deepr expert loop-status "Azure Architect"
 deepr expert loop-status "Azure Architect" --json
 
@@ -978,6 +979,7 @@ deepr expert sync "Platform Team Expert" --api                 # force metered A
 deepr expert sync "Platform Team Expert" --local --fresh-context # local model + free retrieval context
 deepr expert sync "Platform Team Expert" --local --deep-context  # multi-query free retrieval context
 deepr expert sync "Platform Team Expert" --local --fresh-context --compile-claims # extract, verify, stage commit
+deepr expert sync "Platform Team Expert" --local --fresh-context --compile-claims --apply-compiled-claims # explicit apply path
 
 # Review local quality first, then admit it for automatic use.
 deepr expert absorb "Platform Team Expert" report.md --local --dry-run
@@ -1012,8 +1014,12 @@ sync. It persists `sync_artifacts/claim_extractions/<timestamp>_<topic>.json`,
 `sync_artifacts/graph_commit_envelopes/<timestamp>_<topic>.json`, records
 prompt, schema, provider, model, capacity, cost, source-window refs, and
 read-only recall context, and keeps graph writes disabled until an explicit
-apply command. `deepr expert apply-graph-commit NAME ENVELOPE --dry-run
---json` validates the commit plan without writing. `deepr expert
+apply command or `--apply-compiled-claims`. The sync apply flag requires
+`--compile-claims`, cannot run with `--dry-run`, bypasses the legacy absorber
+for that topic, applies only the verified graph-commit envelope, and writes
+`sync_artifacts/graph_commit_apply_results/<timestamp>_<topic>.json`.
+`deepr expert apply-graph-commit NAME ENVELOPE --dry-run --json` validates the
+commit plan without writing. `deepr expert
 apply-graph-commit NAME ENVELOPE --yes --json` applies verified factual
 add-belief, typed-edge, gap-promotion, exploration-agenda, hypothesis, concept,
 stance, and original-idea operations idempotently, emits
