@@ -82,6 +82,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   deduplication, contradiction, and temporal-scope judgment with the verifier.
 
 ### Changed
+- Clarified the README first-screen value proposition, `--budget` examples, and
+  audience fit. The README now calls `--budget 3` a budget ceiling, explains
+  that users bring accounts, quotas, API keys, or local models, and
+  distinguishes buyers, builders, agent-host users, and casual one-off chat use.
 - Migrated compiled sync to graph-commit apply by default.
   `deepr expert sync --compile-claims` now applies the verified graph-commit
   envelope instead of calling the legacy absorber. Use
