@@ -22,6 +22,9 @@ state, at $0 (no LLM, no network):
 - **temporal edge qualifier visibility** - every stored temporal edge qualifier
   is visible through the read-side explanation surface instead of being hidden
   in the backing store.
+- **temporal edge digest visibility** - generated digest views carry the same
+  stored temporal edge qualifiers as derived content without becoming
+  authoritative memory.
 
 Each metric carries its own ground truth derived *independently* of the
 surface it scores (time-based vs confidence-based; recorded edges vs the
@@ -41,7 +44,8 @@ from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from typing import Any
 
-from deepr.experts.beliefs import Belief, BeliefStore
+from deepr.experts.beliefs import Belief, BeliefStore, Edge
+from deepr.experts.digest import build_digest as _build_digest
 from deepr.experts.perspective import contested as _contested
 from deepr.experts.perspective import explain_belief as _explain_belief
 from deepr.experts.perspective import what_changed as _what_changed
@@ -50,7 +54,8 @@ from deepr.experts.perspective import what_changed as _what_changed
 # comparable (the roadmap's "methodology versioning for run comparability").
 # 1.0: initial four continuity properties.
 # 1.1: add temporal edge qualifier visibility.
-CONTINUITY_METHODOLOGY_VERSION = "1.1"
+# 1.2: add temporal edge visibility in generated expert digests.
+CONTINUITY_METHODOLOGY_VERSION = "1.2"
 
 # A belief carrying no source provenance must not read as more than
 # abstention-level confidence - this is the tertiary single-source trust
@@ -326,6 +331,10 @@ def _temporal_edge_key(src_id: str, dst_id: str, edge_type: str) -> str:
     return f"{src_id}->{dst_id}:{edge_type}"
 
 
+def _stored_temporal_edges(store: BeliefStore) -> list[Edge]:
+    return [edge for edge in store.edges.values() if edge.temporal_contexts]
+
+
 def _temporal_edge_visible(
     store: BeliefStore,
     cache: dict[str, list[dict[str, Any]]],
@@ -352,7 +361,7 @@ def _temporal_edge_qualifier_visibility(store: BeliefStore) -> MetricResult:
     graph-commit write path against producing metadata that can be written but
     not inspected by host agents.
     """
-    temporal_edges = [edge for edge in store.edges.values() if edge.temporal_contexts]
+    temporal_edges = _stored_temporal_edges(store)
     if not temporal_edges:
         return MetricResult("temporal_edge_qualifier_visibility", None, 0, {"reason": "no temporal edge qualifiers"})
 
@@ -373,6 +382,55 @@ def _temporal_edge_qualifier_visibility(store: BeliefStore) -> MetricResult:
         {
             "temporal_edges": len(temporal_edges),
             "visible_temporal_edges": visible,
+            "missed_edges": sorted(missed),
+        },
+    )
+
+
+def _temporal_context_values(contexts: list[dict[str, str]]) -> list[str]:
+    values: list[str] = []
+    for context in contexts:
+        for field_name in ("valid_from", "valid_until", "observed_at", "temporal_scope"):
+            value = context.get(field_name, "").strip()
+            if value:
+                values.append(value)
+    return values
+
+
+def _temporal_edge_digest_visible(digest: str, src_id: str, dst_id: str, edge_type: str, edge: Edge) -> bool:
+    required = [src_id, dst_id, f"`{edge_type}`", *_temporal_context_values(edge.temporal_contexts)]
+    required.extend(str(item).strip() for item in edge.provenance if str(item).strip())
+    return all(token in digest for token in required)
+
+
+def _temporal_edge_digest_visibility(store: BeliefStore) -> MetricResult:
+    """Are stored temporal edge qualifiers visible in regenerated digests?
+
+    Ground truth: typed belief edges that carry temporal contexts. Report: the
+    generated Markdown digest. This keeps the regenerated view honest after the
+    digest starts surfacing temporal graph metadata, without treating Markdown
+    as canonical state.
+    """
+    temporal_edges = _stored_temporal_edges(store)
+    if not temporal_edges:
+        return MetricResult("temporal_edge_digest_visibility", None, 0, {"reason": "no temporal edge qualifiers"})
+
+    digest = _build_digest(store, expert_name=store.expert_name)
+    visible = 0
+    missed: list[str] = []
+    for edge in temporal_edges:
+        if _temporal_edge_digest_visible(digest, edge.src_id, edge.dst_id, edge.edge_type, edge):
+            visible += 1
+        else:
+            missed.append(_temporal_edge_key(edge.src_id, edge.dst_id, edge.edge_type))
+
+    return MetricResult(
+        "temporal_edge_digest_visibility",
+        visible / len(temporal_edges),
+        len(temporal_edges),
+        {
+            "temporal_edges": len(temporal_edges),
+            "digest_visible_temporal_edges": visible,
             "missed_edges": sorted(missed),
         },
     )
@@ -403,5 +461,6 @@ def measure_continuity(
         _contradiction_surfacing(store),
         _what_changed_exactness(store),
         _temporal_edge_qualifier_visibility(store),
+        _temporal_edge_digest_visibility(store),
     ]
     return ContinuityReport(expert_name=expert_name or store.expert_name, metrics=metrics)

@@ -191,10 +191,10 @@ compatibility alias for the default apply behavior.
 Read-side perspective deltas and belief explanations now surface those
 temporal edge qualifiers as structured `temporal_edges` /
 `temporal_contexts`, and `deepr eval continuity` checks that stored temporal
-edge qualifiers are inspectable through the `$0` read surface. Regenerated
-expert digests also render temporal edge qualifiers in a dedicated derived
-section so humans can inspect valid time, observed time, scope, and provenance
-without treating the Markdown view as canonical memory.
+edge qualifiers are inspectable through the `$0` read and generated-digest
+surfaces. Regenerated expert digests also render temporal edge qualifiers in a
+dedicated derived section so humans can inspect valid time, observed time,
+scope, and provenance without treating the Markdown view as canonical memory.
 
 `deepr eval consult` runs a `$0` consult harness suite. It checks structural
 contracts for expert routing, context packets, collaboration metadata,
