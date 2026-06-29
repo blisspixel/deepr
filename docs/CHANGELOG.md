@@ -8,6 +8,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- Added a loopback-only socket guard to the dev/unit pytest environment so the
+  unit gate fails on accidental outbound network calls while preserving local
+  fixtures.
 - Added a root `deepr --no-color` flag that disables ANSI color output for
   existing Rich consoles and sets `NO_COLOR` for consoles created later.
 - Added first-class `ExpertProfile.schema_version` round-tripping. Profile

@@ -53,6 +53,8 @@ A change is done when all of these hold - not "the code works":
 - [ ] `python -m pytest tests/unit/ --ignore=tests/data -q --timeout=120` is
       green (this is what CI runs). Do **not** run bare `pytest`:
       `tests/integration/` needs API keys and one test can hang without them.
+      The unit gate blocks outbound sockets by default and only allows
+      loopback hosts for local fixtures.
 - [ ] Coverage stays at or above the gate (80% branch, `fail_under` in
       `pyproject.toml`; ratcheting toward 95).
 - [ ] `ruff check src/deepr/` and `ruff format src/deepr/` clean.
@@ -109,6 +111,8 @@ python -m pytest tests/unit/test_config -v                                  # on
 
 Tests must pass with **no API keys and no .env** - a test that only passes
 when a dev key happens to be set is a regression (it has happened twice).
+The dev test environment disables outbound sockets by default; tests that need
+network must live under `tests/integration/` and the live-test opt-in.
 
 ## Project structure
 

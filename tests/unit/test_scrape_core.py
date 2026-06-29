@@ -16,6 +16,7 @@ from deepr.utils.scrape import (
     PageDeduplicator,
     ScrapeConfig,
 )
+from tests.unit.scrape_helpers import make_scrape_response
 
 
 def test_scrape_config():
@@ -165,8 +166,8 @@ def test_page_deduplicator():
     print("[PASS] PageDeduplicator\n")
 
 
-def test_http_fetcher():
-    """Test HTTP fetching (requires internet)."""
+def test_http_fetcher(monkeypatch):
+    """Test HTTP fetching without external network."""
     print("\n[TEST] ContentFetcher fetch...")
 
     config = ScrapeConfig(
@@ -176,20 +177,15 @@ def test_http_fetcher():
         timeout=10,
     )
     fetcher = ContentFetcher(config)
+    monkeypatch.setattr("deepr.utils.scrape.fetcher.requests.get", lambda *args, **kwargs: make_scrape_response())
 
-    # Test with a reliable public URL
     result = fetcher.fetch("https://example.com")
 
-    if result.success:
-        # Playwright is now preferred, but HTTP is also valid
-        assert result.strategy in ("Playwright", "HTTP")
-        assert result.html is not None
-        assert len(result.html) > 100
-        print(f"  [OK] Fetch successful via {result.strategy}")
-        print(f"  [OK] Got {len(result.html)} chars of HTML")
-    else:
-        print(f"  [SKIP] Fetch failed: {result.error}")
-        print("  (This is okay if network is unavailable)")
+    assert result.strategy == "HTTP"
+    assert result.html is not None
+    assert len(result.html) > 100
+    print(f"  [OK] Fetch successful via {result.strategy}")
+    print(f"  [OK] Got {len(result.html)} chars of HTML")
 
     print("[PASS] ContentFetcher fetch\n")
 
