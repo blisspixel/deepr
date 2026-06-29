@@ -12,7 +12,7 @@ from types import SimpleNamespace
 
 import pytest
 
-from deepr.experts.beliefs import BeliefStore
+from deepr.experts.beliefs import Belief, BeliefStore
 from deepr.experts.report_absorber import ReportAbsorber
 from deepr.experts.source_pack_compiler import build_semantic_claim_extraction
 from deepr.experts.sync import (
@@ -103,6 +103,54 @@ class _FakeClaimExtractor:
             cost_usd=0.0,
             generated_at=generated_at,
         )
+
+
+class _FakeClaimVerifier:
+    def __init__(self):
+        self.calls: list[dict] = []
+
+    async def verify(
+        self,
+        claim_extraction,
+        source_notes,
+        source_pack_payload,
+        *,
+        claim_extraction_artifact="",
+        source_note_artifact="",
+        budget_usd=0.0,
+        session_id="claim_verification",
+        generated_at="",
+    ):
+        self.calls.append(
+            {
+                "claim_extraction_artifact": claim_extraction_artifact,
+                "source_note_artifact": source_note_artifact,
+                "budget_usd": budget_usd,
+                "session_id": session_id,
+                "generated_at": generated_at,
+                "source_count": len(source_pack_payload["source_pack"]["sources"]),
+                "note_count": len(source_notes["notes"]),
+            }
+        )
+        return {
+            "contract": {
+                "provider": "local",
+                "model": "qwen",
+                "capacity_source": "local",
+                "cost_usd": 0.0,
+            },
+            "verifications": [
+                {
+                    "candidate_id": claim_extraction["candidates"][0]["candidate_id"],
+                    "support_verdict": "supported",
+                    "contradiction_verdict": "none",
+                    "dedup_verdict": "new",
+                    "temporal_scope_verdict": "valid",
+                    "confidence": 0.91,
+                    "rationale": "The cited source window supports the claim.",
+                }
+            ],
+        }
 
 
 def _engine(tmp_path, sub_store, research_answers: dict[str, dict]):
@@ -467,6 +515,88 @@ class TestSyncEngine:
         assert payload["contract"]["writes_graph"] is False
         assert payload["summary"]["status"] == "ready_for_verification"
         assert result.delta["total_changes"] == 1
+
+    @pytest.mark.asyncio
+    async def test_sync_can_write_claim_verification_and_graph_commit_sidecars(self, tmp_path):
+        store = _sub_store(tmp_path, Subscription(topic="Topic X", budget=0.5))
+        source_pack = {
+            "schema_version": "deepr.source_pack.v1",
+            "mode": "fresh",
+            "source_count": 1,
+            "retrieved_source_count": 1,
+            "sources": [
+                {
+                    "label": "S1",
+                    "title": "Release notes",
+                    "url": "https://example.com/release",
+                    "excerpt": "Topic X gained capability Y in June 2026.",
+                    "content_hash": "c" * 64,
+                }
+            ],
+        }
+
+        async def research_fn(query: str, budget: float) -> dict:
+            return {
+                "answer": "Topic X gained capability Y in June 2026. [S1]",
+                "cost": 0.0,
+                "fresh_context": {"source_count": 1, "mode": "fresh"},
+                "source_pack": source_pack,
+            }
+
+        beliefs = BeliefStore("Sync Test Expert", storage_dir=tmp_path / "beliefs")
+        existing, _ = beliefs.add_belief(
+            Belief(
+                "Topic X gained capability Y in June 2026 from prior release notes.",
+                0.8,
+                domain="ai",
+                source_type="report",
+            ),
+            check_conflicts=False,
+        )
+        absorber = ReportAbsorber(_expert(), client=_FakeExtractionClient(), belief_store=beliefs)
+        claim_extractor = _FakeClaimExtractor()
+        claim_verifier = _FakeClaimVerifier()
+        engine = ExpertSyncEngine(
+            _expert(),
+            research_fn=research_fn,
+            subscription_store=store,
+            belief_store=beliefs,
+            absorber=absorber,
+            claim_extractor=claim_extractor,
+            claim_verifier=claim_verifier,
+        )
+
+        result = await engine.sync(budget=1.0)
+
+        outcome = result.outcomes[0]
+        assert outcome.status == "synced"
+        assert outcome.claim_extraction_artifact.endswith("_topic-x.json")
+        assert outcome.claim_verification_artifact.endswith("_topic-x.json")
+        assert outcome.graph_commit_envelope_artifact.endswith("_topic-x.json")
+        assert claim_verifier.calls[0]["claim_extraction_artifact"] == outcome.claim_extraction_artifact
+        assert claim_verifier.calls[0]["source_note_artifact"] == outcome.source_note_artifact
+        assert claim_verifier.calls[0]["budget_usd"] == 0.5
+
+        verification_path = tmp_path / "knowledge" / outcome.claim_verification_artifact
+        verification = json.loads(verification_path.read_text(encoding="utf-8"))
+        decision = verification["decisions"][0]
+        assert verification["schema_version"] == "deepr-claim-verification-v1"
+        assert verification["contract"]["writes_graph"] is False
+        assert verification["summary"]["status"] == "ready_for_commit_envelope"
+        assert decision["recall_context"]["candidate_count"] == 1
+        recall_candidate = decision["recall_context"]["candidates"][0]
+        assert recall_candidate["item_id"] == existing.id
+        assert recall_candidate["verdict"] == "candidate_only"
+        assert recall_candidate["metadata"]["recall_role"] == "memory_quality_candidate"
+
+        graph_path = tmp_path / "knowledge" / outcome.graph_commit_envelope_artifact
+        graph_commit = json.loads(graph_path.read_text(encoding="utf-8"))
+        assert graph_commit["schema_version"] == "deepr-graph-commit-envelope-v7"
+        assert graph_commit["contract"]["writes_graph"] is False
+        assert graph_commit["input"]["claim_extraction_artifact"] == outcome.claim_extraction_artifact
+        assert graph_commit["input"]["claim_verification_artifact"] == outcome.claim_verification_artifact
+        assert graph_commit["summary"]["status"] == "ready_for_commit"
+        assert len(graph_commit["operations"]) == 1
 
     @pytest.mark.asyncio
     async def test_source_pack_write_failure_blocks_absorb(self, tmp_path, monkeypatch):
