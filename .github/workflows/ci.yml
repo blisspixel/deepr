@@ -19,14 +19,16 @@ jobs:
         uses: astral-sh/setup-uv@fac544c07dec837d0ccb6301d7b5580bf5edae39 # v8.2.0
         with:
           activate-environment: true
+          enable-cache: true
           python-version: "3.12"
 
-      - name: Install lint tooling
-        # No --system: setup-uv creates and activates a .venv, so install into
-        # it and let the .venv's ruff/mypy/python resolve on PATH.
-        # ruff is pinned exactly so the Phase Q complexity/security ratchets
-        # (which count findings) are reproducible between local runs and CI.
-        run: uv pip install ruff==0.15.17 "mypy>=1.13.0"
+      - name: Check uv lockfile freshness
+        run: uv lock --check
+
+      - name: Sync lint environment
+        # Frozen sync uses uv.lock exactly, so the ruff/mypy versions that drive
+        # the Phase Q ratchets are reproducible between local runs and CI.
+        run: uv sync --frozen --extra dev
 
       - name: Lint
         run: ruff check src/deepr/
@@ -84,6 +86,7 @@ jobs:
         uses: astral-sh/setup-uv@fac544c07dec837d0ccb6301d7b5580bf5edae39 # v8.2.0
         with:
           activate-environment: true
+          enable-cache: true
           python-version: "3.12"
 
       - name: Secret scan (Gitleaks, blocking)
@@ -97,13 +100,13 @@ jobs:
         # build. Accepted advisories are pinned explicitly with
         # `--ignore-vuln <ID>` rather than by disabling the gate.
         run: |
-          uv pip install -e ".[full]" "pip-audit>=2.7.0"
+          uv sync --frozen --extra dev --extra full
           pip-audit --skip-editable
 
       - name: Generate SBOM (pinned dependency bill of materials)
         # Phase E: a reproducible, hash-pinned list of every resolved
         # dependency, published as a build artifact for supply-chain audit.
-        run: uv export --frozen --no-emit-project --no-dev --format requirements-txt -o sbom-requirements.txt
+        run: uv export --frozen --no-emit-project --no-dev --extra full --format requirements-txt -o sbom-requirements.txt
 
       - name: Upload SBOM artifact
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
@@ -128,10 +131,11 @@ jobs:
         uses: astral-sh/setup-uv@fac544c07dec837d0ccb6301d7b5580bf5edae39 # v8.2.0
         with:
           activate-environment: true
+          enable-cache: true
           python-version: "3.12"
 
-      - name: Install CORE only (no extras)
-        run: uv pip install .
+      - name: Sync CORE only (no extras)
+        run: uv sync --frozen --no-dev --no-editable
 
       - name: Smoke-test the core CLI (no network, no extras)
         run: |
@@ -188,10 +192,11 @@ jobs:
         uses: astral-sh/setup-uv@fac544c07dec837d0ccb6301d7b5580bf5edae39 # v8.2.0
         with:
           activate-environment: true
+          enable-cache: true
           python-version: ${{ matrix.python-version }}
 
-      - name: Install dependencies
-        run: uv pip install -e ".[dev,full]"
+      - name: Sync dependencies
+        run: uv sync --frozen --extra dev --extra full
 
       - name: Unit tests with coverage
         # Coverage threshold lives in pyproject.toml (currently 80%).

@@ -77,6 +77,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   deduplication, contradiction, and temporal-scope judgment with the verifier.
 
 ### Changed
+- Switched Python CI jobs and scheduled mutation testing from mutable
+  `uv pip install` steps to frozen `uv sync` installs against `uv.lock`, added
+  a lock-freshness check to the lint gate, and scheduled `uv` lockfile refresh
+  PRs through Dependabot.
 - Migrated compiled sync to graph-commit apply by default.
   `deepr expert sync --compile-claims` now applies the verified graph-commit
   envelope instead of calling the legacy absorber. Use
@@ -85,6 +89,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   compatibility alias for the default apply path.
 
 ### Fixed
+- Updated the locked `pip` tool dependency to 26.1.2 so the expanded frozen
+  CI audit environment is clear of `PYSEC-2026-196`.
 - Hardened public-bind detection across A2A, MCP HTTP, Flask API, and the web
   dashboard. Empty or unset bind hosts are now treated as all-interface binds,
   not loopback, so unauthenticated public-bind guardrails cannot be bypassed by

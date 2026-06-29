@@ -171,10 +171,10 @@ spending effort shrinking it. None of these change runtime behavior.
 
 ### Q5 - Defend against staleness (F7)
 
-- **Q5.1** Scheduled CI job: dependency drift (`uv lock --upgrade` behind
-  review), model-registry drift (extend the existing check), and a quarterly
-  "standards review" reminder issue. *Done:* drift surfaces automatically,
-  not by luck.
+- **Q5.1** Scheduled drift surfacing: dependency drift (`uv` lockfile refresh
+  PRs behind review), model-registry drift (extend the existing check), and a
+  quarterly "standards review" reminder issue. *Done:* drift surfaces
+  automatically, not by luck.
 
 ## Evidence base (2026 research)
 
