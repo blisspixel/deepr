@@ -15,6 +15,7 @@ from typing import TYPE_CHECKING, Any
 from urllib.parse import urlparse
 
 from deepr.config import experts_root
+from deepr.experts.belief_edges import EDGE_TYPES, Edge, normalized_edge_temporal_context
 
 logger = logging.getLogger(__name__)
 
@@ -358,60 +359,9 @@ class BeliefChange:
         )
 
 
-# Edge types for the typed belief graph (TKG step 2, see
-# docs/design/temporal-knowledge-graph.md). "contradicts" is symmetric;
-# the others are directed src -> dst.
-EDGE_TYPES = ("supports", "contradicts", "enables", "derived_from")
-_SYMMETRIC_EDGE_TYPES = ("contradicts",)
-
 # Provenance string recorded on edges created by the one-time migration of
 # legacy contradictions_with lists.
 _MIGRATED_PROVENANCE = "migrated:contradictions_with"
-
-
-@dataclass
-class Edge:
-    """A typed relationship between two beliefs.
-
-    Provenance accumulates: re-asserting the same relationship from a new
-    report adds provenance to the existing edge instead of duplicating it
-    (the dedup policy from the TKG design doc).
-    """
-
-    src_id: str
-    dst_id: str
-    edge_type: str  # one of EDGE_TYPES
-    provenance: list[str] = field(default_factory=list)
-    created_at: datetime = field(default_factory=_utc_now)
-
-    def key(self) -> tuple[str, str, str]:
-        """Canonical identity. Symmetric types sort endpoints so A-B == B-A."""
-        if self.edge_type in _SYMMETRIC_EDGE_TYPES:
-            lo, hi = sorted((self.src_id, self.dst_id))
-            return (lo, hi, self.edge_type)
-        return (self.src_id, self.dst_id, self.edge_type)
-
-    def touches(self, belief_id: str) -> bool:
-        return belief_id in (self.src_id, self.dst_id)
-
-    def to_dict(self) -> dict[str, Any]:
-        return {
-            "src_id": self.src_id,
-            "dst_id": self.dst_id,
-            "edge_type": self.edge_type,
-            "provenance": list(self.provenance),
-            "created_at": self.created_at.isoformat(),
-        }
-
-    @classmethod
-    def from_dict(cls, data: dict[str, Any]) -> "Edge":
-        return cls(
-            src_id=data["src_id"],
-            dst_id=data["dst_id"],
-            edge_type=data["edge_type"],
-            provenance=list(data.get("provenance", [])),
-            created_at=datetime.fromisoformat(data["created_at"]) if data.get("created_at") else _utc_now(),
-        )
 
 
 class BeliefStore:
@@ -468,12 +418,22 @@ class BeliefStore:
 
         self._load()
 
+    def _store_edge(self, edge: Edge, provenance: str, temporal_context: dict[str, str] | None) -> Edge:
+        stored = self.edges.setdefault(edge.key(), edge)
+        if provenance and provenance not in stored.provenance:
+            stored.provenance.append(provenance)
+        normalized_temporal_context = normalized_edge_temporal_context(temporal_context)
+        if normalized_temporal_context and normalized_temporal_context not in stored.temporal_contexts:
+            stored.temporal_contexts.append(normalized_temporal_context)
+        return stored
+
     def add_edge(
         self,
         src_id: str,
         dst_id: str,
         edge_type: str,
         provenance: str = "",
+        temporal_context: dict[str, str] | None = None,
         *,
         save: bool = True,
     ) -> Edge:
@@ -490,15 +450,7 @@ class BeliefStore:
             raise ValueError("An edge cannot connect a belief to itself")
 
         edge = Edge(src_id=src_id, dst_id=dst_id, edge_type=edge_type)
-        existing = self.edges.get(edge.key())
-        if existing is not None:
-            if provenance and provenance not in existing.provenance:
-                existing.provenance.append(provenance)
-            edge = existing
-        else:
-            if provenance:
-                edge.provenance.append(provenance)
-            self.edges[edge.key()] = edge
+        edge = self._store_edge(edge, provenance, temporal_context)
 
         if edge_type == "contradicts":
             a, b = self.beliefs.get(src_id), self.beliefs.get(dst_id)

@@ -361,6 +361,61 @@ def test_apply_graph_commit_envelope_replays_missing_edge_from_partial_apply(tmp
     assert store.beliefs["b2"].contradictions_with == ["b1"]
 
 
+def test_apply_graph_commit_envelope_replays_missing_edge_temporal_context(tmp_path):
+    temporal = {
+        "valid_from": "2026-06-01",
+        "valid_until": "2026-06-30",
+        "observed_at": "2026-06-29T00:00:00+00:00",
+        "temporal_scope": "June 2026",
+    }
+    first = graph_commit_operation(
+        "b1",
+        "The compiler enabled the default behavior.",
+        "a" * 64,
+        edges=[
+            {
+                "src_id": "b1",
+                "dst_id": "b2",
+                "edge_type": "derived_from",
+                "provenance": "test",
+                "temporal": temporal,
+            }
+        ],
+    )
+    second = graph_commit_operation("b2", "The compiler used verified source notes.", "b" * 64)
+    envelope = graph_commit_envelope(first, second)
+    store = BeliefStore("Compiler Expert", storage_dir=tmp_path / "beliefs")
+    for operation in envelope["operations"]:
+        payload = operation["belief"]
+        store.add_belief(
+            Belief(
+                id=payload["id"],
+                claim=payload["claim"],
+                confidence=payload["confidence"],
+                evidence_refs=payload["evidence_refs"],
+                domain=payload["domain"],
+                source_type=payload["source_type"],
+                trust_class=payload["trust_class"],
+                grounding_assurance=payload["grounding_assurance"],
+            ),
+            check_conflicts=False,
+            dedup=False,
+            change_reason=f"graph_commit_apply:{operation['idempotency_key']}",
+        )
+    store.add_edge("b1", "b2", "derived_from", provenance="test")
+
+    result = apply_graph_commit_envelope(envelope, store, dry_run=False)
+
+    assert result["summary"]["status"] == "applied"
+    assert result["summary"]["applied_write_count"] == 1
+    assert result["summary"]["already_applied_count"] == 1
+    assert result["operation_results"][0]["edge_count"] == 1
+    assert len(store.edges) == 1
+    edge = next(iter(store.edges.values()))
+    assert edge.provenance == ["test"]
+    assert edge.temporal_contexts == [temporal]
+
+
 def test_apply_graph_commit_envelope_detects_replay_drift(tmp_path):
     envelope = graph_commit_envelope(
         graph_commit_operation("b1", "Release text changed the compiler behavior.", "a" * 64)

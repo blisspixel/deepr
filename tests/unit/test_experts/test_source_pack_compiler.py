@@ -511,10 +511,21 @@ def test_claim_verification_records_edge_decisions_without_writing_graph():
                             "edge_type": "supports",
                             "confidence": 0.81,
                             "rationale": "The first claim is required for the second claim's replay guarantee.",
+                            "temporal": {
+                                "valid_from": "2026-06-01",
+                                "valid_until": "2026-06-30",
+                                "observed_at": "2026-06-29T00:00:00+00:00",
+                                "temporal_scope": "June 2026",
+                            },
                         },
                         {
                             "target_candidate_id": "cc_missing",
                             "edge_type": "supports",
+                        },
+                        {
+                            "target_candidate_id": target_candidate,
+                            "edge_type": "derived_from",
+                            "temporal": {"valid_from": "not a date"},
                         },
                     ],
                 },
@@ -539,9 +550,18 @@ def test_claim_verification_records_edge_decisions_without_writing_graph():
             "edge_type": "supports",
             "confidence": 0.81,
             "rationale": "The first claim is required for the second claim's replay guarantee.",
+            "temporal": {
+                "valid_from": "2026-06-01",
+                "valid_until": "2026-06-30",
+                "observed_at": "2026-06-29T00:00:00+00:00",
+                "temporal_scope": "June 2026",
+            },
         }
     ]
-    assert decision["edge_decision_failures"] == [{"index": 1, "failure_reasons": ["unknown_target_candidate_id"]}]
+    assert decision["edge_decision_failures"] == [
+        {"index": 1, "failure_reasons": ["unknown_target_candidate_id"]},
+        {"index": 2, "failure_reasons": ["invalid_edge_valid_from"]},
+    ]
 
 
 def test_claim_verification_attaches_recall_context_without_changing_readiness():
@@ -792,6 +812,12 @@ def test_graph_commit_envelope_applies_verifier_edge_decisions(tmp_path):
                             "edge_type": "derived_from",
                             "confidence": 0.77,
                             "rationale": "Replayable verification derives from stable source-note inputs.",
+                            "temporal": {
+                                "valid_from": "2026-06-01",
+                                "valid_until": "2026-06-30",
+                                "observed_at": "2026-06-29T00:00:00+00:00",
+                                "temporal_scope": "June 2026",
+                            },
                         }
                     ],
                 },
@@ -832,6 +858,12 @@ def test_graph_commit_envelope_applies_verifier_edge_decisions(tmp_path):
             ),
             "confidence": 0.77,
             "rationale": "Replayable verification derives from stable source-note inputs.",
+            "temporal": {
+                "valid_from": "2026-06-01",
+                "valid_until": "2026-06-30",
+                "observed_at": "2026-06-29T00:00:00+00:00",
+                "temporal_scope": "June 2026",
+            },
         }
     ]
 
@@ -845,6 +877,14 @@ def test_graph_commit_envelope_applies_verifier_edge_decisions(tmp_path):
     assert edge.src_id == source_operation["belief"]["id"]
     assert edge.dst_id == target_operation["belief"]["id"]
     assert edge.edge_type == "derived_from"
+    assert edge.temporal_contexts == [
+        {
+            "valid_from": "2026-06-01",
+            "valid_until": "2026-06-30",
+            "observed_at": "2026-06-29T00:00:00+00:00",
+            "temporal_scope": "June 2026",
+        }
+    ]
 
 
 def test_graph_commit_envelope_promotes_verified_knowledge_gap(tmp_path):

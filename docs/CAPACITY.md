@@ -98,10 +98,12 @@ explicit sidecar model calls over ready source-note windows, writes
 `deepr-semantic-claim-extraction-v1` candidates, runs budget-gated claim
 verification with read-only recall context, builds a graph-commit envelope,
 applies that verified envelope instead of the legacy absorber, and writes a
-graph-commit apply result sidecar. Use `--stage-compiled-claims` with
-`--compile-claims` to keep graph writes disabled and persist only the compiler
-sidecars. `--apply-compiled-claims` remains a compatibility alias for the
-default compiled apply behavior and is rejected with `--dry-run`.
+graph-commit apply result sidecar. Verifier-supplied edge decisions can carry
+structured temporal qualifiers into the envelope and persisted edge. Use
+`--stage-compiled-claims` with `--compile-claims` to keep graph writes disabled
+and persist only the compiler sidecars. `--apply-compiled-claims` remains a
+compatibility alias for the default compiled apply behavior and is rejected with
+`--dry-run`.
 On local capacity they cost `$0`;
 on non-metered plan capacity they cost `$0` inside Deepr but consume
 subscription quota. A metered-at-margin plan CLI is explicit-only, shows the run

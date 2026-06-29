@@ -151,7 +151,17 @@
                 "target_candidate_id": {"type": "string"},
                 "edge_type": {"enum": ["supports", "contradicts", "enables", "derived_from"]},
                 "confidence": {"type": "number", "minimum": 0, "maximum": 1},
-                "rationale": {"type": "string"}
+                "rationale": {"type": "string"},
+                "temporal": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "properties": {
+                    "valid_from": {"type": "string"},
+                    "valid_until": {"type": "string"},
+                    "observed_at": {"type": "string"},
+                    "temporal_scope": {"type": "string"}
+                  }
+                }
               }
             }
           },

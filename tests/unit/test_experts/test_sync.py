@@ -819,7 +819,7 @@ class TestSyncEngine:
 
         graph_path = tmp_path / "knowledge" / outcome.graph_commit_envelope_artifact
         graph_commit = json.loads(graph_path.read_text(encoding="utf-8"))
-        assert graph_commit["schema_version"] == "deepr-graph-commit-envelope-v7"
+        assert graph_commit["schema_version"] == "deepr-graph-commit-envelope-v8"
         assert graph_commit["contract"]["writes_graph"] is False
         assert graph_commit["input"]["claim_extraction_artifact"] == outcome.claim_extraction_artifact
         assert graph_commit["input"]["claim_verification_artifact"] == outcome.claim_verification_artifact

@@ -744,9 +744,10 @@ prompt-boundary, MCP handoff and loop-status read-path, tool-spoofing, and
 trust-floor probes, fails if a built-in attack succeeds, and can save a local
 trend artifact with `--save`.
 
-**Storage (the temporal knowledge graph):** the belief store is canonical  - 
+**Storage (the temporal knowledge graph):** the belief store is canonical -
 `beliefs.json` (claims + typed edges: supports / contradicts / enables /
-derived_from) plus an append-only `events.jsonl` recording every change.
+derived_from, with optional temporal contexts on edges) plus an append-only
+`events.jsonl` recording every change.
 Everything else (digest, SKILL.md export, reports) is a derived, regenerable
 view.
 

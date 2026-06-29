@@ -14,6 +14,7 @@ from deepr.core.contracts import (
     ExplorationAgenda,
     Gap,
 )
+from deepr.experts import edge_temporal as _edge_temporal
 from deepr.experts.beliefs import EDGE_TYPES, Belief, BeliefStore
 from deepr.experts.graph_commit_envelope import (
     GRAPH_COMMIT_ENVELOPE_KIND,
@@ -24,6 +25,7 @@ from deepr.experts.graph_commit_envelope import (
     GRAPH_COMMIT_ENVELOPE_SCHEMA_VERSION_V4,
     GRAPH_COMMIT_ENVELOPE_SCHEMA_VERSION_V5,
     GRAPH_COMMIT_ENVELOPE_SCHEMA_VERSION_V6,
+    GRAPH_COMMIT_ENVELOPE_SCHEMA_VERSION_V7,
 )
 from deepr.experts.metacognition import MetaCognitionTracker
 
@@ -54,6 +56,7 @@ _SUPPORTED_ENVELOPE_SCHEMA_VERSIONS = {
     GRAPH_COMMIT_ENVELOPE_SCHEMA_VERSION_V4,
     GRAPH_COMMIT_ENVELOPE_SCHEMA_VERSION_V5,
     GRAPH_COMMIT_ENVELOPE_SCHEMA_VERSION_V6,
+    GRAPH_COMMIT_ENVELOPE_SCHEMA_VERSION_V7,
     GRAPH_COMMIT_ENVELOPE_SCHEMA_VERSION,
 }
 _TRACKER_APPLIED_SPECS = {
@@ -220,6 +223,18 @@ def _iso_datetime_failure(payload: dict[str, Any], field: str, reason: str) -> s
     except ValueError:
         return reason
     return ""
+
+
+def _edge_temporal_context(raw_edge: dict[str, Any]) -> dict[str, str]:
+    return _edge_temporal.normalize_temporal_context(raw_edge.get("temporal", {}))
+
+
+def _edge_temporal_failure_reasons(raw_edge: dict[str, Any]) -> list[str]:
+    return _edge_temporal.temporal_failure_reasons(
+        raw_edge.get("temporal", {}),
+        field_error="edge_{field}_invalid",
+        order_error="edge_temporal_order_invalid",
+    )
 
 
 def _gap_failure_reasons(gap: dict[str, Any], gap_tracker: MetaCognitionTracker | None) -> list[str]:
@@ -434,6 +449,7 @@ def _edge_failure_reasons(operation: dict[str, Any], store: BeliefStore, future_
             failures.append("edge_type_invalid")
         if src_id and dst_id and src_id == dst_id:
             failures.append("edge_self_reference")
+        failures.extend(_edge_temporal_failure_reasons(edge))
     return failures
 
 
@@ -549,6 +565,9 @@ def _edge_already_applied(store: BeliefStore, raw_edge: dict[str, Any], operatio
     src_id, dst_id, edge_type, provenance = _edge_values(raw_edge, operation)
     edge = store.edges.get(_edge_key(src_id, dst_id, edge_type))
     if edge is None:
+        return False
+    temporal_context = _edge_temporal_context(raw_edge)
+    if temporal_context and temporal_context not in edge.temporal_contexts:
         return False
     return not provenance or provenance in edge.provenance
 
@@ -797,7 +816,14 @@ def _add_missing_edges(operations: list[dict[str, Any]], store: BeliefStore) -> 
             if _edge_already_applied(store, edge_payload, operation):
                 continue
             src_id, dst_id, edge_type, provenance = _edge_values(edge_payload, operation)
-            store.add_edge(src_id, dst_id, edge_type, provenance=provenance, save=False)
+            store.add_edge(
+                src_id,
+                dst_id,
+                edge_type,
+                provenance=provenance,
+                temporal_context=_edge_temporal_context(edge_payload),
+                save=False,
+            )
             edge_count += 1
         if edge_count:
             edge_counts[str(operation["idempotency_key"])] = edge_count

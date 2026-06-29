@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from typing import Any
+
 from deepr.experts.graph_commit_envelope import GRAPH_COMMIT_ENVELOPE_KIND, GRAPH_COMMIT_ENVELOPE_SCHEMA_VERSION
 
 
@@ -11,7 +13,7 @@ def graph_commit_operation(
     idempotency_key: str,
     *,
     confidence: float = 0.6,
-    edges: list[dict[str, str]] | None = None,
+    edges: list[dict[str, Any]] | None = None,
 ) -> dict:
     return {
         "operation_id": f"op_{belief_id}",

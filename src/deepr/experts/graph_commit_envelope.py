@@ -8,6 +8,7 @@ from datetime import UTC, datetime
 from typing import Any
 
 from deepr.experts.beliefs import EDGE_TYPES
+from deepr.experts.edge_temporal import normalize_temporal_context
 from deepr.experts.source_pack_compiler import CLAIM_VERIFICATION_SCHEMA_VERSION
 
 GRAPH_COMMIT_ENVELOPE_SCHEMA_VERSION_V1 = "deepr-graph-commit-envelope-v1"
@@ -16,7 +17,8 @@ GRAPH_COMMIT_ENVELOPE_SCHEMA_VERSION_V3 = "deepr-graph-commit-envelope-v3"
 GRAPH_COMMIT_ENVELOPE_SCHEMA_VERSION_V4 = "deepr-graph-commit-envelope-v4"
 GRAPH_COMMIT_ENVELOPE_SCHEMA_VERSION_V5 = "deepr-graph-commit-envelope-v5"
 GRAPH_COMMIT_ENVELOPE_SCHEMA_VERSION_V6 = "deepr-graph-commit-envelope-v6"
-GRAPH_COMMIT_ENVELOPE_SCHEMA_VERSION = "deepr-graph-commit-envelope-v7"
+GRAPH_COMMIT_ENVELOPE_SCHEMA_VERSION_V7 = "deepr-graph-commit-envelope-v7"
+GRAPH_COMMIT_ENVELOPE_SCHEMA_VERSION = "deepr-graph-commit-envelope-v8"
 GRAPH_COMMIT_ENVELOPE_KIND = "deepr.expert.graph_commit_envelope"
 
 _BELIEF_STATE_TYPES = {"factual_claim", "fact", "external_fact", "current_fact"}
@@ -248,6 +250,9 @@ def _edge_operation(
     rationale = str(edge.get("rationale", "") or "").strip()
     if rationale:
         result["rationale"] = rationale
+    temporal = normalize_temporal_context(edge.get("temporal", {}))
+    if temporal:
+        result["temporal"] = temporal
     return result
 
 
@@ -918,5 +923,6 @@ __all__ = [
     "GRAPH_COMMIT_ENVELOPE_SCHEMA_VERSION_V4",
     "GRAPH_COMMIT_ENVELOPE_SCHEMA_VERSION_V5",
     "GRAPH_COMMIT_ENVELOPE_SCHEMA_VERSION_V6",
+    "GRAPH_COMMIT_ENVELOPE_SCHEMA_VERSION_V7",
     "build_graph_commit_envelope",
 ]
