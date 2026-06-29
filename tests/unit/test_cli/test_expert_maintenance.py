@@ -272,6 +272,9 @@ class TestBackendFlagGuard:
                     source_note_artifact="sync_artifacts/source_notes/pack.json",
                     source_pack_artifact="sync_artifacts/source_packs/pack.json",
                     source_pack_manifest_artifact="sync_artifacts/source_pack_manifests/pack.json",
+                    claim_extraction_artifact="sync_artifacts/claim_extractions/pack.json",
+                    claim_verification_artifact="sync_artifacts/claim_verifications/pack.json",
+                    graph_commit_envelope_artifact="sync_artifacts/graph_commit_envelopes/pack.json",
                 )
             ]
         )
@@ -290,6 +293,9 @@ class TestBackendFlagGuard:
                         "source_note_artifact": "sync_artifacts/source_notes/pack.json",
                         "source_pack_artifact": "sync_artifacts/source_packs/pack.json",
                         "source_pack_manifest_artifact": "sync_artifacts/source_pack_manifests/pack.json",
+                        "claim_extraction_artifact": "sync_artifacts/claim_extractions/pack.json",
+                        "claim_verification_artifact": "sync_artifacts/claim_verifications/pack.json",
+                        "graph_commit_envelope_artifact": "sync_artifacts/graph_commit_envelopes/pack.json",
                     }
                 ],
             }
@@ -870,7 +876,7 @@ class TestPlanQuotaSync:
         assert r.exit_code == 0, r.output
         assert "billed per use" in r.output
         assert "budget ceiling $2.00" in r.output
-        assert "claim compilation estimate $0.03" in r.output
+        assert "claim compilation estimate $0.06" in r.output
         assert "Cancelled." in r.output
 
     def test_absorb_has_plan_flags(self):

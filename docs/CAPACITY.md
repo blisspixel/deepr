@@ -89,15 +89,17 @@ sync_artifacts/claim_extractions/<timestamp>_<topic>.json
 
 The manifest and source notes record provenance shape, excerpt hashes,
 content-hash validity, source windows, and readiness for semantic compile. They
-make no model calls and emit no semantic verdicts. `--compile-claims` adds an
-explicit sidecar model call over ready source-note windows and writes
-verifier-pending `deepr-semantic-claim-extraction-v1` candidates. The sidecar
-does not write beliefs. On local capacity it costs `$0`; on non-metered plan
-capacity it costs `$0` inside Deepr but consumes subscription quota. A
-metered-at-margin plan CLI is explicit-only, shows the run budget ceiling and
-known claim-compilation estimate in the confirmation prompt, and must pass the
-budget and cost-ledger gate before dispatch. Metered API capacity uses the same
-budget and cost-ledger gate. If the source pack cannot be persisted, Deepr
+make no model calls and emit no semantic verdicts. `--compile-claims` adds
+explicit sidecar model calls over ready source-note windows, writes
+`deepr-semantic-claim-extraction-v1` candidates, runs budget-gated claim
+verification with read-only recall context, and stages a no-apply graph-commit
+envelope. These sidecars do not write beliefs. On local capacity they cost `$0`;
+on non-metered plan capacity they cost `$0` inside Deepr but consume
+subscription quota. A metered-at-margin plan CLI is explicit-only, shows the run
+budget ceiling and known claim-compilation estimate in the confirmation prompt,
+and must pass the budget and cost-ledger gate before dispatch. Metered API
+capacity uses the same budget and cost-ledger gate. If the source pack cannot
+be persisted, Deepr
 fails closed and does not absorb the context-grounded answer.
 
 ## Local Admission

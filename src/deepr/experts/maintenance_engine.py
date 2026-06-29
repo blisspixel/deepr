@@ -25,10 +25,17 @@ if TYPE_CHECKING:
     from deepr.experts.sync import ExpertSyncEngine
 
 
-def _with_claim_extractor(engine_kwargs: dict[str, Any], claim_extractor: Any | None) -> dict[str, Any]:
+def _with_claim_services(
+    engine_kwargs: dict[str, Any],
+    claim_extractor: Any | None,
+    claim_verifier: Any | None,
+) -> dict[str, Any]:
     if claim_extractor is None:
-        return engine_kwargs
-    return {**engine_kwargs, "claim_extractor": claim_extractor}
+        return engine_kwargs if claim_verifier is None else {**engine_kwargs, "claim_verifier": claim_verifier}
+    kwargs = {**engine_kwargs, "claim_extractor": claim_extractor}
+    if claim_verifier is not None:
+        kwargs["claim_verifier"] = claim_verifier
+    return kwargs
 
 
 def _local_research_kwargs(context_builder: Any, client: Any, claim_extractor: Any | None) -> dict[str, Any]:
@@ -38,16 +45,21 @@ def _local_research_kwargs(context_builder: Any, client: Any, claim_extractor: A
     return kwargs
 
 
-def _metered_claim_extractor(compile_claims: bool) -> Any | None:
+def _metered_claim_services(compile_claims: bool) -> tuple[Any | None, Any | None]:
     if not compile_claims:
-        return None
+        return None, None
     from deepr.experts.claim_extraction import SemanticClaimExtractor
+    from deepr.experts.claim_verification import SemanticClaimVerifier
 
-    return SemanticClaimExtractor(
-        provider="openai",
-        model="gpt-5-mini",
-        capacity_source="api_metered",
-        allow_metered=True,
+    service_kwargs = {
+        "provider": "openai",
+        "model": "gpt-5-mini",
+        "capacity_source": "api_metered",
+        "allow_metered": True,
+    }
+    return (
+        SemanticClaimExtractor(**service_kwargs),
+        SemanticClaimVerifier(**service_kwargs),
     )
 
 
@@ -77,6 +89,7 @@ def build_sync_engine(
     if use_local:
         from deepr.backends.local import make_local_research_fn, ollama_chat_client
         from deepr.experts.claim_extraction import SemanticClaimExtractor
+        from deepr.experts.claim_verification import SemanticClaimVerifier
         from deepr.experts.report_absorber import ReportAbsorber
 
         # The caller resolves and validates the local model before choosing the
@@ -100,18 +113,30 @@ def build_sync_engine(
             if compile_claims
             else None
         )
+        claim_verifier = (
+            SemanticClaimVerifier(
+                provider="local",
+                model=local_model,
+                capacity_source="local",
+                client=client,
+                estimated_cost_usd=0.0,
+            )
+            if compile_claims
+            else None
+        )
         engine_kwargs: dict[str, Any] = {
             "research_fn": make_local_research_fn(
                 local_model, **_local_research_kwargs(context_builder, client, claim_extractor)
             ),
             "absorber": absorber,
         }
-        engine = ExpertSyncEngine(profile, **_with_claim_extractor(engine_kwargs, claim_extractor))
+        engine = ExpertSyncEngine(profile, **_with_claim_services(engine_kwargs, claim_extractor, claim_verifier))
         return engine, "local"
 
     if use_plan and plan_adapter is not None:
         from deepr.backends.plan_quota import PlanQuotaChatClient, make_plan_quota_research_fn
         from deepr.experts.claim_extraction import SemanticClaimExtractor
+        from deepr.experts.claim_verification import ESTIMATED_VERIFICATION_COST, SemanticClaimVerifier
         from deepr.experts.report_absorber import ESTIMATED_EXTRACTION_COST, ReportAbsorber
 
         # One client serves research and verified extraction, so the whole sync
@@ -135,30 +160,48 @@ def build_sync_engine(
             if compile_claims
             else None
         )
+        claim_verifier = (
+            SemanticClaimVerifier(
+                provider=plan_adapter.backend_id,
+                model=plan_model or plan_adapter.backend_id,
+                capacity_source=f"plan_quota:{plan_adapter.backend_id}",
+                client=client,
+                estimated_cost_usd=ESTIMATED_VERIFICATION_COST
+                if bool(getattr(plan_adapter, "metered_at_margin", False))
+                else 0.0,
+                allow_metered=bool(getattr(plan_adapter, "metered_at_margin", False)),
+            )
+            if compile_claims
+            else None
+        )
         engine_kwargs = {
             "research_fn": make_plan_quota_research_fn(
                 plan_adapter, model=plan_model, context_builder=context_builder, client=client
             ),
             "absorber": absorber,
         }
-        engine = ExpertSyncEngine(profile, **_with_claim_extractor(engine_kwargs, claim_extractor))
+        engine = ExpertSyncEngine(profile, **_with_claim_services(engine_kwargs, claim_extractor, claim_verifier))
         return engine, f"plan_quota:{plan_adapter.backend_id}"
 
     if grounding_checker is not None:
         from deepr.experts.report_absorber import ReportAbsorber
 
+        claim_extractor, claim_verifier = _metered_claim_services(compile_claims)
         return ExpertSyncEngine(
             profile,
-            **_with_claim_extractor(
+            **_with_claim_services(
                 {"absorber": ReportAbsorber(profile, grounding_checker=grounding_checker)},
-                _metered_claim_extractor(compile_claims),
+                claim_extractor,
+                claim_verifier,
             ),
         ), "api_metered"
 
     if compile_claims:
+        claim_extractor, claim_verifier = _metered_claim_services(True)
         return ExpertSyncEngine(
             profile,
-            claim_extractor=_metered_claim_extractor(True),
+            claim_extractor=claim_extractor,
+            claim_verifier=claim_verifier,
         ), "api_metered"
 
     return ExpertSyncEngine(profile), "api_metered"

@@ -151,6 +151,8 @@ class _FakeClaimVerifier:
         budget_usd=0.0,
         session_id="claim_verification",
         generated_at="",
+        recall_belief_store=None,
+        recall_domain=None,
     ):
         self.calls.append(
             {
@@ -159,6 +161,8 @@ class _FakeClaimVerifier:
                 "budget_usd": budget_usd,
                 "session_id": session_id,
                 "generated_at": generated_at,
+                "recall_belief_store": recall_belief_store,
+                "recall_domain": recall_domain,
                 "source_count": len(source_pack_payload["source_pack"]["sources"]),
                 "note_count": len(source_notes["notes"]),
             }
@@ -570,6 +574,8 @@ class TestSyncEngine:
         assert claim_verifier.calls[0]["claim_extraction_artifact"] == outcome.claim_extraction_artifact
         assert claim_verifier.calls[0]["source_note_artifact"] == outcome.source_note_artifact
         assert claim_verifier.calls[0]["budget_usd"] == 0.5
+        assert claim_verifier.calls[0]["recall_belief_store"] is beliefs
+        assert claim_verifier.calls[0]["recall_domain"] == "ai"
 
         verification_path = tmp_path / "knowledge" / outcome.claim_verification_artifact
         verification = json.loads(verification_path.read_text(encoding="utf-8"))

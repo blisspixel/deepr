@@ -977,7 +977,7 @@ deepr expert absorb "Platform Team Expert" report.md --local   # force local, $0
 deepr expert sync "Platform Team Expert" --api                 # force metered API
 deepr expert sync "Platform Team Expert" --local --fresh-context # local model + free retrieval context
 deepr expert sync "Platform Team Expert" --local --deep-context  # multi-query free retrieval context
-deepr expert sync "Platform Team Expert" --local --fresh-context --compile-claims # sidecar claim compile
+deepr expert sync "Platform Team Expert" --local --fresh-context --compile-claims # extract, verify, stage commit
 
 # Review local quality first, then admit it for automatic use.
 deepr expert absorb "Platform Team Expert" report.md --local --dry-run
@@ -1005,12 +1005,14 @@ context. For sync runs that need freshness, add `--fresh-context`; for broader
 source coverage, add `--deep-context`. Both require an owned or prepaid sync
 backend, either explicit `--local`, explicit `--plan <id>`, or an admitted local
 model, so a freshness request cannot silently fall through to metered APIs.
-Add `--compile-claims` when you want the source-note compiler to run a
-verifier-pending semantic claim extraction sidecar for the sync. It persists
-`sync_artifacts/claim_extractions/<timestamp>_<topic>.json`, records prompt,
-schema, provider, model, capacity, cost, and source-window refs, and keeps graph
-writes disabled until verification, graph commit envelope construction, and an
-explicit apply command. `deepr expert apply-graph-commit NAME ENVELOPE --dry-run
+Add `--compile-claims` when you want the source-note compiler to run semantic
+claim extraction, claim verification, and no-apply graph-commit staging for the
+sync. It persists `sync_artifacts/claim_extractions/<timestamp>_<topic>.json`,
+`sync_artifacts/claim_verifications/<timestamp>_<topic>.json`, and
+`sync_artifacts/graph_commit_envelopes/<timestamp>_<topic>.json`, records
+prompt, schema, provider, model, capacity, cost, source-window refs, and
+read-only recall context, and keeps graph writes disabled until an explicit
+apply command. `deepr expert apply-graph-commit NAME ENVELOPE --dry-run
 --json` validates the commit plan without writing. `deepr expert
 apply-graph-commit NAME ENVELOPE --yes --json` applies verified factual
 add-belief, typed-edge, gap-promotion, exploration-agenda, hypothesis, concept,
