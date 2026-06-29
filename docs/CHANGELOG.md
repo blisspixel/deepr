@@ -9,14 +9,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 - Added explicit sync-side graph-commit apply for compiled claims.
-  `deepr expert sync --compile-claims --apply-compiled-claims` now bypasses the
-  legacy absorber for that topic, applies only the verified graph-commit
-  envelope through the existing idempotent apply service, records a
-  `graph_commit_apply_results` sidecar, and updates cadence only after an
-  applied or already-applied result.
+  `deepr expert sync --compile-claims` now bypasses the legacy absorber for
+  that topic, applies only the verified graph-commit envelope through the
+  existing idempotent apply service, records a `graph_commit_apply_results`
+  sidecar, and updates cadence only after an applied or already-applied
+  result. `--apply-compiled-claims` remains accepted as a compatibility alias
+  for the default apply path.
 - Hardened sync-side graph-commit apply with an injectable metacognition
   tracker and regression coverage for verified knowledge-gap promotions, so the
-  opt-in sync path covers both factual belief writes and gap-backlog writes.
+  compiled apply path covers both factual belief writes and gap-backlog writes.
 - Broadened sync-side graph-commit apply coverage for verified
   exploration-agenda, hypothesis, concept, stance, and original-idea promotions
   through the same injected metacognition tracker path.
@@ -32,11 +33,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Added optional sync-side claim-verification and graph-commit sidecar
   artifacts. `ExpertSyncEngine` can now run an injected verifier after semantic
   claim extraction, compile store-backed recall into the claim-verification
-  artifact, and write a no-apply graph-commit envelope for replayable review.
+  artifact, and write a staged graph-commit envelope for replayable review.
 - Added store-backed, read-only recall routing for claim verification.
   `build_claim_verification` can now derive `candidate_only` memory-quality
   recall packets from a `BeliefStore` for ready claim candidates while leaving
   deduplication, contradiction, and temporal-scope judgment with the verifier.
+
+### Changed
+- Migrated compiled sync to graph-commit apply by default.
+  `deepr expert sync --compile-claims` now applies the verified graph-commit
+  envelope instead of calling the legacy absorber. Use
+  `--stage-compiled-claims` with `--compile-claims` for the previous no-write
+  sidecar staging behavior. `--apply-compiled-claims` remains accepted as a
+  compatibility alias for the default apply path.
 
 ### Fixed
 - Kept sync graph-commit apply auditability fail-closed. If a compiled apply
@@ -56,7 +65,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Sanitized worker poller error logging so exception tracebacks do not re-emit
   unredacted provider details after redaction.
 
-### Changed
 - Tightened the security ratchet baseline from 95 findings to 88 after the
   maintenance sweep reduced the current count.
 

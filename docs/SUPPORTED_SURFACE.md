@@ -170,11 +170,12 @@ must not be described as usable capacity.
 - Research-processing compiler artifacts through source-pack manifests, source
   notes, semantic claim extraction, claim verification, graph commit envelopes,
   and graph commit apply results are experimental but schema-versioned.
-  `--compile-claims` can write claim extraction, claim-verification, and
-  no-apply graph-commit sidecars. `--apply-compiled-claims` requires
-  `--compile-claims`, bypasses the legacy absorber for that topic, applies only
-  verified graph-commit envelopes, and writes graph-commit apply result
-  sidecars. Claim-verification envelopes record verifier
+  `--compile-claims` writes claim extraction, claim-verification,
+  graph-commit envelope, and graph-commit apply sidecars while bypassing the
+  legacy absorber for that topic. `--stage-compiled-claims` preserves the
+  no-write compiler sidecar path. `--apply-compiled-claims` is accepted as a
+  compatibility alias for the default compiled apply behavior.
+  Claim-verification envelopes record verifier
   decisions, optional candidate-to-candidate typed edge decisions, and
   `candidate_only` recall
   context packets; graph commit envelopes plan

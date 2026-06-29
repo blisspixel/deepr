@@ -424,12 +424,17 @@ def absorb_report(
 @click.option(
     "--compile-claims",
     is_flag=True,
-    help="Also compile source-note claim candidates as a sidecar artifact; writes no beliefs",
+    help="Compile, verify, and apply source-note claim graph commits",
+)
+@click.option(
+    "--stage-compiled-claims",
+    is_flag=True,
+    help="With --compile-claims, write compiler sidecars without applying graph commits",
 )
 @click.option(
     "--apply-compiled-claims",
     is_flag=True,
-    help="Apply verified compiled claim graph commits instead of legacy absorb; requires --compile-claims",
+    help="Compatibility alias for the default --compile-claims apply behavior",
 )
 @click.option(
     "--checker-plan",
@@ -473,6 +478,7 @@ def sync_cmd(
     plan_model: str | None,
     check_grounding: bool,
     compile_claims: bool,
+    stage_compiled_claims: bool,
     apply_compiled_claims: bool,
     checker_plan: str | None,
     checker_plan_model: str | None,
@@ -530,6 +536,13 @@ def sync_cmd(
     if apply_compiled_claims and dry_run:
         print_error("--apply-compiled-claims cannot be combined with --dry-run.")
         sys.exit(2)
+    if stage_compiled_claims and not compile_claims:
+        print_error("--stage-compiled-claims requires --compile-claims.")
+        sys.exit(2)
+    if stage_compiled_claims and apply_compiled_claims:
+        print_error("--stage-compiled-claims cannot be combined with --apply-compiled-claims.")
+        sys.exit(2)
+    apply_compiled_graph_commits = compile_claims and not stage_compiled_claims
 
     from deepr.experts.profile import ExpertStore
     from deepr.experts.sync import SubscriptionStore
@@ -672,7 +685,7 @@ def sync_cmd(
             extras.append("grounding checks")
         if compile_claims:
             extras.append("claim compilation")
-        if apply_compiled_claims:
+        if apply_compiled_graph_commits:
             extras.append("graph commit apply")
         check_note = f" with {' and '.join(extras)}" if extras else ""
         if use_local:
@@ -728,7 +741,7 @@ def sync_cmd(
         context_builder=context_builder,
         grounding_checker=grounding_checker,
         compile_claims=compile_claims,
-        apply_graph_commits=apply_compiled_claims,
+        apply_graph_commits=apply_compiled_graph_commits,
     )
 
     if json_output:
