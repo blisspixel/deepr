@@ -20,6 +20,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Broadened sync-side graph-commit apply coverage for verified
   exploration-agenda, hypothesis, concept, stance, and original-idea promotions
   through the same injected metacognition tracker path.
+- Added sync-side replay coverage for already-applied tracker state. The opt-in
+  compiled apply path now has regression proof that repeated perspective-state
+  promotion reports `already_applied`, keeps sync status `synced`, writes an
+  apply sidecar, and does not duplicate metacognition records.
 - Added concrete budget-gated claim verification for `expert sync
   --compile-claims`. Local, explicit plan-quota, and metered API sync paths now
   inject a `SemanticClaimVerifier` alongside extraction, include read-only

@@ -933,6 +933,69 @@ class TestSyncEngine:
         assert apply_result["operation_results"][0][case["result_identity_key"]] == identity
 
     @pytest.mark.asyncio
+    async def test_sync_apply_compiled_perspective_state_replays_already_applied_tracker_state(self, tmp_path):
+        case = _PERSPECTIVE_CASES[1]
+        tracker_root = tmp_path / "experts"
+        beliefs = BeliefStore("Sync Test Expert", storage_dir=tmp_path / "beliefs")
+        first_tracker = MetaCognitionTracker("Sync Test Expert", base_path=str(tracker_root))
+        first_store = _sub_store(tmp_path / "first", Subscription(topic="Topic X", budget=0.5))
+        first_engine = ExpertSyncEngine(
+            _expert(),
+            research_fn=_topic_x_research_fn(_topic_x_source_pack()),
+            subscription_store=first_store,
+            belief_store=beliefs,
+            absorber=_FailingAbsorber(),
+            claim_extractor=_FakePerspectiveClaimExtractor(case),
+            claim_verifier=_FakePerspectiveClaimVerifier(case),
+            metacognition_tracker=first_tracker,
+        )
+
+        first_result = await first_engine.sync(budget=1.0, apply_graph_commits=True)
+
+        first_outcome = first_result.outcomes[0]
+        assert first_outcome.status == "synced"
+        assert first_outcome.graph_commit_apply_status == "applied"
+        identity = case["claim_fields"].get(case["identity_field"], case["statement"])
+        assert identity in getattr(first_tracker, case["tracker_attr"])
+        assert len(getattr(first_tracker, case["tracker_attr"])) == 1
+        assert len(first_tracker.uncertainty_log) == 1
+
+        replay_tracker = MetaCognitionTracker("Sync Test Expert", base_path=str(tracker_root))
+        replay_store = _sub_store(tmp_path / "replay", Subscription(topic="Topic X", budget=0.5))
+        replay_engine = ExpertSyncEngine(
+            _expert(),
+            research_fn=_topic_x_research_fn(_topic_x_source_pack()),
+            subscription_store=replay_store,
+            belief_store=beliefs,
+            absorber=_FailingAbsorber(),
+            claim_extractor=_FakePerspectiveClaimExtractor(case),
+            claim_verifier=_FakePerspectiveClaimVerifier(case),
+            metacognition_tracker=replay_tracker,
+        )
+
+        replay_result = await replay_engine.sync(budget=1.0, apply_graph_commits=True)
+
+        replay_outcome = replay_result.outcomes[0]
+        assert replay_outcome.status == "synced"
+        assert replay_outcome.absorbed == 0
+        assert replay_outcome.graph_commit_apply_status == "already_applied"
+        assert replay_outcome.graph_commit_apply_artifact.endswith("_topic-x.json")
+        assert replay_store.subscriptions[0].last_synced is not None
+        assert beliefs.beliefs == {}
+        assert identity in getattr(replay_tracker, case["tracker_attr"])
+        assert len(getattr(replay_tracker, case["tracker_attr"])) == 1
+        assert len(replay_tracker.uncertainty_log) == 1
+
+        apply_path = tmp_path / "replay" / "knowledge" / replay_outcome.graph_commit_apply_artifact
+        apply_result = json.loads(apply_path.read_text(encoding="utf-8"))
+        assert apply_result["summary"]["status"] == "already_applied"
+        assert apply_result["summary"]["applied_write_count"] == 0
+        assert apply_result["summary"]["already_applied_count"] == 1
+        assert apply_result["operation_results"][0]["status"] == "already_applied"
+        assert apply_result["operation_results"][0]["operation"] == case["operation"]
+        assert apply_result["operation_results"][0][case["result_identity_key"]] == identity
+
+    @pytest.mark.asyncio
     async def test_sync_invalid_claim_verifier_output_fails_closed_as_detail(self, tmp_path):
         store = _sub_store(tmp_path, Subscription(topic="Topic X", budget=0.5))
         beliefs = BeliefStore("Sync Test Expert", storage_dir=tmp_path / "beliefs")
