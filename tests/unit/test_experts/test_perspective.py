@@ -10,7 +10,7 @@ from __future__ import annotations
 from datetime import UTC, datetime, timedelta
 
 from deepr.experts.beliefs import Belief, BeliefChange, BeliefStore
-from deepr.experts.perspective import contested, what_changed
+from deepr.experts.perspective import contested, temporal_edges, what_changed
 
 
 def _store(tmp_path) -> BeliefStore:
@@ -152,6 +152,110 @@ class TestWhatChanged:
                 "temporal_contexts": [temporal],
             }
         ]
+
+
+class TestTemporalEdges:
+    def test_valid_at_filters_temporal_contexts(self, tmp_path):
+        store = _store(tmp_path)
+        source, _ = store.add_belief(_belief("Default apply is enabled"), check_conflicts=False)
+        target, _ = store.add_belief(_belief("Verified compiler emits graph commits"), check_conflicts=False)
+        june = {
+            "valid_from": "2026-06-01",
+            "valid_until": "2026-06-30",
+            "observed_at": "2026-06-29T00:00:00+00:00",
+            "temporal_scope": "June 2026",
+        }
+        july = {
+            "valid_from": "2026-07-01",
+            "valid_until": "2026-07-31",
+            "observed_at": "2026-07-05T00:00:00+00:00",
+            "temporal_scope": "July 2026",
+        }
+        store.add_edge(source.id, target.id, "derived_from", provenance="graph-commit", temporal_context=june)
+        store.add_edge(source.id, target.id, "derived_from", provenance="graph-commit", temporal_context=july)
+
+        result = temporal_edges(store, valid_at="2026-06-15T00:00:00+00:00")
+
+        assert result["total_edges"] == 1
+        edge = result["edges"][0]
+        assert edge["source"]["claim"] == "Default apply is enabled"
+        assert edge["target"]["claim"] == "Verified compiler emits graph commits"
+        assert edge["temporal_contexts"] == [june]
+        assert result["filters"]["valid_at"] == "2026-06-15T00:00:00+00:00"
+
+    def test_observed_window_filters_temporal_contexts(self, tmp_path):
+        store = _store(tmp_path)
+        source, _ = store.add_belief(_belief("Feature flag default changed"), check_conflicts=False)
+        target, _ = store.add_belief(_belief("Release note confirms default"), check_conflicts=False)
+        early = {"valid_from": "2026-06-01", "observed_at": "2026-06-05T00:00:00+00:00"}
+        late = {"valid_from": "2026-06-01", "observed_at": "2026-06-29T00:00:00+00:00"}
+        store.add_edge(source.id, target.id, "supports", provenance="release-note", temporal_context=early)
+        store.add_edge(source.id, target.id, "supports", provenance="release-note", temporal_context=late)
+
+        result = temporal_edges(
+            store,
+            observed_since="2026-06-20T00:00:00+00:00",
+            observed_until="2026-06-30T00:00:00+00:00",
+        )
+
+        assert result["total_edges"] == 1
+        assert result["edges"][0]["temporal_contexts"] == [late]
+
+    def test_belief_ref_and_edge_type_filter_edges(self, tmp_path):
+        store = _store(tmp_path)
+        root, _ = store.add_belief(_belief("Temporal graph query exists"), check_conflicts=False)
+        support, _ = store.add_belief(_belief("MCP hosts need explicit time filters"), check_conflicts=False)
+        other, _ = store.add_belief(_belief("Unrelated temporal edge"), check_conflicts=False)
+        temporal = {"valid_from": "2026-06-01", "observed_at": "2026-06-29T00:00:00+00:00"}
+        store.add_edge(root.id, support.id, "derived_from", provenance="design", temporal_context=temporal)
+        store.add_edge(other.id, support.id, "supports", provenance="design", temporal_context=temporal)
+
+        result = temporal_edges(store, belief_ref="temporal graph query", edge_type="derived_from")
+
+        assert result["total_edges"] == 1
+        assert result["matched_belief"]["belief_id"] == root.id
+        assert result["edges"][0]["edge_type"] == "derived_from"
+        assert result["edges"][0]["source_belief_id"] == root.id
+
+    def test_unknown_belief_ref_returns_empty_filter_result(self, tmp_path):
+        store = _store(tmp_path)
+        source, _ = store.add_belief(_belief("Known source"), check_conflicts=False)
+        target, _ = store.add_belief(_belief("Known target"), check_conflicts=False)
+        store.add_edge(source.id, target.id, "supports", temporal_context={"valid_from": "2026-06-01"})
+
+        result = temporal_edges(store, belief_ref="not a known claim")
+
+        assert result["matched_belief"] is None
+        assert result["total_edges"] == 0
+        assert result["edges"] == []
+
+    def test_limit_reports_total_and_returned_edges(self, tmp_path):
+        store = _store(tmp_path)
+        root, _ = store.add_belief(_belief("Root"), check_conflicts=False)
+        first, _ = store.add_belief(_belief("First"), check_conflicts=False)
+        second, _ = store.add_belief(_belief("Second"), check_conflicts=False)
+        temporal = {"valid_from": "2026-06-01"}
+        store.add_edge(root.id, first.id, "supports", temporal_context=temporal)
+        store.add_edge(root.id, second.id, "derived_from", temporal_context=temporal)
+
+        result = temporal_edges(store, belief_ref=root.id, limit=1)
+
+        assert result["total_edges"] == 2
+        assert result["returned_edges"] == 1
+        assert len(result["edges"]) == 1
+
+    def test_invalid_temporal_filters_raise_value_error(self, tmp_path):
+        import pytest as _pytest
+
+        store = _store(tmp_path)
+        with _pytest.raises(ValueError, match="valid_at"):
+            temporal_edges(store, valid_at="not-a-time")
+        with _pytest.raises(ValueError, match="observed_since"):
+            temporal_edges(
+                store,
+                observed_since="2026-07-01T00:00:00+00:00",
+                observed_until="2026-06-01T00:00:00+00:00",
+            )
 
 
 class TestContested:

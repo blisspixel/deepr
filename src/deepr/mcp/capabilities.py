@@ -35,6 +35,7 @@ _KEY_TOOLS: tuple[tuple[str, str], ...] = (
     ("deepr_query_expert", "Legacy single-expert chat; metered-capable until backend-neutral chat lands."),
     ("deepr_what_changed", "See what an expert learned since a prior point."),
     ("deepr_explain_belief", "Get why an expert holds a claim, with its evidence."),
+    ("deepr_temporal_edges", "Filter time-scoped belief relationships by valid or observed time."),
     ("deepr_expert_handoff", "Get a versioned snapshot of an expert to hand to another agent."),
     ("deepr_agentic_research", "Run a deep autonomous Plan-Execute-Review investigation (metered; confirm budget)."),
 )

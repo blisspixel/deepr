@@ -1,4 +1,4 @@
-"""Tests for the deepr_what_changed / deepr_contested MCP server methods.
+"""Tests for the temporal perspective MCP server methods.
 
 The query logic itself is covered in tests/unit/test_experts/test_perspective.py;
 these tests cover the server-side wrapping: expert lookup, timestamp parsing,
@@ -10,6 +10,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from deepr.experts.beliefs import Belief, BeliefStore
+from deepr.mcp.expert_temporal_edges import get_temporal_edges
 from deepr.mcp.server import DeeprMCPServer
 
 
@@ -155,6 +156,61 @@ class TestExplainBeliefTool:
         assert out["depth"] == 5  # clamped
 
 
+class TestTemporalEdgesTool:
+    @pytest.mark.asyncio
+    async def test_expert_not_found(self, server):
+        server.store.load.return_value = None
+        out = await get_temporal_edges(server.store, expert_name="Missing Expert")
+        assert out["error_code"] == "EXPERT_NOT_FOUND"
+
+    @pytest.mark.asyncio
+    async def test_invalid_filter_returns_structured_error(self, server, tmp_path):
+        server.store.load.return_value = MagicMock()
+        store = _real_store(tmp_path)
+
+        with patch("deepr.mcp.expert_temporal_edges.BeliefStore", return_value=store):
+            out = await get_temporal_edges(server.store, expert_name="Perspective Test Expert", valid_at="not-a-time")
+
+        assert out["error_code"] == "INVALID_TEMPORAL_FILTER"
+        assert out["category"] == "validation"
+
+    @pytest.mark.asyncio
+    async def test_filters_temporal_edges(self, server, tmp_path):
+        server.store.load.return_value = MagicMock()
+        store = _real_store(tmp_path)
+        source = Belief(claim="Temporal filters are queryable", confidence=0.8, domain="ai")
+        target = Belief(claim="Graph commits persist edge qualifiers", confidence=0.8, domain="ai")
+        store.add_belief(source, check_conflicts=False)
+        store.add_belief(target, check_conflicts=False)
+        june = {
+            "valid_from": "2026-06-01",
+            "valid_until": "2026-06-30",
+            "observed_at": "2026-06-29T00:00:00+00:00",
+            "temporal_scope": "June 2026",
+        }
+        july = {
+            "valid_from": "2026-07-01",
+            "valid_until": "2026-07-31",
+            "observed_at": "2026-07-05T00:00:00+00:00",
+            "temporal_scope": "July 2026",
+        }
+        store.add_edge(source.id, target.id, "derived_from", provenance="graph-commit", temporal_context=june)
+        store.add_edge(source.id, target.id, "derived_from", provenance="graph-commit", temporal_context=july)
+
+        with patch("deepr.mcp.expert_temporal_edges.BeliefStore", return_value=store):
+            out = await get_temporal_edges(
+                server.store,
+                expert_name="Perspective Test Expert",
+                valid_at="2026-06-15T00:00:00+00:00",
+                belief_ref="temporal filters",
+            )
+
+        assert out["total_edges"] == 1
+        assert out["matched_belief"]["belief_id"] == source.id
+        assert out["edges"][0]["edge_type"] == "derived_from"
+        assert out["edges"][0]["temporal_contexts"] == [june]
+
+
 class TestExplainBeliefWiring:
     def test_registered_in_search_registry(self):
         from deepr.mcp.search.registry import create_default_registry
@@ -162,9 +218,11 @@ class TestExplainBeliefWiring:
         registry = create_default_registry()
         names = {t.name for t in registry.all_tools()}
         assert "deepr_explain_belief" in names
+        assert "deepr_temporal_edges" in names
 
     def test_allowlist_blocks_in_read_only(self):
         from deepr.mcp.security.tool_allowlist import ResearchMode, ToolAllowlist
 
         allowlist = ToolAllowlist(mode=ResearchMode.READ_ONLY)
         assert allowlist.is_allowed("deepr_explain_belief") is False
+        assert allowlist.is_allowed("deepr_temporal_edges") is False

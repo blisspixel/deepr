@@ -61,7 +61,10 @@ typed *edges* are the unlock, typed *nodes* are speculative.
    evidence roots, attach the confidence trajectory from the event log,
    list open `contradicts` edges, and surface temporal edge qualifiers when
    present. Depth-bounded, cycle-safe.
-5. **Read-only candidate recall.** A local recall contract now adapts beliefs
+5. **`temporal_edges`.** MCP `deepr_temporal_edges`: query persisted temporal
+   edge qualifiers directly by `valid_at`, `observed_since`,
+   `observed_until`, `edge_type`, and `belief_ref`. Read-only and cost-$0.
+6. **Read-only candidate recall.** A local recall contract now adapts beliefs
    and concepts into candidate items and returns `candidate_only` routing
    metadata. Supplied vectors use local cosine similarity; missing vectors can
    fall back to the existing lexical router. Neither path writes state or makes
@@ -69,7 +72,7 @@ typed *edges* are the unlock, typed *nodes* are speculative.
    candidates so paraphrased conflicts can reach a verifier, but it never
    creates contradiction edges or changes confidence. This is the Graphiti-style
    hybrid retrieval slot without letting retrieval become authority.
-6. **Regenerated digest and memory card.** A compile pass over beliefs + edges
+7. **Regenerated digest and memory card.** A compile pass over beliefs + edges
    + events emits browsable views as derived artifacts. The first card is
    shipped as `deepr-expert-memory-card-v1`: `deepr expert memory-card NAME
    --write` regenerates `EXPERT.md` from profile, manifest, belief events, and

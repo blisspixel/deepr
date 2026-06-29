@@ -8,6 +8,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- Added MCP `deepr_temporal_edges`, a read-only, cost-$0 query over persisted
+  typed-edge temporal qualifiers with `valid_at`, `observed_since`,
+  `observed_until`, `edge_type`, `belief_ref`, and bounded `limit` filters.
 - Added `deepr-graph-commit-envelope-v8` with first-class temporal edge
   qualifiers. Claim verification can now carry verifier-supplied `valid_from`,
   `valid_until`, `observed_at`, and `temporal_scope` fields on candidate edge

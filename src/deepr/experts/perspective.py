@@ -30,13 +30,17 @@ from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from typing import Any
 
+from deepr.experts.belief_edges import EDGE_TYPES
 from deepr.experts.beliefs import Belief, BeliefStore, Edge
+from deepr.experts.edge_temporal import parse_iso_temporal
 
 logger = logging.getLogger(__name__)
 
 # Reason prefix written by BeliefStore.add_contested_belief - identifies a
 # change record as a contested (contradiction-flagged) creation.
 _CONTESTED_REASON_PREFIX = "contested:"
+_DEFAULT_TEMPORAL_EDGE_LIMIT = 50
+_MAX_TEMPORAL_EDGE_LIMIT = 200
 
 
 def _edge_temporal_contexts(edge: Edge) -> list[dict[str, str]]:
@@ -65,6 +69,161 @@ def _temporal_edges_for_belief(store: BeliefStore, belief_id: str) -> list[dict[
         _temporal_edge_summary(edge, belief_id, store)
         for edge in sorted(edges, key=lambda item: (item.edge_type, item.src_id, item.dst_id))
     ]
+
+
+def _edge_endpoint_summary(store: BeliefStore, belief_id: str) -> dict[str, Any]:
+    belief = store.beliefs.get(belief_id)
+    if belief is None:
+        return {"belief_id": belief_id, "claim": "", "confidence": None, "status": "dangling"}
+    return {
+        "belief_id": belief.id,
+        "claim": belief.claim,
+        "confidence": round(belief.get_current_confidence(), 3),
+        "status": "open",
+    }
+
+
+def _temporal_filter_active(
+    valid_at: datetime | None,
+    observed_since: datetime | None,
+    observed_until: datetime | None,
+) -> bool:
+    return valid_at is not None or observed_since is not None or observed_until is not None
+
+
+def _parse_filter_time(field: str, value: str | datetime | None) -> datetime | None:
+    if value is None or value == "":
+        return None
+    if isinstance(value, datetime):
+        parsed = value if value.tzinfo else value.replace(tzinfo=UTC)
+        return parsed.astimezone(UTC)
+    parsed = parse_iso_temporal(str(value).strip())
+    if parsed is None:
+        raise ValueError(f"{field} is not ISO 8601: {value!r}")
+    return parsed
+
+
+def _context_matches_temporal_filters(
+    context: dict[str, str],
+    *,
+    valid_at: datetime | None,
+    observed_since: datetime | None,
+    observed_until: datetime | None,
+) -> bool:
+    if valid_at is not None:
+        valid_from = parse_iso_temporal(context.get("valid_from", ""))
+        valid_until = parse_iso_temporal(context.get("valid_until", ""))
+        if valid_from is None and valid_until is None:
+            return False
+        if valid_from is not None and valid_at < valid_from:
+            return False
+        if valid_until is not None and valid_at > valid_until:
+            return False
+
+    if observed_since is not None or observed_until is not None:
+        observed_at = parse_iso_temporal(context.get("observed_at", ""))
+        if observed_at is None:
+            return False
+        if observed_since is not None and observed_at < observed_since:
+            return False
+        if observed_until is not None and observed_at > observed_until:
+            return False
+
+    return True
+
+
+def _edge_query_summary(edge: Edge, store: BeliefStore, temporal_contexts: list[dict[str, str]]) -> dict[str, Any]:
+    source = _edge_endpoint_summary(store, edge.src_id)
+    target = _edge_endpoint_summary(store, edge.dst_id)
+    return {
+        "edge_type": edge.edge_type,
+        "source": source,
+        "target": target,
+        "source_belief_id": edge.src_id,
+        "target_belief_id": edge.dst_id,
+        "status": "open" if source["status"] == "open" and target["status"] == "open" else "dangling",
+        "provenance": list(edge.provenance),
+        "created_at": edge.created_at.isoformat(),
+        "temporal_contexts": [dict(context) for context in temporal_contexts],
+    }
+
+
+def temporal_edges(
+    store: BeliefStore,
+    *,
+    valid_at: str | datetime | None = None,
+    observed_since: str | datetime | None = None,
+    observed_until: str | datetime | None = None,
+    edge_type: str = "",
+    belief_ref: str = "",
+    limit: int = _DEFAULT_TEMPORAL_EDGE_LIMIT,
+    expert_name: str = "",
+) -> dict[str, Any]:
+    """List temporal edge qualifiers, optionally filtered by valid/observed time.
+
+    This is a read-only query over persisted typed belief-graph edges. It
+    filters edge-level temporal qualifiers, not belief timestamps: ``valid_at``
+    asks whether the edge relationship was valid at an instant, while
+    ``observed_since`` / ``observed_until`` constrain when that qualified
+    relationship was observed.
+    """
+    valid_at_dt = _parse_filter_time("valid_at", valid_at)
+    observed_since_dt = _parse_filter_time("observed_since", observed_since)
+    observed_until_dt = _parse_filter_time("observed_until", observed_until)
+    if observed_since_dt is not None and observed_until_dt is not None and observed_since_dt > observed_until_dt:
+        raise ValueError("observed_since must be earlier than or equal to observed_until")
+
+    edge_type = edge_type.strip()
+    if edge_type and edge_type not in EDGE_TYPES:
+        raise ValueError(f"edge_type must be one of {', '.join(EDGE_TYPES)}")
+
+    bounded_limit = max(1, min(int(limit), _MAX_TEMPORAL_EDGE_LIMIT))
+    resolved_belief = _resolve_belief(store, belief_ref.strip()) if belief_ref.strip() else None
+    if belief_ref.strip() and resolved_belief is None:
+        matched_edges: list[dict[str, Any]] = []
+    else:
+        source_edges = (
+            store.edges_for(resolved_belief.id) if resolved_belief is not None else list(store.edges.values())
+        )
+        filters_active = _temporal_filter_active(valid_at_dt, observed_since_dt, observed_until_dt)
+        matched_edges = []
+        for edge in sorted(source_edges, key=lambda item: (item.edge_type, item.src_id, item.dst_id)):
+            if edge_type and edge.edge_type != edge_type:
+                continue
+            if not edge.temporal_contexts:
+                continue
+            contexts = _edge_temporal_contexts(edge)
+            if filters_active:
+                contexts = [
+                    context
+                    for context in contexts
+                    if _context_matches_temporal_filters(
+                        context,
+                        valid_at=valid_at_dt,
+                        observed_since=observed_since_dt,
+                        observed_until=observed_until_dt,
+                    )
+                ]
+            if contexts:
+                matched_edges.append(_edge_query_summary(edge, store, contexts))
+
+    filters = {
+        "valid_at": valid_at_dt.isoformat() if valid_at_dt is not None else "",
+        "observed_since": observed_since_dt.isoformat() if observed_since_dt is not None else "",
+        "observed_until": observed_until_dt.isoformat() if observed_until_dt is not None else "",
+        "edge_type": edge_type,
+        "belief_ref": belief_ref,
+        "limit": bounded_limit,
+    }
+    return {
+        "expert_name": expert_name or store.expert_name,
+        "filters": filters,
+        "matched_belief": _belief_summary(resolved_belief) if resolved_belief is not None else None,
+        "total_edges": len(matched_edges),
+        "returned_edges": len(matched_edges[:bounded_limit]),
+        "edges": matched_edges[:bounded_limit],
+        "generated_at": datetime.now(UTC).isoformat(),
+    }
 
 
 def _belief_summary(belief: Belief, store: BeliefStore | None = None) -> dict[str, Any]:
