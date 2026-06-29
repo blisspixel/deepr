@@ -1308,7 +1308,7 @@ A mock panel (business buyer, indie hacker, enterprise AI architect, research sc
 - [ ] `deepr ui` Textual dashboard
 - [ ] README demo GIF
 - [ ] Code quality carry-over:
-  - [ ] Profile schema versioning
+  - [x] Profile schema versioning (shipped 2026-06-29): `ExpertProfile` now carries `schema_version` as a first-class field, profile serialization preserves it, store saves align the in-memory and persisted version with `PROFILE_SCHEMA_VERSION`, and legacy string numeric versions continue to load.
   - [ ] Provider fallback integration tests
   - [ ] Performance regression tests
   - [ ] Raise per-module coverage on core modules above the 80% global gate

@@ -10,6 +10,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 - Added a root `deepr --no-color` flag that disables ANSI color output for
   existing Rich consoles and sets `NO_COLOR` for consoles created later.
+- Added first-class `ExpertProfile.schema_version` round-tripping. Profile
+  serialization now preserves schema version metadata, and store saves align
+  in-memory and persisted profiles with `PROFILE_SCHEMA_VERSION`.
 - Added `deepr-expert-mutation-audit-v1`, an append-only
   `mutation_audit.jsonl` record beside each expert belief store. Belief
   creates, updates, revisions, archives, restores, contested writes, and
