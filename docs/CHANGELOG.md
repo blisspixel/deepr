@@ -8,6 +8,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- Added `deepr expert semantic-recall NAME QUERY`, a read-only, cost-$0
+  operator surface over belief recall. It emits `candidate_only` JSON with no
+  graph writes and no embedding generation; indexed vector recall runs only
+  when the caller supplies both an explicit query embedding and embedding model.
 - Added a persisted local belief-vector index for semantic recall. BeliefStore
   can now store already-computed belief embeddings, ignore stale vectors when a
   claim changes, prune vectors when beliefs are archived, and route

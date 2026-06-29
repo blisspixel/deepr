@@ -165,6 +165,7 @@ deepr expert promote-monitor "AI Policy Expert" meta_abc123 --target gap --apply
 deepr expert propose-self-model "AI Policy Expert" meta_def456 --json
 deepr expert accept-self-model "AI Policy Expert" ./data/self_model_updates/ai-policy/self_model_update_meta_def456_20260626_120000000000.json --outcome-evidence loop_run:loop_123 --reviewer operator --json
 deepr expert memory-card "AI Policy Expert" --write
+deepr expert semantic-recall "AI Policy Expert" "agentic guardrail evidence" --json
 deepr expert loop-status "AI Policy Expert" --json
 deepr expert export-okf "AI Policy Expert" ./okf/ai-policy
 ```
