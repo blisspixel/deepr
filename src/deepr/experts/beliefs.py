@@ -756,6 +756,9 @@ class BeliefStore:
         # Remove from active beliefs
         del self.beliefs[belief_id]
         self._unindex_belief(belief)
+        prune_embeddings = getattr(self, "prune_belief_embeddings", None)
+        if callable(prune_embeddings):
+            prune_embeddings()
 
         self._save()
         return change

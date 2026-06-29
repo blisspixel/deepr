@@ -143,6 +143,24 @@ def test_store_recall_ignores_stale_index_vectors(tmp_path):
     assert store.missing_belief_embedding_ids(embedding_model="local-test") == [belief.id]
 
 
+def test_archive_prunes_belief_vector_index(tmp_path):
+    store = _store(tmp_path)
+    belief, _ = store.add_belief(
+        Belief(
+            claim="Archived beliefs should not keep active recall vectors.",
+            confidence=0.8,
+            domain="memory",
+        )
+    )
+    store.upsert_belief_embedding(belief.id, [1.0, 0.0], model="local-test")
+
+    change = store.archive_belief(belief.id, reason="covered by a newer belief")
+
+    assert change is not None
+    assert BeliefVectorIndex.for_belief_store(store.storage_dir).records == {}
+    assert store.belief_embedding_stats(embedding_model="local-test")["record_count"] == 0
+
+
 def test_lexical_fallback_is_labeled_as_router_only(tmp_path):
     store = _store(tmp_path)
     belief, _ = store.add_belief(
