@@ -362,6 +362,7 @@ Full assessment: [docs/design/code-health.md](docs/design/code-health.md).
 
 - [x] **Q0 - Ratchets (un-regressable first, no behavior change)** - shipped 2026-06-12, blocking in CI, ruff pinned to 0.15.17 so counts are reproducible:
   - [x] Q0.1 File-size guard: `scripts/check_file_sizes.py` fails CI on any new `deepr/*.py` over 1000 lines; the 17 current over-ceiling files are grandfathered at their exact size (may shrink, never grow) - a debt register that only ratchets down
+    - [x] 2026-06-29 maintenance: split the `expert learn-web` command and shared topic-learning pipeline into `expert_learn_web.py` after absorb-side belief embedding refresh pushed `expert_maintenance.py` over the 1000-line guard; full unit coverage stayed green at 83.52%.
   - [x] Q0.2 Complexity ratchet: `scripts/check_ratchets.py` baselines the 143 C901-over-cap functions; CI fails if the count grows
   - [x] Q0.3 Security ratchet: same script baselines the 88 ruff `S` findings; CI fails on growth (drive toward flipping `S` into the blocking `select` in Q4)
 - [ ] **Q1 - One way to do each thing:**

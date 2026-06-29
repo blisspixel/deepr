@@ -8,6 +8,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- Added budget-gated belief embedding refresh for `deepr expert absorb --api`.
+  `--refresh-belief-embeddings` now refreshes missing or stale belief recall
+  vectors after a successful absorb through an OpenAI-compatible embedding
+  batcher, preflight budget checks, cost-safety reservation, settlement, and
+  local/plan backend refusal to avoid silent provider spend.
 - Added MCP `deepr_semantic_recall`, a confirmation-gated, read-only,
   cost-$0 host-agent surface over the same `candidate_only` belief recall
   contract. Host-facing payloads are sanitized, and indexed vector recall still
@@ -77,6 +82,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   deduplication, contradiction, and temporal-scope judgment with the verifier.
 
 ### Changed
+- Extracted the `expert learn-web` command and shared topic-learning pipeline
+  into `expert_learn_web.py`, keeping `expert_maintenance.py` under the
+  file-size guard while preserving the existing `expert learn` compatibility
+  import path.
 - Migrated compiled sync to graph-commit apply by default.
   `deepr expert sync --compile-claims` now applies the verified graph-commit
   envelope instead of calling the legacy absorber. Use
@@ -85,6 +94,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   compatibility alias for the default apply path.
 
 ### Fixed
+- Restored the local code-health gate after belief-embedding refresh work pushed
+  `expert_maintenance.py` past the 1000-line file-size ceiling.
+- Fixed strict mypy compatibility with current `google-genai` client typing
+  while preserving the Gemini Interactions experimental-warning suppression.
 - Hardened public-bind detection across A2A, MCP HTTP, Flask API, and the web
   dashboard. Empty or unset bind hosts are now treated as all-interface binds,
   not loopback, so unauthenticated public-bind guardrails cannot be bypassed by

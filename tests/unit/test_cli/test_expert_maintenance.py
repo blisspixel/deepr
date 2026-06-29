@@ -32,7 +32,16 @@ class TestRegistration:
     def test_absorb_registered_with_options(self):
         assert "absorb" in expert.commands
         opts = {p.name for p in expert.commands["absorb"].params}
-        assert {"name", "report_id", "min_confidence", "dry_run"} <= opts
+        assert {
+            "name",
+            "report_id",
+            "min_confidence",
+            "dry_run",
+            "refresh_belief_embeddings",
+            "embedding_model",
+            "embedding_budget",
+            "embedding_max_beliefs",
+        } <= opts
 
     def test_sync_has_local_and_api_flags(self):
         opts = {p.name for p in expert.commands["sync"].params}
@@ -157,6 +166,125 @@ class TestBackendFlagGuard:
 
         assert r.exit_code == 2
         assert "Use --check-grounding with --checker-plan" in r.output
+
+    def test_absorb_refresh_rejects_dry_run_before_store_work(self, monkeypatch):
+        class ExplodingExpertStore:
+            def load(self, name):
+                raise AssertionError("dry-run refresh validation must run before loading experts")
+
+        monkeypatch.setattr("deepr.experts.profile.ExpertStore", ExplodingExpertStore)
+
+        r = CliRunner().invoke(
+            expert,
+            ["absorb", "Whoever", "job123", "--dry-run", "--refresh-belief-embeddings"],
+        )
+
+        assert r.exit_code == 2
+        assert "--refresh-belief-embeddings cannot be combined with --dry-run" in r.output
+
+    def test_absorb_refresh_rejects_local_capacity(self, monkeypatch):
+        profile = SimpleNamespace(name="MCP Expert")
+
+        class FakeExpertStore:
+            def load(self, name):
+                return profile
+
+        class FakeIndex:
+            def get_report_content(self, report_id, max_chars=0):
+                return "report text"
+
+        monkeypatch.setattr("deepr.experts.profile.ExpertStore", FakeExpertStore)
+        monkeypatch.setattr("deepr.services.context_index.ContextIndex", FakeIndex)
+
+        r = CliRunner().invoke(
+            expert,
+            ["absorb", "MCP Expert", "job123", "--local", "--refresh-belief-embeddings", "-y"],
+        )
+
+        assert r.exit_code == 2
+        assert "--refresh-belief-embeddings currently requires the metered API embedding path" in r.output
+
+    def test_absorb_api_refreshes_belief_embeddings(self, monkeypatch):
+        captured = {}
+        profile = SimpleNamespace(name="MCP Expert", total_research_cost=0.0, last_knowledge_refresh=None)
+
+        class FakeExpertStore:
+            def load(self, name):
+                return profile
+
+            def save(self, saved_profile):
+                captured["saved"] = saved_profile
+
+        class FakeIndex:
+            def get_report_content(self, report_id, max_chars=0):
+                return "report text"
+
+        class FakeResult:
+            dry_run = False
+            estimated_cost = 0.03
+
+            def to_dict(self):
+                return {"dry_run": False, "estimated_cost": self.estimated_cost}
+
+        class FakeReportAbsorber:
+            def __init__(self, loaded_profile, **kwargs):
+                captured["absorber_kwargs"] = kwargs
+                self.belief_store = object()
+
+            async def absorb(self, report_id, report_text, *, min_confidence, dry_run):
+                captured["absorb_args"] = {
+                    "report_id": report_id,
+                    "report_text": report_text,
+                    "min_confidence": min_confidence,
+                    "dry_run": dry_run,
+                }
+                return FakeResult()
+
+        async def fake_refresh(absorber, **kwargs):
+            captured["refresh_absorber_store"] = absorber.belief_store
+            captured["refresh_kwargs"] = kwargs
+            return SimpleNamespace(
+                status="indexed",
+                requested_count=2,
+                indexed_count=2,
+                to_dict=lambda: {"status": "indexed", "indexed_count": 2},
+            )
+
+        monkeypatch.setattr("deepr.experts.profile.ExpertStore", FakeExpertStore)
+        monkeypatch.setattr("deepr.services.context_index.ContextIndex", FakeIndex)
+        monkeypatch.setattr("deepr.experts.report_absorber.ReportAbsorber", FakeReportAbsorber)
+        monkeypatch.setattr(
+            "deepr.cli.commands.semantic.expert_maintenance._refresh_absorb_belief_embeddings",
+            fake_refresh,
+        )
+
+        r = CliRunner().invoke(
+            expert,
+            [
+                "absorb",
+                "MCP Expert",
+                "job123",
+                "--api",
+                "--refresh-belief-embeddings",
+                "--embedding-model",
+                "text-embedding-3-small",
+                "--embedding-budget",
+                "0.01",
+                "--embedding-max-beliefs",
+                "2",
+                "-y",
+                "--json",
+            ],
+        )
+
+        assert r.exit_code == 0, r.output
+        payload = json.loads(r.output)
+        assert payload["belief_embedding_refresh"] == {"status": "indexed", "indexed_count": 2}
+        assert captured["absorber_kwargs"]["model"] == "gpt-5-mini"
+        assert captured["refresh_kwargs"]["model"] == "text-embedding-3-small"
+        assert captured["refresh_kwargs"]["budget_usd"] == 0.01
+        assert captured["refresh_kwargs"]["max_beliefs"] == 2
+        assert captured["saved"] is profile
 
     def test_sync_local_uses_local_absorber(self, monkeypatch):
         captured = {}
