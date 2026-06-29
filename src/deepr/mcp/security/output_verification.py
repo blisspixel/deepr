@@ -26,14 +26,20 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
+from deepr.config import runtime_data_path
+
 
 def _utc_now() -> datetime:
     """Return current UTC time (timezone-aware)."""
     return datetime.now(UTC)
 
 
-# Default database path
-DEFAULT_DB_PATH = Path("data/output_verification.db")
+def _default_output_verification_db() -> Path:
+    """Resolve output verification DB honoring DEEPR_DATA_DIR for portability."""
+    return runtime_data_path("output_verification.db")
+
+
+DEFAULT_DB_PATH = _default_output_verification_db()
 
 
 @dataclass
@@ -116,9 +122,9 @@ class OutputVerifier:
         """Initialize the verifier.
 
         Args:
-            db_path: Path to database (default: data/output_verification.db)
+            db_path: Path to database (defaults to DEEPR_DATA_DIR/output_verification.db or data/)
         """
-        self._db_path = db_path or DEFAULT_DB_PATH
+        self._db_path = db_path or _default_output_verification_db()
         self._db_path.parent.mkdir(parents=True, exist_ok=True)
 
         self._conn = sqlite3.connect(

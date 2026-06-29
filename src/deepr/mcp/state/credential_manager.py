@@ -38,6 +38,7 @@ from pathlib import Path
 from typing import Any
 from urllib.parse import urlparse
 
+from deepr.config import runtime_data_path
 from deepr.mcp.state.elicitation_router import ElicitationHandler, ElicitationRequest
 
 logger = logging.getLogger(__name__)
@@ -48,8 +49,11 @@ def _utc_now() -> datetime:
     return datetime.now(UTC)
 
 
-# Default database path
-DEFAULT_DB_PATH = Path("data/credentials.db")
+def _default_credentials_db() -> Path:
+    return runtime_data_path("credentials.db")
+
+
+DEFAULT_DB_PATH = _default_credentials_db()
 
 # Encryption key environment variable (would use proper secrets in production)
 ENCRYPTION_KEY_ENV = "DEEPR_CREDENTIAL_KEY"
@@ -151,9 +155,9 @@ class CredentialManager:
         """Initialize the credential manager.
 
         Args:
-            db_path: Path to database (default: data/credentials.db)
+            db_path: Path to database (default respects DEEPR_DATA_DIR)
         """
-        self._db_path = db_path or DEFAULT_DB_PATH
+        self._db_path = db_path or _default_credentials_db()
         self._db_path.parent.mkdir(parents=True, exist_ok=True)
 
         self._conn = sqlite3.connect(

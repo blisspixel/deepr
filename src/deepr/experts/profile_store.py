@@ -24,6 +24,8 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
+from filelock import FileLock
+
 if TYPE_CHECKING:
     from deepr.experts.profile import ExpertProfile
 
@@ -282,9 +284,13 @@ class ExpertStore:
         # leave a half-written profile.json. Expert profiles are
         # load-bearing identity data; corruption silently hides experts
         # from list_all().
+        # Serialize profile writes across processes. A timeout fails closed so
+        # competing CLI/MCP/web writes do not silently clobber profile.json.
+        lock_path = path.with_suffix(path.suffix + ".lock")
         from deepr.utils.atomic_io import atomic_write_json
 
-        atomic_write_json(path, data)
+        with FileLock(str(lock_path), timeout=10):
+            atomic_write_json(path, data)
 
     def load(self, name: str, migrate: bool = True) -> ExpertProfile | None:
         """Load expert profile from disk.

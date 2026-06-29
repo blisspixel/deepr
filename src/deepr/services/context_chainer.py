@@ -269,7 +269,7 @@ class ContextChainer:
             for line in lines:
                 if line.startswith("- "):
                     content = line[2:].strip()
-                    content_hash = hashlib.md5(content.encode()).hexdigest()[:8]
+                    content_hash = hashlib.sha256(content.encode()).hexdigest()[:8]
                     if content_hash not in seen_hashes:
                         seen_hashes.add(content_hash)
                         unique_points.append(line)

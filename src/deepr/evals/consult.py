@@ -14,6 +14,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
+from deepr.config import runtime_data_path
 from deepr.experts.beliefs import Belief
 from deepr.experts.consult import attach_collaboration_runtime, build_consult_payload, resolve_explicit_expert_choices
 from deepr.experts.consult_traces import build_consult_trace, build_consult_trace_candidates
@@ -99,8 +100,8 @@ def run_consult_eval() -> ConsultEvalReport:
 
 
 def write_consult_eval_report(report: ConsultEvalReport, *, output_dir: Path | None = None) -> Path:
-    """Write a consult eval artifact under ``data/benchmarks``."""
-    root = output_dir or Path("data/benchmarks")
+    """Write a consult eval artifact under the configured benchmarks directory."""
+    root = output_dir or runtime_data_path("benchmarks")
     root.mkdir(parents=True, exist_ok=True)
     timestamp = datetime.now(UTC).strftime("%Y%m%d_%H%M%S_%f")
     path = root / f"consult_eval_{timestamp}.json"

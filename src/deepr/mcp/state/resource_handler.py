@@ -25,6 +25,8 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Literal
 
+from deepr.config import load_config
+
 from .expert_resources import ExpertResourceManager
 from .job_manager import JobManager
 from .persistence import JobPersistence
@@ -46,6 +48,11 @@ class ResourceResponse:
         return self.error is None and self.data is not None
 
 
+def _default_reports_base() -> Path:
+    """Resolve the configured reports root for MCP resource reads."""
+    return Path(load_config()["results_dir"])
+
+
 class MCPResourceHandler:
     """
     Unified handler for MCP resources.
@@ -60,7 +67,7 @@ class MCPResourceHandler:
     """
 
     # Base path for reports on disk (relative to project root)
-    REPORTS_BASE = Path("data/reports")
+    REPORTS_BASE = _default_reports_base()
 
     def __init__(self, reports_base: Path | None = None, db_path: Path | Literal[False] | None = None) -> None:
         self._subscriptions = SubscriptionManager()

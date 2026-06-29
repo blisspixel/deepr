@@ -144,7 +144,7 @@ class InformationGainTracker:
 
         for finding in findings:
             # Calculate content hash for deduplication
-            content_hash = hashlib.md5(finding.encode()).hexdigest()[:12]
+            content_hash = hashlib.sha256(finding.encode()).hexdigest()[:12]
 
             if content_hash not in self.cumulative_context.content_hashes:
                 unique_count += 1

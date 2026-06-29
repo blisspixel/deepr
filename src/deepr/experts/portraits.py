@@ -72,7 +72,7 @@ def _build_prompt(name: str, domain: str | None, description: str | None, *, sty
 
     # Deterministic diversity based on expert name. Non-crypto: md5 is used as a stable
     # seed for portrait diversity rotation only, not for security/passwords/signatures.
-    seed = int(hashlib.md5(name.encode()).hexdigest(), 16)
+    seed = int(hashlib.sha256(name.encode()).hexdigest(), 16)  # stable diversity seed (sha256)
     genders = ["woman", "man", "woman", "man", "non-binary person"]
     ethnicities = [
         "East Asian",

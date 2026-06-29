@@ -117,9 +117,10 @@ class ModelRouter:
         """
         import json
         from collections import defaultdict
-        from pathlib import Path
 
-        bench_dir = Path("data/benchmarks")
+        from deepr.config import runtime_data_path
+
+        bench_dir = runtime_data_path("benchmarks")
         if not bench_dir.exists():
             return None
 

@@ -16,6 +16,7 @@ from __future__ import annotations
 import json
 import os
 import threading
+from contextlib import suppress
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from enum import Enum
@@ -249,10 +250,8 @@ class QuotaLedger:
             with self.ledger_path.open("a", encoding="utf-8") as f:
                 f.write(line + "\n")
                 f.flush()
-                try:
+                with suppress(OSError):
                     os.fsync(f.fileno())
-                except OSError:
-                    pass
         return event
 
     def get_events(

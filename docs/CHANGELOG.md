@@ -7,7 +7,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-No unreleased changes.
+### Fixed
+- Unified runtime artifact roots behind configured data directories. Benchmark
+  readers and writers, local eval artifacts, red-team artifacts, MCP state
+  stores, web traces, portraits, routing logs, job logs, audit logs, and report
+  access now consistently honor `DEEPR_DATA_DIR` or the configured reports root
+  instead of drifting across hardcoded repository-local paths.
+- Hardened no-key and redacted-key provider initialization so configuration
+  redaction does not accidentally become a literal API key.
+- Tightened durable local writes and cleanup paths across ledgers, belief
+  events, profile writes, MCP state, and job logs without introducing silent
+  no-op branches.
+- Sanitized worker poller error logging so exception tracebacks do not re-emit
+  unredacted provider details after redaction.
+
+### Changed
+- Tightened the security ratchet baseline from 95 findings to 88 after the
+  maintenance sweep reduced the current count.
 
 ## [2.24.0] - 2026-06-28
 

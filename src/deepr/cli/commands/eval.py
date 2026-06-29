@@ -7,6 +7,8 @@ from pathlib import Path
 
 import click
 
+from deepr.config import runtime_data_path
+
 # Repo root is parents[4] of src/deepr/cli/commands/eval.py; benchmark_models.py
 # lives in the repo's scripts/ dir (not shipped in the installed package).
 SCRIPT_PATH = Path(__file__).resolve().parents[4] / "scripts" / "benchmark_models.py"
@@ -121,7 +123,7 @@ def eval_new(tier: str, dry_run: bool, quick: bool, no_judge: bool, max_estimate
     show_default=True,
     help="Maximum prompts from the prompt set to run.",
 )
-@click.option("--save", is_flag=True, help="Save JSON artifact under data/benchmarks.")
+@click.option("--save", is_flag=True, help="Save JSON artifact under the configured benchmarks directory.")
 @click.option("--json", "json_output", is_flag=True, help="Emit machine-readable JSON.")
 def eval_local(
     models: tuple[str, ...],
@@ -208,7 +210,7 @@ def eval_local(
     show_default=True,
     help="Maximum prompts from the prompt set to run.",
 )
-@click.option("--save", is_flag=True, help="Save JSON artifact under data/benchmarks.")
+@click.option("--save", is_flag=True, help="Save JSON artifact under the configured benchmarks directory.")
 @click.option("--json", "json_output", is_flag=True, help="Emit machine-readable JSON.")
 def eval_local_context(
     model: str | None,
@@ -458,7 +460,7 @@ def eval_continuity(name: str, threshold: float, json_output: bool):
 
 @evaluate.command("red-team")
 @click.option("--json", "json_output", is_flag=True, help="Emit machine-readable JSON.")
-@click.option("--save", is_flag=True, help="Save JSON artifact under data/benchmarks.")
+@click.option("--save", is_flag=True, help="Save JSON artifact under the configured benchmarks directory.")
 @click.option(
     "--fail-on-attack/--no-fail-on-attack",
     default=True,
@@ -507,7 +509,7 @@ def eval_red_team(json_output: bool, save: bool, fail_on_attack: bool):
 
 @evaluate.command("consult")
 @click.option("--json", "json_output", is_flag=True, help="Emit machine-readable JSON.")
-@click.option("--save", is_flag=True, help="Save JSON artifact under data/benchmarks.")
+@click.option("--save", is_flag=True, help="Save JSON artifact under the configured benchmarks directory.")
 @click.option(
     "--fail-on-regression/--no-fail-on-regression",
     default=True,
@@ -748,7 +750,7 @@ def eval_status():
             cap = MODEL_CAPABILITIES[m]
             click.echo(f"  {m:45s}  cost=${cap.cost_per_query:.3f}  specs={','.join(cap.specializations[:3])}")
 
-    hash_file = Path("data/benchmarks/.registry_hash")
+    hash_file = runtime_data_path("benchmarks", ".registry_hash")
     if hash_file.exists():
         stored = hash_file.read_text().strip()
         current = _compute_registry_hash()

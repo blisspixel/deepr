@@ -76,10 +76,12 @@ class JobPoller:
 
         # Initialize components
         self.queue = create_queue(
-            config.get("queue", "local"), db_path=config.get("queue_db_path", "queue/research_queue.db")
+            config.get("queue", "local"), db_path=config.get("queue_db_path") or "queue/research_queue.db"
         )
 
-        self.storage = create_storage(config.get("storage", "local"), base_path=config.get("results_dir", "results"))
+        self.storage = create_storage(
+            config.get("storage", "local"), base_path=config.get("results_dir") or "data/reports"
+        )
 
         self.provider = create_provider(config.get("provider", "openai"), api_key=config.get("api_key"))
 
@@ -106,7 +108,9 @@ class JobPoller:
                 await self._poll_cycle()
                 backoff = self.poll_interval  # reset on success
             except Exception as e:
-                logger.error(f"Error in poll cycle: {e}")
+                from deepr.utils.security import sanitize_log_message
+
+                logger.error("Error in poll cycle: %s", sanitize_log_message(str(e)))
                 backoff = min(backoff * 2, 300)
 
             await asyncio.sleep(backoff)

@@ -27,6 +27,8 @@ from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any
 
+from deepr.config import runtime_data_path
+
 # Task classes the maintenance commands admit against. Free-form strings are
 # allowed, but these are the canonical ones so admit/check sites agree.
 TASK_CLASS_SYNC = "sync"
@@ -34,7 +36,13 @@ TASK_CLASS_ABSORB = "absorb"
 
 DEFAULT_ADMISSION_DAYS = 90
 DEFAULT_LOCAL_EVAL_MIN_SCORE = 0.70
-DEFAULT_BENCHMARKS_DIR = Path("data/benchmarks")
+
+
+def _default_benchmarks_dir() -> Path:
+    return runtime_data_path("benchmarks")
+
+
+DEFAULT_BENCHMARKS_DIR = _default_benchmarks_dir()
 
 
 class AdmissionEvidenceError(ValueError):
@@ -344,8 +352,9 @@ def load_events(path: Path | None = None) -> list[Admission]:
 def _append(event: Admission, path: Path | None = None) -> None:
     p = admissions_path(path)
     p.parent.mkdir(parents=True, exist_ok=True)
-    with p.open("a", encoding="utf-8") as f:
-        f.write(json.dumps(event.to_dict()) + "\n")
+    from deepr.utils.atomic_io import append_jsonl_durable
+
+    append_jsonl_durable(p, event.to_dict(), fsync=True)
 
 
 def record_admission(

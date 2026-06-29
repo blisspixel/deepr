@@ -11,7 +11,7 @@ from deepr.cli.colors import console, print_error, print_section_header, print_s
 @click.group()
 def analytics():
     """View usage analytics and success metrics."""
-    pass
+    return None
 
 
 @analytics.command()
@@ -38,10 +38,12 @@ def report(period: str):
         from collections import defaultdict
         from datetime import datetime, timedelta
 
+        from deepr.config import load_config
         from deepr.queue import create_queue
 
+        cfg = load_config()
         # queue db path was a hardcoded constant in the legacy config dict.
-        queue = create_queue("local", db_path="queue/research_queue.db")
+        queue = create_queue("local", db_path=cfg.get("queue_db_path", "queue/research_queue.db"))
 
         async def get_jobs():
             return await queue.list_jobs(limit=1000)
@@ -189,10 +191,12 @@ def trends():
         from collections import defaultdict
         from datetime import datetime, timedelta
 
+        from deepr.config import load_config
         from deepr.queue import create_queue
 
+        cfg = load_config()
         # queue db path was a hardcoded constant in the legacy config dict.
-        queue = create_queue("local", db_path="queue/research_queue.db")
+        queue = create_queue("local", db_path=cfg.get("queue_db_path", "queue/research_queue.db"))
 
         async def get_jobs():
             return await queue.list_jobs(limit=1000)
@@ -250,10 +254,12 @@ def failures():
     try:
         from collections import Counter
 
+        from deepr.config import load_config
         from deepr.queue import create_queue
 
+        cfg = load_config()
         # queue db path was a hardcoded constant in the legacy config dict.
-        queue = create_queue("local", db_path="queue/research_queue.db")
+        queue = create_queue("local", db_path=cfg.get("queue_db_path", "queue/research_queue.db"))
 
         async def get_jobs():
             return await queue.list_jobs(limit=1000)

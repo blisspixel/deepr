@@ -6,6 +6,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Literal
 
+from deepr.config import runtime_data_path
 from deepr.core.contracts import Gap
 from deepr.experts.loop_runs import ExpertLoopRunStore
 from deepr.experts.metacognition import MetaCognitionTracker
@@ -131,7 +132,7 @@ def _eval_case_artifact(profile: ExpertProfile, proposal: dict[str, Any], candid
 
 
 def _write_eval_case_artifact(artifact: dict[str, Any], *, output_dir: Path | None) -> Path:
-    root = output_dir or Path("data/benchmarks")
+    root = output_dir or runtime_data_path("benchmarks")
     root.mkdir(parents=True, exist_ok=True)
     timestamp = _utc_now().strftime("%Y%m%d_%H%M%S_%f")
     proposal_id = str(artifact["proposal_id"])
@@ -154,7 +155,7 @@ def _eval_action(
             "action": "write_eval_case",
             "status": "preview",
             "artifact": artifact,
-            "would_write": str(output_dir or Path("data/benchmarks")),
+            "would_write": str(output_dir or runtime_data_path("benchmarks")),
         }
     path = _write_eval_case_artifact(artifact, output_dir=output_dir)
     return {

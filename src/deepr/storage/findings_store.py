@@ -205,7 +205,7 @@ class FindingsStore:
             StoredFinding object
         """
         # Generate ID from content hash
-        content_hash = hashlib.md5(f"{job_id}:{text}".encode()).hexdigest()[:16]
+        content_hash = hashlib.sha256(f"{job_id}:{text}".encode()).hexdigest()[:16]
         finding_id = f"f_{content_hash}"
 
         timestamp = _utc_now()

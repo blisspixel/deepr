@@ -48,6 +48,8 @@ class GrokProvider(DeepResearchProvider):
             base_url: API endpoint
             timeout: Request timeout (default 3600s for reasoning models)
         """
+        if api_key in ("***", ""):
+            api_key = None
         api_key = api_key or os.getenv("XAI_API_KEY")
         if not api_key:
             raise ValueError("xAI API key is required (set XAI_API_KEY)")

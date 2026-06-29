@@ -3,7 +3,10 @@
 import json
 import logging
 import math
+import os
 import re
+import threading
+from contextlib import suppress
 from dataclasses import dataclass, field
 from datetime import UTC, datetime, timedelta
 from enum import Enum
@@ -11,12 +14,12 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any
 from urllib.parse import urlparse
 
+from deepr.config import experts_root
+
 logger = logging.getLogger(__name__)
 
-# A source *identifier* is a compact token (URL or namespaced id like
-# ``report:<id>`` / ``doc_001``) with no whitespace. Free-text evidence
-# excerpts (report quotes - which always contain spaces) are grounding, not
-# independent origins, so they must not count toward source independence.
+# Source identifiers are compact tokens, such as URLs, ``report:<id>``, or ``doc_001``.
+# Free-text evidence excerpts ground one source but are not independent origins.
 _URL_SCHEME_RE = re.compile(r"^[a-z][a-z0-9+.\-]*://", re.IGNORECASE)
 
 if TYPE_CHECKING:
@@ -73,13 +76,9 @@ class Belief:
     # Cross-vendor maker-checker assurance (maker_checker.py): "cross_vendor" /
     # "same_vendor_fresh_context" / "unverified" (default; also could-not-verify).
     grounding_assurance: str = "unverified"
-    # Usage salience (docs/design/belief-lifecycle.md): how often this
-    # belief was load-bearing in an answer, bumped via record_retrieval -
-    # and ONLY from surfaces that already mutate the expert; read-side
-    # queries (validate, why, digest, contested, what-changed) stay pure.
-    # Protective signal only: recent usage shields a belief from archival;
-    # absence of usage never condemns one (read-only consumers leave no
-    # trace by design).
+    # Usage salience (docs/design/belief-lifecycle.md): bump only when this belief
+    # is load-bearing on mutating surfaces. Read-side queries stay pure; recent
+    # usage can shield a belief from archival, but absence of usage never condemns it.
     retrieval_count: int = 0
     last_retrieved_at: datetime | None = None
 
@@ -93,9 +92,8 @@ class Belief:
     def _trust_ceiling(self) -> float:
         """Deterministic confidence cap from source trust (v2.15 evidence).
 
-        Floors are computed at read time (like decay), so they apply
-        retroactively and through every write path - absorb, sync, merge,
-        adjudication. No model judgment can lift them; only new,
+        Floors are computed at read time, so they apply retroactively and
+        through every write path. No model judgment can lift them; only new,
         better-sourced evidence can:
 
         - tertiary, single source: 0.60 (one web result cannot make a
@@ -104,12 +102,9 @@ class Belief:
         - tertiary, two+ independent sources: 0.80
         - secondary/primary: uncapped (1.0)
 
-        Independence counts distinct source *identifiers* (URLs by host, so a
-        syndicated origin counts once; namespaced ids like ``report:<id>``),
-        never free-text quote excerpts - absorb stores ``[f"report:{id}",
-        *quotes]`` and the quotes ground one source, not new origins. Counting
-        them would falsely lift a single-source belief to 0.80. Deterministic
-        (a safety floor no model can lift) and fails safe toward 0.60.
+        Independence counts compact source identifiers, not free-text quote
+        excerpts. That avoids falsely lifting a single-source belief to 0.80.
+        The rule is deterministic and fails safe toward 0.60.
         """
         if self.trust_class in ("primary", "secondary"):
             return 1.0
@@ -469,6 +464,7 @@ class BeliefStore:
         self.domain_index: dict[str, set[str]] = {}
         self.changes: list[BeliefChange] = []
         self.edges: dict[tuple[str, str, str], Edge] = {}
+        self._lock = threading.Lock()
 
         self._load()
 
@@ -536,8 +532,12 @@ class BeliefStore:
             change.timestamp = max(change.timestamp, latest + timedelta(microseconds=1))
 
         self.changes.append(change)
-        with open(self.events_path, "a", encoding="utf-8") as f:
-            f.write(json.dumps(change.to_dict()) + "\n")
+        with self._lock:
+            with open(self.events_path, "a", encoding="utf-8") as f:
+                f.write(json.dumps(change.to_dict(), ensure_ascii=True) + "\n")
+                f.flush()
+                with suppress(OSError):
+                    os.fsync(f.fileno())
 
     def iter_events(self, since: datetime | None = None) -> list[BeliefChange]:
         """Read belief events from the append-only log, oldest first.
@@ -1231,7 +1231,7 @@ class SharedBeliefStore:
             storage_dir: Directory for storage
         """
         if storage_dir is None:
-            storage_dir = Path("data/shared/beliefs")
+            storage_dir = experts_root().parent / "shared" / "beliefs"
         self.storage_dir = storage_dir
         self.storage_dir.mkdir(parents=True, exist_ok=True)
 

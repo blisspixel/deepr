@@ -15,6 +15,7 @@ import re
 import sys
 import threading
 import time
+from contextlib import suppress
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
@@ -22,6 +23,8 @@ from dotenv import load_dotenv
 from flask import Flask, jsonify, render_template, request, send_from_directory
 from flask_cors import CORS
 from flask_socketio import SocketIO
+
+from deepr.config import runtime_data_path
 
 # The shared sync-to-async bridge (Phase Q1.3), aliased to the historical name
 # used throughout this module's request handlers.
@@ -400,12 +403,10 @@ def fallback_to_spa(e):
     # Serve static files from dist if they exist (with path traversal protection)
     relative = request.path.lstrip("/")
     if relative:
-        try:
+        with suppress(OSError, ValueError):
             resolved = (_frontend_dist / relative).resolve()
             if resolved.is_file() and str(resolved).startswith(str(_frontend_dist.resolve())):
                 return send_from_directory(str(_frontend_dist), relative)
-        except (OSError, ValueError):
-            pass
     return render_template("index.html")
 
 
@@ -1691,7 +1692,7 @@ def generate_expert_portrait(name):
                     domain=getattr(profile, "domain", None),
                     description=getattr(profile, "description", None),
                     provider=provider,
-                    output_dir=str(Path("data") / "portraits"),
+                    output_dir=str(runtime_data_path("portraits")),
                 )
             )
         finally:
@@ -1732,7 +1733,7 @@ def serve_portrait(filename):
     """Serve a generated portrait image."""
     if not filename.endswith(".png"):
         return jsonify({"error": "Invalid file type"}), 400
-    portraits_dir = Path("data") / "portraits"
+    portraits_dir = runtime_data_path("portraits")
     return send_from_directory(str(portraits_dir.resolve()), filename)
 
 
@@ -2316,10 +2317,8 @@ def get_citation_validations(name):
             claims = [b.to_claim() for b in beliefs]
             doc_dict = {}
             for doc_path in docs_dir.glob("*.md"):
-                try:
+                with suppress(OSError):
                     doc_dict[doc_path.name] = doc_path.read_text(encoding="utf-8")[:2000]
-                except OSError:
-                    pass
 
             validations = await validator.validate_claims(claims, doc_dict)
             summary = validator.summarize(validations)
@@ -2615,7 +2614,7 @@ def get_trace(job_id):
     try:
         if not all(c in "abcdefghijklmnopqrstuvwxyz0123456789-_" for c in job_id.lower()):
             return jsonify({"error": "Invalid job_id"}), 400
-        trace_dir = Path("data/traces").resolve()
+        trace_dir = runtime_data_path("traces").resolve()
         trace_path = (trace_dir / f"{job_id}_trace.json").resolve()
         if not str(trace_path).startswith(str(trace_dir)):
             return jsonify({"error": "Invalid job_id"}), 400
@@ -2637,7 +2636,7 @@ def get_trace_temporal(job_id):
     try:
         if not all(c in "abcdefghijklmnopqrstuvwxyz0123456789-_" for c in job_id.lower()):
             return jsonify({"error": "Invalid job_id"}), 400
-        trace_dir = Path("data/traces").resolve()
+        trace_dir = runtime_data_path("traces").resolve()
         trace_path = (trace_dir / f"{job_id}_trace.json").resolve()
         if not str(trace_path).startswith(str(trace_dir)):
             return jsonify({"error": "Invalid job_id"}), 400
@@ -2744,7 +2743,7 @@ def test_connection():
 
 _benchmark_proc: dict = {}  # pid, process, started_at, output_lines
 _benchmark_lock = threading.Lock()
-_BENCHMARK_DIR = Path("data/benchmarks")
+_BENCHMARK_DIR = runtime_data_path("benchmarks")
 
 
 @app.route("/api/benchmarks", methods=["GET"])
@@ -2966,17 +2965,13 @@ def estimate_benchmark():
             for line in result.stdout.splitlines():
                 stripped = line.strip()
                 if "Estimated cost:" in stripped:
-                    try:
+                    with suppress(IndexError, ValueError):
                         estimated_cost = float(stripped.split("$")[1])
-                    except (IndexError, ValueError):
-                        pass
                 if "models selected" in stripped:
-                    try:
+                    with suppress(IndexError, ValueError):
                         parts = stripped.split(",")
                         provider_count = int(parts[0].strip().split()[0])
                         model_count = int(parts[1].strip().split()[0])
-                    except (IndexError, ValueError):
-                        pass
 
             payload = {
                 "estimated_cost": estimated_cost,

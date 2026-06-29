@@ -22,6 +22,7 @@ from pathlib import Path
 from typing import Any
 
 from deepr.backends.local import ollama_chat_client
+from deepr.config import runtime_data_path
 
 METHODOLOGY_VERSION = "1.0"
 PROMPT_SET_AGENTIC_LOOPS = "agentic-loops"
@@ -243,8 +244,8 @@ async def run_local_comparison(
 
 
 def write_report(report: LocalComparisonReport, *, output_dir: Path | None = None) -> Path:
-    """Write a local comparison artifact under ``data/benchmarks``."""
-    root = output_dir or Path("data/benchmarks")
+    """Write a local comparison artifact under the configured benchmarks directory."""
+    root = output_dir or runtime_data_path("benchmarks")
     root.mkdir(parents=True, exist_ok=True)
     timestamp = datetime.now(UTC).strftime("%Y%m%d_%H%M%S")
     path = root / f"local_compare_{timestamp}.json"

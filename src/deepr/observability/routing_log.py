@@ -18,6 +18,8 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
+from deepr.config import runtime_data_path
+
 logger = logging.getLogger(__name__)
 
 
@@ -94,7 +96,9 @@ class RoutingDecisionLog:
     """Append-only JSONL log of routing decisions with analytics queries."""
 
     def __init__(self, log_path: Path | None = None):
-        self.log_path = log_path or Path("data/analytics/routing_decisions.jsonl")
+        if log_path is None:
+            log_path = runtime_data_path("analytics", "routing_decisions.jsonl")
+        self.log_path = log_path
         self.log_path.parent.mkdir(parents=True, exist_ok=True)
         self._lock = threading.Lock()
 

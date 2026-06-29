@@ -51,6 +51,7 @@ import sys
 import time
 import uuid
 from collections.abc import Awaitable, Callable
+from contextlib import suppress
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
@@ -387,14 +388,12 @@ class DeeprMCPServer:
                     expert.last_knowledge_refresh.isoformat() if expert.last_knowledge_refresh else None
                 ),
             }
-            # Include manifest summary if available
-            try:
+            # Include manifest summary when available.
+            with suppress(Exception):
                 manifest = expert.get_manifest()
                 result["claim_count"] = manifest.claim_count
                 result["open_gap_count"] = manifest.open_gap_count
                 result["avg_confidence"] = manifest.avg_confidence
-            except Exception:
-                pass  # manifest stats are best-effort for expert info response; missing manifest is non-fatal
             return result
         except (OSError, KeyError, ValueError) as e:
             return _make_error("EXPERT_INFO_FAILED", str(e))
@@ -887,7 +886,7 @@ class DeeprMCPServer:
                 )
 
             provider_instance = create_provider(provider, api_key=api_key)  # type: ignore[arg-type]
-            storage_instance = create_storage("local", base_path="data/reports")
+            storage_instance = create_storage("local", base_path=load_config().get("results_dir", "data/reports"))
             doc_manager = DocumentManager()
             report_generator = ReportGenerator()
 
@@ -1875,7 +1874,7 @@ async def _handle_resources_subscribe(server: DeeprMCPServer, params: dict[str, 
     async def _notification_callback(data: dict[str, Any]) -> None:
         # In stdio mode, notifications are written directly to stdout
         # The transport layer handles this
-        pass
+        return None
 
     result = await server.resource_handler.handle_subscribe(uri, _notification_callback)
     return result

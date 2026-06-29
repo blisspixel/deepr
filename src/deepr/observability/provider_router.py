@@ -26,11 +26,13 @@ import os
 import sys
 import tempfile
 import time
+from contextlib import suppress
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
+from deepr.config import runtime_data_path
 from deepr.observability.circuit_breaker import CircuitBreakerRegistry
 
 # Module logger for debugging persistence and validation issues
@@ -435,7 +437,7 @@ class AutonomousProviderRouter:
             exploration_rate: Probability of exploring non-optimal provider (0-1, default 0.1 = 10%)
         """
         if storage_path is None:
-            storage_path = Path("data/observability/provider_metrics.json")
+            storage_path = runtime_data_path("observability", "provider_metrics.json")
         self.storage_path = storage_path
         self.storage_path.parent.mkdir(parents=True, exist_ok=True)
 
@@ -913,11 +915,9 @@ class AutonomousProviderRouter:
         except OSError as e:
             logger.error(f"Failed to save provider metrics: {e}")
             # Clean up temp file if it exists
-            try:
+            with suppress(OSError, UnboundLocalError):
                 if temp_path.exists():
                     temp_path.unlink()
-            except (OSError, UnboundLocalError):
-                pass
 
     def _load(self):
         """Load metrics from disk.

@@ -70,6 +70,8 @@ class AzureProvider(DeepResearchProvider):
             )
         else:
             # Use API key authentication
+            if api_key in ("***", ""):
+                api_key = None
             self.api_key = api_key or os.getenv("AZURE_OPENAI_KEY")
             if not self.api_key:
                 raise ValueError("Azure OpenAI API key is required when not using managed identity")
