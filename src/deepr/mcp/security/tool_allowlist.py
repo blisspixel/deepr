@@ -230,6 +230,13 @@ class ToolAllowlist:
             requires_confirmation_in={ResearchMode.STANDARD, ResearchMode.EXTENDED},
             blocked_in={ResearchMode.READ_ONLY},
         ),
+        "deepr_semantic_recall": ToolConfig(
+            name="deepr_semantic_recall",
+            category=ToolCategory.SENSITIVE,
+            description="Read-only candidate belief recall for verifier routing",
+            requires_confirmation_in={ResearchMode.STANDARD, ResearchMode.EXTENDED},
+            blocked_in={ResearchMode.READ_ONLY},
+        ),
         "deepr_expert_handoff": ToolConfig(
             name="deepr_expert_handoff",
             category=ToolCategory.SENSITIVE,

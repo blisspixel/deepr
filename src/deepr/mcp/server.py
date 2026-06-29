@@ -65,7 +65,7 @@ from deepr.core.research import ResearchOrchestrator
 from deepr.experts.chat import ExpertChatSession
 from deepr.experts.profile import ExpertStore
 from deepr.mcp.consult_tool import CONSULT_EXPERTS_INPUT_SCHEMA, CONSULT_EXPERTS_OUTPUT_SCHEMA, consult_experts_tool
-from deepr.mcp.expert_reads import get_expert_handoff, get_expert_loop_status, get_temporal_edges
+from deepr.mcp.expert_reads import get_expert_handoff, get_expert_loop_status, get_semantic_recall, get_temporal_edges
 from deepr.mcp.search.gateway import GatewayTool
 from deepr.mcp.search.registry import ToolRegistry, ToolSchema, create_default_registry
 from deepr.mcp.security import SSRFProtector
@@ -1670,7 +1670,6 @@ async def _handle_tools_call(server: DeeprMCPServer, params: dict[str, Any]) -> 
     instruction = {"tool": name, "arguments": arguments}
     signed = server.instruction_signer.sign(instruction)
     logger.debug("Signed instruction for tool '%s': nonce=%s", name, signed.nonce)
-
     tool_dispatch: dict[str, Callable[[dict[str, Any]], Awaitable[Any]]] = {
         "deepr_status": lambda args: server.deepr_status(),
         "deepr_capabilities": lambda args: server.deepr_capabilities(),
@@ -1712,6 +1711,7 @@ async def _handle_tools_call(server: DeeprMCPServer, params: dict[str, Any]) -> 
             expert_name=args.get("expert_name", ""),
         ),
         "deepr_expert_loop_status": lambda args: get_expert_loop_status(server.store, **args),
+        "deepr_semantic_recall": lambda args: get_semantic_recall(server.store, **args),
         "deepr_expert_handoff": lambda args: get_expert_handoff(server.store, **args),
         "deepr_route_gaps": lambda args: server.route_gaps(
             expert_name=args.get("expert_name", ""),

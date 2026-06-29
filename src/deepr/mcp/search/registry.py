@@ -625,6 +625,60 @@ def create_default_registry() -> ToolRegistry:
 
     registry.register(
         ToolSchema(
+            name="deepr_semantic_recall",
+            description=(
+                "Recall candidate beliefs for verifier or host-agent routing. Read-only and "
+                "cost-$0. Returns candidate_only belief matches, never generates embeddings, "
+                "and never writes graph state. By default it uses local lexical routing; pass "
+                "both query_embedding and embedding_model to use already-indexed belief "
+                "vectors. Treat hits as inspection candidates, not support, contradiction, "
+                "or deduplication verdicts. "
+                "Example: deepr_semantic_recall(expert_name='AI Strategy Expert', query='GPU deployment bottlenecks', top_k=5)"
+            ),
+            input_schema={
+                "type": "object",
+                "properties": {
+                    "expert_name": {"type": "string", "description": "Name of the expert"},
+                    "query": {"type": "string", "description": "Recall query"},
+                    "top_k": {
+                        "type": "integer",
+                        "default": 5,
+                        "minimum": 1,
+                        "maximum": 50,
+                        "description": "Maximum candidates to return",
+                    },
+                    "min_score": {
+                        "type": "number",
+                        "default": 0.0,
+                        "minimum": 0.0,
+                        "maximum": 1.0,
+                        "description": "Minimum recall score",
+                    },
+                    "domain": {"type": "string", "description": "Optional exact belief-domain filter"},
+                    "query_embedding": {
+                        "type": "array",
+                        "items": {"type": "number"},
+                        "description": "Explicit caller-supplied query embedding. Deepr does not generate it.",
+                    },
+                    "embedding_model": {
+                        "type": "string",
+                        "description": "Model label for already-indexed belief vectors",
+                    },
+                    "include_lexical_fallback": {
+                        "type": "boolean",
+                        "default": True,
+                        "description": "Allow lexical candidates when vector hits are absent",
+                    },
+                },
+                "required": ["expert_name", "query"],
+            },
+            category="experts",
+            cost_tier="free",
+        )
+    )
+
+    registry.register(
+        ToolSchema(
             name="deepr_expert_handoff",
             description=(
                 "Return a versioned read-only handoff payload for an expert. Includes the "

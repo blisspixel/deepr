@@ -8,6 +8,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- Added MCP `deepr_semantic_recall`, a confirmation-gated, read-only,
+  cost-$0 host-agent surface over the same `candidate_only` belief recall
+  contract. Host-facing payloads are sanitized, and indexed vector recall still
+  requires caller-supplied `query_embedding` plus `embedding_model`; Deepr does
+  not generate embeddings in the tool.
 - Added `deepr expert semantic-recall NAME QUERY`, a read-only, cost-$0
   operator surface over belief recall. It emits `candidate_only` JSON with no
   graph writes and no embedding generation; indexed vector recall runs only

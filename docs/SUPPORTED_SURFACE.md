@@ -135,8 +135,10 @@ must not be described as usable capacity.
   carry these hits in a `recall_context` packet for verifier routing only; the
   packet is read-only and does not affect commit readiness. `deepr expert
   semantic-recall NAME QUERY` exposes the same `candidate_only` boundary to
-  operators at `$0`; indexed vector recall requires a caller-supplied
-  `--query-embedding` and `--embedding-model`.
+  operators at `$0`, and MCP `deepr_semantic_recall` exposes the same read-only
+  surface to host agents with host-facing payload sanitization. Indexed vector
+  recall requires a caller-supplied `--query-embedding` and `--embedding-model`
+  on CLI, or `query_embedding` and `embedding_model` over MCP.
 - `deepr expert monitor` emits a read-only `deepr-metacognitive-monitor-v1`
   artifact with review-required proposals derived from self-model risks, failed
   loop runs, capacity waits, and sanitized consult trace candidates. It does
