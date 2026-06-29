@@ -8,6 +8,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- Added a root `deepr --no-color` flag that disables ANSI color output for
+  existing Rich consoles and sets `NO_COLOR` for consoles created later.
 - Added `deepr-expert-mutation-audit-v1`, an append-only
   `mutation_audit.jsonl` record beside each expert belief store. Belief
   creates, updates, revisions, archives, restores, contested writes, and
