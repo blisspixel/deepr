@@ -26,7 +26,7 @@ requests>=2.31.0
 pytz>=2026.2
 
 # Web scraping (Playwright for JS-heavy sites)
-playwright>=1.60.0
+playwright>=1.61.0
 
 # Web search tools (optional - at least one needed for Anthropic provider)
 # duckduckgo-search>=4.0.0  # Free, no API key
