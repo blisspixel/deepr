@@ -247,6 +247,14 @@
       "compatibility": "breaking-change-from-v6"
     },
     {
+      "name": "graph-commit-envelope",
+      "schema_version": "deepr-graph-commit-envelope-v8",
+      "kind": "deepr.expert.graph_commit_envelope",
+      "path": "graph-commit-envelope-v8.json",
+      "status": "experimental",
+      "compatibility": "breaking-change-from-v7"
+    },
+    {
       "name": "graph-commit-apply",
       "schema_version": "deepr-graph-commit-apply-v1",
       "kind": "deepr.expert.graph_commit_apply",

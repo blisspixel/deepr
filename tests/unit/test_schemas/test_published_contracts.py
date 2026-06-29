@@ -1042,7 +1042,7 @@ def test_graph_commit_envelope_schema_validates_runtime_payload():
         domain="schemas",
         generated_at="2026-06-26T12:03:00+00:00",
     )
-    schema = _load_schema("graph-commit-envelope-v7.json")
+    schema = _load_schema("graph-commit-envelope-v8.json")
 
     _validate(schema, payload)
     assert payload["schema_version"] == GRAPH_COMMIT_ENVELOPE_SCHEMA_VERSION
@@ -1052,7 +1052,7 @@ def test_graph_commit_envelope_schema_validates_runtime_payload():
     assert payload["summary"]["ready_edge_count"] == 1
 
 
-def test_graph_commit_envelope_v7_schema_validates_agenda_payload():
+def test_graph_commit_envelope_v8_schema_validates_agenda_payload():
     notes = build_source_notes(
         {
             "started_at": "2026-06-26T12:00:00+00:00",
@@ -1114,14 +1114,14 @@ def test_graph_commit_envelope_v7_schema_validates_agenda_payload():
         domain="schemas",
         generated_at="2026-06-26T12:03:00+00:00",
     )
-    schema = _load_schema("graph-commit-envelope-v7.json")
+    schema = _load_schema("graph-commit-envelope-v8.json")
 
     _validate(schema, payload)
     assert payload["schema_version"] == GRAPH_COMMIT_ENVELOPE_SCHEMA_VERSION
     assert payload["operations"][0]["operation"] == "promote_exploration_agenda"
 
 
-def test_graph_commit_envelope_v7_schema_validates_hypothesis_payload():
+def test_graph_commit_envelope_v8_schema_validates_hypothesis_payload():
     notes = build_source_notes(
         {
             "started_at": "2026-06-26T12:00:00+00:00",
@@ -1183,14 +1183,14 @@ def test_graph_commit_envelope_v7_schema_validates_hypothesis_payload():
         domain="schemas",
         generated_at="2026-06-26T12:03:00+00:00",
     )
-    schema = _load_schema("graph-commit-envelope-v7.json")
+    schema = _load_schema("graph-commit-envelope-v8.json")
 
     _validate(schema, payload)
     assert payload["schema_version"] == GRAPH_COMMIT_ENVELOPE_SCHEMA_VERSION
     assert payload["operations"][0]["operation"] == "promote_hypothesis"
 
 
-def test_graph_commit_envelope_v7_schema_validates_concept_payload():
+def test_graph_commit_envelope_v8_schema_validates_concept_payload():
     notes = build_source_notes(
         {
             "started_at": "2026-06-26T12:00:00+00:00",
@@ -1253,14 +1253,14 @@ def test_graph_commit_envelope_v7_schema_validates_concept_payload():
         domain="schemas",
         generated_at="2026-06-26T12:03:00+00:00",
     )
-    schema = _load_schema("graph-commit-envelope-v7.json")
+    schema = _load_schema("graph-commit-envelope-v8.json")
 
     _validate(schema, payload)
     assert payload["schema_version"] == GRAPH_COMMIT_ENVELOPE_SCHEMA_VERSION
     assert payload["operations"][0]["operation"] == "promote_concept"
 
 
-def test_graph_commit_envelope_v7_schema_validates_stance_payload():
+def test_graph_commit_envelope_v8_schema_validates_stance_payload():
     notes = build_source_notes(
         {
             "started_at": "2026-06-26T12:00:00+00:00",
@@ -1323,14 +1323,14 @@ def test_graph_commit_envelope_v7_schema_validates_stance_payload():
         domain="schemas",
         generated_at="2026-06-26T12:03:00+00:00",
     )
-    schema = _load_schema("graph-commit-envelope-v7.json")
+    schema = _load_schema("graph-commit-envelope-v8.json")
 
     _validate(schema, payload)
     assert payload["schema_version"] == GRAPH_COMMIT_ENVELOPE_SCHEMA_VERSION
     assert payload["operations"][0]["operation"] == "promote_stance"
 
 
-def test_graph_commit_envelope_v7_schema_validates_original_idea_payload():
+def test_graph_commit_envelope_v8_schema_validates_original_idea_payload():
     notes = build_source_notes(
         {
             "started_at": "2026-06-26T12:00:00+00:00",
@@ -1393,7 +1393,7 @@ def test_graph_commit_envelope_v7_schema_validates_original_idea_payload():
         domain="schemas",
         generated_at="2026-06-26T12:03:00+00:00",
     )
-    schema = _load_schema("graph-commit-envelope-v7.json")
+    schema = _load_schema("graph-commit-envelope-v8.json")
 
     _validate(schema, payload)
     assert payload["schema_version"] == GRAPH_COMMIT_ENVELOPE_SCHEMA_VERSION

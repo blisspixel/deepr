@@ -181,10 +181,11 @@ and verification over source-note windows, builds a verified graph-commit
 envelope, and applies that envelope instead of calling the legacy absorber. It
 writes claim-extraction, claim-verification, graph-commit envelope, and
 `graph_commit_apply_results` sidecars with prompt, schema, provider, model,
-capacity, cost, source-window refs, and read-only recall context. Sync cadence
-advances only after an applied or already-applied graph commit result is
-durably recorded. Use `--stage-compiled-claims` with `--compile-claims` when
-you need the old no-write staging behavior; `--apply-compiled-claims` remains a
+capacity, cost, source-window refs, read-only recall context, and
+verifier-supplied temporal edge qualifiers when present. Sync cadence advances
+only after an applied or already-applied graph commit result is durably
+recorded. Use `--stage-compiled-claims` with `--compile-claims` when you need
+the old no-write staging behavior; `--apply-compiled-claims` remains a
 compatibility alias for the default apply behavior.
 
 `deepr eval consult` runs a `$0` consult harness suite. It checks structural
@@ -263,8 +264,9 @@ Deepr deliberately separates workflow control from model judgment.
   source notes, content hashes, prompt/schema versions, explicit
   `--compile-claims` extraction, verification, graph-commit envelopes, durable
   graph-commit apply results, and `--stage-compiled-claims` no-write staging
-  when requested, while leaving support, contradiction, deduplication, temporal
-  scope, and semantic edges to calibrated model judgment.
+  when requested. Deterministic code validates temporal edge qualifier shape
+  and ISO date fields, while leaving support, contradiction, deduplication,
+  temporal scope, and semantic edges to calibrated model judgment.
 
 This boundary is tracked in
 [docs/plans/AGENTIC_BALANCE.md](docs/plans/AGENTIC_BALANCE.md) and the active

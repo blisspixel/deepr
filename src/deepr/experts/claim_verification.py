@@ -290,7 +290,8 @@ def _verification_shape(edge_types: list[str]) -> str:
         '"expected_observations":[str],"disconfirming_signals":[str],'
         '"edge_decisions":[{"target_candidate_id":str,"edge_type":"'
         + "|".join(edge_types)
-        + '","confidence":number,"rationale":str}]}]}'
+        + '","confidence":number,"rationale":str,'
+        '"temporal":{"valid_from":str,"valid_until":str,"observed_at":str,"temporal_scope":str}}]}]}'
     )
 
 
@@ -341,6 +342,9 @@ def build_claim_verification_prompt(
         "- Use same_as_existing only when recall_context shows the same claim; otherwise use new or uncertain.\n"
         "- Use contradiction only when recall_context or evidence directly conflicts with the candidate.\n"
         "- Use edge_decisions only for relationships among candidates in this prompt.\n"
+        "- For temporal edge_decisions, use temporal.valid_from, valid_until, and observed_at only when you can "
+        "express them as ISO 8601 dates or datetimes; otherwise leave those fields empty and explain scope in "
+        "temporal.temporal_scope.\n"
         "- For hypotheses, concepts, stances, agendas, gaps, and original ideas, include origin, rationale, "
         "uncertainty, expected_observations, and disconfirming_signals when the state_policy asks for them.\n"
         "- Do not write beliefs or claim graph mutation happened.\n\n"

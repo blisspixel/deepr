@@ -176,7 +176,8 @@ must not be described as usable capacity.
   no-write compiler sidecar path. `--apply-compiled-claims` is accepted as a
   compatibility alias for the default compiled apply behavior.
   Claim-verification envelopes record verifier
-  decisions, optional candidate-to-candidate typed edge decisions, and
+  decisions, optional candidate-to-candidate typed edge decisions with
+  structured temporal qualifiers, and
   `candidate_only` recall
   context packets; graph commit envelopes plan
   idempotent writes without mutating state. `deepr-graph-commit-envelope-v1`
@@ -192,9 +193,11 @@ must not be described as usable capacity.
   operations for the metacognition stance backlog; and
   `deepr-graph-commit-envelope-v7` adds verifier-gated
   `promote_original_idea` operations for the metacognition original-idea
-  backlog.
+  backlog. `deepr-graph-commit-envelope-v8` adds structured temporal
+  qualifiers to typed edge operations.
   `deepr expert apply-graph-commit NAME ENVELOPE --yes` is the explicit write
   boundary for verified factual add-belief operations, typed-edge operations,
+  typed-edge temporal qualifiers,
   verified gap promotions, verified exploration agenda promotions, and verified
   hypothesis, concept, stance, and original-idea promotions.
 

@@ -8,6 +8,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- Added `deepr-graph-commit-envelope-v8` with first-class temporal edge
+  qualifiers. Claim verification can now carry verifier-supplied `valid_from`,
+  `valid_until`, `observed_at`, and `temporal_scope` fields on candidate edge
+  decisions; graph-commit apply persists those qualifiers on typed belief
+  edges and idempotent replay repairs missing temporal context without
+  duplicating the edge.
 - Added explicit sync-side graph-commit apply for compiled claims.
   `deepr expert sync --compile-claims` now bypasses the legacy absorber for
   that topic, applies only the verified graph-commit envelope through the

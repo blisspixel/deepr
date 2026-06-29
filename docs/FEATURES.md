@@ -1014,7 +1014,8 @@ sync. It persists `sync_artifacts/claim_extractions/<timestamp>_<topic>.json`,
 `sync_artifacts/graph_commit_envelopes/<timestamp>_<topic>.json`, records
 prompt, schema, provider, model, capacity, cost, source-window refs, and
 read-only recall context, bypasses the legacy absorber for that topic, applies
-only the verified graph-commit envelope, and writes
+only the verified graph-commit envelope, carries verifier-supplied temporal
+edge qualifiers when present, and writes
 `sync_artifacts/graph_commit_apply_results/<timestamp>_<topic>.json`.
 Use `--stage-compiled-claims` with `--compile-claims` to persist compiler
 sidecars without applying graph commits. `--apply-compiled-claims` remains a
@@ -1034,11 +1035,13 @@ exploration agendas into the metacognition agenda backlog;
 metacognition hypothesis backlog; `deepr-graph-commit-envelope-v5` adds
 verified concepts into the metacognition concept backlog;
 `deepr-graph-commit-envelope-v6` adds verified stances into the metacognition
-stance backlog; and `deepr-graph-commit-envelope-v7` adds verified original
-ideas into the metacognition original-idea backlog. Active original ideas then
-surface through memory cards, consult context, and handoff payloads as
-`deepr-expert-perspective-state-v1` perspective state rather than verified
-external facts. Local and non-metered plan claim compilation is `$0`
+stance backlog; `deepr-graph-commit-envelope-v7` adds verified original ideas
+into the metacognition original-idea backlog; and
+`deepr-graph-commit-envelope-v8` adds structured temporal qualifiers to typed
+edge operations. Active original ideas then surface through memory cards,
+consult context, and handoff payloads as `deepr-expert-perspective-state-v1`
+perspective state rather than verified external facts. Local and non-metered
+plan claim compilation is `$0`
 inside Deepr; metered API and metered-at-margin plan paths require budget and
 cost-ledger gates.
 Deepr builds a bounded source pack first, then prepends it to the prompt and
