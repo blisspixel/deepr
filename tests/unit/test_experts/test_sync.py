@@ -890,6 +890,39 @@ class TestSyncEngine:
         assert store.subscriptions[0].last_synced is None
         assert beliefs.beliefs == {}
 
+    @pytest.mark.asyncio
+    async def test_sync_apply_result_write_failure_keeps_cadence_due(self, tmp_path, monkeypatch):
+        store = _sub_store(tmp_path, Subscription(topic="Topic X", budget=0.5))
+        beliefs = BeliefStore("Sync Test Expert", storage_dir=tmp_path / "beliefs")
+        original_write = sync_module.atomic_write_json
+
+        def fail_apply_result_write(path, payload):
+            if "graph_commit_apply_results" in str(path):
+                raise OSError("disk full")
+            original_write(path, payload)
+
+        monkeypatch.setattr(sync_module, "atomic_write_json", fail_apply_result_write)
+        engine = ExpertSyncEngine(
+            _expert(),
+            research_fn=_topic_x_research_fn(_topic_x_source_pack()),
+            subscription_store=store,
+            belief_store=beliefs,
+            absorber=_FailingAbsorber(),
+            claim_extractor=_FakeClaimExtractor(),
+            claim_verifier=_FakeClaimVerifier(),
+        )
+
+        result = await engine.sync(budget=1.0, apply_graph_commits=True)
+
+        outcome = result.outcomes[0]
+        assert outcome.status == "failed"
+        assert outcome.absorbed == 1
+        assert outcome.graph_commit_apply_status == "applied"
+        assert outcome.graph_commit_apply_artifact == ""
+        assert "graph commit apply artifact failed" in outcome.detail
+        assert store.subscriptions[0].last_synced is None
+        assert len(beliefs.beliefs) == 1
+
     @pytest.mark.parametrize("case", _PERSPECTIVE_CASES, ids=[case["id"] for case in _PERSPECTIVE_CASES])
     @pytest.mark.asyncio
     async def test_sync_can_apply_compiled_perspective_state_with_injected_tracker(self, tmp_path, case):

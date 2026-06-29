@@ -39,6 +39,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   deduplication, contradiction, and temporal-scope judgment with the verifier.
 
 ### Fixed
+- Kept sync graph-commit apply auditability fail-closed. If a compiled apply
+  mutates state but the apply-result sidecar cannot be written, the sync outcome
+  now fails and leaves cadence due so a later idempotent replay can write the
+  missing audit artifact.
 - Unified runtime artifact roots behind configured data directories. Benchmark
   readers and writers, local eval artifacts, red-team artifacts, MCP state
   stores, web traces, portraits, routing logs, job logs, audit logs, and report

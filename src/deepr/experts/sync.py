@@ -829,7 +829,7 @@ class ExpertSyncEngine:
         if apply_artifact is None:
             detail = self._append_detail(detail, "graph commit apply artifact failed")
 
-        sync_status = "synced" if status in {"applied", "already_applied"} else "failed"
+        sync_status = "synced" if status in {"applied", "already_applied"} and apply_artifact is not None else "failed"
         if sync_status == "synced":
             subscription.last_synced = datetime.now(UTC)
             self.subscriptions.save()
