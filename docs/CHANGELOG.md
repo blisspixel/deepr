@@ -8,6 +8,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- Added optional sync-side claim-verification and graph-commit sidecar
+  artifacts. `ExpertSyncEngine` can now run an injected verifier after semantic
+  claim extraction, compile store-backed recall into the claim-verification
+  artifact, and write a no-apply graph-commit envelope for replayable review.
 - Added store-backed, read-only recall routing for claim verification.
   `build_claim_verification` can now derive `candidate_only` memory-quality
   recall packets from a `BeliefStore` for ready claim candidates while leaving

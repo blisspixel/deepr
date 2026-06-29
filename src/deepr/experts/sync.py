@@ -63,6 +63,21 @@ class ClaimExtractionService(Protocol):
     ) -> dict[str, Any]: ...
 
 
+class ClaimVerificationService(Protocol):
+    async def verify(
+        self,
+        claim_extraction: dict[str, Any],
+        source_notes: dict[str, Any],
+        source_pack_payload: dict[str, Any],
+        *,
+        claim_extraction_artifact: str = "",
+        source_note_artifact: str = "",
+        budget_usd: float = 0.0,
+        session_id: str = "claim_verification",
+        generated_at: str = "",
+    ) -> dict[str, Any]: ...
+
+
 def _slug(text: str) -> str:
     return re.sub(r"[^a-z0-9]+", "-", text.lower()).strip("-")[:48] or "topic"
 
@@ -115,6 +130,21 @@ def _source_pack_summary(source_pack: dict[str, Any]) -> tuple[int, str]:
     source_count = int(source_pack.get("source_count", 0) or 0)
     mode = str(source_pack.get("mode", "") or "")
     return source_count, mode
+
+
+def _nonnegative_float(value: Any) -> float:
+    try:
+        parsed = float(value or 0.0)
+    except (TypeError, ValueError):
+        return 0.0
+    return max(0.0, parsed)
+
+
+def _model_metadata(model_output: dict[str, Any], key: str) -> str:
+    contract = model_output.get("contract", {})
+    if isinstance(contract, dict) and contract.get(key):
+        return str(contract.get(key) or "")
+    return str(model_output.get(key, "") or "")
 
 
 def _source_pack_content_hashes(source_pack: dict[str, Any] | None) -> set[str]:
@@ -248,6 +278,8 @@ class SyncOutcome:
     source_pack_manifest_artifact: str = ""
     source_note_artifact: str = ""
     claim_extraction_artifact: str = ""
+    claim_verification_artifact: str = ""
+    graph_commit_envelope_artifact: str = ""
     source_count: int = 0
     context_mode: str = ""
 
@@ -263,9 +295,20 @@ class SyncOutcome:
             "source_pack_manifest_artifact": self.source_pack_manifest_artifact,
             "source_note_artifact": self.source_note_artifact,
             "claim_extraction_artifact": self.claim_extraction_artifact,
+            "claim_verification_artifact": self.claim_verification_artifact,
+            "graph_commit_envelope_artifact": self.graph_commit_envelope_artifact,
             "source_count": self.source_count,
             "context_mode": self.context_mode,
         }
+
+
+@dataclass
+class ClaimCompilationOutcome:
+    claim_extraction_artifact: str = ""
+    claim_verification_artifact: str = ""
+    graph_commit_envelope_artifact: str = ""
+    cost: float = 0.0
+    detail: str = ""
 
 
 @dataclass
@@ -305,6 +348,7 @@ class ExpertSyncEngine:
         belief_store: BeliefStore | None = None,
         absorber: Any | None = None,
         claim_extractor: ClaimExtractionService | None = None,
+        claim_verifier: ClaimVerificationService | None = None,
     ) -> None:
         self.expert = expert
         self._research_fn = research_fn
@@ -312,6 +356,7 @@ class ExpertSyncEngine:
         self.belief_store = belief_store or BeliefStore(expert.name)
         self._absorber = absorber
         self._claim_extractor = claim_extractor
+        self._claim_verifier = claim_verifier
 
     # ------------------------------------------------------------------ #
     # Defaults (built lazily so tests never touch providers)
@@ -484,21 +529,23 @@ class ExpertSyncEngine:
             )
             return outcome, cost
 
-        claim_extraction_path, claim_extraction_cost, claim_extraction_detail = await self._compile_semantic_claims(
+        claim_compile = await self._compile_semantic_claims(
             subscription,
             source_pack_artifact=source_pack_path,
             source_note_artifact=source_note_path,
             budget=max(0.0, budget - cost),
             started_at=started_at,
         )
-        cost += claim_extraction_cost
+        cost += claim_compile.cost
         outcome = await self._absorb_sync_answer(subscription, answer, cost=cost, started_at=started_at)
         self._attach_source_pack_summary(
             outcome, source_pack_path, source_pack_manifest_path, source_note_path, source_count, context_mode
         )
-        outcome.claim_extraction_artifact = claim_extraction_path
-        if claim_extraction_detail:
-            outcome.detail = self._append_detail(outcome.detail, claim_extraction_detail)
+        outcome.claim_extraction_artifact = claim_compile.claim_extraction_artifact
+        outcome.claim_verification_artifact = claim_compile.claim_verification_artifact
+        outcome.graph_commit_envelope_artifact = claim_compile.graph_commit_envelope_artifact
+        if claim_compile.detail:
+            outcome.detail = self._append_detail(outcome.detail, claim_compile.detail)
         return outcome, cost
 
     def _persist_source_pack(
@@ -596,16 +643,16 @@ class ExpertSyncEngine:
         source_note_artifact: str,
         budget: float,
         started_at: datetime,
-    ) -> tuple[str, float, str]:
+    ) -> ClaimCompilationOutcome:
         if self._claim_extractor is None or not source_pack_artifact or not source_note_artifact:
-            return "", 0.0, ""
+            return ClaimCompilationOutcome()
 
         try:
             source_pack_payload = self._read_sync_artifact(source_pack_artifact)
             source_notes = self._read_sync_artifact(source_note_artifact)
         except (json.JSONDecodeError, OSError, ValueError) as exc:
             logger.warning("Could not read claim extraction inputs for %s: %s", subscription.topic, exc)
-            return "", 0.0, f"claim extraction skipped: could not read inputs ({exc})"
+            return ClaimCompilationOutcome(detail=f"claim extraction skipped: could not read inputs ({exc})")
 
         try:
             extraction = await self._claim_extractor.extract(
@@ -621,9 +668,9 @@ class ExpertSyncEngine:
 
             reason = "skipped" if isinstance(exc, ClaimExtractionBlocked) else "failed"
             logger.warning("Claim extraction %s for %s: %s", reason, subscription.topic, exc)
-            return "", 0.0, f"claim extraction {reason}: {exc}"
+            return ClaimCompilationOutcome(detail=f"claim extraction {reason}: {exc}")
 
-        extraction_cost = float((extraction.get("contract", {}) or {}).get("cost_usd", 0.0) or 0.0)
+        extraction_cost = _nonnegative_float((extraction.get("contract", {}) or {}).get("cost_usd", 0.0))
         root = self.subscriptions.path.parent
         artifact_dir = root / "sync_artifacts" / "claim_extractions"
         artifact_dir.mkdir(parents=True, exist_ok=True)
@@ -633,8 +680,121 @@ class ExpertSyncEngine:
             atomic_write_json(artifact_path, extraction)
         except OSError as exc:
             logger.error("Could not write claim extraction for %s: %s", subscription.topic, exc)
-            return "", extraction_cost, f"claim extraction artifact failed: {exc}"
-        return artifact_path.relative_to(root).as_posix(), extraction_cost, ""
+            return ClaimCompilationOutcome(cost=extraction_cost, detail=f"claim extraction artifact failed: {exc}")
+
+        extraction_artifact = artifact_path.relative_to(root).as_posix()
+        verification = await self._compile_claim_verification(
+            subscription,
+            extraction,
+            source_notes,
+            source_pack_payload,
+            claim_extraction_artifact=extraction_artifact,
+            source_note_artifact=source_note_artifact,
+            budget=max(0.0, budget - extraction_cost),
+            started_at=started_at,
+        )
+        return ClaimCompilationOutcome(
+            claim_extraction_artifact=extraction_artifact,
+            claim_verification_artifact=verification.claim_verification_artifact,
+            graph_commit_envelope_artifact=verification.graph_commit_envelope_artifact,
+            cost=extraction_cost + verification.cost,
+            detail=verification.detail,
+        )
+
+    async def _compile_claim_verification(
+        self,
+        subscription: Subscription,
+        claim_extraction: dict[str, Any],
+        source_notes: dict[str, Any],
+        source_pack_payload: dict[str, Any],
+        *,
+        claim_extraction_artifact: str,
+        source_note_artifact: str,
+        budget: float,
+        started_at: datetime,
+    ) -> ClaimCompilationOutcome:
+        if self._claim_verifier is None:
+            return ClaimCompilationOutcome()
+
+        try:
+            model_output = await self._claim_verifier.verify(
+                claim_extraction,
+                source_notes,
+                source_pack_payload,
+                claim_extraction_artifact=claim_extraction_artifact,
+                source_note_artifact=source_note_artifact,
+                budget_usd=budget,
+                session_id=f"verify:{self.expert.name}:{_slug(subscription.topic)}",
+                generated_at=started_at.isoformat(),
+            )
+        except Exception as exc:
+            logger.warning("Claim verification failed for %s: %s", subscription.topic, exc)
+            return ClaimCompilationOutcome(detail=f"claim verification failed: {exc}")
+        if not isinstance(model_output, dict):
+            return ClaimCompilationOutcome(detail="claim verification failed: invalid verifier output")
+
+        from deepr.experts.graph_commit_envelope import build_graph_commit_envelope
+        from deepr.experts.source_pack_compiler import build_claim_verification
+
+        verification_cost = _nonnegative_float((model_output.get("contract", {}) or {}).get("cost_usd", 0.0))
+        verification = build_claim_verification(
+            claim_extraction,
+            model_output,
+            claim_extraction_artifact=claim_extraction_artifact,
+            provider=_model_metadata(model_output, "provider"),
+            model=_model_metadata(model_output, "model"),
+            capacity_source=_model_metadata(model_output, "capacity_source"),
+            cost_usd=verification_cost,
+            generated_at=started_at.isoformat(),
+            recall_belief_store=self.belief_store,
+            recall_domain=str(getattr(self.expert, "domain", "") or ""),
+        )
+
+        root = self.subscriptions.path.parent
+        timestamp = started_at.strftime("%Y%m%dT%H%M%S%fZ")
+        verification_dir = root / "sync_artifacts" / "claim_verifications"
+        verification_dir.mkdir(parents=True, exist_ok=True)
+        verification_path = verification_dir / f"{timestamp}_{_slug(subscription.topic)}.json"
+        try:
+            atomic_write_json(verification_path, verification)
+        except OSError as exc:
+            logger.error("Could not write claim verification for %s: %s", subscription.topic, exc)
+            return ClaimCompilationOutcome(cost=verification_cost, detail=f"claim verification artifact failed: {exc}")
+
+        verification_artifact = verification_path.relative_to(root).as_posix()
+        graph_commit = build_graph_commit_envelope(
+            claim_extraction,
+            verification,
+            claim_extraction_artifact=claim_extraction_artifact,
+            claim_verification_artifact=verification_artifact,
+            expert_name=self.expert.name,
+            domain=str(getattr(self.expert, "domain", "") or ""),
+            generated_at=started_at.isoformat(),
+        )
+        graph_dir = root / "sync_artifacts" / "graph_commit_envelopes"
+        graph_dir.mkdir(parents=True, exist_ok=True)
+        graph_path = graph_dir / f"{timestamp}_{_slug(subscription.topic)}.json"
+        try:
+            atomic_write_json(graph_path, graph_commit)
+        except OSError as exc:
+            logger.error("Could not write graph commit envelope for %s: %s", subscription.topic, exc)
+            return ClaimCompilationOutcome(
+                claim_verification_artifact=verification_artifact,
+                cost=verification_cost,
+                detail=f"graph commit envelope artifact failed: {exc}",
+            )
+
+        detail = ""
+        summary = verification.get("summary", {}) or {}
+        if summary.get("status") != "ready_for_commit_envelope":
+            reasons = ", ".join(summary.get("failure_reasons", []) or []) or "no ready decisions"
+            detail = f"claim verification {summary.get('status', 'blocked')}: {reasons}"
+        return ClaimCompilationOutcome(
+            claim_verification_artifact=verification_artifact,
+            graph_commit_envelope_artifact=graph_path.relative_to(root).as_posix(),
+            cost=verification_cost,
+            detail=detail,
+        )
 
     @staticmethod
     def _attach_source_pack_summary(
