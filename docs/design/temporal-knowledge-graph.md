@@ -59,7 +59,8 @@ typed *edges* are the unlock, typed *nodes* are speculative.
 4. **`explain_belief`.** CLI `deepr expert why NAME BELIEF` + MCP
    `deepr_explain_belief`: walk `supports`/`derived_from` edges to
    evidence roots, attach the confidence trajectory from the event log,
-   and list open `contradicts` edges. Depth-bounded, cycle-safe.
+   list open `contradicts` edges, and surface temporal edge qualifiers when
+   present. Depth-bounded, cycle-safe.
 5. **Read-only candidate recall.** A local recall contract now adapts beliefs
    and concepts into candidate items and returns `candidate_only` routing
    metadata. Supplied vectors use local cosine similarity; missing vectors can
@@ -129,6 +130,7 @@ it changes:
 ## Exit criteria
 
 `deepr expert why` answers with a real inference chain on a live expert;
-`what_changed` has no truncation caveat; recall returns verifier candidates
-without writes or model calls; `EXPERT.md` and digest regenerate byte-stable
-from the store; all migrations are covered by round-trip tests.
+`what_changed` has no truncation caveat and surfaces temporal edge qualifier
+summaries for changed beliefs; recall returns verifier candidates without
+writes or model calls; `EXPERT.md` and digest regenerate byte-stable from the
+store; all migrations are covered by round-trip tests.

@@ -150,6 +150,50 @@ class TestWhatChangedExactness:
         assert not m.applicable
 
 
+class TestTemporalEdgeQualifierVisibility:
+    def test_temporal_edge_qualifiers_are_visible_through_explanation(self, tmp_path):
+        store = _store(tmp_path)
+        source, _ = store.add_belief(_belief("Default apply is enabled"), check_conflicts=False)
+        target, _ = store.add_belief(_belief("Verified compiler emits graph commits"), check_conflicts=False)
+        temporal = {
+            "valid_from": "2026-06-01",
+            "valid_until": "2026-06-30",
+            "observed_at": "2026-06-29T00:00:00+00:00",
+            "temporal_scope": "June 2026",
+        }
+        store.add_edge(source.id, target.id, "derived_from", provenance="graph-commit", temporal_context=temporal)
+
+        m = _metric(measure_continuity(store), "temporal_edge_qualifier_visibility")
+
+        assert m.score == 1.0
+        assert m.detail["temporal_edges"] == 1
+        assert m.detail["visible_temporal_edges"] == 1
+        assert m.detail["missed_edges"] == []
+
+    def test_dangling_temporal_edge_qualifier_gap_is_caught(self, tmp_path):
+        store = _store(tmp_path)
+        temporal = {"valid_from": "2026-06-01"}
+        edge = Edge(src_id="missing-a", dst_id="missing-b", edge_type="supports", temporal_contexts=[temporal])
+        store.edges[edge.key()] = edge
+
+        m = _metric(measure_continuity(store), "temporal_edge_qualifier_visibility")
+
+        assert m.score == 0.0
+        assert m.detail["temporal_edges"] == 1
+        assert m.detail["visible_temporal_edges"] == 0
+        assert m.detail["missed_edges"] == ["missing-a->missing-b:supports"]
+
+    def test_not_applicable_without_temporal_edge_qualifiers(self, tmp_path):
+        store = _store(tmp_path)
+        source, _ = store.add_belief(_belief("A"), check_conflicts=False)
+        target, _ = store.add_belief(_belief("B"), check_conflicts=False)
+        store.add_edge(source.id, target.id, "supports", provenance="graph-commit")
+
+        m = _metric(measure_continuity(store), "temporal_edge_qualifier_visibility")
+
+        assert not m.applicable
+
+
 class TestReport:
     def test_empty_store_has_no_applicable_metrics(self, tmp_path):
         report = measure_continuity(_store(tmp_path))
@@ -186,6 +230,6 @@ class TestReport:
         d = measure_continuity(store, expert_name="Named").to_dict()
         assert d["expert_name"] == "Named"
         assert "overall" in d
-        assert len(d["metrics"]) == 4
+        assert len(d["metrics"]) == 5
         for metric in d["metrics"]:
             assert metric["status"] in ("measured", "not_applicable")

@@ -122,6 +122,37 @@ class TestWhatChanged:
         assert d["window_truncated"] is False
         assert d["added"][0]["claim"] == "Serializable"
 
+    def test_current_snapshot_surfaces_temporal_edge_qualifiers(self, tmp_path):
+        store = _store(tmp_path)
+        since = datetime.now(UTC) - timedelta(minutes=1)
+        source, _ = store.add_belief(_belief("Default apply is enabled"), check_conflicts=False)
+        target, _ = store.add_belief(_belief("Verified compiler emits graph commits"), check_conflicts=False)
+        temporal = {
+            "valid_from": "2026-06-01",
+            "valid_until": "2026-06-30",
+            "observed_at": "2026-06-29T00:00:00+00:00",
+            "temporal_scope": "June 2026",
+        }
+        store.add_edge(source.id, target.id, "derived_from", provenance="graph-commit", temporal_context=temporal)
+
+        delta = what_changed(store, since)
+
+        by_claim = {entry["claim"]: entry["current"] for entry in delta.added}
+        temporal_edges = by_claim["Default apply is enabled"]["temporal_edges"]
+        assert temporal_edges == [
+            {
+                "edge_type": "derived_from",
+                "source_belief_id": source.id,
+                "target_belief_id": target.id,
+                "other_belief_id": target.id,
+                "other_claim": "Verified compiler emits graph commits",
+                "other_confidence": 0.6,
+                "status": "open",
+                "provenance": ["graph-commit"],
+                "temporal_contexts": [temporal],
+            }
+        ]
+
 
 class TestContested:
     def test_no_conflicts_empty(self, tmp_path):
@@ -405,6 +436,36 @@ class TestExplainBelief:
         assert ids == {b.id, c.id}  # cycle does not duplicate or recurse forever
         hops = {e["belief_id"]: e["hops"] for e in deep.supports}
         assert hops[b.id] == 1
+
+    def test_explanation_edges_surface_temporal_qualifiers(self, tmp_path):
+        from deepr.experts.perspective import explain_belief
+
+        store = _store(tmp_path)
+        source, _ = store.add_belief(_belief("Default apply is enabled"), check_conflicts=False)
+        target, _ = store.add_belief(_belief("Verified compiler emits graph commits"), check_conflicts=False)
+        temporal = {
+            "valid_from": "2026-06-01",
+            "valid_until": "2026-06-30",
+            "observed_at": "2026-06-29T00:00:00+00:00",
+            "temporal_scope": "June 2026",
+        }
+        store.add_edge(source.id, target.id, "derived_from", provenance="graph-commit", temporal_context=temporal)
+
+        result = explain_belief(store, source.id)
+
+        assert result.derived_from == [
+            {
+                "edge_type": "derived_from",
+                "belief_id": target.id,
+                "claim": "Verified compiler emits graph commits",
+                "confidence": 0.6,
+                "evidence_refs": [],
+                "provenance": ["graph-commit"],
+                "hops": 1,
+                "temporal_contexts": [temporal],
+            }
+        ]
+        assert result.belief["temporal_edges"][0]["temporal_contexts"] == [temporal]
 
     def test_contradictions_are_direct_neighbors_with_status(self, tmp_path):
         from deepr.experts.perspective import explain_belief

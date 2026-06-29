@@ -19,6 +19,9 @@ state, at $0 (no LLM, no network):
 - **what-changed exactness** - the event-log replay reproduces the true
   mutation history with no loss; legacy bounded-window stores report their
   truncation honestly rather than claiming completeness.
+- **temporal edge qualifier visibility** - every stored temporal edge qualifier
+  is visible through the read-side explanation surface instead of being hidden
+  in the backing store.
 
 Each metric carries its own ground truth derived *independently* of the
 surface it scores (time-based vs confidence-based; recorded edges vs the
@@ -40,12 +43,14 @@ from typing import Any
 
 from deepr.experts.beliefs import Belief, BeliefStore
 from deepr.experts.perspective import contested as _contested
+from deepr.experts.perspective import explain_belief as _explain_belief
 from deepr.experts.perspective import what_changed as _what_changed
 
 # Bump on any change to how a metric is computed, so stored runs stay
 # comparable (the roadmap's "methodology versioning for run comparability").
 # 1.0: initial four continuity properties.
-CONTINUITY_METHODOLOGY_VERSION = "1.0"
+# 1.1: add temporal edge qualifier visibility.
+CONTINUITY_METHODOLOGY_VERSION = "1.1"
 
 # A belief carrying no source provenance must not read as more than
 # abstention-level confidence - this is the tertiary single-source trust
@@ -304,6 +309,75 @@ def _what_changed_exactness(store: BeliefStore) -> MetricResult:
     )
 
 
+def _explanation_edges_for(
+    edge_id: str, store: BeliefStore, cache: dict[str, list[dict[str, Any]]]
+) -> list[dict[str, Any]]:
+    if edge_id in cache:
+        return cache[edge_id]
+    explanation = _explain_belief(store, edge_id)
+    if explanation is None:
+        cache[edge_id] = []
+    else:
+        cache[edge_id] = [*explanation.supports, *explanation.derived_from, *explanation.contradicts]
+    return cache[edge_id]
+
+
+def _temporal_edge_key(src_id: str, dst_id: str, edge_type: str) -> str:
+    return f"{src_id}->{dst_id}:{edge_type}"
+
+
+def _temporal_edge_visible(
+    store: BeliefStore,
+    cache: dict[str, list[dict[str, Any]]],
+    src_id: str,
+    dst_id: str,
+    edge_type: str,
+    contexts: list[dict[str, str]],
+) -> bool:
+    for entry in [*_explanation_edges_for(src_id, store, cache), *_explanation_edges_for(dst_id, store, cache)]:
+        if entry.get("belief_id") not in {src_id, dst_id}:
+            continue
+        if entry.get("edge_type") != edge_type:
+            continue
+        if entry.get("temporal_contexts") == contexts:
+            return True
+    return False
+
+
+def _temporal_edge_qualifier_visibility(store: BeliefStore) -> MetricResult:
+    """Are stored temporal edge qualifiers visible through read-side queries?
+
+    Ground truth: typed belief edges that carry temporal contexts. Report: the
+    `explain_belief` edge entries for each endpoint. This guards the newest
+    graph-commit write path against producing metadata that can be written but
+    not inspected by host agents.
+    """
+    temporal_edges = [edge for edge in store.edges.values() if edge.temporal_contexts]
+    if not temporal_edges:
+        return MetricResult("temporal_edge_qualifier_visibility", None, 0, {"reason": "no temporal edge qualifiers"})
+
+    visible = 0
+    missed: list[str] = []
+    explanation_cache: dict[str, list[dict[str, Any]]] = {}
+    for edge in temporal_edges:
+        contexts = [dict(context) for context in edge.temporal_contexts]
+        if _temporal_edge_visible(store, explanation_cache, edge.src_id, edge.dst_id, edge.edge_type, contexts):
+            visible += 1
+        else:
+            missed.append(_temporal_edge_key(edge.src_id, edge.dst_id, edge.edge_type))
+
+    return MetricResult(
+        "temporal_edge_qualifier_visibility",
+        visible / len(temporal_edges),
+        len(temporal_edges),
+        {
+            "temporal_edges": len(temporal_edges),
+            "visible_temporal_edges": visible,
+            "missed_edges": sorted(missed),
+        },
+    )
+
+
 def measure_continuity(
     store: BeliefStore,
     *,
@@ -328,5 +402,6 @@ def measure_continuity(
         _abstention_correctness(store),
         _contradiction_surfacing(store),
         _what_changed_exactness(store),
+        _temporal_edge_qualifier_visibility(store),
     ]
     return ContinuityReport(expert_name=expert_name or store.expert_name, metrics=metrics)

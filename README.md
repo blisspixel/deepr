@@ -188,6 +188,11 @@ recorded. Use `--stage-compiled-claims` with `--compile-claims` when you need
 the old no-write staging behavior; `--apply-compiled-claims` remains a
 compatibility alias for the default apply behavior.
 
+Read-side perspective deltas and belief explanations now surface those
+temporal edge qualifiers as structured `temporal_edges` /
+`temporal_contexts`, and `deepr eval continuity` checks that stored temporal
+edge qualifiers are inspectable through the `$0` read surface.
+
 `deepr eval consult` runs a `$0` consult harness suite. It checks structural
 contracts for expert routing, context packets, collaboration metadata,
 no-metered capacity posture, dissent preservation, replayable traces, and
