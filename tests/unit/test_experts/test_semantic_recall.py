@@ -4,7 +4,10 @@ from __future__ import annotations
 
 from unittest.mock import patch
 
+import pytest
+
 from deepr.core.contracts import ExpertOriginalIdea
+from deepr.experts.belief_embedding_refresh import refresh_missing_belief_embeddings
 from deepr.experts.belief_vector_index import BELIEF_VECTOR_INDEX_SCHEMA_VERSION, BeliefVectorIndex
 from deepr.experts.beliefs import Belief, BeliefStore
 from deepr.experts.lazy_graph_rag import Concept
@@ -159,6 +162,106 @@ def test_archive_prunes_belief_vector_index(tmp_path):
     assert change is not None
     assert BeliefVectorIndex.for_belief_store(store.storage_dir).records == {}
     assert store.belief_embedding_stats(embedding_model="local-test")["record_count"] == 0
+
+
+@pytest.mark.asyncio
+async def test_refresh_missing_belief_embeddings_blocks_over_budget(tmp_path):
+    store = _store(tmp_path)
+    belief, _ = store.add_belief(
+        Belief(
+            claim="Embedding refresh must block before spend.",
+            confidence=0.8,
+            domain="memory",
+        )
+    )
+    calls: list[list[str]] = []
+
+    async def embed_claims(claims: list[str]) -> list[list[float]]:
+        calls.append(claims)
+        return [[1.0, 0.0]]
+
+    result = await refresh_missing_belief_embeddings(
+        store,
+        embed_claims,
+        model="metered-test",
+        budget_usd=0.0,
+        estimated_cost_per_belief=0.01,
+    )
+
+    assert result.status == "blocked"
+    assert result.requested_count == 1
+    assert result.skipped_belief_ids == (belief.id,)
+    assert "exceeds budget" in result.blocked_reason
+    assert calls == []
+    assert store.missing_belief_embedding_ids(embedding_model="metered-test") == [belief.id]
+
+
+@pytest.mark.asyncio
+async def test_refresh_missing_belief_embeddings_indexes_zero_cost_vectors(tmp_path):
+    store = _store(tmp_path)
+    first, _ = store.add_belief(
+        Belief(
+            claim="GPU constraints affect deployment timing.",
+            confidence=0.8,
+            domain="memory",
+        )
+    )
+    second, _ = store.add_belief(
+        Belief(
+            claim="Compliance retention changes audit effort.",
+            confidence=0.8,
+            domain="memory",
+        )
+    )
+
+    def embed_claims(claims: list[str]) -> list[list[float]]:
+        assert claims == [first.claim, second.claim]
+        return [[1.0, 0.0], [0.0, 1.0]]
+
+    result = await refresh_missing_belief_embeddings(
+        store,
+        embed_claims,
+        model="local-test",
+        metadata={"source": "unit-test"},
+    )
+
+    assert result.status == "indexed"
+    assert result.indexed_belief_ids == (first.id, second.id)
+    assert result.estimated_cost_usd == 0.0
+    assert store.missing_belief_embedding_ids(embedding_model="local-test") == []
+    assert (
+        store.recall_belief_candidates(
+            "deployment bottleneck",
+            query_embedding=[0.99, 0.01],
+            embedding_model="local-test",
+            include_lexical_fallback=False,
+            top_k=1,
+        )[0].item_id
+        == first.id
+    )
+
+
+@pytest.mark.asyncio
+async def test_refresh_missing_belief_embeddings_fails_closed_on_count_mismatch(tmp_path):
+    store = _store(tmp_path)
+    belief, _ = store.add_belief(
+        Belief(
+            claim="Embedding count mismatch should not write.",
+            confidence=0.8,
+            domain="memory",
+        )
+    )
+
+    result = await refresh_missing_belief_embeddings(
+        store,
+        lambda _claims: [],
+        model="local-test",
+    )
+
+    assert result.status == "blocked"
+    assert "different number" in result.blocked_reason
+    assert BeliefVectorIndex.for_belief_store(store.storage_dir).records == {}
+    assert result.skipped_belief_ids == (belief.id,)
 
 
 def test_lexical_fallback_is_labeled_as_router_only(tmp_path):
