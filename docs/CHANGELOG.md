@@ -14,6 +14,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   envelope through the existing idempotent apply service, records a
   `graph_commit_apply_results` sidecar, and updates cadence only after an
   applied or already-applied result.
+- Hardened sync-side graph-commit apply with an injectable metacognition
+  tracker and regression coverage for verified knowledge-gap promotions, so the
+  opt-in sync path covers both factual belief writes and gap-backlog writes.
 - Added concrete budget-gated claim verification for `expert sync
   --compile-claims`. Local, explicit plan-quota, and metered API sync paths now
   inject a `SemanticClaimVerifier` alongside extraction, include read-only

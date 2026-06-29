@@ -20,7 +20,6 @@ from __future__ import annotations
 
 import json
 import logging
-import re
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
 from datetime import UTC, datetime, timedelta
@@ -29,6 +28,17 @@ from typing import TYPE_CHECKING, Any, Protocol
 
 from deepr.experts.beliefs import BeliefStore
 from deepr.experts.perspective import what_changed
+from deepr.experts.sync_support import (
+    NO_CHANGES_MARKER,
+    fresh_context_has_no_sources,
+    is_no_changes_answer,
+    model_metadata,
+    nonnegative_float,
+    slug,
+    source_pack_content_hashes,
+    source_pack_from_research,
+    source_pack_summary,
+)
 from deepr.utils.atomic_io import atomic_write_json
 
 if TYPE_CHECKING:
@@ -36,9 +46,7 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
-# A research answer that opens with this marker is treated as "nothing new"
-# and skips the (paid) absorb extraction entirely.
-_NO_CHANGES_MARKER = "no significant changes"
+_NO_CHANGES_MARKER = NO_CHANGES_MARKER
 
 # Default per-subscription research budget when none is set.
 DEFAULT_SUBSCRIPTION_BUDGET = 0.50
@@ -80,88 +88,6 @@ class ClaimVerificationService(Protocol):
     ) -> dict[str, Any]: ...
 
 
-def _slug(text: str) -> str:
-    return re.sub(r"[^a-z0-9]+", "-", text.lower()).strip("-")[:48] or "topic"
-
-
-def _is_no_changes_answer(answer: str) -> bool:
-    """True when the model returned the instructed no-change marker.
-
-    Vendor CLIs sometimes wrap short answers in Markdown emphasis or code ticks.
-    This strips only formatting wrappers and punctuation around the first line,
-    then compares the exact marker. It is a form guard, not a semantic verdict.
-    """
-    first_line = (answer or "").strip().splitlines()[0] if (answer or "").strip() else ""
-    normalized = first_line.lower()
-    normalized = normalized.replace("*", "").replace("_", "").replace("`", "").replace("~", "")
-    normalized = re.sub(r"\s+", " ", normalized).strip(" .!:;")
-    return normalized == _NO_CHANGES_MARKER
-
-
-def _fresh_context_has_no_sources(research: dict[str, Any]) -> bool:
-    metadata = research.get("fresh_context")
-    if not isinstance(metadata, dict):
-        return False
-    return metadata.get("source_count") == 0
-
-
-def _source_pack_from_research(research: dict[str, Any]) -> dict[str, Any] | None:
-    source_pack = research.get("source_pack")
-    if isinstance(source_pack, dict):
-        return dict(source_pack)
-
-    metadata = research.get("fresh_context")
-    if not isinstance(metadata, dict):
-        return None
-    return {
-        "schema_version": "deepr.source_pack.v1",
-        "metadata_only": True,
-        "mode": metadata.get("mode", "fresh"),
-        "generated_at": metadata.get("generated_at"),
-        "search_backend": metadata.get("search_backend"),
-        "browser_backend": metadata.get("browser_backend"),
-        "source_count": metadata.get("source_count", 0),
-        "retrieved_source_count": metadata.get("retrieved_source_count", 0),
-        "search_queries": metadata.get("search_queries", []),
-        "sources": metadata.get("sources", []),
-        "errors": metadata.get("errors", []),
-    }
-
-
-def _source_pack_summary(source_pack: dict[str, Any]) -> tuple[int, str]:
-    source_count = int(source_pack.get("source_count", 0) or 0)
-    mode = str(source_pack.get("mode", "") or "")
-    return source_count, mode
-
-
-def _nonnegative_float(value: Any) -> float:
-    try:
-        parsed = float(value or 0.0)
-    except (TypeError, ValueError):
-        return 0.0
-    return max(0.0, parsed)
-
-
-def _model_metadata(model_output: dict[str, Any], key: str) -> str:
-    contract = model_output.get("contract", {})
-    if isinstance(contract, dict) and contract.get(key):
-        return str(contract.get(key) or "")
-    return str(model_output.get(key, "") or "")
-
-
-def _source_pack_content_hashes(source_pack: dict[str, Any] | None) -> set[str]:
-    """Non-empty SHA-256 content hashes of the fetched sources in a pack."""
-    if not isinstance(source_pack, dict):
-        return set()
-    hashes: set[str] = set()
-    for source in source_pack.get("sources", []):
-        if isinstance(source, dict):
-            digest = source.get("content_hash")
-            if isinstance(digest, str) and digest:
-                hashes.add(digest)
-    return hashes
-
-
 def fresh_sources_unchanged(prior: dict[str, Any] | None, current: dict[str, Any] | None) -> bool:
     """Whether the current retrieval adds no new content versus the prior sync.
 
@@ -174,10 +100,10 @@ def fresh_sources_unchanged(prior: dict[str, Any] | None, current: dict[str, Any
     backstop for semantic no-ops the hash cannot see. See
     docs/design/change-detection-gate.md.
     """
-    current_hashes = _source_pack_content_hashes(current)
+    current_hashes = source_pack_content_hashes(current)
     if not current_hashes:
         return False
-    prior_hashes = _source_pack_content_hashes(prior)
+    prior_hashes = source_pack_content_hashes(prior)
     if not prior_hashes:
         return False
     return current_hashes <= prior_hashes
@@ -356,6 +282,7 @@ class ExpertSyncEngine:
         absorber: Any | None = None,
         claim_extractor: ClaimExtractionService | None = None,
         claim_verifier: ClaimVerificationService | None = None,
+        metacognition_tracker: Any | None = None,
     ) -> None:
         self.expert = expert
         self._research_fn = research_fn
@@ -364,6 +291,7 @@ class ExpertSyncEngine:
         self._absorber = absorber
         self._claim_extractor = claim_extractor
         self._claim_verifier = claim_verifier
+        self._metacognition_tracker = metacognition_tracker
 
     # ------------------------------------------------------------------ #
     # Defaults (built lazily so tests never touch providers)
@@ -381,6 +309,13 @@ class ExpertSyncEngine:
 
             self._absorber = ReportAbsorber(self.expert, belief_store=self.belief_store)
         return self._absorber
+
+    def _get_metacognition_tracker(self) -> Any:
+        if self._metacognition_tracker is None:
+            from deepr.experts.metacognition import MetaCognitionTracker
+
+            self._metacognition_tracker = MetaCognitionTracker(self.expert.name)
+        return self._metacognition_tracker
 
     # ------------------------------------------------------------------ #
     # The freshness prompt
@@ -491,7 +426,7 @@ class ExpertSyncEngine:
 
         cost = float(research.get("cost", 0.0) or 0.0)
         answer = (research.get("answer") or "").strip()
-        current_pack = _source_pack_from_research(research)
+        current_pack = source_pack_from_research(research)
         source_pack_path, source_pack_manifest_path, source_note_path, source_count, context_mode = (
             self._persist_source_pack(
                 subscription,
@@ -512,7 +447,7 @@ class ExpertSyncEngine:
                 cost,
             )
 
-        if _fresh_context_has_no_sources(research):
+        if fresh_context_has_no_sources(research):
             outcome = self._record_no_changes(
                 subscription,
                 cost,
@@ -534,7 +469,7 @@ class ExpertSyncEngine:
             )
             return outcome, cost
 
-        if not answer or _is_no_changes_answer(answer):
+        if not answer or is_no_changes_answer(answer):
             outcome = self._record_no_changes(subscription, cost)
             self._attach_source_pack_summary(
                 outcome, source_pack_path, source_pack_manifest_path, source_note_path, source_count, context_mode
@@ -588,7 +523,7 @@ class ExpertSyncEngine:
         if source_pack is None:
             return "", "", "", 0, ""
 
-        source_count, context_mode = _source_pack_summary(source_pack)
+        source_count, context_mode = source_pack_summary(source_pack)
         try:
             path, manifest_path, source_note_path = self._write_source_pack_artifact(
                 subscription, source_pack, started_at
@@ -609,7 +544,7 @@ class ExpertSyncEngine:
         artifact_dir = self.subscriptions.path.parent / "sync_artifacts" / "source_packs"
         if not artifact_dir.is_dir():
             return None
-        candidates = sorted(artifact_dir.glob(f"*_{_slug(subscription.topic)}.json"))
+        candidates = sorted(artifact_dir.glob(f"*_{slug(subscription.topic)}.json"))
         if not candidates:
             return None
         try:
@@ -636,9 +571,9 @@ class ExpertSyncEngine:
         manifest_dir.mkdir(parents=True, exist_ok=True)
         source_note_dir.mkdir(parents=True, exist_ok=True)
         timestamp = started_at.strftime("%Y%m%dT%H%M%S%fZ")
-        path = artifact_dir / f"{timestamp}_{_slug(subscription.topic)}.json"
-        manifest_path = manifest_dir / f"{timestamp}_{_slug(subscription.topic)}.json"
-        source_note_path = source_note_dir / f"{timestamp}_{_slug(subscription.topic)}.json"
+        path = artifact_dir / f"{timestamp}_{slug(subscription.topic)}.json"
+        manifest_path = manifest_dir / f"{timestamp}_{slug(subscription.topic)}.json"
+        source_note_path = source_note_dir / f"{timestamp}_{slug(subscription.topic)}.json"
         payload = {
             "schema_version": "deepr.sync_source_pack.v1",
             "expert_name": self.expert.name,
@@ -691,7 +626,7 @@ class ExpertSyncEngine:
                 source_pack_payload,
                 source_note_artifact=source_note_artifact,
                 budget_usd=budget,
-                session_id=f"sync:{self.expert.name}:{_slug(subscription.topic)}",
+                session_id=f"sync:{self.expert.name}:{slug(subscription.topic)}",
                 generated_at=started_at.isoformat(),
             )
         except Exception as exc:
@@ -701,12 +636,12 @@ class ExpertSyncEngine:
             logger.warning("Claim extraction %s for %s: %s", reason, subscription.topic, exc)
             return ClaimCompilationOutcome(detail=f"claim extraction {reason}: {exc}")
 
-        extraction_cost = _nonnegative_float((extraction.get("contract", {}) or {}).get("cost_usd", 0.0))
+        extraction_cost = nonnegative_float((extraction.get("contract", {}) or {}).get("cost_usd", 0.0))
         root = self.subscriptions.path.parent
         artifact_dir = root / "sync_artifacts" / "claim_extractions"
         artifact_dir.mkdir(parents=True, exist_ok=True)
         timestamp = started_at.strftime("%Y%m%dT%H%M%S%fZ")
-        artifact_path = artifact_dir / f"{timestamp}_{_slug(subscription.topic)}.json"
+        artifact_path = artifact_dir / f"{timestamp}_{slug(subscription.topic)}.json"
         try:
             atomic_write_json(artifact_path, extraction)
         except OSError as exc:
@@ -756,7 +691,7 @@ class ExpertSyncEngine:
                 claim_extraction_artifact=claim_extraction_artifact,
                 source_note_artifact=source_note_artifact,
                 budget_usd=budget,
-                session_id=f"verify:{self.expert.name}:{_slug(subscription.topic)}",
+                session_id=f"verify:{self.expert.name}:{slug(subscription.topic)}",
                 generated_at=started_at.isoformat(),
                 recall_belief_store=self.belief_store,
                 recall_domain=str(getattr(self.expert, "domain", "") or ""),
@@ -770,15 +705,15 @@ class ExpertSyncEngine:
         from deepr.experts.graph_commit_envelope import build_graph_commit_envelope
         from deepr.experts.source_pack_compiler import build_claim_verification
 
-        verification_cost = _nonnegative_float((model_output.get("contract", {}) or {}).get("cost_usd", 0.0))
+        verification_cost = nonnegative_float((model_output.get("contract", {}) or {}).get("cost_usd", 0.0))
         prompt_metadata = model_output.get("prompt", {}) if isinstance(model_output.get("prompt"), dict) else {}
         verification = build_claim_verification(
             claim_extraction,
             model_output,
             claim_extraction_artifact=claim_extraction_artifact,
-            provider=_model_metadata(model_output, "provider"),
-            model=_model_metadata(model_output, "model"),
-            capacity_source=_model_metadata(model_output, "capacity_source"),
+            provider=model_metadata(model_output, "provider"),
+            model=model_metadata(model_output, "model"),
+            capacity_source=model_metadata(model_output, "capacity_source"),
             cost_usd=verification_cost,
             prompt_ref=str(prompt_metadata.get("prompt_ref", "") or ""),
             prompt_hash=str(prompt_metadata.get("prompt_hash", "") or ""),
@@ -791,7 +726,7 @@ class ExpertSyncEngine:
         timestamp = started_at.strftime("%Y%m%dT%H%M%S%fZ")
         verification_dir = root / "sync_artifacts" / "claim_verifications"
         verification_dir.mkdir(parents=True, exist_ok=True)
-        verification_path = verification_dir / f"{timestamp}_{_slug(subscription.topic)}.json"
+        verification_path = verification_dir / f"{timestamp}_{slug(subscription.topic)}.json"
         try:
             atomic_write_json(verification_path, verification)
         except OSError as exc:
@@ -810,7 +745,7 @@ class ExpertSyncEngine:
         )
         graph_dir = root / "sync_artifacts" / "graph_commit_envelopes"
         graph_dir.mkdir(parents=True, exist_ok=True)
-        graph_path = graph_dir / f"{timestamp}_{_slug(subscription.topic)}.json"
+        graph_path = graph_dir / f"{timestamp}_{slug(subscription.topic)}.json"
         try:
             atomic_write_json(graph_path, graph_commit)
         except OSError as exc:
@@ -855,7 +790,6 @@ class ExpertSyncEngine:
         try:
             from deepr.experts.graph_commit_apply import apply_graph_commit_envelope
             from deepr.experts.loop_lock import expert_verb_lock
-            from deepr.experts.metacognition import MetaCognitionTracker
 
             with expert_verb_lock(self.expert.name, "graph-commit-apply") as acquired:
                 if not acquired:
@@ -869,7 +803,7 @@ class ExpertSyncEngine:
                 apply_result = apply_graph_commit_envelope(
                     graph_commit,
                     self.belief_store,
-                    gap_tracker=MetaCognitionTracker(self.expert.name),
+                    gap_tracker=self._get_metacognition_tracker(),
                     dry_run=False,
                     generated_at=started_at.isoformat(),
                 )
@@ -884,8 +818,8 @@ class ExpertSyncEngine:
 
         summary = apply_result.get("summary", {}) if isinstance(apply_result.get("summary"), dict) else {}
         status = str(summary.get("status", "blocked") or "blocked")
-        applied_writes = int(_nonnegative_float(summary.get("applied_write_count", 0)))
-        blocked_operations = int(_nonnegative_float(summary.get("blocked_operation_count", 0)))
+        applied_writes = int(nonnegative_float(summary.get("applied_write_count", 0)))
+        blocked_operations = int(nonnegative_float(summary.get("blocked_operation_count", 0)))
         detail = ""
         if status == "blocked":
             reasons = ", ".join(str(item) for item in summary.get("failure_reasons", []) or []) or "blocked"
@@ -921,7 +855,7 @@ class ExpertSyncEngine:
         apply_dir = root / "sync_artifacts" / "graph_commit_apply_results"
         apply_dir.mkdir(parents=True, exist_ok=True)
         timestamp = started_at.strftime("%Y%m%dT%H%M%S%fZ")
-        apply_path = apply_dir / f"{timestamp}_{_slug(subscription.topic)}.json"
+        apply_path = apply_dir / f"{timestamp}_{slug(subscription.topic)}.json"
         try:
             atomic_write_json(apply_path, apply_result)
         except OSError as exc:
@@ -976,7 +910,7 @@ class ExpertSyncEngine:
         started_at: datetime,
     ) -> SyncOutcome:
         try:
-            report_id = f"sync:{_slug(subscription.topic)}:{started_at.strftime('%Y%m%d')}"
+            report_id = f"sync:{slug(subscription.topic)}:{started_at.strftime('%Y%m%d')}"
             absorption = await self._get_absorber().absorb(
                 report_id,
                 answer,

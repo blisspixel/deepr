@@ -14,6 +14,7 @@ import pytest
 
 from deepr.experts import sync as sync_module
 from deepr.experts.beliefs import Belief, BeliefStore
+from deepr.experts.metacognition import MetaCognitionTracker
 from deepr.experts.report_absorber import ReportAbsorber
 from deepr.experts.source_pack_compiler import build_semantic_claim_extraction
 from deepr.experts.sync import (
@@ -136,6 +137,47 @@ class _FakeClaimExtractor:
         )
 
 
+_GAP_TOPIC = "What statistical signals should drive expert gap prioritization?"
+
+
+class _FakeGapClaimExtractor:
+    async def extract(
+        self,
+        source_notes,
+        source_pack_payload,
+        *,
+        source_note_artifact="",
+        budget_usd=0.0,
+        session_id="semantic_claim_extraction",
+        generated_at="",
+    ):
+        note = source_notes["notes"][0]
+        window = note["windows"][0]
+        return build_semantic_claim_extraction(
+            source_notes,
+            {
+                "claims": [
+                    {
+                        "statement": _GAP_TOPIC,
+                        "claim_kind": "knowledge_gap",
+                        "confidence": 0.72,
+                        "priority": 5,
+                        "expected_value": 0.9,
+                        "estimated_cost": 0.0,
+                        "questions": [_GAP_TOPIC],
+                        "source_refs": [{"note_id": note["note_id"], "window_id": window["window_id"]}],
+                    }
+                ]
+            },
+            source_note_artifact=source_note_artifact,
+            provider="local",
+            model="qwen",
+            capacity_source="local",
+            cost_usd=0.0,
+            generated_at=generated_at,
+        )
+
+
 class _FakeClaimVerifier:
     def __init__(self):
         self.calls: list[dict] = []
@@ -183,6 +225,44 @@ class _FakeClaimVerifier:
                     "temporal_scope_verdict": "valid",
                     "confidence": 0.91,
                     "rationale": "The cited source window supports the claim.",
+                }
+            ],
+        }
+
+
+class _FakeGapClaimVerifier:
+    async def verify(
+        self,
+        claim_extraction,
+        source_notes,
+        source_pack_payload,
+        *,
+        claim_extraction_artifact="",
+        source_note_artifact="",
+        budget_usd=0.0,
+        session_id="claim_verification",
+        generated_at="",
+        recall_belief_store=None,
+        recall_domain=None,
+    ):
+        return {
+            "contract": {
+                "provider": "local",
+                "model": "qwen",
+                "capacity_source": "local",
+                "cost_usd": 0.0,
+            },
+            "verifications": [
+                {
+                    "candidate_id": claim_extraction["candidates"][0]["candidate_id"],
+                    "support_verdict": "not_applicable",
+                    "contradiction_verdict": "none",
+                    "dedup_verdict": "new",
+                    "temporal_scope_verdict": "not_applicable",
+                    "origin": "The source note exposed an unresolved prioritization question.",
+                    "rationale": "The expert should retain the gap until a grounded scoring model exists.",
+                    "uncertainty": "The best statistical signal mix is not established by the cited source.",
+                    "confidence": 0.8,
                 }
             ],
         }
@@ -666,6 +746,44 @@ class TestSyncEngine:
         assert "graph commit apply failed: compiled graph commit envelope required" in outcome.detail
         assert store.subscriptions[0].last_synced is None
         assert beliefs.beliefs == {}
+
+    @pytest.mark.asyncio
+    async def test_sync_can_apply_compiled_knowledge_gap_with_injected_tracker(self, tmp_path):
+        store = _sub_store(tmp_path, Subscription(topic="Topic X", budget=0.5))
+        beliefs = BeliefStore("Sync Test Expert", storage_dir=tmp_path / "beliefs")
+        tracker = MetaCognitionTracker("Sync Test Expert", base_path=str(tmp_path / "experts"))
+        engine = ExpertSyncEngine(
+            _expert(),
+            research_fn=_topic_x_research_fn(_topic_x_source_pack()),
+            subscription_store=store,
+            belief_store=beliefs,
+            absorber=_FailingAbsorber(),
+            claim_extractor=_FakeGapClaimExtractor(),
+            claim_verifier=_FakeGapClaimVerifier(),
+            metacognition_tracker=tracker,
+        )
+
+        result = await engine.sync(budget=1.0, apply_graph_commits=True)
+
+        outcome = result.outcomes[0]
+        assert outcome.status == "synced"
+        assert outcome.absorbed == 1
+        assert outcome.graph_commit_apply_status == "applied"
+        assert outcome.graph_commit_apply_artifact.endswith("_topic-x.json")
+        assert beliefs.beliefs == {}
+        assert result.delta["total_changes"] == 0
+        assert _GAP_TOPIC in tracker.knowledge_gaps
+        assert tracker.knowledge_gaps[_GAP_TOPIC].times_asked == 1
+        assert tracker.uncertainty_log[-1]["candidate"]["priority"] == 5
+
+        graph_path = tmp_path / "knowledge" / outcome.graph_commit_envelope_artifact
+        graph_commit = json.loads(graph_path.read_text(encoding="utf-8"))
+        assert graph_commit["operations"][0]["operation"] == "promote_gap"
+
+        apply_path = tmp_path / "knowledge" / outcome.graph_commit_apply_artifact
+        apply_result = json.loads(apply_path.read_text(encoding="utf-8"))
+        assert apply_result["summary"]["status"] == "applied"
+        assert apply_result["operation_results"][0]["operation"] == "promote_gap"
 
     @pytest.mark.asyncio
     async def test_sync_invalid_claim_verifier_output_fails_closed_as_detail(self, tmp_path):
