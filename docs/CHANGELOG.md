@@ -8,6 +8,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- Added `deepr-expert-mutation-audit-v1`, an append-only
+  `mutation_audit.jsonl` record beside each expert belief store. Belief
+  creates, updates, revisions, archives, restores, contested writes, and
+  conflict-merge updates now record actor, operation, belief id, event hash,
+  and before/after state hashes without duplicating full claim text.
 - Added MCP `deepr_semantic_recall`, a confirmation-gated, read-only,
   cost-$0 host-agent surface over the same `candidate_only` belief recall
   contract. Host-facing payloads are sanitized, and indexed vector recall still
@@ -85,6 +90,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   compatibility alias for the default apply path.
 
 ### Fixed
+- Persisted and audited lower-confidence conflict evidence retained during
+  belief resolution while preserving the existing no-new-absorbed-change return
+  contract.
 - Hardened public-bind detection across A2A, MCP HTTP, Flask API, and the web
   dashboard. Empty or unset bind hosts are now treated as all-interface binds,
   not loopback, so unauthenticated public-bind guardrails cannot be bypassed by
