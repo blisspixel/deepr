@@ -427,6 +427,11 @@ def absorb_report(
     help="Also compile source-note claim candidates as a sidecar artifact; writes no beliefs",
 )
 @click.option(
+    "--apply-compiled-claims",
+    is_flag=True,
+    help="Apply verified compiled claim graph commits instead of legacy absorb; requires --compile-claims",
+)
+@click.option(
     "--checker-plan",
     type=click.Choice(PLAN_BACKEND_CHOICES),
     default=None,
@@ -468,6 +473,7 @@ def sync_cmd(
     plan_model: str | None,
     check_grounding: bool,
     compile_claims: bool,
+    apply_compiled_claims: bool,
     checker_plan: str | None,
     checker_plan_model: str | None,
     fresh_context: bool,
@@ -517,6 +523,12 @@ def sync_cmd(
         sys.exit(2)
     if jitter < 0:
         print_error("--jitter must be non-negative.")
+        sys.exit(2)
+    if apply_compiled_claims and not compile_claims:
+        print_error("--apply-compiled-claims requires --compile-claims.")
+        sys.exit(2)
+    if apply_compiled_claims and dry_run:
+        print_error("--apply-compiled-claims cannot be combined with --dry-run.")
         sys.exit(2)
 
     from deepr.experts.profile import ExpertStore
@@ -660,6 +672,8 @@ def sync_cmd(
             extras.append("grounding checks")
         if compile_claims:
             extras.append("claim compilation")
+        if apply_compiled_claims:
+            extras.append("graph commit apply")
         check_note = f" with {' and '.join(extras)}" if extras else ""
         if use_local:
             prompt = f"Sync {len(targets)} topic(s){check_note} on the local model at $0?"
@@ -714,6 +728,7 @@ def sync_cmd(
         context_builder=context_builder,
         grounding_checker=grounding_checker,
         compile_claims=compile_claims,
+        apply_graph_commits=apply_compiled_claims,
     )
 
     if json_output:
@@ -734,7 +749,10 @@ def sync_cmd(
         }.get(o.status, o.status)
         line = f"  {marker}  {o.topic}"
         if o.status == "synced":
-            line += f"  [dim](+{o.absorbed} beliefs, {o.flagged} contested, ${o.cost:.3f})[/dim]"
+            if o.graph_commit_apply_status:
+                line += f"  [dim](graph apply {o.graph_commit_apply_status}, {o.absorbed} writes, ${o.cost:.3f})[/dim]"
+            else:
+                line += f"  [dim](+{o.absorbed} beliefs, {o.flagged} contested, ${o.cost:.3f})[/dim]"
         elif o.detail:
             line += f"  [dim]{o.detail[:90]}[/dim]"
         if o.source_pack_artifact:

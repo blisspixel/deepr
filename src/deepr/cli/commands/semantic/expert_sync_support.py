@@ -64,6 +64,10 @@ def _source_note_run_context(result: Any) -> dict[str, Any]:
         graph_commit_envelope_artifact = str(getattr(outcome, "graph_commit_envelope_artifact", "") or "")
         if graph_commit_envelope_artifact:
             artifact["graph_commit_envelope_artifact"] = graph_commit_envelope_artifact
+        graph_commit_apply_artifact = str(getattr(outcome, "graph_commit_apply_artifact", "") or "")
+        if graph_commit_apply_artifact:
+            artifact["graph_commit_apply_artifact"] = graph_commit_apply_artifact
+            artifact["graph_commit_apply_status"] = str(getattr(outcome, "graph_commit_apply_status", "") or "")
         artifacts.append(artifact)
     if not artifacts:
         return {}
@@ -331,6 +335,7 @@ def _run_sync_with_loop_guard(
     context_builder: Any,
     grounding_checker: Any | None = None,
     compile_claims: bool = False,
+    apply_graph_commits: bool = False,
 ) -> tuple[Any, Any | None, str]:
     from deepr.experts.maintenance_engine import build_sync_engine
 
@@ -346,7 +351,14 @@ def _run_sync_with_loop_guard(
             grounding_checker=grounding_checker,
             compile_claims=compile_claims,
         )
-        result = asyncio.run(engine.sync(budget=budget, only_due=not sync_all, dry_run=dry_run))
+        result = asyncio.run(
+            engine.sync(
+                budget=budget,
+                only_due=not sync_all,
+                dry_run=dry_run,
+                apply_graph_commits=apply_graph_commits,
+            )
+        )
         return result, capacity_source
 
     if dry_run:

@@ -282,6 +282,8 @@ class SyncOutcome:
     claim_extraction_artifact: str = ""
     claim_verification_artifact: str = ""
     graph_commit_envelope_artifact: str = ""
+    graph_commit_apply_artifact: str = ""
+    graph_commit_apply_status: str = ""
     source_count: int = 0
     context_mode: str = ""
 
@@ -299,6 +301,8 @@ class SyncOutcome:
             "claim_extraction_artifact": self.claim_extraction_artifact,
             "claim_verification_artifact": self.claim_verification_artifact,
             "graph_commit_envelope_artifact": self.graph_commit_envelope_artifact,
+            "graph_commit_apply_artifact": self.graph_commit_apply_artifact,
+            "graph_commit_apply_status": self.graph_commit_apply_status,
             "source_count": self.source_count,
             "context_mode": self.context_mode,
         }
@@ -309,6 +313,7 @@ class ClaimCompilationOutcome:
     claim_extraction_artifact: str = ""
     claim_verification_artifact: str = ""
     graph_commit_envelope_artifact: str = ""
+    graph_commit_envelope: dict[str, Any] | None = None
     cost: float = 0.0
     detail: str = ""
 
@@ -415,13 +420,16 @@ class ExpertSyncEngine:
         budget: float = 2.0,
         only_due: bool = True,
         dry_run: bool = False,
+        apply_graph_commits: bool = False,
     ) -> SyncResult:
-        """Run due subscriptions through research -> verified absorb -> delta.
+        """Run due subscriptions through research -> verified write boundary -> delta.
 
         Args:
             budget: Total ceiling for this run (per-topic budgets apply within it).
             only_due: Sync only subscriptions past their cadence window.
             dry_run: Report what would sync; no research, no spend, no writes.
+            apply_graph_commits: Apply compiled graph commit envelopes instead
+                of calling the legacy absorber. Requires injected claim services.
         """
         started_at = datetime.now(UTC)
         result = SyncResult(expert_name=self.expert.name, started_at=started_at)
@@ -437,6 +445,7 @@ class ExpertSyncEngine:
                 budget=min(sub.budget, remaining),
                 started_at=started_at,
                 dry_run=dry_run,
+                apply_graph_commits=apply_graph_commits,
             )
             remaining -= spent
             result.total_cost += spent
@@ -458,6 +467,7 @@ class ExpertSyncEngine:
         budget: float,
         started_at: datetime,
         dry_run: bool,
+        apply_graph_commits: bool,
     ) -> tuple[SyncOutcome, float]:
         if budget < MIN_PER_TOPIC_BUDGET:
             return SyncOutcome(subscription.topic, "skipped", detail=f"run budget exhausted (${budget:.2f} left)"), 0.0
@@ -539,16 +549,35 @@ class ExpertSyncEngine:
             started_at=started_at,
         )
         cost += claim_compile.cost
-        outcome = await self._absorb_sync_answer(subscription, answer, cost=cost, started_at=started_at)
+        outcome = await self._integrate_sync_answer(
+            subscription,
+            answer,
+            claim_compile,
+            cost=cost,
+            started_at=started_at,
+            apply_graph_commits=apply_graph_commits,
+        )
         self._attach_source_pack_summary(
             outcome, source_pack_path, source_pack_manifest_path, source_note_path, source_count, context_mode
         )
-        outcome.claim_extraction_artifact = claim_compile.claim_extraction_artifact
-        outcome.claim_verification_artifact = claim_compile.claim_verification_artifact
-        outcome.graph_commit_envelope_artifact = claim_compile.graph_commit_envelope_artifact
+        self._attach_claim_compilation_summary(outcome, claim_compile)
         if claim_compile.detail:
             outcome.detail = self._append_detail(outcome.detail, claim_compile.detail)
         return outcome, cost
+
+    async def _integrate_sync_answer(
+        self,
+        subscription: Subscription,
+        answer: str,
+        claim_compile: ClaimCompilationOutcome,
+        *,
+        cost: float,
+        started_at: datetime,
+        apply_graph_commits: bool,
+    ) -> SyncOutcome:
+        if apply_graph_commits:
+            return self._apply_compiled_graph_commit(subscription, claim_compile, cost=cost, started_at=started_at)
+        return await self._absorb_sync_answer(subscription, answer, cost=cost, started_at=started_at)
 
     def _persist_source_pack(
         self,
@@ -699,6 +728,7 @@ class ExpertSyncEngine:
             claim_extraction_artifact=extraction_artifact,
             claim_verification_artifact=verification.claim_verification_artifact,
             graph_commit_envelope_artifact=verification.graph_commit_envelope_artifact,
+            graph_commit_envelope=verification.graph_commit_envelope,
             cost=extraction_cost + verification.cost,
             detail=verification.detail,
         )
@@ -799,9 +829,105 @@ class ExpertSyncEngine:
         return ClaimCompilationOutcome(
             claim_verification_artifact=verification_artifact,
             graph_commit_envelope_artifact=graph_path.relative_to(root).as_posix(),
+            graph_commit_envelope=graph_commit,
             cost=verification_cost,
             detail=detail,
         )
+
+    def _apply_compiled_graph_commit(
+        self,
+        subscription: Subscription,
+        claim_compile: ClaimCompilationOutcome,
+        *,
+        cost: float,
+        started_at: datetime,
+    ) -> SyncOutcome:
+        graph_commit = claim_compile.graph_commit_envelope
+        if not claim_compile.graph_commit_envelope_artifact or not isinstance(graph_commit, dict):
+            return SyncOutcome(
+                subscription.topic,
+                "failed",
+                cost=cost,
+                detail="graph commit apply failed: compiled graph commit envelope required",
+                graph_commit_apply_status="blocked",
+            )
+
+        try:
+            from deepr.experts.graph_commit_apply import apply_graph_commit_envelope
+            from deepr.experts.loop_lock import expert_verb_lock
+            from deepr.experts.metacognition import MetaCognitionTracker
+
+            with expert_verb_lock(self.expert.name, "graph-commit-apply") as acquired:
+                if not acquired:
+                    return SyncOutcome(
+                        subscription.topic,
+                        "failed",
+                        cost=cost,
+                        detail="graph commit apply failed: another graph commit apply is already running",
+                        graph_commit_apply_status="blocked",
+                    )
+                apply_result = apply_graph_commit_envelope(
+                    graph_commit,
+                    self.belief_store,
+                    gap_tracker=MetaCognitionTracker(self.expert.name),
+                    dry_run=False,
+                    generated_at=started_at.isoformat(),
+                )
+        except Exception as exc:
+            return SyncOutcome(
+                subscription.topic,
+                "failed",
+                cost=cost,
+                detail=f"graph commit apply failed: {exc}",
+                graph_commit_apply_status="blocked",
+            )
+
+        summary = apply_result.get("summary", {}) if isinstance(apply_result.get("summary"), dict) else {}
+        status = str(summary.get("status", "blocked") or "blocked")
+        applied_writes = int(_nonnegative_float(summary.get("applied_write_count", 0)))
+        blocked_operations = int(_nonnegative_float(summary.get("blocked_operation_count", 0)))
+        detail = ""
+        if status == "blocked":
+            reasons = ", ".join(str(item) for item in summary.get("failure_reasons", []) or []) or "blocked"
+            detail = f"graph commit apply blocked: {reasons}"
+
+        apply_artifact = self._write_graph_commit_apply_artifact(subscription, apply_result, started_at)
+        if apply_artifact is None:
+            detail = self._append_detail(detail, "graph commit apply artifact failed")
+
+        sync_status = "synced" if status in {"applied", "already_applied"} else "failed"
+        if sync_status == "synced":
+            subscription.last_synced = datetime.now(UTC)
+            self.subscriptions.save()
+
+        return SyncOutcome(
+            subscription.topic,
+            sync_status,
+            cost=cost,
+            absorbed=applied_writes,
+            flagged=blocked_operations,
+            detail=detail,
+            graph_commit_apply_artifact=apply_artifact or "",
+            graph_commit_apply_status=status,
+        )
+
+    def _write_graph_commit_apply_artifact(
+        self,
+        subscription: Subscription,
+        apply_result: dict[str, Any],
+        started_at: datetime,
+    ) -> str | None:
+        root = self.subscriptions.path.parent
+        apply_dir = root / "sync_artifacts" / "graph_commit_apply_results"
+        apply_dir.mkdir(parents=True, exist_ok=True)
+        timestamp = started_at.strftime("%Y%m%dT%H%M%S%fZ")
+        apply_path = apply_dir / f"{timestamp}_{_slug(subscription.topic)}.json"
+        try:
+            atomic_write_json(apply_path, apply_result)
+        except OSError as exc:
+            logger.error("Could not write graph commit apply result for %s: %s", subscription.topic, exc)
+            return None
+        return apply_path.relative_to(root).as_posix()
 
     @staticmethod
     def _attach_source_pack_summary(
@@ -817,6 +943,12 @@ class ExpertSyncEngine:
         outcome.source_note_artifact = source_note_artifact_path
         outcome.source_count = source_count
         outcome.context_mode = context_mode
+
+    @staticmethod
+    def _attach_claim_compilation_summary(outcome: SyncOutcome, claim_compile: ClaimCompilationOutcome) -> None:
+        outcome.claim_extraction_artifact = claim_compile.claim_extraction_artifact
+        outcome.claim_verification_artifact = claim_compile.claim_verification_artifact
+        outcome.graph_commit_envelope_artifact = claim_compile.graph_commit_envelope_artifact
 
     @staticmethod
     def _append_detail(current: str, addition: str) -> str:
