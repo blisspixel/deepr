@@ -72,3 +72,48 @@ class TestDigest:
         events = store.iter_events()
         digest = build_digest(store)
         assert f"As of: {events[-1].timestamp.isoformat()}" in digest
+
+    def test_temporal_edge_qualifiers_are_rendered_from_store(self, tmp_path):
+        store = _store(tmp_path)
+        source, _ = store.add_belief(_belief("Compiled sync applies graph commits"), check_conflicts=False)
+        target, _ = store.add_belief(_belief("Graph commits can carry temporal edges"), check_conflicts=False)
+        store.add_edge(
+            source.id,
+            target.id,
+            "derived_from",
+            provenance="graph-commit",
+            temporal_context={
+                "valid_from": "2026-06-01T00:00:00+00:00",
+                "valid_until": "2026-06-30T00:00:00+00:00",
+                "observed_at": "2026-06-15T12:00:00+00:00",
+                "temporal_scope": "release-window",
+            },
+        )
+
+        digest = build_digest(store)
+
+        assert "## Temporal Edge Qualifiers" in digest
+        assert "These time-scoped relationships are derived from stored edge metadata" in digest
+        assert "`derived_from`" in digest
+        assert "Compiled sync applies graph commits" in digest
+        assert "Graph commits can carry temporal edges" in digest
+        assert "provenance: graph-commit" in digest
+        assert "valid 2026-06-01T00:00:00+00:00 to 2026-06-30T00:00:00+00:00" in digest
+        assert "observed 2026-06-15T12:00:00+00:00" in digest
+        assert "scope release-window" in digest
+
+    def test_temporal_edge_section_renders_missing_endpoint_honestly(self, tmp_path):
+        store = _store(tmp_path)
+        target, _ = store.add_belief(_belief("Known target"), check_conflicts=False)
+        store.add_edge(
+            "missing-belief",
+            target.id,
+            "supports",
+            temporal_context={"valid_from": "2026-06-01T00:00:00+00:00"},
+        )
+
+        digest = build_digest(store)
+
+        assert "[missing-belief] missing belief" in digest
+        assert "provenance: none" in digest
+        assert "valid 2026-06-01T00:00:00+00:00 to unknown" in digest

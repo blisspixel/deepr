@@ -73,13 +73,16 @@ typed *edges* are the unlock, typed *nodes* are speculative.
    creates contradiction edges or changes confidence. This is the Graphiti-style
    hybrid retrieval slot without letting retrieval become authority.
 7. **Regenerated digest and memory card.** A compile pass over beliefs + edges
-   + events emits browsable views as derived artifacts. The first card is
-   shipped as `deepr-expert-memory-card-v1`: `deepr expert memory-card NAME
-   --write` regenerates `EXPERT.md` from profile, manifest, belief events, and
-   self-model state. It includes identity policy, current stance, explicitly
-   tagged working theories and insights, self-research agenda, what would change
-   the expert's mind, and agency scope. The structured store is canonical; the
-   card and digest are disposable.
+   + events emits browsable views as derived artifacts. The digest now renders
+   temporal edge qualifiers in a dedicated derived section so valid time,
+   observed time, temporal scope, and provenance are inspectable without making
+   Markdown authoritative. The first card is shipped as
+   `deepr-expert-memory-card-v1`: `deepr expert memory-card NAME --write`
+   regenerates `EXPERT.md` from profile, manifest, belief events, and self-model
+   state. It includes identity policy, current stance, explicitly tagged working
+   theories and insights, self-research agenda, what would change the expert's
+   mind, and agency scope. The structured store is canonical; the card and
+   digest are disposable.
 
 ## Invariants
 
@@ -134,6 +137,8 @@ it changes:
 
 `deepr expert why` answers with a real inference chain on a live expert;
 `what_changed` has no truncation caveat and surfaces temporal edge qualifier
-summaries for changed beliefs; recall returns verifier candidates without
-writes or model calls; `EXPERT.md` and digest regenerate byte-stable from the
-store; all migrations are covered by round-trip tests.
+summaries for changed beliefs; `deepr_temporal_edges` filters temporal
+qualifiers by valid and observed time; the generated digest renders stored
+temporal qualifiers as derived view content; recall returns verifier candidates
+without writes or model calls; `EXPERT.md` and digest regenerate byte-stable
+from the store; all migrations are covered by round-trip tests.

@@ -706,7 +706,8 @@ deepr expert monitor "Azure Architect" --json
 deepr expert promote-monitor "Azure Architect" meta_abc123 --target gap
 deepr expert promote-monitor "Azure Architect" meta_abc123 --target gap --apply
 
-# Browsable derived view: beliefs by domain, conflicts surfaced, byte-stable
+# Browsable derived view: beliefs by domain, conflicts surfaced, temporal edge
+# qualifiers rendered, byte-stable
 deepr expert digest "Azure Architect" --print
 ```
 

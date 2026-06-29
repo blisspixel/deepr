@@ -8,6 +8,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- Added temporal edge qualifier rendering to regenerated expert digests.
+  `deepr expert digest` now surfaces stored valid time, observed time,
+  temporal scope, provenance, and missing-endpoint labels as derived view
+  content while keeping the belief store canonical.
 - Added MCP `deepr_temporal_edges`, a read-only, cost-$0 query over persisted
   typed-edge temporal qualifiers with `valid_at`, `observed_since`,
   `observed_until`, `edge_type`, `belief_ref`, and bounded `limit` filters.
