@@ -12,8 +12,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   can now store already-computed belief embeddings, ignore stale vectors when a
   claim changes, prune vectors when beliefs are archived, and route
   claim-verification candidates through indexed vector recall without provider
-  calls or graph writes. Embedding generation remains an explicit, budget-gated
-  caller responsibility.
+  calls or graph writes. The construction-side refresh helper can index missing
+  or stale belief embeddings through an injected embedder only after the caller
+  supplies an explicit budget estimate; embedding generation remains an
+  explicit, budget-gated caller responsibility.
 - Added temporal edge qualifier rendering to regenerated expert digests.
   `deepr expert digest` now surfaces stored valid time, observed time,
   temporal scope, provenance, and missing-endpoint labels as derived view
