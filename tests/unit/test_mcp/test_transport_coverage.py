@@ -222,7 +222,9 @@ class TestStdioServer:
 class TestHttpHelpers:
     def test_is_loopback_localhost(self):
         assert _is_loopback_host("localhost")
-        assert _is_loopback_host("")
+
+    def test_empty_host_is_not_loopback(self):
+        assert not _is_loopback_host("")
 
     def test_is_loopback_127(self):
         assert _is_loopback_host("127.0.0.1")
@@ -260,6 +262,12 @@ class TestStreamingHttpStart:
     @pytest.mark.asyncio
     async def test_refuses_public_bind_without_auth(self):
         t = StreamingHttpTransport(host="0.0.0.0")
+        with pytest.raises(RuntimeError, match="auth token"):
+            await t.start()
+
+    @pytest.mark.asyncio
+    async def test_refuses_empty_host_without_auth(self):
+        t = StreamingHttpTransport(host="")
         with pytest.raises(RuntimeError, match="auth token"):
             await t.start()
 

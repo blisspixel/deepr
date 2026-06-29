@@ -23,6 +23,7 @@ from deepr.api.middleware.rate_limiter import create_limiter, limit_job_status, 
 # The shared sync-to-async bridge (Phase Q1.3), aliased to the historical name
 # used throughout this module's request handlers.
 from deepr.utils.async_runner import run_async_command as run_async
+from deepr.utils.security import is_loopback_bind_host
 
 # Import rate limit constants for documentation
 
@@ -987,22 +988,12 @@ def get_cost_summary():
 
 
 if __name__ == "__main__":
-    import ipaddress as _ipaddress
-
     debug = os.getenv("DEEPR_DEBUG", "").lower() in ("1", "true", "yes")
     host = os.getenv("DEEPR_HOST", "127.0.0.1")
     port = int(os.getenv("DEEPR_PORT", "5000") or "5000")
     allow_public = os.getenv("DEEPR_ALLOW_PUBLIC_BIND", "").lower() in ("1", "true", "yes")
 
-    def _loopback(h: str) -> bool:
-        if h in ("localhost", ""):
-            return True
-        try:
-            return _ipaddress.ip_address(h).is_loopback
-        except ValueError:
-            return False
-
-    if not _loopback(host) and not _api_token and not allow_public:
+    if not is_loopback_bind_host(host) and not _api_token and not allow_public:
         import sys as _sys
 
         _sys.stderr.write(
@@ -1016,7 +1007,7 @@ if __name__ == "__main__":
     print(f"  Running on http://{host}:{port}")
     if debug:
         print("  WARNING: Debug mode enabled -- do not use in production")
-    if not _loopback(host) and not _api_token:
+    if not is_loopback_bind_host(host) and not _api_token:
         print("  WARNING: non-loopback bind without auth (DEEPR_ALLOW_PUBLIC_BIND is set)")
     print("=" * 70 + "\n")
     app.run(debug=debug, host=host, port=port)

@@ -29,6 +29,7 @@ from deepr.config import runtime_data_path
 # The shared sync-to-async bridge (Phase Q1.3), aliased to the historical name
 # used throughout this module's request handlers.
 from deepr.utils.async_runner import run_async_command as run_async
+from deepr.utils.security import is_loopback_bind_host
 from deepr.web.expert_loop_status_api import register_expert_read_apis
 
 load_dotenv()
@@ -3936,7 +3937,6 @@ _auto_load_demo()
 
 
 if __name__ == "__main__":
-    import ipaddress as _ipaddress
     import os as _os
     import sys as _sys
 
@@ -3945,15 +3945,7 @@ if __name__ == "__main__":
     port = int(_os.environ.get("DEEPR_PORT", "5000") or "5000")
     allow_public = _os.environ.get("DEEPR_ALLOW_PUBLIC_BIND", "").strip().lower() in ("1", "true", "yes")
 
-    def _is_loopback(h: str) -> bool:
-        if h in ("localhost", ""):
-            return True
-        try:
-            return _ipaddress.ip_address(h).is_loopback
-        except ValueError:
-            return False
-
-    if not _is_loopback(host) and not _API_KEY and not allow_public:
+    if not is_loopback_bind_host(host) and not _API_KEY and not allow_public:
         _sys.stderr.write(
             f"ERROR: refusing to bind '{host}' without DEEPR_API_KEY. The Flask web\n"
             "dashboard ships destructive APIs, provider-backed research, and ledger\n"
@@ -3970,12 +3962,12 @@ if __name__ == "__main__":
     # the operator must front the app with a real server (gunicorn+eventlet,
     # uvicorn workers, etc.) - we surface that requirement instead of
     # silently running the dev server on a reachable interface.
-    use_werkzeug = _is_loopback(host)
+    use_werkzeug = is_loopback_bind_host(host)
 
     print("\n" + "=" * 70)
     print("  Deepr Research Dashboard")
     print(f"  Running on http://{host}:{port}")
-    if not _is_loopback(host) and not _API_KEY:
+    if not is_loopback_bind_host(host) and not _API_KEY:
         print("  WARNING: binding non-loopback interface without DEEPR_API_KEY.")
         print("  Any reachable network peer can submit jobs and read reports.")
     if not use_werkzeug:

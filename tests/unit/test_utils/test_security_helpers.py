@@ -20,6 +20,7 @@ from deepr.utils.security import (
     PathTraversalError,
     SSRFError,
     is_blocked_ip,
+    is_loopback_bind_host,
     is_safe_url,
     resolve_all_ips,
     sanitize_log_message,
@@ -93,6 +94,23 @@ class TestIsBlockedIp:
 
     def test_allow_private_lets_private_through(self):
         assert not is_blocked_ip(ipaddress.ip_address("192.168.1.1"), allow_private=True)
+
+
+class TestIsLoopbackBindHost:
+    def test_loopback_bind_hosts_are_local(self):
+        assert is_loopback_bind_host("localhost")
+        assert is_loopback_bind_host("127.0.0.1")
+        assert is_loopback_bind_host("127.0.0.5")
+        assert is_loopback_bind_host("::1")
+
+    def test_empty_host_is_not_local(self):
+        assert not is_loopback_bind_host("")
+        assert not is_loopback_bind_host(None)
+
+    def test_non_loopback_bind_hosts_are_not_local(self):
+        assert not is_loopback_bind_host("0.0.0.0")
+        assert not is_loopback_bind_host("::")
+        assert not is_loopback_bind_host("203.0.113.5")
 
 
 class TestResolveAllIps:

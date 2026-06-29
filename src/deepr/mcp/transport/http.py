@@ -13,7 +13,6 @@ Use Cases:
 
 import asyncio
 import hmac
-import ipaddress
 import json
 import logging
 import os
@@ -39,6 +38,7 @@ from deepr.mcp.security.scoped_keys import (
     constrain_scoped_mcp_budget_arguments,
     constrain_scoped_mcp_expert_arguments,
 )
+from deepr.utils.security import is_loopback_bind_host
 
 logger = logging.getLogger(__name__)
 
@@ -53,12 +53,7 @@ TOOL_RESPONSE_COST_FIELDS = {
 
 def _is_loopback_host(host: str) -> bool:
     """Return True if host is a loopback address ('localhost', 127.0.0.0/8, ::1)."""
-    if host in ("localhost", ""):
-        return True
-    try:
-        return ipaddress.ip_address(host).is_loopback
-    except ValueError:
-        return False
+    return is_loopback_bind_host(host)
 
 
 def _extract_bearer(request: "web.Request") -> str | None:
