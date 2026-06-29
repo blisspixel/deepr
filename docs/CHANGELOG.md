@@ -17,6 +17,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Hardened sync-side graph-commit apply with an injectable metacognition
   tracker and regression coverage for verified knowledge-gap promotions, so the
   opt-in sync path covers both factual belief writes and gap-backlog writes.
+- Broadened sync-side graph-commit apply coverage for verified
+  exploration-agenda, hypothesis, concept, stance, and original-idea promotions
+  through the same injected metacognition tracker path.
 - Added concrete budget-gated claim verification for `expert sync
   --compile-claims`. Local, explicit plan-quota, and metered API sync paths now
   inject a `SemanticClaimVerifier` alongside extraction, include read-only
