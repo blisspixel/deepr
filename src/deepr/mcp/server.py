@@ -65,7 +65,7 @@ from deepr.core.research import ResearchOrchestrator
 from deepr.experts.chat import ExpertChatSession
 from deepr.experts.profile import ExpertStore
 from deepr.mcp.consult_tool import CONSULT_EXPERTS_INPUT_SCHEMA, CONSULT_EXPERTS_OUTPUT_SCHEMA, consult_experts_tool
-from deepr.mcp.expert_reads import get_expert_handoff, get_expert_loop_status
+from deepr.mcp.expert_reads import get_expert_handoff, get_expert_loop_status, get_temporal_edges
 from deepr.mcp.search.gateway import GatewayTool
 from deepr.mcp.search.registry import ToolRegistry, ToolSchema, create_default_registry
 from deepr.mcp.security import SSRFProtector
@@ -1729,6 +1729,7 @@ async def _handle_tools_call(server: DeeprMCPServer, params: dict[str, Any]) -> 
             belief=args.get("belief", ""),
             depth=args.get("depth", 2),
         ),
+        "deepr_temporal_edges": lambda args: get_temporal_edges(server.store, **args),
         "deepr_reflect": lambda args: server.reflect(
             report_id=args.get("report_id", ""),
             depth=args.get("depth", 1),
@@ -1915,6 +1916,7 @@ _LEGACY_METHOD_MAP = {
     "what_changed": "deepr_what_changed",
     "contested": "deepr_contested",
     "explain_belief": "deepr_explain_belief",
+    "temporal_edges": "deepr_temporal_edges",
 }
 
 

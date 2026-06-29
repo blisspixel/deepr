@@ -785,6 +785,55 @@ def create_default_registry() -> ToolRegistry:
 
     registry.register(
         ToolSchema(
+            name="deepr_temporal_edges",
+            description=(
+                "Query temporal edge qualifiers in an expert's typed belief graph. Filters by valid_at "
+                "(relationship valid at an instant), observed_since / observed_until (when the qualified "
+                "relationship was observed), edge_type, and optional belief_ref. Read-only and cost-$0. "
+                "Use when a host agent needs time-scoped belief relationships instead of all graph context. "
+                "Example: deepr_temporal_edges(expert_name='AI Strategy Expert', valid_at='2026-06-15T00:00:00+00:00')"
+            ),
+            input_schema={
+                "type": "object",
+                "properties": {
+                    "expert_name": {"type": "string", "description": "Name of the expert"},
+                    "valid_at": {
+                        "type": "string",
+                        "description": "Optional ISO 8601 instant that must fall within edge valid_from/valid_until",
+                    },
+                    "observed_since": {
+                        "type": "string",
+                        "description": "Optional ISO 8601 lower bound for edge observed_at",
+                    },
+                    "observed_until": {
+                        "type": "string",
+                        "description": "Optional ISO 8601 upper bound for edge observed_at",
+                    },
+                    "edge_type": {
+                        "type": "string",
+                        "description": "Optional edge type: supports, contradicts, enables, or derived_from",
+                    },
+                    "belief_ref": {
+                        "type": "string",
+                        "description": "Optional belief id or claim text to restrict edges touching one belief",
+                    },
+                    "limit": {
+                        "type": "integer",
+                        "default": 50,
+                        "minimum": 1,
+                        "maximum": 200,
+                        "description": "Maximum matching edges to return",
+                    },
+                },
+                "required": ["expert_name"],
+            },
+            category="experts",
+            cost_tier="free",
+        )
+    )
+
+    registry.register(
+        ToolSchema(
             name="deepr_reflect",
             description=(
                 "Self-evaluate a completed research report before relying on or absorbing it. Scores "

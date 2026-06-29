@@ -12,7 +12,8 @@ Yes. The safe default path is:
 3. Read one expert's state with `deepr_get_expert_info`,
    `deepr_expert_handoff`, and `deepr_expert_loop_status`.
 4. Inspect why the expert believes something with `deepr_explain_belief`.
-5. Ask one or more experts for synthesis with `deepr_consult_experts`.
+5. Filter time-scoped belief relationships with `deepr_temporal_edges`.
+6. Ask one or more experts for synthesis with `deepr_consult_experts`.
 
 Those read and consult flows are enough for another agent to use Deepr experts
 as persistent, self-improving knowledge roles. The agent gets current beliefs,
@@ -29,7 +30,7 @@ explicit plan-capacity path.
 - Read-only expert tools are `$0`: `deepr_list_experts`,
   `deepr_get_expert_info`, `deepr_expert_handoff`,
   `deepr_expert_loop_status`, `deepr_what_changed`, `deepr_contested`, and
-  `deepr_explain_belief`.
+  `deepr_explain_belief`, `deepr_temporal_edges`.
 - `deepr_consult_experts` can stay off metered APIs when the caller sets
   `synthesis_backend` to `local` or `plan`. These modes disable live metered
   expert fallback and return a `capacity.live_metered_fallback=false` marker.
@@ -124,8 +125,11 @@ Ask the agent to do this:
 6. If a claim is available, call `deepr_explain_belief` for one belief or query
    phrase and confirm evidence roots, trajectory, support edges, and
    contradictions are present when available.
+7. If temporal edge qualifiers are available, call `deepr_temporal_edges` with
+   `valid_at` or an observed-time window and confirm only matching edge
+   contexts are returned.
 
-All six steps are read-only and `$0`.
+All seven steps are read-only and `$0`.
 
 ## Copy-Paste Brief For Another Agent
 
@@ -155,7 +159,7 @@ Hard rules:
 - List experts with `deepr_list_experts`.
 - Prefer read-only tools first: `deepr_expert_handoff`,
   `deepr_what_changed`, `deepr_contested`, `deepr_explain_belief`, and
-  `deepr_expert_loop_status`.
+  `deepr_temporal_edges`, and `deepr_expert_loop_status`.
 - Use `deepr_consult_experts` for synthesis across experts.
 - For focused single-expert advice, still use `deepr_consult_experts` with one
   explicit expert.
@@ -175,7 +179,8 @@ Suggested read-only flow:
 5. Call `deepr_what_changed` for the same experts if available.
 6. Call `deepr_contested` to identify disagreements or unresolved conflicts.
 7. Call `deepr_explain_belief` for one important claim from each expert.
-8. Call `deepr_consult_experts` with a no-metered synthesis backend.
+8. Call `deepr_temporal_edges` when a claim or edge has temporal qualifiers.
+9. Call `deepr_consult_experts` with a no-metered synthesis backend.
 
 Consult question:
 "We are evaluating Deepr's next design step. Give your current perspective on

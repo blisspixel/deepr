@@ -261,6 +261,13 @@ class ToolAllowlist:
             requires_confirmation_in={ResearchMode.STANDARD, ResearchMode.EXTENDED},
             blocked_in={ResearchMode.READ_ONLY},
         ),
+        "deepr_temporal_edges": ToolConfig(
+            name="deepr_temporal_edges",
+            category=ToolCategory.SENSITIVE,
+            description="Temporal edge qualifiers filtered by valid or observed time (read-only)",
+            requires_confirmation_in={ResearchMode.STANDARD, ResearchMode.EXTENDED},
+            blocked_in={ResearchMode.READ_ONLY},
+        ),
         # Reflect runs a small paid evaluation call and surfaces report content;
         # read-only (no mutation) but SENSITIVE like the other expert tools.
         "deepr_reflect": ToolConfig(

@@ -31,8 +31,9 @@ capable), `medium`/`high` (metered, confirm budget first).
   metered-capable, does not yet accept local or plan backend selection, and
   should only be used when the operator approves its budget.
 - "What changed since I last asked?" -> `deepr_what_changed`; a handoff snapshot
-  -> `deepr_expert_handoff`; why a claim is held -> `deepr_explain_belief`. All
-  `$0`, read-only, versioned.
+  -> `deepr_expert_handoff`; why a claim is held -> `deepr_explain_belief`;
+  time-scoped edge qualifiers -> `deepr_temporal_edges`. All `$0`, read-only,
+  versioned.
 - A deep autonomous investigation -> `deepr_agentic_research` (Plan-Execute-Review,
   $1-$10; confirm budget with the human first).
 
@@ -213,6 +214,7 @@ Add to `~/.config/zed/settings.json` under `"language_models"` -> `"mcp"`:
 | `deepr_what_changed` | Perspective delta since a timestamp (added/revised/contested/archived) | Free |
 | `deepr_contested` | Open contradiction pairs with both sides' claims and provenance | Free |
 | `deepr_explain_belief` | Why the expert believes something (evidence, history, support chains) | Free |
+| `deepr_temporal_edges` | Temporal edge qualifiers filtered by valid or observed time | Free |
 
 ### Task Management Tools
 
@@ -470,6 +472,6 @@ StdioServer (JSON-RPC transport)
 
 ---
 
-**Tools:** 30 (3 system + 5 research + 16 expert + 4 task management + 2 skills)
+**Tools:** 31 (3 system + 5 research + 17 expert + 4 task management + 2 skills)
 **Resources:** 10 URI schemes across 4 resource types
 **Prompts:** 3 templates
