@@ -921,7 +921,8 @@ Three evals make expert trust measurable instead of asserted.
 
 ```bash
 # Continuity: staleness honesty, abstention, contradiction-surfacing,
-# what-changed exactness, and temporal edge qualifier visibility at $0.
+# what-changed exactness, and temporal edge qualifier visibility in read and
+# generated digest surfaces at $0.
 deepr eval continuity "AI Policy Expert"
 
 # Red team: prompt-boundary, MCP read-path, tool-spoofing, and trust-floor probes at $0.

@@ -411,9 +411,9 @@ def eval_continuity(name: str, threshold: float, json_output: bool):
     """Measure an expert's continuity properties from stored state (cost $0).
 
     Unlike `eval new/all`, this makes no API calls: it reads the expert's
-    belief store and scores four properties - staleness honesty, abstention
-    correctness, contradiction surfacing, and what-changed exactness -
-    deepr's own continuity surface rather than a borrowed memory benchmark.
+    belief store and scores deepr's own continuity surface: staleness,
+    abstention, contradiction surfacing, what-changed exactness, and temporal
+    edge qualifier visibility in read and generated-view surfaces.
     """
     from deepr.experts.beliefs import BeliefStore
     from deepr.experts.continuity_metrics import measure_continuity

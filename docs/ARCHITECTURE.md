@@ -111,7 +111,8 @@ graph TB
     contexts), and `temporal_edges` (valid-time and observed-time filters over
     typed edge qualifiers)
   - `continuity_metrics.py`: `$0` memory-quality checks over stored state,
-    including visibility of temporal edge qualifiers through read surfaces
+    including visibility of temporal edge qualifiers through read and generated
+    digest surfaces
   - `digest.py`: Regenerated browsable view over the store (byte-stable,
     derived-view marker, temporal edge qualifier section; the store stays
     canonical)
