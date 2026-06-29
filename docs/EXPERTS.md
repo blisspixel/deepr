@@ -393,7 +393,8 @@ already-gated query embedding; stale claim vectors are ignored, and embedding
 generation remains explicit. Claim verification can carry recall hits as
 read-only `recall_context`; the concrete sync verifier now uses that context in
 its bounded prompt, and still owns support, contradiction, deduplication,
-temporal scope, and edge judgment.
+temporal scope, and edge judgment. Host agents can call MCP
+`deepr_semantic_recall` for the same read-only boundary.
 ```bash
 deepr expert semantic-recall "Azure Architect" "subscription vending guardrails" --json
 deepr expert semantic-recall "Azure Architect" "gpu deployment bottleneck" --query-embedding "[0.1,0.9]" --embedding-model local-test --no-lexical-fallback --json

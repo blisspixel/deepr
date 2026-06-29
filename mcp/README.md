@@ -32,8 +32,8 @@ capable), `medium`/`high` (metered, confirm budget first).
   should only be used when the operator approves its budget.
 - "What changed since I last asked?" -> `deepr_what_changed`; a handoff snapshot
   -> `deepr_expert_handoff`; why a claim is held -> `deepr_explain_belief`;
-  time-scoped edge qualifiers -> `deepr_temporal_edges`. All `$0`, read-only,
-  versioned.
+  related memory candidates -> `deepr_semantic_recall`; time-scoped edge
+  qualifiers -> `deepr_temporal_edges`. All `$0`, read-only, versioned.
 - A deep autonomous investigation -> `deepr_agentic_research` (Plan-Execute-Review,
   $1-$10; confirm budget with the human first).
 
@@ -207,6 +207,7 @@ Add to `~/.config/zed/settings.json` under `"language_models"` -> `"mcp"`:
 | `deepr_rank_gaps` | Rank an expert's knowledge gaps by value | Free |
 | `deepr_expert_health_check` | Read-only knowledge-state audit (freshness, contradictions, provenance, gaps) | Free |
 | `deepr_expert_loop_status` | Durable expert loop-run status, stop reasons, and next actions | Free |
+| `deepr_semantic_recall` | Candidate belief recall for verifier or host-agent routing | Free |
 | `deepr_expert_handoff` | Versioned read-only expert handoff payload for downstream agents | Free |
 | `deepr_route_gaps` | Route an expert's gaps to the best fill instrument (recon/distillr/primr/research) | Free |
 | `deepr_expert_absorb` | Promote a research report into expert beliefs, verification-gated (mutating) | Low |
@@ -472,6 +473,6 @@ StdioServer (JSON-RPC transport)
 
 ---
 
-**Tools:** 31 (3 system + 5 research + 17 expert + 4 task management + 2 skills)
+**Tools:** 32 (3 system + 5 research + 18 expert + 4 task management + 2 skills)
 **Resources:** 10 URI schemes across 4 resource types
 **Prompts:** 3 templates
