@@ -105,8 +105,12 @@ graph TB
     `events.jsonl` belief event log (the cost-ledger pattern applied to
     knowledge)
   - `perspective.py`: Read-side temporal queries - `what_changed` (delta
-    since a timestamp), `contested` (open contradiction pairs),
-    `explain_belief` (evidence roots + confidence trajectory + graph chains)
+    since a timestamp, including temporal edge qualifier summaries when
+    present), `contested` (open contradiction pairs), `explain_belief`
+    (evidence roots + confidence trajectory + graph chains with temporal
+    contexts)
+  - `continuity_metrics.py`: `$0` memory-quality checks over stored state,
+    including visibility of temporal edge qualifiers through read surfaces
   - `digest.py`: Regenerated browsable view over the store (byte-stable,
     derived-view marker; the store stays canonical)
   - `sync.py` / `gap_fill.py`: Budget-bounded loop-closers - scheduled

@@ -916,7 +916,7 @@ Three evals make expert trust measurable instead of asserted.
 
 ```bash
 # Continuity: staleness honesty, abstention, contradiction-surfacing,
-# what-changed exactness - measured from stored belief state at $0.
+# what-changed exactness, and temporal edge qualifier visibility at $0.
 deepr eval continuity "AI Policy Expert"
 
 # Red team: prompt-boundary, MCP read-path, tool-spoofing, and trust-floor probes at $0.
@@ -1021,6 +1021,8 @@ Use `--stage-compiled-claims` with `--compile-claims` to persist compiler
 sidecars without applying graph commits. `--apply-compiled-claims` remains a
 compatibility alias for the default compiled apply behavior and cannot run with
 `--dry-run`.
+Perspective deltas and belief explanations include temporal edge qualifiers
+from applied graph commits as structured read-only metadata.
 `deepr expert apply-graph-commit NAME ENVELOPE --dry-run --json` validates the
 commit plan without writing. `deepr expert
 apply-graph-commit NAME ENVELOPE --yes --json` applies verified factual

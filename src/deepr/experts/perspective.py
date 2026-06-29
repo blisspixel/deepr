@@ -30,7 +30,7 @@ from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from typing import Any
 
-from deepr.experts.beliefs import Belief, BeliefStore
+from deepr.experts.beliefs import Belief, BeliefStore, Edge
 
 logger = logging.getLogger(__name__)
 
@@ -39,9 +39,37 @@ logger = logging.getLogger(__name__)
 _CONTESTED_REASON_PREFIX = "contested:"
 
 
-def _belief_summary(belief: Belief) -> dict[str, Any]:
-    """Compact, consumer-facing snapshot of one belief."""
+def _edge_temporal_contexts(edge: Edge) -> list[dict[str, str]]:
+    return [dict(context) for context in edge.temporal_contexts]
+
+
+def _temporal_edge_summary(edge: Edge, belief_id: str, store: BeliefStore) -> dict[str, Any]:
+    other_id = edge.dst_id if edge.src_id == belief_id else edge.src_id
+    other = store.beliefs.get(other_id)
     return {
+        "edge_type": edge.edge_type,
+        "source_belief_id": edge.src_id,
+        "target_belief_id": edge.dst_id,
+        "other_belief_id": other_id,
+        "other_claim": other.claim if other else "",
+        "other_confidence": round(other.get_current_confidence(), 3) if other else None,
+        "status": "open" if other is not None else "dangling",
+        "provenance": list(edge.provenance),
+        "temporal_contexts": _edge_temporal_contexts(edge),
+    }
+
+
+def _temporal_edges_for_belief(store: BeliefStore, belief_id: str) -> list[dict[str, Any]]:
+    edges = [edge for edge in store.edges_for(belief_id) if edge.temporal_contexts]
+    return [
+        _temporal_edge_summary(edge, belief_id, store)
+        for edge in sorted(edges, key=lambda item: (item.edge_type, item.src_id, item.dst_id))
+    ]
+
+
+def _belief_summary(belief: Belief, store: BeliefStore | None = None) -> dict[str, Any]:
+    """Compact, consumer-facing snapshot of one belief."""
+    summary: dict[str, Any] = {
         "belief_id": belief.id,
         "claim": belief.claim,
         "confidence": round(belief.get_current_confidence(), 3),
@@ -51,6 +79,11 @@ def _belief_summary(belief: Belief) -> dict[str, Any]:
         "updated_at": belief.updated_at.isoformat(),
         "contradictions_with": list(belief.contradictions_with),
     }
+    if store is not None:
+        temporal_edges = _temporal_edges_for_belief(store, belief.id)
+        if temporal_edges:
+            summary["temporal_edges"] = temporal_edges
+    return summary
 
 
 @dataclass
@@ -145,7 +178,7 @@ def what_changed(store: BeliefStore, since: datetime, *, expert_name: str = "") 
             "timestamp": ts.isoformat(),
         }
         if current is not None:
-            entry["current"] = _belief_summary(current)
+            entry["current"] = _belief_summary(current, store)
 
         if change.change_type == "created" and change.reason.startswith(_CONTESTED_REASON_PREFIX):
             delta.contested.append(entry)
@@ -262,7 +295,7 @@ def explain_belief(
 
     explanation = BeliefExplanation(
         expert_name=expert_name or store.expert_name,
-        belief=_belief_summary(belief),
+        belief=_belief_summary(belief, store),
         evidence_roots=list(belief.evidence_refs),
         depth=max(1, depth),
     )
@@ -299,21 +332,24 @@ def explain_belief(
                 # Direct neighbors only - record once, from the root belief
                 if current_id == belief.id and other_id not in {c["belief_id"] for c in explanation.contradicts}:
                     other = store.beliefs.get(other_id)
-                    explanation.contradicts.append(
-                        {
-                            "belief_id": other_id,
-                            "claim": other.claim if other else "",
-                            "confidence": round(other.get_current_confidence(), 3) if other else None,
-                            "provenance": list(edge.provenance),
-                            "status": "open" if other is not None else "dangling",
-                        }
-                    )
+                    entry = {
+                        "edge_type": edge.edge_type,
+                        "belief_id": other_id,
+                        "claim": other.claim if other else "",
+                        "confidence": round(other.get_current_confidence(), 3) if other else None,
+                        "provenance": list(edge.provenance),
+                        "status": "open" if other is not None else "dangling",
+                    }
+                    if edge.temporal_contexts:
+                        entry["temporal_contexts"] = _edge_temporal_contexts(edge)
+                    explanation.contradicts.append(entry)
                 continue
             if other_id in visited:
                 continue
             visited.add(other_id)
             other = store.beliefs.get(other_id)
             entry = {
+                "edge_type": edge.edge_type,
                 "belief_id": other_id,
                 "claim": other.claim if other else "",
                 "confidence": round(other.get_current_confidence(), 3) if other else None,
@@ -321,6 +357,8 @@ def explain_belief(
                 "provenance": list(edge.provenance),
                 "hops": level + 1,
             }
+            if edge.temporal_contexts:
+                entry["temporal_contexts"] = _edge_temporal_contexts(edge)
             bucket = explanation.derived_from if edge.edge_type == "derived_from" else explanation.supports
             bucket.append(entry)
             frontier.append((other_id, level + 1))
@@ -361,11 +399,13 @@ def contested(store: BeliefStore, *, expert_name: str = "") -> dict[str, Any]:
 
             other = store.beliefs.get(other_id)
             if other is not None:
-                pairs.append(ContestedPair(a=_belief_summary(belief), b=_belief_summary(other), status="open"))
+                pairs.append(
+                    ContestedPair(a=_belief_summary(belief, store), b=_belief_summary(other, store), status="open")
+                )
             else:
                 pairs.append(
                     ContestedPair(
-                        a=_belief_summary(belief),
+                        a=_belief_summary(belief, store),
                         b={"belief_id": other_id, "claim": "", "note": "no longer in store"},
                         status="dangling",
                     )

@@ -14,6 +14,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   decisions; graph-commit apply persists those qualifiers on typed belief
   edges and idempotent replay repairs missing temporal context without
   duplicating the edge.
+- Added read-side temporal edge visibility. `what_changed` snapshots and
+  `explain_belief` edge entries now surface temporal edge qualifiers, and
+  `deepr eval continuity` measures temporal edge qualifier visibility through
+  the `$0` read surface.
 - Added explicit sync-side graph-commit apply for compiled claims.
   `deepr expert sync --compile-claims` now bypasses the legacy absorber for
   that topic, applies only the verified graph-commit envelope through the
