@@ -129,9 +129,11 @@ must not be described as usable capacity.
   `candidate_only` routing metadata only. Original-idea candidates are labeled
   as `perspective_state`, include the non-factual promotion policy, and do not
   imply external verification, support, contradiction, deduplication, or graph
-  writes. Claim-verification decisions can carry these hits in a
-  `recall_context` packet for verifier routing only; the packet is read-only
-  and does not affect commit readiness.
+  writes. Belief recall can use a persisted local vector index when a caller
+  supplies an already-gated query embedding; stale claim vectors are ignored,
+  and embedding generation is not automatic. Claim-verification decisions can
+  carry these hits in a `recall_context` packet for verifier routing only; the
+  packet is read-only and does not affect commit readiness.
 - `deepr expert monitor` emits a read-only `deepr-metacognitive-monitor-v1`
   artifact with review-required proposals derived from self-model risks, failed
   loop runs, capacity waits, and sanitized consult trace candidates. It does

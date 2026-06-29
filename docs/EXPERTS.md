@@ -387,10 +387,13 @@ Local recall is a router, not a verdict. Belief, concept, and original-idea
 recall candidates return `candidate_only` metadata for the next verifier or
 context-selection step. Original-idea candidates are labeled as
 `perspective_state`, carry the non-factual promotion policy, and cannot become
-verified external facts without a later review or graph-commit path. Claim
-verification can carry recall hits as read-only `recall_context`; the concrete
-sync verifier now uses that context in its bounded prompt, and still owns
-support, contradiction, deduplication, temporal scope, and edge judgment.
+verified external facts without a later review or graph-commit path. Belief
+recall can use a persisted local vector index when a caller supplies an
+already-gated query embedding; stale claim vectors are ignored, and embedding
+generation remains explicit. Claim verification can carry recall hits as
+read-only `recall_context`; the concrete sync verifier now uses that context in
+its bounded prompt, and still owns support, contradiction, deduplication,
+temporal scope, and edge judgment.
 
 ### Self-Model (read-only current state)
 Build a derived `deepr-expert-self-model-v1` record from the profile and

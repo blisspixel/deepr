@@ -5,7 +5,7 @@ from __future__ import annotations
 import hashlib
 import json
 import re
-from collections.abc import Iterable, Mapping
+from collections.abc import Iterable, Mapping, Sequence
 from datetime import UTC, datetime
 from typing import Any
 
@@ -815,6 +815,8 @@ def build_claim_verification(
     recall_domain: str | None = None,
     recall_top_k: int = 5,
     recall_min_score: float = 0.0,
+    recall_query_embeddings_by_candidate_id: Mapping[str, Sequence[float]] | None = None,
+    recall_embedding_model: str | None = None,
 ) -> dict[str, Any]:
     """Compile verifier output into graph-commit readiness decisions.
 
@@ -832,6 +834,8 @@ def build_claim_verification(
         domain=recall_domain,
         top_k=recall_top_k,
         min_score=recall_min_score,
+        query_embeddings_by_candidate_id=recall_query_embeddings_by_candidate_id,
+        embedding_model=recall_embedding_model,
     )
     decisions = [
         _verification_decision(
