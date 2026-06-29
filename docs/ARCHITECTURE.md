@@ -113,7 +113,8 @@ graph TB
   - `continuity_metrics.py`: `$0` memory-quality checks over stored state,
     including visibility of temporal edge qualifiers through read surfaces
   - `digest.py`: Regenerated browsable view over the store (byte-stable,
-    derived-view marker; the store stays canonical)
+    derived-view marker, temporal edge qualifier section; the store stays
+    canonical)
   - `sync.py` / `gap_fill.py`: Budget-bounded loop-closers - scheduled
     topic freshness and gap-fill execution, both absorbing through the
     verification-gated pipeline
