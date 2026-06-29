@@ -10,11 +10,12 @@ from deepr.experts.maintenance_engine import build_sync_engine
 
 
 class _FakeEngine:
-    def __init__(self, profile, *, research_fn=None, absorber=None, claim_extractor=None):
+    def __init__(self, profile, *, research_fn=None, absorber=None, claim_extractor=None, claim_verifier=None):
         self.profile = profile
         self.research_fn = research_fn
         self.absorber = absorber
         self.claim_extractor = claim_extractor
+        self.claim_verifier = claim_verifier
 
 
 @pytest.fixture
@@ -120,6 +121,9 @@ def test_local_compile_claims_reuses_local_client(patch_engine, monkeypatch):
     assert engine.claim_extractor is not None
     assert engine.claim_extractor.client is client
     assert engine.claim_extractor.estimated_cost_usd == 0.0
+    assert engine.claim_verifier is not None
+    assert engine.claim_verifier.client is client
+    assert engine.claim_verifier.estimated_cost_usd == 0.0
 
 
 def test_metered_compile_claims_is_explicit_opt_in(patch_engine):
@@ -131,6 +135,9 @@ def test_metered_compile_claims_is_explicit_opt_in(patch_engine):
     assert engine.claim_extractor is not None
     assert engine.claim_extractor.allow_metered is True
     assert engine.claim_extractor.estimated_cost_usd > 0
+    assert engine.claim_verifier is not None
+    assert engine.claim_verifier.allow_metered is True
+    assert engine.claim_verifier.estimated_cost_usd > 0
 
 
 def test_metered_plan_compile_claims_uses_budgeted_estimate(patch_engine, monkeypatch):
@@ -149,6 +156,9 @@ def test_metered_plan_compile_claims_uses_budgeted_estimate(patch_engine, monkey
     assert engine.claim_extractor is not None
     assert engine.claim_extractor.allow_metered is True
     assert engine.claim_extractor.estimated_cost_usd > 0
+    assert engine.claim_verifier is not None
+    assert engine.claim_verifier.allow_metered is True
+    assert engine.claim_verifier.estimated_cost_usd > 0
 
 
 def test_metered_path_injects_absorber_when_grounding_checker_supplied(patch_engine, monkeypatch):

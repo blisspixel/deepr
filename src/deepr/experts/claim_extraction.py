@@ -2,14 +2,21 @@
 
 from __future__ import annotations
 
-import hashlib
-import json
 import os
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from typing import Any
 
 from deepr.experts.report_absorber import ESTIMATED_EXTRACTION_COST
+from deepr.experts.semantic_model_gate import (
+    coerce_nonnegative_float,
+    requires_metered_opt_in,
+    sha256_text,
+    stable_json,
+)
+from deepr.experts.semantic_model_gate import (
+    cost_safety as resolve_cost_safety,
+)
 from deepr.experts.source_pack_compiler import (
     SEMANTIC_CLAIM_EXTRACTION_PROMPT_VERSION,
     build_semantic_claim_extraction,
@@ -20,9 +27,6 @@ CLAIM_EXTRACTION_PROMPT_REF = "deepr://prompts/semantic-claim-extraction/v1"
 CLAIM_EXTRACTION_OPERATION = "semantic_claim_extraction"
 DEFAULT_MAX_SOURCE_WINDOWS = 20
 DEFAULT_MAX_CHARS_PER_WINDOW = 1600
-
-_ZERO_DOLLAR_CAPACITY_PREFIXES = ("local", "local-", "local_", "plan_quota:")
-_METERED_CAPACITY_LABELS = {"api_metered", "metered_api", "api", "openai", "anthropic", "xai", "gemini"}
 
 
 class ClaimExtractionBlocked(RuntimeError):
@@ -105,24 +109,6 @@ class SemanticClaimExtractor:
             session_id=session_id,
             generated_at=generated_at,
         )
-
-
-def _stable_json(value: Any) -> str:
-    return json.dumps(value, sort_keys=True, separators=(",", ":"), ensure_ascii=False)
-
-
-def _sha256_text(value: str) -> str:
-    return hashlib.sha256(value.encode("utf-8")).hexdigest()
-
-
-def _coerce_nonnegative_float(value: float, *, name: str) -> float:
-    try:
-        parsed = float(value)
-    except (TypeError, ValueError) as exc:
-        raise ClaimExtractionBlocked(f"{name} must be a number") from exc
-    if parsed < 0:
-        raise ClaimExtractionBlocked(f"{name} must be non-negative")
-    return parsed
 
 
 def _source_pack_from_payload(payload: dict[str, Any]) -> dict[str, Any]:
@@ -263,26 +249,9 @@ def build_claim_extraction_prompt(
     messages = [{"role": "system", "content": system}, {"role": "user", "content": user}]
     return ClaimExtractionPrompt(
         messages=messages,
-        prompt_hash=_sha256_text(_stable_json(messages)),
+        prompt_hash=sha256_text(stable_json(messages)),
         source_window_count=len(windows),
     )
-
-
-def _requires_metered_opt_in(capacity_source: str, estimated_cost_usd: float) -> bool:
-    source = (capacity_source or "").strip().lower()
-    if estimated_cost_usd > 0:
-        return True
-    if any(source.startswith(prefix) for prefix in _ZERO_DOLLAR_CAPACITY_PREFIXES):
-        return False
-    return source in _METERED_CAPACITY_LABELS
-
-
-def _cost_safety(cost_safety: Any | None) -> Any:
-    if cost_safety is not None:
-        return cost_safety
-    from deepr.experts.cost_safety import get_cost_safety_manager
-
-    return get_cost_safety_manager()
 
 
 async def extract_semantic_claims(
@@ -302,9 +271,13 @@ async def extract_semantic_claims(
     generated_at: str = "",
 ) -> dict[str, Any]:
     """Invoke a chat client and compile its response into a claim envelope."""
-    budget = _coerce_nonnegative_float(budget_usd, name="budget_usd")
-    estimated_cost = _coerce_nonnegative_float(estimated_cost_usd, name="estimated_cost_usd")
-    if _requires_metered_opt_in(capacity_source, estimated_cost) and not allow_metered:
+    budget = coerce_nonnegative_float(budget_usd, name="budget_usd", error_type=ClaimExtractionBlocked)
+    estimated_cost = coerce_nonnegative_float(
+        estimated_cost_usd,
+        name="estimated_cost_usd",
+        error_type=ClaimExtractionBlocked,
+    )
+    if requires_metered_opt_in(capacity_source, estimated_cost) and not allow_metered:
         raise ClaimExtractionBlocked("metered claim extraction requires explicit opt-in")
     if estimated_cost > budget:
         raise ClaimExtractionBlocked(
@@ -315,7 +288,7 @@ async def extract_semantic_claims(
     manager = None
     reservation_id = ""
     if estimated_cost > 0:
-        manager = _cost_safety(cost_safety)
+        manager = resolve_cost_safety(cost_safety)
         allowed, reason, _needs_confirm, reservation_id = manager.check_and_reserve(
             session_id=session_id,
             operation_type=CLAIM_EXTRACTION_OPERATION,

@@ -170,9 +170,10 @@ must not be described as usable capacity.
 - Research-processing compiler artifacts through source-pack manifests, source
   notes, semantic claim extraction, claim verification, graph commit envelopes,
   and graph commit apply results are experimental but schema-versioned.
-  `--compile-claims` can write verifier-pending claim extraction sidecars;
-  claim-verification envelopes record verifier decisions, optional
-  candidate-to-candidate typed edge decisions, and `candidate_only` recall
+  `--compile-claims` can write claim extraction, claim-verification, and
+  no-apply graph-commit sidecars; claim-verification envelopes record verifier
+  decisions, optional candidate-to-candidate typed edge decisions, and
+  `candidate_only` recall
   context packets; graph commit envelopes plan
   idempotent writes without mutating state. `deepr-graph-commit-envelope-v1`
   is belief-only; `deepr-graph-commit-envelope-v2` adds verifier-gated

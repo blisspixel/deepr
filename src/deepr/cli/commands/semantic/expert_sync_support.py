@@ -58,6 +58,12 @@ def _source_note_run_context(result: Any) -> dict[str, Any]:
         claim_extraction_artifact = str(getattr(outcome, "claim_extraction_artifact", "") or "")
         if claim_extraction_artifact:
             artifact["claim_extraction_artifact"] = claim_extraction_artifact
+        claim_verification_artifact = str(getattr(outcome, "claim_verification_artifact", "") or "")
+        if claim_verification_artifact:
+            artifact["claim_verification_artifact"] = claim_verification_artifact
+        graph_commit_envelope_artifact = str(getattr(outcome, "graph_commit_envelope_artifact", "") or "")
+        if graph_commit_envelope_artifact:
+            artifact["graph_commit_envelope_artifact"] = graph_commit_envelope_artifact
         artifacts.append(artifact)
     if not artifacts:
         return {}

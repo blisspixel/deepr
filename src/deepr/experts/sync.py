@@ -75,6 +75,8 @@ class ClaimVerificationService(Protocol):
         budget_usd: float = 0.0,
         session_id: str = "claim_verification",
         generated_at: str = "",
+        recall_belief_store: Any | None = None,
+        recall_domain: str | None = None,
     ) -> dict[str, Any]: ...
 
 
@@ -726,6 +728,8 @@ class ExpertSyncEngine:
                 budget_usd=budget,
                 session_id=f"verify:{self.expert.name}:{_slug(subscription.topic)}",
                 generated_at=started_at.isoformat(),
+                recall_belief_store=self.belief_store,
+                recall_domain=str(getattr(self.expert, "domain", "") or ""),
             )
         except Exception as exc:
             logger.warning("Claim verification failed for %s: %s", subscription.topic, exc)
@@ -737,6 +741,7 @@ class ExpertSyncEngine:
         from deepr.experts.source_pack_compiler import build_claim_verification
 
         verification_cost = _nonnegative_float((model_output.get("contract", {}) or {}).get("cost_usd", 0.0))
+        prompt_metadata = model_output.get("prompt", {}) if isinstance(model_output.get("prompt"), dict) else {}
         verification = build_claim_verification(
             claim_extraction,
             model_output,
@@ -745,6 +750,8 @@ class ExpertSyncEngine:
             model=_model_metadata(model_output, "model"),
             capacity_source=_model_metadata(model_output, "capacity_source"),
             cost_usd=verification_cost,
+            prompt_ref=str(prompt_metadata.get("prompt_ref", "") or ""),
+            prompt_hash=str(prompt_metadata.get("prompt_hash", "") or ""),
             generated_at=started_at.isoformat(),
             recall_belief_store=self.belief_store,
             recall_domain=str(getattr(self.expert, "domain", "") or ""),

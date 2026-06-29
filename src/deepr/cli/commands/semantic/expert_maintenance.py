@@ -667,9 +667,10 @@ def sync_cmd(
             if plan_adapter.metered_at_margin:
                 cost_desc = f"billed per use, budget ceiling ${budget:.2f}"
                 if compile_claims:
+                    from deepr.experts.claim_verification import ESTIMATED_VERIFICATION_COST
                     from deepr.experts.report_absorber import ESTIMATED_EXTRACTION_COST
 
-                    claim_est = len(targets) * ESTIMATED_EXTRACTION_COST
+                    claim_est = len(targets) * (ESTIMATED_EXTRACTION_COST + ESTIMATED_VERIFICATION_COST)
                     cost_desc += f", claim compilation estimate ${claim_est:.2f}"
             else:
                 cost_desc = "$0 at the margin (prepaid plan)"
@@ -679,7 +680,10 @@ def sync_cmd(
 
             est = sum(min(s.budget, budget) for s in targets)
             if compile_claims:
+                from deepr.experts.claim_verification import ESTIMATED_VERIFICATION_COST
+
                 est += len(targets) * ESTIMATED_EXTRACTION_COST
+                est += len(targets) * ESTIMATED_VERIFICATION_COST
             prompt = f"Sync {len(targets)} topic(s){check_note}, estimated up to ${min(est, budget):.2f}?"
         if not click.confirm(prompt, default=False):
             print_warning("Cancelled.")

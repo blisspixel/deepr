@@ -8,6 +8,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- Added concrete budget-gated claim verification for `expert sync
+  --compile-claims`. Local, explicit plan-quota, and metered API sync paths now
+  inject a `SemanticClaimVerifier` alongside extraction, include read-only
+  memory recall in the verifier prompt, and surface claim-verification plus
+  graph-commit sidecar refs in sync loop-run context.
 - Added optional sync-side claim-verification and graph-commit sidecar
   artifacts. `ExpertSyncEngine` can now run an injected verifier after semantic
   claim extraction, compile store-backed recall into the claim-verification
