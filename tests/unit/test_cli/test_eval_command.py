@@ -175,6 +175,7 @@ def test_eval_hallucination_risks_outputs_zero_cost_json_report(tmp_path):
     assert data["contract"]["cost_usd"] == 0.0
     assert data["contract"]["blocks_answers"] is False
     assert data["signal_count"] == 0
+    assert data["prompt_regression_candidate_count"] == 0
     assert data["coverage_gaps"]
 
 
@@ -200,6 +201,7 @@ def test_eval_hallucination_risks_outputs_text_summary():
     assert result.exit_code == 0
     assert "Hallucination risk report" in result.output
     assert "Signals:" in result.output
+    assert "Prompt regression candidates:" in result.output
 
 
 def test_eval_hallucination_risks_accepts_handoff_paths(tmp_path):

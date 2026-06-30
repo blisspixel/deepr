@@ -63,6 +63,21 @@ _LOW_DIMENSION_RISKS = {
     "original_thought": ("unlabeled_hypothesis",),
 }
 
+_PROMPT_REGRESSION_FOCUS = {
+    "answer_quality_review_needed": "tighten reviewed-answer remediation instructions",
+    "citation_provenance_gap": "require source-backed factual claims or explicit unverified labels",
+    "context_gap": "require visible use of selected expert context before synthesis",
+    "dissent_flattening": "preserve disagreements and unresolved tradeoffs in synthesis",
+    "false_premise_compliance": "challenge or qualify unsupported premises before answering",
+    "overconfident_uncertainty_failure": "surface uncertainty, stale context, and open questions",
+    "template_sensitivity": "check answer stability across prompt-template and example-order variants",
+    "temporal_freshness_mismatch": "force dated claims to carry freshness and cutoff language",
+    "thin_confabulation_risk": "require concrete evidence, decision criteria, or next research action",
+    "unlabeled_hypothesis": "label hypotheses and original synthesis separately from verified facts",
+    "unsupported_factual_claim": "ground factual claims or route them to review before reuse",
+}
+_PROMPT_REGRESSION_SURFACES = {"consult_trace", "consult_quality_review"}
+
 
 def _utc_now() -> datetime:
     return datetime.now(UTC)
@@ -466,6 +481,45 @@ def _coverage_gaps(observed_labels: set[str]) -> list[dict[str, str]]:
     ]
 
 
+def _prompt_regression_candidates(signals: list[dict[str, Any]], *, limit: int = 20) -> list[dict[str, Any]]:
+    max_candidates = max(0, limit)
+    if max_candidates == 0:
+        return []
+
+    candidates: list[dict[str, Any]] = []
+    for signal in signals:
+        surface = str(signal.get("surface", ""))
+        if surface not in _PROMPT_REGRESSION_SURFACES:
+            continue
+
+        labels = sorted(
+            {str(label) for label in signal.get("risk_labels", []) or [] if str(label) in _PROMPT_REGRESSION_FOCUS}
+        )
+        if not labels:
+            continue
+
+        source_ref = signal.get("source_ref") if isinstance(signal.get("source_ref"), dict) else {}
+        candidates.append(
+            {
+                "candidate_id": "prompt_regression_" + _stable_id([str(signal.get("signal_id", "")), ",".join(labels)]),
+                "source_signal_id": str(signal.get("signal_id", "")),
+                "surface": surface,
+                "source_ref": {str(key): str(value) for key, value in source_ref.items() if isinstance(key, str)},
+                "risk_labels": labels,
+                "selection_reason": "advisory_risk_label",
+                "prompt_focus": [_PROMPT_REGRESSION_FOCUS[label] for label in labels],
+                "review_status": str(signal.get("review_status", "")),
+                "judgment_source": str(signal.get("judgment_source", "")),
+                "semantic_verdict": False,
+                "writes_state": False,
+                "recommended_action": "add_to_consult_prompt_regression_selection",
+            }
+        )
+        if len(candidates) >= max_candidates:
+            break
+    return candidates
+
+
 def build_hallucination_risk_report(
     *,
     trace_path: Path | None = None,
@@ -507,6 +561,7 @@ def build_hallucination_risk_report(
             signals.append(signal)
     label_counts = Counter(label for signal in signals for label in signal.get("risk_labels", []) or [])
     observed_labels = set(label_counts)
+    prompt_regression_candidates = _prompt_regression_candidates(signals)
     return {
         "schema_version": HALLUCINATION_RISK_REPORT_SCHEMA_VERSION,
         "kind": HALLUCINATION_RISK_REPORT_KIND,
@@ -518,12 +573,15 @@ def build_hallucination_risk_report(
         "signal_count": len(signals),
         "risk_label_counts": dict(sorted(label_counts.items())),
         "signals": signals,
+        "prompt_regression_candidate_count": len(prompt_regression_candidates),
+        "prompt_regression_candidates": prompt_regression_candidates,
         "coverage_gaps": _coverage_gaps(observed_labels),
         "mitigation_policy": {
             "signals_inform_only": True,
             "never_blocks_answers": True,
             "never_writes_beliefs": True,
             "semantic_judgment_requires_human_or_calibrated_model": True,
+            "prompt_regression_selection_uses_advisory_labels_only": True,
             "recommended_uses": [
                 "prompt_variant_selection",
                 "retrieval_strategy_review",

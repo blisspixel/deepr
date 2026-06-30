@@ -82,6 +82,13 @@ def test_hallucination_risk_report_uses_reviewed_scores_and_trace_routers(tmp_pa
     assert payload["risk_label_counts"]["unsupported_factual_claim"] == 1
     assert payload["risk_label_counts"]["citation_provenance_gap"] == 1
     assert payload["risk_label_counts"]["overconfident_uncertainty_failure"] == 1
+    assert payload["prompt_regression_candidate_count"] == 2
+    assert {item["surface"] for item in payload["prompt_regression_candidates"]} == {
+        "consult_trace",
+        "consult_quality_review",
+    }
+    assert {item["semantic_verdict"] for item in payload["prompt_regression_candidates"]} == {False}
+    assert {item["writes_state"] for item in payload["prompt_regression_candidates"]} == {False}
     assert {signal["judgment_source"] for signal in payload["signals"]} == {
         "deterministic_router",
         "human_or_calibrated_model_review",
@@ -133,6 +140,13 @@ def test_hallucination_risk_report_maps_reviewed_false_premise_and_template_labe
     assert payload["risk_label_counts"]["false_premise_compliance"] == 1
     assert payload["risk_label_counts"]["template_sensitivity"] == 1
     assert payload["risk_label_counts"]["overconfident_uncertainty_failure"] == 1
+    assert payload["prompt_regression_candidate_count"] == 1
+    assert set(payload["prompt_regression_candidates"][0]["prompt_focus"]) == {
+        "tighten reviewed-answer remediation instructions",
+        "challenge or qualify unsupported premises before answering",
+        "surface uncertainty, stale context, and open questions",
+        "check answer stability across prompt-template and example-order variants",
+    }
     assert {
         "false_premise_compliance",
         "template_sensitivity",
@@ -205,6 +219,7 @@ def test_hallucination_risk_report_reads_handoff_and_source_pack_manifests(tmp_p
     assert payload["risk_label_counts"]["citation_provenance_gap"] == 1
     assert payload["risk_label_counts"]["source_pack_compile_blocked"] == 1
     assert payload["risk_label_counts"]["context_gap"] == 1
+    assert payload["prompt_regression_candidate_count"] == 0
     assert {signal["surface"] for signal in payload["signals"]} == {"expert_handoff", "source_pack_manifest"}
     assert {signal["judgment_source"] for signal in payload["signals"]} == {"deterministic_router"}
     rendered = json.dumps(payload)
