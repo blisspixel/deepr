@@ -212,6 +212,7 @@ async def test_anthropic_chat_backend_uses_native_messages_shape_and_usage():
     assert backend.provider == "anthropic"
     assert backend.metered is True
     assert backend.supports_tools is False
+    assert backend.supports_streaming is True
     assert captured == {
         "model": "claude-sonnet-4-6",
         "max_tokens": 123,
@@ -222,6 +223,76 @@ async def test_anthropic_chat_backend_uses_native_messages_shape_and_usage():
     assert result.usage.input_tokens == 11
     assert result.provider_request_id == "req_123"
     assert result.stop_reason == "end_turn"
+
+
+@pytest.mark.asyncio
+async def test_anthropic_chat_backend_streams_text_and_final_usage():
+    captured: dict[str, object] = {}
+
+    class AsyncTextStream:
+        def __init__(self, chunks):
+            self._chunks = list(chunks)
+
+        def __aiter__(self):
+            return self
+
+        async def __anext__(self):
+            if not self._chunks:
+                raise StopAsyncIteration
+            return self._chunks.pop(0)
+
+    class FakeStream:
+        def __init__(self):
+            self.text_stream = AsyncTextStream(["hel", "lo"])
+
+        async def get_final_message(self):
+            return SimpleNamespace(
+                usage=SimpleNamespace(
+                    input_tokens=9,
+                    output_tokens=2,
+                    cache_creation_input_tokens=1,
+                    cache_read_input_tokens=3,
+                )
+            )
+
+    class FakeStreamManager:
+        async def __aenter__(self):
+            return FakeStream()
+
+        async def __aexit__(self, exc_type, exc, tb):
+            return None
+
+    class FakeMessages:
+        def stream(self, **kwargs):
+            captured.update(kwargs)
+            return FakeStreamManager()
+
+    client = SimpleNamespace(messages=FakeMessages())
+    backend = AnthropicExpertChatBackend(client, model="claude-sonnet-4-6")
+
+    chunks = [
+        chunk
+        async for chunk in backend.stream(
+            ExpertChatRequest(
+                model="claude-sonnet-4-6",
+                messages=[
+                    {"role": "system", "content": "You are careful."},
+                    {"role": "user", "content": "q"},
+                ],
+                extra={"temperature": 0.2, "max_tokens": 123},
+            )
+        )
+    ]
+
+    assert captured == {
+        "model": "claude-sonnet-4-6",
+        "max_tokens": 123,
+        "messages": [{"role": "user", "content": "q"}],
+        "system": "You are careful.",
+    }
+    assert [chunk.text_delta for chunk in chunks] == ["hel", "lo", ""]
+    assert chunks[-1].usage.input_tokens == 9
+    assert chunks[-1].usage.output_tokens == 2
 
 
 @pytest.mark.asyncio
@@ -237,6 +308,25 @@ async def test_anthropic_chat_backend_rejects_tools():
                 tools=[{"type": "function", "function": {"name": "lookup"}}],
             )
         )
+
+
+@pytest.mark.asyncio
+async def test_anthropic_chat_backend_stream_rejects_tools():
+    client = SimpleNamespace(messages=SimpleNamespace())
+    backend = AnthropicExpertChatBackend(client, model="claude-sonnet-4-6")
+
+    with pytest.raises(ExpertChatUnsupportedFeature, match="does not support tools"):
+        chunks = [
+            chunk
+            async for chunk in backend.stream(
+                ExpertChatRequest(
+                    model="claude-sonnet-4-6",
+                    messages=[{"role": "user", "content": "q"}],
+                    tools=[{"type": "function", "function": {"name": "lookup"}}],
+                )
+            )
+        ]
+        assert chunks == []
 
 
 @pytest.mark.asyncio

@@ -45,10 +45,10 @@ cost ledger.
   `deepr_query_expert backend=local|plan` selects those adapters for one
   read-only compiled-context turn. `AnthropicExpertChatBackend` now supports
   explicit non-agentic API query chat through the native Anthropic Messages API,
-  with tools, streaming, and prompt-cache controls disabled until those policy
-  gates exist. The shared chat-turn helper rejects requested tools before
-  backend dispatch when `supports_tools=false` and omits `tool_choice` on
-  no-tool turns.
+  with native text streaming and final usage settlement. Tools and prompt-cache
+  controls remain disabled until those policy gates exist. The shared chat-turn
+  helper rejects requested tools before backend dispatch when
+  `supports_tools=false` and omits `tool_choice` on no-tool turns.
 - MCP `deepr_consult_experts` accepts `synthesis_backend=api|local|plan`.
   MCP `deepr_query_expert` accepts `backend=api|local|plan`. The default
   `api` path is OpenAI unless the caller explicitly sets `provider=anthropic`.
@@ -57,8 +57,8 @@ cost ledger.
   through the owned-capacity backend seam, with live metered fallback disabled,
   no research trigger, and a `readonly_chat_artifact` attached to the result.
 - `AnthropicProvider` is still a research provider. Expert chat uses the
-  narrower native `AnthropicExpertChatBackend` because chat turns need a
-  different request/result/cost contract than research jobs.
+  narrower native `AnthropicExpertChatBackend` because chat turns and text
+  streams need a different request/result/cost contract than research jobs.
 
 ## 2026 Provider Findings
 
@@ -256,8 +256,9 @@ and an Anthropic model.
 ## Cost And Security Rules
 
 - API backend requires a positive budget and an approved scoped key or local
-  operator confirmation. Anthropic API query chat is non-agentic only until
-  tool and streaming support have explicit backend capability checks.
+  operator confirmation. Anthropic API query chat supports non-agentic text
+  streaming, but remains non-agentic until tool support has explicit backend
+  capability checks.
 - Local and plan backends allow `budget=0` and must set
   `live_metered_fallback=false`.
 - No backend may fall through to another capacity tier without an explicit
@@ -314,7 +315,8 @@ side-effect policy.
 7. Add Anthropic expert chat in non-agentic mode.
    (done 2026-06-30: MCP `deepr_query_expert backend=api
    provider=anthropic` selects a native Anthropic Messages backend, omits
-   OpenAI-only sampling params, disables tools/streaming/prompt cache controls,
+   OpenAI-only sampling params, disables tools and prompt-cache controls,
+   supports native non-agentic text streaming with final usage settlement,
    rejects `agentic=true`, and records Anthropic usage buckets through the
    chat cost ledger)
 8. Add agentic tools per backend only when the backend declares support and the
