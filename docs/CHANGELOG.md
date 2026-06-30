@@ -8,6 +8,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- Moved expert-chat follow-up suggestions and conversation compaction onto the
+  `ExpertChatBackend` seam, preserving the existing OpenAI model, sampling, and
+  token-limit behavior while reducing remaining direct chat client calls.
 - Added the first `ExpertChatBackend` slice for expert chat. Primary
   non-streaming API answer-generation turns now use `OpenAIExpertChatBackend`
   through a normalized request/result seam while preserving existing OpenAI
