@@ -16,6 +16,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   and cache-read usage cannot silently record as zero.
 
 ### Added
+- Added plan-quota dispatch to `deepr expert sync-all`. Roster maintenance can
+  now use an explicitly selected non-metered plan backend with `--plan <id>` or
+  an auto-selected plan backend only when the existing waterfall returns an
+  operator-admitted, trusted-quota-observed plan choice. Metered-at-margin CLI
+  backends are rejected for roster plan dispatch; use `--api` for explicit
+  metered roster runs.
 - Added `deepr capacity validate-fleet`, a bounded plan-fleet health check that
   runs selected plan CLI transport probes, records quota observations, then
   validates the no-metered consult contract only for transports that succeeded.
