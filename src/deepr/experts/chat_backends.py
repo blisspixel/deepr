@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import AsyncIterator
 from dataclasses import dataclass, field
 from types import SimpleNamespace
 from typing import Any, Protocol
@@ -34,6 +35,15 @@ class ExpertChatResult:
         return str(getattr(self.message, "content", "") or "")
 
 
+@dataclass(frozen=True)
+class ExpertChatStreamChunk:
+    """Normalized stream event for one expert chat text delta or usage update."""
+
+    text_delta: str = ""
+    usage: Any | None = None
+    raw_chunk: Any | None = None
+
+
 class ExpertChatUnsupportedFeature(ValueError):
     """Raised when a backend is asked to use a feature it does not declare."""
 
@@ -50,6 +60,9 @@ class ExpertChatBackend(Protocol):
 
     async def complete(self, request: ExpertChatRequest) -> ExpertChatResult:
         """Complete one chat turn."""
+
+    def stream(self, request: ExpertChatRequest) -> AsyncIterator[ExpertChatStreamChunk]:
+        """Stream one chat turn."""
 
 
 def _chat_reasoning_effort(model: Any) -> str | None:
@@ -78,6 +91,24 @@ async def complete_expert_chat_turn(
     )
 
 
+def stream_expert_chat_turn(
+    backend: ExpertChatBackend,
+    *,
+    selected_model: Any,
+    messages: list[Any],
+) -> AsyncIterator[ExpertChatStreamChunk]:
+    """Build and stream one expert chat turn through the configured backend."""
+    if not backend.supports_streaming:
+        raise ExpertChatUnsupportedFeature(f"{backend.provider} expert-chat backend does not support streaming")
+    return backend.stream(
+        ExpertChatRequest(
+            model=selected_model.model,
+            messages=messages,
+            reasoning_effort=_chat_reasoning_effort(selected_model),
+        )
+    )
+
+
 class OpenAIExpertChatBackend:
     """OpenAI chat-completions backend preserving the legacy chat path."""
 
@@ -92,6 +123,29 @@ class OpenAIExpertChatBackend:
         self.model = model
 
     async def complete(self, request: ExpertChatRequest) -> ExpertChatResult:
+        params = self._build_params(request)
+        response = await self.client.chat.completions.create(**params)
+        choice = response.choices[0]
+        return ExpertChatResult(
+            message=choice.message,
+            usage=getattr(response, "usage", None),
+            raw_response=response,
+            provider_request_id=str(getattr(response, "id", "") or ""),
+            stop_reason=str(getattr(choice, "finish_reason", "") or ""),
+        )
+
+    async def stream(self, request: ExpertChatRequest) -> AsyncIterator[ExpertChatStreamChunk]:
+        params = self._build_params(request)
+        params["stream"] = True
+        params["stream_options"] = {"include_usage": True}
+        stream = await self.client.chat.completions.create(**params)
+        async for chunk in stream:
+            usage = getattr(chunk, "usage", None)
+            delta = chunk.choices[0].delta if getattr(chunk, "choices", None) else None
+            text_delta = str(getattr(delta, "content", "") or "") if delta else ""
+            yield ExpertChatStreamChunk(text_delta=text_delta, usage=usage, raw_chunk=chunk)
+
+    def _build_params(self, request: ExpertChatRequest) -> dict[str, Any]:
         params: dict[str, Any] = {
             "model": request.model,
             "messages": request.messages,
@@ -103,16 +157,7 @@ class OpenAIExpertChatBackend:
         if request.reasoning_effort:
             params["reasoning_effort"] = request.reasoning_effort
         params.update(request.extra)
-
-        response = await self.client.chat.completions.create(**params)
-        choice = response.choices[0]
-        return ExpertChatResult(
-            message=choice.message,
-            usage=getattr(response, "usage", None),
-            raw_response=response,
-            provider_request_id=str(getattr(response, "id", "") or ""),
-            stop_reason=str(getattr(choice, "finish_reason", "") or ""),
-        )
+        return params
 
 
 class AnthropicExpertChatBackend:
@@ -146,6 +191,9 @@ class AnthropicExpertChatBackend:
             provider_request_id=str(getattr(response, "_request_id", "") or getattr(response, "id", "") or ""),
             stop_reason=stop_reason,
         )
+
+    def stream(self, request: ExpertChatRequest) -> AsyncIterator[ExpertChatStreamChunk]:
+        raise ExpertChatUnsupportedFeature("anthropic expert-chat backend does not support streaming yet")
 
     def _build_params(self, request: ExpertChatRequest, *, model: str) -> dict[str, Any]:
         extra = dict(request.extra)
@@ -244,6 +292,9 @@ class _OpenAIShapeNoToolExpertChatBackend:
             provider_request_id=str(getattr(response, "id", "") or ""),
             stop_reason=str(getattr(choice, "finish_reason", "") or ""),
         )
+
+    def stream(self, request: ExpertChatRequest) -> AsyncIterator[ExpertChatStreamChunk]:
+        raise ExpertChatUnsupportedFeature(f"{self.provider} expert-chat backend does not support streaming")
 
     def _build_params(self, request: ExpertChatRequest) -> dict[str, Any]:
         model = request.model or self.model

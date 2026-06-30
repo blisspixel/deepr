@@ -35,11 +35,10 @@ cost ledger.
   turn, follow-up suggestions, and conversation compaction now go through
   `ExpertChatBackend` with `OpenAIExpertChatBackend`. Quick lookup and the
   standard-research fallback now use the same backend seam while preserving
-  their operation-specific budget checks and ledger records. Final token
-  streaming still uses the direct provider stream until the backend contract
-  grows a streaming interface. Deep-research job submission still uses the
-  OpenAI Responses API path because it is a research-job contract, not one
-  normalized chat turn. `LocalOllamaExpertChatBackend` and
+  their operation-specific budget checks and ledger records. Final OpenAI token
+  streaming now uses the backend streaming contract. Deep-research job
+  submission still uses the OpenAI Responses API path because it is a
+  research-job contract, not one normalized chat turn. `LocalOllamaExpertChatBackend` and
   `PlanQuotaExpertChatBackend` now implement the same normalized backend
   contract for read-only compiled-context turns, declare no tools, no
   streaming, no prompt cache, and no Deepr dollar spend. MCP
@@ -154,6 +153,9 @@ class ExpertChatBackend(Protocol):
     supports_prompt_cache: bool
 
     async def complete(self, request: ExpertChatRequest) -> ExpertChatResult:
+        ...
+
+    def stream(self, request: ExpertChatRequest) -> AsyncIterator[ExpertChatStreamChunk]:
         ...
 ```
 
@@ -299,8 +301,9 @@ side-effect policy.
    behavior changes. (partial 2026-06-30: primary non-streaming
    answer-generation chat-completion turns, streaming setup/tool rounds,
    follow-up suggestions, conversation compaction, quick lookup, and
-   standard-research fallback now use `OpenAIExpertChatBackend`; final token
-   streaming waits for a streaming backend contract)
+   standard-research fallback now use `OpenAIExpertChatBackend`; updated
+   2026-06-30: final OpenAI token streaming now uses the backend streaming
+   contract)
 6. Add local and plan chat backends in read-only compiled-context mode.
    (done 2026-06-30: `LocalOllamaExpertChatBackend` and
    `PlanQuotaExpertChatBackend` implement the backend protocol with tools,

@@ -16,6 +16,7 @@ from deepr.experts.chat_api_backends import build_api_expert_chat_backend, estim
 from deepr.experts.chat_backends import (
     ExpertChatRequest,
     complete_expert_chat_turn,
+    stream_expert_chat_turn,
 )
 from deepr.experts.chat_turns import (
     chat_generation_budget_denial,
@@ -2296,27 +2297,19 @@ Budget remaining: ${budget_remaining:.2f}
                 # No content yet - need a streaming call for the final answer
                 report_status("Generating response...")
                 conversation_messages.append(current_message)
-                stream_params = {
-                    "model": selected_model.model,
-                    "messages": conversation_messages,
-                    "stream": True,
-                    "stream_options": {"include_usage": True},
-                }
-                if selected_model.reasoning_effort and selected_model.provider == "openai":
-                    stream_params["reasoning_effort"] = selected_model.reasoning_effort
-
-                stream = await self.client.chat.completions.create(**stream_params)
                 final_message = ""
                 stream_usage = None
-                async for chunk in stream:
-                    usage = getattr(chunk, "usage", None)
-                    if usage is not None:
-                        stream_usage = usage
-                    delta = chunk.choices[0].delta if chunk.choices else None
-                    if delta and delta.content:
-                        final_message += delta.content
+                async for chunk in stream_expert_chat_turn(
+                    self.chat_backend,
+                    selected_model=selected_model,
+                    messages=conversation_messages,
+                ):
+                    if chunk.usage is not None:
+                        stream_usage = chunk.usage
+                    if chunk.text_delta:
+                        final_message += chunk.text_delta
                         if token_callback:
-                            token_callback(delta.content)
+                            token_callback(chunk.text_delta)
                 if stream_usage is not None:
                     self._account_chat_cost(stream_usage, selected_model)
             else:

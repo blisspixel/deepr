@@ -9,6 +9,7 @@ import pytest
 from deepr.experts.chat_backends import (
     AnthropicExpertChatBackend,
     ExpertChatRequest,
+    ExpertChatStreamChunk,
     ExpertChatUnsupportedFeature,
     LocalOllamaExpertChatBackend,
     OpenAIExpertChatBackend,
@@ -51,6 +52,57 @@ async def test_openai_chat_backend_passes_request_shape_and_normalizes_result():
     assert result.usage.prompt_tokens == 7
     assert result.provider_request_id == "chatcmpl_123"
     assert result.stop_reason == "stop"
+
+
+@pytest.mark.asyncio
+async def test_openai_chat_backend_streams_deltas_and_usage():
+    captured: dict[str, object] = {}
+
+    class FakeStream:
+        def __init__(self):
+            self._chunks = [
+                SimpleNamespace(choices=[SimpleNamespace(delta=SimpleNamespace(content="hel"))], usage=None),
+                SimpleNamespace(choices=[SimpleNamespace(delta=SimpleNamespace(content="lo"))], usage=None),
+                SimpleNamespace(choices=[], usage=SimpleNamespace(prompt_tokens=8, completion_tokens=2)),
+            ]
+
+        def __aiter__(self):
+            return self
+
+        async def __anext__(self):
+            if not self._chunks:
+                raise StopAsyncIteration
+            return self._chunks.pop(0)
+
+    class FakeCompletions:
+        async def create(self, **kwargs):
+            captured.update(kwargs)
+            return FakeStream()
+
+    client = SimpleNamespace(chat=SimpleNamespace(completions=FakeCompletions()))
+    backend = OpenAIExpertChatBackend(client, model="gpt-5.2")
+
+    chunks = [
+        chunk
+        async for chunk in backend.stream(
+            ExpertChatRequest(
+                model="gpt-5.2",
+                messages=[{"role": "user", "content": "q"}],
+                reasoning_effort="low",
+            )
+        )
+    ]
+
+    assert captured == {
+        "model": "gpt-5.2",
+        "messages": [{"role": "user", "content": "q"}],
+        "reasoning_effort": "low",
+        "stream": True,
+        "stream_options": {"include_usage": True},
+    }
+    assert [chunk.text_delta for chunk in chunks] == ["hel", "lo", ""]
+    assert isinstance(chunks[0], ExpertChatStreamChunk)
+    assert chunks[-1].usage.prompt_tokens == 8
 
 
 @pytest.mark.asyncio
