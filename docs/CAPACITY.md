@@ -18,8 +18,10 @@ not infer paid execution from a text-model API key alone. Portrait generation
 auto-selects only a local image endpoint unless the operator passes an explicit
 paid provider or sets `DEEPR_ALLOW_METERED_IMAGE_AUTO=1`. It also treats
 portraits as create-once artifacts by default: existing portraits are skipped
-unless the caller explicitly forces regeneration, and metered web requests must
-acknowledge the estimated cost before dispatch.
+unless the caller explicitly forces regeneration, and metered web or CLI
+requests must acknowledge the estimated cost before dispatch. CLI `--yes` can
+skip unattended prompts only for free/local image generation unless
+`--confirm-metered-cost` is also supplied.
 
 ## Current Status
 

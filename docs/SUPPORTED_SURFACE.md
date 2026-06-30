@@ -160,7 +160,11 @@ must not be described as usable capacity.
   operators at `$0`, and MCP `deepr_semantic_recall` exposes the same read-only
   surface to host agents with host-facing payload sanitization. Indexed vector
   recall requires a caller-supplied `--query-embedding` and `--embedding-model`
-  on CLI, or `query_embedding` and `embedding_model` over MCP.
+  on CLI, or `query_embedding` and `embedding_model` over MCP. `deepr expert
+  refresh-semantic-recall NAME --embedding-model MODEL --embeddings-json PATH`
+  refreshes missing or stale belief vectors from precomputed embeddings only;
+  it never calls an embedding provider and keeps declared upstream estimate
+  separate from Deepr spend.
 - `deepr expert monitor` emits a read-only `deepr-metacognitive-monitor-v1`
   artifact with review-required proposals derived from self-model risks, failed
   loop runs, capacity waits, and sanitized consult trace candidates. It does
