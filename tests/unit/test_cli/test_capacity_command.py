@@ -83,6 +83,16 @@ class TestAdmitPlan:
         assert r2.exit_code == 0
         assert not is_admitted("plan:codex", "sync")
 
+    def test_gap_fill_task_class_is_admittable(self, monkeypatch, tmp_path):
+        monkeypatch.setenv("DEEPR_CAPACITY_DATA_DIR", str(tmp_path))
+        for var in _CLEAN:
+            monkeypatch.delenv(var, raising=False)
+        from deepr.backends.admission import is_admitted
+
+        r = CliRunner().invoke(capacity, ["admit-plan", "codex", "--task-class", "gap_fill"])
+        assert r.exit_code == 0, r.output
+        assert is_admitted("plan:codex", "gap_fill")
+
     def test_admit_sanitizes_api_key_present(self, monkeypatch, tmp_path):
         monkeypatch.setenv("DEEPR_CAPACITY_DATA_DIR", str(tmp_path))
         monkeypatch.setenv("OPENAI_API_KEY", "sk-should-block")

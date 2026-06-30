@@ -26,6 +26,7 @@ from deepr.cli.commands.capacity_validation import (
 )
 
 _PLAN_BACKEND_IDS = ("codex", "claude", "opencode", "kiro", "grok", "antigravity", "copilot")
+_AUTO_PLAN_TASK_CLASSES = ("sync", "absorb", "gap_fill")
 _FLEET_PROBE_SCHEMA_VERSION = "deepr-plan-fleet-probe-v1"
 _FLEET_PROBE_KIND = "deepr.capacity.probe_fleet"
 _GROUP_ORDER = [
@@ -863,7 +864,9 @@ def _record_probe_plan_observation(adapter, result: dict[str, object]) -> None:
 
 @capacity.command(name="admit-plan")
 @click.argument("backend", type=click.Choice(["codex", "claude", "opencode"]))
-@click.option("--task-class", "task_class", type=click.Choice(["sync", "absorb"]), default="sync", show_default=True)
+@click.option(
+    "--task-class", "task_class", type=click.Choice(_AUTO_PLAN_TASK_CLASSES), default="sync", show_default=True
+)
 @click.option("--days", type=int, default=None, help="Admission lifetime in days (default 90).")
 def capacity_admit_plan(backend: str, task_class: str, days: int | None):
     """Record operator intent for plan-quota routing on TASK-CLASS.
@@ -908,7 +911,7 @@ def capacity_admit_plan(backend: str, task_class: str, days: int | None):
 
 @capacity.command(name="revoke-plan")
 @click.argument("backend", type=click.Choice(["codex", "claude", "opencode"]))
-@click.option("--task-class", "task_class", type=click.Choice(["sync", "absorb"]), required=True)
+@click.option("--task-class", "task_class", type=click.Choice(_AUTO_PLAN_TASK_CLASSES), required=True)
 def capacity_revoke_plan(backend: str, task_class: str):
     """Revoke a plan-quota backend's routing admission for TASK-CLASS."""
     from deepr.backends.admission import is_admitted, revoke_admission

@@ -9,8 +9,10 @@ baselines are well-formed.
 
 from __future__ import annotations
 
+import fnmatch
 import importlib.util
 from pathlib import Path
+import tomllib
 
 import pytest
 
@@ -62,3 +64,18 @@ class TestRatchetBaselines:
         assert set(ratchets.BASELINES) == {"C901", "S"}
         for rule, baseline in ratchets.BASELINES.items():
             assert isinstance(baseline, int) and baseline >= 0, rule
+
+
+class TestPackageDiscovery:
+    def test_generated_frontend_dirs_are_not_python_packages(self):
+        config = tomllib.loads((_REPO_ROOT / "pyproject.toml").read_text(encoding="utf-8"))
+        find_config = config["tool"]["setuptools"]["packages"]["find"]
+        exclude = find_config["exclude"]
+
+        assert not any(fnmatch.fnmatchcase("deepr.core", pattern) for pattern in exclude)
+        for package in (
+            "deepr.web.frontend.node_modules.katex.src.metrics",
+            "deepr.web.frontend.dist.assets",
+            "deepr.web.frontend.screenshots.capture",
+        ):
+            assert any(fnmatch.fnmatchcase(package, pattern) for pattern in exclude), package

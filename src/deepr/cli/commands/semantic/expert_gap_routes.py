@@ -9,15 +9,70 @@ from __future__ import annotations
 import asyncio
 import json as _json
 import sys
+from dataclasses import dataclass
 from typing import Any
 
 import click
 
 from deepr.cli.colors import console, print_error, print_header, print_success, print_warning
 from deepr.cli.commands.semantic.experts import expert
+from deepr.cli.commands.semantic.grounding_support import PLAN_BACKEND_CHOICES
 
 SCHEDULED_GAP_FILL_WAIT_KIND = "deepr.expert.scheduled_gap_fill_wait"
 SCHEDULED_GAP_FILL_WAIT_SCHEMA_VERSION = "deepr-scheduled-gap-fill-wait-v1"
+
+
+@dataclass(frozen=True)
+class _GapFillBackend:
+    use_local: bool = False
+    local_model: str | None = None
+    use_plan: bool = False
+    plan_backend_id: str | None = None
+    plan_model: str | None = None
+    note: str = ""
+
+    @property
+    def owned_or_prepaid(self) -> bool:
+        return self.use_local or self.use_plan
+
+
+def _resolve_gap_fill_backend(local: bool, api: bool, plan: str | None, plan_model: str | None) -> _GapFillBackend:
+    """Resolve the execution rung for route-gaps fills."""
+    _validate_gap_fill_backend_flags(local=local, api=api, plan=plan, plan_model=plan_model)
+    if api:
+        return _GapFillBackend()
+    if plan:
+        from deepr.backends.waterfall import choose_plan_quota_backend
+
+        choice = choose_plan_quota_backend(plan)
+        if not choice.is_plan_quota or choice.plan_backend_id is None:
+            raise ValueError(choice.reason)
+        return _GapFillBackend(
+            use_plan=True,
+            plan_backend_id=choice.plan_backend_id,
+            plan_model=plan_model,
+            note=choice.reason,
+        )
+    if local:
+        return _GapFillBackend(use_local=True)
+
+    from deepr.backends.admission import TASK_CLASS_GAP_FILL
+    from deepr.backends.waterfall import choose_maintenance_backend
+
+    choice = choose_maintenance_backend(TASK_CLASS_GAP_FILL)
+    if choice.is_plan_quota and choice.plan_backend_id:
+        return _GapFillBackend(use_plan=True, plan_backend_id=choice.plan_backend_id, note=choice.reason)
+    if choice.is_local:
+        return _GapFillBackend(use_local=True, local_model=choice.model, note=choice.reason)
+    return _GapFillBackend(note=choice.reason)
+
+
+def _validate_gap_fill_backend_flags(*, local: bool, api: bool, plan: str | None, plan_model: str | None) -> None:
+    """Validate flag combinations without touching profile or capacity state."""
+    if sum(bool(x) for x in (local, api, plan)) > 1:
+        raise ValueError("Use only one of --local, --api, or --plan.")
+    if plan_model and not plan:
+        raise ValueError("Use --plan-model with --plan.")
 
 
 def _quote_cli_arg(value: str) -> str:
@@ -101,6 +156,7 @@ def _build_gap_fill_engine(
     profile: Any,
     *,
     use_local: bool,
+    local_model: str | None,
     use_plan: bool,
     plan_backend_id: str | None,
     plan_model: str | None,
@@ -118,7 +174,7 @@ def _build_gap_fill_engine(
         from deepr.backends.local import default_local_model, make_local_research_fn, ollama_chat_client
         from deepr.experts.report_absorber import ReportAbsorber
 
-        local_model = default_local_model()
+        local_model = local_model or default_local_model()
         if not local_model:
             print_error("No local model available. Is Ollama running? Check: deepr capacity --probe")
             sys.exit(2)
@@ -136,6 +192,9 @@ def _build_gap_fill_engine(
         from deepr.experts.report_absorber import ReportAbsorber
 
         adapter = get_adapter(plan_backend_id or "")
+        if adapter is None:
+            print_error(f"Unknown plan-quota backend: {plan_backend_id}")
+            sys.exit(2)
         if selection_note and not json_output:
             console.print(f"[dim]{selection_note}[/dim]")
         if adapter.tos_note and not json_output:
@@ -228,7 +287,7 @@ def _record_completed_gap_fill_loop(
 @click.option(
     "--plan",
     "plan",
-    type=click.Choice(["codex", "claude", "opencode", "kiro", "grok", "antigravity", "copilot"]),
+    type=click.Choice(PLAN_BACKEND_CHOICES),
     default=None,
     help="With --execute: run fills on a plan-quota CLI backend (prepaid). See: deepr capacity",
 )
@@ -270,6 +329,13 @@ def route_gaps(
     from deepr.experts.gap_router import GapRouter
     from deepr.experts.profile import ExpertStore
 
+    if execute_fills:
+        try:
+            _validate_gap_fill_backend_flags(local=local, api=api, plan=plan, plan_model=plan_model)
+        except ValueError as exc:
+            print_error(str(exc))
+            sys.exit(2)
+
     store = ExpertStore()
     profile = store.load(name)
     if not profile:
@@ -281,8 +347,10 @@ def route_gaps(
     routes = GapRouter().route(gaps)
 
     if execute_fills:
-        if sum(bool(x) for x in (local, api, plan)) > 1:
-            print_error("Use only one of --local, --api, or --plan.")
+        try:
+            backend = _resolve_gap_fill_backend(local, api, plan, plan_model)
+        except ValueError as exc:
+            print_error(str(exc))
             sys.exit(2)
 
         research_routes = [r for r in routes if r.instrument == "research"]
@@ -290,27 +358,9 @@ def route_gaps(
             print_success("No open knowledge gaps to fill.")
             return
 
-        # Backend (capacity waterfall): owned local or prepaid plan before metered.
-        # Explicit-only here (route-gaps has no auto-local rung); default is metered.
-        use_local = local
-        use_plan = False
-        plan_backend_id: str | None = plan
-        selection_note = ""
-        if plan:
-            from deepr.backends.waterfall import choose_plan_quota_backend
-
-            choice = choose_plan_quota_backend(plan)
-            if not choice.is_plan_quota:
-                print_error(choice.reason)
-                sys.exit(2)
-            use_plan = True
-            plan_backend_id = choice.plan_backend_id
-            selection_note = choice.reason
-        owned_or_prepaid = use_local or use_plan
-
         # A scheduled recurring fill waits for cheap capacity instead of paying;
         # owned/prepaid (local or plan) proceeds because it is not metered spend.
-        if scheduled and not dry_run and research_routes and not owned_or_prepaid:
+        if scheduled and not dry_run and research_routes and not backend.owned_or_prepaid:
             if json_output:
                 payload = _scheduled_gap_fill_wait_payload(profile.name, routes, budget=budget, top_n=top_n)
                 click.echo(_json.dumps(payload, indent=2))
@@ -318,8 +368,8 @@ def route_gaps(
             _emit_scheduled_gap_fill_wait(profile.name, routes, budget=budget, top_n=top_n)
             return
         if not dry_run and not yes:
-            if owned_or_prepaid:
-                where = "the local model at $0" if use_local else f"plan quota ({plan_backend_id})"
+            if backend.owned_or_prepaid:
+                where = "the local model at $0" if backend.use_local else f"plan quota ({backend.plan_backend_id})"
                 prompt = (
                     f"Execute up to {len(research_routes)} research fill(s) on {where}? Specialist routes are deferred."
                 )
@@ -335,11 +385,12 @@ def route_gaps(
 
         engine, capacity_source = _build_gap_fill_engine(
             profile,
-            use_local=use_local,
-            use_plan=use_plan,
-            plan_backend_id=plan_backend_id,
-            plan_model=plan_model,
-            selection_note=selection_note,
+            use_local=backend.use_local,
+            local_model=backend.local_model,
+            use_plan=backend.use_plan,
+            plan_backend_id=backend.plan_backend_id,
+            plan_model=backend.plan_model,
+            selection_note=backend.note,
             json_output=json_output,
         )
         result = asyncio.run(engine.execute(routes, budget=budget, top=top_n, dry_run=dry_run))
