@@ -5,7 +5,10 @@ turned an explicit budget=0.0 ("do not spend") into a $10 ceiling, because 0.0
 is falsy. An agent or `--budget 0` caller meaning no spend got a real budget.
 """
 
+from types import SimpleNamespace
+
 from deepr.experts.chat import ExpertChatSession
+from deepr.experts.chat_backends import ExpertChatResult
 from deepr.experts.cost_safety import CostSafetyManager, reset_cost_safety_manager
 from deepr.experts.profile import ExpertProfile
 
@@ -98,6 +101,34 @@ async def test_first_chat_generation_is_preflight_budget_checked(monkeypatch):
     assert result.startswith("Chat blocked: Insufficient budget")
     assert session.reasoning_trace[-1]["step"] == "chat_generation_budget"
     assert session.reasoning_trace[-1]["allowed"] is False
+
+
+async def test_first_chat_generation_uses_chat_backend(monkeypatch):
+    session = _session(monkeypatch, 1.0)
+    session.should_use_tot = lambda _query: False
+    captured = []
+
+    async def fail_if_called(*_args, **_kwargs):
+        raise AssertionError("legacy client should be behind chat_backend")
+
+    class FakeBackend:
+        async def complete(self, request):
+            captured.append(request)
+            return ExpertChatResult(
+                message=SimpleNamespace(content="backend answer", tool_calls=[]),
+                usage=SimpleNamespace(prompt_tokens=10, completion_tokens=5),
+            )
+
+    monkeypatch.setattr(session.client.chat.completions, "create", fail_if_called)
+    session.chat_backend = FakeBackend()
+
+    result = await session.send_message("What should this expert improve next?")
+
+    assert result == "backend answer"
+    assert len(captured) == 1
+    assert captured[0].model == session.expert.model
+    assert captured[0].tool_choice == "auto"
+    assert captured[0].messages[0]["role"] == "system"
 
 
 async def test_streaming_first_chat_generation_is_preflight_budget_checked(monkeypatch):

@@ -8,6 +8,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- Added the first `ExpertChatBackend` slice for expert chat. Primary
+  non-streaming API answer-generation turns now use `OpenAIExpertChatBackend`
+  through a normalized request/result seam while preserving existing OpenAI
+  behavior and chat cost accounting.
 - Added provider-pluggable API synthesis for `deepr expert consult` and MCP
   `deepr_consult_experts`. API consults can now select `openai` or `anthropic`
   plus an explicit model; the Anthropic path uses the native Messages API,
