@@ -358,6 +358,12 @@ unless `--confirm-metered-cost` is also supplied. Generated portraits live
 under the configured runtime data root and forced regeneration archives the
 previous image before replacement.
 
+API-backed `deepr expert make` is also explicit about cost posture. Before any
+provider client is constructed, it previews the provider, selected upload size,
+and hosted-vector-store storage estimate where Deepr can calculate one. `--yes`
+requires `--confirm-metered-profile` on that path. `deepr expert make --local`
+remains the provider-free `$0` profile setup path.
+
 ```bash
 deepr budget set 5
 deepr costs show

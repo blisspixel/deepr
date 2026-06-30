@@ -25,12 +25,20 @@ skip unattended prompts only for free/local image generation unless
 configured runtime data root, and forced regeneration archives the previous
 image before replacement.
 
+API-backed expert profile setup is treated the same way. `deepr expert make`
+previews the metered provider, file count, upload size, and hosted-vector-store
+storage estimate where Deepr has provider-specific pricing before it constructs
+a provider client.
+Unattended `--yes` runs must also pass `--confirm-metered-profile`. Local
+profile creation through `deepr expert make --local` stays provider-free and
+does not need that acknowledgement.
+
 ## Current Status
 
 | Source | Works now | Guardrail |
 |---|---|---|
 | Local Ollama | `expert make --local`, `expert absorb --local`, `expert sync --local`, `expert sync --local --fresh-context`, `expert sync --local --deep-context`, `eval local`, `eval local-context`, and scored admission | No provider API key required; automatic routing requires measured local quality evidence |
-| Provider APIs | Full research and high-quality synthesis when keys are configured | Premium fallback behind budget ceilings, preflight estimates, reservations, and append-only cost settlement |
+| Provider APIs | Full research and high-quality synthesis when keys are configured | Premium fallback behind budget ceilings, preflight estimates, reservations, and append-only cost settlement; API-backed expert profile setup previews provider upload/storage posture before provider dispatch |
 | Plan-quota CLIs | Explicit `expert sync --plan <id>`, `expert sync-all --plan <id>`, `expert route-gaps --execute --plan <id>`, `expert absorb --plan <id>`, `expert learn --plan <id>`, `expert learn-web --plan <id>`, `expert consult --plan <id>`, and `capacity probe-plan <id>` | Metered API-key env vars are stripped from child processes, auth mode is checked, metered-at-margin CLI backends are rejected for roster plan dispatch, and automatic routing waits for trusted remaining-quota evidence |
 | CLI judges | Explicit local eval judging with `--allow-cli-judge` | Opt-in only because Deepr cannot prove whether a vendor CLI uses quota, credits, or metered credentials |
 
