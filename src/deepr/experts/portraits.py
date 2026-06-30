@@ -10,6 +10,9 @@ import asyncio
 import base64
 import logging
 import os
+import shutil
+import uuid
+from datetime import UTC, datetime
 from pathlib import Path
 
 logger = logging.getLogger(__name__)
@@ -50,6 +53,13 @@ XAI_IMAGE_AUTO_ENV = "DEEPR_ALLOW_XAI_IMAGE_AUTO"
 METERED_IMAGE_AUTO_ENV = "DEEPR_ALLOW_METERED_IMAGE_AUTO"
 XAI_IMAGE_MODEL_ENV = "DEEPR_XAI_IMAGE_MODEL"
 DEFAULT_XAI_IMAGE_MODEL = "grok-imagine-image"
+
+
+def default_portraits_dir() -> Path:
+    """Return the canonical runtime portrait directory."""
+    from deepr.config import runtime_data_path
+
+    return runtime_data_path("portraits")
 
 
 def _truthy_env(name: str) -> bool:
@@ -111,6 +121,33 @@ def _build_prompt(name: str, domain: str | None, description: str | None, *, sty
     )
 
 
+def _resolve_output_dir(output_dir: str | Path | None) -> Path:
+    return Path(output_dir) if output_dir is not None else default_portraits_dir()
+
+
+def _archive_existing_portrait(filepath: Path) -> Path | None:
+    if not filepath.exists():
+        return None
+    archive_dir = filepath.parent / "archive"
+    archive_dir.mkdir(parents=True, exist_ok=True)
+    stamp = datetime.now(UTC).strftime("%Y%m%dT%H%M%S%fZ")
+    archive_path = archive_dir / f"{filepath.stem}-{stamp}-{uuid.uuid4().hex[:8]}{filepath.suffix}"
+    shutil.copy2(filepath, archive_path)
+    return archive_path
+
+
+def _write_portrait_file(filepath: Path, image_bytes: bytes) -> Path | None:
+    archive_path = _archive_existing_portrait(filepath)
+    temp_path = filepath.with_name(f".{filepath.name}.{uuid.uuid4().hex}.tmp")
+    try:
+        temp_path.write_bytes(image_bytes)
+        temp_path.replace(filepath)
+    finally:
+        if temp_path.exists():
+            temp_path.unlink()
+    return archive_path
+
+
 def detect_provider() -> str | None:
     """Return the best available image provider, cheapest-first, or None.
 
@@ -143,7 +180,7 @@ async def generate_portrait(
     *,
     provider: str | None = None,
     style: str | None = None,
-    output_dir: str | Path = "data/portraits",
+    output_dir: str | Path | None = None,
 ) -> str:
     """Generate a portrait image for an expert.
 
@@ -183,15 +220,16 @@ async def generate_portrait(
     else:
         raise RuntimeError(f"Unknown provider: {provider}")
 
-    # Save to disk (non-blocking mkdir)
-    out = Path(output_dir)
+    out = _resolve_output_dir(output_dir)
     await asyncio.to_thread(out.mkdir, parents=True, exist_ok=True)
     safe_name = "".join(c if c.isalnum() or c in "-_ " else "" for c in name).strip().replace(" ", "-").lower()
     if not safe_name:
         safe_name = "portrait"
     filename = f"{safe_name}.png"
     filepath = out / filename
-    filepath.write_bytes(image_bytes)
+    archive_path = await asyncio.to_thread(_write_portrait_file, filepath, image_bytes)
+    if archive_path is not None:
+        logger.info("Existing portrait archived to %s before replacement", archive_path)
     logger.info("Portrait saved to %s (%d bytes)", filepath, len(image_bytes))
 
     return f"/portraits/{filename}"
@@ -203,7 +241,7 @@ async def generate_and_save_portrait(
     *,
     provider: str | None = None,
     style: str | None = None,
-    output_dir: str | Path = "data/portraits",
+    output_dir: str | Path | None = None,
 ) -> str:
     """Generate a portrait, attach it to ``profile``, persist via ``store``, and
     record the cost. ``store`` only needs a ``save(profile)`` method.

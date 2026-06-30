@@ -92,6 +92,40 @@ class TestLocalImageProvider:
         with pytest.raises(RuntimeError, match="DEEPR_LOCAL_IMAGE_URL"):
             await P._generate_local("a prompt")
 
+    @pytest.mark.asyncio
+    async def test_generate_portrait_defaults_to_runtime_data_root(self, monkeypatch, tmp_path):
+        monkeypatch.setenv("DEEPR_DATA_DIR", str(tmp_path / "portable-data"))
+
+        async def fake_generate_local(_prompt):
+            return b"NEWPORTRAIT"
+
+        monkeypatch.setattr(P, "_generate_local", fake_generate_local)
+
+        url = await P.generate_portrait("Portable Expert", provider="local")
+
+        assert url == "/portraits/portable-expert.png"
+        assert (tmp_path / "portable-data" / "portraits" / "portable-expert.png").read_bytes() == b"NEWPORTRAIT"
+
+    @pytest.mark.asyncio
+    async def test_generate_portrait_archives_existing_file_before_replacement(self, monkeypatch, tmp_path):
+        output_dir = tmp_path / "portraits"
+        output_dir.mkdir()
+        current = output_dir / "backup-expert.png"
+        current.write_bytes(b"OLDPORTRAIT")
+
+        async def fake_generate_local(_prompt):
+            return b"NEWPORTRAIT"
+
+        monkeypatch.setattr(P, "_generate_local", fake_generate_local)
+
+        url = await P.generate_portrait("Backup Expert", provider="local", output_dir=output_dir)
+
+        assert url == "/portraits/backup-expert.png"
+        assert current.read_bytes() == b"NEWPORTRAIT"
+        archived = list((output_dir / "archive").glob("backup-expert-*.png"))
+        assert len(archived) == 1
+        assert archived[0].read_bytes() == b"OLDPORTRAIT"
+
 
 class TestPortraitCostGate:
     @pytest.mark.asyncio
