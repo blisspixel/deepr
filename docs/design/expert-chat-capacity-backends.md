@@ -42,15 +42,15 @@ cost ledger.
   normalized chat turn. `LocalOllamaExpertChatBackend` and
   `PlanQuotaExpertChatBackend` now implement the same normalized backend
   contract for read-only compiled-context turns, declare no tools, no
-  streaming, no prompt cache, and no Deepr dollar spend, but they are not yet
-  selected by public interactive chat routing.
+  streaming, no prompt cache, and no Deepr dollar spend. MCP
+  `deepr_query_expert backend=local|plan` selects those adapters for one
+  read-only compiled-context turn.
 - MCP `deepr_consult_experts` accepts `synthesis_backend=api|local|plan`.
   MCP `deepr_query_expert` accepts `backend=api|local|plan`. The default
   `api` path is still the legacy metered-capable chat session. `local` and
-  `plan` deliberately route one named expert through the `deepr-consult-v1`
-  contract with live metered fallback disabled, no research trigger, and the
-  consult artifact attached to the result. This is a bridge, not full
-  backend-neutral interactive chat.
+  `plan` compile the expert handoff state into one read-only no-tool chat turn
+  through the owned-capacity backend seam, with live metered fallback disabled,
+  no research trigger, and a `readonly_chat_artifact` attached to the result.
 - `AnthropicProvider` is a research provider, not a reusable expert-chat
   backend. The generic provider factory also does not currently expose
   `anthropic` in `ProviderType`.
@@ -118,9 +118,9 @@ consult, not grow into an unbounded swarm.
 - The robust pattern is one or many experts, one bounded artifact. A single
   expert consult is just `deepr_consult_experts` with one explicit expert. A
   multi-expert council is the same contract with several experts and preserved
-  dissent. `deepr_query_expert` now exposes that same bounded artifact path for
-  explicit `backend=local|plan`; the default `backend=api` path remains legacy
-  chat until the full backend-neutral runner lands.
+  dissent. `deepr_query_expert` now exposes a bounded read-only query artifact
+  for explicit `backend=local|plan`; the default `backend=api` path remains
+  legacy chat until the full backend-neutral runner lands.
 
 Additional references checked 2026-06-28:
 
@@ -239,11 +239,10 @@ For API chat:
 }
 ```
 
-Until the expert-chat backend interface lands, `deepr_query_expert` local and
-plan modes are a one-expert consult bridge. They return the normal query shape
-plus `capacity` and `consult_artifact`, set `research_triggered=0`, and reject
-`agentic=true`. The default API mode remains the legacy metered-capable chat
-path.
+`deepr_query_expert` local and plan modes return the normal query shape plus
+`capacity` and `readonly_chat_artifact`, set `research_triggered=0`, reject
+`agentic=true`, and never fall through to metered APIs. The default API mode
+remains the legacy metered-capable chat path.
 
 ## Cost And Security Rules
 
@@ -287,8 +286,9 @@ side-effect policy.
 3. Add usage and cost regression tests for Anthropic cache buckets, refusal
    stop details, unsupported sampling params, and budget rejection at zero.
    (done for consult API synthesis 2026-06-30)
-4. Add local and plan query modes through the one-expert consult bridge.
-   (done)
+4. Add local and plan query modes without metered fallback.
+   (done; originally shipped through a one-expert consult adapter, then moved
+   to direct read-only compiled-context chat backend routing on 2026-06-30)
 5. Extract `ExpertChatBackend` and move current OpenAI chat behind it without
    behavior changes. (partial 2026-06-30: primary non-streaming
    answer-generation chat-completion turns, streaming setup/tool rounds,
@@ -296,9 +296,10 @@ side-effect policy.
    standard-research fallback now use `OpenAIExpertChatBackend`; final token
    streaming waits for a streaming backend contract)
 6. Add local and plan chat backends in read-only compiled-context mode.
-   (partial 2026-06-30: `LocalOllamaExpertChatBackend` and
+   (done 2026-06-30: `LocalOllamaExpertChatBackend` and
    `PlanQuotaExpertChatBackend` implement the backend protocol with tools,
-   streaming, and prompt cache disabled; public chat routing is still pending)
+   streaming, and prompt cache disabled, and MCP `deepr_query_expert
+   backend=local|plan` selects them for read-only compiled-context turns)
 7. Add Anthropic expert chat in non-agentic mode.
 8. Add agentic tools per backend only when the backend declares support and the
    tool has explicit cost and safety gates.
