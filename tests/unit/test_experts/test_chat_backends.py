@@ -30,6 +30,7 @@ async def test_openai_chat_backend_passes_request_shape_and_normalizes_result():
             tools=[{"type": "function", "function": {"name": "search"}}],
             tool_choice="auto",
             reasoning_effort="medium",
+            extra={"temperature": 0.7, "max_tokens": 200},
         )
     )
 
@@ -37,6 +38,8 @@ async def test_openai_chat_backend_passes_request_shape_and_normalizes_result():
     assert captured["messages"] == [{"role": "user", "content": "q"}]
     assert captured["tool_choice"] == "auto"
     assert captured["reasoning_effort"] == "medium"
+    assert captured["temperature"] == 0.7
+    assert captured["max_tokens"] == 200
     assert result.text == "answer"
     assert result.usage.prompt_tokens == 7
     assert result.provider_request_id == "chatcmpl_123"
