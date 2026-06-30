@@ -244,12 +244,13 @@ status.
 consult traces, consult-quality reviews, optional expert handoff artifacts, and
 optional source-pack manifest artifacts. It routes hallucination-pattern risk
 signals into review and regression selection without blocking answers or
-writing beliefs. False-premise and template-order labels come only from human
-or calibrated-model consult-quality review cases. Consult trace and
-consult-quality review signals also produce read-only prompt-regression
-candidates for prompt-variant selection. Consult traces preserve selected-order
-context-position metadata so long-context middle-loss evals can be measured
-later without treating position alone as a semantic verdict.
+writing beliefs. False-premise, template-order, and long-context middle-loss
+labels come only from human or calibrated-model consult-quality review cases.
+Traces with selected middle context now create review-only cases for
+middle-context evidence preservation. Consult trace and consult-quality review
+signals also produce read-only prompt-regression candidates for prompt-variant
+selection. Consult traces preserve selected-order context-position metadata
+without treating position alone as a semantic verdict.
 
 ### Capacity
 

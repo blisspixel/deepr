@@ -46,4 +46,5 @@ def test_consult_traces_text_summary(tmp_path):
 
     assert result.exit_code == 0
     assert "Consult Trace Candidates" in result.output
+    assert "Middle-context review" in result.output
     assert "failed_consult" in result.output

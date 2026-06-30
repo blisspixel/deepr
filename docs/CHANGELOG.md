@@ -39,6 +39,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Added selected-order context-position metadata to consult traces and surfaced
   aggregate context-position metadata in `deepr eval hallucination-risks`
   without treating middle-context placement as a semantic verdict.
+- Added review-only long-context middle-loss eval cases for consult traces with
+  selected middle context. Human or calibrated-model consult-quality reviews
+  can now label `long_context_middle_loss`, and
+  `deepr eval hallucination-risks` maps those reviewed labels into advisory
+  prompt-regression candidates without blocking answers or writing beliefs.
 - Added `deepr expert refresh-semantic-recall NAME`, an explicit `$0` operator
   path that refreshes the local belief-vector index from precomputed embeddings
   only, reports declared upstream embedding estimates separately from Deepr

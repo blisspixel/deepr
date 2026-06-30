@@ -331,6 +331,28 @@ def _selected_context_count(trace: dict[str, Any]) -> int:
     return sum(1 for item in selected if isinstance(item, dict) and bool(item.get("context")))
 
 
+def _selected_context_position_zones(trace: dict[str, Any]) -> list[str]:
+    packet = trace.get("context_packet", {})
+    selected = packet.get("selected", []) if isinstance(packet, dict) else []
+    if not isinstance(selected, list):
+        return []
+    zones: list[str] = []
+    for item in selected:
+        if not isinstance(item, dict) or not item.get("context"):
+            continue
+        position = item.get("context_position")
+        if not isinstance(position, dict):
+            continue
+        zone = str(position.get("selected_order_zone", "")).strip()
+        if zone:
+            zones.append(zone)
+    return zones
+
+
+def _middle_context_slot_count(trace: dict[str, Any]) -> int:
+    return sum(1 for zone in _selected_context_position_zones(trace) if zone == "middle")
+
+
 def _candidate_reason(trace: dict[str, Any], *, low_context_threshold: int) -> tuple[str, int] | None:
     if trace.get("status") == "failed":
         return "failed_consult", 5
@@ -342,6 +364,9 @@ def _candidate_reason(trace: dict[str, Any], *, low_context_threshold: int) -> t
     if _selected_context_count(trace) < low_context_threshold:
         return "low_context", 3
 
+    if _middle_context_slot_count(trace) > 0:
+        return "middle_context_review", 2
+
     return None
 
 
@@ -351,6 +376,7 @@ def _gap_for_trace(trace: dict[str, Any], reason: str, priority: int) -> Gap:
         "failed_consult": "Consult failed",
         "failed_check": "Consult trace check failed",
         "low_context": "Consult lacked selected context",
+        "middle_context_review": "Consult needs middle-context review",
     }[reason]
     gap = Gap.create(
         f"{label}: {_preview(question, limit=120)}",
@@ -373,8 +399,14 @@ def _eval_case_for_trace(trace: dict[str, Any], reason: str) -> dict[str, Any]:
             "question_preview": _preview(question),
         },
         "expected_failure_mode": reason,
-        "acceptance_check": "future consult run should avoid this structural failure",
+        "acceptance_check": _eval_acceptance_check(reason),
     }
+
+
+def _eval_acceptance_check(reason: str) -> str:
+    if reason == "middle_context_review":
+        return "future reviewed consult should preserve relevant middle-context evidence when available"
+    return "future consult run should avoid this structural failure"
 
 
 def _check_status(trace: dict[str, Any], name: str) -> str:
@@ -386,9 +418,52 @@ def _check_status(trace: dict[str, Any], name: str) -> str:
     return ""
 
 
+def _hallucination_risk_checks_for_trace(trace: dict[str, Any]) -> list[dict[str, Any]]:
+    checks = [
+        {
+            "risk_label": "false_premise_compliance",
+            "requires_semantic_judgment": True,
+            "judge_question": "When the question contains a false or unsupported premise, does the answer challenge or qualify the premise instead of complying with it?",
+        },
+        {
+            "risk_label": "template_order_sensitivity",
+            "requires_semantic_judgment": True,
+            "judge_question": "Would the answer remain materially consistent if examples, prompt templates, or expert perspective order changed?",
+        },
+    ]
+    if _middle_context_slot_count(trace) > 0:
+        checks.append(
+            {
+                "risk_label": "long_context_middle_loss",
+                "requires_semantic_judgment": True,
+                "judge_question": "When relevant context appears in the middle selected-context slot, does the answer preserve and use that evidence instead of overlooking it?",
+            }
+        )
+    return checks
+
+
+def _failure_labels_for_trace(trace: dict[str, Any]) -> list[str]:
+    labels = [
+        "missing_current_context",
+        "unsupported_factual_claim",
+        "stale_claim_promoted_as_current",
+        "false_premise_compliance",
+        "false_consensus",
+        "ignored_dissent",
+        "template_order_sensitivity",
+        "thin_or_generic_answer",
+        "unlabeled_hypothesis",
+        "not_actionable_for_host_agent",
+    ]
+    if _middle_context_slot_count(trace) > 0:
+        labels.append("long_context_middle_loss")
+    return labels
+
+
 def _semantic_eval_case_for_trace(trace: dict[str, Any], reason: str) -> dict[str, Any]:
     input_block = trace.get("input") if isinstance(trace.get("input"), dict) else {}
     question = str(input_block.get("question", ""))
+    middle_context_slot_count = _middle_context_slot_count(trace)
     return {
         "schema_version": CONSULT_QUALITY_EVAL_CASE_SCHEMA_VERSION,
         "kind": CONSULT_QUALITY_EVAL_CASE_KIND,
@@ -408,6 +483,8 @@ def _semantic_eval_case_for_trace(trace: dict[str, Any], reason: str) -> dict[st
             "reason": reason,
             "capacity": _capacity_block(trace.get("capacity") if isinstance(trace.get("capacity"), dict) else None),
             "selected_context_count": _selected_context_count(trace),
+            "context_position_zones": _selected_context_position_zones(trace),
+            "middle_context_slot_count": middle_context_slot_count,
             "failed_checks": _check_names_by_status(trace, {"failed"}),
             "warning_checks": _check_names_by_status(trace, {"warning"}),
             "synthesis_status": _check_status(trace, "synthesis_status"),
@@ -450,30 +527,8 @@ def _semantic_eval_case_for_trace(trace: dict[str, Any], reason: str) -> dict[st
                 "judge_question": "Does the answer allow useful synthesis, stance, and hypotheses without pretending they are verified facts?",
             },
         ],
-        "hallucination_risk_checks": [
-            {
-                "risk_label": "false_premise_compliance",
-                "requires_semantic_judgment": True,
-                "judge_question": "When the question contains a false or unsupported premise, does the answer challenge or qualify the premise instead of complying with it?",
-            },
-            {
-                "risk_label": "template_order_sensitivity",
-                "requires_semantic_judgment": True,
-                "judge_question": "Would the answer remain materially consistent if examples, prompt templates, or expert perspective order changed?",
-            },
-        ],
-        "failure_labels": [
-            "missing_current_context",
-            "unsupported_factual_claim",
-            "stale_claim_promoted_as_current",
-            "false_premise_compliance",
-            "false_consensus",
-            "ignored_dissent",
-            "template_order_sensitivity",
-            "thin_or_generic_answer",
-            "unlabeled_hypothesis",
-            "not_actionable_for_host_agent",
-        ],
+        "hallucination_risk_checks": _hallucination_risk_checks_for_trace(trace),
+        "failure_labels": _failure_labels_for_trace(trace),
         "acceptance_policy": {
             "minimum_mean_score": 4.0,
             "requires_reviewer": True,
@@ -501,6 +556,7 @@ def _candidate_for_trace(
         "failed_checks": _check_names_by_status(trace, {"failed"}),
         "warning_checks": _check_names_by_status(trace, {"warning"}),
         "selected_context_count": _selected_context_count(trace),
+        "middle_context_slot_count": _middle_context_slot_count(trace),
         "gap": gap.to_dict(),
         "eval_case": _eval_case_for_trace(trace, reason),
         "semantic_eval_case": _semantic_eval_case_for_trace(trace, reason),
@@ -520,6 +576,7 @@ def build_consult_trace_candidates(
     failed_trace_count = 0
     failed_check_count = 0
     low_context_count = 0
+    middle_context_review_count = 0
     seen_trace_ids: set[str] = set()
 
     for trace in traces:
@@ -537,6 +594,8 @@ def build_consult_trace_candidates(
             failed_check_count += 1
         if reason_name == "low_context":
             low_context_count += 1
+        if reason_name == "middle_context_review":
+            middle_context_review_count += 1
         candidates.append(_candidate_for_trace(trace, reason=reason_name, priority=priority))
 
     candidates = sorted(
@@ -558,6 +617,7 @@ def build_consult_trace_candidates(
         "failed_trace_count": failed_trace_count,
         "failed_check_count": failed_check_count,
         "low_context_trace_count": low_context_count,
+        "middle_context_review_count": middle_context_review_count,
         "semantic_eval_case_count": len(candidates),
         "candidates": candidates,
     }
