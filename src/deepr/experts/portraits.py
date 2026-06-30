@@ -49,7 +49,6 @@ XAI_PORTRAIT_COST_ESTIMATE_USD = 0.02
 LOCAL_IMAGE_URL_ENV = "DEEPR_LOCAL_IMAGE_URL"
 LOCAL_IMAGE_MODEL_ENV = "DEEPR_LOCAL_IMAGE_MODEL"
 DEFAULT_LOCAL_IMAGE_MODEL = "flux"
-XAI_IMAGE_AUTO_ENV = "DEEPR_ALLOW_XAI_IMAGE_AUTO"
 METERED_IMAGE_AUTO_ENV = "DEEPR_ALLOW_METERED_IMAGE_AUTO"
 XAI_IMAGE_MODEL_ENV = "DEEPR_XAI_IMAGE_MODEL"
 DEFAULT_XAI_IMAGE_MODEL = "grok-imagine-image"
@@ -161,14 +160,13 @@ def detect_provider() -> str | None:
     if os.getenv(LOCAL_IMAGE_URL_ENV):
         return "local"
     metered_auto = _truthy_env(METERED_IMAGE_AUTO_ENV)
-    xai_auto = _truthy_env(XAI_IMAGE_AUTO_ENV)
-    if not metered_auto and not xai_auto:
+    if not metered_auto:
         return None
     if metered_auto and os.getenv("OPENAI_API_KEY"):
         return "openai"
     if metered_auto and (os.getenv("GEMINI_API_KEY") or os.getenv("GOOGLE_API_KEY")):
         return "google"
-    if os.getenv("XAI_API_KEY") and (metered_auto or xai_auto):
+    if os.getenv("XAI_API_KEY"):
         return "xai"
     return None
 

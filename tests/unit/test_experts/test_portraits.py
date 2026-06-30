@@ -45,18 +45,21 @@ class TestLocalImageProvider:
         monkeypatch.setenv("OPENAI_API_KEY", "sk-test")
         assert detect_provider() == "openai"
 
-    def test_xai_is_not_auto_selected_without_explicit_opt_in(self, monkeypatch):
+    def test_xai_uses_only_general_metered_auto_opt_in(self, monkeypatch):
         monkeypatch.delenv("DEEPR_LOCAL_IMAGE_URL", raising=False)
         monkeypatch.delenv("OPENAI_API_KEY", raising=False)
         monkeypatch.delenv("GEMINI_API_KEY", raising=False)
         monkeypatch.delenv("GOOGLE_API_KEY", raising=False)
         monkeypatch.delenv("DEEPR_ALLOW_METERED_IMAGE_AUTO", raising=False)
-        monkeypatch.delenv("DEEPR_ALLOW_XAI_IMAGE_AUTO", raising=False)
         monkeypatch.setenv("XAI_API_KEY", "xai-test")
 
         assert detect_provider() is None
 
         monkeypatch.setenv("DEEPR_ALLOW_XAI_IMAGE_AUTO", "1")
+
+        assert detect_provider() is None
+
+        monkeypatch.setenv("DEEPR_ALLOW_METERED_IMAGE_AUTO", "1")
 
         assert detect_provider() == "xai"
 
