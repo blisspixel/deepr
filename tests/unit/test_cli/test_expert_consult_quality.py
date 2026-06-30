@@ -281,6 +281,77 @@ def test_judge_consult_quality_plan_json(monkeypatch):
     assert payload["calibrated_judge"]["quota_consuming"] is True
 
 
+def test_judge_consult_quality_api_json(monkeypatch):
+    profile = _profile()
+
+    async def fake_review(profile_arg, trace_id, **kwargs):
+        assert profile_arg.name == profile.name
+        assert trace_id == "consult_cli_quality"
+        assert kwargs["api_provider"] == "xai"
+        assert kwargs["judge_model"] == "grok-4.3"
+        assert kwargs["budget_usd"] == 0.5
+        assert kwargs["confirm_metered_cost"] is True
+        assert kwargs["target"] == "eval"
+        return {
+            "schema_version": "deepr-consult-quality-review-v1",
+            "kind": "deepr.eval.consult_quality_review",
+            "expert_name": profile.name,
+            "trace_id": trace_id,
+            "review_status": "needs_improvement",
+            "mean_score": 2.0,
+            "decision": "needs_improvement",
+            "eligible_for_promotion": False,
+            "applied": False,
+            "actions": [],
+            "calibrated_judge": {
+                "backend": "api_metered",
+                "provider": "xai",
+                "model": "grok-4.3",
+                "cost_usd": 0.004,
+                "estimated_cost_usd": 0.01,
+                "budget_usd": 0.5,
+                "raw_response_stored": False,
+                "source_trace_output_stored": False,
+                "confirmed_metered_cost": True,
+                "cost_ledger_source": "api_metered",
+            },
+        }
+
+    monkeypatch.setattr(
+        "deepr.experts.consult_quality.estimate_consult_quality_api_judge_cost",
+        lambda _model: 0.01,
+    )
+    monkeypatch.setattr(
+        "deepr.experts.consult_quality.review_consult_quality_candidate_with_api_judge",
+        fake_review,
+    )
+
+    with _patch_store(profile):
+        result = CliRunner().invoke(
+            expert_judge_consult_quality,
+            [
+                profile.name,
+                "consult_cli_quality",
+                "--api-provider",
+                "xai",
+                "--api-model",
+                "grok-4.3",
+                "--budget",
+                "0.50",
+                "--confirm-metered-cost",
+                "--target",
+                "eval",
+                "--json",
+            ],
+        )
+
+    assert result.exit_code == 0, result.output
+    payload = json.loads(result.output)
+    assert payload["calibrated_judge"]["backend"] == "api_metered"
+    assert payload["calibrated_judge"]["provider"] == "xai"
+    assert payload["calibrated_judge"]["confirmed_metered_cost"] is True
+
+
 def test_judge_consult_quality_requires_exactly_one_backend():
     result = CliRunner().invoke(
         expert_judge_consult_quality,
@@ -301,11 +372,44 @@ def test_judge_consult_quality_rejects_plan_model_without_plan():
     assert "use --plan-model with --plan" in result.output.lower()
 
 
+def test_judge_consult_quality_rejects_api_model_without_provider():
+    result = CliRunner().invoke(
+        expert_judge_consult_quality,
+        ["Consult Quality Expert", "consult_cli_quality", "--api-model", "grok-4.3"],
+    )
+
+    assert result.exit_code != 0
+    assert "use --api-model with --api-provider" in result.output.lower()
+
+
+def test_judge_consult_quality_rejects_api_without_metered_confirmation():
+    profile = _profile()
+
+    with _patch_store(profile):
+        result = CliRunner().invoke(
+            expert_judge_consult_quality,
+            [
+                profile.name,
+                "consult_cli_quality",
+                "--api-provider",
+                "xai",
+                "--api-model",
+                "grok-4.3",
+                "--budget",
+                "0.50",
+            ],
+        )
+
+    assert result.exit_code != 0
+    assert "confirm-metered-cost" in result.output.lower()
+
+
 def test_judge_consult_quality_registered_in_expert_help():
     result = CliRunner().invoke(cli, ["expert", "judge-consult-quality", "--help"])
 
     assert result.exit_code == 0
     assert "explicit calibrated judge" in result.output.lower()
+    assert "--api-provider" in result.output
 
 
 def test_consult_quality_trends_json_outputs_review_summary(tmp_path):

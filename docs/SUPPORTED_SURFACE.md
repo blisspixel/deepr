@@ -181,13 +181,16 @@ must not be described as usable capacity.
 - `deepr expert judge-consult-quality NAME TRACE_ID --local-judge-model MODEL`
   runs consult-quality review with an explicit local Ollama judge at `$0`.
   `--plan BACKEND` with optional `--plan-model MODEL` runs the same path through
-  an explicit plan-quota CLI. The judge prompt uses the local trace answer at
-  command time, validates the returned scores and labels against the review
-  rubric, and stores only the review artifact plus calibrated judge metadata.
-  Plan judges consume subscription quota, write `$0` Deepr cost metadata through
-  the plan-quota path, and do not silently fall back to metered capacity. The
-  command does not write beliefs, expose trace paths, or store the raw judge
-  response.
+  an explicit plan-quota CLI. `--api-provider PROVIDER --api-model MODEL
+  --budget USD --confirm-metered-cost` runs a premium metered API judge behind
+  preflight reservation and ledger settlement. The judge prompt uses the local
+  trace answer at command time, validates the returned scores and labels
+  against the review rubric, and stores only the review artifact plus calibrated
+  judge metadata. Plan judges consume subscription quota, write `$0` Deepr cost
+  metadata through the plan-quota path, and do not silently fall back to metered
+  capacity. API judges write metered cost metadata through the canonical cost
+  ledger. The command does not write beliefs, expose trace paths, or store the
+  raw judge response.
 - `deepr expert consult-quality-trends NAME` emits
   `deepr-consult-quality-trend-v1`, a `$0` read-only trend report over reviewed
   consult-quality artifacts. It summarizes score dimensions, review statuses,

@@ -184,6 +184,7 @@ deepr expert monitor "AI Policy Expert" --json
 deepr expert review-consult-quality "AI Policy Expert" consult_abc123 --score uses_expert_state=5 --score surfaces_uncertainty=5 --score preserves_dissent=5 --score actionability=5 --score grounded_when_factual=5 --score original_thought=5 --reviewer operator --decision accept --target eval --apply
 deepr expert judge-consult-quality "AI Policy Expert" consult_abc123 --local-judge-model qwen2.5 --target eval --json
 deepr expert judge-consult-quality "AI Policy Expert" consult_abc123 --plan codex --plan-model gpt-5-mini --target eval --json
+deepr expert judge-consult-quality "AI Policy Expert" consult_abc123 --api-provider xai --api-model grok-4.3 --budget 0.50 --confirm-metered-cost --target eval --json
 deepr expert promote-monitor "AI Policy Expert" meta_abc123 --target gap --apply
 deepr expert propose-self-model "AI Policy Expert" meta_def456 --json
 deepr expert accept-self-model "AI Policy Expert" ./data/self_model_updates/ai-policy/self_model_update_meta_def456_20260626_120000000000.json --outcome-evidence loop_run:loop_123 --reviewer operator --json
@@ -235,10 +236,13 @@ or eval artifacts. This path costs `$0` and never commits beliefs.
 `deepr expert judge-consult-quality NAME TRACE_ID --local-judge-model MODEL`
 runs that same review path with an explicit local Ollama judge. The command can
 also use an explicit plan-quota judge with `--plan BACKEND` and optional
-`--plan-model MODEL`. The judge sees the local trace answer at command time, but
-Deepr stores only validated scores, labels, notes, and `$0` judge metadata in
-the review artifact. Plan judges consume subscription quota and record `$0`
-Deepr cost metadata through the plan-quota ledger path.
+`--plan-model MODEL`, or an explicit premium API judge with `--api-provider`,
+`--api-model`, `--budget`, and `--confirm-metered-cost`. The judge sees the
+local trace answer at command time, but Deepr stores only validated scores,
+labels, notes, and bounded judge metadata in the review artifact. Plan judges
+consume subscription quota and record `$0` Deepr cost metadata through the
+plan-quota ledger path. API judges reserve the estimate before dispatch and
+settle usage into the append-only cost ledger after the call.
 `deepr expert consult-quality-trends NAME` summarizes those reviewed artifacts
 as `deepr-consult-quality-trend-v1`, including score trends and deterministic
 prompt-regression candidates selected only from reviewer scores and review

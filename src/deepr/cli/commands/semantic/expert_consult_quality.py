@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
@@ -13,6 +14,17 @@ from deepr.cli.colors import console, print_error, print_key_value, print_sectio
 from deepr.cli.commands.semantic.experts import expert
 from deepr.cli.commands.semantic.grounding_support import PLAN_BACKEND_CHOICES
 from deepr.experts.profile import ExpertStore
+
+
+@dataclass(frozen=True)
+class _JudgeRunOptions:
+    calibration_ref: str
+    target: str
+    apply_change: bool
+    trace_path: Path | None
+    limit: int
+    max_candidates: int
+    output_dir: Path | None
 
 
 def _parse_scores(score_pairs: tuple[str, ...]) -> dict[str, float]:
@@ -51,6 +63,141 @@ def _render(payload: dict[str, Any]) -> None:
             console.print(f"  {action['reason']}")
     if not payload["applied"]:
         console.print("\n[dim]Preview only. Re-run with --apply after review to write artifacts.[/dim]")
+
+
+def _validate_judge_backend_choice(
+    *,
+    local_judge_model: str,
+    plan_backend: str | None,
+    plan_model: str | None,
+    api_provider: str | None,
+    api_model: str | None,
+) -> None:
+    if plan_model and not plan_backend:
+        print_error("Use --plan-model with --plan.")
+        raise click.Abort()
+    if api_model and not api_provider:
+        print_error("Use --api-model with --api-provider.")
+        raise click.Abort()
+    backend_count = sum(1 for value in (local_judge_model, plan_backend, api_provider) if bool(value))
+    if backend_count != 1:
+        print_error("Use exactly one of --local-judge-model, --plan, or --api-provider.")
+        raise click.Abort()
+
+
+def _run_api_consult_quality_judge(
+    profile: Any,
+    trace_id: str,
+    *,
+    api_provider: str,
+    api_model: str | None,
+    budget_usd: float,
+    confirm_metered_cost: bool,
+    json_output: bool,
+    options: _JudgeRunOptions,
+) -> dict[str, Any]:
+    from deepr.experts.consult_quality import (
+        ConsultQualityReviewError,
+        estimate_consult_quality_api_judge_cost,
+        review_consult_quality_candidate_with_api_judge,
+    )
+
+    if not api_model:
+        raise ConsultQualityReviewError("An API judge model is required with --api-provider.")
+    estimated_cost = estimate_consult_quality_api_judge_cost(api_model)
+    if not json_output:
+        print_key_value("API judge estimate", f"~${estimated_cost:.4f} via {api_provider}/{api_model}")
+    if budget_usd <= 0:
+        raise ConsultQualityReviewError("A positive --budget is required for metered API judging.")
+    if not confirm_metered_cost:
+        raise ConsultQualityReviewError(
+            "Metered API consult-quality judging requires --confirm-metered-cost after reviewing the estimate."
+        )
+    return asyncio.run(
+        review_consult_quality_candidate_with_api_judge(
+            profile,
+            trace_id,
+            api_provider=api_provider,
+            judge_model=api_model,
+            budget_usd=budget_usd,
+            confirm_metered_cost=confirm_metered_cost,
+            calibration_ref=options.calibration_ref,
+            target=options.target,
+            apply=options.apply_change,
+            trace_path=options.trace_path,
+            limit=options.limit,
+            max_candidates=options.max_candidates,
+            output_dir=options.output_dir,
+        )
+    )
+
+
+def _run_plan_consult_quality_judge(
+    profile: Any,
+    trace_id: str,
+    *,
+    plan_backend: str,
+    plan_model: str | None,
+    options: _JudgeRunOptions,
+) -> dict[str, Any]:
+    from deepr.backends.waterfall import choose_plan_quota_backend
+    from deepr.experts.consult_quality import (
+        ConsultQualityReviewError,
+        review_consult_quality_candidate_with_plan_judge,
+    )
+
+    choice = choose_plan_quota_backend(plan_backend)
+    if not choice.is_plan_quota or choice.plan_backend_id is None:
+        raise ConsultQualityReviewError(choice.reason)
+    return asyncio.run(
+        review_consult_quality_candidate_with_plan_judge(
+            profile,
+            trace_id,
+            plan_backend_id=choice.plan_backend_id,
+            judge_model=plan_model,
+            calibration_ref=options.calibration_ref,
+            target=options.target,
+            apply=options.apply_change,
+            trace_path=options.trace_path,
+            limit=options.limit,
+            max_candidates=options.max_candidates,
+            output_dir=options.output_dir,
+        )
+    )
+
+
+def _run_local_consult_quality_judge(
+    profile: Any,
+    trace_id: str,
+    *,
+    local_judge_model: str,
+    options: _JudgeRunOptions,
+) -> dict[str, Any]:
+    from deepr.backends.capacity import available_local_models
+    from deepr.experts.consult_quality import (
+        ConsultQualityReviewError,
+        review_consult_quality_candidate_with_local_judge,
+    )
+
+    installed = available_local_models()
+    if not installed:
+        raise ConsultQualityReviewError("No local Ollama models available. Check `deepr capacity --probe`.")
+    if local_judge_model not in installed:
+        raise ConsultQualityReviewError(f"Local judge model is not installed: {local_judge_model}")
+    return asyncio.run(
+        review_consult_quality_candidate_with_local_judge(
+            profile,
+            trace_id,
+            judge_model=local_judge_model,
+            calibration_ref=options.calibration_ref,
+            target=options.target,
+            apply=options.apply_change,
+            trace_path=options.trace_path,
+            limit=options.limit,
+            max_candidates=options.max_candidates,
+            output_dir=options.output_dir,
+        )
+    )
 
 
 def _render_trends(payload: dict[str, Any]) -> None:
@@ -208,6 +355,26 @@ def expert_review_consult_quality(
     help="Use an explicit plan-quota CLI as calibrated judge.",
 )
 @click.option("--plan-model", default=None, help="Optional model hint for the plan-quota CLI judge.")
+@click.option(
+    "--api-provider",
+    type=click.Choice(["openai", "xai"]),
+    default=None,
+    help="Use an explicit metered API provider as calibrated judge.",
+)
+@click.option("--api-model", default=None, help="Required model for --api-provider.")
+@click.option(
+    "--budget",
+    "budget_usd",
+    type=float,
+    default=0.0,
+    show_default=True,
+    help="Maximum metered API judge spend for this run.",
+)
+@click.option(
+    "--confirm-metered-cost",
+    is_flag=True,
+    help="Confirm the displayed metered API judge estimate before dispatch.",
+)
 @click.option("--calibration-ref", default="", help="Optional calibration artifact id for this calibrated judge.")
 @click.option(
     "--target",
@@ -238,6 +405,10 @@ def expert_judge_consult_quality(
     local_judge_model: str,
     plan_backend: str | None,
     plan_model: str | None,
+    api_provider: str | None,
+    api_model: str | None,
+    budget_usd: float,
+    confirm_metered_cost: bool,
     calibration_ref: str,
     target: str,
     apply_change: bool,
@@ -248,18 +419,15 @@ def expert_judge_consult_quality(
     json_output: bool,
 ) -> None:
     """Score a consult semantic-quality case with an explicit calibrated judge."""
-    from deepr.experts.consult_quality import (
-        ConsultQualityReviewError,
-        review_consult_quality_candidate_with_local_judge,
-        review_consult_quality_candidate_with_plan_judge,
-    )
+    from deepr.experts.consult_quality import ConsultQualityReviewError
 
-    if plan_model and not plan_backend:
-        print_error("Use --plan-model with --plan.")
-        raise click.Abort()
-    if bool(local_judge_model) == bool(plan_backend):
-        print_error("Use exactly one of --local-judge-model or --plan.")
-        raise click.Abort()
+    _validate_judge_backend_choice(
+        local_judge_model=local_judge_model,
+        plan_backend=plan_backend,
+        plan_model=plan_model,
+        api_provider=api_provider,
+        api_model=api_model,
+    )
 
     store = ExpertStore()
     profile = store.load(name)
@@ -267,49 +435,41 @@ def expert_judge_consult_quality(
         print_error(f"Expert '{name}' not found")
         raise click.Abort()
 
+    options = _JudgeRunOptions(
+        calibration_ref=calibration_ref,
+        target=target,
+        apply_change=apply_change,
+        trace_path=trace_path,
+        limit=limit,
+        max_candidates=max_candidates,
+        output_dir=output_dir,
+    )
     try:
-        if plan_backend:
-            from deepr.backends.waterfall import choose_plan_quota_backend
-
-            choice = choose_plan_quota_backend(plan_backend)
-            if not choice.is_plan_quota or choice.plan_backend_id is None:
-                raise ConsultQualityReviewError(choice.reason)
-            payload = asyncio.run(
-                review_consult_quality_candidate_with_plan_judge(
-                    profile,
-                    trace_id,
-                    plan_backend_id=choice.plan_backend_id,
-                    judge_model=plan_model,
-                    calibration_ref=calibration_ref,
-                    target=target,
-                    apply=apply_change,
-                    trace_path=trace_path,
-                    limit=limit,
-                    max_candidates=max_candidates,
-                    output_dir=output_dir,
-                )
+        if api_provider:
+            payload = _run_api_consult_quality_judge(
+                profile,
+                trace_id,
+                api_provider=api_provider,
+                api_model=api_model,
+                budget_usd=budget_usd,
+                confirm_metered_cost=confirm_metered_cost,
+                json_output=json_output,
+                options=options,
+            )
+        elif plan_backend:
+            payload = _run_plan_consult_quality_judge(
+                profile,
+                trace_id,
+                plan_backend=plan_backend,
+                plan_model=plan_model,
+                options=options,
             )
         else:
-            from deepr.backends.capacity import available_local_models
-
-            installed = available_local_models()
-            if not installed:
-                raise ConsultQualityReviewError("No local Ollama models available. Check `deepr capacity --probe`.")
-            if local_judge_model not in installed:
-                raise ConsultQualityReviewError(f"Local judge model is not installed: {local_judge_model}")
-            payload = asyncio.run(
-                review_consult_quality_candidate_with_local_judge(
-                    profile,
-                    trace_id,
-                    judge_model=local_judge_model,
-                    calibration_ref=calibration_ref,
-                    target=target,
-                    apply=apply_change,
-                    trace_path=trace_path,
-                    limit=limit,
-                    max_candidates=max_candidates,
-                    output_dir=output_dir,
-                )
+            payload = _run_local_consult_quality_judge(
+                profile,
+                trace_id,
+                local_judge_model=local_judge_model,
+                options=options,
             )
     except ConsultQualityReviewError as exc:
         print_error(str(exc))

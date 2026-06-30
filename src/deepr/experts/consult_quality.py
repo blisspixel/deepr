@@ -709,7 +709,9 @@ def review_consult_quality_candidate(
 
 _JUDGE_COMPAT_EXPORTS = frozenset(
     {
+        "estimate_consult_quality_api_judge_cost",
         "parse_consult_quality_judge_response",
+        "review_consult_quality_candidate_with_api_judge",
         "review_consult_quality_candidate_with_local_judge",
         "review_consult_quality_candidate_with_plan_judge",
     }
