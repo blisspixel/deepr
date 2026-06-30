@@ -178,6 +178,7 @@ deepr expert make "AI Policy Expert" -d "EU AI Act enforcement timeline" --learn
 deepr expert chat "AI Policy Expert" --budget 3
 deepr expert consult "What should our agentic harness improve next?" --local
 deepr eval consult --json
+deepr eval hallucination-risks --json
 deepr expert self-model "AI Policy Expert" --json
 deepr expert monitor "AI Policy Expert" --json
 deepr expert review-consult-quality "AI Policy Expert" consult_abc123 --score uses_expert_state=5 --score surfaces_uncertainty=5 --score preserves_dissent=5 --score actionability=5 --score grounded_when_factual=5 --score original_thought=5 --reviewer operator --decision accept --target eval --apply
@@ -237,6 +238,11 @@ labels, notes, and `$0` judge metadata in the review artifact.
 as `deepr-consult-quality-trend-v1`, including score trends and deterministic
 prompt-regression candidates selected only from reviewer scores and review
 status.
+`deepr eval hallucination-risks` emits
+`deepr-hallucination-risk-report-v1`, a `$0` no-write advisory report over
+consult traces and consult-quality reviews. It routes hallucination-pattern
+risk signals into review and regression selection without blocking answers or
+writing beliefs.
 
 ### Capacity
 

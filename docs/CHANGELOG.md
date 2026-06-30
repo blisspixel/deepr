@@ -20,6 +20,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   It validates model-returned rubric scores and failure labels, records them as
   calibrated-model review artifacts, and avoids storing raw trace answers or
   raw judge responses.
+- Added `deepr eval hallucination-risks`, a `$0` no-write advisory report over
+  consult traces and reviewed consult-quality artifacts. It emits
+  `deepr-hallucination-risk-report-v1`, routes observed hallucination-pattern
+  risk signals into review and regression selection, and records coverage gaps
+  without blocking answers or writing beliefs.
 
 ## [2.26.0] - 2026-06-30
 

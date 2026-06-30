@@ -51,6 +51,11 @@ from deepr.cli.output import (
     OperationResult,
 )
 from deepr.core.contracts import Claim, ExpertManifest, Gap
+from deepr.evals.hallucination_risks import (
+    HALLUCINATION_RISK_REPORT_KIND,
+    HALLUCINATION_RISK_REPORT_SCHEMA_VERSION,
+    build_hallucination_risk_report,
+)
 from deepr.experts.beliefs import BeliefStore
 from deepr.experts.consult_quality import (
     CONSULT_QUALITY_REVIEW_KIND,
@@ -809,6 +814,21 @@ def test_consult_quality_trend_schema_validates_runtime_payload(tmp_path):
     assert payload["kind"] == CONSULT_QUALITY_TREND_KIND
     assert payload["contract"]["semantic_verdict"] is False
     assert payload["regression_candidate_count"] == 1
+
+
+def test_hallucination_risk_report_schema_validates_runtime_payload(tmp_path):
+    payload = build_hallucination_risk_report(
+        trace_path=tmp_path / "missing_traces.jsonl",
+        review_dir=tmp_path / "missing_reviews",
+    )
+    schema = _load_schema("hallucination-risk-report-v1.json")
+
+    _validate(schema, payload)
+    assert payload["schema_version"] == HALLUCINATION_RISK_REPORT_SCHEMA_VERSION
+    assert payload["kind"] == HALLUCINATION_RISK_REPORT_KIND
+    assert payload["contract"]["semantic_verdict"] is False
+    assert payload["contract"]["blocks_answers"] is False
+    assert payload["mitigation_policy"]["never_writes_beliefs"] is True
 
 
 def test_source_pack_manifest_schema_validates_runtime_payload():

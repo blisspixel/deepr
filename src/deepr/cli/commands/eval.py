@@ -544,6 +544,74 @@ def eval_consult(json_output: bool, save: bool, fail_on_regression: bool):
         raise click.ClickException(f"{report.failed_cases} consult regression(s) failed.")
 
 
+@evaluate.command("hallucination-risks")
+@click.option(
+    "--trace-path",
+    type=click.Path(dir_okay=False, path_type=Path),
+    default=None,
+    help="Optional local consult trace JSONL path.",
+)
+@click.option(
+    "--review-dir",
+    type=click.Path(file_okay=False, path_type=Path),
+    default=None,
+    help="Optional directory containing consult-quality review artifacts.",
+)
+@click.option("--trace-limit", type=int, default=50, show_default=True, help="Newest consult traces to inspect.")
+@click.option(
+    "--review-limit",
+    type=int,
+    default=200,
+    show_default=True,
+    help="Newest consult-quality reviews to inspect.",
+)
+@click.option("--save", is_flag=True, help="Save JSON artifact under the configured benchmarks directory.")
+@click.option("--json", "json_output", is_flag=True, help="Emit machine-readable JSON.")
+def eval_hallucination_risks(
+    trace_path: Path | None,
+    review_dir: Path | None,
+    trace_limit: int,
+    review_limit: int,
+    save: bool,
+    json_output: bool,
+):
+    """Report advisory hallucination-pattern risk signals (cost $0)."""
+    from deepr.evals.hallucination_risks import (
+        build_hallucination_risk_report,
+        write_hallucination_risk_report,
+    )
+
+    report = build_hallucination_risk_report(
+        trace_path=trace_path,
+        review_dir=review_dir,
+        trace_limit=trace_limit,
+        review_limit=review_limit,
+    )
+    path = write_hallucination_risk_report(report) if save else None
+    payload = {**report, "saved_to": str(path) if path else None}
+
+    if json_output:
+        click.echo(json.dumps(payload, indent=2))
+        return
+
+    click.echo("Hallucination risk report")
+    click.echo(f"Deepr metered cost: ${float(report['contract']['cost_usd']):.2f}")
+    click.echo(f"Traces inspected: {report['trace_count']}")
+    click.echo(f"Reviews inspected: {report['review_count']}")
+    click.echo(f"Signals: {report['signal_count']}")
+    if report["risk_label_counts"]:
+        click.echo("Risk labels:")
+        for label, count in report["risk_label_counts"].items():
+            click.echo(f"  {label}: {count}")
+    if report["coverage_gaps"]:
+        click.echo("Coverage gaps:")
+        for item in report["coverage_gaps"]:
+            click.echo(f"  {item['risk_label']}: {item['status']}")
+    if path:
+        click.echo("")
+        click.echo(f"Saved {path}")
+
+
 def _load_corpus(corpus_dir: str, sample: int) -> dict[str, str]:
     """Load .md/.txt reports from a directory (optionally capped to `sample`)."""
     paths = sorted(p for p in Path(corpus_dir).iterdir() if p.suffix.lower() in (".md", ".txt"))
