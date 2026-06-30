@@ -20,6 +20,20 @@ def _session(monkeypatch, budget):
     return ExpertChatSession(expert, budget=budget, enable_router=False)
 
 
+class RecordingChatBackend:
+    def __init__(self, *contents: str) -> None:
+        self.requests = []
+        self._contents = list(contents)
+
+    async def complete(self, request):
+        self.requests.append(request)
+        content = self._contents.pop(0) if self._contents else "backend answer"
+        return ExpertChatResult(
+            message=SimpleNamespace(content=content, tool_calls=[]),
+            usage=SimpleNamespace(prompt_tokens=10, completion_tokens=5),
+        )
+
+
 def test_unspecified_budget_defaults_to_ten(monkeypatch):
     assert _session(monkeypatch, None).budget == 10.0
 
@@ -106,29 +120,66 @@ async def test_first_chat_generation_is_preflight_budget_checked(monkeypatch):
 async def test_first_chat_generation_uses_chat_backend(monkeypatch):
     session = _session(monkeypatch, 1.0)
     session.should_use_tot = lambda _query: False
-    captured = []
 
     async def fail_if_called(*_args, **_kwargs):
         raise AssertionError("legacy client should be behind chat_backend")
 
-    class FakeBackend:
-        async def complete(self, request):
-            captured.append(request)
-            return ExpertChatResult(
-                message=SimpleNamespace(content="backend answer", tool_calls=[]),
-                usage=SimpleNamespace(prompt_tokens=10, completion_tokens=5),
-            )
-
     monkeypatch.setattr(session.client.chat.completions, "create", fail_if_called)
-    session.chat_backend = FakeBackend()
+    backend = RecordingChatBackend("backend answer")
+    session.chat_backend = backend
 
     result = await session.send_message("What should this expert improve next?")
 
     assert result == "backend answer"
-    assert len(captured) == 1
-    assert captured[0].model == session.expert.model
-    assert captured[0].tool_choice == "auto"
-    assert captured[0].messages[0]["role"] == "system"
+    assert len(backend.requests) == 1
+    assert backend.requests[0].model == session.expert.model
+    assert backend.requests[0].tool_choice == "auto"
+    assert backend.requests[0].messages[0]["role"] == "system"
+
+
+async def test_follow_up_generation_uses_chat_backend(monkeypatch):
+    session = _session(monkeypatch, 1.0)
+
+    async def fail_if_called(*_args, **_kwargs):
+        raise AssertionError("legacy client should be behind chat_backend")
+
+    monkeypatch.setattr(session.client.chat.completions, "create", fail_if_called)
+    backend = RecordingChatBackend('["What evidence matters next?", "How should we validate this?"]')
+    session.chat_backend = backend
+
+    follow_ups = await session._generate_follow_ups("What changed?", "The backend seam changed.")
+
+    assert follow_ups == ["What evidence matters next?", "How should we validate this?"]
+    assert len(backend.requests) == 1
+    assert backend.requests[0].model == "gpt-4o-mini"
+    assert backend.requests[0].extra == {"temperature": 0.7, "max_tokens": 200}
+
+
+async def test_compact_conversation_uses_chat_backend(monkeypatch):
+    session = _session(monkeypatch, 1.0)
+    session.messages = [
+        {"role": "user", "content": f"question {index}"}
+        if index % 2 == 0
+        else {"role": "assistant", "content": f"answer {index}"}
+        for index in range(8)
+    ]
+
+    async def fail_if_called(*_args, **_kwargs):
+        raise AssertionError("legacy client should be behind chat_backend")
+
+    monkeypatch.setattr(session.client.chat.completions, "create", fail_if_called)
+    backend = RecordingChatBackend("KEY_FACTS: migrated support calls")
+    session.chat_backend = backend
+
+    result = await session.compact_conversation()
+
+    assert result["status"] == "compacted"
+    assert result["original_messages"] == 8
+    assert len(backend.requests) == 1
+    assert backend.requests[0].model == "gpt-4o-mini"
+    assert backend.requests[0].extra == {"temperature": 0.3, "max_tokens": 500}
+    assert session.messages[0]["role"] == "system"
+    assert "KEY_FACTS: migrated support calls" in session.messages[0]["content"]
 
 
 async def test_streaming_first_chat_generation_is_preflight_budget_checked(monkeypatch):
