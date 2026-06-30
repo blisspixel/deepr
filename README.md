@@ -228,6 +228,10 @@ into a `deepr-consult-quality-review-v1` artifact. Human or calibrated-model
 scores own semantic judgment; Deepr only validates score shape, records the
 review, enforces the acceptance policy, and can promote accepted cases into gap
 or eval artifacts. This path costs `$0` and never commits beliefs.
+`deepr expert consult-quality-trends NAME` summarizes those reviewed artifacts
+as `deepr-consult-quality-trend-v1`, including score trends and deterministic
+prompt-regression candidates selected only from reviewer scores and review
+status.
 
 ### Capacity
 

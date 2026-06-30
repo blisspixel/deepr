@@ -36,6 +36,7 @@ All v1 schemas are additive within the same schema version:
 | `deepr-consult-trace-candidates-v1` | [consult-trace-candidates-v1.json](consult-trace-candidates-v1.json) | Sanitized gap and eval candidates mined from failed or low-context consult traces |
 | `deepr-consult-quality-eval-case-v1` | [consult-quality-eval-case-v1.json](consult-quality-eval-case-v1.json) | Read-only semantic quality review case packet for human or calibrated-model consult judging |
 | `deepr-consult-quality-review-v1` | [consult-quality-review-v1.json](consult-quality-review-v1.json) | Reviewed consult-quality score artifact with explicit semantic judge, policy gate, and safe gap/eval promotion actions |
+| `deepr-consult-quality-trend-v1` | [consult-quality-trend-v1.json](consult-quality-trend-v1.json) | Read-only trend report over reviewed consult-quality artifacts with deterministic prompt-regression candidate selection |
 | `deepr-mcp-consult-validation-v1` | [mcp-consult-validation-v1.json](mcp-consult-validation-v1.json) | No-metered MCP expert-consult validation report for offline fixtures, in-process checks, and HTTP endpoints |
 | `deepr-mcp-consult-fleet-validation-v1` | [mcp-consult-fleet-validation-v1.json](mcp-consult-fleet-validation-v1.json) | Bounded concurrent no-metered consult validation across selected plan backends |
 | `deepr-source-pack-manifest-v1` | [source-pack-manifest-v1.json](source-pack-manifest-v1.json) | Deterministic source-pack compiler manifest with provenance hashes and no semantic verdicts |

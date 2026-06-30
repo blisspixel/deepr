@@ -8,10 +8,14 @@ from unittest.mock import MagicMock, patch
 
 from click.testing import CliRunner
 
-from deepr.cli.commands.semantic.expert_consult_quality import expert_review_consult_quality
+from deepr.cli.commands.semantic.expert_consult_quality import (
+    expert_consult_quality_trends,
+    expert_review_consult_quality,
+)
 from deepr.cli.main import cli
 from deepr.core.contracts import Claim, ExpertManifest
-from deepr.experts.consult_traces import record_consult_trace
+from deepr.experts.consult_quality import build_consult_quality_review
+from deepr.experts.consult_traces import build_consult_trace, build_consult_trace_candidates, record_consult_trace
 from deepr.experts.profile import ExpertProfile
 
 
@@ -67,6 +71,41 @@ def _score_args() -> list[str]:
     ]
 
 
+def _scores(value: float) -> dict[str, float]:
+    return {
+        "uses_expert_state": value,
+        "surfaces_uncertainty": value,
+        "preserves_dissent": value,
+        "actionability": value,
+        "grounded_when_factual": value,
+        "original_thought": value,
+    }
+
+
+def _write_quality_review(output_dir, profile: ExpertProfile, trace_id: str, score: float):
+    trace = build_consult_trace(
+        question=f"What should the consult council improve for {trace_id}?",
+        requested_experts=[profile.name],
+        max_experts=3,
+        budget=0.0,
+        failure={"stage": "run_consult", "error_type": "RuntimeError", "message": "boom"},
+        trace_id=trace_id,
+        recorded_at=datetime(2026, 6, 27, 12, 0, tzinfo=UTC),
+    )
+    candidate = build_consult_trace_candidates([trace])["candidates"][0]
+    review = build_consult_quality_review(
+        expert_name=profile.name,
+        case=candidate["semantic_eval_case"],
+        scores=_scores(score),
+        reviewer="operator",
+        decision="accept",
+        candidate=candidate,
+    )
+    output_dir.mkdir(parents=True, exist_ok=True)
+    path = output_dir / f"consult_quality_review_{review['review_id']}.json"
+    path.write_text(json.dumps(review), encoding="utf-8")
+
+
 def test_review_consult_quality_registered_in_expert_help():
     result = CliRunner().invoke(cli, ["expert", "review-consult-quality", "--help"])
 
@@ -117,3 +156,35 @@ def test_review_consult_quality_missing_expert_exits_nonzero():
 
     assert result.exit_code != 0
     assert "not found" in result.output.lower()
+
+
+def test_consult_quality_trends_json_outputs_review_summary(tmp_path):
+    profile = _profile()
+    output_dir = tmp_path / "benchmarks"
+    _write_quality_review(output_dir, profile, "consult_cli_good", 5.0)
+    _write_quality_review(output_dir, profile, "consult_cli_bad", 2.0)
+
+    with _patch_store(profile):
+        result = CliRunner().invoke(
+            expert_consult_quality_trends,
+            [
+                profile.name,
+                "--output-dir",
+                str(output_dir),
+                "--json",
+            ],
+        )
+
+    assert result.exit_code == 0, result.output
+    payload = json.loads(result.output)
+    assert payload["schema_version"] == "deepr-consult-quality-trend-v1"
+    assert payload["review_count"] == 2
+    assert payload["status_counts"] == {"accepted": 1, "policy_blocked": 1}
+    assert payload["regression_candidates"][0]["source_trace_id"] == "consult_cli_bad"
+
+
+def test_consult_quality_trends_registered_in_expert_help():
+    result = CliRunner().invoke(cli, ["expert", "consult-quality-trends", "--help"])
+
+    assert result.exit_code == 0
+    assert "regression candidates" in result.output.lower()

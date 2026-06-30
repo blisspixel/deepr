@@ -1,0 +1,140 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/blisspixel/deepr/docs/schemas/consult-quality-trend-v1.json",
+  "title": "Deepr Consult Quality Trend v1",
+  "type": "object",
+  "additionalProperties": true,
+  "required": [
+    "schema_version",
+    "kind",
+    "contract",
+    "expert_name",
+    "review_count",
+    "status_counts",
+    "decision_counts",
+    "failure_label_counts",
+    "mean_score",
+    "dimension_scores",
+    "regression_candidates",
+    "regression_candidate_count",
+    "selection_policy",
+    "generated_at"
+  ],
+  "properties": {
+    "schema_version": {"const": "deepr-consult-quality-trend-v1"},
+    "kind": {"const": "deepr.eval.consult_quality_trend"},
+    "contract": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": [
+        "read_only",
+        "cost_usd",
+        "writes_state",
+        "writes_beliefs",
+        "semantic_verdict",
+        "lexical_verdict_allowed",
+        "selection_from_reviewed_scores",
+        "source_path_exposed",
+        "derived_from"
+      ],
+      "properties": {
+        "read_only": {"const": true},
+        "cost_usd": {"const": 0.0},
+        "writes_state": {"const": false},
+        "writes_beliefs": {"const": false},
+        "semantic_verdict": {"const": false},
+        "lexical_verdict_allowed": {"const": false},
+        "selection_from_reviewed_scores": {"const": true},
+        "source_path_exposed": {"const": false},
+        "derived_from": {"const": "deepr-consult-quality-review-v1"}
+      }
+    },
+    "expert_name": {"type": "string"},
+    "review_count": {"type": "integer", "minimum": 0},
+    "status_counts": {"type": "object", "additionalProperties": {"type": "integer", "minimum": 0}},
+    "decision_counts": {"type": "object", "additionalProperties": {"type": "integer", "minimum": 0}},
+    "failure_label_counts": {"type": "object", "additionalProperties": {"type": "integer", "minimum": 0}},
+    "mean_score": {"type": "number", "minimum": 0},
+    "dimension_scores": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": true,
+        "required": ["dimension", "review_count", "mean_score", "min_score", "max_score"],
+        "properties": {
+          "dimension": {"type": "string", "minLength": 1},
+          "review_count": {"type": "integer", "minimum": 0},
+          "mean_score": {"type": "number", "minimum": 0},
+          "min_score": {"type": "number", "minimum": 0},
+          "max_score": {"type": "number", "minimum": 0}
+        }
+      }
+    },
+    "regression_candidates": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": true,
+        "required": [
+          "review_id",
+          "source_trace_id",
+          "case_id",
+          "question_hash",
+          "question_preview",
+          "review_status",
+          "decision",
+          "mean_score",
+          "failure_labels",
+          "lowest_scores",
+          "selection_reason",
+          "recommended_use"
+        ],
+        "properties": {
+          "review_id": {"type": "string"},
+          "source_trace_id": {"type": "string"},
+          "case_id": {"type": "string"},
+          "question_hash": {"type": "string"},
+          "question_preview": {"type": "string"},
+          "review_status": {"type": "string"},
+          "decision": {"type": "string"},
+          "mean_score": {"type": "number", "minimum": 0},
+          "failure_labels": {"type": "array", "items": {"type": "string"}},
+          "lowest_scores": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": ["dimension", "score"],
+              "properties": {
+                "dimension": {"type": "string"},
+                "score": {"type": "number", "minimum": 0}
+              },
+              "additionalProperties": true
+            }
+          },
+          "selection_reason": {"type": "string"},
+          "recommended_use": {"const": "consult_prompt_regression"}
+        }
+      }
+    },
+    "regression_candidate_count": {"type": "integer", "minimum": 0},
+    "selection_policy": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": [
+        "deterministic",
+        "uses_reviewer_scores_only",
+        "never_scores_answer_meaning",
+        "never_commits_beliefs",
+        "sort_order"
+      ],
+      "properties": {
+        "deterministic": {"const": true},
+        "uses_reviewer_scores_only": {"const": true},
+        "never_scores_answer_meaning": {"const": true},
+        "never_commits_beliefs": {"const": true},
+        "sort_order": {"type": "array", "items": {"type": "string"}}
+      }
+    },
+    "generated_at": {"type": "string", "format": "date-time"}
+  }
+}

@@ -159,6 +159,14 @@
       "compatibility": "additive-within-v1"
     },
     {
+      "name": "consult-quality-trend",
+      "schema_version": "deepr-consult-quality-trend-v1",
+      "kind": "deepr.eval.consult_quality_trend",
+      "path": "consult-quality-trend-v1.json",
+      "status": "experimental",
+      "compatibility": "additive-within-v1"
+    },
+    {
       "name": "mcp-consult-validation",
       "schema_version": "deepr-mcp-consult-validation-v1",
       "kind": "deepr.mcp.consult_validation",

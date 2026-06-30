@@ -7,7 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-No unreleased changes.
+### Added
+- Added `deepr expert consult-quality-trends NAME`, a `$0` read-only trend
+  report over reviewed consult-quality artifacts. It emits
+  `deepr-consult-quality-trend-v1`, summarizes score dimensions and review
+  statuses, and selects consult prompt regression candidates deterministically
+  from reviewer scores and review status without judging answer meaning or
+  writing beliefs.
 
 ## [2.26.0] - 2026-06-30
 
