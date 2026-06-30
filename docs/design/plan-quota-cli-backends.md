@@ -112,6 +112,10 @@ The explicit path needs no admission (the operator chose it directly):
 
 - `deepr expert sync NAME --plan codex` (also `absorb`, topic `learn`, `learn-web`,
   `route-gaps --execute`).
+- `deepr expert sync-all --plan codex` - run a whole roster pass through one
+  non-metered plan backend. The automatic `sync-all --scheduled` path consumes
+  a plan backend only when `choose_maintenance_backend` returns an admitted,
+  quota-observed plan choice; it does not infer quota from CLI presence.
 - `deepr capacity probe-plan codex` - validate auth + one round-trip.
 - `deepr capacity probe-fleet --backend codex --backend claude` - validate
   several selected backends concurrently, record the same usage/exhaustion

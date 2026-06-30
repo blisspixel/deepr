@@ -18,7 +18,7 @@ settled through the canonical ledger.
 |---|---|---|
 | Local Ollama | `expert make --local`, `expert absorb --local`, `expert sync --local`, `expert sync --local --fresh-context`, `expert sync --local --deep-context`, `eval local`, `eval local-context`, and scored admission | No provider API key required; automatic routing requires measured local quality evidence |
 | Provider APIs | Full research and high-quality synthesis when keys are configured | Budget ceilings, preflight estimates, reservations, append-only cost settlement |
-| Plan-quota CLIs | Explicit `expert sync --plan <id>`, `expert absorb --plan <id>`, `expert learn --plan <id>`, `expert learn-web --plan <id>`, `expert consult --plan <id>`, and `capacity probe-plan <id>` | Metered API-key env vars are stripped from child processes, auth mode is checked, and automatic routing waits for trusted remaining-quota evidence |
+| Plan-quota CLIs | Explicit `expert sync --plan <id>`, `expert sync-all --plan <id>`, `expert absorb --plan <id>`, `expert learn --plan <id>`, `expert learn-web --plan <id>`, `expert consult --plan <id>`, and `capacity probe-plan <id>` | Metered API-key env vars are stripped from child processes, auth mode is checked, metered-at-margin CLI backends are rejected for roster plan dispatch, and automatic routing waits for trusted remaining-quota evidence |
 | CLI judges | Explicit local eval judging with `--allow-cli-judge` | Opt-in only because Deepr cannot prove whether a vendor CLI uses quota, credits, or metered credentials |
 
 Expert consult synthesis already supports local and explicit plan capacity.
@@ -147,6 +147,7 @@ deepr capacity probe-fleet --backend codex --backend claude --backend grok --bac
 deepr capacity validate-fleet --backend codex --backend claude --backend grok --backend antigravity --expert "AI Agent Harnesses" --json
 deepr mcp validate-consult-fleet --plan codex --plan claude --plan grok --plan antigravity --json
 deepr expert sync "Platform Team Expert" --plan codex -y
+deepr expert sync-all --plan codex -y
 deepr expert absorb "Platform Team Expert" report.md --plan claude -y
 deepr expert learn "Platform Team Expert" "new platform engineering signals" --plan codex -y
 deepr expert consult "What changed in plan capacity?" --plan grok --json
@@ -200,6 +201,13 @@ and health-check surfaces return wait or action-plan payloads instead of
 starting metered work unless the operator deliberately reruns without
 `--scheduled` or supplies the required confirmation. These payloads include
 durable loop-run records and published schema identifiers.
+
+`deepr expert sync-all --scheduled` now uses the same waterfall decision as
+single-expert sync for roster-level dispatch: local first, then an admitted
+plan backend only when a trusted quota observation says usable headroom remains,
+then metered only when the operator leaves scheduled mode or uses `--api`.
+`sync-all --plan <id>` is the explicit non-metered plan override for the whole
+roster.
 
 ## Cost Accounting Rules
 
