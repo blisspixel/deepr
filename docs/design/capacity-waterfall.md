@@ -30,7 +30,7 @@ maintenance and bootstrap through `expert sync --plan <id>`,
 `expert absorb --plan <id>`, topic `expert learn --plan <id>`, the explicit
 `expert learn-web --plan <id>` alias, and `capacity probe-plan <id>`, with
 auth-mode, no-surprise-bills, quota-ledger, and `$0` cost-ledger guards.
-Scheduled sync, gap-fill, reflection, and health-check
+Scheduled sync, sync-all, gap-fill, reflection, and health-check
 surfaces now stop with wait or action-plan payloads instead of silently spending
 when owned/prepaid capacity is blocked, and those scheduled payloads carry
 published schema identifiers for downstream validation. Codex, Claude Code, and
@@ -39,8 +39,10 @@ codex` reads local session-log `rate_limits`, `deepr capacity refresh-quota
 claude` reads Claude Code OAuth usage metadata, and `deepr capacity
 refresh-quota grok` reads Grok billing metadata. They record binding-window
 ledger events at `$0` without model calls. Still open: Antigravity
-window/credit probes, plan-quota scheduler dispatch, and auto-mode runtime
-integration. Automatic plan routing remains gated until a trusted
+window/credit probes, scheduler dispatch outside sync-all, and auto-mode runtime
+integration. `expert sync-all` now consumes the existing admitted,
+quota-observed plan selection for roster maintenance. Automatic plan routing
+remains gated until a trusted
 remaining-quota signal exists for the candidate backend.
 
 ## Problem
@@ -256,9 +258,11 @@ scheduler work remains.
    run artifacts are done. Remaining: scheduler rules for when to choose
    `--fresh-context` or `--deep-context`.
 13. First plan_quota rungs are shipped for explicit maintenance execution, and
-   Codex, Claude Code, plus Grok have metadata quota probes. Remaining plan
-   work is Antigravity remaining-quota probes, reset-aware scheduler dispatch,
-   and auto-mode integration without surprise spend.
+   Codex, Claude Code, plus Grok have metadata quota probes. `expert sync-all`
+   now dispatches through an admitted, quota-observed plan backend when the
+   waterfall selects one. Remaining plan work is Antigravity remaining-quota
+   probes, reset-aware scheduler dispatch outside sync-all, and auto-mode
+   integration without surprise spend.
 14. Multi-account pools (N accounts of one vendor as one pooled backend) - last,
    it multiplies an already-working mechanism.
 
