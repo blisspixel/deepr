@@ -72,8 +72,15 @@ To exercise real local or plan capacity on the host machine:
 ```powershell
 deepr mcp validate-consult --live --synthesis-backend local --expert "AI Agent Harnesses" --json
 deepr mcp validate-consult --live --synthesis-backend plan --plan codex --expert "AI Agent Harnesses" --json
+deepr capacity validate-fleet --backend codex --backend claude --backend grok --backend antigravity --expert "AI Agent Harnesses" --json
 deepr mcp validate-consult-fleet --plan codex --plan claude --plan grok --plan antigravity --expert "AI Agent Harnesses" --json
 ```
+
+`capacity validate-fleet` is the preferred operator check when validating a
+plan fleet. It first proves CLI transport and auth, records quota observations,
+then runs the consult contract only for transports that succeeded. Selected
+backends that are skipped, missing, exhausted, timed out, or return failed
+synthesis status make the fleet unhealthy.
 
 `validate-consult-fleet` fans out bounded in-process consult validations across
 selected plan CLIs and emits
