@@ -145,10 +145,11 @@ The fleet-autopilot track (Phase 4d) is largely closed; the active edge is quali
    cost estimation. This is not full interactive chat backend parity: the
    default `backend=api` path remains the OpenAI-shaped chat path, but explicit
    `provider=anthropic` now runs non-agentic API query chat through a native
-   Anthropic Messages `ExpertChatBackend` with tools and streaming disabled,
-   unsupported OpenAI sampling params omitted, and Anthropic usage buckets
-   settled through the chat ledger. Primary non-streaming answer-generation
-   turns, streaming setup/tool rounds, final OpenAI token streaming, follow-up
+   Anthropic Messages `ExpertChatBackend` with tools disabled, native
+   non-agentic text streaming supported, unsupported OpenAI sampling params
+   omitted, and Anthropic usage buckets settled through the chat ledger.
+   Primary non-streaming answer-generation turns, streaming setup/tool rounds,
+   final OpenAI and Anthropic token streaming, follow-up
    suggestions, compaction support calls, quick lookup, and standard-research
    fallback calls now run through the `ExpertChatBackend` seam. The shared
    turn helper now rejects requested tools when the backend declares no tool
