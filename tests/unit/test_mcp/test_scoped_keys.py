@@ -182,6 +182,28 @@ class TestScopedMCPAuthorization:
         assert not decision.allowed
         assert decision.estimated_cost_usd == 10.0
 
+    def test_expert_query_cost_estimate_respects_owned_capacity_backend(self):
+        context = ScopedMCPKeyContext("agent", ResearchMode.UNRESTRICTED, budget_limit_usd=0.0)
+
+        local = authorize_scoped_mcp_budget(
+            context,
+            "deepr_query_expert",
+            {"backend": "local", "budget": 0.0},
+            spent_usd=0.0,
+        )
+        plan = authorize_scoped_mcp_budget(
+            context,
+            "deepr_query_expert",
+            {"backend": "plan", "plan": "codex", "budget": 10.0},
+            spent_usd=0.0,
+        )
+
+        assert local.allowed
+        assert local.estimated_cost_usd == 0.0
+        assert plan.allowed
+        assert plan.estimated_cost_usd == 0.0
+        assert estimate_scoped_mcp_tool_cost("deepr_query_expert", {"budget": 0.75}) == 0.75
+
     def test_consult_experts_cost_estimate_respects_owned_capacity_backend(self):
         assert estimate_scoped_mcp_tool_cost("deepr_consult_experts", {}) == 2.0
         assert estimate_scoped_mcp_tool_cost("deepr_consult_experts", {"budget": 0.75}) == 0.75

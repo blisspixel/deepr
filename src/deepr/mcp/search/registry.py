@@ -10,6 +10,7 @@ from dataclasses import dataclass, field
 from typing import Any
 
 from deepr.mcp.consult_tool import CONSULT_EXPERTS_INPUT_SCHEMA, CONSULT_EXPERTS_OUTPUT_SCHEMA
+from deepr.mcp.query_expert_tool import QUERY_EXPERT_INPUT_SCHEMA
 
 
 @dataclass
@@ -406,33 +407,13 @@ def create_default_registry() -> ToolRegistry:
         ToolSchema(
             name="deepr_query_expert",
             description=(
-                "Legacy single-expert chat path. Expert answers from its knowledge "
-                "base with citations and confidence levels, and agentic=true may "
-                "trigger new research. This path is metered-capable and does not "
-                "yet accept local or plan backend selection. Prefer "
-                "deepr_consult_experts for no-metered one-expert or multi-expert "
-                "consults."
+                "Single-expert question path. Default backend='api' uses the legacy "
+                "metered-capable chat session and agentic=true may trigger research. "
+                "backend='local' or backend='plan' runs the same one-expert request "
+                "through the deepr-consult-v1 contract with live metered fallback "
+                "disabled and research_triggered=0."
             ),
-            input_schema={
-                "type": "object",
-                "properties": {
-                    "expert_name": {"type": "string", "description": "Name of the expert (from deepr_list_experts)"},
-                    "question": {"type": "string", "description": "Question to ask the expert"},
-                    "agentic": {
-                        "type": "boolean",
-                        "default": False,
-                        "description": "Enable autonomous research if expert lacks knowledge",
-                    },
-                    "budget": {
-                        "type": "number",
-                        "description": (
-                            "USD ceiling for this metered-capable chat session. Omit to use the server default; "
-                            "0 means no provider spend and should be expected to block generation."
-                        ),
-                    },
-                },
-                "required": ["expert_name", "question"],
-            },
+            input_schema=QUERY_EXPERT_INPUT_SCHEMA,
             category="experts",
             cost_tier="low",
         )

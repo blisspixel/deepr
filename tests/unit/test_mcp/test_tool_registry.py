@@ -164,8 +164,9 @@ class TestDefaultRegistry:
         registry = create_default_registry()
         tool = registry.get("deepr_query_expert")
         assert tool is not None
-        assert "Legacy single-expert chat" in tool.description
-        assert "does not yet accept local or plan backend selection" in tool.description
+        assert "Default backend='api' uses the legacy" in tool.description
+        assert "backend='local' or backend='plan'" in tool.description
+        assert tool.input_schema["properties"]["backend"]["enum"] == ["api", "local", "plan"]
 
 
 class TestGatewayTool:

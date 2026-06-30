@@ -476,6 +476,91 @@ class TestExpertTools:
         assert session_cls.call_args.kwargs["agentic"] is False
 
     @pytest.mark.asyncio
+    async def test_query_expert_local_backend_uses_single_expert_consult(self, mock_server):
+        expert = MagicMock()
+        mock_server.store.load.return_value = expert
+        consult_payload = {
+            "schema_version": "deepr-consult-v1",
+            "kind": "deepr.expert.consult",
+            "answer": "local answer",
+            "cost_usd": 0.0,
+            "capacity": {"synthesis_backend": "local", "live_metered_fallback": False},
+        }
+        with (
+            patch("deepr.mcp.server.ExpertChatSession") as session_cls,
+            patch(
+                "deepr.mcp.query_expert_tool.consult_experts_tool",
+                new=AsyncMock(return_value=consult_payload),
+            ) as consult,
+        ):
+            out = await mock_server.query_expert("e1", "what?", backend="local", local_model="mistral")
+
+        assert out["answer"] == "local answer"
+        assert out["expert"] == "e1"
+        assert out["cost"] == 0.0
+        assert out["research_triggered"] == 0
+        assert out["backend"] == "local"
+        assert out["capacity"]["live_metered_fallback"] is False
+        assert out["consult_artifact"] == consult_payload
+        session_cls.assert_not_called()
+        consult.assert_awaited_once_with(
+            question="what?",
+            experts=["e1"],
+            max_experts=1,
+            budget=0.0,
+            synthesis_backend="local",
+            local_model="mistral",
+            plan=None,
+            plan_model=None,
+        )
+
+    @pytest.mark.asyncio
+    async def test_query_expert_plan_backend_uses_single_expert_consult(self, mock_server):
+        expert = MagicMock()
+        mock_server.store.load.return_value = expert
+        consult_payload = {
+            "schema_version": "deepr-consult-v1",
+            "kind": "deepr.expert.consult",
+            "answer": "plan answer",
+            "cost_usd": 0.0,
+            "capacity": {"synthesis_backend": "plan", "live_metered_fallback": False},
+        }
+        with patch(
+            "deepr.mcp.query_expert_tool.consult_experts_tool",
+            new=AsyncMock(return_value=consult_payload),
+        ) as consult:
+            out = await mock_server.query_expert(
+                "e1",
+                "what?",
+                backend="plan",
+                plan="claude",
+                plan_model="sonnet",
+            )
+
+        assert out["answer"] == "plan answer"
+        assert out["backend"] == "plan"
+        assert out["capacity"]["live_metered_fallback"] is False
+        consult.assert_awaited_once_with(
+            question="what?",
+            experts=["e1"],
+            max_experts=1,
+            budget=0.0,
+            synthesis_backend="plan",
+            local_model=None,
+            plan="claude",
+            plan_model="sonnet",
+        )
+
+    @pytest.mark.asyncio
+    async def test_query_expert_plan_backend_rejects_agentic_mode(self, mock_server):
+        mock_server.store.load.return_value = MagicMock()
+
+        out = await mock_server.query_expert("e1", "what?", backend="plan", plan="claude", agentic=True)
+
+        assert out["error_code"] == "UNSUPPORTED_AGENTIC_BACKEND"
+        assert out["category"] == "validation"
+
+    @pytest.mark.asyncio
     async def test_query_expert_wraps_errors(self, mock_server):
         expert = MagicMock()
         mock_server.store.load.return_value = expert

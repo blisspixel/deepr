@@ -8,6 +8,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- Added explicit `backend=local|plan` support to MCP `deepr_query_expert`.
+  These modes route the named expert through the existing one-expert
+  `deepr-consult-v1` path, attach `consult_artifact`, set
+  `research_triggered=0`, disable live metered fallback, and estimate scoped
+  key spend as `$0`. The default `backend=api` path remains the legacy
+  metered-capable expert chat path.
 - Added `deepr capacity probe-fleet`, a bounded concurrent validation command
   for plan-quota CLIs. It probes selected backends in one pass, records the same
   quota observations as `probe-plan`, skips metered-at-margin adapters by
@@ -111,6 +117,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   compatibility alias for the default apply path.
 
 ### Fixed
+- Tightened the security ratchet baseline from 88 findings to 87 after marking
+  the legacy expert-query session key hash as non-security use.
 - Made plan-quota fleet status show the effective sanitized child auth mode and
   the raw parent-shell auth mode separately, so an API key in the parent
   environment no longer makes a safe plan-auth child run look metered.

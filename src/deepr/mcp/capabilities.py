@@ -32,7 +32,10 @@ _KEY_TOOLS: tuple[tuple[str, str], ...] = (
         "deepr_consult_experts",
         "Ask one or many experts and get one synthesized answer; use local or plan backend for no-metered trials.",
     ),
-    ("deepr_query_expert", "Legacy single-expert chat; metered-capable until backend-neutral chat lands."),
+    (
+        "deepr_query_expert",
+        "Ask one expert; use backend local or plan for no-metered consult mode, api for legacy chat.",
+    ),
     ("deepr_what_changed", "See what an expert learned since a prior point."),
     ("deepr_explain_belief", "Get why an expert holds a claim, with its evidence."),
     ("deepr_temporal_edges", "Filter time-scoped belief relationships by valid or observed time."),
@@ -63,8 +66,8 @@ def build_capabilities(store: Any, registry: ToolRegistry, *, version: str) -> d
                 "deepr_consult_experts at $0 inside Deepr and disable silent metered fallback"
             ),
             "single_expert": (
-                "pass one expert name in deepr_consult_experts.experts for a no-metered one-expert consult; "
-                "deepr_query_expert does not yet support local or plan backend selection"
+                "pass one expert name in deepr_consult_experts.experts, or call deepr_query_expert with "
+                "backend='local' or backend='plan', for a no-metered one-expert consult"
             ),
         },
         "cost_tiers": {

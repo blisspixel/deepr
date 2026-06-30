@@ -45,7 +45,7 @@ def test_payload_is_versioned_and_shaped():
     assert caps["error_contract"]["fields"] == ["error_code", "category", "retryable", "message"]
     assert "local" == caps["zero_cost_synthesis"]["owned"]
     assert "deepr_consult_experts" in caps["zero_cost_synthesis"]["how"]
-    assert "deepr_query_expert does not yet support" in caps["zero_cost_synthesis"]["single_expert"]
+    assert "deepr_query_expert with backend='local' or backend='plan'" in caps["zero_cost_synthesis"]["single_expert"]
 
 
 def test_roster_is_case_insensitively_sorted():
