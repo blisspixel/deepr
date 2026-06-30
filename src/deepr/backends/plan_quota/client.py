@@ -236,8 +236,8 @@ class PlanQuotaChatClient:
                     "unit_name": self.adapter.unit_name,
                 },
             )
-        except Exception as e:  # cost ledger write is best-effort
-            logger.warning("plan-quota cost ledger write failed for %s: %s", self.adapter.backend_id, e)
+        except Exception as e:
+            raise PlanQuotaError(f"plan-quota cost ledger write failed for {self.adapter.backend_id}: {e}") from e
 
 
 def _flatten_messages(messages: list[dict[str, Any]], *, wants_json: bool) -> str:
@@ -337,6 +337,7 @@ async def probe_plan_quota(
     env: dict[str, str] | None = None,
     cwd: str | None = None,
     timeout: float = 60.0,
+    cost_ledger_path: Path | None = None,
 ) -> dict[str, Any]:
     """A small round-trip proving the CLI runs and is authenticated. Never raises.
 
@@ -359,12 +360,13 @@ async def probe_plan_quota(
     finally:
         _cleanup_prompt_file(temp_path)
     if adapter.looks_exhausted(f"{result.stdout}\n{result.stderr}"):
+        ledger_error = _record_probe_cost(adapter, model=model, cost_ledger_path=cost_ledger_path, outcome="exhausted")
         return {
             "ok": False,
             "backend": adapter.backend_id,
             "reply": "",
             "latency_ms": result.duration_ms,
-            "error": "quota exhausted",
+            "error": f"quota exhausted; {ledger_error}" if ledger_error else "quota exhausted",
         }
     if not result.ok:
         err = result.launch_error or (
@@ -377,6 +379,16 @@ async def probe_plan_quota(
         reply = recover_answer(antigravity_brain_dir(), since=started_at) or ""
     else:
         reply = adapter.parse_answer(result.stdout)
+    if reply:
+        ledger_error = _record_probe_cost(adapter, model=model, cost_ledger_path=cost_ledger_path, outcome="ok")
+        if ledger_error:
+            return {
+                "ok": False,
+                "backend": adapter.backend_id,
+                "reply": reply,
+                "latency_ms": result.duration_ms,
+                "error": ledger_error,
+            }
     return {
         "ok": bool(reply),
         "backend": adapter.backend_id,
@@ -384,3 +396,32 @@ async def probe_plan_quota(
         "latency_ms": result.duration_ms,
         "error": "" if reply else "no output",
     }
+
+
+def _record_probe_cost(
+    adapter: PlanQuotaAdapter,
+    *,
+    model: str | None,
+    cost_ledger_path: Path | None,
+    outcome: str,
+) -> str:
+    from deepr.observability.cost_ledger import CostLedger
+
+    try:
+        CostLedger(cost_ledger_path).record_event(
+            operation="plan_quota_probe",
+            provider=f"plan_quota:{adapter.backend_id}",
+            cost_usd=0.0,
+            model=model or adapter.exe,
+            source="plan_quota",
+            metadata={
+                "backend_id": adapter.backend_id,
+                "cost_model": adapter.cost_model.value,
+                "quota_units": 1,
+                "unit_name": adapter.unit_name,
+                "outcome": outcome,
+            },
+        )
+    except Exception as e:
+        return f"cost ledger write failed for plan-quota probe {adapter.backend_id}: {e}"
+    return ""

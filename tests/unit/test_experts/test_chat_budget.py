@@ -5,7 +5,8 @@ turned an explicit budget=0.0 ("do not spend") into a $10 ceiling, because 0.0
 is falsy. An agent or `--budget 0` caller meaning no spend got a real budget.
 """
 
-from types import SimpleNamespace
+import sys
+from types import ModuleType, SimpleNamespace
 
 from deepr.experts.chat import ExpertChatSession
 from deepr.experts.chat_backends import ExpertChatResult
@@ -21,7 +22,7 @@ def _session(monkeypatch, budget):
 
 
 class RecordingChatBackend:
-    def __init__(self, *contents: str) -> None:
+    def __init__(self, *contents) -> None:
         self.requests = []
         self._contents = list(contents)
 
@@ -82,6 +83,58 @@ async def test_standard_research_reports_blocked_when_session_circuit_is_open(mo
     assert result["status"] == "blocked"
     assert result["mode"] == "standard_research"
     assert result["error"].startswith("Research blocked: Session circuit breaker open")
+
+
+async def test_standard_research_records_metered_grok_cost(monkeypatch):
+    session = _session(monkeypatch, 1.0)
+    monkeypatch.setenv("XAI_API_KEY", "xai-test-not-real")
+
+    class FakeChat:
+        def __init__(self):
+            self.messages = []
+
+        def append(self, message):
+            self.messages.append(message)
+
+        def sample(self):
+            return SimpleNamespace(content="fresh answer", citations=["https://example.test/source"])
+
+    class FakeChatFactory:
+        def create(self, *, model, tools):
+            assert model == "grok-4.3"
+            assert len(tools) == 2
+            return FakeChat()
+
+    class FakeClient:
+        def __init__(self, *, api_key, timeout):
+            assert api_key == "xai-test-not-real"
+            assert timeout > 0
+            self.chat = FakeChatFactory()
+
+    xai_sdk = ModuleType("xai_sdk")
+    xai_sdk.Client = FakeClient
+    xai_chat = ModuleType("xai_sdk.chat")
+    xai_chat.system = lambda content: {"role": "system", "content": content}
+    xai_chat.user = lambda content: {"role": "user", "content": content}
+    xai_tools = ModuleType("xai_sdk.tools")
+    xai_tools.web_search = lambda: {"type": "web_search"}
+    xai_tools.x_search = lambda: {"type": "x_search"}
+
+    monkeypatch.setitem(sys.modules, "xai_sdk", xai_sdk)
+    monkeypatch.setitem(sys.modules, "xai_sdk.chat", xai_chat)
+    monkeypatch.setitem(sys.modules, "xai_sdk.tools", xai_tools)
+
+    async def ignore_knowledge_write(*_args, **_kwargs):
+        return None
+
+    session._add_research_to_knowledge_base = ignore_knowledge_write
+
+    result = await session._standard_research("latest ai news")
+
+    assert result["mode"] == "standard_research_grok_agentic"
+    assert result["cost"] == 0.05
+    assert session.cost_accumulated == 0.05
+    assert "https://example.test/source" in result["answer"]
 
 
 async def test_deep_research_reports_blocked_when_session_budget_is_exhausted(monkeypatch):
@@ -196,3 +249,69 @@ async def test_streaming_first_chat_generation_is_preflight_budget_checked(monke
     assert result.startswith("Chat blocked: Insufficient budget")
     assert session.reasoning_trace[-1]["step"] == "chat_generation_budget"
     assert session.reasoning_trace[-1]["allowed"] is False
+
+
+async def test_streaming_first_chat_generation_uses_chat_backend(monkeypatch):
+    session = _session(monkeypatch, 1.0)
+    session.should_use_tot = lambda _query: False
+    emitted = []
+
+    async def fail_if_called(*_args, **_kwargs):
+        raise AssertionError("legacy client should be behind chat_backend before final streaming")
+
+    monkeypatch.setattr(session.client.chat.completions, "create", fail_if_called)
+    backend = RecordingChatBackend("backend stream answer", "[]")
+    session.chat_backend = backend
+
+    result = await session.send_message_streaming(
+        "What should this expert improve next?",
+        token_callback=emitted.append,
+    )
+
+    assert result == "backend stream answer"
+    assert "".join(emitted) == "backend stream answer"
+    assert backend.requests[0].model == session.expert.model
+    assert backend.requests[0].tool_choice == "auto"
+
+
+async def test_streaming_final_response_accounts_stream_usage(monkeypatch):
+    session = _session(monkeypatch, 1.0)
+    session.should_use_tot = lambda _query: False
+    accounted = []
+    emitted = []
+
+    class FakeStream:
+        def __init__(self):
+            self._chunks = [
+                SimpleNamespace(
+                    choices=[SimpleNamespace(delta=SimpleNamespace(content="hello"))],
+                    usage=None,
+                ),
+                SimpleNamespace(choices=[], usage=SimpleNamespace(prompt_tokens=20, completion_tokens=7)),
+            ]
+
+        def __aiter__(self):
+            return self
+
+        async def __anext__(self):
+            if not self._chunks:
+                raise StopAsyncIteration
+            return self._chunks.pop(0)
+
+    async def fake_stream_create(**kwargs):
+        assert kwargs["stream"] is True
+        assert kwargs["stream_options"] == {"include_usage": True}
+        return FakeStream()
+
+    monkeypatch.setattr(session.client.chat.completions, "create", fake_stream_create)
+    session._account_chat_cost = lambda usage, model: accounted.append(usage)
+    session.chat_backend = RecordingChatBackend(None, "[]")
+
+    result = await session.send_message_streaming(
+        "Stream a final answer",
+        token_callback=emitted.append,
+    )
+
+    assert result == "hello"
+    assert emitted == ["hello"]
+    assert [(u.prompt_tokens, u.completion_tokens) for u in accounted] == [(20, 7), (10, 5)]

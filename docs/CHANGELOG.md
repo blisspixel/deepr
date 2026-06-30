@@ -122,6 +122,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   deduplication, contradiction, and temporal-scope judgment with the verifier.
 
 ### Changed
+- Moved expert-chat streaming setup and streaming tool-loop rounds onto the
+  `ExpertChatBackend` seam. Final token streaming still uses the direct
+  provider stream until the backend contract grows a streaming interface, but
+  streamed usage is now requested and settled when the provider returns it.
+- Made OpenCode plan-quota capacity explicit-only until Deepr can verify that
+  the routed provider is OAuth/subscription or local. Auto-routable plan
+  capacity is now limited to Codex and Claude.
 - Clarified the README first-screen value proposition, `--budget` examples, and
   audience fit. The README now calls `--budget 3` a budget ceiling, explains
   that users bring accounts, quotas, API keys, or local models, and
@@ -134,6 +141,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   compatibility alias for the default apply path.
 
 ### Fixed
+- Hardened plan-quota cost accounting. Plan-quota chat calls now fail closed if
+  the canonical cost ledger cannot be written, and `capacity probe-plan` /
+  `capacity probe-fleet` write `$0` cost-ledger events for quota-consuming
+  validation probes.
+- Required an explicit paid-capacity acknowledgement before metered-at-margin
+  plan adapters such as Copilot can be selected, while preserving the existing
+  sync and absorb confirmation prompts as that acknowledgement.
+- Made plan-quota CLI timeout and cancellation cleanup terminate the subprocess
+  tree instead of only the parent process.
+- Hardened MCP sandbox creation against path-segment job ids by sanitizing the
+  sandbox id, resolving the sandbox root, and asserting containment before
+  creating or cleaning files.
+- Recorded the actual estimated xAI Grok 4.3 cost for expert-chat standard
+  research and blocked the GPT fallback when the fallback estimate exceeds cost
+  safety.
+- Hardened scraper redirects against SSRF by validating every redirect target
+  before following it and stopping fallback strategies after a security block.
+- Moved the Google Imagen API key out of the query string and sanitized Google
+  image-generation HTTP errors so provider secrets are not echoed in logs.
+- Added budget reservation before web portrait generation and allowed explicit
+  local portrait generation without a metered reservation.
 - Tightened the security ratchet baseline from 88 findings to 87 after marking
   the legacy expert-query session key hash as non-security use.
 - Made plan-quota fleet status show the effective sanitized child auth mode and

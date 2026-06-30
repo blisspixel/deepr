@@ -857,7 +857,7 @@ Budget remaining: ${budget_remaining:.2f}
             return {"error": str(e)}
 
     async def _standard_research(self, query: str) -> dict:
-        """Standard research using Grok-4-Fast with agentic web search (FREE beta, 5-15 sec).
+        """Standard research using Grok 4.3 with agentic web and X search.
 
         Args:
             query: Research query
@@ -865,22 +865,24 @@ Budget remaining: ${budget_remaining:.2f}
         Returns:
             Dict with answer, sources, and cost
         """
-        # Even though it's free, track it for rate limiting and audit
-        estimated_cost = 0.002  # Nominal cost for tracking
+        from deepr.providers.registry import get_cost_estimate as _get_cost_estimate
 
-        # Check cost safety - mainly for rate limiting during loops
+        try:
+            estimated_cost = float(_get_cost_estimate("xai/grok-4-3"))
+        except Exception:
+            estimated_cost = 0.05
+
         allowed, reason, _ = self.cost_safety.check_operation(
             session_id=self.session_id,
             operation_type="standard_research",
             estimated_cost=estimated_cost,
-            require_confirmation=False,  # Don't confirm for free operations
+            require_confirmation=False,
         )
 
         if not allowed:
             return {"error": f"Research blocked: {reason}", "mode": "standard_research", "status": "blocked"}
 
         try:
-            # Use Grok-4-Fast with agentic tool calling (web + X search)
             import os
 
             from xai_sdk import Client
@@ -891,10 +893,7 @@ Budget remaining: ${budget_remaining:.2f}
             if not xai_key:
                 raise Exception("XAI_API_KEY not set")
 
-            # Create xAI client
             xai_client = Client(api_key=xai_key, timeout=self.timeout if hasattr(self, "timeout") else 120)
-
-            # Create chat with agentic search tools
             chat = xai_client.chat.create(
                 model="grok-4.3",  # Flagship for agentic tool calling
                 tools=[
@@ -903,7 +902,6 @@ Budget remaining: ${budget_remaining:.2f}
                 ],
             )
 
-            # System prompt for research clarity
             chat.append(
                 system(
                     "You have real-time web search. Provide accurate current information with source citations. Be concise but thorough."
@@ -920,30 +918,25 @@ Budget remaining: ${budget_remaining:.2f}
 
             response = await _asyncio_local.to_thread(chat.sample)
 
-            # Extract answer and citations
             answer = response.content
             citations = getattr(response, "citations", [])
-
-            # Convert citations to list (may be protobuf RepeatedScalarContainer)
             citations_list = list(citations) if citations else []
 
-            # Format answer with citations
             if citations_list:
                 answer += "\n\nSources:\n" + "\n".join(f"- {url}" for url in citations_list[:10])  # Limit to 10 sources
 
-            # Track cost (FREE during beta, but record for audit)
-            cost = 0.0
+            cost = estimated_cost
             self.cost_accumulated += cost
 
-            # Record in cost safety for tracking/audit
             self.cost_safety.record_cost(
                 session_id=self.session_id,
                 operation_type="standard_research",
                 actual_cost=cost,
+                provider="xai",
+                model="grok-4.3",
                 details=f"Query: {query[:50]}...",
             )
 
-            # Add research findings to knowledge base
             await self._add_research_to_knowledge_base(query, answer, "standard_research")
 
             return {
@@ -955,11 +948,22 @@ Budget remaining: ${budget_remaining:.2f}
             }
 
         except Exception as e:
-            # Record failure for circuit breaker
             self.cost_safety.record_failure(self.session_id, "standard_research", str(e))
 
-            # Fallback to GPT-5.5 without web search
             try:
+                fallback_estimate = 0.05
+                allowed, reason, _ = self.cost_safety.check_operation(
+                    session_id=self.session_id,
+                    operation_type="standard_research_fallback",
+                    estimated_cost=fallback_estimate,
+                    require_confirmation=False,
+                )
+                if not allowed:
+                    return {
+                        "error": f"Grok search failed: {e!s}. GPT-5.5 fallback blocked: {reason}",
+                        "mode": "standard_research_fallback",
+                        "status": "blocked",
+                    }
                 response = await self.client.chat.completions.create(
                     model="gpt-5.5",
                     messages=[
@@ -2131,26 +2135,20 @@ Budget remaining: ${budget_remaining:.2f}
             self.messages.append({"role": "user", "content": user_message})
 
             report_status("Thinking...")
-            api_params = {
-                "model": selected_model.model,
-                "messages": [{"role": "system", "content": self.get_system_message()}, *self.messages],
-                "tools": tools,
-                "tool_choice": "auto",
-            }
-            if selected_model.reasoning_effort and selected_model.provider == "openai":
-                api_params["reasoning_effort"] = selected_model.reasoning_effort
-
-            first_response = await self.client.chat.completions.create(**api_params)
-            assistant_message = first_response.choices[0].message
+            first_turn = await complete_expert_chat_turn(
+                self.chat_backend,
+                selected_model=selected_model,
+                messages=[{"role": "system", "content": self.get_system_message()}, *self.messages],
+                tools=tools,
+            )
+            assistant_message = first_turn.message
 
             # Tool-call loop (non-streaming)
             current_message = assistant_message
             conversation_messages = [{"role": "system", "content": self.get_system_message()}, *self.messages]
             max_rounds = 5
             round_count = 0
-            _per_round_estimate = max(
-                _chat_token_cost(getattr(first_response, "usage", None), selected_model.model) * 1.5, 0.05
-            )
+            _per_round_estimate = max(_chat_token_cost(first_turn.usage, selected_model.model) * 1.5, 0.05)
 
             while current_message.tool_calls and round_count < max_rounds:
                 round_count += 1
@@ -2277,19 +2275,15 @@ Budget remaining: ${budget_remaining:.2f}
                 conversation_messages.extend(tool_messages)
                 report_status("Thinking...")
 
-                api_params_next = {
-                    "model": selected_model.model,
-                    "messages": conversation_messages,
-                    "tools": tools,
-                    "tool_choice": "auto",
-                }
-                if selected_model.reasoning_effort and selected_model.provider == "openai":
-                    api_params_next["reasoning_effort"] = selected_model.reasoning_effort
+                next_turn = await complete_expert_chat_turn(
+                    self.chat_backend,
+                    selected_model=selected_model,
+                    messages=conversation_messages,
+                    tools=tools,
+                )
+                current_message = next_turn.message
 
-                next_response = await self.client.chat.completions.create(**api_params_next)
-                current_message = next_response.choices[0].message
-
-                self._account_chat_cost(next_response.usage, selected_model)
+                self._account_chat_cost(next_turn.usage, selected_model)
 
             # --- Final response: stream it ---
             if current_message.content is not None:
@@ -2306,22 +2300,29 @@ Budget remaining: ${budget_remaining:.2f}
                     "model": selected_model.model,
                     "messages": conversation_messages,
                     "stream": True,
+                    "stream_options": {"include_usage": True},
                 }
                 if selected_model.reasoning_effort and selected_model.provider == "openai":
                     stream_params["reasoning_effort"] = selected_model.reasoning_effort
 
                 stream = await self.client.chat.completions.create(**stream_params)
                 final_message = ""
+                stream_usage = None
                 async for chunk in stream:
+                    usage = getattr(chunk, "usage", None)
+                    if usage is not None:
+                        stream_usage = usage
                     delta = chunk.choices[0].delta if chunk.choices else None
                     if delta and delta.content:
                         final_message += delta.content
                         if token_callback:
                             token_callback(delta.content)
+                if stream_usage is not None:
+                    self._account_chat_cost(stream_usage, selected_model)
 
             # Track initial call costs using registry pricing for the
             # selected model.
-            self._account_chat_cost(first_response.usage, selected_model)
+            self._account_chat_cost(first_turn.usage, selected_model)
 
             # Add to history
             self.messages.append({"role": "assistant", "content": final_message})
