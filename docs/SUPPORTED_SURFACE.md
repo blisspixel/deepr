@@ -98,8 +98,8 @@ must not be described as usable capacity.
   artifact includes a `capacity` block describing the selected synthesis
   backend. Passing one explicit expert gives a focused no-metered single-expert
   consult; `deepr_query_expert` also supports explicit `backend=local|plan` as
-  a one-expert consult bridge with
-  `consult_artifact`, `research_triggered=0`, and no live metered fallback.
+  a read-only compiled-context chat turn with `readonly_chat_artifact`,
+  `research_triggered=0`, and no live metered fallback.
   Passing several experts gives a bounded council with preserved dissent. CLI
   and MCP consults append local
   `deepr-consult-trace-v1` records with selected context metadata, checks run,

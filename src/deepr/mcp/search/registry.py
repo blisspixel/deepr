@@ -409,8 +409,8 @@ def create_default_registry() -> ToolRegistry:
             description=(
                 "Single-expert question path. Default backend='api' uses the legacy "
                 "metered-capable chat session and agentic=true may trigger research. "
-                "backend='local' or backend='plan' runs the same one-expert request "
-                "through the deepr-consult-v1 contract with live metered fallback "
+                "backend='local' or backend='plan' runs one read-only compiled-context "
+                "turn through owned or explicit plan capacity with live metered fallback "
                 "disabled and research_triggered=0."
             ),
             input_schema=QUERY_EXPERT_INPUT_SCHEMA,

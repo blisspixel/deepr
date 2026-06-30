@@ -476,22 +476,32 @@ class TestExpertTools:
         assert session_cls.call_args.kwargs["agentic"] is False
 
     @pytest.mark.asyncio
-    async def test_query_expert_local_backend_uses_single_expert_consult(self, mock_server):
+    async def test_query_expert_local_backend_uses_readonly_chat_backend(self, mock_server):
         expert = MagicMock()
         mock_server.store.load.return_value = expert
-        consult_payload = {
-            "schema_version": "deepr-consult-v1",
-            "kind": "deepr.expert.consult",
-            "answer": "local answer",
-            "cost_usd": 0.0,
-            "capacity": {"synthesis_backend": "local", "live_metered_fallback": False},
+        captured: dict[str, object] = {}
+
+        class FakeBackend:
+            provider = "local"
+            model = "mistral"
+            metered = False
+            supports_tools = False
+            supports_streaming = False
+            supports_prompt_cache = False
+
+            async def complete(self, request):
+                captured["request"] = request
+                return SimpleNamespace(text="local answer")
+
+        context = {
+            "schema_version": "deepr-expert-handoff-v1",
+            "kind": "deepr.expert.handoff",
+            "summary": {"claim_count": 2, "open_gap_count": 1, "original_idea_count": 0},
         }
         with (
             patch("deepr.mcp.server.ExpertChatSession") as session_cls,
-            patch(
-                "deepr.mcp.query_expert_tool.consult_experts_tool",
-                new=AsyncMock(return_value=consult_payload),
-            ) as consult,
+            patch("deepr.mcp.query_expert_tool._build_readonly_query_backend", return_value=FakeBackend()) as builder,
+            patch("deepr.mcp.query_expert_tool._compiled_context_for", return_value=context) as compiler,
         ):
             out = await mock_server.query_expert("e1", "what?", backend="local", local_model="mistral")
 
@@ -501,34 +511,46 @@ class TestExpertTools:
         assert out["research_triggered"] == 0
         assert out["backend"] == "local"
         assert out["capacity"]["live_metered_fallback"] is False
-        assert out["consult_artifact"] == consult_payload
+        assert out["capacity"]["execution_mode"] == "read_only_chat"
+        assert out["capacity"]["provider"] == "local"
+        assert out["readonly_chat_artifact"]["schema_version"] == "deepr-query-expert-readonly-v1"
+        assert out["readonly_chat_artifact"]["context"]["claim_count"] == 2
         session_cls.assert_not_called()
-        consult.assert_awaited_once_with(
-            question="what?",
-            experts=["e1"],
-            max_experts=1,
-            budget=0.0,
-            synthesis_backend="local",
-            local_model="mistral",
-            plan=None,
-            plan_model=None,
-        )
+        builder.assert_called_once_with("local", local_model="mistral", plan=None, plan_model=None)
+        compiler.assert_called_once_with(expert)
+        request = captured["request"]
+        assert request.model == "mistral"
+        assert request.tools is None
+        assert request.tool_choice is None
+        assert "Compiled expert context JSON" in request.messages[1]["content"]
 
     @pytest.mark.asyncio
-    async def test_query_expert_plan_backend_uses_single_expert_consult(self, mock_server):
+    async def test_query_expert_plan_backend_uses_readonly_chat_backend(self, mock_server):
         expert = MagicMock()
         mock_server.store.load.return_value = expert
-        consult_payload = {
-            "schema_version": "deepr-consult-v1",
-            "kind": "deepr.expert.consult",
-            "answer": "plan answer",
-            "cost_usd": 0.0,
-            "capacity": {"synthesis_backend": "plan", "live_metered_fallback": False},
+        captured: dict[str, object] = {}
+
+        class FakeBackend:
+            provider = "plan_quota:claude"
+            model = "sonnet"
+            metered = False
+            supports_tools = False
+            supports_streaming = False
+            supports_prompt_cache = False
+
+            async def complete(self, request):
+                captured["request"] = request
+                return SimpleNamespace(text="plan answer")
+
+        context = {
+            "schema_version": "deepr-expert-handoff-v1",
+            "kind": "deepr.expert.handoff",
+            "summary": {"claim_count": 0, "open_gap_count": 3, "original_idea_count": 1},
         }
-        with patch(
-            "deepr.mcp.query_expert_tool.consult_experts_tool",
-            new=AsyncMock(return_value=consult_payload),
-        ) as consult:
+        with (
+            patch("deepr.mcp.query_expert_tool._build_readonly_query_backend", return_value=FakeBackend()) as builder,
+            patch("deepr.mcp.query_expert_tool._compiled_context_for", return_value=context),
+        ):
             out = await mock_server.query_expert(
                 "e1",
                 "what?",
@@ -540,16 +562,13 @@ class TestExpertTools:
         assert out["answer"] == "plan answer"
         assert out["backend"] == "plan"
         assert out["capacity"]["live_metered_fallback"] is False
-        consult.assert_awaited_once_with(
-            question="what?",
-            experts=["e1"],
-            max_experts=1,
-            budget=0.0,
-            synthesis_backend="plan",
-            local_model=None,
-            plan="claude",
-            plan_model="sonnet",
-        )
+        assert out["capacity"]["provider"] == "plan_quota:claude"
+        assert out["readonly_chat_artifact"]["schema_version"] == "deepr-query-expert-readonly-v1"
+        assert out["readonly_chat_artifact"]["context"]["open_gap_count"] == 3
+        builder.assert_called_once_with("plan", local_model=None, plan="claude", plan_model="sonnet")
+        request = captured["request"]
+        assert request.model == "sonnet"
+        assert "what?" in request.messages[1]["content"]
 
     @pytest.mark.asyncio
     async def test_query_expert_plan_backend_rejects_agentic_mode(self, mock_server):
@@ -559,6 +578,20 @@ class TestExpertTools:
 
         assert out["error_code"] == "UNSUPPORTED_AGENTIC_BACKEND"
         assert out["category"] == "validation"
+
+    @pytest.mark.asyncio
+    async def test_query_expert_owned_backend_reports_unavailable(self, mock_server):
+        mock_server.store.load.return_value = MagicMock()
+
+        with patch(
+            "deepr.mcp.query_expert_tool._build_readonly_query_backend",
+            side_effect=ValueError("No local model available"),
+        ):
+            out = await mock_server.query_expert("e1", "what?", backend="local")
+
+        assert out["error_code"] == "QUERY_BACKEND_UNAVAILABLE"
+        assert out["category"] == "validation"
+        assert out["message"] == "No local model available"
 
     @pytest.mark.asyncio
     async def test_query_expert_wraps_errors(self, mock_server):

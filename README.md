@@ -251,7 +251,7 @@ explicit-only behind budget and cost-ledger gates.
 Deepr experts are consultable roles for host agents. An agent can list experts,
 read a handoff, inspect loop state, run a one-expert or multi-expert consult,
 use `deepr_query_expert` with explicit local or plan capacity for a no-metered
-single-expert consult bridge, or use the legacy API chat path with an
+read-only compiled-context turn, or use the legacy API chat path with an
 operator-approved budget. The host remains the orchestrator; Deepr provides the
 verified knowledge layer.
 
