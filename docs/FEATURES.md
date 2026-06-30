@@ -543,7 +543,12 @@ deepr expert review-consult-quality "Azure Architect" consult_abc123 \
   --decision accept \
   --target eval \
   --apply
+deepr expert judge-consult-quality "Azure Architect" consult_abc123 --local-judge-model qwen2.5 --json
+deepr expert judge-consult-quality "Azure Architect" consult_abc123 --plan codex --plan-model gpt-5-mini --json
 ```
+The judge command stores only validated review fields plus judge metadata. Local
+judges cost `$0`; plan judges consume subscription quota and record `$0` Deepr
+cost metadata without metered fallback.
 `deepr mcp validate-consult` validates the no-metered external-agent consult
 path before another machine asks real questions. With no URL it runs a `$0`
 offline fixture. With `--live` it exercises local or explicit plan capacity on

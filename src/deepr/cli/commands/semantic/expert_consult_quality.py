@@ -11,6 +11,7 @@ import click
 
 from deepr.cli.colors import console, print_error, print_key_value, print_section_header
 from deepr.cli.commands.semantic.experts import expert
+from deepr.cli.commands.semantic.grounding_support import PLAN_BACKEND_CHOICES
 from deepr.experts.profile import ExpertStore
 
 
@@ -198,8 +199,16 @@ def expert_review_consult_quality(
 @expert.command(name="judge-consult-quality")
 @click.argument("name")
 @click.argument("trace_id")
-@click.option("--local-judge-model", required=True, help="Installed local Ollama model used as calibrated judge.")
-@click.option("--calibration-ref", default="", help="Optional calibration artifact id for this local judge.")
+@click.option("--local-judge-model", default="", help="Installed local Ollama model used as calibrated judge.")
+@click.option(
+    "--plan",
+    "plan_backend",
+    type=click.Choice(PLAN_BACKEND_CHOICES),
+    default=None,
+    help="Use an explicit plan-quota CLI as calibrated judge.",
+)
+@click.option("--plan-model", default=None, help="Optional model hint for the plan-quota CLI judge.")
+@click.option("--calibration-ref", default="", help="Optional calibration artifact id for this calibrated judge.")
 @click.option(
     "--target",
     type=click.Choice(["none", "gap", "eval", "both"]),
@@ -227,6 +236,8 @@ def expert_judge_consult_quality(
     name: str,
     trace_id: str,
     local_judge_model: str,
+    plan_backend: str | None,
+    plan_model: str | None,
     calibration_ref: str,
     target: str,
     apply_change: bool,
@@ -236,12 +247,19 @@ def expert_judge_consult_quality(
     output_dir: Path | None,
     json_output: bool,
 ) -> None:
-    """Score a consult semantic-quality case with an explicit local judge."""
-    from deepr.backends.capacity import available_local_models
+    """Score a consult semantic-quality case with an explicit calibrated judge."""
     from deepr.experts.consult_quality import (
         ConsultQualityReviewError,
         review_consult_quality_candidate_with_local_judge,
+        review_consult_quality_candidate_with_plan_judge,
     )
+
+    if plan_model and not plan_backend:
+        print_error("Use --plan-model with --plan.")
+        raise click.Abort()
+    if bool(local_judge_model) == bool(plan_backend):
+        print_error("Use exactly one of --local-judge-model or --plan.")
+        raise click.Abort()
 
     store = ExpertStore()
     profile = store.load(name)
@@ -249,29 +267,50 @@ def expert_judge_consult_quality(
         print_error(f"Expert '{name}' not found")
         raise click.Abort()
 
-    installed = available_local_models()
-    if not installed:
-        print_error("No local Ollama models available. Check `deepr capacity --probe`.")
-        raise click.Abort()
-    if local_judge_model not in installed:
-        print_error(f"Local judge model is not installed: {local_judge_model}")
-        raise click.Abort()
-
     try:
-        payload = asyncio.run(
-            review_consult_quality_candidate_with_local_judge(
-                profile,
-                trace_id,
-                judge_model=local_judge_model,
-                calibration_ref=calibration_ref,
-                target=target,
-                apply=apply_change,
-                trace_path=trace_path,
-                limit=limit,
-                max_candidates=max_candidates,
-                output_dir=output_dir,
+        if plan_backend:
+            from deepr.backends.waterfall import choose_plan_quota_backend
+
+            choice = choose_plan_quota_backend(plan_backend)
+            if not choice.is_plan_quota or choice.plan_backend_id is None:
+                raise ConsultQualityReviewError(choice.reason)
+            payload = asyncio.run(
+                review_consult_quality_candidate_with_plan_judge(
+                    profile,
+                    trace_id,
+                    plan_backend_id=choice.plan_backend_id,
+                    judge_model=plan_model,
+                    calibration_ref=calibration_ref,
+                    target=target,
+                    apply=apply_change,
+                    trace_path=trace_path,
+                    limit=limit,
+                    max_candidates=max_candidates,
+                    output_dir=output_dir,
+                )
             )
-        )
+        else:
+            from deepr.backends.capacity import available_local_models
+
+            installed = available_local_models()
+            if not installed:
+                raise ConsultQualityReviewError("No local Ollama models available. Check `deepr capacity --probe`.")
+            if local_judge_model not in installed:
+                raise ConsultQualityReviewError(f"Local judge model is not installed: {local_judge_model}")
+            payload = asyncio.run(
+                review_consult_quality_candidate_with_local_judge(
+                    profile,
+                    trace_id,
+                    judge_model=local_judge_model,
+                    calibration_ref=calibration_ref,
+                    target=target,
+                    apply=apply_change,
+                    trace_path=trace_path,
+                    limit=limit,
+                    max_candidates=max_candidates,
+                    output_dir=output_dir,
+                )
+            )
     except ConsultQualityReviewError as exc:
         print_error(str(exc))
         raise click.Abort() from exc

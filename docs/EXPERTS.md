@@ -485,6 +485,14 @@ deepr expert review-consult-quality "Azure Architect" consult_abc123 \
   --apply
 ```
 
+`deepr expert judge-consult-quality` runs the same review path with an explicit
+calibrated-model judge. Use `--local-judge-model MODEL` for local Ollama at `$0`
+or `--plan BACKEND` with optional `--plan-model MODEL` for an explicit
+plan-quota CLI. Plan judges consume subscription quota, record `$0` Deepr cost
+metadata, and never fall back to metered provider APIs. Deepr stores only the
+validated review fields and calibrated judge metadata, not the raw judge
+response or raw trace answer.
+
 ### Propose Self-Model Updates (review record)
 Preview or write a verifier-gated self-model update review record for a
 self-model-related monitor proposal. The command costs `$0`, never calls a

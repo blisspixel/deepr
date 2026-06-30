@@ -18,6 +18,7 @@ from deepr.experts.consult_quality import (
     parse_consult_quality_judge_response,
     review_consult_quality_candidate,
     review_consult_quality_candidate_with_local_judge,
+    review_consult_quality_candidate_with_plan_judge,
 )
 from deepr.experts.consult_traces import build_consult_trace, build_consult_trace_candidates
 from deepr.experts.metacognition import MetaCognitionTracker
@@ -102,13 +103,14 @@ class _FakeResponse:
 
 
 class _FakeConsultQualityCompletions:
-    def __init__(self):
+    def __init__(self, *, expected_model: str):
         self.calls = []
+        self.expected_model = expected_model
 
     async def create(self, **kwargs):
         self.calls.append(kwargs)
         prompt = kwargs["messages"][-1]["content"]
-        assert kwargs["model"] == "judge-local"
+        assert kwargs["model"] == self.expected_model
         assert "Thin answer." in prompt
         return _FakeResponse(
             json.dumps(
@@ -123,13 +125,13 @@ class _FakeConsultQualityCompletions:
 
 
 class _FakeConsultQualityChat:
-    def __init__(self):
-        self.completions = _FakeConsultQualityCompletions()
+    def __init__(self, *, expected_model: str):
+        self.completions = _FakeConsultQualityCompletions(expected_model=expected_model)
 
 
 class _FakeConsultQualityClient:
-    def __init__(self):
-        self.chat = _FakeConsultQualityChat()
+    def __init__(self, *, expected_model: str = "judge-local"):
+        self.chat = _FakeConsultQualityChat(expected_model=expected_model)
 
 
 def test_build_consult_quality_review_records_reviewer_scores():
@@ -308,6 +310,55 @@ async def test_review_consult_quality_with_local_judge_scores_raw_trace_without_
         "cost_usd": 0.0,
         "raw_response_stored": False,
         "source_trace_output_stored": False,
+    }
+    assert "Thin answer." not in json.dumps(payload)
+
+
+async def test_review_consult_quality_with_plan_judge_records_zero_dollar_quota_metadata(tmp_path):
+    profile = _profile()
+    trace = build_consult_trace(
+        question="How should consult improve the expert council?",
+        requested_experts=[profile.name],
+        max_experts=3,
+        budget=0.0,
+        payload={
+            "schema_version": "deepr-consult-v1",
+            "kind": "deepr.expert.consult",
+            "question": "How should consult improve the expert council?",
+            "answer": "Thin answer.",
+            "experts_consulted": [profile.name],
+            "perspectives": [{"expert": profile.name, "confidence": 0.2, "response": "thin"}],
+            "agreements": [],
+            "disagreements": [],
+            "cost_usd": 0.0,
+        },
+        result={"perspectives": [{}], "synthesis_status": "completed"},
+        trace_id="consult_planjudge",
+        recorded_at=datetime(2026, 6, 27, 12, 0, tzinfo=UTC),
+    )
+    trace_path = tmp_path / "consult_traces.jsonl"
+    trace_path.write_text(json.dumps(trace) + "\n", encoding="utf-8")
+
+    payload = await review_consult_quality_candidate_with_plan_judge(
+        profile,
+        "consult_planjudge",
+        plan_backend_id="codex",
+        judge_model="gpt-5-mini",
+        trace_path=trace_path,
+        client=_FakeConsultQualityClient(expected_model="gpt-5-mini"),
+    )
+
+    assert payload["judge"]["type"] == "calibrated_model"
+    assert payload["judge"]["reviewer"] == "plan_quota:codex"
+    assert payload["calibrated_judge"] == {
+        "backend": "plan_quota",
+        "plan_backend_id": "codex",
+        "model": "gpt-5-mini",
+        "cost_usd": 0.0,
+        "raw_response_stored": False,
+        "source_trace_output_stored": False,
+        "quota_consuming": True,
+        "cost_ledger_source": "plan_quota",
     }
     assert "Thin answer." not in json.dumps(payload)
 
