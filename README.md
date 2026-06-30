@@ -3,7 +3,7 @@
 [![CI](https://github.com/blisspixel/deepr/actions/workflows/ci.yml/badge.svg)](https://github.com/blisspixel/deepr/actions/workflows/ci.yml)
 [![License: Apache 2.0](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](LICENSE)
 [![Python 3.12+](https://img.shields.io/badge/python-3.12+-blue.svg)](https://www.python.org/downloads/)
-[![Version](https://img.shields.io/badge/version-2.24.0-blue)](https://github.com/blisspixel/deepr/releases/tag/v2.24.0)
+[![Version](https://img.shields.io/badge/version-2.25.0-blue)](https://github.com/blisspixel/deepr/releases/tag/v2.25.0)
 
 **Domain experts that remember, not another chat window.**
 
@@ -148,7 +148,7 @@ Results are saved under the configured reports root, defaulting to
 |---|---|---|
 | API-backed research | Works with provider keys, preflight estimates, budget ceilings, and append-only cost settlement | [docs/FEATURES.md](docs/FEATURES.md), [docs/MODELS.md](docs/MODELS.md) |
 | Local expert maintenance | Works through Ollama for local expert setup, absorb, sync, fresh/deep local context, eval, and scored admission | [docs/CAPACITY.md](docs/CAPACITY.md) |
-| Explicit plan-quota execution | Works for selected expert sync, sync-all, absorb, learn, consult, and probe commands behind auth-mode and no-surprise-bills checks | [docs/CAPACITY.md](docs/CAPACITY.md), [docs/design/plan-quota-cli-backends.md](docs/design/plan-quota-cli-backends.md) |
+| Explicit plan-quota execution | Works for selected expert sync, sync-all, gap-fill, absorb, learn, consult, and probe commands behind auth-mode and no-surprise-bills checks | [docs/CAPACITY.md](docs/CAPACITY.md), [docs/design/plan-quota-cli-backends.md](docs/design/plan-quota-cli-backends.md) |
 | Domain experts | Works for expert creation, chat, consult, beliefs, gaps, loop status, OKF export/import, self-model reads, monitor proposals, reviewed monitor promotion, and self-model update review and acceptance records | [docs/EXPERTS.md](docs/EXPERTS.md) |
 | MCP | Works for local stdio and experimental HTTP/SSE with scoped keys, budgets, rate limits, audit logs, smoke checks, no-metered consult validation, and registration manifests | [mcp/README.md](mcp/README.md) |
 | Web dashboard | Experimental but usable for reports, experts, costs, model views, and loop status | [docs/FEATURES.md](docs/FEATURES.md) |
@@ -378,7 +378,7 @@ See [docs/SUPPORTED_SURFACE.md](docs/SUPPORTED_SURFACE.md) for the contract.
 
 ## Project Notes
 
-The test suite has 6800+ tests (Python 3.12-3.14), with an 80% coverage gate.
+The test suite has 7000+ tests (Python 3.12-3.14), with an 80% coverage gate.
 Pre-commit and CI run ruff, mypy on strict islands, docs consistency checks,
 file-size ratchets, and security/complexity ratchets.
 

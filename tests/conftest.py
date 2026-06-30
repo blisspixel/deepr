@@ -61,6 +61,12 @@ def _isolate_cost_data(tmp_path, monkeypatch):
 
 
 @pytest.fixture(autouse=True)
+def _isolate_capacity_data(tmp_path, monkeypatch):
+    """Keep local and plan admission state out of tests unless a test opts in."""
+    monkeypatch.setenv("DEEPR_CAPACITY_DATA_DIR", str(tmp_path / "capacity"))
+
+
+@pytest.fixture(autouse=True)
 def _isolate_budget_env(monkeypatch):
     """Keep the developer's real .env spend caps out of the suite.
 

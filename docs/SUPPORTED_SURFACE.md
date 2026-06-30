@@ -1,6 +1,6 @@
 # Supported Surface
 
-Status: v2.24.0 current main, 2026-06-28. This document defines what users and host
+Status: v2.25.0 current main, 2026-06-30. This document defines what users and host
 agents can rely on today, what is experimental, what is planned only, and what
 data remains portable if development stops.
 
@@ -179,6 +179,7 @@ must not be described as usable capacity.
   saved trend artifacts, and scored local admission.
 - Explicit plan-quota CLI execution for expert maintenance and bootstrap:
   `deepr expert sync --plan <id>`, `deepr expert sync-all --plan <id>`,
+  `deepr expert route-gaps --execute --plan <id>`,
   `deepr expert absorb --plan <id>`, topic learning via
   `deepr expert learn --plan <id>`, the explicit
   `deepr expert learn-web --plan <id>` alias, and
@@ -234,11 +235,12 @@ must not be described as usable capacity.
 ## Visible Or Planned Only
 
 - Automatic routing to plan-quota CLIs remains gated until Deepr has trusted
-  live remaining-quota signals for the candidate backend. `expert sync-all`
-  consumes admitted, quota-observed plan selections from that gate, but Codex
-  and Claude remain the clean auto-routable candidates; Grok, Antigravity, and
-  other sources remain planned or explicit-only. Explicit `--plan` is still the
-  works-now path and automatic plan dispatch must stay conservative.
+  live remaining-quota signals for the candidate backend. `expert sync-all` and
+  scheduled `route-gaps --execute` consume admitted, quota-observed plan
+  selections from that gate, but Codex and Claude remain the clean
+  auto-routable candidates; Grok, Antigravity, and other sources remain planned
+  or explicit-only. Explicit `--plan` is still the works-now path and automatic
+  plan dispatch must stay conservative.
 - Multi-account capacity pools are planned after a single-account mechanism is
   complete.
 - Live hosted-agent registration smoke against a real third-party platform is

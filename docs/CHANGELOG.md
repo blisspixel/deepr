@@ -7,7 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+No unreleased changes.
+
+## [2.25.0] - 2026-06-30
+
+Plan capacity and expert-chat backend release.
+
 ### Fixed
+- Excluded generated frontend build, screenshot, and `node_modules` directories
+  from Python namespace package discovery so local frontend artifacts cannot
+  leak into source distributions or wheels.
+- Isolated capacity admission data in the unit-test fixture stack so selector
+  tests and scheduled-maintenance tests never read a developer workstation's
+  real `data/capacity` ledger.
 - Hardened expert-chat backend turn construction so requested tools are
   rejected before dispatch when a backend declares no tool support, and
   `tool_choice` is omitted on no-tool turns.
@@ -16,6 +28,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   and cache-read usage cannot silently record as zero.
 
 ### Added
+- Added admitted plan-quota dispatch to scheduled gap-fill execution.
+  `deepr capacity admit-plan <backend> --task-class gap_fill` now records
+  operator intent for gap-fill maintenance, and
+  `deepr expert route-gaps NAME --execute --scheduled` consumes a plan backend
+  only when the shared waterfall returns an operator-admitted,
+  trusted-quota-observed choice. Without that cheap-capacity signal, scheduled
+  gap-fill still waits instead of falling through to metered research.
 - Added plan-quota dispatch to `deepr expert sync-all`. Roster maintenance can
   now use an explicitly selected non-metered plan backend with `--plan <id>` or
   an auto-selected plan backend only when the existing waterfall returns an

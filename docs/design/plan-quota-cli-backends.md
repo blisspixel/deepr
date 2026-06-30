@@ -95,10 +95,11 @@ quota, so Deepr never auto-routes on a guess. An explicit, dated admission is
 still useful, but it records operator intent only. It does not replace the
 remaining-quota gate:
 
-- `deepr capacity admit-plan codex --task-class sync` (and `revoke-plan`) records
-  a plan admission in the shared admission store, namespaced `plan:<id>` so the
-  local rung never mistakes it for an Ollama model. Only the genuinely
-  free-at-margin, ToS-clean backends (codex/claude/opencode) can be admitted.
+- `deepr capacity admit-plan codex --task-class sync` (also `absorb` and
+  `gap_fill`; paired with `revoke-plan`) records a plan admission in the shared
+  admission store, namespaced `plan:<id>` so the local rung never mistakes it
+  for an Ollama model. Only the genuinely free-at-margin, ToS-clean backends
+  (codex/claude/opencode) can be admitted.
 
 The waterfall's plan-quota rung (`choose_maintenance_backend` ->
 `_choose_plan_quota`) auto-selects a CLI only when it is installed, in plan auth
@@ -116,6 +117,10 @@ The explicit path needs no admission (the operator chose it directly):
   non-metered plan backend. The automatic `sync-all --scheduled` path consumes
   a plan backend only when `choose_maintenance_backend` returns an admitted,
   quota-observed plan choice; it does not infer quota from CLI presence.
+- `deepr expert route-gaps NAME --execute --scheduled` - scheduled gap-fill
+  uses the `gap_fill` task class and consumes an admitted, quota-observed plan
+  choice from the same selector before it runs. Otherwise it waits instead of
+  spending on metered research.
 - `deepr capacity probe-plan codex` - validate auth + one round-trip.
 - `deepr capacity probe-fleet --backend codex --backend claude` - validate
   several selected backends concurrently, record the same usage/exhaustion

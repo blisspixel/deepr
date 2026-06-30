@@ -987,6 +987,15 @@ class TestExpertRouteGapsCommand:
         assert payload["next_actions"][0]["status"] == "wait"
         assert payload["loop_run"]["run_id"] == "loop_gap"
 
+    def test_rejects_plan_model_without_plan(self, runner):
+        result = runner.invoke(
+            cli,
+            ["expert", "route-gaps", "AI Strategy Expert", "--execute", "--plan-model", "gpt-5.5"],
+        )
+
+        assert result.exit_code == 2
+        assert "Use --plan-model with --plan." in result.output
+
     def test_execute_records_completed_gap_fill_loop(self, runner):
         from deepr.experts.gap_router import GapRoute
         from deepr.experts.loop_runs import LoopRunStatus, LoopStopReason
@@ -1126,6 +1135,90 @@ class TestExpertRouteGapsCommand:
 
         assert result.exit_code == 0, result.output
         assert mock_record.call_args.kwargs["capacity_source"] == "plan_quota:codex"
+        assert captured["research_fn"] is not None
+        assert captured["absorber"] is not None
+
+    def test_scheduled_execute_uses_auto_selected_plan_capacity(self, runner, monkeypatch):
+        from deepr.experts.gap_router import GapRoute
+
+        expert = MagicMock()
+        expert.name = "AI Strategy Expert"
+        expert.get_manifest.return_value.top_gaps.return_value = [MagicMock()]
+        route = GapRoute(
+            topic="open model benchmark drift",
+            instrument="research",
+            available=True,
+            estimated_cost=0.25,
+            rationale="general research",
+            suggestion="",
+            ev_cost_ratio=2.0,
+        )
+        captured = {}
+
+        class PlanChoice:
+            is_local = False
+            is_plan_quota = True
+            model = None
+            plan_backend_id = "codex"
+            reason = "plan-quota backend 'codex' (operator-admitted, quota-observed)"
+
+        class FakeResult:
+            outcomes = [SimpleNamespace(status="filled", topic=route.topic, absorbed=1, flagged=0, cost=0.0, detail="")]
+            total_cost = 0.0
+
+            def to_dict(self):
+                return {"outcomes": [], "total_cost": 0.0}
+
+        class FakeGapFillEngine:
+            def __init__(self, profile, *, research_fn=None, absorber=None):
+                assert profile is expert
+                captured["research_fn"] = research_fn
+                captured["absorber"] = absorber
+
+            async def execute(self, received_routes, **kwargs):
+                assert received_routes == [route]
+                assert kwargs["dry_run"] is False
+                return FakeResult()
+
+        for var in ("OPENAI_API_KEY", "CODEX_API_KEY", "CODEX_ACCESS_TOKEN"):
+            monkeypatch.delenv(var, raising=False)
+
+        with (
+            patch("deepr.experts.profile.ExpertStore") as mock_store_class,
+            patch("deepr.experts.gap_router.GapRouter") as mock_router_class,
+            patch("deepr.experts.gap_fill.GapFillEngine", FakeGapFillEngine),
+            patch("deepr.experts.report_absorber.ReportAbsorber", MagicMock()),
+            patch("deepr.backends.waterfall.choose_maintenance_backend", return_value=PlanChoice()) as mock_choose,
+            patch("deepr.backends.plan_quota.PlanQuotaChatClient", lambda adapter, *, model=None: object()),
+            patch(
+                "deepr.backends.plan_quota.make_plan_quota_research_fn",
+                lambda adapter, *, model=None, client=None: object(),
+            ),
+            patch("deepr.experts.loop_runs.record_loop_run") as mock_record,
+        ):
+            mock_record.return_value = MagicMock(to_dict=lambda: {"run_id": "loop_auto_plan"})
+            mock_store = MagicMock()
+            mock_store.load.return_value = expert
+            mock_store_class.return_value = mock_store
+            mock_router_class.return_value.route.return_value = [route]
+
+            result = runner.invoke(
+                cli,
+                [
+                    "expert",
+                    "route-gaps",
+                    "AI Strategy Expert",
+                    "--execute",
+                    "--scheduled",
+                    "--yes",
+                    "--json",
+                ],
+            )
+
+        assert result.exit_code == 0, result.output
+        mock_choose.assert_called_once_with("gap_fill")
+        assert mock_record.call_args.kwargs["capacity_source"] == "plan_quota:codex"
+        assert mock_record.call_args.kwargs["trigger"] == "scheduled"
         assert captured["research_fn"] is not None
         assert captured["absorber"] is not None
 

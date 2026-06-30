@@ -217,6 +217,22 @@ class TestPlanQuotaAutoRung:
         assert choice.plan_backend_id == "codex"
         assert "operator-admitted, quota-observed" in choice.reason
 
+    def test_gap_fill_task_class_uses_matching_plan_admission(self, tmp_path):
+        adm = tmp_path / "adm.jsonl"
+        _admit_plan(adm, task_class="gap_fill")
+        _record_quota_available(tmp_path / "quota.jsonl", "codex")
+        choice = choose_maintenance_backend(
+            "gap_fill",
+            now=T0,
+            available_models_fn=lambda: [],
+            admissions_path=adm,
+            which=_fake_which("codex"),
+            plan_env={},
+            quota_ledger_path=tmp_path / "quota.jsonl",
+        )
+        assert choice.backend == BACKEND_PLAN_QUOTA
+        assert choice.plan_backend_id == "codex"
+
     def test_exhausted_future_reset_stays_metered(self, tmp_path):
         _record_exhausted(tmp_path / "quota.jsonl", "codex", reset_at=datetime(2026, 6, 13, 3, tzinfo=UTC))
         choice = self._auto(which=_fake_which("codex"), path=tmp_path)

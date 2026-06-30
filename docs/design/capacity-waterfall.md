@@ -28,21 +28,23 @@ ranked local setup, admission, eval refresh, fallback guidance, and concrete
 scheduled-maintenance previews. Explicit plan-quota CLI execution now works for
 maintenance and bootstrap through `expert sync --plan <id>`,
 `expert absorb --plan <id>`, topic `expert learn --plan <id>`, the explicit
-`expert learn-web --plan <id>` alias, and `capacity probe-plan <id>`, with
-auth-mode, no-surprise-bills, quota-ledger, and `$0` cost-ledger guards.
-Scheduled sync, sync-all, gap-fill, reflection, and health-check
-surfaces now stop with wait or action-plan payloads instead of silently spending
-when owned/prepaid capacity is blocked, and those scheduled payloads carry
-published schema identifiers for downstream validation. Codex, Claude Code, and
+`expert learn-web --plan <id>` alias, `route-gaps --execute --plan <id>`, and
+`capacity probe-plan <id>`, with auth-mode, no-surprise-bills, quota-ledger, and
+`$0` cost-ledger guards. Scheduled sync, sync-all, and gap-fill can consume the
+shared waterfall's admitted, trusted-quota-observed plan selections for their
+task classes; reflection and health-check surfaces stop with wait or
+action-plan payloads instead of silently spending when owned/prepaid capacity is
+blocked. Those scheduled payloads carry published schema identifiers for
+downstream validation. Codex, Claude Code, and
 Grok now have metadata-only quota refresh paths: `deepr capacity refresh-quota
 codex` reads local session-log `rate_limits`, `deepr capacity refresh-quota
 claude` reads Claude Code OAuth usage metadata, and `deepr capacity
 refresh-quota grok` reads Grok billing metadata. They record binding-window
 ledger events at `$0` without model calls. Still open: Antigravity
-window/credit probes, scheduler dispatch outside sync-all, and auto-mode runtime
-integration. `expert sync-all` now consumes the existing admitted,
-quota-observed plan selection for roster maintenance. Automatic plan routing
-remains gated until a trusted
+window/credit probes, remaining scheduled dispatch beyond sync-all and
+gap-fill, and auto-mode runtime integration. `expert sync-all` and scheduled
+`route-gaps --execute` now consume existing admitted, quota-observed plan
+selections for maintenance. Automatic plan routing remains gated until a trusted
 remaining-quota signal exists for the candidate backend.
 
 ## Problem
@@ -259,10 +261,11 @@ scheduler work remains.
    `--fresh-context` or `--deep-context`.
 13. First plan_quota rungs are shipped for explicit maintenance execution, and
    Codex, Claude Code, plus Grok have metadata quota probes. `expert sync-all`
-   now dispatches through an admitted, quota-observed plan backend when the
-   waterfall selects one. Remaining plan work is Antigravity remaining-quota
-   probes, reset-aware scheduler dispatch outside sync-all, and auto-mode
-   integration without surprise spend.
+   and scheduled `route-gaps --execute` now dispatch through admitted,
+   quota-observed plan backends when the waterfall selects one. Remaining plan
+   work is Antigravity remaining-quota probes, reset-aware scheduler dispatch
+   beyond sync-all and gap-fill, and auto-mode integration without surprise
+   spend.
 14. Multi-account pools (N accounts of one vendor as one pooled backend) - last,
    it multiplies an already-working mechanism.
 
