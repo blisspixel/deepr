@@ -1,6 +1,6 @@
 # Expert Chat Capacity Backends
 
-Status: design note, refreshed 2026-06-28.
+Status: design note, refreshed 2026-06-30.
 
 Scope: `deepr expert consult`, `deepr_consult_experts`, `deepr expert chat`,
 and `deepr_query_expert`.
@@ -33,8 +33,12 @@ cost ledger.
   with an OpenAI model, and routes under an OpenAI provider constraint for
   vector-store compatibility.
 - MCP `deepr_consult_experts` accepts `synthesis_backend=api|local|plan`.
-  MCP `deepr_query_expert` does not yet accept backend, provider, or model
-  selection and should be treated as the legacy metered-capable chat path.
+  MCP `deepr_query_expert` accepts `backend=api|local|plan`. The default
+  `api` path is still the legacy metered-capable chat session. `local` and
+  `plan` deliberately route one named expert through the `deepr-consult-v1`
+  contract with live metered fallback disabled, no research trigger, and the
+  consult artifact attached to the result. This is a bridge, not full
+  backend-neutral interactive chat.
 - `AnthropicProvider` is a research provider, not a reusable expert-chat
   backend. The generic provider factory also does not currently expose
   `anthropic` in `ProviderType`.
@@ -102,8 +106,9 @@ consult, not grow into an unbounded swarm.
 - The robust pattern is one or many experts, one bounded artifact. A single
   expert consult is just `deepr_consult_experts` with one explicit expert. A
   multi-expert council is the same contract with several experts and preserved
-  dissent. `deepr_query_expert` should remain a legacy chat path until it has
-  the same backend-neutral budget, usage, and no-fallback guarantees.
+  dissent. `deepr_query_expert` now exposes that same bounded artifact path for
+  explicit `backend=local|plan`; the default `backend=api` path remains legacy
+  chat until the full backend-neutral runner lands.
 
 Additional references checked 2026-06-28:
 
@@ -222,9 +227,11 @@ For API chat:
 }
 ```
 
-Until the expert-chat backend interface lands, only consult should advertise
-local and plan synthesis. `deepr_query_expert` remains the legacy
-metered-capable chat path.
+Until the expert-chat backend interface lands, `deepr_query_expert` local and
+plan modes are a one-expert consult bridge. They return the normal query shape
+plus `capacity` and `consult_artifact`, set `research_triggered=0`, and reject
+`agentic=true`. The default API mode remains the legacy metered-capable chat
+path.
 
 ## Cost And Security Rules
 
@@ -241,7 +248,7 @@ metered-capable chat path.
 - Plan capacity must keep stripping known metered API-key env vars from child
   processes.
 - Scoped MCP keys must estimate `deepr_query_expert` by requested backend. A
-  `$0` scoped key may call local or plan chat, but must reject API chat.
+  `$0` scoped key may call local or plan query mode, but must reject API chat.
 - Generated remote guide files and MCP key stores must remain under ignored
   `data/` paths.
 
@@ -262,15 +269,18 @@ side-effect policy.
 ## Rollout Order
 
 1. Correct docs so only consult advertises local and plan synthesis today.
+   (done)
 2. Add provider and model fields to consult API synthesis, with Anthropic as the
    first non-OpenAI adapter.
 3. Add usage and cost regression tests for Anthropic cache buckets, refusal
    stop details, unsupported sampling params, and budget rejection at zero.
-4. Extract `ExpertChatBackend` and move current OpenAI chat behind it without
+4. Add local and plan query modes through the one-expert consult bridge.
+   (done)
+5. Extract `ExpertChatBackend` and move current OpenAI chat behind it without
    behavior changes.
-5. Add local and plan chat backends in read-only compiled-context mode.
-6. Add Anthropic expert chat in non-agentic mode.
-7. Add agentic tools per backend only when the backend declares support and the
+6. Add local and plan chat backends in read-only compiled-context mode.
+7. Add Anthropic expert chat in non-agentic mode.
+8. Add agentic tools per backend only when the backend declares support and the
    tool has explicit cost and safety gates.
-8. Add prompt-cache controls only after cache estimation and settlement tests
+9. Add prompt-cache controls only after cache estimation and settlement tests
    prove no silent-money path.
