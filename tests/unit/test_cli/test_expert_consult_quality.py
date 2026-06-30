@@ -10,6 +10,7 @@ from click.testing import CliRunner
 
 from deepr.cli.commands.semantic.expert_consult_quality import (
     expert_consult_quality_trends,
+    expert_judge_consult_quality,
     expert_review_consult_quality,
 )
 from deepr.cli.main import cli
@@ -156,6 +157,69 @@ def test_review_consult_quality_missing_expert_exits_nonzero():
 
     assert result.exit_code != 0
     assert "not found" in result.output.lower()
+
+
+def test_judge_consult_quality_local_json(monkeypatch):
+    profile = _profile()
+
+    monkeypatch.setattr("deepr.backends.capacity.available_local_models", lambda: ["judge-local"])
+
+    async def fake_review(profile_arg, trace_id, **kwargs):
+        assert profile_arg.name == profile.name
+        assert trace_id == "consult_cli_quality"
+        assert kwargs["judge_model"] == "judge-local"
+        assert kwargs["target"] == "eval"
+        return {
+            "schema_version": "deepr-consult-quality-review-v1",
+            "kind": "deepr.eval.consult_quality_review",
+            "expert_name": profile.name,
+            "trace_id": trace_id,
+            "review_status": "needs_improvement",
+            "mean_score": 2.0,
+            "decision": "needs_improvement",
+            "eligible_for_promotion": False,
+            "applied": False,
+            "actions": [],
+            "calibrated_judge": {
+                "backend": "local",
+                "model": "judge-local",
+                "cost_usd": 0.0,
+                "raw_response_stored": False,
+                "source_trace_output_stored": False,
+            },
+        }
+
+    monkeypatch.setattr(
+        "deepr.experts.consult_quality.review_consult_quality_candidate_with_local_judge",
+        fake_review,
+    )
+
+    with _patch_store(profile):
+        result = CliRunner().invoke(
+            expert_judge_consult_quality,
+            [
+                profile.name,
+                "consult_cli_quality",
+                "--local-judge-model",
+                "judge-local",
+                "--target",
+                "eval",
+                "--json",
+            ],
+        )
+
+    assert result.exit_code == 0, result.output
+    payload = json.loads(result.output)
+    assert payload["calibrated_judge"]["backend"] == "local"
+    assert payload["calibrated_judge"]["cost_usd"] == 0.0
+    assert payload["review_status"] == "needs_improvement"
+
+
+def test_judge_consult_quality_registered_in_expert_help():
+    result = CliRunner().invoke(cli, ["expert", "judge-consult-quality", "--help"])
+
+    assert result.exit_code == 0
+    assert "explicit local judge" in result.output.lower()
 
 
 def test_consult_quality_trends_json_outputs_review_summary(tmp_path):

@@ -14,6 +14,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   statuses, and selects consult prompt regression candidates deterministically
   from reviewer scores and review status without judging answer meaning or
   writing beliefs.
+- Added `deepr expert judge-consult-quality NAME TRACE_ID` with
+  `--local-judge-model MODEL`, an explicit `$0` local Ollama judge path for
+  consult-quality review.
+  It validates model-returned rubric scores and failure labels, records them as
+  calibrated-model review artifacts, and avoids storing raw trace answers or
+  raw judge responses.
 
 ## [2.26.0] - 2026-06-30
 

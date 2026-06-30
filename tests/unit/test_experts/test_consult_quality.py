@@ -15,7 +15,9 @@ from deepr.experts.consult_quality import (
     ConsultQualityReviewError,
     build_consult_quality_review,
     build_consult_quality_trend_report,
+    parse_consult_quality_judge_response,
     review_consult_quality_candidate,
+    review_consult_quality_candidate_with_local_judge,
 )
 from deepr.experts.consult_traces import build_consult_trace, build_consult_trace_candidates
 from deepr.experts.metacognition import MetaCognitionTracker
@@ -82,6 +84,52 @@ def _write_review(output_dir: Path, review: dict) -> None:
     output_dir.mkdir(parents=True, exist_ok=True)
     path = output_dir / f"consult_quality_review_{review['review_id']}.json"
     path.write_text(json.dumps(review), encoding="utf-8")
+
+
+class _FakeMessage:
+    def __init__(self, content: str):
+        self.content = content
+
+
+class _FakeChoice:
+    def __init__(self, content: str):
+        self.message = _FakeMessage(content)
+
+
+class _FakeResponse:
+    def __init__(self, content: str):
+        self.choices = [_FakeChoice(content)]
+
+
+class _FakeConsultQualityCompletions:
+    def __init__(self):
+        self.calls = []
+
+    async def create(self, **kwargs):
+        self.calls.append(kwargs)
+        prompt = kwargs["messages"][-1]["content"]
+        assert kwargs["model"] == "judge-local"
+        assert "Thin answer." in prompt
+        return _FakeResponse(
+            json.dumps(
+                {
+                    "scores": _scores(2.0),
+                    "failure_labels": ["thin_or_generic_answer"],
+                    "decision": "needs_improvement",
+                    "notes": "The consult answer did not use stored expert context.",
+                }
+            )
+        )
+
+
+class _FakeConsultQualityChat:
+    def __init__(self):
+        self.completions = _FakeConsultQualityCompletions()
+
+
+class _FakeConsultQualityClient:
+    def __init__(self):
+        self.chat = _FakeConsultQualityChat()
 
 
 def test_build_consult_quality_review_records_reviewer_scores():
@@ -215,6 +263,68 @@ def test_review_consult_quality_blocks_promotion_when_policy_fails(tmp_path):
     assert [action["status"] for action in payload["actions"]].count("blocked_by_review") == 2
     assert len(list((tmp_path / "benchmarks").glob("consult_quality_review_*.json"))) == 1
     assert not (tmp_path / "experts").exists()
+
+
+async def test_review_consult_quality_with_local_judge_scores_raw_trace_without_storing_answer(tmp_path):
+    profile = _profile()
+    trace = build_consult_trace(
+        question="How should consult improve the expert council?",
+        requested_experts=[profile.name],
+        max_experts=3,
+        budget=0.0,
+        payload={
+            "schema_version": "deepr-consult-v1",
+            "kind": "deepr.expert.consult",
+            "question": "How should consult improve the expert council?",
+            "answer": "Thin answer.",
+            "experts_consulted": [profile.name],
+            "perspectives": [{"expert": profile.name, "confidence": 0.2, "response": "thin"}],
+            "agreements": [],
+            "disagreements": [],
+            "cost_usd": 0.0,
+        },
+        result={"perspectives": [{}], "synthesis_status": "completed"},
+        trace_id="consult_localjudge",
+        recorded_at=datetime(2026, 6, 27, 12, 0, tzinfo=UTC),
+    )
+    trace_path = tmp_path / "consult_traces.jsonl"
+    trace_path.write_text(json.dumps(trace) + "\n", encoding="utf-8")
+
+    payload = await review_consult_quality_candidate_with_local_judge(
+        profile,
+        "consult_localjudge",
+        judge_model="judge-local",
+        trace_path=trace_path,
+        client=_FakeConsultQualityClient(),
+    )
+
+    assert payload["judge"]["type"] == "calibrated_model"
+    assert payload["judge"]["reviewer"] == "local:judge-local"
+    assert payload["review_status"] == "needs_improvement"
+    assert payload["failure_labels"] == ["thin_or_generic_answer"]
+    assert payload["calibrated_judge"] == {
+        "backend": "local",
+        "model": "judge-local",
+        "cost_usd": 0.0,
+        "raw_response_stored": False,
+        "source_trace_output_stored": False,
+    }
+    assert "Thin answer." not in json.dumps(payload)
+
+
+def test_parse_consult_quality_judge_response_rejects_unknown_label():
+    candidate = _candidate("consult_badlabel")
+    raw = json.dumps(
+        {
+            "scores": _scores(5.0),
+            "failure_labels": ["made_up_label"],
+            "decision": "accept",
+            "notes": "bad label",
+        }
+    )
+
+    with pytest.raises(ConsultQualityReviewError, match="Unknown failure label"):
+        parse_consult_quality_judge_response(raw, candidate["semantic_eval_case"])
 
 
 def test_build_consult_quality_trend_report_selects_regression_candidates(tmp_path):
