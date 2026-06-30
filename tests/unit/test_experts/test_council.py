@@ -6,6 +6,7 @@ loop. The live path remains a fallback for experts with no stored beliefs.
 
 from __future__ import annotations
 
+import asyncio
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, patch
 
@@ -87,6 +88,47 @@ async def test_fanout_falls_back_when_nothing_overlaps():
     selected = await ExpertCouncil().select_experts("quantum chromodynamics lattice", max_experts=10)
 
     assert [exp["name"] for exp in selected] == ["Coffee Brewing"]
+
+
+@pytest.mark.asyncio
+async def test_consult_queries_experts_with_bounded_concurrency(monkeypatch):
+    active = 0
+    peak_active = 0
+
+    async def fake_query(self, query, exp, per_expert_budget, progress_callback, agent_identity):
+        nonlocal active, peak_active
+        active += 1
+        peak_active = max(peak_active, active)
+        await asyncio.sleep(0.01)
+        active -= 1
+        return ExpertPerspective(
+            expert_name=exp["name"],
+            domain=exp.get("domain", ""),
+            response=f"{exp['name']} perspective",
+            cost=0.0,
+        )
+
+    monkeypatch.setattr("deepr.experts.council.MAX_COUNCIL_CONCURRENCY", 2)
+    monkeypatch.setattr(ExpertCouncil, "_query_expert", fake_query)
+
+    council = ExpertCouncil(synthesis_provider="local", allow_live_fallback=False)
+    experts = [{"name": f"Expert {idx}", "domain": "validation"} for idx in range(6)]
+
+    with patch.object(council, "_synthesise", new_callable=AsyncMock) as synth:
+        synth.return_value = {"text": "bounded synthesis", "agreements": [], "disagreements": [], "cost": 0.0}
+        result = await council.consult("Validate bounded fanout.", experts=experts, budget=1.0)
+
+    assert peak_active == 2
+    assert active == 0
+    assert [perspective["expert_name"] for perspective in result["perspectives"]] == [
+        "Expert 0",
+        "Expert 1",
+        "Expert 2",
+        "Expert 3",
+        "Expert 4",
+        "Expert 5",
+    ]
+    assert result["total_cost"] == 0.0
 
 
 @pytest.mark.asyncio
