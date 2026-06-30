@@ -9,7 +9,7 @@ import sys
 from types import ModuleType, SimpleNamespace
 
 from deepr.experts.chat import ExpertChatSession
-from deepr.experts.chat_backends import ExpertChatResult
+from deepr.experts.chat_backends import ExpertChatResult, ExpertChatStreamChunk
 from deepr.experts.cost_safety import CostSafetyManager, reset_cost_safety_manager
 from deepr.experts.profile import ExpertProfile
 
@@ -31,6 +31,8 @@ class RecordingChatBackend:
 
     def __init__(self, *contents) -> None:
         self.requests = []
+        self.stream_requests = []
+        self.stream_chunks = []
         self._contents = list(contents)
 
     async def complete(self, request):
@@ -40,6 +42,11 @@ class RecordingChatBackend:
             message=SimpleNamespace(content=content, tool_calls=[]),
             usage=SimpleNamespace(prompt_tokens=10, completion_tokens=5),
         )
+
+    async def stream(self, request):
+        self.stream_requests.append(request)
+        for chunk in self.stream_chunks:
+            yield chunk
 
 
 class RecordingNoToolChatBackend(RecordingChatBackend):
@@ -415,32 +422,17 @@ async def test_streaming_final_response_accounts_stream_usage(monkeypatch):
     accounted = []
     emitted = []
 
-    class FakeStream:
-        def __init__(self):
-            self._chunks = [
-                SimpleNamespace(
-                    choices=[SimpleNamespace(delta=SimpleNamespace(content="hello"))],
-                    usage=None,
-                ),
-                SimpleNamespace(choices=[], usage=SimpleNamespace(prompt_tokens=20, completion_tokens=7)),
-            ]
+    async def fail_if_called(*_args, **_kwargs):
+        raise AssertionError("final streaming should run through chat_backend.stream")
 
-        def __aiter__(self):
-            return self
-
-        async def __anext__(self):
-            if not self._chunks:
-                raise StopAsyncIteration
-            return self._chunks.pop(0)
-
-    async def fake_stream_create(**kwargs):
-        assert kwargs["stream"] is True
-        assert kwargs["stream_options"] == {"include_usage": True}
-        return FakeStream()
-
-    monkeypatch.setattr(session.client.chat.completions, "create", fake_stream_create)
+    monkeypatch.setattr(session.client.chat.completions, "create", fail_if_called)
     session._account_chat_cost = lambda usage, model: accounted.append(usage)
-    session.chat_backend = RecordingChatBackend(None, "[]")
+    backend = RecordingChatBackend(None, "[]")
+    backend.stream_chunks = [
+        ExpertChatStreamChunk(text_delta="hello"),
+        ExpertChatStreamChunk(usage=SimpleNamespace(prompt_tokens=20, completion_tokens=7)),
+    ]
+    session.chat_backend = backend
 
     result = await session.send_message_streaming(
         "Stream a final answer",
@@ -449,4 +441,6 @@ async def test_streaming_final_response_accounts_stream_usage(monkeypatch):
 
     assert result == "hello"
     assert emitted == ["hello"]
+    assert len(backend.stream_requests) == 1
+    assert backend.stream_requests[0].model == session.expert.model
     assert [(u.prompt_tokens, u.completion_tokens) for u in accounted] == [(20, 7), (10, 5)]
