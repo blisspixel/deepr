@@ -15,8 +15,11 @@ from typing import Any
 
 from openai import AsyncOpenAI
 
-logger = logging.getLogger(__name__)
-
+from deepr.experts.chat_backends import (
+    ExpertChatBackend,
+    OpenAIExpertChatBackend,
+    complete_expert_chat_turn,
+)
 from deepr.experts.chat_turns import (
     chat_generation_budget_denial,
     check_chat_generation_budget,
@@ -34,6 +37,8 @@ from deepr.experts.thought_stream import ThoughtStream, ThoughtType
 
 # Observability infrastructure
 from deepr.observability.metadata import MetadataEmitter
+
+logger = logging.getLogger(__name__)
 
 # Fallback token prices used when the registry has no entry for the
 # currently selected chat model. Matches the legacy GPT-5 rates so behavior
@@ -134,6 +139,7 @@ class ExpertChatSession:
         if not api_key:
             raise ValueError("OPENAI_API_KEY not set")
         self.client = AsyncOpenAI(api_key=api_key)
+        self.chat_backend: ExpertChatBackend = OpenAIExpertChatBackend(self.client)
 
         # Cost safety manager for defensive budget controls
         import uuid
@@ -1519,21 +1525,14 @@ Budget remaining: ${budget_remaining:.2f}
             # Note: GPT-5 only supports default temperature (1.0)
             report_status("Thinking...")
 
-            # Build API call parameters
-            api_params = {
-                "model": selected_model.model,
-                "messages": [{"role": "system", "content": self.get_system_message()}, *self.messages],
-                "tools": tools,
-                "tool_choice": "auto",
-            }
+            first_turn = await complete_expert_chat_turn(
+                self.chat_backend,
+                selected_model=selected_model,
+                messages=[{"role": "system", "content": self.get_system_message()}, *self.messages],
+                tools=tools,
+            )
 
-            # Add reasoning effort if supported (GPT-5 family)
-            if selected_model.reasoning_effort and selected_model.provider == "openai":
-                api_params["reasoning_effort"] = selected_model.reasoning_effort
-
-            first_response = await self.client.chat.completions.create(**api_params)
-
-            assistant_message = first_response.choices[0].message
+            assistant_message = first_turn.message
 
             # Step 2: Multi-round tool calling loop
             # Keep calling tools until no more tool calls are made
@@ -1546,9 +1545,7 @@ Budget remaining: ${budget_remaining:.2f}
             # guard. Cheaper models will under-use this, but a tool round
             # that runs a multi-thousand-token reasoning call shouldn't
             # silently blow past the session budget between rounds.
-            _per_round_estimate = max(
-                _chat_token_cost(getattr(first_response, "usage", None), selected_model.model) * 1.5, 0.05
-            )
+            _per_round_estimate = max(_chat_token_cost(first_turn.usage, selected_model.model) * 1.5, 0.05)
 
             while current_message.tool_calls and round_count < max_rounds:
                 round_count += 1
@@ -1832,31 +1829,25 @@ Budget remaining: ${budget_remaining:.2f}
                 # Make next API call (might trigger more tool calls or final answer)
                 report_status("Thinking...")
 
-                # Use same model as initial call for consistency
-                api_params_next = {
-                    "model": selected_model.model,
-                    "messages": conversation_messages,
-                    "tools": tools,
-                    "tool_choice": "auto",
-                }
+                next_turn = await complete_expert_chat_turn(
+                    self.chat_backend,
+                    selected_model=selected_model,
+                    messages=conversation_messages,
+                    tools=tools,
+                )
 
-                if selected_model.reasoning_effort and selected_model.provider == "openai":
-                    api_params_next["reasoning_effort"] = selected_model.reasoning_effort
-
-                next_response = await self.client.chat.completions.create(**api_params_next)
-
-                current_message = next_response.choices[0].message
+                current_message = next_turn.message
 
                 # Track costs using the selected model's registry pricing
                 # rather than hard-coded GPT-5 rates.
-                self._account_chat_cost(next_response.usage, selected_model)
+                self._account_chat_cost(next_turn.usage, selected_model)
 
             # Get final message
             final_message = current_message.content
 
             # Track initial call costs using registry pricing for the
             # selected model (handles gpt-5.2's $1.75/$14 per-1M rates).
-            self._account_chat_cost(first_response.usage, selected_model)
+            self._account_chat_cost(first_turn.usage, selected_model)
 
             # Detect uncertainty in final response and track knowledge gaps
             if self.metacognition and final_message:
