@@ -76,3 +76,24 @@ class TestChatTokenCost:
         cost = _chat_token_cost(usage, "model-that-does-not-exist")
         # Should return a non-negative number, not raise.
         assert cost >= 0.0
+
+    def test_anthropic_usage_falls_back_to_conservative_pricing(self, monkeypatch):
+        """Anthropic usage must not settle as zero when pricing lookup fails."""
+
+        def fail_pricing_lookup(*args, **kwargs):
+            raise RuntimeError("registry unavailable")
+
+        monkeypatch.setattr("deepr.providers.registry.get_token_pricing", fail_pricing_lookup)
+        usage = SimpleNamespace(
+            input_tokens=1_000,
+            output_tokens=100,
+            cache_creation_input_tokens=200,
+            cache_read_input_tokens=300,
+        )
+
+        cost = _chat_token_cost(usage, "claude-sonnet-4-6")
+
+        expected = (
+            1_000 / 1_000_000 * 1.25 + 100 / 1_000_000 * 10.00 + 200 / 1_000_000 * 1.5625 + 300 / 1_000_000 * 0.125
+        )
+        assert cost == pytest.approx(expected)

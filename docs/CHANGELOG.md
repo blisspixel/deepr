@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+- Made Anthropic-style expert-chat cost settlement use conservative fallback
+  pricing when registry lookup fails, so metered input, output, cache-write,
+  and cache-read usage cannot silently record as zero.
+
 ### Added
 - Added a streaming method to the expert-chat backend contract and routed final
   OpenAI token streaming through `OpenAIExpertChatBackend`, including streamed
