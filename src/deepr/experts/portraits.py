@@ -33,9 +33,10 @@ DEFAULT_PORTRAIT_STYLE = (
 # Style preference env var (see ``portrait_style``).
 PORTRAIT_STYLE_ENV = "DEEPR_PORTRAIT_STYLE"
 
-# Approximate per-image cost for the metered providers, used for budget
-# confirmation and ledger entries. Local generation is $0 (see portrait_cost).
+# Approximate per-image cost for metered providers, used for budget
+# confirmation, reservation, and ledger entries. Local generation is $0.
 PORTRAIT_COST_ESTIMATE_USD = 0.04
+XAI_PORTRAIT_COST_ESTIMATE_USD = 0.02
 
 # Local image generation (capability-adaptive, $0): point this at a local
 # diffusion server that speaks the OpenAI Images API (e.g. ComfyUI/SwarmUI/a
@@ -45,11 +46,23 @@ PORTRAIT_COST_ESTIMATE_USD = 0.04
 LOCAL_IMAGE_URL_ENV = "DEEPR_LOCAL_IMAGE_URL"
 LOCAL_IMAGE_MODEL_ENV = "DEEPR_LOCAL_IMAGE_MODEL"
 DEFAULT_LOCAL_IMAGE_MODEL = "flux"
+XAI_IMAGE_AUTO_ENV = "DEEPR_ALLOW_XAI_IMAGE_AUTO"
+METERED_IMAGE_AUTO_ENV = "DEEPR_ALLOW_METERED_IMAGE_AUTO"
+XAI_IMAGE_MODEL_ENV = "DEEPR_XAI_IMAGE_MODEL"
+DEFAULT_XAI_IMAGE_MODEL = "grok-imagine-image"
+
+
+def _truthy_env(name: str) -> bool:
+    return os.getenv(name, "").strip().lower() in {"1", "true", "yes", "on"}
 
 
 def portrait_cost(provider: str | None) -> float:
     """Per-image cost for a provider: $0 for local, the metered estimate else."""
-    return 0.0 if provider == "local" else PORTRAIT_COST_ESTIMATE_USD
+    if provider == "local":
+        return 0.0
+    if provider == "xai":
+        return XAI_PORTRAIT_COST_ESTIMATE_USD
+    return PORTRAIT_COST_ESTIMATE_USD
 
 
 def portrait_style(override: str | None = None) -> str:
@@ -102,15 +115,23 @@ def detect_provider() -> str | None:
     """Return the best available image provider, cheapest-first, or None.
 
     Local (a configured diffusion endpoint) wins over metered APIs so a user
-    with a GPU generates portraits at $0.
+    with a GPU generates portraits at $0. Metered APIs are not auto-selected
+    from keys by default because image generation is a separate money side
+    effect. Pass ``provider="openai"``, ``provider="google"``, or
+    ``provider="xai"`` for explicit paid generation, or set
+    ``DEEPR_ALLOW_METERED_IMAGE_AUTO=1`` to opt into metered auto-selection.
     """
     if os.getenv(LOCAL_IMAGE_URL_ENV):
         return "local"
-    if os.getenv("OPENAI_API_KEY"):
+    metered_auto = _truthy_env(METERED_IMAGE_AUTO_ENV)
+    xai_auto = _truthy_env(XAI_IMAGE_AUTO_ENV)
+    if not metered_auto and not xai_auto:
+        return None
+    if metered_auto and os.getenv("OPENAI_API_KEY"):
         return "openai"
-    if os.getenv("GEMINI_API_KEY") or os.getenv("GOOGLE_API_KEY"):
+    if metered_auto and (os.getenv("GEMINI_API_KEY") or os.getenv("GOOGLE_API_KEY")):
         return "google"
-    if os.getenv("XAI_API_KEY"):
+    if os.getenv("XAI_API_KEY") and (metered_auto or xai_auto):
         return "xai"
     return None
 
@@ -144,7 +165,8 @@ async def generate_portrait(
     if not provider:
         raise RuntimeError(
             "No image generator available. Set DEEPR_LOCAL_IMAGE_URL (a local FLUX/ComfyUI "
-            "OpenAI-images endpoint, $0) or OPENAI_API_KEY / GEMINI_API_KEY / XAI_API_KEY."
+            "OpenAI-images endpoint, $0), pass provider='openai'/'google'/'xai' for explicit paid "
+            "image generation, or set DEEPR_ALLOW_METERED_IMAGE_AUTO=1."
         )
 
     prompt = _build_prompt(name, domain, description, style=style)
@@ -184,35 +206,49 @@ async def generate_and_save_portrait(
     output_dir: str | Path = "data/portraits",
 ) -> str:
     """Generate a portrait, attach it to ``profile``, persist via ``store``, and
-    record the (best-effort) cost. Shared by the CLI and web so both behave
-    identically. ``store`` only needs a ``save(profile)`` method.
+    record the cost. ``store`` only needs a ``save(profile)`` method.
     """
-    portrait_url = await generate_portrait(
-        name=profile.name,
-        domain=getattr(profile, "domain", None),
-        description=getattr(profile, "description", None),
+    from deepr.experts.portrait_cost_gate import (
+        record_portrait_cost,
+        refund_portrait_cost,
+        reserve_portrait_cost,
+    )
+
+    expert_name = str(getattr(profile, "name", "expert"))
+    reservation = reserve_portrait_cost(
+        expert_name=expert_name,
         provider=provider,
-        style=style,
-        output_dir=output_dir,
+        detect_provider=detect_provider,
+        portrait_cost=portrait_cost,
+    )
+    effective_provider = reservation.effective_provider
+    if not effective_provider:
+        raise RuntimeError(
+            "No image generator available. Set DEEPR_LOCAL_IMAGE_URL (a local FLUX/ComfyUI "
+            "OpenAI-images endpoint, $0), pass provider='openai'/'google'/'xai' for explicit paid "
+            "image generation, or set DEEPR_ALLOW_METERED_IMAGE_AUTO=1."
+        )
+
+    try:
+        portrait_url = await generate_portrait(
+            name=expert_name,
+            domain=getattr(profile, "domain", None),
+            description=getattr(profile, "description", None),
+            provider=effective_provider,
+            style=style,
+            output_dir=output_dir,
+        )
+    except Exception:
+        refund_portrait_cost(reservation)
+        raise
+
+    record_portrait_cost(
+        expert_name=expert_name,
+        reservation=reservation,
+        source="experts.portraits",
     )
     profile.portrait_url = portrait_url  # type: ignore[attr-defined]
     store.save(profile)  # type: ignore[attr-defined]
-
-    effective_provider = provider or detect_provider()
-    try:  # best-effort: the portrait already exists; ledger failure must not break it
-        from deepr.experts.cost_safety import get_cost_safety_manager
-
-        get_cost_safety_manager().record_cost(
-            session_id=f"portrait_{getattr(profile, 'name', 'expert')}",
-            operation_type="portrait_generation",
-            actual_cost=portrait_cost(effective_provider),
-            provider=effective_provider or "auto",
-            source="experts.portraits",
-            metadata={"expert": getattr(profile, "name", "")},
-        )
-    except Exception as cost_exc:
-        logger.debug("Portrait cost ledger entry skipped: %s", cost_exc)
-
     return portrait_url
 
 
@@ -297,7 +333,7 @@ async def _generate_xai(prompt: str) -> bytes:
     )
 
     result = await client.images.generate(
-        model="grok-2-image",
+        model=os.getenv(XAI_IMAGE_MODEL_ENV, DEFAULT_XAI_IMAGE_MODEL),
         prompt=prompt,
         n=1,
         response_format="b64_json",

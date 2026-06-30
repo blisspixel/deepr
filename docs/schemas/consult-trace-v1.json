@@ -90,7 +90,29 @@
             "properties": {
               "expert": {"type": "string"},
               "confidence": {"type": "number", "minimum": 0},
-              "context": {"type": "object"}
+              "context": {"type": "object"},
+              "context_position": {
+                "type": "object",
+                "required": [
+                  "source",
+                  "selected_index",
+                  "selected_count",
+                  "selected_order_zone",
+                  "relative_position",
+                  "token_offsets_available",
+                  "semantic_verdict"
+                ],
+                "properties": {
+                  "source": {"const": "consult_trace_selected_order"},
+                  "selected_index": {"type": "integer", "minimum": 0},
+                  "selected_count": {"type": "integer", "minimum": 0},
+                  "selected_order_zone": {"enum": ["only", "start", "middle", "end"]},
+                  "relative_position": {"type": "number", "minimum": 0, "maximum": 1},
+                  "token_offsets_available": {"const": false},
+                  "semantic_verdict": {"const": false}
+                },
+                "additionalProperties": true
+              }
             },
             "additionalProperties": true
           }

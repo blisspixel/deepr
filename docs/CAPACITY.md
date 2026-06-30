@@ -12,12 +12,21 @@ inside Deepr but may consume a subscription quota, monthly credit pool, or
 external credits. Metered APIs cost money and must be estimated, reserved, and
 settled through the canonical ledger.
 
+Metered APIs are the premium fallback, not the default spending path. Feature
+surfaces that can trigger a distinct paid class, such as image generation, must
+not infer paid execution from a text-model API key alone. Portrait generation
+auto-selects only a local image endpoint unless the operator passes an explicit
+paid provider or sets `DEEPR_ALLOW_METERED_IMAGE_AUTO=1`. It also treats
+portraits as create-once artifacts by default: existing portraits are skipped
+unless the caller explicitly forces regeneration, and metered web requests must
+acknowledge the estimated cost before dispatch.
+
 ## Current Status
 
 | Source | Works now | Guardrail |
 |---|---|---|
 | Local Ollama | `expert make --local`, `expert absorb --local`, `expert sync --local`, `expert sync --local --fresh-context`, `expert sync --local --deep-context`, `eval local`, `eval local-context`, and scored admission | No provider API key required; automatic routing requires measured local quality evidence |
-| Provider APIs | Full research and high-quality synthesis when keys are configured | Budget ceilings, preflight estimates, reservations, append-only cost settlement |
+| Provider APIs | Full research and high-quality synthesis when keys are configured | Premium fallback behind budget ceilings, preflight estimates, reservations, and append-only cost settlement |
 | Plan-quota CLIs | Explicit `expert sync --plan <id>`, `expert sync-all --plan <id>`, `expert route-gaps --execute --plan <id>`, `expert absorb --plan <id>`, `expert learn --plan <id>`, `expert learn-web --plan <id>`, `expert consult --plan <id>`, and `capacity probe-plan <id>` | Metered API-key env vars are stripped from child processes, auth mode is checked, metered-at-margin CLI backends are rejected for roster plan dispatch, and automatic routing waits for trusted remaining-quota evidence |
 | CLI judges | Explicit local eval judging with `--allow-cli-judge` | Opt-in only because Deepr cannot prove whether a vendor CLI uses quota, credits, or metered credentials |
 

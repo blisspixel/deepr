@@ -86,17 +86,45 @@ def _capacity_block(capacity: dict[str, Any] | None) -> dict[str, Any]:
     }
 
 
+def _selected_order_position(index: int, total: int) -> dict[str, Any]:
+    if total <= 1:
+        zone = "only"
+        relative_position = 0.0
+    elif index == 0:
+        zone = "start"
+        relative_position = 0.0
+    elif index == total - 1:
+        zone = "end"
+        relative_position = 1.0
+    else:
+        zone = "middle"
+        relative_position = round(index / (total - 1), 4)
+    return {
+        "source": "consult_trace_selected_order",
+        "selected_index": index,
+        "selected_count": total,
+        "selected_order_zone": zone,
+        "relative_position": relative_position,
+        "token_offsets_available": False,
+        "semantic_verdict": False,
+    }
+
+
 def _perspective_contexts(payload: dict[str, Any] | None) -> list[dict[str, Any]]:
     contexts: list[dict[str, Any]] = []
-    for perspective in (payload or {}).get("perspectives", []) or []:
-        if not isinstance(perspective, dict):
-            continue
+    perspectives = (payload or {}).get("perspectives", []) or []
+    if not isinstance(perspectives, list):
+        return contexts
+    valid_perspectives = [perspective for perspective in perspectives if isinstance(perspective, dict)]
+    total = len(valid_perspectives)
+    for index, perspective in enumerate(valid_perspectives):
         context = perspective.get("context")
         contexts.append(
             {
                 "expert": str(perspective.get("expert", "")),
                 "confidence": float(perspective.get("confidence", 0.0) or 0.0),
                 "context": context if isinstance(context, dict) else {},
+                "context_position": _selected_order_position(index, total),
             }
         )
     return contexts

@@ -201,6 +201,8 @@ must not be described as usable capacity.
   consult-quality semantic review labels only after a human or calibrated-model
   judge marks them. Consult trace and consult-quality review signals also
   produce read-only prompt-regression candidates for prompt-variant selection.
+  Consult traces preserve selected-order context-position metadata and the
+  report summarizes it without claiming middle-context-loss detection.
 - Local Ollama expert maintenance, local evals, local context evals, local
   red-team attack-success-rate metrics including MCP read-path canaries and
   saved trend artifacts, and scored local admission.

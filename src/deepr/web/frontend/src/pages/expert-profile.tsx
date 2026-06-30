@@ -358,13 +358,23 @@ export default function ExpertProfile() {
   })
 
   const portraitMutation = useMutation({
-    mutationFn: (provider?: string) => expertsApi.generatePortrait(encodedName, provider),
+    mutationFn: (options?: { force?: boolean }) => expertsApi.generatePortrait(encodedName, options),
     onSuccess: () => {
       refetch()
       toast.success('Portrait generated!')
     },
     onError: () => toast.error('Failed to generate portrait'),
   })
+
+  const handlePortraitClick = useCallback(() => {
+    if (expert?.portrait_url) {
+      const confirmed = window.confirm('Replace the existing portrait? Use this only when you intentionally want a new image.')
+      if (!confirmed) return
+      portraitMutation.mutate({ force: true })
+      return
+    }
+    portraitMutation.mutate(undefined)
+  }, [expert?.portrait_url, portraitMutation])
 
   // REST fallback mutation (used when WebSocket is disconnected)
   const chatMutation = useMutation({
@@ -550,10 +560,10 @@ export default function ExpertProfile() {
               iconClassName="w-6 h-6"
             />
             <button
-              onClick={() => portraitMutation.mutate(undefined)}
+              onClick={handlePortraitClick}
               disabled={portraitMutation.isPending}
               className="absolute inset-0 rounded-lg bg-black/50 flex items-center justify-center opacity-0 group-hover/avatar:opacity-100 transition-opacity"
-              title={expert.portrait_url ? 'Regenerate portrait' : 'Generate portrait'}
+              title={expert.portrait_url ? 'Replace portrait' : 'Generate portrait'}
             >
               {portraitMutation.isPending ? (
                 <Loader2 className="w-4 h-4 text-white animate-spin" />

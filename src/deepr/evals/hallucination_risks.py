@@ -282,6 +282,54 @@ def _trace_selected_context_count(trace: dict[str, Any]) -> int:
     return sum(1 for item in selected if isinstance(item, dict) and bool(item.get("context")))
 
 
+def _trace_selected_context_items(trace: dict[str, Any]) -> list[dict[str, Any]]:
+    packet = trace.get("context_packet") if isinstance(trace.get("context_packet"), dict) else {}
+    selected = packet.get("selected", []) if isinstance(packet, dict) else []
+    if not isinstance(selected, list):
+        return []
+    return [item for item in selected if isinstance(item, dict) and bool(item.get("context"))]
+
+
+def _context_position_metadata(traces: list[dict[str, Any]]) -> dict[str, Any]:
+    selected_context_slot_count = 0
+    position_metadata_slot_count = 0
+    middle_context_slot_count = 0
+    trace_count_with_position_metadata = 0
+    trace_count_with_middle_context = 0
+
+    for trace in traces:
+        trace_has_position_metadata = False
+        trace_has_middle_context = False
+        for item in _trace_selected_context_items(trace):
+            selected_context_slot_count += 1
+            position = item.get("context_position") if isinstance(item.get("context_position"), dict) else {}
+            if not position:
+                continue
+            position_metadata_slot_count += 1
+            trace_has_position_metadata = True
+            if str(position.get("selected_order_zone", "")) == "middle":
+                middle_context_slot_count += 1
+                trace_has_middle_context = True
+        if trace_has_position_metadata:
+            trace_count_with_position_metadata += 1
+        if trace_has_middle_context:
+            trace_count_with_middle_context += 1
+
+    return {
+        "source": "consult_trace_selected_order",
+        "trace_count": len(traces),
+        "trace_count_with_position_metadata": trace_count_with_position_metadata,
+        "trace_count_with_middle_context": trace_count_with_middle_context,
+        "selected_context_slot_count": selected_context_slot_count,
+        "position_metadata_slot_count": position_metadata_slot_count,
+        "middle_context_slot_count": middle_context_slot_count,
+        "token_offsets_available": False,
+        "semantic_verdict": False,
+        "writes_state": False,
+        "measures_long_context_middle_loss": False,
+    }
+
+
 def _trace_question(trace: dict[str, Any]) -> str:
     input_block = trace.get("input") if isinstance(trace.get("input"), dict) else {}
     return str(input_block.get("question", ""))
@@ -464,12 +512,21 @@ def _source_pack_manifest_signal(manifest: dict[str, Any]) -> dict[str, Any] | N
     }
 
 
-def _coverage_gaps(observed_labels: set[str]) -> list[dict[str, str]]:
+def _coverage_gaps(
+    observed_labels: set[str],
+    *,
+    context_position_metadata: dict[str, Any],
+) -> list[dict[str, str]]:
     required = {
         "false_premise_compliance": "needs false-premise eval cases and calibrated semantic review",
         "long_context_middle_loss": "needs context-position metadata before detection can be measured",
         "template_sensitivity": "needs prompt-template variant evals before example-order risk can be measured",
     }
+    if _int_value(context_position_metadata.get("position_metadata_slot_count")) > 0:
+        required["long_context_middle_loss"] = (
+            "selected-order context-position metadata is present; calibrated long-context eval cases are still needed "
+            "before detection can be measured"
+        )
     return [
         {
             "risk_label": label,
@@ -562,6 +619,7 @@ def build_hallucination_risk_report(
     label_counts = Counter(label for signal in signals for label in signal.get("risk_labels", []) or [])
     observed_labels = set(label_counts)
     prompt_regression_candidates = _prompt_regression_candidates(signals)
+    context_position_metadata = _context_position_metadata(traces)
     return {
         "schema_version": HALLUCINATION_RISK_REPORT_SCHEMA_VERSION,
         "kind": HALLUCINATION_RISK_REPORT_KIND,
@@ -575,7 +633,11 @@ def build_hallucination_risk_report(
         "signals": signals,
         "prompt_regression_candidate_count": len(prompt_regression_candidates),
         "prompt_regression_candidates": prompt_regression_candidates,
-        "coverage_gaps": _coverage_gaps(observed_labels),
+        "context_position_metadata": context_position_metadata,
+        "coverage_gaps": _coverage_gaps(
+            observed_labels,
+            context_position_metadata=context_position_metadata,
+        ),
         "mitigation_policy": {
             "signals_inform_only": True,
             "never_blocks_answers": True,

@@ -700,6 +700,10 @@ def test_consult_trace_schema_validates_runtime_payload():
     assert payload["schema_version"] == CONSULT_TRACE_SCHEMA_VERSION
     assert payload["kind"] == CONSULT_TRACE_KIND
     assert payload["events"][-1]["name"] == "synthesis_finished"
+    position = payload["context_packet"]["selected"][0]["context_position"]
+    assert position["source"] == "consult_trace_selected_order"
+    assert position["selected_order_zone"] == "only"
+    assert position["semantic_verdict"] is False
 
 
 def test_consult_trace_candidates_schema_validates_runtime_payload():
@@ -835,6 +839,9 @@ def test_hallucination_risk_report_schema_validates_runtime_payload(tmp_path):
     assert payload["mitigation_policy"]["never_writes_beliefs"] is True
     assert payload["mitigation_policy"]["prompt_regression_selection_uses_advisory_labels_only"] is True
     assert isinstance(payload["prompt_regression_candidates"], list)
+    assert payload["context_position_metadata"]["source"] == "consult_trace_selected_order"
+    assert payload["context_position_metadata"]["semantic_verdict"] is False
+    assert payload["context_position_metadata"]["measures_long_context_middle_loss"] is False
 
 
 def test_source_pack_manifest_schema_validates_runtime_payload():

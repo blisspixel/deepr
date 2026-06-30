@@ -108,6 +108,66 @@ def test_write_hallucination_risk_report_round_trips(tmp_path):
     assert data["signal_count"] == 0
 
 
+def test_hallucination_risk_report_summarizes_context_position_metadata(tmp_path):
+    trace = build_consult_trace(
+        question="How should a long-context consult preserve evidence placement?",
+        requested_experts=["A", "B", "C"],
+        max_experts=3,
+        budget=0.0,
+        payload={
+            "schema_version": "deepr-consult-v1",
+            "kind": "deepr.expert.consult",
+            "question": "How should a long-context consult preserve evidence placement?",
+            "answer": "Use traceable context placement metadata.",
+            "experts_consulted": ["A", "B", "C"],
+            "perspectives": [
+                {
+                    "expert": "A",
+                    "confidence": 0.9,
+                    "response": "first",
+                    "context": {"source": "belief_store", "selection": "first"},
+                },
+                {
+                    "expert": "B",
+                    "confidence": 0.8,
+                    "response": "middle",
+                    "context": {"source": "belief_store", "selection": "middle"},
+                },
+                {
+                    "expert": "C",
+                    "confidence": 0.7,
+                    "response": "last",
+                    "context": {"source": "belief_store", "selection": "last"},
+                },
+            ],
+            "agreements": [],
+            "disagreements": [],
+            "cost_usd": 0.0,
+        },
+        result={"perspectives": [{}, {}, {}], "synthesis_status": "completed"},
+        trace_id="consult_111111111111",
+        recorded_at=datetime(2026, 6, 30, 12, 0, tzinfo=UTC),
+    )
+    trace_path = tmp_path / "consult_traces.jsonl"
+    trace_path.write_text(json.dumps(trace) + "\n", encoding="utf-8")
+
+    payload = build_hallucination_risk_report(trace_path=trace_path, review_dir=tmp_path / "missing")
+
+    assert payload["signal_count"] == 0
+    metadata = payload["context_position_metadata"]
+    assert metadata["source"] == "consult_trace_selected_order"
+    assert metadata["trace_count_with_position_metadata"] == 1
+    assert metadata["trace_count_with_middle_context"] == 1
+    assert metadata["selected_context_slot_count"] == 3
+    assert metadata["position_metadata_slot_count"] == 3
+    assert metadata["middle_context_slot_count"] == 1
+    assert metadata["semantic_verdict"] is False
+    assert metadata["writes_state"] is False
+    assert metadata["measures_long_context_middle_loss"] is False
+    gap = next(item for item in payload["coverage_gaps"] if item["risk_label"] == "long_context_middle_loss")
+    assert "calibrated long-context eval cases" in gap["reason"]
+
+
 def test_hallucination_risk_report_maps_reviewed_false_premise_and_template_labels(tmp_path):
     trace = build_consult_trace(
         question="What changed after the nonexistent 2026 licensing rule took effect?",

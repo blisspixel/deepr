@@ -15,6 +15,7 @@ from deepr.cli.commands.mcp import mcp
 
 def test_mcp_agent_guide_creates_scoped_zero_budget_key(tmp_path):
     keys_path = tmp_path / "keys.json"
+    guide_path = tmp_path / "agent-guide.md"
     result = CliRunner().invoke(
         mcp,
         [
@@ -25,6 +26,8 @@ def test_mcp_agent_guide_creates_scoped_zero_budget_key(tmp_path):
             "agent-trial",
             "--keys-path",
             str(keys_path),
+            "--output",
+            str(guide_path),
             "--json",
         ],
     )
@@ -37,13 +40,36 @@ def test_mcp_agent_guide_creates_scoped_zero_budget_key(tmp_path):
     assert payload["mode"] == "standard"
     assert payload["budget_limit_usd"] == 0.0
     assert payload["rate_limit_per_minute"] == 30
-    assert payload["token"].startswith("deepr_mcp_")
+    assert payload["token_included"] is False
+    assert "deepr_mcp_" not in result.output
+    assert "<redacted-token>" in payload["guide"]
+    guide = guide_path.read_text(encoding="utf-8")
+    assert "Token: deepr_mcp_" in guide
     assert "deepr_consult_experts" in payload["guide"]
     assert "capacity.live_metered_fallback=false" in payload["guide"]
     assert "cost_usd=0" in payload["guide"]
     assert "one expert for focused advice or multiple experts for council guidance" in payload["guide"]
     assert "Preserve expert disagreement and uncertainty" in payload["guide"]
-    assert payload["token"] not in keys_path.read_text(encoding="utf-8")
+    assert "deepr_mcp_" not in keys_path.read_text(encoding="utf-8")
+
+
+def test_mcp_agent_guide_refuses_json_key_creation_without_output(tmp_path):
+    keys_path = tmp_path / "keys.json"
+    result = CliRunner().invoke(
+        mcp,
+        [
+            "agent-guide",
+            "--key-id",
+            "agent-trial",
+            "--keys-path",
+            str(keys_path),
+            "--json",
+        ],
+    )
+
+    assert result.exit_code != 0
+    assert "JSON output redacts bearer tokens" in result.output
+    assert not keys_path.exists()
 
 
 def test_mcp_agent_guide_can_write_existing_token_guide(tmp_path):
