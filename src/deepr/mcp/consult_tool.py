@@ -70,6 +70,15 @@ CONSULT_EXPERTS_INPUT_SCHEMA: dict[str, Any] = {
             "description": "Use local or explicit plan capacity to avoid live metered fallback.",
             "default": "api",
         },
+        "provider": {
+            "type": "string",
+            "enum": ["openai", "anthropic"],
+            "description": "API synthesis provider when synthesis_backend='api'. Defaults to openai.",
+        },
+        "model": {
+            "type": "string",
+            "description": "API synthesis model when synthesis_backend='api'.",
+        },
         "local_model": {
             "type": "string",
             "description": "Optional Ollama model when synthesis_backend='local'.",
@@ -112,6 +121,8 @@ async def consult_experts_tool(
     max_experts: int = 3,
     budget: float = 2.0,
     synthesis_backend: str = "api",
+    provider: str | None = None,
+    model: str | None = None,
     local_model: str | None = None,
     plan: str | None = None,
     plan_model: str | None = None,
@@ -124,6 +135,8 @@ async def consult_experts_tool(
         return _error("INVALID_BUDGET", "budget must be positive")
     if backend_mode == "plan" and not plan:
         return _error("INVALID_BACKEND", "plan is required when synthesis_backend='plan'")
+    if backend_mode != "api" and (provider or model):
+        return _error("INVALID_BACKEND", "provider and model are only valid when synthesis_backend='api'")
 
     backend: consult_core.ConsultSynthesisBackend | None = None
     requested_experts = list(experts or [])
@@ -133,6 +146,8 @@ async def consult_experts_tool(
             local_model=local_model,
             plan_backend=plan if backend_mode == "plan" else None,
             plan_model=plan_model,
+            api_provider=provider if backend_mode == "api" else None,
+            api_model=model if backend_mode == "api" else None,
         )
         result = await consult_core.run_consult(
             question,

@@ -263,6 +263,10 @@ deepr mcp validate-consult --json
 deepr mcp validate-consult http://127.0.0.1:8765/mcp --auth-token "$DEEPR_MCP_KEY" --json
 ```
 
+API consult synthesis can be pinned to `provider=openai|anthropic` and a model
+when the caller supplies a positive budget. Local and plan modes remain the
+no-metered path for validation and routine agent handoff tests.
+
 `deepr mcp validate-consult` proves the external-agent consult contract without
 metered fallback. With no URL it runs a deterministic offline fixture. With
 `--live` it exercises local or explicit plan capacity in-process. With a URL it

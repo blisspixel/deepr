@@ -380,6 +380,126 @@ Local answer.
 
 
 @pytest.mark.asyncio
+async def test_anthropic_synthesis_uses_messages_api_and_cache_bucket_costs():
+    text = """### SYNTHESIS:
+Anthropic answer.
+
+### AGREEMENTS:
+- Anthropic agreement
+"""
+    captured: dict[str, object] = {}
+
+    class FakeMessages:
+        async def create(self, **kwargs):
+            captured.update(kwargs)
+            return SimpleNamespace(
+                id="msg_123",
+                stop_reason="end_turn",
+                content=[SimpleNamespace(type="text", text=text)],
+                usage=SimpleNamespace(
+                    input_tokens=1000,
+                    output_tokens=200,
+                    cache_creation_input_tokens=300,
+                    cache_read_input_tokens=400,
+                ),
+            )
+
+    fake_client = SimpleNamespace(messages=FakeMessages())
+
+    result = await ExpertCouncil(
+        synthesis_client=fake_client,
+        synthesis_model="claude-opus-4-8",
+        synthesis_provider="anthropic",
+    )._synthesise(
+        "q",
+        [ExpertPerspective(expert_name="A", domain="d", response="r")],
+        budget=1.0,
+    )
+
+    assert captured["model"] == "claude-opus-4-8"
+    assert captured["max_tokens"] == 800
+    assert "temperature" not in captured
+    assert "top_p" not in captured
+    messages = captured["messages"]
+    assert isinstance(messages, list)
+    assert messages[0]["role"] == "user"
+    assert "MATH AND STATISTICS" in messages[0]["content"]
+    assert result["agreements"] == ["Anthropic agreement"]
+    assert result["tokens_input"] == 1700
+    assert result["tokens_output"] == 200
+    assert result["cache_creation_input_tokens"] == 300
+    assert result["cache_read_input_tokens"] == 400
+    assert result["provider_request_id"] == "msg_123"
+    assert result["stop_reason"] == "end_turn"
+    assert result["cost"] == 0.012075
+
+
+@pytest.mark.asyncio
+async def test_anthropic_synthesis_without_injected_client_uses_anthropic_client():
+    text = """### SYNTHESIS:
+Anthropic answer.
+
+### AGREEMENTS:
+- Anthropic agreement
+"""
+
+    class FakeMessages:
+        async def create(self, **_kwargs):
+            return SimpleNamespace(
+                content=[SimpleNamespace(type="text", text=text)],
+                usage=SimpleNamespace(input_tokens=10, output_tokens=5),
+            )
+
+    fake_client = SimpleNamespace(messages=FakeMessages())
+
+    with (
+        patch("deepr.experts.consult.AnthropicConsultSynthesisClient", return_value=fake_client),
+        patch("deepr.experts.council.AsyncOpenAI", side_effect=AssertionError("wrong provider client")),
+    ):
+        result = await ExpertCouncil(
+            synthesis_model="claude-opus-4-8",
+            synthesis_provider="anthropic",
+        )._synthesise(
+            "q",
+            [ExpertPerspective(expert_name="A", domain="d", response="r")],
+            budget=1.0,
+        )
+
+    assert result["agreements"] == ["Anthropic agreement"]
+    assert result["tokens_input"] == 10
+    assert result["tokens_output"] == 5
+
+
+@pytest.mark.asyncio
+async def test_anthropic_synthesis_refusal_fails_closed():
+    class FakeMessages:
+        async def create(self, **_kwargs):
+            return SimpleNamespace(
+                stop_reason="refusal",
+                stop_details=SimpleNamespace(category="safety"),
+                content=[],
+                usage=SimpleNamespace(input_tokens=10, output_tokens=0),
+            )
+
+    fake_client = SimpleNamespace(messages=FakeMessages())
+
+    result = await ExpertCouncil(
+        synthesis_client=fake_client,
+        synthesis_model="claude-opus-4-8",
+        synthesis_provider="anthropic",
+    )._synthesise(
+        "q",
+        [ExpertPerspective(expert_name="A", domain="d", response="r")],
+        budget=1.0,
+    )
+
+    assert result["text"] == "Synthesis unavailable."
+    assert result["cost"] == 0.0
+    assert result["synthesis_status"] == "failed"
+    assert result["synthesis_error_type"] == "RuntimeError"
+
+
+@pytest.mark.asyncio
 async def test_owned_capacity_consult_does_not_reserve_paid_budget(monkeypatch):
     store = BeliefStore("Owned Capacity Consult Expert")
     store.add_belief(
@@ -463,3 +583,54 @@ async def test_consult_records_synthesis_cost_in_canonical_ledger():
     assert event.cost_usd == 0.0025
     assert event.tokens_input == 123
     assert event.tokens_output == 45
+
+
+@pytest.mark.asyncio
+async def test_consult_records_anthropic_cache_buckets_in_canonical_ledger():
+    from deepr.experts.cost_safety import reset_cost_safety_manager
+
+    reset_cost_safety_manager()
+    store = BeliefStore("Anthropic Ledgered Council Expert")
+    store.add_belief(
+        Belief(
+            claim="Anthropic cache buckets must be preserved when council synthesis cost is settled.",
+            confidence=0.9,
+            domain="cost safety",
+        ),
+        check_conflicts=False,
+    )
+
+    council = ExpertCouncil(synthesis_provider="anthropic", synthesis_model="claude-opus-4-8")
+    try:
+        with patch.object(council, "_synthesise", new_callable=AsyncMock) as synth:
+            synth.return_value = {
+                "text": "Synthesis",
+                "agreements": [],
+                "disagreements": [],
+                "cost": 0.012075,
+                "tokens_input": 1700,
+                "tokens_output": 200,
+                "cache_creation_input_tokens": 300,
+                "cache_read_input_tokens": 400,
+                "provider_request_id": "msg_123",
+                "stop_reason": "end_turn",
+            }
+            await council.consult(
+                "How should Anthropic cache buckets be tracked?",
+                experts=[{"name": "Anthropic Ledgered Council Expert", "domain": "cost safety"}],
+                budget=1.0,
+            )
+    finally:
+        reset_cost_safety_manager()
+
+    events = CostLedger().get_events(source="expert_council.synthesis")
+    assert len(events) == 1
+    event = events[0]
+    assert event.provider == "anthropic"
+    assert event.model == "claude-opus-4-8"
+    assert event.cost_usd == 0.012075
+    assert event.tokens_input == 1700
+    assert event.tokens_output == 200
+    assert event.metadata["cache_creation_input_tokens"] == 300
+    assert event.metadata["cache_read_input_tokens"] == 400
+    assert event.metadata["provider_request_id"] == "msg_123"
