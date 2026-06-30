@@ -8,6 +8,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- Added a council-level regression test proving expert consult fan-out runs
+  concurrently while respecting the bounded council concurrency cap.
 - Added local Ollama and plan-quota `ExpertChatBackend` adapters for read-only
   compiled-context turns. Both declare tools, streaming, and prompt cache
   unsupported, expose no Deepr dollar spend, and are groundwork for public
