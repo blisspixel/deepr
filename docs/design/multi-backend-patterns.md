@@ -8,6 +8,28 @@ verification path, and the capacity waterfall. Read
 Deepr into a generic orchestrator; it sharpens how Deepr uses execution capacity
 to verify *its own* knowledge.
 
+## 0. Framework pattern check
+
+The current CrewAI docs separate flexible autonomous `Crews` from structured
+event-driven `Flows` with explicit state and persistence
+([Crews](https://docs.crewai.com/v1.14.7/en/concepts/crews),
+[Flows](https://docs.crewai.com/v1.15.1/en/concepts/flows),
+[Flow state](https://docs.crewai.com/v1.14.7/en/guides/flows/mastering-flow-state)).
+The useful pattern for Deepr is not copying a framework. It is the boundary:
+workflow state, persistence, budgets, retries, and routing stay in deterministic
+code; domain specialists remain bounded model workers with explicit inputs and
+outputs.
+
+OpenAI Agents SDK guidance makes the same split: use agents-as-tools for a
+bounded specialist subtask, and use handoffs only when the routed specialist
+should own the next interaction
+([agent orchestration](https://openai.github.io/openai-agents-python/multi_agent/)).
+Anthropic's agent guidance also favors simple, composable workflows before
+more autonomous agents
+([Building Effective AI Agents](https://www.anthropic.com/research/building-effective-agents)).
+For Deepr, that reinforces a Flow-like capacity/control plane around expert
+primitives, not blind multi-agent debate or regex verdicts.
+
 ## 1. Selection today is validated, not round-robin
 
 A common worry: are the subscription CLIs picked by dumb rotation? No.
@@ -20,7 +42,8 @@ remaining-quota observation in the local quota ledger. Exhaustion is
 the backend; once the reset passes it no longer blocks, but auto-routing still
 needs a fresh trusted remaining-quota observation. It picks one backend with a
 human-readable reason - never blind rotation. (`deepr capacity probe-plan`
-additionally does a real `$0`/quota round-trip to confirm a CLI actually works.)
+does one `$0`/quota round-trip, and `deepr capacity probe-fleet` validates
+selected CLIs concurrently while recording the same quota observations.)
 
 **Honest limitation:** most vendor CLIs do **not** expose *remaining* quota
 through the execution command, so "has quota" cannot be guessed from CLI

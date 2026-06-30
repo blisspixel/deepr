@@ -113,25 +113,31 @@ The explicit path needs no admission (the operator chose it directly):
 - `deepr expert sync NAME --plan codex` (also `absorb`, topic `learn`, `learn-web`,
   `route-gaps --execute`).
 - `deepr capacity probe-plan codex` - validate auth + one round-trip.
+- `deepr capacity probe-fleet --backend codex --backend claude` - validate
+  several selected backends concurrently, record the same usage/exhaustion
+  observations as `probe-plan`, and emit a versioned
+  `deepr-plan-fleet-probe-v1` payload. This is validation fan-out, not
+  auto-routing permission.
 
 `choose_plan_quota_backend` resolves an explicit `--plan` request through the
 same safety gate but without the admission/observed-quota requirement.
 
 ## Fleet visibility
 
-`deepr capacity fleet` (builder: `fleet.build_fleet_status`) shows every plan-quota
-CLI in one read-only `$0` table: installed (PATH), auth mode (the same gate -
-"metered" when an API key is set), routability (auto / explicit / metered), and
-the latest *observed* quota state (active / exhausted / quarantined /
-unobserved) with a reset time when one was parsed from the vendor's exhaustion
-message or from a metadata refresh. "unobserved" and a blank reset are
-deliberate: Deepr reports only what it has seen, never a fabricated
-remaining-quota number. Reset times are recorded on `EXHAUSTED` events by
-`parse_reset_after_seconds`, which extracts a relative duration ("Try again in
-3h 42m", "Resets in 2h15m30s") - deterministic *form* extraction, never a
-semantic verdict; monthly pools with no countdown stay honestly unknown. Codex
-supports proactive metadata refresh: `deepr capacity refresh-quota codex` reads
-local session-log `rate_limits`. Claude Code supports
+`deepr capacity fleet` (builder: `fleet.build_fleet_status`) shows every
+plan-quota CLI in one read-only `$0` table: installed (PATH), effective child
+auth mode after metered env vars are removed, raw parent-shell auth mode for
+diagnostics, routability (auto / explicit / metered), and the latest *observed*
+quota state (active / exhausted / quarantined / unobserved) with a reset time
+when one was parsed from the vendor's exhaustion message or from a metadata
+refresh. "unobserved" and a blank reset are deliberate: Deepr reports only what
+it has seen, never a fabricated remaining-quota number. Reset times are recorded
+on `EXHAUSTED` events by `parse_reset_after_seconds`, which extracts a relative
+duration ("Try again in 3h 42m", "Resets in 2h15m30s") - deterministic *form*
+extraction, never a semantic verdict; monthly pools with no countdown stay
+honestly unknown. Codex supports proactive metadata refresh:
+`deepr capacity refresh-quota codex` reads local session-log `rate_limits`.
+Claude Code supports
 `deepr capacity refresh-quota claude`, which reads the current user's Claude
 Code OAuth usage metadata from the read-only usage endpoint when credentials
 are present. Grok supports `deepr capacity refresh-quota grok`, which reads the
@@ -140,6 +146,13 @@ to parse a monthly gRPC-web quota frame. These refreshes normalize the binding
 window through `QuotaSnapshot` and write `VENDOR_REPORTED` ledger events
 without running a model call. Published as the versioned
 `deepr-plan-fleet-v1` envelope.
+
+`deepr capacity probe-fleet` is the active validation surface: it makes tiny
+parallel `Reply with exactly: OK` calls to selected plan CLIs, skips
+metered-at-margin adapters unless `--include-metered -y` is set, records
+quota-ledger observations, and fails if selected non-skipped backends fail or
+nothing actually ran. It is intentionally separate from auto-routing because
+most CLIs still do not expose trusted remaining quota.
 
 ## What is deterministic vs model judgment (AGENTIC_BALANCE)
 

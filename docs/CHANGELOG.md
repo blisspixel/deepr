@@ -8,6 +8,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- Added `deepr capacity probe-fleet`, a bounded concurrent validation command
+  for plan-quota CLIs. It probes selected backends in one pass, records the same
+  quota observations as `probe-plan`, skips metered-at-margin adapters by
+  default, and emits a versioned `deepr-plan-fleet-probe-v1` JSON envelope for
+  automation.
+- Added `deepr capacity next --probe`, which runs a `$0` live local-model probe
+  before reporting automatic local routing as ready. A visible but unloadable
+  admitted model now downgrades the next-action view to blocked instead of
+  presenting stale readiness.
 - Added a loopback-only socket guard to the dev/unit pytest environment so the
   unit gate fails on accidental outbound network calls while preserving local
   fixtures.
@@ -102,6 +111,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   compatibility alias for the default apply path.
 
 ### Fixed
+- Made plan-quota fleet status show the effective sanitized child auth mode and
+  the raw parent-shell auth mode separately, so an API key in the parent
+  environment no longer makes a safe plan-auth child run look metered.
+- Recorded quota observations from explicit `capacity probe-plan` calls, so the
+  fleet view updates after successful probes and observed exhaustion.
+- Included the live local-probe result in `deepr capacity --probe --json`.
+- Hardened report absorption against provider JSON that contains raw control
+  characters inside strings or lightweight wrapper text, while still requiring
+  parseable JSON before any claim extraction proceeds.
 - Persisted and audited lower-confidence conflict evidence retained during
   belief resolution while preserving the existing no-new-absorbed-change return
   contract.
