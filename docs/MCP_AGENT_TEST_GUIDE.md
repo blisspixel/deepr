@@ -34,6 +34,9 @@ explicit plan-capacity path.
 - `deepr_consult_experts` can stay off metered APIs when the caller sets
   `synthesis_backend` to `local` or `plan`. These modes disable live metered
   expert fallback and return a `capacity.live_metered_fallback=false` marker.
+- API consult synthesis may set `provider` to `openai` or `anthropic` and may
+  set `model` explicitly. This is metered capacity and requires a positive
+  budget; use local or plan modes for no-metered tests.
 - `deepr_query_expert` can stay off metered APIs when the caller sets
   `backend` to `local` or `plan`. Those modes route one named expert through
   the `deepr-consult-v1` contract, attach `consult_artifact`, set

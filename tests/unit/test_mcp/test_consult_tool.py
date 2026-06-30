@@ -167,6 +167,46 @@ async def test_consult_plan_backend_vets_capacity_and_disables_metered_fallback(
 
 
 @pytest.mark.asyncio
+async def test_consult_api_provider_and_model_pass_to_shared_core(server, monkeypatch):
+    captured: dict[str, object] = {}
+
+    async def fake(question, experts, max_experts, budget, **kwargs):
+        captured["budget"] = budget
+        captured.update(kwargs)
+        return {**_RESULT, "total_cost": 0.0}
+
+    monkeypatch.setattr("deepr.experts.consult.run_consult", fake)
+
+    out = await server.consult_experts(
+        question="q",
+        synthesis_backend="api",
+        provider="anthropic",
+        model="claude-sonnet-4-6",
+        budget=1.0,
+    )
+
+    assert captured["budget"] == 1.0
+    assert captured["synthesis_provider"] == "anthropic"
+    assert captured["synthesis_model"] == "claude-sonnet-4-6"
+    assert captured["allow_live_fallback"] is True
+    assert out["capacity"]["synthesis_backend"] == "api"
+    assert out["capacity"]["provider"] == "anthropic"
+    assert out["capacity"]["model"] == "claude-sonnet-4-6"
+
+
+@pytest.mark.asyncio
+async def test_consult_rejects_api_provider_for_owned_capacity(server):
+    out = await server.consult_experts(
+        question="q",
+        synthesis_backend="local",
+        provider="anthropic",
+        budget=0.0,
+    )
+    assert out["error_code"] == "INVALID_BACKEND"
+    assert "provider and model are only valid" in out["message"]
+
+
+@pytest.mark.asyncio
 async def test_consult_rejects_nonpositive_budget(server):
     out = await server.consult_experts(question="q", budget=0)
     assert "INVALID_BUDGET" in str(out)

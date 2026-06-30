@@ -25,8 +25,9 @@ cost ledger.
   metered fallback in those modes.
 - `PlanQuotaChatClient` and `ollama_chat_client` already satisfy the narrow
   `client.chat.completions.create(...)` seam used by council synthesis.
-- API-backed council synthesis still defaults to `AsyncOpenAI`. It is not yet
-  provider-pluggable.
+- API-backed council synthesis is provider-pluggable for `openai` and
+  `anthropic`. The Anthropic path uses the native Messages API and keeps
+  prompt-cache controls disabled until explicit cache policy exists.
 - `ExpertChatSession` is more coupled than consult. Its constructor requires
   `OPENAI_API_KEY`, stores an `AsyncOpenAI` client, uses OpenAI chat
   completions, uses the Responses API path for retrieval, generates follow-ups
@@ -271,9 +272,10 @@ side-effect policy.
 1. Correct docs so only consult advertises local and plan synthesis today.
    (done)
 2. Add provider and model fields to consult API synthesis, with Anthropic as the
-   first non-OpenAI adapter.
+   first non-OpenAI adapter. (done 2026-06-30)
 3. Add usage and cost regression tests for Anthropic cache buckets, refusal
    stop details, unsupported sampling params, and budget rejection at zero.
+   (done for consult API synthesis 2026-06-30)
 4. Add local and plan query modes through the one-expert consult bridge.
    (done)
 5. Extract `ExpertChatBackend` and move current OpenAI chat behind it without
