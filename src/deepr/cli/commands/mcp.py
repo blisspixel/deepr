@@ -255,6 +255,10 @@ Example consult call:
 """
 
 
+def _redact_agent_guide_secret(guide: str, token: str) -> str:
+    return guide.replace(token, "<redacted-token>") if token else guide
+
+
 def _filter_audit_records(records, *, key_id: str | None, tool_name: str | None, outcome: str | None):
     filtered = records
     if key_id:
@@ -580,6 +584,11 @@ def agent_guide(
         http_path=normalized_path,
     )
     _validate_agent_guide_output_path(output, allow_tracked_output=allow_tracked_output)
+    if as_json and output is None and auth_token is None:
+        raise click.ClickException(
+            "JSON output redacts bearer tokens. Omit --json or pass --output to an ignored path "
+            "to receive the one-time token."
+        )
     token = auth_token
     record_id = key_id
     if no_create_key and not token:
@@ -622,12 +631,12 @@ def agent_guide(
         "budget_limit_usd": budget,
         "rate_limit_per_minute": rate_limit,
         "expert_allowlist": list(experts),
-        "token": token,
+        "token_included": False,
         "server_command": (
             f".\\.venv\\Scripts\\deepr.exe mcp serve --http --host {bind_host} --port {port} "
             f"--path {normalized_path} --keys-path {keys_path}"
         ),
-        "guide": guide,
+        "guide": _redact_agent_guide_secret(guide, token),
     }
     if output:
         output_path = Path(output)

@@ -246,7 +246,9 @@ signals into review and regression selection without blocking answers or
 writing beliefs. False-premise and template-order labels come only from human
 or calibrated-model consult-quality review cases. Consult trace and
 consult-quality review signals also produce read-only prompt-regression
-candidates for prompt-variant selection.
+candidates for prompt-variant selection. Consult traces preserve selected-order
+context-position metadata so long-context middle-loss evals can be measured
+later without treating position alone as a semantic verdict.
 
 ### Capacity
 
@@ -340,6 +342,16 @@ Every metered path is supposed to estimate before dispatch and settle after
 usage. Deepr has per-operation limits, daily and monthly caps, budget
 reservations, anomaly checks, and an append-only cost ledger at
 `data/costs/cost_ledger.jsonl`.
+
+Defaults favor owned capacity: local `$0` backends first, then explicit
+plan-quota capacity where supported, with metered APIs treated as premium
+fallbacks behind budget gates. Image generation follows the same rule:
+`DEEPR_LOCAL_IMAGE_URL` is the only portrait provider auto-selected by default.
+OpenAI, Gemini, and xAI image generation require an explicit provider selection
+or `DEEPR_ALLOW_METERED_IMAGE_AUTO=1`. Existing portraits are not regenerated
+by default; use explicit force/regenerate controls for ad hoc replacement, and
+metered web portrait calls must acknowledge the displayed estimate before
+dispatch.
 
 ```bash
 deepr budget set 5

@@ -64,7 +64,9 @@ The following legacy models will stop accepting API requests on **May 15, 2026 a
 **Migration recommendations:**
 - **Reasoning workloads** -> `xai/grok-4-3` (better quality, competitive pricing)
 - **Non-reasoning workloads** -> `xai/grok-4-20-non-reasoning` (optimized for throughput)
-- **Image generation** -> `xai/grok-imagine-image` (direct successor)
+- **Image generation** -> `xai/grok-imagine-image` (direct successor). Deepr does
+  not auto-select paid image generation from `XAI_API_KEY`; use an explicit
+  portrait provider or `DEEPR_ALLOW_METERED_IMAGE_AUTO=1`.
 
 ### Anthropic Claude (`ANTHROPIC_API_KEY`)
 - **Deep Research**: No turnkey API - uses Extended Thinking + tool use + web search orchestration

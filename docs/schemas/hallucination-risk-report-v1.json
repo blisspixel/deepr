@@ -17,6 +17,7 @@
     "signals",
     "prompt_regression_candidate_count",
     "prompt_regression_candidates",
+    "context_position_metadata",
     "coverage_gaps",
     "mitigation_policy",
     "generated_at"
@@ -121,6 +122,36 @@
           "writes_state": {"const": false},
           "recommended_action": {"const": "add_to_consult_prompt_regression_selection"}
         }
+      }
+    },
+    "context_position_metadata": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": [
+        "source",
+        "trace_count",
+        "trace_count_with_position_metadata",
+        "trace_count_with_middle_context",
+        "selected_context_slot_count",
+        "position_metadata_slot_count",
+        "middle_context_slot_count",
+        "token_offsets_available",
+        "semantic_verdict",
+        "writes_state",
+        "measures_long_context_middle_loss"
+      ],
+      "properties": {
+        "source": {"const": "consult_trace_selected_order"},
+        "trace_count": {"type": "integer", "minimum": 0},
+        "trace_count_with_position_metadata": {"type": "integer", "minimum": 0},
+        "trace_count_with_middle_context": {"type": "integer", "minimum": 0},
+        "selected_context_slot_count": {"type": "integer", "minimum": 0},
+        "position_metadata_slot_count": {"type": "integer", "minimum": 0},
+        "middle_context_slot_count": {"type": "integer", "minimum": 0},
+        "token_offsets_available": {"const": false},
+        "semantic_verdict": {"const": false},
+        "writes_state": {"const": false},
+        "measures_long_context_middle_loss": {"const": false}
       }
     },
     "coverage_gaps": {

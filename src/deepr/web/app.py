@@ -31,12 +31,7 @@ from deepr.config import runtime_data_path
 from deepr.utils.async_runner import run_async_command as run_async
 from deepr.utils.security import is_loopback_bind_host
 from deepr.web.expert_loop_status_api import register_expert_read_apis
-from deepr.web.portrait_cost_gate import (
-    PortraitCostBlocked,
-    record_portrait_cost,
-    refund_portrait_cost,
-    reserve_portrait_cost,
-)
+from deepr.web.portrait_api import generate_expert_portrait_response
 
 load_dotenv()
 
@@ -1654,79 +1649,18 @@ def generate_expert_portrait(name):
     - Provider override is validated against an allowlist; arbitrary strings
       cannot be passed through to portraits.generate_portrait.
     """
-    try:
-        from deepr.experts.portraits import detect_provider, generate_portrait, portrait_cost
-        from deepr.experts.profile_store import ExpertStore
-
-        decoded_name, err = _decode_expert_name(name)
-        if err:
-            return err
-        store = ExpertStore(str(_experts_dir))
-        if not store.exists(decoded_name):
-            return jsonify({"error": "Expert not found"}), 404
-
-        now = time.monotonic()
-        last = _PORTRAIT_LAST_GENERATED.get(decoded_name, 0.0)
-        wait = _PORTRAIT_COOLDOWN_SECONDS - (now - last)
-        if wait > 0:
-            return jsonify(
-                {
-                    "error": "Portrait was generated recently. Try again later.",
-                    "retry_after_seconds": int(wait) + 1,
-                }
-            ), 429
-
-        profile = store.load(decoded_name)
-
-        data = request.json or {}
-        provider = data.get("provider")
-        if provider is not None and provider not in _PORTRAIT_ALLOWED_PROVIDERS:
-            return jsonify(
-                {
-                    "error": f"Invalid provider. Allowed: {sorted(_PORTRAIT_ALLOWED_PROVIDERS)}",
-                }
-            ), 400
-
-        try:
-            cost_reservation = reserve_portrait_cost(
-                expert_name=decoded_name,
-                provider=provider,
-                detect_provider=detect_provider,
-                portrait_cost=portrait_cost,
-            )
-        except PortraitCostBlocked as e:
-            return jsonify({"error": str(e)}), 402
-
-        loop = asyncio.new_event_loop()
-        try:
-            portrait_url = loop.run_until_complete(
-                generate_portrait(
-                    name=profile.name,
-                    domain=getattr(profile, "domain", None),
-                    description=getattr(profile, "description", None),
-                    provider=provider,
-                    output_dir=str(runtime_data_path("portraits")),
-                )
-            )
-        except Exception:
-            refund_portrait_cost(cost_reservation)
-            raise
-        finally:
-            loop.close()
-
-        record_portrait_cost(expert_name=decoded_name, reservation=cost_reservation)
-
-        _PORTRAIT_LAST_GENERATED[decoded_name] = time.monotonic()
-        profile.portrait_url = portrait_url
-        store.save(profile)
-
-        return jsonify({"portrait_url": portrait_url})
-    except RuntimeError as e:
-        logger.warning("Portrait generation failed for %s: %s", name, e)
-        return jsonify({"error": "Portrait generation failed"}), 400
-    except Exception as e:
-        logger.error(f"Error generating portrait for {name}: {e}")
-        return jsonify({"error": "Portrait generation failed"}), 500
+    decoded_name, err = _decode_expert_name(name)
+    if err:
+        return err
+    return generate_expert_portrait_response(
+        decoded_name=decoded_name,
+        experts_dir=_experts_dir,
+        portraits_dir=runtime_data_path("portraits"),
+        request_data=request.json or {},
+        last_generated=_PORTRAIT_LAST_GENERATED,
+        allowed_providers=_PORTRAIT_ALLOWED_PROVIDERS,
+        cooldown_seconds=_PORTRAIT_COOLDOWN_SECONDS,
+    )
 
 
 @app.route("/portraits/<filename>")
@@ -2257,6 +2191,23 @@ def _citation_validation_cache_key(worldview_path: Path, docs_dir: Path) -> str:
     return "|".join(parts)
 
 
+def _read_markdown_docs_within_root(docs_dir: Path, *, max_chars: int = 2000) -> dict[str, str]:
+    docs: dict[str, str] = {}
+    try:
+        docs_root = docs_dir.resolve()
+    except OSError:
+        return docs
+
+    for doc_path in docs_root.glob("*.md"):
+        try:
+            resolved_doc_path = doc_path.resolve()
+            resolved_doc_path.relative_to(docs_root)
+            docs[resolved_doc_path.name] = resolved_doc_path.read_text(encoding="utf-8")[:max_chars]
+        except (OSError, ValueError):
+            continue
+    return docs
+
+
 @app.route("/api/experts/<name>/citation-validations", methods=["GET"])
 @(limiter.limit("5 per minute") if limiter else (lambda f: f))
 def get_citation_validations(name):
@@ -2316,10 +2267,7 @@ def get_citation_validations(name):
             validator = CitationValidator(client=provider.client)
 
             claims = [b.to_claim() for b in beliefs]
-            doc_dict = {}
-            for doc_path in docs_dir.glob("*.md"):
-                with suppress(OSError):
-                    doc_dict[doc_path.name] = doc_path.read_text(encoding="utf-8")[:2000]
+            doc_dict = _read_markdown_docs_within_root(docs_dir)
 
             validations = await validator.validate_claims(claims, doc_dict)
             summary = validator.summarize(validations)

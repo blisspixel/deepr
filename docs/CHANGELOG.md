@@ -36,6 +36,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Added read-only consult prompt-regression candidates to
   `deepr eval hallucination-risks`, selected only from advisory consult trace
   and consult-quality review labels.
+- Added selected-order context-position metadata to consult traces and surfaced
+  aggregate context-position metadata in `deepr eval hallucination-risks`
+  without treating middle-context placement as a semantic verdict.
+
+### Fixed
+- Fixed three GitHub CodeQL findings: portrait generation now refunds reserved
+  cost and returns a generic error on provider failure, citation validation skips
+  markdown paths that resolve outside the expert documents directory, and
+  `deepr mcp agent-guide --json` redacts bearer tokens while refusing JSON-only
+  key creation that would lose the one-time secret.
+- Hardened portrait generation against surprise image spend: local image
+  endpoints remain the only auto-selected portrait provider, while OpenAI,
+  Gemini, and xAI image generation require explicit provider selection or
+  `DEEPR_ALLOW_METERED_IMAGE_AUTO=1`, existing portraits are skipped unless
+  regeneration is forced, and metered web requests must acknowledge the
+  estimate before budget reservation and dispatch.
 
 ## [2.26.0] - 2026-06-30
 

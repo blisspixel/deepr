@@ -100,8 +100,12 @@ export const expertsApi = {
     const response = await apiClient.delete<{ status: string }>(`/experts/${name}/conversations/${sessionId}`)
     return response.data
   },
-  generatePortrait: async (name: string, provider?: string) => {
-    const response = await apiClient.post<{ portrait_url: string }>(`/experts/${name}/generate-portrait`, provider ? { provider } : {})
+  generatePortrait: async (name: string, options?: { provider?: string; force?: boolean; confirmMeteredCost?: boolean }) => {
+    const response = await apiClient.post<{ portrait_url: string }>(`/experts/${name}/generate-portrait`, {
+      ...(options?.provider && { provider: options.provider }),
+      ...(options?.force && { force: true }),
+      ...(options?.confirmMeteredCost && { confirm_metered_cost: true }),
+    })
     return response.data
   },
 }

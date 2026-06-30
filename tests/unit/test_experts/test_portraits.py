@@ -7,6 +7,7 @@ key and cost money, so they stay out of the unit suite).
 from __future__ import annotations
 
 import base64
+from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import httpx
@@ -17,6 +18,7 @@ from deepr.experts.portraits import (
     DEFAULT_PORTRAIT_STYLE,
     PORTRAIT_COST_ESTIMATE_USD,
     PORTRAIT_STYLE_ENV,
+    XAI_PORTRAIT_COST_ESTIMATE_USD,
     _build_prompt,
     detect_provider,
     portrait_cost,
@@ -30,14 +32,37 @@ class TestLocalImageProvider:
         monkeypatch.setenv("OPENAI_API_KEY", "sk-test")  # local still wins (cheapest-first)
         assert detect_provider() == "local"
 
-    def test_detect_falls_back_to_metered_without_local(self, monkeypatch):
+    def test_detect_does_not_fall_back_to_metered_without_opt_in(self, monkeypatch):
         monkeypatch.delenv("DEEPR_LOCAL_IMAGE_URL", raising=False)
+        monkeypatch.delenv("DEEPR_ALLOW_METERED_IMAGE_AUTO", raising=False)
+        monkeypatch.setenv("OPENAI_API_KEY", "sk-test")
+        assert detect_provider() is None
+
+    def test_detect_falls_back_to_metered_with_explicit_auto_opt_in(self, monkeypatch):
+        monkeypatch.delenv("DEEPR_LOCAL_IMAGE_URL", raising=False)
+        monkeypatch.setenv("DEEPR_ALLOW_METERED_IMAGE_AUTO", "1")
         monkeypatch.setenv("OPENAI_API_KEY", "sk-test")
         assert detect_provider() == "openai"
+
+    def test_xai_is_not_auto_selected_without_explicit_opt_in(self, monkeypatch):
+        monkeypatch.delenv("DEEPR_LOCAL_IMAGE_URL", raising=False)
+        monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+        monkeypatch.delenv("GEMINI_API_KEY", raising=False)
+        monkeypatch.delenv("GOOGLE_API_KEY", raising=False)
+        monkeypatch.delenv("DEEPR_ALLOW_METERED_IMAGE_AUTO", raising=False)
+        monkeypatch.delenv("DEEPR_ALLOW_XAI_IMAGE_AUTO", raising=False)
+        monkeypatch.setenv("XAI_API_KEY", "xai-test")
+
+        assert detect_provider() is None
+
+        monkeypatch.setenv("DEEPR_ALLOW_XAI_IMAGE_AUTO", "1")
+
+        assert detect_provider() == "xai"
 
     def test_local_is_free_metered_is_not(self):
         assert portrait_cost("local") == 0.0
         assert portrait_cost("openai") == PORTRAIT_COST_ESTIMATE_USD
+        assert portrait_cost("xai") == XAI_PORTRAIT_COST_ESTIMATE_USD
         assert portrait_cost(None) == PORTRAIT_COST_ESTIMATE_USD
 
     @pytest.mark.asyncio
@@ -65,6 +90,102 @@ class TestLocalImageProvider:
         monkeypatch.delenv("DEEPR_LOCAL_IMAGE_URL", raising=False)
         with pytest.raises(RuntimeError, match="DEEPR_LOCAL_IMAGE_URL"):
             await P._generate_local("a prompt")
+
+
+class TestPortraitCostGate:
+    @pytest.mark.asyncio
+    async def test_generate_and_save_blocks_before_provider_spend(self, monkeypatch):
+        profile = SimpleNamespace(name="Budget Expert", domain="cost", description="test")
+        store = MagicMock()
+
+        class FakeCostSafety:
+            def check_and_reserve(self, **kwargs):
+                assert kwargs["estimated_cost"] == PORTRAIT_COST_ESTIMATE_USD
+                return False, "daily limit reached", False, ""
+
+            def record_cost(self, **_kwargs):
+                raise AssertionError("blocked portrait must not record cost")
+
+            def refund_reservation(self, _reservation_id):
+                raise AssertionError("blocked portrait must not reserve")
+
+        async def fail_generate_portrait(**_kwargs):
+            raise AssertionError("provider call should be blocked")
+
+        import deepr.experts.cost_safety as cost_safety
+
+        monkeypatch.setattr(cost_safety, "get_cost_safety_manager", lambda: FakeCostSafety())
+        monkeypatch.setattr(P, "generate_portrait", fail_generate_portrait)
+
+        with pytest.raises(ValueError, match="daily limit reached"):
+            await P.generate_and_save_portrait(profile, store, provider="openai")
+
+        store.save.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_generate_and_save_settles_reserved_cost(self, monkeypatch):
+        profile = SimpleNamespace(name="Budget Expert", domain="cost", description="test")
+        store = MagicMock()
+        records = []
+
+        class FakeCostSafety:
+            def check_and_reserve(self, **_kwargs):
+                return True, "OK", False, "reservation-1"
+
+            def record_cost(self, **kwargs):
+                records.append(kwargs)
+                return True
+
+            def refund_reservation(self, _reservation_id):
+                raise AssertionError("successful portrait must not refund")
+
+        async def fake_generate_portrait(**kwargs):
+            assert kwargs["provider"] == "xai"
+            return "/portraits/budget-expert.png"
+
+        import deepr.experts.cost_safety as cost_safety
+
+        monkeypatch.setattr(cost_safety, "get_cost_safety_manager", lambda: FakeCostSafety())
+        monkeypatch.setattr(P, "generate_portrait", fake_generate_portrait)
+
+        url = await P.generate_and_save_portrait(profile, store, provider="xai")
+
+        assert url == "/portraits/budget-expert.png"
+        assert profile.portrait_url == "/portraits/budget-expert.png"
+        store.save.assert_called_once_with(profile)
+        assert records[0]["reservation_id"] == "reservation-1"
+        assert records[0]["actual_cost"] == XAI_PORTRAIT_COST_ESTIMATE_USD
+        assert records[0]["provider"] == "xai"
+
+    @pytest.mark.asyncio
+    async def test_generate_and_save_refunds_on_provider_failure(self, monkeypatch):
+        profile = SimpleNamespace(name="Budget Expert", domain="cost", description="test")
+        store = MagicMock()
+        refunds = []
+
+        class FakeCostSafety:
+            def check_and_reserve(self, **_kwargs):
+                return True, "OK", False, "reservation-1"
+
+            def record_cost(self, **_kwargs):
+                raise AssertionError("failed portrait must not record cost")
+
+            def refund_reservation(self, reservation_id):
+                refunds.append(reservation_id)
+
+        async def fail_generate_portrait(**_kwargs):
+            raise RuntimeError("provider failed")
+
+        import deepr.experts.cost_safety as cost_safety
+
+        monkeypatch.setattr(cost_safety, "get_cost_safety_manager", lambda: FakeCostSafety())
+        monkeypatch.setattr(P, "generate_portrait", fail_generate_portrait)
+
+        with pytest.raises(RuntimeError, match="provider failed"):
+            await P.generate_and_save_portrait(profile, store, provider="openai")
+
+        assert refunds == ["reservation-1"]
+        store.save.assert_not_called()
 
 
 class TestGoogleImageProvider:
@@ -139,6 +260,30 @@ def test_portrait_command_registered_on_expert_group():
     from deepr.cli.commands.semantic.experts import expert
 
     assert "portrait" in expert.commands
+
+
+class TestPortraitCliTargetResolution:
+    def test_existing_portrait_is_skipped_without_force(self):
+        from deepr.cli.commands.semantic.expert_portrait import _resolve_targets
+
+        profiles = {
+            "A": SimpleNamespace(name="A", portrait_url="/portraits/a.png"),
+            "B": SimpleNamespace(name="B", portrait_url=None),
+        }
+        store = MagicMock()
+        store.list_all.return_value = list(profiles.values())
+        store.load.side_effect = lambda name: profiles.get(name)
+
+        assert _resolve_targets(store, name=None, all_experts=True, missing_only=False, force=False) == ["B"]
+
+    def test_existing_portrait_can_be_forced(self):
+        from deepr.cli.commands.semantic.expert_portrait import _resolve_targets
+
+        profile = SimpleNamespace(name="A", portrait_url="/portraits/a.png")
+        store = MagicMock()
+        store.load.return_value = profile
+
+        assert _resolve_targets(store, name="A", all_experts=False, missing_only=False, force=True) == ["A"]
 
 
 class TestPortraitStyle:

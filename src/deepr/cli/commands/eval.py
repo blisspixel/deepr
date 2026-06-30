@@ -638,6 +638,12 @@ def eval_hallucination_risks(
     click.echo(f"Source-pack manifests inspected: {report['source_pack_manifest_count']}")
     click.echo(f"Signals: {report['signal_count']}")
     click.echo(f"Prompt regression candidates: {report['prompt_regression_candidate_count']}")
+    context_positions = report["context_position_metadata"]
+    click.echo(
+        "Context position metadata: "
+        f"{context_positions['position_metadata_slot_count']} slots, "
+        f"{context_positions['middle_context_slot_count']} middle"
+    )
     if report["risk_label_counts"]:
         click.echo("Risk labels:")
         for label, count in report["risk_label_counts"].items():

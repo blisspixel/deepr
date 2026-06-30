@@ -73,6 +73,49 @@ def test_build_consult_trace_records_replay_context():
     }
 
 
+def test_build_consult_trace_records_selected_order_context_position_metadata():
+    payload = _payload()
+    payload["perspectives"] = [
+        {
+            "expert": "A",
+            "confidence": 0.9,
+            "response": "alpha",
+            "context": {"source": "belief_store", "selection": "first"},
+        },
+        {
+            "expert": "B",
+            "confidence": 0.8,
+            "response": "beta",
+            "context": {"source": "belief_store", "selection": "middle"},
+        },
+        {
+            "expert": "C",
+            "confidence": 0.7,
+            "response": "gamma",
+            "context": {"source": "belief_store", "selection": "last"},
+        },
+    ]
+
+    record = build_consult_trace(
+        question="How should long context be checked?",
+        requested_experts=["A", "B", "C"],
+        max_experts=3,
+        budget=0.0,
+        payload=payload,
+        result={"perspectives": [{}, {}, {}], "synthesis_status": "completed"},
+        trace_id="consult_abcdef123456",
+        recorded_at=datetime(2026, 6, 30, 12, 0, tzinfo=UTC),
+    )
+
+    positions = [item["context_position"] for item in record["context_packet"]["selected"]]
+    assert [item["selected_order_zone"] for item in positions] == ["start", "middle", "end"]
+    assert [item["selected_index"] for item in positions] == [0, 1, 2]
+    assert {item["selected_count"] for item in positions} == {3}
+    assert positions[1]["relative_position"] == 0.5
+    assert {item["token_offsets_available"] for item in positions} == {False}
+    assert {item["semantic_verdict"] for item in positions} == {False}
+
+
 def test_build_consult_trace_makes_synthesis_failure_first_class():
     record = build_consult_trace(
         question="q",
