@@ -48,6 +48,12 @@ QUERY_EXPERT_INPUT_SCHEMA: dict[str, Any] = {
             ),
         },
         "local_model": {"type": "string", "description": "Optional Ollama model when backend='local'."},
+        "provider": {
+            "type": "string",
+            "enum": ["openai", "anthropic"],
+            "description": "API provider when backend='api'. Defaults to openai.",
+        },
+        "model": {"type": "string", "description": "Optional API model when backend='api'."},
         "plan": {
             "type": "string",
             "description": "Plan-quota backend id when backend='plan' (for example codex).",
@@ -68,7 +74,15 @@ class ExpertStoreLike(Protocol):
 class ExpertChatSessionFactory(Protocol):
     """Factory for the legacy API-backed expert chat session."""
 
-    def __call__(self, expert: Any, *, budget: float | None, agentic: bool) -> Any:
+    def __call__(
+        self,
+        expert: Any,
+        *,
+        budget: float | None,
+        agentic: bool,
+        provider: str | None = None,
+        model: str | None = None,
+    ) -> Any:
         """Build a chat session for one loaded expert."""
 
 
@@ -92,6 +106,8 @@ async def query_expert_tool(
     budget: float | None = None,
     agentic: bool = False,
     backend: str = "api",
+    provider: str | None = None,
+    model: str | None = None,
     local_model: str | None = None,
     plan: str | None = None,
     plan_model: str | None = None,
@@ -111,12 +127,24 @@ async def query_expert_tool(
                 budget=budget,
                 agentic=agentic,
                 backend=backend_mode,
+                provider=provider,
+                model=model,
                 local_model=local_model,
                 plan=plan,
                 plan_model=plan_model,
             )
         if backend_mode != "api":
             return _make_error("INVALID_BACKEND", "backend must be one of: api, local, plan", category="validation")
+
+        api_provider = (provider or "openai").strip().lower()
+        if api_provider not in {"openai", "anthropic"}:
+            return _make_error("INVALID_BACKEND", "provider must be one of: openai, anthropic", category="validation")
+        if api_provider == "anthropic" and agentic:
+            return _make_error(
+                "UNSUPPORTED_AGENTIC_BACKEND",
+                "agentic=true is only supported by backend='api' provider='openai' expert chat for now",
+                category="validation",
+            )
 
         return await _query_legacy_expert_chat(
             expert=expert,
@@ -127,6 +155,8 @@ async def query_expert_tool(
             sessions=sessions,
             session_factory=session_factory,
             logger=logger,
+            provider=api_provider,
+            model=model,
         )
     except (OSError, KeyError, ValueError, DeeprError) as exc:
         return _make_error("EXPERT_QUERY_FAILED", str(exc))
@@ -140,6 +170,8 @@ async def _query_expert_via_readonly_backend(
     budget: float | None,
     agentic: bool,
     backend: str,
+    provider: str | None,
+    model: str | None,
     local_model: str | None,
     plan: str | None,
     plan_model: str | None,
@@ -154,6 +186,10 @@ async def _query_expert_via_readonly_backend(
         return _make_error("INVALID_BUDGET", "budget must be non-negative", category="validation")
     if backend == "plan" and not plan:
         return _make_error("INVALID_BACKEND", "plan is required when backend='plan'", category="validation")
+    if provider or model:
+        return _make_error(
+            "INVALID_BACKEND", "provider and model are only valid when backend='api'", category="validation"
+        )
 
     try:
         chat_backend = _build_readonly_query_backend(backend, local_model=local_model, plan=plan, plan_model=plan_model)
@@ -317,11 +353,13 @@ async def _query_legacy_expert_chat(
     sessions: MutableMapping[str, Any],
     session_factory: ExpertChatSessionFactory,
     logger: Logger,
+    provider: str | None,
+    model: str | None,
 ) -> dict[str, Any]:
     digest = hashlib.md5(question.encode(), usedforsecurity=False).hexdigest()[:12]
     session_key = f"{expert_name}_{digest}"
     if session_key not in sessions:
-        sessions[session_key] = session_factory(expert, budget=budget, agentic=agentic)
+        sessions[session_key] = session_factory(expert, budget=budget, agentic=agentic, provider=provider, model=model)
 
     session = sessions[session_key]
     try:
@@ -340,4 +378,7 @@ async def _query_legacy_expert_chat(
         "cost": summary["cost_accumulated"],
         "budget_remaining": summary.get("budget_remaining"),
         "research_triggered": summary["research_jobs_triggered"],
+        "backend": "api",
+        "provider": provider or "openai",
+        "model": model,
     }
