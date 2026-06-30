@@ -35,19 +35,20 @@ def _wire(monkeypatch, result: SyncResult, *, names=("Alpha", "Beta"), local_mod
             return result
 
     monkeypatch.setattr("deepr.experts.profile.ExpertStore", FakeStore)
-    monkeypatch.setattr(
-        "deepr.experts.maintenance_engine.build_sync_engine",
-        lambda profile, **kw: (FakeEngine(), "local" if kw.get("use_local") else "api_metered"),
-    )
+
+    def fake_build_sync_engine(profile, **kw):
+        if kw.get("use_plan"):
+            return FakeEngine(), f"plan_quota:{kw['plan_adapter'].backend_id}"
+        return FakeEngine(), "local" if kw.get("use_local") else "api_metered"
+
+    monkeypatch.setattr("deepr.experts.maintenance_engine.build_sync_engine", fake_build_sync_engine)
     monkeypatch.setattr("deepr.backends.local.default_local_model", lambda: local_model)
 
     def fake_record(name, res, **kwargs):
         if recorded is not None:
             recorded.append((name, kwargs.get("capacity_source")))
 
-    monkeypatch.setattr(
-        "deepr.cli.commands.semantic.expert_maintenance._record_completed_sync_loop", fake_record
-    )
+    monkeypatch.setattr("deepr.cli.commands.semantic.expert_maintenance._record_completed_sync_loop", fake_record)
 
 
 class TestRegistration:
@@ -57,6 +58,11 @@ class TestRegistration:
     def test_rejects_local_and_api_together(self):
         r = CliRunner().invoke(expert, ["sync-all", "--local", "--api"])
         assert r.exit_code == 2
+
+    def test_rejects_plan_model_without_plan(self):
+        r = CliRunner().invoke(expert, ["sync-all", "--plan-model", "x"])
+        assert r.exit_code == 2
+        assert "Use --plan-model only with --plan" in r.output
 
     def test_no_experts_is_friendly(self, monkeypatch):
         class EmptyStore:
@@ -106,12 +112,54 @@ class TestCapacity:
         # Auto waterfall returns metered (not local) -> a scheduled pass waits.
         monkeypatch.setattr(
             "deepr.backends.waterfall.choose_maintenance_backend",
-            lambda task_class: SimpleNamespace(is_local=False, reason=""),
+            lambda task_class: SimpleNamespace(is_local=False, is_plan_quota=False, reason=""),
         )
         _wire(monkeypatch, _sync_result(cost=0.0))
         r = CliRunner().invoke(expert, ["sync-all", "--all", "--scheduled", "--json"])
         assert r.exit_code == 0
         assert "waiting_for_capacity" in r.output
+
+    def test_scheduled_uses_auto_selected_plan_capacity(self, monkeypatch):
+        import json
+
+        monkeypatch.setattr(
+            "deepr.backends.waterfall.choose_maintenance_backend",
+            lambda task_class: SimpleNamespace(
+                is_local=False,
+                is_plan_quota=True,
+                plan_backend_id="codex",
+                reason="plan-quota backend 'codex' (operator-admitted, quota-observed)",
+            ),
+        )
+        recorded: list = []
+        _wire(monkeypatch, _sync_result(SyncOutcome("t", "synced"), cost=0.0), recorded=recorded)
+
+        r = CliRunner().invoke(expert, ["sync-all", "--all", "--scheduled", "-y", "--json"])
+
+        assert r.exit_code == 0, r.output
+        payload = json.loads(r.output)
+        assert payload["synced_experts"] == 2
+        assert {row["capacity_source"] for row in payload["summaries"]} == {"plan_quota:codex"}
+        assert recorded == [("Alpha", "plan_quota:codex"), ("Beta", "plan_quota:codex")]
+
+    def test_explicit_plan_forces_roster_capacity(self, monkeypatch):
+        import json
+
+        recorded: list = []
+        _wire(monkeypatch, _sync_result(SyncOutcome("t", "synced"), cost=0.0), recorded=recorded)
+
+        r = CliRunner().invoke(expert, ["sync-all", "--all", "--plan", "codex", "-y", "--json"])
+
+        assert r.exit_code == 0, r.output
+        payload = json.loads(r.output)
+        assert {row["capacity_source"] for row in payload["summaries"]} == {"plan_quota:codex"}
+        assert recorded == [("Alpha", "plan_quota:codex"), ("Beta", "plan_quota:codex")]
+
+    def test_explicit_metered_at_margin_plan_is_rejected_for_roster(self, monkeypatch):
+        _wire(monkeypatch, _sync_result(cost=0.0))
+        r = CliRunner().invoke(expert, ["sync-all", "--all", "--plan", "copilot", "-y"])
+        assert r.exit_code == 2
+        assert "metered at the margin" in r.output
 
     def test_local_forced_without_model_errors(self, monkeypatch):
         _wire(monkeypatch, _sync_result(cost=0.0), local_model=None)
@@ -159,7 +207,7 @@ class TestBudgetTierGate:
     def _auto_metered(self, monkeypatch):
         monkeypatch.setattr(
             "deepr.backends.waterfall.choose_maintenance_backend",
-            lambda task_class: SimpleNamespace(is_local=False, reason=""),
+            lambda task_class: SimpleNamespace(is_local=False, is_plan_quota=False, reason=""),
         )
 
     def _manager(self, monkeypatch, *, spent, cap=10.0):

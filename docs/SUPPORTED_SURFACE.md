@@ -64,7 +64,9 @@ must not be described as usable capacity.
 - Fleet self-maintenance: `deepr fleet status` (read-only `$0` roster-health
   rollup, `deepr-fleet-status-v1`, non-zero exit on a failed latest run),
   `deepr expert sync-all` (one capacity-aware roster pass, `deepr-library-sync-v1`
-  roll-up, overlap-locked, per-expert budgets, skip-not-fail), and
+  roll-up, overlap-locked, per-expert budgets, skip-not-fail, explicit
+  non-metered `--plan <id>` override, and admitted quota-observed plan dispatch
+  when the waterfall selects one), and
   `deepr fleet install-schedule` (emits host scheduler recipes; never
   auto-installs). The off-box heartbeat (`DEEPR_HEARTBEAT_URL`) is opt-in and
   best-effort.
@@ -176,8 +178,9 @@ must not be described as usable capacity.
   red-team attack-success-rate metrics including MCP read-path canaries and
   saved trend artifacts, and scored local admission.
 - Explicit plan-quota CLI execution for expert maintenance and bootstrap:
-  `deepr expert sync --plan <id>`, `deepr expert absorb --plan <id>`,
-  topic learning via `deepr expert learn --plan <id>`, the explicit
+  `deepr expert sync --plan <id>`, `deepr expert sync-all --plan <id>`,
+  `deepr expert absorb --plan <id>`, topic learning via
+  `deepr expert learn --plan <id>`, the explicit
   `deepr expert learn-web --plan <id>` alias, and
   `deepr capacity probe-plan <id>` run through deterministic auth-mode and
   no-surprise-bills guards. Codex, Claude Code, and OpenCode are eligible for
@@ -231,10 +234,11 @@ must not be described as usable capacity.
 ## Visible Or Planned Only
 
 - Automatic routing to plan-quota CLIs remains gated until Deepr has trusted
-  live remaining-quota signals for the candidate backend. Codex, Claude Code,
-  and Grok now have metadata probes; Antigravity and other sources remain
-  planned or explicit-only. Explicit `--plan` is still the works-now path and automatic
-  plan dispatch must stay opt-in and conservative.
+  live remaining-quota signals for the candidate backend. `expert sync-all`
+  consumes admitted, quota-observed plan selections from that gate, but Codex
+  and Claude remain the clean auto-routable candidates; Grok, Antigravity, and
+  other sources remain planned or explicit-only. Explicit `--plan` is still the
+  works-now path and automatic plan dispatch must stay conservative.
 - Multi-account capacity pools are planned after a single-account mechanism is
   complete.
 - Live hosted-agent registration smoke against a real third-party platform is

@@ -15,12 +15,14 @@ from __future__ import annotations
 import asyncio
 import json as _json
 import sys
+from dataclasses import dataclass
 from typing import Any
 
 import click
 
 from deepr.cli.colors import console, print_error, print_header, print_success, print_warning
 from deepr.cli.commands.semantic.experts import expert
+from deepr.cli.commands.semantic.grounding_support import PLAN_BACKEND_CHOICES
 
 _STATUS_MARKERS = {
     "synced": "[green]synced[/green]",
@@ -32,34 +34,88 @@ _STATUS_MARKERS = {
 }
 
 
-def _resolve_pass_backend(local: bool, api: bool) -> tuple[bool, str | None, str]:
-    """Resolve one backend for the whole pass: ``(use_local, local_model, note)``.
+@dataclass(frozen=True)
+class _PassBackend:
+    use_local: bool = False
+    local_model: str | None = None
+    use_plan: bool = False
+    plan_adapter: Any | None = None
+    plan_model: str | None = None
+    note: str = ""
 
-    ``--api`` forces metered; ``--local`` forces local; otherwise the capacity
-    waterfall picks local when an admitted model is available, else metered.
-    Plan-quota auto-routing stays gated off (no trusted remaining-quota probe),
-    so the auto result is local or metered.
+    @property
+    def owned_or_prepaid(self) -> bool:
+        if self.use_local:
+            return self.local_model is not None
+        if self.use_plan and self.plan_adapter is not None:
+            return not bool(getattr(self.plan_adapter, "metered_at_margin", False))
+        return False
+
+
+def _plan_backend_choice(plan: str, plan_model: str | None, *, note: str | None = None) -> _PassBackend:
+    from deepr.backends.plan_quota import get_adapter
+
+    adapter = get_adapter(plan)
+    if adapter is None:
+        raise ValueError(f"Unknown plan-quota backend: {plan}")
+    return _PassBackend(
+        use_plan=True,
+        plan_adapter=adapter,
+        plan_model=plan_model,
+        note=note or "",
+    )
+
+
+def _resolve_pass_backend(local: bool, api: bool, plan: str | None, plan_model: str | None) -> _PassBackend:
+    """Resolve one backend for the whole pass.
+
+    ``--api`` forces metered; ``--local`` forces local; ``--plan`` forces a
+    non-metered plan CLI through the safety gate. Otherwise the capacity
+    waterfall picks local when an admitted model is available, then an admitted
+    plan backend only when trusted quota headroom has been observed, else
+    metered.
     """
     if api:
-        return False, None, ""
-    use_local = local
+        return _PassBackend()
+    if plan:
+        from deepr.backends.waterfall import choose_plan_quota_backend
+
+        choice = choose_plan_quota_backend(plan)
+        if not choice.is_plan_quota or choice.plan_backend_id is None:
+            raise ValueError(choice.reason)
+        return _plan_backend_choice(choice.plan_backend_id, plan_model, note=choice.reason)
+    if local:
+        from deepr.backends.local import default_local_model
+
+        return _PassBackend(use_local=True, local_model=default_local_model())
+
     note = ""
+    local_model = None
+    use_local = False
+    use_plan = False
+    plan_backend_id = None
     if not local:
         from deepr.backends.admission import TASK_CLASS_SYNC
         from deepr.backends.waterfall import choose_maintenance_backend
 
         choice = choose_maintenance_backend(TASK_CLASS_SYNC)
         use_local = choice.is_local
-        note = choice.reason if use_local else ""
-    local_model = None
+        use_plan = getattr(choice, "is_plan_quota", False)
+        plan_backend_id = getattr(choice, "plan_backend_id", None)
+        if use_local or use_plan:
+            note = choice.reason
+        if use_local:
+            local_model = choice.model
+    if use_plan and plan_backend_id:
+        return _plan_backend_choice(plan_backend_id, plan_model=None, note=note)
     if use_local:
         from deepr.backends.local import default_local_model
 
-        local_model = default_local_model()
-    return use_local, local_model, note
+        return _PassBackend(use_local=True, local_model=local_model or default_local_model(), note=note)
+    return _PassBackend(note=note)
 
 
-def _make_sync_one(*, use_local: bool, local_model: str | None, include_all: bool, scheduled: bool):
+def _make_sync_one(*, backend: _PassBackend, include_all: bool, scheduled: bool):
     """Per-expert sync closure, kept module-level so its branches do not inflate
     the command's cyclomatic complexity (ruff rolls a nested function into its
     parent). Builds the engine the same way ``expert sync`` does and records the
@@ -72,7 +128,14 @@ def _make_sync_one(*, use_local: bool, local_model: str | None, include_all: boo
         profile = ExpertStore().load(name)
         if profile is None:
             raise ValueError(f"expert not found: {name}")
-        engine, capacity_source = build_sync_engine(profile, use_local=use_local, local_model=local_model)
+        engine, capacity_source = build_sync_engine(
+            profile,
+            use_local=backend.use_local,
+            local_model=backend.local_model,
+            use_plan=backend.use_plan,
+            plan_adapter=backend.plan_adapter,
+            plan_model=backend.plan_model,
+        )
         result = await engine.sync(budget=expert_budget, only_due=not include_all, dry_run=dry_run)
         if not dry_run:
             _record_completed_sync_loop(
@@ -125,6 +188,32 @@ def _metered_tier_defers(json_output: bool) -> bool:
     return True
 
 
+def _validate_sync_all_flags(*, local: bool, api: bool, plan: str | None, plan_model: str | None) -> None:
+    if sum(bool(x) for x in (local, api, plan)) > 1:
+        raise ValueError("Use only one of --local, --api, or --plan.")
+    if plan_model and not plan:
+        raise ValueError("Use --plan-model only with --plan.")
+
+
+def _emit_backend_notes(backend: _PassBackend, *, json_output: bool) -> None:
+    if json_output:
+        return
+    if backend.note:
+        console.print(f"[dim]{backend.note}[/dim]")
+    if backend.use_plan and backend.plan_adapter is not None and backend.plan_adapter.tos_note:
+        print_warning(backend.plan_adapter.tos_note)
+
+
+def _confirm_sync_all(*, backend: _PassBackend, budget: float, expert_count: int) -> bool:
+    if backend.use_local:
+        cost_desc = "on the local model at $0"
+    elif backend.use_plan and backend.plan_adapter is not None:
+        cost_desc = f"via {backend.plan_adapter.display_name} at $0 at the margin"
+    else:
+        cost_desc = f"up to ${budget:.2f} metered"
+    return click.confirm(f"Sync up to {expert_count} expert(s) {cost_desc}?", default=False)
+
+
 def _render_library_result(result: Any, json_output: bool) -> None:
     if json_output:
         click.echo(_json.dumps(result.to_dict(), indent=2))
@@ -156,6 +245,14 @@ def _render_library_result(result: Any, json_output: bool) -> None:
 @click.option("--local", is_flag=True, help="Force the local model for every expert.")
 @click.option("--api", is_flag=True, help="Force the metered API (overrides the owned/prepaid waterfall).")
 @click.option(
+    "--plan",
+    "plan",
+    type=click.Choice(PLAN_BACKEND_CHOICES),
+    default=None,
+    help="Force a non-metered plan-quota CLI backend for every expert. See: deepr capacity",
+)
+@click.option("--plan-model", "plan_model", default=None, help="Model to pass to the plan-quota CLI.")
+@click.option(
     "--scheduled", is_flag=True, help="Wait instead of spending metered when no owned/prepaid capacity exists."
 )
 @click.option("--yes", "-y", is_flag=True, help="Skip confirmation.")
@@ -167,6 +264,8 @@ def sync_all_cmd(
     dry_run: bool,
     local: bool,
     api: bool,
+    plan: str | None,
+    plan_model: str | None,
     scheduled: bool,
     yes: bool,
     json_output: bool,
@@ -182,13 +281,16 @@ def sync_all_cmd(
     EXAMPLES:
       deepr expert sync-all --dry-run
       deepr expert sync-all --local -y
+      deepr expert sync-all --plan codex -y
       deepr expert sync-all --scheduled -y
     """
     from deepr.experts.profile import ExpertStore
     from deepr.experts.sync_all import run_library_sync
 
-    if local and api:
-        print_error("Use only one of --local or --api.")
+    try:
+        _validate_sync_all_flags(local=local, api=api, plan=plan, plan_model=plan_model)
+    except ValueError as exc:
+        print_error(str(exc))
         sys.exit(2)
 
     names = [profile.name for profile in ExpertStore().list_all()]
@@ -196,35 +298,34 @@ def sync_all_cmd(
         print_success("No experts yet. Create one with `deepr expert make`.")
         return
 
-    use_local, local_model, selection_note = _resolve_pass_backend(local, api)
-    owned_or_prepaid = use_local and local_model is not None
+    try:
+        backend = _resolve_pass_backend(local, api, plan, plan_model)
+    except ValueError as exc:
+        print_error(str(exc))
+        sys.exit(2)
 
-    if scheduled and not api and not owned_or_prepaid:
+    if scheduled and not api and not backend.owned_or_prepaid:
         _emit_roster_wait(json_output, "no owned/prepaid capacity is available")
         return
-    if use_local and local_model is None:
+    if backend.use_local and backend.local_model is None:
         print_error("No local model available. Is Ollama running? Check: deepr capacity --probe")
         sys.exit(2)
 
     # Graceful degradation: an auto metered pass defers when the monthly pool is
     # drained (a dry run previews freely; an explicit --api overrides the soft
     # tier, the hard cap still applies).
-    metered_auto = not use_local and not api
+    metered_auto = not backend.use_local and not backend.use_plan and not api
     if metered_auto and not dry_run and _metered_tier_defers(json_output):
         return
 
-    if selection_note and not json_output:
-        console.print(f"[dim]{selection_note}[/dim]")
+    _emit_backend_notes(backend, json_output=json_output)
 
     if not dry_run and not yes:
-        cost_desc = "on the local model at $0" if use_local else f"up to ${budget:.2f} metered"
-        if not click.confirm(f"Sync up to {len(names)} expert(s) {cost_desc}?", default=False):
+        if not _confirm_sync_all(backend=backend, budget=budget, expert_count=len(names)):
             print_warning("Cancelled.")
             return
 
-    sync_one = _make_sync_one(
-        use_local=use_local, local_model=local_model, include_all=include_all, scheduled=scheduled
-    )
+    sync_one = _make_sync_one(backend=backend, include_all=include_all, scheduled=scheduled)
     result = asyncio.run(
         run_library_sync(
             sync_one=sync_one,
