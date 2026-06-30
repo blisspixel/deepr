@@ -34,6 +34,7 @@
     "failed_trace_count": {"type": "integer", "minimum": 0},
     "failed_check_count": {"type": "integer", "minimum": 0},
     "low_context_trace_count": {"type": "integer", "minimum": 0},
+    "middle_context_review_count": {"type": "integer", "minimum": 0},
     "semantic_eval_case_count": {"type": "integer", "minimum": 0},
     "candidates": {
       "type": "array",
@@ -55,13 +56,14 @@
         "properties": {
           "trace_id": {"type": "string"},
           "recorded_at": {"type": "string"},
-          "reason": {"type": "string", "enum": ["failed_consult", "failed_check", "low_context"]},
+          "reason": {"type": "string", "enum": ["failed_consult", "failed_check", "low_context", "middle_context_review"]},
           "severity": {"type": "integer", "minimum": 1, "maximum": 5},
           "question_hash": {"type": "string"},
           "question_preview": {"type": "string"},
           "failed_checks": {"type": "array", "items": {"type": "string"}},
           "warning_checks": {"type": "array", "items": {"type": "string"}},
           "selected_context_count": {"type": "integer", "minimum": 0},
+          "middle_context_slot_count": {"type": "integer", "minimum": 0},
           "gap": {
             "type": "object",
             "required": ["id", "topic", "questions", "priority"],

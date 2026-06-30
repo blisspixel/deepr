@@ -116,6 +116,60 @@ def test_build_consult_trace_records_selected_order_context_position_metadata():
     assert {item["semantic_verdict"] for item in positions} == {False}
 
 
+def test_build_consult_trace_candidates_routes_middle_context_for_review():
+    payload = _payload()
+    payload["perspectives"] = [
+        {
+            "expert": "A",
+            "confidence": 0.9,
+            "response": "start",
+            "context": {"source": "belief_store", "selection": "start"},
+        },
+        {
+            "expert": "B",
+            "confidence": 0.8,
+            "response": "private middle packet content",
+            "context": {"source": "belief_store", "selection": "middle"},
+        },
+        {
+            "expert": "C",
+            "confidence": 0.7,
+            "response": "end",
+            "context": {"source": "belief_store", "selection": "end"},
+        },
+    ]
+    trace = build_consult_trace(
+        question="How should a consult preserve middle evidence?",
+        requested_experts=["A", "B", "C"],
+        max_experts=3,
+        budget=0.0,
+        payload=payload,
+        result={"perspectives": [{}, {}, {}], "synthesis_status": "completed"},
+        trace_id="consult_middlectx",
+        recorded_at=datetime(2026, 6, 30, 12, 0, tzinfo=UTC),
+    )
+
+    candidates = build_consult_trace_candidates([trace])
+
+    assert candidates["candidate_count"] == 1
+    assert candidates["middle_context_review_count"] == 1
+    candidate = candidates["candidates"][0]
+    assert candidate["reason"] == "middle_context_review"
+    assert candidate["severity"] == 2
+    assert candidate["middle_context_slot_count"] == 1
+    assert candidate["eval_case"]["acceptance_check"] == (
+        "future reviewed consult should preserve relevant middle-context evidence when available"
+    )
+    semantic_case = candidate["semantic_eval_case"]
+    assert semantic_case["contract"]["semantic_verdict"] is False
+    assert semantic_case["input"]["context_position_zones"] == ["start", "middle", "end"]
+    assert semantic_case["input"]["middle_context_slot_count"] == 1
+    risk_checks = {item["risk_label"]: item for item in semantic_case["hallucination_risk_checks"]}
+    assert risk_checks["long_context_middle_loss"]["requires_semantic_judgment"] is True
+    assert "long_context_middle_loss" in semantic_case["failure_labels"]
+    assert "private middle packet content" not in json.dumps(candidate)
+
+
 def test_build_consult_trace_makes_synthesis_failure_first_class():
     record = build_consult_trace(
         question="q",

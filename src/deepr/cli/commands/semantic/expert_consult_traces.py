@@ -20,9 +20,10 @@ def _render(payload: dict[str, Any]) -> None:
     print_key_value("Failed traces", str(payload["failed_trace_count"]))
     print_key_value("Failed checks", str(payload["failed_check_count"]))
     print_key_value("Low-context traces", str(payload["low_context_trace_count"]))
+    print_key_value("Middle-context review", str(payload.get("middle_context_review_count", 0)))
     candidates = list(payload.get("candidates", []) or [])
     if not candidates:
-        console.print("[dim]No failed or low-context consult traces found.[/dim]")
+        console.print("[dim]No failed, low-context, or middle-context review consult traces found.[/dim]")
         return
 
     for candidate in candidates[:10]:
@@ -58,7 +59,7 @@ def expert_consult_traces(
     low_context_threshold: int,
     json_output: bool,
 ) -> None:
-    """Review failed or low-context consult traces as gap/eval candidates."""
+    """Review failed, low-context, or middle-context consult traces as candidates."""
     payload = review_consult_traces(
         path=trace_path,
         limit=limit,

@@ -198,15 +198,16 @@ must not be described as usable capacity.
   unsupported-claim, citation/provenance, temporal, overconfidence,
   context-loss, grounding-assurance, handoff-contestation, and high-stakes
   review signals into regression selection or review queues, and records
-  coverage gaps for false-premise, middle-context-loss, and
-  template-sensitivity cases. The labels inform only; they do not block
-  answers, write beliefs, or claim semantic truth from deterministic rules.
-  False-premise compliance and template-order sensitivity are available as
-  consult-quality semantic review labels only after a human or calibrated-model
-  judge marks them. Consult trace and consult-quality review signals also
-  produce read-only prompt-regression candidates for prompt-variant selection.
-  Consult traces preserve selected-order context-position metadata and the
-  report summarizes it without claiming middle-context-loss detection.
+  remaining coverage gaps. The labels inform only; they do not block answers,
+  write beliefs, or claim semantic truth from deterministic rules.
+  False-premise compliance, template-order sensitivity, and long-context
+  middle-loss are available as consult-quality semantic review labels only
+  after a human or calibrated-model judge marks them. Consult traces with
+  selected middle context create review-only middle-context candidates, and
+  consult-quality review signals can produce read-only prompt-regression
+  candidates for prompt-variant selection. Consult traces preserve
+  selected-order context-position metadata, but the report does not claim
+  middle-context-loss detection from position alone.
 - Local Ollama expert maintenance, local evals, local context evals, local
   red-team attack-success-rate metrics including MCP read-path canaries and
   saved trend artifacts, and scored local admission.

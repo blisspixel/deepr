@@ -96,6 +96,7 @@ def run_consult_eval() -> ConsultEvalReport:
             _check_collaboration_capacity_contract(),
             _check_semantic_quality_eval_case_contract(),
             _check_hallucination_risk_review_case_contract(),
+            _check_long_context_middle_loss_review_case_contract(),
         )
     )
 
@@ -439,4 +440,76 @@ def _check_hallucination_risk_review_case_contract() -> ConsultEvalOutcome:
         category="semantic_eval",
         passed=passed,
         detail={"risk_labels": sorted(risk_checks), "allowed_failure_labels": sorted(failure_labels)},
+    )
+
+
+def _check_long_context_middle_loss_review_case_contract() -> ConsultEvalOutcome:
+    trace = build_consult_trace(
+        question="How should the consult use evidence from the middle expert packet?",
+        requested_experts=["A", "B", "C"],
+        max_experts=3,
+        budget=0.0,
+        payload={
+            "schema_version": "deepr-consult-v1",
+            "kind": "deepr.expert.consult",
+            "question": "How should the consult use evidence from the middle expert packet?",
+            "answer": "Use the final packet only.",
+            "experts_consulted": ["A", "B", "C"],
+            "perspectives": [
+                {
+                    "expert": "A",
+                    "confidence": 0.8,
+                    "response": "start",
+                    "context": {"source": "belief_store", "selection": "start"},
+                },
+                {
+                    "expert": "B",
+                    "confidence": 0.8,
+                    "response": "middle",
+                    "context": {"source": "belief_store", "selection": "middle"},
+                },
+                {
+                    "expert": "C",
+                    "confidence": 0.8,
+                    "response": "end",
+                    "context": {"source": "belief_store", "selection": "end"},
+                },
+            ],
+            "agreements": [],
+            "disagreements": [],
+            "cost_usd": 0.0,
+        },
+        result={"perspectives": [{}, {}, {}], "synthesis_status": "completed"},
+        capacity={"synthesis_backend": "local", "provider": "local", "model": "qwen", "live_metered_fallback": False},
+        trace_id="consult_middlectx",
+    )
+    payload = build_consult_trace_candidates([trace])
+    first = payload["candidates"][0]
+    case = first["semantic_eval_case"]
+    risk_checks = {item["risk_label"]: item for item in case.get("hallucination_risk_checks", [])}
+    serialized = json.dumps(case, sort_keys=True)
+    passed = (
+        payload["candidate_count"] == 1
+        and payload["middle_context_review_count"] == 1
+        and first["reason"] == "middle_context_review"
+        and first["severity"] == 2
+        and first["middle_context_slot_count"] == 1
+        and case["input"]["middle_context_slot_count"] == 1
+        and case["input"]["context_position_zones"] == ["start", "middle", "end"]
+        and "long_context_middle_loss" in risk_checks
+        and risk_checks["long_context_middle_loss"]["requires_semantic_judgment"] is True
+        and "long_context_middle_loss" in set(case.get("failure_labels", []))
+        and case["contract"]["semantic_verdict"] is False
+        and case["contract"]["lexical_verdict_allowed"] is False
+        and "Use the final packet only." not in serialized
+    )
+    return ConsultEvalOutcome(
+        case_id="long_context_middle_loss_review_case_contract",
+        category="semantic_eval",
+        passed=passed,
+        detail={
+            "reason": first["reason"],
+            "risk_labels": sorted(risk_checks),
+            "middle_context_slot_count": first["middle_context_slot_count"],
+        },
     )

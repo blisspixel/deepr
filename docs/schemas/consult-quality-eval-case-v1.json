@@ -58,6 +58,8 @@
         "reason": {"type": "string"},
         "capacity": {"type": "object"},
         "selected_context_count": {"type": "integer", "minimum": 0},
+        "context_position_zones": {"type": "array", "items": {"type": "string"}},
+        "middle_context_slot_count": {"type": "integer", "minimum": 0},
         "failed_checks": {"type": "array", "items": {"type": "string"}},
         "warning_checks": {"type": "array", "items": {"type": "string"}},
         "synthesis_status": {"type": "string"}
