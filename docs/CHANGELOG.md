@@ -39,6 +39,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Added selected-order context-position metadata to consult traces and surfaced
   aggregate context-position metadata in `deepr eval hallucination-risks`
   without treating middle-context placement as a semantic verdict.
+- Added `deepr expert refresh-semantic-recall NAME`, an explicit `$0` operator
+  path that refreshes the local belief-vector index from precomputed embeddings
+  only, reports declared upstream embedding estimates separately from Deepr
+  spend, and keeps recall `candidate_only` with no graph writes.
 
 ### Fixed
 - Fixed three GitHub CodeQL findings: portrait generation now refunds reserved
@@ -50,8 +54,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   endpoints remain the only auto-selected portrait provider, while OpenAI,
   Gemini, and xAI image generation require explicit provider selection or
   `DEEPR_ALLOW_METERED_IMAGE_AUTO=1`, existing portraits are skipped unless
-  regeneration is forced, and metered web requests must acknowledge the
-  estimate before budget reservation and dispatch.
+  regeneration is forced, and metered web or unattended CLI requests must
+  acknowledge the estimate before budget reservation and dispatch.
 - Tightened the GitHub security readback fixes: MCP agent guides now write
   redacted files instead of persisted bearer-token guides, portrait cost blocks
   return a generic external error, and citation-validation document lookup uses

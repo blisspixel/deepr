@@ -12,6 +12,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import httpx
 import pytest
+from click.testing import CliRunner
 
 from deepr.experts import portraits as P
 from deepr.experts.portraits import (
@@ -284,6 +285,32 @@ class TestPortraitCliTargetResolution:
         store.load.return_value = profile
 
         assert _resolve_targets(store, name="A", all_experts=False, missing_only=False, force=True) == ["A"]
+
+
+class TestPortraitCliCostConfirmation:
+    def test_yes_does_not_bypass_metered_cost_confirmation(self, monkeypatch):
+        from deepr.cli.commands.semantic import expert_portrait as portrait_command_module
+        from deepr.cli.commands.semantic.expert_portrait import expert_portrait
+
+        profile = SimpleNamespace(name="Paid Portrait Expert", portrait_url=None)
+        store = MagicMock()
+        store.load.return_value = profile
+
+        import deepr.experts.profile as profile_module
+
+        monkeypatch.setattr(profile_module, "ExpertStore", lambda: store)
+        monkeypatch.setattr(P, "detect_provider", lambda: "xai")
+        monkeypatch.setattr(P, "portrait_cost", lambda _provider: XAI_PORTRAIT_COST_ESTIMATE_USD)
+        monkeypatch.setattr(
+            portrait_command_module,
+            "_run_portrait_batch",
+            lambda *_args, **_kwargs: pytest.fail("provider dispatch must be blocked"),
+        )
+
+        result = CliRunner().invoke(expert_portrait, ["Paid Portrait Expert", "--provider", "xai", "-y"])
+
+        assert result.exit_code == 2
+        assert "--confirm-metered-cost" in result.output
 
 
 class TestPortraitStyle:

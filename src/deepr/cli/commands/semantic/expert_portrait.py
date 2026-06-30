@@ -78,7 +78,12 @@ async def _run_portrait_batch(store: Any, targets: list[str], *, provider: str |
 )
 @click.option("--provider", type=click.Choice(["openai", "google", "xai"]), default=None, help="Image provider")
 @click.option("-y", "--yes", is_flag=True, help="Skip the cost confirmation")
-def expert_portrait(name, all_experts, missing_only, force, style, provider, yes):
+@click.option(
+    "--confirm-metered-cost",
+    is_flag=True,
+    help="Allow --yes with a metered image provider after reviewing the displayed estimate.",
+)
+def expert_portrait(name, all_experts, missing_only, force, style, provider, yes, confirm_metered_cost):
     """Generate a consistent-style AI portrait for one expert or the whole library.
 
     Every portrait shares one house art style (set ``DEEPR_PORTRAIT_STYLE`` or pass
@@ -112,6 +117,12 @@ def expert_portrait(name, all_experts, missing_only, force, style, provider, yes
     unit = portrait_cost(effective)
     console.print(f"[dim]Provider: {effective} (~${unit:.2f}/image)  Style: {portrait_style(style)}[/dim]")
     est = len(targets) * unit
+    if yes and unit > 0 and not confirm_metered_cost:
+        print_error(
+            "Metered portrait generation with --yes requires --confirm-metered-cost "
+            f"after reviewing the estimate (~${est:.2f})."
+        )
+        sys.exit(2)
     if not yes and not click.confirm(f"Generate {len(targets)} portrait(s) (~${est:.2f})?", default=False):
         print_warning("Cancelled.")
         return

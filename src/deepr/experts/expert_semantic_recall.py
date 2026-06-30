@@ -9,13 +9,15 @@ from __future__ import annotations
 
 import json
 import math
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 from typing import Any
 
+from deepr.experts.belief_embedding_refresh import BeliefEmbeddingRefreshResult, refresh_missing_belief_embeddings
 from deepr.experts.belief_vector_index import MAX_VECTOR_DIMENSIONS
 from deepr.experts.semantic_recall import CANDIDATE_ONLY, LEXICAL_METHOD, VECTOR_METHOD, RecallCandidate
 
 EXPERT_SEMANTIC_RECALL_SCHEMA_VERSION = "deepr-expert-semantic-recall-v1"
+EXPERT_SEMANTIC_RECALL_REFRESH_SCHEMA_VERSION = "deepr-expert-semantic-recall-refresh-v1"
 MAX_OPERATOR_RECALL_CANDIDATES = 50
 
 
@@ -51,6 +53,20 @@ def coerce_query_embedding(raw: Sequence[Any]) -> tuple[float, ...]:
     return tuple(values)
 
 
+def coerce_belief_embedding_map(raw: Any) -> dict[str, tuple[float, ...]]:
+    """Validate a precomputed belief-id-to-vector mapping."""
+    if not isinstance(raw, Mapping):
+        raise ValueError("embeddings JSON must be an object mapping belief id to numeric vector")
+
+    vectors: dict[str, tuple[float, ...]] = {}
+    for raw_belief_id, raw_vector in raw.items():
+        belief_id = str(raw_belief_id).strip()
+        if not belief_id:
+            raise ValueError("embedding belief id must not be empty")
+        vectors[belief_id] = coerce_query_embedding(raw_vector)
+    return vectors
+
+
 def _candidate_payload(candidate: RecallCandidate) -> dict[str, Any]:
     payload = candidate.to_dict()
     payload["text"] = candidate.text
@@ -62,6 +78,105 @@ def _embedding_stats(belief_store: Any, embedding_model: str | None) -> dict[str
     if not callable(stats):
         return {}
     return dict(stats(embedding_model=embedding_model))
+
+
+def _profile_payload(profile: Any, belief_store: Any) -> dict[str, str]:
+    return {
+        "name": str(getattr(profile, "name", "") or getattr(belief_store, "expert_name", "") or ""),
+        "domain": str(getattr(profile, "domain", "") or ""),
+    }
+
+
+def _refresh_contract(result: BeliefEmbeddingRefreshResult) -> dict[str, Any]:
+    return {
+        "cost_usd": 0.0,
+        "estimated_external_cost_usd": result.estimated_cost_usd,
+        "writes_graph": False,
+        "writes_beliefs": False,
+        "writes_belief_vectors": result.indexed_count > 0,
+        "semantic_verdict": False,
+        "candidate_verdict": CANDIDATE_ONLY,
+        "routing": "candidate_only",
+        "embedding_generation": "not_performed_by_deepr",
+        "embedding_source": "precomputed_json",
+    }
+
+
+async def build_expert_semantic_recall_refresh(
+    profile: Any,
+    belief_store: Any,
+    embedding_vectors: Mapping[str, Sequence[Any]],
+    *,
+    embedding_model: str,
+    budget_usd: float = 0.0,
+    estimated_cost_per_belief: float = 0.0,
+    max_beliefs: int | None = None,
+) -> dict[str, Any]:
+    """Refresh the local belief-vector index from precomputed vectors.
+
+    This is the explicit construction-side path for semantic recall. It never
+    calls an embedding provider; spend policy must already have been handled by
+    the caller that produced ``embedding_vectors``.
+    """
+    model = embedding_model.strip()
+    if not model:
+        raise ValueError("embedding_model is required")
+
+    vectors = coerce_belief_embedding_map(embedding_vectors)
+    limit = None if max_beliefs is None else max(0, int(max_beliefs))
+    target_ids = list(belief_store.missing_belief_embedding_ids(embedding_model=model))
+    if limit is not None:
+        target_ids = target_ids[:limit]
+    missing_vector_ids = [belief_id for belief_id in target_ids if belief_id not in vectors]
+    if missing_vector_ids:
+        preview = ", ".join(missing_vector_ids[:5])
+        suffix = "" if len(missing_vector_ids) <= 5 else f" and {len(missing_vector_ids) - 5} more"
+        raise ValueError(f"embeddings JSON is missing vector(s) for belief id(s): {preview}{suffix}")
+
+    def embed_claims(_claims: list[str]) -> list[tuple[float, ...]]:
+        return [vectors[belief_id] for belief_id in target_ids]
+
+    result = await refresh_missing_belief_embeddings(
+        belief_store,
+        embed_claims,
+        model=model,
+        budget_usd=budget_usd,
+        estimated_cost_per_belief=estimated_cost_per_belief,
+        max_beliefs=max_beliefs,
+        metadata={
+            "source": "cli.expert.refresh-semantic-recall",
+            "embedding_source": "precomputed_json",
+            "semantic_verdict": False,
+            "candidate_verdict": CANDIDATE_ONLY,
+        },
+    )
+    target_id_set = set(target_ids)
+    extra_vector_count = sum(1 for belief_id in vectors if belief_id not in target_id_set)
+
+    return {
+        "schema_version": EXPERT_SEMANTIC_RECALL_REFRESH_SCHEMA_VERSION,
+        "kind": "deepr.expert.semantic_recall_refresh",
+        "expert": _profile_payload(profile, belief_store),
+        "request": {
+            "embedding_model": model,
+            "budget_usd": float(budget_usd),
+            "estimated_cost_per_belief": float(estimated_cost_per_belief),
+            "max_beliefs": max_beliefs,
+            "precomputed_vector_count": len(vectors),
+            "unused_precomputed_vector_count": extra_vector_count,
+        },
+        "contract": _refresh_contract(result),
+        "summary": {
+            "status": result.status,
+            "requested_count": result.requested_count,
+            "indexed_count": result.indexed_count,
+            "skipped_count": result.skipped_count,
+        },
+        "refresh": result.to_dict(),
+        "index": {
+            "stats": _embedding_stats(belief_store, model),
+        },
+    }
 
 
 def build_expert_semantic_recall(
@@ -109,17 +224,12 @@ def build_expert_semantic_recall(
     candidate_payloads = [_candidate_payload(candidate) for candidate in candidates]
     vector_count = sum(1 for candidate in candidates if candidate.method == VECTOR_METHOD)
     lexical_count = sum(1 for candidate in candidates if candidate.method == LEXICAL_METHOD)
-    expert_name = str(getattr(profile, "name", "") or getattr(belief_store, "expert_name", "") or "")
-    expert_domain = str(getattr(profile, "domain", "") or "")
     stats = _embedding_stats(belief_store, embedding_model)
 
     return {
         "schema_version": EXPERT_SEMANTIC_RECALL_SCHEMA_VERSION,
         "kind": "deepr.expert.semantic_recall",
-        "expert": {
-            "name": expert_name,
-            "domain": expert_domain,
-        },
+        "expert": _profile_payload(profile, belief_store),
         "query": {
             "text": query_text,
             "domain_filter": domain or "",
@@ -152,9 +262,12 @@ def build_expert_semantic_recall(
 
 
 __all__ = [
+    "EXPERT_SEMANTIC_RECALL_REFRESH_SCHEMA_VERSION",
     "EXPERT_SEMANTIC_RECALL_SCHEMA_VERSION",
     "MAX_OPERATOR_RECALL_CANDIDATES",
     "build_expert_semantic_recall",
+    "build_expert_semantic_recall_refresh",
+    "coerce_belief_embedding_map",
     "coerce_query_embedding",
     "parse_query_embedding_json",
 ]

@@ -188,6 +188,7 @@ deepr expert propose-self-model "AI Policy Expert" meta_def456 --json
 deepr expert accept-self-model "AI Policy Expert" ./data/self_model_updates/ai-policy/self_model_update_meta_def456_20260626_120000000000.json --outcome-evidence loop_run:loop_123 --reviewer operator --json
 deepr expert memory-card "AI Policy Expert" --write
 deepr expert semantic-recall "AI Policy Expert" "agentic guardrail evidence" --json
+deepr expert refresh-semantic-recall "AI Policy Expert" --embedding-model local-test --embeddings-json ./belief-vectors.json --json
 deepr expert loop-status "AI Policy Expert" --json
 deepr expert export-okf "AI Policy Expert" ./okf/ai-policy
 ```
@@ -350,8 +351,9 @@ fallbacks behind budget gates. Image generation follows the same rule:
 OpenAI, Gemini, and xAI image generation require an explicit provider selection
 or `DEEPR_ALLOW_METERED_IMAGE_AUTO=1`. Existing portraits are not regenerated
 by default; use explicit force/regenerate controls for ad hoc replacement, and
-metered web portrait calls must acknowledge the displayed estimate before
-dispatch.
+metered portrait calls must acknowledge the displayed estimate before dispatch.
+CLI `--yes` can skip unattended prompts only for free/local image generation
+unless `--confirm-metered-cost` is also supplied.
 
 ```bash
 deepr budget set 5
