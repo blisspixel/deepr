@@ -174,6 +174,12 @@ must not be described as usable capacity.
   human or calibrated-model judge; Deepr validates score shape, known labels,
   acceptance gates, and write boundaries. Accepted reviews can promote only gap
   or eval artifacts, never beliefs.
+- `deepr expert consult-quality-trends NAME` emits
+  `deepr-consult-quality-trend-v1`, a `$0` read-only trend report over reviewed
+  consult-quality artifacts. It summarizes score dimensions, review statuses,
+  and deterministic consult prompt regression candidates selected from
+  reviewer scores and review status only; it does not judge answer meaning,
+  write beliefs, or expose local artifact paths.
 - Local Ollama expert maintenance, local evals, local context evals, local
   red-team attack-success-rate metrics including MCP read-path canaries and
   saved trend artifacts, and scored local admission.

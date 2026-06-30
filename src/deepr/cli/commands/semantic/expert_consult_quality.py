@@ -51,6 +51,39 @@ def _render(payload: dict[str, Any]) -> None:
         console.print("\n[dim]Preview only. Re-run with --apply after review to write artifacts.[/dim]")
 
 
+def _render_trends(payload: dict[str, Any]) -> None:
+    print_section_header("Consult Quality Trends")
+    print_key_value("Expert", payload["expert_name"] or "all")
+    print_key_value("Reviews", str(payload["review_count"]))
+    print_key_value("Mean score", f"{float(payload['mean_score']):.2f}")
+    print_key_value("Regression candidates", str(payload["regression_candidate_count"]))
+
+    status_counts = payload.get("status_counts", {}) or {}
+    if status_counts:
+        console.print("\n[bold]Review status[/bold]")
+        for status, count in status_counts.items():
+            console.print(f"  {status}: {count}")
+
+    dimension_scores = payload.get("dimension_scores", []) or []
+    if dimension_scores:
+        console.print("\n[bold]Dimensions[/bold]")
+        for item in dimension_scores:
+            console.print(
+                f"  {item['dimension']}: mean {float(item['mean_score']):.2f} "
+                f"min {float(item['min_score']):.2f} max {float(item['max_score']):.2f}"
+            )
+
+    candidates = payload.get("regression_candidates", []) or []
+    if candidates:
+        console.print("\n[bold]Regression candidates[/bold]")
+        for candidate in candidates[:10]:
+            console.print(
+                f"  {candidate['source_trace_id']} "
+                f"{candidate['review_status']} mean {float(candidate['mean_score']):.2f}"
+            )
+            console.print(f"    {candidate['question_preview']}")
+
+
 @expert.command(name="review-consult-quality")
 @click.argument("name")
 @click.argument("trace_id")
@@ -159,3 +192,48 @@ def expert_review_consult_quality(
         click.echo(json.dumps(payload, indent=2, default=str))
         return
     _render(payload)
+
+
+@expert.command(name="consult-quality-trends")
+@click.argument("name")
+@click.option(
+    "--output-dir",
+    type=click.Path(file_okay=False, path_type=Path),
+    default=None,
+    help="Optional directory containing consult-quality review artifacts.",
+)
+@click.option("--limit", type=int, default=200, show_default=True, help="Newest review artifacts to inspect.")
+@click.option(
+    "--regression-limit",
+    type=int,
+    default=10,
+    show_default=True,
+    help="Maximum deterministic prompt-regression candidates to return.",
+)
+@click.option("--json", "json_output", is_flag=True, help="Emit machine-readable JSON.")
+def expert_consult_quality_trends(
+    name: str,
+    output_dir: Path | None,
+    limit: int,
+    regression_limit: int,
+    json_output: bool,
+) -> None:
+    """Summarize reviewed consult quality and select regression candidates."""
+    from deepr.experts.consult_quality import build_consult_quality_trend_report
+
+    store = ExpertStore()
+    profile = store.load(name)
+    if profile is None:
+        print_error(f"Expert '{name}' not found")
+        raise click.Abort()
+
+    payload = build_consult_quality_trend_report(
+        expert_name=profile.name,
+        output_dir=output_dir,
+        limit=limit,
+        regression_limit=regression_limit,
+    )
+    if json_output:
+        click.echo(json.dumps(payload, indent=2, default=str))
+        return
+    _render_trends(payload)

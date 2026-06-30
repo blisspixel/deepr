@@ -55,7 +55,10 @@ from deepr.experts.beliefs import BeliefStore
 from deepr.experts.consult_quality import (
     CONSULT_QUALITY_REVIEW_KIND,
     CONSULT_QUALITY_REVIEW_SCHEMA_VERSION,
+    CONSULT_QUALITY_TREND_KIND,
+    CONSULT_QUALITY_TREND_SCHEMA_VERSION,
     build_consult_quality_review,
+    build_consult_quality_trend_report,
 )
 from deepr.experts.consult_traces import (
     CONSULT_QUALITY_EVAL_CASE_KIND,
@@ -768,6 +771,44 @@ def test_consult_quality_review_schema_validates_runtime_payload():
     assert payload["kind"] == CONSULT_QUALITY_REVIEW_KIND
     assert payload["contract"]["writes_beliefs"] is False
     assert payload["review_status"] == "accepted"
+
+
+def test_consult_quality_trend_schema_validates_runtime_payload(tmp_path):
+    trace = build_consult_trace(
+        question="What should the expert loop improve next?",
+        requested_experts=["AI Agent Harnesses"],
+        max_experts=3,
+        budget=0.0,
+        failure={"stage": "run_consult", "error_type": "RuntimeError", "message": "boom"},
+        trace_id="consult_abcdef123456",
+        recorded_at=datetime(2026, 6, 26, 12, 0, tzinfo=UTC),
+    )
+    candidate = build_consult_trace_candidates([trace])["candidates"][0]
+    review = build_consult_quality_review(
+        expert_name="AI Agent Harnesses",
+        case=candidate["semantic_eval_case"],
+        scores={
+            "uses_expert_state": 2,
+            "surfaces_uncertainty": 2,
+            "preserves_dissent": 2,
+            "actionability": 2,
+            "grounded_when_factual": 2,
+            "original_thought": 2,
+        },
+        reviewer="operator",
+        decision="accept",
+        candidate=candidate,
+    )
+    review_path = tmp_path / f"consult_quality_review_{review['review_id']}.json"
+    review_path.write_text(json.dumps(review), encoding="utf-8")
+    payload = build_consult_quality_trend_report(expert_name="AI Agent Harnesses", output_dir=tmp_path)
+    schema = _load_schema("consult-quality-trend-v1.json")
+
+    _validate(schema, payload)
+    assert payload["schema_version"] == CONSULT_QUALITY_TREND_SCHEMA_VERSION
+    assert payload["kind"] == CONSULT_QUALITY_TREND_KIND
+    assert payload["contract"]["semantic_verdict"] is False
+    assert payload["regression_candidate_count"] == 1
 
 
 def test_source_pack_manifest_schema_validates_runtime_payload():

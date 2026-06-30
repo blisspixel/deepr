@@ -9,6 +9,8 @@ gap or eval artifacts without committing beliefs.
 from __future__ import annotations
 
 import hashlib
+import json
+from collections import Counter, defaultdict
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Literal
@@ -32,6 +34,8 @@ if TYPE_CHECKING:
 
 CONSULT_QUALITY_REVIEW_SCHEMA_VERSION = "deepr-consult-quality-review-v1"
 CONSULT_QUALITY_REVIEW_KIND = "deepr.eval.consult_quality_review"
+CONSULT_QUALITY_TREND_SCHEMA_VERSION = "deepr-consult-quality-trend-v1"
+CONSULT_QUALITY_TREND_KIND = "deepr.eval.consult_quality_trend"
 
 ConsultQualityDecision = Literal["accept", "needs_improvement", "reject"]
 ConsultQualityJudgeType = Literal["human", "calibrated_model"]
@@ -62,6 +66,20 @@ def _contract(*, apply: bool) -> dict[str, Any]:
         "requires_reviewer": True,
         "auto_apply": False,
         "derived_from": CONSULT_QUALITY_EVAL_CASE_SCHEMA_VERSION,
+    }
+
+
+def _trend_contract() -> dict[str, Any]:
+    return {
+        "read_only": True,
+        "cost_usd": 0.0,
+        "writes_state": False,
+        "writes_beliefs": False,
+        "semantic_verdict": False,
+        "lexical_verdict_allowed": False,
+        "selection_from_reviewed_scores": True,
+        "source_path_exposed": False,
+        "derived_from": CONSULT_QUALITY_REVIEW_SCHEMA_VERSION,
     }
 
 
@@ -261,6 +279,205 @@ def _write_review_artifact(artifact: dict[str, Any], *, output_dir: Path | None)
     path = root / f"consult_quality_review_{artifact['review_id']}_{timestamp}.json"
     atomic_write_json(path, artifact)
     return path
+
+
+def _review_artifact_root(output_dir: Path | None) -> Path:
+    return output_dir or runtime_data_path("benchmarks")
+
+
+def _load_review_artifact(path: Path) -> dict[str, Any] | None:
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return None
+    if not isinstance(payload, dict):
+        return None
+    if payload.get("schema_version") != CONSULT_QUALITY_REVIEW_SCHEMA_VERSION:
+        return None
+    if payload.get("kind") != CONSULT_QUALITY_REVIEW_KIND:
+        return None
+    return payload
+
+
+def load_consult_quality_reviews(
+    *,
+    expert_name: str | None = None,
+    output_dir: Path | None = None,
+    limit: int = 200,
+) -> list[dict[str, Any]]:
+    """Load reviewed consult-quality artifacts without exposing local paths."""
+    root = _review_artifact_root(output_dir)
+    if not root.exists():
+        return []
+
+    loaded: list[dict[str, Any]] = []
+    paths = sorted(root.glob("consult_quality_review_*.json"), key=lambda item: item.stat().st_mtime, reverse=True)
+    for path in paths:
+        artifact = _load_review_artifact(path)
+        if artifact is None:
+            continue
+        if expert_name and str(artifact.get("expert_name", "")) != expert_name:
+            continue
+        loaded.append(artifact)
+        if len(loaded) >= max(0, limit):
+            break
+    return loaded
+
+
+def _mean(values: list[float]) -> float:
+    if not values:
+        return 0.0
+    return round(sum(values) / len(values), 4)
+
+
+def _score_map(review: dict[str, Any]) -> dict[str, float]:
+    scores: dict[str, float] = {}
+    for item in review.get("scores", []) or []:
+        if not isinstance(item, dict):
+            continue
+        dimension = str(item.get("dimension", "")).strip()
+        if not dimension:
+            continue
+        try:
+            scores[dimension] = float(item.get("score", 0.0))
+        except (TypeError, ValueError):
+            continue
+    return scores
+
+
+def _dimension_summary(reviews: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    values_by_dimension: dict[str, list[float]] = defaultdict(list)
+    for review in reviews:
+        for dimension, score in _score_map(review).items():
+            values_by_dimension[dimension].append(score)
+
+    summary = []
+    for dimension in sorted(values_by_dimension):
+        values = values_by_dimension[dimension]
+        summary.append(
+            {
+                "dimension": dimension,
+                "review_count": len(values),
+                "mean_score": _mean(values),
+                "min_score": round(min(values), 4),
+                "max_score": round(max(values), 4),
+            }
+        )
+    return summary
+
+
+def _lowest_scores(review: dict[str, Any], *, limit: int = 3) -> list[dict[str, Any]]:
+    return [
+        {"dimension": dimension, "score": round(score, 4)}
+        for dimension, score in sorted(_score_map(review).items(), key=lambda item: (item[1], item[0]))[:limit]
+    ]
+
+
+def _regression_reason(review: dict[str, Any]) -> str:
+    status = str(review.get("review_status", ""))
+    labels = list(review.get("failure_labels", []) or [])
+    if labels:
+        return "reviewed_failure_labels"
+    if status != "accepted":
+        return f"review_status_{status or 'unknown'}"
+    return "accepted_lowest_score"
+
+
+def _regression_sort_key(review: dict[str, Any]) -> tuple[int, float, str]:
+    status_priority = {
+        "policy_blocked": 0,
+        "needs_improvement": 1,
+        "rejected": 2,
+        "accepted": 3,
+    }
+    status = str(review.get("review_status", ""))
+    try:
+        mean_score = float(review.get("mean_score", 0.0))
+    except (TypeError, ValueError):
+        mean_score = 0.0
+    return (status_priority.get(status, 4), mean_score, str(review.get("generated_at", "")))
+
+
+def _regression_candidates(reviews: list[dict[str, Any]], *, limit: int) -> list[dict[str, Any]]:
+    candidates = [
+        review
+        for review in reviews
+        if str(review.get("review_status", "")) != "accepted" or list(review.get("failure_labels", []) or [])
+    ]
+    selected = sorted(candidates, key=_regression_sort_key)[: max(0, limit)]
+
+    regression_cases = []
+    for review in selected:
+        source = review.get("source") if isinstance(review.get("source"), dict) else {}
+        regression_cases.append(
+            {
+                "review_id": str(review.get("review_id", "")),
+                "source_trace_id": str(source.get("source_trace_id", "")),
+                "case_id": str(source.get("case_id", "")),
+                "question_hash": str(source.get("question_hash", "")),
+                "question_preview": str(source.get("question_preview", "")),
+                "review_status": str(review.get("review_status", "")),
+                "decision": str(review.get("decision", "")),
+                "mean_score": round(float(review.get("mean_score", 0.0) or 0.0), 4),
+                "failure_labels": sorted(str(label) for label in review.get("failure_labels", []) or []),
+                "lowest_scores": _lowest_scores(review),
+                "selection_reason": _regression_reason(review),
+                "recommended_use": "consult_prompt_regression",
+            }
+        )
+    return regression_cases
+
+
+def build_consult_quality_trend_report(
+    *,
+    expert_name: str | None = None,
+    output_dir: Path | None = None,
+    limit: int = 200,
+    regression_limit: int = 10,
+    generated_at: datetime | None = None,
+) -> dict[str, Any]:
+    """Build a read-only quality trend report from reviewed consult artifacts."""
+    reviews = load_consult_quality_reviews(expert_name=expert_name, output_dir=output_dir, limit=limit)
+    statuses = Counter(str(review.get("review_status", "unknown")) for review in reviews)
+    decisions = Counter(str(review.get("decision", "unknown")) for review in reviews)
+    labels = Counter(
+        str(label) for review in reviews for label in list(review.get("failure_labels", []) or []) if str(label).strip()
+    )
+    mean_scores = []
+    for review in reviews:
+        try:
+            mean_scores.append(float(review.get("mean_score", 0.0)))
+        except (TypeError, ValueError):
+            continue
+
+    regression_pool = [
+        review
+        for review in reviews
+        if str(review.get("review_status", "")) != "accepted" or list(review.get("failure_labels", []) or [])
+    ]
+    timestamp = generated_at or _utc_now()
+    return {
+        "schema_version": CONSULT_QUALITY_TREND_SCHEMA_VERSION,
+        "kind": CONSULT_QUALITY_TREND_KIND,
+        "contract": _trend_contract(),
+        "expert_name": expert_name or "",
+        "review_count": len(reviews),
+        "status_counts": dict(sorted(statuses.items())),
+        "decision_counts": dict(sorted(decisions.items())),
+        "failure_label_counts": dict(sorted(labels.items())),
+        "mean_score": _mean(mean_scores),
+        "dimension_scores": _dimension_summary(reviews),
+        "regression_candidates": _regression_candidates(reviews, limit=regression_limit),
+        "regression_candidate_count": len(regression_pool),
+        "selection_policy": {
+            "deterministic": True,
+            "uses_reviewer_scores_only": True,
+            "never_scores_answer_meaning": True,
+            "never_commits_beliefs": True,
+            "sort_order": ["review_status", "mean_score", "generated_at"],
+        },
+        "generated_at": timestamp.isoformat(),
+    }
 
 
 def _eval_case_artifact(profile: ExpertProfile, review: dict[str, Any], candidate: dict[str, Any]) -> dict[str, Any]:
