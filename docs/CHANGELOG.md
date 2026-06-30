@@ -8,6 +8,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- Added `deepr mcp validate-consult-fleet`, a bounded concurrent no-metered
+  consult validation command for selected plan backends. It reuses the existing
+  consult validator, skips metered-at-margin adapters, preserves the
+  no-fallback capacity contract, and emits
+  `deepr-mcp-consult-fleet-validation-v1`.
 - Added explicit `backend=local|plan` support to MCP `deepr_query_expert`.
   These modes route the named expert through the existing one-expert
   `deepr-consult-v1` path, attach `consult_artifact`, set

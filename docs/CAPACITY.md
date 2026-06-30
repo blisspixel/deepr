@@ -138,6 +138,8 @@ different contract.
 
 ```bash
 deepr capacity probe-plan codex
+deepr capacity probe-fleet --backend codex --backend claude --backend grok --backend antigravity --json
+deepr mcp validate-consult-fleet --plan codex --plan claude --plan grok --plan antigravity --json
 deepr expert sync "Platform Team Expert" --plan codex -y
 deepr expert absorb "Platform Team Expert" report.md --plan claude -y
 deepr expert learn "Platform Team Expert" "new platform engineering signals" --plan codex -y
@@ -160,6 +162,13 @@ Long prompts go through safe delivery modes:
 Quota events go to `data/capacity/quota_ledger.jsonl`. Dollar-cost events still
 write the canonical cost ledger as `$0` entries when Deepr itself made no
 metered API call.
+
+`deepr capacity probe-fleet` validates plan CLI transport and auth in one
+bounded concurrent pass. `deepr mcp validate-consult-fleet` goes one layer
+deeper by running the no-metered consult contract through selected plan
+backends and emitting `deepr-mcp-consult-fleet-validation-v1`. It verifies form,
+capacity, cost, trace, and collaboration metadata only; answer quality still
+belongs to human or calibrated-model review.
 
 ## Scheduled Maintenance
 

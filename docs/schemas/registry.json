@@ -167,6 +167,14 @@
       "compatibility": "additive-within-v1"
     },
     {
+      "name": "mcp-consult-fleet-validation",
+      "schema_version": "deepr-mcp-consult-fleet-validation-v1",
+      "kind": "deepr.mcp.consult_fleet_validation",
+      "path": "mcp-consult-fleet-validation-v1.json",
+      "status": "experimental",
+      "compatibility": "additive-within-v1"
+    },
+    {
       "name": "source-pack-manifest",
       "schema_version": "deepr-source-pack-manifest-v1",
       "kind": "deepr.expert.source_pack_manifest",

@@ -20,6 +20,8 @@ from deepr.mcp.transport.http import HttpClient, HttpMessage
 
 MCP_CONSULT_VALIDATION_SCHEMA_VERSION = "deepr-mcp-consult-validation-v1"
 MCP_CONSULT_VALIDATION_KIND = "deepr.mcp.consult_validation"
+MCP_CONSULT_FLEET_VALIDATION_SCHEMA_VERSION = "deepr-mcp-consult-fleet-validation-v1"
+MCP_CONSULT_FLEET_VALIDATION_KIND = "deepr.mcp.consult_fleet_validation"
 
 ValidationMode = Literal["offline", "in_process", "http"]
 ValidationBackend = Literal["local", "plan"]
@@ -101,6 +103,34 @@ class MCPConsultValidationReport:
             "error": self.error,
         }
         return payload
+
+
+@dataclass(frozen=True)
+class PlanConsultFleetTarget:
+    """One plan backend selected for no-metered consult validation."""
+
+    plan: str
+    name: str
+    installed: bool
+    experimental: bool = False
+    metered_at_margin: bool = False
+    tos_note: str = ""
+    skip_reason: str = ""
+
+    @property
+    def skipped(self) -> bool:
+        return bool(self.skip_reason)
+
+    def base_payload(self) -> dict[str, Any]:
+        return {
+            "plan": self.plan,
+            "name": self.name,
+            "installed": self.installed,
+            "experimental": self.experimental,
+            "metered_at_margin": self.metered_at_margin,
+            "skipped": self.skipped,
+            "tos_note": self.tos_note,
+        }
 
 
 def _check(name: str, condition: bool, passed: str, failed: str) -> MCPConsultValidationCheck:
@@ -480,9 +510,24 @@ async def run_in_process_consult_validation(
             ),
             timeout=timeout_seconds,
         )
-    except (TimeoutError, OSError, RuntimeError, ValueError) as exc:
-        call_error: dict[str, Any] = {"error_code": "CONSULT_VALIDATION_FAILED", "message": str(exc)}
-        call_checks = (MCPConsultValidationCheck("live_consult_call", "failed", str(exc)),)
+    except TimeoutError:
+        target = f" plan={plan}" if plan else ""
+        detail = f"live {backend} consult{target} timed out after {timeout_seconds:.1f}s"
+        call_error = {"error_code": "CONSULT_VALIDATION_FAILED", "message": detail}
+        call_checks = (MCPConsultValidationCheck("live_consult_call", "failed", detail),)
+        return _report(
+            mode="in_process",
+            backend=backend,
+            question=question,
+            experts=experts,
+            checks=call_checks,
+            plan=plan,
+            error=call_error,
+        )
+    except (OSError, RuntimeError, ValueError) as exc:
+        detail = str(exc) or exc.__class__.__name__
+        call_error = {"error_code": "CONSULT_VALIDATION_FAILED", "message": detail}
+        call_checks = (MCPConsultValidationCheck("live_consult_call", "failed", detail),)
         return _report(
             mode="in_process",
             backend=backend,
@@ -505,6 +550,86 @@ async def run_in_process_consult_validation(
         payload=payload,
         error=validation_error,
     )
+
+
+async def run_in_process_plan_consult_fleet_validation(
+    *,
+    targets: tuple[PlanConsultFleetTarget, ...],
+    question: str = DEFAULT_VALIDATION_QUESTION,
+    experts: tuple[str, ...] = (),
+    plan_model: str | None = None,
+    concurrency: int = 4,
+    timeout_seconds: float = 60.0,
+) -> dict[str, Any]:
+    """Validate selected plan-backed consults concurrently with no metered calls.
+
+    The payload is a fleet-level wrapper over the existing per-plan validation
+    report. It checks transport and contract health, not answer quality.
+    """
+
+    semaphore = asyncio.Semaphore(max(1, concurrency))
+
+    async def run_target(target: PlanConsultFleetTarget) -> dict[str, Any]:
+        if target.skipped:
+            return {
+                **target.base_payload(),
+                "status": "skipped",
+                "ok": False,
+                "summary": {"ok": False, "check_count": 0, "failed_checks": []},
+                "consult_summary": {},
+                "error": {"message": target.skip_reason},
+            }
+        async with semaphore:
+            report = await run_in_process_consult_validation(
+                question=question,
+                experts=experts,
+                backend="plan",
+                plan=target.plan,
+                plan_model=plan_model,
+                timeout_seconds=timeout_seconds,
+            )
+        payload = report.to_dict()
+        return {
+            **target.base_payload(),
+            "status": "ok" if report.ok else "failed",
+            "ok": report.ok,
+            "summary": payload["summary"],
+            "consult_summary": payload["consult_summary"],
+            "error": payload["error"],
+            "report": payload,
+        }
+
+    results = list(await asyncio.gather(*(run_target(target) for target in targets)))
+    validated = [result for result in results if not result["skipped"]]
+    failed = [result for result in validated if not result["ok"]]
+    ok = [result for result in validated if result["ok"]]
+    skipped = [result for result in results if result["skipped"]]
+    return {
+        "schema_version": MCP_CONSULT_FLEET_VALIDATION_SCHEMA_VERSION,
+        "kind": MCP_CONSULT_FLEET_VALIDATION_KIND,
+        "generated_at": _utc_now().isoformat(),
+        "contract": {
+            "cost_usd": 0.0,
+            "writes_state": False,
+            "calls_metered_api": False,
+            "uses_plan_quota": True,
+            "semantic_verdict": False,
+            "checks_form_and_side_effects_only": True,
+            "metered_backends_skipped_by_default": True,
+        },
+        "mode": "in_process",
+        "backend": "plan",
+        "question": question,
+        "requested_experts": list(experts),
+        "concurrency": concurrency,
+        "selected_count": len(results),
+        "validated_count": len(validated),
+        "ok_count": len(ok),
+        "failed_count": len(failed),
+        "skipped_count": len(skipped),
+        "summary": {"ok": bool(validated) and not failed, "failed_plans": [result["plan"] for result in failed]},
+        "results": results,
+    }
 
 
 def _tool_arguments(

@@ -37,6 +37,7 @@ All v1 schemas are additive within the same schema version:
 | `deepr-consult-quality-eval-case-v1` | [consult-quality-eval-case-v1.json](consult-quality-eval-case-v1.json) | Read-only semantic quality review case packet for human or calibrated-model consult judging |
 | `deepr-consult-quality-review-v1` | [consult-quality-review-v1.json](consult-quality-review-v1.json) | Reviewed consult-quality score artifact with explicit semantic judge, policy gate, and safe gap/eval promotion actions |
 | `deepr-mcp-consult-validation-v1` | [mcp-consult-validation-v1.json](mcp-consult-validation-v1.json) | No-metered MCP expert-consult validation report for offline fixtures, in-process checks, and HTTP endpoints |
+| `deepr-mcp-consult-fleet-validation-v1` | [mcp-consult-fleet-validation-v1.json](mcp-consult-fleet-validation-v1.json) | Bounded concurrent no-metered consult validation across selected plan backends |
 | `deepr-source-pack-manifest-v1` | [source-pack-manifest-v1.json](source-pack-manifest-v1.json) | Deterministic source-pack compiler manifest with provenance hashes and no semantic verdicts |
 | `deepr-source-note-v1` | [source-note-v1.json](source-note-v1.json) | Deterministic source-note cards with stable IDs, source windows, hashes, and provenance refs |
 | `deepr-semantic-claim-extraction-v1` | [semantic-claim-extraction-v1.json](semantic-claim-extraction-v1.json) | Verifier-gated semantic claim candidates from source notes with prompt/schema version capture and no graph writes |

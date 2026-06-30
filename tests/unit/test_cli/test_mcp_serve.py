@@ -187,6 +187,61 @@ def test_mcp_validate_consult_requires_explicit_plan():
     assert "--plan is required" in result.output
 
 
+def test_mcp_validate_consult_fleet_outputs_json(monkeypatch):
+    from deepr.mcp.consult_validation import MCPConsultValidationCheck, MCPConsultValidationReport
+
+    calls: list[str | None] = []
+
+    async def fake_validation(**kwargs):
+        calls.append(kwargs["plan"])
+        return MCPConsultValidationReport(
+            mode="in_process",
+            backend="plan",
+            plan=kwargs["plan"],
+            question=kwargs["question"],
+            requested_experts=kwargs["experts"],
+            checks=(MCPConsultValidationCheck("x", "passed", "ok"),),
+        )
+
+    monkeypatch.setattr("shutil.which", lambda exe: f"C:/bin/{exe}.exe")
+    monkeypatch.setattr("deepr.mcp.consult_validation.run_in_process_consult_validation", fake_validation)
+
+    result = CliRunner().invoke(
+        mcp,
+        [
+            "validate-consult-fleet",
+            "--plan",
+            "codex",
+            "--plan",
+            "claude",
+            "--expert",
+            "AI Agent Harnesses",
+            "--json",
+        ],
+    )
+
+    assert result.exit_code == 0, result.output
+    payload = json.loads(result.output)
+    assert payload["schema_version"] == "deepr-mcp-consult-fleet-validation-v1"
+    assert payload["ok_count"] == 2
+    assert payload["failed_count"] == 0
+    assert [result["plan"] for result in payload["results"]] == ["codex", "claude"]
+    assert calls == ["codex", "claude"]
+
+
+def test_mcp_validate_consult_fleet_skips_metered_plan(monkeypatch):
+    monkeypatch.setattr("shutil.which", lambda exe: f"C:/bin/{exe}.exe")
+
+    result = CliRunner().invoke(mcp, ["validate-consult-fleet", "--plan", "copilot", "--json"])
+
+    assert result.exit_code == 1
+    payload = json.loads(result.output)
+    assert payload["validated_count"] == 0
+    assert payload["skipped_count"] == 1
+    assert payload["results"][0]["status"] == "skipped"
+    assert "metered" in payload["results"][0]["error"]["message"]
+
+
 def test_mcp_test_uses_only_read_only_no_cost_calls():
     class FakeServer:
         async def list_experts(self):

@@ -1,0 +1,106 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/blisspixel/deepr/docs/schemas/mcp-consult-fleet-validation-v1.json",
+  "title": "Deepr MCP Consult Fleet Validation v1",
+  "type": "object",
+  "additionalProperties": true,
+  "required": [
+    "schema_version",
+    "kind",
+    "generated_at",
+    "contract",
+    "mode",
+    "backend",
+    "question",
+    "requested_experts",
+    "concurrency",
+    "selected_count",
+    "validated_count",
+    "ok_count",
+    "failed_count",
+    "skipped_count",
+    "summary",
+    "results"
+  ],
+  "properties": {
+    "schema_version": {"const": "deepr-mcp-consult-fleet-validation-v1"},
+    "kind": {"const": "deepr.mcp.consult_fleet_validation"},
+    "generated_at": {"type": "string", "format": "date-time"},
+    "contract": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": [
+        "cost_usd",
+        "writes_state",
+        "calls_metered_api",
+        "uses_plan_quota",
+        "semantic_verdict",
+        "checks_form_and_side_effects_only",
+        "metered_backends_skipped_by_default"
+      ],
+      "properties": {
+        "cost_usd": {"const": 0.0},
+        "writes_state": {"const": false},
+        "calls_metered_api": {"const": false},
+        "uses_plan_quota": {"const": true},
+        "semantic_verdict": {"const": false},
+        "checks_form_and_side_effects_only": {"const": true},
+        "metered_backends_skipped_by_default": {"const": true}
+      }
+    },
+    "mode": {"const": "in_process"},
+    "backend": {"const": "plan"},
+    "question": {"type": "string"},
+    "requested_experts": {"type": "array", "items": {"type": "string"}},
+    "concurrency": {"type": "integer", "minimum": 1},
+    "selected_count": {"type": "integer", "minimum": 0},
+    "validated_count": {"type": "integer", "minimum": 0},
+    "ok_count": {"type": "integer", "minimum": 0},
+    "failed_count": {"type": "integer", "minimum": 0},
+    "skipped_count": {"type": "integer", "minimum": 0},
+    "summary": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": ["ok", "failed_plans"],
+      "properties": {
+        "ok": {"type": "boolean"},
+        "failed_plans": {"type": "array", "items": {"type": "string"}}
+      }
+    },
+    "results": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": true,
+        "required": [
+          "plan",
+          "name",
+          "installed",
+          "experimental",
+          "metered_at_margin",
+          "skipped",
+          "status",
+          "ok",
+          "summary",
+          "consult_summary",
+          "error"
+        ],
+        "properties": {
+          "plan": {"type": "string"},
+          "name": {"type": "string"},
+          "installed": {"type": "boolean"},
+          "experimental": {"type": "boolean"},
+          "metered_at_margin": {"type": "boolean"},
+          "skipped": {"type": "boolean"},
+          "status": {"type": "string", "enum": ["ok", "failed", "skipped"]},
+          "ok": {"type": "boolean"},
+          "tos_note": {"type": "string"},
+          "summary": {"type": "object"},
+          "consult_summary": {"type": "object"},
+          "error": {"type": "object"},
+          "report": {"type": "object"}
+        }
+      }
+    }
+  }
+}
