@@ -8,6 +8,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- Wired MCP `deepr_query_expert backend=local|plan` to the owned-capacity
+  `ExpertChatBackend` adapters for one read-only compiled-context turn. These
+  modes now attach `readonly_chat_artifact`, keep `research_triggered=0`,
+  disable live metered fallback, and keep scoped-key spend at `$0`.
 - Added a council-level regression test proving expert consult fan-out runs
   concurrently while respecting the bounded council concurrency cap.
 - Added local Ollama and plan-quota `ExpertChatBackend` adapters for read-only
@@ -34,12 +38,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   consult validator, skips metered-at-margin adapters, preserves the
   no-fallback capacity contract, and emits
   `deepr-mcp-consult-fleet-validation-v1`.
-- Added explicit `backend=local|plan` support to MCP `deepr_query_expert`.
-  These modes route the named expert through the existing one-expert
-  `deepr-consult-v1` path, attach `consult_artifact`, set
-  `research_triggered=0`, disable live metered fallback, and estimate scoped
-  key spend as `$0`. The default `backend=api` path remains the legacy
-  metered-capable expert chat path.
 - Added `deepr capacity probe-fleet`, a bounded concurrent validation command
   for plan-quota CLIs. It probes selected backends in one pass, records the same
   quota observations as `probe-plan`, skips metered-at-margin adapters by

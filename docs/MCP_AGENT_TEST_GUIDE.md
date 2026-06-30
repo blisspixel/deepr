@@ -39,7 +39,7 @@ explicit plan-capacity path.
   budget; use local or plan modes for no-metered tests.
 - `deepr_query_expert` can stay off metered APIs when the caller sets
   `backend` to `local` or `plan`. Those modes route one named expert through
-  the `deepr-consult-v1` contract, attach `consult_artifact`, set
+  a read-only compiled-context chat turn, attach `readonly_chat_artifact`, set
   `research_triggered=0`, and reject `agentic=true`. Omitted or
   `backend="api"` still uses the legacy metered-capable chat path.
 - `deepr_research`, `deepr_agentic_research`, `deepr_expert_absorb`,
@@ -275,15 +275,16 @@ Council call:
 
 Expected:
 
-- `schema_version` is `deepr-consult-v1`.
-- `trace.schema_version` is `deepr-consult-trace-v1`.
+- For `deepr_consult_experts`, `schema_version` is `deepr-consult-v1`.
+- For `deepr_consult_experts`, `trace.schema_version` is
+  `deepr-consult-trace-v1`.
 - `cost_usd` is `0` for `deepr_consult_experts`; `cost` is `0` for
   `deepr_query_expert`.
 - `capacity.synthesis_backend` is `local`.
 - `capacity.provider` is `local`.
 - `capacity.live_metered_fallback` is `false`.
 - For `deepr_query_expert`, `research_triggered` is `0` and
-  `consult_artifact.schema_version` is `deepr-consult-v1`.
+  `readonly_chat_artifact.schema_version` is `deepr-query-expert-readonly-v1`.
 
 If local capacity is unavailable, the tool should return a structured backend
 error instead of falling through to a provider API.
@@ -329,13 +330,14 @@ Single-expert query shorthand:
 
 Expected:
 
-- `schema_version` is `deepr-consult-v1`.
-- `trace.schema_version` is `deepr-consult-trace-v1`.
+- For `deepr_consult_experts`, `schema_version` is `deepr-consult-v1`.
+- For `deepr_consult_experts`, `trace.schema_version` is
+  `deepr-consult-trace-v1`.
 - `capacity.synthesis_backend` is `plan`.
 - `capacity.provider` starts with `plan_quota:`.
 - `capacity.live_metered_fallback` is `false`.
 - For `deepr_query_expert`, `research_triggered` is `0` and
-  `consult_artifact.schema_version` is `deepr-consult-v1`.
+  `readonly_chat_artifact.schema_version` is `deepr-query-expert-readonly-v1`.
 - `cost_usd` for `deepr_consult_experts` or `cost` for `deepr_query_expert`
   should stay `0` for Deepr metered API spend. The plan CLI may consume the
   user's subscription quota.

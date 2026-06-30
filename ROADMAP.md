@@ -138,9 +138,10 @@ The fleet-autopilot track (Phase 4d) is largely closed; the active edge is quali
    consult synthesis can use local and explicit plan capacity today, API
    consult synthesis now accepts explicit OpenAI or Anthropic provider/model
    selection with native Anthropic Messages API cost settlement, and
-   `deepr_query_expert` now accepts explicit `backend=local|plan` by routing
-   a named expert through the `deepr-consult-v1` one-expert artifact with live
-   metered fallback disabled, `research_triggered=0`, and scoped-key `$0`
+   `deepr_query_expert` now accepts explicit `backend=local|plan` by running
+   one read-only compiled-context turn through local Ollama or explicit
+   plan-quota `ExpertChatBackend` adapters with live metered fallback disabled,
+   `research_triggered=0`, `readonly_chat_artifact`, and scoped-key `$0`
    cost estimation. This is not full interactive chat backend parity: the
    default `backend=api` path remains the legacy OpenAI-shaped chat path, but
    primary non-streaming answer-generation turns, streaming setup/tool rounds,
@@ -150,13 +151,11 @@ The fleet-autopilot track (Phase 4d) is largely closed; the active edge is quali
    provider stream until the backend contract grows a streaming interface, and
    deep-research job submission still uses the OpenAI Responses API path until
    there is a separate research-job backend contract. Local Ollama and
-   plan-quota `ExpertChatBackend` adapters now exist for read-only
-   compiled-context turns with tools and streaming declared unsupported, but
-   they are not wired into public interactive chat routing yet. Next continue
+   plan-quota `ExpertChatBackend` adapters are wired into public read-only
+   query routing with tools and streaming declared unsupported. Next continue
    [expert-chat-capacity-backends.md](docs/design/expert-chat-capacity-backends.md):
-   wire local and plan read-only chat routing, then add OpenAI and Anthropic
-   provider adapters behind
-   no-fallback and budget-ledger gates.
+   add Anthropic non-agentic expert chat, then broaden backend parity behind
+   no-fallback, tool-policy, and budget-ledger gates.
 5. **Level 5 consult trace and semantic quality flywheel** - stored-belief perspectives, ledgered synthesis, `$0` consult evals, explicit local/plan synthesis, MCP-owned-capacity consult arguments, replayable `deepr-consult-trace-v1` records, sanitized `deepr-consult-trace-candidates-v1` review, `deepr-consult-quality-eval-case-v1` semantic review packets, and `deepr-consult-quality-review-v1` scored review artifacts are in place. `deepr expert review-consult-quality` now records human or calibrated-model scores, blocks lexical verdicts, enforces reviewer and acceptance gates, and promotes only accepted cases into gap or eval artifacts without writing beliefs. Next connect those reviewed artifacts to trend reporting, consult prompt regression selection, and calibrated-model judge runs behind explicit local, plan, or budgeted API capacity. Keep the trace contract disciplined: include a small always-present context packet, keep larger belief/source/gap packets context-selected, validate generated trace and host-handoff artifacts against schema before they ship, and report which checks ran so a failed consult can become a durable regression case. Why: consult is Deepr's primary team-of-experts surface, and self-improvement only works when failures become durable test cases instead of one-off anecdotes. See [level-5-6-expert-maturity.md](docs/design/level-5-6-expert-maturity.md).
 6. **Expert self-model and metacognitive monitor** - first-class read-only `deepr-expert-self-model-v1` records are in place for capabilities, limits, current goals, calibration, learning strategy, continuity summary, blocked capabilities, unresolved risks, and a bounded current-focus packet. Consult perspective context now carries the self-model focus packet when an expert profile is available, and sync learning loop records plus sync capacity gates now carry the same compact packet as read-only run context. `deepr expert monitor` now emits a read-only `deepr-metacognitive-monitor-v1` artifact that turns self-model risks, failed loop runs, capacity blocks, and consult trace candidates into review-required proposals without applying them. `deepr expert promote-monitor` previews by default and applies only with `--apply`, promoting one reviewed gap/eval proposal into a metacognition gap and/or local eval-case artifact. `deepr expert propose-self-model` now previews or writes a verifier-gated `deepr-expert-self-model-update-v1` review record for self-model-related monitor proposals, and `deepr expert accept-self-model` writes a separate `deepr-expert-self-model-update-acceptance-v1` artifact only when outcome evidence and policy gates are explicit. Accepted records are attached to sync loop-run context as read-only guidance; they do not mutate the derived self-model or grant authority. Next connect accepted records to concrete learning-policy effects only when measured before/after outcomes exist. Why: Level 5/6 in Deepr means the expert can inspect and improve its learning process while deterministic workflow code still owns spend, writes, schemas, rollout, and review gates.
    The consciousness-adjacent part should stay named as digital continuity: `deepr expert memory-card` now provides the first grounded identity envelope for a durable expert, joining self-model focus, belief events, current goals, calibration, gaps, contradictions, and update policy in `EXPERT.md`. Next attach accepted self-model records and loop-history deltas to the same working-state packet for learning transactions.

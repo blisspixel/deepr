@@ -34,7 +34,7 @@ _KEY_TOOLS: tuple[tuple[str, str], ...] = (
     ),
     (
         "deepr_query_expert",
-        "Ask one expert; use backend local or plan for no-metered consult mode, api for legacy chat.",
+        "Ask one expert; use backend local or plan for no-metered read-only context chat, api for legacy chat.",
     ),
     ("deepr_what_changed", "See what an expert learned since a prior point."),
     ("deepr_explain_belief", "Get why an expert holds a claim, with its evidence."),
@@ -67,7 +67,7 @@ def build_capabilities(store: Any, registry: ToolRegistry, *, version: str) -> d
             ),
             "single_expert": (
                 "pass one expert name in deepr_consult_experts.experts, or call deepr_query_expert with "
-                "backend='local' or backend='plan', for a no-metered one-expert consult"
+                "backend='local' or backend='plan', for a no-metered read-only one-expert turn"
             ),
         },
         "cost_tiers": {

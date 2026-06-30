@@ -22,8 +22,11 @@ settled through the canonical ledger.
 | CLI judges | Explicit local eval judging with `--allow-cli-judge` | Opt-in only because Deepr cannot prove whether a vendor CLI uses quota, credits, or metered credentials |
 
 Expert consult synthesis already supports local and explicit plan capacity.
-Classic expert chat still needs a backend-neutral adapter before it can honestly
-support local, plan, and paid API selection. The implementation plan is
+MCP `deepr_query_expert backend=local|plan` now runs one read-only
+compiled-context turn through owned-capacity chat backends with live metered
+fallback disabled. Full interactive `expert chat` still needs more
+backend-neutral work before it can honestly claim local, plan, and paid API
+parity. The implementation plan is
 [expert-chat-capacity-backends.md](design/expert-chat-capacity-backends.md).
 
 Automatic plan routing is not a blanket claim. Codex, Claude Code, and Grok
