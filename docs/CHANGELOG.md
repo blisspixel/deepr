@@ -8,6 +8,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- Added a streaming method to the expert-chat backend contract and routed final
+  OpenAI token streaming through `OpenAIExpertChatBackend`, including streamed
+  usage settlement. Local, plan, and Anthropic expert-chat backends continue to
+  declare streaming unsupported until provider-specific policy and tests exist.
 - Added explicit Anthropic API support for non-agentic MCP
   `deepr_query_expert backend=api` calls. `provider=anthropic` now selects a
   native Anthropic Messages `ExpertChatBackend`, disables tools and streaming,
