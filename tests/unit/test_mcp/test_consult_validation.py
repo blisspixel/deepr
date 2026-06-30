@@ -9,8 +9,12 @@ import pytest
 from deepr.mcp import consult_validation
 from deepr.mcp.consult_validation import (
     MCPConsultValidationCheck,
+    MCPConsultValidationReport,
+    PlanConsultFleetTarget,
     build_offline_consult_fixture,
     run_http_consult_validation,
+    run_in_process_consult_validation,
+    run_in_process_plan_consult_fleet_validation,
     run_offline_consult_validation,
     validate_consult_payload,
 )
@@ -119,3 +123,67 @@ def test_validation_check_failure_marks_report_failed():
 
     assert report.ok is False
     assert report.to_dict()["summary"]["failed_checks"] == ["x"]
+
+
+@pytest.mark.asyncio
+async def test_in_process_consult_validation_reports_timeout_detail(monkeypatch):
+    async def fake_tool(**_kwargs):
+        raise TimeoutError()
+
+    monkeypatch.setattr(consult_validation, "consult_experts_tool", fake_tool)
+
+    report = await run_in_process_consult_validation(backend="plan", plan="grok", timeout_seconds=1.5)
+
+    assert report.ok is False
+    assert report.error["message"] == "live plan consult plan=grok timed out after 1.5s"
+    assert report.checks[0].detail == report.error["message"]
+
+
+@pytest.mark.asyncio
+async def test_plan_consult_fleet_validation_runs_selected_targets(monkeypatch):
+    calls: list[str | None] = []
+
+    async def fake_validation(**kwargs):
+        calls.append(kwargs["plan"])
+        return MCPConsultValidationReport(
+            mode="in_process",
+            backend="plan",
+            plan=kwargs["plan"],
+            question=kwargs["question"],
+            requested_experts=kwargs["experts"],
+            checks=(MCPConsultValidationCheck("x", "passed", "ok"),),
+        )
+
+    monkeypatch.setattr(consult_validation, "run_in_process_consult_validation", fake_validation)
+
+    payload = await run_in_process_plan_consult_fleet_validation(
+        targets=(
+            PlanConsultFleetTarget("codex", "Codex", installed=True),
+            PlanConsultFleetTarget("claude", "Claude", installed=True),
+        ),
+        question="q",
+        experts=("AI Agent Harnesses",),
+        concurrency=2,
+    )
+
+    assert payload["schema_version"] == "deepr-mcp-consult-fleet-validation-v1"
+    assert payload["ok_count"] == 2
+    assert payload["failed_count"] == 0
+    assert payload["summary"]["ok"] is True
+    assert calls == ["codex", "claude"]
+
+
+@pytest.mark.asyncio
+async def test_plan_consult_fleet_validation_skips_without_call(monkeypatch):
+    async def fake_validation(**_kwargs):
+        raise AssertionError("skipped targets must not run a consult")
+
+    monkeypatch.setattr(consult_validation, "run_in_process_consult_validation", fake_validation)
+
+    payload = await run_in_process_plan_consult_fleet_validation(
+        targets=(PlanConsultFleetTarget("copilot", "Copilot", installed=True, skip_reason="metered"),),
+    )
+
+    assert payload["validated_count"] == 0
+    assert payload["skipped_count"] == 1
+    assert payload["results"][0]["status"] == "skipped"

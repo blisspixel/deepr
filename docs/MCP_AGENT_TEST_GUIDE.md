@@ -66,7 +66,14 @@ To exercise real local or plan capacity on the host machine:
 ```powershell
 deepr mcp validate-consult --live --synthesis-backend local --expert "AI Agent Harnesses" --json
 deepr mcp validate-consult --live --synthesis-backend plan --plan codex --expert "AI Agent Harnesses" --json
+deepr mcp validate-consult-fleet --plan codex --plan claude --plan grok --plan antigravity --expert "AI Agent Harnesses" --json
 ```
+
+`validate-consult-fleet` fans out bounded in-process consult validations across
+selected plan CLIs and emits
+`schema_version="deepr-mcp-consult-fleet-validation-v1"`. It skips
+metered-at-margin adapters, uses the same no-metered consult contract, and does
+not score semantic answer quality.
 
 To validate the same path over HTTP from the endpoint an external agent will
 use:

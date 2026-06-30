@@ -118,6 +118,11 @@ The explicit path needs no admission (the operator chose it directly):
   observations as `probe-plan`, and emit a versioned
   `deepr-plan-fleet-probe-v1` payload. This is validation fan-out, not
   auto-routing permission.
+- `deepr mcp validate-consult-fleet --plan codex --plan claude` - run the
+  no-metered consult contract through selected plan CLIs concurrently and emit
+  `deepr-mcp-consult-fleet-validation-v1`. This proves consult envelope,
+  capacity, trace, cost, and collaboration metadata across multiple backends;
+  it still does not score answer meaning.
 
 `choose_plan_quota_backend` resolves an explicit `--plan` request through the
 same safety gate but without the admission/observed-quota requirement.
@@ -153,6 +158,12 @@ metered-at-margin adapters unless `--include-metered -y` is set, records
 quota-ledger observations, and fails if selected non-skipped backends fail or
 nothing actually ran. It is intentionally separate from auto-routing because
 most CLIs still do not expose trusted remaining quota.
+
+`deepr mcp validate-consult-fleet` is the contract validation companion. It
+fans out in-process `deepr_consult_experts` calls over selected plan backends,
+preserves the no-metered fallback invariant, and reports one result per plan.
+It is intentionally side-effect and form validation, not a semantic ranking of
+which CLI answered best.
 
 ## What is deterministic vs model judgment (AGENTIC_BALANCE)
 
