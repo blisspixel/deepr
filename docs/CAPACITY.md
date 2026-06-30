@@ -18,7 +18,7 @@ settled through the canonical ledger.
 |---|---|---|
 | Local Ollama | `expert make --local`, `expert absorb --local`, `expert sync --local`, `expert sync --local --fresh-context`, `expert sync --local --deep-context`, `eval local`, `eval local-context`, and scored admission | No provider API key required; automatic routing requires measured local quality evidence |
 | Provider APIs | Full research and high-quality synthesis when keys are configured | Budget ceilings, preflight estimates, reservations, append-only cost settlement |
-| Plan-quota CLIs | Explicit `expert sync --plan <id>`, `expert sync-all --plan <id>`, `expert absorb --plan <id>`, `expert learn --plan <id>`, `expert learn-web --plan <id>`, `expert consult --plan <id>`, and `capacity probe-plan <id>` | Metered API-key env vars are stripped from child processes, auth mode is checked, metered-at-margin CLI backends are rejected for roster plan dispatch, and automatic routing waits for trusted remaining-quota evidence |
+| Plan-quota CLIs | Explicit `expert sync --plan <id>`, `expert sync-all --plan <id>`, `expert route-gaps --execute --plan <id>`, `expert absorb --plan <id>`, `expert learn --plan <id>`, `expert learn-web --plan <id>`, `expert consult --plan <id>`, and `capacity probe-plan <id>` | Metered API-key env vars are stripped from child processes, auth mode is checked, metered-at-margin CLI backends are rejected for roster plan dispatch, and automatic routing waits for trusted remaining-quota evidence |
 | CLI judges | Explicit local eval judging with `--allow-cli-judge` | Opt-in only because Deepr cannot prove whether a vendor CLI uses quota, credits, or metered credentials |
 
 Expert consult synthesis already supports local and explicit plan capacity.
@@ -196,18 +196,19 @@ deepr expert health-check "Platform Team Expert" --archive-stale --scheduled --j
 deepr expert loop-status "Platform Team Expert" --json
 ```
 
-Scheduled sync consumes `capacity next` guidance. Scheduled gap-fill, reflect,
-and health-check surfaces return wait or action-plan payloads instead of
-starting metered work unless the operator deliberately reruns without
+Scheduled sync consumes `capacity next` guidance. Scheduled gap-fill,
+reflection, and health-check surfaces return wait or action-plan payloads
+instead of starting metered work unless the operator deliberately reruns without
 `--scheduled` or supplies the required confirmation. These payloads include
 durable loop-run records and published schema identifiers.
 
-`deepr expert sync-all --scheduled` now uses the same waterfall decision as
-single-expert sync for roster-level dispatch: local first, then an admitted
-plan backend only when a trusted quota observation says usable headroom remains,
-then metered only when the operator leaves scheduled mode or uses `--api`.
-`sync-all --plan <id>` is the explicit non-metered plan override for the whole
-roster.
+`deepr expert sync-all --scheduled` and scheduled `deepr expert route-gaps
+--execute` now use the shared waterfall for non-metered dispatch. `sync-all`
+uses the `sync` task class; gap-fill uses the `gap_fill` task class. Both can
+consume an admitted plan backend only when a trusted quota observation says
+usable headroom remains, and both wait instead of falling through to metered
+API work in scheduled mode. `sync-all --plan <id>` and
+`route-gaps --execute --plan <id>` are the explicit non-metered plan overrides.
 
 ## Cost Accounting Rules
 
