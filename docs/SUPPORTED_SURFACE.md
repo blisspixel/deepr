@@ -116,6 +116,12 @@ must not be described as usable capacity.
   model judging; they cannot commit beliefs. `deepr mcp validate-consult`
   emits `deepr-mcp-consult-validation-v1` reports for offline fixtures,
   in-process local or plan validation, and HTTP endpoint validation.
+  `deepr capacity validate-fleet` emits `deepr-plan-fleet-validation-v1` as the
+  preferred plan-fleet operator health check: it runs selected plan CLI
+  transport probes, records quota observations, then validates the no-metered
+  consult contract only for transports that succeeded. It fails selected
+  backends that are skipped, missing, exhausted, timed out, or return failed
+  synthesis status.
   `deepr mcp validate-consult-fleet` emits
   `deepr-mcp-consult-fleet-validation-v1` for bounded concurrent no-metered
   validation across selected plan backends. MCP JSON-object tool results

@@ -33,6 +33,14 @@
     },
     "question": {"type": "string"},
     "answer": {"type": "string"},
+    "synthesis_status": {
+      "type": "string",
+      "description": "Completion state of the council synthesis step, such as completed, failed, or skipped_no_valid_perspectives."
+    },
+    "synthesis_error_type": {
+      "type": "string",
+      "description": "Error class name when synthesis_status is failed; empty otherwise."
+    },
     "experts_consulted": {"type": "array", "items": {"type": "string"}},
     "perspectives": {
       "type": "array",

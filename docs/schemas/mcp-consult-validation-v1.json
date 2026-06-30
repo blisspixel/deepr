@@ -71,6 +71,8 @@
         "perspective_count": {"type": "integer", "minimum": 0},
         "agreement_count": {"type": "integer", "minimum": 0},
         "disagreement_count": {"type": "integer", "minimum": 0},
+        "synthesis_status": {"type": ["string", "null"]},
+        "synthesis_error_type": {"type": ["string", "null"]},
         "cost_usd": {"type": "number", "minimum": 0},
         "capacity": {"type": "object"},
         "metered_fallback_allowed": {"type": ["boolean", "null"]}

@@ -16,7 +16,15 @@ from deepr.backends.quota_ledger import QuotaEventType, QuotaWindowKind, load_qu
 from deepr.backends.quota_snapshot import QuotaSnapshot, QuotaWindowSnapshot
 from deepr.cli.commands.capacity import capacity
 
-_CLEAN = ("OPENAI_API_KEY", "CODEX_API_KEY", "CODEX_ACCESS_TOKEN")
+_CLEAN = (
+    "OPENAI_API_KEY",
+    "CODEX_API_KEY",
+    "CODEX_ACCESS_TOKEN",
+    "ANTHROPIC_API_KEY",
+    "XAI_API_KEY",
+    "GEMINI_API_KEY",
+    "ANTIGRAVITY_API_KEY",
+)
 T0 = datetime(2026, 6, 25, 12, tzinfo=UTC)
 
 
@@ -250,6 +258,86 @@ class TestProbeFleet:
         payload = json.loads(r.output)
         assert payload["failed_count"] == 1
         assert payload["results"][0]["error"] == "quota exhausted"
+
+
+class TestValidateFleet:
+    def test_registered(self):
+        assert "validate-fleet" in capacity.commands
+
+    def test_validate_fleet_runs_transport_then_consult(self, monkeypatch, tmp_path):
+        from deepr.mcp.consult_validation import MCPConsultValidationCheck, MCPConsultValidationReport
+
+        monkeypatch.setenv("DEEPR_CAPACITY_DATA_DIR", str(tmp_path))
+        _clean_env(monkeypatch)
+        _stub_path(monkeypatch, "codex", "claude")
+        _stub_probe(monkeypatch, ok=True, reply="OK", latency_ms=7)
+        calls: list[tuple[str | None, float]] = []
+
+        async def fake_validation(**kwargs):
+            calls.append((kwargs["plan"], kwargs["timeout_seconds"]))
+            return MCPConsultValidationReport(
+                mode="in_process",
+                backend="plan",
+                plan=kwargs["plan"],
+                question=kwargs["question"],
+                requested_experts=kwargs["experts"],
+                checks=(MCPConsultValidationCheck("live_consult_call", "passed", "ok"),),
+                consult_summary={"trace_id": f"trace-{kwargs['plan']}"},
+            )
+
+        monkeypatch.setattr("deepr.mcp.consult_validation.run_in_process_consult_validation", fake_validation)
+
+        r = CliRunner().invoke(
+            capacity,
+            [
+                "validate-fleet",
+                "--backend",
+                "codex",
+                "--backend",
+                "claude",
+                "--expert",
+                "AI Agent Harnesses",
+                "--json",
+            ],
+        )
+
+        assert r.exit_code == 0, r.output
+        payload = json.loads(r.output)
+        assert payload["schema_version"] == "deepr-plan-fleet-validation-v1"
+        assert payload["contract"]["calls_metered_api"] is False
+        assert payload["contract"]["semantic_verdict"] is False
+        assert payload["summary"]["ok"] is True
+        assert payload["end_to_end_ok_count"] == 2
+        assert payload["stages"]["transport"]["ok_count"] == 2
+        assert payload["stages"]["consult"]["ok_count"] == 2
+        assert payload["summary"]["end_to_end_ok_backends"] == ["claude", "codex"]
+        assert calls == [("codex", 270.0), ("claude", 270.0)]
+        events = load_quota_events(tmp_path / "quota_ledger.jsonl")
+        assert [event.backend_id for event in events] == ["codex", "claude"]
+
+    def test_validate_fleet_skips_consult_after_transport_failure(self, monkeypatch):
+        _clean_env(monkeypatch)
+        _stub_path(monkeypatch, "codex")
+        _stub_probe(monkeypatch, ok=False, error="quota exhausted")
+        calls: list[str | None] = []
+
+        async def fake_validation(**kwargs):
+            calls.append(kwargs["plan"])
+            raise AssertionError("consult should not run when transport failed")
+
+        monkeypatch.setattr("deepr.mcp.consult_validation.run_in_process_consult_validation", fake_validation)
+
+        r = CliRunner().invoke(capacity, ["validate-fleet", "--backend", "codex", "--json"])
+
+        assert r.exit_code == 1
+        payload = json.loads(r.output)
+        assert payload["summary"]["ok"] is False
+        assert payload["failed_count"] == 1
+        assert payload["skipped_count"] == 1
+        assert payload["summary"]["failed_transport_backends"] == ["codex"]
+        assert payload["summary"]["skipped_consult_plans"] == ["codex"]
+        assert "transport failed: quota exhausted" in payload["stages"]["consult"]["results"][0]["error"]["message"]
+        assert calls == []
 
 
 class TestRefreshQuota:
