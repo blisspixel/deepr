@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.27.0] - 2026-06-30
+
+Expert quality, hallucination-risk, cost-safety, and model-support release.
+
 ### Added
 - Added Claude Sonnet 5 API support. `claude-sonnet-5` is now registered for
   Anthropic pricing, prompt-cache pricing, routing priors, API/web allowlists,
