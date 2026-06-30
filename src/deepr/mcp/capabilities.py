@@ -34,7 +34,7 @@ _KEY_TOOLS: tuple[tuple[str, str], ...] = (
     ),
     (
         "deepr_query_expert",
-        "Ask one expert; use backend local or plan for no-metered read-only context chat, api for legacy chat.",
+        "Ask one expert; use backend local or plan for no-metered read-only context chat, api for OpenAI or non-agentic Anthropic chat.",
     ),
     ("deepr_what_changed", "See what an expert learned since a prior point."),
     ("deepr_explain_belief", "Get why an expert holds a claim, with its evidence."),

@@ -164,9 +164,10 @@ class TestDefaultRegistry:
         registry = create_default_registry()
         tool = registry.get("deepr_query_expert")
         assert tool is not None
-        assert "Default backend='api' uses the legacy" in tool.description
+        assert "provider='anthropic' runs non-agentic native Anthropic chat" in tool.description
         assert "backend='local' or backend='plan'" in tool.description
         assert tool.input_schema["properties"]["backend"]["enum"] == ["api", "local", "plan"]
+        assert tool.input_schema["properties"]["provider"]["enum"] == ["openai", "anthropic"]
 
 
 class TestGatewayTool:

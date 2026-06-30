@@ -24,8 +24,10 @@ settled through the canonical ledger.
 Expert consult synthesis already supports local and explicit plan capacity.
 MCP `deepr_query_expert backend=local|plan` now runs one read-only
 compiled-context turn through owned-capacity chat backends with live metered
-fallback disabled. Full interactive `expert chat` still needs more
-backend-neutral work before it can honestly claim local, plan, and paid API
+fallback disabled. MCP `deepr_query_expert backend=api provider=anthropic`
+now supports explicit non-agentic metered Anthropic chat with native usage
+settlement. Full interactive `expert chat` still needs more backend-neutral
+work before it can honestly claim local, plan, tool, streaming, and paid API
 parity. The implementation plan is
 [expert-chat-capacity-backends.md](design/expert-chat-capacity-backends.md).
 
