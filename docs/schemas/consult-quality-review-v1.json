@@ -154,11 +154,14 @@
       "additionalProperties": true,
       "required": ["backend", "model", "cost_usd", "raw_response_stored", "source_trace_output_stored"],
       "properties": {
-        "backend": {"enum": ["local"]},
+        "backend": {"enum": ["local", "plan_quota"]},
+        "plan_backend_id": {"type": "string", "minLength": 1},
         "model": {"type": "string", "minLength": 1},
         "cost_usd": {"const": 0.0},
         "raw_response_stored": {"const": false},
-        "source_trace_output_stored": {"const": false}
+        "source_trace_output_stored": {"const": false},
+        "quota_consuming": {"type": "boolean"},
+        "cost_ledger_source": {"type": "string", "minLength": 1}
       }
     },
     "generated_at": {"type": "string", "format": "date-time"}

@@ -20,6 +20,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   It validates model-returned rubric scores and failure labels, records them as
   calibrated-model review artifacts, and avoids storing raw trace answers or
   raw judge responses.
+- Added explicit plan-quota consult-quality judging via
+  `deepr expert judge-consult-quality NAME TRACE_ID --plan BACKEND`. It reuses
+  the same calibrated review path, consumes only operator-selected plan quota,
+  records `$0` Deepr cost metadata, and keeps metered fallback disabled.
 - Added `deepr eval hallucination-risks`, a `$0` no-write advisory report over
   consult traces and reviewed consult-quality artifacts. It emits
   `deepr-hallucination-risk-report-v1`, routes observed hallucination-pattern

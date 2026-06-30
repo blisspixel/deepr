@@ -40,7 +40,7 @@ does not need that acknowledgement.
 | Local Ollama | `expert make --local`, `expert absorb --local`, `expert sync --local`, `expert sync --local --fresh-context`, `expert sync --local --deep-context`, `eval local`, `eval local-context`, and scored admission | No provider API key required; automatic routing requires measured local quality evidence |
 | Provider APIs | Full research and high-quality synthesis when keys are configured | Premium fallback behind budget ceilings, preflight estimates, reservations, and append-only cost settlement; API-backed expert profile setup previews provider upload/storage posture before provider dispatch |
 | Plan-quota CLIs | Explicit `expert sync --plan <id>`, `expert sync-all --plan <id>`, `expert route-gaps --execute --plan <id>`, `expert absorb --plan <id>`, `expert learn --plan <id>`, `expert learn-web --plan <id>`, `expert consult --plan <id>`, and `capacity probe-plan <id>` | Metered API-key env vars are stripped from child processes, auth mode is checked, metered-at-margin CLI backends are rejected for roster plan dispatch, and automatic routing waits for trusted remaining-quota evidence |
-| CLI judges | Explicit local eval judging with `--allow-cli-judge` | Opt-in only because Deepr cannot prove whether a vendor CLI uses quota, credits, or metered credentials |
+| CLI judges | Explicit local eval judging with `--allow-cli-judge`; consult-quality judging through explicit local Ollama or `--plan <id>` | Opt-in only because Deepr cannot prove whether a vendor CLI uses quota, credits, or metered credentials; plan consult-quality judges record `$0` Deepr cost metadata and consume subscription quota |
 
 Expert consult synthesis already supports local and explicit plan capacity.
 MCP `deepr_query_expert backend=local|plan` now runs one read-only
@@ -172,6 +172,7 @@ deepr expert sync-all --plan codex -y
 deepr expert absorb "Platform Team Expert" report.md --plan claude -y
 deepr expert learn "Platform Team Expert" "new platform engineering signals" --plan codex -y
 deepr expert consult "What changed in plan capacity?" --plan grok --json
+deepr expert judge-consult-quality "Platform Team Expert" consult_abc123 --plan codex --plan-model gpt-5-mini --json
 ```
 
 Before launch, Deepr removes known metered API-key environment variables for the

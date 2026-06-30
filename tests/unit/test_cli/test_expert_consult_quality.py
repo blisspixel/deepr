@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 from datetime import UTC, datetime
+from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
 from click.testing import CliRunner
@@ -215,11 +216,96 @@ def test_judge_consult_quality_local_json(monkeypatch):
     assert payload["review_status"] == "needs_improvement"
 
 
+def test_judge_consult_quality_plan_json(monkeypatch):
+    profile = _profile()
+
+    monkeypatch.setattr(
+        "deepr.backends.waterfall.choose_plan_quota_backend",
+        lambda backend: SimpleNamespace(is_plan_quota=True, plan_backend_id=backend, reason="plan backend selected"),
+    )
+
+    async def fake_review(profile_arg, trace_id, **kwargs):
+        assert profile_arg.name == profile.name
+        assert trace_id == "consult_cli_quality"
+        assert kwargs["plan_backend_id"] == "codex"
+        assert kwargs["judge_model"] == "gpt-5-mini"
+        assert kwargs["target"] == "eval"
+        return {
+            "schema_version": "deepr-consult-quality-review-v1",
+            "kind": "deepr.eval.consult_quality_review",
+            "expert_name": profile.name,
+            "trace_id": trace_id,
+            "review_status": "needs_improvement",
+            "mean_score": 2.0,
+            "decision": "needs_improvement",
+            "eligible_for_promotion": False,
+            "applied": False,
+            "actions": [],
+            "calibrated_judge": {
+                "backend": "plan_quota",
+                "plan_backend_id": "codex",
+                "model": "gpt-5-mini",
+                "cost_usd": 0.0,
+                "raw_response_stored": False,
+                "source_trace_output_stored": False,
+                "quota_consuming": True,
+                "cost_ledger_source": "plan_quota",
+            },
+        }
+
+    monkeypatch.setattr(
+        "deepr.experts.consult_quality.review_consult_quality_candidate_with_plan_judge",
+        fake_review,
+    )
+
+    with _patch_store(profile):
+        result = CliRunner().invoke(
+            expert_judge_consult_quality,
+            [
+                profile.name,
+                "consult_cli_quality",
+                "--plan",
+                "codex",
+                "--plan-model",
+                "gpt-5-mini",
+                "--target",
+                "eval",
+                "--json",
+            ],
+        )
+
+    assert result.exit_code == 0, result.output
+    payload = json.loads(result.output)
+    assert payload["calibrated_judge"]["backend"] == "plan_quota"
+    assert payload["calibrated_judge"]["cost_usd"] == 0.0
+    assert payload["calibrated_judge"]["quota_consuming"] is True
+
+
+def test_judge_consult_quality_requires_exactly_one_backend():
+    result = CliRunner().invoke(
+        expert_judge_consult_quality,
+        ["Consult Quality Expert", "consult_cli_quality"],
+    )
+
+    assert result.exit_code != 0
+    assert "exactly one" in result.output.lower()
+
+
+def test_judge_consult_quality_rejects_plan_model_without_plan():
+    result = CliRunner().invoke(
+        expert_judge_consult_quality,
+        ["Consult Quality Expert", "consult_cli_quality", "--plan-model", "gpt-5-mini"],
+    )
+
+    assert result.exit_code != 0
+    assert "use --plan-model with --plan" in result.output.lower()
+
+
 def test_judge_consult_quality_registered_in_expert_help():
     result = CliRunner().invoke(cli, ["expert", "judge-consult-quality", "--help"])
 
     assert result.exit_code == 0
-    assert "explicit local judge" in result.output.lower()
+    assert "explicit calibrated judge" in result.output.lower()
 
 
 def test_consult_quality_trends_json_outputs_review_summary(tmp_path):
