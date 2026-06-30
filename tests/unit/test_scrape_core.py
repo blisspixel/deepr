@@ -6,6 +6,8 @@ Tests the fundamental functionality without requiring external dependencies.
 import os
 import sys
 
+from requests import Response
+
 # Add parent directory to path
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
@@ -188,6 +190,48 @@ def test_http_fetcher(monkeypatch):
     print(f"  [OK] Got {len(result.html)} chars of HTML")
 
     print("[PASS] ContentFetcher fetch\n")
+
+
+def test_http_fetcher_blocks_private_redirect_before_follow(monkeypatch):
+    """Redirect targets are validated before the second request is made."""
+    config = ScrapeConfig(
+        try_selenium=True,
+        try_pdf=False,
+        try_archive=True,
+        timeout=10,
+    )
+    fetcher = ContentFetcher(config)
+    calls = []
+
+    def fake_get(url, **kwargs):
+        calls.append((url, kwargs))
+        if len(calls) > 1:
+            raise AssertionError("private redirect target must not be requested")
+        response = Response()
+        response.status_code = 302
+        response.url = url
+        response.headers["Location"] = "http://127.0.0.1/admin"
+        return response
+
+    monkeypatch.setattr("deepr.utils.scrape.fetcher.requests.get", fake_get)
+    monkeypatch.setattr(
+        fetcher,
+        "_fetch_selenium_headless",
+        lambda _url: (_ for _ in ()).throw(AssertionError("security block must stop Selenium fallback")),
+    )
+    monkeypatch.setattr(
+        fetcher,
+        "_fetch_archive",
+        lambda _url: (_ for _ in ()).throw(AssertionError("security block must stop archive fallback")),
+    )
+
+    result = fetcher.fetch("https://example.com/start")
+
+    assert result.success is False
+    assert result.security_blocked is True
+    assert "Redirect target blocked" in result.error
+    assert len(calls) == 1
+    assert calls[0][1]["allow_redirects"] is False
 
 
 def run_all_tests():

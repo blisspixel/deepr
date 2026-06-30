@@ -35,12 +35,19 @@ class TestRegistry:
 
     def test_auto_routable_are_only_free_at_margin_tos_clean(self):
         ids = {a.backend_id for a in auto_routable_adapters()}
-        assert ids == {"codex", "claude", "opencode"}
+        assert ids == {"codex", "claude"}
 
     def test_copilot_is_metered_and_off_by_default(self):
         cp = get_adapter("copilot")
         assert cp.metered_at_margin
         assert not cp.enabled_by_default
+
+    def test_opencode_is_explicit_only_because_provider_cost_is_ambiguous(self):
+        adapter = get_adapter("opencode")
+        assert not adapter.enabled_by_default
+        assert "OPENAI_API_KEY" in adapter.metered_env_vars
+        assert "ANTHROPIC_API_KEY" in adapter.metered_env_vars
+        assert "explicit-only" in adapter.tos_note
 
     def test_gray_zone_backends_off_by_default(self):
         for bid in ("kiro", "grok", "antigravity"):

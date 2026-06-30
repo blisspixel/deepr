@@ -387,6 +387,26 @@ class TestSandboxValidation:
         with pytest.raises(ValueError, match="job_id cannot be empty"):
             manager.create_sandbox(job_id="   ")
 
+    def test_create_sandbox_sanitizes_job_id_path_segments(self, tmp_path):
+        """job_id path separators must not affect sandbox placement or cleanup."""
+        manager = SandboxManager(tmp_path)
+        sibling = tmp_path / "outside"
+        sibling.mkdir()
+        sentinel = sibling / "sentinel.txt"
+        sentinel.write_text("keep", encoding="utf-8")
+
+        config = manager.create_sandbox(job_id="../outside/escape")
+
+        sandboxes_root = (tmp_path / "sandboxes").resolve()
+        config.working_dir.resolve().relative_to(sandboxes_root)
+        assert config.working_dir.parent == sandboxes_root
+        assert ".." not in config.sandbox_id
+        assert "/" not in config.sandbox_id
+        assert "\\" not in config.sandbox_id
+
+        assert manager.cleanup_sandbox(config.sandbox_id, remove_files=True) is True
+        assert sentinel.read_text(encoding="utf-8") == "keep"
+
     def test_create_sandbox_rejects_negative_max_tokens(self, manager):
         """create_sandbox should reject negative max_tokens."""
         with pytest.raises(ValueError, match="max_tokens must be positive"):

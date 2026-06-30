@@ -195,7 +195,7 @@ def absorb_report(
     if plan:
         from deepr.backends.waterfall import choose_plan_quota_backend
 
-        choice = choose_plan_quota_backend(plan)
+        choice = choose_plan_quota_backend(plan, allow_metered_at_margin=True)
         if not choice.is_plan_quota:
             print_error(choice.reason)
             sys.exit(2)
@@ -570,7 +570,7 @@ def sync_cmd(
     if plan:
         from deepr.backends.waterfall import choose_plan_quota_backend
 
-        choice = choose_plan_quota_backend(plan)
+        choice = choose_plan_quota_backend(plan, allow_metered_at_margin=True)
         if not choice.is_plan_quota:
             print_error(choice.reason)
             sys.exit(2)

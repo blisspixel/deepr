@@ -227,11 +227,19 @@ _ADAPTERS: tuple[PlanQuotaAdapter, ...] = (
         argv_builder=_opencode_argv,
         # BYO-provider: pass -m and route to an oauth/subscription or local
         # model. A bare API key for the chosen provider is the metered path.
-        metered_env_vars=(),
+        metered_env_vars=(
+            "OPENAI_API_KEY",
+            "ANTHROPIC_API_KEY",
+            "XAI_API_KEY",
+            "GEMINI_API_KEY",
+            "GOOGLE_API_KEY",
+            "AZURE_OPENAI_API_KEY",
+            "AZURE_FOUNDRY_API_KEY",
+        ),
         exhaustion_signals=("rate limit", "quota", "insufficient credit", "429"),
-        enabled_by_default=True,
+        enabled_by_default=False,
         value_note="routes to an OAuth/subscription provider or a local model for $0/prepaid runs",
-        tos_note="cost depends on the routed provider; pass -m and prefer an OAuth or local model",
+        tos_note="explicit-only until Deepr can verify the routed provider is OAuth/subscription or local",
     ),
     PlanQuotaAdapter(
         backend_id="kiro",
