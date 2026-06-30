@@ -31,6 +31,12 @@ from deepr.config import runtime_data_path
 from deepr.utils.async_runner import run_async_command as run_async
 from deepr.utils.security import is_loopback_bind_host
 from deepr.web.expert_loop_status_api import register_expert_read_apis
+from deepr.web.portrait_cost_gate import (
+    PortraitCostBlocked,
+    record_portrait_cost,
+    refund_portrait_cost,
+    reserve_portrait_cost,
+)
 
 load_dotenv()
 
@@ -1634,11 +1640,7 @@ def get_expert(name):
 # to reach the route can run up provider spend in a tight loop.
 _PORTRAIT_COOLDOWN_SECONDS = 60
 _PORTRAIT_LAST_GENERATED: dict[str, float] = {}
-_PORTRAIT_ALLOWED_PROVIDERS = {"openai", "google", "xai"}
-# Conservative per-call estimate for image generation, in USD. Used purely
-# for the canonical cost ledger entry - provider-specific actuals are not
-# returned by the image APIs uniformly.
-_PORTRAIT_COST_ESTIMATE_USD = 0.04
+_PORTRAIT_ALLOWED_PROVIDERS = {"local", "openai", "google", "xai"}
 
 
 @app.route("/api/experts/<name>/generate-portrait", methods=["POST"])
@@ -1653,7 +1655,7 @@ def generate_expert_portrait(name):
       cannot be passed through to portraits.generate_portrait.
     """
     try:
-        from deepr.experts.portraits import generate_portrait
+        from deepr.experts.portraits import detect_provider, generate_portrait, portrait_cost
         from deepr.experts.profile_store import ExpertStore
 
         decoded_name, err = _decode_expert_name(name)
@@ -1685,6 +1687,16 @@ def generate_expert_portrait(name):
                 }
             ), 400
 
+        try:
+            cost_reservation = reserve_portrait_cost(
+                expert_name=decoded_name,
+                provider=provider,
+                detect_provider=detect_provider,
+                portrait_cost=portrait_cost,
+            )
+        except PortraitCostBlocked as e:
+            return jsonify({"error": str(e)}), 402
+
         loop = asyncio.new_event_loop()
         try:
             portrait_url = loop.run_until_complete(
@@ -1696,29 +1708,17 @@ def generate_expert_portrait(name):
                     output_dir=str(runtime_data_path("portraits")),
                 )
             )
+        except Exception:
+            refund_portrait_cost(cost_reservation)
+            raise
         finally:
             loop.close()
+
+        record_portrait_cost(expert_name=decoded_name, reservation=cost_reservation)
 
         _PORTRAIT_LAST_GENERATED[decoded_name] = time.monotonic()
         profile.portrait_url = portrait_url
         store.save(profile)
-
-        # Best-effort cost ledger entry so portrait spend shows up in
-        # `deepr costs` like other paid operations. Failures here must not
-        # break the response since the portrait has already been generated.
-        try:
-            from deepr.experts.cost_safety import get_cost_safety_manager
-
-            get_cost_safety_manager().record_cost(
-                session_id=f"portrait_{decoded_name}",
-                operation_type="portrait_generation",
-                actual_cost=_PORTRAIT_COST_ESTIMATE_USD,
-                provider=provider or "auto",
-                source="web.generate_expert_portrait",
-                metadata={"expert": decoded_name},
-            )
-        except Exception as _cost_exc:
-            logger.debug("Portrait cost ledger entry skipped: %s", _cost_exc)
 
         return jsonify({"portrait_url": portrait_url})
     except RuntimeError as e:

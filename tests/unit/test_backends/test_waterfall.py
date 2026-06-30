@@ -169,6 +169,16 @@ class TestExplicitPlanQuota:
         assert choice.backend == BACKEND_API_METERED
         assert "unknown" in choice.reason
 
+    def test_metered_at_margin_plan_is_rejected_without_acknowledgement(self):
+        choice = choose_plan_quota_backend("copilot", env={})
+        assert choice.backend == BACKEND_API_METERED
+        assert "metered at the margin" in choice.reason
+
+    def test_metered_at_margin_plan_requires_explicit_acknowledgement(self):
+        choice = choose_plan_quota_backend("copilot", env={}, allow_metered_at_margin=True)
+        assert choice.backend == BACKEND_PLAN_QUOTA
+        assert choice.plan_backend_id == "copilot"
+
 
 class TestPlanQuotaAutoRung:
     """Auto-routing to a plan CLI needs both operator intent and quota evidence."""

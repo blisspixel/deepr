@@ -5,7 +5,7 @@ import json
 import logging
 import random
 import time
-from urllib.parse import urlencode, urlparse
+from urllib.parse import urlencode, urljoin, urlparse
 
 import requests
 
@@ -14,6 +14,7 @@ from deepr.utils.security import SSRFError, is_safe_url, validate_url
 from .config import USER_AGENTS, ScrapeConfig
 
 logger = logging.getLogger(__name__)
+MAX_SAFE_REDIRECTS = 5
 
 # Check if Playwright is available
 PLAYWRIGHT_AVAILABLE = False
@@ -36,6 +37,7 @@ class FetchResult:
         strategy: str | None = None,
         success: bool = False,
         error: str | None = None,
+        security_blocked: bool = False,
     ):
         self.url = url
         self.content = content  # Clean text content
@@ -43,6 +45,7 @@ class FetchResult:
         self.strategy = strategy  # Which strategy worked
         self.success = success
         self.error = error
+        self.security_blocked = security_blocked
 
 
 class ContentFetcher:
@@ -85,6 +88,7 @@ class ContentFetcher:
                 url=url,
                 success=False,
                 error=f"URL blocked for security reasons: {e}",
+                security_blocked=True,
             )
 
         # Rate limiting
@@ -123,6 +127,8 @@ class ContentFetcher:
             if result.success:
                 logger.info(f"Success with {strategy_name}")
                 return result
+            if result.security_blocked:
+                return result
             logger.warning(f"{strategy_name} failed: {result.error}")
 
         # All strategies failed
@@ -155,8 +161,8 @@ class ContentFetcher:
         Returns:
             True if allowed (or can't determine), False if disallowed
         """
-        # TODO: Implement robots.txt checking
-        # For now, log warning only
+        # Robots.txt enforcement is not implemented in this fetcher yet; callers
+        # that need strict crawl compliance should disable fetching upstream.
         if not self.config.respect_robots:
             logger.debug(f"robots.txt check disabled for {url}")
             return True
@@ -185,26 +191,37 @@ class ContentFetcher:
 
         for attempt in range(self.config.max_retries):
             try:
-                response = requests.get(
-                    url,
-                    headers=headers,
-                    timeout=self.config.timeout,
-                    allow_redirects=True,
-                )
-                response.raise_for_status()
-
-                # SSRF: validate final URL after redirects
-                final_url = response.url
-                if final_url != url:
+                current_url = url
+                for redirect_count in range(MAX_SAFE_REDIRECTS + 1):
+                    response = requests.get(
+                        current_url,
+                        headers=headers,
+                        timeout=self.config.timeout,
+                        allow_redirects=False,
+                    )
+                    if not response.is_redirect:
+                        break
+                    location = response.headers.get("Location", "")
+                    if not location:
+                        return FetchResult(url=url, success=False, error="Redirect missing Location header")
+                    next_url = urljoin(current_url, location)
                     try:
-                        validate_url(final_url, allow_private=False)
-                    except SSRFError:
-                        logger.warning("SSRF protection blocked redirect target: %s", final_url)
+                        validate_url(next_url, allow_private=False)
+                    except SSRFError as redirect_error:
+                        logger.warning("SSRF protection blocked redirect target: %s", next_url)
                         return FetchResult(
                             url=url,
                             success=False,
-                            error=f"Redirect target blocked for security reasons: {final_url}",
+                            error=f"Redirect target blocked for security reasons: {redirect_error}",
+                            security_blocked=True,
                         )
+                    if redirect_count >= MAX_SAFE_REDIRECTS:
+                        return FetchResult(url=url, success=False, error="Too many redirects")
+                    current_url = next_url
+                else:
+                    return FetchResult(url=url, success=False, error="Too many redirects")
+
+                response.raise_for_status()
 
                 return FetchResult(
                     url=url,

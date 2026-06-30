@@ -257,11 +257,12 @@ async def _generate_google(prompt: str) -> bytes:
     if not api_key:
         raise RuntimeError("No Google API key found")
 
-    url = f"https://generativelanguage.googleapis.com/v1beta/models/imagen-3.0-generate-002:predict?key={api_key}"
+    url = "https://generativelanguage.googleapis.com/v1beta/models/imagen-3.0-generate-002:predict"
 
     async with httpx.AsyncClient(timeout=120) as http:
         resp = await http.post(
             url,
+            headers={"x-goog-api-key": api_key},
             json={
                 "instances": [{"prompt": prompt}],
                 "parameters": {
@@ -270,7 +271,11 @@ async def _generate_google(prompt: str) -> bytes:
                 },
             },
         )
-        resp.raise_for_status()
+        try:
+            resp.raise_for_status()
+        except httpx.HTTPStatusError as exc:
+            status_code = exc.response.status_code if exc.response is not None else "unknown"
+            raise RuntimeError(f"Google Imagen request failed with HTTP {status_code}") from None
         data = resp.json()
 
     predictions = data.get("predictions", [])
