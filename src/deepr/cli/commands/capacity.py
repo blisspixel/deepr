@@ -9,13 +9,20 @@ docs/design/capacity-waterfall.md.
 
 from __future__ import annotations
 
+import asyncio
 import json as _json
+import os
+import shutil
+from typing import Any
 
 import click
 
 from deepr.backends.capacity import BackendKind, detect_capacity
 from deepr.backends.quota_ledger import QuotaState, summarize_quota_state
 
+_PLAN_BACKEND_IDS = ("codex", "claude", "opencode", "kiro", "grok", "antigravity", "copilot")
+_FLEET_PROBE_SCHEMA_VERSION = "deepr-plan-fleet-probe-v1"
+_FLEET_PROBE_KIND = "deepr.capacity.probe_fleet"
 _GROUP_ORDER = [
     (BackendKind.LOCAL, "Local (free at the margin)"),
     (BackendKind.PLAN_QUOTA, "Plan quota (prepaid - your subscriptions)"),
@@ -47,11 +54,12 @@ def capacity(ctx: click.Context, json_output: bool, probe: bool):
     sources = detect_capacity()
     quota_states = summarize_quota_state()
 
-    if probe and not json_output:
-        _print_local_probe()
+    local_probe = _run_local_probe() if probe else None
+    if probe and not json_output and local_probe is not None:
+        _print_local_probe(local_probe)
 
     if json_output:
-        click.echo(_json.dumps([_source_to_dict(s, quota_states) for s in sources], indent=2))
+        click.echo(_json.dumps([_source_to_dict(s, quota_states, local_probe=local_probe) for s in sources], indent=2))
         return
 
     _print_sources(sources)
@@ -59,12 +67,16 @@ def capacity(ctx: click.Context, json_output: bool, probe: bool):
     _print_admissions_summary()
 
 
-def _source_to_dict(source, quota_states: list[QuotaState]) -> dict[str, object]:
+def _source_to_dict(
+    source, quota_states: list[QuotaState], *, local_probe: dict[str, object] | None = None
+) -> dict[str, object]:
     d = source.to_dict()
     states = _quota_states_for(source.backend_id, quota_states)
     state = _primary_quota_state(states)
     d["quota_state"] = state.to_dict() if state else None
     d["quota_states"] = [s.to_dict() for s in states]
+    if local_probe is not None and source.kind == BackendKind.LOCAL:
+        d["local_probe"] = local_probe
     return d
 
 
@@ -80,12 +92,16 @@ def _primary_quota_state(quota_states: list[QuotaState]) -> QuotaState | None:
     return next((state for state in quota_states if not state.account_id), quota_states[0])
 
 
-def _print_local_probe() -> None:
-    """One $0 round-trip to the local model, with a human-readable verdict."""
+def _run_local_probe() -> dict[str, object]:
+    """One $0 round-trip to the local model."""
     from deepr.backends.local import probe_local
     from deepr.cli.async_runner import run_async_command
 
-    result = run_async_command(probe_local())
+    return run_async_command(probe_local())
+
+
+def _print_local_probe(result: dict[str, object]) -> None:
+    """Print a human-readable local probe verdict."""
     if result["ok"]:
         click.echo(
             f"Local probe: OK - {result['model']} replied {result['reply']!r} in {result['latency_ms']}ms (cost $0)\n"
@@ -186,6 +202,7 @@ def _print_admissions_summary() -> None:
     help="Concrete sync context mode to preview.",
 )
 @click.option("--scheduled", is_flag=True, help="Prefer wait guidance for recurring scheduler work.")
+@click.option("--probe", is_flag=True, help="Run a $0 live local probe before reporting local readiness.")
 @click.option("--json", "json_output", is_flag=True, help="Emit machine-readable JSON.")
 def capacity_next(
     task_class: str,
@@ -193,6 +210,7 @@ def capacity_next(
     report_id: str,
     context_mode: str,
     scheduled: bool,
+    probe: bool,
     json_output: bool,
 ):
     """Show the next safe actions for using cheap capacity.
@@ -206,6 +224,7 @@ def capacity_next(
         build_capacity_next_payload,
     )
 
+    local_probe = None
     try:
         job_context = CapacityJobContext(
             task_class=task_class,
@@ -214,16 +233,19 @@ def capacity_next(
             context_mode=context_mode,
             scheduled=scheduled,
         )
-        actions = build_capacity_next_actions(task_class=task_class, job_context=job_context)
+        local_probe = _run_local_probe() if probe else None
+        actions = build_capacity_next_actions(task_class=task_class, job_context=job_context, local_probe=local_probe)
     except ValueError as exc:
         raise click.ClickException(str(exc)) from exc
 
     if json_output:
-        payload = build_capacity_next_payload(job_context, actions)
+        payload = build_capacity_next_payload(job_context, actions, local_probe=local_probe)
         click.echo(_json.dumps(payload, indent=2))
         return
 
     click.echo(f"Capacity next actions for task class: {task_class}\n")
+    if local_probe is not None:
+        _print_local_probe(local_probe)
     if context_mode != "none" or scheduled or expert_name != "<expert>" or report_id != "<report_id>":
         click.echo(
             f"Job preview: expert={expert_name}, report_id={report_id}, context={context_mode}, scheduled={scheduled}\n"
@@ -484,7 +506,7 @@ def _fmt_reset(reset_at_iso: str | None) -> str:
 @capacity.command(name="probe-plan")
 @click.argument(
     "backend",
-    type=click.Choice(["codex", "claude", "opencode", "kiro", "grok", "antigravity", "copilot"]),
+    type=click.Choice(_PLAN_BACKEND_IDS),
 )
 @click.option("--model", default=None, help="Model to pass to the CLI (e.g. anthropic/claude-sonnet-4-6 for opencode).")
 @click.option("--yes", "-y", is_flag=True, help="Skip the confirmation for a metered-at-margin CLI.")
@@ -521,6 +543,7 @@ def capacity_probe_plan(backend: str, model: str | None, yes: bool, json_output:
         click.echo(f"Note: {adapter.tos_note}")
 
     result = run_async_command(probe_plan_quota(adapter, model=model))
+    _record_probe_plan_observation(adapter, result)
 
     if json_output:
         click.echo(_json.dumps({"backend": backend, "auth_mode": decision.auth_mode.value, **result}, indent=2))
@@ -533,6 +556,238 @@ def capacity_probe_plan(backend: str, model: str | None, yes: bool, json_output:
     else:
         click.echo(f"{adapter.display_name}: FAILED - {result['error']}")
         sys.exit(1)
+
+
+@capacity.command(name="probe-fleet")
+@click.option(
+    "--backend",
+    "backends",
+    multiple=True,
+    type=click.Choice(_PLAN_BACKEND_IDS),
+    help="Plan backend to probe. Repeatable. Defaults to installed auto-routable backends.",
+)
+@click.option(
+    "--all",
+    "all_backends",
+    is_flag=True,
+    help="Probe every installed non-metered plan backend, including explicit-only experimental CLIs.",
+)
+@click.option(
+    "--include-metered",
+    is_flag=True,
+    help="Allow metered-at-margin plan adapters such as Copilot. Requires -y.",
+)
+@click.option("--concurrency", type=click.IntRange(1, len(_PLAN_BACKEND_IDS)), default=4, show_default=True)
+@click.option("--yes", "-y", is_flag=True, help="Confirm any metered-at-margin probe enabled by --include-metered.")
+@click.option("--json", "json_output", is_flag=True, help="Emit the versioned probe payload as JSON.")
+def capacity_probe_fleet(
+    backends: tuple[str, ...],
+    all_backends: bool,
+    include_metered: bool,
+    concurrency: int,
+    yes: bool,
+    json_output: bool,
+):
+    """Fan out tiny validation probes across plan-quota CLIs.
+
+    This is an operator validation surface, not an auto-routing shortcut. It
+    probes only selected plan CLIs, records quota observations from successful
+    or exhausted probes, and skips metered-at-margin adapters unless explicitly
+    allowed with --include-metered -y.
+    """
+    import sys
+
+    if not _confirm_fleet_probe_metered(include_metered=include_metered, yes=yes, json_output=json_output):
+        return
+    adapters = _resolve_fleet_probe_adapters(backends=backends, all_backends=all_backends)
+    payload = _fleet_probe_payload_for(adapters, include_metered=include_metered, concurrency=concurrency)
+    _emit_fleet_probe_payload(payload, json_output=json_output)
+
+    if payload["failed_count"] or payload["probed_count"] == 0:
+        sys.exit(1)
+
+
+def _confirm_fleet_probe_metered(*, include_metered: bool, yes: bool, json_output: bool) -> bool:
+    if not include_metered or yes:
+        return True
+    if json_output:
+        raise click.ClickException("--include-metered requires -y in JSON mode.")
+    if click.confirm("Include metered-at-margin plan adapters in the probe?", default=False):
+        return True
+    click.echo("Cancelled.")
+    return False
+
+
+def _resolve_fleet_probe_adapters(*, backends: tuple[str, ...], all_backends: bool):
+    from deepr.backends.plan_quota import all_adapters
+
+    if backends and all_backends:
+        raise click.ClickException("Use either --backend or --all, not both.")
+    adapter_index = {adapter.backend_id: adapter for adapter in all_adapters()}
+    if backends:
+        return [adapter_index[backend] for backend in backends]
+    if all_backends:
+        return [adapter for adapter in adapter_index.values() if _fleet_probe_installed(adapter)]
+    return [
+        adapter for adapter in adapter_index.values() if adapter.enabled_by_default and _fleet_probe_installed(adapter)
+    ]
+
+
+def _fleet_probe_payload_for(adapters, *, include_metered: bool, concurrency: int) -> dict[str, Any]:
+    from deepr.cli.async_runner import run_async_command
+
+    if not adapters:
+        return _fleet_probe_payload([], concurrency=concurrency)
+    return run_async_command(_run_fleet_probe(adapters, include_metered=include_metered, concurrency=concurrency))
+
+
+def _emit_fleet_probe_payload(payload: dict[str, Any], *, json_output: bool) -> None:
+    if json_output:
+        click.echo(_json.dumps(payload, indent=2))
+        return
+    if payload["selected_count"] == 0:
+        click.echo("No plan-quota backends selected for probing.")
+        return
+    _print_fleet_probe(payload)
+
+
+def _fleet_probe_installed(adapter) -> bool:
+    return shutil.which(adapter.exe) is not None
+
+
+async def _run_fleet_probe(adapters, *, include_metered: bool, concurrency: int) -> dict[str, Any]:
+    semaphore = asyncio.Semaphore(concurrency)
+    env = dict(os.environ)
+
+    async def run_one(adapter):
+        async with semaphore:
+            return await _probe_fleet_backend(adapter, env=env, include_metered=include_metered)
+
+    results = await asyncio.gather(*(run_one(adapter) for adapter in adapters))
+    return _fleet_probe_payload(results, concurrency=concurrency)
+
+
+async def _probe_fleet_backend(adapter, *, env: dict[str, str], include_metered: bool) -> dict[str, Any]:
+    from deepr.backends.plan_quota import detect_auth_mode, evaluate_plan_quota_safety, probe_plan_quota
+
+    installed = _fleet_probe_installed(adapter)
+    raw_auth_mode = detect_auth_mode(adapter, env).value if installed else None
+    base: dict[str, Any] = {
+        "backend": adapter.backend_id,
+        "name": adapter.display_name,
+        "exe": adapter.exe,
+        "installed": installed,
+        "experimental": adapter.experimental,
+        "metered_at_margin": adapter.metered_at_margin,
+        "raw_auth_mode": raw_auth_mode,
+        "auth_mode": None,
+        "skipped": False,
+        "status": "pending",
+        "ok": False,
+        "reply": "",
+        "latency_ms": 0,
+        "error": "",
+        "safety": None,
+        "tos_note": adapter.tos_note,
+    }
+    if not installed:
+        return {**base, "skipped": True, "status": "skipped", "error": "not installed on PATH"}
+
+    decision = evaluate_plan_quota_safety(adapter, env=env)
+    base["auth_mode"] = decision.auth_mode.value
+    base["safety"] = decision.to_dict()
+    if decision.requires_ack and not include_metered:
+        return {
+            **base,
+            "skipped": True,
+            "status": "skipped",
+            "error": "metered-at-margin backend skipped; pass --include-metered -y to probe",
+        }
+    if not decision.safe:
+        return {**base, "status": "failed", "error": decision.reason}
+
+    result = await probe_plan_quota(adapter)
+    _record_probe_plan_observation(adapter, result)
+    status = "ok" if result.get("ok") is True else "failed"
+    return {**base, **result, "skipped": False, "status": status}
+
+
+def _fleet_probe_payload(results: list[dict[str, Any]], *, concurrency: int) -> dict[str, Any]:
+    probed = [result for result in results if not result.get("skipped")]
+    failed = [result for result in probed if not result.get("ok")]
+    ok = [result for result in probed if result.get("ok")]
+    skipped = [result for result in results if result.get("skipped")]
+    return {
+        "schema_version": _FLEET_PROBE_SCHEMA_VERSION,
+        "kind": _FLEET_PROBE_KIND,
+        "contract": {
+            "read_only": False,
+            "cost_usd": 0.0,
+            "uses_plan_quota": True,
+            "metered_backends_skipped_by_default": True,
+            "quota_observations_recorded": True,
+        },
+        "concurrency": concurrency,
+        "selected_count": len(results),
+        "probed_count": len(probed),
+        "ok_count": len(ok),
+        "failed_count": len(failed),
+        "skipped_count": len(skipped),
+        "results": results,
+    }
+
+
+def _print_fleet_probe(payload: dict[str, Any]) -> None:
+    click.echo("Plan-quota fleet probe\n")
+    for result in payload["results"]:
+        backend = result["backend"]
+        if result["skipped"]:
+            click.echo(f"[skip] {backend:12s} {result['error']}")
+        elif result["ok"]:
+            click.echo(f"[ok]   {backend:12s} replied {result['reply'][:60]!r} in {result['latency_ms']}ms")
+        else:
+            click.echo(f"[fail] {backend:12s} {result['error']}")
+        if result.get("tos_note"):
+            click.echo(f"       note: {result['tos_note']}")
+    click.echo(
+        f"\n{payload['ok_count']} ok, {payload['failed_count']} failed, "
+        f"{payload['skipped_count']} skipped, {payload['probed_count']} probed"
+    )
+
+
+def _record_probe_plan_observation(adapter, result: dict[str, object]) -> None:
+    """Record quota observations from explicit probe-plan calls."""
+    from deepr.backends.quota_ledger import (
+        QuotaConfidence,
+        QuotaEventType,
+        QuotaLedger,
+        QuotaLedgerEvent,
+    )
+
+    event_type = None
+    detail = ""
+    if result.get("ok") is True:
+        event_type = QuotaEventType.USAGE_OBSERVED
+        detail = "probe-plan successful plan call"
+    elif result.get("error") == "quota exhausted":
+        event_type = QuotaEventType.EXHAUSTED
+        detail = "probe-plan exhaustion signature"
+    if event_type is None:
+        return
+
+    QuotaLedger().record_event(
+        QuotaLedgerEvent(
+            backend_id=adapter.backend_id,
+            event_type=event_type,
+            cost_model=adapter.cost_model,
+            window_kind=adapter.window_kind,
+            units_used=1.0 if event_type == QuotaEventType.USAGE_OBSERVED else None,
+            unit_name=adapter.unit_name,
+            remaining_confidence=QuotaConfidence.UNKNOWN,
+            overage_enabled=False,
+            detail=detail,
+        )
+    )
 
 
 @capacity.command(name="admit-plan")

@@ -16,6 +16,7 @@ from unittest.mock import patch
 import pytest
 
 from deepr.experts.beliefs import Belief, BeliefChange, BeliefStore
+from deepr.experts.mutation_audit import state_hash
 
 
 @pytest.fixture
@@ -159,6 +160,65 @@ class TestLosslessArchival:
         )
         store._record_change(change)
         assert store.restore_belief("legacy1") is None
+
+
+class TestMutationAudit:
+    def test_create_update_archive_restore_records_state_hashes(self, store):
+        belief, _ = store.add_belief(Belief(claim="Audited claim", confidence=0.7, domain="test"))
+
+        created = store.iter_mutation_audit()[-1]
+        assert created.schema_version == "deepr-expert-mutation-audit-v1"
+        assert created.operation == "created"
+        assert created.expert == "Lifecycle Test Expert"
+        assert created.actor == "deepr"
+        assert created.belief_id == belief.id
+        assert created.before_hash is None
+        assert created.after_hash == state_hash(store.beliefs[belief.id].to_dict())
+
+        store.update_belief(belief.id, new_confidence=0.8, reason="stronger source")
+        updated = store.iter_mutation_audit()[-1]
+        assert updated.operation == "updated"
+        assert updated.before_hash == created.after_hash
+        assert updated.after_hash == state_hash(store.beliefs[belief.id].to_dict())
+
+        store.archive_belief(belief.id, reason="retired")
+        archived = store.iter_mutation_audit()[-1]
+        assert archived.operation == "archived"
+        assert archived.before_hash == updated.after_hash
+        assert archived.after_hash is None
+
+        restored = store.restore_belief(belief.id)
+        assert restored is not None
+        restored_entry = store.iter_mutation_audit()[-1]
+        assert restored_entry.operation == "restored"
+        assert restored_entry.before_hash is None
+        assert restored_entry.after_hash == archived.before_hash
+
+    def test_mutation_audit_survives_reload_and_since_filter(self, store):
+        first, _ = store.add_belief(Belief(claim="First audited claim", confidence=0.7, domain="test"))
+        cutoff = store.iter_mutation_audit()[-1].timestamp
+        second, _ = store.add_belief(Belief(claim="Second audited claim", confidence=0.8, domain="test"))
+
+        fresh = BeliefStore("Lifecycle Test Expert", storage_dir=store.storage_dir)
+        entries = fresh.iter_mutation_audit()
+        assert [entry.belief_id for entry in entries] == [first.id, second.id]
+        assert [entry.belief_id for entry in fresh.iter_mutation_audit(since=cutoff)] == [second.id]
+
+    def test_lower_confidence_conflict_is_saved_and_audited_without_counting_as_absorb_change(self, tmp_path):
+        store = BeliefStore("Lifecycle Test Expert", storage_dir=tmp_path / "beliefs")
+        high, _ = store.add_belief(Belief(claim="Python is a popular language", confidence=0.9, domain="python"))
+
+        kept, change = store.add_belief(Belief(claim="Python is popular language", confidence=0.5, domain="python"))
+
+        assert kept.id == high.id
+        assert change is None
+        assert any(ref.startswith("conflicting:") for ref in kept.evidence_refs)
+        audited = store.iter_mutation_audit()[-1]
+        assert audited.operation == "updated"
+        assert audited.belief_id == high.id
+
+        reloaded = BeliefStore("Lifecycle Test Expert", storage_dir=store.storage_dir)
+        assert any(ref.startswith("conflicting:") for ref in reloaded.beliefs[high.id].evidence_refs)
 
 
 class TestUsageSalience:

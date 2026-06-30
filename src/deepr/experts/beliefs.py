@@ -15,6 +15,7 @@ from typing import TYPE_CHECKING, Any
 from urllib.parse import urlparse
 
 from deepr.config import experts_root
+from deepr.experts import mutation_audit as audit
 from deepr.experts.belief_edges import EDGE_TYPES, Edge, normalized_edge_temporal_context
 
 logger = logging.getLogger(__name__)
@@ -409,6 +410,7 @@ class BeliefStore:
         # Append-only belief event log (TKG step 1): every change is kept here
         # while changes.json remains a capped legacy window.
         self.events_path = self.storage_dir / "events.jsonl"
+        self.mutation_audit_path = self.storage_dir / "mutation_audit.jsonl"
 
         self.beliefs: dict[str, Belief] = {}
         self.domain_index: dict[str, set[str]] = {}
@@ -474,7 +476,15 @@ class BeliefStore:
         """True when the append-only event log exists (new-format stores)."""
         return self.events_path.exists()
 
-    def _record_change(self, change: BeliefChange) -> None:
+    def _record_change(
+        self,
+        change: BeliefChange,
+        *,
+        actor: str = "deepr",
+        before: dict[str, Any] | None = None,
+        after: dict[str, Any] | None = None,
+        operation: str | None = None,
+    ) -> None:
         """Record a belief change in both the legacy window and event log."""
         if change.timestamp.tzinfo is None:
             change.timestamp = change.timestamp.replace(tzinfo=UTC)
@@ -490,6 +500,18 @@ class BeliefStore:
                 f.flush()
                 with suppress(OSError):
                     os.fsync(f.fileno())
+            audit_entry = audit.build_mutation_audit_entry(
+                expert=self.expert_name,
+                actor=actor,
+                operation=operation or change.change_type,
+                belief_id=change.belief_id,
+                timestamp=change.timestamp,
+                change=change.to_dict(),
+                before=before,
+                after=after,
+                reason=change.reason,
+            )
+            audit.append_mutation_audit(self.mutation_audit_path, audit_entry)
 
     def iter_events(self, since: datetime | None = None) -> list[BeliefChange]:
         """Read belief events from the append-only log, oldest first.
@@ -522,6 +544,10 @@ class BeliefStore:
                     continue
                 events.append(change)
         return events
+
+    def iter_mutation_audit(self, since: datetime | None = None) -> list[audit.ExpertMutationAuditEntry]:
+        """Read append-only mutation audit entries, oldest first."""
+        return audit.iter_mutation_audit(self.mutation_audit_path, since=since)
 
     def add_belief(
         self,
@@ -575,7 +601,7 @@ class BeliefStore:
             new_confidence=belief.confidence,
             reason=change_reason,
         )
-        self._record_change(change)
+        self._record_change(change, after=audit.belief_snapshot(belief))
 
         self._save()
         return belief, change
@@ -610,7 +636,7 @@ class BeliefStore:
             new_confidence=belief.confidence,
             reason="contested: contradicts " + ", ".join(other.id for other in conflicting),
         )
-        self._record_change(change)
+        self._record_change(change, after=audit.belief_snapshot(belief))
 
         self._save()
         return belief, change
@@ -637,6 +663,7 @@ class BeliefStore:
             return None
 
         belief = self.beliefs[belief_id]
+        before = audit.belief_snapshot(belief)
         old_confidence = belief.confidence
 
         if new_confidence is not None:
@@ -655,7 +682,7 @@ class BeliefStore:
             reason=reason,
             evidence=new_evidence or "",
         )
-        self._record_change(change)
+        self._record_change(change, before=before, after=audit.belief_snapshot(belief))
 
         self._save()
         return change
@@ -688,6 +715,7 @@ class BeliefStore:
             return None
 
         belief = self.beliefs[belief_id]
+        before = audit.belief_snapshot(belief)
         old_claim = belief.claim
         old_confidence = belief.confidence
 
@@ -708,7 +736,7 @@ class BeliefStore:
             evidence=evidence,
             invalidated_at=invalidated_at,
         )
-        self._record_change(change)
+        self._record_change(change, before=before, after=audit.belief_snapshot(belief))
 
         self._save()
         return change
@@ -739,6 +767,7 @@ class BeliefStore:
             return None
 
         belief = self.beliefs[belief_id]
+        before = audit.belief_snapshot(belief)
 
         change = BeliefChange(
             belief_id=belief_id,
@@ -749,9 +778,9 @@ class BeliefStore:
             new_confidence=0.0,
             reason=reason,
             invalidated_at=invalidated_at,
-            snapshot=belief.to_dict(),
+            snapshot=before,
         )
-        self._record_change(change)
+        self._record_change(change, before=before)
 
         # Remove from active beliefs
         del self.beliefs[belief_id]
@@ -801,7 +830,7 @@ class BeliefStore:
             new_confidence=belief.confidence,
             reason="restored from archival snapshot",
         )
-        self._record_change(change)
+        self._record_change(change, after=audit.belief_snapshot(belief), operation="restored")
 
         self._save()
         return belief
@@ -1040,11 +1069,28 @@ class BeliefStore:
                 return self.beliefs[existing.id], change
             else:
                 # Keep existing, but note the new evidence
-                existing.add_evidence(f"conflicting:{new.id}")
+                before = audit.belief_snapshot(existing)
+                old_confidence = existing.confidence
+                evidence_ref = f"conflicting:{new.id}"
+                existing.add_evidence(evidence_ref)
+                change = BeliefChange(
+                    belief_id=existing.id,
+                    change_type="updated",
+                    old_claim=existing.claim,
+                    new_claim=existing.claim,
+                    old_confidence=old_confidence,
+                    new_confidence=existing.confidence,
+                    reason="Retained lower-confidence conflicting evidence",
+                    evidence=evidence_ref,
+                )
+                self._record_change(change, before=before, after=audit.belief_snapshot(existing))
+                self._save()
                 return existing, None
 
         if self.conflict_resolution == ConflictResolution.MERGE:
             # Merge evidence, average confidence
+            before = audit.belief_snapshot(existing)
+            old_confidence = existing.confidence
             merged_confidence = (existing.confidence + new.confidence) / 2
             for ref in new.evidence_refs:
                 existing.add_evidence(ref)
@@ -1055,11 +1101,11 @@ class BeliefStore:
                 change_type="updated",
                 old_claim=existing.claim,
                 new_claim=existing.claim,
-                old_confidence=existing.confidence,
+                old_confidence=old_confidence,
                 new_confidence=merged_confidence,
                 reason="Merged beliefs",
             )
-            self._record_change(change)
+            self._record_change(change, before=before, after=audit.belief_snapshot(existing))
             self._save()
             return existing, change
 

@@ -92,6 +92,7 @@ class TestExpertStore:
         assert loaded.name == "test-expert"
         assert loaded.vector_store_id == "vs_test_123"
         assert loaded.description == "Test expert for unit tests"
+        assert loaded.schema_version == PROFILE_SCHEMA_VERSION
 
     def test_save_creates_directories(self, store, sample_profile):
         """Test that save creates required directories."""
@@ -113,6 +114,7 @@ class TestExpertStore:
             data = json.load(f)
 
         assert data.get("schema_version") == PROFILE_SCHEMA_VERSION
+        assert sample_profile.schema_version == PROFILE_SCHEMA_VERSION
 
     def test_load_nonexistent(self, store):
         """Test loading a nonexistent profile returns None."""

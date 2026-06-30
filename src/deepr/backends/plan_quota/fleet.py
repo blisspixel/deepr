@@ -18,7 +18,7 @@ from pathlib import Path
 from typing import Any
 
 from deepr.backends.plan_quota.adapters import PlanQuotaAdapter, all_adapters
-from deepr.backends.plan_quota.safety import detect_auth_mode
+from deepr.backends.plan_quota.safety import detect_auth_mode, evaluate_plan_quota_safety
 from deepr.backends.quota_ledger import QuotaEventType, QuotaState, summarize_quota_state
 
 FLEET_SCHEMA_VERSION = "deepr-plan-fleet-v1"
@@ -62,13 +62,16 @@ def build_fleet_status(
         state = states.get(adapter.backend_id)
         event = state.latest_event if state else None
         status = "unobserved" if event is None else _TERMINAL_STATUS.get(event.event_type, "active")
+        raw_auth_mode = detect_auth_mode(adapter, resolved_env).value if installed else None
+        auth_mode = evaluate_plan_quota_safety(adapter, env=resolved_env).auth_mode.value if installed else None
         rows.append(
             {
                 "backend": adapter.backend_id,
                 "name": adapter.display_name,
                 "exe": adapter.exe,
                 "installed": installed,
-                "auth_mode": detect_auth_mode(adapter, resolved_env).value if installed else None,
+                "auth_mode": auth_mode,
+                "raw_auth_mode": raw_auth_mode,
                 "routable": _routability(adapter),
                 "experimental": adapter.experimental,
                 "status": status,

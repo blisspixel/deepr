@@ -1,0 +1,60 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/blisspixel/deepr/docs/schemas/expert-mutation-audit-v1.json",
+  "title": "Deepr Expert Mutation Audit Entry v1",
+  "type": "object",
+  "additionalProperties": true,
+  "required": [
+    "schema_version",
+    "kind",
+    "timestamp",
+    "operation",
+    "expert",
+    "actor",
+    "belief_id",
+    "change_hash"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": "deepr-expert-mutation-audit-v1"
+    },
+    "kind": {
+      "const": "deepr.expert.mutation_audit"
+    },
+    "timestamp": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "operation": {
+      "type": "string",
+      "enum": ["created", "updated", "revised", "archived", "restored"]
+    },
+    "expert": {
+      "type": "string",
+      "minLength": 1
+    },
+    "actor": {
+      "type": "string",
+      "minLength": 1
+    },
+    "belief_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "before_hash": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "after_hash": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "change_hash": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "reason": {
+      "type": "string"
+    }
+  }
+}

@@ -121,6 +121,35 @@ class TestCapacityCommand:
         assert isinstance(data, list)
         assert any(item["kind"] == "api_metered" for item in data)
 
+    def test_json_probe_includes_local_probe_result(self, monkeypatch):
+        from deepr.cli.commands import capacity as capacity_module
+
+        async def fake_probe_local():
+            return {"ok": False, "model": "too-large", "reply": "", "latency_ms": 12, "error": "not enough memory"}
+
+        monkeypatch.setattr("deepr.backends.local.probe_local", fake_probe_local)
+        monkeypatch.setattr(
+            capacity_module,
+            "detect_capacity",
+            lambda: [
+                CapacitySource(
+                    "Ollama",
+                    BackendKind.LOCAL,
+                    CostModel.OWNED_HARDWARE,
+                    True,
+                    backend_id="ollama",
+                )
+            ],
+        )
+        monkeypatch.setattr(capacity_module, "summarize_quota_state", lambda: [])
+
+        result = CliRunner().invoke(capacity, ["--probe", "--json"])
+
+        assert result.exit_code == 0
+        data = json.loads(result.output)
+        assert data[0]["local_probe"]["ok"] is False
+        assert data[0]["local_probe"]["error"] == "not enough memory"
+
     def test_json_output_includes_quota_state_when_observed(self, tmp_path):
         record_quota_event(
             QuotaLedgerEvent(

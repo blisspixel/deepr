@@ -55,19 +55,22 @@ class TestFleetStatus:
         assert _row(rows, "codex")["installed"] is True
         assert _row(rows, "claude")["installed"] is False
 
-    def test_auth_mode_metered_when_key_present(self, tmp_path):
+    def test_auth_mode_is_effective_child_mode_when_key_present(self, tmp_path):
         rows = build_fleet_status(
             which=_which("codex"), env={"OPENAI_API_KEY": "sk-x"}, quota_ledger_path=tmp_path / "q.jsonl"
         )
-        assert _row(rows, "codex")["auth_mode"] == "metered"
+        assert _row(rows, "codex")["auth_mode"] == "plan"
+        assert _row(rows, "codex")["raw_auth_mode"] == "metered"
 
     def test_auth_mode_plan_when_clean(self, tmp_path):
         rows = build_fleet_status(which=_which("codex"), env={}, quota_ledger_path=tmp_path / "q.jsonl")
         assert _row(rows, "codex")["auth_mode"] == "plan"
+        assert _row(rows, "codex")["raw_auth_mode"] == "plan"
 
     def test_auth_mode_none_when_not_installed(self, tmp_path):
         rows = build_fleet_status(which=_which(), env={}, quota_ledger_path=tmp_path / "q.jsonl")
         assert _row(rows, "codex")["auth_mode"] is None
+        assert _row(rows, "codex")["raw_auth_mode"] is None
 
     def test_routability_classes(self, tmp_path):
         rows = build_fleet_status(which=_which(), env={}, quota_ledger_path=tmp_path / "q.jsonl")

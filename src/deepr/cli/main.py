@@ -14,11 +14,13 @@ Interactive Mode:
     deepr interactive
 """
 
+import os
 import sys
 
 import click
 
 from deepr import __version__
+from deepr.cli.color_policy import apply_no_color
 
 # The panel-review finding behind this split: 40+ top-level commands buried
 # the three verbs most users need. Help shows these first, in this order;
@@ -26,6 +28,12 @@ from deepr import __version__
 # every command works exactly as before, this only shapes --help output.
 _CORE_COMMAND_ORDER = ["research", "expert", "costs", "doctor", "web"]
 _CORE_COMMANDS = set(_CORE_COMMAND_ORDER)
+
+
+def _apply_no_color_option(_ctx: click.Context, _param: click.Option, value: bool) -> bool:
+    if value:
+        apply_no_color()
+    return value
 
 
 class SectionedGroup(click.Group):
@@ -61,6 +69,14 @@ class SectionedGroup(click.Group):
 
 
 @click.group(cls=SectionedGroup, context_settings={"help_option_names": ["-h", "--help"]})
+@click.option(
+    "--no-color",
+    is_flag=True,
+    is_eager=True,
+    expose_value=False,
+    callback=_apply_no_color_option,
+    help="Disable ANSI color output.",
+)
 @click.version_option(version=__version__, prog_name="Deepr")
 def cli():
     """
@@ -76,7 +92,7 @@ def cli():
     deepr doctor verifies your setup. Everything else lives under
     Advanced commands below - you will not need most of it on day one.
     """
-    pass
+    return None
 
 
 # Import command groups (after cli group to avoid circular imports)
@@ -213,6 +229,8 @@ def main():
     TTY, never block or surprise a non-interactive caller.
     """
     _ensure_utf8_console()
+    if "NO_COLOR" in os.environ:
+        apply_no_color()
     # Route the no-args case through Click with an explicit subcommand to
     # avoid NoArgsIsHelpError from the root group parser.
     if len(sys.argv) == 1:

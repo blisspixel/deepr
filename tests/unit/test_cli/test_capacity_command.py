@@ -12,7 +12,7 @@ from datetime import UTC, datetime
 from click.testing import CliRunner
 
 from deepr.backends.capacity import CostModel
-from deepr.backends.quota_ledger import QuotaWindowKind, load_quota_events
+from deepr.backends.quota_ledger import QuotaEventType, QuotaWindowKind, load_quota_events
 from deepr.backends.quota_snapshot import QuotaSnapshot, QuotaWindowSnapshot
 from deepr.cli.commands.capacity import capacity
 
@@ -30,6 +30,11 @@ def _stub_probe(monkeypatch, **result):
         return {"backend": adapter.backend_id, "reply": "", "latency_ms": 1, "error": "", **result}
 
     monkeypatch.setattr("deepr.backends.plan_quota.probe_plan_quota", fake)
+
+
+def _stub_path(monkeypatch, *present):
+    installed = set(present)
+    monkeypatch.setattr("shutil.which", lambda exe: f"C:/bin/{exe}.exe" if exe in installed else None)
 
 
 class TestFleet:
@@ -129,6 +134,35 @@ class TestProbePlan:
         assert payload["auth_mode"] == "plan"
         assert payload["ok"] is True
 
+    def test_successful_probe_records_usage_observation(self, monkeypatch, tmp_path):
+        monkeypatch.setenv("DEEPR_CAPACITY_DATA_DIR", str(tmp_path))
+        _clean_env(monkeypatch)
+        _stub_probe(monkeypatch, ok=True, reply="OK", latency_ms=7)
+
+        r = CliRunner().invoke(capacity, ["probe-plan", "codex", "--json"])
+
+        assert r.exit_code == 0
+        events = load_quota_events(tmp_path / "quota_ledger.jsonl")
+        assert len(events) == 1
+        assert events[0].backend_id == "codex"
+        assert events[0].event_type == QuotaEventType.USAGE_OBSERVED
+        assert events[0].units_used == 1.0
+        assert events[0].detail == "probe-plan successful plan call"
+
+    def test_exhausted_probe_records_exhaustion_observation(self, monkeypatch, tmp_path):
+        monkeypatch.setenv("DEEPR_CAPACITY_DATA_DIR", str(tmp_path))
+        _clean_env(monkeypatch)
+        _stub_probe(monkeypatch, ok=False, error="quota exhausted")
+
+        r = CliRunner().invoke(capacity, ["probe-plan", "codex", "--json"])
+
+        assert r.exit_code == 0
+        events = load_quota_events(tmp_path / "quota_ledger.jsonl")
+        assert len(events) == 1
+        assert events[0].backend_id == "codex"
+        assert events[0].event_type == QuotaEventType.EXHAUSTED
+        assert events[0].detail == "probe-plan exhaustion signature"
+
     def test_metered_backend_requires_ack(self, monkeypatch):
         # copilot is metered-at-margin: without -y it asks first (declined here).
         _clean_env(monkeypatch)
@@ -136,6 +170,86 @@ class TestProbePlan:
         r = CliRunner().invoke(capacity, ["probe-plan", "copilot"], input="n\n")
         assert r.exit_code == 0
         assert "Cancelled" in r.output
+
+
+class TestProbeFleet:
+    def test_registered(self):
+        assert "probe-fleet" in capacity.commands
+
+    def test_explicit_fanout_records_usage_observations(self, monkeypatch, tmp_path):
+        monkeypatch.setenv("DEEPR_CAPACITY_DATA_DIR", str(tmp_path))
+        _clean_env(monkeypatch)
+        _stub_path(monkeypatch, "codex", "claude")
+        _stub_probe(monkeypatch, ok=True, reply="OK", latency_ms=7)
+
+        r = CliRunner().invoke(
+            capacity,
+            ["probe-fleet", "--backend", "codex", "--backend", "claude", "--json"],
+        )
+
+        assert r.exit_code == 0, r.output
+        payload = json.loads(r.output)
+        assert payload["schema_version"] == "deepr-plan-fleet-probe-v1"
+        assert payload["probed_count"] == 2
+        assert payload["ok_count"] == 2
+        assert [result["backend"] for result in payload["results"]] == ["codex", "claude"]
+        events = load_quota_events(tmp_path / "quota_ledger.jsonl")
+        assert [event.backend_id for event in events] == ["codex", "claude"]
+        assert all(event.event_type == QuotaEventType.USAGE_OBSERVED for event in events)
+
+    def test_default_probes_only_installed_auto_routable_backends(self, monkeypatch):
+        _clean_env(monkeypatch)
+        _stub_path(monkeypatch, "codex", "grok", "agy")
+        _stub_probe(monkeypatch, ok=True, reply="OK")
+
+        r = CliRunner().invoke(capacity, ["probe-fleet", "--json"])
+
+        assert r.exit_code == 0, r.output
+        payload = json.loads(r.output)
+        assert payload["selected_count"] == 1
+        assert payload["results"][0]["backend"] == "codex"
+
+    def test_explicit_experimental_backends_can_be_probed(self, monkeypatch):
+        _clean_env(monkeypatch)
+        _stub_path(monkeypatch, "grok", "agy")
+        _stub_probe(monkeypatch, ok=True, reply="OK")
+
+        r = CliRunner().invoke(
+            capacity,
+            ["probe-fleet", "--backend", "grok", "--backend", "antigravity", "--json"],
+        )
+
+        assert r.exit_code == 0, r.output
+        payload = json.loads(r.output)
+        assert payload["ok_count"] == 2
+        assert [result["backend"] for result in payload["results"]] == ["grok", "antigravity"]
+        assert all(result["experimental"] for result in payload["results"])
+
+    def test_metered_backend_is_skipped_by_default(self, monkeypatch):
+        _clean_env(monkeypatch)
+        _stub_path(monkeypatch, "copilot")
+        _stub_probe(monkeypatch, ok=True, reply="OK")
+
+        r = CliRunner().invoke(capacity, ["probe-fleet", "--backend", "copilot", "--json"])
+
+        assert r.exit_code == 1
+        payload = json.loads(r.output)
+        assert payload["probed_count"] == 0
+        assert payload["skipped_count"] == 1
+        assert payload["results"][0]["status"] == "skipped"
+        assert "metered-at-margin" in payload["results"][0]["error"]
+
+    def test_failure_exits_nonzero_after_payload(self, monkeypatch):
+        _clean_env(monkeypatch)
+        _stub_path(monkeypatch, "codex")
+        _stub_probe(monkeypatch, ok=False, error="quota exhausted")
+
+        r = CliRunner().invoke(capacity, ["probe-fleet", "--backend", "codex", "--json"])
+
+        assert r.exit_code == 1
+        payload = json.loads(r.output)
+        assert payload["failed_count"] == 1
+        assert payload["results"][0]["error"] == "quota exhausted"
 
 
 class TestRefreshQuota:

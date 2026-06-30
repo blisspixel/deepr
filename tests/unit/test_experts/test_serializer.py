@@ -1,8 +1,8 @@
 """Tests for expert profile serializer module."""
 
 from datetime import UTC, datetime
-from unittest.mock import MagicMock
 
+from deepr.experts.profile import PROFILE_SCHEMA_VERSION, ExpertProfile
 from deepr.experts.serializer import (
     COMPOSED_FIELDS,
     DATETIME_FIELDS,
@@ -11,6 +11,7 @@ from deepr.experts.serializer import (
     datetime_to_iso,
     dict_to_profile_kwargs,
     iso_to_datetime,
+    profile_to_dict,
 )
 
 
@@ -55,12 +56,10 @@ class TestProfileToDict:
     """Tests for profile_to_dict."""
 
     def test_excludes_composed_fields(self):
-        profile = MagicMock()
-        # asdict will be called on the mock, so we need to set up the return
-        # Let's test via dict_to_profile_kwargs instead since profile_to_dict
-        # calls asdict() which requires a real dataclass.
-        # We test the composed field exclusion logic via dict_to_profile_kwargs.
-        pass
+        profile = ExpertProfile(name="test", vector_store_id="vs_test")
+        result = profile_to_dict(profile)
+        for field in COMPOSED_FIELDS:
+            assert field not in result
 
     def test_datetime_conversion(self):
         # Test datetime field handling via the roundtrip functions
@@ -86,10 +85,10 @@ class TestDictToProfileKwargs:
         for f in COMPOSED_FIELDS:
             assert f not in result
 
-    def test_removes_metadata_fields(self):
+    def test_preserves_schema_version_field(self):
         data = {"name": "test", "schema_version": "2.0"}
         result = dict_to_profile_kwargs(data)
-        assert "schema_version" not in result
+        assert result["schema_version"] == 2
 
     def test_converts_iso_to_datetime(self):
         data = {
@@ -123,7 +122,10 @@ class TestConstants:
 
     def test_metadata_fields(self):
         assert isinstance(METADATA_FIELDS, list)
-        assert "schema_version" in METADATA_FIELDS
+        assert "schema_version" not in METADATA_FIELDS
+
+    def test_profile_schema_version_default(self):
+        assert ExpertProfile(name="test", vector_store_id="vs_test").schema_version == PROFILE_SCHEMA_VERSION
 
 
 class TestProfileSerializer:

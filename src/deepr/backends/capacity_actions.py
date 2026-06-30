@@ -78,13 +78,15 @@ class CapacityJobContext:
 def build_capacity_next_payload(
     job_context: CapacityJobContext,
     actions: list[CapacityNextAction],
+    *,
+    local_probe: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Return the published capacity-next guidance payload.
 
     This is deterministic workflow guidance only: it describes spend gates,
     local-capacity readiness, and commands, but it never runs the job.
     """
-    return {
+    payload = {
         "schema_version": CAPACITY_NEXT_SCHEMA_VERSION,
         "kind": CAPACITY_NEXT_KIND,
         "contract": {
@@ -100,6 +102,9 @@ def build_capacity_next_payload(
         "job_context": job_context.to_dict(),
         "actions": [action.to_dict() for action in actions],
     }
+    if local_probe is not None:
+        payload["local_probe"] = local_probe
+    return payload
 
 
 def build_capacity_next_actions(
@@ -112,6 +117,7 @@ def build_capacity_next_actions(
     admissions_path: Path | None = None,
     benchmarks_dir: Path = admission.DEFAULT_BENCHMARKS_DIR,
     quality_floor: float = admission.DEFAULT_LOCAL_EVAL_MIN_SCORE,
+    local_probe: dict[str, Any] | None = None,
 ) -> list[CapacityNextAction]:
     """Return ranked next actions for the given capacity task class."""
     if job_context is not None and job_context.task_class != task_class:
@@ -130,6 +136,14 @@ def build_capacity_next_actions(
 
     actions: list[CapacityNextAction] = []
     if choice.is_local:
+        probe_block = _local_probe_block(choice.model, local_probe)
+        if probe_block is not None:
+            actions.append(probe_block)
+            actions.extend(_wait_actions(context))
+            if not context.requires_local:
+                actions.extend(_fallback_actions(context, sources))
+            return sorted(actions, key=lambda action: action.rank)
+
         actions.append(
             CapacityNextAction(
                 1,
@@ -148,6 +162,20 @@ def build_capacity_next_actions(
     if not context.requires_local:
         actions.extend(_fallback_actions(context, sources))
     return sorted(actions, key=lambda action: action.rank)
+
+
+def _local_probe_block(selected_model: str | None, local_probe: dict[str, Any] | None) -> CapacityNextAction | None:
+    if local_probe is None or local_probe.get("ok") is not False:
+        return None
+    probed_model = local_probe.get("model") or selected_model or "<unknown>"
+    error = str(local_probe.get("error") or "unknown local probe failure")
+    return CapacityNextAction(
+        1,
+        "blocked",
+        "Admitted local model failed live probe",
+        f"Local model {probed_model!r} is visible and admitted, but a $0 live probe failed: {error}",
+        "deepr capacity --probe",
+    )
 
 
 def _validate_job_context(context: CapacityJobContext) -> None:

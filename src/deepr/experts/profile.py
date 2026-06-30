@@ -25,6 +25,7 @@ if TYPE_CHECKING:
 from deepr.experts.activity_tracker import ActivityTracker
 from deepr.experts.budget_manager import BudgetManager
 from deepr.experts.freshness import FreshnessChecker, FreshnessLevel
+from deepr.experts.profile_store import PROFILE_SCHEMA_VERSION
 from deepr.experts.serializer import (
     datetime_to_iso,
     dict_to_profile_kwargs,
@@ -69,6 +70,7 @@ class ExpertProfile:
     domain: str | None = None
     created_at: datetime = field(default_factory=_utc_now)
     updated_at: datetime = field(default_factory=_utc_now)
+    schema_version: int = PROFILE_SCHEMA_VERSION
 
     # Knowledge base metadata
     source_files: list[str] = field(default_factory=list)
@@ -559,7 +561,7 @@ DEFAULT_EXPERT_SYSTEM_MESSAGE = get_expert_system_message()
 
 # Re-export ExpertStore for backwards compatibility
 # New code should import from profile_store directly
-from deepr.experts.profile_store import PROFILE_SCHEMA_VERSION, ExpertStore
+from deepr.experts.profile_store import ExpertStore
 
 __all__ = [
     "DEFAULT_EXPERT_SYSTEM_MESSAGE",

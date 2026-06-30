@@ -31,6 +31,14 @@
       "compatibility": "additive-within-v1"
     },
     {
+      "name": "expert-mutation-audit",
+      "schema_version": "deepr-expert-mutation-audit-v1",
+      "kind": "deepr.expert.mutation_audit",
+      "path": "expert-mutation-audit-v1.json",
+      "status": "experimental",
+      "compatibility": "additive-within-v1"
+    },
+    {
       "name": "expert-self-model-update",
       "schema_version": "deepr-expert-self-model-update-v1",
       "kind": "deepr.expert.self_model_update",

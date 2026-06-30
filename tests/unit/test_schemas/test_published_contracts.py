@@ -97,6 +97,15 @@ from deepr.experts.monitor_promotion import (
     METACOGNITIVE_PROMOTION_SCHEMA_VERSION,
     promote_monitor_proposal,
 )
+from deepr.experts.mutation_audit import (
+    KIND as EXPERT_MUTATION_AUDIT_KIND,
+)
+from deepr.experts.mutation_audit import (
+    SCHEMA_VERSION as EXPERT_MUTATION_AUDIT_SCHEMA_VERSION,
+)
+from deepr.experts.mutation_audit import (
+    build_mutation_audit_entry,
+)
 from deepr.experts.profile import ExpertProfile
 from deepr.experts.self_model import (
     EXPERT_SELF_MODEL_KIND,
@@ -373,6 +382,25 @@ def test_expert_memory_card_schema_validates_runtime_payload():
     assert payload["kind"] == EXPERT_MEMORY_CARD_KIND
     assert payload["contract"]["authoritative"] is False
     assert payload["artifact"]["filename"] == "EXPERT.md"
+
+
+def test_expert_mutation_audit_schema_validates_runtime_payload():
+    payload = build_mutation_audit_entry(
+        expert="Audit Contract Expert",
+        actor="deepr",
+        operation="updated",
+        belief_id="belief_1",
+        timestamp=datetime(2026, 6, 29, 12, 0, tzinfo=UTC),
+        change={"belief_id": "belief_1", "change_type": "updated", "timestamp": "2026-06-29T12:00:00+00:00"},
+        before={"claim": "old", "confidence": 0.4},
+        after={"claim": "old", "confidence": 0.6},
+        reason="stronger evidence",
+    ).to_dict()
+    schema = _load_schema("expert-mutation-audit-v1.json")
+
+    _validate(schema, payload)
+    assert payload["schema_version"] == EXPERT_MUTATION_AUDIT_SCHEMA_VERSION
+    assert payload["kind"] == EXPERT_MUTATION_AUDIT_KIND
 
 
 def test_metacognitive_monitor_schema_validates_runtime_payload():

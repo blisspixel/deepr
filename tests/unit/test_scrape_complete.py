@@ -6,8 +6,6 @@ This validates the entire scraping pipeline from start to finish.
 import os
 import sys
 
-import pytest
-
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
 from deepr.utils.scrape import (
@@ -22,6 +20,7 @@ from deepr.utils.scrape import (
     SmartCrawler,
     scrape_website,
 )
+from tests.unit.scrape_helpers import make_scrape_response
 
 
 def test_all_imports():
@@ -175,7 +174,7 @@ def test_deduplication():
     print("  [OK] Content hash deduplication")
 
 
-def test_http_fetching():
+def test_http_fetching(monkeypatch):
     """Test HTTP fetching."""
     print("\n[TEST] HTTP fetching...")
 
@@ -186,11 +185,9 @@ def test_http_fetching():
         timeout=10,
     )
     fetcher = ContentFetcher(config)
+    monkeypatch.setattr("deepr.utils.scrape.fetcher.requests.get", lambda *args, **kwargs: make_scrape_response())
 
     result = fetcher.fetch("https://example.com")
-
-    if not result.success:
-        pytest.skip(f"Network unavailable - HTTP fetch failed: {result.error}")
 
     assert result.strategy == "HTTP"
     assert result.html is not None
@@ -228,7 +225,7 @@ def test_link_filtering():
     print(f"  [OK] Filtered {len(test_links)} links to {len(filtered)}")
 
 
-def test_end_to_end_scrape():
+def test_end_to_end_scrape(monkeypatch):
     """Test complete scraping workflow."""
     print("\n[TEST] End-to-end scraping...")
 
@@ -238,6 +235,7 @@ def test_end_to_end_scrape():
         try_selenium=False,
         timeout=15,
     )
+    monkeypatch.setattr("deepr.utils.scrape.fetcher.requests.get", lambda *args, **kwargs: make_scrape_response())
 
     results = scrape_website(
         url="https://example.com",
@@ -245,9 +243,6 @@ def test_end_to_end_scrape():
         config=config,
         synthesize=False,
     )
-
-    if not results["success"]:
-        pytest.skip("Network unavailable - cannot reach https://example.com")
 
     assert results["pages_scraped"] >= 1
     assert len(results["scraped_urls"]) >= 1

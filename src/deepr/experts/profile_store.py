@@ -124,7 +124,7 @@ def migrate_profile_data(data: dict[str, Any]) -> dict[str, Any]:
         Migrated profile data at current schema version
     """
     # Determine current version (default to 1 if not present)
-    current_version = data.get("schema_version", 1)
+    current_version = int(float(data.get("schema_version") or 1))
 
     if current_version >= PROFILE_SCHEMA_VERSION:
         return data
@@ -276,6 +276,7 @@ class ExpertStore:
         (expert_dir / "beliefs").mkdir(exist_ok=True)
 
         # Serialize with schema version
+        profile.schema_version = PROFILE_SCHEMA_VERSION
         data = profile.to_dict()
         data["schema_version"] = PROFILE_SCHEMA_VERSION
 

@@ -97,6 +97,19 @@ async def test_bad_json_raises(tmp_path):
 
 
 @pytest.mark.asyncio
+async def test_extraction_tolerates_raw_control_characters_in_json_strings(tmp_path):
+    payload = '{"claims":[{"statement":"Control characters are parser noise","confidence":0.9,"evidence":["line one\nline two"]}]}'
+    absorber = _absorber(payload, tmp_path)
+
+    result = await absorber.absorb("rep1", "some report text")
+
+    assert result.total_candidates == 1
+    assert result.added_count == 1
+    stored = next(iter(absorber.belief_store.beliefs.values()))
+    assert "line one\nline two" in stored.evidence_refs
+
+
+@pytest.mark.asyncio
 @pytest.mark.parametrize("payload", ['{"claims": null}', '{"claims": "none"}', "{}", '{"claims": {}}'])
 async def test_malformed_claims_field_yields_no_candidates(tmp_path, payload):
     # A model returning null / a non-list / a missing claims field must degrade

@@ -27,8 +27,8 @@ DATETIME_FIELDS = [
 # Fields that are composed components (not serialized directly)
 COMPOSED_FIELDS = ["_temporal_state", "_freshness_checker", "_budget_manager", "_activity_tracker"]
 
-# Metadata fields to exclude from ExpertProfile constructor
-METADATA_FIELDS = ["schema_version"]
+# Metadata fields to exclude from ExpertProfile constructor.
+METADATA_FIELDS: list[str] = []
 
 
 def datetime_to_iso(dt: datetime | None) -> str | None:
@@ -115,6 +115,9 @@ def dict_to_profile_kwargs(data: dict[str, Any]) -> dict[str, Any]:
     # Remove metadata fields that aren't part of ExpertProfile
     for field in METADATA_FIELDS:
         kwargs.pop(field, None)
+
+    if "schema_version" in kwargs and isinstance(kwargs["schema_version"], str):
+        kwargs["schema_version"] = int(float(kwargs["schema_version"]))
 
     # Convert ISO format strings to datetime
     for field in DATETIME_FIELDS:

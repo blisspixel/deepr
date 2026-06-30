@@ -111,6 +111,31 @@ class TestCapacityNextActions:
         assert "Automatic local routing is ready" == actions[0].title
         assert actions[0].command == 'deepr expert sync "<expert>" -y'
 
+    def test_live_probe_failure_blocks_ready_local_routing(self, tmp_path):
+        p = tmp_path / "adm.jsonl"
+        record_admission("too-large", "sync", score=0.82, now=T0, path=p)
+
+        actions = build_capacity_next_actions(
+            task_class="sync",
+            now=T0,
+            capacity_sources=[_local_source(), _metered_source()],
+            local_models=["too-large"],
+            admissions_path=p,
+            benchmarks_dir=tmp_path / "benchmarks",
+            local_probe={
+                "ok": False,
+                "model": "too-large",
+                "reply": "",
+                "latency_ms": 12,
+                "error": "not enough memory",
+            },
+        )
+
+        assert actions[0].status == "blocked"
+        assert actions[0].title == "Admitted local model failed live probe"
+        assert "not enough memory" in actions[0].detail
+        assert any(action.status == "fallback" for action in actions)
+
     def test_ready_sync_preview_includes_fresh_context_and_expert_name(self, tmp_path):
         p = tmp_path / "adm.jsonl"
         record_admission("good-local", "sync", score=0.82, now=T0, path=p)
@@ -336,6 +361,28 @@ class TestCapacityNextCommand:
         assert payload["kind"] == CAPACITY_NEXT_KIND
         assert payload["job_context"]["task_class"] == "sync"
         assert payload["actions"][0]["status"] == "blocked"
+
+    def test_json_with_probe_includes_local_probe(self, monkeypatch):
+        from deepr.backends import capacity_actions
+        from deepr.cli.commands import capacity as capacity_module
+
+        async def fake_probe_local():
+            return {"ok": False, "model": "too-large", "reply": "", "latency_ms": 12, "error": "not enough memory"}
+
+        monkeypatch.setattr("deepr.backends.local.probe_local", fake_probe_local)
+        monkeypatch.setattr(
+            capacity_actions,
+            "build_capacity_next_actions",
+            lambda **_: [CapacityNextAction(1, "blocked", "Probe failed", "not enough memory")],
+        )
+        monkeypatch.setattr(capacity_module, "detect_capacity", lambda: [])
+
+        result = CliRunner().invoke(capacity, ["next", "--probe", "--json"])
+
+        assert result.exit_code == 0
+        payload = json.loads(result.output)
+        assert payload["local_probe"]["ok"] is False
+        assert payload["local_probe"]["error"] == "not enough memory"
 
     def test_prints_job_preview_context(self, monkeypatch):
         from deepr.backends import capacity_actions
