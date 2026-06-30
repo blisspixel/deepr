@@ -46,7 +46,9 @@ cost ledger.
   read-only compiled-context turn. `AnthropicExpertChatBackend` now supports
   explicit non-agentic API query chat through the native Anthropic Messages API,
   with tools, streaming, and prompt-cache controls disabled until those policy
-  gates exist.
+  gates exist. The shared chat-turn helper rejects requested tools before
+  backend dispatch when `supports_tools=false` and omits `tool_choice` on
+  no-tool turns.
 - MCP `deepr_consult_experts` accepts `synthesis_backend=api|local|plan`.
   MCP `deepr_query_expert` accepts `backend=api|local|plan`. The default
   `api` path is OpenAI unless the caller explicitly sets `provider=anthropic`.
@@ -316,6 +318,8 @@ side-effect policy.
    rejects `agentic=true`, and records Anthropic usage buckets through the
    chat cost ledger)
 8. Add agentic tools per backend only when the backend declares support and the
-   tool has explicit cost and safety gates.
+   tool has explicit cost and safety gates. (partial 2026-06-30: the shared
+   chat-turn helper now enforces declared tool support before dispatch and
+   strips `tool_choice` from no-tool turns)
 9. Add prompt-cache controls only after cache estimation and settlement tests
    prove no silent-money path.

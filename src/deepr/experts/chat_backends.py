@@ -80,12 +80,15 @@ async def complete_expert_chat_turn(
     tool_choice: str | None = "auto",
 ) -> ExpertChatResult:
     """Build and complete one expert chat turn through the configured backend."""
+    if tools and not backend.supports_tools:
+        raise ExpertChatUnsupportedFeature(f"{backend.provider} expert-chat backend does not support tools")
+    effective_tool_choice = tool_choice if tools else None
     return await backend.complete(
         ExpertChatRequest(
             model=selected_model.model,
             messages=messages,
             tools=tools,
-            tool_choice=tool_choice,
+            tool_choice=effective_tool_choice,
             reasoning_effort=_chat_reasoning_effort(selected_model),
         )
     )

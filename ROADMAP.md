@@ -150,8 +150,10 @@ The fleet-autopilot track (Phase 4d) is largely closed; the active edge is quali
    settled through the chat ledger. Primary non-streaming answer-generation
    turns, streaming setup/tool rounds, final OpenAI token streaming, follow-up
    suggestions, compaction support calls, quick lookup, and standard-research
-   fallback calls now run through the `ExpertChatBackend` seam. Deep-research
-   job submission still uses the OpenAI Responses API path until there is a
+   fallback calls now run through the `ExpertChatBackend` seam. The shared
+   turn helper now rejects requested tools when the backend declares no tool
+   support and omits `tool_choice` on no-tool turns. Deep-research job
+   submission still uses the OpenAI Responses API path until there is a
    separate research-job backend contract. Local Ollama and plan-quota
    `ExpertChatBackend` adapters are wired into public read-only query routing
    with tools and streaming declared unsupported. Next:
