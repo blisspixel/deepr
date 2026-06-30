@@ -10,6 +10,8 @@
     "contract",
     "trace_count",
     "review_count",
+    "handoff_count",
+    "source_pack_manifest_count",
     "signal_count",
     "risk_label_counts",
     "signals",
@@ -50,6 +52,8 @@
     },
     "trace_count": {"type": "integer", "minimum": 0},
     "review_count": {"type": "integer", "minimum": 0},
+    "handoff_count": {"type": "integer", "minimum": 0},
+    "source_pack_manifest_count": {"type": "integer", "minimum": 0},
     "signal_count": {"type": "integer", "minimum": 0},
     "risk_label_counts": {"type": "object", "additionalProperties": {"type": "integer", "minimum": 0}},
     "signals": {
@@ -70,7 +74,7 @@
         ],
         "properties": {
           "signal_id": {"type": "string", "minLength": 1},
-          "surface": {"enum": ["consult_trace", "consult_quality_review"]},
+          "surface": {"enum": ["consult_trace", "consult_quality_review", "expert_handoff", "source_pack_manifest"]},
           "source_ref": {"type": "object", "additionalProperties": {"type": "string"}},
           "risk_labels": {"type": "array", "items": {"type": "string"}, "minItems": 1},
           "basis": {"type": "array", "items": {"type": "string"}},

@@ -25,6 +25,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `deepr-hallucination-risk-report-v1`, routes observed hallucination-pattern
   risk signals into review and regression selection, and records coverage gaps
   without blocking answers or writing beliefs.
+- Extended `deepr eval hallucination-risks` to optional expert handoff and
+  source-pack manifest artifacts. The added signals cover grounding-assurance
+  gaps, handoff contestation, handoff truncation, source-pack hash/readiness
+  gaps, and high-stakes artifact routing without exposing local paths.
 
 ## [2.26.0] - 2026-06-30
 

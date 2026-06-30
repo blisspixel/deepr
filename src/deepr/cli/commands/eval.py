@@ -557,6 +557,24 @@ def eval_consult(json_output: bool, save: bool, fail_on_regression: bool):
     default=None,
     help="Optional directory containing consult-quality review artifacts.",
 )
+@click.option(
+    "--handoff-path",
+    type=click.Path(dir_okay=False, path_type=Path),
+    multiple=True,
+    help="Optional expert handoff JSON artifact path. Repeat for multiple artifacts.",
+)
+@click.option(
+    "--source-pack-manifest-path",
+    type=click.Path(dir_okay=False, path_type=Path),
+    multiple=True,
+    help="Optional source-pack manifest JSON artifact path. Repeat for multiple artifacts.",
+)
+@click.option(
+    "--source-pack-manifest-dir",
+    type=click.Path(file_okay=False, path_type=Path),
+    default=None,
+    help="Optional directory containing source-pack manifest artifacts.",
+)
 @click.option("--trace-limit", type=int, default=50, show_default=True, help="Newest consult traces to inspect.")
 @click.option(
     "--review-limit",
@@ -565,13 +583,26 @@ def eval_consult(json_output: bool, save: bool, fail_on_regression: bool):
     show_default=True,
     help="Newest consult-quality reviews to inspect.",
 )
+@click.option("--handoff-limit", type=int, default=50, show_default=True, help="Expert handoff artifacts to inspect.")
+@click.option(
+    "--source-pack-limit",
+    type=int,
+    default=100,
+    show_default=True,
+    help="Source-pack manifest artifacts to inspect.",
+)
 @click.option("--save", is_flag=True, help="Save JSON artifact under the configured benchmarks directory.")
 @click.option("--json", "json_output", is_flag=True, help="Emit machine-readable JSON.")
 def eval_hallucination_risks(
     trace_path: Path | None,
     review_dir: Path | None,
+    handoff_path: tuple[Path, ...],
+    source_pack_manifest_path: tuple[Path, ...],
+    source_pack_manifest_dir: Path | None,
     trace_limit: int,
     review_limit: int,
+    handoff_limit: int,
+    source_pack_limit: int,
     save: bool,
     json_output: bool,
 ):
@@ -584,8 +615,13 @@ def eval_hallucination_risks(
     report = build_hallucination_risk_report(
         trace_path=trace_path,
         review_dir=review_dir,
+        handoff_paths=handoff_path,
+        source_pack_manifest_paths=source_pack_manifest_path,
+        source_pack_manifest_dir=source_pack_manifest_dir,
         trace_limit=trace_limit,
         review_limit=review_limit,
+        handoff_limit=handoff_limit,
+        source_pack_limit=source_pack_limit,
     )
     path = write_hallucination_risk_report(report) if save else None
     payload = {**report, "saved_to": str(path) if path else None}
@@ -598,6 +634,8 @@ def eval_hallucination_risks(
     click.echo(f"Deepr metered cost: ${float(report['contract']['cost_usd']):.2f}")
     click.echo(f"Traces inspected: {report['trace_count']}")
     click.echo(f"Reviews inspected: {report['review_count']}")
+    click.echo(f"Handoffs inspected: {report['handoff_count']}")
+    click.echo(f"Source-pack manifests inspected: {report['source_pack_manifest_count']}")
     click.echo(f"Signals: {report['signal_count']}")
     if report["risk_label_counts"]:
         click.echo("Risk labels:")

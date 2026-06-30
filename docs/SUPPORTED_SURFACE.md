@@ -189,13 +189,14 @@ must not be described as usable capacity.
   write beliefs, or expose local artifact paths.
 - `deepr eval hallucination-risks` emits
   `deepr-hallucination-risk-report-v1`, a `$0` read-only advisory report over
-  consult traces and reviewed consult-quality artifacts. It routes observed
+  consult traces, reviewed consult-quality artifacts, optional expert handoff
+  artifacts, and optional source-pack manifest artifacts. It routes observed
   unsupported-claim, citation/provenance, temporal, overconfidence,
-  context-loss, and high-stakes review signals into regression selection or
-  review queues, and records coverage gaps for false-premise,
-  middle-context-loss, and template-sensitivity cases. The labels inform only;
-  they do not block answers, write beliefs, or claim semantic truth from
-  deterministic rules.
+  context-loss, grounding-assurance, handoff-contestation, and high-stakes
+  review signals into regression selection or review queues, and records
+  coverage gaps for false-premise, middle-context-loss, and
+  template-sensitivity cases. The labels inform only; they do not block
+  answers, write beliefs, or claim semantic truth from deterministic rules.
 - Local Ollama expert maintenance, local evals, local context evals, local
   red-team attack-success-rate metrics including MCP read-path canaries and
   saved trend artifacts, and scored local admission.
