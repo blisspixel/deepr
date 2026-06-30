@@ -9,12 +9,81 @@ import pytest
 from deepr.experts.chat_backends import (
     AnthropicExpertChatBackend,
     ExpertChatRequest,
+    ExpertChatResult,
     ExpertChatStreamChunk,
     ExpertChatUnsupportedFeature,
     LocalOllamaExpertChatBackend,
     OpenAIExpertChatBackend,
     PlanQuotaExpertChatBackend,
+    complete_expert_chat_turn,
 )
+
+
+class RecordingChatBackend:
+    metered = False
+    supports_streaming = False
+    supports_prompt_cache = False
+
+    def __init__(self, *, supports_tools: bool, provider: str = "recording") -> None:
+        self.supports_tools = supports_tools
+        self.provider = provider
+        self.model = None
+        self.request: ExpertChatRequest | None = None
+
+    async def complete(self, request: ExpertChatRequest) -> ExpertChatResult:
+        self.request = request
+        return ExpertChatResult(message=SimpleNamespace(content="ok", tool_calls=[]))
+
+    def stream(self, request: ExpertChatRequest):
+        raise AssertionError("stream should not be called")
+
+
+@pytest.mark.asyncio
+async def test_complete_expert_chat_turn_omits_tool_choice_without_tools():
+    backend = RecordingChatBackend(supports_tools=True)
+
+    await complete_expert_chat_turn(
+        backend,
+        selected_model=SimpleNamespace(model="gpt-5.2", provider="openai", reasoning_effort="low"),
+        messages=[{"role": "user", "content": "q"}],
+    )
+
+    assert backend.request is not None
+    assert backend.request.tools is None
+    assert backend.request.tool_choice is None
+    assert backend.request.reasoning_effort == "low"
+
+
+@pytest.mark.asyncio
+async def test_complete_expert_chat_turn_rejects_tools_when_backend_does_not_support_them():
+    backend = RecordingChatBackend(supports_tools=False, provider="local")
+
+    with pytest.raises(ExpertChatUnsupportedFeature, match="does not support tools"):
+        await complete_expert_chat_turn(
+            backend,
+            selected_model=SimpleNamespace(model="qwen3:latest", provider="local", reasoning_effort=None),
+            messages=[{"role": "user", "content": "q"}],
+            tools=[{"type": "function", "function": {"name": "lookup"}}],
+        )
+
+    assert backend.request is None
+
+
+@pytest.mark.asyncio
+async def test_complete_expert_chat_turn_preserves_tool_choice_when_tools_supported():
+    backend = RecordingChatBackend(supports_tools=True)
+
+    await complete_expert_chat_turn(
+        backend,
+        selected_model=SimpleNamespace(model="gpt-5.2", provider="openai", reasoning_effort=None),
+        messages=[{"role": "user", "content": "q"}],
+        tools=[{"type": "function", "function": {"name": "lookup"}}],
+        tool_choice="auto",
+    )
+
+    assert backend.request is not None
+    assert backend.request.tools == [{"type": "function", "function": {"name": "lookup"}}]
+    assert backend.request.tool_choice == "auto"
 
 
 @pytest.mark.asyncio

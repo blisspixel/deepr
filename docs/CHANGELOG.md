@@ -8,6 +8,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Fixed
+- Hardened expert-chat backend turn construction so requested tools are
+  rejected before dispatch when a backend declares no tool support, and
+  `tool_choice` is omitted on no-tool turns.
 - Made Anthropic-style expert-chat cost settlement use conservative fallback
   pricing when registry lookup fails, so metered input, output, cache-write,
   and cache-read usage cannot silently record as zero.
