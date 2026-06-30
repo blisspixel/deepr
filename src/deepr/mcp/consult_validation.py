@@ -179,6 +179,8 @@ def _summarize_consult(payload: dict[str, Any]) -> dict[str, Any]:
         "perspective_count": len(_as_list(payload.get("perspectives"))),
         "agreement_count": len(_as_list(payload.get("agreements"))),
         "disagreement_count": len(_as_list(payload.get("disagreements"))),
+        "synthesis_status": payload.get("synthesis_status"),
+        "synthesis_error_type": payload.get("synthesis_error_type"),
         "cost_usd": _float_value(payload.get("cost_usd")),
         "capacity": capacity,
         "metered_fallback_allowed": budget_capacity.get("metered_fallback_allowed"),
@@ -296,6 +298,17 @@ def validate_consult_payload(
             bool(perspectives),
             f"{len(perspectives)} perspective(s) returned",
             "no expert perspectives returned; create or select experts before relying on consult",
+        )
+    )
+    synthesis_status = str(payload.get("synthesis_status") or "")
+    synthesis_error_type = str(payload.get("synthesis_error_type") or "")
+    checks.append(
+        _check(
+            "synthesis_status",
+            synthesis_status in {"completed", "skipped_no_valid_perspectives"},
+            "consult synthesis completed or was explicitly skipped because no valid perspectives were available",
+            f"consult synthesis status is {synthesis_status or 'missing'}"
+            f"{f' ({synthesis_error_type})' if synthesis_error_type else ''}",
         )
     )
     checks.append(

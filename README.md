@@ -261,6 +261,7 @@ deepr mcp serve
 deepr mcp serve --http --host 127.0.0.1 --port 8765
 deepr mcp smoke-http http://127.0.0.1:8765/mcp
 deepr mcp validate-consult --json
+deepr capacity validate-fleet --backend codex --backend claude --backend grok --backend antigravity --expert "AI Agent Harnesses" --json
 deepr mcp validate-consult http://127.0.0.1:8765/mcp --auth-token "$DEEPR_MCP_KEY" --json
 ```
 
@@ -275,6 +276,12 @@ calls the HTTP MCP endpoint and validates `deepr_consult_experts`,
 `deepr-consult-v1`, `deepr-expert-collaboration-v1`, trace linkage, cost fields,
 capacity no-fallback posture, dissent preservation, host action boundaries, and
 secret redaction.
+
+`deepr capacity validate-fleet` is the plan-fleet health check for operator
+machines. It fans out selected plan CLI transport probes, records quota
+observations, then validates the no-metered consult contract only for
+transports that succeeded. It is not an auto-routing shortcut and does not
+score answer meaning.
 
 See [mcp/README.md](mcp/README.md) and
 [docs/MCP_AGENT_TEST_GUIDE.md](docs/MCP_AGENT_TEST_GUIDE.md).

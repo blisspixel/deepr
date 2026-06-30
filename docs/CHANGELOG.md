@@ -16,6 +16,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   and cache-read usage cannot silently record as zero.
 
 ### Added
+- Added `deepr capacity validate-fleet`, a bounded plan-fleet health check that
+  runs selected plan CLI transport probes, records quota observations, then
+  validates the no-metered consult contract only for transports that succeeded.
+  It emits `deepr-plan-fleet-validation-v1`, uses a wrapper timeout above the
+  plan subprocess guard, and fails selected backends that are skipped, missing,
+  exhausted, timed out, or return failed synthesis status.
+- Added `synthesis_status` and `synthesis_error_type` to `deepr-consult-v1`
+  artifacts and the MCP consult validator summary, with validation now failing
+  structurally when consult synthesis reports `failed`.
 - Added non-agentic Anthropic expert-chat streaming through the native
   Messages stream helper, yielding text deltas and final usage for cost
   settlement while tools remain disabled.
