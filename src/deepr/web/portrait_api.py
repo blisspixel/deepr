@@ -85,8 +85,8 @@ def generate_expert_portrait_response(
                 detect_provider=detect_provider,
                 portrait_cost=portrait_cost,
             )
-        except PortraitCostBlocked as e:
-            return jsonify({"error": str(e)}), 402
+        except PortraitCostBlocked:
+            return jsonify({"error": "Portrait generation blocked by cost safety."}), 402
 
         loop = asyncio.new_event_loop()
         try:

@@ -255,10 +255,6 @@ Example consult call:
 """
 
 
-def _redact_agent_guide_secret(guide: str, token: str) -> str:
-    return guide.replace(token, "<redacted-token>") if token else guide
-
-
 def _filter_audit_records(records, *, key_id: str | None, tool_name: str | None, outcome: str | None):
     filtered = records
     if key_id:
@@ -584,10 +580,9 @@ def agent_guide(
         http_path=normalized_path,
     )
     _validate_agent_guide_output_path(output, allow_tracked_output=allow_tracked_output)
-    if as_json and output is None and auth_token is None:
+    if as_json and auth_token is None:
         raise click.ClickException(
-            "JSON output redacts bearer tokens. Omit --json or pass --output to an ignored path "
-            "to receive the one-time token."
+            "JSON output redacts bearer tokens. Omit --json to receive the one-time token on stdout."
         )
     token = auth_token
     record_id = key_id
@@ -608,9 +603,8 @@ def agent_guide(
     if synthesis_backend.lower() == "plan" and not plan:
         plan = "codex"
 
-    guide = _build_agent_guide_text(
+    guide_args = dict(
         endpoint=resolved_endpoint,
-        token=token,
         key_id=record_id,
         bind_host=bind_host,
         port=port,
@@ -623,6 +617,9 @@ def agent_guide(
         synthesis_backend=synthesis_backend.lower(),
         plan=plan,
     )
+    guide = _build_agent_guide_text(token=token, **guide_args)
+    redaction_marker = "<redacted-token>"
+    redacted_guide = _build_agent_guide_text(token=redaction_marker, **guide_args)
     payload = {
         "schema_version": "deepr-mcp-agent-guide-v1",
         "endpoint": resolved_endpoint,
@@ -636,14 +633,16 @@ def agent_guide(
             f".\\.venv\\Scripts\\deepr.exe mcp serve --http --host {bind_host} --port {port} "
             f"--path {normalized_path} --keys-path {keys_path}"
         ),
-        "guide": _redact_agent_guide_secret(guide, token),
+        "guide": redacted_guide,
     }
     if output:
         output_path = Path(output)
         output_path.parent.mkdir(parents=True, exist_ok=True)
-        output_path.write_text(guide, encoding="utf-8")
+        output_path.write_text(redacted_guide, encoding="utf-8")
         if not as_json:
-            click.echo(f"Wrote MCP agent guide: {output}")
+            click.echo(f"Wrote redacted MCP agent guide: {output}")
+            click.echo()
+            click.echo(guide, nl=False)
             return
     if as_json:
         click.echo(json.dumps(payload, indent=2, sort_keys=True))

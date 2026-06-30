@@ -1651,7 +1651,7 @@ def generate_expert_portrait(name):
     """
     decoded_name, err = _decode_expert_name(name)
     if err:
-        return err
+        return jsonify({"error": "Invalid expert name"}), 400
     return generate_expert_portrait_response(
         decoded_name=decoded_name,
         experts_dir=_experts_dir,
@@ -2236,7 +2236,8 @@ def get_citation_validations(name):
         if not profile:
             return jsonify({"validations": [], "summary": {}})
 
-        knowledge_dir = store.get_knowledge_dir(decoded_name)
+        expert_name = profile.name
+        knowledge_dir = store.get_knowledge_dir(expert_name)
         worldview_path = knowledge_dir / "worldview.json"
         if not worldview_path.exists():
             return jsonify({"validations": [], "summary": {}})
@@ -2247,7 +2248,7 @@ def get_citation_validations(name):
 
         beliefs = worldview.beliefs[:_CITATION_VALIDATION_PAIR_CAP]
         truncated = len(worldview.beliefs) > _CITATION_VALIDATION_PAIR_CAP
-        docs_dir = store.get_documents_dir(decoded_name)
+        docs_dir = store.get_documents_dir(expert_name)
         cache_key = _citation_validation_cache_key(worldview_path, docs_dir)
 
         # Fast path: cache hit outside the lock.

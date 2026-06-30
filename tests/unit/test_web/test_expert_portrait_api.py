@@ -75,7 +75,7 @@ def test_portrait_generation_blocks_before_provider_spend(client, monkeypatch):
     )
 
     assert resp.status_code == 402
-    assert resp.get_json() == {"error": "Portrait generation blocked by cost safety: daily limit reached"}
+    assert resp.get_json() == {"error": "Portrait generation blocked by cost safety."}
     assert saved == []
 
 

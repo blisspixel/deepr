@@ -52,6 +52,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `DEEPR_ALLOW_METERED_IMAGE_AUTO=1`, existing portraits are skipped unless
   regeneration is forced, and metered web requests must acknowledge the
   estimate before budget reservation and dispatch.
+- Tightened the GitHub security readback fixes: MCP agent guides now write
+  redacted files instead of persisted bearer-token guides, portrait cost blocks
+  return a generic external error, and citation-validation document lookup uses
+  the loaded expert profile name for follow-on document paths.
 
 ## [2.26.0] - 2026-06-30
 
