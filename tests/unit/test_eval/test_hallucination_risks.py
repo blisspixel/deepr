@@ -13,6 +13,8 @@ from deepr.evals.hallucination_risks import (
 )
 from deepr.experts.consult_quality import build_consult_quality_review
 from deepr.experts.consult_traces import build_consult_trace, build_consult_trace_candidates
+from deepr.experts.handoff import HANDOFF_KIND, HANDOFF_SCHEMA_VERSION
+from deepr.experts.source_pack_compiler import build_source_pack_manifest
 
 
 def _scores(value: float) -> dict[str, float]:
@@ -97,3 +99,87 @@ def test_write_hallucination_risk_report_round_trips(tmp_path):
     assert path.name.startswith("hallucination_risks_")
     assert data["schema_version"] == HALLUCINATION_RISK_REPORT_SCHEMA_VERSION
     assert data["signal_count"] == 0
+
+
+def test_hallucination_risk_report_reads_handoff_and_source_pack_manifests(tmp_path):
+    handoff_path = tmp_path / "handoff.json"
+    handoff = {
+        "schema_version": HANDOFF_SCHEMA_VERSION,
+        "kind": HANDOFF_KIND,
+        "generated_at": "2026-06-30T12:00:00+00:00",
+        "expert": {"name": "Policy Expert", "domain": "legal", "description": "Compliance research"},
+        "summary": {
+            "claim_count": 3,
+            "contested_open_count": 1,
+            "grounding_assurance": {
+                "cross_vendor": 0,
+                "same_vendor_fresh_context": 1,
+                "unverified": 2,
+            },
+        },
+        "limits": {"max_claims": 1},
+    }
+    handoff_path.write_text(json.dumps(handoff), encoding="utf-8")
+
+    manifest = build_source_pack_manifest(
+        {
+            "schema_version": "deepr.sync_source_pack.v1",
+            "query": "legal policy update",
+            "topic": "legal policy",
+            "source_pack": {
+                "schema_version": "deepr.source_pack.v1",
+                "mode": "fresh",
+                "generated_at": "2026-06-30T12:00:00+00:00",
+                "source_count": 2,
+                "retrieved_source_count": 1,
+                "search_queries": ["legal policy update"],
+                "sources": [
+                    {
+                        "label": "source-1",
+                        "title": "Policy release",
+                        "url": "https://example.com/policy",
+                        "source": "web",
+                        "fetched": True,
+                        "content_hash": "",
+                        "excerpt": "Policy text.",
+                    }
+                ],
+            },
+        },
+        source_pack_artifact="C:\\secret\\sync_artifacts\\source_packs\\pack.json",
+    )
+    manifest_dir = tmp_path / "manifests"
+    manifest_dir.mkdir()
+    (manifest_dir / "source_pack_manifest.json").write_text(json.dumps(manifest), encoding="utf-8")
+
+    payload = build_hallucination_risk_report(
+        trace_path=tmp_path / "missing_traces.jsonl",
+        review_dir=tmp_path / "missing_reviews",
+        handoff_paths=[handoff_path],
+        source_pack_manifest_dir=manifest_dir,
+    )
+
+    assert payload["handoff_count"] == 1
+    assert payload["source_pack_manifest_count"] == 1
+    assert payload["risk_label_counts"]["grounding_assurance_gap"] == 1
+    assert payload["risk_label_counts"]["dissent_review_needed"] == 1
+    assert payload["risk_label_counts"]["handoff_truncation_review_needed"] == 1
+    assert payload["risk_label_counts"]["citation_provenance_gap"] == 1
+    assert payload["risk_label_counts"]["source_pack_compile_blocked"] == 1
+    assert payload["risk_label_counts"]["context_gap"] == 1
+    assert {signal["surface"] for signal in payload["signals"]} == {"expert_handoff", "source_pack_manifest"}
+    assert {signal["judgment_source"] for signal in payload["signals"]} == {"deterministic_router"}
+    rendered = json.dumps(payload)
+    assert str(handoff_path) not in rendered
+    assert "C:\\secret" not in rendered
+
+    zero_limited = build_hallucination_risk_report(
+        trace_path=tmp_path / "missing_traces.jsonl",
+        review_dir=tmp_path / "missing_reviews",
+        handoff_paths=[handoff_path],
+        source_pack_manifest_dir=manifest_dir,
+        handoff_limit=0,
+        source_pack_limit=0,
+    )
+    assert zero_limited["handoff_count"] == 0
+    assert zero_limited["source_pack_manifest_count"] == 0

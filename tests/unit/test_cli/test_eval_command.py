@@ -200,3 +200,47 @@ def test_eval_hallucination_risks_outputs_text_summary():
     assert result.exit_code == 0
     assert "Hallucination risk report" in result.output
     assert "Signals:" in result.output
+
+
+def test_eval_hallucination_risks_accepts_handoff_paths(tmp_path):
+    handoff_path = tmp_path / "handoff.json"
+    handoff_path.write_text(
+        json.dumps(
+            {
+                "schema_version": "deepr-expert-handoff-v1",
+                "kind": "deepr.expert.handoff",
+                "generated_at": "2026-06-30T12:00:00+00:00",
+                "expert": {"name": "Medical Expert", "domain": "healthcare"},
+                "summary": {
+                    "claim_count": 1,
+                    "contested_open_count": 0,
+                    "grounding_assurance": {
+                        "cross_vendor": 0,
+                        "same_vendor_fresh_context": 0,
+                        "unverified": 1,
+                    },
+                },
+                "limits": {"max_claims": 1},
+            }
+        ),
+        encoding="utf-8",
+    )
+    runner = CliRunner()
+
+    result = runner.invoke(
+        cli,
+        [
+            "eval",
+            "hallucination-risks",
+            "--handoff-path",
+            str(handoff_path),
+            "--json",
+        ],
+    )
+
+    assert result.exit_code == 0
+    data = json.loads(result.output)
+    assert data["handoff_count"] == 1
+    assert data["risk_label_counts"]["grounding_assurance_gap"] == 1
+    assert data["risk_label_counts"]["high_stakes_review_needed"] == 1
+    assert str(handoff_path) not in result.output

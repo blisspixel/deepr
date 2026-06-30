@@ -240,8 +240,9 @@ prompt-regression candidates selected only from reviewer scores and review
 status.
 `deepr eval hallucination-risks` emits
 `deepr-hallucination-risk-report-v1`, a `$0` no-write advisory report over
-consult traces and consult-quality reviews. It routes hallucination-pattern
-risk signals into review and regression selection without blocking answers or
+consult traces, consult-quality reviews, optional expert handoff artifacts, and
+optional source-pack manifest artifacts. It routes hallucination-pattern risk
+signals into review and regression selection without blocking answers or
 writing beliefs.
 
 ### Capacity

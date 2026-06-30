@@ -11,6 +11,7 @@ from __future__ import annotations
 import hashlib
 import json
 from collections import Counter
+from collections.abc import Sequence
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
@@ -18,6 +19,8 @@ from typing import Any
 from deepr.config import runtime_data_path
 from deepr.experts.consult_quality import load_consult_quality_reviews
 from deepr.experts.consult_traces import load_consult_traces
+from deepr.experts.handoff import HANDOFF_KIND, HANDOFF_SCHEMA_VERSION
+from deepr.experts.source_pack_compiler import SOURCE_PACK_MANIFEST_KIND, SOURCE_PACK_MANIFEST_SCHEMA_VERSION
 
 HALLUCINATION_RISK_REPORT_SCHEMA_VERSION = "deepr-hallucination-risk-report-v1"
 HALLUCINATION_RISK_REPORT_KIND = "deepr.eval.hallucination_risk_report"
@@ -80,6 +83,106 @@ def _contract() -> dict[str, Any]:
 
 def _stable_id(parts: list[str]) -> str:
     return hashlib.sha256("|".join(parts).encode("utf-8")).hexdigest()[:12]
+
+
+def _stable_hash(value: str) -> str:
+    return hashlib.sha256(value.encode("utf-8")).hexdigest()[:12]
+
+
+def _int_value(value: Any, default: int = 0) -> int:
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return default
+
+
+def _load_json_artifact(path: Path, *, schema_version: str, kind: str) -> dict[str, Any] | None:
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return None
+    if not isinstance(payload, dict):
+        return None
+    if payload.get("schema_version") != schema_version:
+        return None
+    if payload.get("kind") != kind:
+        return None
+    return payload
+
+
+def _sorted_json_paths(root: Path) -> list[Path]:
+    if not root.exists():
+        return []
+
+    def modified_at(path: Path) -> float:
+        try:
+            return path.stat().st_mtime
+        except OSError:
+            return 0.0
+
+    return sorted(root.glob("*.json"), key=modified_at, reverse=True)
+
+
+def _dedupe_paths(paths: Sequence[Path]) -> list[Path]:
+    deduped: list[Path] = []
+    seen: set[str] = set()
+    for path in paths:
+        try:
+            key = str(path.resolve())
+        except OSError:
+            key = str(path)
+        if key in seen:
+            continue
+        seen.add(key)
+        deduped.append(path)
+    return deduped
+
+
+def load_handoff_artifacts(*, paths: Sequence[Path] | None = None, limit: int = 50) -> list[dict[str, Any]]:
+    """Load explicit handoff artifacts without exposing local paths."""
+    max_items = max(0, limit)
+    if max_items == 0:
+        return []
+
+    loaded: list[dict[str, Any]] = []
+    for path in _dedupe_paths(paths or ()):
+        artifact = _load_json_artifact(path, schema_version=HANDOFF_SCHEMA_VERSION, kind=HANDOFF_KIND)
+        if artifact is None:
+            continue
+        loaded.append(artifact)
+        if len(loaded) >= max_items:
+            break
+    return loaded
+
+
+def load_source_pack_manifests(
+    *,
+    paths: Sequence[Path] | None = None,
+    directory: Path | None = None,
+    limit: int = 100,
+) -> list[dict[str, Any]]:
+    """Load explicit source-pack manifest artifacts without exposing local paths."""
+    max_items = max(0, limit)
+    if max_items == 0:
+        return []
+
+    candidate_paths = list(paths or ())
+    if directory is not None:
+        candidate_paths.extend(_sorted_json_paths(directory))
+
+    loaded: list[dict[str, Any]] = []
+    for path in _dedupe_paths(candidate_paths):
+        artifact = _load_json_artifact(
+            path,
+            schema_version=SOURCE_PACK_MANIFEST_SCHEMA_VERSION,
+            kind=SOURCE_PACK_MANIFEST_KIND,
+        )
+        if artifact is None:
+            continue
+        loaded.append(artifact)
+        if len(loaded) >= max_items:
+            break
+    return loaded
 
 
 def _score_map(review: dict[str, Any]) -> dict[str, float]:
@@ -215,6 +318,135 @@ def _trace_signal(trace: dict[str, Any]) -> dict[str, Any] | None:
     }
 
 
+def _has_high_stakes_text(values: Sequence[str]) -> bool:
+    joined = " ".join(values).lower()
+    return any(term in joined for term in _HIGH_STAKES_TERMS)
+
+
+def _handoff_signal(handoff: dict[str, Any]) -> dict[str, Any] | None:
+    labels: set[str] = set()
+    basis: list[str] = []
+    expert = handoff.get("expert") if isinstance(handoff.get("expert"), dict) else {}
+    summary = handoff.get("summary") if isinstance(handoff.get("summary"), dict) else {}
+    limits = handoff.get("limits") if isinstance(handoff.get("limits"), dict) else {}
+    grounding = summary.get("grounding_assurance") if isinstance(summary.get("grounding_assurance"), dict) else {}
+
+    claim_count = _int_value(summary.get("claim_count"))
+    unverified_count = _int_value(grounding.get("unverified"))
+    if unverified_count > 0:
+        labels.add("grounding_assurance_gap")
+        basis.append(f"handoff_unverified_claim_count:{unverified_count}")
+
+    contested_count = _int_value(summary.get("contested_open_count"))
+    if contested_count > 0:
+        labels.add("dissent_review_needed")
+        basis.append(f"handoff_contested_open_count:{contested_count}")
+
+    max_claims = _int_value(limits.get("max_claims"), default=claim_count)
+    if claim_count > max_claims:
+        labels.add("handoff_truncation_review_needed")
+        basis.append(f"handoff_claim_limit:{max_claims}/{claim_count}")
+
+    expert_name = str(expert.get("name", "") or "")
+    domain = str(expert.get("domain", "") or "")
+    description = str(expert.get("description", "") or "")
+    if _has_high_stakes_text([expert_name, domain, description]):
+        labels.add("high_stakes_review_needed")
+        basis.append("handoff_high_stakes_metadata_router")
+
+    if not labels:
+        return None
+
+    generated_at = str(handoff.get("generated_at", "") or "")
+    handoff_id = _stable_id(["handoff", expert_name, domain, generated_at, ",".join(sorted(labels))])
+    return {
+        "signal_id": f"hallucination_signal_{handoff_id}",
+        "surface": "expert_handoff",
+        "source_ref": {
+            "handoff_id": handoff_id,
+            "expert_name": expert_name,
+            "domain": domain,
+            "generated_at": generated_at,
+            "claim_count": str(claim_count),
+        },
+        "risk_labels": sorted(labels),
+        "basis": basis,
+        "review_status": "needs_review",
+        "judgment_source": "deterministic_router",
+        "semantic_verdict": False,
+        "recommended_action": "review_handoff_grounding_and_contested_claims",
+    }
+
+
+def _source_pack_manifest_signal(manifest: dict[str, Any]) -> dict[str, Any] | None:
+    labels: set[str] = set()
+    basis: list[str] = []
+    source_pack = manifest.get("source_pack") if isinstance(manifest.get("source_pack"), dict) else {}
+    summary = manifest.get("manifest") if isinstance(manifest.get("manifest"), dict) else {}
+
+    source_count = _int_value(summary.get("source_entry_count"))
+    if source_count == 0:
+        labels.add("context_gap")
+        basis.append("source_pack_source_entry_count:0")
+
+    missing_hash_count = _int_value(summary.get("missing_content_hash_count"))
+    invalid_hash_count = _int_value(summary.get("invalid_content_hash_count"))
+    if missing_hash_count > 0 or invalid_hash_count > 0:
+        labels.add("citation_provenance_gap")
+        basis.append(f"source_pack_content_hash_gaps:{missing_hash_count + invalid_hash_count}")
+
+    if source_count > 0 and not bool(summary.get("ready_for_semantic_compile", False)):
+        labels.add("source_pack_compile_blocked")
+        basis.append("source_pack_ready_for_semantic_compile:false")
+
+    retrieved_count = _int_value(source_pack.get("retrieved_source_count"), default=source_count)
+    declared_count = _int_value(source_pack.get("source_count"), default=source_count)
+    if declared_count > retrieved_count:
+        labels.add("context_gap")
+        basis.append(f"source_pack_retrieved_source_count:{retrieved_count}/{declared_count}")
+
+    generated_at = str(source_pack.get("generated_at", "") or "")
+    if not generated_at:
+        labels.add("temporal_freshness_mismatch")
+        basis.append("source_pack_generated_at:missing")
+
+    query = str(source_pack.get("query", "") or "")
+    topic = str(source_pack.get("topic", "") or "")
+    if _has_high_stakes_text([query, topic]):
+        labels.add("high_stakes_review_needed")
+        basis.append("source_pack_high_stakes_query_router")
+
+    if not labels:
+        return None
+
+    manifest_id = _stable_id(
+        [
+            "source_pack_manifest",
+            _stable_hash(query),
+            _stable_hash(topic),
+            str(manifest.get("generated_at", "") or ""),
+            ",".join(sorted(labels)),
+        ]
+    )
+    return {
+        "signal_id": f"hallucination_signal_{manifest_id}",
+        "surface": "source_pack_manifest",
+        "source_ref": {
+            "manifest_id": manifest_id,
+            "query_hash": _stable_hash(query),
+            "topic_hash": _stable_hash(topic),
+            "generated_at": str(manifest.get("generated_at", "") or ""),
+            "source_count": str(source_count),
+        },
+        "risk_labels": sorted(labels),
+        "basis": basis,
+        "review_status": "needs_review",
+        "judgment_source": "deterministic_router",
+        "semantic_verdict": False,
+        "recommended_action": "repair_source_pack_provenance_or_route_to_review",
+    }
+
+
 def _coverage_gaps(observed_labels: set[str]) -> list[dict[str, str]]:
     required = {
         "false_premise_compliance": "needs false-premise eval cases and calibrated semantic review",
@@ -236,13 +468,24 @@ def build_hallucination_risk_report(
     *,
     trace_path: Path | None = None,
     review_dir: Path | None = None,
+    handoff_paths: Sequence[Path] | None = None,
+    source_pack_manifest_paths: Sequence[Path] | None = None,
+    source_pack_manifest_dir: Path | None = None,
     trace_limit: int = 50,
     review_limit: int = 200,
+    handoff_limit: int = 50,
+    source_pack_limit: int = 100,
     generated_at: datetime | None = None,
 ) -> dict[str, Any]:
     """Build a no-write hallucination-pattern advisory report."""
     traces = load_consult_traces(path=trace_path, limit=max(0, trace_limit))
     reviews = load_consult_quality_reviews(output_dir=review_dir, limit=max(0, review_limit))
+    handoffs = load_handoff_artifacts(paths=handoff_paths, limit=max(0, handoff_limit))
+    source_pack_manifests = load_source_pack_manifests(
+        paths=source_pack_manifest_paths,
+        directory=source_pack_manifest_dir,
+        limit=max(0, source_pack_limit),
+    )
     signals: list[dict[str, Any]] = []
     for trace in traces:
         signal = _trace_signal(trace)
@@ -250,6 +493,14 @@ def build_hallucination_risk_report(
             signals.append(signal)
     for review in reviews:
         signal = _review_signal(review)
+        if signal is not None:
+            signals.append(signal)
+    for handoff in handoffs:
+        signal = _handoff_signal(handoff)
+        if signal is not None:
+            signals.append(signal)
+    for manifest in source_pack_manifests:
+        signal = _source_pack_manifest_signal(manifest)
         if signal is not None:
             signals.append(signal)
     label_counts = Counter(label for signal in signals for label in signal.get("risk_labels", []) or [])
@@ -260,6 +511,8 @@ def build_hallucination_risk_report(
         "contract": _contract(),
         "trace_count": len(traces),
         "review_count": len(reviews),
+        "handoff_count": len(handoffs),
+        "source_pack_manifest_count": len(source_pack_manifests),
         "signal_count": len(signals),
         "risk_label_counts": dict(sorted(label_counts.items())),
         "signals": signals,
