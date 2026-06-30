@@ -407,8 +407,9 @@ def create_default_registry() -> ToolRegistry:
         ToolSchema(
             name="deepr_query_expert",
             description=(
-                "Single-expert question path. Default backend='api' uses the legacy "
-                "metered-capable chat session and agentic=true may trigger research. "
+                "Single-expert question path. Default backend='api' uses OpenAI "
+                "metered-capable chat; backend='api' with provider='anthropic' runs "
+                "non-agentic native Anthropic chat and rejects agentic=true. "
                 "backend='local' or backend='plan' runs one read-only compiled-context "
                 "turn through owned or explicit plan capacity with live metered fallback "
                 "disabled and research_triggered=0."

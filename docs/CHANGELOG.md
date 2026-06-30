@@ -8,6 +8,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- Added explicit Anthropic API support for non-agentic MCP
+  `deepr_query_expert backend=api` calls. `provider=anthropic` now selects a
+  native Anthropic Messages `ExpertChatBackend`, disables tools and streaming,
+  omits OpenAI-only sampling parameters, rejects `agentic=true`, and records
+  Anthropic input, output, cache-write, and cache-read token buckets through
+  the chat cost ledger.
 - Wired MCP `deepr_query_expert backend=local|plan` to the owned-capacity
   `ExpertChatBackend` adapters for one read-only compiled-context turn. These
   modes now attach `readonly_chat_artifact`, keep `research_triggered=0`,

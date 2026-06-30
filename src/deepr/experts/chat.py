@@ -8,17 +8,13 @@ Instrumented with distributed tracing for observability (4.2 Auto-Generated Meta
 
 import json
 import logging
-import os
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
-from openai import AsyncOpenAI
-
+from deepr.experts.chat_api_backends import build_api_expert_chat_backend, estimate_chat_model_cost
 from deepr.experts.chat_backends import (
-    ExpertChatBackend,
     ExpertChatRequest,
-    OpenAIExpertChatBackend,
     complete_expert_chat_turn,
 )
 from deepr.experts.chat_turns import (
@@ -26,6 +22,12 @@ from deepr.experts.chat_turns import (
     check_chat_generation_budget,
     record_model_routing,
     record_named_chat_cost,
+)
+from deepr.experts.chat_turns import (
+    chat_token_cost as _chat_token_cost,
+)
+from deepr.experts.chat_turns import (
+    chat_usage_tokens as _chat_usage_tokens,
 )
 from deepr.experts.commands import MODE_CONFIGS, ChatMode
 from deepr.experts.lazy_graph_rag import LazyGraphRAG
@@ -41,47 +43,6 @@ from deepr.experts.thought_stream import ThoughtStream, ThoughtType
 from deepr.observability.metadata import MetadataEmitter
 
 logger = logging.getLogger(__name__)
-
-# Fallback token prices used when the registry has no entry for the
-# currently selected chat model. Matches the legacy GPT-5 rates so behavior
-# is unchanged for unknown models.
-_DEFAULT_CHAT_INPUT_PRICE_PER_1M = 1.25
-_DEFAULT_CHAT_OUTPUT_PRICE_PER_1M = 10.00
-
-
-def _chat_token_cost(usage: Any, model_name: str) -> float:
-    """Compute chat-completion cost from token usage using the model registry.
-
-    Uses ``get_token_pricing`` so any model in the registry (gpt-5.2 at
-    $1.75/$14, etc.) is priced correctly. When ``usage`` exposes
-    ``prompt_tokens_details.cached_tokens`` (OpenAI caching), the cached
-    portion is billed at 50% - without this discount users hit their
-    session budget earlier than necessary on cache-hit-heavy workloads.
-    """
-    if not usage:
-        return 0.0
-    try:
-        from deepr.providers.registry import get_token_pricing
-
-        prices = get_token_pricing(model_name)
-        input_price = prices.get("input", _DEFAULT_CHAT_INPUT_PRICE_PER_1M)
-        output_price = prices.get("output", _DEFAULT_CHAT_OUTPUT_PRICE_PER_1M)
-    except Exception:
-        # Intent: pricing lookup or registry import failed (missing config, unknown model, etc.); fall back to conservative defaults.
-        input_price = _DEFAULT_CHAT_INPUT_PRICE_PER_1M
-        output_price = _DEFAULT_CHAT_OUTPUT_PRICE_PER_1M
-    prompt_tokens = getattr(usage, "prompt_tokens", 0) or 0
-    completion_tokens = getattr(usage, "completion_tokens", 0) or 0
-
-    cached_tokens = 0
-    details = getattr(usage, "prompt_tokens_details", None)
-    if details is not None:
-        cached_tokens = getattr(details, "cached_tokens", 0) or 0
-    uncached_input = max(prompt_tokens - cached_tokens, 0)
-
-    input_cost = (uncached_input / 1_000_000) * input_price + (cached_tokens / 1_000_000) * input_price * 0.5
-    output_cost = (completion_tokens / 1_000_000) * output_price
-    return input_cost + output_cost
 
 
 class ExpertChatSession:
@@ -102,6 +63,8 @@ class ExpertChatSession:
         verbose: bool = False,
         quiet: bool = False,
         agent_identity: Any = None,
+        provider: str | None = None,
+        model: str | None = None,
     ):
         self.agent_identity = agent_identity
         self.expert = expert
@@ -136,12 +99,13 @@ class ExpertChatSession:
         self.synthesis_threshold = 10  # Re-synthesize after this many research operations
         self.last_synthesis_research_count = 0  # Research count at last synthesis
 
-        # Initialize OpenAI client
-        api_key = os.getenv("OPENAI_API_KEY")
-        if not api_key:
-            raise ValueError("OPENAI_API_KEY not set")
-        self.client = AsyncOpenAI(api_key=api_key)
-        self.chat_backend: ExpertChatBackend = OpenAIExpertChatBackend(self.client)
+        self.chat_provider, self.chat_model, self.client, self.chat_backend = build_api_expert_chat_backend(
+            provider=provider,
+            model=model,
+            expert_model=self.expert.model,
+            agentic=self.agentic,
+        )
+        self.explicit_chat_model = model is not None
 
         # Cost safety manager for defensive budget controls
         import uuid
@@ -382,10 +346,21 @@ Budget remaining: ${budget_remaining:.2f}
         Returns:
             ModelConfig with provider, model, and cost estimate
         """
+        if self.chat_provider != "openai" or self.explicit_chat_model:
+            return ModelConfig(
+                provider=self.chat_provider,
+                model=self.chat_model,
+                cost_estimate=self._estimate_chat_model_cost(self.chat_model),
+                confidence=1.0,
+            )
+
         if not self.enable_router or not self.router:
             # Router disabled - use expert's default model
             return ModelConfig(
-                provider=self.expert.provider, model=self.expert.model, cost_estimate=0.20, confidence=1.0
+                provider=self.chat_provider,
+                model=self.chat_model,
+                cost_estimate=self._estimate_chat_model_cost(self.chat_model),
+                confidence=1.0,
             )
 
         # Estimate context size from conversation history
@@ -406,10 +381,21 @@ Budget remaining: ${budget_remaining:.2f}
             query=query,
             context_size=context_size,
             budget_remaining=budget_remaining,
-            current_model=self.expert.model,
+            current_model=self.chat_model,
             provider_constraint="openai",  # Expert vector store requires OpenAI
             allow_research_model=self.agentic,
         )
+
+    def _estimate_chat_model_cost(self, model_name: str) -> float:
+        return estimate_chat_model_cost(model_name)
+
+    def _provider_model_or(self, openai_model: str) -> str:
+        if self.chat_provider == "openai":
+            return openai_model
+        return self.chat_model
+
+    def _provider_reasoning_effort_or_none(self, effort: str | None) -> str | None:
+        return effort if self.chat_provider == "openai" else None
 
     async def _finish_blocked_chat_turn(
         self, op: Any, selected_model: ModelConfig, reason: str, estimated_cost: float
@@ -824,9 +810,10 @@ Budget remaining: ${budget_remaining:.2f}
             return {"error": f"Quick lookup blocked: {reason}", "mode": "quick_lookup_gpt52", "status": "blocked"}
 
         try:
+            model_name = self._provider_model_or("gpt-5.5")
             result = await self.chat_backend.complete(
                 ExpertChatRequest(
-                    model="gpt-5.5",
+                    model=model_name,
                     messages=[
                         {
                             "role": "system",
@@ -834,7 +821,7 @@ Budget remaining: ${budget_remaining:.2f}
                         },
                         {"role": "user", "content": query},
                     ],
-                    reasoning_effort="low",
+                    reasoning_effort=self._provider_reasoning_effort_or_none("low"),
                 )
             )
 
@@ -842,10 +829,11 @@ Budget remaining: ${budget_remaining:.2f}
                 cost_safety=self.cost_safety,
                 session_id=self.session_id,
                 usage=result.usage,
-                model_name="gpt-5.5",
+                model_name=model_name,
                 operation_type="quick_lookup",
                 fallback_cost=0.01,
                 cost_calculator=_chat_token_cost,
+                provider=self.chat_provider,
                 details=f"Query: {query[:50]}...",
             )
             self.cost_accumulated += cost
@@ -962,9 +950,10 @@ Budget remaining: ${budget_remaining:.2f}
                         "mode": "standard_research_fallback",
                         "status": "blocked",
                     }
+                model_name = self._provider_model_or("gpt-5.5")
                 result = await self.chat_backend.complete(
                     ExpertChatRequest(
-                        model="gpt-5.5",
+                        model=model_name,
                         messages=[
                             {
                                 "role": "system",
@@ -972,7 +961,7 @@ Budget remaining: ${budget_remaining:.2f}
                             },
                             {"role": "user", "content": query},
                         ],
-                        reasoning_effort="low",
+                        reasoning_effort=self._provider_reasoning_effort_or_none("low"),
                     )
                 )
 
@@ -982,10 +971,11 @@ Budget remaining: ${budget_remaining:.2f}
                     cost_safety=self.cost_safety,
                     session_id=self.session_id,
                     usage=result.usage,
-                    model_name="gpt-5.5",
+                    model_name=model_name,
                     operation_type="standard_research_fallback",
                     fallback_cost=0.01,
                     cost_calculator=_chat_token_cost,
+                    provider=self.chat_provider,
                     details=f"Fallback for: {query[:50]}...",
                 )
                 self.cost_accumulated += cost
@@ -1318,14 +1308,15 @@ Budget remaining: ${budget_remaining:.2f}
             return
         self.cost_accumulated += cost
         try:
+            tokens_input, tokens_output = _chat_usage_tokens(usage)
             self.cost_safety.record_cost(
                 session_id=self.session_id,
                 operation_type="expert_chat",
                 actual_cost=cost,
                 provider=getattr(model, "provider", "unknown"),
                 model=getattr(model, "model", ""),
-                tokens_input=getattr(usage, "prompt_tokens", 0) or 0,
-                tokens_output=getattr(usage, "completion_tokens", 0) or 0,
+                tokens_input=tokens_input,
+                tokens_output=tokens_output,
                 source="experts.chat",
             )
         except Exception:
@@ -1495,21 +1486,22 @@ Budget remaining: ${budget_remaining:.2f}
                     ]
                 )
 
-            # Detect and activate skills for this query
-            installed_names = getattr(self.expert, "installed_skills", [])
-            triggered = self.skill_manager.detect_skills_for_query(user_message, installed_names)
-            for skill in triggered:
-                if skill.name not in [s.name for s in self.active_skills]:
-                    self.active_skills.append(skill)
-                    skill_budget = min(skill.budget.default_budget, self.budget - self.cost_accumulated)
-                    from deepr.experts.skills import SkillExecutor
+            if self.chat_backend.supports_tools:
+                # Detect and activate skills for this query
+                installed_names = getattr(self.expert, "installed_skills", [])
+                triggered = self.skill_manager.detect_skills_for_query(user_message, installed_names)
+                for skill in triggered:
+                    if skill.name not in [s.name for s in self.active_skills]:
+                        self.active_skills.append(skill)
+                        skill_budget = min(skill.budget.default_budget, self.budget - self.cost_accumulated)
+                        from deepr.experts.skills import SkillExecutor
 
-                    self.skill_executors[skill.name] = SkillExecutor(skill, skill_budget)
+                        self.skill_executors[skill.name] = SkillExecutor(skill, skill_budget)
 
             # Autonomous native recon probe (first-class instrument, cost 0).
             # Runs on any query containing a domain when agentic mode is on.
             # Complements (does not replace) the keyword-triggered skill path.
-            if self.agentic:
+            if self.agentic and self.chat_backend.supports_tools:
                 try:
                     await self._maybe_probe_recon_autonomously(user_message)
                 except Exception:
@@ -1517,12 +1509,13 @@ Budget remaining: ${budget_remaining:.2f}
                     logger.debug("Autonomous recon probe failed (non-fatal)", exc_info=False)
 
             # Add skill tools to the tools list
-            for skill in self.active_skills:
-                for tool in skill.tools:
-                    tool_def = tool.to_openai_tool_def(skill.name)
-                    tools.append(tool_def)
-                    qualified = tool_def["function"]["name"]
-                    self._skill_tool_map[qualified] = (skill.name, tool.name)
+            if self.chat_backend.supports_tools:
+                for skill in self.active_skills:
+                    for tool in skill.tools:
+                        tool_def = tool.to_openai_tool_def(skill.name)
+                        tools.append(tool_def)
+                        qualified = tool_def["function"]["name"]
+                        self._skill_tool_map[qualified] = (skill.name, tool.name)
 
             # Add user message to history
             self.messages.append({"role": "user", "content": user_message})
@@ -1535,7 +1528,8 @@ Budget remaining: ${budget_remaining:.2f}
                 self.chat_backend,
                 selected_model=selected_model,
                 messages=[{"role": "system", "content": self.get_system_message()}, *self.messages],
-                tools=tools,
+                tools=tools if self.chat_backend.supports_tools else None,
+                tool_choice="auto" if self.chat_backend.supports_tools else None,
             )
 
             assistant_message = first_turn.message
@@ -1553,7 +1547,7 @@ Budget remaining: ${budget_remaining:.2f}
             # silently blow past the session budget between rounds.
             _per_round_estimate = max(_chat_token_cost(first_turn.usage, selected_model.model) * 1.5, 0.05)
 
-            while current_message.tool_calls and round_count < max_rounds:
+            while getattr(current_message, "tool_calls", None) and round_count < max_rounds:
                 round_count += 1
 
                 # Re-check the session budget between rounds. The previous
@@ -1839,7 +1833,8 @@ Budget remaining: ${budget_remaining:.2f}
                     self.chat_backend,
                     selected_model=selected_model,
                     messages=conversation_messages,
-                    tools=tools,
+                    tools=tools if self.chat_backend.supports_tools else None,
+                    tool_choice="auto" if self.chat_backend.supports_tools else None,
                 )
 
                 current_message = next_turn.message
@@ -2108,30 +2103,32 @@ Budget remaining: ${budget_remaining:.2f}
                     }
                 )
 
-            # Detect and activate skills
-            installed_names = getattr(self.expert, "installed_skills", [])
-            triggered = self.skill_manager.detect_skills_for_query(user_message, installed_names)
-            for skill in triggered:
-                if skill.name not in [s.name for s in self.active_skills]:
-                    self.active_skills.append(skill)
-                    skill_budget = min(skill.budget.default_budget, self.budget - self.cost_accumulated)
-                    from deepr.experts.skills import SkillExecutor
+            if self.chat_backend.supports_tools:
+                # Detect and activate skills
+                installed_names = getattr(self.expert, "installed_skills", [])
+                triggered = self.skill_manager.detect_skills_for_query(user_message, installed_names)
+                for skill in triggered:
+                    if skill.name not in [s.name for s in self.active_skills]:
+                        self.active_skills.append(skill)
+                        skill_budget = min(skill.budget.default_budget, self.budget - self.cost_accumulated)
+                        from deepr.experts.skills import SkillExecutor
 
-                    self.skill_executors[skill.name] = SkillExecutor(skill, skill_budget)
+                        self.skill_executors[skill.name] = SkillExecutor(skill, skill_budget)
 
             # Autonomous native recon probe (first-class instrument, cost 0) - streaming path
-            if self.agentic:
+            if self.agentic and self.chat_backend.supports_tools:
                 try:
                     await self._maybe_probe_recon_autonomously(user_message)
                 except Exception:
                     logger.debug("Autonomous recon probe failed (non-fatal)", exc_info=False)
 
-            for skill in self.active_skills:
-                for tool in skill.tools:
-                    tool_def = tool.to_openai_tool_def(skill.name)
-                    tools.append(tool_def)
-                    qualified = tool_def["function"]["name"]
-                    self._skill_tool_map[qualified] = (skill.name, tool.name)
+            if self.chat_backend.supports_tools:
+                for skill in self.active_skills:
+                    for tool in skill.tools:
+                        tool_def = tool.to_openai_tool_def(skill.name)
+                        tools.append(tool_def)
+                        qualified = tool_def["function"]["name"]
+                        self._skill_tool_map[qualified] = (skill.name, tool.name)
 
             self.messages.append({"role": "user", "content": user_message})
 
@@ -2140,7 +2137,8 @@ Budget remaining: ${budget_remaining:.2f}
                 self.chat_backend,
                 selected_model=selected_model,
                 messages=[{"role": "system", "content": self.get_system_message()}, *self.messages],
-                tools=tools,
+                tools=tools if self.chat_backend.supports_tools else None,
+                tool_choice="auto" if self.chat_backend.supports_tools else None,
             )
             assistant_message = first_turn.message
 
@@ -2151,7 +2149,7 @@ Budget remaining: ${budget_remaining:.2f}
             round_count = 0
             _per_round_estimate = max(_chat_token_cost(first_turn.usage, selected_model.model) * 1.5, 0.05)
 
-            while current_message.tool_calls and round_count < max_rounds:
+            while getattr(current_message, "tool_calls", None) and round_count < max_rounds:
                 round_count += 1
                 # Mirror the non-streaming branch: re-check budget between
                 # rounds so the tool loop can't run away on its own.
@@ -2280,7 +2278,8 @@ Budget remaining: ${budget_remaining:.2f}
                     self.chat_backend,
                     selected_model=selected_model,
                     messages=conversation_messages,
-                    tools=tools,
+                    tools=tools if self.chat_backend.supports_tools else None,
+                    tool_choice="auto" if self.chat_backend.supports_tools else None,
                 )
                 current_message = next_turn.message
 
@@ -2293,7 +2292,7 @@ Budget remaining: ${budget_remaining:.2f}
                 if token_callback:
                     for char in final_message:
                         token_callback(char)
-            else:
+            elif self.chat_backend.supports_streaming:
                 # No content yet - need a streaming call for the final answer
                 report_status("Generating response...")
                 conversation_messages.append(current_message)
@@ -2320,6 +2319,8 @@ Budget remaining: ${budget_remaining:.2f}
                             token_callback(delta.content)
                 if stream_usage is not None:
                     self._account_chat_cost(stream_usage, selected_model)
+            else:
+                final_message = ""
 
             # Track initial call costs using registry pricing for the
             # selected model.
@@ -2390,9 +2391,10 @@ Budget remaining: ${budget_remaining:.2f}
     async def _generate_follow_ups(self, user_message: str, response: str) -> list[str]:
         """Generate 2-3 follow-up question suggestions."""
         try:
+            model_name = self._provider_model_or("gpt-4o-mini")
             result = await self.chat_backend.complete(
                 ExpertChatRequest(
-                    model="gpt-4o-mini",
+                    model=model_name,
                     messages=[
                         {
                             "role": "system",
@@ -2452,9 +2454,10 @@ Budget remaining: ${budget_remaining:.2f}
         conversation_text = "\n".join(text_parts)
 
         try:
+            model_name = self._provider_model_or("gpt-4o-mini")
             result = await self.chat_backend.complete(
                 ExpertChatRequest(
-                    model="gpt-4o-mini",
+                    model=model_name,
                     messages=[
                         {
                             "role": "system",

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from types import SimpleNamespace
 from typing import Any, Protocol
 
 
@@ -112,6 +113,108 @@ class OpenAIExpertChatBackend:
             provider_request_id=str(getattr(response, "id", "") or ""),
             stop_reason=str(getattr(choice, "finish_reason", "") or ""),
         )
+
+
+class AnthropicExpertChatBackend:
+    """Anthropic Messages API backend for non-agentic expert-chat turns."""
+
+    provider = "anthropic"
+    metered = True
+    supports_tools = False
+    supports_streaming = False
+    supports_prompt_cache = False
+
+    def __init__(self, client: Any, *, model: str) -> None:
+        self.client = client
+        self.model = model
+
+    async def complete(self, request: ExpertChatRequest) -> ExpertChatResult:
+        if request.tools:
+            raise ExpertChatUnsupportedFeature("anthropic expert-chat backend does not support tools yet")
+
+        model = request.model if request.model.startswith("claude-") else self.model
+        params = self._build_params(request, model=model)
+        response = await self.client.messages.create(**params)
+        text = _anthropic_response_text(response)
+        stop_reason = str(getattr(response, "stop_reason", "") or "")
+        if stop_reason == "refusal" and not text:
+            text = _anthropic_refusal_text(response)
+        return ExpertChatResult(
+            message=SimpleNamespace(content=text, tool_calls=[]),
+            usage=getattr(response, "usage", None),
+            raw_response=response,
+            provider_request_id=str(getattr(response, "_request_id", "") or getattr(response, "id", "") or ""),
+            stop_reason=stop_reason,
+        )
+
+    def _build_params(self, request: ExpertChatRequest, *, model: str) -> dict[str, Any]:
+        extra = dict(request.extra)
+        max_tokens = int(extra.pop("max_tokens", 4096) or 4096)
+        extra.pop("temperature", None)
+        extra.pop("top_p", None)
+        extra.pop("top_k", None)
+        extra.pop("response_format", None)
+
+        system_parts: list[str] = []
+        messages: list[dict[str, str]] = []
+        for raw in request.messages:
+            role = str(raw.get("role", "user")) if isinstance(raw, dict) else "user"
+            content = _message_content_text(raw)
+            if role == "system":
+                system_parts.append(content)
+            elif role in {"user", "assistant"}:
+                messages.append({"role": role, "content": content})
+            elif role == "tool":
+                raise ExpertChatUnsupportedFeature("anthropic expert-chat backend does not support tool messages yet")
+            else:
+                messages.append({"role": "user", "content": content})
+
+        params: dict[str, Any] = {
+            "model": model,
+            "max_tokens": max_tokens,
+            "messages": messages or [{"role": "user", "content": ""}],
+        }
+        if system_parts:
+            params["system"] = "\n\n".join(part for part in system_parts if part)
+        if "thinking" in extra:
+            params["thinking"] = extra["thinking"]
+        return params
+
+
+def _message_content_text(message: Any) -> str:
+    if isinstance(message, dict):
+        content = message.get("content", "")
+    else:
+        content = getattr(message, "content", "")
+    if isinstance(content, str):
+        return content
+    if isinstance(content, list):
+        parts: list[str] = []
+        for item in content:
+            if isinstance(item, dict):
+                parts.append(str(item.get("text") or item.get("content") or ""))
+            else:
+                parts.append(str(getattr(item, "text", "") or getattr(item, "content", "") or ""))
+        return "\n".join(part for part in parts if part)
+    return str(content or "")
+
+
+def _anthropic_response_text(response: Any) -> str:
+    parts: list[str] = []
+    for block in getattr(response, "content", []) or []:
+        if getattr(block, "type", None) == "text" or hasattr(block, "text"):
+            text = getattr(block, "text", "")
+            if text:
+                parts.append(str(text))
+    return "\n".join(parts).strip()
+
+
+def _anthropic_refusal_text(response: Any) -> str:
+    details = getattr(response, "stop_details", None)
+    category = getattr(details, "category", None) if details else None
+    if category:
+        return f"Anthropic safety classifiers declined the request (category: {category})."
+    return "Anthropic safety classifiers declined the request."
 
 
 class _OpenAIShapeNoToolExpertChatBackend:

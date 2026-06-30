@@ -22,6 +22,13 @@ def _session(monkeypatch, budget):
 
 
 class RecordingChatBackend:
+    provider = "openai"
+    model = "gpt-5.2"
+    metered = True
+    supports_tools = True
+    supports_streaming = True
+    supports_prompt_cache = True
+
     def __init__(self, *contents) -> None:
         self.requests = []
         self._contents = list(contents)
@@ -32,6 +39,27 @@ class RecordingChatBackend:
         return ExpertChatResult(
             message=SimpleNamespace(content=content, tool_calls=[]),
             usage=SimpleNamespace(prompt_tokens=10, completion_tokens=5),
+        )
+
+
+class RecordingNoToolChatBackend(RecordingChatBackend):
+    provider = "anthropic"
+    model = "claude-sonnet-4-6"
+    supports_tools = False
+    supports_streaming = False
+    supports_prompt_cache = False
+
+    async def complete(self, request):
+        self.requests.append(request)
+        content = self._contents.pop(0) if self._contents else "anthropic answer"
+        return ExpertChatResult(
+            message=SimpleNamespace(content=content, tool_calls=[]),
+            usage=SimpleNamespace(
+                input_tokens=100,
+                output_tokens=20,
+                cache_creation_input_tokens=0,
+                cache_read_input_tokens=0,
+            ),
         )
 
 
@@ -228,6 +256,73 @@ async def test_first_chat_generation_uses_chat_backend(monkeypatch):
     assert backend.requests[0].model == session.expert.model
     assert backend.requests[0].tool_choice == "auto"
     assert backend.requests[0].messages[0]["role"] == "system"
+
+
+async def test_anthropic_non_agentic_chat_omits_tools_and_records_cost(monkeypatch):
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "anthropic-test-not-real")
+
+    class FakeAsyncAnthropic:
+        def __init__(self, *, api_key):
+            assert api_key == "anthropic-test-not-real"
+
+    monkeypatch.setattr("deepr.experts.chat_api_backends.AsyncAnthropic", FakeAsyncAnthropic)
+    reset_cost_safety_manager()
+    expert = ExpertProfile(name="Anthropic Probe", vector_store_id="vs-x", domain="ai")
+    session = ExpertChatSession(
+        expert,
+        budget=1.0,
+        agentic=False,
+        provider="anthropic",
+        model="claude-sonnet-4-6",
+    )
+    session.should_use_tot = lambda _query: False
+    backend = RecordingNoToolChatBackend("anthropic answer")
+    session.chat_backend = backend
+
+    result = await session.send_message("What should this expert improve next?")
+
+    assert result == "anthropic answer"
+    assert len(backend.requests) == 1
+    assert backend.requests[0].model == "claude-sonnet-4-6"
+    assert backend.requests[0].tools is None
+    assert backend.requests[0].tool_choice is None
+    assert session.cost_accumulated > 0
+
+
+async def test_anthropic_no_tool_chat_handles_complex_question_without_tool_round(monkeypatch):
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "anthropic-test-not-real")
+    monkeypatch.setattr("deepr.experts.chat_api_backends.AsyncAnthropic", lambda **_kwargs: SimpleNamespace())
+    reset_cost_safety_manager()
+    expert = ExpertProfile(name="Anthropic Probe", vector_store_id="vs-x", domain="ai")
+    session = ExpertChatSession(
+        expert,
+        budget=1.0,
+        agentic=False,
+        provider="anthropic",
+        model="claude-sonnet-4-6",
+    )
+    backend = RecordingNoToolChatBackend("complex answer")
+    session.chat_backend = backend
+
+    result = await session.send_message("Analyze the tradeoffs in this multi-step AI governance plan.")
+
+    assert result == "complex answer"
+    assert len(backend.requests) == 1
+    assert backend.requests[0].tools is None
+
+
+async def test_anthropic_agentic_chat_is_rejected(monkeypatch):
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "anthropic-test-not-real")
+    monkeypatch.setattr("deepr.experts.chat_api_backends.AsyncAnthropic", lambda **_kwargs: SimpleNamespace())
+    reset_cost_safety_manager()
+    expert = ExpertProfile(name="Anthropic Probe", vector_store_id="vs-x", domain="ai")
+
+    try:
+        ExpertChatSession(expert, budget=1.0, agentic=True, provider="anthropic")
+    except ValueError as exc:
+        assert "non-agentic only" in str(exc)
+    else:
+        raise AssertionError("Anthropic agentic chat should be rejected")
 
 
 async def test_follow_up_generation_uses_chat_backend(monkeypatch):
