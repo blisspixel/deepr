@@ -81,6 +81,7 @@ def expert(ctx, list_flag):
     "--no-discovery", is_flag=True, default=False, help="Skip source discovery phase (faster but less comprehensive)"
 )
 @click.option("--yes", "-y", is_flag=True, help="Skip confirmation for autonomous learning")
+@click.option("--confirm-metered-profile", is_flag=True, help="Allow --yes for reviewed API profile setup.")
 def make_expert(
     name: str,
     files: tuple,
@@ -96,6 +97,7 @@ def make_expert(
     deep: int | None,
     no_discovery: bool,
     yes: bool,
+    confirm_metered_profile: bool,
 ):
     """Create a new domain expert with a knowledge base."""
     import asyncio
@@ -146,6 +148,12 @@ def make_expert(
         click.echo("Or: deepr expert make 'My Expert' --learn --budget 10")
         return
 
+    from deepr.cli.commands.semantic.expert_make_profile_setup import confirm_provider_profile_setup
+
+    if not confirm_provider_profile_setup(
+        provider=provider, files=files, yes=yes, confirm_metered_profile=confirm_metered_profile
+    ):
+        return
     click.echo(f"Creating expert: {name}...")
 
     async def create_expert():
@@ -155,7 +163,6 @@ def make_expert(
         from deepr.experts.profile import ExpertProfile, ExpertStore, get_expert_system_message
         from deepr.providers import create_provider
 
-        # Load config
         config = load_config()
 
         # Get provider-specific API key
@@ -208,7 +215,6 @@ def make_expert(
             provider=provider,
         )
 
-        # Save profile
         store = ExpertStore()
         store.save(profile)
 

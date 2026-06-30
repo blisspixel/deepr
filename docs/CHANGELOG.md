@@ -64,6 +64,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Made generated portraits portable and overwrite-safe by defaulting library
   and CLI portrait writes to the configured runtime data root and archiving any
   existing portrait before forced replacement.
+- Added an API-backed `deepr expert make` cost-posture preview before provider
+  construction. It shows the metered provider, selected upload size, and
+  provider-specific vector-store storage estimate where available, and requires
+  `--confirm-metered-profile` for unattended `--yes` runs.
 - Tightened the GitHub security readback fixes: MCP agent guides now write
   redacted files instead of persisted bearer-token guides, portrait cost blocks
   return a generic external error, and citation-validation document lookup uses

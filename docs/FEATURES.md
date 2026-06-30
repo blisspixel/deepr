@@ -408,12 +408,21 @@ deepr expert make "Azure Architect" --files docs/*.md
 # Create a local-only expert profile with no provider API calls
 deepr expert make "UI Experience Expert" --local --description "UI/UX for agentic research tools"
 
+# Unattended API-backed profile setup requires a separate metered acknowledgement
+deepr expert make "Azure Architect" --files docs/*.md --yes --confirm-metered-profile
+
 # Create with autonomous learning
 deepr expert make "FDA Regulations" --files docs/*.pdf --learn --budget 10
 
 # With description
 deepr expert make "Supply Chain Expert" --files *.md --description "Logistics and supply chain domain"
 ```
+
+API-backed profile setup previews the provider, selected upload size, and
+hosted-vector-store storage estimate before any provider client is constructed.
+Use `--local` for provider-free `$0` profile setup, or pass
+`--confirm-metered-profile` with `--yes` when the metered API path is
+intentional.
 
 ### Preview Curriculum
 

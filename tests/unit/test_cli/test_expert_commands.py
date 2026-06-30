@@ -179,6 +179,83 @@ class TestExpertMakeCommand:
         assert "--local creates a $0 profile only" in result.output
         assert "expert sync" in result.output
 
+    def test_expert_make_api_profile_cancel_stops_before_provider_setup(self, runner, tmp_path):
+        """The API-backed profile warning must run before provider construction."""
+        source = tmp_path / "seed.md"
+        source.write_text("# Seed\n\nProfile setup source.", encoding="utf-8")
+
+        with patch("deepr.providers.create_provider") as create_provider:
+            result = runner.invoke(
+                cli,
+                ["expert", "make", "API Profile Expert", "--files", str(source)],
+                input="n\n",
+            )
+
+        assert result.exit_code == 0
+        assert "API-backed expert profile setup" in result.output
+        assert "metered API key path" in result.output
+        assert "Cancelled" in result.output
+        create_provider.assert_not_called()
+
+    def test_expert_make_yes_requires_metered_profile_confirmation(self, runner, tmp_path):
+        """Unattended API-backed profile setup needs a distinct acknowledgement."""
+        source = tmp_path / "seed.md"
+        source.write_text("# Seed\n\nProfile setup source.", encoding="utf-8")
+
+        with patch("deepr.providers.create_provider") as create_provider:
+            result = runner.invoke(
+                cli,
+                ["expert", "make", "API Profile Expert", "--files", str(source), "--yes"],
+            )
+
+        assert result.exit_code == 0
+        assert "requires --confirm-metered-profile" in result.output
+        create_provider.assert_not_called()
+
+    def test_expert_make_confirmed_api_profile_uses_provider_setup(self, runner, tmp_path):
+        """The explicit acknowledgement preserves the API-backed setup path."""
+        from deepr.experts.profile import ExpertStore
+
+        source = tmp_path / "seed.md"
+        source.write_text("# Seed\n\nProfile setup source.", encoding="utf-8")
+
+        class FakeProvider:
+            async def upload_document(self, file_path):
+                assert file_path == str(source)
+                return "file_seed"
+
+            async def create_vector_store(self, name, file_ids):
+                assert name == "expert-api-profile-expert"
+                assert file_ids == ["file_seed"]
+                return SimpleNamespace(id="vs_seed")
+
+            async def wait_for_vector_store(self, vector_store_id, timeout=900):
+                assert vector_store_id == "vs_seed"
+                assert timeout == 900
+                return True
+
+        with patch("deepr.providers.create_provider", return_value=FakeProvider()) as create_provider:
+            result = runner.invoke(
+                cli,
+                [
+                    "expert",
+                    "make",
+                    "API Profile Expert",
+                    "--files",
+                    str(source),
+                    "--yes",
+                    "--confirm-metered-profile",
+                ],
+            )
+
+        assert result.exit_code == 0, result.output
+        create_provider.assert_called_once()
+        profile = ExpertStore().load("API Profile Expert")
+        assert profile is not None
+        assert profile.provider == "openai"
+        assert profile.vector_store_id == "vs_seed"
+        assert profile.source_files == [str(source)]
+
 
 class TestExpertListCommand:
     """Test 'expert list' command."""
