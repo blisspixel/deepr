@@ -232,7 +232,39 @@ def test_consult_plan_synthesis_vets_backend_and_disables_live_fallback(monkeypa
     assert captured["operation"] == "plan_quota_consult_synthesis"
 
 
+def test_consult_anthropic_api_synthesis_passes_provider_and_model(monkeypatch):
+    captured = {}
+
+    async def fake(question, experts, max_experts, budget, **kwargs):
+        captured["budget"] = budget
+        captured.update(kwargs)
+        return _result(total_cost=0.0)
+
+    monkeypatch.setattr(mod, "run_consult", fake)
+
+    result = CliRunner().invoke(
+        expert_consult,
+        ["q", "--provider", "anthropic", "--model", "claude-sonnet-4-6", "--budget", "1", "--json"],
+    )
+
+    assert result.exit_code == 0
+    assert captured["budget"] == 1.0
+    assert captured["synthesis_provider"] == "anthropic"
+    assert captured["synthesis_model"] == "claude-sonnet-4-6"
+    assert captured["allow_live_fallback"] is True
+    parsed = json.loads(result.output)
+    assert parsed["capacity"]["synthesis_backend"] == "api"
+    assert parsed["capacity"]["provider"] == "anthropic"
+    assert parsed["capacity"]["model"] == "claude-sonnet-4-6"
+
+
 def test_consult_capacity_flags_are_exclusive():
     result = CliRunner().invoke(expert_consult, ["q", "--local", "--plan", "grok", "--json"])
     assert result.exit_code == 2
     assert "Choose only one synthesis backend" in result.output
+
+
+def test_consult_api_provider_rejected_for_owned_capacity():
+    result = CliRunner().invoke(expert_consult, ["q", "--local", "--provider", "anthropic", "--budget", "0", "--json"])
+    assert result.exit_code == 2
+    assert "API provider/model overrides" in result.output
