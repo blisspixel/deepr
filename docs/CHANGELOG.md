@@ -8,6 +8,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- Added local Ollama and plan-quota `ExpertChatBackend` adapters for read-only
+  compiled-context turns. Both declare tools, streaming, and prompt cache
+  unsupported, expose no Deepr dollar spend, and are groundwork for public
+  local/plan interactive chat routing.
 - Moved expert-chat quick lookup and standard-research fallback calls onto the
   `ExpertChatBackend` seam while preserving their existing GPT-5.5 request
   shape, budget checks, and operation-specific cost ledger records.
