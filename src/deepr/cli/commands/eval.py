@@ -637,6 +637,7 @@ def eval_hallucination_risks(
     click.echo(f"Handoffs inspected: {report['handoff_count']}")
     click.echo(f"Source-pack manifests inspected: {report['source_pack_manifest_count']}")
     click.echo(f"Signals: {report['signal_count']}")
+    click.echo(f"Prompt regression candidates: {report['prompt_regression_candidate_count']}")
     if report["risk_label_counts"]:
         click.echo("Risk labels:")
         for label, count in report["risk_label_counts"].items():

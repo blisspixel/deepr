@@ -15,6 +15,8 @@
     "signal_count",
     "risk_label_counts",
     "signals",
+    "prompt_regression_candidate_count",
+    "prompt_regression_candidates",
     "coverage_gaps",
     "mitigation_policy",
     "generated_at"
@@ -85,6 +87,42 @@
         }
       }
     },
+    "prompt_regression_candidate_count": {"type": "integer", "minimum": 0},
+    "prompt_regression_candidates": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": true,
+        "required": [
+          "candidate_id",
+          "source_signal_id",
+          "surface",
+          "source_ref",
+          "risk_labels",
+          "selection_reason",
+          "prompt_focus",
+          "review_status",
+          "judgment_source",
+          "semantic_verdict",
+          "writes_state",
+          "recommended_action"
+        ],
+        "properties": {
+          "candidate_id": {"type": "string", "minLength": 1},
+          "source_signal_id": {"type": "string", "minLength": 1},
+          "surface": {"enum": ["consult_trace", "consult_quality_review"]},
+          "source_ref": {"type": "object", "additionalProperties": {"type": "string"}},
+          "risk_labels": {"type": "array", "items": {"type": "string"}, "minItems": 1},
+          "selection_reason": {"const": "advisory_risk_label"},
+          "prompt_focus": {"type": "array", "items": {"type": "string"}, "minItems": 1},
+          "review_status": {"enum": ["needs_review", "reviewed"]},
+          "judgment_source": {"enum": ["deterministic_router", "human_or_calibrated_model_review"]},
+          "semantic_verdict": {"const": false},
+          "writes_state": {"const": false},
+          "recommended_action": {"const": "add_to_consult_prompt_regression_selection"}
+        }
+      }
+    },
     "coverage_gaps": {
       "type": "array",
       "items": {
@@ -106,6 +144,7 @@
         "never_blocks_answers",
         "never_writes_beliefs",
         "semantic_judgment_requires_human_or_calibrated_model",
+        "prompt_regression_selection_uses_advisory_labels_only",
         "recommended_uses"
       ],
       "properties": {
@@ -113,6 +152,7 @@
         "never_blocks_answers": {"const": true},
         "never_writes_beliefs": {"const": true},
         "semantic_judgment_requires_human_or_calibrated_model": {"const": true},
+        "prompt_regression_selection_uses_advisory_labels_only": {"const": true},
         "recommended_uses": {"type": "array", "items": {"type": "string"}}
       }
     },

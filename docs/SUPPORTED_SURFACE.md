@@ -199,7 +199,8 @@ must not be described as usable capacity.
   answers, write beliefs, or claim semantic truth from deterministic rules.
   False-premise compliance and template-order sensitivity are available as
   consult-quality semantic review labels only after a human or calibrated-model
-  judge marks them.
+  judge marks them. Consult trace and consult-quality review signals also
+  produce read-only prompt-regression candidates for prompt-variant selection.
 - Local Ollama expert maintenance, local evals, local context evals, local
   red-team attack-success-rate metrics including MCP read-path canaries and
   saved trend artifacts, and scored local admission.

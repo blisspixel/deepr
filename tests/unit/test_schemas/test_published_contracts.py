@@ -833,6 +833,8 @@ def test_hallucination_risk_report_schema_validates_runtime_payload(tmp_path):
     assert payload["contract"]["semantic_verdict"] is False
     assert payload["contract"]["blocks_answers"] is False
     assert payload["mitigation_policy"]["never_writes_beliefs"] is True
+    assert payload["mitigation_policy"]["prompt_regression_selection_uses_advisory_labels_only"] is True
+    assert isinstance(payload["prompt_regression_candidates"], list)
 
 
 def test_source_pack_manifest_schema_validates_runtime_payload():

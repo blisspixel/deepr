@@ -33,6 +33,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   consult-quality semantic review cases. These are reviewer or calibrated-judge
   labels, not deterministic truth verdicts, and now feed
   `deepr eval hallucination-risks` as advisory signals.
+- Added read-only consult prompt-regression candidates to
+  `deepr eval hallucination-risks`, selected only from advisory consult trace
+  and consult-quality review labels.
 
 ## [2.26.0] - 2026-06-30
 
