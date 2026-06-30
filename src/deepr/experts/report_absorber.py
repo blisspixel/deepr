@@ -82,6 +82,32 @@ class ReportAbsorberError(Exception):
     """Raised when a report cannot be absorbed (empty text, bad model output)."""
 
 
+def _loads_model_json(raw: str) -> Any:
+    """Parse provider JSON output without rejecting raw control characters."""
+    text = raw.strip()
+    candidates = [text]
+    start = text.find("{")
+    end = text.rfind("}")
+    if start >= 0 and end >= start:
+        sliced = text[start : end + 1]
+        if sliced != text:
+            candidates.append(sliced)
+
+    first_error: json.JSONDecodeError | None = None
+    for candidate in candidates:
+        try:
+            return json.loads(candidate)
+        except json.JSONDecodeError as e:
+            first_error = first_error or e
+        try:
+            return json.loads(candidate, strict=False)
+        except json.JSONDecodeError as e:
+            first_error = first_error or e
+    if first_error is not None:
+        raise first_error
+    raise json.JSONDecodeError("No JSON object found", raw, 0)
+
+
 @dataclass
 class CandidateClaim:
     """A claim proposed by extraction, before gating."""
@@ -756,7 +782,7 @@ class ReportAbsorber:
         )
         raw = response.choices[0].message.content or ""
         try:
-            parsed = json.loads(raw)
+            parsed = _loads_model_json(raw)
         except json.JSONDecodeError as e:
             raise ReportAbsorberError(f"Extraction model returned non-JSON output: {e}. Raw: {raw[:200]!r}") from e
 

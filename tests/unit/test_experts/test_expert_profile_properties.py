@@ -12,7 +12,7 @@ from datetime import UTC, datetime, timedelta
 from hypothesis import given, settings
 from hypothesis import strategies as st
 
-from deepr.experts.profile import ExpertProfile
+from deepr.experts.profile import PROFILE_SCHEMA_VERSION, ExpertProfile
 
 
 def utc_now():
@@ -99,6 +99,7 @@ class TestSerializationRoundTrip:
         assert restored.domain_velocity == original.domain_velocity
         assert restored.monthly_learning_budget == original.monthly_learning_budget
         assert restored.monthly_spending == original.monthly_spending
+        assert restored.schema_version == PROFILE_SCHEMA_VERSION
 
     @given(
         name=expert_name_strategy,

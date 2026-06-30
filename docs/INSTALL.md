@@ -151,8 +151,8 @@ python -m venv .venv
 # Windows: .\.venv\Scripts\Activate.ps1
 # macOS/Linux: source .venv/bin/activate
 
-pip install -e ".[dev]"   # or just -e . for core
-python -m pytest
+pip install -e ".[dev,full]"   # [full] is needed for the unit suite imports
+python -m pytest tests/unit/ --ignore=tests/data -q --timeout=120
 ```
 
 ### Docker Installation (Optional)

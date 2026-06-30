@@ -8,6 +8,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- Added `deepr capacity probe-fleet`, a bounded concurrent validation command
+  for plan-quota CLIs. It probes selected backends in one pass, records the same
+  quota observations as `probe-plan`, skips metered-at-margin adapters by
+  default, and emits a versioned `deepr-plan-fleet-probe-v1` JSON envelope for
+  automation.
+- Added `deepr capacity next --probe`, which runs a `$0` live local-model probe
+  before reporting automatic local routing as ready. A visible but unloadable
+  admitted model now downgrades the next-action view to blocked instead of
+  presenting stale readiness.
+- Added a loopback-only socket guard to the dev/unit pytest environment so the
+  unit gate fails on accidental outbound network calls while preserving local
+  fixtures.
+- Added a root `deepr --no-color` flag that disables ANSI color output for
+  existing Rich consoles and sets `NO_COLOR` for consoles created later.
+- Added first-class `ExpertProfile.schema_version` round-tripping. Profile
+  serialization now preserves schema version metadata, and store saves align
+  in-memory and persisted profiles with `PROFILE_SCHEMA_VERSION`.
+- Added `deepr-expert-mutation-audit-v1`, an append-only
+  `mutation_audit.jsonl` record beside each expert belief store. Belief
+  creates, updates, revisions, archives, restores, contested writes, and
+  conflict-merge updates now record actor, operation, belief id, event hash,
+  and before/after state hashes without duplicating full claim text.
 - Added MCP `deepr_semantic_recall`, a confirmation-gated, read-only,
   cost-$0 host-agent surface over the same `candidate_only` belief recall
   contract. Host-facing payloads are sanitized, and indexed vector recall still
@@ -77,6 +99,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   deduplication, contradiction, and temporal-scope judgment with the verifier.
 
 ### Changed
+- Clarified the README first-screen value proposition, `--budget` examples, and
+  audience fit. The README now calls `--budget 3` a budget ceiling, explains
+  that users bring accounts, quotas, API keys, or local models, and
+  distinguishes buyers, builders, agent-host users, and casual one-off chat use.
 - Migrated compiled sync to graph-commit apply by default.
   `deepr expert sync --compile-claims` now applies the verified graph-commit
   envelope instead of calling the legacy absorber. Use
@@ -85,6 +111,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   compatibility alias for the default apply path.
 
 ### Fixed
+- Made plan-quota fleet status show the effective sanitized child auth mode and
+  the raw parent-shell auth mode separately, so an API key in the parent
+  environment no longer makes a safe plan-auth child run look metered.
+- Recorded quota observations from explicit `capacity probe-plan` calls, so the
+  fleet view updates after successful probes and observed exhaustion.
+- Included the live local-probe result in `deepr capacity --probe --json`.
+- Hardened report absorption against provider JSON that contains raw control
+  characters inside strings or lightweight wrapper text, while still requiring
+  parseable JSON before any claim extraction proceeds.
+- Persisted and audited lower-confidence conflict evidence retained during
+  belief resolution while preserving the existing no-new-absorbed-change return
+  contract.
 - Hardened public-bind detection across A2A, MCP HTTP, Flask API, and the web
   dashboard. Empty or unset bind hosts are now treated as all-interface binds,
   not loopback, so unauthenticated public-bind guardrails cannot be bypassed by

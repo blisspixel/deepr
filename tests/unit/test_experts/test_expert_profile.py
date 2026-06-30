@@ -8,7 +8,13 @@ from datetime import UTC, datetime, timedelta
 
 import pytest
 
-from deepr.experts.profile import DEFAULT_EXPERT_SYSTEM_MESSAGE, ExpertProfile, ExpertStore, get_expert_system_message
+from deepr.experts.profile import (
+    DEFAULT_EXPERT_SYSTEM_MESSAGE,
+    PROFILE_SCHEMA_VERSION,
+    ExpertProfile,
+    ExpertStore,
+    get_expert_system_message,
+)
 
 
 def utc_now():
@@ -27,6 +33,7 @@ class TestExpertProfileDataStructure:
         assert profile.vector_store_id == "vs_test123"
         assert profile.domain_velocity == "medium"  # Default
         assert profile.refresh_frequency_days == 90  # Default
+        assert profile.schema_version == PROFILE_SCHEMA_VERSION
         assert profile.conversations == 0
         assert profile.research_triggered == 0
         assert profile.total_research_cost == 0.0

@@ -5,14 +5,13 @@
 [![Python 3.12+](https://img.shields.io/badge/python-3.12+-blue.svg)](https://www.python.org/downloads/)
 [![Version](https://img.shields.io/badge/version-2.24.0-blue)](https://github.com/blisspixel/deepr/releases/tag/v2.24.0)
 
-**Domain experts, not another chat window.**
+**Domain experts that remember, not another chat window.**
 
-Deepr turns research into durable understanding. A research run can become
-reports, beliefs, gaps, contradictions, confidence, provenance, loop records,
-and handoff payloads that humans or other agents can reuse later.
-
-The core idea is simple: bring the capacity you already have, then route work to
-the cheapest capable path.
+You bring the AI accounts, plan quotas, API keys, or local models you already
+have. Deepr previews the route, runs each research task through the cheapest
+capable path, and turns useful results into durable experts with beliefs, gaps,
+contradictions, confidence, provenance, loop records, and handoff payloads that
+humans or other agents can reuse later.
 
 - Local Ollama is the true `$0` marginal-cost path for quality-tolerant expert
   setup, absorb, sync, eval, and local-context workflows.
@@ -20,6 +19,10 @@ the cheapest capable path.
   deterministic no-surprise-bills checks.
 - Cloud APIs remain the strongest full research path when you provide keys and
   a budget ceiling.
+
+A budget is a ceiling, not a target price. `--budget 3` means Deepr may spend
+up to $3 for that job, stops before the ceiling when it can, and records every
+settled cost in the append-only ledger.
 
 Deepr is useful when research is infrastructure: recurring expert maintenance,
 batch research, citable knowledge for coding agents, and durable domain roles
@@ -29,7 +32,7 @@ that stay current over time.
 # Preview route and cost before spending.
 deepr research "What bottlenecks could constrain NVIDIA Blackwell deployment?" --auto --dry-run
 
-# Run a bounded research job.
+# Run a research job with a $3 budget ceiling.
 deepr research "Will open-weight frontier models erode AI enterprise margins by 2027?" --auto --budget 3
 
 # Consult a persistent expert at $0 through local synthesis.
@@ -79,6 +82,22 @@ Experts should be able to explain what they know, what they do not know, what
 changed, and what they should learn next. They do not get to authorize their own
 spend, writes, or authority changes.
 
+## Who Deepr Is For
+
+Deepr fits builders, operators, researchers, and agent-host users who need
+research to become durable local state instead of one-off chat transcripts.
+
+- **Buyers and operators** who need budget ceilings, audit trails, and repeatable
+  research workflows across multiple providers.
+- **Builders** who want local-first expert maintenance, explicit plan-quota
+  execution, and structured artifacts they can inspect or version.
+- **Agent-host users** who want coding agents or MCP clients to query a current
+  knowledge layer instead of relying on stale training data.
+
+Deepr is not the shortest path for a casual one-off question. It is also not a
+way to bypass provider terms, spend without explicit budgets, or let an agent
+authorize its own writes, tools, or paid calls.
+
 ## Quick Start
 
 **Windows PowerShell**
@@ -98,6 +117,7 @@ Open a new terminal after install:
 ```bash
 deepr init
 deepr doctor
+# Budget ceiling: spend at most $3 for this job.
 deepr research "Your question here" --auto --budget 3
 ```
 

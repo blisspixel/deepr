@@ -100,6 +100,7 @@ dev = [
     "pytest-asyncio>=0.21.0",
     "pytest-cov>=4.0.0",
     "pytest-mock>=3.10.0",
+    "pytest-socket>=0.7.0,<1.0.0",
     "pytest-timeout>=2.3.0",
     "black>=23.0.0",
     "ruff>=0.15.17",
@@ -255,7 +256,14 @@ norecursedirs = [
     "venv",
     ".venv",
 ]
-addopts = ["-v", "--tb=short", "--strict-markers"]
+addopts = [
+    "-v",
+    "--tb=short",
+    "--strict-markers",
+    "--disable-socket",
+    "--allow-unix-socket",
+    "--allow-hosts=localhost,127.0.0.1,::1",
+]
 filterwarnings = [
     "ignore::DeprecationWarning:pydantic.*",
     "ignore::RuntimeWarning:click.*",

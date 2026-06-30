@@ -3,6 +3,8 @@
 import importlib
 import io
 
+from click.testing import CliRunner
+
 
 class _FakeCLI:
     def __init__(self):
@@ -70,3 +72,15 @@ def test_main_uses_cli_for_explicit_args(monkeypatch):
 
     assert fake_cli.call_count == 1
     assert fake_cli.main_calls == []
+
+
+def test_root_no_color_option_applies_policy(monkeypatch):
+    main_module = importlib.import_module("deepr.cli.main")
+    calls = []
+    monkeypatch.setattr(main_module, "apply_no_color", lambda: calls.append("applied"))
+
+    result = CliRunner().invoke(main_module.cli, ["--no-color", "--help"])
+
+    assert result.exit_code == 0
+    assert calls == ["applied"]
+    assert "--no-color" in result.output
