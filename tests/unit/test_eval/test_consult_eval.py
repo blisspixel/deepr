@@ -11,12 +11,13 @@ def test_consult_eval_builtin_cases_pass():
     report = run_consult_eval()
 
     assert report.cost_usd == 0.0
-    assert report.total_cases == 8
+    assert report.total_cases == 9
     assert report.failed_cases == 0
     assert report.score == 1.0
     assert {outcome.case_id for outcome in report.outcomes} == {
         "collaboration_capacity_contract",
         "explicit_slug_resolution",
+        "hallucination_risk_review_case_contract",
         "stored_belief_context_packet",
         "synthesis_section_parser",
         "payload_context_preservation",

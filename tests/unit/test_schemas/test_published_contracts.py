@@ -740,6 +740,10 @@ def test_consult_quality_eval_case_schema_validates_runtime_payload():
     assert payload["kind"] == CONSULT_QUALITY_EVAL_CASE_KIND
     assert payload["contract"]["semantic_verdict"] is False
     assert payload["contract"]["lexical_verdict_allowed"] is False
+    assert {item["risk_label"] for item in payload["hallucination_risk_checks"]} == {
+        "false_premise_compliance",
+        "template_order_sensitivity",
+    }
     assert payload["acceptance_policy"]["never_commits_beliefs"] is True
 
 

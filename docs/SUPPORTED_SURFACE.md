@@ -197,6 +197,9 @@ must not be described as usable capacity.
   coverage gaps for false-premise, middle-context-loss, and
   template-sensitivity cases. The labels inform only; they do not block
   answers, write beliefs, or claim semantic truth from deterministic rules.
+  False-premise compliance and template-order sensitivity are available as
+  consult-quality semantic review labels only after a human or calibrated-model
+  judge marks them.
 - Local Ollama expert maintenance, local evals, local context evals, local
   red-team attack-success-rate metrics including MCP read-path canaries and
   saved trend artifacts, and scored local admission.

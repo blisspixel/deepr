@@ -29,6 +29,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   source-pack manifest artifacts. The added signals cover grounding-assurance
   gaps, handoff contestation, handoff truncation, source-pack hash/readiness
   gaps, and high-stakes artifact routing without exposing local paths.
+- Added false-premise compliance and template-order sensitivity checks to
+  consult-quality semantic review cases. These are reviewer or calibrated-judge
+  labels, not deterministic truth verdicts, and now feed
+  `deepr eval hallucination-risks` as advisory signals.
 
 ## [2.26.0] - 2026-06-30
 
