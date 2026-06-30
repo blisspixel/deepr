@@ -23,14 +23,14 @@ def chat_token_cost(usage: Any, model_name: str) -> float:
     input_tokens = getattr(usage, "input_tokens", None)
     output_tokens = getattr(usage, "output_tokens", None)
     if input_tokens is not None or output_tokens is not None:
+        regular_input = int(input_tokens or 0)
+        output = int(output_tokens or 0)
+        cache_creation = int(getattr(usage, "cache_creation_input_tokens", 0) or 0)
+        cache_read = int(getattr(usage, "cache_read_input_tokens", 0) or 0)
         try:
             from deepr.providers.anthropic_provider import ANTHROPIC_CACHE_PRICING
             from deepr.providers.registry import get_token_pricing
 
-            regular_input = int(input_tokens or 0)
-            output = int(output_tokens or 0)
-            cache_creation = int(getattr(usage, "cache_creation_input_tokens", 0) or 0)
-            cache_read = int(getattr(usage, "cache_read_input_tokens", 0) or 0)
             prices = get_token_pricing(model_name, input_tokens=regular_input + cache_creation + cache_read)
             input_price = prices.get("input", _DEFAULT_CHAT_INPUT_PRICE_PER_1M)
             output_price = prices.get("output", _DEFAULT_CHAT_OUTPUT_PRICE_PER_1M)
@@ -45,15 +45,20 @@ def chat_token_cost(usage: Any, model_name: str) -> float:
                     "cache_read": round(input_price * 0.10, 6),
                 },
             )
-            return (
-                regular_input / 1_000_000 * input_price
-                + output / 1_000_000 * output_price
-                + cache_creation / 1_000_000 * cache_rates["cache_write"]
-                + cache_read / 1_000_000 * cache_rates["cache_read"]
-            )
         except Exception:
-            logger.debug("Anthropic chat pricing lookup failed; using zero cost", exc_info=True)
-            return 0.0
+            logger.debug("Anthropic chat pricing lookup failed; using conservative defaults", exc_info=True)
+            input_price = _DEFAULT_CHAT_INPUT_PRICE_PER_1M
+            output_price = _DEFAULT_CHAT_OUTPUT_PRICE_PER_1M
+            cache_rates = {
+                "cache_write": round(input_price * 1.25, 6),
+                "cache_read": round(input_price * 0.10, 6),
+            }
+        return (
+            regular_input / 1_000_000 * input_price
+            + output / 1_000_000 * output_price
+            + cache_creation / 1_000_000 * cache_rates["cache_write"]
+            + cache_read / 1_000_000 * cache_rates["cache_read"]
+        )
     try:
         from deepr.providers.registry import get_token_pricing
 
