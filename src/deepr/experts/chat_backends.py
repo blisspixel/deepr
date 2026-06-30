@@ -169,7 +169,7 @@ class AnthropicExpertChatBackend:
     provider = "anthropic"
     metered = True
     supports_tools = False
-    supports_streaming = False
+    supports_streaming = True
     supports_prompt_cache = False
 
     def __init__(self, client: Any, *, model: str) -> None:
@@ -195,8 +195,19 @@ class AnthropicExpertChatBackend:
             stop_reason=stop_reason,
         )
 
-    def stream(self, request: ExpertChatRequest) -> AsyncIterator[ExpertChatStreamChunk]:
-        raise ExpertChatUnsupportedFeature("anthropic expert-chat backend does not support streaming yet")
+    async def stream(self, request: ExpertChatRequest) -> AsyncIterator[ExpertChatStreamChunk]:
+        if request.tools:
+            raise ExpertChatUnsupportedFeature("anthropic expert-chat backend does not support tools yet")
+
+        model = request.model if request.model.startswith("claude-") else self.model
+        params = self._build_params(request, model=model)
+        async with self.client.messages.stream(**params) as stream:
+            async for text_delta in stream.text_stream:
+                yield ExpertChatStreamChunk(text_delta=str(text_delta), raw_chunk=text_delta)
+            final_message = await stream.get_final_message()
+            usage = getattr(final_message, "usage", None)
+            if usage is not None:
+                yield ExpertChatStreamChunk(usage=usage, raw_chunk=final_message)
 
     def _build_params(self, request: ExpertChatRequest, *, model: str) -> dict[str, Any]:
         extra = dict(request.extra)
