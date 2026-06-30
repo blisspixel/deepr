@@ -548,6 +548,7 @@ def _consult_quality_judge_prompt(case: dict[str, Any], trace: dict[str, Any], c
             "source_trace_id": str(case.get("source_trace_id", "")),
             "input": case.get("input", {}) if isinstance(case.get("input"), dict) else {},
             "rubric": list(case.get("rubric", []) or []),
+            "hallucination_risk_checks": list(case.get("hallucination_risk_checks", []) or []),
             "allowed_failure_labels": list(case.get("failure_labels", []) or []),
             "acceptance_policy": case.get("acceptance_policy", {})
             if isinstance(case.get("acceptance_policy"), dict)

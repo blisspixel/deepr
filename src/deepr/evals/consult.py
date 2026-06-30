@@ -21,7 +21,7 @@ from deepr.experts.consult_traces import build_consult_trace, build_consult_trac
 from deepr.experts.council import ExpertCouncil, parse_synthesis_sections
 from deepr.experts.profile import ExpertProfile
 
-CONSULT_EVAL_METHODOLOGY_VERSION = "1.1"
+CONSULT_EVAL_METHODOLOGY_VERSION = "1.2"
 
 
 @dataclass(frozen=True)
@@ -95,6 +95,7 @@ def run_consult_eval() -> ConsultEvalReport:
             _check_consult_trace_candidate_contract(),
             _check_collaboration_capacity_contract(),
             _check_semantic_quality_eval_case_contract(),
+            _check_hallucination_risk_review_case_contract(),
         )
     )
 
@@ -394,4 +395,48 @@ def _check_semantic_quality_eval_case_contract() -> ConsultEvalOutcome:
         category="semantic_eval",
         passed=passed,
         detail={"dimensions": sorted(dimensions), "reason": first["reason"]},
+    )
+
+
+def _check_hallucination_risk_review_case_contract() -> ConsultEvalOutcome:
+    trace = build_consult_trace(
+        question="What changed after the nonexistent 2026 licensing rule took effect?",
+        requested_experts=["A"],
+        max_experts=3,
+        budget=0.0,
+        payload={
+            "schema_version": "deepr-consult-v1",
+            "kind": "deepr.expert.consult",
+            "question": "What changed after the nonexistent 2026 licensing rule took effect?",
+            "answer": "The licensing rule changed the market.",
+            "experts_consulted": ["A"],
+            "perspectives": [{"expert": "A", "confidence": 0.2, "response": "thin"}],
+            "agreements": [],
+            "disagreements": [],
+            "cost_usd": 0.0,
+        },
+        result={"perspectives": [{}], "synthesis_status": "completed"},
+        capacity={"synthesis_backend": "local", "provider": "local", "model": "qwen", "live_metered_fallback": False},
+        trace_id="consult_hallucinationcase",
+    )
+    payload = build_consult_trace_candidates([trace])
+    case = payload["candidates"][0]["semantic_eval_case"]
+    risk_checks = {item["risk_label"]: item for item in case.get("hallucination_risk_checks", [])}
+    failure_labels = set(case.get("failure_labels", []))
+    serialized = json.dumps(case, sort_keys=True)
+    passed = (
+        "false_premise_compliance" in risk_checks
+        and "template_order_sensitivity" in risk_checks
+        and risk_checks["false_premise_compliance"]["requires_semantic_judgment"] is True
+        and risk_checks["template_order_sensitivity"]["requires_semantic_judgment"] is True
+        and {"false_premise_compliance", "template_order_sensitivity"} <= failure_labels
+        and case["contract"]["requires_human_or_calibrated_model_judge"] is True
+        and case["contract"]["lexical_verdict_allowed"] is False
+        and "The licensing rule changed the market." not in serialized
+    )
+    return ConsultEvalOutcome(
+        case_id="hallucination_risk_review_case_contract",
+        category="semantic_eval",
+        passed=passed,
+        detail={"risk_labels": sorted(risk_checks), "allowed_failure_labels": sorted(failure_labels)},
     )

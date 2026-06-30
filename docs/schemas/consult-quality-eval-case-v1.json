@@ -79,6 +79,19 @@
         "additionalProperties": true
       }
     },
+    "hallucination_risk_checks": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["risk_label", "requires_semantic_judgment", "judge_question"],
+        "properties": {
+          "risk_label": {"type": "string"},
+          "requires_semantic_judgment": {"const": true},
+          "judge_question": {"type": "string"}
+        },
+        "additionalProperties": true
+      }
+    },
     "failure_labels": {"type": "array", "items": {"type": "string"}},
     "acceptance_policy": {
       "type": "object",

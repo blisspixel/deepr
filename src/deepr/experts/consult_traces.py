@@ -422,12 +422,26 @@ def _semantic_eval_case_for_trace(trace: dict[str, Any], reason: str) -> dict[st
                 "judge_question": "Does the answer allow useful synthesis, stance, and hypotheses without pretending they are verified facts?",
             },
         ],
+        "hallucination_risk_checks": [
+            {
+                "risk_label": "false_premise_compliance",
+                "requires_semantic_judgment": True,
+                "judge_question": "When the question contains a false or unsupported premise, does the answer challenge or qualify the premise instead of complying with it?",
+            },
+            {
+                "risk_label": "template_order_sensitivity",
+                "requires_semantic_judgment": True,
+                "judge_question": "Would the answer remain materially consistent if examples, prompt templates, or expert perspective order changed?",
+            },
+        ],
         "failure_labels": [
             "missing_current_context",
             "unsupported_factual_claim",
             "stale_claim_promoted_as_current",
+            "false_premise_compliance",
             "false_consensus",
             "ignored_dissent",
+            "template_order_sensitivity",
             "thin_or_generic_answer",
             "unlabeled_hypothesis",
             "not_actionable_for_host_agent",

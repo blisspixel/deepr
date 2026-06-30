@@ -101,6 +101,44 @@ def test_write_hallucination_risk_report_round_trips(tmp_path):
     assert data["signal_count"] == 0
 
 
+def test_hallucination_risk_report_maps_reviewed_false_premise_and_template_labels(tmp_path):
+    trace = build_consult_trace(
+        question="What changed after the nonexistent 2026 licensing rule took effect?",
+        requested_experts=["AI Policy Expert"],
+        max_experts=3,
+        budget=0.0,
+        failure={"error_type": "RuntimeError"},
+        trace_id="consult_falsepremise",
+        recorded_at=datetime(2026, 6, 30, 12, 0, tzinfo=UTC),
+    )
+    candidate = build_consult_trace_candidates([trace])["candidates"][0]
+    review = build_consult_quality_review(
+        expert_name="AI Policy Expert",
+        case=candidate["semantic_eval_case"],
+        scores=_scores(5.0),
+        reviewer="operator",
+        decision="accept",
+        failure_labels=["false_premise_compliance", "template_order_sensitivity"],
+        candidate=candidate,
+    )
+    review_dir = tmp_path / "benchmarks"
+    review_dir.mkdir()
+    (review_dir / f"consult_quality_review_{review['review_id']}.json").write_text(
+        json.dumps(review),
+        encoding="utf-8",
+    )
+
+    payload = build_hallucination_risk_report(trace_path=tmp_path / "missing.jsonl", review_dir=review_dir)
+
+    assert payload["risk_label_counts"]["false_premise_compliance"] == 1
+    assert payload["risk_label_counts"]["template_sensitivity"] == 1
+    assert payload["risk_label_counts"]["overconfident_uncertainty_failure"] == 1
+    assert {
+        "false_premise_compliance",
+        "template_sensitivity",
+    }.isdisjoint({item["risk_label"] for item in payload["coverage_gaps"]})
+
+
 def test_hallucination_risk_report_reads_handoff_and_source_pack_manifests(tmp_path):
     handoff_path = tmp_path / "handoff.json"
     handoff = {

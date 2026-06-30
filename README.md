@@ -243,7 +243,8 @@ status.
 consult traces, consult-quality reviews, optional expert handoff artifacts, and
 optional source-pack manifest artifacts. It routes hallucination-pattern risk
 signals into review and regression selection without blocking answers or
-writing beliefs.
+writing beliefs. False-premise and template-order labels come only from human
+or calibrated-model consult-quality review cases.
 
 ### Capacity
 
