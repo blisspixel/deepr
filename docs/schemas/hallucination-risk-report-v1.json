@@ -1,0 +1,117 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/blisspixel/deepr/docs/schemas/hallucination-risk-report-v1.json",
+  "title": "Deepr Hallucination Risk Report v1",
+  "type": "object",
+  "additionalProperties": true,
+  "required": [
+    "schema_version",
+    "kind",
+    "contract",
+    "trace_count",
+    "review_count",
+    "signal_count",
+    "risk_label_counts",
+    "signals",
+    "coverage_gaps",
+    "mitigation_policy",
+    "generated_at"
+  ],
+  "properties": {
+    "schema_version": {"const": "deepr-hallucination-risk-report-v1"},
+    "kind": {"const": "deepr.eval.hallucination_risk_report"},
+    "contract": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": [
+        "read_only",
+        "cost_usd",
+        "writes_state",
+        "writes_beliefs",
+        "semantic_verdict",
+        "lexical_verdict_allowed",
+        "blocks_answers",
+        "risk_labels_are_advisory",
+        "deterministic_labels_are_routing_only",
+        "source_path_exposed"
+      ],
+      "properties": {
+        "read_only": {"const": true},
+        "cost_usd": {"const": 0.0},
+        "writes_state": {"const": false},
+        "writes_beliefs": {"const": false},
+        "semantic_verdict": {"const": false},
+        "lexical_verdict_allowed": {"const": false},
+        "blocks_answers": {"const": false},
+        "risk_labels_are_advisory": {"const": true},
+        "deterministic_labels_are_routing_only": {"const": true},
+        "source_path_exposed": {"const": false}
+      }
+    },
+    "trace_count": {"type": "integer", "minimum": 0},
+    "review_count": {"type": "integer", "minimum": 0},
+    "signal_count": {"type": "integer", "minimum": 0},
+    "risk_label_counts": {"type": "object", "additionalProperties": {"type": "integer", "minimum": 0}},
+    "signals": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": true,
+        "required": [
+          "signal_id",
+          "surface",
+          "source_ref",
+          "risk_labels",
+          "basis",
+          "review_status",
+          "judgment_source",
+          "semantic_verdict",
+          "recommended_action"
+        ],
+        "properties": {
+          "signal_id": {"type": "string", "minLength": 1},
+          "surface": {"enum": ["consult_trace", "consult_quality_review"]},
+          "source_ref": {"type": "object", "additionalProperties": {"type": "string"}},
+          "risk_labels": {"type": "array", "items": {"type": "string"}, "minItems": 1},
+          "basis": {"type": "array", "items": {"type": "string"}},
+          "review_status": {"enum": ["needs_review", "reviewed"]},
+          "judgment_source": {"enum": ["deterministic_router", "human_or_calibrated_model_review"]},
+          "semantic_verdict": {"const": false},
+          "recommended_action": {"type": "string", "minLength": 1}
+        }
+      }
+    },
+    "coverage_gaps": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": true,
+        "required": ["risk_label", "status", "reason"],
+        "properties": {
+          "risk_label": {"type": "string", "minLength": 1},
+          "status": {"type": "string", "minLength": 1},
+          "reason": {"type": "string", "minLength": 1}
+        }
+      }
+    },
+    "mitigation_policy": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": [
+        "signals_inform_only",
+        "never_blocks_answers",
+        "never_writes_beliefs",
+        "semantic_judgment_requires_human_or_calibrated_model",
+        "recommended_uses"
+      ],
+      "properties": {
+        "signals_inform_only": {"const": true},
+        "never_blocks_answers": {"const": true},
+        "never_writes_beliefs": {"const": true},
+        "semantic_judgment_requires_human_or_calibrated_model": {"const": true},
+        "recommended_uses": {"type": "array", "items": {"type": "string"}}
+      }
+    },
+    "generated_at": {"type": "string", "format": "date-time"}
+  }
+}

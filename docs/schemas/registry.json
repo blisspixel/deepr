@@ -167,6 +167,14 @@
       "compatibility": "additive-within-v1"
     },
     {
+      "name": "hallucination-risk-report",
+      "schema_version": "deepr-hallucination-risk-report-v1",
+      "kind": "deepr.eval.hallucination_risk_report",
+      "path": "hallucination-risk-report-v1.json",
+      "status": "experimental",
+      "compatibility": "additive-within-v1"
+    },
+    {
       "name": "mcp-consult-validation",
       "schema_version": "deepr-mcp-consult-validation-v1",
       "kind": "deepr.mcp.consult_validation",

@@ -151,3 +151,52 @@ def test_eval_consult_outputs_text_summary():
     assert result.exit_code == 0
     assert "Consult harness eval" in result.output
     assert "Score: 100.0%" in result.output
+
+
+def test_eval_hallucination_risks_outputs_zero_cost_json_report(tmp_path):
+    runner = CliRunner()
+
+    result = runner.invoke(
+        cli,
+        [
+            "eval",
+            "hallucination-risks",
+            "--trace-path",
+            str(tmp_path / "missing.jsonl"),
+            "--review-dir",
+            str(tmp_path / "missing_reviews"),
+            "--json",
+        ],
+    )
+
+    assert result.exit_code == 0
+    data = json.loads(result.output)
+    assert data["schema_version"] == "deepr-hallucination-risk-report-v1"
+    assert data["contract"]["cost_usd"] == 0.0
+    assert data["contract"]["blocks_answers"] is False
+    assert data["signal_count"] == 0
+    assert data["coverage_gaps"]
+
+
+def test_eval_hallucination_risks_save_writes_json_artifact():
+    runner = CliRunner()
+
+    with runner.isolated_filesystem():
+        result = runner.invoke(cli, ["eval", "hallucination-risks", "--json", "--save"])
+
+        assert result.exit_code == 0
+        data = json.loads(result.output)
+        path = Path(data["saved_to"])
+        saved = json.loads(path.read_text(encoding="utf-8"))
+        assert path.name.startswith("hallucination_risks_")
+        assert saved["schema_version"] == "deepr-hallucination-risk-report-v1"
+
+
+def test_eval_hallucination_risks_outputs_text_summary():
+    runner = CliRunner()
+
+    result = runner.invoke(cli, ["eval", "hallucination-risks"])
+
+    assert result.exit_code == 0
+    assert "Hallucination risk report" in result.output
+    assert "Signals:" in result.output
