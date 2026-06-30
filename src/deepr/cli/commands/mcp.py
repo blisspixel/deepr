@@ -5,12 +5,16 @@ import sys
 import click
 
 from deepr.cli.async_runner import run_async_command
+from deepr.cli.commands.mcp_consult_validation import validate_consult_fleet
 
 
 @click.group()
 def mcp():
     """Model Context Protocol server for AI agent integration."""
     pass
+
+
+mcp.add_command(validate_consult_fleet)
 
 
 @mcp.group()

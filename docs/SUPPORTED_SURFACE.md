@@ -107,9 +107,12 @@ must not be described as usable capacity.
   packets are `$0`, read-only, non-verdict artifacts for human or calibrated
   model judging; they cannot commit beliefs. `deepr mcp validate-consult`
   emits `deepr-mcp-consult-validation-v1` reports for offline fixtures,
-  in-process local or plan validation, and HTTP endpoint validation. MCP
-  JSON-object tool results include `structuredContent` while retaining text
-  JSON compatibility. A2A consult tasks reuse the same consult artifact contract
+  in-process local or plan validation, and HTTP endpoint validation.
+  `deepr mcp validate-consult-fleet` emits
+  `deepr-mcp-consult-fleet-validation-v1` for bounded concurrent no-metered
+  validation across selected plan backends. MCP JSON-object tool results
+  include `structuredContent` while retaining text JSON compatibility. A2A
+  consult tasks reuse the same consult artifact contract
   instead of creating a parallel answer shape. `deepr a2a validate-host` emits
   `deepr-a2a-host-validation-v1` reports for offline fixtures and remote A2A
   endpoint checks.

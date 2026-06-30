@@ -95,6 +95,11 @@ async def run_cli(
         with contextlib.suppress(Exception):
             await proc.communicate()
         return CliResult(None, "", "", True, "", _ms(start))
+    except asyncio.CancelledError:
+        proc.kill()
+        with contextlib.suppress(Exception):
+            await proc.communicate()
+        raise
 
     return CliResult(
         proc.returncode,

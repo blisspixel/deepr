@@ -42,8 +42,10 @@ remaining-quota observation in the local quota ledger. Exhaustion is
 the backend; once the reset passes it no longer blocks, but auto-routing still
 needs a fresh trusted remaining-quota observation. It picks one backend with a
 human-readable reason - never blind rotation. (`deepr capacity probe-plan`
-does one `$0`/quota round-trip, and `deepr capacity probe-fleet` validates
-selected CLIs concurrently while recording the same quota observations.)
+does one `$0`/quota round-trip, `deepr capacity probe-fleet` validates
+selected CLIs concurrently while recording the same quota observations, and
+`deepr mcp validate-consult-fleet` validates the no-metered consult contract
+across selected plan backends.)
 
 **Honest limitation:** most vendor CLIs do **not** expose *remaining* quota
 through the execution command, so "has quota" cannot be guessed from CLI
