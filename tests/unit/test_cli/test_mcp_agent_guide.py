@@ -28,33 +28,26 @@ def test_mcp_agent_guide_creates_scoped_zero_budget_key(tmp_path):
             str(keys_path),
             "--output",
             str(guide_path),
-            "--json",
         ],
     )
 
     assert result.exit_code == 0, result.output
-    payload = json.loads(result.output)
-    assert payload["schema_version"] == "deepr-mcp-agent-guide-v1"
-    assert payload["endpoint"] == "http://10.0.0.5:8765/mcp"
-    assert payload["key_id"] == "agent-trial"
-    assert payload["mode"] == "standard"
-    assert payload["budget_limit_usd"] == 0.0
-    assert payload["rate_limit_per_minute"] == 30
-    assert payload["token_included"] is False
-    assert "deepr_mcp_" not in result.output
-    assert "<redacted-token>" in payload["guide"]
+    assert "Wrote redacted MCP agent guide" in result.output
+    assert "Token: deepr_mcp_" in result.output
     guide = guide_path.read_text(encoding="utf-8")
-    assert "Token: deepr_mcp_" in guide
-    assert "deepr_consult_experts" in payload["guide"]
-    assert "capacity.live_metered_fallback=false" in payload["guide"]
-    assert "cost_usd=0" in payload["guide"]
-    assert "one expert for focused advice or multiple experts for council guidance" in payload["guide"]
-    assert "Preserve expert disagreement and uncertainty" in payload["guide"]
+    assert "deepr_mcp_" not in guide
+    assert "<redacted-token>" in guide
+    assert "deepr_consult_experts" in guide
+    assert "capacity.live_metered_fallback=false" in guide
+    assert "cost_usd=0" in guide
+    assert "one expert for focused advice or multiple experts for council guidance" in guide
+    assert "Preserve expert disagreement and uncertainty" in guide
     assert "deepr_mcp_" not in keys_path.read_text(encoding="utf-8")
 
 
-def test_mcp_agent_guide_refuses_json_key_creation_without_output(tmp_path):
+def test_mcp_agent_guide_refuses_json_key_creation_even_with_output(tmp_path):
     keys_path = tmp_path / "keys.json"
+    guide_path = tmp_path / "agent-guide.md"
     result = CliRunner().invoke(
         mcp,
         [
@@ -63,6 +56,8 @@ def test_mcp_agent_guide_refuses_json_key_creation_without_output(tmp_path):
             "agent-trial",
             "--keys-path",
             str(keys_path),
+            "--output",
+            str(guide_path),
             "--json",
         ],
     )
@@ -70,6 +65,34 @@ def test_mcp_agent_guide_refuses_json_key_creation_without_output(tmp_path):
     assert result.exit_code != 0
     assert "JSON output redacts bearer tokens" in result.output
     assert not keys_path.exists()
+    assert not guide_path.exists()
+
+
+def test_mcp_agent_guide_json_redacts_existing_token():
+    result = CliRunner().invoke(
+        mcp,
+        [
+            "agent-guide",
+            "--endpoint",
+            "http://10.0.0.5:8765/mcp",
+            "--auth-token",
+            "existing-secret",
+            "--no-create-key",
+            "--json",
+        ],
+    )
+
+    assert result.exit_code == 0, result.output
+    payload = json.loads(result.output)
+    assert payload["schema_version"] == "deepr-mcp-agent-guide-v1"
+    assert payload["endpoint"] == "http://10.0.0.5:8765/mcp"
+    assert payload["key_id"] is None
+    assert payload["mode"] == "standard"
+    assert payload["budget_limit_usd"] == 0.0
+    assert payload["rate_limit_per_minute"] == 30
+    assert payload["token_included"] is False
+    assert "existing-secret" not in result.output
+    assert "<redacted-token>" in payload["guide"]
 
 
 def test_mcp_agent_guide_can_write_existing_token_guide(tmp_path):
@@ -94,9 +117,11 @@ def test_mcp_agent_guide_can_write_existing_token_guide(tmp_path):
     )
 
     assert result.exit_code == 0, result.output
-    assert "Wrote MCP agent guide" in result.output
+    assert "Wrote redacted MCP agent guide" in result.output
+    assert "existing-secret" in result.output
     text = guide_path.read_text(encoding="utf-8")
-    assert "existing-secret" in text
+    assert "existing-secret" not in text
+    assert "<redacted-token>" in text
     assert "Use only these experts: AI Agent Harnesses." in text
     assert "deepr_list_experts" not in text
     assert not keys_path.exists()
