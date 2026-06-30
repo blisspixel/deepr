@@ -85,6 +85,97 @@ def _chat_completion_cost(usage: Any, model_name: str) -> tuple[float, int, int,
     return cost, input_tokens, output_tokens, False
 
 
+def _anthropic_cache_rates(model_name: str, input_rate: float) -> dict[str, float]:
+    from deepr.providers.anthropic_provider import ANTHROPIC_CACHE_PRICING
+
+    for model, rates in ANTHROPIC_CACHE_PRICING.items():
+        if model_name.startswith(model):
+            return rates
+    return {
+        "cache_write": round(input_rate * 1.25, 6),
+        "cache_read": round(input_rate * 0.10, 6),
+    }
+
+
+def _anthropic_completion_cost(usage: Any, model_name: str) -> dict[str, Any]:
+    """Compute Anthropic Messages API cost across regular and cache buckets."""
+    empty = {
+        "cost": _SYNTHESIS_FALLBACK_COST,
+        "tokens_input": 0,
+        "tokens_output": 0,
+        "cache_creation_input_tokens": 0,
+        "cache_read_input_tokens": 0,
+        "cost_estimated": True,
+    }
+    if usage is None:
+        return dict(empty)
+
+    from deepr.providers.base import coerce_usage_int
+    from deepr.providers.registry import get_token_pricing
+
+    input_tokens = coerce_usage_int(getattr(usage, "input_tokens", 0))
+    output_tokens = coerce_usage_int(getattr(usage, "output_tokens", 0))
+    cache_creation_tokens = coerce_usage_int(getattr(usage, "cache_creation_input_tokens", 0))
+    cache_read_tokens = coerce_usage_int(getattr(usage, "cache_read_input_tokens", 0))
+    if input_tokens <= 0 and output_tokens <= 0 and cache_creation_tokens <= 0 and cache_read_tokens <= 0:
+        return dict(empty)
+
+    prices = get_token_pricing(model_name, input_tokens=input_tokens)
+    cache_rates = _anthropic_cache_rates(model_name, prices["input"])
+    cost = (
+        (input_tokens / 1_000_000) * prices["input"]
+        + (output_tokens / 1_000_000) * prices["output"]
+        + (cache_creation_tokens / 1_000_000) * cache_rates["cache_write"]
+        + (cache_read_tokens / 1_000_000) * cache_rates["cache_read"]
+    )
+    return {
+        "cost": round(cost, 6),
+        "tokens_input": input_tokens + cache_creation_tokens + cache_read_tokens,
+        "tokens_output": output_tokens,
+        "cache_creation_input_tokens": cache_creation_tokens,
+        "cache_read_input_tokens": cache_read_tokens,
+        "cost_estimated": False,
+    }
+
+
+def _anthropic_text(response: Any) -> str:
+    parts: list[str] = []
+    for block in getattr(response, "content", []) or []:
+        if isinstance(block, dict):
+            if block.get("type") == "text":
+                parts.append(str(block.get("text", "") or ""))
+            continue
+        if getattr(block, "type", None) == "text":
+            parts.append(str(getattr(block, "text", "") or ""))
+    return "\n".join(part for part in parts if part).strip()
+
+
+def _owned_synthesis_provider(provider: str) -> bool:
+    return provider == "local" or provider.startswith("plan_quota:")
+
+
+def _synthesis_ledger_metadata(
+    synthesis: dict[str, Any],
+    *,
+    expert_count: int,
+    perspective_count: int,
+) -> dict[str, Any]:
+    metadata: dict[str, Any] = {
+        "expert_count": expert_count,
+        "perspective_count": perspective_count,
+        "estimated": bool(synthesis.get("cost_estimated", False)),
+    }
+    for field_name in ("cache_creation_input_tokens", "cache_read_input_tokens"):
+        field_value = int(synthesis.get(field_name, 0) or 0)
+        if field_value > 0:
+            metadata[field_name] = field_value
+    for field_name in ("provider_request_id", "stop_reason"):
+        field_value = str(synthesis.get(field_name, "") or "")
+        if field_value:
+            metadata[field_name] = field_value
+    return metadata
+
+
 def _synthesis_section(line: str) -> str | None:
     """Return the section marker for a synthesis heading, if present."""
     normalized = line.strip().lstrip("#").strip()
@@ -540,7 +631,7 @@ class ExpertCouncil:
         import uuid as _uuid
 
         cost_safety = get_cost_safety_manager()
-        owned_synthesis = self._synthesis_provider == "local" or self._synthesis_provider.startswith("plan_quota:")
+        owned_synthesis = _owned_synthesis_provider(self._synthesis_provider)
         requires_cost_reservation = self._allow_live_fallback or not owned_synthesis
         council_session_id = f"council_{_uuid.uuid4().hex[:16]}"
         reservation_id = ""
@@ -612,11 +703,11 @@ class ExpertCouncil:
                     request_id=council_session_id,
                     idempotency_key=f"{council_session_id}:synthesis",
                     source="expert_council.synthesis",
-                    metadata={
-                        "expert_count": len(experts),
-                        "perspective_count": len(perspectives),
-                        "estimated": bool(synthesis.get("cost_estimated", False)),
-                    },
+                    metadata=_synthesis_ledger_metadata(
+                        synthesis,
+                        expert_count=len(experts),
+                        perspective_count=len(perspectives),
+                    ),
                     reservation_id=reservation_id,
                 )
                 reservation_id = ""
@@ -691,34 +782,73 @@ class ExpertCouncil:
             "6. DISAGREEMENTS: Points where they diverge (bullet list).\n"
         )
 
+        system_prompt = (
+            "Synthesise expert perspectives for a host agent. Preserve dissent, avoid pretending "
+            "uncertain claims are facts, and make the result actionable."
+        )
+        user_prompt = prompt[:6000]
+
         try:
-            client = self._synthesis_client or AsyncOpenAI(api_key=os.getenv("OPENAI_API_KEY"))
-            result = await client.chat.completions.create(
-                model=self._synthesis_model,
-                messages=[
-                    {
-                        "role": "system",
-                        "content": (
-                            "Synthesise expert perspectives for a host agent. Preserve dissent, avoid pretending "
-                            "uncertain claims are facts, and make the result actionable."
-                        ),
-                    },
-                    {"role": "user", "content": prompt[:6000]},
-                ],
-                temperature=0.3,
-                max_tokens=800,
-            )
-            text = result.choices[0].message.content or ""
-            if self._synthesis_provider == "local" or self._synthesis_provider.startswith("plan_quota:"):
+            if self._synthesis_provider == "anthropic":
+                client = self._synthesis_client
+                if client is None:
+                    from deepr.experts.consult import AnthropicConsultSynthesisClient
+
+                    client = AnthropicConsultSynthesisClient()
+                result = await client.messages.create(
+                    model=self._synthesis_model,
+                    max_tokens=800,
+                    system=system_prompt,
+                    messages=[{"role": "user", "content": user_prompt}],
+                )
+                if getattr(result, "stop_reason", None) == "refusal":
+                    details = getattr(result, "stop_details", None)
+                    category = getattr(details, "category", None) if details else None
+                    raise RuntimeError(
+                        "Anthropic safety classifiers declined council synthesis"
+                        f"{f' (category: {category})' if category else ''}"
+                    )
+                text = _anthropic_text(result)
+                usage = _anthropic_completion_cost(getattr(result, "usage", None), self._synthesis_model)
+                cost = float(usage["cost"])
+                tokens_input = int(usage["tokens_input"])
+                tokens_output = int(usage["tokens_output"])
+                cache_creation_input_tokens = int(usage["cache_creation_input_tokens"])
+                cache_read_input_tokens = int(usage["cache_read_input_tokens"])
+                cost_estimated = bool(usage["cost_estimated"])
+                provider_request_id = str(getattr(result, "id", "") or "")
+                stop_reason = str(getattr(result, "stop_reason", "") or "")
+            else:
+                client = self._synthesis_client or AsyncOpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+                result = await client.chat.completions.create(
+                    model=self._synthesis_model,
+                    messages=[
+                        {"role": "system", "content": system_prompt},
+                        {"role": "user", "content": user_prompt},
+                    ],
+                    temperature=0.3,
+                    max_tokens=800,
+                )
+                text = result.choices[0].message.content or ""
+                if _owned_synthesis_provider(self._synthesis_provider):
+                    cost = 0.0
+                    tokens_input = 0
+                    tokens_output = 0
+                    cost_estimated = False
+                else:
+                    cost, tokens_input, tokens_output, cost_estimated = _chat_completion_cost(
+                        getattr(result, "usage", None), self._synthesis_model
+                    )
+                cache_creation_input_tokens = 0
+                cache_read_input_tokens = 0
+                provider_request_id = str(getattr(result, "id", "") or "")
+                stop_reason = str(getattr(result, "finish_reason", "") or "")
+
+            if _owned_synthesis_provider(self._synthesis_provider):
                 cost = 0.0
                 tokens_input = 0
                 tokens_output = 0
                 cost_estimated = False
-            else:
-                cost, tokens_input, tokens_output, cost_estimated = _chat_completion_cost(
-                    getattr(result, "usage", None), self._synthesis_model
-                )
-
             agreements, disagreements = parse_synthesis_sections(text)
 
             return {
@@ -728,6 +858,10 @@ class ExpertCouncil:
                 "cost": cost,
                 "tokens_input": tokens_input,
                 "tokens_output": tokens_output,
+                "cache_creation_input_tokens": cache_creation_input_tokens,
+                "cache_read_input_tokens": cache_read_input_tokens,
+                "provider_request_id": provider_request_id,
+                "stop_reason": stop_reason,
                 "cost_estimated": cost_estimated,
                 "synthesis_status": "completed",
             }

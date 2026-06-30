@@ -4,7 +4,12 @@ from __future__ import annotations
 
 import pytest
 
-from deepr.experts.consult import run_consult
+from deepr.experts.consult import (
+    AnthropicConsultSynthesisClient,
+    ConsultBackendError,
+    build_synthesis_backend,
+    run_consult,
+)
 from deepr.experts.profile import ExpertProfile, ExpertStore
 
 
@@ -82,3 +87,26 @@ async def test_run_consult_passes_synthesis_backend_options(monkeypatch):
     assert captured["allow_live_fallback"] is False
     assert captured["select"] == ("q", 2)
     assert captured["consult"] == ("q", [{"name": "A", "domain": "alpha"}], 0.5)
+
+
+def test_build_synthesis_backend_supports_anthropic_api_provider():
+    backend = build_synthesis_backend(api_provider="anthropic", api_model="claude-sonnet-4-6")
+
+    assert isinstance(backend.client, AnthropicConsultSynthesisClient)
+    assert backend.provider == "anthropic"
+    assert backend.model == "claude-sonnet-4-6"
+    assert backend.allow_live_fallback is True
+
+
+def test_build_synthesis_backend_defaults_openai_compatibly():
+    backend = build_synthesis_backend()
+
+    assert backend.client is None
+    assert backend.provider == "openai"
+    assert backend.model is None
+    assert backend.allow_live_fallback is True
+
+
+def test_build_synthesis_backend_rejects_api_overrides_for_owned_capacity():
+    with pytest.raises(ConsultBackendError, match="API provider/model overrides"):
+        build_synthesis_backend(use_local=True, api_provider="anthropic")

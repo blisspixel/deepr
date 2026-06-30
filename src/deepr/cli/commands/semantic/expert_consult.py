@@ -40,6 +40,8 @@ def _build_cli_synthesis_backend(
     local_model: str | None,
     plan_backend: str | None,
     plan_model: str | None,
+    api_provider: str | None,
+    api_model: str | None,
     json_output: bool,
 ):
     try:
@@ -48,6 +50,8 @@ def _build_cli_synthesis_backend(
             local_model=local_model,
             plan_backend=plan_backend,
             plan_model=plan_model,
+            api_provider=api_provider,
+            api_model=api_model,
         )
     except ConsultBackendError as exc:
         raise click.UsageError(str(exc)) from exc
@@ -92,6 +96,14 @@ def _capacity_payload(backend_mode: str, backend: Any) -> dict[str, Any]:
 )
 @click.option("--max-experts", default=3, show_default=True, help="Max experts when auto-selecting (capped at 10).")
 @click.option("--budget", "-b", default=2.0, show_default=True, help="USD ceiling for this consultation.")
+@click.option(
+    "--provider",
+    "api_provider",
+    type=click.Choice(["openai", "anthropic"], case_sensitive=False),
+    default=None,
+    help="API synthesis provider when not using --local or --plan.",
+)
+@click.option("--model", "api_model", default=None, help="API synthesis model when not using --local or --plan.")
 @click.option("--local", "use_local", is_flag=True, help="Use local Ollama synthesis at $0.")
 @click.option("--local-model", default=None, help="Local Ollama model for synthesis. Defaults to detected model.")
 @click.option("--plan", "plan_backend", default=None, help="Use an explicit plan-quota CLI for synthesis.")
@@ -103,6 +115,8 @@ def expert_consult(
     experts,
     max_experts,
     budget,
+    api_provider,
+    api_model,
     use_local,
     local_model,
     plan_backend,
@@ -130,6 +144,8 @@ def expert_consult(
             local_model=local_model,
             plan_backend=plan_backend,
             plan_model=plan_model,
+            api_provider=api_provider,
+            api_model=api_model,
             json_output=json_output,
         )
     except click.UsageError as e:

@@ -19,6 +19,8 @@ CONSULT_SCHEMA_VERSION = "deepr-consult-v1"
 CONSULT_KIND = "deepr.expert.consult"
 COLLABORATION_SCHEMA_VERSION = "deepr-expert-collaboration-v1"
 COLLABORATION_KIND = "deepr.expert.collaboration"
+DEFAULT_API_SYNTHESIS_PROVIDER = "openai"
+DEFAULT_ANTHROPIC_SYNTHESIS_MODEL = "claude-opus-4-8"
 # Hard ceiling on how many experts one consult transaction may fan out to when
 # auto-selecting. A harness opts into wider fan-out by passing a larger
 # max_experts (e.g. 10 for a Grok-Heavy style cross-domain sweep); the default
@@ -43,6 +45,34 @@ class ConsultSynthesisBackend:
     tos_note: str = ""
 
 
+class AnthropicConsultSynthesisClient:
+    """Lazy AsyncAnthropic holder for consult synthesis.
+
+    Construction is intentionally side-effect light so CLI and schema tests can
+    select the backend without requiring a local API key. The real SDK client is
+    created only when an explicit API consult reaches the paid call path.
+    """
+
+    def __init__(self, *, api_key: str | None = None, client: Any | None = None) -> None:
+        self._api_key = api_key
+        self._client = client
+
+    def _resolve_client(self) -> Any:
+        if self._client is None:
+            import os
+
+            from anthropic import AsyncAnthropic
+
+            api_key = self._api_key or os.getenv("ANTHROPIC_API_KEY")
+            kwargs = {"api_key": api_key} if api_key else {}
+            self._client = AsyncAnthropic(**kwargs)
+        return self._client
+
+    @property
+    def messages(self) -> Any:
+        return self._resolve_client().messages
+
+
 def _sha256(value: str) -> str:
     return hashlib.sha256(value.encode("utf-8")).hexdigest()
 
@@ -53,10 +83,14 @@ def build_synthesis_backend(
     local_model: str | None = None,
     plan_backend: str | None = None,
     plan_model: str | None = None,
+    api_provider: str | None = None,
+    api_model: str | None = None,
 ) -> ConsultSynthesisBackend:
     """Build the shared consult synthesis backend for CLI and MCP callers."""
     if use_local and plan_backend:
         raise ConsultBackendError("Choose only one synthesis backend: local or plan.")
+    if (use_local or plan_backend) and (api_provider or api_model):
+        raise ConsultBackendError("API provider/model overrides are only valid for synthesis_backend='api'.")
 
     if use_local:
         from deepr.backends.local import default_local_model, ollama_chat_client
@@ -93,7 +127,24 @@ def build_synthesis_backend(
             tos_note=adapter.tos_note,
         )
 
-    return ConsultSynthesisBackend()
+    provider = (api_provider or DEFAULT_API_SYNTHESIS_PROVIDER).strip().lower()
+    if provider == "openai":
+        return ConsultSynthesisBackend(
+            model=api_model,
+            provider="openai",
+            allow_live_fallback=True,
+            note=f"API synthesis via OpenAI {api_model}" if api_model else "",
+        )
+    if provider == "anthropic":
+        model = api_model or DEFAULT_ANTHROPIC_SYNTHESIS_MODEL
+        return ConsultSynthesisBackend(
+            client=AnthropicConsultSynthesisClient(),
+            model=model,
+            provider="anthropic",
+            allow_live_fallback=True,
+            note=f"API synthesis via Anthropic {model}; prompt-cache controls disabled",
+        )
+    raise ConsultBackendError("API synthesis provider must be one of: openai, anthropic.")
 
 
 def build_consult_payload(question: str, result: dict[str, Any]) -> dict[str, Any]:

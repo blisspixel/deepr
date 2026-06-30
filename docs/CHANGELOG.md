@@ -8,6 +8,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- Added provider-pluggable API synthesis for `deepr expert consult` and MCP
+  `deepr_consult_experts`. API consults can now select `openai` or `anthropic`
+  plus an explicit model; the Anthropic path uses the native Messages API,
+  omits unsupported sampling parameters, handles refusal stops fail-closed, and
+  records Anthropic cache-write/read usage buckets in synthesis ledger metadata.
 - Added `deepr mcp validate-consult-fleet`, a bounded concurrent no-metered
   consult validation command for selected plan backends. It reuses the existing
   consult validator, skips metered-at-margin adapters, preserves the
