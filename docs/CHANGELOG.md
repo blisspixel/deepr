@@ -9,6 +9,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 No unreleased changes.
 
+## [2.26.0] - 2026-06-30
+
+Scheduled gap-fill overlap guard release.
+
+### Added
+- Added `--jitter` to `deepr expert route-gaps --execute`, applying the same
+  deterministic startup delay used by scheduled sync runs before non-dry
+  gap-fill execution.
+
+### Fixed
+- Wrapped non-dry `deepr expert route-gaps --execute` runs in the per-expert
+  `route-gaps` overlap lock. A colliding run now exits successfully with a
+  skipped outcome and records an `overlap_locked` loop run without constructing
+  a gap-fill engine or client.
+
 ## [2.25.0] - 2026-06-30
 
 Plan capacity and expert-chat backend release.

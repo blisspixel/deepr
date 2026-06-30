@@ -82,6 +82,23 @@ class ReportAbsorberError(Exception):
     """Raised when a report cannot be absorbed (empty text, bad model output)."""
 
 
+def _nonnegative_cost(value: Any) -> float:
+    try:
+        return max(float(value or 0.0), 0.0)
+    except (TypeError, ValueError):
+        return 0.0
+
+
+def absorber_estimated_cost(absorber: Any) -> float:
+    """Return the caller-accounting cost estimate for an absorber-like object."""
+    return _nonnegative_cost(getattr(absorber, "estimated_cost", getattr(absorber, "_estimated_cost", 0.0)))
+
+
+def absorption_result_cost(absorption: Any) -> float:
+    """Return the reported extraction cost from an AbsorptionResult-like object."""
+    return _nonnegative_cost(getattr(absorption, "estimated_cost", 0.0))
+
+
 def _loads_model_json(raw: str) -> Any:
     """Parse provider JSON output without rejecting raw control characters."""
     text = raw.strip()
@@ -358,6 +375,11 @@ class ReportAbsorber:
         self.belief_store = belief_store if belief_store is not None else BeliefStore(expert.name)
         self._grounding_checker = grounding_checker
         self._estimated_cost = estimated_cost
+
+    @property
+    def estimated_cost(self) -> float:
+        """Caller-accounting cost estimate for one extraction call."""
+        return _nonnegative_cost(self._estimated_cost)
 
     def _get_client(self) -> Any:
         if self._client is None:

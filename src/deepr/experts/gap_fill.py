@@ -25,6 +25,7 @@ from datetime import UTC, datetime
 from typing import TYPE_CHECKING, Any
 
 from deepr.experts.beliefs import BeliefStore
+from deepr.experts.report_absorber import absorber_estimated_cost, absorption_result_cost
 
 if TYPE_CHECKING:
     from deepr.experts.gap_router import GapRoute
@@ -185,10 +186,19 @@ class GapFillEngine:
                 )
                 continue
 
-            per_gap = min(max(route.estimated_cost, MIN_PER_GAP_BUDGET), remaining)
+            absorber = self._get_absorber()
+            extraction_estimate = absorber_estimated_cost(absorber)
+            per_gap = min(max(route.estimated_cost, MIN_PER_GAP_BUDGET), remaining - extraction_estimate)
             if per_gap < MIN_PER_GAP_BUDGET:
                 result.outcomes.append(
-                    GapFillOutcome(route.topic, "skipped", detail=f"run budget exhausted (${remaining:.2f} left)")
+                    GapFillOutcome(
+                        route.topic,
+                        "skipped",
+                        detail=(
+                            f"run budget exhausted (${remaining:.2f} left; "
+                            f"needs ${MIN_PER_GAP_BUDGET + extraction_estimate:.2f})"
+                        ),
+                    )
                 )
                 continue
 
@@ -216,15 +226,31 @@ class GapFillEngine:
             if not answer:
                 result.outcomes.append(GapFillOutcome(route.topic, "failed", cost=cost, detail="empty answer"))
                 continue
+            if remaining < extraction_estimate:
+                result.outcomes.append(
+                    GapFillOutcome(
+                        route.topic,
+                        "skipped",
+                        cost=cost,
+                        detail=(
+                            f"run budget exhausted before extraction "
+                            f"(${remaining:.2f} left; needs ${extraction_estimate:.2f})"
+                        ),
+                    )
+                )
+                continue
 
             try:
                 report_id = f"gapfill:{_slug(route.topic)}:{started_at.strftime('%Y%m%d')}"
-                absorption = await self._get_absorber().absorb(report_id, answer, flag_contradictions=True)
+                absorption = await absorber.absorb(report_id, answer, flag_contradictions=True)
+                extraction_cost = absorption_result_cost(absorption)
+                remaining -= extraction_cost
+                result.total_cost += extraction_cost
                 result.outcomes.append(
                     GapFillOutcome(
                         route.topic,
                         "filled",
-                        cost=cost,
+                        cost=cost + extraction_cost,
                         absorbed=len(absorption.absorbed),
                         flagged=len(absorption.flagged),
                     )

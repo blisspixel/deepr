@@ -44,6 +44,16 @@ class _FakeExtractionClient:
         self.chat = SimpleNamespace(completions=SimpleNamespace(create=_create))
 
 
+class _FakeAbsorber:
+    def __init__(self, estimated_cost: float = 0.03):
+        self.estimated_cost = estimated_cost
+        self.calls = 0
+
+    async def absorb(self, report_id: str, report_text: str, **kwargs):
+        self.calls += 1
+        return SimpleNamespace(absorbed=[object()], flagged=[], estimated_cost=self.estimated_cost)
+
+
 def _engine(tmp_path, answers: dict[str, dict]):
     beliefs = BeliefStore("GapFill Test Expert", storage_dir=tmp_path / "beliefs")
     absorber = ReportAbsorber(_expert(), client=_FakeExtractionClient(), belief_store=beliefs)
@@ -71,9 +81,44 @@ class TestGapFillEngine:
         outcome = result.outcomes[0]
         assert outcome.status == "filled"
         assert outcome.absorbed == 1
-        assert result.total_cost == pytest.approx(0.02)
+        assert outcome.cost == pytest.approx(0.05)
+        assert result.total_cost == pytest.approx(0.05)
         assert len(engine.belief_store.beliefs) == 1
         assert "Topic A" in calls[0]
+
+    @pytest.mark.asyncio
+    async def test_reserves_and_counts_absorption_cost(self, tmp_path):
+        budgets: list[float] = []
+
+        async def research_fn(query: str, budget: float) -> dict:
+            budgets.append(budget)
+            return {"answer": "Budgeted finding.", "cost": 0.20}
+
+        absorber = _FakeAbsorber(estimated_cost=0.07)
+        engine = GapFillEngine(_expert(), research_fn=research_fn, absorber=absorber)
+
+        result = await engine.execute([_route("Budgeted", cost=0.50)], budget=0.30)
+
+        assert budgets == [pytest.approx(0.23)]
+        assert absorber.calls == 1
+        assert result.outcomes[0].status == "filled"
+        assert result.outcomes[0].cost == pytest.approx(0.27)
+        assert result.total_cost == pytest.approx(0.27)
+
+    @pytest.mark.asyncio
+    async def test_budget_floor_includes_absorption_cost(self, tmp_path):
+        async def exploding_research(query: str, budget: float) -> dict:
+            raise AssertionError("research must not start when absorption cannot fit")
+
+        absorber = _FakeAbsorber(estimated_cost=0.04)
+        engine = GapFillEngine(_expert(), research_fn=exploding_research, absorber=absorber)
+
+        result = await engine.execute([_route("Too small", cost=0.05)], budget=0.08)
+
+        assert absorber.calls == 0
+        assert result.outcomes[0].status == "skipped"
+        assert "needs $0.09" in result.outcomes[0].detail
+        assert result.total_cost == 0.0
 
     @pytest.mark.asyncio
     async def test_orders_by_value_per_dollar(self, tmp_path):
@@ -101,11 +146,11 @@ class TestGapFillEngine:
         engine, _ = _engine(
             tmp_path,
             {
-                "First": {"answer": "First finding.", "cost": 0.99},
+                "First": {"answer": "First finding.", "cost": 0.90},
                 "Second": {"answer": "Second finding.", "cost": 0.5},
             },
         )
-        routes = [_route("First", ev=2.0, cost=0.99), _route("Second", ev=1.0, cost=0.5)]
+        routes = [_route("First", ev=2.0, cost=0.90), _route("Second", ev=1.0, cost=0.5)]
         result = await engine.execute(routes, budget=1.0, top=2)
 
         statuses = {o.topic: o.status for o in result.outcomes}
