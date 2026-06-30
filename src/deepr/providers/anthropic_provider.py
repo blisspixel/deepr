@@ -56,6 +56,7 @@ class AnthropicProvider(DeepResearchProvider):
 
     SUPPORTED_MODELS = [
         "claude-fable-5",  # Frontier tier - $10/$50 per MTok (new tokenizer ~30% more tokens)
+        "claude-sonnet-5",  # Current Sonnet - estimate at standard $3/$15 per MTok
         "claude-opus-4-8",  # Flagship - $5/$25 per MTok (adaptive thinking only)
         "claude-opus-4-7",  # Previous flagship - $5/$25 per MTok (adaptive thinking only)
         "claude-opus-4-6",  # $5/$25 per MTok (adaptive thinking recommended)
@@ -72,7 +73,7 @@ class AnthropicProvider(DeepResearchProvider):
     RECOMMENDED_MODELS = {
         "research": "claude-opus-4-8",  # Best reasoning for deep research (~$0.85/query)
         "frontier": "claude-fable-5",  # Most capable, premium price (~$2.20/query)
-        "balanced": "claude-sonnet-4-6",  # Good quality, lower cost (~$0.48/query)
+        "balanced": "claude-sonnet-5",  # Current Sonnet, estimated at standard rates (~$0.48/query)
         "fast": "claude-haiku-4-5",  # Quick answers, cheapest (no Extended Thinking)
     }
 
@@ -80,6 +81,7 @@ class AnthropicProvider(DeepResearchProvider):
     # claude-fable-5 additionally rejects an explicit {"type": "disabled"}.
     ADAPTIVE_THINKING_MODELS = (
         "claude-fable-5",
+        "claude-sonnet-5",
         "claude-opus-4-8",
         "claude-opus-4-7",
         "claude-opus-4-6",
@@ -110,7 +112,7 @@ class AnthropicProvider(DeepResearchProvider):
         Model recommendations:
             - Research tasks: claude-opus-4-8 (~$0.85/query) - best reasoning
             - Frontier: claude-fable-5 (~$2.20/query) - most capable, 2x token rate
-            - Balanced: claude-sonnet-4-6 (~$0.48/query) - good quality, lower cost
+            - Balanced: claude-sonnet-5 (~$0.48/query) - current Sonnet, standard-rate estimate
             - Fast/cheap: claude-haiku-4-5 - no Extended Thinking support
         """
         if not ANTHROPIC_AVAILABLE:
@@ -169,7 +171,7 @@ class AnthropicProvider(DeepResearchProvider):
     def _build_thinking_param(self) -> dict[str, Any] | None:
         """Return the thinking config appropriate for the configured model.
 
-        - Adaptive-only models (Opus 4.6+, Sonnet 4.6, Fable 5): sending
+        - Adaptive-only models (Sonnet 5, Opus 4.6+, Sonnet 4.6, Fable 5): sending
           ``budget_tokens`` returns a 400, so use ``{"type": "adaptive"}``.
         - Haiku has no Extended Thinking: omit the param entirely.
         - Older models keep the legacy enabled+budget form.
@@ -446,15 +448,19 @@ class AnthropicProvider(DeepResearchProvider):
 
         Examples:
             "claude-4-opus" -> "claude-opus-4-8"
-            "claude-sonnet" -> "claude-sonnet-4-6"
+            "claude-sonnet" -> "claude-sonnet-5"
             "claude-haiku" -> "claude-haiku-4-5"
         """
+        if model_key in self.SUPPORTED_MODELS:
+            return model_key
+
         model_mapping = {
             # Current generation
             "claude-fable": "claude-fable-5",
             "claude-opus": "claude-opus-4-8",
             "claude-4-opus": "claude-opus-4-8",
-            "claude-sonnet": "claude-sonnet-4-6",
+            "claude-sonnet": "claude-sonnet-5",
+            "claude-5-sonnet": "claude-sonnet-5",
             "claude-haiku": "claude-haiku-4-5",
             # Legacy mappings
             "claude-4-opus-legacy": "claude-opus-4-1",
@@ -543,6 +549,14 @@ ANTHROPIC_PRICING = {
         "output": 50.00,
         "thinking": 10.00,  # Thinking always on, charged at input rate
     },
+    "claude-sonnet-5": {
+        # Anthropic listed lower introductory pricing through 2026-08-31.
+        # Use the standard post-intro rate so budget preflights do not
+        # underestimate spend after the intro window expires.
+        "input": 3.00,
+        "output": 15.00,
+        "thinking": 3.00,  # Adaptive Thinking charged at input rate
+    },
     # Claude 4.6-4.8 series
     "claude-opus-4-8": {
         "input": 5.00,  # per MTok
@@ -616,6 +630,11 @@ ANTHROPIC_CACHE_PRICING = {
     "claude-fable-5": {
         "cache_write": 12.50,
         "cache_read": 1.00,
+    },
+    "claude-sonnet-5": {
+        # Standard post-intro prompt-cache rates. See pricing note above.
+        "cache_write": 3.75,
+        "cache_read": 0.30,
     },
     "claude-opus-4-8": {
         "cache_write": 6.25,

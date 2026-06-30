@@ -1,7 +1,7 @@
 """Provider abstraction for multi-cloud Deep Research support."""
 
 import logging
-from typing import Any, Literal
+from typing import Any, Literal, cast
 
 from .base import DeepResearchProvider, ResearchRequest, ResearchResponse, ToolConfig
 from .openai_provider import OpenAIProvider
@@ -13,6 +13,12 @@ _OPTIONAL_PROVIDER_IMPORT_ERRORS: dict[str, Exception] = {}
 
 # Optional providers - imported lazily so missing/incompatible SDKs don't break
 # the package import for unrelated code paths.
+try:
+    from .anthropic_provider import AnthropicProvider
+except Exception as exc:
+    AnthropicProvider = None  # type: ignore[assignment,misc]
+    _OPTIONAL_PROVIDER_IMPORT_ERRORS["anthropic"] = exc
+
 try:
     from .azure_provider import AzureProvider
 except Exception as exc:
@@ -37,7 +43,7 @@ except Exception as exc:
     AzureFoundryProvider = None  # type: ignore[assignment,misc]
     _OPTIONAL_PROVIDER_IMPORT_ERRORS["azure-foundry"] = exc
 
-ProviderType = Literal["openai", "azure", "gemini", "xai", "azure-foundry"]
+ProviderType = Literal["openai", "anthropic", "azure", "gemini", "xai", "azure-foundry"]
 
 
 def _optional_import_message(provider_type: str, install_hint: str) -> str:
@@ -55,7 +61,7 @@ def create_provider(provider_type: ProviderType, **kwargs: Any) -> DeepResearchP
     Factory function to create the appropriate provider instance.
 
     Args:
-        provider_type: "openai", "azure", "gemini", or "xai"
+        provider_type: "openai", "anthropic", "azure", "gemini", "xai", or "azure-foundry"
         **kwargs: Provider-specific configuration
 
     Returns:
@@ -74,33 +80,29 @@ def create_provider(provider_type: ProviderType, **kwargs: Any) -> DeepResearchP
 
     if provider_type == "openai":
         return OpenAIProvider(**kwargs)
-    elif provider_type == "azure":
-        if AzureProvider is None:
-            raise ImportError(
-                _optional_import_message("azure", "Azure provider requires: pip install deepr-research[azure]")
-            )
-        return AzureProvider(**kwargs)
-    elif provider_type == "gemini":
-        if GeminiProvider is None:
-            raise ImportError(_optional_import_message("gemini", "Gemini provider requires: pip install google-genai"))
-        return GeminiProvider(**kwargs)
-    elif provider_type == "xai":
-        if GrokProvider is None:
-            raise ImportError(_optional_import_message("xai", "xAI provider requires: pip install xai-sdk"))
-        return GrokProvider(**kwargs)
-    elif provider_type == "azure-foundry":
-        if AzureFoundryProvider is None:
-            raise ImportError(
-                _optional_import_message(
-                    "azure-foundry", "Azure Foundry provider requires: pip install deepr-research[azure-foundry]"
-                )
-            )
-        return AzureFoundryProvider(**kwargs)
-    else:
+
+    optional_providers: dict[str, tuple[Any | None, str]] = {
+        "anthropic": (AnthropicProvider, "Anthropic provider requires: pip install anthropic"),
+        "azure": (AzureProvider, "Azure provider requires: pip install deepr-research[azure]"),
+        "gemini": (GeminiProvider, "Gemini provider requires: pip install google-genai"),
+        "xai": (GrokProvider, "xAI provider requires: pip install xai-sdk"),
+        "azure-foundry": (
+            AzureFoundryProvider,
+            "Azure Foundry provider requires: pip install deepr-research[azure-foundry]",
+        ),
+    }
+    provider_info = optional_providers.get(provider_type)
+    if provider_info is None:
         raise ValueError(f"Unsupported provider type: {provider_type}")
+
+    provider_cls, install_hint = provider_info
+    if provider_cls is None:
+        raise ImportError(_optional_import_message(provider_type, install_hint))
+    return cast(DeepResearchProvider, provider_cls(**kwargs))
 
 
 __all__ = [
+    "AnthropicProvider",
     "AzureFoundryProvider",
     "AzureProvider",
     "DeepResearchProvider",

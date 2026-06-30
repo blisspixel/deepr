@@ -207,8 +207,8 @@ Expert ready to answer questions
 - **Gemini 3.1 Pro** (Google): $0.20, ~40s, 1M context for large docs (2x pricing >200K tokens)
 - **Gemini Deep Research** (Google): $1.00, 5-20min, async research with Google Search
 - **Gemini 2.5 Flash** (Google): $0.002, 1.5s, cheapest option for general queries
-- **Claude Opus 4.6** (Anthropic): $0.80, 15s, best for complex reasoning with Adaptive Thinking
-- **Claude Sonnet 4.5** (Anthropic): $0.48, 3s, balanced quality/cost for coding
+- **Claude Opus 4.8** (Anthropic): $0.85, 15s, best for complex reasoning with Adaptive Thinking
+- **Claude Sonnet 5** (Anthropic): $0.48, 3s, balanced quality/cost for coding and synthesis
 - **Claude Haiku 4.5** (Anthropic): $0.05, 1.5s, fast and cheap for simple queries
 
 Models are selected based on:

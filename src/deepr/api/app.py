@@ -58,6 +58,7 @@ _ALLOWED_MODELS = {
     "gemini-2.5-flash",
     "grok-4",
     "grok-4-1-fast-non-reasoning",
+    "claude-sonnet-5",
     "claude-sonnet-4-5-20250929",
 }
 

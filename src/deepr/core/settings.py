@@ -533,7 +533,7 @@ class Settings:
 
         # Provider API keys
         self._load_provider_from_env("openai", "OPENAI_API_KEY", "OPENAI_BASE_URL", "gpt-5.5")
-        self._load_provider_from_env("anthropic", "ANTHROPIC_API_KEY", None, "claude-opus-4-5-20251101")
+        self._load_provider_from_env("anthropic", "ANTHROPIC_API_KEY", None, "claude-opus-4-8")
         self._load_provider_from_env("gemini", "GEMINI_API_KEY", None, "gemini-2.0-flash")
         self._load_provider_from_env("grok", "XAI_API_KEY", None, "grok-4.3")
         self._load_provider_from_env("xai", "XAI_API_KEY", None, "grok-4.3")

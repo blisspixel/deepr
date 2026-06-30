@@ -30,7 +30,7 @@ async def test_anthropic():
 
     # Initialize provider
     provider = AnthropicProvider(
-        model="claude-sonnet-4-5",
+        model="claude-sonnet-5",
         thinking_budget=10000,  # 10k tokens for thinking
         web_search_backend="auto",  # Try all backends
     )
@@ -42,7 +42,7 @@ async def test_anthropic():
     # Create request (simplified - just needs prompt and model)
     request = ResearchRequest(
         prompt="Write a 10-line poem about news from October 8, 2025",
-        model="claude-sonnet-4-5",
+        model="claude-sonnet-5",
         system_message="",
         tools=[],  # Web search handled by provider
     )

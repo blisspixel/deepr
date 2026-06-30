@@ -514,7 +514,7 @@ def _fmt_reset(reset_at_iso: str | None) -> str:
     "backend",
     type=click.Choice(_PLAN_BACKEND_IDS),
 )
-@click.option("--model", default=None, help="Model to pass to the CLI (e.g. anthropic/claude-sonnet-4-6 for opencode).")
+@click.option("--model", default=None, help="Model to pass to the CLI (e.g. anthropic/claude-sonnet-5 for opencode).")
 @click.option("--yes", "-y", is_flag=True, help="Skip the confirmation for a metered-at-margin CLI.")
 @click.option("--json", "json_output", is_flag=True, help="Emit machine-readable JSON.")
 def capacity_probe_plan(backend: str, model: str | None, yes: bool, json_output: bool):

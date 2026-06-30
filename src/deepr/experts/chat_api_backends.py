@@ -13,7 +13,7 @@ from deepr.experts.chat_backends import (
     OpenAIExpertChatBackend,
 )
 
-DEFAULT_ANTHROPIC_EXPERT_CHAT_MODEL = "claude-sonnet-4-6"
+DEFAULT_ANTHROPIC_EXPERT_CHAT_MODEL = "claude-sonnet-5"
 
 try:
     from anthropic import AsyncAnthropic

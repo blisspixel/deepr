@@ -60,6 +60,7 @@ QUALITY_PRIORS: dict[str, float] = {
     "openai/gpt-5.2": _STRONG,
     "openai/gpt-5": _STRONG,
     "openai/o3": _STRONG,
+    "anthropic/claude-sonnet-5": _STRONG,
     "anthropic/claude-sonnet-4-6": _STRONG,
     "anthropic/claude-sonnet-4-5": _STRONG,
     "gemini/gemini-2.5-pro": _STRONG,

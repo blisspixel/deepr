@@ -95,18 +95,18 @@ must not be described as usable capacity.
 - MCP `deepr_consult_experts` can synthesize through local Ollama or an
   explicit plan-quota CLI with live metered fallback disabled. API consult
   synthesis accepts explicit `provider=openai|anthropic` and `model` values;
-  Anthropic uses the native Messages API and records cache-write/read token
-  buckets when the provider reports them. The returned `deepr-consult-v1`
-  artifact includes a `capacity` block describing the selected synthesis
-  backend. Passing one explicit expert gives a focused no-metered single-expert
-  consult; `deepr_query_expert` also supports explicit `backend=local|plan` as
-  a read-only compiled-context chat turn with `readonly_chat_artifact`,
-  `research_triggered=0`, and no live metered fallback.
+  Anthropic supports `claude-sonnet-5` through the native Messages API and
+  records cache-write/read token buckets when the provider reports them. The
+  returned `deepr-consult-v1` artifact includes a `capacity` block describing
+  the selected synthesis backend. Passing one explicit expert gives a focused
+  no-metered single-expert consult; `deepr_query_expert` also supports explicit
+  `backend=local|plan` as a read-only compiled-context chat turn with
+  `readonly_chat_artifact`, `research_triggered=0`, and no live metered fallback.
   `deepr_query_expert backend=api` supports OpenAI by default and explicit
   `provider=anthropic` for non-agentic metered API turns. The Anthropic path
-  uses the native Messages API, disables tools, supports non-agentic text
-  streaming, rejects `agentic=true`, and records Anthropic usage buckets
-  through the chat ledger.
+  uses the native Messages API, defaults to `claude-sonnet-5`, disables tools,
+  supports non-agentic text streaming, rejects `agentic=true`, and records
+  Anthropic usage buckets through the chat ledger.
   Passing several experts gives a bounded council with preserved dissent. CLI
   and MCP consults append local
   `deepr-consult-trace-v1` records with selected context metadata, checks run,
