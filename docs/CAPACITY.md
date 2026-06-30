@@ -16,11 +16,12 @@ Metered APIs are the premium fallback, not the default spending path. Feature
 surfaces that can trigger a distinct paid class, such as image generation, must
 not infer paid execution from a text-model API key alone. Portrait generation
 auto-selects only a local image endpoint unless the operator passes an explicit
-paid provider or sets `DEEPR_ALLOW_METERED_IMAGE_AUTO=1`. It also treats
-portraits as create-once artifacts by default: existing portraits are skipped
-unless the caller explicitly forces regeneration, and metered web or CLI
-requests must acknowledge the estimated cost before dispatch. CLI `--yes` can
-skip unattended prompts only for free/local image generation unless
+paid provider or sets the single premium auto opt-in
+`DEEPR_ALLOW_METERED_IMAGE_AUTO=1`. Provider-specific image auto env vars are
+ignored. It also treats portraits as create-once artifacts by default: existing
+portraits are skipped unless the caller explicitly forces regeneration, and
+metered web or CLI requests must acknowledge the estimated cost before dispatch.
+CLI `--yes` can skip unattended prompts only for free/local image generation unless
 `--confirm-metered-cost` is also supplied. Generated portraits live under the
 configured runtime data root, and forced regeneration archives the previous
 image before replacement.

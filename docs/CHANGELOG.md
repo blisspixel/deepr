@@ -62,9 +62,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Hardened portrait generation against surprise image spend: local image
   endpoints remain the only auto-selected portrait provider, while OpenAI,
   Gemini, and xAI image generation require explicit provider selection or
-  `DEEPR_ALLOW_METERED_IMAGE_AUTO=1`, existing portraits are skipped unless
-  regeneration is forced, and metered web or unattended CLI requests must
-  acknowledge the estimate before budget reservation and dispatch.
+  the single premium auto opt-in `DEEPR_ALLOW_METERED_IMAGE_AUTO=1`; legacy
+  provider-specific image auto env vars are ignored; existing portraits are
+  skipped unless regeneration is forced; and metered web or unattended CLI
+  requests must acknowledge the estimate before budget reservation and
+  dispatch.
 - Made generated portraits portable and overwrite-safe by defaulting library
   and CLI portrait writes to the configured runtime data root and archiving any
   existing portrait before forced replacement.
