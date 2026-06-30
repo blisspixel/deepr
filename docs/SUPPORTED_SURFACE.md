@@ -100,6 +100,10 @@ must not be described as usable capacity.
   consult; `deepr_query_expert` also supports explicit `backend=local|plan` as
   a read-only compiled-context chat turn with `readonly_chat_artifact`,
   `research_triggered=0`, and no live metered fallback.
+  `deepr_query_expert backend=api` supports OpenAI by default and explicit
+  `provider=anthropic` for non-agentic metered API turns. The Anthropic path
+  uses the native Messages API, disables tools and streaming, rejects
+  `agentic=true`, and records Anthropic usage buckets through the chat ledger.
   Passing several experts gives a bounded council with preserved dissent. CLI
   and MCP consults append local
   `deepr-consult-trace-v1` records with selected context metadata, checks run,

@@ -41,7 +41,10 @@ explicit plan-capacity path.
   `backend` to `local` or `plan`. Those modes route one named expert through
   a read-only compiled-context chat turn, attach `readonly_chat_artifact`, set
   `research_triggered=0`, and reject `agentic=true`. Omitted or
-  `backend="api"` still uses the legacy metered-capable chat path.
+  `backend="api"` uses metered-capable chat. API query chat defaults to OpenAI
+  and accepts explicit `provider=anthropic` plus `model` for non-agentic turns
+  only; Anthropic query chat rejects `agentic=true` and does not support tools
+  or streaming yet.
 - `deepr_research`, `deepr_agentic_research`, `deepr_expert_absorb`,
   `deepr_reflect`, and mutating tools are not safe for automatic no-cost
   testing unless the caller explicitly sets a zero-cost mode and verifies the

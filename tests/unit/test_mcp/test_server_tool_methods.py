@@ -474,6 +474,45 @@ class TestExpertTools:
         assert out["cost"] == 0.05
         assert session_cls.call_args.kwargs["budget"] == 0.25
         assert session_cls.call_args.kwargs["agentic"] is False
+        assert session_cls.call_args.kwargs["provider"] == "openai"
+        assert session_cls.call_args.kwargs["model"] is None
+
+    @pytest.mark.asyncio
+    async def test_query_expert_api_provider_model_passed_to_session(self, mock_server):
+        expert = MagicMock()
+        mock_server.store.load.return_value = expert
+        session = MagicMock()
+        session.send_message = AsyncMock(return_value="anthropic answer")
+        session.get_session_summary.return_value = {
+            "cost_accumulated": 0.02,
+            "budget_remaining": 0.98,
+            "research_jobs_triggered": 0,
+        }
+        with patch("deepr.mcp.server.ExpertChatSession", return_value=session) as session_cls:
+            out = await mock_server.query_expert(
+                "e1",
+                "what?",
+                backend="api",
+                provider="anthropic",
+                model="claude-sonnet-4-6",
+                budget=1.0,
+            )
+
+        assert out["answer"] == "anthropic answer"
+        assert out["backend"] == "api"
+        assert out["provider"] == "anthropic"
+        assert out["model"] == "claude-sonnet-4-6"
+        assert session_cls.call_args.kwargs["provider"] == "anthropic"
+        assert session_cls.call_args.kwargs["model"] == "claude-sonnet-4-6"
+
+    @pytest.mark.asyncio
+    async def test_query_expert_anthropic_api_rejects_agentic_mode(self, mock_server):
+        mock_server.store.load.return_value = MagicMock()
+
+        out = await mock_server.query_expert("e1", "what?", backend="api", provider="anthropic", agentic=True)
+
+        assert out["error_code"] == "UNSUPPORTED_AGENTIC_BACKEND"
+        assert out["category"] == "validation"
 
     @pytest.mark.asyncio
     async def test_query_expert_local_backend_uses_readonly_chat_backend(self, mock_server):
@@ -592,6 +631,16 @@ class TestExpertTools:
         assert out["error_code"] == "QUERY_BACKEND_UNAVAILABLE"
         assert out["category"] == "validation"
         assert out["message"] == "No local model available"
+
+    @pytest.mark.asyncio
+    async def test_query_expert_owned_backend_rejects_api_provider_fields(self, mock_server):
+        mock_server.store.load.return_value = MagicMock()
+
+        out = await mock_server.query_expert("e1", "what?", backend="local", provider="anthropic")
+
+        assert out["error_code"] == "INVALID_BACKEND"
+        assert out["category"] == "validation"
+        assert out["message"] == "provider and model are only valid when backend='api'"
 
     @pytest.mark.asyncio
     async def test_query_expert_wraps_errors(self, mock_server):

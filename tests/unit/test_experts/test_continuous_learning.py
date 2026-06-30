@@ -17,7 +17,7 @@ class TestContinuousLearningCounters:
 
     def test_counters_initialized_to_zero(self):
         """Counters should start at zero."""
-        with patch("deepr.experts.chat.AsyncOpenAI"):
+        with patch("deepr.experts.chat_api_backends.AsyncOpenAI"):
             with patch.dict("os.environ", {"OPENAI_API_KEY": "test-key"}):
                 from deepr.experts.chat import ExpertChatSession
                 from deepr.experts.profile import ExpertProfile
@@ -33,7 +33,7 @@ class TestContinuousLearningCounters:
 
     def test_synthesis_threshold_default(self):
         """Default synthesis threshold should be 10."""
-        with patch("deepr.experts.chat.AsyncOpenAI"):
+        with patch("deepr.experts.chat_api_backends.AsyncOpenAI"):
             with patch.dict("os.environ", {"OPENAI_API_KEY": "test-key"}):
                 from deepr.experts.chat import ExpertChatSession
                 from deepr.experts.profile import ExpertProfile
@@ -50,7 +50,7 @@ class TestShouldTriggerSynthesis:
 
     def test_returns_false_when_not_agentic(self):
         """Should return False when agentic mode is disabled."""
-        with patch("deepr.experts.chat.AsyncOpenAI"):
+        with patch("deepr.experts.chat_api_backends.AsyncOpenAI"):
             with patch.dict("os.environ", {"OPENAI_API_KEY": "test-key"}):
                 from deepr.experts.chat import ExpertChatSession
                 from deepr.experts.profile import ExpertProfile
@@ -64,7 +64,7 @@ class TestShouldTriggerSynthesis:
 
     def test_returns_false_below_threshold(self):
         """Should return False when research count is below threshold."""
-        with patch("deepr.experts.chat.AsyncOpenAI"):
+        with patch("deepr.experts.chat_api_backends.AsyncOpenAI"):
             with patch.dict("os.environ", {"OPENAI_API_KEY": "test-key"}):
                 from deepr.experts.chat import ExpertChatSession
                 from deepr.experts.profile import ExpertProfile
@@ -78,7 +78,7 @@ class TestShouldTriggerSynthesis:
 
     def test_returns_true_at_threshold(self):
         """Should return True when research count reaches threshold."""
-        with patch("deepr.experts.chat.AsyncOpenAI"):
+        with patch("deepr.experts.chat_api_backends.AsyncOpenAI"):
             with patch.dict("os.environ", {"OPENAI_API_KEY": "test-key"}):
                 from deepr.experts.chat import ExpertChatSession
                 from deepr.experts.profile import ExpertProfile
@@ -92,7 +92,7 @@ class TestShouldTriggerSynthesis:
 
     def test_returns_true_above_threshold(self):
         """Should return True when research count exceeds threshold."""
-        with patch("deepr.experts.chat.AsyncOpenAI"):
+        with patch("deepr.experts.chat_api_backends.AsyncOpenAI"):
             with patch.dict("os.environ", {"OPENAI_API_KEY": "test-key"}):
                 from deepr.experts.chat import ExpertChatSession
                 from deepr.experts.profile import ExpertProfile
@@ -106,7 +106,7 @@ class TestShouldTriggerSynthesis:
 
     def test_accounts_for_last_synthesis(self):
         """Should only count research since last synthesis."""
-        with patch("deepr.experts.chat.AsyncOpenAI"):
+        with patch("deepr.experts.chat_api_backends.AsyncOpenAI"):
             with patch.dict("os.environ", {"OPENAI_API_KEY": "test-key"}):
                 from deepr.experts.chat import ExpertChatSession
                 from deepr.experts.profile import ExpertProfile
@@ -132,7 +132,7 @@ class TestTriggerBackgroundSynthesis:
     @pytest.mark.asyncio
     async def test_updates_last_synthesis_count(self):
         """Should update last_synthesis_research_count after synthesis."""
-        with patch("deepr.experts.chat.AsyncOpenAI"):
+        with patch("deepr.experts.chat_api_backends.AsyncOpenAI"):
             with patch.dict("os.environ", {"OPENAI_API_KEY": "test-key"}):
                 from deepr.experts.chat import ExpertChatSession
                 from deepr.experts.profile import ExpertProfile
@@ -160,7 +160,7 @@ class TestTriggerBackgroundSynthesis:
     @pytest.mark.asyncio
     async def test_logs_to_reasoning_trace(self):
         """Should log synthesis attempt to reasoning trace."""
-        with patch("deepr.experts.chat.AsyncOpenAI"):
+        with patch("deepr.experts.chat_api_backends.AsyncOpenAI"):
             with patch.dict("os.environ", {"OPENAI_API_KEY": "test-key"}):
                 from deepr.experts.chat import ExpertChatSession
                 from deepr.experts.profile import ExpertProfile
@@ -195,7 +195,7 @@ class TestTriggerBackgroundSynthesis:
     @pytest.mark.asyncio
     async def test_handles_synthesis_error_gracefully(self):
         """Should not crash on synthesis error."""
-        with patch("deepr.experts.chat.AsyncOpenAI"):
+        with patch("deepr.experts.chat_api_backends.AsyncOpenAI"):
             with patch.dict("os.environ", {"OPENAI_API_KEY": "test-key"}):
                 from deepr.experts.chat import ExpertChatSession
                 from deepr.experts.profile import ExpertProfile
@@ -220,7 +220,7 @@ class TestResearchCountIncrement:
 
     def test_research_count_starts_at_zero(self):
         """Research count should start at zero."""
-        with patch("deepr.experts.chat.AsyncOpenAI"):
+        with patch("deepr.experts.chat_api_backends.AsyncOpenAI"):
             with patch.dict("os.environ", {"OPENAI_API_KEY": "test-key"}):
                 from deepr.experts.chat import ExpertChatSession
                 from deepr.experts.profile import ExpertProfile
@@ -237,7 +237,7 @@ class TestConversationCountIncrement:
 
     def test_conversation_count_starts_at_zero(self):
         """Conversation count should start at zero."""
-        with patch("deepr.experts.chat.AsyncOpenAI"):
+        with patch("deepr.experts.chat_api_backends.AsyncOpenAI"):
             with patch.dict("os.environ", {"OPENAI_API_KEY": "test-key"}):
                 from deepr.experts.chat import ExpertChatSession
                 from deepr.experts.profile import ExpertProfile
