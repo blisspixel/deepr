@@ -28,6 +28,8 @@ CONSULT_EXPERTS_OUTPUT_SCHEMA: dict[str, Any] = {
     "properties": {
         "schema_version": {"const": consult_core.CONSULT_SCHEMA_VERSION},
         "kind": {"const": consult_core.CONSULT_KIND},
+        "synthesis_status": {"type": "string"},
+        "synthesis_error_type": {"type": "string"},
         "cost_usd": {"type": "number", "minimum": 0},
         "capacity": {
             "type": "object",

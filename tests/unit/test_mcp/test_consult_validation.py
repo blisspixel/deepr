@@ -54,6 +54,17 @@ def test_consult_validation_detects_secret_echo():
     assert "secret_redaction" in failed
 
 
+def test_consult_validation_rejects_failed_synthesis_status():
+    payload = build_offline_consult_fixture(experts=("A",))
+    payload["synthesis_status"] = "failed"
+    payload["synthesis_error_type"] = "PlanQuotaError"
+
+    checks = validate_consult_payload(payload, expected_backend="local")
+
+    failed = {check.name for check in checks if check.status == "failed"}
+    assert "synthesis_status" in failed
+
+
 class _FakeHttpClient:
     instances: list[_FakeHttpClient] = []
 

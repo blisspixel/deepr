@@ -19,6 +19,11 @@ import click
 
 from deepr.backends.capacity import BackendKind, detect_capacity
 from deepr.backends.quota_ledger import QuotaState, summarize_quota_state
+from deepr.cli.commands.capacity_validation import (
+    FLEET_VALIDATION_DEFAULT_TIMEOUT_S,
+    build_fleet_validation_payload,
+    emit_fleet_validation_payload,
+)
 
 _PLAN_BACKEND_IDS = ("codex", "claude", "opencode", "kiro", "grok", "antigravity", "copilot")
 _FLEET_PROBE_SCHEMA_VERSION = "deepr-plan-fleet-probe-v1"
@@ -604,6 +609,72 @@ def capacity_probe_fleet(
     _emit_fleet_probe_payload(payload, json_output=json_output)
 
     if payload["failed_count"] or payload["probed_count"] == 0:
+        sys.exit(1)
+
+
+@capacity.command(name="validate-fleet")
+@click.option(
+    "--backend",
+    "backends",
+    multiple=True,
+    type=click.Choice(_PLAN_BACKEND_IDS),
+    help="Plan backend to validate. Repeatable. Defaults to installed auto-routable backends.",
+)
+@click.option(
+    "--all",
+    "all_backends",
+    is_flag=True,
+    help="Validate every installed non-metered plan backend, including explicit-only experimental CLIs.",
+)
+@click.option("--expert", "experts", multiple=True, help="Expert to target for the consult contract probe.")
+@click.option(
+    "--question",
+    default=None,
+    help="Validation consult question. Defaults to a contract-focused prompt.",
+)
+@click.option("--plan-model", default=None, help="Optional model hint passed to each selected plan CLI.")
+@click.option("--concurrency", type=click.IntRange(1, len(_PLAN_BACKEND_IDS)), default=4, show_default=True)
+@click.option(
+    "--timeout",
+    "timeout_seconds",
+    default=FLEET_VALIDATION_DEFAULT_TIMEOUT_S,
+    show_default=True,
+    type=click.FloatRange(min=0.1),
+)
+@click.option("--json", "json_output", is_flag=True, help="Emit the versioned validation payload as JSON.")
+def capacity_validate_fleet(
+    backends: tuple[str, ...],
+    all_backends: bool,
+    experts: tuple[str, ...],
+    question: str | None,
+    plan_model: str | None,
+    concurrency: int,
+    timeout_seconds: float,
+    json_output: bool,
+):
+    """Validate selected plan CLIs end to end without metered fallback.
+
+    This runs the transport probe first, records quota observations, then runs
+    the no-metered MCP consult contract check only for backends whose transport
+    succeeded. Selected backends that are missing, skipped, exhausted, or fail
+    transport make the fleet unhealthy instead of disappearing from the report.
+    """
+    import sys
+
+    adapters = _resolve_fleet_probe_adapters(backends=backends, all_backends=all_backends)
+    transport = _fleet_probe_payload_for(adapters, include_metered=False, concurrency=concurrency)
+    payload = build_fleet_validation_payload(
+        adapters,
+        transport=transport,
+        experts=experts,
+        question=question,
+        plan_model=plan_model,
+        concurrency=concurrency,
+        timeout_seconds=timeout_seconds,
+    )
+    emit_fleet_validation_payload(payload, json_output=json_output)
+
+    if not payload["summary"]["ok"]:
         sys.exit(1)
 
 

@@ -64,6 +64,8 @@ async def test_consult_returns_versioned_artifact(server, monkeypatch):
     out = await server.consult_experts(question="how do we harden absorb?", max_experts=2, budget=1.0)
     assert out["schema_version"] == "deepr-consult-v1"
     assert out["answer"] == "the synthesized answer"
+    assert out["synthesis_status"] == "completed"
+    assert out["synthesis_error_type"] == ""
     assert out["experts_consulted"] == ["A"]
     assert out["perspectives"][0]["context"]["selection"] == "query_overlap"
     assert out["cost_usd"] == 0.0212
