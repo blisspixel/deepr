@@ -154,14 +154,19 @@
       "additionalProperties": true,
       "required": ["backend", "model", "cost_usd", "raw_response_stored", "source_trace_output_stored"],
       "properties": {
-        "backend": {"enum": ["local", "plan_quota"]},
+        "backend": {"enum": ["local", "plan_quota", "api_metered"]},
+        "provider": {"type": "string", "minLength": 1},
         "plan_backend_id": {"type": "string", "minLength": 1},
         "model": {"type": "string", "minLength": 1},
-        "cost_usd": {"const": 0.0},
+        "cost_usd": {"type": "number", "minimum": 0},
+        "estimated_cost_usd": {"type": "number", "minimum": 0},
+        "budget_usd": {"type": "number", "minimum": 0},
+        "confirmed_metered_cost": {"type": "boolean"},
         "raw_response_stored": {"const": false},
         "source_trace_output_stored": {"const": false},
         "quota_consuming": {"type": "boolean"},
-        "cost_ledger_source": {"type": "string", "minLength": 1}
+        "cost_ledger_source": {"type": "string", "minLength": 1},
+        "request_id": {"type": "string"}
       }
     },
     "generated_at": {"type": "string", "format": "date-time"}

@@ -488,8 +488,11 @@ deepr expert review-consult-quality "Azure Architect" consult_abc123 \
 `deepr expert judge-consult-quality` runs the same review path with an explicit
 calibrated-model judge. Use `--local-judge-model MODEL` for local Ollama at `$0`
 or `--plan BACKEND` with optional `--plan-model MODEL` for an explicit
-plan-quota CLI. Plan judges consume subscription quota, record `$0` Deepr cost
-metadata, and never fall back to metered provider APIs. Deepr stores only the
+plan-quota CLI. Use `--api-provider PROVIDER --api-model MODEL --budget USD
+--confirm-metered-cost` for a premium metered API judge. Plan judges consume
+subscription quota, record `$0` Deepr cost metadata, and never fall back to
+metered provider APIs. API judges reserve the estimate before dispatch and
+settle usage through the append-only cost ledger. Deepr stores only the
 validated review fields and calibrated judge metadata, not the raw judge
 response or raw trace answer.
 
