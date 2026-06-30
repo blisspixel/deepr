@@ -17,6 +17,7 @@ from openai import AsyncOpenAI
 
 from deepr.experts.chat_backends import (
     ExpertChatBackend,
+    ExpertChatRequest,
     OpenAIExpertChatBackend,
     complete_expert_chat_turn,
 )
@@ -2387,25 +2388,26 @@ Budget remaining: ${budget_remaining:.2f}
     async def _generate_follow_ups(self, user_message: str, response: str) -> list[str]:
         """Generate 2-3 follow-up question suggestions."""
         try:
-            result = await self.client.chat.completions.create(
-                model="gpt-4o-mini",
-                messages=[
-                    {
-                        "role": "system",
-                        "content": "Generate 2-3 short follow-up questions a user might ask after this exchange. "
-                        "Return ONLY a JSON array of strings. No explanation.",
-                    },
-                    {
-                        "role": "user",
-                        "content": f"User asked: {user_message[:300]}\n\nExpert replied: {response[:500]}",
-                    },
-                ],
-                temperature=0.7,
-                max_tokens=200,
+            result = await self.chat_backend.complete(
+                ExpertChatRequest(
+                    model="gpt-4o-mini",
+                    messages=[
+                        {
+                            "role": "system",
+                            "content": "Generate 2-3 short follow-up questions a user might ask after this exchange. "
+                            "Return ONLY a JSON array of strings. No explanation.",
+                        },
+                        {
+                            "role": "user",
+                            "content": f"User asked: {user_message[:300]}\n\nExpert replied: {response[:500]}",
+                        },
+                    ],
+                    extra={"temperature": 0.7, "max_tokens": 200},
+                )
             )
             import json as _json
 
-            raw = (result.choices[0].message.content or "").strip()
+            raw = result.text.strip()
             # Strip markdown fences if present
             if raw.startswith("```"):
                 raw = raw.split("\n", 1)[-1].rsplit("```", 1)[0].strip()
@@ -2448,27 +2450,28 @@ Budget remaining: ${budget_remaining:.2f}
         conversation_text = "\n".join(text_parts)
 
         try:
-            result = await self.client.chat.completions.create(
-                model="gpt-4o-mini",
-                messages=[
-                    {
-                        "role": "system",
-                        "content": (
-                            "Summarise the following conversation into structured sections. "
-                            "Use these exact headings:\n"
-                            "KEY_FACTS: Important facts established\n"
-                            "DECISIONS_MADE: Decisions or conclusions reached\n"
-                            "OPEN_QUESTIONS: Unresolved questions\n"
-                            "USER_PREFERENCES: Any user preferences noted\n"
-                            "Keep each section to 2-3 bullet points max. Be concise."
-                        ),
-                    },
-                    {"role": "user", "content": conversation_text[:8000]},
-                ],
-                temperature=0.3,
-                max_tokens=500,
+            result = await self.chat_backend.complete(
+                ExpertChatRequest(
+                    model="gpt-4o-mini",
+                    messages=[
+                        {
+                            "role": "system",
+                            "content": (
+                                "Summarise the following conversation into structured sections. "
+                                "Use these exact headings:\n"
+                                "KEY_FACTS: Important facts established\n"
+                                "DECISIONS_MADE: Decisions or conclusions reached\n"
+                                "OPEN_QUESTIONS: Unresolved questions\n"
+                                "USER_PREFERENCES: Any user preferences noted\n"
+                                "Keep each section to 2-3 bullet points max. Be concise."
+                            ),
+                        },
+                        {"role": "user", "content": conversation_text[:8000]},
+                    ],
+                    extra={"temperature": 0.3, "max_tokens": 500},
+                )
             )
-            summary = result.choices[0].message.content or "Summary unavailable."
+            summary = result.text or "Summary unavailable."
         except Exception as e:
             logger.warning("Compact summary failed: %s", e)
             summary = f"[{len(to_summarise)} earlier messages - summary unavailable]"
