@@ -7,12 +7,15 @@ paths and asserted.
 
 from __future__ import annotations
 
+import json
+
 import pytest
 
 from deepr.backends.plan_quota.adapters import get_adapter
 from deepr.backends.plan_quota.cli_runner import CliResult
 from deepr.backends.plan_quota.client import (
     PlanQuotaChatClient,
+    PlanQuotaError,
     make_plan_quota_research_fn,
     probe_plan_quota,
 )
@@ -210,6 +213,19 @@ class TestChatShim:
         resp = await client.chat.completions.create(model="x", messages=[{"role": "user", "content": "hi"}])
         assert resp.choices[0].message.content == "hello"
 
+    async def test_create_fails_closed_when_cost_ledger_cannot_be_written(self, tmp_path):
+        blocked_path = tmp_path / "ledger-dir"
+        blocked_path.mkdir()
+        client = PlanQuotaChatClient(
+            get_adapter("codex"),
+            runner=_runner(stdout="hello"),
+            quota_ledger_path=tmp_path / "q.jsonl",
+            cost_ledger_path=blocked_path,
+        )
+
+        with pytest.raises(PlanQuotaError, match="cost ledger write failed"):
+            await client.chat.completions.create(model="x", messages=[{"role": "user", "content": "hi"}])
+
     async def test_json_response_format_appends_instruction(self, tmp_path):
         runner = _runner(stdout='{"k": 1}')
         client = PlanQuotaChatClient(
@@ -258,10 +274,20 @@ class TestChatShim:
 
 class TestProbe:
     async def test_ok(self, tmp_path):
-        result = await probe_plan_quota(get_adapter("codex"), runner=_runner(stdout="OK"))
+        result = await probe_plan_quota(
+            get_adapter("codex"),
+            runner=_runner(stdout="OK"),
+            cost_ledger_path=tmp_path / "costs.jsonl",
+        )
         assert result["ok"] is True
         assert result["reply"] == "OK"
         assert result["backend"] == "codex"
+        event = json.loads((tmp_path / "costs.jsonl").read_text(encoding="utf-8").strip())
+        assert event["operation"] == "plan_quota_probe"
+        assert event["provider"] == "plan_quota:codex"
+        assert event["cost_usd"] == 0.0
+        assert event["metadata"]["quota_units"] == 1
+        assert event["metadata"]["outcome"] == "ok"
 
     async def test_probe_drops_metered_api_keys(self, tmp_path):
         runner = _runner(stdout="OK")
@@ -281,9 +307,30 @@ class TestProbe:
         assert runner.stdins[0] == "Reply with exactly: OK"
 
     async def test_exhausted(self, tmp_path):
-        result = await probe_plan_quota(get_adapter("codex"), runner=_runner(stdout="usage_limit_reached"))
+        result = await probe_plan_quota(
+            get_adapter("codex"),
+            runner=_runner(stdout="usage_limit_reached"),
+            cost_ledger_path=tmp_path / "costs.jsonl",
+        )
         assert result["ok"] is False
         assert "exhaust" in result["error"]
+        event = json.loads((tmp_path / "costs.jsonl").read_text(encoding="utf-8").strip())
+        assert event["operation"] == "plan_quota_probe"
+        assert event["metadata"]["outcome"] == "exhausted"
+
+    async def test_probe_fails_closed_when_cost_ledger_cannot_be_written(self, tmp_path):
+        blocked_path = tmp_path / "ledger-dir"
+        blocked_path.mkdir()
+
+        result = await probe_plan_quota(
+            get_adapter("codex"),
+            runner=_runner(stdout="OK"),
+            cost_ledger_path=blocked_path,
+        )
+
+        assert result["ok"] is False
+        assert result["reply"] == "OK"
+        assert "cost ledger write failed" in result["error"]
 
     async def test_launch_failure(self, tmp_path):
         result = await probe_plan_quota(get_adapter("codex"), runner=_runner(launch_error="nope", returncode=None))

@@ -9,6 +9,7 @@ from __future__ import annotations
 import base64
 from unittest.mock import AsyncMock, MagicMock, patch
 
+import httpx
 import pytest
 
 from deepr.experts import portraits as P
@@ -64,6 +65,72 @@ class TestLocalImageProvider:
         monkeypatch.delenv("DEEPR_LOCAL_IMAGE_URL", raising=False)
         with pytest.raises(RuntimeError, match="DEEPR_LOCAL_IMAGE_URL"):
             await P._generate_local("a prompt")
+
+
+class TestGoogleImageProvider:
+    @pytest.mark.asyncio
+    async def test_generate_google_uses_header_not_query_key(self, monkeypatch):
+        monkeypatch.setenv("GEMINI_API_KEY", "gemini-secret")
+        captured: dict = {}
+
+        class FakeResponse:
+            def raise_for_status(self):
+                return None
+
+            def json(self):
+                return {"predictions": [{"bytesBase64Encoded": base64.b64encode(b"IMG").decode()}]}
+
+        class FakeClient:
+            def __init__(self, *args, **kwargs):
+                pass
+
+            async def __aenter__(self):
+                return self
+
+            async def __aexit__(self, *args):
+                return None
+
+            async def post(self, url, **kwargs):
+                captured["url"] = url
+                captured.update(kwargs)
+                return FakeResponse()
+
+        monkeypatch.setattr(httpx, "AsyncClient", FakeClient)
+
+        assert await P._generate_google("portrait prompt") == b"IMG"
+        assert "key=" not in captured["url"]
+        assert captured["headers"] == {"x-goog-api-key": "gemini-secret"}
+
+    @pytest.mark.asyncio
+    async def test_generate_google_sanitizes_http_error(self, monkeypatch):
+        monkeypatch.setenv("GEMINI_API_KEY", "gemini-secret")
+        request = httpx.Request("POST", "https://example.invalid/?key=gemini-secret")
+        response = httpx.Response(403, request=request)
+
+        class FakeResponse:
+            def raise_for_status(self):
+                raise httpx.HTTPStatusError("leaky url", request=request, response=response)
+
+        class FakeClient:
+            def __init__(self, *args, **kwargs):
+                pass
+
+            async def __aenter__(self):
+                return self
+
+            async def __aexit__(self, *args):
+                return None
+
+            async def post(self, *_args, **_kwargs):
+                return FakeResponse()
+
+        monkeypatch.setattr(httpx, "AsyncClient", FakeClient)
+
+        with pytest.raises(RuntimeError) as excinfo:
+            await P._generate_google("portrait prompt")
+
+        assert str(excinfo.value) == "Google Imagen request failed with HTTP 403"
+        assert "gemini-secret" not in str(excinfo.value)
 
 
 def test_portrait_command_registered_on_expert_group():

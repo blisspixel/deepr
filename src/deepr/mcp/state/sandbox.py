@@ -13,6 +13,8 @@ from enum import Enum
 from pathlib import Path
 from typing import Any
 
+_MAX_SANDBOX_JOB_PREFIX = 80
+
 
 class SandboxStatus(Enum):
     """Status of a sandbox execution context."""
@@ -211,9 +213,15 @@ class SandboxManager:
         Args:
             base_dir: Base directory for all sandboxes
         """
-        self._base_dir = Path(base_dir)
+        self._base_dir = Path(base_dir).resolve()
         self._sandboxes: dict[str, SandboxState] = {}
         self._validator = PathValidator(self._base_dir)
+
+    @staticmethod
+    def _sandbox_id(job_id: str) -> str:
+        safe_prefix = "".join(ch if ch.isalnum() or ch in "-_." else "_" for ch in job_id.strip())
+        safe_prefix = safe_prefix.strip("._-")[:_MAX_SANDBOX_JOB_PREFIX] or "job"
+        return f"{safe_prefix}_{uuid.uuid4().hex[:8]}"
 
     def create_sandbox(
         self,
@@ -245,8 +253,13 @@ class SandboxManager:
         if timeout_seconds <= 0:
             raise ValueError("timeout_seconds must be positive")
 
-        sandbox_id = f"{job_id}_{uuid.uuid4().hex[:8]}"
-        sandbox_dir = self._base_dir / "sandboxes" / sandbox_id
+        sandbox_id = self._sandbox_id(job_id)
+        sandboxes_root = (self._base_dir / "sandboxes").resolve()
+        sandbox_dir = (sandboxes_root / sandbox_id).resolve()
+        try:
+            sandbox_dir.relative_to(sandboxes_root)
+        except ValueError as exc:
+            raise ValueError("sandbox directory escaped sandbox root") from exc
 
         # Create directory structure
         sandbox_dir.mkdir(parents=True, exist_ok=True)

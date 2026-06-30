@@ -289,7 +289,12 @@ def _auto_routable(adapter, env: dict[str, str]) -> bool:  # adapter: PlanQuotaA
     return decision.safe and not decision.requires_ack
 
 
-def choose_plan_quota_backend(backend_id: str, *, env: dict[str, str] | None = None) -> BackendChoice:
+def choose_plan_quota_backend(
+    backend_id: str,
+    *,
+    env: dict[str, str] | None = None,
+    allow_metered_at_margin: bool = False,
+) -> BackendChoice:
     """Resolve an explicit ``--plan <id>`` request into a vetted BackendChoice.
 
     Unlike the auto rung, an explicit operator request does not require an
@@ -306,4 +311,8 @@ def choose_plan_quota_backend(backend_id: str, *, env: dict[str, str] | None = N
     decision = evaluate_plan_quota_safety(adapter, env=env if env is not None else dict(os.environ))
     if not decision.safe:
         return _metered(decision.reason)
+    if decision.requires_ack and not allow_metered_at_margin:
+        return _metered(
+            f"{adapter.display_name} is metered at the margin and requires explicit paid-capacity acknowledgement"
+        )
     return BackendChoice(BACKEND_PLAN_QUOTA, None, decision.reason, plan_backend_id=backend_id)
