@@ -21,7 +21,9 @@ portraits as create-once artifacts by default: existing portraits are skipped
 unless the caller explicitly forces regeneration, and metered web or CLI
 requests must acknowledge the estimated cost before dispatch. CLI `--yes` can
 skip unattended prompts only for free/local image generation unless
-`--confirm-metered-cost` is also supplied.
+`--confirm-metered-cost` is also supplied. Generated portraits live under the
+configured runtime data root, and forced regeneration archives the previous
+image before replacement.
 
 ## Current Status
 

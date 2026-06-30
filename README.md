@@ -353,7 +353,9 @@ or `DEEPR_ALLOW_METERED_IMAGE_AUTO=1`. Existing portraits are not regenerated
 by default; use explicit force/regenerate controls for ad hoc replacement, and
 metered portrait calls must acknowledge the displayed estimate before dispatch.
 CLI `--yes` can skip unattended prompts only for free/local image generation
-unless `--confirm-metered-cost` is also supplied.
+unless `--confirm-metered-cost` is also supplied. Generated portraits live
+under the configured runtime data root and forced regeneration archives the
+previous image before replacement.
 
 ```bash
 deepr budget set 5
