@@ -16,16 +16,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   and cache-read usage cannot silently record as zero.
 
 ### Added
+- Added non-agentic Anthropic expert-chat streaming through the native
+  Messages stream helper, yielding text deltas and final usage for cost
+  settlement while tools remain disabled.
 - Added a streaming method to the expert-chat backend contract and routed final
   OpenAI token streaming through `OpenAIExpertChatBackend`, including streamed
-  usage settlement. Local, plan, and Anthropic expert-chat backends continue to
+  usage settlement. Local and plan expert-chat backends continue to
   declare streaming unsupported until provider-specific policy and tests exist.
 - Added explicit Anthropic API support for non-agentic MCP
   `deepr_query_expert backend=api` calls. `provider=anthropic` now selects a
-  native Anthropic Messages `ExpertChatBackend`, disables tools and streaming,
-  omits OpenAI-only sampling parameters, rejects `agentic=true`, and records
-  Anthropic input, output, cache-write, and cache-read token buckets through
-  the chat cost ledger.
+  native Anthropic Messages `ExpertChatBackend`, disables tools, supports
+  non-agentic text streaming, omits OpenAI-only sampling parameters, rejects
+  `agentic=true`, and records Anthropic input, output, cache-write, and
+  cache-read token buckets through the chat cost ledger.
 - Wired MCP `deepr_query_expert backend=local|plan` to the owned-capacity
   `ExpertChatBackend` adapters for one read-only compiled-context turn. These
   modes now attach `readonly_chat_artifact`, keep `research_triggered=0`,
