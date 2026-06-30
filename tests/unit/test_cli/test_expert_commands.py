@@ -5,6 +5,7 @@ without making any external API calls.
 """
 
 import sys
+from contextlib import contextmanager
 from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock, patch
@@ -893,6 +894,7 @@ class TestExpertRouteGapsCommand:
         assert result.exit_code == 0
         assert "route" in result.output.lower()
         assert "--scheduled" in result.output
+        assert "--jitter" in result.output
 
     def test_nonexistent_expert(self, runner):
         with patch("deepr.experts.profile.ExpertStore") as mock_store_class:
@@ -995,6 +997,104 @@ class TestExpertRouteGapsCommand:
 
         assert result.exit_code == 2
         assert "Use --plan-model with --plan." in result.output
+
+    def test_rejects_negative_jitter_before_store_work(self, runner):
+        with patch("deepr.experts.profile.ExpertStore") as mock_store_class:
+            result = runner.invoke(
+                cli,
+                ["expert", "route-gaps", "AI Strategy Expert", "--execute", "--jitter", "-1"],
+            )
+
+        assert result.exit_code == 2
+        assert "--jitter must be non-negative." in result.output
+        mock_store_class.assert_not_called()
+
+    def test_execute_overlap_lock_records_skip_without_building_engine(self, runner):
+        from deepr.experts.gap_router import GapRoute
+        from deepr.experts.loop_runs import LoopRunStatus, LoopStopReason
+
+        expert = MagicMock()
+        expert.name = "AI Strategy Expert"
+        expert.get_manifest.return_value.top_gaps.return_value = [MagicMock()]
+        route = GapRoute(
+            topic="open model benchmark drift",
+            instrument="research",
+            available=True,
+            estimated_cost=0.25,
+            rationale="general research",
+            suggestion="",
+            ev_cost_ratio=2.0,
+        )
+        captured = {}
+
+        class ExplodingGapFillEngine:
+            def __init__(self, *args, **kwargs):
+                raise AssertionError("overlap skip must not build gap-fill engine")
+
+        @contextmanager
+        def fake_lock(expert_name, verb):
+            captured["lock"] = (expert_name, verb)
+            yield False
+
+        def fake_jitter(expert_name, max_seconds):
+            captured["jitter"] = (expert_name, max_seconds)
+
+        def fake_record(**kwargs):
+            captured["loop_run_kwargs"] = kwargs
+            return SimpleNamespace(
+                to_dict=lambda: {
+                    "run_id": "loop_gap_locked",
+                    "status": kwargs["status"].value,
+                    "stop_reason": kwargs["stop_reason"].value,
+                }
+            )
+
+        with (
+            patch("deepr.experts.profile.ExpertStore") as mock_store_class,
+            patch("deepr.experts.gap_router.GapRouter") as mock_router_class,
+            patch("deepr.experts.gap_fill.GapFillEngine", ExplodingGapFillEngine),
+            patch("deepr.experts.loop_lock.apply_startup_jitter", fake_jitter),
+            patch("deepr.experts.loop_lock.expert_verb_lock", fake_lock),
+            patch("deepr.experts.loop_runs.record_loop_run", side_effect=fake_record),
+        ):
+            mock_store = MagicMock()
+            mock_store.load.return_value = expert
+            mock_store_class.return_value = mock_store
+            mock_router_class.return_value.route.return_value = [route]
+
+            result = runner.invoke(
+                cli,
+                [
+                    "expert",
+                    "route-gaps",
+                    "AI Strategy Expert",
+                    "--execute",
+                    "--local",
+                    "--scheduled",
+                    "--jitter",
+                    "30",
+                    "--yes",
+                    "--json",
+                ],
+            )
+
+        assert result.exit_code == 0, result.output
+        import json
+
+        payload = json.loads(result.output)
+        assert payload["outcomes"][0]["status"] == "skipped"
+        assert payload["outcomes"][0]["detail"] == "another route-gaps execution for this expert is already running"
+        assert payload["total_cost"] == 0.0
+        assert payload["loop_run"]["run_id"] == "loop_gap_locked"
+        assert payload["loop_run"]["status"] == "waiting"
+        assert payload["loop_run"]["stop_reason"] == "overlap_locked"
+        assert captured["jitter"] == ("AI Strategy Expert", 30.0)
+        assert captured["lock"] == ("AI Strategy Expert", "route-gaps")
+        assert captured["loop_run_kwargs"]["status"] == LoopRunStatus.WAITING
+        assert captured["loop_run_kwargs"]["stop_reason"] == LoopStopReason.OVERLAP_LOCKED
+        assert captured["loop_run_kwargs"]["trigger"] == "scheduled"
+        assert captured["loop_run_kwargs"]["capacity_source"] == "local"
+        assert captured["loop_run_kwargs"]["budget_spent"] == 0.0
 
     def test_execute_records_completed_gap_fill_loop(self, runner):
         from deepr.experts.gap_router import GapRoute

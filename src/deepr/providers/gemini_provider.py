@@ -17,7 +17,7 @@ import os
 from contextlib import suppress
 from datetime import UTC, datetime
 from types import SimpleNamespace
-from typing import Any
+from typing import Any, cast
 
 _GENAI_IMPORT_ERROR: Exception | None
 try:
@@ -46,7 +46,7 @@ if genai is not None:
     with suppress(ImportError, AttributeError):
         import google.genai.client as _genai_client
 
-        _genai_client._interactions_experimental_warned = True
+        cast(Any, _genai_client)._interactions_experimental_warned = True
 
 logger = logging.getLogger(__name__)
 

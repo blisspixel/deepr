@@ -10,6 +10,7 @@ import asyncio
 import json as _json
 import sys
 from dataclasses import dataclass
+from datetime import UTC, datetime
 from typing import Any
 
 import click
@@ -210,6 +211,53 @@ def _build_gap_fill_engine(
     return GapFillEngine(profile), "api_metered"
 
 
+def _selected_gap_fill_capacity_source(backend: _GapFillBackend) -> str:
+    if backend.use_local:
+        return "local"
+    if backend.use_plan and backend.plan_backend_id:
+        return f"plan_quota:{backend.plan_backend_id}"
+    return "api_metered"
+
+
+def _gap_fill_overlap_result(profile_name: str):
+    from deepr.experts.gap_fill import GapFillOutcome, GapFillResult
+
+    return GapFillResult(
+        expert_name=profile_name,
+        started_at=datetime.now(UTC),
+        outcomes=[
+            GapFillOutcome(
+                topic="route-gaps",
+                status="skipped",
+                detail="another route-gaps execution for this expert is already running",
+            )
+        ],
+        total_cost=0.0,
+    )
+
+
+def _record_gap_fill_overlap_loop(profile_name: str, *, budget: float, scheduled: bool, capacity_source: str):
+    from deepr.experts.loop_runs import LoopRunStatus, LoopStopReason, record_loop_run
+
+    return record_loop_run(
+        expert_name=profile_name,
+        loop_type="gap_fill",
+        goal=f"Fill routed knowledge gaps for {profile_name}",
+        trigger="scheduled" if scheduled else "manual",
+        status=LoopRunStatus.WAITING,
+        stop_reason=LoopStopReason.OVERLAP_LOCKED,
+        next_action={
+            "status": "waiting_for_overlap",
+            "title": "Another gap-fill run is already running",
+            "detail": "This run skipped because the same expert route-gaps verb already holds the overlap lock.",
+            "command": f'deepr expert route-gaps "{profile_name}" --execute --scheduled',
+        },
+        budget_limit=budget,
+        budget_spent=0.0,
+        capacity_source=capacity_source,
+    )
+
+
 def _record_completed_gap_fill_loop(
     profile_name: str, result: Any, *, budget: float, scheduled: bool, capacity_source: str
 ):
@@ -282,6 +330,13 @@ def _record_completed_gap_fill_loop(
 @click.option("--budget", "-b", type=float, default=2.0, show_default=True, help="Run budget ceiling for --execute")
 @click.option("--dry-run", is_flag=True, help="With --execute: show what would run; no spend")
 @click.option("--scheduled", is_flag=True, help="With --execute: wait instead of spending on recurring gap fills")
+@click.option(
+    "--jitter",
+    type=float,
+    default=0.0,
+    show_default=True,
+    help="With --execute: maximum startup jitter in seconds before a non-dry gap-fill run",
+)
 @click.option("--local", is_flag=True, help="With --execute: run fills on the local Ollama model at $0")
 @click.option("--api", is_flag=True, help="With --execute: force the metered API")
 @click.option(
@@ -301,6 +356,7 @@ def route_gaps(
     budget: float,
     dry_run: bool,
     scheduled: bool,
+    jitter: float,
     local: bool,
     api: bool,
     plan: str | None,
@@ -334,6 +390,9 @@ def route_gaps(
             _validate_gap_fill_backend_flags(local=local, api=api, plan=plan, plan_model=plan_model)
         except ValueError as exc:
             print_error(str(exc))
+            sys.exit(2)
+        if jitter < 0:
+            print_error("--jitter must be non-negative.")
             sys.exit(2)
 
     store = ExpertStore()
@@ -383,28 +442,56 @@ def route_gaps(
                 print_warning("Cancelled.")
                 return
 
-        engine, capacity_source = _build_gap_fill_engine(
-            profile,
-            use_local=backend.use_local,
-            local_model=backend.local_model,
-            use_plan=backend.use_plan,
-            plan_backend_id=backend.plan_backend_id,
-            plan_model=backend.plan_model,
-            selection_note=backend.note,
-            json_output=json_output,
-        )
-        result = asyncio.run(engine.execute(routes, budget=budget, top=top_n, dry_run=dry_run))
-        loop_run = (
-            None
-            if dry_run
-            else _record_completed_gap_fill_loop(
-                profile.name,
-                result,
-                budget=budget,
-                scheduled=scheduled,
-                capacity_source=capacity_source,
+        if dry_run:
+            engine, capacity_source = _build_gap_fill_engine(
+                profile,
+                use_local=backend.use_local,
+                local_model=backend.local_model,
+                use_plan=backend.use_plan,
+                plan_backend_id=backend.plan_backend_id,
+                plan_model=backend.plan_model,
+                selection_note=backend.note,
+                json_output=json_output,
             )
-        )
+            result = asyncio.run(engine.execute(routes, budget=budget, top=top_n, dry_run=True))
+            loop_run = None
+        else:
+            if jitter > 0:
+                from deepr.experts.loop_lock import apply_startup_jitter
+
+                apply_startup_jitter(profile.name, jitter)
+
+            from deepr.experts.loop_lock import expert_verb_lock
+
+            capacity_source = _selected_gap_fill_capacity_source(backend)
+            with expert_verb_lock(profile.name, "route-gaps") as acquired:
+                if not acquired:
+                    result = _gap_fill_overlap_result(profile.name)
+                    loop_run = _record_gap_fill_overlap_loop(
+                        profile.name,
+                        budget=budget,
+                        scheduled=scheduled,
+                        capacity_source=capacity_source,
+                    )
+                else:
+                    engine, capacity_source = _build_gap_fill_engine(
+                        profile,
+                        use_local=backend.use_local,
+                        local_model=backend.local_model,
+                        use_plan=backend.use_plan,
+                        plan_backend_id=backend.plan_backend_id,
+                        plan_model=backend.plan_model,
+                        selection_note=backend.note,
+                        json_output=json_output,
+                    )
+                    result = asyncio.run(engine.execute(routes, budget=budget, top=top_n, dry_run=False))
+                    loop_run = _record_completed_gap_fill_loop(
+                        profile.name,
+                        result,
+                        budget=budget,
+                        scheduled=scheduled,
+                        capacity_source=capacity_source,
+                    )
 
         if json_output:
             payload = result.to_dict()
