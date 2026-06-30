@@ -174,6 +174,13 @@ must not be described as usable capacity.
   human or calibrated-model judge; Deepr validates score shape, known labels,
   acceptance gates, and write boundaries. Accepted reviews can promote only gap
   or eval artifacts, never beliefs.
+- `deepr expert judge-consult-quality NAME TRACE_ID --local-judge-model MODEL`
+  runs consult-quality review with an explicit local Ollama judge at `$0`.
+  The judge prompt uses the local trace answer at command time, validates the
+  returned scores and labels against the review rubric, and stores only the
+  review artifact plus local judge metadata. It does not write beliefs, expose
+  trace paths, store the raw judge response, or silently fall back to metered
+  capacity.
 - `deepr expert consult-quality-trends NAME` emits
   `deepr-consult-quality-trend-v1`, a `$0` read-only trend report over reviewed
   consult-quality artifacts. It summarizes score dimensions, review statuses,

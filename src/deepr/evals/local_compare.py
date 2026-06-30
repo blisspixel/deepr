@@ -10,7 +10,6 @@ from __future__ import annotations
 
 import asyncio
 import json
-import re
 import shlex
 import subprocess
 import tempfile
@@ -23,6 +22,7 @@ from typing import Any
 
 from deepr.backends.local import ollama_chat_client
 from deepr.config import runtime_data_path
+from deepr.evals.judge_json import extract_json_object
 
 METHODOLOGY_VERSION = "1.0"
 PROMPT_SET_AGENTIC_LOOPS = "agentic-loops"
@@ -385,7 +385,7 @@ async def _complete(chat: Any, *, model: str, messages: list[dict[str, str]], ma
 
 def parse_judge_verdict(raw: str) -> LocalJudgeVerdict:
     """Parse and range-check local judge JSON."""
-    payload = _extract_json_object(raw)
+    payload = extract_json_object(raw)
     if payload is None:
         return LocalJudgeVerdict(score=0.0, reason="judge did not return JSON", raw=raw)
 
@@ -400,21 +400,3 @@ def parse_judge_verdict(raw: str) -> LocalJudgeVerdict:
 
     reason = payload.get("reason")
     return LocalJudgeVerdict(score=score, reason=str(reason or ""), raw=raw)
-
-
-def _extract_json_object(raw: str) -> dict[str, Any] | None:
-    text = raw.strip()
-    if not text:
-        return None
-    candidates = [text]
-    match = re.search(r"\{.*\}", text, flags=re.DOTALL)
-    if match:
-        candidates.append(match.group(0))
-    for candidate in candidates:
-        try:
-            parsed = json.loads(candidate)
-        except json.JSONDecodeError:
-            continue
-        if isinstance(parsed, dict):
-            return parsed
-    return None

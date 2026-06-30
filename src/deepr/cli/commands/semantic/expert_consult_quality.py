@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import json
 from pathlib import Path
 from typing import Any
@@ -185,6 +186,93 @@ def expert_review_consult_quality(
             output_dir=output_dir,
         )
     except (ConsultQualityReviewError, click.BadParameter) as exc:
+        print_error(str(exc))
+        raise click.Abort() from exc
+
+    if json_output:
+        click.echo(json.dumps(payload, indent=2, default=str))
+        return
+    _render(payload)
+
+
+@expert.command(name="judge-consult-quality")
+@click.argument("name")
+@click.argument("trace_id")
+@click.option("--local-judge-model", required=True, help="Installed local Ollama model used as calibrated judge.")
+@click.option("--calibration-ref", default="", help="Optional calibration artifact id for this local judge.")
+@click.option(
+    "--target",
+    type=click.Choice(["none", "gap", "eval", "both"]),
+    default="none",
+    show_default=True,
+    help="Accepted review promotion target.",
+)
+@click.option("--apply", "apply_change", is_flag=True, help="Write the reviewed artifact and accepted promotions.")
+@click.option(
+    "--trace-path",
+    type=click.Path(dir_okay=False, path_type=Path),
+    default=None,
+    help="Optional local consult trace JSONL path.",
+)
+@click.option("--limit", type=int, default=50, show_default=True, help="Newest traces to inspect.")
+@click.option("--max-candidates", type=int, default=20, show_default=True, help="Maximum trace candidates to rebuild.")
+@click.option(
+    "--output-dir",
+    type=click.Path(file_okay=False, path_type=Path),
+    default=None,
+    help="Optional directory for review and eval artifacts.",
+)
+@click.option("--json", "json_output", is_flag=True, help="Emit machine-readable JSON.")
+def expert_judge_consult_quality(
+    name: str,
+    trace_id: str,
+    local_judge_model: str,
+    calibration_ref: str,
+    target: str,
+    apply_change: bool,
+    trace_path: Path | None,
+    limit: int,
+    max_candidates: int,
+    output_dir: Path | None,
+    json_output: bool,
+) -> None:
+    """Score a consult semantic-quality case with an explicit local judge."""
+    from deepr.backends.capacity import available_local_models
+    from deepr.experts.consult_quality import (
+        ConsultQualityReviewError,
+        review_consult_quality_candidate_with_local_judge,
+    )
+
+    store = ExpertStore()
+    profile = store.load(name)
+    if profile is None:
+        print_error(f"Expert '{name}' not found")
+        raise click.Abort()
+
+    installed = available_local_models()
+    if not installed:
+        print_error("No local Ollama models available. Check `deepr capacity --probe`.")
+        raise click.Abort()
+    if local_judge_model not in installed:
+        print_error(f"Local judge model is not installed: {local_judge_model}")
+        raise click.Abort()
+
+    try:
+        payload = asyncio.run(
+            review_consult_quality_candidate_with_local_judge(
+                profile,
+                trace_id,
+                judge_model=local_judge_model,
+                calibration_ref=calibration_ref,
+                target=target,
+                apply=apply_change,
+                trace_path=trace_path,
+                limit=limit,
+                max_candidates=max_candidates,
+                output_dir=output_dir,
+            )
+        )
+    except ConsultQualityReviewError as exc:
         print_error(str(exc))
         raise click.Abort() from exc
 
