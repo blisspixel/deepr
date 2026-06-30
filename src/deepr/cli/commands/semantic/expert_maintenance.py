@@ -418,7 +418,7 @@ def absorb_report(
     "--plan-model",
     "plan_model",
     default=None,
-    help="Model to pass to the plan-quota CLI (e.g. anthropic/claude-sonnet-4-6 for --plan opencode)",
+    help="Model to pass to the plan-quota CLI (e.g. anthropic/claude-sonnet-5 for --plan opencode)",
 )
 @click.option("--check-grounding", is_flag=True, help="Check absorbed claims with a fresh-context verifier")
 @click.option(

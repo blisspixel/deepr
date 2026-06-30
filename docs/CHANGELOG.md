@@ -8,6 +8,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- Added Claude Sonnet 5 API support. `claude-sonnet-5` is now registered for
+  Anthropic pricing, prompt-cache pricing, routing priors, API/web allowlists,
+  and balanced Anthropic chat/synthesis defaults. Deepr treats it as a native
+  Messages API adaptive-thinking model and omits unsupported sampling
+  parameters.
 - Added `deepr expert consult-quality-trends NAME`, a `$0` read-only trend
   report over reviewed consult-quality artifacts. It emits
   `deepr-consult-quality-trend-v1`, summarizes score dimensions and review

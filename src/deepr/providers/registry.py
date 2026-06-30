@@ -813,6 +813,33 @@ MODEL_CAPABILITIES: dict[str, ModelCapability] = {
         input_cost_per_1m=10.00,
         output_cost_per_1m=50.00,
     ),
+    # Claude Sonnet 5 - current balanced Claude (GA Jun 2026).
+    # Estimates use standard post-intro pricing to avoid under-budgeting after
+    # Anthropic's introductory price window ends on 2026-08-31.
+    "anthropic/claude-sonnet-5": ModelCapability(
+        provider="anthropic",
+        model="claude-sonnet-5",
+        cost_per_query=0.48,
+        latency_ms=3000,
+        context_window=1_000_000,
+        specializations=["reasoning", "coding", "analysis", "balanced", "agents", "large_context"],
+        strengths=[
+            "Current Sonnet model and best balanced Anthropic default",
+            "Adaptive Thinking is enabled by default",
+            "Full 1M token context window",
+            "128K max output tokens",
+            "Lower introductory pricing listed by Anthropic through 2026-08-31",
+        ],
+        weaknesses=[
+            "Less capable than Opus or Fable for the hardest research tasks",
+            "No native deep research API",
+            "Rejects non-default sampling parameters",
+            "Deepr estimates with standard post-intro rates, not the lower intro rate",
+        ],
+        input_cost_per_1m=3.00,
+        output_cost_per_1m=15.00,
+        cached_input_cost_per_1m=0.30,
+    ),
     # Claude Opus 4.8 - most capable Claude (GA May 28, 2026); recommended flagship
     "anthropic/claude-opus-4-8": ModelCapability(
         provider="anthropic",
@@ -929,6 +956,7 @@ MODEL_CAPABILITIES: dict[str, ModelCapability] = {
         weaknesses=[
             "Less capable than Opus 4.7 for complex research",
             "No native deep research API",
+            "Use claude-sonnet-5 instead for balanced Sonnet work",
         ],
         input_cost_per_1m=3.00,
         output_cost_per_1m=15.00,

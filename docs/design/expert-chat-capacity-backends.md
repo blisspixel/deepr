@@ -64,14 +64,18 @@ cost ledger.
 
 The paid API path cannot be a thin OpenAI wrapper.
 
-- Claude Opus 4.8 uses Anthropic's Messages API. Official examples call
+- Claude Sonnet 5 and Opus 4.8 use Anthropic's Messages API. Official examples
+  call `client.messages.create(model="claude-sonnet-5", ...)` or
   `client.messages.create(model="claude-opus-4-8", ...)`.
-- Claude Opus 4.8 supports adaptive thinking. Manual extended thinking with a
-  fixed `budget_tokens` is rejected. Use `thinking={"type": "adaptive"}` when
-  thinking is needed.
+- Claude Sonnet 5 and Opus 4.8 support adaptive thinking. Manual extended
+  thinking with a fixed `budget_tokens` is rejected. Use
+  `thinking={"type": "adaptive"}` when thinking is needed.
+- Claude Sonnet 5 supports the `effort` parameter. The API default is `high`.
+  Deepr can omit it unless a user-facing effort policy is added; any future
+  policy must be budget-aware and visible before dispatch.
 - Non-default sampling parameters such as `temperature`, `top_p`, and `top_k`
-  are rejected on Claude Opus 4.8. The Anthropic adapter must omit them instead
-  of passing Deepr's OpenAI-style `temperature=0.3`.
+  are rejected on Claude Sonnet 5 and Opus 4.8. The Anthropic adapter must omit
+  them instead of passing Deepr's OpenAI-style `temperature=0.3`.
 - Opus 4.8 has the 1M context window on Claude API, Amazon Bedrock, and Google
   Cloud. Microsoft Foundry launched it with a 200k context window, so platform
   matters.
@@ -84,12 +88,20 @@ The paid API path cannot be a thin OpenAI wrapper.
   cache controls until TTL, cache-key, pre-warm, cache-miss, privacy, and budget
   estimators are explicit.
 
-References checked 2026-06-28:
+References checked 2026-06-30:
 
 - Anthropic Claude API primer:
   https://platform.claude.com/docs/en/claude_api_primer
+- Anthropic Claude Sonnet 5 model notes:
+  https://platform.claude.com/docs/en/about-claude/models/whats-new-sonnet-5
 - Anthropic model migration guide:
   https://platform.claude.com/docs/en/about-claude/models/migration-guide
+- Anthropic Claude model overview:
+  https://docs.anthropic.com/en/docs/about-claude/models/overview
+- Anthropic effort control:
+  https://platform.claude.com/docs/en/build-with-claude/effort
+- Anthropic pricing:
+  https://platform.claude.com/docs/en/about-claude/pricing
 - Anthropic Opus 4.8 API migration notes:
   https://platform.claude.com/docs/en/about-claude/models/whats-new-claude-4-8
 - Anthropic prompt caching:

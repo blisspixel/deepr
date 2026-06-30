@@ -25,6 +25,7 @@ class TestAnthropicProviderPricing:
         from deepr.providers.anthropic_provider import ANTHROPIC_PRICING
 
         required_models = [
+            "claude-sonnet-5",
             "claude-opus-4-5",
             "claude-sonnet-4-5",
             "claude-haiku-4-5",
@@ -57,9 +58,9 @@ class TestAnthropicProviderPricing:
         """Should have cache pricing."""
         from deepr.providers.anthropic_provider import ANTHROPIC_CACHE_PRICING
 
-        assert "claude-opus-4-5" in ANTHROPIC_CACHE_PRICING
-        assert "cache_write" in ANTHROPIC_CACHE_PRICING["claude-opus-4-5"]
-        assert "cache_read" in ANTHROPIC_CACHE_PRICING["claude-opus-4-5"]
+        assert "claude-sonnet-5" in ANTHROPIC_CACHE_PRICING
+        assert "cache_write" in ANTHROPIC_CACHE_PRICING["claude-sonnet-5"]
+        assert "cache_read" in ANTHROPIC_CACHE_PRICING["claude-sonnet-5"]
 
 
 class TestAnthropicProviderConstants:
@@ -70,6 +71,7 @@ class TestAnthropicProviderConstants:
         from deepr.providers.anthropic_provider import AnthropicProvider
 
         assert len(AnthropicProvider.SUPPORTED_MODELS) > 0
+        assert "claude-sonnet-5" in AnthropicProvider.SUPPORTED_MODELS
         assert "claude-opus-4-5" in AnthropicProvider.SUPPORTED_MODELS
         assert "claude-sonnet-4-5" in AnthropicProvider.SUPPORTED_MODELS
 
@@ -133,8 +135,8 @@ class TestAnthropicProviderInit:
         with patch.dict("os.environ", {"ANTHROPIC_API_KEY": "test-key"}):
             with patch("deepr.providers.anthropic_provider.Anthropic"):
                 with patch("deepr.providers.anthropic_provider.ToolRegistry"):
-                    provider = AnthropicProvider(model="claude-sonnet-4-5")
-                    assert provider.model == "claude-sonnet-4-5"
+                    provider = AnthropicProvider(model="claude-sonnet-5")
+                    assert provider.model == "claude-sonnet-5"
 
     def test_thinking_budget_minimum(self):
         """Should enforce minimum thinking budget."""
@@ -172,7 +174,9 @@ class TestAnthropicProviderModelMapping:
 
     def test_map_sonnet(self, provider):
         """Should map sonnet variants."""
-        assert provider.get_model_name("claude-sonnet") == "claude-sonnet-4-6"
+        assert provider.get_model_name("claude-sonnet") == "claude-sonnet-5"
+        assert provider.get_model_name("claude-5-sonnet") == "claude-sonnet-5"
+        assert provider.get_model_name("claude-sonnet-5") == "claude-sonnet-5"
 
     def test_map_haiku(self, provider):
         """Should map haiku variants."""
@@ -204,6 +208,7 @@ class TestAnthropicThinkingParam:
         "model",
         [
             "claude-fable-5",
+            "claude-sonnet-5",
             "claude-opus-4-8",
             "claude-opus-4-7",
             "claude-opus-4-6",
@@ -242,6 +247,8 @@ class TestFable5Pricing:
 
         assert ANTHROPIC_PRICING["claude-fable-5"]["input"] == 10.00
         assert ANTHROPIC_PRICING["claude-fable-5"]["output"] == 50.00
+        assert ANTHROPIC_PRICING["claude-sonnet-5"]["input"] == 3.00
+        assert ANTHROPIC_PRICING["claude-sonnet-5"]["output"] == 15.00
 
     def test_fable_in_registry_token_pricing(self):
         from deepr.providers.registry import get_token_pricing
@@ -256,6 +263,7 @@ class TestFable5Pricing:
 
         expected = {
             "claude-fable-5": (10.00, 50.00),
+            "claude-sonnet-5": (3.00, 15.00),
             "claude-opus-4-8": (5.00, 25.00),
             "claude-opus-4-7": (5.00, 25.00),
             "claude-opus-4-6": (5.00, 25.00),

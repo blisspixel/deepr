@@ -266,10 +266,13 @@ reserve, settle, and audit every bucket it can trigger.
 - Batch, flex, priority, provisioned, data-residency, and deployment-tier
   modifiers must be modeled as first-class pricing dimensions, not hidden in a
   single model price.
-- Anthropic Claude Opus 4.8 must use the native Messages API adapter. It
-  rejects non-default sampling params such as `temperature`, `top_p`, and
-  `top_k`; manual thinking budgets are rejected, while adaptive thinking is the
-  supported path.
+- Anthropic Claude Sonnet 5 and Opus 4.8 must use the native Messages API
+  adapter. Sonnet 5 has a 1M context window and 128K max output, rejects
+  non-default sampling params such as `temperature`, `top_p`, and `top_k`, and
+  uses adaptive thinking by default; manual thinking budgets are rejected on the
+  adaptive-only Claude models. Deepr estimates Sonnet 5 with the standard
+  post-intro token rates rather than Anthropic's lower 2026-06 introductory
+  rates, so budget gates remain conservative after the intro window.
 - Provider cache semantics differ. OpenAI, Azure OpenAI, and Gemini can apply
   implicit prompt caching; Anthropic exposes explicit and automatic
   `cache_control`; Gemini Interactions currently documents implicit caching

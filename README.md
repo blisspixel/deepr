@@ -169,7 +169,12 @@ deepr research "Analyze this corpus" --files docs/*.md --budget 5
 
 Model names and prices move quickly. The registry under
 `src/deepr/providers/registry.py` is the canonical source for pricing used by
-estimates and settlement.
+estimates and settlement. Current Anthropic support includes `claude-sonnet-5`
+for balanced chat/synthesis and `claude-opus-4-8` for higher-reasoning research;
+Sonnet 5 is handled through the native Messages API with adaptive thinking and
+no non-default sampling parameters. Deepr estimates Sonnet 5 with Anthropic's
+standard post-intro token rates so budget checks do not understate future spend;
+Anthropic's current docs list lower introductory pricing through 2026-08-31.
 
 ### Experts
 

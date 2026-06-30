@@ -403,12 +403,12 @@ class AutonomousProviderRouter:
         "chat": [
             ("openai", "o4-mini-deep-research"),
             ("xai", "grok-4.3"),
-            ("anthropic", "claude-sonnet-4-5"),
+            ("anthropic", "claude-sonnet-5"),
         ],
         "synthesis": [
             ("openai", "o4-mini-deep-research"),
             ("xai", "grok-4.3"),
-            ("anthropic", "claude-sonnet-4-5"),
+            ("anthropic", "claude-sonnet-5"),
         ],
         "fact_check": [("xai", "grok-4.3"), ("openai", "o4-mini-deep-research")],
         "quick": [("xai", "grok-4.3"), ("openai", "o4-mini-deep-research")],

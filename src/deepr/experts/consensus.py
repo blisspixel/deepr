@@ -35,7 +35,7 @@ _PROVIDER_MODELS = {
     "xai": "grok-4.3",
     "openai": "gpt-5.2",
     "gemini": "gemini-3.1-pro-preview",
-    "anthropic": "claude-sonnet-4-5-20250929",
+    "anthropic": "claude-sonnet-5",
 }
 
 # Rough cost per query by provider (used for budget planning). Gemini bumped

@@ -36,8 +36,8 @@ const API_KEYS: ProviderKey[] = [
     provider: 'Anthropic',
     envVar: 'ANTHROPIC_API_KEY',
     url: 'https://console.anthropic.com/settings/keys',
-    description: 'Claude Opus 4.6, Sonnet 4.5, Haiku 4.5',
-    models: ['claude-opus-4-6', 'claude-sonnet-4-5', 'claude-haiku-4-5'],
+    description: 'Claude Sonnet 5, Opus 4.8, Haiku 4.5',
+    models: ['claude-sonnet-5', 'claude-opus-4-8', 'claude-haiku-4-5'],
     free: false,
   },
   {
