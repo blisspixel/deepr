@@ -29,10 +29,12 @@ cost ledger.
   `anthropic`. The Anthropic path uses the native Messages API and keeps
   prompt-cache controls disabled until explicit cache policy exists.
 - `ExpertChatSession` is more coupled than consult. Its constructor requires
-  `OPENAI_API_KEY`, stores an `AsyncOpenAI` client, uses OpenAI chat
-  completions, uses the Responses API path for retrieval, generates follow-ups
-  with an OpenAI model, and routes under an OpenAI provider constraint for
-  vector-store compatibility.
+  `OPENAI_API_KEY`, stores an `AsyncOpenAI` client, uses the Responses API path
+  for retrieval, generates follow-ups with an OpenAI model, and routes under an
+  OpenAI provider constraint for vector-store compatibility. The primary
+  non-streaming answer-generation chat-completion turn now goes through
+  `ExpertChatBackend` with `OpenAIExpertChatBackend`; streaming tool rounds,
+  follow-ups, compaction, and deep research are still legacy client calls.
 - MCP `deepr_consult_experts` accepts `synthesis_backend=api|local|plan`.
   MCP `deepr_query_expert` accepts `backend=api|local|plan`. The default
   `api` path is still the legacy metered-capable chat session. `local` and
@@ -279,7 +281,8 @@ side-effect policy.
 4. Add local and plan query modes through the one-expert consult bridge.
    (done)
 5. Extract `ExpertChatBackend` and move current OpenAI chat behind it without
-   behavior changes.
+   behavior changes. (partial 2026-06-30: primary non-streaming
+   answer-generation chat-completion turns now use `OpenAIExpertChatBackend`)
 6. Add local and plan chat backends in read-only compiled-context mode.
 7. Add Anthropic expert chat in non-agentic mode.
 8. Add agentic tools per backend only when the backend declares support and the
