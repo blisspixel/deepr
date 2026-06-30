@@ -33,6 +33,10 @@ class ExpertChatResult:
         return str(getattr(self.message, "content", "") or "")
 
 
+class ExpertChatUnsupportedFeature(ValueError):
+    """Raised when a backend is asked to use a feature it does not declare."""
+
+
 class ExpertChatBackend(Protocol):
     """Provider-neutral backend for expert chat model turns."""
 
@@ -108,3 +112,61 @@ class OpenAIExpertChatBackend:
             provider_request_id=str(getattr(response, "id", "") or ""),
             stop_reason=str(getattr(choice, "finish_reason", "") or ""),
         )
+
+
+class _OpenAIShapeNoToolExpertChatBackend:
+    """Adapter for OpenAI-compatible owned-capacity clients without tool support."""
+
+    metered = False
+    supports_tools = False
+    supports_streaming = False
+    supports_prompt_cache = False
+
+    def __init__(self, client: Any, *, provider: str, model: str | None = None) -> None:
+        self.client = client
+        self.provider = provider
+        self.model = model
+
+    async def complete(self, request: ExpertChatRequest) -> ExpertChatResult:
+        if request.tools:
+            raise ExpertChatUnsupportedFeature(f"{self.provider} expert-chat backend does not support tools")
+
+        params = self._build_params(request)
+        response = await self.client.chat.completions.create(**params)
+        choice = response.choices[0]
+        return ExpertChatResult(
+            message=choice.message,
+            usage=getattr(response, "usage", None),
+            raw_response=response,
+            provider_request_id=str(getattr(response, "id", "") or ""),
+            stop_reason=str(getattr(choice, "finish_reason", "") or ""),
+        )
+
+    def _build_params(self, request: ExpertChatRequest) -> dict[str, Any]:
+        model = request.model or self.model
+        if not model:
+            raise ExpertChatUnsupportedFeature(f"{self.provider} expert-chat backend requires a model")
+        return {"model": model, "messages": request.messages, **request.extra}
+
+
+class LocalOllamaExpertChatBackend(_OpenAIShapeNoToolExpertChatBackend):
+    """Local Ollama expert-chat backend for read-only compiled-context turns."""
+
+    def __init__(self, client: Any, *, model: str, keep_alive: str = "30m") -> None:
+        super().__init__(client, provider="local", model=model)
+        self.keep_alive = keep_alive
+
+    def _build_params(self, request: ExpertChatRequest) -> dict[str, Any]:
+        params = super()._build_params(request)
+        extra_body = dict(params.pop("extra_body", {}) or {})
+        extra_body.setdefault("keep_alive", self.keep_alive)
+        params["extra_body"] = extra_body
+        return params
+
+
+class PlanQuotaExpertChatBackend(_OpenAIShapeNoToolExpertChatBackend):
+    """Plan-quota expert-chat backend for explicit prepaid CLI turns."""
+
+    def __init__(self, client: Any, *, backend_id: str, model: str | None = None) -> None:
+        super().__init__(client, provider=f"plan_quota:{backend_id}", model=model or backend_id)
+        self.backend_id = backend_id
