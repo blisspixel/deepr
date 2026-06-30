@@ -25,7 +25,7 @@ Recorded so the plan is proportional - this is not a rescue, it is a finish.
 
 - **Types**: `mypy --strict` is a *blocking* gate on `core/` + `providers/` +
   `mcp/` (clean); whole-tree baseline is non-blocking.
-- **Tests**: 5,300+ unit tests; **80% branch** coverage gate (stricter than
+- **Tests**: 7,000+ unit tests; **80% branch** coverage gate (stricter than
   line) on Python 3.12 / 3.13 / 3.14.
 - **Lint**: ruff (E/F/W/I/B/UP/RUF) blocking + pre-commit.
 - **Security / supply chain**: `pip-audit` blocking, weekly dependency update automation, SBOM

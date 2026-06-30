@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "deepr-research"
-version = "2.24.0"
+version = "2.25.0"
 description = "Research automation platform that replicates human research team workflows using AI"
 readme = "README.md"
 license = {text = "Apache-2.0"}
@@ -342,4 +342,10 @@ deepr = ["py.typed"]
 [tool.setuptools.packages.find]
 where = ["src"]
 include = ["deepr*"]
-exclude = ["tests*", "docs*"]
+exclude = [
+    "tests*",
+    "docs*",
+    "deepr.web.frontend.dist*",
+    "deepr.web.frontend.node_modules*",
+    "deepr.web.frontend.screenshots*",
+]
