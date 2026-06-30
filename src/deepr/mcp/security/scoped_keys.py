@@ -141,10 +141,22 @@ def _estimate_expert_consult_cost(arguments: dict[str, Any]) -> float:
     return 2.0
 
 
+def _estimate_expert_query_cost(arguments: dict[str, Any]) -> float:
+    backend = str(arguments.get("backend") or "api").strip().lower()
+    if backend in {"local", "plan"}:
+        return 0.0
+    requested_budget = _coerce_nonnegative_float(arguments.get("budget"))
+    if requested_budget is not None and requested_budget > 0:
+        return requested_budget
+    return 10.0
+
+
 def estimate_scoped_mcp_tool_cost(tool_name: str, arguments: dict[str, Any]) -> float | None:
     """Return deterministic estimated spend for a scoped remote MCP call."""
     if tool_name == "deepr_consult_experts":
         return _estimate_expert_consult_cost(arguments)
+    if tool_name == "deepr_query_expert":
+        return _estimate_expert_query_cost(arguments)
     requested_budget = _coerce_nonnegative_float(arguments.get("budget"))
     if requested_budget is not None and tool_name in _BUDGET_ARGUMENT_TOOLS:
         return requested_budget
@@ -152,8 +164,6 @@ def estimate_scoped_mcp_tool_cost(tool_name: str, arguments: dict[str, Any]) -> 
         return _estimate_research_cost(arguments)
     if tool_name == "deepr_agentic_research":
         return 5.0
-    if tool_name == "deepr_query_expert":
-        return 10.0
     if tool_name == "deepr_reflect":
         try:
             depth = int(arguments.get("depth", 1) or 1)

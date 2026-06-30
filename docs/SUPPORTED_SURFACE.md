@@ -94,8 +94,11 @@ must not be described as usable capacity.
   explicit plan-quota CLI with live metered fallback disabled, and the returned
   `deepr-consult-v1` artifact includes a `capacity` block describing the
   selected synthesis backend. Passing one explicit expert gives a focused
-  no-metered single-expert consult; passing several gives a bounded council
-  with preserved dissent. CLI and MCP consults append local
+  no-metered single-expert consult; `deepr_query_expert` also supports explicit
+  `backend=local|plan` as a one-expert consult bridge with
+  `consult_artifact`, `research_triggered=0`, and no live metered fallback.
+  Passing several experts gives a bounded council with preserved dissent. CLI
+  and MCP consults append local
   `deepr-consult-trace-v1` records with selected context metadata, checks run,
   capacity posture, and synthesis failure events. CLI `deepr expert
   consult-traces` is a read-only local review surface that emits sanitized

@@ -43,7 +43,6 @@ Resources:
 """
 
 import asyncio
-import hashlib
 import json
 import logging
 import os
@@ -66,6 +65,7 @@ from deepr.experts.chat import ExpertChatSession
 from deepr.experts.profile import ExpertStore
 from deepr.mcp.consult_tool import CONSULT_EXPERTS_INPUT_SCHEMA, CONSULT_EXPERTS_OUTPUT_SCHEMA, consult_experts_tool
 from deepr.mcp.expert_reads import get_expert_handoff, get_expert_loop_status, get_semantic_recall, get_temporal_edges
+from deepr.mcp.query_expert_tool import query_expert_tool
 from deepr.mcp.search.gateway import GatewayTool
 from deepr.mcp.search.registry import ToolRegistry, ToolSchema, create_default_registry
 from deepr.mcp.security import SSRFProtector
@@ -407,45 +407,26 @@ class DeeprMCPServer:
         question: str,
         budget: float | None = None,
         agentic: bool = False,
+        backend: str = "api",
+        local_model: str | None = None,
+        plan: str | None = None,
+        plan_model: str | None = None,
     ) -> dict[str, Any]:
         """Query an expert. budget: None = default ceiling; 0.0 = do not spend."""
-        try:
-            expert = self.store.load(expert_name)
-            if not expert:
-                return _make_error("EXPERT_NOT_FOUND", f"Expert '{expert_name}' not found")
-
-            session_key = f"{expert_name}_{hashlib.md5(question.encode()).hexdigest()[:12]}"  # Non-crypto: stable session key for expert chat reuse within process. Not security-sensitive.
-            if session_key not in self.sessions:
-                self.sessions[session_key] = ExpertChatSession(
-                    expert,
-                    budget=budget,
-                    agentic=agentic,
-                )
-
-            session = self.sessions[session_key]
-            try:
-                response_text = await session.send_message(question)
-                summary = session.get_session_summary()
-            finally:
-                self.sessions.pop(session_key, None)
-                # ExpertChatSession registers a CostSession in the global
-                # CostSafetyManager on construction. Popping our local cache
-                # entry does not release that, so without this close the
-                # manager's _sessions dict grows unbounded across queries.
-                try:
-                    session.cost_safety.close_session(session.session_id)
-                except Exception:
-                    logger.debug("Cost session cleanup skipped for %s", session_key, exc_info=False)
-
-            return {
-                "answer": response_text,
-                "expert": expert_name,
-                "cost": summary["cost_accumulated"],
-                "budget_remaining": summary.get("budget_remaining"),
-                "research_triggered": summary["research_jobs_triggered"],
-            }
-        except (OSError, KeyError, ValueError, DeeprError) as e:
-            return _make_error("EXPERT_QUERY_FAILED", str(e))
+        return await query_expert_tool(
+            store=self.store,
+            sessions=self.sessions,
+            session_factory=ExpertChatSession,
+            logger=logger,
+            expert_name=expert_name,
+            question=question,
+            budget=budget,
+            agentic=agentic,
+            backend=backend,
+            local_model=local_model,
+            plan=plan,
+            plan_model=plan_model,
+        )
 
     # ------------------------------------------------------------------ #
     # Tool: deepr_consult_experts
