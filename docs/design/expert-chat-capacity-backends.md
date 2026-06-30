@@ -39,7 +39,11 @@ cost ledger.
   streaming still uses the direct provider stream until the backend contract
   grows a streaming interface. Deep-research job submission still uses the
   OpenAI Responses API path because it is a research-job contract, not one
-  normalized chat turn.
+  normalized chat turn. `LocalOllamaExpertChatBackend` and
+  `PlanQuotaExpertChatBackend` now implement the same normalized backend
+  contract for read-only compiled-context turns, declare no tools, no
+  streaming, no prompt cache, and no Deepr dollar spend, but they are not yet
+  selected by public interactive chat routing.
 - MCP `deepr_consult_experts` accepts `synthesis_backend=api|local|plan`.
   MCP `deepr_query_expert` accepts `backend=api|local|plan`. The default
   `api` path is still the legacy metered-capable chat session. `local` and
@@ -157,11 +161,11 @@ estimated.
 
 Backends:
 
-- `LocalOllamaExpertBackend`: OpenAI-compatible local chat client. Cost is
+- `LocalOllamaExpertChatBackend`: OpenAI-compatible local chat client. Cost is
   always `$0` in Deepr. Tool support starts disabled unless explicitly proven.
-- `PlanQuotaExpertBackend`: wraps `PlanQuotaChatClient`. Cost is `$0` in Deepr,
-  writes quota observations and `$0` ledger events, and never auto-routes
-  unless remaining-quota evidence exists.
+- `PlanQuotaExpertChatBackend`: wraps `PlanQuotaChatClient`. Cost is `$0` in
+  Deepr, writes quota observations and `$0` ledger events, and never
+  auto-routes unless remaining-quota evidence exists.
 - `OpenAIExpertBackend`: keeps current OpenAI chat behavior, but moves cost
   settlement and feature declarations behind the common interface.
 - `AnthropicExpertBackend`: native Messages API adapter. It omits unsupported
@@ -292,6 +296,9 @@ side-effect policy.
    standard-research fallback now use `OpenAIExpertChatBackend`; final token
    streaming waits for a streaming backend contract)
 6. Add local and plan chat backends in read-only compiled-context mode.
+   (partial 2026-06-30: `LocalOllamaExpertChatBackend` and
+   `PlanQuotaExpertChatBackend` implement the backend protocol with tools,
+   streaming, and prompt cache disabled; public chat routing is still pending)
 7. Add Anthropic expert chat in non-agentic mode.
 8. Add agentic tools per backend only when the backend declares support and the
    tool has explicit cost and safety gates.
