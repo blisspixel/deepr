@@ -25,6 +25,7 @@ from deepr.experts.chat_turns import (
     chat_generation_budget_denial,
     check_chat_generation_budget,
     record_model_routing,
+    record_named_chat_cost,
 )
 from deepr.experts.commands import MODE_CONFIGS, ChatMode
 from deepr.experts.lazy_graph_rag import LazyGraphRAG
@@ -823,36 +824,33 @@ Budget remaining: ${budget_remaining:.2f}
             return {"error": f"Quick lookup blocked: {reason}", "mode": "quick_lookup_gpt52", "status": "blocked"}
 
         try:
-            # Use GPT-5.5 with low reasoning effort for knowledge lookups
-            response = await self.client.chat.completions.create(
-                model="gpt-5.5",
-                messages=[
-                    {
-                        "role": "system",
-                        "content": "Answer concisely using your knowledge. If information seems outdated or you're uncertain, recommend the user try standard research for current web information.",
-                    },
-                    {"role": "user", "content": query},
-                ],
-                reasoning_effort="low",
+            result = await self.chat_backend.complete(
+                ExpertChatRequest(
+                    model="gpt-5.5",
+                    messages=[
+                        {
+                            "role": "system",
+                            "content": "Answer concisely using your knowledge. If information seems outdated or you're uncertain, recommend the user try standard research for current web information.",
+                        },
+                        {"role": "user", "content": query},
+                    ],
+                    reasoning_effort="low",
+                )
             )
 
-            answer = response.choices[0].message.content or ""
-
-            # Token-priced via the registry so future rate changes for
-            # gpt-5.2 don't silently drift from the budget bookkeeping.
-            cost = _chat_token_cost(response.usage, "gpt-5.5") if response.usage else 0.01
-            self.cost_accumulated += cost
-            self.cost_safety.record_cost(
+            cost = record_named_chat_cost(
+                cost_safety=self.cost_safety,
                 session_id=self.session_id,
+                usage=result.usage,
+                model_name="gpt-5.5",
                 operation_type="quick_lookup",
-                actual_cost=cost,
-                provider="openai",
-                model="gpt-5.5",
-                tokens_input=getattr(response.usage, "prompt_tokens", 0) if response.usage else 0,
-                tokens_output=getattr(response.usage, "completion_tokens", 0) if response.usage else 0,
+                fallback_cost=0.01,
+                cost_calculator=_chat_token_cost,
+                details=f"Query: {query[:50]}...",
             )
+            self.cost_accumulated += cost
 
-            return {"answer": answer, "mode": "quick_lookup_gpt52", "cost": cost}
+            return {"answer": result.text, "mode": "quick_lookup_gpt52", "cost": cost}
         except Exception as e:
             return {"error": str(e)}
 
@@ -964,30 +962,33 @@ Budget remaining: ${budget_remaining:.2f}
                         "mode": "standard_research_fallback",
                         "status": "blocked",
                     }
-                response = await self.client.chat.completions.create(
-                    model="gpt-5.5",
-                    messages=[
-                        {
-                            "role": "system",
-                            "content": "Answer based on your knowledge. Be honest if information might be outdated.",
-                        },
-                        {"role": "user", "content": query},
-                    ],
-                    reasoning_effort="low",
+                result = await self.chat_backend.complete(
+                    ExpertChatRequest(
+                        model="gpt-5.5",
+                        messages=[
+                            {
+                                "role": "system",
+                                "content": "Answer based on your knowledge. Be honest if information might be outdated.",
+                            },
+                            {"role": "user", "content": query},
+                        ],
+                        reasoning_effort="low",
+                    )
                 )
 
-                answer = f"{response.choices[0].message.content or ''}\n\n[Note: Grok web search unavailable, using GPT-5.5 knowledge instead]"
+                answer = f"{result.text}\n\n[Note: Grok web search unavailable, using GPT-5.5 knowledge instead]"
 
-                cost = _chat_token_cost(response.usage, "gpt-5.5") if response.usage else 0.01
-                self.cost_accumulated += cost
-
-                # Record fallback cost
-                self.cost_safety.record_cost(
+                cost = record_named_chat_cost(
+                    cost_safety=self.cost_safety,
                     session_id=self.session_id,
+                    usage=result.usage,
+                    model_name="gpt-5.5",
                     operation_type="standard_research_fallback",
-                    actual_cost=cost,
+                    fallback_cost=0.01,
+                    cost_calculator=_chat_token_cost,
                     details=f"Fallback for: {query[:50]}...",
                 )
+                self.cost_accumulated += cost
 
                 return {
                     "answer": answer,

@@ -137,6 +137,46 @@ async def test_standard_research_records_metered_grok_cost(monkeypatch):
     assert "https://example.test/source" in result["answer"]
 
 
+async def test_quick_lookup_uses_chat_backend(monkeypatch):
+    session = _session(monkeypatch, 1.0)
+
+    async def fail_if_called(*_args, **_kwargs):
+        raise AssertionError("legacy client should be behind chat_backend")
+
+    monkeypatch.setattr(session.client.chat.completions, "create", fail_if_called)
+    backend = RecordingChatBackend("fresh cached answer")
+    session.chat_backend = backend
+
+    result = await session._quick_lookup("what changed in ai regulation?")
+
+    assert result["answer"] == "fresh cached answer"
+    assert result["mode"] == "quick_lookup_gpt52"
+    assert len(backend.requests) == 1
+    assert backend.requests[0].model == "gpt-5.5"
+    assert backend.requests[0].reasoning_effort == "low"
+
+
+async def test_standard_research_fallback_uses_chat_backend(monkeypatch):
+    session = _session(monkeypatch, 1.0)
+    monkeypatch.delenv("XAI_API_KEY", raising=False)
+
+    async def fail_if_called(*_args, **_kwargs):
+        raise AssertionError("legacy client should be behind chat_backend")
+
+    monkeypatch.setattr(session.client.chat.completions, "create", fail_if_called)
+    backend = RecordingChatBackend("fallback answer")
+    session.chat_backend = backend
+
+    result = await session._standard_research("latest ai infrastructure funding")
+
+    assert result["mode"] == "standard_research_fallback"
+    assert "fallback answer" in result["answer"]
+    assert "Grok web search unavailable" in result["answer"]
+    assert len(backend.requests) == 1
+    assert backend.requests[0].model == "gpt-5.5"
+    assert backend.requests[0].reasoning_effort == "low"
+
+
 async def test_deep_research_reports_blocked_when_session_budget_is_exhausted(monkeypatch):
     session = _session(monkeypatch, 0.0)
 

@@ -8,6 +8,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- Moved expert-chat quick lookup and standard-research fallback calls onto the
+  `ExpertChatBackend` seam while preserving their existing GPT-5.5 request
+  shape, budget checks, and operation-specific cost ledger records.
 - Moved expert-chat follow-up suggestions and conversation compaction onto the
   `ExpertChatBackend` seam, preserving the existing OpenAI model, sampling, and
   token-limit behavior while reducing remaining direct chat client calls.
