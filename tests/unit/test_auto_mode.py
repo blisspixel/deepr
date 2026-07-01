@@ -306,6 +306,24 @@ class TestAutoModeRouterApiKeyAwareness:
         # Should fall through to _cheapest_available
         assert "Cheapest" in decision.reasoning or "Last resort" in decision.reasoning
 
+    def test_no_benchmark_skips_registry_deprecated_models(self, monkeypatch):
+        """Cheapest fallback must not select lower-cost deprecated registry entries."""
+        monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+        monkeypatch.delenv("XAI_API_KEY", raising=False)
+        monkeypatch.setenv("GEMINI_API_KEY", "gemini-test-123")
+        monkeypatch.delenv("AZURE_PROJECT_ENDPOINT", raising=False)
+        monkeypatch.delenv("AZURE_OPENAI_KEY", raising=False)
+        monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
+        monkeypatch.setattr(auto_mode_module, "_rankings_cache", {})
+        monkeypatch.setattr(auto_mode_module, "_rankings_check_ts", float("inf"))
+        monkeypatch.setattr(auto_mode_module, "_auto_eval_started", True)
+
+        router = AutoModeRouter()
+        decision = router.route("What is Python?")
+
+        assert decision.provider == "gemini"
+        assert decision.model not in {"gemini-3.1-flash-lite-preview", "gemini-3-pro-preview"}
+
 
 class TestAutoModeRouterBatch:
     """Tests for batch routing."""
@@ -471,6 +489,8 @@ class TestLoadBenchmarkRankings:
                     {"model_key": "openai/gpt-5.4-mini", "scores_by_type": {"reasoning": 0.5}},
                     # Not in the registry - must be filtered out
                     {"model_key": "openai/removed-model-xyz", "scores_by_type": {"reasoning": 1.0}},
+                    # Deprecated registry entries from old runs must not re-enter active routing
+                    {"model_key": "gemini/gemini-3-pro-preview", "scores_by_type": {"reasoning": 1.0}},
                     # Malformed key without provider/ - must be skipped
                     {"model_key": "bare-model", "scores_by_type": {"reasoning": 1.0}},
                 ]
@@ -485,6 +505,7 @@ class TestLoadBenchmarkRankings:
         assert [(r[0], r[1]) for r in reasoning] == [("openai", "gpt-5.4-mini"), ("openai", "gpt-5.4")]
         assert reasoning[0][2] == 0.9  # best-of merged scores
         assert all("removed-model-xyz" not in r[1] and "bare-model" not in r[1] for r in reasoning)
+        assert all(r[1] != "gemini-3-pro-preview" for r in reasoning)
         # _overall present, ordered by average quality
         overall = rankings["_overall"]
         assert overall[0][1] == "gpt-5.4-mini" or overall[0][1] == "gpt-5.4"

@@ -404,6 +404,8 @@ export interface RegistryModel {
   specializations: string[]
   strengths: string[]
   weaknesses: string[]
+  deprecated: boolean
+  successor?: string | null
 }
 
 // Contract types (canonical expert system types)

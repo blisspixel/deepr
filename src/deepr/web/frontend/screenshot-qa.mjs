@@ -52,8 +52,11 @@ const pages = [
     name: '10-benchmarks',
     path: '/models',
     afterLoad: async (page) => {
-      await page.getByRole('button', { name: /^Chat \(/ }).click();
-      await page.waitForTimeout(500);
+      const chatButtons = page.getByRole('button', { name: /Chat/ });
+      if (await chatButtons.count()) {
+        await chatButtons.first().click();
+        await page.waitForTimeout(500);
+      }
     },
   },
   { name: '11-settings',        path: '/settings' },
@@ -82,14 +85,21 @@ async function main() {
     console.log(`Navigating to ${pg.name}: ${url}`);
 
     try {
-      await page.goto(url, { waitUntil: 'networkidle', timeout: 30000 });
-      // Extra wait for lazy-loaded content and charts
-      await page.waitForTimeout(2000);
-      if (pg.afterLoad) {
-        await pg.afterLoad(page);
-      }
+      await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 30000 });
     } catch (err) {
-      console.error(`  Warning: timeout for ${pg.name}, taking screenshot anyway`);
+      console.error(`  Warning: navigation timeout for ${pg.name}, continuing with screenshot wait`);
+    }
+
+    try {
+      await page.waitForLoadState('networkidle', { timeout: 10000 });
+    } catch {
+      console.error(`  Warning: network idle timeout for ${pg.name}, continuing after fixed wait`);
+    }
+
+    // Extra wait for React Query, lazy-loaded charts, and route-level data.
+    await page.waitForTimeout(2500);
+    if (pg.afterLoad) {
+      await pg.afterLoad(page);
     }
 
     const filepath = join(screenshotDir, `${pg.name}.png`);

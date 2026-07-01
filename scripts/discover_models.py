@@ -85,6 +85,8 @@ class RegistryModel:
     input_cost_per_1m: float
     output_cost_per_1m: float
     context_window: int
+    deprecated: bool = False
+    successor: str | None = None
 
 
 # ─── Registry loader ──────────────────────────────────────────────────────────
@@ -111,6 +113,8 @@ def load_registry() -> dict[str, RegistryModel]:
             input_cost_per_1m=cap.input_cost_per_1m,
             output_cost_per_1m=cap.output_cost_per_1m,
             context_window=cap.context_window,
+            deprecated=cap.deprecated,
+            successor=cap.successor,
         )
     return registry
 
@@ -648,8 +652,8 @@ def compare_registry(
 
 def print_registry_table(registry: dict[str, RegistryModel]):
     """Print current registry as a table."""
-    header = f"  {'Model':<38} {'$/query':>8} {'In/MTok':>8} {'Out/MTok':>9} {'Context':>9}"
-    sep = "  " + "-" * 76
+    header = f"  {'Model':<38} {'$/query':>8} {'In/MTok':>8} {'Out/MTok':>9} {'Context':>9} {'Status':>11}"
+    sep = "  " + "-" * 88
 
     print("\n  Current Model Registry")
     print(sep)
@@ -666,9 +670,10 @@ def print_registry_table(registry: dict[str, RegistryModel]):
             current_provider = provider
 
         ctx = _format_context(rm.context_window)
+        status = "deprecated" if rm.deprecated else "active"
         print(
             f"  {key:<38} {rm.cost_per_query:>7.3f} "
-            f"${rm.input_cost_per_1m:>6.2f} ${rm.output_cost_per_1m:>7.2f} {ctx:>9}"
+            f"${rm.input_cost_per_1m:>6.2f} ${rm.output_cost_per_1m:>7.2f} {ctx:>9} {status:>11}"
         )
 
     print(sep)

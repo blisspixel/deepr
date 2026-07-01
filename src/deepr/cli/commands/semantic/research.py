@@ -130,7 +130,7 @@ def research(
         cheap/fast models and complex queries to deep research models.
         Enables 20+ queries for $1-2 instead of $20-40.
 
-        deepr research --auto "What is Python?"      # -> grok-4-1-fast-non-reasoning ($0.01)
+        deepr research --auto "What is Python?"      # -> current cheapest capable model
         deepr research --auto "Analyze Tesla"        # -> o3-deep-research ($0.50)
 
     BATCH MODE (--auto --batch):
@@ -164,7 +164,7 @@ def research(
         deepr research "Latest quantum computing trends" -m o3-deep-research
         deepr research "Company analysis" --upload data.csv --limit 5.00
         deepr research "Strategic analysis of Acme Corp" --scrape https://acmecorp.com
-        deepr research "Query" --provider grok -m grok-4-1-fast-non-reasoning
+        deepr research "Query" --provider grok -m grok-4.3
     """
     from deepr.cli.validation import validate_budget, validate_prompt, validate_upload_files
 
@@ -492,7 +492,7 @@ def team(
 @click.argument("claim")
 @click.option("--sources", "-s", help="Restrict verification to specific domains/sources")
 @click.option("--provider", "-p", help="Provider (default: xai for fast verification)")
-@click.option("--model", "-m", help="Model (default: grok-4-1-fast-non-reasoning)")
+@click.option("--model", "-m", help="Model (default: grok-4.3)")
 @click.option("--verbose", "-v", is_flag=True, help="Show detailed reasoning")
 def check(claim: str, sources: str | None, provider: str | None, model: str | None, verbose: bool):
     """Verify a factual claim quickly.

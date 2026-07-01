@@ -177,14 +177,15 @@ def _load_benchmark_rankings() -> dict[str, list[_RankingEntry]] | None:
         return None
 
     # Merge scores across tiers for the same model (take best score per task type)
-    # Only include models that are still in the registry (benchmark data may
-    # reference removed/superseded models from prior runs).
+    # Only include active registry models. Benchmark data may reference removed
+    # or deprecated models from prior runs, and those must not re-enter routing.
     model_scores: dict[str, dict[str, float]] = defaultdict(dict)
     for r in rankings_data:
         model_key = r.get("model_key", "")
         if "/" not in model_key:
             continue
-        if model_key not in MODEL_CAPABILITIES:
+        cap = MODEL_CAPABILITIES.get(model_key)
+        if cap is None or cap.deprecated:
             continue
         for task_type, score in r.get("scores_by_type", {}).items():
             prev = model_scores[model_key].get(task_type, 0)
@@ -755,6 +756,9 @@ class AutoModeRouter:
                 continue
             if budget is not None and cost > budget:
                 continue
+            cap = MODEL_CAPABILITIES.get(f"{provider}/{model}")
+            if cap is not None and cap.deprecated:
+                continue
             # Skip deprecated models - route to successor if available
             dep = check_deprecation(model)
             if dep is not None:
@@ -778,7 +782,7 @@ class AutoModeRouter:
         for cap in MODEL_CAPABILITIES.values():
             if self._is_provider_usable(cap.provider):
                 if budget is None or cap.cost_per_query <= budget:
-                    if check_deprecation(cap.model) is None:
+                    if not cap.deprecated and check_deprecation(cap.model) is None:
                         candidates.append((cap.provider, cap.model, cap.cost_per_query))
 
         if candidates:
@@ -792,7 +796,7 @@ class AutoModeRouter:
         # configured would receive an openai model the dispatcher
         # couldn't actually call.
         for cap in sorted(MODEL_CAPABILITIES.values(), key=lambda c: c.cost_per_query):
-            if self._is_provider_usable(cap.provider) and check_deprecation(cap.model) is None:
+            if self._is_provider_usable(cap.provider) and not cap.deprecated and check_deprecation(cap.model) is None:
                 return (
                     cap.provider,
                     cap.model,

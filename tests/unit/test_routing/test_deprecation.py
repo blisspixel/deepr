@@ -32,6 +32,16 @@ class TestCheckDeprecation:
         assert check_deprecation("gpt-5.4") is None
         assert check_deprecation("o4-mini-deep-research") is None
         assert check_deprecation("grok-4.20-0309-reasoning") is None
+        assert check_deprecation("gemini-3.1-pro-preview") is None
+
+    def test_shutdown_gemini_previews_are_deprecated(self):
+        pro = check_deprecation("gemini-3-pro-preview")
+        flash_lite = check_deprecation("gemini-3.1-flash-lite-preview")
+
+        assert pro is not None
+        assert pro.new_model == "gemini-3.1-pro-preview"
+        assert flash_lite is not None
+        assert flash_lite.new_model == "gemini-3.1-flash-lite"
 
     def test_versioned_gpt4o_mini_matches_correctly(self):
         """gpt-4o-mini-2024-08-06 should match gpt-4o-mini, NOT gpt-4o."""
@@ -92,4 +102,11 @@ class TestMigrateModel:
         # consume the plain model id, not "<provider>/<model>".
         assert model == "grok-4-3"
         assert confidence == 0.75
+        assert warning is not None
+
+    def test_shutdown_gemini_preview_migrates(self):
+        model, confidence, warning = migrate_model("gemini-3.1-flash-lite-preview")
+
+        assert model == "gemini-3.1-flash-lite"
+        assert confidence == 1.0
         assert warning is not None

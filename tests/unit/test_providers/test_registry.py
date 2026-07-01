@@ -138,6 +138,18 @@ class TestModelCapabilities:
         assert "speed" in gemini_flash.specializations
         assert gemini_flash.cost_per_query < 0.01  # Very cheap
 
+    def test_shutdown_gemini_preview_models_are_deprecated(self):
+        """Current Google model docs list these preview IDs as shut down."""
+        flash_lite_preview = get_model_capability("gemini", "gemini-3.1-flash-lite-preview")
+        assert flash_lite_preview is not None
+        assert flash_lite_preview.deprecated is True
+        assert flash_lite_preview.successor == "gemini/gemini-3.1-flash-lite"
+
+        pro_preview = get_model_capability("gemini", "gemini-3-pro-preview")
+        assert pro_preview is not None
+        assert pro_preview.deprecated is True
+        assert pro_preview.successor == "gemini/gemini-3.1-pro-preview"
+
     def test_cost_ordering(self):
         """Test that model costs make sense relative to capabilities."""
         cheapest = get_cheapest_model()
