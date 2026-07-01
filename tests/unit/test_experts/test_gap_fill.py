@@ -181,6 +181,29 @@ class TestGapFillEngine:
         assert statuses["Broken"] == "failed"
         assert statuses["Fine"] == "filled"
 
+    @pytest.mark.asyncio
+    async def test_spend_decision_denial_skips_before_research(self, tmp_path):
+        async def exploding_research(query: str, budget: float) -> dict:
+            raise AssertionError("research must not start when value gate denies metered spend")
+
+        absorber = _FakeAbsorber(estimated_cost=0.03)
+        engine = GapFillEngine(
+            _expert(),
+            research_fn=exploding_research,
+            absorber=absorber,
+            spend_decision_fn=lambda route, estimated_cost: SimpleNamespace(
+                allowed=False,
+                reason=f"value too low for ${estimated_cost:.2f}",
+            ),
+        )
+
+        result = await engine.execute([_route("Low value gap", cost=0.20)], budget=1.0)
+
+        assert absorber.calls == 0
+        assert result.total_cost == 0.0
+        assert result.outcomes[0].status == "skipped"
+        assert result.outcomes[0].detail.startswith("metered deferred: value too low")
+
 
 class TestRoutesFromQueries:
     """Reflection follow-ups adapt to GapRoutes and reuse the engine."""

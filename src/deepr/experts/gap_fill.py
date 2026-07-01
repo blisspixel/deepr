@@ -38,6 +38,7 @@ logger = logging.getLogger(__name__)
 MIN_PER_GAP_BUDGET = 0.05
 
 ResearchFn = Callable[[str, float], Awaitable[dict[str, Any]]]
+SpendDecisionFn = Callable[[Any, float], Any]
 
 
 def _slug(text: str) -> str:
@@ -126,11 +127,13 @@ class GapFillEngine:
         research_fn: ResearchFn | None = None,
         belief_store: BeliefStore | None = None,
         absorber: Any | None = None,
+        spend_decision_fn: SpendDecisionFn | None = None,
     ) -> None:
         self.expert = expert
         self._research_fn = research_fn
         self.belief_store = belief_store or BeliefStore(expert.name)
         self._absorber = absorber
+        self._spend_decision_fn = spend_decision_fn
 
     async def _default_research(self, query: str, budget: float) -> dict[str, Any]:
         from deepr.experts.chat import ExpertChatSession
@@ -153,6 +156,74 @@ class GapFillEngine:
             f"Fill this knowledge gap with well-sourced findings: {route.topic}. "
             f"{suggestion} Cite sources with dates; state clearly what remains unknown."
         )
+
+    def _spend_decision_skip(self, route: GapRoute, estimated_cost: float) -> GapFillOutcome | None:
+        if self._spend_decision_fn is None:
+            return None
+        try:
+            decision = self._spend_decision_fn(route, estimated_cost)
+        except Exception as exc:
+            detail = f"metered deferred: spend decision unavailable ({exc})"
+            return GapFillOutcome(route.topic, "skipped", detail=detail)
+        if bool(getattr(decision, "allowed", False)):
+            return None
+        reason = str(getattr(decision, "reason", "value gate denied"))
+        return GapFillOutcome(route.topic, "skipped", detail=f"metered deferred: {reason}")
+
+    async def _run_research_fill(
+        self,
+        route: GapRoute,
+        *,
+        per_gap_budget: float,
+        remaining_budget: float,
+        extraction_estimate: float,
+        started_at: datetime,
+    ) -> tuple[GapFillOutcome, float]:
+        try:
+            fn = self._research_fn or self._default_research
+            research = await fn(self.build_fill_query(route), per_gap_budget)
+        except Exception as exc:
+            return GapFillOutcome(route.topic, "failed", detail=str(exc)), 0.0
+
+        if "error" in research:
+            return GapFillOutcome(route.topic, "failed", detail=str(research["error"])), 0.0
+
+        cost = float(research.get("cost", 0.0) or 0.0)
+        remaining_after_research = remaining_budget - cost
+        answer = (research.get("answer") or "").strip()
+        if not answer:
+            return GapFillOutcome(route.topic, "failed", cost=cost, detail="empty answer"), cost
+        if remaining_after_research < extraction_estimate:
+            return (
+                GapFillOutcome(
+                    route.topic,
+                    "skipped",
+                    cost=cost,
+                    detail=(
+                        f"run budget exhausted before extraction "
+                        f"(${remaining_after_research:.2f} left; needs ${extraction_estimate:.2f})"
+                    ),
+                ),
+                cost,
+            )
+
+        try:
+            absorber = self._get_absorber()
+            report_id = f"gapfill:{_slug(route.topic)}:{started_at.strftime('%Y%m%d')}"
+            absorption = await absorber.absorb(report_id, answer, flag_contradictions=True)
+            extraction_cost = absorption_result_cost(absorption)
+            return (
+                GapFillOutcome(
+                    route.topic,
+                    "filled",
+                    cost=cost + extraction_cost,
+                    absorbed=len(absorption.absorbed),
+                    flagged=len(absorption.flagged),
+                ),
+                cost + extraction_cost,
+            )
+        except Exception as exc:
+            return GapFillOutcome(route.topic, "failed", cost=cost, detail=f"absorb failed: {exc}"), cost
 
     async def execute(
         self,
@@ -201,61 +272,25 @@ class GapFillEngine:
                     )
                 )
                 continue
-
             if dry_run:
                 result.outcomes.append(
                     GapFillOutcome(route.topic, "would_fill", detail=self.build_fill_query(route)[:120])
                 )
                 continue
 
-            try:
-                fn = self._research_fn or self._default_research
-                research = await fn(self.build_fill_query(route), per_gap)
-            except Exception as exc:
-                result.outcomes.append(GapFillOutcome(route.topic, "failed", detail=str(exc)))
+            if skip := self._spend_decision_skip(route, per_gap + extraction_estimate):
+                result.outcomes.append(skip)
                 continue
 
-            if "error" in research:
-                result.outcomes.append(GapFillOutcome(route.topic, "failed", detail=str(research["error"])))
-                continue
-
-            cost = float(research.get("cost", 0.0) or 0.0)
-            remaining -= cost
-            result.total_cost += cost
-            answer = (research.get("answer") or "").strip()
-            if not answer:
-                result.outcomes.append(GapFillOutcome(route.topic, "failed", cost=cost, detail="empty answer"))
-                continue
-            if remaining < extraction_estimate:
-                result.outcomes.append(
-                    GapFillOutcome(
-                        route.topic,
-                        "skipped",
-                        cost=cost,
-                        detail=(
-                            f"run budget exhausted before extraction "
-                            f"(${remaining:.2f} left; needs ${extraction_estimate:.2f})"
-                        ),
-                    )
-                )
-                continue
-
-            try:
-                report_id = f"gapfill:{_slug(route.topic)}:{started_at.strftime('%Y%m%d')}"
-                absorption = await absorber.absorb(report_id, answer, flag_contradictions=True)
-                extraction_cost = absorption_result_cost(absorption)
-                remaining -= extraction_cost
-                result.total_cost += extraction_cost
-                result.outcomes.append(
-                    GapFillOutcome(
-                        route.topic,
-                        "filled",
-                        cost=cost + extraction_cost,
-                        absorbed=len(absorption.absorbed),
-                        flagged=len(absorption.flagged),
-                    )
-                )
-            except Exception as exc:
-                result.outcomes.append(GapFillOutcome(route.topic, "failed", cost=cost, detail=f"absorb failed: {exc}"))
+            outcome, spent = await self._run_research_fill(
+                route,
+                per_gap_budget=per_gap,
+                remaining_budget=remaining,
+                extraction_estimate=extraction_estimate,
+                started_at=started_at,
+            )
+            remaining -= spent
+            result.total_cost += spent
+            result.outcomes.append(outcome)
 
         return result
