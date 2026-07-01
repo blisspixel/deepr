@@ -99,13 +99,14 @@ deepr expert make "FDA Regulations" \
 
 This will:
 1. Upload documents to vector store
-2. Generate a learning curriculum (GPT-5.2)
+2. Generate a learning curriculum with the configured synthesis model
 3. Research each topic autonomously
 4. Integrate findings into expert's knowledge
 
 ### Learning Curriculum
 
-When using `--learn`, GPT-5.2 generates a curriculum:
+When using `--learn`, Deepr uses the configured synthesis model to generate a
+curriculum:
 
 ```
 Learning Curriculum (10 topics):

@@ -206,8 +206,8 @@ export default function Settings() {
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="o4-mini-deep-research">o4-mini (Faster, Cheaper)</SelectItem>
-                        <SelectItem value="o3-deep-research">o3 (More Thorough)</SelectItem>
+                        <SelectItem value="o4-mini-deep-research">o4-mini (Fast deep research)</SelectItem>
+                        <SelectItem value="o3-deep-research">o3 (Thorough deep research)</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>

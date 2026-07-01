@@ -725,6 +725,12 @@ def sync_cmd(
         if (use_local or use_plan)
         else None
     )
+    spend_decision_fn = None
+    if not api and not owned_or_prepaid and not dry_run:
+        from deepr.experts.sync_spend_gate import build_sync_spend_decider
+
+        spend_decision_fn = build_sync_spend_decider(expert_name=name, capacity_source="api_metered")
+
     result, loop_run, _ = _run_sync_with_loop_guard(
         profile,
         name=name,
@@ -742,6 +748,7 @@ def sync_cmd(
         grounding_checker=grounding_checker,
         compile_claims=compile_claims,
         apply_graph_commits=apply_compiled_graph_commits,
+        spend_decision_fn=spend_decision_fn,
     )
 
     if json_output:

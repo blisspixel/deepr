@@ -28,8 +28,8 @@ const API_KEYS: ProviderKey[] = [
     provider: 'OpenAI',
     envVar: 'OPENAI_API_KEY',
     url: 'https://platform.openai.com/api-keys',
-    description: 'GPT-5.2, GPT-5, GPT-4.1, o3/o4-mini deep research',
-    models: ['gpt-5.2', 'gpt-5', 'gpt-5-mini', 'gpt-4.1', 'gpt-4.1-mini', 'o3-deep-research', 'o4-mini-deep-research'],
+    description: 'GPT-5.5/5.4 families, GPT-4.1, o3/o4-mini deep research',
+    models: ['gpt-5.5', 'gpt-5.5-pro', 'gpt-5.4', 'gpt-5.4-mini', 'gpt-4.1', 'o3-deep-research', 'o4-mini-deep-research'],
     free: false,
   },
   {
@@ -44,16 +44,16 @@ const API_KEYS: ProviderKey[] = [
     provider: 'Google Gemini',
     envVar: 'GEMINI_API_KEY',
     url: 'https://aistudio.google.com/apikey',
-    description: 'Gemini 3.1 Pro, 3 Flash, 2.5 Pro/Flash, Deep Research',
-    models: ['gemini-3.1-pro-preview', 'gemini-3-flash-preview', 'gemini-2.5-pro', 'gemini-2.5-flash', 'deep-research'],
+    description: 'Gemini 3.5 Flash, 3.1, 2.5, multimodal, Deep Research',
+    models: ['gemini-3.5-flash', 'gemini-3.1-pro-preview', 'gemini-3.1-flash-lite', 'gemini-2.5-pro', 'gemini-2.5-flash', 'deep-research'],
     free: true,
   },
   {
     provider: 'xAI (Grok)',
     envVar: 'XAI_API_KEY',
     url: 'https://console.x.ai/',
-    description: 'Grok 4.20 flagship + 4.1 Fast budget tier with live web search',
-    models: ['grok-4.20-reasoning', 'grok-4.20-non-reasoning', 'grok-4.20-multi-agent', 'grok-4-1-fast-reasoning', 'grok-4-1-fast-non-reasoning'],
+    description: 'Grok 4.3 text default, Grok 4.20 multi-agent, explicit premium images',
+    models: ['grok-4.3', 'grok-4.20-reasoning', 'grok-4.20-non-reasoning', 'grok-4.20-multi-agent', 'grok-imagine-image'],
     free: false,
   },
 ]
@@ -93,9 +93,9 @@ export default function Help() {
           What is Deepr?
         </h2>
         <p className="text-sm text-muted-foreground leading-relaxed">
-          Deepr is a deep research automation platform. It orchestrates multiple AI models to produce
-          comprehensive, cited research reports. Unlike single-model tools, Deepr routes queries to the
-          best model for each task type, cross-references sources, and tracks costs.
+          Deepr turns research into durable local state. It routes work across local models, plan-quota CLIs,
+          and metered APIs, then builds persistent experts with beliefs, gaps, citations, confidence,
+          provenance, and cost records.
         </p>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-3">
           <div className="rounded-md border p-3 space-y-1">
@@ -131,7 +131,7 @@ export default function Help() {
               Cost Control
             </p>
             <p className="text-xs text-muted-foreground">
-              Set daily and monthly budgets. Auto-routing picks the most cost-effective model for each query.
+              Preview estimates, set hard budget ceilings, and keep every metered call in the append-only ledger.
             </p>
           </div>
         </div>
@@ -163,12 +163,12 @@ export default function Help() {
         </div>
       </div>
 
-      {/* API Keys */}
-      <Accordion title="API Keys Setup" icon={<Key className="h-4 w-4" />} defaultOpen>
+      {/* Capacity */}
+      <Accordion title="Capacity Setup" icon={<Key className="h-4 w-4" />} defaultOpen>
         <div className="space-y-4">
           <p className="text-xs text-muted-foreground">
-            Deepr needs API keys from at least one provider. Add them to your <code className="px-1.5 py-0.5 bg-muted rounded text-[11px]">.env</code> file
-            or set as environment variables. More providers = better model routing.
+            Deepr can run through local Ollama, explicit plan-quota CLIs, metered API keys, or a mix.
+            Add API keys to your <code className="px-1.5 py-0.5 bg-muted rounded text-[11px]">.env</code> file only when you want metered cloud capacity.
           </p>
           <div className="space-y-3">
             {API_KEYS.map((key) => (
@@ -213,11 +213,15 @@ export default function Help() {
 cp .env.example .env
 
 # Edit with your keys
-# At minimum, set one of:
+# Optional metered providers:
 #   OPENAI_API_KEY=sk-...
 #   GEMINI_API_KEY=AI...
 #   ANTHROPIC_API_KEY=sk-ant-...
-#   XAI_API_KEY=xai-...`}
+#   XAI_API_KEY=xai-...
+
+# Free or prepaid capacity starts with:
+#   deepr init
+#   deepr capacity`}
             </pre>
             <p className="text-xs text-muted-foreground mt-2">
               Then configure your budget in{' '}
@@ -234,16 +238,16 @@ cp .env.example .env
         <div className="space-y-3">
           <div className="space-y-2">
             {[
-              { cmd: 'deepr "your research question"', desc: 'Run a deep research query' },
-              { cmd: 'deepr --mode extended "topic"', desc: 'Extended mode with more sources' },
-              { cmd: 'deepr news "breaking story"', desc: 'News research with live web search' },
+              { cmd: 'deepr research "your question" --auto --dry-run', desc: 'Preview route and cost before spending' },
+              { cmd: 'deepr research "topic" --auto --budget 3', desc: 'Run a budget-capped research job' },
+              { cmd: 'deepr capacity', desc: 'Show local, plan, and API capacity' },
               { cmd: 'deepr expert make my-expert', desc: 'Create a domain expert' },
-              { cmd: 'deepr expert learn my-expert "topic"', desc: 'Teach an expert about a topic' },
+              { cmd: 'deepr expert sync my-expert --local --fresh-context -y', desc: 'Refresh an expert on local capacity' },
               { cmd: 'deepr expert chat my-expert', desc: 'Chat with a domain expert' },
-              { cmd: 'deepr budget set 10', desc: 'Set daily budget to $10' },
-              { cmd: 'deepr budget status', desc: 'Check budget usage' },
+              { cmd: 'deepr costs show', desc: 'Check cost ledger totals' },
+              { cmd: 'deepr costs estimate "prompt"', desc: 'Estimate before a metered call' },
               { cmd: 'deepr web', desc: 'Start the web UI' },
-              { cmd: 'deepr mcp', desc: 'Start as MCP server (for Claude Desktop, etc.)' },
+              { cmd: 'deepr mcp', desc: 'Start as an MCP server for agent hosts' },
             ].map(({ cmd, desc }) => (
               <div key={cmd} className="flex gap-3 items-baseline">
                 <code className="text-[11px] font-mono bg-muted px-2 py-0.5 rounded shrink-0">{cmd}</code>
@@ -264,22 +268,22 @@ cp .env.example .env
             <div className="rounded-md border p-3">
               <p className="text-xs font-medium text-foreground">Research (Deep Research)</p>
               <p className="text-[11px] text-muted-foreground mt-0.5">
-                Multi-step browsing, synthesis, and comprehensive reports. Uses o3-deep-research, o4-mini, Gemini Deep Research.
-                Most expensive but most thorough.
+                Multi-step browsing, synthesis, and comprehensive reports. Uses OpenAI Deep Research, Gemini Deep Research,
+                xAI multi-agent, or Azure Foundry only when explicitly budgeted.
               </p>
             </div>
             <div className="rounded-md border p-3">
               <p className="text-xs font-medium text-foreground">News</p>
               <p className="text-[11px] text-muted-foreground mt-0.5">
-                Real-time information with source citations. Uses Grok (live X/web access), Gemini with grounding.
+                Real-time information with source citations. Uses Grok text models, Gemini grounding, or other configured fresh-context paths.
                 Best for current events and trending topics.
               </p>
             </div>
             <div className="rounded-md border p-3">
               <p className="text-xs font-medium text-foreground">Chat</p>
               <p className="text-[11px] text-muted-foreground mt-0.5">
-                Quick lookups, technical docs, reasoning, synthesis. Uses the broadest range of models.
-                Auto-routing picks based on complexity and budget.
+                Quick lookups, technical docs, reasoning, synthesis, and expert consult. Auto-routing picks based on complexity,
+                configured capacity, quality floor, and budget.
               </p>
             </div>
           </div>
@@ -288,8 +292,8 @@ cp .env.example .env
 
       {/* Footer */}
       <div className="text-xs text-muted-foreground text-center py-4">
-        Deepr v2.9.0 &middot; MIT License &middot;{' '}
-        <a href="https://github.com/langjam/deepr" target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">
+        Deepr v2.27.0 &middot; Apache 2.0 License &middot;{' '}
+        <a href="https://github.com/blisspixel/deepr" target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">
           GitHub
         </a>
       </div>

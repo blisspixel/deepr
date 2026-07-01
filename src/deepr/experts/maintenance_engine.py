@@ -38,6 +38,12 @@ def _with_claim_services(
     return kwargs
 
 
+def _with_spend_decision(engine_kwargs: dict[str, Any], spend_decision_fn: Any | None) -> dict[str, Any]:
+    if spend_decision_fn is None:
+        return engine_kwargs
+    return {**engine_kwargs, "spend_decision_fn": spend_decision_fn}
+
+
 def _local_research_kwargs(context_builder: Any, client: Any, claim_extractor: Any | None) -> dict[str, Any]:
     kwargs: dict[str, Any] = {"context_builder": context_builder}
     if claim_extractor is not None:
@@ -74,6 +80,7 @@ def build_sync_engine(
     context_builder: Callable[[str], Awaitable[FreshContext]] | None = None,
     grounding_checker: GroundingChecker | None = None,
     compile_claims: bool = False,
+    spend_decision_fn: Any | None = None,
 ) -> tuple[ExpertSyncEngine, str]:
     """Construct a sync engine for the resolved backend and report its source.
 
@@ -130,6 +137,7 @@ def build_sync_engine(
             ),
             "absorber": absorber,
         }
+        engine_kwargs = _with_spend_decision(engine_kwargs, spend_decision_fn)
         engine = ExpertSyncEngine(profile, **_with_claim_services(engine_kwargs, claim_extractor, claim_verifier))
         return engine, "local"
 
@@ -180,6 +188,7 @@ def build_sync_engine(
             ),
             "absorber": absorber,
         }
+        engine_kwargs = _with_spend_decision(engine_kwargs, spend_decision_fn)
         engine = ExpertSyncEngine(profile, **_with_claim_services(engine_kwargs, claim_extractor, claim_verifier))
         return engine, f"plan_quota:{plan_adapter.backend_id}"
 
@@ -187,21 +196,20 @@ def build_sync_engine(
         from deepr.experts.report_absorber import ReportAbsorber
 
         claim_extractor, claim_verifier = _metered_claim_services(compile_claims)
-        return ExpertSyncEngine(
-            profile,
-            **_with_claim_services(
-                {"absorber": ReportAbsorber(profile, grounding_checker=grounding_checker)},
-                claim_extractor,
-                claim_verifier,
-            ),
-        ), "api_metered"
+        engine_kwargs = _with_claim_services(
+            {"absorber": ReportAbsorber(profile, grounding_checker=grounding_checker)},
+            claim_extractor,
+            claim_verifier,
+        )
+        engine_kwargs = _with_spend_decision(engine_kwargs, spend_decision_fn)
+        return ExpertSyncEngine(profile, **engine_kwargs), "api_metered"
 
     if compile_claims:
         claim_extractor, claim_verifier = _metered_claim_services(True)
-        return ExpertSyncEngine(
-            profile,
-            claim_extractor=claim_extractor,
-            claim_verifier=claim_verifier,
-        ), "api_metered"
+        engine_kwargs = _with_claim_services({}, claim_extractor, claim_verifier)
+        engine_kwargs = _with_spend_decision(engine_kwargs, spend_decision_fn)
+        return ExpertSyncEngine(profile, **engine_kwargs), "api_metered"
 
-    return ExpertSyncEngine(profile), "api_metered"
+    if spend_decision_fn is None:
+        return ExpertSyncEngine(profile), "api_metered"
+    return ExpertSyncEngine(profile, spend_decision_fn=spend_decision_fn), "api_metered"

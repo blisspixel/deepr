@@ -1,5 +1,11 @@
 # Model Benchmarks
 
+Status: historical benchmark guide. Current model names and prices live in
+`src/deepr/providers/registry.py` and are summarized in [MODELS.md](MODELS.md).
+The measured results below are dated snapshots from the saved benchmark runs
+named in each section, not live provider recommendations. Re-run the benchmark
+with `--fill-gaps` or `--new-models` before using results to change routing.
+
 Deepr includes a tiered model benchmark system that tests every provider across four distinct use cases. Results drive the auto-mode routing table - the system that picks which model handles each research query.
 
 ## Four Tiers
@@ -141,16 +147,19 @@ Job resp_abc123 may still be running -- check with:
 GET https://api.openai.com/v1/responses/resp_abc123
 ```
 
-## Latest Routing Snapshot
+## Historical Routing Snapshot
 
-From `data/benchmarks/routing_preferences.json` (latest generated run):
+From the saved `data/benchmarks/routing_preferences.json` baseline used for
+the 2026-02 benchmark notes:
 
 - Freshness/citation/source diversity: `xai/grok-4-1-fast-non-reasoning`
 - API reference + integration guide quality: `openai/gpt-5.4`
 - Quick lookup/synthesis/technical docs quality: `gemini/gemini-3.1-pro-preview`
 - Common value winner for chat-style tasks: `openai/gpt-4.1-nano`
 
-These are task-specific winners; routing should prefer `best_value` for cost-sensitive default flows and `best_quality` when explicitly requested.
+These are task-specific historical winners. Current routing changes should use
+a fresh cost-gated benchmark run, prefer `best_value` for cost-sensitive default
+flows, and use `best_quality` only when explicitly requested.
 
 ## Results (2026-02-13 Baseline)
 

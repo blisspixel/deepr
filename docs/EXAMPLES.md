@@ -135,7 +135,7 @@ deepr news "Kubernetes latest developments" > knowledge/news/news-kubernetes.md
 # 2. DOCS: What are the fundamentals?
 deepr research "Summarize Kubernetes core concepts" \
   --scrape https://kubernetes.io/docs/concepts \
-  --model grok-4-1-fast-non-reasoning \
+  --model grok-4.3 \
   > knowledge/docs/docs-kubernetes-core.md
 
 # 3. RESEARCH: How does it work? What are trade-offs?
@@ -146,17 +146,14 @@ deepr research "Kubernetes networking deep dive - CNI, Services, Ingress" \
 # 4. TEAM: Should we adopt it? What are risks?
 deepr team "Should we self-host Kubernetes or use EKS/GKE?" \
   --perspectives 6 \
-  --model grok-4-1-fast-non-reasoning \
+  --model grok-4.3 \
   > knowledge/team/team-kubernetes-hosting-decision.md
 ```
 
 ### Total Cost
 
-Approximately $0.51:
-- News: $0.0008
-- Docs: $0.002
-- Research (deep): $0.50
-- Team (6 perspectives): $0.005
+Estimate first with `--dry-run`; actual cost depends on provider pricing,
+prompt size, tool use, and whether local or plan-quota capacity is selected.
 
 ---
 
@@ -210,7 +207,7 @@ deepr expert make "Supply Chain Management" \
 ### What Happens (with --learn)
 
 1. Expert analyzes initial documents
-2. GPT-5.2 generates learning curriculum (5-20 research topics)
+2. The configured synthesis model generates a learning curriculum (5-20 research topics)
 3. Shows estimated costs before submission
 4. Submits deep research jobs to build comprehensive knowledge
 5. Polls for completion and integrates results

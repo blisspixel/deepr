@@ -336,6 +336,7 @@ def _run_sync_with_loop_guard(
     grounding_checker: Any | None = None,
     compile_claims: bool = False,
     apply_graph_commits: bool = False,
+    spend_decision_fn: Any | None = None,
 ) -> tuple[Any, Any | None, str]:
     from deepr.experts.maintenance_engine import build_sync_engine
 
@@ -350,6 +351,7 @@ def _run_sync_with_loop_guard(
             context_builder=context_builder,
             grounding_checker=grounding_checker,
             compile_claims=compile_claims,
+            spend_decision_fn=spend_decision_fn,
         )
         result = asyncio.run(
             engine.sync(
