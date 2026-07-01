@@ -1061,8 +1061,13 @@ Sequenced smallest-shippable-first:
           resumably with `metered deferred` when value is below the current
           tier hurdle. Explicit `--api`, local, dry-run, and prepaid plan paths
           are unchanged.
-    - [ ] Remaining: gap-fill ranker factors, broader metered-plan/waterfall
-          coverage, and operator UI/readback for the spend decision log.
+    - [x] **Operator readback slice** (2026-07-01): `deepr costs
+          spend-decisions` shows recent value-gate decisions from the
+          append-only spend-decision log with filters for expert, operation,
+          and allowed/deferred state. `--json` emits a read-only `$0`
+          `deepr-cost-spend-decisions-v1` payload.
+    - [ ] Remaining: gap-fill ranker factors and broader metered-plan/waterfall
+          coverage.
 - [ ] **Expert quality validation (local vs frontier A/B)**: the fleet runs
       mostly on a local model, so validate that $0 experts are good. 2026 evidence:
       for *grounded* extraction from provided sources, local 8B-70B models match or

@@ -11,6 +11,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Added a repository threat model covering Deepr trust boundaries, attacker
   stories, existing mitigations, and severity calibration.
 - Added an append-only spend-decision log for value-of-spend gate decisions.
+- Added `deepr costs spend-decisions` to inspect value-gate allow/defer
+  decisions from the append-only spend-decision log without making provider
+  calls.
 - Added overlap-lock reporting for scheduled health-check archival so locked
   archive runs emit a structured `waiting_for_overlap` payload and loop-run
   record.
