@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+- Removed accidentally tracked external Distillr runtime telemetry from
+  `library/.distill/`, ignored that generated directory, and added a hygiene
+  regression so provider-usage telemetry cannot re-enter tracked source.
+
 ## [2.28.0] - 2026-07-01
 
 Model currency, screenshot refresh, no-surprise-cost hardening, and release

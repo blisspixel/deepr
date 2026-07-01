@@ -11,8 +11,9 @@ from __future__ import annotations
 
 import fnmatch
 import importlib.util
-from pathlib import Path
+import subprocess
 import tomllib
+from pathlib import Path
 
 import pytest
 
@@ -79,3 +80,17 @@ class TestPackageDiscovery:
             "deepr.web.frontend.screenshots.capture",
         ):
             assert any(fnmatch.fnmatchcase(package, pattern) for pattern in exclude), package
+
+
+class TestGeneratedArtifactHygiene:
+    def test_external_runtime_telemetry_is_not_tracked(self):
+        result = subprocess.run(["git", "ls-files"], cwd=_REPO_ROOT, check=True, capture_output=True, text=True)
+
+        tracked_distill = [path for path in result.stdout.splitlines() if path.startswith("library/.distill/")]
+
+        assert tracked_distill == []
+
+    def test_external_runtime_telemetry_dir_is_ignored(self):
+        ignore_text = (_REPO_ROOT / ".gitignore").read_text(encoding="utf-8")
+
+        assert "/library/.distill/" in ignore_text

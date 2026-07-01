@@ -52,6 +52,9 @@ pytest_debug.log
 # All runtime data (reports, queue, experts, traces, logs, etc.)
 /data/
 
+# External tool runtime telemetry generated during local first-party integration work.
+/library/.distill/
+
 # SQLite databases (anywhere in the repo)
 *.db
 *.db-journal
