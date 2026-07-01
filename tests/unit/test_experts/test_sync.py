@@ -1138,6 +1138,32 @@ class TestSyncEngine:
         assert store.subscriptions[0].last_synced is None
 
     @pytest.mark.asyncio
+    async def test_spend_decision_denial_skips_before_research(self, tmp_path):
+        store = _sub_store(tmp_path, Subscription(topic="Topic X", budget=0.5))
+
+        async def exploding_research(query, budget):
+            raise AssertionError("metered value gate must run before research")
+
+        beliefs = BeliefStore("Sync Test Expert", storage_dir=tmp_path / "beliefs")
+        engine = ExpertSyncEngine(
+            _expert(),
+            research_fn=exploding_research,
+            subscription_store=store,
+            belief_store=beliefs,
+            spend_decision_fn=lambda subscription, estimated_cost: SimpleNamespace(
+                allowed=False,
+                reason="value 0.010 below conserve hurdle 0.200; defer or use local",
+            ),
+        )
+
+        result = await engine.sync(budget=1.0)
+
+        assert result.total_cost == 0.0
+        assert result.outcomes[0].status == "skipped"
+        assert "metered deferred" in result.outcomes[0].detail
+        assert store.subscriptions[0].last_synced is None
+
+    @pytest.mark.asyncio
     async def test_budget_exhaustion_skips_remaining(self, tmp_path):
         store = _sub_store(
             tmp_path,

@@ -10,12 +10,22 @@ from deepr.experts.maintenance_engine import build_sync_engine
 
 
 class _FakeEngine:
-    def __init__(self, profile, *, research_fn=None, absorber=None, claim_extractor=None, claim_verifier=None):
+    def __init__(
+        self,
+        profile,
+        *,
+        research_fn=None,
+        absorber=None,
+        claim_extractor=None,
+        claim_verifier=None,
+        spend_decision_fn=None,
+    ):
         self.profile = profile
         self.research_fn = research_fn
         self.absorber = absorber
         self.claim_extractor = claim_extractor
         self.claim_verifier = claim_verifier
+        self.spend_decision_fn = spend_decision_fn
 
 
 @pytest.fixture
@@ -30,6 +40,16 @@ def test_metered_default_uses_plain_engine(patch_engine):
     assert isinstance(engine, _FakeEngine)
     assert engine.research_fn is None and engine.absorber is None  # injection-free metered path
     assert source == "api_metered"
+
+
+def test_metered_path_can_receive_spend_decider(patch_engine):
+    profile = SimpleNamespace(name="X")
+    decider = object()
+
+    engine, source = build_sync_engine(profile, spend_decision_fn=decider)
+
+    assert source == "api_metered"
+    assert engine.spend_decision_fn is decider
 
 
 def test_local_builds_local_research_and_absorber(patch_engine, monkeypatch):

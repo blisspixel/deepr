@@ -76,11 +76,13 @@ non-positive `est_cost` (a free op) clears the gate.
 
 ## What ships now vs next
 
-- **Now:** the pure policy (`experts/spend_policy.py`), fully unit-tested, and
-  the **tier hard-off wired into `expert sync-all`** - a roster pass that would
-  spend metered defers when the tier is `LOCAL_ONLY`/`PAUSE_METERED`, protecting
-  the monthly pool on the bulk spender. The current tier is surfaced read-only.
-- **Next (documented, not yet wired):** the per-op value gate needs callers to
-  produce the four benefit estimates (the scheduler / gap-fill ranker is the
-  natural source); wiring it into single `expert sync` and gap-fill, and
-  ledgering each defer decision to a dedicated decision log, are follow-ons.
+- **Now:** the pure policy (`experts/spend_policy.py`), fully unit-tested; the
+  **tier hard-off wired into `expert sync-all`**; and the first per-operation
+  value-gate wiring in automatic metered `expert sync`. Single-expert sync now
+  derives schedule-only benefit factors before metered research dispatch,
+  records each value-gate decision to `spend_decisions.jsonl` under the cost
+  data root, and skips resumably when value is below the tier hurdle. Explicit
+  `--api`, local, dry-run, and prepaid plan paths are unchanged.
+- **Next:** wire equivalent benefit factors into the gap-fill ranker, extend the
+  waterfall coverage to remaining metered paths, and add operator readback for
+  the spend-decision log.

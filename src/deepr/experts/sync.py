@@ -56,6 +56,7 @@ DEFAULT_SUBSCRIPTION_BUDGET = 0.50
 MIN_PER_TOPIC_BUDGET = 0.05
 
 ResearchFn = Callable[[str, float], Awaitable[dict[str, Any]]]
+SpendDecisionFn = Callable[[Any, float], Any]
 
 
 class ClaimExtractionService(Protocol):
@@ -283,6 +284,7 @@ class ExpertSyncEngine:
         claim_extractor: ClaimExtractionService | None = None,
         claim_verifier: ClaimVerificationService | None = None,
         metacognition_tracker: Any | None = None,
+        spend_decision_fn: SpendDecisionFn | None = None,
     ) -> None:
         self.expert = expert
         self._research_fn = research_fn
@@ -292,6 +294,7 @@ class ExpertSyncEngine:
         self._claim_extractor = claim_extractor
         self._claim_verifier = claim_verifier
         self._metacognition_tracker = metacognition_tracker
+        self._spend_decision_fn = spend_decision_fn
 
     # ------------------------------------------------------------------ #
     # Defaults (built lazily so tests never touch providers)
@@ -316,6 +319,26 @@ class ExpertSyncEngine:
 
             self._metacognition_tracker = MetaCognitionTracker(self.expert.name)
         return self._metacognition_tracker
+
+    def _spend_decision_skip(self, subscription: Subscription, budget: float) -> SyncOutcome | None:
+        if self._spend_decision_fn is None:
+            return None
+        try:
+            decision = self._spend_decision_fn(subscription, budget)
+        except Exception as exc:
+            detail = f"metered deferred: spend decision unavailable ({exc})"
+            return SyncOutcome(subscription.topic, "skipped", detail=detail)
+        if bool(getattr(decision, "allowed", False)):
+            return None
+        reason = str(getattr(decision, "reason", "value gate denied"))
+        return SyncOutcome(subscription.topic, "skipped", detail=f"metered deferred: {reason}")
+
+    def _pre_research_skip(self, subscription: Subscription, budget: float, *, dry_run: bool) -> SyncOutcome | None:
+        if budget < MIN_PER_TOPIC_BUDGET:
+            return SyncOutcome(subscription.topic, "skipped", detail=f"run budget exhausted (${budget:.2f} left)")
+        if dry_run:
+            return SyncOutcome(subscription.topic, "would_sync", detail=self.build_freshness_query(subscription)[:120])
+        return self._spend_decision_skip(subscription, budget)
 
     # ------------------------------------------------------------------ #
     # The freshness prompt
@@ -404,13 +427,8 @@ class ExpertSyncEngine:
         dry_run: bool,
         apply_graph_commits: bool,
     ) -> tuple[SyncOutcome, float]:
-        if budget < MIN_PER_TOPIC_BUDGET:
-            return SyncOutcome(subscription.topic, "skipped", detail=f"run budget exhausted (${budget:.2f} left)"), 0.0
-
-        if dry_run:
-            return SyncOutcome(
-                subscription.topic, "would_sync", detail=self.build_freshness_query(subscription)[:120]
-            ), 0.0
+        if skip := self._pre_research_skip(subscription, budget, dry_run=dry_run):
+            return skip, 0.0
 
         # Read the prior pack before this run writes its own, so the
         # change-detection gate compares against the previous sync.

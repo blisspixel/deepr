@@ -1,12 +1,31 @@
 # Model Selection Guide
 
-Status: current with Deepr v2.27.0. Last reviewed: 2026-06-30.
+Status: current with Deepr v2.27.0. Last reviewed: 2026-07-01.
 
 The source of truth for model IDs, pricing estimates, context windows, and
 routing metadata is [src/deepr/providers/registry.py](../src/deepr/providers/registry.py).
 This guide explains how to use that registry safely. Provider docs and prices
 change faster than prose, so treat this document as an operating guide, not a
 billing authority.
+
+External model docs checked on 2026-07-01:
+
+- OpenAI Models and Pricing:
+  <https://platform.openai.com/docs/models>,
+  <https://platform.openai.com/docs/pricing>
+- Anthropic Models, Pricing, and Thinking:
+  <https://docs.anthropic.com/en/docs/about-claude/models/overview>,
+  <https://docs.anthropic.com/en/docs/about-claude/pricing>,
+  <https://docs.anthropic.com/en/docs/build-with-claude/extended-thinking>
+- Google Gemini Models and Pricing:
+  <https://ai.google.dev/gemini-api/docs/models>,
+  <https://ai.google.dev/gemini-api/docs/pricing>
+- xAI Models and Pricing:
+  <https://docs.x.ai/docs/models>,
+  <https://docs.x.ai/docs/pricing>
+- Azure OpenAI and Azure AI Foundry:
+  <https://learn.microsoft.com/azure/ai-foundry/openai/concepts/models>,
+  <https://learn.microsoft.com/azure/ai-foundry/agents/overview>
 
 ## Operating Rules
 
@@ -25,12 +44,20 @@ billing authority.
   auto-selects local image endpoints for portraits; OpenAI, Gemini, and xAI
   image generation require explicit provider selection or the single premium
   auto opt-in `DEEPR_ALLOW_METERED_IMAGE_AUTO=1`.
+- Treat official model listings as candidates until Deepr has registry pricing,
+  provider-adapter behavior, usage settlement, and tests. Invitation-only,
+  preview, product-surface-only, or region-only models should not become
+  automatic routing candidates just because a provider page mentions them.
+- Deprecated registry entries stay visible only for migration and cost safety.
+  A deprecated model must not be promoted as a preferred default.
 
 ## Current Deepr Registry Snapshot
 
 The registry currently contains 55 models across OpenAI, Gemini, xAI,
 Anthropic, and Azure AI Foundry. The list below mirrors the registry on
-2026-06-30; run the command above for exact pricing and context values.
+2026-07-01; run the command above for exact pricing and context values. The web
+Models page intentionally reports 48 non-Azure models because Azure AI Foundry
+entries are deployment targets, not globally selectable public API models.
 
 ### OpenAI
 
@@ -64,6 +91,10 @@ Default posture:
   with a budget ceiling.
 - Use mini or nano variants for cheap classification, summaries, and routing
   only when quality risk is acceptable.
+- GPT-5.5 is the OpenAI flagship currently represented in Deepr defaults and
+  routing priors. If OpenAI publishes a newer limited or preview model, keep it
+  out of automatic routing until registry pricing and adapter behavior are
+  verified.
 
 Manual verification:
 
@@ -124,10 +155,14 @@ Default posture:
 
 - Prefer current Grok text models for explicitly selected xAI research and
   freshness-oriented work when the budget estimate fits.
-- Legacy Grok IDs remain in the registry for migration and compatibility. Do
-  not present them as preferred new defaults.
-- `xai/grok-imagine-image-pro` is a premium image model. Deepr must not call it
-  for background portraits, demo data, profile refresh, or screenshots.
+- Grok 4.3 is the preferred xAI text default. Grok 4.20 multi-agent is a
+  deliberate deep-research style choice because its agent fan-out can multiply
+  spend and latency.
+- Legacy Grok IDs and `xai/grok-imagine-image-pro` remain in the registry for
+  migration and compatibility. The old Imagine Pro entry is deprecated; portrait
+  generation code defaults explicit xAI image calls to `grok-imagine-image`.
+- xAI image generation is premium capacity. Deepr must not call it for
+  background portraits, demo data, profile refresh, or screenshots.
 
 Manual verification:
 
@@ -157,9 +192,12 @@ Default posture:
   explicit budget supports a higher-cost call.
 - `claude-fable-5` is a frontier, premium tier. It should be selected
   deliberately, not by background routing.
-- Adaptive-thinking capable models are handled by the Anthropic provider; do
-  not hardcode unsupported sampling or thinking parameters outside the
-  provider adapter.
+- Adaptive-thinking capable models are handled by the Anthropic provider. Do
+  not hardcode unsupported sampling or thinking parameters outside the provider
+  adapter.
+- Anthropic product-surface features and API model availability are not the
+  same thing. Register only Messages API models whose pricing and usage buckets
+  Deepr can settle.
 
 Manual verification:
 
@@ -230,7 +268,9 @@ Manual verification:
    settlement.
 6. Update docs qualitatively. Avoid duplicating exact prices outside the
    registry unless the text is explicitly a dated snapshot.
-7. Run the no-key unit gate. Live provider validation stays explicit and
+7. Rebuild and regenerate screenshots only from local/demo data. Do not use
+   premium image APIs for docs or screenshots.
+8. Run the no-key unit gate. Live provider validation stays explicit and
    opt-in.
 
 ## Cost and Capacity Policy

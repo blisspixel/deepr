@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 - Added a repository threat model covering Deepr trust boundaries, attacker
   stories, existing mitigations, and severity calibration.
+- Added an append-only spend-decision log for value-of-spend gate decisions.
 - Added overlap-lock reporting for scheduled health-check archival so locked
   archive runs emit a structured `waiting_for_overlap` payload and loop-run
   record.
@@ -17,6 +18,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 - Refreshed the model-selection guide around the current registry snapshot,
   official provider verification links, and no-surprise-bills capacity policy.
+- Refreshed architecture, install, examples, expert, and in-app Help model
+  guidance so user-facing docs no longer imply API keys are required or promote
+  stale provider defaults.
 - Fixed registry discovery and demo expert seeding helpers so the documented
   model-registry command and web demo screenshots work with the current
   `src/` layout and configured data roots.
@@ -27,6 +31,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   health-check archive already holds the overlap lock.
 - Health-check belief-store reads and stale-belief archival now use the
   canonical expert directory, avoiding display-name and slug-name drift.
+- Automatic metered `deepr expert sync` now evaluates schedule-derived
+  value-of-spend factors before research dispatch and skips resumably when the
+  current budget tier hurdle is not met. Local, dry-run, prepaid plan, and
+  explicit `--api` paths are unchanged.
 
 ## [2.27.0] - 2026-06-30
 

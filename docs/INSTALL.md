@@ -64,7 +64,7 @@ pip install -e .
 
 **Note on optional recon-tool:** `deepr doctor` may suggest `pip install -U recon-tool` for enhanced native domain intelligence in experts. This is **optional** - not a hard dependency. It adds passive DNS recon when available.
 
-### Step 2: Configure API Keys
+### Step 2: Configure Capacity
 
 ```bash
 # Copy example configuration
@@ -76,16 +76,18 @@ cp .env.example .env
 # Or use any text editor
 ```
 
-Add at least one API key to `.env`:
+Deepr can start with local Ollama, explicit plan-quota CLIs, metered API keys,
+or any mix of those. Add API keys only when you want metered cloud providers:
 
 ```bash
-# Pick ANY one to start - Deepr works with a single provider.
-# Add more keys later and auto mode will route to the best model per task.
+# Metered cloud capacity. Pick any one to start, or use none for local/plan
+# workflows. Add more keys later and auto mode can route to the best allowed
+# model per task.
 
-OPENAI_API_KEY=sk-...      # Deep research + GPT-5/4.1 models
-GEMINI_API_KEY=...          # Cost-effective, 1M+ context, Deep Research Agent
-XAI_API_KEY=xai-...         # Cheapest ($0.01/query), real-time web search
-ANTHROPIC_API_KEY=...       # Complex reasoning, coding (Extended Thinking)
+OPENAI_API_KEY=sk-...       # GPT-5.5/5.4 families + o3/o4-mini deep research
+GEMINI_API_KEY=...          # Gemini 3.5/3.1/2.5, multimodal, Deep Research Agent
+XAI_API_KEY=xai-...         # Grok 4.3, Grok 4.20, explicit premium image calls
+ANTHROPIC_API_KEY=...       # Claude Sonnet 5, Opus 4.8, Fable 5, Haiku 4.5
 
 # Enterprise options (optional):
 # AZURE_OPENAI_KEY=...
@@ -172,11 +174,12 @@ docker run -e OPENAI_API_KEY=sk-... deepr research "Your query" --auto
 Edit `.env` file:
 
 ```bash
-# Provider API Keys (at least one required - all optional individually)
-OPENAI_API_KEY=sk-...              # OpenAI (deep research + GPT models)
-GEMINI_API_KEY=...                  # Google Gemini (cost-effective, large context)
-XAI_API_KEY=xai-...                 # xAI Grok (cheapest, real-time web search)
-ANTHROPIC_API_KEY=...               # Anthropic (complex reasoning, coding)
+# Provider API Keys (optional individually; local and plan-quota workflows can
+# run without them)
+OPENAI_API_KEY=sk-...               # OpenAI GPT and deep research models
+GEMINI_API_KEY=...                  # Google Gemini and Deep Research Agent
+XAI_API_KEY=xai-...                 # xAI Grok text models and explicit image calls
+ANTHROPIC_API_KEY=...               # Anthropic Claude models
 # AZURE_OPENAI_KEY=...              # Azure OpenAI (enterprise)
 # AZURE_OPENAI_ENDPOINT=...         # Azure endpoint
 # AZURE_PROJECT_ENDPOINT=...        # Azure AI Foundry (enterprise deep research)
@@ -196,11 +199,16 @@ DEEPR_QUEUE_DB=queue/research_queue.db  # Job queue database
 
 ### Recommended Provider Setup
 
-**Minimum (one key):** Any single provider works. Pick based on your priority:
-- **OpenAI** - Best for deep research (o3/o4-mini)
-- **Gemini** - Best value (excellent quality at low cost)
-- **Grok** - Cheapest ($0.01/query), great for web search and news
-- **Anthropic** - Best for complex reasoning and coding
+**Minimum:** run `deepr init` and `deepr doctor`. A local Ollama model or an
+explicit admitted plan-quota CLI can support `$0` marginal-cost expert
+maintenance without provider keys. For API-backed research, any single provider
+key works.
+
+Pick based on your priority:
+- **OpenAI** - Deep research and GPT synthesis/planning
+- **Gemini** - Large-context and multimodal workflows
+- **Grok** - Freshness-oriented Grok text models and explicit premium images
+- **Anthropic** - Claude Sonnet 5 balance, Opus/Fable premium reasoning
 
 **Recommended (two keys):** OpenAI + Grok or Gemini + Grok. This gives you deep research *and* a cheap fallback for simple queries. Auto mode routes appropriately.
 

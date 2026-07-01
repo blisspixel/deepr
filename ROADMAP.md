@@ -1048,11 +1048,21 @@ Sequenced smallest-shippable-first:
         hard monthly cap still backstops), a dry run previews freely. 37 tests;
         AGENTIC_BALANCE surface row added. Design:
         [budget-degradation.md](docs/design/budget-degradation.md).
-  - [ ] **Value-gate wiring + decision ledger** (next): produce the four benefit
+  - [~] **Value-gate wiring + decision ledger**: produce the four benefit
         estimates at the call sites (scheduler / gap-fill ranker), wire the
         per-op value gate into single `expert sync` and gap-fill, fold the tier
         into the waterfall so every metered path benefits, and ledger each defer
         decision to a dedicated decision log.
+    - [x] **Auto-metered `expert sync` slice** (2026-06-30): when a single
+          `expert sync` falls through the maintenance waterfall to automatic
+          metered API capacity, the engine evaluates caller-supplied schedule
+          factors before research dispatch, writes an append-only
+          `spend_decisions.jsonl` record under the cost data root, and skips
+          resumably with `metered deferred` when value is below the current
+          tier hurdle. Explicit `--api`, local, dry-run, and prepaid plan paths
+          are unchanged.
+    - [ ] Remaining: gap-fill ranker factors, broader metered-plan/waterfall
+          coverage, and operator UI/readback for the spend decision log.
 - [ ] **Expert quality validation (local vs frontier A/B)**: the fleet runs
       mostly on a local model, so validate that $0 experts are good. 2026 evidence:
       for *grounded* extraction from provided sources, local 8B-70B models match or

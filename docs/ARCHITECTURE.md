@@ -22,10 +22,10 @@ graph TB
     end
 
     subgraph Providers
-        OpenAI["OpenAI<br/>o3 / o4-mini deep research, GPT-5.2, GPT-4.1"]
-        Gemini["Gemini<br/>Deep Research Agent, 3 Pro, 2.5 Flash"]
-        Grok["Grok<br/>4 Fast"]
-        Anthropic["Anthropic<br/>Claude Opus 4.6 / Sonnet / Haiku 4.5"]
+        OpenAI["OpenAI<br/>GPT-5.5 family, GPT-5.4 family, o3 / o4-mini deep research"]
+        Gemini["Gemini<br/>Deep Research Agent, 3.5 Flash, 3.1, 2.5"]
+        Grok["Grok<br/>4.3, 4.20, explicit Imagine image"]
+        Anthropic["Anthropic<br/>Claude Sonnet 5, Opus 4.8, Fable 5, Haiku 4.5"]
         AzureFoundry["Azure AI Foundry<br/>o3 deep research, GPT-5, GPT-4.1 + Bing"]
     end
 
@@ -72,7 +72,7 @@ graph TB
 
 - **Experts are not just RAG.** Most "chat with your docs" tools do retrieval then generation and stop there. Deepr experts have a metacognition layer - they track what they know (claims with confidence), recognize what they don't know (gaps with priority), and (in agentic mode) autonomously research to fill those gaps. The knowledge persists permanently, so the expert improves over time rather than resetting each session.
 
-- **Auto-mode routing analyzes query complexity before choosing a model.** Simple factual questions go to grok-4-1-fast-non-reasoning at $0.01. Complex multi-faceted research goes to o3-deep-research at $0.50. This isn't just keyword matching - it uses a lightweight classifier to estimate complexity, then factors in which API keys are configured, current budget, and provider health scores. Batch processing 20 queries this way costs $1-2 instead of $20-40.
+- **Auto-mode routing analyzes query complexity before choosing a model.** Simple factual questions prefer the cheapest admitted local, plan-quota, or metered model that satisfies the quality floor. Complex multi-source research can route to deep-research style providers only when the previewed estimate and budget ceiling allow it. This is not just keyword matching - routing factors in configured capacity, current budget, provider health, and registry cost metadata.
 
 - **Multi-layer budget controls because research costs real money.** Per-operation limits, daily caps, monthly ceilings, pre-submission estimates, and a circuit breaker that pauses after repeated failures. The system saves progress on pause so you can resume later. An uncapped loop calling o3-deep-research could burn $100+ before you notice.
 
@@ -132,12 +132,12 @@ graph TB
 - **Location**: `src/deepr/providers/`
 - **Purpose**: Unified interface to AI providers
 - **Providers**:
-  - OpenAI (o3/o4-mini deep research, GPT-5.2, GPT-5, GPT-4.1, GPT-4.1-mini)
+  - OpenAI (GPT-5.5 family, GPT-5.4 family, GPT-5 family, GPT-4.1 family, o3/o4-mini deep research)
   - Azure OpenAI (same models, Azure-hosted)
   - Azure AI Foundry (o3 deep research + Bing, GPT-5, GPT-4.1)
-  - xAI (Grok 4 Fast)
-  - Google (Gemini 3.1 Pro, 3 Flash, 2.5 Flash, Deep Research Agent)
-  - Anthropic (Claude Opus 4.6, Sonnet 4.5, Haiku 4.5)
+  - xAI (Grok 4.3, Grok 4.20, explicit premium image generation)
+  - Google (Gemini 3.5 Flash, Gemini 3.1, Gemini 2.5, Deep Research Agent)
+  - Anthropic (Claude Sonnet 5, Opus 4.8, Fable 5, Haiku 4.5)
 
 ### 4. Model Registry
 - **Location**: `src/deepr/providers/registry.py`
@@ -148,7 +148,7 @@ graph TB
   - Context windows
   - Specializations (reasoning, speed, cost, etc.)
 
-**CRITICAL**: When new models are released (GPT-5.3, Grok 5, etc.), update ONLY the registry. Never hardcode model names elsewhere.
+**CRITICAL**: When new models are released, update the registry first, then add provider mapping, pricing, usage-settlement, and routing tests as needed. Do not hardcode model names in feature code or secondary docs.
 
 ### 5. Queue System
 - **Location**: `src/deepr/queue/`
@@ -196,20 +196,22 @@ Expert ready to answer questions
 
 ## Model Selection
 
-**CRITICAL**: All models are defined in `src/deepr/providers/registry.py`. This is the SINGLE SOURCE OF TRUTH. When GPT-5.3 or Grok 5 are released, update ONLY the registry. Never hardcode model names.
+**CRITICAL**: All models are defined in `src/deepr/providers/registry.py`. This
+is the single source of truth. When providers release new models, update the
+registry first, then add provider mapping, pricing, usage-settlement, and
+routing tests as needed. Do not hardcode model names in feature code or
+secondary docs.
 
-### Current Models
+### Current Registry Highlights
 
-- **GPT-5.2** (OpenAI): $0.25, 2s, best for planning/curriculum
-- **o3-deep-research** (OpenAI): $0.50, 2-5min, comprehensive multi-step research
-- **o4-mini-deep-research** (OpenAI): $2.00, 60s, deep research with extended reasoning
-- **Grok 4 Fast** (xAI): $0.01, 1s, best for quick lookups
-- **Gemini 3.1 Pro** (Google): $0.20, ~40s, 1M context for large docs (2x pricing >200K tokens)
-- **Gemini Deep Research** (Google): $1.00, 5-20min, async research with Google Search
-- **Gemini 2.5 Flash** (Google): $0.002, 1.5s, cheapest option for general queries
-- **Claude Opus 4.8** (Anthropic): $0.85, 15s, best for complex reasoning with Adaptive Thinking
-- **Claude Sonnet 5** (Anthropic): $0.48, 3s, balanced quality/cost for coding and synthesis
-- **Claude Haiku 4.5** (Anthropic): $0.05, 1.5s, fast and cheap for simple queries
+- **OpenAI**: GPT-5.5 and GPT-5.4 families for synthesis and planning, plus o3/o4-mini deep research for explicitly deep async jobs.
+- **xAI**: Grok 4.3 for current text research and agentic work, Grok 4.20 for explicit multi-agent research, and explicit-only image generation.
+- **Google Gemini**: Gemini 3.5 Flash and 3.1/2.5 families for long-context and multimodal work, plus the Deep Research Agent.
+- **Anthropic**: Claude Sonnet 5 for balanced chat/synthesis, Opus 4.8 for high-reasoning work, and Fable 5 as premium opt-in capacity.
+- **Azure AI Foundry**: Deployment-specific OpenAI model targets with Azure identity, enterprise controls, and optional Bing grounding.
+
+Run `python scripts/discover_models.py --show-registry` for the current exact
+model IDs, pricing estimates, context windows, and deprecation flags.
 
 Models are selected based on:
 - **Task complexity**: Simple vs complex reasoning
