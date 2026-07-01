@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- Added a repository threat model covering Deepr trust boundaries, attacker
+  stories, existing mitigations, and severity calibration.
+
+### Changed
+- Refreshed the model-selection guide around the current registry snapshot,
+  official provider verification links, and no-surprise-bills capacity policy.
+- Fixed registry discovery and demo expert seeding helpers so the documented
+  model-registry command and web demo screenshots work with the current
+  `src/` layout and configured data roots.
+- Regenerated web screenshots from current demo data with non-empty expert
+  profiles.
+
 ## [2.27.0] - 2026-06-30
 
 Expert quality, hallucination-risk, cost-safety, and model-support release.

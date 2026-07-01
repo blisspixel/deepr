@@ -4,8 +4,9 @@ from datetime import UTC, datetime, timedelta
 
 from deepr.experts.profile import ExpertProfile
 from deepr.experts.profile_store import ExpertStore
+from deepr.experts.synthesis import KnowledgeGap, Worldview
 
-store = ExpertStore("data/experts")
+store = ExpertStore()
 
 demos = [
     {
@@ -27,6 +28,24 @@ demos = [
             "methane-tracker-2024.pdf",
         ],
         "research_jobs": ["job-cc-001", "job-cc-002", "job-cc-003", "job-cc-004"],
+        "knowledge_gaps": [
+            {
+                "topic": "Regional adaptation cost curves",
+                "questions": [
+                    "Which coastal adaptation strategies have verified lifecycle cost data by region?",
+                    "Where do managed retreat assumptions diverge between public and private models?",
+                ],
+                "priority": 4,
+            },
+            {
+                "topic": "Methane mitigation verification",
+                "questions": [
+                    "Which satellite methane datasets agree on super-emitter persistence?",
+                    "How should reported abatement claims be cross-checked against atmospheric observations?",
+                ],
+                "priority": 3,
+            },
+        ],
         "total_research_cost": 3.42,
         "conversations": 8,
         "domain_velocity": "medium",
@@ -66,6 +85,32 @@ demos = [
             "job-rs-006",
             "job-rs-007",
         ],
+        "knowledge_gaps": [
+            {
+                "topic": "Async cancellation safety",
+                "questions": [
+                    "Which Tokio primitives are cancel-safe across select loops?",
+                    "Where do dropped futures still leave durable side effects?",
+                ],
+                "priority": 5,
+            },
+            {
+                "topic": "Unsafe abstraction audits",
+                "questions": [
+                    "Which unsafe blocks rely on aliasing or pinning invariants?",
+                    "What property tests best expose soundness boundary regressions?",
+                ],
+                "priority": 4,
+            },
+            {
+                "topic": "Backpressure design",
+                "questions": [
+                    "Which tower layers preserve backpressure under bursty workloads?",
+                    "How should tracing surface queue saturation without log storms?",
+                ],
+                "priority": 3,
+            },
+        ],
         "total_research_cost": 7.85,
         "conversations": 23,
         "domain_velocity": "fast",
@@ -88,6 +133,24 @@ demos = [
             "choice-architecture-survey.pdf",
         ],
         "research_jobs": ["job-be-001", "job-be-002"],
+        "knowledge_gaps": [
+            {
+                "topic": "External validity of nudges",
+                "questions": [
+                    "Which choice-architecture results survive replication across cultures?",
+                    "How large is the measured decay when interventions move from lab to field?",
+                ],
+                "priority": 4,
+            },
+            {
+                "topic": "AI-mediated decision aids",
+                "questions": [
+                    "When do recommendation systems amplify status-quo bias?",
+                    "Which disclosure formats measurably improve calibrated trust?",
+                ],
+                "priority": 3,
+            },
+        ],
         "total_research_cost": 1.20,
         "conversations": 5,
         "domain_velocity": "slow",
@@ -118,6 +181,24 @@ for demo in demos:
         domain_velocity=demo["domain_velocity"],
     )
     store.save(profile)
+
+    gaps = [
+        KnowledgeGap(
+            topic=gap["topic"],
+            questions=gap["questions"],
+            priority=gap["priority"],
+            identified_at=now - timedelta(days=demo["last_update_days"]),
+        )
+        for gap in demo["knowledge_gaps"]
+    ]
+    worldview = Worldview(
+        expert_name=demo["name"],
+        domain=demo["domain"],
+        knowledge_gaps=gaps,
+        last_synthesis=now - timedelta(days=demo["last_update_days"]),
+        synthesis_count=len(demo["research_jobs"]),
+    )
+    worldview.save(store.get_knowledge_dir(demo["name"]) / "worldview.json")
     print(f"  Created '{demo['name']}' ({len(demo['source_files'])} docs, ${demo['total_research_cost']})")
 
 print("Done.")

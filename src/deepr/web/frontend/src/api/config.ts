@@ -26,7 +26,8 @@ export const configApi = {
   // Load demo data (experts + sample jobs)
   loadDemo: async () => {
     const response = await apiClient.post<{ success: boolean; created_jobs: number; errors: string[] }>(
-      '/demo/load'
+      '/demo/load',
+      { confirm: 'DELETE_ALL_DATA' }
     )
     return response.data
   },
@@ -34,7 +35,8 @@ export const configApi = {
   // Clear all demo/job data
   clearDemo: async () => {
     const response = await apiClient.post<{ success: boolean; cleared_jobs: number; errors: string[] }>(
-      '/demo/clear'
+      '/demo/clear',
+      { confirm: 'DELETE_ALL_DATA' }
     )
     return response.data
   },

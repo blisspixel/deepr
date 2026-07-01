@@ -418,6 +418,7 @@ See [docs/SUPPORTED_SURFACE.md](docs/SUPPORTED_SURFACE.md) for the contract.
 | [Experts](docs/EXPERTS.md) | Domain expert system |
 | [Models](docs/MODELS.md) | Provider comparison and model selection |
 | [Architecture](docs/ARCHITECTURE.md) | Technical architecture, security, budget protection |
+| [Security Threat Model](docs/security/THREAT_MODEL.md) | Trust boundaries, attacker stories, mitigations, and severity calibration |
 | [MCP Integration](mcp/README.md) | MCP server setup and agent integration |
 | [Agentic Balance](docs/plans/AGENTIC_BALANCE.md) | Workflow vs agent boundary |
 | [Supported Surface](docs/SUPPORTED_SURFACE.md) | Stable, experimental, planned, and export guarantees |

@@ -25,6 +25,7 @@ understand why it works the way it does.
 ## Technical
 
 - **[ARCHITECTURE.md](ARCHITECTURE.md)** - Technical architecture and security
+- **[security/THREAT_MODEL.md](security/THREAT_MODEL.md)** - Repository threat model and severity calibration
 - **[BENCHMARKS.md](BENCHMARKS.md)** - Model benchmarks, scoring methodology, results
 - **[CALIBRATION.md](CALIBRATION.md)** - Measured extraction-confidence calibration (reliability curve, ECE, threshold)
 - **[CHANGELOG.md](CHANGELOG.md)** - Version history
