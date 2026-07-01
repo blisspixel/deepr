@@ -60,7 +60,7 @@ export const expertsApi = {
     const response = await apiClient.get<{ decisions: DecisionRecord[] }>(`/experts/${name}/decisions`, { params })
     return response.data.decisions
   },
-  fillGaps: async (name: string, data: { consensus?: boolean; deep?: boolean; top?: number; budget?: number; validate_citations?: boolean }) => {
+  fillGaps: async (name: string, data: { consensus?: boolean; deep?: boolean; top?: number; budget?: number; validate_citations?: boolean; allow_metered_api?: boolean; confirm_metered_cost?: boolean }) => {
     const response = await apiClient.post<{ filled: number; total_gaps: number }>(`/experts/${name}/fill-gaps`, data)
     return response.data
   },

@@ -246,8 +246,11 @@ deepr expert learn "Azure Architect" --files new_docs/*.md
 
 ### Fill Knowledge Gaps
 ```bash
-# Expert identifies and researches its gaps
-deepr expert fill-gaps "Azure Architect" --budget 5 --top 3
+# Preferred no-surprise path: local or plan-quota first
+deepr expert route-gaps "Azure Architect" --execute --scheduled --top 3
+
+# Legacy metered OpenAI path, explicit only
+deepr expert fill-gaps "Azure Architect" --api --budget 5 --top 3
 ```
 
 ### Resume Paused Learning
@@ -785,7 +788,7 @@ expected_value = (priority / 5.0) + frequency_boost
 estimated_cost = domain velocity lookup (fast=$0.25, medium=$1.00, slow=$2.00)
 ```
 
-Higher-ratio gaps are filled first, making `expert fill-gaps --top N` a rational allocation rather than arbitrary ordering.
+Higher-ratio gaps are filled first, making `expert route-gaps --execute --top N` a rational allocation rather than arbitrary ordering. The legacy `expert fill-gaps` command is metered API only and requires `--api`.
 
 ### Decision Records
 

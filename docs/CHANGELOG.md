@@ -58,6 +58,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `deepr expert reflect --execute-followups` now holds the per-expert
   `reflect` overlap guard before constructing gap-fill execution, so duplicate
   follow-up runs record `overlap_locked` and skip before starting research.
+- Legacy `deepr expert fill-gaps` now requires explicit `--api`, and
+  unattended `--yes` also requires `--confirm-metered-cost`. The web
+  fill-gaps endpoint now requires `allow_metered_api` plus
+  `confirm_metered_cost` before it can construct a provider client. Health
+  checks and docs point users to `route-gaps --execute --scheduled` as the
+  local/plan-first path.
 - Health-check belief-store reads and stale-belief archival now use the
   canonical expert directory, avoiding display-name and slug-name drift.
 - Automatic metered `deepr expert sync` now evaluates schedule-derived

@@ -73,7 +73,7 @@ def verbs():
     table.add_row('deepr expert learn "name" "topic"', "Add knowledge to expert")
     table.add_row("deepr expert list", "List all experts")
     table.add_row('deepr expert info "name"', "Show expert details")
-    table.add_row('deepr expert fill-gaps "name"', "Research knowledge gaps")
+    table.add_row('deepr expert route-gaps "name" --execute --scheduled', "Fill gaps with owned/prepaid capacity")
     console.print(table)
     console.print()
 

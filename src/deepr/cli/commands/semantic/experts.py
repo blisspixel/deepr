@@ -2163,10 +2163,26 @@ def import_expert(name: str, corpus: str, yes: bool):
 @click.option("--budget", "-b", type=float, default=5.0, help="Budget limit for gap filling research (default: $5)")
 @click.option("--top", "-t", type=int, default=3, help="Number of top-priority gaps to fill (default: 3)")
 @click.option("--yes", "-y", is_flag=True, help="Skip confirmation")
+@click.option("--api", is_flag=True, help="Allow this legacy metered OpenAI gap-fill path")
+@click.option(
+    "--confirm-metered-cost",
+    is_flag=True,
+    help="Allow --yes after reviewing this legacy metered path's cost estimate",
+)
 @click.option("--consensus", is_flag=True, help="Multi-provider consensus (2-3x cost)")
 @click.option("--deep", is_flag=True, help="3-pass pipeline (extract/cross-ref/synthesize)")
 @click.option("--validate-citations", is_flag=True, help="Validate source-claim alignment after synthesis")
-def fill_gaps(name: str, budget: float, top: int, yes: bool, consensus: bool, deep: bool, validate_citations: bool):
+def fill_gaps(
+    name: str,
+    budget: float,
+    top: int,
+    yes: bool,
+    api: bool,
+    confirm_metered_cost: bool,
+    consensus: bool,
+    deep: bool,
+    validate_citations: bool,
+):
     """Proactively research and fill knowledge gaps.
 
     Reads the expert's worldview, identifies high-priority knowledge gaps,
@@ -2177,14 +2193,14 @@ def fill_gaps(name: str, budget: float, top: int, yes: bool, consensus: bool, de
     don't know, and can fill those gaps on demand.
 
     EXAMPLES:
-      # Fill top 3 gaps with $5 budget
-      deepr expert fill-gaps "AWS Expert"
+      # Preferred no-surprise path: local or plan-quota first
+      deepr expert route-gaps "AWS Expert" --execute --scheduled
 
-      # Fill top 5 gaps with $10 budget
-      deepr expert fill-gaps "Python Expert" --top 5 --budget 10
+      # Explicit legacy metered OpenAI path
+      deepr expert fill-gaps "Python Expert" --top 5 --budget 10 --api
 
-      # Skip confirmation
-      deepr expert fill-gaps "AI Expert" -y
+      # Skip confirmation only after explicitly acknowledging the metered estimate
+      deepr expert fill-gaps "AI Expert" --api -y --confirm-metered-cost
     """
     import asyncio
 
@@ -2204,6 +2220,17 @@ def fill_gaps(name: str, budget: float, top: int, yes: bool, consensus: bool, de
     from deepr.providers import create_provider
 
     print_header(f"Fill Knowledge Gaps: {name}")
+
+    if not api:
+        raise click.UsageError(
+            "Legacy `expert fill-gaps` requires --api because it uses metered OpenAI calls. "
+            "Prefer `deepr expert route-gaps NAME --execute --local` or "
+            "`deepr expert route-gaps NAME --execute --plan BACKEND`."
+        )
+    if yes and not confirm_metered_cost:
+        raise click.UsageError(
+            "Legacy metered gap filling with --yes requires --confirm-metered-cost after reviewing the estimate."
+        )
 
     # Load expert
     store = ExpertStore()
@@ -2263,7 +2290,7 @@ def fill_gaps(name: str, budget: float, top: int, yes: bool, consensus: bool, de
             if len(gap.questions) > 3:
                 console.print(f"       [dim]... and {len(gap.questions) - 3} more[/dim]")
 
-    console.print(f"\nEstimated cost: ~${budget:.2f} (${budget_per_gap:.2f} per gap)")
+    console.print(f"\nEstimated metered OpenAI API cost: ~${budget:.2f} (${budget_per_gap:.2f} per gap)")
 
     if not yes:
         if not click.confirm("\nProceed with gap filling?"):
@@ -2595,7 +2622,7 @@ def discover_gaps_cmd(name: str):
         console.print(f"  {i}. {gap['topic']} [dim][{method}][/dim]")
         for q in gap.get("questions", [])[:2]:
             console.print(f"     - {q}")
-    print_success(f"Found {len(new_gaps)} gaps. Use fill-gaps to research them.")
+    print_success(f"Found {len(new_gaps)} gaps. Use route-gaps --execute --scheduled to fill them safely.")
 
 
 @expert.command(name="resolve-conflicts")

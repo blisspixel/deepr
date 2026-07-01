@@ -454,13 +454,12 @@ class ExpertHealthChecker:
         action = None
         if open_count >= _GAP_BACKLOG_WARN:
             n = min(open_count, 3)
-            cost = round(sum(g.estimated_cost for g in top[:n]), 2)
             action = RecommendedAction(
                 category="gaps",
-                description=f"Fill the top {n} highest-value gap(s)",
-                command=f"deepr expert fill-gaps {shlex.quote(self.profile.name)} --top {n}",
-                estimated_cost=cost,
-                approval_tier=_approval_tier_for_cost(cost),
+                description=f"Route the top {n} highest-value gap(s) through owned or prepaid capacity",
+                command=f"deepr expert route-gaps {shlex.quote(self.profile.name)} --top {n} --execute --scheduled",
+                estimated_cost=0.0,
+                approval_tier=ApprovalTier.AUTO_APPROVE.value,
             )
 
         return HealthFinding("gaps", severity, summary, detail), action

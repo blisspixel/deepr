@@ -610,7 +610,10 @@ deepr expert learn "Azure Architect" "Azure AI Agent Service 2026"
 deepr expert learn "Azure Architect" "Azure AI Agent Service 2026" --plan codex
 
 # Fill knowledge gaps proactively (ranked by EV/cost ratio)
-deepr expert fill-gaps "Azure Architect" --budget 5 --top 3
+deepr expert route-gaps "Azure Architect" --execute --scheduled --top 3
+
+# Legacy metered OpenAI path, explicit only
+deepr expert fill-gaps "Azure Architect" --api --budget 5 --top 3
 
 # Resume paused learning
 deepr expert resume "Azure Architect"
