@@ -33,6 +33,7 @@ from deepr.cli.commands.semantic.expert_health_schedule import (
     HEALTH_CHECK_ARCHIVE_CONFIRMATION_KIND,
     HEALTH_CHECK_ARCHIVE_CONFIRMATION_SCHEMA_VERSION,
     scheduled_archive_confirmation_payload,
+    scheduled_archive_overlap_payload,
     scheduled_health_payload,
 )
 from deepr.cli.commands.semantic.expert_maintenance import (
@@ -1762,6 +1763,23 @@ def test_health_check_archive_confirmation_schema_validates_runtime_payload():
     assert payload["kind"] == HEALTH_CHECK_ARCHIVE_CONFIRMATION_KIND
     assert payload["expert_name"] == "Platform Expert"
     assert payload["loop_run"]["run_id"] == "loop_archive_contract"
+
+
+def test_health_check_archive_overlap_schema_validates_runtime_payload():
+    with patch("deepr.experts.loop_runs.record_loop_run") as mock_record:
+        loop_run = MagicMock()
+        loop_run.to_dict.return_value = {"run_id": "loop_archive_overlap_contract"}
+        mock_record.return_value = loop_run
+
+        payload = scheduled_archive_overlap_payload("Platform Expert")
+    schema = _load_schema("health-check-archive-confirmation-v1.json")
+
+    _validate(schema, payload)
+    assert payload["schema_version"] == HEALTH_CHECK_ARCHIVE_CONFIRMATION_SCHEMA_VERSION
+    assert payload["kind"] == HEALTH_CHECK_ARCHIVE_CONFIRMATION_KIND
+    assert payload["status"] == "waiting_for_overlap"
+    assert payload["expert_name"] == "Platform Expert"
+    assert payload["loop_run"]["run_id"] == "loop_archive_overlap_contract"
 
 
 def test_cli_operation_result_schema_validates_success_payload():

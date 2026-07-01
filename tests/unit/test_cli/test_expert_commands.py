@@ -421,6 +421,7 @@ class TestExpertHealthCheckCommand:
         assert result.exit_code == 0
         assert "audit" in result.output.lower()
         assert "--scheduled" in result.output
+        assert "--jitter" in result.output
 
     def test_health_check_requires_name(self, runner):
         result = runner.invoke(cli, ["expert", "health-check"])
@@ -436,6 +437,17 @@ class TestExpertHealthCheckCommand:
 
             assert "not found" in result.output.lower()
             assert result.exit_code == 2
+
+    def test_health_check_rejects_negative_jitter_before_store_work(self, runner):
+        with patch("deepr.experts.profile.ExpertStore") as mock_store_class:
+            result = runner.invoke(
+                cli,
+                ["expert", "health-check", "Test Expert", "--archive-stale", "--scheduled", "--jitter", "-1"],
+            )
+
+        assert result.exit_code == 2
+        assert "Invalid value for '--jitter'" in result.output
+        mock_store_class.assert_not_called()
 
     def test_health_check_displays_findings_and_actions(self, runner):
         with (
@@ -564,7 +576,7 @@ class TestExpertHealthCheckCommand:
             HEALTH_CHECK_ARCHIVE_CONFIRMATION_SCHEMA_VERSION,
         )
 
-        beliefs_dir = tmp_path / "Test Expert" / "beliefs"
+        beliefs_dir = tmp_path / "test_expert" / "beliefs"
         beliefs_dir.mkdir(parents=True)
         candidate = MagicMock()
         candidate.id = "b1"
@@ -610,6 +622,73 @@ class TestExpertHealthCheckCommand:
         assert payload["action"] == "archive_stale"
         assert payload["count"] == 1
         assert payload["loop_run"]["run_id"] == "loop_health_archive"
+
+    def test_scheduled_archive_overlap_skips_before_belief_store(self, runner):
+        import json
+
+        from deepr.experts.loop_runs import LoopRunStatus, LoopStopReason
+
+        captured = {}
+
+        @contextmanager
+        def fake_lock(expert_name, verb):
+            captured["lock"] = (expert_name, verb)
+            yield False
+
+        def fake_jitter(expert_name, max_seconds):
+            captured["jitter"] = (expert_name, max_seconds)
+
+        def fake_record(**kwargs):
+            captured["loop_run_kwargs"] = kwargs
+            return SimpleNamespace(
+                to_dict=lambda: {
+                    "run_id": "loop_health_archive_locked",
+                    "status": kwargs["status"].value,
+                    "stop_reason": kwargs["stop_reason"].value,
+                }
+            )
+
+        with (
+            patch("deepr.experts.profile.ExpertStore") as mock_store_class,
+            patch("deepr.experts.beliefs.BeliefStore") as mock_belief_store_class,
+            patch("deepr.experts.loop_lock.apply_startup_jitter", fake_jitter),
+            patch("deepr.experts.loop_lock.expert_verb_lock", fake_lock),
+            patch("deepr.experts.loop_runs.record_loop_run", side_effect=fake_record),
+        ):
+            mock_store = MagicMock()
+            mock_store.load.return_value = SimpleNamespace(name="Test Expert")
+            mock_store_class.return_value = mock_store
+
+            result = runner.invoke(
+                cli,
+                [
+                    "expert",
+                    "health-check",
+                    "Test Expert",
+                    "--archive-stale",
+                    "--scheduled",
+                    "--yes",
+                    "--jitter",
+                    "45",
+                    "--json",
+                ],
+            )
+
+        assert result.exit_code == 0, result.output
+        mock_belief_store_class.assert_not_called()
+        payload = json.loads(result.output)
+        assert payload["status"] == "waiting_for_overlap"
+        assert payload["count"] == 0
+        assert payload["next_actions"][0]["status"] == "wait"
+        assert payload["loop_run"]["run_id"] == "loop_health_archive_locked"
+        assert payload["loop_run"]["status"] == "waiting"
+        assert payload["loop_run"]["stop_reason"] == "overlap_locked"
+        assert captured["jitter"] == ("Test Expert", 45.0)
+        assert captured["lock"] == ("Test Expert", "health-check")
+        assert captured["loop_run_kwargs"]["status"] == LoopRunStatus.WAITING
+        assert captured["loop_run_kwargs"]["stop_reason"] == LoopStopReason.OVERLAP_LOCKED
+        assert captured["loop_run_kwargs"]["trigger"] == "scheduled"
+        assert captured["loop_run_kwargs"]["capacity_source"] == "local"
 
     def test_completed_health_archive_records_accepted_changes(self):
         from deepr.cli.commands.semantic.expert_health_loop import record_completed_health_archive

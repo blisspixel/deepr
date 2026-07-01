@@ -984,12 +984,14 @@ Sequenced smallest-shippable-first:
         per-expert offset, injectable sleep). `filelock` promoted to a direct
         runtime dependency. 13 tests. Deterministic workflow mechanics over
         side-effects/timing per AGENTIC_BALANCE.
-  - [ ] **Verb wiring** (next): wrap the scheduled-verb bodies (`expert sync`,
-        `health-check`, `reflect`, `route-gaps`, future `sync-all`) so each
-        holds its lock for the whole run and exits 0 with a printed skip on
-        contention, and applies `--jitter` at startup. Best done with (or after)
-        the `sync_cmd` body extraction (Phase Q3 decomposition) so the lock
-        wraps a single helper rather than indenting a 100-line click command.
+  - [x] **Verb wiring** (2026-06-30): scheduled mutating bodies now either hold
+        the per-(expert, verb) lock across execution or wait before execution.
+        `expert sync`, `route-gaps --execute`, and `sync-all` hold locks and
+        record `overlap_locked` skips; `health-check --archive-stale
+        --scheduled --yes` now applies `--jitter`, skips before opening the
+        belief store when locked, and emits a schema-valid
+        `waiting_for_overlap` archive payload; scheduled `reflect` waits before
+        evaluator/follow-up execution instead of starting metered work.
 - [x] **`deepr fleet install-schedule`** (2026-06-23): emits the correct
       **non-default** host recipe and the exact install command (it does not
       auto-install - registering a task is a privileged host step the operator
@@ -1235,7 +1237,7 @@ Deepr is an orchestration layer over hosted model APIs - it does not train, fine
   closes the maintenance finding where one server library's `host=""` behavior
   could bypass an unauthenticated public-bind refusal.
 - [~] **Agentic red-team suite.** First slices shipped: `src/deepr/security/red_team.py` plus `deepr eval red-team` run a local `$0` attack-success-rate verifier across prompt-injection, system-prompt extraction, jailbreak, data-exfiltration, structured tool-call/tool-result spoofing, MCP handoff and loop-status read-path canaries, and memory trust-floor bypass probes. The default suite currently reports 13/13 blocked cases, fails the command if any built-in attack succeeds, and `--save` writes trend artifacts under `data/benchmarks/red_team_*.json`. This remains a workflow verifier over prompt boundaries, derived read-boundary payloads, and confidence ceilings, not a semantic safety verdict. Remaining: automated expert-chat and ingestion-path corpora, plus broader ADAM-style adaptive extraction probing through MCP read tools.
-- [ ] **Threat model doc** (MITRE ATLAS-style) for Deepr's actual surface - ingestion, agentic tools, MCP/web/A2A endpoints, secret handling - that records what is explicitly out of scope (see below) so effort stays proportional.
+- [x] **Threat model doc** (MITRE ATLAS-style) for Deepr's actual surface - ingestion, agentic tools, MCP/web/A2A endpoints, secret handling - that records what is explicitly out of scope so effort stays proportional. Shipped 2026-06-30 as [docs/security/THREAT_MODEL.md](docs/security/THREAT_MODEL.md).
 - [~] Secret hygiene hardening: redaction exists; blocking Gitleaks history scanning is now in CI; current fake key fixtures were rewritten; historical redaction-test false positives are constrained by `.gitleaksignore` plus `.gitleaks.toml`. Remaining: least-privilege provider-key guidance and deeper trace/log secret fixtures.
 
 **Explicit security non-goals** (Deepr does not own the model, so these belong to the providers, not us):
