@@ -173,6 +173,28 @@ class TestResearchFn:
         assert prompt == "-"
         assert "Fresh retrieval context" in runner.stdins[0]
 
+    async def test_passes_prior_source_pack_to_context_builder_when_supported(self, tmp_path):
+        runner = _runner(stdout="ans")
+        prior_pack = {"sources": [{"url": "https://example.com", "etag": '"abc"'}]}
+        seen = {}
+
+        async def context_builder(query, *, prior_source_pack=None):
+            seen["query"] = query
+            seen["prior_source_pack"] = prior_source_pack
+            return "ctx"
+
+        fn = make_plan_quota_research_fn(
+            get_adapter("codex"),
+            runner=runner,
+            context_builder=context_builder,
+            quota_ledger_path=tmp_path / "q.jsonl",
+            cost_ledger_path=tmp_path / "c.jsonl",
+        )
+        result = await fn("q", 1.0, prior_source_pack=prior_pack)
+
+        assert result["answer"] == "ans"
+        assert seen == {"query": "q", "prior_source_pack": prior_pack}
+
     async def test_plan_child_env_drops_metered_api_keys(self, tmp_path):
         runner = _runner(stdout="ans")
         fn = make_plan_quota_research_fn(

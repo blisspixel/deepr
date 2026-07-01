@@ -6,12 +6,13 @@ from deepr.backends.fresh_context import (
     FreshContext,
     FreshContextConfig,
     FreshSource,
+    cached_sources_from_pack,
     make_free_deep_context_builder,
     make_free_fresh_context_builder,
     retrieve_deep_fresh_context,
     retrieve_fresh_context,
 )
-from deepr.tools.browser_backend import PageContent
+from deepr.tools.browser_backend import PageContent, PageValidators
 from deepr.tools.search_backend import SearchResult
 
 
@@ -39,9 +40,11 @@ class _BrowserBackend:
     def __init__(self, pages=None):
         self.pages = pages or {}
         self.calls = []
+        self.validators = {}
 
-    async def fetch_page(self, url: str):
+    async def fetch_page(self, url: str, *, validators: PageValidators | None = None):
         self.calls.append(url)
+        self.validators[url] = validators
         return self.pages.get(url, PageContent(url=url, title="Missing", text="", status_code=0))
 
     async def health_check(self):
@@ -192,8 +195,107 @@ def test_fresh_context_labels_only_citable_sources():
             "snippet": "",
             "excerpt": "Useful current evidence.",
             "content_hash": good_hash,
+            "etag": "",
+            "last_modified": "",
+            "not_modified": False,
         }
     ]
+
+
+def test_cached_sources_from_pack_reads_http_validators():
+    pack = {
+        "sources": [
+            {
+                "title": "Docs",
+                "url": "https://example.com/docs",
+                "etag": '"abc"',
+                "last_modified": "Wed, 01 Jul 2026 00:00:00 GMT",
+                "content_hash": "a" * 64,
+                "excerpt": "Cached docs excerpt.",
+            }
+        ]
+    }
+
+    cached = cached_sources_from_pack(pack)["https://example.com/docs"]
+
+    assert cached.validators == PageValidators(etag='"abc"', last_modified="Wed, 01 Jul 2026 00:00:00 GMT")
+    assert cached.content_hash == "a" * 64
+
+
+async def test_retrieve_fresh_context_sends_validators_and_reuses_cached_304_source():
+    search = _SearchBackend(
+        [
+            SearchResult(
+                title="Docs",
+                url="https://example.com/docs",
+                snippet="Docs changed before",
+                source="duck",
+            )
+        ]
+    )
+    browser = _BrowserBackend(
+        {
+            "https://example.com/docs": PageContent(
+                url="https://example.com/docs",
+                title="Not modified",
+                text="",
+                status_code=304,
+                etag='"abc"',
+                last_modified="Wed, 01 Jul 2026 00:00:00 GMT",
+            )
+        }
+    )
+    prior_pack = {
+        "sources": [
+            {
+                "title": "Docs",
+                "url": "https://example.com/docs",
+                "etag": '"abc"',
+                "last_modified": "Wed, 01 Jul 2026 00:00:00 GMT",
+                "content_hash": "b" * 64,
+                "excerpt": "Cached current representation.",
+            }
+        ]
+    }
+
+    context = await retrieve_fresh_context(
+        "docs",
+        search_backend=search,
+        browser_backend=browser,
+        prior_source_pack=prior_pack,
+    )
+    pack = context.to_source_pack()
+
+    assert browser.validators["https://example.com/docs"] == PageValidators(
+        etag='"abc"',
+        last_modified="Wed, 01 Jul 2026 00:00:00 GMT",
+    )
+    assert context.sources[0].not_modified is True
+    assert "Cached current representation" in context.to_prompt_context()
+    assert pack["sources"][0]["content_hash"] == "b" * 64
+    assert pack["sources"][0]["not_modified"] is True
+    assert pack["sources"][0]["etag"] == '"abc"'
+
+
+async def test_retrieve_fresh_context_records_response_validators_on_200():
+    browser = _BrowserBackend(
+        {
+            "https://example.com/page": PageContent(
+                url="https://example.com/page",
+                title="Page",
+                text="Current page text",
+                etag='"fresh"',
+                last_modified="Wed, 01 Jul 2026 00:00:00 GMT",
+            )
+        }
+    )
+
+    context = await retrieve_fresh_context("read https://example.com/page", browser_backend=browser)
+    pack = context.to_source_pack()
+
+    assert pack["sources"][0]["etag"] == '"fresh"'
+    assert pack["sources"][0]["last_modified"] == "Wed, 01 Jul 2026 00:00:00 GMT"
+    assert pack["sources"][0]["not_modified"] is False
 
 
 async def test_make_free_builder_uses_injected_backends():

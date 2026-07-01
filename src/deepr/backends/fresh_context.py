@@ -8,6 +8,7 @@ cited context pack that can be prepended to a local-model prompt.
 from __future__ import annotations
 
 import hashlib
+import inspect
 import os
 import re
 from collections.abc import Awaitable, Callable
@@ -15,7 +16,7 @@ from dataclasses import dataclass
 from datetime import UTC, datetime
 from typing import Protocol
 
-from deepr.tools.browser_backend import BrowserBackend, BuiltinBrowserBackend
+from deepr.tools.browser_backend import BrowserBackend, BuiltinBrowserBackend, PageContent, PageValidators
 from deepr.tools.search_backend import BuiltinSearchBackend, SearchBackend, SearchResult, SearXNGSearchBackend
 from deepr.utils.prompt_security import sanitize_untrusted_content
 
@@ -45,6 +46,10 @@ class FreshSource:
     source: str = "unknown"
     fetched: bool = False
     error: str = ""
+    etag: str = ""
+    last_modified: str = ""
+    not_modified: bool = False
+    content_hash_value: str = ""
 
     def excerpt(self, max_chars: int) -> str:
         if max_chars <= 0:
@@ -65,9 +70,50 @@ class FreshSource:
         not the content the absorber reads.
         """
         text = self.content.strip()
+        if self.content_hash_value:
+            return self.content_hash_value
         if not text:
             return ""
         return hashlib.sha256(text.encode("utf-8")).hexdigest()
+
+
+@dataclass(frozen=True)
+class CachedSource:
+    """Prior source-pack metadata used for conditional source retrieval."""
+
+    title: str = ""
+    url: str = ""
+    etag: str = ""
+    last_modified: str = ""
+    content_hash: str = ""
+    excerpt: str = ""
+
+    @property
+    def validators(self) -> PageValidators | None:
+        if not self.etag and not self.last_modified:
+            return None
+        return PageValidators(etag=self.etag, last_modified=self.last_modified)
+
+
+def cached_sources_from_pack(source_pack: dict[str, object] | None) -> dict[str, CachedSource]:
+    if not isinstance(source_pack, dict):
+        return {}
+    cached: dict[str, CachedSource] = {}
+    for source in source_pack.get("sources", []):
+        if not isinstance(source, dict):
+            continue
+        url = str(source.get("url") or "")
+        if not url:
+            continue
+        cached[url] = CachedSource(
+            title=str(source.get("title") or ""),
+            url=url,
+            etag=str(source.get("etag") or ""),
+            last_modified=str(source.get("last_modified") or ""),
+            content_hash=str(source.get("content_hash") or ""),
+            excerpt=str(source.get("excerpt") or ""),
+        )
+    return cached
 
 
 @dataclass(frozen=True)
@@ -152,6 +198,9 @@ class FreshContext:
                     "fetched": source.fetched,
                     "error": source.error,
                     "content_hash": source.content_hash,
+                    "etag": source.etag,
+                    "last_modified": source.last_modified,
+                    "not_modified": source.not_modified,
                 }
                 for source in self.sources
             ],
@@ -185,6 +234,9 @@ class FreshContext:
                     "snippet": source.snippet,
                     "excerpt": source.excerpt(excerpt_limit),
                     "content_hash": source.content_hash,
+                    "etag": source.etag,
+                    "last_modified": source.last_modified,
+                    "not_modified": source.not_modified,
                 }
                 for index, source in enumerate(usable_sources, start=1)
             ],
@@ -284,17 +336,29 @@ async def _source_from_url(
     *,
     result_by_url: dict[str, SearchResult],
     browser_backend: BrowserBackend | None,
+    cached_by_url: dict[str, CachedSource],
     fetch: bool,
 ) -> FreshSource:
     result = result_by_url.get(url)
     title = result.title if result else url
     snippet = result.snippet if result else ""
     source_name = result.source if result else "explicit-url"
+    cached = cached_by_url.get(url)
     if browser_backend is None or not fetch:
         return FreshSource(title=title, url=url, snippet=snippet, source=source_name)
 
     try:
-        page = await browser_backend.fetch_page(url)
+        page = await _fetch_page(browser_backend, url, validators=cached.validators if cached else None)
+        if page.status_code == 304:
+            return _source_from_not_modified_page(
+                page,
+                fallback_title=title,
+                fallback_url=url,
+                snippet=snippet,
+                source_name=source_name,
+                browser_name=browser_backend.name,
+                cached=cached,
+            )
         if page.status_code and page.text.strip():
             return FreshSource(
                 title=page.title or title,
@@ -303,6 +367,8 @@ async def _source_from_url(
                 content=page.text,
                 source=f"{source_name}+{browser_backend.name}",
                 fetched=True,
+                etag=page.etag,
+                last_modified=page.last_modified,
             )
         return FreshSource(
             title=title,
@@ -320,6 +386,7 @@ async def _build_sources(
     *,
     result_by_url: dict[str, SearchResult],
     browser_backend: BrowserBackend | None,
+    cached_by_url: dict[str, CachedSource],
     max_fetches: int,
 ) -> tuple[FreshSource, ...]:
     sources: list[FreshSource] = []
@@ -333,10 +400,67 @@ async def _build_sources(
                 url,
                 result_by_url=result_by_url,
                 browser_backend=browser_backend,
+                cached_by_url=cached_by_url,
                 fetch=fetch,
             )
         )
     return tuple(sources)
+
+
+def _browser_accepts_validators(browser_backend: BrowserBackend) -> bool:
+    try:
+        parameters = inspect.signature(browser_backend.fetch_page).parameters
+    except (TypeError, ValueError):
+        return False
+    return "validators" in parameters or any(
+        param.kind is inspect.Parameter.VAR_KEYWORD for param in parameters.values()
+    )
+
+
+async def _fetch_page(
+    browser_backend: BrowserBackend,
+    url: str,
+    *,
+    validators: PageValidators | None,
+) -> PageContent:
+    if validators is not None and _browser_accepts_validators(browser_backend):
+        return await browser_backend.fetch_page(url, validators=validators)
+    return await browser_backend.fetch_page(url)
+
+
+def _source_from_not_modified_page(
+    page: PageContent,
+    *,
+    fallback_title: str,
+    fallback_url: str,
+    snippet: str,
+    source_name: str,
+    browser_name: str,
+    cached: CachedSource | None,
+) -> FreshSource:
+    if cached is None:
+        return FreshSource(
+            title=fallback_title,
+            url=page.url or fallback_url,
+            snippet=snippet,
+            source=f"{source_name}+{browser_name}",
+            error="conditional fetch returned 304 without cached source metadata",
+            not_modified=True,
+            etag=page.etag,
+            last_modified=page.last_modified,
+        )
+    return FreshSource(
+        title=page.title if page.title and page.title != "Not modified" else cached.title or fallback_title,
+        url=page.url or cached.url or fallback_url,
+        snippet=snippet,
+        content=cached.excerpt,
+        source=f"{source_name}+{browser_name}",
+        fetched=False,
+        etag=page.etag or cached.etag,
+        last_modified=page.last_modified or cached.last_modified,
+        not_modified=True,
+        content_hash_value=cached.content_hash,
+    )
 
 
 async def retrieve_fresh_context(
@@ -347,6 +471,7 @@ async def retrieve_fresh_context(
     config: FreshContextConfig | None = None,
     search_queries: tuple[str, ...] | None = None,
     mode: str = "fresh",
+    prior_source_pack: dict[str, object] | None = None,
 ) -> FreshContext:
     """Retrieve a bounded context pack for a local model.
 
@@ -362,10 +487,12 @@ async def retrieve_fresh_context(
         max_search_results=cfg.max_search_results,
     )
     urls, result_by_url = _retrieval_urls(query, search_results)
+    cached_by_url = cached_sources_from_pack(prior_source_pack)
     sources = await _build_sources(
         urls,
         result_by_url=result_by_url,
         browser_backend=browser_backend,
+        cached_by_url=cached_by_url,
         max_fetches=cfg.max_fetches,
     )
 
@@ -399,6 +526,7 @@ async def retrieve_deep_fresh_context(
     search_backend: SearchBackend | None = None,
     browser_backend: BrowserBackend | None = None,
     config: FreshContextConfig | None = None,
+    prior_source_pack: dict[str, object] | None = None,
 ) -> FreshContext:
     """Retrieve a deeper free-only source pack for local deep-context sync."""
     cfg = config or deep_fresh_context_config()
@@ -410,6 +538,7 @@ async def retrieve_deep_fresh_context(
         config=cfg,
         search_queries=search_queries,
         mode="deep",
+        prior_source_pack=prior_source_pack,
     )
 
 
@@ -428,12 +557,13 @@ def make_free_fresh_context_builder(
     free_search = search_backend or _default_free_search_backend()
     browser = browser_backend or BuiltinBrowserBackend()
 
-    async def build(query: str) -> FreshContext:
+    async def build(query: str, *, prior_source_pack: dict[str, object] | None = None) -> FreshContext:
         return await retrieve_fresh_context(
             query,
             search_backend=free_search,
             browser_backend=browser,
             config=cfg,
+            prior_source_pack=prior_source_pack,
         )
 
     return build
@@ -450,12 +580,13 @@ def make_free_deep_context_builder(
     free_search = search_backend or _default_free_search_backend()
     browser = browser_backend or BuiltinBrowserBackend()
 
-    async def build(query: str) -> FreshContext:
+    async def build(query: str, *, prior_source_pack: dict[str, object] | None = None) -> FreshContext:
         return await retrieve_deep_fresh_context(
             query,
             search_backend=free_search,
             browser_backend=browser,
             config=cfg,
+            prior_source_pack=prior_source_pack,
         )
 
     return build

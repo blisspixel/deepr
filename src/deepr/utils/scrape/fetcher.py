@@ -38,6 +38,8 @@ class FetchResult:
         success: bool = False,
         error: str | None = None,
         security_blocked: bool = False,
+        status_code: int = 0,
+        response_headers: dict[str, str] | None = None,
     ):
         self.url = url
         self.content = content  # Clean text content
@@ -46,6 +48,8 @@ class FetchResult:
         self.success = success
         self.error = error
         self.security_blocked = security_blocked
+        self.status_code = status_code
+        self.response_headers = response_headers or {}
 
 
 class ContentFetcher:
@@ -61,7 +65,7 @@ class ContentFetcher:
         self.config = config or ScrapeConfig.from_env()
         self.last_request_time = {}
 
-    def fetch(self, url: str) -> FetchResult:
+    def fetch(self, url: str, *, headers: dict[str, str] | None = None) -> FetchResult:
         """
         Fetch content from URL using adaptive strategy chain.
 
@@ -73,6 +77,7 @@ class ContentFetcher:
 
         Args:
             url: URL to fetch
+            headers: Optional HTTP headers for the first HTTP fetch strategy.
 
         Returns:
             FetchResult with content and metadata
@@ -107,7 +112,7 @@ class ContentFetcher:
 
         # HTTP as fast default for simple sites
         if self.config.try_http:
-            strategies.append(("HTTP", self._fetch_http))
+            strategies.append(("HTTP", lambda target: self._fetch_http(target, headers=headers)))
 
         # Playwright fallback for JS-heavy sites
         if PLAYWRIGHT_AVAILABLE and self.config.try_selenium:
@@ -171,7 +176,7 @@ class ContentFetcher:
         logger.warning("Proceeding anyway - set respect_robots=True to enforce")
         return True
 
-    def _fetch_http(self, url: str) -> FetchResult:
+    def _fetch_http(self, url: str, *, headers: dict[str, str] | None = None) -> FetchResult:
         """
         Fetch using simple HTTP request.
 
@@ -181,13 +186,14 @@ class ContentFetcher:
         Returns:
             FetchResult
         """
-        headers = {
+        request_headers = {
             "User-Agent": self.config.user_agent or random.choice(USER_AGENTS),
             "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
             "Accept-Language": "en-US,en;q=0.5",
             "Accept-Encoding": "gzip, deflate",
             "Connection": "keep-alive",
         }
+        request_headers.update(headers or {})
 
         for attempt in range(self.config.max_retries):
             try:
@@ -195,7 +201,7 @@ class ContentFetcher:
                 for redirect_count in range(MAX_SAFE_REDIRECTS + 1):
                     response = requests.get(
                         current_url,
-                        headers=headers,
+                        headers=request_headers,
                         timeout=self.config.timeout,
                         allow_redirects=False,
                     )
@@ -221,14 +227,25 @@ class ContentFetcher:
                 else:
                     return FetchResult(url=url, success=False, error="Too many redirects")
 
+                if response.status_code == 304:
+                    return FetchResult(
+                        url=current_url,
+                        strategy="HTTP",
+                        success=True,
+                        status_code=response.status_code,
+                        response_headers=dict(response.headers),
+                    )
+
                 response.raise_for_status()
 
                 return FetchResult(
-                    url=url,
+                    url=current_url,
                     html=response.text,
                     content=response.text,  # Will be cleaned by extractor
                     strategy="HTTP",
                     success=True,
+                    status_code=response.status_code,
+                    response_headers=dict(response.headers),
                 )
 
             except requests.exceptions.RequestException as e:

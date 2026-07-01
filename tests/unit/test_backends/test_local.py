@@ -88,6 +88,21 @@ class TestResearchFn:
         assert result["fresh_context"] == {"source_count": 1}
         assert result["source_pack"] == {"schema_version": "deepr.source_pack.v1", "source_count": 1}
 
+    async def test_passes_prior_source_pack_to_context_builder_when_supported(self):
+        prior_pack = {"sources": [{"url": "https://example.com", "etag": '"abc"'}]}
+        seen = {}
+
+        async def context_builder(query, *, prior_source_pack=None):
+            seen["query"] = query
+            seen["prior_source_pack"] = prior_source_pack
+            return "ctx"
+
+        fn = local.make_local_research_fn("qwen", client=_FakeClient(content="ok"), context_builder=context_builder)
+        result = await fn("q", 1.0, prior_source_pack=prior_pack)
+
+        assert result["answer"] == "ok"
+        assert seen == {"query": "q", "prior_source_pack": prior_pack}
+
     async def test_errors_are_reported_not_raised(self):
         fn = local.make_local_research_fn("qwen", client=_FakeClient(error=RuntimeError("boom")))
         result = await fn("q", 1.0)
