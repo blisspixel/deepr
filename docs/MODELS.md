@@ -1,265 +1,272 @@
 # Model Selection Guide
 
-> **Note**: The [model registry](../deepr/providers/registry.py) is the single source of truth for model names and pricing. AI models evolve rapidly, so verify at provider websites. Run `deepr providers models` to diff the registry against each provider's live model list (flags newer versions of families you already use, with paste-ready registry stubs), or `python scripts/discover_models.py --show-registry` to see all registered models with pricing.
+Status: current with Deepr v2.27.0. Last reviewed: 2026-06-30.
 
-## Overview
+The source of truth for model IDs, pricing estimates, context windows, and
+routing metadata is [src/deepr/providers/registry.py](../src/deepr/providers/registry.py).
+This guide explains how to use that registry safely. Provider docs and prices
+change faster than prose, so treat this document as an operating guide, not a
+billing authority.
 
-**Deepr works with just one API key.** Add more keys and auto mode routes each query to the best available model - cheap for simple lookups, powerful for deep research.
+## Operating Rules
 
-Deepr uses a hybrid approach optimizing for both quality and cost. Different tasks benefit from different models, and auto mode handles the routing automatically based on which providers you have configured.
+- Run `python scripts/discover_models.py --show-registry` to see the local
+  registry. This command is offline and does not call providers.
+- Run `deepr providers models` or `python scripts/discover_models.py` only when
+  you intentionally want live provider model-list checks. API discovery lists
+  model names only; most provider APIs do not expose pricing.
+- Treat `python scripts/discover_models.py --llm` as an explicit model call.
+  Estimate cost first and do not use it as a default refresh path.
+- Use `deepr research ... --dry-run` or the web preflight estimate before any
+  metered research.
+- Prefer local Ollama and admitted plan-quota capacity for routine maintenance.
+  Metered APIs are the premium path and require explicit budget gates.
+- Premium image generation is never a background default. Deepr only
+  auto-selects local image endpoints for portraits; OpenAI, Gemini, and xAI
+  image generation require explicit provider selection or the single premium
+  auto opt-in `DEEPR_ALLOW_METERED_IMAGE_AUTO=1`.
 
-## Provider Landscape
+## Current Deepr Registry Snapshot
 
-### OpenAI (`OPENAI_API_KEY`)
-- **Deep Research**: Turnkey async Deep Research API via Responses endpoint
-- **Models**: o3-deep-research, o4-mini-deep-research, GPT-5.5, GPT-5.4, GPT-5.4-pro, GPT-5.4-mini, GPT-5.4-nano, GPT-5-mini, GPT-4.1, GPT-4.1-mini
-- **Best for**: Deep research, planning, expert system (vector stores require OpenAI-compatible API)
-- **Note**: GPT-5.4 is the current mainline default; use GPT-5.4-pro for hardest tasks and GPT-5-mini for value
+The registry currently contains 55 models across OpenAI, Gemini, xAI,
+Anthropic, and Azure AI Foundry. The list below mirrors the registry on
+2026-06-30; run the command above for exact pricing and context values.
 
-### Google Gemini (`GEMINI_API_KEY`)
-- **Deep Research**: Native Deep Research Agent via Interactions API (async background jobs)
-- **Models**: Gemini 3.1 Pro Preview (default), Gemini 3.5 Flash, Gemini 3 Flash, Gemini 3.1 Flash-Lite (GA), Gemini 2.5 Flash, Deep Research Agent (`deep-research-pro-preview-12-2025`)
-- **Best for**: Large context windows (1M+ tokens), document analysis, cost-effective research, agentic workflows
-- **Note**: Gemini 3.5 Flash (GA May 19, 2026, Google I/O 2026) is the newest Flash generation - it beats Gemini 3.1 Pro on coding/agentic/multimodal benchmarks at ~4x faster output, priced at $1.50/$9.00 per MTok
+### OpenAI
 
-### xAI Grok (`XAI_API_KEY`)
-- **Deep Research**: Grok 4.20 Multi-Agent (4-16 parallel agents with autonomous tool use)
-- **Models**: Grok 4.3 (flagship), Grok 4.20 Reasoning, Grok 4.20 Non-Reasoning, Grok 4.20 Multi-Agent
-- **Best for**: Grok 4.3 tops leaderboards in agentic tool calling and instruction following; Grok 4.20 remains a research/freshness tier; real-time web + X search. Use the registry for current token rates.
-- **Note**: Grok 4.3 is xAI's latest flagship with reasoning effort control (low/medium/high). Grok 4.20 remains the multi-agent deep research workhorse.
+Environment variable: `OPENAI_API_KEY`
 
-#### Grok 4.3 (Flagship)
+Registered IDs:
 
-| Feature | Details |
-|---------|---------|
-| Pricing | $1.25/1M input tokens, $2.50/1M output tokens |
-| Context Window | 1,000,000 tokens |
-| Capabilities | Reasoning (low/medium/high effort), agentic tool calling, instruction following |
-| Strengths | #1 on agentic tool calling and instruction following leaderboards |
-| Reasoning Effort | `low` (fast, cheap), `medium` (default), `high` (deep multi-step reasoning) |
+- `openai/gpt-5.5`
+- `openai/gpt-5.5-pro`
+- `openai/gpt-5.4`
+- `openai/gpt-5.4-pro`
+- `openai/gpt-5.4-mini`
+- `openai/gpt-5.4-nano`
+- `openai/gpt-5.2`
+- `openai/gpt-5`
+- `openai/gpt-5-mini`
+- `openai/gpt-5-nano`
+- `openai/gpt-4.1`
+- `openai/gpt-4.1-mini`
+- `openai/gpt-4.1-nano`
+- `openai/o3`
+- `openai/o4-mini`
+- `openai/o3-deep-research`
+- `openai/o4-mini-deep-research`
 
-```bash
-# Use Grok 4.3 with default reasoning effort (medium)
-deepr research "Topic" --model xai/grok-4-3
+Default posture:
 
-# Specify reasoning effort for complex tasks
-deepr research "Complex multi-step analysis" --model xai/grok-4-3  # auto-routes to high effort in auto mode
-```
+- Use GPT mainline models for synthesis, planning, and general research when
+  OpenAI is the selected provider.
+- Use Deep Research models only for explicitly deep, async research workloads
+  with a budget ceiling.
+- Use mini or nano variants for cheap classification, summaries, and routing
+  only when quality risk is acceptable.
 
-#### Deprecated Grok Models (Retiring May 15, 2026)
+Manual verification:
 
-The following legacy models will stop accepting API requests on **May 15, 2026 at 12:00pm PT**. Deepr auto-migrates requests to their successors transparently.
+- Models: <https://platform.openai.com/docs/models>
+- Pricing: <https://platform.openai.com/docs/pricing>
 
-| Deprecated Model | Successor | Migration Notes |
-|-----------------|-----------|-----------------|
-| grok-4-1-fast-reasoning | xai/grok-4-3 | Reasoning workloads -> Grok 4.3 |
-| grok-4-fast-reasoning | xai/grok-4-3 | Reasoning workloads -> Grok 4.3 |
-| grok-4-0709 | xai/grok-4-3 | Reasoning workloads -> Grok 4.3 |
-| grok-3 | xai/grok-4-3 | Reasoning workloads -> Grok 4.3 |
-| grok-code-fast-1 | xai/grok-4-3 | Code workloads -> Grok 4.3 |
-| grok-4-1-fast-non-reasoning | xai/grok-4-20-non-reasoning | Non-reasoning workloads -> Grok 4.20 Non-Reasoning |
-| grok-4-fast-non-reasoning | xai/grok-4-20-non-reasoning | Non-reasoning workloads -> Grok 4.20 Non-Reasoning |
-| grok-imagine-image-pro | xai/grok-imagine-image | Image generation -> Grok Imagine Image |
+### Google Gemini
 
-**Migration recommendations:**
-- **Reasoning workloads** -> `xai/grok-4-3` (better quality, competitive pricing)
-- **Non-reasoning workloads** -> `xai/grok-4-20-non-reasoning` (optimized for throughput)
-- **Image generation** -> `xai/grok-imagine-image` (direct successor). Deepr does
-  not auto-select paid image generation from `XAI_API_KEY`; use an explicit
-  portrait provider or `DEEPR_ALLOW_METERED_IMAGE_AUTO=1`.
+Environment variable: `GEMINI_API_KEY`
 
-### Anthropic Claude (`ANTHROPIC_API_KEY`)
-- **Deep Research**: No turnkey API - uses Extended Thinking + tool use + web search orchestration
-- **Models**: Claude Fable 5, Claude Sonnet 5, Claude Opus 4.8, Claude Opus 4.7, Claude Opus 4.6, Claude Sonnet 4.6, Claude Sonnet 4.5, Claude Haiku 4.5
-- **Best for**: Complex reasoning with transparent thinking, coding tasks, nuanced analysis
-- **Note**: Opus 4.8 (GA May 28, 2026) is the recommended research flagship (~$0.85/query, $5/$25 per MTok). Claude Fable 5 ($10/$50 per MTok, ~$2.20/query) is the frontier tier above Opus - most capable, but its new tokenizer uses ~30% more tokens for the same text, its safety classifiers can refuse cyber/bio research topics, and it requires 30-day data retention; opt in deliberately. Sonnet 5 is the current balanced Claude default for chat, synthesis, and coding, with a 1M context window, 128K max output, and adaptive thinking. Deepr estimates Sonnet 5 at standard post-intro pricing ($3/$15 per MTok) so budget checks stay conservative; Anthropic's current docs list lower introductory pricing through 2026-08-31. Fable 5, Sonnet 5, Opus 4.6+, and Sonnet 4.6 use Adaptive Thinking (the provider sends `{"type": "adaptive"}` automatically for the research provider; legacy models keep budgeted Extended Thinking). Requires a web search backend (Brave, Tavily, or DuckDuckGo)
+Registered IDs:
 
-### Azure OpenAI (`AZURE_OPENAI_KEY`)
-- **Models**: Same as OpenAI, deployed through Azure
-- **Best for**: Enterprise environments with Azure compliance requirements
-- **Note**: Requires Azure AD credentials or managed identity; set `AZURE_OPENAI_ENDPOINT` and `AZURE_OPENAI_KEY`
+- `gemini/gemini-3.5-flash`
+- `gemini/gemini-3-flash-preview`
+- `gemini/gemini-3.1-flash-lite`
+- `gemini/gemini-3.1-flash-lite-preview`
+- `gemini/gemini-3.1-pro-preview`
+- `gemini/gemini-3-pro-preview`
+- `gemini/deep-research`
+- `gemini/gemini-2.5-pro`
+- `gemini/gemini-2.5-flash`
+- `gemini/gemini-2.5-flash-lite`
 
-### Azure AI Foundry (`AZURE_PROJECT_ENDPOINT`)
-- **Deep Research**: o3-deep-research via Agent Service with Bing grounding
-- **Models**: o3-deep-research, GPT-5, GPT-5-mini, GPT-4.1, GPT-4.1-mini, GPT-4o, GPT-4o-mini
-- **Best for**: Enterprise deep research with Bing web grounding, Azure compliance
-- **Auth**: Azure AD / Managed Identity via `DefaultAzureCredential` (no API key option)
-- **Architecture**: Agent/Thread/Run pattern for deep research; lightweight agents for regular models
-- **Note**: Deep research limited to West US / Norway East / South Central US; GPT models available in 20+ regions via Global Standard deployment
+Default posture:
 
-| Model | Cost/Query | Context | Regions | Use Case |
-|-------|-----------|---------|---------|----------|
-| o3-deep-research | $0.50 | N/A | 3 regions | Enterprise deep research with Bing |
-| GPT-5 | $0.15 | 400K | 10+ (Global Standard) | Frontier reasoning and synthesis |
-| GPT-5-mini | $0.03 | 400K | Global Standard | Cost-effective GPT-5 alternative |
-| GPT-4.1 | $0.04 | 1M+ | 19 regions (widest) | Long-context analysis, planning |
-| GPT-4.1-mini | $0.01 | 1M+ | 19 regions | Budget long-context tasks |
-| GPT-4o | $0.03 | 128K | Global Standard | General multimodal |
-| GPT-4o-mini | $0.005 | 128K | Global Standard | Cheapest option |
+- Use Gemini for large-context document work and cost-sensitive multimodal or
+  research workflows when the registry price and quality floor fit the task.
+- Treat preview IDs as volatile. Re-check official docs before making them a
+  default for durable workflows.
+- Keep Gemini image generation explicit. The registry's text/research support
+  does not mean portraits or other image calls should run automatically.
 
-#### Azure Foundry Setup Guide
+Manual verification:
 
-**Prerequisites:**
-1. An Azure subscription with Azure AI Foundry access
-2. A project created in Azure AI Foundry (formerly Azure AI Studio)
-3. Model deployments provisioned (Global Standard or Provisioned Throughput)
-4. Azure CLI installed and authenticated (`az login`)
+- Models: <https://ai.google.dev/gemini-api/docs/models>
+- Pricing: <https://ai.google.dev/gemini-api/docs/pricing>
 
-**Configuration:**
+### xAI Grok
 
-```bash
-# Required: Azure AI Foundry project endpoint
-AZURE_PROJECT_ENDPOINT=https://your-project.services.ai.azure.com/api/projects/your-project-id
+Environment variable: `XAI_API_KEY`
 
-# Optional: Override default model deployments
-AZURE_DEEP_RESEARCH_DEPLOYMENT=o3-deep-research    # Default
-AZURE_GPT_DEPLOYMENT=gpt-4.1                       # Default
-AZURE_BING_RESOURCE_NAME=your-bing-connection      # For Bing grounding
-```
+Registered IDs:
 
-**Authentication:** Azure Foundry uses `DefaultAzureCredential` (Azure AD). No API key option. For local development, run `az login`. In production, use Managed Identity.
+- `xai/grok-4-3`
+- `xai/grok-4-20-reasoning`
+- `xai/grok-4-20-non-reasoning`
+- `xai/grok-4-20-multi-agent`
+- `xai/grok-4-1-fast-reasoning`
+- `xai/grok-4-1-fast-non-reasoning`
+- `xai/grok-4-fast-reasoning`
+- `xai/grok-4-fast-non-reasoning`
+- `xai/grok-code-fast-1`
+- `xai/grok-4-0709`
+- `xai/grok-3`
+- `xai/grok-imagine-image-pro`
 
-**Agent/Thread/Run Pattern:**
+Default posture:
 
-Azure Foundry uses the Agent Service pattern for all operations:
-1. **Agent** - A reusable model configuration with tools (created once, cached)
-2. **Thread** - A conversation context (created per research job)
-3. **Run** - An execution of the agent on a thread (one per query)
+- Prefer current Grok text models for explicitly selected xAI research and
+  freshness-oriented work when the budget estimate fits.
+- Legacy Grok IDs remain in the registry for migration and compatibility. Do
+  not present them as preferred new defaults.
+- `xai/grok-imagine-image-pro` is a premium image model. Deepr must not call it
+  for background portraits, demo data, profile refresh, or screenshots.
 
-Deep research agents include `DeepResearchTool` + `BingGroundingTool`. Regular agents use a lightweight configuration without research tools.
+Manual verification:
 
-**o3-deep-research with Bing Grounding:**
+- Models: <https://docs.x.ai/docs/models>
+- Pricing: <https://docs.x.ai/docs/pricing>
 
-To enable Bing-grounded deep research:
-1. Create a Bing Search resource in Azure Portal
-2. Add a Bing connection in your Azure AI Foundry project
-3. Set `AZURE_BING_RESOURCE_NAME` to the connection name
-4. Deploy `o3-deep-research` in a supported region (West US, Norway East, or South Central US)
+### Anthropic Claude
 
-```bash
-# Example usage
-deepr run focus "Market analysis of EV batteries" --provider azure --model o3-deep-research
-```
+Environment variable: `ANTHROPIC_API_KEY`
 
-The agent automatically uses Bing web grounding to find and cite current sources. Citations are returned in standard Deepr format.
+Registered IDs:
 
-**Pricing:** Azure Foundry pricing follows Azure AI Services rates. See [Azure AI Services pricing](https://azure.microsoft.com/pricing/details/cognitive-services/) for current per-token costs. The cost/query estimates above assume typical research workloads.
+- `anthropic/claude-fable-5`
+- `anthropic/claude-sonnet-5`
+- `anthropic/claude-opus-4-8`
+- `anthropic/claude-opus-4-7`
+- `anthropic/claude-opus-4-6`
+- `anthropic/claude-opus-4-5`
+- `anthropic/claude-sonnet-4-6`
+- `anthropic/claude-sonnet-4-5`
+- `anthropic/claude-haiku-4-5`
 
-## Model Selection by Task
+Default posture:
 
-| Task | Recommended Model | Cost/query | Latency | Notes |
-|------|-------------------|-----------|---------|-------|
-| Deep Research (OpenAI) | o3-deep-research | see registry | 5-20 min | Async, highest-quality deep research baseline |
-| Deep Research (Gemini) | deep-research-pro-preview | ~$2.50 | 5-20 min | Async, Google Search built-in, powered by Gemini 3.1 Pro |
-| Deep Research (Azure) | o3-deep-research | $0.50 | 5-20 min | Bing grounding, enterprise |
-| Deep Research (xAI) | grok-4.20-multi-agent | see registry | 30-120s | 4/16 parallel agents, web + X search |
-| Complex Research | gpt-5.4 | see registry | ~seconds to minutes | strong reasoning/synthesis default |
-| Agentic / Tool Calling | Grok 4.3 | ~$0.08 | ~2s | #1 agentic tool calling + instruction following |
-| Quality Research (xAI) | Grok 4.20 Reasoning | see registry | ~3s | Flagship xAI, lowest hallucination rate |
-| Planning/Curriculum | GPT-4.1 | $0.04 | ~2s | 1M+ context, cost-effective |
-| Quick Lookups | Grok 4.20 Non-Reasoning | see registry | ~1s | best value for freshness/citation tasks |
-| Latest News / Web | Grok 4.20 Non-Reasoning | see registry | ~1s | real-time web + strong value |
-| Large Documents | Gemini 3.1 Pro | $0.20* | ~40s | 1M token context, configurable thinking |
-| Fast Coding / Agentic | Gemini 3.5 Flash | ~$0.03 | ~1.5s | Beats 3.1 Pro on coding/agentic at Flash speed ($1.50/$9.00 per MTok) |
-| Coding Tasks | Claude Sonnet 5 | $0.48 | ~3s | Current balanced Claude default; estimates use standard $3/$15 per MTok |
-| Complex Reasoning | Claude Opus 4.8 | see registry | ~seconds | Recommended research flagship |
-| Budget General | GPT-4.1-mini | $0.01 | ~1s | Cheapest OpenAI, 1M context |
+- `claude-sonnet-5` is Deepr's balanced Anthropic chat and synthesis default.
+- `claude-opus-4-8` is the registered Anthropic research flagship when an
+  explicit budget supports a higher-cost call.
+- `claude-fable-5` is a frontier, premium tier. It should be selected
+  deliberately, not by background routing.
+- Adaptive-thinking capable models are handled by the Anthropic provider; do
+  not hardcode unsupported sampling or thinking parameters outside the
+  provider adapter.
 
-*\*Gemini 3.1 Pro has tiered pricing: $2/$12 per 1M tokens (input/output) for prompts ≤200K tokens, $4/$18 for prompts >200K tokens. The $0.20/query estimate assumes a typical sub-200K prompt. Large document analysis (250K+ tokens) costs roughly 2x more - e.g., a 500K-token corpus costs ~$2.27 vs ~$1.18 with sub-200K prompts. Use `--dry-run` to check before running.*
+Manual verification:
 
-## Cost Optimization Strategy
+- Models: <https://docs.anthropic.com/en/docs/about-claude/models/overview>
+- Pricing: <https://docs.anthropic.com/en/docs/about-claude/pricing>
+- Extended and adaptive thinking:
+  <https://docs.anthropic.com/en/docs/build-with-claude/extended-thinking>
 
-**The 80/20 Rule**: Use fast/cheap models for 80% of operations, reserve expensive models for the 20% that need them.
+### Azure AI Foundry and Azure OpenAI
 
-### Deep Research (~20% of operations)
-- **Models**: o4-mini-deep-research, o3-deep-research, Gemini Deep Research Agent, Grok 4.20 Multi-Agent
-- **Cost**: see registry for current provider rates; multi-agent xAI cost scales with agent count
-- **Use for**: Novel problem-solving, critical decisions, complex synthesis
-- **Note**: OpenAI and Gemini use async background jobs; Grok 4.20 multi-agent uses 4/16 parallel agents
+Environment variables:
 
-### Fast/General Operations (~80% of operations)
-- **Models**: Grok 4.20 Non-Reasoning, Grok 4.3 (low effort), Gemini 2.5 Flash
-- **Cost**: usually lower than deep research; use `--dry-run` or the registry-backed estimator before spending
-- **Use for**: News, docs, team research, learning, expert chat, planning
+- `AZURE_PROJECT_ENDPOINT` for Azure AI Foundry Agent Service.
+- `AZURE_OPENAI_ENDPOINT` and `AZURE_OPENAI_KEY` for Azure OpenAI compatible
+  deployments.
 
-**Result**: Using fast models for routine operations reduces total costs by ~90%.
+Registered Azure AI Foundry IDs:
 
-## Deepr's Model Usage
+- `azure-foundry/o3-deep-research`
+- `azure-foundry/gpt-5`
+- `azure-foundry/gpt-5-mini`
+- `azure-foundry/gpt-4.1`
+- `azure-foundry/gpt-4.1-mini`
+- `azure-foundry/gpt-4o`
+- `azure-foundry/gpt-4o-mini`
 
-### Research Commands
-```bash
-# Uses deep research routing defaults (see config + benchmark preferences)
-deepr research "Complex topic"
+Default posture:
 
-# Override with specific model
-deepr research "Topic" --model openai/o3-deep-research
+- Azure model availability is deployment and region dependent. The registry
+  names Deepr-tested deployment targets, not every model Microsoft may expose
+  in a given subscription.
+- Use Azure AI Foundry deep research only when Bing grounding, enterprise
+  controls, and Azure identity are intentional requirements.
+- Refresh Azure registry entries only after adapter behavior and deployment
+  names are tested locally or in CI-like validation.
 
-# Use Gemini Deep Research Agent
-deepr research "Topic" --model gemini-deep-research
-```
+Manual verification:
 
-### Expert System
-- **Campaign mode (deep)**: o3-deep-research / o4-mini-deep-research (provider + budget dependent)
-- **Focus mode (quick)**: GPT-4.1 ($0.04/query, 1M+ context)
-- **Expert chat**: Provider-dependent (OpenAI for vector store experts)
-- **Quick lookups**: Grok 4.20 Non-Reasoning when `XAI_API_KEY` is available; use the registry-backed estimator before spending
+- Azure OpenAI models:
+  <https://learn.microsoft.com/azure/ai-foundry/openai/concepts/models>
+- Azure AI Foundry Agent Service:
+  <https://learn.microsoft.com/azure/ai-foundry/agents/overview>
+- Azure AI Services pricing:
+  <https://azure.microsoft.com/pricing/details/cognitive-services/>
 
-### Adaptive Routing
-Deepr's model router (`src/deepr/experts/router.py`) automatically selects models based on:
-- Query complexity
-- Budget remaining
-- Task type (factual vs reasoning)
-- Context size
+## Selection by Workload
 
-## Provider Configuration
+| Workload | Preferred capacity order | Notes |
+|----------|--------------------------|-------|
+| Scheduled expert maintenance | Local admitted model, then observed non-metered plan quota, then explicit metered API | Background loops should wait or skip before spending. |
+| Quick lookup or lightweight synthesis | Cheapest capable registered model from configured provider, or local/plan backend if admitted | Keep quality floor and budget estimate visible. |
+| Large document analysis | Gemini, GPT long-context, or Claude long-context depending on configured keys and registry estimate | Use dry-run for large prompts. |
+| Deep research | OpenAI Deep Research, Gemini Deep Research, xAI multi-agent, or Azure Foundry deep research | Always explicit, async where applicable, budget-capped. |
+| Expert consult chat | Selected `ExpertChatBackend` from local, plan, or explicit API capacity | Tools and streaming depend on backend capability declarations. |
+| Portraits and images | Existing portrait, local image endpoint, then explicit premium provider | Do not regenerate repeatedly or in background. |
 
-**You only need one key to start.** Set any of these in `.env`:
+## Safe Refresh Workflow
 
-```bash
-# Pick one to get started - add more later for smarter routing
-OPENAI_API_KEY=sk-...                   # Deep research + GPT models
-GEMINI_API_KEY=...                      # Cost-effective, large context
-XAI_API_KEY=...                         # Cheapest, real-time web search
-ANTHROPIC_API_KEY=...                   # Complex reasoning, coding
+1. Check official provider docs and pricing pages linked above.
+2. Run `python scripts/discover_models.py --show-registry` to confirm current
+   local entries.
+3. Run `deepr providers models` for a live model-list diff only when provider
+   keys are intentionally available.
+4. Update only `src/deepr/providers/registry.py` for model names, prices,
+   context windows, and routing metadata.
+5. Add or update provider-adapter tests when a model needs changed API
+   parameters, thinking controls, streaming behavior, tool policy, or usage
+   settlement.
+6. Update docs qualitatively. Avoid duplicating exact prices outside the
+   registry unless the text is explicitly a dated snapshot.
+7. Run the no-key unit gate. Live provider validation stays explicit and
+   opt-in.
 
-# Enterprise options
-# AZURE_OPENAI_ENDPOINT=https://your-resource.openai.azure.com
-# AZURE_OPENAI_KEY=...
-# AZURE_PROJECT_ENDPOINT=https://your-project.services.ai.azure.com/...
-```
+## Cost and Capacity Policy
 
-Auto mode detects which keys are configured and routes accordingly. With one key, all queries go to that provider. With multiple keys, simple queries go to the cheapest provider and complex queries go to the most capable one.
+Deepr's default stance is no surprise bills:
 
-## Model Registry
+- Local Ollama is `$0` marginal cost but still consumes hardware and must pass
+  task-specific admission before automatic routing.
+- Plan-quota CLIs are treated as non-metered only when auth mode and quota
+  observation support that claim. A CLI authenticated by an API key is refused
+  as plan capacity.
+- Metered provider APIs require estimates, reservations, budget ceilings, and
+  append-only settlement.
+- Provider-reported usage is not optional for settlement. Missing or
+  unpriceable usage must fail closed or use conservative registry pricing.
+- Image generation is premium unless it is a local endpoint. Background
+  profile updates and screenshots should reuse existing portraits or local
+  demo assets.
 
-All model definitions live in `src/deepr/providers/registry.py`. This is the single source of truth.
+## Known Gaps
 
-**When new models are released**: Update ONLY the registry. Never hardcode model names elsewhere in the codebase.
-
-## Keeping Current
-
-AI models change frequently. Deepr includes a discovery script to check for new models:
-
-```bash
-# Show current registry
-python scripts/discover_models.py --show-registry
-
-# Check live APIs for new models (uses your configured keys)
-python scripts/discover_models.py
-
-# Use LLM (Grok preferred) to look up latest models + pricing
-python scripts/discover_models.py --llm
-```
-
-Provider docs for manual verification:
-- OpenAI: https://platform.openai.com/docs/models
-- xAI: https://x.ai/api
-- Google: https://ai.google.dev/models
-- Anthropic: https://docs.anthropic.com/claude/docs/models-overview
-- Azure AI Foundry: https://learn.microsoft.com/azure/ai-services/agents/
+- The model-freshness loop is still manual. The roadmap keeps the automated
+  periodic discovery and opt-in registry update flow open.
+- Azure model availability is region and deployment specific. Registry support
+  should lag official listings until deployment behavior is verified.
+- Provider docs may expose invitation-only, preview, or product-surface models
+  that Deepr should not register until API behavior, pricing, and safety gates
+  are clear.
+- Registry support does not imply automatic routing. A model becomes an
+  automatic candidate only when backend capability declarations, quality
+  priors, budget gates, usage settlement, and tests support the task.
 
 ## See Also
 
-- [ARCHITECTURE.md](ARCHITECTURE.md) - Technical architecture
-- [FEATURES.md](FEATURES.md) - Feature guide with model options
-- [../ROADMAP.md](../ROADMAP.md) - Development priorities
+- [FEATURES.md](FEATURES.md) - feature guide with model-related commands
+- [CAPACITY.md](CAPACITY.md) - local, plan-quota, metered API, and scheduler
+  capacity rules
+- [BENCHMARKS.md](BENCHMARKS.md) - scoring and model-quality evidence
+- [../ROADMAP.md](../ROADMAP.md) - active model-freshness and capacity work

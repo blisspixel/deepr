@@ -38,9 +38,11 @@ import sys
 from dataclasses import asdict, dataclass
 from pathlib import Path
 
-# Add project root to path so we can import deepr modules
+# Add src-layout package root to path so importing registry dependencies works
+# when the script is run from a checkout without an editable install.
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
-sys.path.insert(0, str(PROJECT_ROOT))
+SRC_ROOT = PROJECT_ROOT / "src"
+sys.path.insert(0, str(SRC_ROOT))
 
 # Load .env so keys configured there (not just exported in the shell) are
 # visible - otherwise discovery silently skips providers like Anthropic/Azure.
@@ -92,7 +94,10 @@ def load_registry() -> dict[str, RegistryModel]:
     """Load current model registry."""
     import importlib.util
 
-    spec = importlib.util.spec_from_file_location("registry", PROJECT_ROOT / "deepr" / "providers" / "registry.py")
+    registry_path = SRC_ROOT / "deepr" / "providers" / "registry.py"
+    spec = importlib.util.spec_from_file_location("registry", registry_path)
+    if spec is None or spec.loader is None:
+        raise RuntimeError(f"Could not load model registry from {registry_path}")
     mod = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(mod)
 
@@ -772,14 +777,14 @@ def _registry_stub(m: DiscoveredModel) -> str:
         f'    "{m.provider}/{m.model_id}": ModelCapability(\n'
         f'        provider="{m.provider}",\n'
         f'        model="{m.model_id}",\n'
-        f"        cost_per_query=0.0,  # TODO: estimate per-query cost\n"
-        f"        latency_ms=2000,  # TODO: measure\n"
-        f"        context_window={cw if cw else 'TODO'},\n"
-        f"        specializations=[],  # TODO\n"
-        f"        strengths=[],  # TODO\n"
+        f"        cost_per_query=0.0,  # review against provider pricing before use\n"
+        f"        latency_ms=2000,  # measure before use\n"
+        f"        context_window={cw},  # verify before use when provider omitted context\n"
+        f"        specializations=[],  # classify before use\n"
+        f"        strengths=[],  # summarize verified strengths before use\n"
         f"        weaknesses=[],\n"
-        f"        input_cost_per_1m=0.0,  # TODO: from provider pricing page\n"
-        f"        output_cost_per_1m=0.0,  # TODO: from provider pricing page\n"
+        f"        input_cost_per_1m=0.0,  # review provider pricing before use\n"
+        f"        output_cost_per_1m=0.0,  # review provider pricing before use\n"
         f"    ),"
     )
 
@@ -857,7 +862,7 @@ def print_comparison_report(
 
     # Draft registry stubs for the relevant new models.
     if emit_stubs and highlighted:
-        print("\n  SUGGESTED REGISTRY ENTRIES (fill in TODOs, then paste into registry.py):")
+        print("\n  SUGGESTED REGISTRY ENTRIES (review fields before pasting into registry.py):")
         print("  " + "─" * 66)
         for m in highlighted:
             print(_registry_stub(m))

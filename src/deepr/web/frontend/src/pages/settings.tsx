@@ -321,7 +321,11 @@ export default function Settings() {
                       Clear
                     </button>
                     <button
-                      onClick={() => loadDemoMutation.mutate()}
+                      onClick={() => {
+                        if (window.confirm('Load demo data? This clears queued/completed jobs and reports, then seeds sample experts and jobs.')) {
+                          loadDemoMutation.mutate()
+                        }
+                      }}
                       disabled={loadDemoMutation.isPending}
                       className="inline-flex items-center gap-2 px-4 py-2 bg-secondary text-secondary-foreground rounded-lg text-sm font-medium hover:bg-secondary/80 transition-colors disabled:opacity-50"
                     >

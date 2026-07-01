@@ -7,17 +7,18 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 
 // Port + appearance are configurable so the QA loop can run against whatever
 // port vite picked and capture both themes / a chosen accent.
-//   QA_BASE=http://localhost:3002 QA_THEME=dark QA_ACCENT=indigo node screenshot-qa.mjs
+//   QA_BASE=http://localhost:3002 QA_API=http://localhost:5002 QA_THEME=dark QA_ACCENT=indigo node screenshot-qa.mjs
 const BASE = process.env.QA_BASE || 'http://localhost:3000';
 const API = process.env.QA_API || 'http://localhost:5000';
 const THEME = process.env.QA_THEME || 'light';
 const ACCENT = process.env.QA_ACCENT || 'teal';
+const apiUrl = (path) => `${API.replace(/\/+$/, '')}${path}`;
 
 const screenshotDir = join(__dirname, 'screenshots', THEME === 'dark' ? 'dark' : 'light');
 mkdirSync(screenshotDir, { recursive: true });
 
 // Fetch a valid job ID from the running backend
-const configResp = await fetch(`${API}/api/jobs?limit=20`);
+const configResp = await fetch(apiUrl('/api/jobs?limit=20'));
 const configData = await configResp.json();
 // Prefer a completed job so detail/trace pages have content
 const jobs = configData.jobs || [];
@@ -26,7 +27,7 @@ const JOB_ID = (jobs.find(j => (j.status || '').toLowerCase() === 'completed') |
 // Pick an expert dynamically - prefer one with documents (rich profile page)
 let EXPERT_NAME = 'Behavioral Economics';
 try {
-  const expertsResp = await fetch('http://localhost:5000/api/experts');
+  const expertsResp = await fetch(apiUrl('/api/experts'));
   const expertsData = await expertsResp.json();
   const experts = expertsData.experts || expertsData || [];
   const rich = experts.find(e => (e.total_documents || e.documents || 0) >= 5) || experts[0];

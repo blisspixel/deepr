@@ -40,6 +40,7 @@
 | [Agentic Balance](docs/plans/AGENTIC_BALANCE.md) | **Read before adding a rule or making something agentic** - what deepr hardcodes vs lets the model decide |
 | [Level 5/6 Expert Maturity](docs/design/level-5-6-expert-maturity.md) | Concrete gates for bounded self-improving experts, self-models, metacognitive monitoring, and the expert-fleet control plane |
 | [Architecture](docs/ARCHITECTURE.md) | Technical details, security, observability |
+| [Security Threat Model](docs/security/THREAT_MODEL.md) | Trust boundaries, attacker stories, mitigations, and severity calibration |
 | [Supported Surface](docs/SUPPORTED_SURFACE.md) | Stable, experimental, planned, and export guarantees |
 | [Changelog](docs/CHANGELOG.md) | Release history with migration notes |
 | [Vision](docs/VISION.md) | Long-term direction (v3.0+) |
@@ -211,7 +212,7 @@ These features work but APIs or behavior may change:
 - **Evidence layer** (v2.15): `deepr eval continuity` (staleness honesty / abstention / contradiction-surfacing / what-changed exactness / temporal edge qualifier visibility in read and generated-digest surfaces, measured from stored state at $0) and `deepr eval calibrate` (does extraction confidence track grounding? reliability curve + ECE + Platt threshold; `--from` graded pairs at $0, `--corpus` runs the paid extraction + pre-grade). First curve in [docs/CALIBRATION.md](docs/CALIBRATION.md)
 - **Auto-fallback**: Provider failover works, but circuit breaker tuning is ongoing
 - **Cloud deployment templates**: AWS/Azure/GCP templates provided but not battle-tested at scale
-- **Grok provider**: Grok 4.20 flagship + multi-agent deep research (plus Grok 4.3); legacy models deprecated (retiring May 15, 2026) with auto-migration
+- **Grok provider**: Grok 4.20 flagship + multi-agent deep research (plus Grok 4.3); legacy models remain compatibility and migration entries, not preferred defaults
 - **Anthropic provider**: Uses Extended Thinking + orchestration (no native deep research API)
 - **Azure AI Foundry provider**: Agent/Thread/Run pattern with Bing grounding; 7 models (o3-deep-research, gpt-5, gpt-5-mini, gpt-4.1, gpt-4.1-mini, gpt-4o, gpt-4o-mini)
 
@@ -1329,7 +1330,7 @@ A mock panel (business buyer, indie hacker, enterprise AI architect, research sc
 - [ ] Azure Foundry durable agent orchestration + HITL (long-running experts that survive restarts, wait for human approval via SignalR/Durable Functions)
 - [ ] Expert watch (extension): broaden `deepr expert sync` (Phase 4) beyond first-party tools to arbitrary configured MCP or REST endpoints on schedule
 - [x] Web-grounded local research (`research_web_local` + topic `deepr expert learn`, with `learn-web` as an explicit alias): a local model searches the live web (free DuckDuckGo) + scrapes pages + synthesizes a cited report, absorbed at $0. Fixes the "local research answers from stale parametric knowledge" gap so experts reflect the latest, not the training cutoff.
-- [ ] Model-freshness loop: periodically discover each provider's current models + pricing (provider model-list APIs) and update the model registry + cost tables, instead of hardcoding IDs like `gpt-5.2` and cost numbers that rot. A `--dry-run` diff + opt-in apply; surfaces "your default model is N versions behind."
+- [ ] Model-freshness loop: periodically discover each provider's current models + pricing (provider model-list APIs) and update the model registry + cost tables, instead of hardcoding IDs like `gpt-5.2` and cost numbers that rot. A `--dry-run` diff + opt-in apply; surfaces "your default model is N versions behind." The 2026-06-30 docs pass refreshed `docs/MODELS.md` and fixed offline registry display; the periodic discovery, pricing verification, and opt-in apply flow remain planned.
 - [ ] Local fleet daemon / tray app with quiet-hours: run background enrichment (topic learn, sync, gap-fill on local models) only in configurable windows (e.g. 18:00-05:00) or when the GPU is idle, so unattended $0 maintenance never contends with the user's foreground GPU work. Pairs with capacity admission + loop runs already in place.
 - [x] Portrait portability + overwrite-safety (2026-06-30): portraits now default to the configured runtime data root (`DEEPR_DATA_DIR` via `runtime_data_path("portraits")`) so they follow portable data, and forced regeneration archives the previous image before atomic replacement so a paid artifact is not silently clobbered.
 - [ ] Local model support beyond the Phase 6 `local-ollama` backend (DGX Spark, Jetson Orin Nano Super, multi-GPU); the core local backend + budget-exhausted offload now lives in Phase 6's capacity waterfall
