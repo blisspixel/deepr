@@ -26,6 +26,7 @@ from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Protocol
 
+from deepr.backends.context_building import accepts_prior_source_pack
 from deepr.experts.beliefs import BeliefStore
 from deepr.experts.perspective import what_changed
 from deepr.experts.sync_support import (
@@ -55,7 +56,7 @@ DEFAULT_SUBSCRIPTION_BUDGET = 0.50
 # learner's refuse-before-spending preflight).
 MIN_PER_TOPIC_BUDGET = 0.05
 
-ResearchFn = Callable[[str, float], Awaitable[dict[str, Any]]]
+ResearchFn = Callable[..., Awaitable[dict[str, Any]]]
 SpendDecisionFn = Callable[[Any, float], Any]
 
 
@@ -435,7 +436,7 @@ class ExpertSyncEngine:
         prior_pack = self._load_latest_source_pack(subscription)
 
         try:
-            research = await self._research(subscription, budget)
+            research = await self._research(subscription, budget, prior_source_pack=prior_pack)
         except Exception as exc:
             return SyncOutcome(subscription.topic, "failed", detail=str(exc)), 0.0
 
@@ -946,7 +947,15 @@ class ExpertSyncEngine:
         except Exception as exc:
             return SyncOutcome(subscription.topic, "failed", cost=cost, detail=f"absorb failed: {exc}")
 
-    async def _research(self, subscription: Subscription, budget: float) -> dict[str, Any]:
+    async def _research(
+        self,
+        subscription: Subscription,
+        budget: float,
+        *,
+        prior_source_pack: dict[str, Any] | None = None,
+    ) -> dict[str, Any]:
         query = self.build_freshness_query(subscription)
         fn = self._research_fn or self._default_research
+        if prior_source_pack is not None and accepts_prior_source_pack(fn):
+            return await fn(query, budget, prior_source_pack=prior_source_pack)
         return await fn(query, budget)

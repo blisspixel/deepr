@@ -38,6 +38,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `deepr expert route-gaps --execute` can defer low-value paid research before
   provider dispatch while explicit `--api`, local, plan, scheduled wait, and
   dry-run paths stay unchanged.
+- Local and plan fresh-context sync now persists `ETag` / `Last-Modified`
+  validators and sends conditional requests for known sources, reusing
+  `304 Not Modified` cached hashes for the existing no-change proof before paid
+  absorb work.
 - `deepr expert health-check --archive-stale --scheduled --yes` now supports
   startup `--jitter` and skips before opening the belief store when another
   health-check archive already holds the overlap lock.

@@ -28,6 +28,7 @@ from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any
 
+from deepr.backends.context_building import ContextBuilder, build_context
 from deepr.backends.local import _local_prompt  # shared research-prompt builder
 from deepr.backends.plan_quota.adapters import PlanQuotaAdapter, parse_reset_after_seconds
 from deepr.backends.plan_quota.cli_runner import DEFAULT_TIMEOUT_S, CliResult, run_cli
@@ -42,7 +43,6 @@ from deepr.backends.quota_ledger import (
 logger = logging.getLogger(__name__)
 
 ResearchFn = Callable[[str, float], Awaitable[dict[str, Any]]]
-ContextBuilder = Callable[[str], Awaitable[Any]]
 CliRunner = Callable[..., Awaitable[CliResult]]
 
 
@@ -306,9 +306,14 @@ def make_plan_quota_research_fn(
     """
     chat = client if client is not None else PlanQuotaChatClient(adapter, model=model, **client_kwargs)
 
-    async def research_fn(query: str, budget: float) -> dict[str, Any]:
+    async def research_fn(
+        query: str,
+        budget: float,
+        *,
+        prior_source_pack: dict[str, Any] | None = None,
+    ) -> dict[str, Any]:
         try:
-            context = await context_builder(query) if context_builder is not None else None
+            context = await build_context(context_builder, query, prior_source_pack=prior_source_pack)
             prompt, metadata = _local_prompt(query, context)
             response = await chat.chat.completions.create(
                 model=model or "",

@@ -24,10 +24,10 @@ from collections.abc import Awaitable, Callable
 from typing import Any
 
 from deepr.backends.capacity import _OLLAMA_DEFAULT_URL, ollama_status
+from deepr.backends.context_building import ContextBuilder, build_context
 
 # research_fn seam contract (deepr/experts/sync.py): (query, budget) -> result.
 ResearchFn = Callable[[str, float], Awaitable[dict[str, Any]]]
-ContextBuilder = Callable[[str], Awaitable[Any]]
 
 # Keep the model resident between calls. Ollama evicts after ~5 min idle by
 # default, so a multi-call workload (a sync with several subscriptions, or a
@@ -114,9 +114,14 @@ def make_local_research_fn(
     """
     chat = client if client is not None else ollama_chat_client(base_url)
 
-    async def research_fn(query: str, budget: float) -> dict[str, Any]:
+    async def research_fn(
+        query: str,
+        budget: float,
+        *,
+        prior_source_pack: dict[str, Any] | None = None,
+    ) -> dict[str, Any]:
         try:
-            context = await context_builder(query) if context_builder is not None else None
+            context = await build_context(context_builder, query, prior_source_pack=prior_source_pack)
             prompt, metadata = _local_prompt(query, context)
             response = await chat.chat.completions.create(
                 model=model,

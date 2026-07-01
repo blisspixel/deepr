@@ -50,10 +50,11 @@ model time is spent.**
 Before a sync invokes the local model, decide *if* there is anything to do,
 cheapest signal first:
 
-1. **HTTP conditional requests** - store each tracked source's `ETag` /
-   `Last-Modified` from the last sync; send `If-None-Match` / `If-Modified-Since`.
-   A `304 Not Modified` is essentially free (no body, no parse, no model) -> skip
-   the source.
+1. **HTTP conditional requests** - local and plan fresh-context sync store each
+   tracked source's `ETag` / `Last-Modified` from the last sync, then send
+   `If-None-Match` / `If-Modified-Since` on the next fetch. A
+   `304 Not Modified` returns no body and lets Deepr reuse the cached source
+   hash for the existing no-change proof.
 2. **Feeds / sitemaps as hints** - if the expert tracks an RSS/Atom feed or a
    sitemap, read it first and only consider entries whose `lastmod` advanced.
    Treat `lastmod`/`Last-Modified` as a *hint*, never proof (sites lie).

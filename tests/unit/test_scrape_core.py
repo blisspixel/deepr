@@ -192,6 +192,43 @@ def test_http_fetcher(monkeypatch):
     print("[PASS] ContentFetcher fetch\n")
 
 
+def test_http_fetcher_sends_conditional_headers_and_returns_304(monkeypatch):
+    config = ScrapeConfig(
+        try_selenium=False,
+        try_pdf=False,
+        try_archive=False,
+        timeout=10,
+    )
+    fetcher = ContentFetcher(config)
+    calls = []
+
+    def fake_get(url, **kwargs):
+        calls.append((url, kwargs))
+        response = Response()
+        response.status_code = 304
+        response.url = url
+        response.headers["ETag"] = '"abc"'
+        response.headers["Last-Modified"] = "Wed, 01 Jul 2026 00:00:00 GMT"
+        return response
+
+    monkeypatch.setattr("deepr.utils.scrape.fetcher.requests.get", fake_get)
+
+    result = fetcher.fetch(
+        "https://example.com",
+        headers={
+            "If-None-Match": '"abc"',
+            "If-Modified-Since": "Wed, 01 Jul 2026 00:00:00 GMT",
+        },
+    )
+
+    assert result.success is True
+    assert result.status_code == 304
+    assert result.html is None
+    assert calls[0][1]["headers"]["If-None-Match"] == '"abc"'
+    assert calls[0][1]["headers"]["If-Modified-Since"] == "Wed, 01 Jul 2026 00:00:00 GMT"
+    assert result.response_headers["ETag"] == '"abc"'
+
+
 def test_http_fetcher_blocks_private_redirect_before_follow(monkeypatch):
     """Redirect targets are validated before the second request is made."""
     config = ScrapeConfig(

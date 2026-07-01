@@ -605,6 +605,50 @@ class TestSyncEngine:
         assert len(engine.belief_store.beliefs) == 1
 
     @pytest.mark.asyncio
+    async def test_sync_passes_prior_source_pack_to_prior_aware_research_fn(self, tmp_path):
+        store = _sub_store(tmp_path, Subscription(topic="Topic X", budget=0.5, cadence_days=0))
+        calls = []
+
+        async def research_fn(query: str, budget: float, *, prior_source_pack=None) -> dict:
+            calls.append(prior_source_pack)
+            return {
+                "answer": "Topic X gained capability Y in June 2026. [S1]",
+                "cost": 0.01,
+                "fresh_context": {"source_count": 1, "mode": "fresh"},
+                "source_pack": {
+                    "schema_version": "deepr.source_pack.v1",
+                    "mode": "fresh",
+                    "source_count": 1,
+                    "retrieved_source_count": 1,
+                    "sources": [
+                        {
+                            "label": "S1",
+                            "url": "https://example.com/release",
+                            "etag": '"topic-x-v1"',
+                            "last_modified": "Wed, 01 Jul 2026 00:00:00 GMT",
+                            "content_hash": "d" * 64,
+                            "excerpt": "Topic X gained capability Y in June 2026.",
+                        }
+                    ],
+                },
+            }
+
+        beliefs = BeliefStore("Sync Test Expert", storage_dir=tmp_path / "beliefs")
+        absorber = ReportAbsorber(_expert(), client=_FakeExtractionClient(), belief_store=beliefs)
+        engine = ExpertSyncEngine(
+            _expert(), research_fn=research_fn, subscription_store=store, belief_store=beliefs, absorber=absorber
+        )
+
+        first = await engine.sync(budget=2.0, only_due=False)
+        second = await engine.sync(budget=2.0, only_due=False)
+
+        assert first.outcomes[0].status == "synced"
+        assert second.outcomes[0].status == "no_changes"
+        assert calls[0] is None
+        assert calls[1]["sources"][0]["etag"] == '"topic-x-v1"'
+        assert calls[1]["sources"][0]["last_modified"] == "Wed, 01 Jul 2026 00:00:00 GMT"
+
+    @pytest.mark.asyncio
     async def test_changed_source_hash_proceeds_to_absorb(self, tmp_path):
         # A new content hash on the second sync falsifies the no-change subset,
         # so the pipeline runs normally and absorbs the delta.
