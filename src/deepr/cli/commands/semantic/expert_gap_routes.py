@@ -163,6 +163,7 @@ def _build_gap_fill_engine(
     plan_model: str | None,
     selection_note: str,
     json_output: bool,
+    spend_decision_fn: Any | None = None,
 ) -> tuple[Any, str]:
     """Build the gap-fill engine for the chosen rung; returns (engine, capacity_source).
 
@@ -208,7 +209,7 @@ def _build_gap_fill_engine(
         )
         return engine, f"plan_quota:{adapter.backend_id}"
 
-    return GapFillEngine(profile), "api_metered"
+    return GapFillEngine(profile, spend_decision_fn=spend_decision_fn), "api_metered"
 
 
 def _selected_gap_fill_capacity_source(backend: _GapFillBackend) -> str:
@@ -217,6 +218,14 @@ def _selected_gap_fill_capacity_source(backend: _GapFillBackend) -> str:
     if backend.use_plan and backend.plan_backend_id:
         return f"plan_quota:{backend.plan_backend_id}"
     return "api_metered"
+
+
+def _automatic_gap_fill_spend_decider(profile_name: str, backend: _GapFillBackend, *, api: bool, dry_run: bool):
+    if dry_run or api or backend.owned_or_prepaid:
+        return None
+    from deepr.experts.gap_spend_gate import build_gap_fill_spend_decider
+
+    return build_gap_fill_spend_decider(expert_name=profile_name, capacity_source="api_metered")
 
 
 def _gap_fill_overlap_result(profile_name: str):
@@ -267,6 +276,7 @@ def _record_completed_gap_fill_loop(
     failed = [o for o in outcomes if getattr(o, "status", "") == "failed"]
     deferred = [o for o in outcomes if getattr(o, "status", "") == "deferred"]
     skipped = [o for o in outcomes if getattr(o, "status", "") == "skipped"]
+    metered_deferred = [o for o in skipped if str(getattr(o, "detail", "") or "").startswith("metered deferred:")]
     accepted = sum(
         max(int(getattr(o, "absorbed", 0) or 0), 0) + max(int(getattr(o, "flagged", 0) or 0), 0) for o in outcomes
     )
@@ -288,6 +298,16 @@ def _record_completed_gap_fill_loop(
             "status": "human_gate_required",
             "title": "Run deferred specialist routes",
             "detail": f"{len(deferred)} routed gap(s) require approval-gated specialist instruments.",
+        }
+        rejected = 0
+    elif metered_deferred:
+        status = LoopRunStatus.WAITING
+        stop_reason = LoopStopReason.CAPACITY_UNAVAILABLE
+        next_action = {
+            "status": "deferred_for_value",
+            "title": "Wait for higher-value metered gap-fill work",
+            "detail": f"{len(metered_deferred)} routed gap(s) deferred by the automatic metered spend gate.",
+            "command": f'deepr expert route-gaps "{profile_name}" --execute --api --budget {budget:.2f}',
         }
         rejected = 0
     elif skipped:
@@ -452,6 +472,7 @@ def route_gaps(
                 plan_model=backend.plan_model,
                 selection_note=backend.note,
                 json_output=json_output,
+                spend_decision_fn=None,
             )
             result = asyncio.run(engine.execute(routes, budget=budget, top=top_n, dry_run=True))
             loop_run = None
@@ -464,6 +485,12 @@ def route_gaps(
             from deepr.experts.loop_lock import expert_verb_lock
 
             capacity_source = _selected_gap_fill_capacity_source(backend)
+            spend_decision_fn = _automatic_gap_fill_spend_decider(
+                profile.name,
+                backend,
+                api=api,
+                dry_run=dry_run,
+            )
             with expert_verb_lock(profile.name, "route-gaps") as acquired:
                 if not acquired:
                     result = _gap_fill_overlap_result(profile.name)
@@ -483,6 +510,7 @@ def route_gaps(
                         plan_model=backend.plan_model,
                         selection_note=backend.note,
                         json_output=json_output,
+                        spend_decision_fn=spend_decision_fn,
                     )
                     result = asyncio.run(engine.execute(routes, budget=budget, top=top_n, dry_run=False))
                     loop_run = _record_completed_gap_fill_loop(

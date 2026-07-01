@@ -1283,8 +1283,9 @@ class TestExpertRouteGapsCommand:
                 }
 
         class FakeGapFillEngine:
-            def __init__(self, profile):
+            def __init__(self, profile, *, spend_decision_fn=None):
                 assert profile is expert
+                assert spend_decision_fn is not None
 
             async def execute(self, received_routes, **kwargs):
                 assert received_routes == [route]
@@ -1330,6 +1331,60 @@ class TestExpertRouteGapsCommand:
         assert mock_record.call_args.kwargs["budget_spent"] == 0.17
         assert mock_record.call_args.kwargs["capacity_source"] == "api_metered"
         assert mock_record.call_args.kwargs["accepted_changes"] == 3
+
+    def test_explicit_api_gap_fill_bypasses_automatic_value_gate(self, runner):
+        from deepr.experts.gap_router import GapRoute
+
+        expert = MagicMock()
+        expert.name = "AI Strategy Expert"
+        expert.get_manifest.return_value.top_gaps.return_value = [MagicMock()]
+        route = GapRoute(
+            topic="open model benchmark drift",
+            instrument="research",
+            available=True,
+            estimated_cost=0.25,
+            rationale="general research",
+            suggestion="",
+            ev_cost_ratio=2.0,
+        )
+
+        class FakeResult:
+            outcomes = [
+                SimpleNamespace(status="filled", topic=route.topic, absorbed=1, flagged=0, cost=0.17, detail="")
+            ]
+            total_cost = 0.17
+
+            def to_dict(self):
+                return {"outcomes": [], "total_cost": 0.17}
+
+        class FakeGapFillEngine:
+            def __init__(self, profile, *, spend_decision_fn=None):
+                assert profile is expert
+                assert spend_decision_fn is None
+
+            async def execute(self, received_routes, **kwargs):
+                assert received_routes == [route]
+                return FakeResult()
+
+        with (
+            patch("deepr.experts.profile.ExpertStore") as mock_store_class,
+            patch("deepr.experts.gap_router.GapRouter") as mock_router_class,
+            patch("deepr.experts.gap_fill.GapFillEngine", FakeGapFillEngine),
+            patch("deepr.experts.loop_runs.record_loop_run") as mock_record,
+        ):
+            mock_record.return_value = MagicMock(to_dict=lambda: {"run_id": "loop_api"})
+            mock_store = MagicMock()
+            mock_store.load.return_value = expert
+            mock_store_class.return_value = mock_store
+            mock_router_class.return_value.route.return_value = [route]
+
+            result = runner.invoke(
+                cli,
+                ["expert", "route-gaps", "AI Strategy Expert", "--execute", "--api", "--yes", "--json"],
+            )
+
+        assert result.exit_code == 0, result.output
+        assert mock_record.call_args.kwargs["capacity_source"] == "api_metered"
 
     def test_execute_plan_runs_on_prepaid_capacity(self, runner, monkeypatch):
         from deepr.experts.gap_router import GapRoute
@@ -1497,6 +1552,32 @@ class TestExpertRouteGapsCommand:
         assert mock_record.call_args.kwargs["rejected_changes"] == 1
         assert mock_record.call_args.kwargs["next_action"]["status"] == "inspect"
         assert mock_record.call_args.kwargs["capacity_source"] == "api_metered"
+
+    def test_metered_deferred_gap_fill_records_capacity_wait(self):
+        from deepr.cli.commands.semantic.expert_gap_routes import _record_completed_gap_fill_loop
+        from deepr.experts.loop_runs import LoopRunStatus, LoopStopReason
+
+        result = SimpleNamespace(
+            total_cost=0.0,
+            outcomes=[
+                SimpleNamespace(
+                    status="skipped",
+                    absorbed=0,
+                    flagged=0,
+                    detail="metered deferred: value 0.010 below conserve hurdle 0.400; defer or use local",
+                )
+            ],
+        )
+
+        with patch("deepr.experts.loop_runs.record_loop_run") as mock_record:
+            _record_completed_gap_fill_loop(
+                "AI Strategy Expert", result, budget=0.5, scheduled=False, capacity_source="api_metered"
+            )
+
+        assert mock_record.call_args.kwargs["status"] == LoopRunStatus.WAITING
+        assert mock_record.call_args.kwargs["stop_reason"] == LoopStopReason.CAPACITY_UNAVAILABLE
+        assert mock_record.call_args.kwargs["next_action"]["status"] == "deferred_for_value"
+        assert "--api" in mock_record.call_args.kwargs["next_action"]["command"]
 
 
 class TestExpertExportSkillCommand:

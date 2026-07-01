@@ -34,6 +34,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   profiles, including profile-level claims instead of an empty chat tab.
 - Kept image-generation registry entries out of the benchmarkable model list so
   premium media APIs do not appear as ordinary chat capacity.
+- Added automatic metered gap-fill value decisions so default
+  `deepr expert route-gaps --execute` can defer low-value paid research before
+  provider dispatch while explicit `--api`, local, plan, scheduled wait, and
+  dry-run paths stay unchanged.
 - `deepr expert health-check --archive-stale --scheduled --yes` now supports
   startup `--jitter` and skips before opening the belief store when another
   health-check archive already holds the overlap lock.

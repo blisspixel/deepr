@@ -82,8 +82,11 @@ non-positive `est_cost` (a free op) clears the gate.
   derives schedule-only benefit factors before metered research dispatch,
   records each value-gate decision to `spend_decisions.jsonl` under the cost
   data root, and skips resumably when value is below the tier hurdle. Explicit
-  `--api`, local, dry-run, and prepaid plan paths are unchanged.
+  `--api`, local, dry-run, and prepaid plan paths are unchanged. Automatic
+  metered `deepr expert route-gaps --execute` now applies the same append-only
+  value-decision pattern per research gap before any metered research call;
+  explicit `--api`, local, prepaid plan, scheduled wait, and dry-run paths stay
+  unchanged.
   `deepr costs spend-decisions` provides read-only `$0` operator readback over
   the append-only spend-decision log.
-- **Next:** wire equivalent benefit factors into the gap-fill ranker and extend
-  the waterfall coverage to remaining metered paths.
+- **Next:** extend the waterfall coverage to remaining metered paths.
