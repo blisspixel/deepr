@@ -2097,6 +2097,25 @@ def fill_expert_gaps(name):
         use_deep = data.get("deep", False)
         top = min(data.get("top", 3), 10)
         budget = min(data.get("budget", 5.0), 50.0)
+        allow_metered_api = bool(data.get("allow_metered_api"))
+        confirm_metered_cost = bool(data.get("confirm_metered_cost"))
+
+        if not (allow_metered_api and confirm_metered_cost):
+            return (
+                jsonify(
+                    {
+                        "error": "Metered gap filling requires explicit API and cost confirmation.",
+                        "status": "blocked",
+                        "estimated_cost_usd": round(float(budget), 2),
+                        "required": {
+                            "allow_metered_api": True,
+                            "confirm_metered_cost": True,
+                        },
+                        "safe_alternative": f'deepr expert route-gaps "{decoded_name}" --execute --scheduled',
+                    }
+                ),
+                402,
+            )
 
         store = ExpertStore(str(_experts_dir))
         profile = store.load(decoded_name)

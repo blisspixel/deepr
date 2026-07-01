@@ -185,7 +185,9 @@ class TestGapBacklog:
         assert finding.severity == "warning"
         action = _action(report, "gaps")
         assert action is not None
-        assert "fill-gaps" in action.command
+        assert "route-gaps" in action.command
+        assert "--execute --scheduled" in action.command
+        assert action.estimated_cost == 0.0
 
     def test_small_backlog_is_info(self, monkeypatch):
         gaps = [Gap.create(topic="one gap", priority=3)]

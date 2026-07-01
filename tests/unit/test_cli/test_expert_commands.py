@@ -54,6 +54,38 @@ class TestExpertCommandStructure:
         assert "domain" in output or "knowledge" in output or "expert" in output
 
 
+class TestExpertFillGapsCommand:
+    """Cost-safety regressions for the legacy fill-gaps command."""
+
+    @pytest.fixture
+    def runner(self):
+        return CliRunner()
+
+    def test_fill_gaps_requires_explicit_api_before_store_or_provider(self, runner):
+        with (
+            patch("deepr.experts.profile.ExpertStore") as mock_store_class,
+            patch("deepr.providers.create_provider") as mock_create_provider,
+        ):
+            result = runner.invoke(cli, ["expert", "fill-gaps", "AI Strategy Expert", "--yes"])
+
+        assert result.exit_code == 2
+        assert "requires --api" in result.output
+        mock_store_class.assert_not_called()
+        mock_create_provider.assert_not_called()
+
+    def test_fill_gaps_yes_requires_metered_cost_confirmation_before_store_or_provider(self, runner):
+        with (
+            patch("deepr.experts.profile.ExpertStore") as mock_store_class,
+            patch("deepr.providers.create_provider") as mock_create_provider,
+        ):
+            result = runner.invoke(cli, ["expert", "fill-gaps", "AI Strategy Expert", "--api", "--yes"])
+
+        assert result.exit_code == 2
+        assert "requires --confirm-metered-cost" in result.output
+        mock_store_class.assert_not_called()
+        mock_create_provider.assert_not_called()
+
+
 class TestExpertMakeCommand:
     """Test 'expert make' command."""
 
