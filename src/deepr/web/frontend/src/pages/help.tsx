@@ -292,7 +292,7 @@ cp .env.example .env
 
       {/* Footer */}
       <div className="text-xs text-muted-foreground text-center py-4">
-        Deepr v2.27.0 &middot; Apache 2.0 License &middot;{' '}
+        Deepr v2.28.0 &middot; Apache 2.0 License &middot;{' '}
         <a href="https://github.com/blisspixel/deepr" target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">
           GitHub
         </a>
