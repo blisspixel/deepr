@@ -9,8 +9,10 @@ Provides commands for viewing and managing costs:
 - deepr costs expert - Show per-expert cost breakdown
 """
 
+import json
 from datetime import UTC
 from pathlib import Path
+from typing import Any
 
 import click
 from rich.console import Console
@@ -21,6 +23,9 @@ from deepr.observability.cost_ledger import CostLedger
 from deepr.observability.costs import CostDashboard
 
 console = Console()
+
+SPEND_DECISIONS_SCHEMA_VERSION = "deepr-cost-spend-decisions-v1"
+SPEND_DECISIONS_KIND = "deepr.costs.spend_decisions"
 
 
 @click.group()
@@ -383,6 +388,144 @@ def expert_costs(name: str):
         console.print(table)
     else:
         console.print("[dim]No detailed cost entries found for this expert[/dim]")
+
+
+def _spend_decision_state(record: dict[str, Any]) -> str:
+    decision = record.get("decision", {}) or {}
+    return "allowed" if bool(decision.get("allowed", False)) else "deferred"
+
+
+def _filter_spend_decisions(
+    records: list[dict[str, Any]],
+    *,
+    expert: str | None,
+    operation: str | None,
+    decision: str,
+    limit: int,
+) -> list[dict[str, Any]]:
+    selected: list[dict[str, Any]] = []
+    expert_key = expert.casefold() if expert else None
+    operation_key = operation.casefold() if operation else None
+
+    for record in reversed(records):
+        if expert_key and str(record.get("expert_name", "")).casefold() != expert_key:
+            continue
+        if operation_key and str(record.get("operation", "")).casefold() != operation_key:
+            continue
+        state = _spend_decision_state(record)
+        if decision != "all" and state != decision:
+            continue
+        selected.append(record)
+        if len(selected) >= limit:
+            break
+    return selected
+
+
+def _spend_decisions_payload(
+    records: list[dict[str, Any]],
+    *,
+    log_path: Path,
+    expert: str | None,
+    operation: str | None,
+    decision: str,
+    limit: int,
+) -> dict[str, Any]:
+    filtered = _filter_spend_decisions(
+        records,
+        expert=expert,
+        operation=operation,
+        decision=decision,
+        limit=limit,
+    )
+    return {
+        "schema_version": SPEND_DECISIONS_SCHEMA_VERSION,
+        "kind": SPEND_DECISIONS_KIND,
+        "contract": {
+            "read_only": True,
+            "cost_usd": 0.0,
+            "source": "append_only_spend_decision_log",
+            "stability": "experimental",
+            "compatibility": {
+                "additive_fields": True,
+                "breaking_changes_require_new_schema_version": True,
+                "deprecation_policy": "Fields in this v1 payload are additive within v1; removals use a new schema.",
+            },
+        },
+        "log_path": str(log_path),
+        "filters": {
+            "expert": expert,
+            "operation": operation,
+            "decision": decision,
+            "limit": limit,
+        },
+        "total_records": len(records),
+        "count": len(filtered),
+        "records": filtered,
+    }
+
+
+@costs.command("spend-decisions")
+@click.option("--expert", help="Filter to one expert name.")
+@click.option("--operation", help="Filter to one operation, for example expert_sync.")
+@click.option(
+    "--decision",
+    type=click.Choice(["all", "allowed", "deferred"]),
+    default="all",
+    show_default=True,
+    help="Filter by value-gate decision state.",
+)
+@click.option("--limit", type=int, default=20, show_default=True, help="Maximum decisions to show.")
+@click.option("--json", "json_output", is_flag=True, help="Emit the versioned decision payload as JSON.")
+def spend_decisions(expert: str | None, operation: str | None, decision: str, limit: int, json_output: bool):
+    """Show value-of-spend gate decisions for metered operations."""
+    if limit < 1:
+        raise click.ClickException("--limit must be at least 1.")
+
+    from deepr.experts.spend_decisions import load_spend_decisions, spend_decision_log_path
+
+    log_path = spend_decision_log_path()
+    records = load_spend_decisions(log_path)
+    payload = _spend_decisions_payload(
+        records,
+        log_path=log_path,
+        expert=expert,
+        operation=operation,
+        decision=decision,
+        limit=limit,
+    )
+
+    if json_output:
+        click.echo(json.dumps(payload, indent=2))
+        return
+
+    if not payload["records"]:
+        console.print("[dim]No spend-decision records matched.[/dim]")
+        console.print(f"[dim]Log: {log_path}[/dim]")
+        return
+
+    table = Table(title="Spend Decisions")
+    table.add_column("Time", style="dim", no_wrap=True)
+    table.add_column("Expert", style="cyan", min_width=12)
+    table.add_column("Estimate", justify="right")
+    table.add_column("Decision", justify="center", min_width=8)
+    table.add_column("Reason")
+
+    for record in payload["records"]:
+        decision_data = record.get("decision", {}) or {}
+        state = _spend_decision_state(record)
+        style = "green" if state == "allowed" else "yellow"
+        tier = str(decision_data.get("tier", "") or "")
+        reason = str(decision_data.get("reason", "") or "")
+        detail = f"{tier}: {reason}" if tier else reason
+        table.add_row(
+            str(record.get("timestamp", ""))[:19],
+            str(record.get("expert_name", "")),
+            f"${float(record.get('estimated_cost', 0.0) or 0.0):.4f}",
+            f"[{style}]{state}[/{style}]",
+            detail[:120],
+        )
+
+    console.print(table)
 
 
 @costs.command("doctor")

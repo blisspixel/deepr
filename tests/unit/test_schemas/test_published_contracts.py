@@ -22,6 +22,11 @@ from deepr.backends.capacity_actions import (
     CapacityNextAction,
     build_capacity_next_payload,
 )
+from deepr.cli.commands.costs import (
+    SPEND_DECISIONS_KIND,
+    SPEND_DECISIONS_SCHEMA_VERSION,
+    _spend_decisions_payload,
+)
 from deepr.cli.commands.semantic.expert_gap_routes import (
     SCHEDULED_GAP_FILL_WAIT_KIND,
     SCHEDULED_GAP_FILL_WAIT_SCHEMA_VERSION,
@@ -1627,6 +1632,43 @@ def test_capacity_next_schema_validates_runtime_payload():
     assert payload["schema_version"] == CAPACITY_NEXT_SCHEMA_VERSION
     assert payload["kind"] == CAPACITY_NEXT_KIND
     assert payload["job_context"]["requires_local"] is True
+
+
+def test_cost_spend_decisions_schema_validates_runtime_payload():
+    record = {
+        "schema_version": "deepr-spend-decision-v1",
+        "kind": "deepr.expert.spend_decision",
+        "timestamp": "2026-07-01T02:00:00+00:00",
+        "expert_name": "Platform Expert",
+        "operation": "expert_sync",
+        "topic": "source drift",
+        "capacity_source": "api_metered",
+        "estimated_cost": 0.5,
+        "factors": {"gap_closure": 0.6, "value": 0.5, "urgency": 0.5, "volatility": 0.5},
+        "decision": {
+            "allowed": False,
+            "tier": "conserve",
+            "reason": "benefit 0.0750 < hurdle 2.0000",
+            "benefit": 0.075,
+            "hurdle": 2.0,
+            "pausable": True,
+        },
+    }
+    payload = _spend_decisions_payload(
+        [record],
+        log_path=Path("data/costs/spend_decisions.jsonl"),
+        expert=None,
+        operation=None,
+        decision="all",
+        limit=20,
+    )
+    schema = _load_schema("cost-spend-decisions-v1.json")
+
+    _validate(schema, payload)
+    assert payload["schema_version"] == SPEND_DECISIONS_SCHEMA_VERSION
+    assert payload["kind"] == SPEND_DECISIONS_KIND
+    assert payload["contract"]["read_only"] is True
+    assert payload["records"][0]["decision"]["pausable"] is True
 
 
 def test_sync_capacity_gate_schema_validates_runtime_payload(monkeypatch):

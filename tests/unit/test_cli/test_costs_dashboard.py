@@ -1,5 +1,6 @@
 """Tests for cost dashboard CLI commands (ROADMAP 4.3)."""
 
+import json
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from unittest.mock import MagicMock, patch
@@ -279,6 +280,78 @@ class TestCostAggregatorExpert:
         breakdown = agg.get_expert_breakdown("Alice")
         assert breakdown["research"] == 8.0
         assert breakdown["chat"] == 2.0
+
+
+class TestSpendDecisionReadback:
+    """Tests for deepr costs spend-decisions."""
+
+    def _write_decisions(self, tmp_path, monkeypatch):
+        from deepr.experts.spend_decisions import record_spend_decision
+
+        monkeypatch.setenv("DEEPR_COST_DATA_DIR", str(tmp_path / "costs"))
+        record_spend_decision(
+            expert_name="Climate Expert",
+            operation="expert_sync",
+            topic="source drift",
+            capacity_source="api_metered",
+            estimated_cost=0.25,
+            factors={"gap_closure": 0.8, "value": 0.7, "urgency": 0.6, "volatility": 0.9},
+            decision={
+                "allowed": True,
+                "tier": "normal",
+                "reason": "benefit 0.3024 >= hurdle 0.2500",
+                "benefit": 0.3024,
+                "hurdle": 0.25,
+                "pausable": False,
+            },
+            now=datetime(2026, 7, 1, 1, 0, tzinfo=UTC),
+        )
+        record_spend_decision(
+            expert_name="Rust Expert",
+            operation="expert_sync",
+            topic="edition drift",
+            capacity_source="api_metered",
+            estimated_cost=0.5,
+            factors={"gap_closure": 0.6, "value": 0.5, "urgency": 0.5, "volatility": 0.5},
+            decision={
+                "allowed": False,
+                "tier": "conserve",
+                "reason": "benefit 0.0750 < hurdle 2.0000",
+                "benefit": 0.075,
+                "hurdle": 2.0,
+                "pausable": True,
+            },
+            now=datetime(2026, 7, 1, 2, 0, tzinfo=UTC),
+        )
+
+    def test_spend_decisions_json_is_latest_first(self, runner, tmp_path, monkeypatch):
+        self._write_decisions(tmp_path, monkeypatch)
+
+        result = runner.invoke(cli, ["costs", "spend-decisions", "--json"])
+
+        assert result.exit_code == 0
+        payload = json.loads(result.output)
+        assert payload["schema_version"] == "deepr-cost-spend-decisions-v1"
+        assert payload["kind"] == "deepr.costs.spend_decisions"
+        assert payload["contract"]["read_only"] is True
+        assert payload["contract"]["cost_usd"] == 0.0
+        assert payload["count"] == 2
+        assert payload["records"][0]["expert_name"] == "Rust Expert"
+        assert payload["records"][0]["decision"]["allowed"] is False
+
+    def test_spend_decisions_table_filters_deferred_expert(self, runner, tmp_path, monkeypatch):
+        self._write_decisions(tmp_path, monkeypatch)
+
+        result = runner.invoke(
+            cli,
+            ["costs", "spend-decisions", "--expert", "Rust Expert", "--decision", "deferred"],
+        )
+
+        assert result.exit_code == 0
+        assert "Spend Decisions" in result.output
+        assert "Rust" in result.output
+        assert "deferred" in result.output
+        assert "Climate" not in result.output
 
 
 if __name__ == "__main__":

@@ -54,6 +54,7 @@ All v1 schemas are additive within the same schema version:
 | `deepr-graph-commit-envelope-v8` | [graph-commit-envelope-v8.json](graph-commit-envelope-v8.json) | Deterministic commit boundary for verified compiler decisions with idempotent add-belief, typed-edge temporal qualifiers, and perspective-state promotion operations |
 | `deepr-graph-commit-apply-v1` | [graph-commit-apply-v1.json](graph-commit-apply-v1.json) | Explicit apply result for idempotent commit writes into the canonical belief, event, edge, metacognition, exploration-agenda, hypothesis, concept, stance, and original-idea stores |
 | `deepr-capacity-next-v1` | [capacity-next-v1.json](capacity-next-v1.json) | Read-only `$0` capacity guidance payload for scheduler and CLI consumers |
+| `deepr-cost-spend-decisions-v1` | [cost-spend-decisions-v1.json](cost-spend-decisions-v1.json) | Read-only `$0` spend-decision readback payload over the append-only value-gate log |
 | `deepr-sync-capacity-gate-v1` | [sync-capacity-gate-v1.json](sync-capacity-gate-v1.json) | Read-only sync capacity wait/block payload with embedded capacity and self-model guidance |
 | `deepr-scheduled-gap-fill-wait-v1` | [scheduled-gap-fill-wait-v1.json](scheduled-gap-fill-wait-v1.json) | Read-only scheduled gap-fill wait payload with routed gaps and safe next actions |
 | `deepr-scheduled-reflection-wait-v1` | [scheduled-reflection-wait-v1.json](scheduled-reflection-wait-v1.json) | Read-only scheduled reflection wait payload for evaluator and follow-up capacity gates |

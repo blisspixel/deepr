@@ -76,6 +76,11 @@ deepr capacity refresh-quota grok
 deepr capacity next --task-class sync
 deepr capacity next --task-class sync --context-mode fresh --scheduled
 deepr capacity next --task-class sync --context-mode deep --expert "Platform Team Expert"
+
+# Read the spend decisions made by value gates.
+deepr costs spend-decisions
+deepr costs spend-decisions --expert "Platform Team Expert" --decision deferred
+deepr costs spend-decisions --json
 ```
 
 `deepr capacity next` runs no research and makes no provider generation call. It
@@ -246,6 +251,9 @@ API work in scheduled mode. `sync-all --plan <id>` and
   normal input rate to avoid undercounting.
 - Provider prompt-cache controls remain planned until TTL, cache-key, and
   pre-warm estimators are explicit and budget-gated.
+- Value-of-spend gates write their allow/defer decisions to
+  `spend_decisions.jsonl` under the cost data root. Inspect them with
+  `deepr costs spend-decisions`; this command is read-only and costs `$0`.
 
 ## Costing Deep Dive
 

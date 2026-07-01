@@ -83,6 +83,7 @@ non-positive `est_cost` (a free op) clears the gate.
   records each value-gate decision to `spend_decisions.jsonl` under the cost
   data root, and skips resumably when value is below the tier hurdle. Explicit
   `--api`, local, dry-run, and prepaid plan paths are unchanged.
-- **Next:** wire equivalent benefit factors into the gap-fill ranker, extend the
-  waterfall coverage to remaining metered paths, and add operator readback for
-  the spend-decision log.
+  `deepr costs spend-decisions` provides read-only `$0` operator readback over
+  the append-only spend-decision log.
+- **Next:** wire equivalent benefit factors into the gap-fill ranker and extend
+  the waterfall coverage to remaining metered paths.

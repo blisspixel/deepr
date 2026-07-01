@@ -1,0 +1,103 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/blisspixel/deepr/docs/schemas/cost-spend-decisions-v1.json",
+  "title": "Deepr Cost Spend Decisions v1",
+  "type": "object",
+  "additionalProperties": true,
+  "required": ["schema_version", "kind", "contract", "log_path", "filters", "total_records", "count", "records"],
+  "properties": {
+    "schema_version": {"const": "deepr-cost-spend-decisions-v1"},
+    "kind": {"const": "deepr.costs.spend_decisions"},
+    "contract": {
+      "type": "object",
+      "required": ["read_only", "cost_usd", "source", "stability", "compatibility"],
+      "properties": {
+        "read_only": {"const": true},
+        "cost_usd": {"const": 0.0},
+        "source": {"const": "append_only_spend_decision_log"},
+        "stability": {"type": "string"},
+        "compatibility": {
+          "type": "object",
+          "required": ["additive_fields", "breaking_changes_require_new_schema_version", "deprecation_policy"],
+          "properties": {
+            "additive_fields": {"const": true},
+            "breaking_changes_require_new_schema_version": {"const": true},
+            "deprecation_policy": {"type": "string"}
+          },
+          "additionalProperties": true
+        }
+      },
+      "additionalProperties": true
+    },
+    "log_path": {"type": "string", "minLength": 1},
+    "filters": {
+      "type": "object",
+      "required": ["expert", "operation", "decision", "limit"],
+      "properties": {
+        "expert": {"type": ["string", "null"]},
+        "operation": {"type": ["string", "null"]},
+        "decision": {"enum": ["all", "allowed", "deferred"]},
+        "limit": {"type": "integer", "minimum": 1}
+      },
+      "additionalProperties": true
+    },
+    "total_records": {"type": "integer", "minimum": 0},
+    "count": {"type": "integer", "minimum": 0},
+    "records": {
+      "type": "array",
+      "items": {"$ref": "#/$defs/spend_decision_record"}
+    }
+  },
+  "$defs": {
+    "spend_decision_record": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": [
+        "schema_version",
+        "kind",
+        "timestamp",
+        "expert_name",
+        "operation",
+        "topic",
+        "capacity_source",
+        "estimated_cost",
+        "factors",
+        "decision"
+      ],
+      "properties": {
+        "schema_version": {"const": "deepr-spend-decision-v1"},
+        "kind": {"const": "deepr.expert.spend_decision"},
+        "timestamp": {"type": "string", "minLength": 1},
+        "expert_name": {"type": "string", "minLength": 1},
+        "operation": {"type": "string", "minLength": 1},
+        "topic": {"type": "string"},
+        "capacity_source": {"type": "string", "minLength": 1},
+        "estimated_cost": {"type": "number", "minimum": 0.0},
+        "factors": {
+          "type": "object",
+          "required": ["gap_closure", "value", "urgency", "volatility"],
+          "properties": {
+            "gap_closure": {"type": "number", "minimum": 0.0, "maximum": 1.0},
+            "value": {"type": "number", "minimum": 0.0, "maximum": 1.0},
+            "urgency": {"type": "number", "minimum": 0.0, "maximum": 1.0},
+            "volatility": {"type": "number", "minimum": 0.0, "maximum": 1.0}
+          },
+          "additionalProperties": true
+        },
+        "decision": {
+          "type": "object",
+          "required": ["allowed", "tier", "reason", "benefit", "hurdle", "pausable"],
+          "properties": {
+            "allowed": {"type": "boolean"},
+            "tier": {"enum": ["normal", "conserve", "local_only", "pause_metered"]},
+            "reason": {"type": "string", "minLength": 1},
+            "benefit": {"type": "number", "minimum": 0.0},
+            "hurdle": {"type": "number", "minimum": 0.0},
+            "pausable": {"type": "boolean"}
+          },
+          "additionalProperties": true
+        }
+      }
+    }
+  }
+}
