@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.28.0] - 2026-07-01
+
+Model currency, screenshot refresh, no-surprise-cost hardening, and release
+hygiene release.
+
 ### Added
 - Added a repository threat model covering Deepr trust boundaries, attacker
   stories, existing mitigations, and severity calibration.
