@@ -20,8 +20,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 - Refreshed the model-selection guide around the current registry snapshot,
-  official provider verification links, the 47-model web benchmarkable count,
+  official provider verification links, the active web benchmarkable count,
   and no-surprise-bills capacity policy.
+- Marked shut-down Gemini preview model IDs as deprecated migration entries,
+  moved the `gemini-flash-lite` alias to the GA Flash-Lite model, and excluded
+  deprecated registry entries from benchmark-derived routing and new web
+  benchmark target counts.
+- Updated web/API model allow-lists and benchmark validation targets to current
+  xAI and Gemini registry IDs instead of retired Grok 4.1 or shut-down Gemini
+  preview IDs.
 - Added a current model watchlist to the model-selection guide for provider
   preview or limited-availability models that Deepr should not auto-route until
   registry pricing, adapter behavior, and settlement are verified.

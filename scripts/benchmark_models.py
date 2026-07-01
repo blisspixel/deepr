@@ -2,10 +2,10 @@
 """Tiered model quality benchmark for validating Deepr's auto-mode routing table.
 
 FOUR TIERS:
-  Chat     -- Training data knowledge, reasoning, docs (16 models, chat completions)
-  News     -- Web search, freshness, citations (8 models: OpenAI + Grok + Gemini)
-  Research -- Multi-source reports (3 deep research + 8 web-search-augmented models)
-  Docs     -- Technical documentation extraction (8 models, web search + structure)
+  Chat     -- Training data knowledge, reasoning, docs (22 default models)
+  News     -- Web search, freshness, citations (12 models: OpenAI + Grok + Gemini)
+  Research -- Multi-source reports (3 deep research + 9 web-search-augmented models)
+  Docs     -- Technical documentation extraction (10 models, web search + structure)
 
 Four phases per tier:
   1. Preflight -- Load registry, check API keys, select models, estimate cost
@@ -13,12 +13,9 @@ Four phases per tier:
   3. Judge     -- Use cheap LLM to score each response (tier-specific dimensions)
   4. Report    -- Per-tier rankings, cross-tier routing recommendations
 
-ACTUAL COSTS (2026-02-13 baseline):
-  Chat:      ~$0.81   (17 models x 18 prompts, chat completions)
-  News:      ~$0.17   (8 models x 6 prompts, web search + grounding)
-  Research:  ~$0.50   (3 deep + 8 web-search models x 4 prompts)
-  Docs:      ~$0.30   (8 models x 5 prompts, web search)
-  All:       ~$1.78
+COSTS:
+  Estimates depend on selected providers, model list, judge, and prompt set.
+  Run with --dry-run before any paid benchmark execution.
 
 CHECKPOINT / RESUME:
   Every eval result is auto-saved to data/benchmarks/.checkpoint.json.
@@ -363,7 +360,7 @@ EVAL_PROMPTS = [
             "  openai/o3-deep-research:     $1,240  (62 queries, avg $20.00)\n"
             "  openai/gpt-5:                  $180  (1,200 queries, avg $0.15)\n"
             "  openai/gpt-4.1-mini:            $45  (4,500 queries, avg $0.01)\n"
-            "  xai/grok-4-1-fast-non-reasoning:                $12  (1,200 queries, avg $0.01)\n"
+            "  xai/grok-4.3:                    $60  (1,200 queries, avg $0.05)\n"
             "  gemini/gemini-2.5-flash:          $8  (4,000 queries, avg $0.002)\n"
             "  Total: $1,485\n"
             "```\n"
@@ -636,13 +633,11 @@ DEFAULT_MODELS = [
     # Frontier models
     "openai/gpt-5.5",  # Newest OpenAI frontier (April 2026, 1M+ context)
     "openai/gpt-5.4",  # Previous OpenAI frontier (1M+ context)
-    "anthropic/claude-opus-4-7",  # Most capable Claude - leads SWE-bench Pro ($0.85/query)
-    "anthropic/claude-opus-4-6",  # Prior most-capable Claude ($0.80/query)
+    "anthropic/claude-opus-4-8",  # Current Opus-tier Claude research model ($0.85/query)
     "gemini/gemini-3.1-pro-preview",  # Latest gen, best quality ($0.20/query)
     "gemini/gemini-2.5-pro",  # Thinking model, can't disable thinking ($0.15/query)
     # Mid-tier
-    "anthropic/claude-sonnet-4-6",  # Best-value coding Claude ($0.48/query)
-    "anthropic/claude-sonnet-4-5",  # Prior Sonnet ($0.48/query)
+    "anthropic/claude-sonnet-5",  # Current balanced Anthropic default ($0.48/query)
     "openai/gpt-4.1",  # 1M context ($0.04/query)
     "openai/o3",  # Reasoning model for complex tasks ($0.10/query)
     "openai/o4-mini",  # Fast reasoning ($0.04/query)
@@ -660,13 +655,13 @@ DEFAULT_MODELS = [
     "gemini/gemini-3.5-flash",  # Newest Flash gen - beats 3.1 Pro on coding/agentic ($0.03/query)
     "gemini/gemini-3-flash-preview",  # Prior gen, fast ($0.01/query)
     "gemini/gemini-3.1-flash-lite",  # Most cost-effective Gemini, GA ($0.007/query)
-    "gemini/gemini-3.1-flash-lite-preview",  # Prior preview of Flash-Lite
     "anthropic/claude-haiku-4-5",  # Budget Anthropic ($0.05/query)
 ]
 
 EXPENSIVE_MODELS: list[str] = [
     "openai/gpt-5.5-pro",  # Highest-end GPT-5.5 variant; opt-in due high cost
     "openai/gpt-5.4-pro",  # Highest-end GPT-5.4 variant; opt-in due high cost
+    "anthropic/claude-fable-5",  # Frontier Claude tier; opt-in due high cost and retention constraints
 ]
 
 NEWS_MODELS = [
@@ -683,7 +678,6 @@ NEWS_MODELS = [
     "gemini/gemini-3.5-flash",
     "gemini/gemini-3-flash-preview",
     "gemini/gemini-3.1-flash-lite",
-    "gemini/gemini-3.1-flash-lite-preview",
     "gemini/gemini-2.5-flash",
     "gemini/gemini-2.5-pro",
 ]
@@ -705,11 +699,10 @@ ORCHESTRATED_RESEARCH_MODELS = [
     # Gemini (google_search grounding)
     "gemini/gemini-3.1-pro-preview",
     "gemini/gemini-2.5-pro",
-    "gemini/gemini-3.1-flash-lite-preview",
+    "gemini/gemini-3.1-flash-lite",
     # xAI (Responses API + web_search)
     "xai/grok-4-20-reasoning",
     "xai/grok-4-20-non-reasoning",
-    "xai/grok-4-1-fast-reasoning",
     "xai/grok-4-3",
 ]
 
@@ -722,10 +715,8 @@ DOCS_MODELS = [
     "gemini/gemini-3.5-flash",
     "gemini/gemini-2.5-pro",
     "gemini/gemini-3.1-flash-lite",
-    "gemini/gemini-3.1-flash-lite-preview",
     "xai/grok-4-20-reasoning",
     "xai/grok-4-20-non-reasoning",
-    "xai/grok-4-1-fast-reasoning",
     "xai/grok-4-3",
 ]
 
@@ -862,7 +853,7 @@ def estimate_cost(models: list[str], prompts: list[EvalPrompt], registry: dict) 
       News:     ~400 in, ~800 out (+500 thinking, web search adds ~20%)
       Research: ~2000 in, ~15000 out (deep research uses massive token budgets)
 
-    Models not in registry (e.g. grok-4-1-fast-reasoning) use a fallback estimate.
+    Models not in registry use a conservative fallback estimate.
     """
     # Per-query fallback cost for models not in registry
     _FALLBACK_COST = {
@@ -2620,7 +2611,7 @@ def run_validation(tier: str = "chat"):
             ("openai", "openai/gpt-4.1-mini"),
             ("openai", "openai/gpt-5-mini"),
             ("xai", "xai/grok-4-20-non-reasoning"),
-            ("xai", "xai/grok-4.3"),
+            ("xai", "xai/grok-4-3"),
             ("gemini", "gemini/gemini-2.5-flash"),
             ("gemini", "gemini/gemini-2.5-pro"),
             ("gemini", "gemini/gemini-3-flash-preview"),
@@ -2657,7 +2648,7 @@ def run_validation(tier: str = "chat"):
         news_prompt = "What day is it today? Include the date."
         news_tests = [
             ("xai", "xai/grok-4-20-reasoning"),
-            ("xai", "xai/grok-4-1-fast-reasoning"),
+            ("xai", "xai/grok-4-3"),
             ("gemini", "gemini/gemini-3-flash-preview"),
             ("gemini", "gemini/gemini-3.1-pro-preview"),
             ("gemini", "gemini/gemini-2.5-flash"),
@@ -2726,7 +2717,7 @@ def run_validation(tier: str = "chat"):
             ("openai", "openai/gpt-5-mini"),
             ("gemini", "gemini/gemini-3-flash-preview"),
             ("xai", "xai/grok-4-20-reasoning"),
-            ("xai", "xai/grok-4-1-fast-reasoning"),
+            ("xai", "xai/grok-4-3"),
         ]
 
         print()

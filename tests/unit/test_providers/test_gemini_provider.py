@@ -47,7 +47,7 @@ class TestGeminiProvider:
         assert provider.get_model_name("gemini-2.5-flash") == "gemini-2.5-flash"
         assert provider.get_model_name("gemini-pro") == "gemini-3.1-pro-preview"  # Default pro alias
         assert provider.get_model_name("gemini-flash") == "gemini-2.5-flash"  # Alias
-        assert provider.get_model_name("gemini-flash-lite") == "gemini-3.1-flash-lite-preview"
+        assert provider.get_model_name("gemini-flash-lite") == "gemini-3.1-flash-lite"
         assert provider.get_model_name("unknown-model") == "unknown-model"
 
     def test_pricing_configuration(self, provider):

@@ -109,6 +109,23 @@ DEPRECATION_REGISTRY: dict[str, DeprecationEntry] = {
         sunset_date="",
         warning="Gemini 3 Pro is superseded by Gemini 3.1 Pro Preview.",
     ),
+    "gemini-3-pro-preview": DeprecationEntry(
+        old_model="gemini-3-pro-preview",
+        new_model="gemini-3.1-pro-preview",
+        sunset_date="",
+        warning="Gemini 3 Pro Preview is listed in Google's shut-down previous-model set. Use Gemini 3.1 Pro Preview.",
+        auto_migrate=True,
+    ),
+    "gemini-3.1-flash-lite-preview": DeprecationEntry(
+        old_model="gemini-3.1-flash-lite-preview",
+        new_model="gemini-3.1-flash-lite",
+        sunset_date="",
+        warning=(
+            "Gemini 3.1 Flash-Lite Preview is listed in Google's shut-down previous-model set. "
+            "Use Gemini 3.1 Flash-Lite."
+        ),
+        auto_migrate=True,
+    ),
     # Legacy GPT-4o
     "gpt-4o": DeprecationEntry(
         old_model="gpt-4o",

@@ -30,6 +30,16 @@ External model docs checked on 2026-07-01:
   <https://learn.microsoft.com/azure/foundry/foundry-models/concepts/models-sold-directly-by-azure>,
   <https://learn.microsoft.com/azure/ai-foundry/agents/overview>
 
+## 2026-07-01 Verification Matrix
+
+| Provider | Current external signal | Deepr status | Action |
+|----------|-------------------------|--------------|--------|
+| OpenAI | Official API docs list GPT-5.5 as the recommended flagship and GPT-5.6 as trusted-partner preview only. | GPT-5.5 is registered. GPT-5.6 is watchlist-only. | Keep GPT-5.6 out of auto-routing until self-serve API access, pricing, context, and adapter behavior are verified. |
+| Anthropic | Claude docs list Fable 5 as generally available, Mythos 5 as limited availability, and Sonnet 5 as the current balanced Sonnet with adaptive thinking. | Fable 5, Sonnet 5, Opus 4.8, and Haiku 4.5 are registered. Mythos is not registered. | Keep Sonnet 5 as the balanced Anthropic default. Keep Mythos out until access and settlement are normal. |
+| Google Gemini | Gemini docs list Gemini 3.5 Flash and Gemini 3.1 Flash-Lite as stable; Gemini 3 Pro Preview and Gemini 3.1 Flash-Lite Preview are in the shut-down previous-model set. | Stable Gemini text/research models are active. The shut-down preview IDs are deprecated migration entries. | Do not target shut-down preview IDs in new benchmark or routing runs. |
+| xAI | xAI docs direct general text work to Grok 4.3, list Grok Build 0.1 for coding, and price Imagine image/video APIs separately. | Grok 4.3 is the preferred xAI text default. Grok Build is watchlist-only. xAI image remains explicit premium capacity. | Keep coding and media model additions behind registry, adapter, and no-surprise-bills tests. |
+| Azure AI Foundry | Foundry docs expose agents through the Responses API, deployment catalogs, regional limits, and managed endpoint controls. | Azure entries remain deployment targets, not global public model defaults. | Treat availability as subscription, deployment, and region dependent. |
+
 ## Current External Watchlist
 
 These are visible in current provider docs but are not automatic Deepr routing
@@ -46,6 +56,9 @@ explicitly updated.
   media models. Deepr's registry covers text and research backends; media
   models must stay explicit and cost-gated before any image or video path uses
   them.
+- Google now lists `gemini-3-pro-preview` and
+  `gemini-3.1-flash-lite-preview` in the shut-down previous-model set. Deepr
+  keeps them only as deprecated migration entries for historical cost lookup.
 - xAI currently directs general chat and reasoning workloads to Grok 4.3 and
   lists Grok Build 0.1 for agentic coding. The coding model should remain a
   watchlist item until Deepr has registry pricing, adapter expectations, and
@@ -99,9 +112,10 @@ Pricing notes:
 The registry currently contains 55 models across OpenAI, Gemini, xAI,
 Anthropic, and Azure AI Foundry. The list below mirrors the registry on
 2026-07-01; run the command above for exact pricing and context values. The web
-Models page intentionally reports 47 benchmarkable public text or research
-models because Azure AI Foundry entries are deployment targets and the xAI image
-registry entry is premium media capacity, not ordinary chat capacity.
+Models page intentionally reports 38 active benchmarkable public text or
+research models because Azure AI Foundry entries are deployment targets, premium
+media entries are not chat capacity, and deprecated migration entries are hidden
+from new benchmark target lists.
 
 ### OpenAI
 
@@ -155,9 +169,9 @@ Registered IDs:
 - `gemini/gemini-3.5-flash`
 - `gemini/gemini-3-flash-preview`
 - `gemini/gemini-3.1-flash-lite`
-- `gemini/gemini-3.1-flash-lite-preview`
+- `gemini/gemini-3.1-flash-lite-preview` (deprecated)
 - `gemini/gemini-3.1-pro-preview`
-- `gemini/gemini-3-pro-preview`
+- `gemini/gemini-3-pro-preview` (deprecated)
 - `gemini/deep-research`
 - `gemini/gemini-2.5-pro`
 - `gemini/gemini-2.5-flash`
@@ -169,6 +183,8 @@ Default posture:
   research workflows when the registry price and quality floor fit the task.
 - Treat preview IDs as volatile. Re-check official docs before making them a
   default for durable workflows.
+- Do not use shut-down preview IDs for new runs. They stay in the registry only
+  so historical artifacts and cost records can still be interpreted.
 - Keep Gemini image generation explicit. The registry's text/research support
   does not mean portraits or other image calls should run automatically.
 
@@ -187,14 +203,14 @@ Registered IDs:
 - `xai/grok-4-20-reasoning`
 - `xai/grok-4-20-non-reasoning`
 - `xai/grok-4-20-multi-agent`
-- `xai/grok-4-1-fast-reasoning`
-- `xai/grok-4-1-fast-non-reasoning`
-- `xai/grok-4-fast-reasoning`
-- `xai/grok-4-fast-non-reasoning`
-- `xai/grok-code-fast-1`
-- `xai/grok-4-0709`
-- `xai/grok-3`
-- `xai/grok-imagine-image-pro`
+- `xai/grok-4-1-fast-reasoning` (deprecated)
+- `xai/grok-4-1-fast-non-reasoning` (deprecated)
+- `xai/grok-4-fast-reasoning` (deprecated)
+- `xai/grok-4-fast-non-reasoning` (deprecated)
+- `xai/grok-code-fast-1` (deprecated)
+- `xai/grok-4-0709` (deprecated)
+- `xai/grok-3` (deprecated)
+- `xai/grok-imagine-image-pro` (deprecated premium media capacity)
 
 Default posture:
 
@@ -206,9 +222,9 @@ Default posture:
 - Grok Build 0.1 is visible in current xAI docs as a coding-specific model, but
   it is not yet registered in Deepr. Add it only with pricing, adapter, and
   no-surprise-bills tests.
-- Legacy Grok IDs and `xai/grok-imagine-image-pro` remain in the registry for
-  migration and compatibility. The old Imagine Pro entry is deprecated; portrait
-  generation code defaults explicit xAI image calls to `grok-imagine-image`.
+- Legacy Grok IDs and `xai/grok-imagine-image-pro` remain in the registry as
+  deprecated migration entries. They are excluded from active web benchmark
+  target counts and must not be promoted as defaults.
 - xAI image generation is premium capacity. Deepr must not call it for
   background portraits, demo data, profile refresh, or screenshots.
 

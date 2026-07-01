@@ -89,10 +89,10 @@ def _get_available_models() -> list[dict[str, Any]]:
             "speed": "Slow (5-20 min)",
         },
         {
-            "name": "grok-4-1-fast-non-reasoning",
+            "name": "grok-4.3",
             "provider": "xAI",
             "description": "Quick factual queries",
-            "cost": "$0.01",
+            "cost": "$0.05",
             "speed": "Very fast",
         },
     ]

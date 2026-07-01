@@ -12,12 +12,14 @@ Deepr includes a tiered model benchmark system that tests every provider across 
 
 | Tier | What it tests | Models | Prompts | API | Typical cost |
 |------|--------------|--------|---------|-----|-------------|
-| **Chat** | Training data knowledge, reasoning, docs | 11+ | 18 (6 task types) | Chat completions | ~$0.80 |
-| **News** | Web search, freshness, citations | 6+ | 6 (3 task types) | Grok Responses API + Gemini grounding | ~$0.20 |
-| **Research** | Autonomous multi-source reports | 3+ | 4 (2 task types) | OpenAI Responses (background) + Gemini Interactions | ~$0.12 |
-| **Docs** | API doc fetching, SDK guides | 7+ | 5 (3 task types) | Web search + chat completions | ~$0.15 |
+| **Chat** | Training data knowledge, reasoning, docs | 22 default + opt-in premium | 18 (6 task types) | Chat completions | Dry-run estimate |
+| **News** | Web search, freshness, citations | 12 | 6 (3 task types) | OpenAI web search, xAI search, Gemini grounding | Dry-run estimate |
+| **Research** | Autonomous multi-source reports | 3 native + 9 orchestrated | 4 (2 task types) | Deep research APIs + web-search orchestration | Dry-run estimate |
+| **Docs** | API doc fetching, SDK guides | 10 | 5 (3 task types) | Web search + chat completions | Dry-run estimate |
 
-**Total cost for a full `--tier all` run: ~$1.25** (actual, based on 2026-02-14 run).
+Every run prints a preflight estimate and defaults to a `$1` cap. Use
+`--dry-run` first, then raise `--max-estimated-cost` intentionally if the
+current provider mix is worth the spend.
 
 ## Quick Start
 
@@ -28,7 +30,7 @@ python scripts/benchmark_models.py --validate
 # 2. See what will run and estimated cost
 python scripts/benchmark_models.py --dry-run --tier all
 
-# 3. Run the cheapest test first (news, no judge, ~$0.05)
+# 3. Run a low-spend test first (news, no judge)
 python scripts/benchmark_models.py --tier news --quick --no-judge
 
 # 4. Full benchmark with saved results
@@ -38,38 +40,36 @@ python scripts/benchmark_models.py --tier all --save
 python scripts/benchmark_models.py --tier chat --model gemini/gemini-2.5-pro --save
 ```
 
-## Models Tested
+## Current Benchmark Target Sets
 
-### Chat Tier (12 models)
+These lists mirror `scripts/benchmark_models.py` as of 2026-07-01 and exclude
+deprecated registry entries. Historical tables below may still mention retired
+or deprecated models because they describe prior saved runs.
 
-| Model | Provider | Typical cost/query |
-|-------|----------|--------------------|
-| openai/gpt-4.1-mini | OpenAI | $0.001 |
-| openai/gpt-5-mini | OpenAI | $0.002 |
-| openai/gpt-4.1 | OpenAI | $0.004 |
-| openai/gpt-5 | OpenAI | $0.010 |
-| xai/grok-4-fast | xAI | $0.001 |
-| gemini/gemini-2.5-flash | Google | $0.001 |
-| gemini/gemini-2.5-pro | Google | $0.012 |
-| gemini/gemini-3-flash-preview | Google | $0.003 |
-| gemini/gemini-3-pro-preview | Google | $0.012 |
-| gemini/gemini-3.1-pro-preview | Google | $0.012 |
-| anthropic/claude-haiku-4-5 | Anthropic | $0.003 |
-| anthropic/claude-sonnet-4-5 | Anthropic | $0.008 |
+### Chat Tier (22 default models)
 
-Optional expensive models (add `--include-expensive`): higher-cost frontier models (for periodic baseline refreshes).
+- OpenAI: `gpt-5.5`, `gpt-5.4`, `gpt-5.4-mini`, `gpt-5-mini`,
+  `gpt-4.1`, `gpt-4.1-mini`, `gpt-5.4-nano`, `gpt-5-nano`,
+  `gpt-4.1-nano`, `o3`, `o4-mini`
+- Anthropic: `claude-opus-4-8`, `claude-sonnet-5`, `claude-haiku-4-5`
+- Gemini: `gemini-3.5-flash`, `gemini-3.1-pro-preview`,
+  `gemini-3.1-flash-lite`, `gemini-3-flash-preview`,
+  `gemini-2.5-pro`
+- xAI: `grok-4.3`, `grok-4.20-reasoning`,
+  `grok-4.20-non-reasoning`
 
-### News Tier (7 models)
+Optional expensive models (add `--include-expensive`): `openai/gpt-5.5-pro`,
+`openai/gpt-5.4-pro`, and `anthropic/claude-fable-5`.
 
-| Model | Provider | API used |
-|-------|----------|----------|
-| xai/grok-4-1-fast-reasoning | xAI | Responses API + `web_search` tool |
-| xai/grok-4-fast-reasoning | xAI | Responses API + `web_search` tool |
-| gemini/gemini-3.1-pro-preview | Google | generateContent + `google_search` grounding |
-| gemini/gemini-3-flash-preview | Google | generateContent + `google_search` grounding |
-| gemini/gemini-3-pro-preview | Google | generateContent + `google_search` grounding |
-| gemini/gemini-2.5-flash | Google | generateContent + `google_search` grounding |
-| gemini/gemini-2.5-pro | Google | generateContent + `google_search` grounding |
+### News Tier (12 models)
+
+- OpenAI Responses API with web search: `gpt-5.5`, `gpt-5.4`,
+  `gpt-5-mini`
+- xAI native web search: `grok-4.3`, `grok-4.20-reasoning`,
+  `grok-4.20-non-reasoning`
+- Gemini grounding: `gemini-3.1-pro-preview`, `gemini-3.5-flash`,
+  `gemini-3-flash-preview`, `gemini-3.1-flash-lite`,
+  `gemini-2.5-flash`, `gemini-2.5-pro`
 
 ### Research Tier (3 models)
 
@@ -80,6 +80,14 @@ Optional expensive models (add `--include-expensive`): higher-cost frontier mode
 | gemini/deep-research | Google | Interactions API (background + polling) | 5-15 min |
 
 Research tier jobs run asynchronously - the benchmark submits them with `"background": true`, then polls every 5-30s until completion. Timeout: 60 minutes per job.
+
+### Docs Tier (10 models)
+
+- OpenAI: `gpt-5.4`, `gpt-5-mini`, `o3`
+- Gemini: `gemini-3.1-pro-preview`, `gemini-3.5-flash`,
+  `gemini-2.5-pro`, `gemini-3.1-flash-lite`
+- xAI: `grok-4.20-reasoning`, `grok-4.20-non-reasoning`,
+  `grok-4.3`
 
 ## Scoring
 
@@ -233,7 +241,11 @@ o3-deep-research produces the longest, most-cited reports. o4-mini is nearly as 
 
 Docs tier tests API documentation fetching, SDK guides, and integration guides. Grok models offer the best value (near-top quality at $0.001). Gemini 3.1 Pro (0.68) scores slightly below 3.0 Pro (0.70) here - the thinking overhead adds latency without improving doc-fetching quality. 1 eval timed out for 3.1 Pro on the SDK documentation prompt.
 
-### Cross-Tier Routing Recommendations
+### Historical Cross-Tier Routing Snapshot
+
+This table is part of the 2026-02 saved benchmark narrative. Do not treat it
+as the current routing table. Current routing should be regenerated from fresh
+cost-gated benchmark data and filtered through the active registry.
 
 | Use case | Recommended model | Fallback | Cost |
 |----------|------------------|----------|------|

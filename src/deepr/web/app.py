@@ -55,10 +55,16 @@ _MAX_QUERY_LIMIT = 1000
 _ALLOWED_MODELS = {
     "o3-deep-research",
     "o4-mini-deep-research",
+    "gemini/deep-research",
+    "xai/grok-4-20-multi-agent",
+    "xai/grok-4-20-reasoning",
+    "xai/grok-4-20-non-reasoning",
+    "xai/grok-4-3",
     "gpt-5.2",
     "gemini-2.5-flash",
     "grok-4",
-    "grok-4-1-fast-non-reasoning",
+    "grok-4-3",
+    "grok-4.3",
     "claude-sonnet-5",
     "claude-sonnet-4-5-20250929",
 }
@@ -3094,6 +3100,8 @@ def get_model_registry():
                     "specializations": cap.specializations,
                     "strengths": cap.strengths,
                     "weaknesses": cap.weaknesses,
+                    "deprecated": cap.deprecated,
+                    "successor": cap.successor,
                 }
             )
         return jsonify({"models": models})

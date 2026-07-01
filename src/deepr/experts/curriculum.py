@@ -944,7 +944,7 @@ AVAILABLE MODELS:
    - Use for: WHY questions, architectural reasoning, foundational principles
    - Best for: Core concepts that require deep understanding
 
-2. **FOCUS** (grok-4-1-fast-non-reasoning): ${quick_cost:.3f}, 5-10 min
+2. **FOCUS** (current cheapest capable model): ${quick_cost:.3f}, 5-10 min
    - Web search + structured thinking
    - Use for: Documentation, current state, comparisons, trends
    - Best for: What exists NOW, official docs, quick lookups

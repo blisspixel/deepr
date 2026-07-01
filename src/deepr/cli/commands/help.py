@@ -113,15 +113,17 @@ def providers():
 
     table.add_row(
         "openai",
-        "gpt-5.4, gpt-5.4-pro, gpt-5-mini, o4-mini-deep-research",
+        "gpt-5.5, gpt-5.4, gpt-5-mini, o4-mini-deep-research",
         "Deep research, synthesis, complex reasoning",
     )
     table.add_row(
         "xai",
-        "grok-4-1-fast-reasoning, grok-4.3, grok-code-fast-1",
-        "Quick lookups, coding, fact checking",
+        "grok-4.3, grok-4.20-reasoning, grok-4.20-multi-agent",
+        "Quick lookups, freshness, multi-agent research",
     )
-    table.add_row("gemini", "gemini-3.1-pro-preview, gemini-3.1-flash-lite-preview", "Multimodal tasks, long context")
+    table.add_row(
+        "gemini", "gemini-3.5-flash, gemini-3.1-pro-preview, gemini-3.1-flash-lite", "Multimodal tasks, long context"
+    )
     table.add_row("azure", "(your deployments)", "Enterprise deployments with Azure OpenAI")
 
     console.print(table)

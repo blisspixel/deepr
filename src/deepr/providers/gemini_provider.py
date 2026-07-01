@@ -160,7 +160,7 @@ class GeminiProvider(DeepResearchProvider):
             "gemini-2.5-flash-lite": "gemini-2.5-flash-lite",
             "gemini-pro": "gemini-3.1-pro-preview",
             "gemini-flash": "gemini-2.5-flash",
-            "gemini-flash-lite": "gemini-3.1-flash-lite-preview",
+            "gemini-flash-lite": "gemini-3.1-flash-lite",
             # Deep Research Agent
             "gemini-deep-research": DEEP_RESEARCH_AGENT,
             "deep-research": DEEP_RESEARCH_AGENT,

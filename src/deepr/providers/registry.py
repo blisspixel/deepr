@@ -662,17 +662,20 @@ MODEL_CAPABILITIES: dict[str, ModelCapability] = {
         context_window=1_000_000,
         specializations=["speed", "cost", "general", "high_throughput", "thinking"],
         strengths=[
-            "Newest Flash-Lite in Gemini 3.1 series",
+            "Former Flash-Lite preview retained for historical cost lookup",
             "1M token context window",
             "Low-cost high-throughput inference",
         ],
         weaknesses=[
             "Preview model (lifecycle may change)",
             "Less capable than Pro models on deep reasoning",
+            "Shut down in current Google model docs",
             "Superseded by GA gemini-3.1-flash-lite ($0.25/$1.50 per MTok)",
         ],
         input_cost_per_1m=0.20,
         output_cost_per_1m=1.20,
+        deprecated=True,
+        successor="gemini/gemini-3.1-flash-lite",
     ),
     "gemini/gemini-3.1-pro-preview": ModelCapability(
         provider="gemini",
@@ -710,12 +713,14 @@ MODEL_CAPABILITIES: dict[str, ModelCapability] = {
         ],
         weaknesses=[
             "Superseded by Gemini 3.1 Pro Preview",
-            "Preview model (may change)",
+            "Shut down in current Google model docs",
             "Can't disable thinking",
             "2x pricing for prompts >200K tokens",
         ],
         input_cost_per_1m=2.00,
         output_cost_per_1m=12.00,  # Includes thinking tokens
+        deprecated=True,
+        successor="gemini/gemini-3.1-pro-preview",
     ),
     "gemini/deep-research": ModelCapability(
         provider="gemini",

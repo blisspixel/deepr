@@ -51,7 +51,6 @@ QUALITY_PRIORS: dict[str, float] = {
     "anthropic/claude-opus-4-7": _FRONTIER,
     "anthropic/claude-opus-4-6": _FRONTIER,
     "gemini/gemini-3.1-pro-preview": _FRONTIER,
-    "gemini/gemini-3-pro-preview": _FRONTIER,
     "gemini/deep-research": _FRONTIER,
     "xai/grok-4-20-reasoning": _FRONTIER,
     "xai/grok-4-20-multi-agent": _FRONTIER,
@@ -82,7 +81,6 @@ QUALITY_PRIORS: dict[str, float] = {
     "openai/gpt-4.1-mini": _BUDGET,
     "openai/gpt-4.1-nano": _BUDGET,
     "gemini/gemini-3.1-flash-lite": _BUDGET,
-    "gemini/gemini-3.1-flash-lite-preview": _BUDGET,
     "gemini/gemini-2.5-flash": _BUDGET,
     "gemini/gemini-2.5-flash-lite": _BUDGET,
 }
