@@ -12,19 +12,22 @@ External model docs checked on 2026-07-01:
 
 - OpenAI Models and Pricing:
   <https://platform.openai.com/docs/models>,
-  <https://platform.openai.com/docs/pricing>
-- Anthropic Models, Pricing, and Thinking:
-  <https://docs.anthropic.com/en/docs/about-claude/models/overview>,
-  <https://docs.anthropic.com/en/docs/about-claude/pricing>,
-  <https://docs.anthropic.com/en/docs/build-with-claude/extended-thinking>
+  <https://platform.openai.com/docs/pricing>,
+  <https://openai.com/index/previewing-gpt-5-6-sol/>
+- Claude Platform Models, Pricing, and Thinking:
+  <https://platform.claude.com/docs/en/about-claude/models/overview>,
+  <https://platform.claude.com/docs/en/about-claude/pricing>,
+  <https://platform.claude.com/docs/en/about-claude/models/whats-new-sonnet-5>,
+  <https://platform.claude.com/docs/en/build-with-claude/extended-thinking>,
+  <https://platform.claude.com/docs/en/release-notes/overview>
 - Google Gemini Models and Pricing:
   <https://ai.google.dev/gemini-api/docs/models>,
   <https://ai.google.dev/gemini-api/docs/pricing>
 - xAI Models and Pricing:
-  <https://docs.x.ai/docs/models>,
-  <https://docs.x.ai/docs/pricing>
+  <https://docs.x.ai/developers/models>,
+  <https://docs.x.ai/developers/pricing>
 - Azure OpenAI and Azure AI Foundry:
-  <https://learn.microsoft.com/azure/ai-foundry/openai/concepts/models>,
+  <https://learn.microsoft.com/azure/foundry/foundry-models/concepts/models-sold-directly-by-azure>,
   <https://learn.microsoft.com/azure/ai-foundry/agents/overview>
 
 ## Current External Watchlist
@@ -43,9 +46,13 @@ explicitly updated.
   media models. Deepr's registry covers text and research backends; media
   models must stay explicit and cost-gated before any image or video path uses
   them.
-- xAI currently directs general chat and reasoning workloads to Grok 4.3, while
-  image, video, voice, and coding use dedicated APIs or models. Deepr should
-  continue treating xAI image generation as premium explicit capacity.
+- xAI currently directs general chat and reasoning workloads to Grok 4.3 and
+  lists Grok Build 0.1 for agentic coding. The coding model should remain a
+  watchlist item until Deepr has registry pricing, adapter expectations, and
+  tests for its coding-specific behavior.
+- xAI image, video, and voice surfaces are dedicated APIs with separate pricing.
+  Deepr should continue treating xAI image generation as premium explicit
+  capacity.
 - Azure and Microsoft Foundry model availability is deployment and region
   dependent. A model appearing in Foundry docs is not enough to make it a
   globally selectable Deepr model.
@@ -92,8 +99,9 @@ Pricing notes:
 The registry currently contains 55 models across OpenAI, Gemini, xAI,
 Anthropic, and Azure AI Foundry. The list below mirrors the registry on
 2026-07-01; run the command above for exact pricing and context values. The web
-Models page intentionally reports 48 non-Azure models because Azure AI Foundry
-entries are deployment targets, not globally selectable public API models.
+Models page intentionally reports 47 benchmarkable public text or research
+models because Azure AI Foundry entries are deployment targets and the xAI image
+registry entry is premium media capacity, not ordinary chat capacity.
 
 ### OpenAI
 
@@ -136,6 +144,7 @@ Manual verification:
 
 - Models: <https://platform.openai.com/docs/models>
 - Pricing: <https://platform.openai.com/docs/pricing>
+- GPT-5.6 preview status: <https://openai.com/index/previewing-gpt-5-6-sol/>
 
 ### Google Gemini
 
@@ -194,6 +203,9 @@ Default posture:
 - Grok 4.3 is the preferred xAI text default. Grok 4.20 multi-agent is a
   deliberate deep-research style choice because its agent fan-out can multiply
   spend and latency.
+- Grok Build 0.1 is visible in current xAI docs as a coding-specific model, but
+  it is not yet registered in Deepr. Add it only with pricing, adapter, and
+  no-surprise-bills tests.
 - Legacy Grok IDs and `xai/grok-imagine-image-pro` remain in the registry for
   migration and compatibility. The old Imagine Pro entry is deprecated; portrait
   generation code defaults explicit xAI image calls to `grok-imagine-image`.
@@ -202,8 +214,8 @@ Default posture:
 
 Manual verification:
 
-- Models: <https://docs.x.ai/docs/models>
-- Pricing: <https://docs.x.ai/docs/pricing>
+- Models: <https://docs.x.ai/developers/models>
+- Pricing: <https://docs.x.ai/developers/pricing>
 
 ### Anthropic Claude
 
@@ -237,10 +249,12 @@ Default posture:
 
 Manual verification:
 
-- Models: <https://docs.anthropic.com/en/docs/about-claude/models/overview>
-- Pricing: <https://docs.anthropic.com/en/docs/about-claude/pricing>
+- Models: <https://platform.claude.com/docs/en/about-claude/models/overview>
+- Pricing: <https://platform.claude.com/docs/en/about-claude/pricing>
+- Sonnet 5 migration notes:
+  <https://platform.claude.com/docs/en/about-claude/models/whats-new-sonnet-5>
 - Extended and adaptive thinking:
-  <https://docs.anthropic.com/en/docs/build-with-claude/extended-thinking>
+  <https://platform.claude.com/docs/en/build-with-claude/extended-thinking>
 
 ### Azure AI Foundry and Azure OpenAI
 
@@ -273,7 +287,7 @@ Default posture:
 Manual verification:
 
 - Azure OpenAI models:
-  <https://learn.microsoft.com/azure/ai-foundry/openai/concepts/models>
+  <https://learn.microsoft.com/azure/foundry/foundry-models/concepts/models-sold-directly-by-azure>
 - Azure AI Foundry Agent Service:
   <https://learn.microsoft.com/azure/ai-foundry/agents/overview>
 - Azure AI Services pricing:
