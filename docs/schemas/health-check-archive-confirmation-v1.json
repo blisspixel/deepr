@@ -21,7 +21,7 @@
     "schema_version": {"const": "deepr-health-check-archive-confirmation-v1"},
     "kind": {"const": "deepr.expert.health_check_archive_confirmation"},
     "contract": {"$ref": "#/$defs/contract"},
-    "status": {"const": "waiting_for_confirmation"},
+    "status": {"enum": ["waiting_for_confirmation", "waiting_for_overlap"]},
     "scheduled": {"const": true},
     "expert_name": {"type": "string", "minLength": 1},
     "expert": {"type": "string", "minLength": 1},

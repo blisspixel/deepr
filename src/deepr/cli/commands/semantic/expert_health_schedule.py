@@ -166,6 +166,45 @@ def scheduled_archive_confirmation_payload(expert_name: str, candidates: list[An
     return payload
 
 
+def scheduled_archive_overlap_payload(expert_name: str) -> dict[str, Any]:
+    payload = {
+        "schema_version": HEALTH_CHECK_ARCHIVE_CONFIRMATION_SCHEMA_VERSION,
+        "kind": HEALTH_CHECK_ARCHIVE_CONFIRMATION_KIND,
+        "contract": _scheduled_health_contract(),
+        "status": "waiting_for_overlap",
+        "scheduled": True,
+        "expert_name": expert_name,
+        "expert": expert_name,
+        "action": "archive_stale",
+        "count": 0,
+        "candidates": [],
+        "next_actions": [
+            {
+                "status": "wait",
+                "title": "Another health-check archive is already running",
+                "detail": "This run skipped because the same expert health-check verb already holds the overlap lock.",
+                "command": (
+                    f"deepr expert health-check {_quote_cli_arg(expert_name)} --archive-stale --scheduled --yes"
+                ),
+            }
+        ],
+    }
+    from deepr.experts.loop_runs import LoopRunStatus, LoopStopReason, record_loop_run
+
+    loop_run = record_loop_run(
+        expert_name=expert_name,
+        loop_type="health_check",
+        goal=f"Archive stale beliefs for {expert_name}",
+        trigger="scheduled",
+        status=LoopRunStatus.WAITING,
+        stop_reason=LoopStopReason.OVERLAP_LOCKED,
+        next_action=payload["next_actions"][0],
+        capacity_source="local",
+    )
+    payload["loop_run"] = loop_run.to_dict()
+    return payload
+
+
 def emit_scheduled_archive_confirmation(expert_name: str, candidates: list[Any], *, json_output: bool) -> None:
     payload = scheduled_archive_confirmation_payload(expert_name, candidates)
     if json_output:
@@ -174,6 +213,19 @@ def emit_scheduled_archive_confirmation(expert_name: str, candidates: list[Any],
 
     print_warning("Scheduled health-check archive is waiting for confirmation.")
     console.print(f"[dim]{payload['count']} stale belief(s) are eligible for reversible archival.[/dim]")
+    for action in payload["next_actions"]:
+        console.print(f"  {action['status']}: {action['title']}")
+        console.print(f"      [dim]{action['detail']}[/dim]")
+        console.print(f"      [dim]{action['command']}[/dim]")
+
+
+def emit_scheduled_archive_overlap(expert_name: str, *, json_output: bool) -> None:
+    payload = scheduled_archive_overlap_payload(expert_name)
+    if json_output:
+        click.echo(_json.dumps(payload, indent=2))
+        return
+
+    print_warning("Scheduled health-check archive skipped because another run is active.")
     for action in payload["next_actions"]:
         console.print(f"  {action['status']}: {action['title']}")
         console.print(f"      [dim]{action['detail']}[/dim]")

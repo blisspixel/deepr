@@ -10,6 +10,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 - Added a repository threat model covering Deepr trust boundaries, attacker
   stories, existing mitigations, and severity calibration.
+- Added overlap-lock reporting for scheduled health-check archival so locked
+  archive runs emit a structured `waiting_for_overlap` payload and loop-run
+  record.
 
 ### Changed
 - Refreshed the model-selection guide around the current registry snapshot,
@@ -19,6 +22,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `src/` layout and configured data roots.
 - Regenerated web screenshots from current demo data with non-empty expert
   profiles.
+- `deepr expert health-check --archive-stale --scheduled --yes` now supports
+  startup `--jitter` and skips before opening the belief store when another
+  health-check archive already holds the overlap lock.
+- Health-check belief-store reads and stale-belief archival now use the
+  canonical expert directory, avoiding display-name and slug-name drift.
 
 ## [2.27.0] - 2026-06-30
 
