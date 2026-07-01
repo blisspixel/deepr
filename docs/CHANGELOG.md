@@ -20,7 +20,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 - Refreshed the model-selection guide around the current registry snapshot,
-  official provider verification links, and no-surprise-bills capacity policy.
+  official provider verification links, the 47-model web benchmarkable count,
+  and no-surprise-bills capacity policy.
 - Added a current model watchlist to the model-selection guide for provider
   preview or limited-availability models that Deepr should not auto-route until
   registry pricing, adapter behavior, and settlement are verified.
@@ -29,7 +30,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   stale provider defaults.
 - Fixed registry discovery and demo expert seeding helpers so the documented
   model-registry command and web demo screenshots work with the current
-  `src/` layout and configured data roots.
+  `src/` layout and configured data roots. Demo-looking existing experts now
+  refresh to non-empty document, finding, and gap counts instead of preserving
+  stale zero-count screenshot data.
 - Regenerated web screenshots from current demo data with non-empty expert
   profiles, including profile-level claims instead of an empty chat tab.
 - Kept image-generation registry entries out of the benchmarkable model list so

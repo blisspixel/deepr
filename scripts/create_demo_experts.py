@@ -1,11 +1,34 @@
 """Create demo experts for the web dashboard ($0 cost, no API calls)."""
 
+import argparse
 from datetime import UTC, datetime, timedelta
 
 from deepr.experts.profile import ExpertProfile
 from deepr.experts.profile_store import ExpertStore
 from deepr.experts.synthesis import Belief, KnowledgeGap, Worldview
 
+
+def _parse_args() -> argparse.Namespace:
+    parser = argparse.ArgumentParser(description="Create local demo experts without provider calls.")
+    parser.add_argument(
+        "--refresh-existing",
+        action="store_true",
+        help="Refresh matching existing demo experts, even if they do not look like prior demo data.",
+    )
+    return parser.parse_args()
+
+
+def _looks_like_demo_profile(profile: ExpertProfile, demo: dict) -> bool:
+    if profile.domain == demo["domain"]:
+        return True
+    if profile.description == demo["description"]:
+        return True
+    if profile.vector_store_id == "" and profile.name == demo["name"]:
+        return profile.total_documents == 0 and not profile.source_files
+    return False
+
+
+args = _parse_args()
 store = ExpertStore()
 
 demos = [
@@ -222,8 +245,9 @@ demos = [
 now = datetime.now(UTC)
 
 for demo in demos:
-    if store.exists(demo["name"]):
-        print(f"  Skipping '{demo['name']}' (already exists)")
+    existing = store.load(demo["name"]) if store.exists(demo["name"]) else None
+    if existing and not (args.refresh_existing or _looks_like_demo_profile(existing, demo)):
+        print(f"  Skipping '{demo['name']}' (existing profile does not look like demo data)")
         continue
 
     profile = ExpertProfile(
@@ -236,9 +260,12 @@ for demo in demos:
         source_files=demo["source_files"],
         research_jobs=demo["research_jobs"],
         total_documents=len(demo["source_files"]),
+        knowledge_cutoff_date=now - timedelta(days=demo["last_update_days"]),
+        last_knowledge_refresh=now - timedelta(days=demo["last_update_days"]),
         total_research_cost=demo["total_research_cost"],
         conversations=demo["conversations"],
         domain_velocity=demo["domain_velocity"],
+        portrait_url=existing.portrait_url if existing else None,
     )
     store.save(profile)
 
@@ -271,6 +298,7 @@ for demo in demos:
         synthesis_count=len(demo["research_jobs"]),
     )
     worldview.save(store.get_knowledge_dir(demo["name"]) / "worldview.json")
-    print(f"  Created '{demo['name']}' ({len(demo['source_files'])} docs, ${demo['total_research_cost']})")
+    action = "Refreshed" if existing else "Created"
+    print(f"  {action} '{demo['name']}' ({len(demo['source_files'])} docs, ${demo['total_research_cost']})")
 
 print("Done.")
