@@ -1895,8 +1895,19 @@ def reflect_report(
                 )
                 return
 
-        routes = routes_from_queries(report.followups)
-        fill = asyncio.run(GapFillEngine(profile).execute(routes, budget=budget, top=len(routes)))
+        from deepr.experts.loop_lock import expert_verb_lock
+
+        with expert_verb_lock(profile.name, "reflect") as acquired:
+            if not acquired:
+                from deepr.cli.commands.semantic.expert_reflection_loop import record_reflection_overlap_loop
+
+                print_warning("Reflection follow-ups are already running for this expert.")
+                loop_run = record_reflection_overlap_loop(profile.name, report_id, budget=budget)
+                console.print(f"[dim]Loop run: {loop_run.run_id} waiting for overlap lock.[/dim]")
+                return
+
+            routes = routes_from_queries(report.followups)
+            fill = asyncio.run(GapFillEngine(profile).execute(routes, budget=budget, top=len(routes)))
 
         console.print()
         print_section_header("Follow-up execution")

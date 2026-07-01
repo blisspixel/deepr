@@ -98,3 +98,30 @@ def record_completed_reflection_loop(
         verifier_outcome=verdict,
         verifier_score=score,
     )
+
+
+def record_reflection_overlap_loop(
+    expert_name: str,
+    report_id: str,
+    *,
+    budget: float,
+    scheduled: bool = False,
+):
+    from deepr.experts.loop_runs import LoopRunStatus, LoopStopReason, record_loop_run
+
+    return record_loop_run(
+        expert_name=expert_name,
+        loop_type="reflection_followups",
+        goal=f"Reflect on report {report_id} and run follow-ups",
+        trigger="scheduled" if scheduled else "manual",
+        status=LoopRunStatus.WAITING,
+        stop_reason=LoopStopReason.OVERLAP_LOCKED,
+        next_action={
+            "status": "wait",
+            "title": "Wait for current reflection follow-ups",
+            "detail": "Another reflection follow-up run for this expert already holds the overlap guard.",
+        },
+        budget_limit=budget,
+        budget_spent=0.0,
+        capacity_source="api_metered",
+    )

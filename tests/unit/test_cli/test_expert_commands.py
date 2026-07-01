@@ -1013,6 +1013,73 @@ class TestExpertReflectCommand:
         assert mock_record.call_args.kwargs["accepted_changes"] == 2
         assert mock_record.call_args.kwargs["budget_spent"] == 0.05
 
+    def test_execute_followups_overlap_skips_before_gap_fill_engine(self, runner):
+        from deepr.experts.loop_runs import LoopRunStatus, LoopStopReason
+        from deepr.experts.reflection import ReflectionReport
+
+        stub = ReflectionReport(
+            question="Will X?",
+            verdict="accept",
+            overall_score=0.9,
+            dimensions=[],
+            followups=["alpha follow-up"],
+        )
+
+        @contextmanager
+        def held_lock(*args, **kwargs):
+            yield False
+
+        def forbidden_engine(*args, **kwargs):
+            raise AssertionError("overlap skip must not build gap-fill engine")
+
+        with (
+            patch("deepr.experts.profile.ExpertStore") as mock_store_class,
+            patch("deepr.services.context_index.ContextIndex") as mock_idx,
+            patch("deepr.experts.reflection.ReflectionEngine") as mock_engine,
+            patch("deepr.experts.gap_fill.GapFillEngine", forbidden_engine),
+            patch("deepr.experts.loop_lock.expert_verb_lock", held_lock),
+            patch("deepr.experts.loop_runs.record_loop_run") as mock_record,
+        ):
+            loop_run = MagicMock()
+            loop_run.run_id = "loop_reflect_locked"
+            loop_run.to_dict.return_value = {
+                "run_id": "loop_reflect_locked",
+                "status": "waiting",
+                "stop_reason": "overlap_locked",
+            }
+            mock_record.return_value = loop_run
+            profile = MagicMock(domain="ai")
+            profile.name = "AI Expert"
+            mock_store = MagicMock()
+            mock_store.load.return_value = profile
+            mock_store_class.return_value = mock_store
+            mock_idx.return_value.get_report_by_job_id.return_value = MagicMock(prompt="Will X?")
+            mock_idx.return_value.get_report_content.return_value = "report body"
+            inst = MagicMock()
+            inst.reflect = AsyncMock(return_value=stub)
+            mock_engine.return_value = inst
+
+            result = runner.invoke(
+                cli,
+                [
+                    "expert",
+                    "reflect",
+                    "AI Expert",
+                    "job1",
+                    "--execute-followups",
+                    "--budget",
+                    "0.50",
+                    "--yes",
+                ],
+            )
+
+        assert result.exit_code == 0
+        assert "already running" in result.output
+        assert mock_record.call_args.kwargs["status"] == LoopRunStatus.WAITING
+        assert mock_record.call_args.kwargs["stop_reason"] == LoopStopReason.OVERLAP_LOCKED
+        assert mock_record.call_args.kwargs["trigger"] == "manual"
+        assert mock_record.call_args.kwargs["budget_spent"] == 0.0
+
     def test_research_reflection_verdict_records_verifier_failure(self):
         from deepr.cli.commands.semantic.expert_reflection_loop import record_completed_reflection_loop
         from deepr.experts.loop_runs import LoopRunStatus, LoopStopReason

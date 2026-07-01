@@ -48,6 +48,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `deepr expert health-check --archive-stale --scheduled --yes` now supports
   startup `--jitter` and skips before opening the belief store when another
   health-check archive already holds the overlap lock.
+- `deepr expert reflect --execute-followups` now holds the per-expert
+  `reflect` overlap guard before constructing gap-fill execution, so duplicate
+  follow-up runs record `overlap_locked` and skip before starting research.
 - Health-check belief-store reads and stale-belief archival now use the
   canonical expert directory, avoiding display-name and slug-name drift.
 - Automatic metered `deepr expert sync` now evaluates schedule-derived
