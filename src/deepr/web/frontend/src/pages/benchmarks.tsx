@@ -78,6 +78,13 @@ function inferTier(reg: RegistryModel): string {
   return 'chat'
 }
 
+function isBenchmarkableRegistryModel(reg: RegistryModel): boolean {
+  return (
+    !reg.model_key.startsWith('azure-foundry/') &&
+    !reg.specializations.includes('image_generation')
+  )
+}
+
 function formatContext(tokens: number): string {
   if (tokens >= 1_000_000) return `${(tokens / 1_000_000).toFixed(tokens % 1_000_000 === 0 ? 0 : 1)}M`
   return `${(tokens / 1_000).toFixed(0)}K`
@@ -178,7 +185,7 @@ export default function Benchmarks() {
     if (!registry) return []
     return registry
       .filter((m) => !benchmarkedKeys.has(m.model_key))
-      .filter((m) => !m.model_key.startsWith('azure-foundry/')) // skip azure dupes
+      .filter(isBenchmarkableRegistryModel)
       .map((m) => ({ ...m, tier: inferTier(m) }))
   }, [registry, benchmarkedKeys])
 
@@ -269,7 +276,7 @@ export default function Benchmarks() {
 
   const isRunning = benchStatus?.status === 'running'
   const isLoading = benchLoading || regLoading
-  const totalModels = (registry?.length ?? 0) - (registry?.filter(m => m.model_key.startsWith('azure-foundry/')).length ?? 0)
+  const totalModels = registry?.filter(isBenchmarkableRegistryModel).length ?? 0
 
   // Compute average report length per tier from results
   // NOTE: must be before early returns to satisfy Rules of Hooks

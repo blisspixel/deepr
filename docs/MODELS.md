@@ -27,6 +27,42 @@ External model docs checked on 2026-07-01:
   <https://learn.microsoft.com/azure/ai-foundry/openai/concepts/models>,
   <https://learn.microsoft.com/azure/ai-foundry/agents/overview>
 
+## Current External Watchlist
+
+These are visible in current provider docs but are not automatic Deepr routing
+defaults unless the registry, adapter behavior, cost settlement, and tests are
+explicitly updated.
+
+- OpenAI lists GPT-5.6 as a trusted-partner preview with broad availability
+  still pending. Treat it as watchlist-only until self-serve API access,
+  pricing, context limits, and Responses API behavior are verified.
+- Anthropic lists Claude Mythos 5 and the Mythos preview as limited
+  availability. Keep them out of Deepr's public registry and auto-routing until
+  API access and pricing are normal enough to test and settle.
+- Gemini lists Gemini 3.5 Flash as stable and several Gemini or Nano Banana
+  media models. Deepr's registry covers text and research backends; media
+  models must stay explicit and cost-gated before any image or video path uses
+  them.
+- xAI currently directs general chat and reasoning workloads to Grok 4.3, while
+  image, video, voice, and coding use dedicated APIs or models. Deepr should
+  continue treating xAI image generation as premium explicit capacity.
+- Azure and Microsoft Foundry model availability is deployment and region
+  dependent. A model appearing in Foundry docs is not enough to make it a
+  globally selectable Deepr model.
+
+Pricing notes:
+
+- OpenAI currently exposes short-context, long-context, and priority pricing
+  buckets for some models. Deepr should continue using conservative registry
+  estimates until the estimator can pick the right bucket from prompt size and
+  request class.
+- Anthropic currently documents lower introductory Sonnet 5 pricing through
+  2026-08-31, but Deepr estimates Sonnet 5 with the standard post-intro rates
+  so budget gates do not understate future spend.
+- Gemini free-tier and quota-inclusive entries are useful for setup guidance,
+  but automatic routing still depends on the local Deepr capacity profile,
+  provider keys, quota posture, and budget gates.
+
 ## Operating Rules
 
 - Run `python scripts/discover_models.py --show-registry` to see the local

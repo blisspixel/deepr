@@ -21,6 +21,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 - Refreshed the model-selection guide around the current registry snapshot,
   official provider verification links, and no-surprise-bills capacity policy.
+- Added a current model watchlist to the model-selection guide for provider
+  preview or limited-availability models that Deepr should not auto-route until
+  registry pricing, adapter behavior, and settlement are verified.
 - Refreshed architecture, install, examples, expert, and in-app Help model
   guidance so user-facing docs no longer imply API keys are required or promote
   stale provider defaults.
@@ -28,7 +31,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   model-registry command and web demo screenshots work with the current
   `src/` layout and configured data roots.
 - Regenerated web screenshots from current demo data with non-empty expert
-  profiles.
+  profiles, including profile-level claims instead of an empty chat tab.
+- Kept image-generation registry entries out of the benchmarkable model list so
+  premium media APIs do not appear as ordinary chat capacity.
 - `deepr expert health-check --archive-stale --scheduled --yes` now supports
   startup `--jitter` and skips before opening the belief store when another
   health-check archive already holds the overlap lock.

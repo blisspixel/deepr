@@ -57,7 +57,7 @@ artifacts you own. Deepr also exposes 32 MCP tools for agent hosts.
   <img src="assets/expert-hub.png" width="49%" alt="Expert Hub - persistent domain experts with knowledge tracking" />
 </p>
 <p align="center">
-  <img src="assets/expert-profile.png" width="49%" alt="Expert Chat - agentic chat with slash commands and visible reasoning" />
+  <img src="assets/expert-profile.png" width="49%" alt="Expert Profile - claims, evidence, gaps, and profile state" />
   <img src="assets/models.png" width="49%" alt="Models and Benchmarks - provider comparison and quality rankings" />
 </p>
 
