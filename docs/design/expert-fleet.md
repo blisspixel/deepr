@@ -380,9 +380,11 @@ input to "is this metered dollar worth it."
    cross-platform `filelock`, recorded skip on contention. The primitive and
    `sync-all` wiring shipped earlier; `expert sync` now applies jitter, holds
    the per-(expert, sync) lock across the non-dry verb body, and records a
-   typed `overlap_locked` waiting loop run on contention. Remaining work is the
-   same pattern for any other scheduled mutating verbs that still lack an
-   in-verb guard.
+   typed `overlap_locked` waiting loop run on contention. Route-gaps execution,
+   scheduled health-check archival, and reflection follow-up execution now use
+   the same skip-before-mutation pattern before constructing long-running
+   engines. Remaining work is the same pattern for any other scheduled mutating
+   library wrappers that still lack an in-verb guard.
 5. **`deepr fleet install-schedule`** (Pillar 3.2) - emits the correct
    non-default Task Scheduler / cron / systemd recipe.
 6. **Library-wide maintenance pass** (`expert sync-all`, from expert-library.md)
