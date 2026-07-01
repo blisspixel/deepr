@@ -51,5 +51,10 @@ def test_create_demo_experts_uses_configured_experts_root(tmp_path: Path):
     assert len(worldview_paths) == 3
     for worldview_path in worldview_paths:
         worldview = json.loads(worldview_path.read_text(encoding="utf-8"))
+        assert len(worldview["beliefs"]) > 0
         assert len(worldview["knowledge_gaps"]) > 0
+        for belief in worldview["beliefs"]:
+            assert belief["statement"]
+            assert belief["confidence"] > 0
+            assert len(belief["evidence"]) > 0
     assert "Created 'Climate Science'" in result.stdout

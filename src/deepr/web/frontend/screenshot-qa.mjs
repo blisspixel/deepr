@@ -45,10 +45,17 @@ const pages = [
   { name: '04-results-library', path: '/results' },
   { name: '05-result-detail',   path: `/results/${JOB_ID}` },
   { name: '06-expert-hub',      path: '/experts' },
-  { name: '07-expert-profile',  path: `/experts/${encodeURIComponent(EXPERT_NAME)}` },
+  { name: '07-expert-profile',  path: `/experts/${encodeURIComponent(EXPERT_NAME)}?tab=claims` },
   { name: '08-cost-intelligence', path: '/costs' },
   { name: '09-trace-explorer',  path: `/traces/${JOB_ID}` },
-  { name: '10-benchmarks',      path: '/models' },
+  {
+    name: '10-benchmarks',
+    path: '/models',
+    afterLoad: async (page) => {
+      await page.getByRole('button', { name: /^Chat \(/ }).click();
+      await page.waitForTimeout(500);
+    },
+  },
   { name: '11-settings',        path: '/settings' },
   { name: '12-help',            path: '/help' },
 ];
@@ -78,6 +85,9 @@ async function main() {
       await page.goto(url, { waitUntil: 'networkidle', timeout: 30000 });
       // Extra wait for lazy-loaded content and charts
       await page.waitForTimeout(2000);
+      if (pg.afterLoad) {
+        await pg.afterLoad(page);
+      }
     } catch (err) {
       console.error(`  Warning: timeout for ${pg.name}, taking screenshot anyway`);
     }
