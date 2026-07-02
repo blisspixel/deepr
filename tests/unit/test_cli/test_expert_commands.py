@@ -977,6 +977,289 @@ class TestExpertReflectCommand:
         assert payload["next_actions"][0]["status"] == "wait"
         assert payload["loop_run"]["run_id"] == "loop_reflect"
 
+    def test_scheduled_runs_on_admitted_local_capacity(self, runner):
+        from deepr.cli.commands.semantic.expert_reflect_schedule import (
+            SCHEDULED_REFLECTION_RUN_KIND,
+            SCHEDULED_REFLECTION_RUN_SCHEMA_VERSION,
+        )
+        from deepr.experts.reflection import ReflectionReport
+
+        stub = ReflectionReport(question="Will X?", verdict="accept", overall_score=0.9, dimensions=[], followups=[])
+        local_choice = SimpleNamespace(
+            is_local=True, is_plan_quota=False, model="qwen-local", plan_backend_id=None, reason="admitted local"
+        )
+        with (
+            patch("deepr.experts.profile.ExpertStore") as mock_store_class,
+            patch("deepr.services.context_index.ContextIndex") as mock_idx,
+            patch("deepr.backends.waterfall.choose_maintenance_backend", return_value=local_choice) as mock_choose,
+            patch("deepr.backends.local.ollama_chat_client", return_value=object()),
+            patch("deepr.experts.reflection.ReflectionEngine") as mock_engine,
+            patch("deepr.experts.loop_runs.record_loop_run") as mock_record,
+        ):
+            loop_run = MagicMock()
+            loop_run.to_dict.return_value = {"run_id": "loop_reflect_local"}
+            mock_record.return_value = loop_run
+            profile = MagicMock(domain="ai")
+            profile.name = "AI Expert"
+            mock_store = MagicMock()
+            mock_store.load.return_value = profile
+            mock_store_class.return_value = mock_store
+            mock_idx.return_value.get_report_by_job_id.return_value = MagicMock(prompt="Will X?")
+            mock_idx.return_value.get_report_content.return_value = "report body"
+            inst = MagicMock()
+            inst.reflect = AsyncMock(return_value=stub)
+            mock_engine.return_value = inst
+
+            result = runner.invoke(
+                cli,
+                ["expert", "reflect", "AI Expert", "job1", "--scheduled", "--json"],
+            )
+
+        assert result.exit_code == 0, result.output
+        mock_choose.assert_called_once_with("reflect")
+        assert mock_engine.call_args.kwargs["model"] == "qwen-local"
+        import json
+
+        payload = json.loads(result.output)
+        assert payload["schema_version"] == SCHEDULED_REFLECTION_RUN_SCHEMA_VERSION
+        assert payload["kind"] == SCHEDULED_REFLECTION_RUN_KIND
+        assert payload["capacity_source"] == "local"
+        assert payload["report"]["verdict"] == "accept"
+        assert payload["followups"]["status"] == "not_requested"
+        assert payload["loop_run"]["run_id"] == "loop_reflect_local"
+        assert mock_record.call_args.kwargs["capacity_source"] == "local"
+
+    def test_scheduled_followups_wait_without_owned_gap_fill_capacity(self, runner):
+        from deepr.experts.reflection import ReflectionReport
+
+        stub = ReflectionReport(
+            question="Will X?",
+            verdict="revise",
+            overall_score=0.5,
+            dimensions=[],
+            followups=["What changed in Q2?"],
+        )
+        local_choice = SimpleNamespace(
+            is_local=True, is_plan_quota=False, model="qwen-local", plan_backend_id=None, reason="admitted local"
+        )
+        metered_choice = SimpleNamespace(
+            is_local=False, is_plan_quota=False, model=None, plan_backend_id=None, reason="no admitted capacity"
+        )
+
+        def choose(task_class):
+            return local_choice if task_class == "reflect" else metered_choice
+
+        with (
+            patch("deepr.experts.profile.ExpertStore") as mock_store_class,
+            patch("deepr.services.context_index.ContextIndex") as mock_idx,
+            patch("deepr.backends.waterfall.choose_maintenance_backend", side_effect=choose) as mock_choose,
+            patch("deepr.backends.local.ollama_chat_client", return_value=object()),
+            patch("deepr.experts.reflection.ReflectionEngine") as mock_engine,
+            patch("deepr.experts.gap_fill.GapFillEngine") as mock_fill,
+            patch("deepr.experts.loop_runs.record_loop_run") as mock_record,
+        ):
+            loop_run = MagicMock()
+            loop_run.to_dict.return_value = {"run_id": "loop_reflect_wait_fill"}
+            mock_record.return_value = loop_run
+            profile = MagicMock(domain="ai")
+            profile.name = "AI Expert"
+            mock_store = MagicMock()
+            mock_store.load.return_value = profile
+            mock_store_class.return_value = mock_store
+            mock_idx.return_value.get_report_by_job_id.return_value = MagicMock(prompt="Will X?")
+            mock_idx.return_value.get_report_content.return_value = "report body"
+            inst = MagicMock()
+            inst.reflect = AsyncMock(return_value=stub)
+            mock_engine.return_value = inst
+
+            result = runner.invoke(
+                cli,
+                ["expert", "reflect", "AI Expert", "job1", "--scheduled", "--execute-followups", "--json"],
+            )
+
+        assert result.exit_code == 0, result.output
+        assert [c.args[0] for c in mock_choose.call_args_list] == ["reflect", "gap_fill"]
+        mock_fill.assert_not_called()
+        import json
+
+        payload = json.loads(result.output)
+        assert payload["capacity_source"] == "local"
+        assert payload["followups"]["status"] == "waiting_for_capacity"
+        assert payload["followups"]["followup_count"] == 1
+        assert "metered" in payload["followups"]["detail"]
+
+    def test_scheduled_followups_execute_on_owned_gap_fill_capacity(self, runner):
+        from deepr.experts.reflection import ReflectionReport
+
+        stub = ReflectionReport(
+            question="Will X?",
+            verdict="revise",
+            overall_score=0.55,
+            dimensions=[],
+            followups=["What changed in Q2?"],
+        )
+        local_choice = SimpleNamespace(
+            is_local=True, is_plan_quota=False, model="qwen-local", plan_backend_id=None, reason="admitted local"
+        )
+        fill_result = SimpleNamespace(
+            total_cost=0.0,
+            outcomes=[SimpleNamespace(topic="What changed in Q2?", status="filled", absorbed=1, flagged=0, cost=0.0)],
+        )
+
+        class FakeGapFillEngine:
+            def __init__(self, profile, **kwargs):
+                self.profile = profile
+
+            async def execute(self, routes, *, budget, top):
+                return fill_result
+
+        with (
+            patch("deepr.experts.profile.ExpertStore") as mock_store_class,
+            patch("deepr.services.context_index.ContextIndex") as mock_idx,
+            patch("deepr.backends.waterfall.choose_maintenance_backend", return_value=local_choice),
+            patch("deepr.backends.local.ollama_chat_client", return_value=object()),
+            patch("deepr.backends.local.make_local_research_fn", lambda model: object()),
+            patch("deepr.experts.report_absorber.ReportAbsorber", MagicMock()),
+            patch("deepr.experts.gap_fill.GapFillEngine", FakeGapFillEngine),
+            patch("deepr.experts.reflection.ReflectionEngine") as mock_engine,
+            patch("deepr.experts.loop_runs.record_loop_run") as mock_record,
+        ):
+            loop_run = MagicMock()
+            loop_run.to_dict.return_value = {"run_id": "loop_reflect_fill"}
+            mock_record.return_value = loop_run
+            profile = MagicMock(domain="ai")
+            profile.name = "AI Expert"
+            mock_store = MagicMock()
+            mock_store.load.return_value = profile
+            mock_store_class.return_value = mock_store
+            mock_idx.return_value.get_report_by_job_id.return_value = MagicMock(prompt="Will X?")
+            mock_idx.return_value.get_report_content.return_value = "report body"
+            inst = MagicMock()
+            inst.reflect = AsyncMock(return_value=stub)
+            mock_engine.return_value = inst
+
+            result = runner.invoke(
+                cli,
+                ["expert", "reflect", "AI Expert", "job1", "--scheduled", "--execute-followups", "--json"],
+            )
+
+        assert result.exit_code == 0, result.output
+        import json
+
+        payload = json.loads(result.output)
+        assert payload["followups"]["status"] == "executed"
+        assert payload["followups"]["capacity_source"] == "local"
+        assert payload["followups"]["outcomes"][0]["status"] == "filled"
+        assert mock_record.call_args.kwargs["capacity_source"] == "local"
+        assert mock_record.call_args.kwargs["trigger"] == "scheduled"
+
+    def test_scheduled_overlap_records_single_waiting_run(self, runner):
+        from contextlib import contextmanager
+
+        from deepr.experts.reflection import ReflectionReport
+
+        stub = ReflectionReport(
+            question="Will X?",
+            verdict="revise",
+            overall_score=0.55,
+            dimensions=[],
+            followups=["What changed in Q2?"],
+        )
+        local_choice = SimpleNamespace(
+            is_local=True, is_plan_quota=False, model="qwen-local", plan_backend_id=None, reason="admitted local"
+        )
+
+        @contextmanager
+        def held_lock(name, verb):
+            yield False
+
+        with (
+            patch("deepr.experts.profile.ExpertStore") as mock_store_class,
+            patch("deepr.services.context_index.ContextIndex") as mock_idx,
+            patch("deepr.backends.waterfall.choose_maintenance_backend", return_value=local_choice) as mock_choose,
+            patch("deepr.backends.local.ollama_chat_client", return_value=object()),
+            patch("deepr.experts.loop_lock.expert_verb_lock", held_lock),
+            patch("deepr.experts.reflection.ReflectionEngine") as mock_engine,
+            patch("deepr.experts.loop_runs.record_loop_run") as mock_record,
+        ):
+            loop_run = MagicMock(run_id="loop_reflect_overlap")
+            loop_run.to_dict.return_value = {"run_id": "loop_reflect_overlap"}
+            mock_record.return_value = loop_run
+            profile = MagicMock(domain="ai")
+            profile.name = "AI Expert"
+            mock_store = MagicMock()
+            mock_store.load.return_value = profile
+            mock_store_class.return_value = mock_store
+            mock_idx.return_value.get_report_by_job_id.return_value = MagicMock(prompt="Will X?")
+            mock_idx.return_value.get_report_content.return_value = "report body"
+            inst = MagicMock()
+            inst.reflect = AsyncMock(return_value=stub)
+            mock_engine.return_value = inst
+
+            result = runner.invoke(
+                cli,
+                ["expert", "reflect", "AI Expert", "job1", "--scheduled", "--execute-followups", "--json"],
+            )
+
+        assert result.exit_code == 0, result.output
+        # Only the reflect-class waterfall call happens; the lock is checked
+        # before any gap-fill capacity resolution or engine construction.
+        mock_choose.assert_called_once_with("reflect")
+        assert mock_record.call_count == 1
+        assert mock_record.call_args.kwargs["stop_reason"].value == "overlap_locked"
+        assert mock_record.call_args.kwargs["capacity_source"] == "local"
+        import json
+
+        payload = json.loads(result.output)
+        assert payload["followups"]["status"] == "waiting_for_overlap"
+        assert payload["loop_run"]["run_id"] == "loop_reflect_overlap"
+
+    def test_scheduled_runs_on_admitted_plan_capacity(self, runner):
+        from deepr.experts.reflection import ReflectionReport
+
+        stub = ReflectionReport(question="Will X?", verdict="accept", overall_score=0.8, dimensions=[], followups=[])
+        plan_choice = SimpleNamespace(
+            is_local=False, is_plan_quota=True, model=None, plan_backend_id="codex", reason="admitted plan"
+        )
+        adapter = SimpleNamespace(backend_id="codex", tos_note="")
+        with (
+            patch("deepr.experts.profile.ExpertStore") as mock_store_class,
+            patch("deepr.services.context_index.ContextIndex") as mock_idx,
+            patch("deepr.backends.waterfall.choose_maintenance_backend", return_value=plan_choice),
+            patch("deepr.backends.plan_quota.get_adapter", return_value=adapter) as mock_get_adapter,
+            patch("deepr.backends.plan_quota.PlanQuotaChatClient") as mock_client,
+            patch("deepr.experts.reflection.ReflectionEngine") as mock_engine,
+            patch("deepr.experts.loop_runs.record_loop_run") as mock_record,
+        ):
+            loop_run = MagicMock()
+            loop_run.to_dict.return_value = {"run_id": "loop_reflect_plan"}
+            mock_record.return_value = loop_run
+            profile = MagicMock(domain="ai")
+            profile.name = "AI Expert"
+            mock_store = MagicMock()
+            mock_store.load.return_value = profile
+            mock_store_class.return_value = mock_store
+            mock_idx.return_value.get_report_by_job_id.return_value = MagicMock(prompt="Will X?")
+            mock_idx.return_value.get_report_content.return_value = "report body"
+            inst = MagicMock()
+            inst.reflect = AsyncMock(return_value=stub)
+            mock_engine.return_value = inst
+
+            result = runner.invoke(
+                cli,
+                ["expert", "reflect", "AI Expert", "job1", "--scheduled", "--json"],
+            )
+
+        assert result.exit_code == 0, result.output
+        mock_get_adapter.assert_called_once_with("codex")
+        assert mock_client.call_args.kwargs["operation"] == "plan_quota_reflection"
+        assert mock_engine.call_args.kwargs["model"] == "codex"
+        import json
+
+        payload = json.loads(result.output)
+        assert payload["capacity_source"] == "plan_quota:codex"
+        assert mock_record.call_args.kwargs["capacity_source"] == "plan_quota:codex"
+
     def test_execute_followups_records_reflection_loop_metrics(self, runner):
         from deepr.experts.reflection import ReflectionReport
 

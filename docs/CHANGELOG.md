@@ -29,6 +29,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `method` field in the durable artifact shows whether vector or lexical
   routing was actually used instead of re-resolving recall at artifact-build
   time.
+- Scheduled `deepr expert reflect --scheduled` now consumes admitted
+  owned/prepaid capacity for the new `reflect` task class instead of always
+  waiting: the evaluator runs on an admitted local Ollama model or a
+  trusted-quota plan backend, follow-ups execute only when the `gap_fill`
+  waterfall rung also resolves to owned/prepaid capacity, and the run emits
+  `deepr-scheduled-reflection-run-v1` with the capacity source recorded on the
+  loop run. Scheduled mode still never dispatches metered evaluation or
+  research; without admitted capacity the existing wait payload is unchanged.
+- Added `reflect` to the plan-quota admission task classes
+  (`deepr capacity admit-plan <backend> --task-class reflect`).
 - Added `deepr eval recall NAME --cases PATH`, a `$0` read-only eval that
   compares lexical and indexed-vector recall routing on operator-labeled
   cases and emits `deepr-recall-eval-report-v1` with hit rate, mean

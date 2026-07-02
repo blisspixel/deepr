@@ -36,6 +36,8 @@ def record_completed_reflection_loop(
     execute_followups: bool,
     fill_result: Any | None = None,
     cancelled_followups: bool = False,
+    capacity_source: str = "api_metered",
+    scheduled: bool = False,
 ):
     from deepr.experts.loop_runs import LoopStopReason, record_loop_run
 
@@ -84,13 +86,13 @@ def record_completed_reflection_loop(
         expert_name=expert_name,
         loop_type="reflection_followups",
         goal=f"Reflect on report {report_id} and run follow-ups",
-        trigger="manual",
+        trigger="scheduled" if scheduled else "manual",
         status=status,
         stop_reason=stop_reason,
         next_action=next_action,
         budget_limit=budget if execute_followups else None,
         budget_spent=float(getattr(fill_result, "total_cost", 0.0) or 0.0),
-        capacity_source="none" if verdict == "skipped" and fill_result is None else "api_metered",
+        capacity_source="none" if verdict == "skipped" and fill_result is None else capacity_source,
         accepted_changes=accepted,
         rejected_changes=rejected,
         verifier_id="reflection",
@@ -106,6 +108,7 @@ def record_reflection_overlap_loop(
     *,
     budget: float,
     scheduled: bool = False,
+    capacity_source: str = "api_metered",
 ):
     from deepr.experts.loop_runs import LoopRunStatus, LoopStopReason, record_loop_run
 
@@ -123,5 +126,5 @@ def record_reflection_overlap_loop(
         },
         budget_limit=budget,
         budget_spent=0.0,
-        capacity_source="api_metered",
+        capacity_source=capacity_source,
     )

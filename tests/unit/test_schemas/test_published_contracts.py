@@ -1750,6 +1750,42 @@ def test_scheduled_reflection_wait_schema_validates_runtime_payload():
     assert payload["loop_run"]["run_id"] == "loop_reflect_contract"
 
 
+def test_scheduled_reflection_run_schema_validates_runtime_payload():
+    from deepr.cli.commands.semantic.expert_reflect_schedule import (
+        SCHEDULED_REFLECTION_RUN_KIND,
+        SCHEDULED_REFLECTION_RUN_SCHEMA_VERSION,
+        ScheduledReflectionCapacity,
+        scheduled_reflection_run_payload,
+    )
+    from deepr.experts.reflection import ReflectionReport
+
+    report = ReflectionReport(
+        question="What changed?",
+        verdict="accept",
+        overall_score=0.82,
+        dimensions=[],
+        followups=["Follow up on Q2 pricing"],
+    )
+    capacity = ScheduledReflectionCapacity(use_plan=True, plan_backend_id="codex", note="admitted plan capacity")
+    loop_run = MagicMock()
+    loop_run.to_dict.return_value = {"run_id": "loop_scheduled_reflect_contract"}
+    followups = {
+        "requested": True,
+        "status": "waiting_for_capacity",
+        "detail": "no owned/prepaid gap-fill capacity is admitted",
+        "followup_count": 1,
+    }
+
+    payload = scheduled_reflection_run_payload(report, capacity, followups, loop_run)
+    schema = _load_schema("scheduled-reflection-run-v1.json")
+
+    _validate(schema, payload)
+    assert payload["schema_version"] == SCHEDULED_REFLECTION_RUN_SCHEMA_VERSION
+    assert payload["kind"] == SCHEDULED_REFLECTION_RUN_KIND
+    assert payload["capacity_source"] == "plan_quota:codex"
+    assert payload["loop_run"]["run_id"] == "loop_scheduled_reflect_contract"
+
+
 def test_health_check_action_plan_schema_validates_runtime_payload():
     from deepr.experts.health_check import HealthFinding, HealthReport, RecommendedAction
 

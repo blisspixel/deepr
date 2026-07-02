@@ -335,6 +335,14 @@
       "compatibility": "additive-within-v1"
     },
     {
+      "name": "scheduled-reflection-run",
+      "schema_version": "deepr-scheduled-reflection-run-v1",
+      "kind": "deepr.expert.scheduled_reflection_run",
+      "path": "scheduled-reflection-run-v1.json",
+      "status": "experimental",
+      "compatibility": "additive-within-v1"
+    },
+    {
       "name": "health-check-action-plan",
       "schema_version": "deepr-health-check-action-plan-v1",
       "kind": "deepr.expert.health_check_action_plan",

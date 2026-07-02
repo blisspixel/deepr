@@ -26,7 +26,7 @@ from deepr.cli.commands.capacity_validation import (
 )
 
 _PLAN_BACKEND_IDS = ("codex", "claude", "opencode", "kiro", "grok", "antigravity", "copilot")
-_AUTO_PLAN_TASK_CLASSES = ("sync", "absorb", "gap_fill")
+_AUTO_PLAN_TASK_CLASSES = ("sync", "absorb", "gap_fill", "reflect")
 _FLEET_PROBE_SCHEMA_VERSION = "deepr-plan-fleet-probe-v1"
 _FLEET_PROBE_KIND = "deepr.capacity.probe_fleet"
 _GROUP_ORDER = [
