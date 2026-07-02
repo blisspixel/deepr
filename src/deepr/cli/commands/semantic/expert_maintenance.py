@@ -10,6 +10,8 @@ imports this module at its bottom so the decorators run.
 from __future__ import annotations
 
 import asyncio
+import json
+import sys
 from datetime import UTC, datetime
 
 import click
@@ -33,6 +35,7 @@ from deepr.cli.commands.semantic.expert_sync_support import (
     _run_sync_with_loop_guard,
     _sync_context_builder,
     _sync_context_mode,
+    validate_compiled_claims_flags,
 )
 from deepr.cli.commands.semantic.experts import expert
 from deepr.cli.commands.semantic.grounding_support import (
@@ -131,8 +134,6 @@ def absorb_report(
       deepr expert absorb "AI Strategy Expert" <job_id> --local -y
       deepr expert absorb "MCP Expert" --file docs/design/mcp.md --local -y
     """
-    import json as _json
-    import sys
 
     if sum(bool(x) for x in (local, api, plan)) > 1:
         print_error("Use only one of --local, --api, or --plan.")
@@ -323,7 +324,7 @@ def absorb_report(
         store.save(profile)
 
     if json_output:
-        click.echo(_json.dumps(result.to_dict(), indent=2))
+        click.echo(json.dumps(result.to_dict(), indent=2))
         return
 
     print_header(f"Absorb report into {result.expert_name}")
@@ -437,6 +438,12 @@ def absorb_report(
     help="Compatibility alias for the default --compile-claims apply behavior",
 )
 @click.option(
+    "--recall-embedding-model",
+    default=None,
+    help="With --compile-claims: embed ready claim statements via this local Ollama "
+    "model at $0 for vector recall context; lexical fallback on failure",
+)
+@click.option(
     "--checker-plan",
     type=click.Choice(PLAN_BACKEND_CHOICES),
     default=None,
@@ -480,6 +487,7 @@ def sync_cmd(
     compile_claims: bool,
     stage_compiled_claims: bool,
     apply_compiled_claims: bool,
+    recall_embedding_model: str | None,
     checker_plan: str | None,
     checker_plan_model: str | None,
     fresh_context: bool,
@@ -506,8 +514,6 @@ def sync_cmd(
       deepr expert sync "AI Policy Expert" --local --deep-context -y
       deepr expert sync "AI Policy Expert" --scheduled --fresh-context -y
     """
-    import json as _json
-    import sys
 
     if sum(bool(x) for x in (local, api, plan)) > 1:
         print_error("Use only one of --local, --api, or --plan.")
@@ -517,6 +523,13 @@ def sync_cmd(
             check_grounding=check_grounding,
             checker_plan=checker_plan,
             checker_plan_model=checker_plan_model,
+        )
+        recall_embedding_model = validate_compiled_claims_flags(
+            compile_claims=compile_claims,
+            stage_compiled_claims=stage_compiled_claims,
+            apply_compiled_claims=apply_compiled_claims,
+            dry_run=dry_run,
+            recall_embedding_model=recall_embedding_model,
         )
     except ValueError as exc:
         print_error(str(exc))
@@ -529,18 +542,6 @@ def sync_cmd(
         sys.exit(2)
     if jitter < 0:
         print_error("--jitter must be non-negative.")
-        sys.exit(2)
-    if apply_compiled_claims and not compile_claims:
-        print_error("--apply-compiled-claims requires --compile-claims.")
-        sys.exit(2)
-    if apply_compiled_claims and dry_run:
-        print_error("--apply-compiled-claims cannot be combined with --dry-run.")
-        sys.exit(2)
-    if stage_compiled_claims and not compile_claims:
-        print_error("--stage-compiled-claims requires --compile-claims.")
-        sys.exit(2)
-    if stage_compiled_claims and apply_compiled_claims:
-        print_error("--stage-compiled-claims cannot be combined with --apply-compiled-claims.")
         sys.exit(2)
     apply_compiled_graph_commits = compile_claims and not stage_compiled_claims
 
@@ -749,13 +750,14 @@ def sync_cmd(
         compile_claims=compile_claims,
         apply_graph_commits=apply_compiled_graph_commits,
         spend_decision_fn=spend_decision_fn,
+        recall_embedding_model=recall_embedding_model,
     )
 
     if json_output:
         payload = result.to_dict()
         if loop_run is not None:
             payload["loop_run"] = loop_run.to_dict()
-        click.echo(_json.dumps(payload, indent=2))
+        click.echo(json.dumps(payload, indent=2))
         return
 
     print_header(f"Sync: {name}")
@@ -797,9 +799,7 @@ def sync_cmd(
 def _emit_absorb_result(result, name: str, json_output: bool) -> None:
     """Render an absorption result as JSON or a human summary (shared by learn-web)."""
     if json_output:
-        import json as _json
-
-        click.echo(_json.dumps(result.to_dict(), indent=2))
+        click.echo(json.dumps(result.to_dict(), indent=2))
         return
     if result.dry_run:
         console.print("[yellow]DRY RUN[/yellow] - nothing written")
@@ -868,7 +868,6 @@ def run_learn_web_pipeline(
     title: str,
 ) -> None:
     """Research a topic with free web retrieval, then absorb verified beliefs."""
-    import sys
     from pathlib import Path
 
     from deepr.experts.local_research import research_web_local

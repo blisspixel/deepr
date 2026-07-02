@@ -19,6 +19,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Added `deepr.backends.local.make_local_embedder`, an OpenAI-compatible
   Ollama `/v1/embeddings` batcher on the existing local client seam, with
   order restoration and strict vector-count validation.
+- Added `--recall-embedding-model` to `deepr expert sync` so `--compile-claims`
+  verification can embed ready claim statements through a local Ollama model at
+  `$0` and route verifier recall context through the indexed belief vectors;
+  embedding failure degrades to lexical recall routing without blocking the
+  already-gated verification call.
+- Persisted `deepr-claim-verification-v1` sidecars now record the exact recall
+  packets the verifier prompt was built from, so the per-candidate recall
+  `method` field in the durable artifact shows whether vector or lexical
+  routing was actually used instead of re-resolving recall at artifact-build
+  time.
 
 ### Fixed
 - Removed accidentally tracked external Distillr runtime telemetry from

@@ -51,7 +51,28 @@ def _local_research_kwargs(context_builder: Any, client: Any, claim_extractor: A
     return kwargs
 
 
-def _metered_claim_services(compile_claims: bool) -> tuple[Any | None, Any | None]:
+def _verifier_recall_kwargs(recall_embedding_model: str | None, *, client: Any | None = None) -> dict[str, Any]:
+    """Local $0 query-embedding wiring for verifier recall routing.
+
+    The embedder is always local Ollama regardless of which capacity runs the
+    verifier itself: embedding claim statements for recall routing must never
+    become a metered call. Without a model this stays empty and recall keeps
+    its lexical routing.
+    """
+    if not recall_embedding_model:
+        return {}
+    from deepr.backends.local import make_local_embedder
+
+    return {
+        "recall_query_embedder": make_local_embedder(recall_embedding_model, client=client),
+        "recall_embedding_model": recall_embedding_model,
+    }
+
+
+def _metered_claim_services(
+    compile_claims: bool,
+    recall_embedding_model: str | None = None,
+) -> tuple[Any | None, Any | None]:
     if not compile_claims:
         return None, None
     from deepr.experts.claim_extraction import SemanticClaimExtractor
@@ -65,7 +86,7 @@ def _metered_claim_services(compile_claims: bool) -> tuple[Any | None, Any | Non
     }
     return (
         SemanticClaimExtractor(**service_kwargs),
-        SemanticClaimVerifier(**service_kwargs),
+        SemanticClaimVerifier(**service_kwargs, **_verifier_recall_kwargs(recall_embedding_model)),
     )
 
 
@@ -81,6 +102,7 @@ def build_sync_engine(
     grounding_checker: GroundingChecker | None = None,
     compile_claims: bool = False,
     spend_decision_fn: Any | None = None,
+    recall_embedding_model: str | None = None,
 ) -> tuple[ExpertSyncEngine, str]:
     """Construct a sync engine for the resolved backend and report its source.
 
@@ -127,6 +149,7 @@ def build_sync_engine(
                 capacity_source="local",
                 client=client,
                 estimated_cost_usd=0.0,
+                **_verifier_recall_kwargs(recall_embedding_model, client=client),
             )
             if compile_claims
             else None
@@ -178,6 +201,7 @@ def build_sync_engine(
                 if bool(getattr(plan_adapter, "metered_at_margin", False))
                 else 0.0,
                 allow_metered=bool(getattr(plan_adapter, "metered_at_margin", False)),
+                **_verifier_recall_kwargs(recall_embedding_model),
             )
             if compile_claims
             else None
@@ -195,7 +219,7 @@ def build_sync_engine(
     if grounding_checker is not None:
         from deepr.experts.report_absorber import ReportAbsorber
 
-        claim_extractor, claim_verifier = _metered_claim_services(compile_claims)
+        claim_extractor, claim_verifier = _metered_claim_services(compile_claims, recall_embedding_model)
         engine_kwargs = _with_claim_services(
             {"absorber": ReportAbsorber(profile, grounding_checker=grounding_checker)},
             claim_extractor,
@@ -205,7 +229,7 @@ def build_sync_engine(
         return ExpertSyncEngine(profile, **engine_kwargs), "api_metered"
 
     if compile_claims:
-        claim_extractor, claim_verifier = _metered_claim_services(True)
+        claim_extractor, claim_verifier = _metered_claim_services(True, recall_embedding_model)
         engine_kwargs = _with_claim_services({}, claim_extractor, claim_verifier)
         engine_kwargs = _with_spend_decision(engine_kwargs, spend_decision_fn)
         return ExpertSyncEngine(profile, **engine_kwargs), "api_metered"

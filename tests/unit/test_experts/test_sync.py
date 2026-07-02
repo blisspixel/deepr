@@ -871,6 +871,67 @@ class TestSyncEngine:
         assert len(graph_commit["operations"]) == 1
 
     @pytest.mark.asyncio
+    async def test_sync_persists_the_recall_context_the_verifier_actually_used(self, tmp_path):
+        store = _sub_store(tmp_path, Subscription(topic="Topic X", budget=0.5))
+        beliefs = BeliefStore("Sync Test Expert", storage_dir=tmp_path / "beliefs")
+        existing, _ = beliefs.add_belief(
+            Belief(
+                "Topic X gained capability Y in June 2026 from prior release notes.",
+                0.8,
+                domain="ai",
+                source_type="report",
+            ),
+            check_conflicts=False,
+        )
+
+        class _VectorRecallClaimVerifier(_FakeClaimVerifier):
+            async def verify(self, claim_extraction, source_notes, source_pack_payload, **kwargs):
+                output = await super().verify(claim_extraction, source_notes, source_pack_payload, **kwargs)
+                candidate_id = claim_extraction["candidates"][0]["candidate_id"]
+                output["recall"] = {
+                    "context_by_candidate_id": {
+                        candidate_id: [
+                            {
+                                "item_id": existing.id,
+                                "kind": "belief",
+                                "domain": "ai",
+                                "text": existing.claim,
+                                "score": 0.987654,
+                                "method": "vector_similarity",
+                                "matched_terms": [],
+                                "metadata": {"recall_role": "memory_quality_candidate"},
+                                "verdict": "candidate_only",
+                                "guidance": "routing_only",
+                            }
+                        ]
+                    },
+                    "embedding_model": "nomic-embed-text",
+                }
+                return output
+
+        engine = ExpertSyncEngine(
+            _expert(),
+            research_fn=_topic_x_research_fn(_topic_x_source_pack()),
+            subscription_store=store,
+            belief_store=beliefs,
+            absorber=ReportAbsorber(_expert(), client=_FakeExtractionClient(), belief_store=beliefs),
+            claim_extractor=_FakeClaimExtractor(),
+            claim_verifier=_VectorRecallClaimVerifier(),
+        )
+
+        result = await engine.sync(budget=1.0)
+
+        outcome = result.outcomes[0]
+        assert outcome.status == "synced"
+        verification_path = tmp_path / "knowledge" / outcome.claim_verification_artifact
+        verification = json.loads(verification_path.read_text(encoding="utf-8"))
+        recall_candidate = verification["decisions"][0]["recall_context"]["candidates"][0]
+        assert recall_candidate["method"] == "vector_similarity"
+        assert recall_candidate["score"] == 0.987654
+        assert recall_candidate["item_id"] == existing.id
+        assert recall_candidate["verdict"] == "candidate_only"
+
+    @pytest.mark.asyncio
     async def test_sync_can_apply_compiled_graph_commit_instead_of_legacy_absorb(self, tmp_path):
         store = _sub_store(tmp_path, Subscription(topic="Topic X", budget=0.5))
         beliefs = BeliefStore("Sync Test Expert", storage_dir=tmp_path / "beliefs")

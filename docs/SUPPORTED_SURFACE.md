@@ -168,8 +168,12 @@ must not be described as usable capacity.
   declared upstream estimate separate from Deepr spend. `deepr expert
   refresh-semantic-recall NAME --local-embedding-model MODEL` computes those
   vectors through a local Ollama embedding model at `$0` with no metered
-  fallback. Both refresh paths and local query embedding remain explicit
-  operator choices, and recall stays `candidate_only` routing in every mode.
+  fallback. `deepr expert sync --compile-claims --recall-embedding-model MODEL`
+  embeds ready claim statements through the same local `$0` embedder so
+  verifier recall context can use the indexed belief vectors, degrading to
+  lexical routing instead of blocking verification when the local embedder
+  fails. All of these remain explicit operator choices, and recall stays
+  `candidate_only` routing in every mode.
 - `deepr expert monitor` emits a read-only `deepr-metacognitive-monitor-v1`
   artifact with review-required proposals derived from self-model risks, failed
   loop runs, capacity waits, and sanitized consult trace candidates. It does
