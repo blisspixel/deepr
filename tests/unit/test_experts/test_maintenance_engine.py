@@ -213,6 +213,25 @@ def test_metered_compile_claims_can_use_local_recall_embedder(patch_engine, monk
     assert captured == {"model": "nomic-embed-text", "client": None}
 
 
+def test_compile_claims_wires_expert_verification_memo(patch_engine, monkeypatch):
+    from deepr.experts.verification_memo import VerificationMemoStore
+
+    profile = SimpleNamespace(name="Memo Expert")
+    monkeypatch.setattr("deepr.backends.local.ollama_chat_client", lambda: object())
+    monkeypatch.setattr(
+        "deepr.backends.local.make_local_research_fn",
+        lambda model, *, context_builder=None, client=None: object(),
+    )
+    monkeypatch.setattr("deepr.experts.report_absorber.ReportAbsorber", lambda *a, **k: object())
+
+    local_engine, _ = build_sync_engine(profile, use_local=True, local_model="qwen-local", compile_claims=True)
+    metered_engine, _ = build_sync_engine(profile, compile_claims=True)
+
+    assert isinstance(local_engine.claim_verifier.memo, VerificationMemoStore)
+    assert isinstance(metered_engine.claim_verifier.memo, VerificationMemoStore)
+    assert local_engine.claim_verifier.memo.path.name == "verification_memos.jsonl"
+
+
 def test_metered_compile_claims_is_explicit_opt_in(patch_engine):
     profile = SimpleNamespace(name="X")
 

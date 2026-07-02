@@ -751,6 +751,13 @@ class ExpertSyncEngine:
             recall_domain=str(getattr(self.expert, "domain", "") or ""),
         )
 
+        # Replay honesty: when the verifier replayed memoized decisions, the
+        # persisted sidecar records which candidates were replayed vs freshly
+        # judged, so an auditor can trace a decision to its original dispatch.
+        memo_metadata = model_output.get("memo")
+        if isinstance(memo_metadata, dict):
+            verification["memo"] = memo_metadata
+
         root = self.subscriptions.path.parent
         timestamp = started_at.strftime("%Y%m%dT%H%M%S%fZ")
         verification_dir = root / "sync_artifacts" / "claim_verifications"

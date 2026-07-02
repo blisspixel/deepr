@@ -57,6 +57,11 @@ class ClaimVerificationPrompt:
     # durable record identical to what the verifier actually judged against,
     # including vector-vs-lexical routing per packet.
     recall_candidates_by_candidate_id: dict[str, list[dict[str, Any]]] = field(default_factory=dict)
+    # The rendered per-candidate packets. These are the complete judgment
+    # inputs for each candidate, which is what verification memoization keys
+    # on: identical packet plus prompt version plus model means identical
+    # judgment basis.
+    candidate_packets: list[dict[str, Any]] = field(default_factory=list)
 
 
 @dataclass
@@ -81,6 +86,7 @@ class SemanticClaimVerifier:
     recall_min_score: float = 0.0
     recall_query_embedder: Any | None = None
     recall_embedding_model: str | None = None
+    memo: Any | None = None
 
     def _get_client(self) -> Any:
         if self.client is None:
@@ -132,6 +138,7 @@ class SemanticClaimVerifier:
             recall_min_score=self.recall_min_score,
             recall_query_embeddings_by_candidate_id=recall_embeddings,
             recall_embedding_model=self.recall_embedding_model if recall_embeddings else None,
+            memo=self.memo,
         )
 
     async def _recall_query_embeddings(
@@ -412,6 +419,7 @@ def build_claim_verification_prompt(
         candidate_count=len(packets),
         recall_candidate_count=sum(packet["recall_context"]["candidate_count"] for packet in packets),
         recall_candidates_by_candidate_id=recall_candidates_by_candidate_id,
+        candidate_packets=packets,
     )
 
 
@@ -455,6 +463,232 @@ def _attach_contract(
     return output
 
 
+def _memo_partition(
+    prompt: ClaimVerificationPrompt,
+    memo: Any | None,
+    *,
+    provider: str,
+    model: str,
+) -> dict[str, dict[str, Any]]:
+    """Return memo hits keyed by candidate id.
+
+    Lookup is exact-equality over the rendered packet; a disabled or absent
+    memo yields no hits and verification proceeds exactly as before.
+    Duplicate candidate ids collapse last-write-wins, matching the downstream
+    ``_candidate_by_id`` collapse in the artifact builder.
+    """
+    from deepr.experts.verification_memo import verification_memo_enabled, verification_memo_key
+
+    if memo is None or not verification_memo_enabled():
+        return {}
+    hits: dict[str, dict[str, Any]] = {}
+    for packet in prompt.candidate_packets:
+        candidate_id = str(packet.get("candidate_id", "") or "")
+        if not candidate_id:
+            continue
+        key = verification_memo_key(
+            packet,
+            prompt_version=CLAIM_VERIFICATION_PROMPT_VERSION,
+            provider=provider,
+            model=model,
+        )
+        item = memo.get(key)
+        if item is not None:
+            hits[candidate_id] = {**item, "candidate_id": candidate_id, "memo_replayed": True}
+    return hits
+
+
+def _memo_metadata(memo_hits: Mapping[str, Any], fresh_ids: Sequence[str]) -> dict[str, Any]:
+    return {
+        "hit_count": len(memo_hits),
+        "fresh_count": len(fresh_ids),
+        "hit_candidate_ids": sorted(memo_hits),
+        "fresh_candidate_ids": sorted(fresh_ids),
+        "replay_scope": "per-candidate verdicts only; edge_decisions are never replayed",
+    }
+
+
+def _memoized_output(
+    prompt: ClaimVerificationPrompt,
+    memo_hits: dict[str, dict[str, Any]],
+    *,
+    provider: str,
+    model: str,
+    capacity_source: str,
+    source_note_artifact: str,
+    claim_extraction_artifact: str,
+    generated_at: str,
+    recall_embedding_model: str | None,
+) -> dict[str, Any]:
+    """Assemble a full-replay output with zero dispatch and zero cost."""
+    ordered = [
+        memo_hits[packet["candidate_id"]] for packet in prompt.candidate_packets if packet["candidate_id"] in memo_hits
+    ]
+    output = _attach_contract(
+        {"verifications": ordered},
+        provider=provider,
+        model=model,
+        capacity_source=capacity_source,
+        cost_usd=0.0,
+        prompt=prompt,
+        source_note_artifact=source_note_artifact,
+        claim_extraction_artifact=claim_extraction_artifact,
+        generated_at=generated_at or datetime.now(UTC).isoformat(),
+    )
+    output["recall"] = {
+        "context_by_candidate_id": prompt.recall_candidates_by_candidate_id,
+        "embedding_model": recall_embedding_model or "",
+    }
+    output["memo"] = _memo_metadata(memo_hits, [])
+    return output
+
+
+def _merge_replayed_items(parsed: dict[str, Any], memo_hits: dict[str, dict[str, Any]]) -> None:
+    """Rejoin replayed decisions with the freshly judged ones in place."""
+    if memo_hits and isinstance(parsed.get("verifications"), list):
+        parsed["verifications"] = list(parsed["verifications"]) + list(memo_hits.values())
+
+
+def _attach_memo_metadata(
+    output: dict[str, Any],
+    *,
+    memo: Any | None,
+    memo_hits: dict[str, dict[str, Any]],
+    fresh_ids: set[str],
+) -> None:
+    """Record replay-vs-fresh counts on the output when a memo was in play."""
+    if memo is not None:
+        output["memo"] = _memo_metadata(memo_hits, sorted(fresh_ids))
+
+
+def _memo_reduced_prompt(
+    prompt: ClaimVerificationPrompt,
+    memo_hits: dict[str, dict[str, Any]],
+    claim_extraction: dict[str, Any],
+    source_notes: dict[str, Any],
+    source_pack_payload: dict[str, Any],
+    *,
+    provider: str,
+    model: str,
+    capacity_source: str,
+    source_note_artifact: str,
+    claim_extraction_artifact: str,
+    generated_at: str,
+    recall_belief_store: Any | None,
+    recall_domain: str | None,
+    recall_top_k: int,
+    recall_min_score: float,
+    recall_query_embeddings_by_candidate_id: Mapping[str, Sequence[float]] | None,
+    recall_embedding_model: str | None,
+) -> tuple[ClaimVerificationPrompt, dict[str, Any] | None]:
+    """Shrink the prompt to fresh candidates, or short-circuit on full replay.
+
+    Returns ``(prompt, None)`` when dispatch is still needed (possibly with a
+    reduced prompt) and ``(prompt, output)`` when every candidate replayed and
+    no model call should happen.
+    """
+    if not memo_hits:
+        return prompt, None
+    fresh_ids = {p["candidate_id"] for p in prompt.candidate_packets if p["candidate_id"] not in memo_hits}
+    if not fresh_ids:
+        # Every candidate replays from the memo: no model call, no spend.
+        return prompt, _memoized_output(
+            prompt,
+            memo_hits,
+            provider=provider,
+            model=model,
+            capacity_source=capacity_source,
+            source_note_artifact=source_note_artifact,
+            claim_extraction_artifact=claim_extraction_artifact,
+            generated_at=generated_at,
+            recall_embedding_model=recall_embedding_model,
+        )
+    reduced = build_claim_verification_prompt(
+        _filtered_claim_extraction(claim_extraction, fresh_ids),
+        source_notes,
+        source_pack_payload,
+        recall_belief_store=recall_belief_store,
+        recall_domain=recall_domain,
+        recall_top_k=recall_top_k,
+        recall_min_score=recall_min_score,
+        recall_query_embeddings_by_candidate_id=recall_query_embeddings_by_candidate_id,
+        recall_embedding_model=recall_embedding_model,
+    )
+    return reduced, None
+
+
+def _filtered_claim_extraction(claim_extraction: dict[str, Any], keep_ids: set[str]) -> dict[str, Any]:
+    """Copy the extraction with only the candidates still needing dispatch.
+
+    Id coercion matches the packet builder (`str(... or "")`), so a candidate
+    without an id stays in the dispatch set exactly as it would in a memo-off
+    run.
+    """
+    raw_candidates = claim_extraction.get("candidates", [])
+    candidates = raw_candidates if isinstance(raw_candidates, list) else []
+    return {
+        **claim_extraction,
+        "candidates": [
+            c for c in candidates if isinstance(c, dict) and str(c.get("candidate_id", "") or "") in keep_ids
+        ],
+    }
+
+
+def _record_fresh_memos(
+    parsed: dict[str, Any],
+    *,
+    memo: Any | None,
+    prompt: ClaimVerificationPrompt,
+    provider: str,
+    model: str,
+    claim_extraction_artifact: str,
+) -> None:
+    """Best-effort memo writes for freshly judged candidates.
+
+    Keys are computed from the packets of the prompt that was actually
+    dispatched, so a recorded key always names the exact judgment inputs the
+    stored decision came from. Items where the model punted (any core verdict
+    ``unverified``) are not recorded, so a flaky output never freezes into a
+    permanent $0 replay.
+    """
+    from deepr.experts.verification_memo import verification_memo_enabled, verification_memo_key
+
+    if memo is None or not verification_memo_enabled():
+        return
+    items = parsed.get("verifications")
+    if not isinstance(items, list):
+        return
+    packets_by_id = {str(p.get("candidate_id", "") or ""): p for p in prompt.candidate_packets}
+    for item in items:
+        if not isinstance(item, dict):
+            continue
+        candidate_id = str(item.get("candidate_id", "") or "")
+        packet = packets_by_id.get(candidate_id)
+        if packet is None or _model_punted(item):
+            continue
+        memo.put(
+            verification_memo_key(
+                packet,
+                prompt_version=CLAIM_VERIFICATION_PROMPT_VERSION,
+                provider=provider,
+                model=model,
+            ),
+            item,
+            provider=provider,
+            model=model,
+            prompt_version=CLAIM_VERIFICATION_PROMPT_VERSION,
+            artifact_ref=claim_extraction_artifact,
+        )
+
+
+def _model_punted(item: Mapping[str, Any]) -> bool:
+    """Form-only check: any core verdict the model explicitly left unverified."""
+    return any(
+        str(item.get(field, "") or "") == "unverified"
+        for field in ("support_verdict", "contradiction_verdict", "dedup_verdict")
+    )
+
+
 async def verify_claims(
     claim_extraction: dict[str, Any],
     source_notes: dict[str, Any],
@@ -478,8 +712,16 @@ async def verify_claims(
     recall_min_score: float = 0.0,
     recall_query_embeddings_by_candidate_id: Mapping[str, Sequence[float]] | None = None,
     recall_embedding_model: str | None = None,
+    memo: Any | None = None,
 ) -> dict[str, Any]:
-    """Invoke a chat client and return verifier JSON plus trusted metadata."""
+    """Invoke a chat client and return verifier JSON plus trusted metadata.
+
+    With a ``memo`` store, candidates whose full judgment inputs (rendered
+    packet, prompt version, provider, model) already have a recorded decision
+    are replayed without a model call; only the remaining candidates are
+    dispatched. Memo reuse is exact-equality only and never alters fresh
+    semantic judgment.
+    """
     budget = coerce_nonnegative_float(budget_usd, name="budget_usd", error_type=ClaimVerificationBlocked)
     estimated_cost = coerce_nonnegative_float(
         estimated_cost_usd,
@@ -504,6 +746,31 @@ async def verify_claims(
         recall_query_embeddings_by_candidate_id=recall_query_embeddings_by_candidate_id,
         recall_embedding_model=recall_embedding_model,
     )
+    memo_hits = _memo_partition(prompt, memo, provider=provider, model=model)
+    # The full prompt's recall map covers replayed candidates too; keep it so
+    # the artifact records the judged-against context even on partial replays.
+    full_recall_context = prompt.recall_candidates_by_candidate_id
+    prompt, replay_output = _memo_reduced_prompt(
+        prompt,
+        memo_hits,
+        claim_extraction,
+        source_notes,
+        source_pack_payload,
+        provider=provider,
+        model=model,
+        capacity_source=capacity_source,
+        source_note_artifact=source_note_artifact,
+        claim_extraction_artifact=claim_extraction_artifact,
+        generated_at=generated_at,
+        recall_belief_store=recall_belief_store,
+        recall_domain=recall_domain,
+        recall_top_k=recall_top_k,
+        recall_min_score=recall_min_score,
+        recall_query_embeddings_by_candidate_id=recall_query_embeddings_by_candidate_id,
+        recall_embedding_model=recall_embedding_model,
+    )
+    if replay_output is not None:
+        return replay_output
     manager = None
     reservation_id = ""
     if estimated_cost > 0:
@@ -551,8 +818,23 @@ async def verify_claims(
             },
         )
 
+    parsed = _parse_verifier_response(raw)
+    # The memo section is deterministic-owned trusted metadata; a model that
+    # emits its own "memo" key must not have it persisted as if it were ours.
+    parsed.pop("memo", None)
+    fresh_ids = {str(p.get("candidate_id", "") or "") for p in prompt.candidate_packets}
+    _record_fresh_memos(
+        parsed,
+        memo=memo,
+        prompt=prompt,
+        provider=provider,
+        model=model,
+        claim_extraction_artifact=claim_extraction_artifact,
+    )
+    _merge_replayed_items(parsed, memo_hits)
+
     output = _attach_contract(
-        _parse_verifier_response(raw),
+        parsed,
         provider=provider,
         model=model,
         capacity_source=capacity_source,
@@ -567,9 +849,13 @@ async def verify_claims(
     # builders can persist what the verifier actually judged against instead of
     # re-resolving recall and silently recording a different context.
     output["recall"] = {
-        "context_by_candidate_id": prompt.recall_candidates_by_candidate_id,
+        # Fresh packets carry the reduced prompt's recall; replayed packets
+        # keep the full prompt's recall, which the memo hit proves is exactly
+        # what their original dispatch judged against.
+        "context_by_candidate_id": {**full_recall_context, **prompt.recall_candidates_by_candidate_id},
         "embedding_model": recall_embedding_model or "",
     }
+    _attach_memo_metadata(output, memo=memo, memo_hits=memo_hits, fresh_ids=fresh_ids)
     return output
 
 

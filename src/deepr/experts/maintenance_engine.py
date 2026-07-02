@@ -69,9 +69,25 @@ def _verifier_recall_kwargs(recall_embedding_model: str | None, *, client: Any |
     }
 
 
+def _verifier_memo_kwargs(profile: ExpertProfile | Any) -> dict[str, Any]:
+    """Wire the per-expert verification memo store into the verifier.
+
+    The memo replays prior decisions only on byte-identical judgment inputs;
+    the DEEPR_DISABLE_VERIFICATION_MEMO escape hatch is honored at lookup time
+    inside the verifier, so construction here is unconditional and cheap.
+    """
+    from deepr.experts.verification_memo import VerificationMemoStore
+
+    name = str(getattr(profile, "name", "") or "")
+    if not name:
+        return {}
+    return {"memo": VerificationMemoStore.for_expert(name)}
+
+
 def _metered_claim_services(
     compile_claims: bool,
     recall_embedding_model: str | None = None,
+    profile: ExpertProfile | Any = None,
 ) -> tuple[Any | None, Any | None]:
     if not compile_claims:
         return None, None
@@ -86,7 +102,11 @@ def _metered_claim_services(
     }
     return (
         SemanticClaimExtractor(**service_kwargs),
-        SemanticClaimVerifier(**service_kwargs, **_verifier_recall_kwargs(recall_embedding_model)),
+        SemanticClaimVerifier(
+            **service_kwargs,
+            **_verifier_recall_kwargs(recall_embedding_model),
+            **_verifier_memo_kwargs(profile),
+        ),
     )
 
 
@@ -150,6 +170,7 @@ def build_sync_engine(
                 client=client,
                 estimated_cost_usd=0.0,
                 **_verifier_recall_kwargs(recall_embedding_model, client=client),
+                **_verifier_memo_kwargs(profile),
             )
             if compile_claims
             else None
@@ -202,6 +223,7 @@ def build_sync_engine(
                 else 0.0,
                 allow_metered=bool(getattr(plan_adapter, "metered_at_margin", False)),
                 **_verifier_recall_kwargs(recall_embedding_model),
+                **_verifier_memo_kwargs(profile),
             )
             if compile_claims
             else None
@@ -219,7 +241,7 @@ def build_sync_engine(
     if grounding_checker is not None:
         from deepr.experts.report_absorber import ReportAbsorber
 
-        claim_extractor, claim_verifier = _metered_claim_services(compile_claims, recall_embedding_model)
+        claim_extractor, claim_verifier = _metered_claim_services(compile_claims, recall_embedding_model, profile)
         engine_kwargs = _with_claim_services(
             {"absorber": ReportAbsorber(profile, grounding_checker=grounding_checker)},
             claim_extractor,
@@ -229,7 +251,7 @@ def build_sync_engine(
         return ExpertSyncEngine(profile, **engine_kwargs), "api_metered"
 
     if compile_claims:
-        claim_extractor, claim_verifier = _metered_claim_services(True, recall_embedding_model)
+        claim_extractor, claim_verifier = _metered_claim_services(True, recall_embedding_model, profile)
         engine_kwargs = _with_claim_services({}, claim_extractor, claim_verifier)
         engine_kwargs = _with_spend_decision(engine_kwargs, spend_decision_fn)
         return ExpertSyncEngine(profile, **engine_kwargs), "api_metered"

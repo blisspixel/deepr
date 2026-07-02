@@ -306,6 +306,226 @@ async def test_verifier_recall_embedding_failure_degrades_to_lexical_routing(tmp
     assert verification["verifications"][0]["candidate_id"] == extraction["candidates"][0]["candidate_id"]
 
 
+def _two_claim_extraction(payload: dict):
+    notes = _source_notes(payload)
+    note = notes["notes"][0]
+    window = note["windows"][0]
+    source_ref = {
+        "note_id": note["note_id"],
+        "window_id": window["window_id"],
+        "quote": "Compiler released v2 in June 2026",
+    }
+    return build_semantic_claim_extraction(
+        notes,
+        {
+            "claims": [
+                {
+                    "statement": "Compiler v2 was released in June 2026.",
+                    "claim_kind": "temporal_claim",
+                    "confidence": 0.86,
+                    "atomicity": "atomic",
+                    "temporal_scope": "June 2026",
+                    "support_summary": "The release note names the version and month.",
+                    "source_refs": [source_ref],
+                },
+                {
+                    "statement": "Compiler v2 improved incremental build times.",
+                    "claim_kind": "factual_claim",
+                    "confidence": 0.8,
+                    "atomicity": "atomic",
+                    "temporal_scope": "",
+                    "support_summary": "The release note mentions build performance.",
+                    "source_refs": [source_ref],
+                },
+            ]
+        },
+        source_note_artifact="sync_artifacts/source_notes/pack.json",
+        provider="local",
+        model="qwen-local",
+        capacity_source="local",
+        cost_usd=0.0,
+        generated_at="2026-06-27T12:01:00+00:00",
+    )
+
+
+def _memo_store(tmp_path):
+    from deepr.experts.verification_memo import VerificationMemoStore
+
+    return VerificationMemoStore(tmp_path / "verification_memos.jsonl")
+
+
+async def _verify(extraction, payload, client, *, memo=None):
+    return await verify_claims(
+        extraction,
+        _source_notes(payload),
+        payload,
+        client=client,
+        model="qwen-local",
+        provider="local",
+        capacity_source="local",
+        budget_usd=0.0,
+        estimated_cost_usd=0.0,
+        claim_extraction_artifact="sync_artifacts/claim_extractions/pack.json",
+        memo=memo,
+    )
+
+
+@pytest.mark.asyncio
+async def test_memoized_verification_replays_without_dispatch(tmp_path):
+    payload = _source_pack_payload()
+    memo = _memo_store(tmp_path)
+    first = _claim_extraction(payload)
+    priming_client = _FakeClient(_verification_response(first["candidates"][0]["candidate_id"]))
+    await _verify(first, payload, priming_client, memo=memo)
+    assert len(priming_client.calls) == 1
+
+    second = _claim_extraction(payload)
+    replay_client = _FakeClient("", raises=AssertionError("memoized run must not dispatch"))
+    output = await _verify(second, payload, replay_client, memo=memo)
+
+    assert replay_client.calls == []
+    assert output["contract"]["cost_usd"] == 0.0
+    assert output["memo"]["hit_count"] == 1
+    assert output["memo"]["fresh_count"] == 0
+    item = output["verifications"][0]
+    assert item["candidate_id"] == second["candidates"][0]["candidate_id"]
+    assert item["memo_replayed"] is True
+    assert item["support_verdict"] == "supported"
+    assert "edge_decisions" not in item
+
+
+@pytest.mark.asyncio
+async def test_partial_memo_hit_dispatches_only_fresh_candidates(tmp_path):
+    payload = _source_pack_payload()
+    memo = _memo_store(tmp_path)
+    single = _claim_extraction(payload)
+    await _verify(
+        single, payload, _FakeClient(_verification_response(single["candidates"][0]["candidate_id"])), memo=memo
+    )
+
+    both = _two_claim_extraction(payload)
+    fresh = next(c for c in both["candidates"] if "incremental build" in c["statement"])
+    replayed = next(c for c in both["candidates"] if c is not fresh)
+    partial_client = _FakeClient(_verification_response(fresh["candidate_id"]))
+
+    output = await _verify(both, payload, partial_client, memo=memo)
+
+    user_prompt = partial_client.calls[0]["messages"][1]["content"]
+    assert fresh["candidate_id"] in user_prompt
+    assert replayed["candidate_id"] not in user_prompt
+    assert output["memo"]["hit_count"] == 1
+    assert output["memo"]["fresh_count"] == 1
+    verdicts = {item["candidate_id"]: item for item in output["verifications"]}
+    assert set(verdicts) == {fresh["candidate_id"], replayed["candidate_id"]}
+    assert verdicts[replayed["candidate_id"]]["memo_replayed"] is True
+
+    rerun = _two_claim_extraction(payload)
+    full_replay_client = _FakeClient("", raises=AssertionError("second pass must be fully memoized"))
+    rerun_output = await _verify(rerun, payload, full_replay_client, memo=memo)
+
+    assert full_replay_client.calls == []
+    assert rerun_output["memo"]["hit_count"] == 2
+
+
+@pytest.mark.asyncio
+async def test_punted_verdicts_are_not_memoized(tmp_path):
+    payload = _source_pack_payload()
+    memo = _memo_store(tmp_path)
+    first = _claim_extraction(payload)
+    punt = json.dumps(
+        {
+            "verifications": [
+                {
+                    "candidate_id": first["candidates"][0]["candidate_id"],
+                    "support_verdict": "unverified",
+                    "contradiction_verdict": "none",
+                    "dedup_verdict": "new",
+                    "temporal_scope_verdict": "unclear",
+                    "confidence": 0.2,
+                    "rationale": "Could not verify against the cited window.",
+                }
+            ]
+        }
+    )
+    await _verify(first, payload, _FakeClient(punt), memo=memo)
+
+    second = _claim_extraction(payload)
+    retry_client = _FakeClient(_verification_response(second["candidates"][0]["candidate_id"]))
+    output = await _verify(second, payload, retry_client, memo=memo)
+
+    assert len(retry_client.calls) == 1
+    assert output["memo"]["hit_count"] == 0
+    assert output["verifications"][0]["support_verdict"] == "supported"
+
+
+@pytest.mark.asyncio
+async def test_partial_replay_keeps_replayed_recall_context_in_output(tmp_path):
+    payload = _source_pack_payload()
+    memo = _memo_store(tmp_path)
+    store, existing = _recall_ready_store(tmp_path)
+    single = _claim_extraction(payload)
+
+    async def prime():
+        return await verify_claims(
+            single,
+            _source_notes(payload),
+            payload,
+            client=_FakeClient(_verification_response(single["candidates"][0]["candidate_id"])),
+            model="qwen-local",
+            provider="local",
+            capacity_source="local",
+            budget_usd=0.0,
+            estimated_cost_usd=0.0,
+            recall_belief_store=store,
+            recall_domain="compiler",
+            memo=memo,
+        )
+
+    await prime()
+
+    both = _two_claim_extraction(payload)
+    fresh = next(c for c in both["candidates"] if "incremental build" in c["statement"])
+    replayed = next(c for c in both["candidates"] if c is not fresh)
+    output = await verify_claims(
+        both,
+        _source_notes(payload),
+        payload,
+        client=_FakeClient(_verification_response(fresh["candidate_id"])),
+        model="qwen-local",
+        provider="local",
+        capacity_source="local",
+        budget_usd=0.0,
+        estimated_cost_usd=0.0,
+        recall_belief_store=store,
+        recall_domain="compiler",
+        memo=memo,
+    )
+
+    assert output["memo"]["hit_count"] == 1
+    replayed_context = output["recall"]["context_by_candidate_id"][replayed["candidate_id"]]
+    assert replayed_context, "replayed candidates must keep their judged-against recall context"
+    assert replayed_context[0]["item_id"] == existing.id
+
+
+@pytest.mark.asyncio
+async def test_memo_disabled_by_env_dispatches_everything(tmp_path, monkeypatch):
+    payload = _source_pack_payload()
+    memo = _memo_store(tmp_path)
+    first = _claim_extraction(payload)
+    await _verify(
+        first, payload, _FakeClient(_verification_response(first["candidates"][0]["candidate_id"])), memo=memo
+    )
+
+    monkeypatch.setenv("DEEPR_DISABLE_VERIFICATION_MEMO", "1")
+    second = _claim_extraction(payload)
+    client = _FakeClient(_verification_response(second["candidates"][0]["candidate_id"]))
+    output = await _verify(second, payload, client, memo=memo)
+
+    assert len(client.calls) == 1
+    assert output["memo"]["hit_count"] == 0
+    assert output["memo"]["fresh_count"] == 1
+
+
 @pytest.mark.asyncio
 async def test_verify_claims_blocks_when_budget_is_too_low():
     client = _FakeClient('{"verifications":[]}')
