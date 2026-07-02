@@ -8,6 +8,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- Compiled-sync claim verification now memoizes claim+source+window decisions
+  per expert (`deepr-verification-memo-v1`, an append-only JSONL cache under
+  the expert's sync artifacts). A decision is replayed verbatim only when the
+  full rendered judgment packet (statement, policy, evidence excerpts, recall
+  context), prompt version, provider, and model are byte-identical; anything
+  else re-dispatches the model. Fully replayed verifications skip the model
+  call at `$0`, partial hits dispatch only fresh candidates, replayed items
+  never carry `edge_decisions`, and both the verifier output and the persisted
+  claim-verification sidecar record which candidates were replayed vs freshly
+  judged, including the recall context each replayed decision was originally
+  judged against. Punted decisions (any core verdict `unverified`) are never
+  memoized, so a flaky output cannot freeze into a permanent replay. Known
+  tradeoff: on partial hits, cross-candidate `edge_decisions` between fresh
+  and replayed claims are not judged because replayed claims are absent from
+  the reduced prompt. Set `DEEPR_DISABLE_VERIFICATION_MEMO=1` to always
+  verify fresh.
 - Added `--local-embedding-model` to `deepr expert refresh-semantic-recall` so
   missing or stale belief claim vectors can be computed through a local Ollama
   embedding model at `$0`, with explicit source validation and no metered
