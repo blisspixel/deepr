@@ -29,6 +29,10 @@ from deepr.backends.context_building import ContextBuilder, build_context
 # research_fn seam contract (deepr/experts/sync.py): (query, budget) -> result.
 ResearchFn = Callable[[str, float], Awaitable[dict[str, Any]]]
 
+# embed_claims seam contract (deepr/experts/belief_embedding_refresh.py):
+# ordered claim texts in, one vector per claim out, same order.
+EmbedClaimsFn = Callable[[list[str]], Awaitable[list[tuple[float, ...]]]]
+
 # Keep the model resident between calls. Ollama evicts after ~5 min idle by
 # default, so a multi-call workload (a sync with several subscriptions, or a
 # spaced probe) pays a full cold reload of the weights each time - e.g. ~60s to
@@ -97,6 +101,45 @@ def _local_prompt(query: str, context: Any | None) -> tuple[str, dict[str, Any] 
         "insufficient, say so.",
         metadata,
     )
+
+
+def make_local_embedder(
+    model: str,
+    *,
+    base_url: str | None = None,
+    client: Any | None = None,
+) -> EmbedClaimsFn:
+    """Build an ``embed_claims`` batcher backed by a local Ollama model at $0.
+
+    Ollama serves the OpenAI-compatible ``/v1/embeddings`` endpoint, so the
+    same client shape as the chat seams works for embeddings. Vectors are
+    reordered by response index because the endpoint does not guarantee input
+    order. The batcher raises on transport or shape failures instead of
+    degrading silently; callers own the no-fallback policy and user-facing
+    error reporting.
+    """
+    chosen = model.strip()
+    if not chosen:
+        raise ValueError("embedding model is required")
+    embeddings_client = client if client is not None else ollama_chat_client(base_url)
+
+    async def embed_claims(claims: list[str]) -> list[tuple[float, ...]]:
+        if not claims:
+            return []
+        response = await embeddings_client.embeddings.create(
+            model=chosen,
+            input=list(claims),
+            extra_body={"keep_alive": _KEEP_ALIVE},
+        )
+        rows = sorted(response.data, key=lambda row: row.index)
+        vectors = [tuple(float(value) for value in row.embedding) for row in rows]
+        if len(vectors) != len(claims):
+            raise RuntimeError(
+                f"local embedding model {chosen} returned {len(vectors)} vector(s) for {len(claims)} claim(s)"
+            )
+        return vectors
+
+    return embed_claims
 
 
 def make_local_research_fn(

@@ -111,6 +111,78 @@ class TestResearchFn:
         assert "boom" in result["error"]
 
 
+class _FakeEmbeddingRow:
+    def __init__(self, index, embedding):
+        self.index = index
+        self.embedding = embedding
+
+
+class _FakeEmbeddingResponse:
+    def __init__(self, rows):
+        self.data = rows
+
+
+class _FakeEmbeddings:
+    def __init__(self, rows=None, error=None):
+        self._rows = rows or []
+        self._error = error
+        self.calls = []
+
+    async def create(self, **kwargs):
+        self.calls.append(kwargs)
+        if self._error is not None:
+            raise self._error
+        return _FakeEmbeddingResponse(self._rows)
+
+
+class _FakeEmbeddingClient:
+    def __init__(self, rows=None, error=None):
+        self.embeddings = _FakeEmbeddings(rows, error)
+
+
+class TestLocalEmbedder:
+    async def test_returns_vectors_in_claim_order(self):
+        rows = [
+            _FakeEmbeddingRow(1, [0.0, 1.0]),
+            _FakeEmbeddingRow(0, [1.0, 0.0]),
+        ]
+        client = _FakeEmbeddingClient(rows=rows)
+        embed = local.make_local_embedder("nomic-embed-text", client=client)
+
+        vectors = await embed(["first claim", "second claim"])
+
+        assert vectors == [(1.0, 0.0), (0.0, 1.0)]
+        call = client.embeddings.calls[0]
+        assert call["model"] == "nomic-embed-text"
+        assert call["input"] == ["first claim", "second claim"]
+        assert call["extra_body"] == {"keep_alive": local._KEEP_ALIVE}
+
+    async def test_empty_input_short_circuits_without_a_call(self):
+        client = _FakeEmbeddingClient(rows=[])
+        embed = local.make_local_embedder("nomic-embed-text", client=client)
+
+        assert await embed([]) == []
+        assert client.embeddings.calls == []
+
+    async def test_vector_count_mismatch_raises(self):
+        client = _FakeEmbeddingClient(rows=[_FakeEmbeddingRow(0, [1.0])])
+        embed = local.make_local_embedder("nomic-embed-text", client=client)
+
+        with pytest.raises(RuntimeError, match="returned 1 vector"):
+            await embed(["one", "two"])
+
+    async def test_transport_errors_propagate(self):
+        client = _FakeEmbeddingClient(error=ConnectionError("refused"))
+        embed = local.make_local_embedder("nomic-embed-text", client=client)
+
+        with pytest.raises(ConnectionError, match="refused"):
+            await embed(["claim"])
+
+    def test_blank_model_is_rejected(self):
+        with pytest.raises(ValueError, match="embedding model is required"):
+            local.make_local_embedder("  ", client=_FakeEmbeddingClient())
+
+
 class TestProbe:
     async def test_ok(self):
         result = await local.probe_local("qwen", client=_FakeClient(content="OK"))

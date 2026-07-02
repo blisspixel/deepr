@@ -393,11 +393,15 @@ context-selection step. Original-idea candidates are labeled as
 `perspective_state`, carry the non-factual promotion policy, and cannot become
 verified external facts without a later review or graph-commit path. Belief
 recall can use a persisted local vector index when a caller supplies an
-already-gated query embedding; stale claim vectors are ignored, and embedding
-generation remains explicit. Operators can refresh the local belief-vector
-index from precomputed vectors with `deepr expert refresh-semantic-recall`;
-Deepr does not call an embedding provider in that command and reports the
-declared upstream estimate separately from Deepr spend. Claim verification can
+already-gated query embedding or asks for an explicit local `$0` query
+embedding with `--local-embedding-model`; stale claim vectors are ignored, and
+embedding generation remains explicit. Operators can refresh the local
+belief-vector index from precomputed vectors with
+`deepr expert refresh-semantic-recall --embeddings-json`, or compute the
+vectors through a local Ollama embedding model at `$0` with
+`--local-embedding-model`; neither path calls a metered embedding provider,
+and the precomputed path reports the declared upstream estimate separately
+from Deepr spend. Claim verification can
 carry recall hits as read-only `recall_context`; the concrete sync verifier now
 uses that context in its bounded prompt, and still owns support, contradiction,
 deduplication, temporal scope, and edge judgment. Host agents can call MCP
@@ -405,7 +409,9 @@ deduplication, temporal scope, and edge judgment. Host agents can call MCP
 ```bash
 deepr expert semantic-recall "Azure Architect" "subscription vending guardrails" --json
 deepr expert semantic-recall "Azure Architect" "gpu deployment bottleneck" --query-embedding "[0.1,0.9]" --embedding-model local-test --no-lexical-fallback --json
+deepr expert semantic-recall "Azure Architect" "gpu deployment bottleneck" --local-embedding-model nomic-embed-text --no-lexical-fallback --json
 deepr expert refresh-semantic-recall "Azure Architect" --embedding-model local-test --embeddings-json ./belief-vectors.json --json
+deepr expert refresh-semantic-recall "Azure Architect" --local-embedding-model nomic-embed-text --json
 ```
 
 ### Self-Model (read-only current state)
