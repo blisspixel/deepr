@@ -12,13 +12,19 @@ import math
 from collections.abc import Mapping, Sequence
 from typing import Any
 
-from deepr.experts.belief_embedding_refresh import BeliefEmbeddingRefreshResult, refresh_missing_belief_embeddings
+from deepr.experts.belief_embedding_refresh import (
+    BeliefEmbeddingRefreshResult,
+    EmbeddingBatcher,
+    refresh_missing_belief_embeddings,
+)
 from deepr.experts.belief_vector_index import MAX_VECTOR_DIMENSIONS
 from deepr.experts.semantic_recall import CANDIDATE_ONLY, LEXICAL_METHOD, VECTOR_METHOD, RecallCandidate
 
 EXPERT_SEMANTIC_RECALL_SCHEMA_VERSION = "deepr-expert-semantic-recall-v1"
 EXPERT_SEMANTIC_RECALL_REFRESH_SCHEMA_VERSION = "deepr-expert-semantic-recall-refresh-v1"
 MAX_OPERATOR_RECALL_CANDIDATES = 50
+PRECOMPUTED_EMBEDDING_SOURCE = "precomputed_json"
+LOCAL_EMBEDDING_SOURCE = "local_ollama"
 
 
 def parse_query_embedding_json(raw: str) -> tuple[float, ...]:
@@ -87,7 +93,12 @@ def _profile_payload(profile: Any, belief_store: Any) -> dict[str, str]:
     }
 
 
-def _refresh_contract(result: BeliefEmbeddingRefreshResult) -> dict[str, Any]:
+def _refresh_contract(
+    result: BeliefEmbeddingRefreshResult,
+    *,
+    embedding_generation: str,
+    embedding_source: str,
+) -> dict[str, Any]:
     return {
         "cost_usd": 0.0,
         "estimated_external_cost_usd": result.estimated_cost_usd,
@@ -97,8 +108,41 @@ def _refresh_contract(result: BeliefEmbeddingRefreshResult) -> dict[str, Any]:
         "semantic_verdict": False,
         "candidate_verdict": CANDIDATE_ONLY,
         "routing": "candidate_only",
-        "embedding_generation": "not_performed_by_deepr",
-        "embedding_source": "precomputed_json",
+        "embedding_generation": embedding_generation,
+        "embedding_source": embedding_source,
+    }
+
+
+def _refresh_payload(
+    profile: Any,
+    belief_store: Any,
+    result: BeliefEmbeddingRefreshResult,
+    *,
+    embedding_model: str,
+    request: dict[str, Any],
+    embedding_generation: str,
+    embedding_source: str,
+) -> dict[str, Any]:
+    return {
+        "schema_version": EXPERT_SEMANTIC_RECALL_REFRESH_SCHEMA_VERSION,
+        "kind": "deepr.expert.semantic_recall_refresh",
+        "expert": _profile_payload(profile, belief_store),
+        "request": request,
+        "contract": _refresh_contract(
+            result,
+            embedding_generation=embedding_generation,
+            embedding_source=embedding_source,
+        ),
+        "summary": {
+            "status": result.status,
+            "requested_count": result.requested_count,
+            "indexed_count": result.indexed_count,
+            "skipped_count": result.skipped_count,
+        },
+        "refresh": result.to_dict(),
+        "index": {
+            "stats": _embedding_stats(belief_store, embedding_model),
+        },
     }
 
 
@@ -145,7 +189,7 @@ async def build_expert_semantic_recall_refresh(
         max_beliefs=max_beliefs,
         metadata={
             "source": "cli.expert.refresh-semantic-recall",
-            "embedding_source": "precomputed_json",
+            "embedding_source": PRECOMPUTED_EMBEDDING_SOURCE,
             "semantic_verdict": False,
             "candidate_verdict": CANDIDATE_ONLY,
         },
@@ -153,30 +197,74 @@ async def build_expert_semantic_recall_refresh(
     target_id_set = set(target_ids)
     extra_vector_count = sum(1 for belief_id in vectors if belief_id not in target_id_set)
 
-    return {
-        "schema_version": EXPERT_SEMANTIC_RECALL_REFRESH_SCHEMA_VERSION,
-        "kind": "deepr.expert.semantic_recall_refresh",
-        "expert": _profile_payload(profile, belief_store),
-        "request": {
+    return _refresh_payload(
+        profile,
+        belief_store,
+        result,
+        embedding_model=model,
+        request={
             "embedding_model": model,
             "budget_usd": float(budget_usd),
             "estimated_cost_per_belief": float(estimated_cost_per_belief),
             "max_beliefs": max_beliefs,
+            "embedding_source": PRECOMPUTED_EMBEDDING_SOURCE,
             "precomputed_vector_count": len(vectors),
             "unused_precomputed_vector_count": extra_vector_count,
         },
-        "contract": _refresh_contract(result),
-        "summary": {
-            "status": result.status,
-            "requested_count": result.requested_count,
-            "indexed_count": result.indexed_count,
-            "skipped_count": result.skipped_count,
+        embedding_generation="not_performed_by_deepr",
+        embedding_source=PRECOMPUTED_EMBEDDING_SOURCE,
+    )
+
+
+async def build_expert_semantic_recall_refresh_local(
+    profile: Any,
+    belief_store: Any,
+    embed_claims: EmbeddingBatcher,
+    *,
+    embedding_model: str,
+    max_beliefs: int | None = None,
+) -> dict[str, Any]:
+    """Refresh the local belief-vector index through a local $0 embedder.
+
+    ``embed_claims`` must be an already-constructed local batcher (see
+    ``deepr.backends.local.make_local_embedder``). There is no budget knob on
+    this path because the computation runs on owned hardware at $0 and Deepr
+    must not imply a spend gate that cannot trigger; there is also no metered
+    fallback.
+    """
+    model = embedding_model.strip()
+    if not model:
+        raise ValueError("embedding_model is required")
+
+    result = await refresh_missing_belief_embeddings(
+        belief_store,
+        embed_claims,
+        model=model,
+        budget_usd=0.0,
+        estimated_cost_per_belief=0.0,
+        max_beliefs=max_beliefs,
+        metadata={
+            "source": "cli.expert.refresh-semantic-recall",
+            "embedding_source": LOCAL_EMBEDDING_SOURCE,
+            "semantic_verdict": False,
+            "candidate_verdict": CANDIDATE_ONLY,
         },
-        "refresh": result.to_dict(),
-        "index": {
-            "stats": _embedding_stats(belief_store, model),
+    )
+    return _refresh_payload(
+        profile,
+        belief_store,
+        result,
+        embedding_model=model,
+        request={
+            "embedding_model": model,
+            "budget_usd": 0.0,
+            "estimated_cost_per_belief": 0.0,
+            "max_beliefs": max_beliefs,
+            "embedding_source": LOCAL_EMBEDDING_SOURCE,
         },
-    }
+        embedding_generation=LOCAL_EMBEDDING_SOURCE,
+        embedding_source=LOCAL_EMBEDDING_SOURCE,
+    )
 
 
 def build_expert_semantic_recall(
@@ -190,8 +278,14 @@ def build_expert_semantic_recall(
     query_embedding: Sequence[float] | None = None,
     embedding_model: str | None = None,
     include_lexical_fallback: bool = True,
+    embedding_generation: str = "not_performed",
 ) -> dict[str, Any]:
-    """Build a read-only semantic-recall payload for one expert."""
+    """Build a read-only semantic-recall payload for one expert.
+
+    ``embedding_generation`` records how the query embedding came to exist so
+    the payload stays honest when a caller computed it through the local $0
+    path. This builder itself never computes embeddings.
+    """
     query_text = query.strip()
     if not query_text:
         raise ValueError("query must not be empty")
@@ -246,7 +340,7 @@ def build_expert_semantic_recall(
             "semantic_verdict": False,
             "candidate_verdict": CANDIDATE_ONLY,
             "routing": "candidate_only",
-            "embedding_generation": "not_performed",
+            "embedding_generation": embedding_generation,
         },
         "index": {
             "used": query_vector is not None,
@@ -264,9 +358,12 @@ def build_expert_semantic_recall(
 __all__ = [
     "EXPERT_SEMANTIC_RECALL_REFRESH_SCHEMA_VERSION",
     "EXPERT_SEMANTIC_RECALL_SCHEMA_VERSION",
+    "LOCAL_EMBEDDING_SOURCE",
     "MAX_OPERATOR_RECALL_CANDIDATES",
+    "PRECOMPUTED_EMBEDDING_SOURCE",
     "build_expert_semantic_recall",
     "build_expert_semantic_recall_refresh",
+    "build_expert_semantic_recall_refresh_local",
     "coerce_belief_embedding_map",
     "coerce_query_embedding",
     "parse_query_embedding_json",

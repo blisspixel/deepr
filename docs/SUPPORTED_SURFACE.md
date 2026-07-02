@@ -160,11 +160,16 @@ must not be described as usable capacity.
   operators at `$0`, and MCP `deepr_semantic_recall` exposes the same read-only
   surface to host agents with host-facing payload sanitization. Indexed vector
   recall requires a caller-supplied `--query-embedding` and `--embedding-model`
-  on CLI, or `query_embedding` and `embedding_model` over MCP. `deepr expert
-  refresh-semantic-recall NAME --embedding-model MODEL --embeddings-json PATH`
-  refreshes missing or stale belief vectors from precomputed embeddings only;
-  it never calls an embedding provider and keeps declared upstream estimate
-  separate from Deepr spend.
+  on CLI, an explicit `--local-embedding-model` for a local Ollama `$0` query
+  embedding on CLI, or `query_embedding` and `embedding_model` over MCP.
+  `deepr expert refresh-semantic-recall NAME --embedding-model MODEL
+  --embeddings-json PATH` refreshes missing or stale belief vectors from
+  precomputed embeddings; it never calls an embedding provider and keeps the
+  declared upstream estimate separate from Deepr spend. `deepr expert
+  refresh-semantic-recall NAME --local-embedding-model MODEL` computes those
+  vectors through a local Ollama embedding model at `$0` with no metered
+  fallback. Both refresh paths and local query embedding remain explicit
+  operator choices, and recall stays `candidate_only` routing in every mode.
 - `deepr expert monitor` emits a read-only `deepr-metacognitive-monitor-v1`
   artifact with review-required proposals derived from self-model risks, failed
   loop runs, capacity waits, and sanitized consult trace candidates. It does

@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- Added `--local-embedding-model` to `deepr expert refresh-semantic-recall` so
+  missing or stale belief claim vectors can be computed through a local Ollama
+  embedding model at `$0`, with explicit source validation and no metered
+  fallback.
+- Added `--local-embedding-model` to `deepr expert semantic-recall` so the
+  query embedding for indexed vector recall can be computed locally at `$0`;
+  the payload records `embedding_generation: local_ollama_query` and recall
+  remains `candidate_only` routing.
+- Added `deepr.backends.local.make_local_embedder`, an OpenAI-compatible
+  Ollama `/v1/embeddings` batcher on the existing local client seam, with
+  order restoration and strict vector-count validation.
+
 ### Fixed
 - Removed accidentally tracked external Distillr runtime telemetry from
   `library/.distill/`, ignored that generated directory, and added a hygiene

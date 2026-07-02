@@ -195,7 +195,9 @@ deepr expert propose-self-model "AI Policy Expert" meta_def456 --json
 deepr expert accept-self-model "AI Policy Expert" ./data/self_model_updates/ai-policy/self_model_update_meta_def456_20260626_120000000000.json --outcome-evidence loop_run:loop_123 --reviewer operator --json
 deepr expert memory-card "AI Policy Expert" --write
 deepr expert semantic-recall "AI Policy Expert" "agentic guardrail evidence" --json
+deepr expert semantic-recall "AI Policy Expert" "agentic guardrail evidence" --local-embedding-model nomic-embed-text --json
 deepr expert refresh-semantic-recall "AI Policy Expert" --embedding-model local-test --embeddings-json ./belief-vectors.json --json
+deepr expert refresh-semantic-recall "AI Policy Expert" --local-embedding-model nomic-embed-text --json
 deepr expert loop-status "AI Policy Expert" --json
 deepr expert export-okf "AI Policy Expert" ./okf/ai-policy
 ```

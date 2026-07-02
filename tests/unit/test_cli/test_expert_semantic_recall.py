@@ -196,6 +196,248 @@ def test_refresh_semantic_recall_blocks_declared_cost_over_budget(tmp_path):
     assert store.missing_belief_embedding_ids(embedding_model="metered-test") == [belief.id]
 
 
+def _patch_local_embedder(vectors=None, error=None):
+    def factory(model, **_kwargs):
+        async def embed_claims(claims):
+            if error is not None:
+                raise error
+            return [tuple(vector) for vector in vectors][: len(claims)]
+
+        return embed_claims
+
+    return patch(
+        "deepr.cli.commands.semantic.expert_semantic_recall.make_local_embedder",
+        side_effect=factory,
+    )
+
+
+def test_refresh_semantic_recall_local_model_indexes_at_zero_cost(tmp_path):
+    store = _store(tmp_path)
+    first, _ = store.add_belief(
+        Belief(
+            claim="Power delivery constrains accelerator rack deployment.",
+            confidence=0.84,
+            domain="ai-infra",
+        )
+    )
+    second, _ = store.add_belief(
+        Belief(
+            claim="Audit retention affects governance workflows.",
+            confidence=0.82,
+            domain="governance",
+        )
+    )
+
+    profile_patch, belief_store_patch = _patch_dependencies(_profile(), store)
+    with profile_patch, belief_store_patch, _patch_local_embedder(vectors=[[1.0, 0.0], [0.0, 1.0]]):
+        result = CliRunner().invoke(
+            expert_refresh_semantic_recall,
+            ["Recall CLI Expert", "--local-embedding-model", "nomic-embed-text", "--json"],
+        )
+
+    assert result.exit_code == 0, result.output
+    payload = json.loads(result.output)
+    assert payload["schema_version"] == "deepr-expert-semantic-recall-refresh-v1"
+    assert payload["request"]["embedding_source"] == "local_ollama"
+    assert payload["contract"]["embedding_generation"] == "local_ollama"
+    assert payload["contract"]["cost_usd"] == 0.0
+    assert payload["contract"]["estimated_external_cost_usd"] == 0.0
+    assert payload["summary"]["status"] == "indexed"
+    assert payload["summary"]["indexed_count"] == 2
+    assert store.missing_belief_embedding_ids(embedding_model="nomic-embed-text") == []
+    candidates = store.recall_belief_candidates(
+        "power bottleneck",
+        query_embedding=[0.99, 0.01],
+        embedding_model="nomic-embed-text",
+        include_lexical_fallback=False,
+    )
+    assert candidates[0].item_id == first.id
+    assert {candidate.item_id for candidate in candidates} == {first.id, second.id}
+
+
+def test_refresh_semantic_recall_local_failure_exits_without_fallback(tmp_path):
+    store = _store(tmp_path)
+    belief, _ = store.add_belief(Belief(claim="A claim needs a vector.", confidence=0.8, domain="memory"))
+
+    profile_patch, belief_store_patch = _patch_dependencies(_profile(), store)
+    with profile_patch, belief_store_patch, _patch_local_embedder(error=ConnectionError("refused")):
+        result = CliRunner().invoke(
+            expert_refresh_semantic_recall,
+            ["Recall CLI Expert", "--local-embedding-model", "nomic-embed-text"],
+        )
+
+    assert result.exit_code == 2
+    assert "local embedding failed" in result.output
+    assert "never falls back" in result.output
+    assert store.missing_belief_embedding_ids(embedding_model="nomic-embed-text") == [belief.id]
+
+
+def test_refresh_semantic_recall_requires_exactly_one_embedding_source(tmp_path):
+    vector_path = tmp_path / "belief-vectors.json"
+    vector_path.write_text("{}", encoding="utf-8")
+
+    result_neither = CliRunner().invoke(expert_refresh_semantic_recall, ["Recall CLI Expert"])
+    result_both = CliRunner().invoke(
+        expert_refresh_semantic_recall,
+        [
+            "Recall CLI Expert",
+            "--embedding-model",
+            "local-test",
+            "--embeddings-json",
+            str(vector_path),
+            "--local-embedding-model",
+            "nomic-embed-text",
+        ],
+    )
+
+    assert result_neither.exit_code == 2
+    assert "exactly one embedding source" in result_neither.output
+    assert result_both.exit_code == 2
+    assert "exactly one embedding source" in result_both.output
+
+
+def test_refresh_semantic_recall_precomputed_path_requires_embedding_model(tmp_path):
+    vector_path = tmp_path / "belief-vectors.json"
+    vector_path.write_text("{}", encoding="utf-8")
+
+    result = CliRunner().invoke(
+        expert_refresh_semantic_recall,
+        ["Recall CLI Expert", "--embeddings-json", str(vector_path)],
+    )
+
+    assert result.exit_code == 2
+    assert "--embedding-model is required" in result.output
+
+
+def test_refresh_semantic_recall_local_model_rejects_blank_value_and_budget(tmp_path):
+    result_blank = CliRunner().invoke(
+        expert_refresh_semantic_recall,
+        ["Recall CLI Expert", "--local-embedding-model", "   "],
+    )
+    result_budget = CliRunner().invoke(
+        expert_refresh_semantic_recall,
+        ["Recall CLI Expert", "--local-embedding-model", "nomic-embed-text", "--budget", "0.5"],
+    )
+
+    assert result_blank.exit_code == 2
+    assert "must not be blank" in result_blank.output
+    assert result_budget.exit_code == 2
+    assert "--budget applies only to --embeddings-json" in result_budget.output
+
+
+def test_semantic_recall_local_model_rejects_blank_value_and_empty_query(tmp_path):
+    result_blank = CliRunner().invoke(
+        expert_semantic_recall,
+        ["Recall CLI Expert", "belief", "--local-embedding-model", "   "],
+    )
+    result_empty_query = CliRunner().invoke(
+        expert_semantic_recall,
+        ["Recall CLI Expert", "   ", "--local-embedding-model", "nomic-embed-text"],
+    )
+
+    assert result_blank.exit_code == 2
+    assert "must not be blank" in result_blank.output
+    assert result_empty_query.exit_code == 2
+    assert "query must not be empty" in result_empty_query.output
+
+
+def test_refresh_semantic_recall_local_model_rejects_conflicting_flags(tmp_path):
+    result_model = CliRunner().invoke(
+        expert_refresh_semantic_recall,
+        ["Recall CLI Expert", "--local-embedding-model", "nomic-embed-text", "--embedding-model", "local-test"],
+    )
+    result_cost = CliRunner().invoke(
+        expert_refresh_semantic_recall,
+        [
+            "Recall CLI Expert",
+            "--local-embedding-model",
+            "nomic-embed-text",
+            "--estimated-cost-per-belief",
+            "0.01",
+        ],
+    )
+
+    assert result_model.exit_code == 2
+    assert "applies only to --embeddings-json" in result_model.output
+    assert result_cost.exit_code == 2
+    assert "--estimated-cost-per-belief applies only to --embeddings-json" in result_cost.output
+
+
+def test_semantic_recall_local_query_embedding_uses_vector_route(tmp_path):
+    store = _store(tmp_path)
+    relevant, _ = store.add_belief(
+        Belief(
+            claim="Advanced packaging supply limits accelerator rollout.",
+            confidence=0.86,
+            domain="ai-infra",
+        )
+    )
+    unrelated, _ = store.add_belief(
+        Belief(
+            claim="Retention policies affect legal archive reviews.",
+            confidence=0.8,
+            domain="governance",
+        )
+    )
+    store.upsert_belief_embedding(relevant.id, [1.0, 0.0], model="nomic-embed-text")
+    store.upsert_belief_embedding(unrelated.id, [0.0, 1.0], model="nomic-embed-text")
+
+    profile_patch, belief_store_patch = _patch_dependencies(_profile(), store)
+    with profile_patch, belief_store_patch, _patch_local_embedder(vectors=[[0.99, 0.01]]):
+        result = CliRunner().invoke(
+            expert_semantic_recall,
+            [
+                "Recall CLI Expert",
+                "GPU supply bottleneck",
+                "--local-embedding-model",
+                "nomic-embed-text",
+                "--no-lexical-fallback",
+                "--json",
+            ],
+        )
+
+    assert result.exit_code == 0, result.output
+    payload = json.loads(result.output)
+    assert payload["contract"]["embedding_generation"] == "local_ollama_query"
+    assert payload["query"]["embedding_model"] == "nomic-embed-text"
+    assert payload["index"]["used"] is True
+    assert payload["summary"]["vector_candidate_count"] >= 1
+    assert payload["candidates"][0]["item_id"] == relevant.id
+    assert payload["candidates"][0]["method"] == "vector_similarity"
+
+
+def test_semantic_recall_local_query_embedding_failure_exits_without_fallback(tmp_path):
+    store = _store(tmp_path)
+
+    profile_patch, belief_store_patch = _patch_dependencies(_profile(), store)
+    with profile_patch, belief_store_patch, _patch_local_embedder(error=ConnectionError("refused")):
+        result = CliRunner().invoke(
+            expert_semantic_recall,
+            ["Recall CLI Expert", "belief", "--local-embedding-model", "nomic-embed-text"],
+        )
+
+    assert result.exit_code == 2
+    assert "local embedding failed" in result.output
+    assert "never falls back" in result.output
+
+
+def test_semantic_recall_local_model_rejects_explicit_embedding_flags(tmp_path):
+    result = CliRunner().invoke(
+        expert_semantic_recall,
+        [
+            "Recall CLI Expert",
+            "belief",
+            "--local-embedding-model",
+            "nomic-embed-text",
+            "--query-embedding",
+            "[1.0]",
+        ],
+    )
+
+    assert result.exit_code == 2
+    assert "cannot be combined" in result.output
+
+
 def test_semantic_recall_vector_mode_requires_valid_embedding_model(tmp_path):
     store = _store(tmp_path)
     store.add_belief(Belief(claim="A belief exists.", confidence=0.8, domain="test"))
