@@ -207,11 +207,38 @@ class FreshContext:
             "errors": list(self.errors),
         }
 
-    def to_source_pack(self, *, max_excerpt_chars: int = 2000) -> dict[str, object]:
-        """Serialize retrieved sources as a bounded, portable run artifact."""
+    def to_source_pack(self, *, max_excerpt_chars: int = 2000, include_content: bool = False) -> dict[str, object]:
+        """Serialize retrieved sources as a bounded, portable run artifact.
+
+        ``include_content=True`` adds each source's full fetched text under a
+        transient ``content`` key so a persister can write content-addressed
+        raw snapshots. Persisters must strip that key before the pack is
+        written; it is transport, not part of the durable pack contract, and
+        its size is bounded only by the snapshot writer's own cap.
+        """
         cfg = self.prompt_config or FreshContextConfig()
         excerpt_limit = min(max_excerpt_chars, cfg.max_chars_per_source)
         usable_sources = self._citable_sources()
+
+        def _entry(index: int, source: FreshSource) -> dict[str, object]:
+            entry: dict[str, object] = {
+                "label": f"S{index}",
+                "title": source.title,
+                "url": source.url,
+                "source": source.source,
+                "fetched": source.fetched,
+                "error": source.error,
+                "snippet": source.snippet,
+                "excerpt": source.excerpt(excerpt_limit),
+                "content_hash": source.content_hash,
+                "etag": source.etag,
+                "last_modified": source.last_modified,
+                "not_modified": source.not_modified,
+            }
+            if include_content:
+                entry["content"] = source.content
+            return entry
+
         return {
             "schema_version": "deepr.source_pack.v1",
             "query": self.query,
@@ -223,23 +250,7 @@ class FreshContext:
             "source_count": len(usable_sources),
             "retrieved_source_count": len(self.sources),
             "errors": list(self.errors),
-            "sources": [
-                {
-                    "label": f"S{index}",
-                    "title": source.title,
-                    "url": source.url,
-                    "source": source.source,
-                    "fetched": source.fetched,
-                    "error": source.error,
-                    "snippet": source.snippet,
-                    "excerpt": source.excerpt(excerpt_limit),
-                    "content_hash": source.content_hash,
-                    "etag": source.etag,
-                    "last_modified": source.last_modified,
-                    "not_modified": source.not_modified,
-                }
-                for index, source in enumerate(usable_sources, start=1)
-            ],
+            "sources": [_entry(index, source) for index, source in enumerate(usable_sources, start=1)],
         }
 
 

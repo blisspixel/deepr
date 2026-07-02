@@ -2,10 +2,62 @@
 
 from __future__ import annotations
 
+import hashlib
+import logging
 import re
+from pathlib import Path
 from typing import Any
 
+from deepr.utils.atomic_io import atomic_write_text
+
+logger = logging.getLogger(__name__)
+
 NO_CHANGES_MARKER = "no significant changes"
+
+# Snapshots above this size are skipped (never truncated - truncation would
+# break the re-hash invariant). Fetched pages are usually well under this;
+# the cap only bounds pathological pages so the snapshot store cannot balloon.
+MAX_SNAPSHOT_CHARS = 2_000_000
+
+
+def write_source_snapshots(source_pack: dict[str, Any], root: Path) -> None:
+    """Write content-addressed raw snapshots and strip transient content.
+
+    Each fetched source's full text is stored once under
+    ``sync_artifacts/snapshots/<content_hash>.txt`` (identical content dedupes
+    to one file), and the pack entry gains a ``snapshot_ref`` so excerpt-based
+    evidence stays re-verifiable: re-hashing the snapshot file must reproduce
+    ``content_hash``. A snapshot is written only when the carried text
+    actually hashes to ``content_hash`` - conditional 304 reuse carries the
+    prior excerpt with the prior full-content hash, and writing that excerpt
+    under the full-content hash would silently corrupt the content-addressed
+    store forever (the exists() dedupe would preserve it). The equality check
+    also guarantees the filename is a plain sha256 hex, never a path.
+    Snapshot write failures record a per-source error instead of failing the
+    sync, because the pack and content hash already persist fail-closed.
+    """
+    sources = source_pack.get("sources")
+    if not isinstance(sources, list):
+        return
+    snapshot_dir = root / "sync_artifacts" / "snapshots"
+    for source in sources:
+        if not isinstance(source, dict):
+            continue
+        content = str(source.pop("content", "") or "").strip()
+        content_hash = str(source.get("content_hash", "") or "")
+        if not content or not content_hash or len(content) > MAX_SNAPSHOT_CHARS:
+            continue
+        if hashlib.sha256(content.encode("utf-8")).hexdigest() != content_hash:
+            continue
+        snapshot_path = snapshot_dir / f"{content_hash}.txt"
+        try:
+            if not snapshot_path.exists():
+                snapshot_dir.mkdir(parents=True, exist_ok=True)
+                atomic_write_text(snapshot_path, content)
+            source["snapshot_ref"] = snapshot_path.relative_to(root).as_posix()
+        except OSError as exc:
+            logger.warning("Could not write source snapshot %s: %s", snapshot_path, exc)
+            source["snapshot_error"] = str(exc)
 
 
 def slug(text: str) -> str:

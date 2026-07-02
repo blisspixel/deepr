@@ -77,7 +77,8 @@ class TestResearchFn:
             def to_metadata(self):
                 return {"source_count": 1}
 
-            def to_source_pack(self):
+            def to_source_pack(self, *, include_content: bool = False):
+                assert include_content is True  # sync persister needs full text for snapshots
                 return {"schema_version": "deepr.source_pack.v1", "source_count": 1}
 
         async def context_builder(_query):

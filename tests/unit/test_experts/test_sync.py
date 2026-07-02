@@ -776,6 +776,118 @@ class TestSyncEngine:
         assert source_notes["notes"][0]["windows"][0]["source_text_ref"] == "excerpt"
 
     @pytest.mark.asyncio
+    async def test_source_pack_persist_writes_content_addressed_snapshots(self, tmp_path):
+        import hashlib
+
+        content = "Topic X gained capability Y in June 2026. Full fetched page text."
+        content_hash = hashlib.sha256(content.encode("utf-8")).hexdigest()
+        store = _sub_store(tmp_path, Subscription(topic="Topic X", budget=0.5))
+        source_pack = {
+            "schema_version": "deepr.source_pack.v1",
+            "mode": "fresh",
+            "source_count": 2,
+            "retrieved_source_count": 2,
+            "sources": [
+                {
+                    "label": "S1",
+                    "title": "Release notes",
+                    "url": "https://example.com/release",
+                    "fetched": True,
+                    "excerpt": content[:40],
+                    "content": content,
+                    "content_hash": content_hash,
+                },
+                {
+                    "label": "S2",
+                    "title": "Unfetched result",
+                    "url": "https://example.com/other",
+                    "fetched": False,
+                    "excerpt": "",
+                    "content": "",
+                    "content_hash": "",
+                },
+            ],
+        }
+        engine = _engine(
+            tmp_path,
+            store,
+            {
+                "Topic X": {
+                    "answer": "Topic X gained capability Y in June 2026. [S1]",
+                    "cost": 0.0,
+                    "fresh_context": {"source_count": 2, "mode": "fresh"},
+                    "source_pack": source_pack,
+                }
+            },
+        )
+
+        result = await engine.sync(budget=1.0)
+
+        outcome = result.outcomes[0]
+        assert outcome.status == "synced"
+        pack = json.loads((tmp_path / "knowledge" / outcome.source_pack_artifact).read_text(encoding="utf-8"))
+        fetched, unfetched = pack["source_pack"]["sources"]
+        # Transient content never lands in the durable pack.
+        assert "content" not in fetched
+        assert "content" not in unfetched
+        assert fetched["snapshot_ref"] == f"sync_artifacts/snapshots/{content_hash}.txt"
+        assert "snapshot_ref" not in unfetched
+        snapshot_path = tmp_path / "knowledge" / fetched["snapshot_ref"]
+        snapshot_text = snapshot_path.read_text(encoding="utf-8")
+        # Re-verifiability: hashing the snapshot file reproduces content_hash.
+        assert hashlib.sha256(snapshot_text.encode("utf-8")).hexdigest() == content_hash
+
+    def test_snapshot_writer_refuses_content_that_does_not_hash_to_content_hash(self, tmp_path):
+        from deepr.experts.sync_support import write_source_snapshots
+
+        # The conditional 304 reuse shape: prior excerpt text carried with the
+        # prior FULL-content hash. Writing it would corrupt the store forever.
+        pack = {
+            "sources": [
+                {
+                    "url": "https://example.com/release",
+                    "content": "Truncated cached excerpt...",
+                    "content_hash": "b" * 64,
+                },
+                {
+                    "url": "https://example.com/evil",
+                    "content": "attacker text",
+                    "content_hash": "../outside",
+                },
+            ]
+        }
+
+        write_source_snapshots(pack, tmp_path)
+
+        assert not (tmp_path / "sync_artifacts" / "snapshots").exists()
+        assert not (tmp_path / "outside.txt").exists()
+        for source in pack["sources"]:
+            assert "content" not in source
+            assert "snapshot_ref" not in source
+
+    def test_snapshot_writer_skips_oversized_content_without_truncating(self, tmp_path):
+        import hashlib
+
+        from deepr.experts.sync_support import MAX_SNAPSHOT_CHARS, write_source_snapshots
+
+        content = "x" * (MAX_SNAPSHOT_CHARS + 1)
+        pack = {
+            "sources": [
+                {
+                    "url": "https://example.com/huge",
+                    "content": content,
+                    "content_hash": hashlib.sha256(content.encode("utf-8")).hexdigest(),
+                }
+            ]
+        }
+
+        write_source_snapshots(pack, tmp_path)
+
+        assert not (tmp_path / "sync_artifacts" / "snapshots").exists()
+        assert "content" not in pack["sources"][0]
+        assert "snapshot_ref" not in pack["sources"][0]
+
+    @pytest.mark.asyncio
     async def test_sync_can_write_claim_extraction_sidecar_artifact(self, tmp_path):
         store = _sub_store(tmp_path, Subscription(topic="Topic X", budget=0.5))
         source_pack = _topic_x_source_pack()
