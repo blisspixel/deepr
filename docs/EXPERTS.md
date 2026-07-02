@@ -404,8 +404,16 @@ and the precomputed path reports the declared upstream estimate separately
 from Deepr spend. Claim verification can
 carry recall hits as read-only `recall_context`; the concrete sync verifier now
 uses that context in its bounded prompt, and still owns support, contradiction,
-deduplication, temporal scope, and edge judgment. Host agents can call MCP
-`deepr_semantic_recall` for the same read-only boundary.
+deduplication, temporal scope, and edge judgment.
+`deepr expert sync --compile-claims --recall-embedding-model MODEL` embeds
+ready claim statements through the same local `$0` Ollama embedder so verifier
+recall context can use the indexed belief vectors; if the local embedder fails,
+recall degrades to lexical routing without blocking the gated verification
+call. The persisted claim-verification sidecar records the exact recall
+packets the verifier prompt used, so each packet's `method` field shows which
+route actually produced it.
+Host agents can call MCP `deepr_semantic_recall` for the same read-only
+boundary.
 ```bash
 deepr expert semantic-recall "Azure Architect" "subscription vending guardrails" --json
 deepr expert semantic-recall "Azure Architect" "gpu deployment bottleneck" --query-embedding "[0.1,0.9]" --embedding-model local-test --no-lexical-fallback --json

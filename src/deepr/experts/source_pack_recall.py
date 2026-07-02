@@ -101,6 +101,33 @@ def _memory_quality_packet(candidate: Any) -> dict[str, Any]:
     return packet
 
 
+async def embed_ready_claim_statements(
+    claim_extraction: Mapping[str, Any],
+    embed_claims: Any,
+) -> dict[str, tuple[float, ...]]:
+    """Batch-embed ready claim-candidate statements for vector recall routing.
+
+    Returns candidate id to query vector, preserving batch order. The vectors
+    are routing inputs for ``build_verification_recall_candidates`` only; they
+    carry no semantic verdict and never touch the graph.
+    """
+    ready = [
+        (candidate_id, statement)
+        for candidate in _ready_claim_candidates(claim_extraction)
+        if (candidate_id := str(candidate.get("candidate_id", "") or ""))
+        and (statement := str(candidate.get("statement", "") or ""))
+    ]
+    if not ready:
+        return {}
+    vectors = list(await embed_claims([statement for _, statement in ready]))
+    if len(vectors) != len(ready):
+        raise ValueError(f"embedder returned {len(vectors)} vector(s) for {len(ready)} ready claim candidate(s)")
+    return {
+        candidate_id: tuple(float(value) for value in vector)
+        for (candidate_id, _), vector in zip(ready, vectors, strict=True)
+    }
+
+
 def build_verification_recall_candidates(
     claim_extraction: Mapping[str, Any],
     belief_store: Any,
@@ -172,5 +199,6 @@ def resolve_verification_recall_candidates(
 __all__ = [
     "build_recall_context",
     "build_verification_recall_candidates",
+    "embed_ready_claim_statements",
     "resolve_verification_recall_candidates",
 ]

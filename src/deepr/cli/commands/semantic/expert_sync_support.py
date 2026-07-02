@@ -318,6 +318,37 @@ def _sync_overlap_result(expert_name: str) -> Any:
     )
 
 
+def validate_compiled_claims_flags(
+    *,
+    compile_claims: bool,
+    stage_compiled_claims: bool,
+    apply_compiled_claims: bool,
+    dry_run: bool,
+    recall_embedding_model: str | None,
+) -> str | None:
+    """Validate the --compile-claims flag family before any store work.
+
+    Returns the normalized recall embedding model (or ``None``) and raises
+    ``ValueError`` with the operator-facing message on any invalid combination.
+    """
+    if apply_compiled_claims and not compile_claims:
+        raise ValueError("--apply-compiled-claims requires --compile-claims.")
+    if apply_compiled_claims and dry_run:
+        raise ValueError("--apply-compiled-claims cannot be combined with --dry-run.")
+    if stage_compiled_claims and not compile_claims:
+        raise ValueError("--stage-compiled-claims requires --compile-claims.")
+    if stage_compiled_claims and apply_compiled_claims:
+        raise ValueError("--stage-compiled-claims cannot be combined with --apply-compiled-claims.")
+    if recall_embedding_model is None:
+        return None
+    normalized = recall_embedding_model.strip()
+    if not normalized:
+        raise ValueError("--recall-embedding-model must not be blank.")
+    if not compile_claims:
+        raise ValueError("--recall-embedding-model requires --compile-claims.")
+    return normalized
+
+
 def _run_sync_with_loop_guard(
     profile: Any,
     *,
@@ -337,6 +368,7 @@ def _run_sync_with_loop_guard(
     compile_claims: bool = False,
     apply_graph_commits: bool = False,
     spend_decision_fn: Any | None = None,
+    recall_embedding_model: str | None = None,
 ) -> tuple[Any, Any | None, str]:
     from deepr.experts.maintenance_engine import build_sync_engine
 
@@ -352,6 +384,7 @@ def _run_sync_with_loop_guard(
             grounding_checker=grounding_checker,
             compile_claims=compile_claims,
             spend_decision_fn=spend_decision_fn,
+            recall_embedding_model=recall_embedding_model,
         )
         result = asyncio.run(
             engine.sync(

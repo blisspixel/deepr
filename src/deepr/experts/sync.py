@@ -726,6 +726,13 @@ class ExpertSyncEngine:
 
         verification_cost = nonnegative_float((model_output.get("contract", {}) or {}).get("cost_usd", 0.0))
         prompt_metadata = model_output.get("prompt", {}) if isinstance(model_output.get("prompt"), dict) else {}
+        # Persist the exact recall packets the verifier prompt used when the
+        # verifier reports them; only a verifier without that metadata falls
+        # back to re-resolving recall from the store. This keeps the durable
+        # artifact identical to what the model actually judged against,
+        # including per-packet vector-vs-lexical routing.
+        recall_metadata = model_output.get("recall", {}) if isinstance(model_output.get("recall"), dict) else {}
+        prompt_recall_context = recall_metadata.get("context_by_candidate_id")
         verification = build_claim_verification(
             claim_extraction,
             model_output,
@@ -737,6 +744,9 @@ class ExpertSyncEngine:
             prompt_ref=str(prompt_metadata.get("prompt_ref", "") or ""),
             prompt_hash=str(prompt_metadata.get("prompt_hash", "") or ""),
             generated_at=started_at.isoformat(),
+            recall_candidates_by_candidate_id=(
+                prompt_recall_context if isinstance(prompt_recall_context, dict) else None
+            ),
             recall_belief_store=self.belief_store,
             recall_domain=str(getattr(self.expert, "domain", "") or ""),
         )

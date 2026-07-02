@@ -146,6 +146,73 @@ def test_local_compile_claims_reuses_local_client(patch_engine, monkeypatch):
     assert engine.claim_verifier.estimated_cost_usd == 0.0
 
 
+def test_local_compile_claims_wires_local_recall_embedder(patch_engine, monkeypatch):
+    profile = SimpleNamespace(name="X")
+    client, embedder = object(), object()
+    captured = {}
+
+    def fake_make_local_embedder(model, *, base_url=None, client=None):
+        captured.update(model=model, client=client)
+        return embedder
+
+    monkeypatch.setattr("deepr.backends.local.ollama_chat_client", lambda: client)
+    monkeypatch.setattr(
+        "deepr.backends.local.make_local_research_fn",
+        lambda model, *, context_builder=None, client=None: object(),
+    )
+    monkeypatch.setattr("deepr.backends.local.make_local_embedder", fake_make_local_embedder)
+    monkeypatch.setattr("deepr.experts.report_absorber.ReportAbsorber", lambda *a, **k: object())
+
+    engine, source = build_sync_engine(
+        profile,
+        use_local=True,
+        local_model="qwen-local",
+        compile_claims=True,
+        recall_embedding_model="nomic-embed-text",
+    )
+
+    assert source == "local"
+    assert engine.claim_verifier.recall_query_embedder is embedder
+    assert engine.claim_verifier.recall_embedding_model == "nomic-embed-text"
+    assert captured == {"model": "nomic-embed-text", "client": client}
+
+
+def test_local_compile_claims_without_recall_model_keeps_lexical_recall(patch_engine, monkeypatch):
+    profile = SimpleNamespace(name="X")
+
+    monkeypatch.setattr("deepr.backends.local.ollama_chat_client", lambda: object())
+    monkeypatch.setattr(
+        "deepr.backends.local.make_local_research_fn",
+        lambda model, *, context_builder=None, client=None: object(),
+    )
+    monkeypatch.setattr("deepr.experts.report_absorber.ReportAbsorber", lambda *a, **k: object())
+
+    engine, _ = build_sync_engine(profile, use_local=True, local_model="qwen-local", compile_claims=True)
+
+    assert engine.claim_verifier.recall_query_embedder is None
+    assert engine.claim_verifier.recall_embedding_model is None
+
+
+def test_metered_compile_claims_can_use_local_recall_embedder(patch_engine, monkeypatch):
+    profile = SimpleNamespace(name="X")
+    embedder = object()
+    captured = {}
+
+    def fake_make_local_embedder(model, *, base_url=None, client=None):
+        captured.update(model=model, client=client)
+        return embedder
+
+    monkeypatch.setattr("deepr.backends.local.make_local_embedder", fake_make_local_embedder)
+
+    engine, source = build_sync_engine(profile, compile_claims=True, recall_embedding_model="nomic-embed-text")
+
+    assert source == "api_metered"
+    assert engine.claim_verifier.allow_metered is True
+    assert engine.claim_verifier.recall_query_embedder is embedder
+    assert engine.claim_verifier.recall_embedding_model == "nomic-embed-text"
+    assert captured == {"model": "nomic-embed-text", "client": None}
+
+
 def test_metered_compile_claims_is_explicit_opt_in(patch_engine):
     profile = SimpleNamespace(name="X")
 

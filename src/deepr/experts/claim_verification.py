@@ -3,9 +3,10 @@
 from __future__ import annotations
 
 import json
+import logging
 import os
 from collections.abc import Mapping, Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from typing import Any
 
@@ -22,8 +23,14 @@ from deepr.experts.semantic_model_gate import (
 )
 from deepr.experts.source_pack_compiler import CLAIM_VERIFICATION_PROMPT_VERSION
 from deepr.experts.source_pack_payloads import source_pack_from_payload, sources_from_pack
-from deepr.experts.source_pack_recall import build_recall_context, resolve_verification_recall_candidates
+from deepr.experts.source_pack_recall import (
+    build_recall_context,
+    embed_ready_claim_statements,
+    resolve_verification_recall_candidates,
+)
 from deepr.utils.prompt_security import sanitize_untrusted_content
+
+logger = logging.getLogger(__name__)
 
 CLAIM_VERIFICATION_PROMPT_REF = "deepr://prompts/claim-verification/v1"
 CLAIM_VERIFICATION_OPERATION = "semantic_claim_verification"
@@ -45,6 +52,11 @@ class ClaimVerificationPrompt:
     prompt_hash: str
     candidate_count: int
     recall_candidate_count: int
+    # The exact recall packets the prompt was built from, keyed by candidate
+    # id. Persisting these into the claim-verification artifact keeps the
+    # durable record identical to what the verifier actually judged against,
+    # including vector-vs-lexical routing per packet.
+    recall_candidates_by_candidate_id: dict[str, list[dict[str, Any]]] = field(default_factory=dict)
 
 
 @dataclass
@@ -67,6 +79,8 @@ class SemanticClaimVerifier:
     recall_domain: str | None = None
     recall_top_k: int = DEFAULT_MAX_RECALL_CANDIDATES
     recall_min_score: float = 0.0
+    recall_query_embedder: Any | None = None
+    recall_embedding_model: str | None = None
 
     def _get_client(self) -> Any:
         if self.client is None:
@@ -94,6 +108,8 @@ class SemanticClaimVerifier:
         recall_belief_store: Any | None = None,
         recall_domain: str | None = None,
     ) -> dict[str, Any]:
+        recall_store = recall_belief_store if recall_belief_store is not None else self.belief_store
+        recall_embeddings = await self._recall_query_embeddings(claim_extraction, recall_store)
         return await verify_claims(
             claim_extraction,
             source_notes,
@@ -110,11 +126,36 @@ class SemanticClaimVerifier:
             cost_safety=self.cost_safety,
             session_id=session_id,
             generated_at=generated_at,
-            recall_belief_store=recall_belief_store if recall_belief_store is not None else self.belief_store,
+            recall_belief_store=recall_store,
             recall_domain=recall_domain if recall_domain is not None else self.recall_domain,
             recall_top_k=self.recall_top_k,
             recall_min_score=self.recall_min_score,
+            recall_query_embeddings_by_candidate_id=recall_embeddings,
+            recall_embedding_model=self.recall_embedding_model if recall_embeddings else None,
         )
+
+    async def _recall_query_embeddings(
+        self,
+        claim_extraction: dict[str, Any],
+        recall_store: Any | None,
+    ) -> dict[str, tuple[float, ...]] | None:
+        """Best-effort local query embeddings for recall routing.
+
+        Failure degrades to the lexical router instead of blocking: recall is
+        candidate-only routing, so a local embedding hiccup must not abort an
+        already-gated verification call. The degradation is visible per
+        candidate through the recall packet ``method`` field.
+        """
+        if self.recall_query_embedder is None or not self.recall_embedding_model or recall_store is None:
+            return None
+        if not callable(getattr(recall_store, "recall_belief_candidates", None)):
+            return None
+        try:
+            embeddings = await embed_ready_claim_statements(claim_extraction, self.recall_query_embedder)
+        except Exception as exc:
+            logger.warning("Recall query embedding failed; using lexical recall routing: %s", exc)
+            return None
+        return embeddings or None
 
 
 def _ready_candidates(claim_extraction: dict[str, Any], *, max_candidates: int) -> list[dict[str, Any]]:
@@ -256,31 +297,35 @@ def _candidate_packets(
     recall_min_score: float,
     recall_query_embeddings_by_candidate_id: Mapping[str, Sequence[float]] | None,
     recall_embedding_model: str | None,
-) -> list[dict[str, Any]]:
+) -> tuple[list[dict[str, Any]], dict[str, list[dict[str, Any]]]]:
     candidates = _ready_candidates(claim_extraction, max_candidates=max_candidates)
     notes = _notes_by_id(source_notes)
     sources = sources_from_pack(source_pack_from_payload(source_pack_payload))
-    recall_candidates = resolve_verification_recall_candidates(
-        None,
-        claim_extraction,
-        recall_belief_store,
-        domain=recall_domain,
-        top_k=recall_top_k,
-        min_score=recall_min_score,
-        query_embeddings_by_candidate_id=recall_query_embeddings_by_candidate_id,
-        embedding_model=recall_embedding_model,
-    )
-    return [
+    recall_candidates = {
+        candidate_id: list(packets)
+        for candidate_id, packets in resolve_verification_recall_candidates(
+            None,
+            claim_extraction,
+            recall_belief_store,
+            domain=recall_domain,
+            top_k=recall_top_k,
+            min_score=recall_min_score,
+            query_embeddings_by_candidate_id=recall_query_embeddings_by_candidate_id,
+            embedding_model=recall_embedding_model,
+        ).items()
+    }
+    packets = [
         _candidate_packet(
             candidate,
             notes=notes,
             sources=sources,
-            recall_candidates=dict(recall_candidates),
+            recall_candidates=recall_candidates,
             max_source_chars_per_ref=max_source_chars_per_ref,
             max_recall_candidates=max_recall_candidates,
         )
         for candidate in candidates
     ]
+    return packets, recall_candidates
 
 
 def _verification_shape(edge_types: list[str]) -> str:
@@ -316,7 +361,7 @@ def build_claim_verification_prompt(
     recall_embedding_model: str | None = None,
 ) -> ClaimVerificationPrompt:
     """Build bounded messages for claim verification."""
-    packets = _candidate_packets(
+    packets, recall_candidates_by_candidate_id = _candidate_packets(
         claim_extraction,
         source_notes,
         source_pack_payload,
@@ -366,6 +411,7 @@ def build_claim_verification_prompt(
         prompt_hash=sha256_text(stable_json(messages)),
         candidate_count=len(packets),
         recall_candidate_count=sum(packet["recall_context"]["candidate_count"] for packet in packets),
+        recall_candidates_by_candidate_id=recall_candidates_by_candidate_id,
     )
 
 
@@ -505,7 +551,7 @@ async def verify_claims(
             },
         )
 
-    return _attach_contract(
+    output = _attach_contract(
         _parse_verifier_response(raw),
         provider=provider,
         model=model,
@@ -516,6 +562,15 @@ async def verify_claims(
         claim_extraction_artifact=claim_extraction_artifact,
         generated_at=generated_at or datetime.now(UTC).isoformat(),
     )
+    # Trusted routing metadata, attached by deterministic code (never model
+    # output): the exact recall packets the prompt was built from, so artifact
+    # builders can persist what the verifier actually judged against instead of
+    # re-resolving recall and silently recording a different context.
+    output["recall"] = {
+        "context_by_candidate_id": prompt.recall_candidates_by_candidate_id,
+        "embedding_model": recall_embedding_model or "",
+    }
+    return output
 
 
 __all__ = [

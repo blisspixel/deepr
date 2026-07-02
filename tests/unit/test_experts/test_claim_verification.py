@@ -12,6 +12,7 @@ from deepr.experts.claim_verification import (
     CLAIM_VERIFICATION_OPERATION,
     CLAIM_VERIFICATION_PROMPT_REF,
     ClaimVerificationBlocked,
+    SemanticClaimVerifier,
     verify_claims,
 )
 from deepr.experts.source_pack_compiler import build_semantic_claim_extraction, build_source_notes
@@ -187,6 +188,122 @@ async def test_verify_claims_invokes_json_chat_with_sanitized_source_and_recall(
     assert verification["prompt"]["prompt_ref"] == CLAIM_VERIFICATION_PROMPT_REF
     assert verification["prompt"]["prompt_hash"]
     assert verification["verifications"][0]["candidate_id"] == candidate_id
+
+
+def _verification_response(candidate_id: str) -> str:
+    return json.dumps(
+        {
+            "verifications": [
+                {
+                    "candidate_id": candidate_id,
+                    "support_verdict": "supported",
+                    "contradiction_verdict": "none",
+                    "dedup_verdict": "same_as_existing",
+                    "temporal_scope_verdict": "valid",
+                    "confidence": 0.91,
+                    "rationale": "The cited source window supports the claim.",
+                }
+            ]
+        }
+    )
+
+
+def _recall_ready_store(tmp_path) -> tuple[BeliefStore, Belief]:
+    store = BeliefStore("Compiler Expert", storage_dir=tmp_path / "beliefs")
+    existing, _ = store.add_belief(
+        Belief(
+            "Compiler v2 was released in June 2026 according to prior release notes.",
+            0.8,
+            domain="compiler",
+            source_type="report",
+        ),
+        check_conflicts=False,
+    )
+    return store, existing
+
+
+@pytest.mark.asyncio
+async def test_verifier_uses_local_query_embeddings_for_vector_recall(tmp_path):
+    payload = _source_pack_payload()
+    notes = _source_notes(payload)
+    extraction = _claim_extraction(payload)
+    store, existing = _recall_ready_store(tmp_path)
+    store.upsert_belief_embedding(existing.id, [1.0, 0.0], model="nomic-embed-text")
+    client = _FakeClient(_verification_response(extraction["candidates"][0]["candidate_id"]))
+    embedded: list[list[str]] = []
+
+    async def embed_claims(claims):
+        embedded.append(list(claims))
+        return [(1.0, 0.0)] * len(claims)
+
+    verifier = SemanticClaimVerifier(
+        provider="local",
+        model="qwen-local",
+        capacity_source="local",
+        client=client,
+        estimated_cost_usd=0.0,
+        recall_query_embedder=embed_claims,
+        recall_embedding_model="nomic-embed-text",
+    )
+
+    verification = await verifier.verify(
+        extraction,
+        notes,
+        payload,
+        recall_belief_store=store,
+        recall_domain="compiler",
+        generated_at="2026-07-02T12:02:00+00:00",
+    )
+
+    assert embedded == [["Compiler v2 was released in June 2026."]]
+    user_prompt = client.calls[0]["messages"][1]["content"]
+    assert "vector_similarity" in user_prompt
+    assert existing.id in user_prompt
+    assert "candidate_only" in user_prompt
+    assert verification["contract"]["cost_usd"] == 0.0
+    recall_metadata = verification["recall"]
+    assert recall_metadata["embedding_model"] == "nomic-embed-text"
+    candidate_id = extraction["candidates"][0]["candidate_id"]
+    recall_packets = recall_metadata["context_by_candidate_id"][candidate_id]
+    assert recall_packets[0]["item_id"] == existing.id
+    assert recall_packets[0]["method"] == "vector_similarity"
+
+
+@pytest.mark.asyncio
+async def test_verifier_recall_embedding_failure_degrades_to_lexical_routing(tmp_path):
+    payload = _source_pack_payload()
+    notes = _source_notes(payload)
+    extraction = _claim_extraction(payload)
+    store, existing = _recall_ready_store(tmp_path)
+    client = _FakeClient(_verification_response(extraction["candidates"][0]["candidate_id"]))
+
+    async def embed_claims(claims):
+        raise ConnectionError("refused")
+
+    verifier = SemanticClaimVerifier(
+        provider="local",
+        model="qwen-local",
+        capacity_source="local",
+        client=client,
+        estimated_cost_usd=0.0,
+        recall_query_embedder=embed_claims,
+        recall_embedding_model="nomic-embed-text",
+    )
+
+    verification = await verifier.verify(
+        extraction,
+        notes,
+        payload,
+        recall_belief_store=store,
+        recall_domain="compiler",
+        generated_at="2026-07-02T12:02:00+00:00",
+    )
+
+    user_prompt = client.calls[0]["messages"][1]["content"]
+    assert "lexical_router" in user_prompt
+    assert "vector_similarity" not in user_prompt
+    assert existing.id in user_prompt
+    assert verification["verifications"][0]["candidate_id"] == extraction["candidates"][0]["candidate_id"]
 
 
 @pytest.mark.asyncio

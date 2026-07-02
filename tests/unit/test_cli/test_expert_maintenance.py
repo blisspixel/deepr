@@ -146,6 +146,33 @@ class TestBackendFlagGuard:
         assert r.exit_code == 2
         assert "--stage-compiled-claims cannot be combined with --apply-compiled-claims" in r.output
 
+    def test_sync_rejects_recall_embedding_model_without_compile_claims_before_store_work(self, monkeypatch):
+        class ExplodingExpertStore:
+            def load(self, name):
+                raise AssertionError("recall flag validation must run before loading experts")
+
+        monkeypatch.setattr("deepr.experts.profile.ExpertStore", ExplodingExpertStore)
+
+        r = CliRunner().invoke(expert, ["sync", "Whoever", "--recall-embedding-model", "nomic-embed-text"])
+
+        assert r.exit_code == 2
+        assert "--recall-embedding-model requires --compile-claims" in r.output
+
+    def test_sync_rejects_blank_recall_embedding_model_before_store_work(self, monkeypatch):
+        class ExplodingExpertStore:
+            def load(self, name):
+                raise AssertionError("recall flag validation must run before loading experts")
+
+        monkeypatch.setattr("deepr.experts.profile.ExpertStore", ExplodingExpertStore)
+
+        r = CliRunner().invoke(
+            expert,
+            ["sync", "Whoever", "--compile-claims", "--recall-embedding-model", "   "],
+        )
+
+        assert r.exit_code == 2
+        assert "--recall-embedding-model must not be blank" in r.output
+
     def test_absorb_rejects_checker_plan_without_grounding_before_store_work(self, monkeypatch):
         class ExplodingExpertStore:
             def load(self, name):
