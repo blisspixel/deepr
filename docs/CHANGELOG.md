@@ -8,6 +8,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- Context-bearing sync now writes content-addressed raw snapshots: each
+  fetched source's full text is persisted once under
+  `sync_artifacts/snapshots/<content_hash>.txt` and the source-pack entry
+  gains a `snapshot_ref`, so excerpt-based evidence is re-verifiable by
+  re-hashing the snapshot file against the recorded `content_hash`. A
+  snapshot is written only when the carried text actually hashes to the
+  recorded `content_hash`, so conditional 304 excerpt reuse can never
+  corrupt the content-addressed store, and oversized pages are skipped
+  rather than truncated. The transient full text never lands in the pack
+  artifact itself, identical content dedupes to one snapshot file, and a
+  snapshot write failure records a per-source error without failing the
+  sync (pack and hash provenance still persist fail-closed).
 - Compiled-sync claim verification now memoizes claim+source+window decisions
   per expert (`deepr-verification-memo-v1`, an append-only JSONL cache under
   the expert's sync artifacts). A decision is replayed verbatim only when the

@@ -176,7 +176,10 @@ def make_local_research_fn(
             if metadata is not None:
                 result["fresh_context"] = metadata
             if hasattr(context, "to_source_pack"):
-                result["source_pack"] = context.to_source_pack()
+                # include_content lets the sync persister write content-
+                # addressed raw snapshots; it strips the transient content
+                # field before the pack artifact is written.
+                result["source_pack"] = context.to_source_pack(include_content=True)
             return result
         except Exception as e:  # seam contract: report, do not raise
             return {"answer": "", "cost": 0.0, "error": f"local model error: {e}"}

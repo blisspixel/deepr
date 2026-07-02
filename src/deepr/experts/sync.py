@@ -39,6 +39,7 @@ from deepr.experts.sync_support import (
     source_pack_content_hashes,
     source_pack_from_research,
     source_pack_summary,
+    write_source_snapshots,
 )
 from deepr.utils.atomic_io import atomic_write_json
 
@@ -583,6 +584,7 @@ class ExpertSyncEngine:
         from deepr.experts.source_pack_compiler import build_source_notes, build_source_pack_manifest
 
         root = self.subscriptions.path.parent
+        write_source_snapshots(source_pack, root)
         artifact_dir = root / "sync_artifacts" / "source_packs"
         manifest_dir = root / "sync_artifacts" / "source_pack_manifests"
         source_note_dir = root / "sync_artifacts" / "source_notes"
