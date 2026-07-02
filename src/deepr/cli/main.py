@@ -128,6 +128,11 @@ from deepr.cli.commands import (
     eval as eval_cmd,
 )
 from deepr.cli.commands import (
+    # Imported for its registration side effect on the `eval` group; eval.py
+    # is at the file-size ceiling, so extra subcommands live in own modules.
+    eval_recall as _eval_recall_cmd,  # noqa: F401
+)
+from deepr.cli.commands import (
     fleet as fleet_cmd,
 )
 from deepr.cli.commands import help as help_cmd

@@ -60,16 +60,20 @@ def coerce_query_embedding(raw: Sequence[Any]) -> tuple[float, ...]:
 
 
 def coerce_belief_embedding_map(raw: Any) -> dict[str, tuple[float, ...]]:
-    """Validate a precomputed belief-id-to-vector mapping."""
+    """Validate a precomputed id-to-vector mapping.
+
+    Keys are belief ids on the refresh path and case ids on the recall-eval
+    path, so the error text stays neutral about what the id names.
+    """
     if not isinstance(raw, Mapping):
-        raise ValueError("embeddings JSON must be an object mapping belief id to numeric vector")
+        raise ValueError("embeddings JSON must be an object mapping id to numeric vector")
 
     vectors: dict[str, tuple[float, ...]] = {}
-    for raw_belief_id, raw_vector in raw.items():
-        belief_id = str(raw_belief_id).strip()
-        if not belief_id:
-            raise ValueError("embedding belief id must not be empty")
-        vectors[belief_id] = coerce_query_embedding(raw_vector)
+    for raw_id, raw_vector in raw.items():
+        vector_id = str(raw_id).strip()
+        if not vector_id:
+            raise ValueError("embedding id must not be empty")
+        vectors[vector_id] = coerce_query_embedding(raw_vector)
     return vectors
 
 

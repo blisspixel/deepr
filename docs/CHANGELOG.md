@@ -29,6 +29,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `method` field in the durable artifact shows whether vector or lexical
   routing was actually used instead of re-resolving recall at artifact-build
   time.
+- Added `deepr eval recall NAME --cases PATH`, a `$0` read-only eval that
+  compares lexical and indexed-vector recall routing on operator-labeled
+  cases and emits `deepr-recall-eval-report-v1` with hit rate, mean
+  reciprocal rank, and per-metric route winners. Relevance labels are
+  operator-supplied; the report is routing evidence, never a semantic
+  verdict, and `--save` writes the artifact under the configured benchmarks
+  directory.
 
 ### Fixed
 - Removed accidentally tracked external Distillr runtime telemetry from

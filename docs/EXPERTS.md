@@ -420,6 +420,8 @@ deepr expert semantic-recall "Azure Architect" "gpu deployment bottleneck" --que
 deepr expert semantic-recall "Azure Architect" "gpu deployment bottleneck" --local-embedding-model nomic-embed-text --no-lexical-fallback --json
 deepr expert refresh-semantic-recall "Azure Architect" --embedding-model local-test --embeddings-json ./belief-vectors.json --json
 deepr expert refresh-semantic-recall "Azure Architect" --local-embedding-model nomic-embed-text --json
+deepr eval recall "Azure Architect" --cases ./recall-cases.json --local-embedding-model nomic-embed-text --save
+deepr expert sync "Azure Architect" --local --compile-claims --recall-embedding-model nomic-embed-text -y
 ```
 
 ### Self-Model (read-only current state)
