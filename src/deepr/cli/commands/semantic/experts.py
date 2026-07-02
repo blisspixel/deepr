@@ -1791,13 +1791,14 @@ def reflect_report(
         sys.exit(2)
 
     if scheduled:
-        from deepr.cli.commands.semantic.expert_reflect_schedule import emit_scheduled_reflection_wait
+        from deepr.cli.commands.semantic.expert_reflect_schedule import dispatch_scheduled_reflection
 
-        profile_name = profile.name if isinstance(getattr(profile, "name", None), str) and profile.name else name
-        emit_scheduled_reflection_wait(
-            profile_name,
+        dispatch_scheduled_reflection(
+            profile,
+            name,
             report_id,
             result.prompt,
+            report_text,
             depth=depth,
             execute_followups=execute_followups,
             budget=budget,

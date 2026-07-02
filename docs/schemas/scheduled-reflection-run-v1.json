@@ -1,0 +1,78 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/blisspixel/deepr/docs/schemas/scheduled-reflection-run-v1.json",
+  "title": "Deepr Scheduled Reflection Run v1",
+  "type": "object",
+  "additionalProperties": true,
+  "required": [
+    "schema_version",
+    "kind",
+    "scheduled",
+    "capacity_source",
+    "report",
+    "followups",
+    "loop_run"
+  ],
+  "properties": {
+    "schema_version": {"const": "deepr-scheduled-reflection-run-v1"},
+    "kind": {"const": "deepr.expert.scheduled_reflection_run"},
+    "scheduled": {"const": true},
+    "capacity_source": {
+      "type": "string",
+      "pattern": "^(local|plan_quota:[a-z0-9_-]+)$",
+      "description": "Owned/prepaid capacity only; this payload is never produced by a metered evaluator."
+    },
+    "capacity_note": {"type": "string"},
+    "report": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": ["verdict", "overall_score"],
+      "properties": {
+        "verdict": {"type": "string", "minLength": 1},
+        "overall_score": {"type": "number", "minimum": 0.0, "maximum": 1.0}
+      }
+    },
+    "followups": {"$ref": "#/$defs/followups"},
+    "loop_run": {
+      "type": "object",
+      "additionalProperties": true
+    }
+  },
+  "$defs": {
+    "followups": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": ["requested", "status"],
+      "properties": {
+        "requested": {"type": "boolean"},
+        "status": {
+          "enum": [
+            "not_requested",
+            "none_emitted",
+            "waiting_for_capacity",
+            "waiting_for_overlap",
+            "executed"
+          ]
+        },
+        "detail": {"type": "string"},
+        "followup_count": {"type": "integer", "minimum": 0},
+        "capacity_source": {"type": "string"},
+        "total_cost": {"type": "number", "minimum": 0.0},
+        "loop_run_id": {"type": "string"},
+        "outcomes": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": true,
+            "required": ["topic", "status"],
+            "properties": {
+              "topic": {"type": "string"},
+              "status": {"type": "string"},
+              "cost": {"type": "number", "minimum": 0.0}
+            }
+          }
+        }
+      }
+    }
+  }
+}

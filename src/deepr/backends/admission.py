@@ -34,6 +34,7 @@ from deepr.config import runtime_data_path
 TASK_CLASS_SYNC = "sync"
 TASK_CLASS_ABSORB = "absorb"
 TASK_CLASS_GAP_FILL = "gap_fill"
+TASK_CLASS_REFLECT = "reflect"
 
 DEFAULT_ADMISSION_DAYS = 90
 DEFAULT_LOCAL_EVAL_MIN_SCORE = 0.70
