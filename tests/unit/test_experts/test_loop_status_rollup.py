@@ -189,3 +189,25 @@ def test_rollup_sanitizes_untrusted_host_payload_text(tmp_path):
     assert "[tool call marker removed]" in rendered
     assert run.goal == raw_goal
     assert run.next_action["title"] == raw_action
+
+
+def test_rollup_includes_next_run_capacity_outlook(monkeypatch, tmp_path):
+    """The rollup embeds the non-probing capacity outlook (additive within v1)."""
+    from types import SimpleNamespace
+
+    import deepr.backends.admission as admission_mod
+    from deepr.backends.admission import TASK_CLASS_SYNC
+
+    monkeypatch.setattr(
+        admission_mod,
+        "list_active",
+        lambda *, now=None, path=None: [SimpleNamespace(model="qwen-local", task_class=TASK_CLASS_SYNC)],
+    )
+    store = ExpertLoopRunStore("Rollup Expert", path=tmp_path / "loops.jsonl")
+
+    rollup = build_loop_status_rollup("Rollup Expert", store=store)
+
+    outlook = rollup["next_run_outlook"]
+    assert outlook["any_cheap_capacity_admitted"] is True
+    assert outlook["task_classes"][TASK_CLASS_SYNC]["local_capacity_admitted"] is True
+    assert outlook["task_classes"][TASK_CLASS_SYNC]["admitted_local_models"] == ["qwen-local"]
