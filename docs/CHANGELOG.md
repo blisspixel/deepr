@@ -17,7 +17,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   number is a deterministic statistic over already-recorded scores; agreement
   is not correctness, and the report flags insufficient data below five
   independently paired traces so a judge is not trusted as a product metric
-  before it is measured.
+  before it is measured. The report also breaks agreement down per model-judge
+  reviewer and marks each `trusted` only when it clears both the paired-trace
+  floor and a within-tolerance agreement rate against the human anchor, so a
+  specific judge can be gated rather than the aggregate; `trusted_model_reviewers`
+  exposes that set for the planned regression-selection gate.
 - Added bounded second-checker grounding escalation
   (`deepr.experts.grounding_escalation`). A weak first grounding verdict (a
   positive refutation, a could-not-verify from a checker that actually ran, or

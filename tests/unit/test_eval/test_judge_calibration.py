@@ -11,14 +11,24 @@ from deepr.evals.judge_calibration import (
     JUDGE_CALIBRATION_REPORT_SCHEMA_VERSION,
     build_judge_calibration_report,
     pair_reviews_by_trace,
+    trusted_model_reviewers,
 )
 
 
-def _review(trace_id, judge_type, scores, *, decision="accept", generated_at="2026-07-03T00:00:00+00:00", expert="X"):
+def _review(
+    trace_id,
+    judge_type,
+    scores,
+    *,
+    decision="accept",
+    generated_at="2026-07-03T00:00:00+00:00",
+    expert="X",
+    reviewer=None,
+):
     return {
         "schema_version": "deepr-consult-quality-review-v1",
         "expert_name": expert,
-        "judge": {"type": judge_type, "reviewer": judge_type},
+        "judge": {"type": judge_type, "reviewer": reviewer or judge_type},
         "source": {"source_trace_id": trace_id},
         "scores": [{"dimension": dim, "score": score} for dim, score in scores.items()],
         "decision": decision,
@@ -114,6 +124,44 @@ class TestReport:
         assert report["summary"]["paired_trace_count"] == 0
         assert report["overall_agreement"]["pair_count"] == 0
         assert report["decision_agreement"]["agreement_rate"] == 0.0
+        assert report["per_reviewer_agreement"] == {}
+
+
+class TestPerReviewerTrust:
+    def _mixed_reviews(self):
+        reviews = []
+        for i in range(6):
+            reviews.append(_review(f"t{i}", "human", {"grounded": 4}))
+            # good_judge agrees exactly; loose_judge is off by 3 (outside tolerance 1).
+            reviews.append(_review(f"t{i}", "calibrated_model", {"grounded": 4}, reviewer="good_judge"))
+            reviews.append(_review(f"t{i}", "calibrated_model", {"grounded": 1}, reviewer="loose_judge"))
+        return reviews
+
+    def test_a_well_agreeing_judge_over_enough_traces_is_trusted(self):
+        report = build_judge_calibration_report(self._mixed_reviews())
+
+        per_reviewer = report["per_reviewer_agreement"]
+        assert per_reviewer["good_judge"]["trusted"] is True
+        assert per_reviewer["good_judge"]["paired_trace_count"] == 6
+        assert per_reviewer["loose_judge"]["trusted"] is False  # within-tolerance rate 0
+        assert report["summary"]["model_reviewer_count"] == 2
+        assert report["summary"]["trusted_model_reviewer_count"] == 1
+        assert trusted_model_reviewers(report) == {"good_judge"}
+
+    def test_a_good_judge_with_too_few_traces_is_not_yet_trusted(self):
+        reviews = [
+            _review("t1", "human", {"grounded": 4}),
+            _review("t1", "calibrated_model", {"grounded": 4}, reviewer="new_judge"),
+        ]
+
+        report = build_judge_calibration_report(reviews)
+
+        assert report["per_reviewer_agreement"]["new_judge"]["trusted"] is False  # only 1 paired trace
+        assert trusted_model_reviewers(report) == set()
+
+    def test_trusted_model_reviewers_tolerates_a_malformed_report(self):
+        assert trusted_model_reviewers({}) == set()
+        assert trusted_model_reviewers({"per_reviewer_agreement": None}) == set()
 
 
 class TestCommand:
