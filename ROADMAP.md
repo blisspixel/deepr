@@ -1129,10 +1129,29 @@ Sequenced smallest-shippable-first:
         `deepr-expert-handoff-v1` surfaces per-claim assurance plus summary
         counts for verified and cross-vendor verified claims. Schema validation
         covers the additive contract.
-  - [ ] **Bounded escalation** (next): build the metered provider-adapter
-        checker path with spend-policy gates; escalate to a 2nd different-vendor
-        checker on a refutation/high-stakes claim, then hold instead of
-        absorbing unsupported knowledge.
+  - [~] **Bounded escalation**: escalate to a 2nd different-vendor checker on a
+        refutation/high-stakes claim, then hold instead of absorbing unsupported
+        knowledge.
+    - [x] **Escalation library + absorber seam** (2026-07-02):
+          `deepr.experts.grounding_escalation` decides which weak verdicts
+          escalate, picks a genuinely independent third vendor (different from
+          both maker and first checker), and combines two verdicts into a
+          cleared/held/contested disposition. A metered second checker is
+          constructed only behind an injected factory, so healthy claims never
+          pay for a second check. `ReportAbsorber` consumes it through an
+          optional injected escalator; grounding stays advisory (hold means not
+          promoted, never quarantined).
+    - [x] **`expert absorb` CLI wiring** (2026-07-03): `--second-checker-plan`
+          (+ `--second-checker-plan-model`) reaches the escalator behind the
+          existing `--check-grounding --checker-plan` spend gate across all
+          three maker backends (local, plan, metered). It must name a distinct
+          plan-quota vendor; the second checker's client is built lazily, and
+          ill-formed flag combinations exit non-zero before any store or
+          provider work.
+    - [ ] **`expert sync` CLI wiring** (next): expose the same
+          `--second-checker-plan` escalation on the context-bearing sync path so
+          scheduled maintenance can hold double-refuted claims, not just one-shot
+          absorb.
 - [~] **Hardening**:
   - [x] **Reservation TTL/sweeper** (2026-06-24): a `check_and_reserve` whose
         caller crashes before `record_cost`/`refund_reservation` used to hold its

@@ -52,7 +52,15 @@ class TestRegistration:
 
     def test_absorb_has_local_and_api_flags(self):
         opts = {p.name for p in expert.commands["absorb"].params}
-        assert {"local", "api", "check_grounding", "checker_plan", "checker_plan_model"} <= opts
+        assert {
+            "local",
+            "api",
+            "check_grounding",
+            "checker_plan",
+            "checker_plan_model",
+            "second_checker_plan",
+            "second_checker_plan_model",
+        } <= opts
 
 
 class TestBackendFlagGuard:
@@ -184,6 +192,30 @@ class TestBackendFlagGuard:
 
         assert r.exit_code == 2
         assert "Use --check-grounding with --checker-plan" in r.output
+
+    def test_absorb_rejects_second_checker_equal_to_first_before_store_work(self, monkeypatch):
+        class ExplodingExpertStore:
+            def load(self, name):
+                raise AssertionError("second-checker validation must run before loading experts")
+
+        monkeypatch.setattr("deepr.experts.profile.ExpertStore", ExplodingExpertStore)
+
+        r = CliRunner().invoke(
+            expert,
+            [
+                "absorb",
+                "Whoever",
+                "job123",
+                "--check-grounding",
+                "--checker-plan",
+                "codex",
+                "--second-checker-plan",
+                "codex",
+            ],
+        )
+
+        assert r.exit_code == 2
+        assert "must differ" in r.output
 
     def test_sync_local_uses_local_absorber(self, monkeypatch):
         captured = {}
@@ -1204,6 +1236,91 @@ class TestPlanQuotaSync:
         assert clients == ["codex", "claude"]
         assert callable(captured["grounding_checker"])
         assert captured["estimated_cost"] == 0.0
+
+    def test_absorb_wires_bounded_second_checker_escalator_lazily(self, monkeypatch):
+        from deepr.experts.grounding_escalation import GroundingEscalator
+
+        captured = {}
+        clients = []
+        profile = SimpleNamespace(name="Plan Expert", total_research_cost=0.0, last_knowledge_refresh=None)
+
+        class FakeExpertStore:
+            def load(self, name):
+                return profile
+
+            def save(self, p):
+                captured["saved"] = p
+
+        class FakeIndex:
+            def get_report_content(self, report_id, max_chars=0):
+                return "report text"
+
+        class FakeResult:
+            dry_run = False
+            estimated_cost = 0.0
+
+            def to_dict(self):
+                return {"absorbed": []}
+
+        class FakeReportAbsorber:
+            def __init__(
+                self,
+                loaded_profile,
+                *,
+                model,
+                client=None,
+                grounding_checker=None,
+                grounding_escalator=None,
+                estimated_cost=0.0,
+            ):
+                captured["grounding_checker"] = grounding_checker
+                captured["grounding_escalator"] = grounding_escalator
+
+            async def absorb(self, *a, **k):
+                # A clean run never triggers escalation, so the second checker's
+                # client must not have been built during absorption.
+                return FakeResult()
+
+        for var in ("OPENAI_API_KEY", "CODEX_API_KEY", "CODEX_ACCESS_TOKEN", "ANTHROPIC_API_KEY"):
+            monkeypatch.delenv(var, raising=False)
+        monkeypatch.setattr("deepr.experts.profile.ExpertStore", FakeExpertStore)
+        monkeypatch.setattr("deepr.services.context_index.ContextIndex", FakeIndex)
+        monkeypatch.setattr("deepr.experts.report_absorber.ReportAbsorber", FakeReportAbsorber)
+
+        def fake_plan_client(adapter, **kwargs):
+            clients.append(adapter.backend_id)
+            return object()
+
+        monkeypatch.setattr("deepr.backends.plan_quota.PlanQuotaChatClient", fake_plan_client)
+
+        # kiro is a genuine third vendor (distinct from the codex maker and the
+        # claude first checker) that resolves as plan-quota with no env setup.
+        r = CliRunner().invoke(
+            expert,
+            [
+                "absorb",
+                "Plan Expert",
+                "job1",
+                "--plan",
+                "codex",
+                "--check-grounding",
+                "--checker-plan",
+                "claude",
+                "--second-checker-plan",
+                "kiro",
+                "-y",
+                "--json",
+            ],
+        )
+
+        assert r.exit_code == 0, r.output
+        escalator = captured["grounding_escalator"]
+        assert isinstance(escalator, GroundingEscalator)
+        assert escalator.maker_vendor == "codex"
+        assert escalator.available_vendors == ("kiro",)
+        # Cost bound: only the maker and first checker clients are built up front.
+        # The kiro second checker stays unbuilt because no verdict was weak.
+        assert clients == ["codex", "claude"]
 
     def test_absorb_plan_sanitizes_api_key_env_before_running(self, monkeypatch):
         captured = {}
