@@ -8,6 +8,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- Added `deepr expert validate-export PATH`, a `$0` form-only validator for
+  exported derived views: handoff payloads (`.json`), OKF bundle directories,
+  and `SKILL.md` exports. It checks required provenance, schema version,
+  trust metadata (grounding assurance, canonical-state/derived-view class
+  markers), required skill frontmatter, and that a skill export at least
+  references MCP consultation (a form-only presence check, not proof the
+  skill is a pointer). It emits `deepr-export-validation-v1`, judges no
+  content truth, and exits non-zero on failure so export pipelines can gate
+  on it.
 - Context-bearing sync now writes content-addressed raw snapshots: each
   fetched source's full text is persisted once under
   `sync_artifacts/snapshots/<content_hash>.txt` and the source-pack entry

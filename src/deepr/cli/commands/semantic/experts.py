@@ -3321,3 +3321,4 @@ from deepr.cli.commands.semantic import expert_memory_card as _expert_memory_car
 from deepr.cli.commands.semantic import expert_okf as _expert_okf  # noqa: F401
 from deepr.cli.commands.semantic import expert_portrait as _expert_portrait  # noqa: F401
 from deepr.cli.commands.semantic import expert_self_model as _expert_self_model  # noqa: F401
+from deepr.cli.commands.semantic import expert_validate_export as _expert_validate_export  # noqa: F401
