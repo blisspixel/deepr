@@ -127,9 +127,13 @@ from deepr.cli.commands import (
 from deepr.cli.commands import (
     eval as eval_cmd,
 )
+
+# Imported for their registration side effect on the `eval` group; eval.py is
+# at the file-size ceiling, so extra subcommands live in their own modules.
 from deepr.cli.commands import (
-    # Imported for its registration side effect on the `eval` group; eval.py
-    # is at the file-size ceiling, so extra subcommands live in own modules.
+    eval_judge_calibration as _eval_judge_calibration_cmd,  # noqa: F401
+)
+from deepr.cli.commands import (
     eval_recall as _eval_recall_cmd,  # noqa: F401
 )
 from deepr.cli.commands import (

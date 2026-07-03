@@ -8,6 +8,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- Added `deepr eval judge-calibration`, a `$0` read-only eval that measures how
+  well a calibrated-model consult-quality judge agrees with a human anchor. It
+  pairs the latest human review and latest calibrated-model review of the same
+  consult trace and reports per-dimension agreement (mean absolute error,
+  signed directional bias, exact- and within-tolerance-agreement rates) plus
+  decision agreement, emitting `deepr-judge-calibration-report-v1`. Every
+  number is a deterministic statistic over already-recorded scores; agreement
+  is not correctness, and the report flags insufficient data below five
+  independently paired traces so a judge is not trusted as a product metric
+  before it is measured.
 - Added bounded second-checker grounding escalation
   (`deepr.experts.grounding_escalation`). A weak first grounding verdict (a
   positive refutation, a could-not-verify from a checker that actually ran, or
