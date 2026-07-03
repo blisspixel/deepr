@@ -37,8 +37,11 @@ GROUNDING_CORRECTNESS_KIND = "deepr.eval.grounding_correctness"
 
 # Ground-truth entailment labels. "supported": the evidence entails the claim;
 # "contradicted": the evidence refutes it; "unrelated": the evidence does not
-# address it. A correct checker returns supported=True only for "supported".
-_LABELS = ("supported", "contradicted", "unrelated")
+# address it; "partial": the evidence supports only part of a conjunctive claim,
+# so the claim as a whole is NOT entailed. A correct checker returns
+# supported=True only for "supported"; every other label expects not-supported.
+_LABELS = ("supported", "contradicted", "unrelated", "partial")
+_ENTAILED_LABEL = "supported"
 
 # A CheckVerdict-shaped result: .supported is True / False / None (could-not-verify).
 GroundingVerdict = Any
@@ -252,6 +255,141 @@ DEFAULT_GROUNDING_CASES: tuple[GroundingCase, ...] = (
 )
 
 
+# The hard set: adversarial triples that separate a real entailment checker from a
+# lexical matcher. Entailment requires inference with no surface overlap;
+# contradictions share many words but flip a key fact (unit, number, AM/PM,
+# negation); "unrelated" pairs share an ENTITY WORD but a different referent
+# (Mercury the planet vs the element); "partial" claims are conjunctions whose
+# evidence supports only one conjunct, so the whole claim is not entailed and a
+# checker that stamps SUPPORTED has over-claimed. Run with `--set hard`.
+HARD_GROUNDING_CASES: tuple[GroundingCase, ...] = (
+    # --- supported: entailed by inference, little/no lexical overlap ---
+    GroundingCase(
+        "hsup-whale-mammal",
+        "A whale is a mammal.",
+        "Whales are warm-blooded, breathe air through lungs, and nurse their young with milk.",
+        "supported",
+    ),
+    GroundingCase(
+        "hsup-weekend-open",
+        "The clinic is open on weekends.",
+        "The clinic operates Saturday and Sunday from 9am to 5pm.",
+        "supported",
+    ),
+    GroundingCase(
+        "hsup-fever-temp",
+        "The patient has a fever.",
+        "The patient's measured body temperature is 39.5 degrees Celsius; normal is about 37.",
+        "supported",
+    ),
+    GroundingCase(
+        "hsup-conducts",
+        "This material conducts electricity.",
+        "The sample is a metal whose outer electrons move freely through its structure.",
+        "supported",
+    ),
+    GroundingCase(
+        "hsup-older",
+        "Anna is older than Ben.",
+        "Anna was born in 1990 and Ben was born in 1996.",
+        "supported",
+    ),
+    # --- contradicted: high lexical overlap but a flipped key fact ---
+    GroundingCase(
+        "hcon-wall-moon",
+        "The Great Wall of China is visible from the Moon with the naked eye.",
+        "Astronauts have confirmed the Great Wall of China cannot be seen from the Moon without optical aid.",
+        "contradicted",
+    ),
+    GroundingCase(
+        "hcon-train-ampm",
+        "The train departs at 9:00 in the morning.",
+        "The train's scheduled departure time is 9:00 in the evening.",
+        "contradicted",
+    ),
+    GroundingCase(
+        "hcon-building-units",
+        "The building is 100 meters tall.",
+        "The building stands exactly 100 feet tall, roughly 30 meters.",
+        "contradicted",
+    ),
+    GroundingCase(
+        "hcon-aspirin-food",
+        "This medication should be taken with food.",
+        "This medication should be taken on an empty stomach, at least one hour before eating.",
+        "contradicted",
+    ),
+    GroundingCase(
+        "hcon-serves-number",
+        "The recipe serves eight people.",
+        "As written, the recipe serves two people; double it twice for a larger group.",
+        "contradicted",
+    ),
+    # --- unrelated: shared entity WORD, different referent (the classic trap) ---
+    GroundingCase(
+        "hunr-mercury",
+        "Mercury is toxic to humans in large doses.",
+        "Mercury is the smallest planet in the solar system and the closest to the Sun.",
+        "unrelated",
+    ),
+    GroundingCase(
+        "hunr-amazon",
+        "The Amazon is the largest river by discharge.",
+        "Amazon is a multinational technology company known for e-commerce and cloud computing.",
+        "unrelated",
+    ),
+    GroundingCase(
+        "hunr-java",
+        "Java is an island in Indonesia with tens of millions of residents.",
+        "Java is a widely used, class-based, object-oriented programming language.",
+        "unrelated",
+    ),
+    GroundingCase(
+        "hunr-jaguar",
+        "The jaguar is an endangered big cat native to the Americas.",
+        "Jaguar is a British luxury car marque owned by Jaguar Land Rover.",
+        "unrelated",
+    ),
+    GroundingCase(
+        "hunr-python",
+        "The python is a non-venomous constricting snake.",
+        "Python is a high-level programming language created by Guido van Rossum.",
+        "unrelated",
+    ),
+    # --- partial: conjunctive claim, evidence supports only one conjunct ---
+    GroundingCase(
+        "hpar-founded-hq",
+        "The company was founded in 1990 and is headquartered in Berlin.",
+        "The company was founded in 1990.",
+        "partial",
+    ),
+    GroundingCase(
+        "hpar-effective-safe",
+        "The drug is both effective and free of side effects.",
+        "Clinical trials showed the drug is effective at reducing symptoms.",
+        "partial",
+    ),
+    GroundingCase(
+        "hpar-nocturnal-desert",
+        "The animal is nocturnal and lives in the desert.",
+        "The animal is nocturnal, hunting only after dark.",
+        "partial",
+    ),
+    GroundingCase(
+        "hpar-longest-oldest",
+        "The bridge is the longest and the oldest in the region.",
+        "The bridge is the longest in the region.",
+        "partial",
+    ),
+    GroundingCase(
+        "hpar-fast-cheap",
+        "The service is both the fastest and the cheapest option available.",
+        "Independent benchmarks found the service is the fastest option available.",
+        "partial",
+    ),
+)
+
+
 def load_grounding_cases(payload: Any) -> list[GroundingCase]:
     """Parse a JSON array of ``{case_id, claim, evidence, label}`` objects."""
     if not isinstance(payload, list):
@@ -283,13 +421,14 @@ def _classify(label: str, supported: bool | None) -> str:
 
     A correct checker returns supported=True only when the evidence entails the
     claim. Anything else on a "supported" case is a miss; a True on a
-    "contradicted"/"unrelated" case is a false support (the dangerous error).
+    "contradicted", "unrelated", or "partial" case is a false support (the
+    dangerous error - the claim as a whole was not entailed).
     """
     if supported is None:
         return "abstained"
-    if label == "supported":
+    if label == _ENTAILED_LABEL:
         return "true_support" if supported else "missed_support"
-    # label is contradicted or unrelated: the correct verdict is "not supported".
+    # label is contradicted, unrelated, or partial: correct verdict is "not supported".
     return "false_support" if supported else "correct_reject"
 
 
@@ -311,8 +450,11 @@ def build_grounding_correctness_report(
     if len(cases) != len(verdicts):
         raise ValueError("cases and verdicts must be the same length")
 
+    # Group over the labels actually present, so a baseline set reports 3 labels
+    # and a hard set that adds "partial" reports 4 - no empty rows either way.
+    present_labels = sorted({case.label for case in cases})
     categories: Counter[str] = Counter()
-    per_label: dict[str, Counter[str]] = {label: Counter() for label in _LABELS}
+    per_label: dict[str, Counter[str]] = {label: Counter() for label in present_labels}
     confusion: Counter[tuple[str, str]] = Counter()
     per_case: list[dict[str, Any]] = []
 
@@ -337,7 +479,7 @@ def build_grounding_correctness_report(
 
     total = len(cases)
     supported_verdicts = categories["true_support"] + categories["false_support"]
-    entailed_cases = sum(1 for c in cases if c.label == "supported")
+    entailed_cases = sum(1 for c in cases if c.label == _ENTAILED_LABEL)
     non_entailed_cases = total - entailed_cases
     correct = categories["true_support"] + categories["correct_reject"]
 
@@ -362,7 +504,7 @@ def build_grounding_correctness_report(
             ),
         },
         "case_count": total,
-        "label_counts": {label: sum(per_label[label].values()) for label in _LABELS},
+        "label_counts": {label: sum(per_label[label].values()) for label in present_labels},
         # Headline: when the checker stamps SUPPORTED, how often is it genuinely
         # entailed. This is the "trust a verified belief" number.
         "support_precision": _rate(categories["true_support"], supported_verdicts),
@@ -408,6 +550,7 @@ __all__ = [
     "DEFAULT_GROUNDING_CASES",
     "GROUNDING_CORRECTNESS_KIND",
     "GROUNDING_CORRECTNESS_SCHEMA_VERSION",
+    "HARD_GROUNDING_CASES",
     "GroundingCase",
     "build_grounding_correctness_report",
     "load_grounding_cases",

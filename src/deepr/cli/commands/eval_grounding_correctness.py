@@ -93,6 +93,14 @@ def _render_report(report: dict, checker_label: str) -> None:
 @click.option("--checker-plan-model", default=None, help="Model to pass to the checker plan CLI")
 @click.option("--model", default=None, help="Local Ollama model to check with (default: auto)")
 @click.option(
+    "--set",
+    "case_set",
+    type=click.Choice(["baseline", "hard", "all"]),
+    default="baseline",
+    show_default=True,
+    help="Which built-in golden set: baseline (clear), hard (adversarial), or all. Ignored when --cases is given.",
+)
+@click.option(
     "--cases",
     "cases_path",
     type=click.Path(exists=True, dir_okay=False, path_type=Path),
@@ -105,6 +113,7 @@ def grounding_correctness(
     checker_plan: str | None,
     checker_plan_model: str | None,
     model: str | None,
+    case_set: str,
     cases_path: Path | None,
     json_output: bool,
     save: bool,
@@ -112,15 +121,18 @@ def grounding_correctness(
     """Measure whether the grounding checker's SUPPORTED verdicts are actually correct.
 
     $0 by default (local Ollama). Reports support precision, false-support rate,
-    recall, and abstention over a curated golden set of entailment triples.
+    recall, and abstention over a curated golden set of entailment triples. The
+    `hard` set adds adversarial cases (lexical traps, unit/number flips, shared-
+    entity distractors, and partial-entailment of conjunctive claims).
 
     EXAMPLES:
       deepr eval grounding-correctness
-      deepr eval grounding-correctness --checker-plan codex --json
-      deepr eval grounding-correctness --cases ./my-claims.json --save
+      deepr eval grounding-correctness --set hard --json
+      deepr eval grounding-correctness --checker-plan codex --set all --save
     """
     from deepr.evals.grounding_correctness import (
         DEFAULT_GROUNDING_CASES,
+        HARD_GROUNDING_CASES,
         load_grounding_cases,
         run_grounding_correctness_eval,
         write_grounding_correctness_report,
@@ -132,6 +144,10 @@ def grounding_correctness(
         except (OSError, ValueError, json.JSONDecodeError) as exc:
             print_error(f"Could not load cases: {exc}")
             sys.exit(2)
+    elif case_set == "hard":
+        cases = list(HARD_GROUNDING_CASES)
+    elif case_set == "all":
+        cases = list(DEFAULT_GROUNDING_CASES) + list(HARD_GROUNDING_CASES)
     else:
         cases = list(DEFAULT_GROUNDING_CASES)
 

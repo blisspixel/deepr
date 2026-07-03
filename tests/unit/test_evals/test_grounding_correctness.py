@@ -9,6 +9,7 @@ import pytest
 from deepr.evals.grounding_correctness import (
     DEFAULT_GROUNDING_CASES,
     GROUNDING_CORRECTNESS_SCHEMA_VERSION,
+    HARD_GROUNDING_CASES,
     GroundingCase,
     build_grounding_correctness_report,
     load_grounding_cases,
@@ -43,6 +44,43 @@ def test_default_golden_set_is_balanced_and_valid():
     assert labels.count("unrelated") == 10
     # Case ids are unique.
     assert len({c.case_id for c in DEFAULT_GROUNDING_CASES}) == 30
+
+
+def test_hard_golden_set_is_balanced_and_valid():
+    labels = [c.label for c in HARD_GROUNDING_CASES]
+    assert len(HARD_GROUNDING_CASES) == 20
+    assert labels.count("supported") == 5
+    assert labels.count("contradicted") == 5
+    assert labels.count("unrelated") == 5
+    assert labels.count("partial") == 5
+    # Unique ids, and ids are distinct from the baseline set (so --set all has no clashes).
+    hard_ids = {c.case_id for c in HARD_GROUNDING_CASES}
+    assert len(hard_ids) == 20
+    assert hard_ids.isdisjoint({c.case_id for c in DEFAULT_GROUNDING_CASES})
+
+
+def test_partial_label_scores_as_not_entailed():
+    # A "partial" claim (conjunction with only one conjunct supported) must NOT be
+    # supported: a True verdict is a false support, a False verdict is a correct reject.
+    partial = [GroundingCase("p1", "A and B", "evidence for A only", "partial")]
+    false_support = build_grounding_correctness_report(partial, [SimpleNamespace(supported=True)])
+    assert false_support["false_support_rate"] == 1.0
+    assert false_support["cases"][0]["category"] == "false_support"
+
+    correct_reject = build_grounding_correctness_report(partial, [SimpleNamespace(supported=False)])
+    assert correct_reject["false_support_rate"] == 0.0
+    assert correct_reject["cases"][0]["category"] == "correct_reject"
+    assert correct_reject["overall_accuracy"] == 1.0
+
+
+def test_report_groups_only_present_labels():
+    # The baseline set has no "partial" cases, so the report must not emit an empty row.
+    report = build_grounding_correctness_report(
+        list(DEFAULT_GROUNDING_CASES),
+        [SimpleNamespace(supported=(c.label == "supported")) for c in DEFAULT_GROUNDING_CASES],
+    )
+    assert "partial" not in report["label_counts"]
+    assert set(report["label_counts"]) == {"supported", "contradicted", "unrelated"}
 
 
 def test_perfect_checker_scores_ideal():
