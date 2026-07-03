@@ -497,16 +497,22 @@ def expert_judge_consult_quality(
     show_default=True,
     help="Maximum deterministic prompt-regression candidates to return.",
 )
+@click.option(
+    "--gate-untrusted-judges",
+    is_flag=True,
+    help="Exclude calibrated-model reviews from judges not measured-trusted (judge-calibration) from regression selection.",
+)
 @click.option("--json", "json_output", is_flag=True, help="Emit machine-readable JSON.")
 def expert_consult_quality_trends(
     name: str,
     output_dir: Path | None,
     limit: int,
     regression_limit: int,
+    gate_untrusted_judges: bool,
     json_output: bool,
 ) -> None:
     """Summarize reviewed consult quality and select regression candidates."""
-    from deepr.experts.consult_quality import build_consult_quality_trend_report
+    from deepr.experts.consult_quality import build_consult_quality_trend_report, load_consult_quality_reviews
 
     store = ExpertStore()
     profile = store.load(name)
@@ -514,11 +520,20 @@ def expert_consult_quality_trends(
         print_error(f"Expert '{name}' not found")
         raise click.Abort()
 
+    trusted_reviewers = None
+    if gate_untrusted_judges:
+        from deepr.evals.judge_calibration import build_judge_calibration_report, trusted_model_reviewers
+
+        reviews = load_consult_quality_reviews(expert_name=profile.name, output_dir=output_dir, limit=limit)
+        calibration = build_judge_calibration_report(reviews, expert_name=profile.name)
+        trusted_reviewers = trusted_model_reviewers(calibration)
+
     payload = build_consult_quality_trend_report(
         expert_name=profile.name,
         output_dir=output_dir,
         limit=limit,
         regression_limit=regression_limit,
+        trusted_model_reviewers=trusted_reviewers,
     )
     if json_output:
         click.echo(json.dumps(payload, indent=2, default=str))

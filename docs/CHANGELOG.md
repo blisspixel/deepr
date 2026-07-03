@@ -8,6 +8,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- Added `--gate-untrusted-judges` to `deepr expert consult-quality-trends`. When
+  set, it builds the judge-calibration report for the same expert and excludes
+  calibrated-model reviews from judges that are not measured-trusted from
+  prompt-regression candidate selection only; human reviews always stay
+  eligible and descriptive trend stats still cover every review. The trend
+  report records a `regression_gate` block (applied, trusted reviewers,
+  excluded count). Gate off (the default) preserves the prior behavior. This
+  closes the calibration loop: an unproven model judge can no longer silently
+  steer which consult prompts are selected for regression.
 - Added `deepr eval judge-calibration`, a `$0` read-only eval that measures how
   well a calibrated-model consult-quality judge agrees with a human anchor. It
   pairs the latest human review and latest calibrated-model review of the same

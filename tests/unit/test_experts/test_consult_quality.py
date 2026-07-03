@@ -526,3 +526,59 @@ def test_build_consult_quality_trend_report_selects_regression_candidates(tmp_pa
     assert report["regression_candidates"][0]["source_trace_id"] == "consult_bad123"
     assert report["regression_candidates"][0]["selection_reason"] == "review_status_policy_blocked"
     assert report["selection_policy"]["uses_reviewer_scores_only"] is True
+    assert report["regression_gate"]["applied"] is False
+
+
+def test_trend_report_gates_untrusted_model_judge_from_regression(tmp_path):
+    output_dir = tmp_path / "benchmarks"
+    human_candidate = _candidate("consult_human_bad")
+    model_candidate = _candidate("consult_model_bad")
+    human_review = build_consult_quality_review(
+        expert_name="A",
+        case=human_candidate["semantic_eval_case"],
+        scores=_scores(2.0),
+        reviewer="operator",
+        decision="accept",
+        judge_type="human",
+        candidate=human_candidate,
+        generated_at=datetime(2026, 6, 27, 12, 0, tzinfo=UTC),
+    )
+    model_review = build_consult_quality_review(
+        expert_name="A",
+        case=model_candidate["semantic_eval_case"],
+        scores=_scores(2.0),
+        reviewer="unproven_judge",
+        decision="accept",
+        judge_type="calibrated_model",
+        candidate=model_candidate,
+        generated_at=datetime(2026, 6, 27, 13, 0, tzinfo=UTC),
+    )
+    _write_review(output_dir, human_review)
+    _write_review(output_dir, model_review)
+
+    ungated = build_consult_quality_trend_report(expert_name="A", output_dir=output_dir, regression_limit=5)
+    gated = build_consult_quality_trend_report(
+        expert_name="A", output_dir=output_dir, regression_limit=5, trusted_model_reviewers=set()
+    )
+    trusting = build_consult_quality_trend_report(
+        expert_name="A", output_dir=output_dir, regression_limit=5, trusted_model_reviewers={"unproven_judge"}
+    )
+
+    # Ungated: both blocked reviews are regression candidates.
+    ungated_traces = {c["source_trace_id"] for c in ungated["regression_candidates"]}
+    assert ungated_traces == {"consult_human_bad", "consult_model_bad"}
+    assert ungated["regression_gate"]["applied"] is False
+
+    # Gated with an empty trusted set: the human review stays, the untrusted
+    # model review is excluded from regression selection only.
+    gated_traces = {c["source_trace_id"] for c in gated["regression_candidates"]}
+    assert gated_traces == {"consult_human_bad"}
+    assert gated["regression_gate"]["applied"] is True
+    assert gated["regression_gate"]["excluded_untrusted_model_review_count"] == 1
+    # Descriptive stats still cover every review.
+    assert gated["review_count"] == 2
+
+    # Explicitly trusting the judge restores it as a candidate.
+    trusting_traces = {c["source_trace_id"] for c in trusting["regression_candidates"]}
+    assert trusting_traces == {"consult_human_bad", "consult_model_bad"}
+    assert trusting["regression_gate"]["trusted_model_reviewers"] == ["unproven_judge"]
