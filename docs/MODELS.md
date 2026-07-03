@@ -1,6 +1,6 @@
 # Model Selection Guide
 
-Status: current with Deepr v2.28.0. Last reviewed: 2026-07-01.
+Status: current with Deepr v2.29.0. Last reviewed: 2026-07-01.
 
 The source of truth for model IDs, pricing estimates, context windows, and
 routing metadata is [src/deepr/providers/registry.py](../src/deepr/providers/registry.py).

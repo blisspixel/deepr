@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.29.0] - 2026-07-03
+
 ### Added
 - Added `due_subscriptions` (count + due topic names) to the `deepr-loop-status-v1`
   rollup, so `deepr expert loop-status` and the `deepr_expert_loop_status` MCP
