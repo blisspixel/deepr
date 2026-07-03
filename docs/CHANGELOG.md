@@ -8,6 +8,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- Added `deepr eval grounding-correctness`, a `$0` (local Ollama by default),
+  read-only eval that makes the verification spine's promise falsifiable. It runs
+  the grounding checker over a curated golden set of human-labeled
+  `(claim, evidence, label)` entailment triples (supported / contradicted /
+  unrelated) and reports whether a SUPPORTED verdict is actually correct: the
+  headline `support_precision` (when it says SUPPORTED, how often the evidence
+  truly entails - the "trust a verified belief" number), `false_support_rate`
+  (stamped SUPPORTED for contradicted/unrelated evidence; the dangerous failure),
+  `support_recall`, `abstention_rate`, per-label accuracy, and the confusion
+  matrix. Emits `deepr-grounding-correctness-v1` (`--json`, `--save`), accepts
+  `--cases` for domain-specific triples, and can run against a `--checker-plan`
+  vendor. AGENTIC_BALANCE: the model (checker) owns the entailment verdict; this
+  scoring is deterministic against human-curated ground truth, and the report
+  discloses that agreement on a bounded set is not proof of world-truth.
 - Added `deepr route explain "<query>"`, a `$0`, read-only, no-model command that
   shows how a query would route before anything is dispatched: which experts a
   consult would fan out to (by the deterministic keyword-overlap selection
