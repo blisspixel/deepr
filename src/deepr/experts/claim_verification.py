@@ -213,7 +213,11 @@ def _source_window_excerpt(source: dict[str, Any], window: dict[str, Any], *, ma
     if not text:
         return ""
     start = _int_at_least(window.get("char_start"), 0)
-    end = _int_at_least(window.get("char_end"), len(text))
+    # Floor char_end at 0, not len(text): flooring at len(text) would discard
+    # any real sub-span end (max(char_end, len) is always >= len). A missing or
+    # invalid char_end coerces to 0 and the end<=start guard then supplies the
+    # full-text default; a valid sub-span end is now honored.
+    end = _int_at_least(window.get("char_end"), 0)
     if end <= start:
         end = len(text)
     return text[start : min(end, len(text))][:max_chars]
