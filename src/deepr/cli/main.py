@@ -132,6 +132,9 @@ from deepr.cli.commands import (
 # Imported for their registration side effect on the `eval` group; eval.py is
 # at the file-size ceiling, so extra subcommands live in their own modules.
 from deepr.cli.commands import (
+    eval_grounding_correctness as _eval_grounding_correctness_cmd,  # noqa: F401
+)
+from deepr.cli.commands import (
     eval_judge_calibration as _eval_judge_calibration_cmd,  # noqa: F401
 )
 from deepr.cli.commands import (

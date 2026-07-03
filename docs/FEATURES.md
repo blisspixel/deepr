@@ -943,6 +943,19 @@ feeds `deepr expert consult-quality-trends --gate-untrusted-judges`, which
 excludes not-yet-trusted model judges from prompt-regression selection (human
 reviews always stay eligible; descriptive trend stats still cover every review).
 
+`deepr eval grounding-correctness` makes the verification spine's promise
+falsifiable: it runs the grounding checker over a curated golden set of
+human-labeled `(claim, evidence, label)` entailment triples and reports whether a
+SUPPORTED verdict is actually correct - `support_precision` (when it says
+SUPPORTED, how often the evidence truly entails), `false_support_rate` (stamped
+SUPPORTED for contradicted/unrelated evidence - the dangerous failure), recall,
+abstention, per-label accuracy, and a confusion matrix, as
+`deepr-grounding-correctness-v1`. `$0` on local Ollama by default; pass `--cases`
+for domain-specific triples or `--checker-plan <id>` to test a plan vendor. The
+model owns the entailment verdict; the scoring is deterministic against
+human-curated ground truth, and the report is explicit that agreement on a
+bounded set is not proof of world-truth.
+
 Saved artifacts can feed admission directly:
 
 ```bash
