@@ -437,6 +437,52 @@ def test_consult_quality_trends_json_outputs_review_summary(tmp_path):
     assert payload["regression_candidates"][0]["source_trace_id"] == "consult_cli_bad"
 
 
+def _write_judge_review(output_dir, profile: ExpertProfile, trace_id, score, *, judge_type, reviewer):
+    trace = build_consult_trace(
+        question=f"What should the consult council improve for {trace_id}?",
+        requested_experts=[profile.name],
+        max_experts=3,
+        budget=0.0,
+        failure={"stage": "run_consult", "error_type": "RuntimeError", "message": "boom"},
+        trace_id=trace_id,
+        recorded_at=datetime(2026, 6, 27, 12, 0, tzinfo=UTC),
+    )
+    candidate = build_consult_trace_candidates([trace])["candidates"][0]
+    review = build_consult_quality_review(
+        expert_name=profile.name,
+        case=candidate["semantic_eval_case"],
+        scores=_scores(score),
+        reviewer=reviewer,
+        decision="accept",
+        judge_type=judge_type,
+        candidate=candidate,
+    )
+    output_dir.mkdir(parents=True, exist_ok=True)
+    (output_dir / f"consult_quality_review_{review['review_id']}.json").write_text(json.dumps(review), encoding="utf-8")
+
+
+def test_consult_quality_trends_gate_excludes_untrusted_model_judge(tmp_path):
+    profile = _profile()
+    output_dir = tmp_path / "benchmarks"
+    _write_judge_review(output_dir, profile, "consult_human_bad", 2.0, judge_type="human", reviewer="operator")
+    _write_judge_review(
+        output_dir, profile, "consult_model_bad", 2.0, judge_type="calibrated_model", reviewer="unproven_judge"
+    )
+
+    with _patch_store(profile):
+        result = CliRunner().invoke(
+            expert_consult_quality_trends,
+            [profile.name, "--output-dir", str(output_dir), "--gate-untrusted-judges", "--json"],
+        )
+
+    assert result.exit_code == 0, result.output
+    payload = json.loads(result.output)
+    assert payload["regression_gate"]["applied"] is True
+    assert payload["regression_gate"]["excluded_untrusted_model_review_count"] == 1
+    traces = {c["source_trace_id"] for c in payload["regression_candidates"]}
+    assert traces == {"consult_human_bad"}
+
+
 def test_consult_quality_trends_registered_in_expert_help():
     result = CliRunner().invoke(cli, ["expert", "consult-quality-trends", "--help"])
 

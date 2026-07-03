@@ -404,11 +404,37 @@ def _regression_sort_key(review: dict[str, Any]) -> tuple[int, float, str]:
     return (status_priority.get(status, 4), mean_score, str(review.get("generated_at", "")))
 
 
-def _regression_candidates(reviews: list[dict[str, Any]], *, limit: int) -> list[dict[str, Any]]:
+def _is_regression_relevant(review: dict[str, Any]) -> bool:
+    """A review drives regression only if it was not cleanly accepted."""
+    return str(review.get("review_status", "")) != "accepted" or bool(list(review.get("failure_labels", []) or []))
+
+
+def _judge_trusted(review: dict[str, Any], trusted_model_reviewers: set[str] | None) -> bool:
+    """Whether this review's judge may drive regression selection.
+
+    With the gate off (``None``) every review is eligible - the pre-gate
+    behavior. With the gate on, a human review is always eligible; a
+    calibrated-model review is eligible only when its reviewer is in the
+    measured-trusted set, so an unproven judge cannot steer prompt regression.
+    """
+    if trusted_model_reviewers is None:
+        return True
+    judge = review.get("judge") if isinstance(review.get("judge"), dict) else {}
+    if str(judge.get("type", "")) != "calibrated_model":
+        return True
+    return str(judge.get("reviewer", "")).strip() in trusted_model_reviewers
+
+
+def _regression_candidates(
+    reviews: list[dict[str, Any]],
+    *,
+    limit: int,
+    trusted_model_reviewers: set[str] | None = None,
+) -> list[dict[str, Any]]:
     candidates = [
         review
         for review in reviews
-        if str(review.get("review_status", "")) != "accepted" or list(review.get("failure_labels", []) or [])
+        if _is_regression_relevant(review) and _judge_trusted(review, trusted_model_reviewers)
     ]
     selected = sorted(candidates, key=_regression_sort_key)[: max(0, limit)]
 
@@ -440,9 +466,15 @@ def build_consult_quality_trend_report(
     output_dir: Path | None = None,
     limit: int = 200,
     regression_limit: int = 10,
+    trusted_model_reviewers: set[str] | None = None,
     generated_at: datetime | None = None,
 ) -> dict[str, Any]:
-    """Build a read-only quality trend report from reviewed consult artifacts."""
+    """Build a read-only quality trend report from reviewed consult artifacts.
+
+    When ``trusted_model_reviewers`` is supplied, calibrated-model reviews from
+    a reviewer outside that measured-trusted set are gated out of regression
+    candidate selection only; descriptive trend stats still cover every review.
+    """
     reviews = load_consult_quality_reviews(expert_name=expert_name, output_dir=output_dir, limit=limit)
     statuses = Counter(str(review.get("review_status", "unknown")) for review in reviews)
     decisions = Counter(str(review.get("decision", "unknown")) for review in reviews)
@@ -456,11 +488,9 @@ def build_consult_quality_trend_report(
         except (TypeError, ValueError):
             continue
 
-    regression_pool = [
-        review
-        for review in reviews
-        if str(review.get("review_status", "")) != "accepted" or list(review.get("failure_labels", []) or [])
-    ]
+    relevant = [review for review in reviews if _is_regression_relevant(review)]
+    regression_pool = [review for review in relevant if _judge_trusted(review, trusted_model_reviewers)]
+    excluded_untrusted = len(relevant) - len(regression_pool)
     timestamp = generated_at or _utc_now()
     return {
         "schema_version": CONSULT_QUALITY_TREND_SCHEMA_VERSION,
@@ -473,8 +503,15 @@ def build_consult_quality_trend_report(
         "failure_label_counts": dict(sorted(labels.items())),
         "mean_score": _mean(mean_scores),
         "dimension_scores": _dimension_summary(reviews),
-        "regression_candidates": _regression_candidates(reviews, limit=regression_limit),
+        "regression_candidates": _regression_candidates(
+            reviews, limit=regression_limit, trusted_model_reviewers=trusted_model_reviewers
+        ),
         "regression_candidate_count": len(regression_pool),
+        "regression_gate": {
+            "applied": trusted_model_reviewers is not None,
+            "trusted_model_reviewers": sorted(trusted_model_reviewers) if trusted_model_reviewers is not None else [],
+            "excluded_untrusted_model_review_count": excluded_untrusted,
+        },
         "selection_policy": {
             "deterministic": True,
             "uses_reviewer_scores_only": True,
