@@ -79,8 +79,10 @@ must not be described as usable capacity.
   a different plan CLI as the checker. On both `deepr expert absorb` and
   `deepr expert sync`, `--second-checker-plan <id>` additionally escalates a weak
   first verdict to a genuinely independent third-vendor checker (built lazily, so
-  a clean run never pays for it); two independent refutations hold the claim
-  instead of promoting it. The checker is off by default, dry runs
+  a clean run never pays for it); two independent refutations leave the claim
+  unverified (never assurance-stamped) and flag it, rather than promoting it to
+  trusted knowledge. Grounding stays advisory throughout - it never blocks
+  storage. The checker is off by default, dry runs
   do not check, and metered API checking is not automatic. Expert handoff
   payloads preserve per-claim `grounding_assurance` and include verified-claim
   counts by assurance level. The verdict is model judgment; vendor diversity and

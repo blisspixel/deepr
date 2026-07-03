@@ -627,6 +627,12 @@ deepr expert resume "Azure Architect"
 deepr expert absorb "Azure Architect" <job_id> --dry-run   # preview
 deepr expert absorb "Azure Architect" <job_id>             # apply
 
+# Optional cross-vendor grounding check on absorbed claims (advisory, never blocks
+# storage): a fresh-context verifier stamps a grounding_assurance level. Add
+# --second-checker-plan to escalate a weak first verdict to a distinct third-vendor
+# checker (built lazily, only when the first verdict is weak). Same flags on sync.
+deepr expert absorb "Azure Architect" <job_id> --check-grounding --checker-plan codex --second-checker-plan claude
+
 # Reflect on a report before absorbing (grounding/completeness/calibration/directness)
 deepr expert reflect "Azure Architect" <job_id> --depth 2
 ```
@@ -751,8 +757,8 @@ deepr expert export-okf "Azure Architect" ./okf/azure-architect
 deepr expert export-okf "Azure Architect" ./okf/azure-architect --json
 
 # Absorb OKF concepts through the same verified report absorber. The bundle is
-# parsed as source text, then extraction, grounding, dedup, and contradiction
-# gates decide what enters the belief store.
+# parsed as source text, then extraction, dedup, and contradiction gates decide
+# what enters the belief store (grounding checks stay advisory, never blocking).
 deepr expert absorb-okf "Azure Architect" ./okf/azure-architect --dry-run
 deepr expert absorb-okf "Azure Architect" ./okf/azure-architect --local -y
 ```
@@ -925,6 +931,17 @@ derived read-payload leakage, and confidence ceilings only; semantic acceptance
 still belongs to extraction, grounding, contradiction, dedup, and trust-floor
 gates. Use `--save` to write a local `data/benchmarks/red_team_*.json` artifact
 for release-to-release trend review.
+
+`deepr eval judge-calibration NAME` is a `$0`, read-only eval that measures how
+well a calibrated-model consult-quality judge agrees with a human anchor: it
+pairs the latest human and latest model review of each consult trace and reports
+per-dimension agreement (mean absolute error, signed bias, exact- and
+within-tolerance rates) plus decision agreement, emitting
+`deepr-judge-calibration-report-v1`. Agreement is not correctness, and a judge is
+marked `trusted` only above a paired-trace and agreement floor. That trusted set
+feeds `deepr expert consult-quality-trends --gate-untrusted-judges`, which
+excludes not-yet-trusted model judges from prompt-regression selection (human
+reviews always stay eligible; descriptive trend stats still cover every review).
 
 Saved artifacts can feed admission directly:
 
@@ -1123,7 +1140,9 @@ source, verifier outcome, accepted-change metrics where applicable, and typed
 stop actions when work fails, waits on a human gate, has no corrective work,
 fails the verifier, or exhausts the run budget. The dashboard API now exposes
 `/api/experts/{name}/loop-status`, a read-only rollup over those records with
-latest run, last sync result, next scheduled action, failure, capacity source,
+latest run, last sync result, next scheduled action, a non-probing per-task-class
+next-run capacity outlook (admitted `$0`/prepaid vs metered), a due-subscription
+summary, failure, capacity source,
 spend, acceptance, verifier failure metrics, and `expert_state` telemetry for
 freshness, gap velocity, and contested/open claims. Host agents can already
 read the durable loop state through `deepr_expert_loop_status`. Terminal loop

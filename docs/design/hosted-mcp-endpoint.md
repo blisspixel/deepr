@@ -25,7 +25,7 @@ it's dressed for."
 ### Transport
 
 Streamable HTTP (the current MCP spec transport, SSE for streaming) on the
-existing 28-tool server - the tool surface, allowlist, and error model do
+existing 32-tool server - the tool surface, allowlist, and error model do
 not change. stdio remains the local default; HTTP is an additional listener
 (`deepr mcp serve --http --host 127.0.0.1 --port 8765`), one process, same
 dispatch.
