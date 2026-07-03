@@ -9,29 +9,8 @@ from typing import Any
 import click
 from rich.markup import escape
 
-from deepr.cli.colors import console, print_error, print_header, print_success
+from deepr.cli.colors import console, print_capacity_outlook, print_error, print_header, print_success
 from deepr.cli.commands.semantic.experts import expert
-
-
-def _print_capacity_outlook(outlook: dict[str, Any]) -> None:
-    """Render the non-probing $0/prepaid capacity outlook per maintenance task class.
-
-    Model and backend identifiers come from the admission ledger (operator data),
-    so they are escaped before printing to a markup-enabled console: an unusual
-    tag must never be swallowed as Rich markup or crash the human-readable view.
-    """
-    task_classes = outlook.get("task_classes") or {}
-    if not task_classes:
-        return
-    console.print("[dim]Next-run capacity (admitted, not a live probe):[/dim]")
-    for task_class, entry in task_classes.items():
-        rungs = []
-        if entry.get("local_capacity_admitted"):
-            rungs.append(f"$0 local ({escape(', '.join(entry.get('admitted_local_models') or []))})")
-        if entry.get("plan_capacity_admitted"):
-            rungs.append(f"prepaid plan ({escape(', '.join(entry.get('admitted_plan_backends') or []))})")
-        summary = ", ".join(rungs) if rungs else "metered budget (no cheap capacity admitted)"
-        console.print(f"  [bold]{escape(task_class)}[/bold]: {summary}")
 
 
 def _print_due_subscriptions(due: dict[str, Any]) -> None:
@@ -75,7 +54,7 @@ def loop_status(name: str, limit: int, json_output: bool):
         return
 
     print_header(f"Loop status: {profile.name}")
-    _print_capacity_outlook(payload.get("next_run_outlook") or {})
+    print_capacity_outlook(payload.get("next_run_outlook") or {})
     _print_due_subscriptions(payload.get("due_subscriptions") or {})
     if not runs:
         print_success("No loop runs recorded yet.")

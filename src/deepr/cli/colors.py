@@ -11,6 +11,7 @@ import click
 from rich.box import ASCII
 from rich.console import Console
 from rich.markdown import Markdown
+from rich.markup import escape as _escape
 from rich.panel import Panel
 from rich.progress import Progress, SpinnerColumn, TextColumn
 from rich.table import Table
@@ -444,6 +445,29 @@ def print_list_item(text: str, indent: int = 0):
     prefix = "  " * indent
     bullet = get_symbol("bullet") if indent == 0 else get_symbol("sub_bullet")
     console.print(f"{prefix}[dim]{bullet}[/dim] {text}")
+
+
+def print_capacity_outlook(outlook: dict):
+    """Render the non-probing $0/prepaid capacity outlook per maintenance task class.
+
+    Shared by `deepr expert loop-status` and `deepr route explain`. Model and
+    backend identifiers come from the admission ledger (operator data), so they
+    are escaped before printing to the markup-enabled console: an unusual tag
+    must never be swallowed as Rich markup or crash the human-readable view.
+    Renders nothing when the outlook has no task classes.
+    """
+    task_classes = outlook.get("task_classes") or {}
+    if not task_classes:
+        return
+    console.print("[dim]Next-run capacity (admitted, not a live probe):[/dim]")
+    for task_class, entry in task_classes.items():
+        rungs = []
+        if entry.get("local_capacity_admitted"):
+            rungs.append(f"$0 local ({_escape(', '.join(entry.get('admitted_local_models') or []))})")
+        if entry.get("plan_capacity_admitted"):
+            rungs.append(f"prepaid plan ({_escape(', '.join(entry.get('admitted_plan_backends') or []))})")
+        summary = ", ".join(rungs) if rungs else "metered budget (no cheap capacity admitted)"
+        console.print(f"  [bold]{_escape(task_class)}[/bold]: {summary}")
 
 
 def print_error_with_suggestion(summary: str, details: str | None = None, suggestion: str | None = None):
