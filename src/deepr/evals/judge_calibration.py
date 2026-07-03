@@ -36,10 +36,22 @@ DEFAULT_AGREEMENT_TOLERANCE = 1.0
 # inflate the apparent evidence.
 MIN_PAIRED_TRACES_FOR_SIGNAL = 5
 
+# A per-reviewer model judge is "trusted" only when it clears both this many
+# paired traces and this within-tolerance agreement rate against the human
+# anchor. "Trusted" is a form threshold on a measured statistic - it means the
+# judge's scores agreed with a human closely enough on enough evidence, not
+# that either judge is correct.
+DEFAULT_TRUST_WITHIN_TOLERANCE_RATE = 0.8
+
 
 def _judge_type(review: dict[str, Any]) -> str:
     judge = review.get("judge")
     return str(judge.get("type", "")) if isinstance(judge, dict) else ""
+
+
+def _reviewer(review: dict[str, Any]) -> str:
+    judge = review.get("judge")
+    return str(judge.get("reviewer", "")).strip() if isinstance(judge, dict) else ""
 
 
 def _trace_id(review: dict[str, Any]) -> str:
@@ -114,16 +126,8 @@ def _agreement_metrics(deltas: list[float], *, tolerance: float) -> dict[str, An
     }
 
 
-def build_judge_calibration_report(
-    reviews: Sequence[dict[str, Any]],
-    *,
-    expert_name: str = "",
-    agreement_tolerance: float = DEFAULT_AGREEMENT_TOLERANCE,
-) -> dict[str, Any]:
-    """Build a read-only judge-vs-human agreement report from paired reviews."""
-    tolerance = max(0.0, float(agreement_tolerance))
-    pairs = pair_reviews_by_trace(reviews)
-
+def _pair_agreement(pairs: Sequence[PairedTrace], *, tolerance: float) -> dict[str, Any]:
+    """Aggregate agreement metrics over a set of already-formed pairs."""
     deltas_by_dimension: dict[str, list[float]] = {}
     all_deltas: list[float] = []
     decision_matches = 0
@@ -141,15 +145,94 @@ def build_judge_calibration_report(
             decision_comparable += 1
             decision_matches += int(human_decision == model_decision)
 
-    per_dimension = {
-        dimension: _agreement_metrics(deltas, tolerance=tolerance)
-        for dimension, deltas in sorted(deltas_by_dimension.items())
+    return {
+        "paired_trace_count": len(pairs),
+        "overall_agreement": _agreement_metrics(all_deltas, tolerance=tolerance),
+        "per_dimension_agreement": {
+            dimension: _agreement_metrics(deltas, tolerance=tolerance)
+            for dimension, deltas in sorted(deltas_by_dimension.items())
+        },
+        "decision_agreement": {
+            "comparable_trace_count": decision_comparable,
+            "agreement_rate": round(decision_matches / decision_comparable, 4) if decision_comparable else 0.0,
+        },
     }
-    overall = _agreement_metrics(all_deltas, tolerance=tolerance)
-    decision_agreement = {
-        "comparable_trace_count": decision_comparable,
-        "agreement_rate": round(decision_matches / decision_comparable, 4) if decision_comparable else 0.0,
-    }
+
+
+def _human_anchors(reviews: Sequence[dict[str, Any]]) -> dict[str, dict[str, Any]]:
+    """Latest human review per trace - the anchor every model judge is scored against."""
+    anchors: dict[str, dict[str, Any]] = {}
+    for review in reviews:
+        if _judge_type(review) != HUMAN_JUDGE:
+            continue
+        trace_id = _trace_id(review)
+        if not trace_id:
+            continue
+        current = anchors.get(trace_id)
+        if current is None or _generated_at(review) >= _generated_at(current):
+            anchors[trace_id] = review
+    return anchors
+
+
+def _per_reviewer_agreement(
+    reviews: Sequence[dict[str, Any]],
+    anchors: dict[str, dict[str, Any]],
+    *,
+    tolerance: float,
+    trust_within_tolerance_rate: float,
+) -> dict[str, dict[str, Any]]:
+    """Each model reviewer's agreement vs the human anchor, with a trust flag."""
+    latest_by_reviewer_trace: dict[str, dict[str, dict[str, Any]]] = {}
+    for review in reviews:
+        if _judge_type(review) != MODEL_JUDGE:
+            continue
+        reviewer = _reviewer(review)
+        trace_id = _trace_id(review)
+        if not reviewer or not trace_id or trace_id not in anchors:
+            continue
+        by_trace = latest_by_reviewer_trace.setdefault(reviewer, {})
+        current = by_trace.get(trace_id)
+        if current is None or _generated_at(review) >= _generated_at(current):
+            by_trace[trace_id] = review
+
+    per_reviewer: dict[str, dict[str, Any]] = {}
+    for reviewer in sorted(latest_by_reviewer_trace):
+        pairs = [
+            PairedTrace(trace_id, anchors[trace_id], model_review)
+            for trace_id, model_review in sorted(latest_by_reviewer_trace[reviewer].items())
+        ]
+        agreement = _pair_agreement(pairs, tolerance=tolerance)
+        within_rate = agreement["overall_agreement"]["within_tolerance_rate"]
+        trusted = agreement["paired_trace_count"] >= MIN_PAIRED_TRACES_FOR_SIGNAL and (
+            within_rate >= trust_within_tolerance_rate
+        )
+        per_reviewer[reviewer] = {
+            **agreement,
+            "trusted": trusted,
+            "trust_floor": {
+                "min_paired_traces": MIN_PAIRED_TRACES_FOR_SIGNAL,
+                "min_within_tolerance_rate": round(trust_within_tolerance_rate, 4),
+            },
+        }
+    return per_reviewer
+
+
+def build_judge_calibration_report(
+    reviews: Sequence[dict[str, Any]],
+    *,
+    expert_name: str = "",
+    agreement_tolerance: float = DEFAULT_AGREEMENT_TOLERANCE,
+    trust_within_tolerance_rate: float = DEFAULT_TRUST_WITHIN_TOLERANCE_RATE,
+) -> dict[str, Any]:
+    """Build a read-only judge-vs-human agreement report from paired reviews."""
+    tolerance = max(0.0, float(agreement_tolerance))
+    trust_rate = min(1.0, max(0.0, float(trust_within_tolerance_rate)))
+    pairs = pair_reviews_by_trace(reviews)
+    aggregate = _pair_agreement(pairs, tolerance=tolerance)
+    anchors = _human_anchors(reviews)
+    per_reviewer = _per_reviewer_agreement(
+        reviews, anchors, tolerance=tolerance, trust_within_tolerance_rate=trust_rate
+    )
 
     return {
         "schema_version": JUDGE_CALIBRATION_REPORT_SCHEMA_VERSION,
@@ -167,25 +250,46 @@ def build_judge_calibration_report(
             "review_count": len(reviews),
             "paired_trace_count": len(pairs),
             "agreement_tolerance": tolerance,
+            "trust_within_tolerance_rate": trust_rate,
         },
         "summary": {
             "paired_trace_count": len(pairs),
-            "scored_pair_count": overall["pair_count"],
+            "scored_pair_count": aggregate["overall_agreement"]["pair_count"],
             "sufficient_data": len(pairs) >= MIN_PAIRED_TRACES_FOR_SIGNAL,
             "min_paired_traces_for_signal": MIN_PAIRED_TRACES_FOR_SIGNAL,
+            "model_reviewer_count": len(per_reviewer),
+            "trusted_model_reviewer_count": sum(1 for m in per_reviewer.values() if m["trusted"]),
         },
-        "overall_agreement": overall,
-        "per_dimension_agreement": per_dimension,
-        "decision_agreement": decision_agreement,
+        "overall_agreement": aggregate["overall_agreement"],
+        "per_dimension_agreement": aggregate["per_dimension_agreement"],
+        "decision_agreement": aggregate["decision_agreement"],
+        "per_reviewer_agreement": per_reviewer,
         "generated_at": datetime.now(UTC).isoformat(),
     }
 
 
+def trusted_model_reviewers(report: dict[str, Any]) -> set[str]:
+    """The set of model-judge reviewers the report measured as trusted.
+
+    Deterministic read of the report's ``per_reviewer_agreement`` trust flags,
+    for callers that want to gate an untrusted judge's scores out of a
+    downstream decision (e.g. prompt-regression selection).
+    """
+    per_reviewer = report.get("per_reviewer_agreement")
+    if not isinstance(per_reviewer, dict):
+        return set()
+    return {
+        reviewer for reviewer, metrics in per_reviewer.items() if isinstance(metrics, dict) and metrics.get("trusted")
+    }
+
+
 __all__ = [
+    "DEFAULT_TRUST_WITHIN_TOLERANCE_RATE",
     "JUDGE_CALIBRATION_REPORT_KIND",
     "JUDGE_CALIBRATION_REPORT_SCHEMA_VERSION",
     "MIN_PAIRED_TRACES_FOR_SIGNAL",
     "PairedTrace",
     "build_judge_calibration_report",
     "pair_reviews_by_trace",
+    "trusted_model_reviewers",
 ]

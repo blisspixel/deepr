@@ -88,6 +88,19 @@ def eval_judge_calibration(
     click.echo(
         f"  Decision agreement {decision['agreement_rate']:.0%} over {decision['comparable_trace_count']} trace(s)"
     )
+    per_reviewer = report.get("per_reviewer_agreement", {})
+    if per_reviewer:
+        click.echo(
+            f"  Per-reviewer trust ({summary.get('trusted_model_reviewer_count', 0)}/"
+            f"{summary.get('model_reviewer_count', 0)} trusted):"
+        )
+        for reviewer, metrics in per_reviewer.items():
+            mark = "trusted  " if metrics["trusted"] else "untrusted"
+            click.echo(
+                f"    {mark}  {reviewer}  MAE {metrics['overall_agreement']['mean_absolute_error']:.2f}  "
+                f"within {metrics['overall_agreement']['within_tolerance_rate']:.0%}  "
+                f"(n={metrics['paired_trace_count']})"
+            )
     click.echo("  Agreement is not correctness; this measures a judge against a human anchor.")
     if path:
         click.echo(f"\nSaved {path}")
