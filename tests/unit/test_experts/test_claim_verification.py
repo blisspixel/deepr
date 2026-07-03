@@ -123,6 +123,30 @@ class _FakeCostSafety:
         self.refunded = reservation_id
 
 
+class TestSourceWindowExcerpt:
+    """A window's char_end must bound the excerpt (regression: it was discarded)."""
+
+    def _excerpt(self, window, *, max_chars=1400):
+        from deepr.experts.claim_verification import _source_window_excerpt
+
+        return _source_window_excerpt({"excerpt": "0123456789"}, window, max_chars=max_chars)
+
+    def test_sub_span_window_is_honored(self):
+        assert self._excerpt({"char_start": 2, "char_end": 5}) == "234"
+
+    def test_missing_char_end_falls_back_to_full_text(self):
+        assert self._excerpt({"char_start": 2}) == "23456789"
+
+    def test_malformed_end_before_start_falls_back_to_full_text(self):
+        assert self._excerpt({"char_start": 5, "char_end": 3}) == "56789"
+
+    def test_char_end_beyond_text_is_capped(self):
+        assert self._excerpt({"char_start": 2, "char_end": 99}) == "23456789"
+
+    def test_max_chars_still_caps(self):
+        assert self._excerpt({"char_start": 0, "char_end": 10}, max_chars=3) == "012"
+
+
 @pytest.mark.asyncio
 async def test_verify_claims_invokes_json_chat_with_sanitized_source_and_recall(tmp_path):
     payload = _source_pack_payload()

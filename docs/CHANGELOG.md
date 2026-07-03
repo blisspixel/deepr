@@ -125,6 +125,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   directory.
 
 ### Fixed
+- Fixed a latent evidence-window bug in claim extraction and verification: the
+  source-window excerpt helper floored `char_end` at the text length, which
+  discarded any real sub-span window end and always ran the excerpt to the end
+  of the source text (capped only by the per-window character limit). It now
+  floors `char_end` at 0 and lets the existing end-before-start guard supply
+  the full-text default, so a cited sub-span window is honored. Masked today
+  by the single full-span-window producer; a regression pins the sub-span,
+  missing-end, and out-of-range cases.
 - Removed accidentally tracked external Distillr runtime telemetry from
   `library/.distill/`, ignored that generated directory, and added a hygiene
   regression so provider-usage telemetry cannot re-enter tracked source.
