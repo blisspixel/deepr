@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 from datetime import UTC, datetime, timedelta
+from types import SimpleNamespace
 
 import pytest
 
@@ -193,8 +194,6 @@ def test_rollup_sanitizes_untrusted_host_payload_text(tmp_path):
 
 def test_rollup_includes_next_run_capacity_outlook(monkeypatch, tmp_path):
     """The rollup embeds the non-probing capacity outlook (additive within v1)."""
-    from types import SimpleNamespace
-
     import deepr.backends.admission as admission_mod
     from deepr.backends.admission import TASK_CLASS_SYNC
 
@@ -211,3 +210,69 @@ def test_rollup_includes_next_run_capacity_outlook(monkeypatch, tmp_path):
     assert outlook["any_cheap_capacity_admitted"] is True
     assert outlook["task_classes"][TASK_CLASS_SYNC]["local_capacity_admitted"] is True
     assert outlook["task_classes"][TASK_CLASS_SYNC]["admitted_local_models"] == ["qwen-local"]
+
+
+def test_due_subscription_summary_sorts_due_topics(monkeypatch):
+    import deepr.experts.sync as sync_mod
+    from deepr.experts.loop_status_rollup import _due_subscription_summary
+
+    class _FakeSubStore:
+        def __init__(self, name):
+            self.name = name
+
+        def due(self, now=None):
+            return [SimpleNamespace(topic="Model routing"), SimpleNamespace(topic="Agent memory")]
+
+    monkeypatch.setattr(sync_mod, "SubscriptionStore", _FakeSubStore)
+
+    assert _due_subscription_summary("X") == {"count": 2, "topics": ["Agent memory", "Model routing"]}
+
+
+def test_due_subscription_summary_fails_open(monkeypatch):
+    import deepr.experts.sync as sync_mod
+    from deepr.experts.loop_status_rollup import _due_subscription_summary
+
+    class _BoomSubStore:
+        def __init__(self, name):
+            raise OSError("knowledge dir unavailable")
+
+    monkeypatch.setattr(sync_mod, "SubscriptionStore", _BoomSubStore)
+
+    # A missing/unreadable sidecar must never break the status view.
+    assert _due_subscription_summary("X") == {"count": 0, "topics": []}
+
+
+def test_due_subscription_summary_coerces_non_string_topic(monkeypatch):
+    # A hand-corrupted sidecar could hold a non-string topic; it must be coerced
+    # and sorted rather than raising TypeError and breaking the status view.
+    import deepr.experts.sync as sync_mod
+    from deepr.experts.loop_status_rollup import _due_subscription_summary
+
+    class _FakeSubStore:
+        def __init__(self, name):
+            self.name = name
+
+        def due(self, now=None):
+            return [SimpleNamespace(topic=123), SimpleNamespace(topic="Agent memory")]
+
+    monkeypatch.setattr(sync_mod, "SubscriptionStore", _FakeSubStore)
+
+    assert _due_subscription_summary("X") == {"count": 2, "topics": ["123", "Agent memory"]}
+
+
+def test_rollup_includes_due_subscriptions(monkeypatch, tmp_path):
+    import deepr.experts.sync as sync_mod
+
+    class _FakeSubStore:
+        def __init__(self, name):
+            self.name = name
+
+        def due(self, now=None):
+            return [SimpleNamespace(topic="Topic A")]
+
+    monkeypatch.setattr(sync_mod, "SubscriptionStore", _FakeSubStore)
+    store = ExpertLoopRunStore("Rollup Expert", path=tmp_path / "loops.jsonl")
+
+    rollup = build_loop_status_rollup("Rollup Expert", store=store)
+
+    assert rollup["due_subscriptions"] == {"count": 1, "topics": ["Topic A"]}

@@ -115,6 +115,46 @@ def test_loop_status_escapes_markup_in_model_names():
     assert "weird[/]tag:q4" in result.output
 
 
+def test_loop_status_shows_due_subscriptions_with_escaped_topics():
+    profile = SimpleNamespace(name="Platform Expert")
+    payload = {
+        "runs": [],
+        "due_subscriptions": {"count": 2, "topics": ["Model routing", "weird[/]topic"]},
+    }
+    with (
+        patch("deepr.experts.profile.ExpertStore") as mock_store_class,
+        patch("deepr.experts.loop_status_rollup.build_loop_status_rollup", return_value=payload),
+    ):
+        mock_store = MagicMock()
+        mock_store.load.return_value = profile
+        mock_store_class.return_value = mock_store
+
+        result = CliRunner().invoke(cli, ["expert", "loop-status", "Platform Expert"])
+
+    assert result.exit_code == 0, result.output
+    assert "Due subscriptions: 2" in result.output
+    assert "Model routing" in result.output
+    # Operator-controlled topic with markup chars renders literally, not stripped.
+    assert "weird[/]topic" in result.output
+
+
+def test_loop_status_shows_no_due_subscriptions():
+    profile = SimpleNamespace(name="Platform Expert")
+    payload = {"runs": [], "due_subscriptions": {"count": 0, "topics": []}}
+    with (
+        patch("deepr.experts.profile.ExpertStore") as mock_store_class,
+        patch("deepr.experts.loop_status_rollup.build_loop_status_rollup", return_value=payload),
+    ):
+        mock_store = MagicMock()
+        mock_store.load.return_value = profile
+        mock_store_class.return_value = mock_store
+
+        result = CliRunner().invoke(cli, ["expert", "loop-status", "Platform Expert"])
+
+    assert result.exit_code == 0, result.output
+    assert "Due subscriptions: none" in result.output
+
+
 def test_loop_status_json_reads_latest_runs():
     with (
         patch("deepr.experts.profile.ExpertStore") as mock_store_class,
