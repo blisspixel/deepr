@@ -20,9 +20,27 @@ if TYPE_CHECKING:
     from collections.abc import Awaitable, Callable
 
     from deepr.backends.fresh_context import FreshContext
+    from deepr.experts.grounding_escalation import GroundingEscalator
     from deepr.experts.maker_checker import GroundingChecker
     from deepr.experts.profile import ExpertProfile
     from deepr.experts.sync import ExpertSyncEngine
+
+
+def _grounding_absorber_kwargs(
+    grounding_checker: GroundingChecker | None,
+    grounding_escalator: GroundingEscalator | None,
+) -> dict[str, Any]:
+    """The grounding-related ``ReportAbsorber`` kwargs, each added only when set.
+
+    An escalator without a first checker is meaningless (and the CLI forbids it),
+    so callers pass both together; this merges whichever are present.
+    """
+    kwargs: dict[str, Any] = {}
+    if grounding_checker is not None:
+        kwargs["grounding_checker"] = grounding_checker
+    if grounding_escalator is not None:
+        kwargs["grounding_escalator"] = grounding_escalator
+    return kwargs
 
 
 def _with_claim_services(
@@ -120,6 +138,7 @@ def build_sync_engine(
     plan_model: str | None = None,
     context_builder: Callable[[str], Awaitable[FreshContext]] | None = None,
     grounding_checker: GroundingChecker | None = None,
+    grounding_escalator: GroundingEscalator | None = None,
     compile_claims: bool = False,
     spend_decision_fn: Any | None = None,
     recall_embedding_model: str | None = None,
@@ -147,9 +166,12 @@ def build_sync_engine(
         if local_model is None:
             raise ValueError("use_local requires a resolved local_model")
         client = ollama_chat_client()
-        absorber_kwargs = {"model": local_model, "client": client, "estimated_cost": 0.0}
-        if grounding_checker is not None:
-            absorber_kwargs["grounding_checker"] = grounding_checker
+        absorber_kwargs = {
+            "model": local_model,
+            "client": client,
+            "estimated_cost": 0.0,
+            **_grounding_absorber_kwargs(grounding_checker, grounding_escalator),
+        }
         absorber = ReportAbsorber(profile, **absorber_kwargs)
         claim_extractor = (
             SemanticClaimExtractor(
@@ -194,9 +216,12 @@ def build_sync_engine(
         # One client serves research and verified extraction, so the whole sync
         # stays on prepaid plan capacity with no silent metered call.
         client = PlanQuotaChatClient(plan_adapter, model=plan_model)
-        absorber_kwargs = {"model": plan_model or plan_adapter.backend_id, "client": client, "estimated_cost": 0.0}
-        if grounding_checker is not None:
-            absorber_kwargs["grounding_checker"] = grounding_checker
+        absorber_kwargs = {
+            "model": plan_model or plan_adapter.backend_id,
+            "client": client,
+            "estimated_cost": 0.0,
+            **_grounding_absorber_kwargs(grounding_checker, grounding_escalator),
+        }
         absorber = ReportAbsorber(profile, **absorber_kwargs)
         claim_extractor = (
             SemanticClaimExtractor(
@@ -242,8 +267,11 @@ def build_sync_engine(
         from deepr.experts.report_absorber import ReportAbsorber
 
         claim_extractor, claim_verifier = _metered_claim_services(compile_claims, recall_embedding_model, profile)
+        grounding_absorber = ReportAbsorber(
+            profile, **_grounding_absorber_kwargs(grounding_checker, grounding_escalator)
+        )
         engine_kwargs = _with_claim_services(
-            {"absorber": ReportAbsorber(profile, grounding_checker=grounding_checker)},
+            {"absorber": grounding_absorber},
             claim_extractor,
             claim_verifier,
         )

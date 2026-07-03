@@ -284,3 +284,83 @@ def test_metered_path_injects_absorber_when_grounding_checker_supplied(patch_eng
     assert engine.research_fn is None
     assert engine.absorber is not None
     assert captured["grounding_checker"] is checker
+
+
+def test_local_passes_grounding_escalator_alongside_checker(patch_engine, monkeypatch):
+    profile = SimpleNamespace(name="X")
+    checker, escalator = object(), object()
+    captured = {}
+
+    class _FakeAbsorber:
+        def __init__(
+            self, prof, *, model, client, grounding_checker=None, grounding_escalator=None, estimated_cost=0.0
+        ):
+            captured.update(grounding_checker=grounding_checker, grounding_escalator=grounding_escalator)
+
+    monkeypatch.setattr("deepr.backends.local.ollama_chat_client", lambda: object())
+    monkeypatch.setattr(
+        "deepr.backends.local.make_local_research_fn",
+        lambda model, *, context_builder=None, client=None: object(),
+    )
+    monkeypatch.setattr("deepr.experts.report_absorber.ReportAbsorber", _FakeAbsorber)
+
+    _engine, source = build_sync_engine(
+        profile,
+        use_local=True,
+        local_model="qwen-local",
+        grounding_checker=checker,
+        grounding_escalator=escalator,
+    )
+
+    assert source == "local"
+    assert captured == {"grounding_checker": checker, "grounding_escalator": escalator}
+
+
+def test_plan_passes_grounding_escalator_alongside_checker(patch_engine, monkeypatch):
+    profile = SimpleNamespace(name="X")
+    adapter = SimpleNamespace(backend_id="codex", tos_note="")
+    checker, escalator = object(), object()
+    captured = {}
+
+    class _FakeAbsorber:
+        def __init__(
+            self, prof, *, model, client, grounding_checker=None, grounding_escalator=None, estimated_cost=0.0
+        ):
+            captured.update(grounding_checker=grounding_checker, grounding_escalator=grounding_escalator)
+
+    monkeypatch.setattr("deepr.backends.plan_quota.PlanQuotaChatClient", lambda a, *, model=None: object())
+    monkeypatch.setattr(
+        "deepr.backends.plan_quota.make_plan_quota_research_fn",
+        lambda a, *, model=None, context_builder=None, client=None: object(),
+    )
+    monkeypatch.setattr("deepr.experts.report_absorber.ReportAbsorber", _FakeAbsorber)
+
+    _engine, source = build_sync_engine(
+        profile,
+        use_plan=True,
+        plan_adapter=adapter,
+        plan_model="gpt",
+        grounding_checker=checker,
+        grounding_escalator=escalator,
+    )
+
+    assert source == "plan_quota:codex"
+    assert captured == {"grounding_checker": checker, "grounding_escalator": escalator}
+
+
+def test_metered_path_passes_grounding_escalator_alongside_checker(patch_engine, monkeypatch):
+    profile = SimpleNamespace(name="X")
+    checker, escalator = object(), object()
+    captured = {}
+
+    class _FakeAbsorber:
+        def __init__(self, prof, *, grounding_checker=None, grounding_escalator=None):
+            captured.update(grounding_checker=grounding_checker, grounding_escalator=grounding_escalator)
+
+    monkeypatch.setattr("deepr.experts.report_absorber.ReportAbsorber", _FakeAbsorber)
+
+    engine, source = build_sync_engine(profile, grounding_checker=checker, grounding_escalator=escalator)
+
+    assert source == "api_metered"
+    assert engine.absorber is not None
+    assert captured == {"grounding_checker": checker, "grounding_escalator": escalator}

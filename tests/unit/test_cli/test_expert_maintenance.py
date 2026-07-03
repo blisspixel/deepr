@@ -46,6 +46,8 @@ class TestRegistration:
             "check_grounding",
             "checker_plan",
             "checker_plan_model",
+            "second_checker_plan",
+            "second_checker_plan_model",
             "apply_compiled_claims",
             "stage_compiled_claims",
         } <= opts
@@ -99,6 +101,29 @@ class TestBackendFlagGuard:
 
         assert r.exit_code == 2
         assert "Use --check-grounding with --checker-plan" in r.output
+
+    def test_sync_rejects_second_checker_equal_to_first_before_store_work(self, monkeypatch):
+        class ExplodingExpertStore:
+            def load(self, name):
+                raise AssertionError("second-checker validation must run before loading experts")
+
+        monkeypatch.setattr("deepr.experts.profile.ExpertStore", ExplodingExpertStore)
+
+        r = CliRunner().invoke(
+            expert,
+            [
+                "sync",
+                "Whoever",
+                "--check-grounding",
+                "--checker-plan",
+                "codex",
+                "--second-checker-plan",
+                "codex",
+            ],
+        )
+
+        assert r.exit_code == 2
+        assert "must differ" in r.output
 
     def test_sync_rejects_apply_compiled_claims_without_compile_claims_before_store_work(self, monkeypatch):
         class ExplodingExpertStore:
@@ -315,6 +340,100 @@ class TestBackendFlagGuard:
         assert captured["engine_absorber"] is captured["absorber"]
         assert captured["sync_kwargs"]["budget"] == 2.0
         assert captured["sync_kwargs"]["apply_graph_commits"] is False
+
+    def test_sync_wires_bounded_second_checker_escalator(self, monkeypatch):
+        from deepr.experts.grounding_escalation import GroundingEscalator
+
+        captured = {}
+        profile = SimpleNamespace(name="UI Experience Expert")
+        client = object()
+
+        class FakeExpertStore:
+            def load(self, name):
+                return profile
+
+        class FakeSubscriptionStore:
+            subscriptions = [SimpleNamespace(topic="UI/UX for agentic research tools")]
+
+            def __init__(self, name):
+                pass
+
+            def due(self):
+                return list(self.subscriptions)
+
+        class FakeReportAbsorber:
+            def __init__(
+                self,
+                loaded_profile,
+                *,
+                model,
+                client,
+                grounding_checker=None,
+                grounding_escalator=None,
+                estimated_cost=0.0,
+            ):
+                captured["grounding_checker"] = grounding_checker
+                captured["grounding_escalator"] = grounding_escalator
+
+        class FakeSyncResult:
+            total_cost = 0.0
+            outcomes = []
+
+            def to_dict(self):
+                return {"total_cost": 0.0, "outcomes": []}
+
+        class FakeSyncEngine:
+            def __init__(self, loaded_profile, *, research_fn, absorber):
+                pass
+
+            async def sync(self, **kwargs):
+                return FakeSyncResult()
+
+        for var in ("OPENAI_API_KEY", "CODEX_API_KEY", "CODEX_ACCESS_TOKEN", "ANTHROPIC_API_KEY", "XAI_API_KEY"):
+            monkeypatch.delenv(var, raising=False)
+        monkeypatch.setattr("deepr.experts.profile.ExpertStore", FakeExpertStore)
+        monkeypatch.setattr("deepr.experts.sync.SubscriptionStore", FakeSubscriptionStore)
+        monkeypatch.setattr("deepr.experts.sync.ExpertSyncEngine", FakeSyncEngine)
+        monkeypatch.setattr("deepr.backends.local.default_local_model", lambda: "qwen-local")
+        monkeypatch.setattr("deepr.backends.local.ollama_chat_client", lambda: client)
+        monkeypatch.setattr(
+            "deepr.backends.local.make_local_research_fn",
+            lambda model, *, context_builder=None: object(),
+        )
+        monkeypatch.setattr("deepr.experts.report_absorber.ReportAbsorber", FakeReportAbsorber)
+        monkeypatch.setattr(
+            "deepr.experts.self_model.build_expert_self_model_context_from_profile",
+            lambda profile, *, focus_limit=3: {"status": "unavailable"},
+        )
+        monkeypatch.setattr(
+            "deepr.experts.loop_runs.record_loop_run",
+            lambda **kwargs: SimpleNamespace(to_dict=lambda: {"run_id": "loop_sync"}),
+        )
+
+        # kiro is a distinct third vendor from the local maker and codex first
+        # checker, so the escalation reaches for a genuinely independent opinion.
+        r = CliRunner().invoke(
+            expert,
+            [
+                "sync",
+                "UI Experience Expert",
+                "--local",
+                "--check-grounding",
+                "--checker-plan",
+                "codex",
+                "--second-checker-plan",
+                "kiro",
+                "-y",
+                "--json",
+            ],
+        )
+
+        assert r.exit_code == 0, r.output
+        assert callable(captured["grounding_checker"])
+        escalator = captured["grounding_escalator"]
+        assert isinstance(escalator, GroundingEscalator)
+        assert escalator.maker_vendor == "local"
+        assert escalator.available_vendors == ("kiro",)
 
     def test_sync_compile_claims_applies_compiled_graph_commit_by_default(self, monkeypatch):
         captured = {}

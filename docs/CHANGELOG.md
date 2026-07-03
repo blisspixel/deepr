@@ -49,14 +49,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   entailment. `ReportAbsorber` consumes it through an optional injected
   escalator, defaulting to the previous record-the-first-signal behavior.
 - Wired bounded second-checker grounding escalation into `deepr expert absorb`
-  via `--second-checker-plan` (and optional `--second-checker-plan-model`). It
-  requires `--check-grounding --checker-plan` and must name a distinct
-  plan-quota vendor, so a weak first grounding verdict escalates to a genuinely
-  independent third opinion across all three maker backends (local, plan, and
-  metered). The second checker is built lazily behind the escalator's factory,
-  so a clean run never constructs it and healthy claims still pay for one check,
-  not two. Validation runs before any store or provider work, and an
-  ill-formed combination exits non-zero without cost.
+  and `deepr expert sync` via `--second-checker-plan` (and optional
+  `--second-checker-plan-model`). It requires `--check-grounding --checker-plan`
+  and must name a distinct plan-quota vendor, so a weak first grounding verdict
+  escalates to a genuinely independent third opinion across all three maker
+  backends (local, plan, and metered). On `expert sync` (including scheduled
+  single-expert runs) the escalator threads through the shared
+  `build_sync_engine` so background maintenance can hold double-refuted claims,
+  not just one-shot absorb. (`expert sync-all` runs no grounding check and is
+  unaffected.) The second checker is built
+  lazily behind the escalator's factory, so a clean run never constructs it and
+  healthy claims still pay for one check, not two. Validation runs before any
+  store or provider work, and an ill-formed combination exits non-zero without
+  cost.
 - Added `deepr expert validate-export PATH`, a `$0` form-only validator for
   exported derived views: handoff payloads (`.json`), OKF bundle directories,
   and `SKILL.md` exports. It checks required provenance, schema version,
