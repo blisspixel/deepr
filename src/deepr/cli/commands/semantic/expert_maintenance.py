@@ -41,7 +41,7 @@ from deepr.cli.commands.semantic.expert_sync_support import (
 from deepr.cli.commands.semantic.experts import expert
 from deepr.cli.commands.semantic.grounding_support import (
     PLAN_BACKEND_CHOICES,
-    build_grounding_checker,
+    build_grounding_pair,
     validate_grounding_flags,
 )
 
@@ -376,6 +376,13 @@ def absorb_report(
 )
 @click.option("--checker-plan-model", default=None, help="Model to pass to the checker plan CLI")
 @click.option(
+    "--second-checker-plan",
+    type=click.Choice(PLAN_BACKEND_CHOICES),
+    default=None,
+    help="With --check-grounding --checker-plan: escalate a weak first check to this distinct second-vendor plan CLI",
+)
+@click.option("--second-checker-plan-model", default=None, help="Model to pass to the second-checker plan CLI")
+@click.option(
     "--fresh-context",
     is_flag=True,
     help="For local/plan sync, retrieve free web context before calling the model",
@@ -415,6 +422,8 @@ def sync_cmd(
     recall_embedding_model: str | None,
     checker_plan: str | None,
     checker_plan_model: str | None,
+    second_checker_plan: str | None,
+    second_checker_plan_model: str | None,
     fresh_context: bool,
     deep_context: bool,
     scheduled: bool,
@@ -448,6 +457,8 @@ def sync_cmd(
             check_grounding=check_grounding,
             checker_plan=checker_plan,
             checker_plan_model=checker_plan_model,
+            second_checker_plan=second_checker_plan,
+            second_checker_plan_model=second_checker_plan_model,
         )
         recall_embedding_model = validate_compiled_claims_flags(
             compile_claims=compile_claims,
@@ -561,46 +572,46 @@ def sync_cmd(
         plan_adapter = get_adapter(plan_backend_id or "")
 
     grounding_checker = None
+    grounding_escalator = None
     run_grounding_checks = check_grounding and not dry_run
     if run_grounding_checks:
+        # Resolve the checker's default client/vendor/model for whichever backend
+        # the sync runs on, then build the first checker and the optional bounded
+        # second-checker escalator together for that one maker vendor. A same-
+        # backend check reuses the active client; a --checker-plan check builds
+        # its own, so the default client is unused (None) in that case.
         try:
             if use_local:
                 from deepr.backends.local import ollama_chat_client
 
+                maker_vendor = "local"
                 default_checker_client = None if checker_plan else ollama_chat_client()
-                grounding_checker = build_grounding_checker(
-                    enabled=True,
-                    checker_plan=checker_plan,
-                    checker_plan_model=checker_plan_model,
-                    maker_vendor="local",
-                    default_client=default_checker_client,
-                    default_vendor="local",
-                    default_model=local_model,
-                )
+                default_checker_model = local_model
             elif use_plan and plan_adapter is not None:
                 from deepr.backends.plan_quota import PlanQuotaChatClient
 
+                maker_vendor = plan_adapter.backend_id
                 default_checker_client = (
                     None
                     if checker_plan
                     else PlanQuotaChatClient(plan_adapter, model=plan_model, operation="plan_quota_grounding_check")
                 )
-                grounding_checker = build_grounding_checker(
-                    enabled=True,
-                    checker_plan=checker_plan,
-                    checker_plan_model=checker_plan_model,
-                    maker_vendor=plan_adapter.backend_id,
-                    default_client=default_checker_client,
-                    default_vendor=plan_adapter.backend_id,
-                    default_model=plan_model or plan_adapter.backend_id,
-                )
+                default_checker_model = plan_model or plan_adapter.backend_id
             else:
-                grounding_checker = build_grounding_checker(
-                    enabled=True,
-                    checker_plan=checker_plan,
-                    checker_plan_model=checker_plan_model,
-                    maker_vendor="api_metered",
-                )
+                maker_vendor = "api_metered"
+                default_checker_client = None
+                default_checker_model = None
+            grounding_checker, grounding_escalator = build_grounding_pair(
+                enabled=True,
+                checker_plan=checker_plan,
+                checker_plan_model=checker_plan_model,
+                second_checker_plan=second_checker_plan,
+                second_checker_plan_model=second_checker_plan_model,
+                maker_vendor=maker_vendor,
+                default_client=default_checker_client,
+                default_vendor=maker_vendor,
+                default_model=default_checker_model,
+            )
         except ValueError as exc:
             print_error(str(exc))
             sys.exit(2)
@@ -672,6 +683,7 @@ def sync_cmd(
         plan_model=plan_model,
         context_builder=context_builder,
         grounding_checker=grounding_checker,
+        grounding_escalator=grounding_escalator,
         compile_claims=compile_claims,
         apply_graph_commits=apply_compiled_graph_commits,
         spend_decision_fn=spend_decision_fn,

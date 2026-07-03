@@ -1129,9 +1129,11 @@ Sequenced smallest-shippable-first:
         `deepr-expert-handoff-v1` surfaces per-claim assurance plus summary
         counts for verified and cross-vendor verified claims. Schema validation
         covers the additive contract.
-  - [~] **Bounded escalation**: escalate to a 2nd different-vendor checker on a
+  - [x] **Bounded escalation**: escalate to a 2nd different-vendor checker on a
         refutation/high-stakes claim, then hold instead of absorbing unsupported
-        knowledge.
+        knowledge. Library, absorber seam, and both CLI paths (`absorb`, `sync`)
+        are wired; the second checker is a distinct plan-quota vendor built
+        lazily behind the escalator factory.
     - [x] **Escalation library + absorber seam** (2026-07-02):
           `deepr.experts.grounding_escalation` decides which weak verdicts
           escalate, picks a genuinely independent third vendor (different from
@@ -1148,10 +1150,14 @@ Sequenced smallest-shippable-first:
           plan-quota vendor; the second checker's client is built lazily, and
           ill-formed flag combinations exit non-zero before any store or
           provider work.
-    - [ ] **`expert sync` CLI wiring** (next): expose the same
-          `--second-checker-plan` escalation on the context-bearing sync path so
-          scheduled maintenance can hold double-refuted claims, not just one-shot
-          absorb.
+    - [x] **`expert sync` CLI wiring** (2026-07-03): the same
+          `--second-checker-plan` (+ `--second-checker-plan-model`) escalation on
+          the context-bearing single-expert sync path (including `--scheduled`
+          runs), threaded through the shared `build_sync_engine` so background
+          maintenance holds double-refuted claims, not just one-shot absorb.
+          Built once per run for the resolved maker vendor; the second checker
+          stays lazy. (`expert sync-all` runs no grounding check and is
+          unaffected.)
 - [~] **Hardening**:
   - [x] **Reservation TTL/sweeper** (2026-06-24): a `check_and_reserve` whose
         caller crashes before `record_cost`/`refund_reservation` used to hold its
