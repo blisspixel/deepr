@@ -34,6 +34,16 @@ def _print_capacity_outlook(outlook: dict[str, Any]) -> None:
         console.print(f"  [bold]{escape(task_class)}[/bold]: {summary}")
 
 
+def _print_due_subscriptions(due: dict[str, Any]) -> None:
+    """Render the count of topic subscriptions due to sync (topics are operator data)."""
+    count = int(due.get("count", 0) or 0)
+    topics = due.get("topics") or []
+    if not count:
+        console.print("[dim]Due subscriptions: none[/dim]")
+        return
+    console.print(f"[dim]Due subscriptions: {count} ({escape(', '.join(topics))})[/dim]")
+
+
 @expert.command(name="loop-status")
 @click.argument("name")
 @click.option("--limit", type=click.IntRange(min=1), default=5, show_default=True, help="Maximum loop runs to show")
@@ -66,6 +76,7 @@ def loop_status(name: str, limit: int, json_output: bool):
 
     print_header(f"Loop status: {profile.name}")
     _print_capacity_outlook(payload.get("next_run_outlook") or {})
+    _print_due_subscriptions(payload.get("due_subscriptions") or {})
     if not runs:
         print_success("No loop runs recorded yet.")
         return

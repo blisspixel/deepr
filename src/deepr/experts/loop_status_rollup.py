@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from collections import Counter
+from datetime import datetime
 from typing import Any
 
 from deepr.experts.loop_admission import known_loop_admission_contracts
@@ -15,6 +16,25 @@ LOOP_STATUS_SCHEMA_VERSION = "deepr-loop-status-v1"
 
 def _round_metric(value: float) -> float:
     return round(value, 4)
+
+
+def _due_subscription_summary(expert_name: str, *, now: datetime | None = None) -> dict[str, Any]:
+    """Count the expert's topic subscriptions that are due to sync right now.
+
+    A cheap, read-only sidecar read (`subscriptions.json`). Fails open to an
+    empty summary: a missing or unreadable subscription file must never break a
+    status view. The topics tell an operator what pending sync work exists.
+    """
+    from deepr.experts.sync import SubscriptionStore
+
+    try:
+        due = SubscriptionStore(expert_name).due(now)
+        # Coerce inside the guard: a hand-corrupted sidecar could hold a
+        # non-string topic, and an unsortable mix must not break a status view.
+        topics = sorted(str(sub.topic) for sub in due)
+    except (OSError, ValueError):
+        return {"count": 0, "topics": []}
+    return {"count": len(topics), "topics": topics}
 
 
 def _run_or_none(run: ExpertLoopRun | None) -> dict[str, Any] | None:
@@ -113,6 +133,8 @@ def build_loop_status_rollup(
         # next run of each maintenance task class has cheap capacity admitted, or
         # would fall to metered budget. Pure admission-ledger read, no probe.
         "next_run_outlook": build_capacity_outlook(),
+        # Pending sync work (additive within v1): topic subscriptions due now.
+        "due_subscriptions": _due_subscription_summary(expert_name),
         "runs": [run.to_dict() for run in runs],
     }
     return sanitize_host_facing_payload(payload, source_label=f"expert loop status: {expert_name}")

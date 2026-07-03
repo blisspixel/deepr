@@ -689,8 +689,11 @@ over-reach for a solo project; Letta/MemOS already own the "OS" label).
         MCP tool over the `deepr-loop-status-v1` rollup (last run, failures,
         next action, acceptance rate, cost-per-accepted-change, verifier
         failures) plus a non-probing `next_run_outlook` (admitted $0 local /
-        prepaid-plan capacity per task class, else metered). Remaining: fold in
-        due subscriptions, open gaps, and stale/contested belief counts.
+        prepaid-plan capacity per task class, else metered) and
+        `due_subscriptions` (count + topics due to sync). Remaining: fold in
+        open-gap and contested-belief counts (available from
+        `dashboard_telemetry`; deferred to avoid coupling the rollup to manifest
+        and belief-store loads on every status read).
   - [ ] Make loop completion evidence-based: a run is complete only when its
         verifier passes, no due work remains under the current budget/capacity
         contract, or a stop condition is recorded. Never trust a model's

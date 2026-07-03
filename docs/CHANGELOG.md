@@ -8,6 +8,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- Added `due_subscriptions` (count + due topic names) to the `deepr-loop-status-v1`
+  rollup, so `deepr expert loop-status` and the `deepr_expert_loop_status` MCP
+  tool now show how much pending sync work an expert has. It is a cheap,
+  read-only, fail-open read of the subscription sidecar; the field is additive
+  within `deepr-loop-status-v1`, and the CLI escapes operator-set topic names
+  before rendering. (Open-gap and contested-belief counts remain a follow-up.)
 - Added a forward-looking `next_run_outlook` to the `deepr-loop-status-v1`
   rollup (surfaced by `deepr expert loop-status` and the `deepr_expert_loop_status`
   MCP tool). It reports, per maintenance task class (sync, absorb, gap_fill,
