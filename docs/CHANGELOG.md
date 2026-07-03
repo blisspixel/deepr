@@ -19,9 +19,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `support_recall`, `abstention_rate`, per-label accuracy, and the confusion
   matrix. Emits `deepr-grounding-correctness-v1` (`--json`, `--save`), accepts
   `--cases` for domain-specific triples, and can run against a `--checker-plan`
-  vendor. AGENTIC_BALANCE: the model (checker) owns the entailment verdict; this
-  scoring is deterministic against human-curated ground truth, and the report
-  discloses that agreement on a bounded set is not proof of world-truth.
+  vendor. `--set baseline|hard|all` selects the built-in golden set: `hard` is an
+  adversarial set (lexical traps that share words but flip a key fact, unit/number
+  contradictions, shared-entity distractors like Mercury-the-planet vs the element,
+  no-overlap entailment, and `partial` cases where the evidence supports only one
+  conjunct of a claim so the whole is not entailed). AGENTIC_BALANCE: the model
+  (checker) owns the entailment verdict; this scoring is deterministic against
+  human-curated ground truth, and the report discloses that agreement on a
+  bounded set is not proof of world-truth.
 - Added `deepr route explain "<query>"`, a `$0`, read-only, no-model command that
   shows how a query would route before anything is dispatched: which experts a
   consult would fan out to (by the deterministic keyword-overlap selection
