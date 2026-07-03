@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 from datetime import UTC, datetime
+from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
 from click.testing import CliRunner
@@ -43,6 +44,75 @@ def test_loop_status_missing_expert():
 
     assert result.exit_code == 2
     assert "not found" in result.output.lower()
+
+
+def test_loop_status_renders_capacity_outlook():
+    profile = SimpleNamespace(name="Platform Expert")
+    payload = {
+        "runs": [],
+        "next_run_outlook": {
+            "task_classes": {
+                "sync": {
+                    "local_capacity_admitted": True,
+                    "plan_capacity_admitted": False,
+                    "admitted_local_models": ["qwen-local"],
+                    "admitted_plan_backends": [],
+                },
+                "reflect": {
+                    "local_capacity_admitted": False,
+                    "plan_capacity_admitted": False,
+                    "admitted_local_models": [],
+                    "admitted_plan_backends": [],
+                },
+            },
+        },
+    }
+    with (
+        patch("deepr.experts.profile.ExpertStore") as mock_store_class,
+        patch("deepr.experts.loop_status_rollup.build_loop_status_rollup", return_value=payload),
+    ):
+        mock_store = MagicMock()
+        mock_store.load.return_value = profile
+        mock_store_class.return_value = mock_store
+
+        result = CliRunner().invoke(cli, ["expert", "loop-status", "Platform Expert"])
+
+    assert result.exit_code == 0
+    assert "Next-run capacity" in result.output
+    # sync has local capacity admitted; reflect falls to metered.
+    assert "qwen-local" in result.output
+    assert "metered budget" in result.output
+
+
+def test_loop_status_escapes_markup_in_model_names():
+    # A model name with Rich-special characters must not crash the render or be
+    # swallowed as console markup; it is escaped and shown literally.
+    profile = SimpleNamespace(name="Platform Expert")
+    payload = {
+        "runs": [],
+        "next_run_outlook": {
+            "task_classes": {
+                "sync": {
+                    "local_capacity_admitted": True,
+                    "plan_capacity_admitted": False,
+                    "admitted_local_models": ["weird[/]tag:q4"],
+                    "admitted_plan_backends": [],
+                },
+            },
+        },
+    }
+    with (
+        patch("deepr.experts.profile.ExpertStore") as mock_store_class,
+        patch("deepr.experts.loop_status_rollup.build_loop_status_rollup", return_value=payload),
+    ):
+        mock_store = MagicMock()
+        mock_store.load.return_value = profile
+        mock_store_class.return_value = mock_store
+
+        result = CliRunner().invoke(cli, ["expert", "loop-status", "Platform Expert"])
+
+    assert result.exit_code == 0, result.output
+    assert "weird[/]tag:q4" in result.output
 
 
 def test_loop_status_json_reads_latest_runs():

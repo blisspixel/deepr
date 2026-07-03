@@ -6,6 +6,7 @@ from collections import Counter
 from typing import Any
 
 from deepr.experts.loop_admission import known_loop_admission_contracts
+from deepr.experts.loop_capacity_outlook import build_capacity_outlook
 from deepr.experts.loop_runs import ExpertLoopRun, ExpertLoopRunStore, LoopRunStatus, LoopStopReason
 from deepr.security.output_safety import sanitize_host_facing_payload
 
@@ -108,6 +109,10 @@ def build_loop_status_rollup(
         "cost_per_accepted_change": _round_metric(budget_spent_total / accepted_total) if accepted_total else 0.0,
         "verifier_failure_count": stop_reason_counts.get(LoopStopReason.VERIFIER_FAILED.value, 0),
         "admission_contracts": known_loop_admission_contracts(),
+        # Forward-looking $0/prepaid outlook (additive within v1): whether the
+        # next run of each maintenance task class has cheap capacity admitted, or
+        # would fall to metered budget. Pure admission-ledger read, no probe.
+        "next_run_outlook": build_capacity_outlook(),
         "runs": [run.to_dict() for run in runs],
     }
     return sanitize_host_facing_payload(payload, source_label=f"expert loop status: {expert_name}")

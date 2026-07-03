@@ -682,10 +682,15 @@ over-reach for a solo project; Letta/MemOS already own the "OS" label).
         triggering surface, budget/capacity source, verifier result, stop
         reason, trace id, resumable queue/job ids, acceptance rate, accepted vs
         rejected knowledge changes, and cost per accepted knowledge change.
-  - [ ] Add `deepr expert loop-status NAME` (plus MCP read tool) showing last
+  - [~] Add `deepr expert loop-status NAME` (plus MCP read tool) showing last
         run, due subscriptions, open gaps, stale/contested beliefs, verifier
         failures, next action, and whether the next run can use local/plan
-        capacity or requires metered budget.
+        capacity or requires metered budget. Shipped: the CLI + `deepr_expert_loop_status`
+        MCP tool over the `deepr-loop-status-v1` rollup (last run, failures,
+        next action, acceptance rate, cost-per-accepted-change, verifier
+        failures) plus a non-probing `next_run_outlook` (admitted $0 local /
+        prepaid-plan capacity per task class, else metered). Remaining: fold in
+        due subscriptions, open gaps, and stale/contested belief counts.
   - [ ] Make loop completion evidence-based: a run is complete only when its
         verifier passes, no due work remains under the current budget/capacity
         contract, or a stop condition is recorded. Never trust a model's

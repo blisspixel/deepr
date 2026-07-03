@@ -8,6 +8,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- Added a forward-looking `next_run_outlook` to the `deepr-loop-status-v1`
+  rollup (surfaced by `deepr expert loop-status` and the `deepr_expert_loop_status`
+  MCP tool). It reports, per maintenance task class (sync, absorb, gap_fill,
+  reflect), whether cheap `$0` local or prepaid-plan capacity is *admitted* or a
+  run would fall to metered budget, so an operator can see before a scheduled
+  loop fires whether it will cost money. It is a pure, non-probing read of the
+  admission ledger (`build_capacity_outlook`): "admitted" is a durable
+  eligibility fact, not a liveness guarantee, and the payload says so (a local
+  model must still be loaded, plan auto-routing also needs an observed quota
+  window). The field is additive within `deepr-loop-status-v1`; the CLI prints a
+  compact per-task-class capacity line.
 - Added `--gate-untrusted-judges` to `deepr expert consult-quality-trends`. When
   set, it builds the judge-calibration report for the same expert and excludes
   calibrated-model reviews from judges that are not measured-trusted from
