@@ -17,7 +17,7 @@ from pathlib import Path
 from typing import Any
 
 from deepr.config import runtime_data_path
-from deepr.experts.consult_quality import load_consult_quality_reviews
+from deepr.experts.consult_quality import load_consult_quality_reviews, review_score_map
 from deepr.experts.consult_traces import load_consult_traces
 from deepr.experts.handoff import HANDOFF_KIND, HANDOFF_SCHEMA_VERSION
 from deepr.experts.source_pack_compiler import SOURCE_PACK_MANIFEST_KIND, SOURCE_PACK_MANIFEST_SCHEMA_VERSION
@@ -204,21 +204,6 @@ def load_source_pack_manifests(
     return loaded
 
 
-def _score_map(review: dict[str, Any]) -> dict[str, float]:
-    scores = {}
-    for item in review.get("scores", []) or []:
-        if not isinstance(item, dict):
-            continue
-        dimension = str(item.get("dimension", "")).strip()
-        if not dimension:
-            continue
-        try:
-            scores[dimension] = float(item.get("score", 0.0))
-        except (TypeError, ValueError):
-            continue
-    return scores
-
-
 def _source_ref_from_review(review: dict[str, Any]) -> dict[str, str]:
     source = review.get("source") if isinstance(review.get("source"), dict) else {}
     return {
@@ -239,7 +224,7 @@ def _review_signal(review: dict[str, Any]) -> dict[str, Any] | None:
         labels.update(mapped)
         basis.append(f"reviewed_failure_label:{failure_label}")
 
-    scores = _score_map(review)
+    scores = review_score_map(review)
     for dimension, mapped in _LOW_DIMENSION_RISKS.items():
         score = scores.get(dimension)
         if score is not None and score < 4.0:

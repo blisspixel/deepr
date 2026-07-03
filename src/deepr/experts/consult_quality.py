@@ -330,7 +330,13 @@ def _mean(values: list[float]) -> float:
     return round(sum(values) / len(values), 4)
 
 
-def _score_map(review: dict[str, Any]) -> dict[str, float]:
+def review_score_map(review: dict[str, Any]) -> dict[str, float]:
+    """Extract ``dimension -> score`` from a consult-quality review artifact.
+
+    The single canonical reader of the review ``scores`` list, shared by the
+    trend, hallucination-risk, and judge-calibration evals so the parse cannot
+    drift. Malformed entries are skipped, not raised on.
+    """
     scores: dict[str, float] = {}
     for item in review.get("scores", []) or []:
         if not isinstance(item, dict):
@@ -348,7 +354,7 @@ def _score_map(review: dict[str, Any]) -> dict[str, float]:
 def _dimension_summary(reviews: list[dict[str, Any]]) -> list[dict[str, Any]]:
     values_by_dimension: dict[str, list[float]] = defaultdict(list)
     for review in reviews:
-        for dimension, score in _score_map(review).items():
+        for dimension, score in review_score_map(review).items():
             values_by_dimension[dimension].append(score)
 
     summary = []
@@ -369,7 +375,7 @@ def _dimension_summary(reviews: list[dict[str, Any]]) -> list[dict[str, Any]]:
 def _lowest_scores(review: dict[str, Any], *, limit: int = 3) -> list[dict[str, Any]]:
     return [
         {"dimension": dimension, "score": round(score, 4)}
-        for dimension, score in sorted(_score_map(review).items(), key=lambda item: (item[1], item[0]))[:limit]
+        for dimension, score in sorted(review_score_map(review).items(), key=lambda item: (item[1], item[0]))[:limit]
     ]
 
 
