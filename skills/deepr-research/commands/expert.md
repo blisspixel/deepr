@@ -110,17 +110,18 @@ deepr expert resume "AWS Expert" --budget 10
 
 #### `fill-gaps <name>`
 
-Proactively research and fill the expert's highest-priority knowledge gaps, then re-synthesize consciousness.
+Proactively research and fill the expert's highest-priority knowledge gaps, then re-synthesize the expert's knowledge. This is the legacy metered path: it now requires explicit `--api`. For the local/plan-first ($0/prepaid) route, prefer `deepr expert route-gaps --execute`.
 
 | Option | Default | Description |
 |--------|---------|-------------|
+| `--api` | required | Explicit acknowledgement of metered API spend (no longer implicit) |
 | `-b, --budget` | $5 | Budget limit for gap filling |
 | `-t, --top` | 3 | Number of top-priority gaps to fill |
 | `-y, --yes` | false | Skip confirmation |
 
 ```
-deepr expert fill-gaps "AWS Expert"
-deepr expert fill-gaps "Python Expert" --top 5 --budget 10
+deepr expert fill-gaps "AWS Expert" --api
+deepr expert fill-gaps "Python Expert" --api --top 5 --budget 10
 ```
 
 #### `refresh <name>`
