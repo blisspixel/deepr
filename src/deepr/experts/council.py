@@ -16,43 +16,11 @@ from typing import Any
 from openai import AsyncOpenAI
 
 from deepr.experts.constants import MAX_COUNCIL_CONCURRENCY, SYNTHESIS_BUDGET_FRACTION, UTILITY_MODEL
+from deepr.experts.expert_routing import route_terms, score_experts_for_query, select_top_experts
 from deepr.experts.perspective_state import build_perspective_state_packet, render_original_ideas_for_council
 
 logger = logging.getLogger(__name__)
 
-_TOKEN_RE = re.compile(r"[a-z0-9][a-z0-9_+\-.]*")
-_STOPWORDS = frozenset(
-    {
-        "a",
-        "an",
-        "and",
-        "are",
-        "as",
-        "at",
-        "be",
-        "by",
-        "for",
-        "from",
-        "how",
-        "in",
-        "is",
-        "it",
-        "of",
-        "on",
-        "or",
-        "should",
-        "that",
-        "the",
-        "this",
-        "to",
-        "we",
-        "what",
-        "when",
-        "where",
-        "why",
-        "with",
-    }
-)
 _MAX_STORED_BELIEFS = 8
 _MAX_FALLBACK_BELIEFS = 5
 _MAX_SOURCE_REFS = 3
@@ -258,11 +226,6 @@ class CouncilResult:
 class ExpertCouncil:
     """Consult multiple domain experts and synthesise their views."""
 
-    # Upper bound on auto-selected experts per consult. Parallel dispatch is
-    # separately bounded by MAX_COUNCIL_CONCURRENCY, so a 10-expert fan-out runs
-    # in concurrency-sized waves rather than 10 at once.
-    MAX_EXPERTS = 10
-
     def __init__(
         self,
         *,
@@ -278,17 +241,8 @@ class ExpertCouncil:
 
     @staticmethod
     def _terms(text: str) -> set[str]:
-        """Tokenize text for retrieval only, never as a truth verdict."""
-        terms: set[str] = set()
-        for term in _TOKEN_RE.findall(text.lower()):
-            if len(term) <= 2 or term in _STOPWORDS:
-                continue
-            terms.add(term)
-            if term.endswith("s") and len(term) > 4:
-                terms.add(term[:-1])
-            if term == "agentic":
-                terms.add("agent")
-        return terms
+        """Tokenize text for retrieval routing only (delegates to expert_routing)."""
+        return route_terms(text)
 
     @staticmethod
     def _compact_refs(refs: Iterable[str]) -> list[str]:
@@ -479,33 +433,12 @@ class ExpertCouncil:
         """
         from deepr.experts.profile import ExpertStore
 
-        store = ExpertStore()
-        all_experts = store.list_all()
-        exclude_set = set(exclude or [])
-
-        query_words = self._terms(query)
-
-        scored: list[tuple[float, dict]] = []
-        for exp in all_experts:
-            name = exp.name
-            if name in exclude_set:
-                continue
-            domain = getattr(exp, "domain", "") or ""
-            description = getattr(exp, "description", "") or ""
-            domain_words = self._terms(f"{name} {domain} {description}")
-            overlap = len(query_words & domain_words)
-            scored.append((overlap, {"name": name, "domain": domain}))
-
-        scored.sort(key=lambda x: x[0], reverse=True)
-        limit = min(max_experts, self.MAX_EXPERTS)
-        # Prefer only experts with at least some query overlap, so a wide
-        # auto-fan-out (max_experts up to MAX_EXPERTS) does not pad the council
-        # with irrelevant experts. Keyword overlap here only *routes* selection;
-        # it never concludes meaning (AGENTIC_BALANCE). Fall back to the top
-        # scorers when nothing overlaps, so consult is never starved of experts.
-        relevant = [exp for score, exp in scored if score > 0]
-        chosen = relevant if relevant else [exp for _, exp in scored]
-        return chosen[:limit]
+        # Keyword overlap here only *routes* selection; it never concludes meaning
+        # (AGENTIC_BALANCE). The shared router prefers experts with any overlap and
+        # falls back to the top scorers when nothing overlaps, so consult is never
+        # starved. `deepr route explain` renders the same signal.
+        scored = score_experts_for_query(query, ExpertStore().list_all(), exclude=set(exclude or []))
+        return select_top_experts(scored, max_experts=max_experts)
 
     @staticmethod
     def _notify(progress_callback: Any, name: str, status: str) -> None:

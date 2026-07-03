@@ -112,6 +112,7 @@ from deepr.cli.commands import (
     mcp,
     migrate,
     providers,
+    route,
     run,
     search,
     semantic,
@@ -156,6 +157,9 @@ cli.add_command(semantic.check)
 cli.add_command(semantic.make)
 cli.add_command(semantic.agentic)
 cli.add_command(semantic.expert)
+
+# Route inspection (deterministic, $0, no model call)
+cli.add_command(route.route)
 
 # Skill management
 from deepr.cli.commands.semantic.skills import skill

@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- Added `deepr route explain "<query>"`, a `$0`, read-only, no-model command that
+  shows how a query would route before anything is dispatched: which experts a
+  consult would fan out to (by the deterministic keyword-overlap selection
+  router) and the non-probing next-run capacity outlook (`$0` local / prepaid
+  plan vs metered). It emits `deepr-route-explanation-v1` (`--json`) with a
+  `no_model_call` / `routing_only` contract. Per AGENTIC_BALANCE the keyword
+  overlap is labeled a high-recall selection router, never a judgment of which
+  expert is authoritative or whether an answer will be correct; zero-overlap
+  fallbacks are still shown so a consult is never starved. The council's
+  auto-selection and this command now share one router (`deepr.experts.expert_routing`),
+  and the capacity-outlook rendering is shared with `deepr expert loop-status`.
+
 ## [2.29.0] - 2026-07-03
 
 ### Added
