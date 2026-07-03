@@ -57,6 +57,7 @@ from deepr.utils.prompt_security import sanitize_untrusted_content
 GroundingChecker = Callable[[str, str], Awaitable[CheckVerdict]]
 
 if TYPE_CHECKING:
+    from deepr.experts.grounding_escalation import GroundingEscalator
     from deepr.experts.profile import ExpertProfile
 
 logger = logging.getLogger(__name__)
@@ -272,9 +273,11 @@ class FlaggedContradiction:
 class GroundingFlag:
     """A claim a cross-vendor checker found unsupported by its own evidence.
 
-    Surfaced like a flagged contradiction (flag, do not silently drop). In this
-    slice the claim is still absorbed but marked unverified; acting on it
-    (bounded escalation / hold) is a later slice per multi-backend-patterns.md.
+    Surfaced like a flagged contradiction (flag, do not silently drop): the
+    claim is still absorbed but left unverified rather than assurance-stamped.
+    A weak first verdict can now escalate to an independent second checker
+    (grounding_escalation.py); a two-vendor refutation carries a two-vendor
+    reason, a contested outcome carries its own reason.
     """
 
     statement: str
@@ -350,6 +353,7 @@ class ReportAbsorber:
         model: str = DEFAULT_EXTRACTION_MODEL,
         belief_store: BeliefStore | None = None,
         grounding_checker: GroundingChecker | None = None,
+        grounding_escalator: GroundingEscalator | None = None,
         estimated_cost: float = ESTIMATED_EXTRACTION_COST,
     ) -> None:
         """Create an absorber for one expert.
@@ -365,6 +369,12 @@ class ReportAbsorber:
                 When set, each absorbed claim's evidence is checked against the
                 claim; a support verdict stamps the assurance level on the
                 belief, a cross-vendor refutation is flagged. None = off.
+            grounding_escalator: Optional bounded second-checker escalation
+                (grounding_escalation.py). Only meaningful with a
+                grounding_checker; a weak first verdict (refuted / could-not-
+                verify) is escalated to a genuinely independent second checker
+                before the claim is held or trusted. None = record the first
+                signal only (previous behavior).
             estimated_cost: Caller-accounting estimate for the extraction
                 backend. Metered API extraction uses the default. Owned local
                 hardware and explicit plan-quota clients pass 0.0.
@@ -374,6 +384,7 @@ class ReportAbsorber:
         self._client = client
         self.belief_store = belief_store if belief_store is not None else BeliefStore(expert.name)
         self._grounding_checker = grounding_checker
+        self._grounding_escalator = grounding_escalator
         self._estimated_cost = estimated_cost
 
     @property
@@ -572,16 +583,31 @@ class ReportAbsorber:
         """Cross-vendor grounding check on a claim about to be absorbed.
 
         A no-op unless a checker is injected. A support verdict stamps the
-        assurance level on the belief; a cross-vendor refutation appends a flag
-        (surfaced, not silently dropped) and leaves the belief ``unverified``; a
+        assurance level on the belief; a refutation appends a flag (surfaced,
+        not silently dropped) and leaves the belief ``unverified``; a
         could-not-verify also leaves it unverified - the check never invents a
-        verdict. Acting on a flag (escalate / hold) is a later slice; this slice
-        records the signal.
+        verdict.
+
+        When a ``grounding_escalator`` is injected, a *weak* first verdict
+        (refuted or could-not-verify) is escalated to a genuinely independent
+        second checker before the claim is trusted or held: a claim refuted by
+        two independent vendors is held with a two-vendor reason, and a
+        contested outcome is surfaced as its own flag rather than silently
+        dropped.
         """
+        from deepr.experts.grounding_escalation import GroundingDisposition
+
         checker = self._grounding_checker
         if checker is None:
             return
-        verdict = await checker(belief.claim, "\n".join(_normalize_evidence_items(cand.evidence)))
+        evidence = "\n".join(_normalize_evidence_items(cand.evidence))
+        verdict = await checker(belief.claim, evidence)
+        escalator = self._grounding_escalator
+        if escalator is not None:
+            result = await escalator.escalate(belief.claim, evidence, verdict)
+            verdict = result.verdict
+            if result.disposition is GroundingDisposition.ESCALATED_CONTESTED:
+                flagged.append(GroundingFlag(belief.claim, verdict.checker_vendor, verdict.reason))
         if verdict.supported is True:
             belief.grounding_assurance = verdict.assurance.value
         elif verdict.refuted:

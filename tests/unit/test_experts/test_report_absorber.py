@@ -655,6 +655,75 @@ class TestGroundingCheck:
         assert calls == []  # no spend on a dry run
 
 
+class TestGroundingEscalation:
+    """A weak first verdict escalates to an independent second checker; a clean
+    verdict never pays for a second check."""
+
+    def _escalating_absorber(self, content, tmp_path, first_checker, second_verdict, built):
+        from deepr.experts.grounding_escalation import GroundingEscalator
+
+        def factory(vendor):
+            built.append(vendor)
+
+            async def second(claim, evidence):
+                return CheckVerdict(second_verdict, CheckAssurance.CROSS_VENDOR, vendor, "")
+
+            return second
+
+        escalator = GroundingEscalator("openai", ["openai", "xai", "gemini"], factory)
+        store = BeliefStore("Test Expert", storage_dir=tmp_path / "beliefs")
+        return ReportAbsorber(
+            _expert(),
+            client=_FakeClient(content),
+            belief_store=store,
+            grounding_checker=first_checker,
+            grounding_escalator=escalator,
+        )
+
+    @pytest.mark.asyncio
+    async def test_double_refutation_holds_and_flags_with_two_vendors(self, tmp_path):
+        content = _claims_json({"statement": "Price is $30", "confidence": 0.9, "evidence": ["the price is $10"]})
+        first = _checker(CheckVerdict(False, CheckAssurance.CROSS_VENDOR, "xai", "$10 not $30"))
+        built: list[str] = []
+        absorber = self._escalating_absorber(content, tmp_path, first, False, built)
+
+        result = await absorber.absorb("rep1", "report")
+
+        assert built == ["gemini"]  # independent third vendor, not the maker or first checker
+        assert len(result.grounding_flagged) == 1
+        assert "xai" in result.grounding_flagged[0].reason and "gemini" in result.grounding_flagged[0].reason
+        bel = next(iter(absorber.belief_store.beliefs.values()))
+        assert bel.grounding_assurance == "unverified"
+
+    @pytest.mark.asyncio
+    async def test_disagreement_is_flagged_contested_not_trusted(self, tmp_path):
+        content = _claims_json({"statement": "X is true", "confidence": 0.9, "evidence": ["e1"]})
+        first = _checker(CheckVerdict(False, CheckAssurance.CROSS_VENDOR, "xai", "unsupported"))
+        built: list[str] = []
+        absorber = self._escalating_absorber(content, tmp_path, first, True, built)
+
+        result = await absorber.absorb("rep1", "report")
+
+        assert len(result.grounding_flagged) == 1
+        assert "contested" in result.grounding_flagged[0].reason
+        bel = next(iter(absorber.belief_store.beliefs.values()))
+        assert bel.grounding_assurance == "unverified"  # not stamped despite one support
+
+    @pytest.mark.asyncio
+    async def test_clean_support_never_builds_a_second_checker(self, tmp_path):
+        content = _claims_json({"statement": "X is true", "confidence": 0.9, "evidence": ["e1"]})
+        first = _checker(CheckVerdict(True, CheckAssurance.CROSS_VENDOR, "xai", "stated"))
+        built: list[str] = []
+        absorber = self._escalating_absorber(content, tmp_path, first, False, built)
+
+        result = await absorber.absorb("rep1", "report")
+
+        assert built == []  # cost bound preserved through the absorber
+        assert result.grounding_flagged == []
+        bel = next(iter(absorber.belief_store.beliefs.values()))
+        assert bel.grounding_assurance == "cross_vendor"
+
+
 def test_belief_grounding_assurance_roundtrips():
     b = Belief(claim="x", confidence=0.5, grounding_assurance="cross_vendor")
     assert b.to_dict()["grounding_assurance"] == "cross_vendor"
