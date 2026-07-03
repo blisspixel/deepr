@@ -8,6 +8,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- Added bounded second-checker grounding escalation
+  (`deepr.experts.grounding_escalation`). A weak first grounding verdict (a
+  positive refutation, a could-not-verify from a checker that actually ran, or
+  a caller-flagged high-risk claim) escalates to a genuinely independent
+  second checker - a third vendor different from both the maker and the first
+  checker - while a clean SUPPORTED verdict is never escalated, so healthy
+  claims pay for one check, not two. Two independent refutations leave the
+  claim unverified (never assurance-stamped) and flag it with a two-vendor
+  reason; a disagreement or unresolved second check is surfaced as a contested
+  flag and also left unverified; two independent supports stamp the assurance.
+  Grounding stays advisory - it never blocks storage - so "hold" means the
+  claim is not promoted to trusted knowledge, not that it is quarantined.
+  Deterministic code owns which claims
+  escalate, the independent-vendor choice, the verdict combination, and
+  whether a metered second checker is constructed at all; the model still owns
+  entailment. `ReportAbsorber` consumes it through an optional injected
+  escalator, defaulting to the previous record-the-first-signal behavior.
 - Added `deepr expert validate-export PATH`, a `$0` form-only validator for
   exported derived views: handoff payloads (`.json`), OKF bundle directories,
   and `SKILL.md` exports. It checks required provenance, schema version,
