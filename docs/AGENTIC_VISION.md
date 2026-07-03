@@ -198,8 +198,8 @@ fully backed streaming execution for long research work.
 
 With A2A, a planning agent can discover Deepr experts, send them structured tasks, receive streaming progress updates, and get structured results - all without knowing Deepr's internals. This makes Deepr experts first-class citizens on any A2A-compatible agent team.
 
-**Implementation status:** The baseline is shipped:
-- `deepr a2a` command to start A2A server
+**Implementation status:** The baseline is implemented but not yet wired to a serving command:
+- `A2AServer` class, task lifecycle, and consult-task mapping exist and are exercised by tests and `deepr a2a validate-host` (which validates discovery + no-metered consult handling against a remote endpoint or offline fixture); no shipped command serves the endpoint long-running yet
 - Agent Card at `/.well-known/agent.json` describing expert capabilities
 - Task lifecycle: submitted to working to completed/failed/cancelled
 - Budget propagation via task metadata

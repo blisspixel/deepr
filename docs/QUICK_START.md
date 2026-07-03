@@ -86,7 +86,7 @@ This will:
 While research runs:
 
 ```bash
-deepr research list
+deepr jobs list
 ```
 
 ### Get Results
@@ -94,7 +94,7 @@ deepr research list
 When status shows "completed":
 
 ```bash
-deepr research get <job-id>
+deepr jobs get <job-id>
 ```
 
 Results are saved to the `data/reports/` directory with citations and sources.
@@ -141,13 +141,13 @@ Expert can trigger research when it encounters knowledge gaps.
 
 ```bash
 # List research jobs
-deepr research list
+deepr jobs list
 
 # Check job status
-deepr research status <job-id>
+deepr jobs status <job-id>
 
 # Cancel running job
-deepr research cancel <job-id>
+deepr jobs cancel <job-id>
 
 # List experts
 deepr expert list
@@ -191,7 +191,7 @@ Increase budget: `deepr budget set 10`
 
 ### "Job failed"
 
-Check status for error details: `deepr research status <job-id>`
+Check status for error details: `deepr jobs status <job-id>`
 
 ### Research taking too long
 
@@ -222,8 +222,8 @@ deepr budget set 10
 deepr research "Python async/await best practices" --provider grok
 
 # 3. Check results
-deepr research list
-deepr research get <job-id>
+deepr jobs list
+deepr jobs get <job-id>
 
 # 4. Create expert from results
 deepr expert make "Python Async Expert" --files "data/reports/*/*.md"

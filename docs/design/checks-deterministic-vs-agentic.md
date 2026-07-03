@@ -92,8 +92,10 @@ model pass bounded (cost + latency); a model makes the verdict on the
 flagged (uncertain) band. The cheap layer's job is recall and cost control,
 not truth. This is the selective-prediction / cascade pattern, and it is
 exactly the two-stage shape `conflict_resolver.detect_contradictions`
-already has (heuristic Stage 1, LLM Stage 2) - the bug is that the absorb
-and health-check paths call Stage 1 *alone as a verdict*.
+already has (heuristic Stage 1, LLM Stage 2) - the original bug was that the
+absorb and health-check paths called Stage 1 *alone as a verdict* (since
+fixed: absorb requires a model entailment verdict by default, and health-check
+labels heuristic hits advisory/unverified).
 
 **Honesty requirements** that ride along: measure the decomposer (atomicity
 + coverage), calibrate the judge (biases are systematic), and keep read-side

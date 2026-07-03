@@ -354,7 +354,7 @@ deepr expert reflect "Azure Architect" <job_id> --execute-followups --budget 1 -
 ## Temporal Perspective Queries
 
 A corpus is what was read; a perspective is what is *believed* - claims with
-calibrated confidence, provenance, recency, and open conflicts. Three
+source-capped confidence, provenance, recency, and open conflicts. Three
 read-side, cost-$0 queries expose the perspective (CLI and MCP):
 
 ### What Changed (re-sync)
@@ -778,8 +778,9 @@ findings, local document previews, prior campaign reports, completed research
 summaries, company-intelligence snippets, and team findings are sanitized and
 delimited as source data, not instructions. That boundary does not decide truth.
 It only prevents embedded directives from blending into the instruction
-hierarchy while the existing extraction, grounding, contradiction, dedup, and
-trust-floor gates decide what becomes a belief.
+hierarchy while the existing extraction, contradiction, dedup, and trust-floor
+gates decide what becomes a belief (grounding checks are advisory and never
+block a write).
 
 Run `deepr eval red-team` to exercise the current local `$0` adversarial
 canaries for those boundaries. The suite reports attack-success-rate for
