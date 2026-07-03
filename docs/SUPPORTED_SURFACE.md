@@ -76,7 +76,11 @@ must not be described as usable capacity.
 - Cross-vendor maker-checker grounding assurance on absorbed beliefs
   (`Belief.grounding_assurance`). `deepr expert absorb` and `deepr expert sync`
   can opt into the checker with `--check-grounding`; `--checker-plan <id>` uses
-  a different plan CLI as the checker. The checker is off by default, dry runs
+  a different plan CLI as the checker. On `deepr expert absorb`,
+  `--second-checker-plan <id>` additionally escalates a weak first verdict to a
+  genuinely independent third-vendor checker (built lazily, so a clean run never
+  pays for it); two independent refutations hold the claim instead of promoting
+  it. The checker is off by default, dry runs
   do not check, and metered API checking is not automatic. Expert handoff
   payloads preserve per-claim `grounding_assurance` and include verified-claim
   counts by assurance level. The verdict is model judgment; vendor diversity and

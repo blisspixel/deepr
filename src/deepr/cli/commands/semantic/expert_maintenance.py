@@ -25,6 +25,7 @@ from deepr.cli.colors import (
     print_success,
     print_warning,
 )
+from deepr.cli.commands.semantic.expert_absorb_support import AbsorbBackendError, build_absorb_backend
 from deepr.cli.commands.semantic.expert_sync_support import (
     SYNC_CAPACITY_GATE_KIND,
     SYNC_CAPACITY_GATE_SCHEMA_VERSION,
@@ -40,7 +41,6 @@ from deepr.cli.commands.semantic.expert_sync_support import (
 from deepr.cli.commands.semantic.experts import expert
 from deepr.cli.commands.semantic.grounding_support import (
     PLAN_BACKEND_CHOICES,
-    absorber_kwargs,
     build_grounding_checker,
     validate_grounding_flags,
 )
@@ -94,6 +94,13 @@ __all__ = [
     help="Use this plan-quota CLI as the grounding checker",
 )
 @click.option("--checker-plan-model", default=None, help="Model to pass to the checker plan CLI")
+@click.option(
+    "--second-checker-plan",
+    type=click.Choice(PLAN_BACKEND_CHOICES),
+    default=None,
+    help="With --check-grounding --checker-plan: escalate a weak first check to this distinct second-vendor plan CLI",
+)
+@click.option("--second-checker-plan-model", default=None, help="Model to pass to the second-checker plan CLI")
 @click.option("--yes", "-y", is_flag=True, help="Skip the confirmation prompt")
 @click.option("--json", "json_output", is_flag=True, help="Emit the structured absorption result as JSON")
 def absorb_report(
@@ -110,6 +117,8 @@ def absorb_report(
     check_grounding: bool,
     checker_plan: str | None,
     checker_plan_model: str | None,
+    second_checker_plan: str | None,
+    second_checker_plan_model: str | None,
     yes: bool,
     json_output: bool,
 ):
@@ -143,6 +152,8 @@ def absorb_report(
             check_grounding=check_grounding,
             checker_plan=checker_plan,
             checker_plan_model=checker_plan_model,
+            second_checker_plan=second_checker_plan,
+            second_checker_plan_model=second_checker_plan_model,
         )
     except ValueError as exc:
         print_error(str(exc))
@@ -153,7 +164,7 @@ def absorb_report(
         sys.exit(2)
 
     from deepr.experts.profile import ExpertStore
-    from deepr.experts.report_absorber import ESTIMATED_EXTRACTION_COST, ReportAbsorber, ReportAbsorberError
+    from deepr.experts.report_absorber import ReportAbsorberError
     from deepr.services.context_index import ContextIndex
 
     store = ExpertStore()
@@ -177,7 +188,7 @@ def absorb_report(
             sys.exit(2)
     else:
         report_id = report_id or ""
-        report_text = ContextIndex().get_report_content(report_id, max_chars=100000)
+        report_text = ContextIndex().get_report_content(report_id, max_chars=100000) or ""
         if not report_text:
             print_error(f"No report found for id: {report_id}")
             click.echo("Find report/job IDs with: deepr search")
@@ -185,119 +196,33 @@ def absorb_report(
 
     run_grounding_checks = check_grounding and not dry_run
 
-    # Pick the backend (capacity waterfall): owned local capacity before metered
-    # API. --local forces local (no admission needed); --api or an explicit
-    # --model forces the metered path; otherwise an admitted+available local
-    # model is used automatically, else metered. Why is always printed below.
-    use_local = local
-    use_plan = False
-    plan_backend_id: str | None = plan
-    selection_note = ""
-    if plan:
-        from deepr.backends.waterfall import choose_plan_quota_backend
-
-        choice = choose_plan_quota_backend(plan, allow_metered_at_margin=True)
-        if not choice.is_plan_quota:
-            print_error(choice.reason)
-            sys.exit(2)
-        use_plan = True
-        plan_backend_id = choice.plan_backend_id
-        selection_note = choice.reason
-    elif not local and not api and model is None:
-        from deepr.backends.admission import TASK_CLASS_ABSORB
-        from deepr.backends.waterfall import choose_maintenance_backend
-
-        choice = choose_maintenance_backend(TASK_CLASS_ABSORB)
-        use_local = choice.is_local
-        use_plan = choice.is_plan_quota
-        plan_backend_id = choice.plan_backend_id
-        if use_local:
-            model = choice.model
-            selection_note = choice.reason
-        elif use_plan:
-            selection_note = choice.reason
-
-    if use_local:
-        from deepr.backends.local import default_local_model, ollama_chat_client
-
-        local_model = model or default_local_model()
-        if not local_model:
-            print_error("No local model available. Is Ollama running? Check: deepr capacity --probe")
-            sys.exit(2)
-        local_client = ollama_chat_client()
-        try:
-            grounding_checker = build_grounding_checker(
-                enabled=run_grounding_checks,
-                checker_plan=checker_plan,
-                checker_plan_model=checker_plan_model,
-                maker_vendor="local",
-                default_client=local_client,
-                default_vendor="local",
-                default_model=local_model,
-            )
-        except ValueError as exc:
-            print_error(str(exc))
-            sys.exit(2)
-        absorber = ReportAbsorber(
-            profile,
-            **absorber_kwargs(
-                model=local_model,
-                client=local_client,
-                grounding_checker=grounding_checker,
-                estimated_cost=0.0,
-            ),
+    # Resolve the backend (capacity waterfall: owned local capacity before
+    # metered API) and build the matching absorber, including any grounding
+    # checker + bounded second-checker escalator. A user-facing setup failure
+    # (unknown plan backend, no local model, or a bad grounding-flag
+    # combination) surfaces as AbsorbBackendError, which we exit on before any
+    # extraction cost. Unexpected construction errors are left to propagate.
+    # See expert_absorb_support.build_absorb_backend.
+    try:
+        backend = build_absorb_backend(
+            profile=profile,
+            local=local,
+            api=api,
+            plan=plan,
+            plan_model=plan_model,
+            model=model,
+            run_grounding_checks=run_grounding_checks,
+            checker_plan=checker_plan,
+            checker_plan_model=checker_plan_model,
+            second_checker_plan=second_checker_plan,
+            second_checker_plan_model=second_checker_plan_model,
+            json_output=json_output,
         )
-        cost_note = f"$0 (local model {local_model})"
-        if selection_note and not json_output:
-            console.print(f"[dim]{selection_note}[/dim]")
-    elif use_plan:
-        from deepr.backends.plan_quota import PlanQuotaChatClient, get_adapter
-
-        plan_adapter = get_adapter(plan_backend_id or "")
-        client = PlanQuotaChatClient(plan_adapter, model=plan_model)
-        try:
-            grounding_checker = build_grounding_checker(
-                enabled=run_grounding_checks,
-                checker_plan=checker_plan,
-                checker_plan_model=checker_plan_model,
-                maker_vendor=plan_adapter.backend_id,
-                default_client=client,
-                default_vendor=plan_adapter.backend_id,
-                default_model=plan_model or plan_adapter.backend_id,
-            )
-        except ValueError as exc:
-            print_error(str(exc))
-            sys.exit(2)
-        absorber = ReportAbsorber(
-            profile,
-            **absorber_kwargs(
-                model=plan_model or plan_adapter.backend_id,
-                client=client,
-                grounding_checker=grounding_checker,
-                estimated_cost=0.0,
-            ),
-        )
-        cost_note = "billed per use" if plan_adapter.metered_at_margin else "$0 at the margin (prepaid plan)"
-        if selection_note and not json_output:
-            console.print(f"[dim]{selection_note}[/dim]")
-        if plan_adapter.tos_note and not json_output:
-            print_warning(plan_adapter.tos_note)
-    else:
-        try:
-            grounding_checker = build_grounding_checker(
-                enabled=run_grounding_checks,
-                checker_plan=checker_plan,
-                checker_plan_model=checker_plan_model,
-                maker_vendor="api_metered",
-            )
-        except ValueError as exc:
-            print_error(str(exc))
-            sys.exit(2)
-        absorber = ReportAbsorber(
-            profile,
-            **absorber_kwargs(model=model or "gpt-5-mini", grounding_checker=grounding_checker),
-        )
-        cost_note = f"~${ESTIMATED_EXTRACTION_COST:.2f}"
+    except AbsorbBackendError as exc:
+        print_error(str(exc))
+        sys.exit(2)
+    absorber = backend.absorber
+    cost_note = backend.cost_note
 
     # Confirm before the extraction call (cost is incurred whether or not we
     # write, so gate it even for --dry-run; local is $0 but still confirmed).
