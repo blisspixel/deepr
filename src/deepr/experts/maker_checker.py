@@ -40,6 +40,48 @@ class CheckAssurance(str, Enum):
     UNVERIFIED = "unverified"  # no checker available
 
 
+# The stored assurance strings, strongest-first. Single source of truth: other
+# modules (handoff summaries, council packets) derive their constants from these
+# rather than re-listing the raw strings, so a new level is added in one place.
+ASSURANCE_LEVELS: tuple[str, ...] = tuple(level.value for level in CheckAssurance)
+
+# The levels that mean a checker actually corroborated the claim, as opposed to
+# UNVERIFIED (no checker ran). Surfaced so a synthesis step can weigh how well a
+# claim is corroborated. This is disclosure, not a gate: the model still owns how
+# much to weight a verified belief, and an unverified belief is never dropped or
+# penalized for lacking the stamp.
+VERIFIED_ASSURANCES: frozenset[str] = frozenset(
+    level.value for level in (CheckAssurance.CROSS_VENDOR, CheckAssurance.SAME_VENDOR_FRESH_CONTEXT)
+)
+
+
+def is_verified_assurance(value: str | None) -> bool:
+    """Whether a stored ``grounding_assurance`` string reflects a real check.
+
+    True for cross-vendor and same-vendor-fresh-context assurance; False for
+    ``unverified``, an empty value, or any unrecognized string. It answers "did a
+    checker corroborate this claim", never "is this claim true".
+    """
+    return value in VERIFIED_ASSURANCES
+
+
+def assurance_short_label(value: str | None) -> str:
+    """A compact human label for a grounding assurance, ``""`` when unverified.
+
+    Also ``""`` for an empty, ``None``, or unrecognized value: only the two real
+    verified levels get a label. Used where a corroborated belief is annotated
+    for a reader or a synthesis model (for example the council packet).
+    Cross-vendor is the stronger signal (two independent vendors agreed), so the
+    label keeps that distinction visible rather than flattening both verified
+    levels into one word.
+    """
+    if value == CheckAssurance.CROSS_VENDOR.value:
+        return "cross-vendor verified"
+    if value == CheckAssurance.SAME_VENDOR_FRESH_CONTEXT.value:
+        return "same-vendor verified"
+    return ""
+
+
 @dataclass(frozen=True)
 class CheckerChoice:
     """The deterministic vendor-diversity decision."""

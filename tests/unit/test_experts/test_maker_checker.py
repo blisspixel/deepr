@@ -7,11 +7,15 @@ from types import SimpleNamespace
 import pytest
 
 from deepr.experts.maker_checker import (
+    ASSURANCE_LEVELS,
+    VERIFIED_ASSURANCES,
     CheckAssurance,
     CheckVerdict,
+    assurance_short_label,
     build_disconfirm_messages,
     check_claim,
     choose_checker_vendor,
+    is_verified_assurance,
     make_grounding_checker,
     parse_verdict,
 )
@@ -182,3 +186,39 @@ def test_verdict_to_dict_shape():
         "checker_vendor": "anthropic",
         "reason": "mismatch",
     }
+
+
+def test_assurance_level_constants_track_the_enum():
+    # Pin the literal values and order, not the derivation expression: this fails
+    # if a level is renamed, reordered, or dropped, which a self-referential
+    # `tuple(level.value for level in CheckAssurance)` assertion could never catch.
+    assert ASSURANCE_LEVELS == ("cross_vendor", "same_vendor_fresh_context", "unverified")
+    assert VERIFIED_ASSURANCES == {
+        CheckAssurance.CROSS_VENDOR.value,
+        CheckAssurance.SAME_VENDOR_FRESH_CONTEXT.value,
+    }
+    # UNVERIFIED is the one level that is never counted as corroborated.
+    assert CheckAssurance.UNVERIFIED.value not in VERIFIED_ASSURANCES
+
+
+def test_is_verified_assurance_only_true_for_real_checks():
+    assert is_verified_assurance("cross_vendor") is True
+    assert is_verified_assurance("same_vendor_fresh_context") is True
+    assert is_verified_assurance("unverified") is False
+    # An empty string, None, or an unrecognized value is never "verified": the
+    # predicate answers "did a checker corroborate this", not "assume the best".
+    assert is_verified_assurance("") is False
+    assert is_verified_assurance(None) is False
+    assert is_verified_assurance("something_new") is False
+
+
+def test_assurance_short_label_keeps_levels_distinct():
+    # Cross-vendor (two independent vendors) is a stronger signal than a single
+    # vendor's fresh-context re-check, so the labels must not collapse together.
+    assert assurance_short_label("cross_vendor") == "cross-vendor verified"
+    assert assurance_short_label("same_vendor_fresh_context") == "same-vendor verified"
+    # Unverified and unknown values render no label at all: absence is the honest
+    # signal, never a fabricated "unverified" annotation on the belief line.
+    assert assurance_short_label("unverified") == ""
+    assert assurance_short_label(None) == ""
+    assert assurance_short_label("mystery") == ""

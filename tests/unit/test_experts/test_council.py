@@ -15,6 +15,7 @@ import pytest
 from deepr.core.contracts import ExpertOriginalIdea
 from deepr.experts.beliefs import Belief, BeliefStore
 from deepr.experts.council import ExpertCouncil, ExpertPerspective
+from deepr.experts.maker_checker import VERIFIED_ASSURANCES, assurance_short_label
 from deepr.experts.metacognition import MetaCognitionTracker
 from deepr.experts.profile import ExpertProfile, ExpertStore
 from deepr.observability.cost_ledger import CostLedger
@@ -161,11 +162,87 @@ async def test_consult_uses_stored_beliefs_before_live_session():
         "selection_note": "Selected stored beliefs by query-token overlap, then confidence.",
         "beliefs_available": 1,
         "beliefs_included": 1,
+        "beliefs_verified": 0,
         "matched_terms": ["cache", "cost", "prompt"],
     }
     assert "Stored belief perspective for Grounded Cost Expert." in perspective["response"]
     assert "cache creation tokens" in perspective["response"]
     assert "https://platform.claude.com/docs/en/build-with-claude/prompt-caching" in perspective["response"]
+
+
+def test_stored_perspective_discloses_grounding_assurance():
+    """A verified belief is annotated for the synthesis model; unverified is not.
+
+    This is disclosure, not a gate: every belief that clears query overlap is
+    still selected and rendered. The grounding stamp only adds a label the model
+    can weigh, and the stronger cross-vendor level stays distinct from the weaker
+    same-vendor one. An unverified belief carries no label (its absence is the
+    truthful signal), so the packet never invents a verdict it does not have.
+    """
+    beliefs = [
+        Belief(
+            claim="Cache read tokens are billed at a fraction of input token price.",
+            confidence=0.90,
+            domain="cache pricing",
+            trust_class="secondary",
+            grounding_assurance="cross_vendor",
+        ),
+        Belief(
+            claim="Cache creation tokens carry a one-time write premium.",
+            confidence=0.88,
+            domain="cache pricing",
+            trust_class="secondary",
+            grounding_assurance="same_vendor_fresh_context",
+        ),
+        Belief(
+            claim="Cache entries expire on a rolling five minute window.",
+            confidence=0.70,
+            domain="cache pricing",
+            trust_class="tertiary",
+            grounding_assurance="unverified",
+        ),
+    ]
+
+    perspective = ExpertCouncil().build_stored_perspective(
+        "How is cache pricing structured?",
+        "Cache Pricing Expert",
+        "cache pricing",
+        beliefs,
+    )
+
+    assert perspective is not None
+    lines = perspective.response.splitlines()
+
+    def line_for(fragment: str) -> str:
+        return next(line for line in lines if fragment in line)
+
+    # Each label sits on its own belief's line (bound to the claim, not just
+    # present somewhere), and the two verified levels stay distinct.
+    assert "cross-vendor verified" in line_for("Cache read tokens are billed")
+    assert "same-vendor verified" in line_for("Cache creation tokens carry")
+    # The unverified belief is still selected and rendered, just carrying no
+    # label - its absence is the honest signal, not a fabricated "unverified".
+    assert "verified" not in line_for("rolling five minute window")
+    # The structured payload exposes the corroborated count (of included beliefs)
+    # for programmatic hosts, without dropping the unverified one.
+    assert perspective.context["beliefs_included"] == 3
+    assert perspective.context["beliefs_verified"] == 2
+
+
+def test_synthesis_prompt_defines_verified_labels():
+    """The synthesis model must be told what each verified label means.
+
+    Disclosure only has teeth if the model can read the annotation. Every label
+    the packet can emit (assurance_short_label) must appear, defined, in the
+    synthesis system prompt; this pins the two together so a future wording
+    change on one side cannot silently leave the model with an undefined term.
+    """
+    from deepr.experts.council import _SYNTHESIS_SYSTEM_PROMPT
+
+    for level in VERIFIED_ASSURANCES:
+        label = assurance_short_label(level)
+        assert label, f"verified level {level!r} produced an empty label"
+        assert label in _SYNTHESIS_SYSTEM_PROMPT, f"{label!r} is not defined in the synthesis prompt"
 
 
 @pytest.mark.asyncio

@@ -17,6 +17,7 @@ from openai import AsyncOpenAI
 
 from deepr.experts.constants import MAX_COUNCIL_CONCURRENCY, SYNTHESIS_BUDGET_FRACTION, UTILITY_MODEL
 from deepr.experts.expert_routing import route_terms, score_experts_for_query, select_top_experts
+from deepr.experts.maker_checker import assurance_short_label, is_verified_assurance
 from deepr.experts.perspective_state import build_perspective_state_packet, render_original_ideas_for_council
 
 logger = logging.getLogger(__name__)
@@ -25,6 +26,25 @@ _MAX_STORED_BELIEFS = 8
 _MAX_FALLBACK_BELIEFS = 5
 _MAX_SOURCE_REFS = 3
 _MAX_REF_CHARS = 140
+
+# The synthesis model receives stored-belief lines that may carry inline trust
+# annotations (see build_stored_perspective): the grounding-assurance label and
+# the pre-existing contested marker. This legend defines those terms so the model
+# can actually read them. It is disclosure, not a rule: it frames corroboration
+# and dissent as signals to weigh, never an instruction that a verified belief
+# must win. The verified-label wording here must stay in step with
+# assurance_short_label - test_synthesis_prompt_defines_verified_labels pins it,
+# so a renamed or newly added label can never ship without a definition here
+# (the test guards the label's presence; the surrounding prose is on us).
+_SYNTHESIS_SYSTEM_PROMPT = (
+    "Synthesise expert perspectives for a host agent. Preserve dissent, avoid pretending "
+    "uncertain claims are facts, and make the result actionable. In a stored-belief line, "
+    "'cross-vendor verified' means two independent model vendors corroborated that claim, "
+    "'same-vendor verified' means one vendor re-checked it with fresh context, an unlabeled "
+    "belief was not independently corroborated, and 'contested with N belief(s)' means it "
+    "conflicts with other stored beliefs. Weigh corroboration and dissent alongside the stated "
+    "confidence; none of these is a guarantee of truth."
+)
 _SYNTHESIS_FALLBACK_COST = 0.001
 
 
@@ -317,8 +337,11 @@ class ExpertCouncil:
 
         This is context selection, not adjudication: lexical overlap only decides
         which stored beliefs enter the council packet. The model synthesis step
-        still receives confidence, source, and contradiction signals rather than
-        a pre-baked verdict.
+        still receives confidence, source, contradiction, and grounding-assurance
+        signals rather than a pre-baked verdict. The grounding stamp is disclosed
+        so the synthesis model can weigh how corroborated each belief is; per
+        AGENTIC_BALANCE it never gates or reorders selection here, and an
+        unverified belief is neither dropped nor penalized for lacking the stamp.
         """
         perspective_state = perspective_state or build_perspective_state_packet(name, limit=3)
         original_ideas = list(perspective_state["original_ideas"])
@@ -344,8 +367,10 @@ class ExpertCouncil:
             contested = (
                 f", contested with {len(belief.contradictions_with)} belief(s)" if belief.contradictions_with else ""
             )
+            verified_label = assurance_short_label(getattr(belief, "grounding_assurance", ""))
+            verified = f", {verified_label}" if verified_label else ""
             domain_label = belief.domain or domain or "general"
-            lines.append(f"- ({confidence:.2f}, {domain_label}{contested}) {belief.claim}")
+            lines.append(f"- ({confidence:.2f}, {domain_label}{verified}{contested}) {belief.claim}")
             refs = self._compact_refs(belief.evidence_refs)
             if refs:
                 lines.append(f"  Sources: {'; '.join(refs)}")
@@ -362,6 +387,9 @@ class ExpertCouncil:
             "selection_note": selected_context.selection_note,
             "beliefs_available": len(belief_list),
             "beliefs_included": len(selected),
+            "beliefs_verified": sum(
+                1 for belief in selected if is_verified_assurance(getattr(belief, "grounding_assurance", ""))
+            ),
             "matched_terms": sorted(selected_context.matched_terms)[:20],
         }
         if original_ideas:
@@ -715,10 +743,7 @@ class ExpertCouncil:
             "6. DISAGREEMENTS: Points where they diverge (bullet list).\n"
         )
 
-        system_prompt = (
-            "Synthesise expert perspectives for a host agent. Preserve dissent, avoid pretending "
-            "uncertain claims are facts, and make the result actionable."
-        )
+        system_prompt = _SYNTHESIS_SYSTEM_PROMPT
         user_prompt = prompt[:6000]
 
         try:

@@ -7,13 +7,16 @@ from typing import Any
 
 from deepr.experts.dashboard_telemetry import build_expert_dashboard_telemetry
 from deepr.experts.loop_status_rollup import build_loop_status_rollup
+from deepr.experts.maker_checker import ASSURANCE_LEVELS, VERIFIED_ASSURANCES, CheckAssurance
 from deepr.experts.okf import OKF_PROFILE_SCHEMA_VERSION, OKF_SCHEMA_VERSION
 from deepr.experts.perspective_state import build_perspective_state_packet
 from deepr.security.output_safety import sanitize_host_facing_payload
 
 HANDOFF_SCHEMA_VERSION = "deepr-expert-handoff-v1"
 HANDOFF_KIND = "deepr.expert.handoff"
-GROUNDING_ASSURANCE_LEVELS = ("cross_vendor", "same_vendor_fresh_context", "unverified")
+# The full, ordered set of assurance strings lives in maker_checker (the home of
+# CheckAssurance); alias it here so this summary and that enum never drift apart.
+GROUNDING_ASSURANCE_LEVELS = ASSURANCE_LEVELS
 
 
 def _aware(value: datetime | None) -> datetime | None:
@@ -47,7 +50,7 @@ def _decision_sort_key(decision: Any) -> tuple[datetime, str]:
 
 
 def _grounding_assurance_counts(claims: list[Any]) -> dict[str, int]:
-    counts = dict.fromkeys(GROUNDING_ASSURANCE_LEVELS, 0)
+    counts: dict[str, int] = dict.fromkeys(GROUNDING_ASSURANCE_LEVELS, 0)
     for claim in claims:
         assurance = str(getattr(claim, "grounding_assurance", "unverified") or "unverified")
         counts[assurance] = counts.get(assurance, 0) + 1
@@ -129,9 +132,7 @@ def build_expert_handoff(
         reverse=True,
     )
     grounding_assurance = _grounding_assurance_counts(claims)
-    verified_claim_count = grounding_assurance.get("cross_vendor", 0) + grounding_assurance.get(
-        "same_vendor_fresh_context", 0
-    )
+    verified_claim_count = sum(grounding_assurance.get(level, 0) for level in VERIFIED_ASSURANCES)
 
     payload: dict[str, Any] = {
         "schema_version": HANDOFF_SCHEMA_VERSION,
@@ -147,7 +148,7 @@ def build_expert_handoff(
             "contested_open_count": int(resolved_telemetry.get("contested_claims", {}).get("open_count", 0) or 0),
             "loop_run_count": int(resolved_loop_status.get("count", 0) or 0),
             "verified_claim_count": verified_claim_count,
-            "cross_vendor_verified_claim_count": grounding_assurance.get("cross_vendor", 0),
+            "cross_vendor_verified_claim_count": grounding_assurance.get(CheckAssurance.CROSS_VENDOR.value, 0),
             "grounding_assurance": grounding_assurance,
             "original_idea_count": int(perspective_state["counts"]["original_ideas"]),
         },

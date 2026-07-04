@@ -7,6 +7,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- Council consults now disclose each stored belief's grounding assurance to the
+  synthesis model. The deterministic perspective packet annotates a belief that a
+  checker corroborated (`cross-vendor verified` or the weaker `same-vendor
+  verified`) inline, next to the confidence and contested signals it already
+  carried, and the perspective `context` payload gains a `beliefs_verified` count
+  for programmatic hosts. The council synthesis prompt now also defines those
+  labels, so the model can actually read them and weigh corroboration as one
+  signal (never a rule that a verified belief must win). This is where the
+  grounding stamp finally reaches the step that writes the answer: previously
+  `grounding_assurance` was recorded on a belief and surfaced in handoff/recall
+  summaries but never travelled into the council's synthesis context. Per
+  AGENTIC_BALANCE it is disclosure, not a gate:
+  the model still owns how much to weight a verified belief, lexical-overlap
+  selection order is unchanged, and an unverified belief is neither dropped nor
+  penalized for lacking the stamp (its absence is the honest signal). The "which
+  assurance levels count as verified" semantics now live once on `CheckAssurance`
+  (`maker_checker`) as `VERIFIED_ASSURANCES`/`ASSURANCE_LEVELS`, shared by the
+  council packet and the handoff summary instead of each re-listing the strings.
+
 ## [2.30.0] - 2026-07-03
 
 ### Added
