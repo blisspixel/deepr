@@ -6,7 +6,7 @@
 
 Transform research from isolated queries into cumulative understanding. Build systems that learn and improve over time.
 
-## Current State (v2.30.0)
+## Current State (v2.31.0)
 
 What works today:
 - Multi-provider deep research (OpenAI, Gemini, Grok, Anthropic, Azure)
@@ -16,10 +16,10 @@ What works today:
 - Agentic expert chat with streaming, 27 slash commands, 4 chat modes, visible reasoning, context compaction, approval flows
 - Expert council (multi-expert consultation with parallel querying and synthesis)
 - Hierarchical task decomposition with parallel subtask execution
-- Expert skills system (4 built-in skills, Python + MCP tool types)
+- Expert skills system (7 built-in skills, Python + MCP tool types)
 - Expert portraits (AI-generated SVG)
 - Knowledge synthesis and gap awareness
-- MCP server with 18+ tools, persistence, security
+- MCP server with 32 tools, persistence, security
 - CLI observability (--explain, --timeline, --full-trace)
 - Auto-fallback on provider failures with circuit breakers
 - Cost dashboard with per-expert tracking
