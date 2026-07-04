@@ -1,6 +1,6 @@
 # Supported Surface
 
-Status: v2.30.0 current main, 2026-07-03. This document defines what users and host
+Status: v2.31.0 current main, 2026-07-04. This document defines what users and host
 agents can rely on today, what is experimental, what is planned only, and what
 data remains portable if development stops.
 
@@ -104,7 +104,12 @@ must not be described as usable capacity.
   Anthropic supports `claude-sonnet-5` through the native Messages API and
   records cache-write/read token buckets when the provider reports them. The
   returned `deepr-consult-v1` artifact includes a `capacity` block describing
-  the selected synthesis backend. Passing one explicit expert gives a focused
+  the selected synthesis backend. Each council perspective's `context` also
+  discloses its selected beliefs' grounding assurance: an inline
+  `cross-vendor verified` or `same-vendor verified` label on the belief line and
+  a `beliefs_verified` count. This is additive disclosure within
+  `deepr-consult-v1`; it does not reorder selection or drop unverified beliefs.
+  Passing one explicit expert gives a focused
   no-metered single-expert consult; `deepr_query_expert` also supports explicit
   `backend=local|plan` as a read-only compiled-context chat turn with
   `readonly_chat_artifact`, `research_triggered=0`, and no live metered fallback.
@@ -231,7 +236,16 @@ must not be described as usable capacity.
   middle-context-loss detection from position alone.
 - Local Ollama expert maintenance, local evals, local context evals, local
   red-team attack-success-rate metrics including MCP read-path canaries and
-  saved trend artifacts, and scored local admission.
+  saved trend artifacts, and scored local admission. `deepr eval
+  grounding-correctness` is a `$0` local eval that scores whether a SUPPORTED
+  grounding verdict is actually correct over a curated golden set of labeled
+  entailment triples (`--set baseline|hard|all`), emitting
+  `deepr-grounding-correctness-v1`; the report discloses that agreement on a
+  bounded set is not proof of world-truth.
+- `deepr route explain "<query>"` is a `$0`, no-model routing view: which experts
+  a consult would fan out to (a deterministic keyword-overlap selection router,
+  never a quality verdict) plus the non-probing next-run capacity outlook, as
+  `deepr-route-explanation-v1`.
 - Explicit plan-quota CLI execution for expert maintenance and bootstrap:
   `deepr expert sync --plan <id>`, `deepr expert sync-all --plan <id>`,
   `deepr expert route-gaps --execute --plan <id>`,

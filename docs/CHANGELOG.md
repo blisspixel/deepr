@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.31.0] - 2026-07-04
+
 ### Added
 - Council consults now disclose each stored belief's grounding assurance to the
   synthesis model. The deterministic perspective packet annotates a belief that a
