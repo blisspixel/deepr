@@ -47,7 +47,7 @@
     "react-resizable-panels": "^2.1.9",
     "react-router-dom": "^6.30.4",
     "react-syntax-highlighter": "^16.1.1",
-    "recharts": "^2.15.4",
+    "recharts": "^3.9.2",
     "rehype-katex": "^7.0.1",
     "rehype-sanitize": "^6.0.0",
     "remark-gfm": "^4.0.1",
