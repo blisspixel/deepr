@@ -2,11 +2,9 @@
 Search Backend Abstraction for MCP Client Mode.
 
 Defines the SearchBackend protocol that allows swapping between
-the built-in search implementation and external MCP search servers
-(Brave Search, Tavily, Google Custom Search, etc.).
-
-STATUS: Interface definitions only. MCP client connections not implemented.
-See docs/mcp-client-architecture.md for the full design.
+the built-in search implementation and explicit external search adapters.
+This module does not auto-create MCP client transports; callers must wire a
+concrete transport-backed adapter before using MCP-hosted search.
 """
 
 import logging
@@ -18,8 +16,12 @@ logger = logging.getLogger(__name__)
 
 
 def _score(value: object) -> float:
+    if value is None or value == "":
+        return 0.0
     try:
-        return float(value or 0.0)
+        if isinstance(value, str | bytes | int | float):
+            return float(value)
+        return float(str(value))
     except (TypeError, ValueError):
         return 0.0
 
@@ -41,7 +43,7 @@ class SearchBackend(Protocol):
 
     Implementations can be:
     - BuiltinSearchBackend: wraps deepr's existing WebSearchTool
-    - MCPSearchBackend: delegates to an MCP search server (not yet implemented)
+    - MCPSearchBackend: explicit disabled sentinel for MCP-hosted search
     """
 
     async def search(self, query: str, num_results: int = 10) -> list[SearchResult]:
@@ -171,13 +173,11 @@ class SearXNGSearchBackend:
 
 
 class MCPSearchBackend:
-    """Search backend that delegates to an MCP search server.
+    """Disabled MCP search backend sentinel.
 
-    STATUS: Stub implementation. Raises NotImplementedError.
-    Will connect to MCP servers like:
-    - @modelcontextprotocol/server-brave-search
-    - tavily-mcp (when available)
-    - Google Custom Search MCP
+    Deepr currently wires fresh-context search through built-in free search or
+    SearXNG. MCP-hosted search needs a concrete client transport from the caller,
+    so this sentinel fails clearly if selected directly.
     """
 
     def __init__(self, server_name: str = "brave-mcp"):
@@ -188,12 +188,12 @@ class MCPSearchBackend:
         return self._server_name
 
     async def search(self, query: str, num_results: int = 10) -> list[SearchResult]:
-        """Search via MCP server (not yet implemented)."""
+        """Reject direct MCP search until a transport-backed adapter is supplied."""
         raise NotImplementedError(
-            f"MCP search backend '{self._server_name}' not yet implemented. "
-            "See docs/mcp-client-architecture.md for the design."
+            f"MCP search backend '{self._server_name}' has no configured client transport. "
+            "Use BuiltinSearchBackend, SearXNGSearchBackend, or provide a concrete adapter."
         )
 
     async def health_check(self) -> bool:
-        """Check MCP server health (not yet implemented)."""
+        """Report unavailable unless a concrete transport-backed adapter is supplied."""
         return False

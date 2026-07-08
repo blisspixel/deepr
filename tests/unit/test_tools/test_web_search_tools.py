@@ -60,6 +60,17 @@ class TestWebSearchTool:
         assert called_headers["X-Subscription-Token"] == "bk"
 
     @pytest.mark.asyncio
+    async def test_positional_query_contract_calls_brave_api(self):
+        tool = WebSearchTool(backend="brave", brave_api_key="bk")
+        fake_response = MagicMock()
+        fake_response.json.return_value = {"web": {"results": [{"title": "T", "url": "https://x"}]}}
+        fake_response.raise_for_status.return_value = None
+        with patch("deepr.tools.web_search.requests.get", return_value=fake_response) as get:
+            res = await tool.execute("hi", 2)
+        assert res.success is True
+        assert get.call_args.kwargs["params"] == {"q": "hi", "count": 2}
+
+    @pytest.mark.asyncio
     async def test_tavily_backend_calls_tavily_api(self):
         tool = WebSearchTool(backend="tavily", tavily_api_key="tk")
         fake = MagicMock()
@@ -119,18 +130,25 @@ class TestWebSearchTool:
 
 
 # ---------------------------------------------------------------------- #
-# MCPWebSearchTool (placeholder)
+# MCPWebSearchTool disabled transport behavior
 # ---------------------------------------------------------------------- #
 
 
 class TestMCPWebSearchTool:
     @pytest.mark.asyncio
-    async def test_returns_not_implemented_error(self):
+    async def test_returns_transport_error(self):
         tool = MCPWebSearchTool()
         assert tool.name == "mcp_web_search"
         res = await tool.execute(query="x")
         assert res.success is False
-        assert "not yet implemented" in res.error
+        assert "transport is not configured" in res.error
+
+    @pytest.mark.asyncio
+    async def test_positional_query_contract_returns_transport_error(self):
+        tool = MCPWebSearchTool()
+        res = await tool.execute("x")
+        assert res.success is False
+        assert "transport is not configured" in res.error
 
 
 # ---------------------------------------------------------------------- #
@@ -209,6 +227,10 @@ class TestToolBase:
 
     def test_tool_result_timestamp_defaulted(self):
         r = ToolResult(success=True, data=None)
+        assert r.timestamp is not None
+
+    def test_tool_result_explicit_none_timestamp_defaulted(self):
+        r = ToolResult(success=True, data=None, timestamp=None)
         assert r.timestamp is not None
 
 
@@ -306,7 +328,7 @@ class TestBuiltinBrowserBackend:
 
         class _Fetcher:
             def __init__(self, _config):
-                pass
+                self.config = _config
 
             def fetch(self, url):
                 assert url == "https://example.com"
@@ -331,7 +353,7 @@ class TestBuiltinBrowserBackend:
 
         class _Fetcher:
             def __init__(self, _config):
-                pass
+                self.config = _config
 
             def fetch(self, _url):
                 return _FetchResult()

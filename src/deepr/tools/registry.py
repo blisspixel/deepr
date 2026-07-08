@@ -26,7 +26,7 @@ class ToolRegistry:
         Returns:
             List of configured tools
         """
-        tools = []
+        tools: list[Tool] = []
 
         if web_search:
             tools.append(WebSearchTool(backend=backend))

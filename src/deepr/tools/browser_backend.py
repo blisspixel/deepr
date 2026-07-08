@@ -1,12 +1,10 @@
 """
 Browser Backend Abstraction for MCP Client Mode.
 
-Defines the BrowserBackend protocol for swapping between
-the built-in scraper and external MCP browser servers
-(Puppeteer, Playwright, etc.).
-
-STATUS: Interface definitions only. MCP client connections not implemented.
-See docs/mcp-client-architecture.md for the full design.
+Defines the BrowserBackend protocol for swapping between the built-in scraper
+and explicit external browser adapters. This module does not auto-create MCP
+client transports; callers must wire a concrete transport-backed adapter before
+using MCP-hosted browsing.
 """
 
 from dataclasses import dataclass
@@ -49,7 +47,7 @@ class BrowserBackend(Protocol):
 
     Implementations can be:
     - BuiltinBrowserBackend: wraps deepr's existing scraper
-    - MCPBrowserBackend: delegates to Puppeteer/Playwright MCP server (stub)
+    - MCPBrowserBackend: explicit disabled sentinel for MCP-hosted browsing
     """
 
     async def fetch_page(self, url: str, *, validators: PageValidators | None = None) -> PageContent:
@@ -140,9 +138,11 @@ class BuiltinBrowserBackend:
 
 
 class MCPBrowserBackend:
-    """Browser backend that delegates to an MCP browser server.
+    """Disabled MCP browser backend sentinel.
 
-    STATUS: Stub implementation.
+    Deepr currently fetches pages through the built-in scraper. MCP-hosted
+    browsing needs a concrete client transport from the caller, so this sentinel
+    fails clearly if selected directly.
     """
 
     def __init__(self, server_name: str = "puppeteer-mcp"):
@@ -153,7 +153,10 @@ class MCPBrowserBackend:
         return self._server_name
 
     async def fetch_page(self, url: str, *, validators: PageValidators | None = None) -> PageContent:
-        raise NotImplementedError(f"MCP browser backend '{self._server_name}' not yet implemented.")
+        raise NotImplementedError(
+            f"MCP browser backend '{self._server_name}' has no configured client transport. "
+            "Use BuiltinBrowserBackend or provide a concrete adapter."
+        )
 
     async def health_check(self) -> bool:
         return False
