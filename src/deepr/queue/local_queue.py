@@ -6,7 +6,7 @@ import logging
 import sqlite3
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
-from typing import Any, TypeVar
+from typing import Any, TypeVar, cast
 
 from deepr.observability.costs import CostDashboard
 
@@ -22,7 +22,7 @@ def _safe_json_loads(data: str | None, default: T, context: str = "") -> T:
     if not data:
         return default
     try:
-        return json.loads(data)
+        return cast("T", json.loads(data))
     except json.JSONDecodeError as e:
         logger.warning("Failed to parse JSON%s: %s", f" for {context}" if context else "", e)
         return default
@@ -31,7 +31,7 @@ def _safe_json_loads(data: str | None, default: T, context: str = "") -> T:
 class SQLiteQueue(QueueBackend):
     """SQLite-based queue implementation for local development."""
 
-    def __init__(self, db_path: str = "queue/research_queue.db"):
+    def __init__(self, db_path: str = "queue/research_queue.db") -> None:
         """
         Initialize SQLite queue.
 
@@ -49,7 +49,7 @@ class SQLiteQueue(QueueBackend):
             self._cost_dashboard = CostDashboard()
         return self._cost_dashboard
 
-    def _init_db(self):
+    def _init_db(self) -> None:
         """Initialize database schema."""
         conn = sqlite3.connect(self.db_path)
         # Concurrent reader/writer protection. The web app's request
@@ -224,7 +224,7 @@ class SQLiteQueue(QueueBackend):
         await asyncio.to_thread(self._enqueue_sync, job)
         return job.id
 
-    def _enqueue_sync(self, job: ResearchJob):
+    def _enqueue_sync(self, job: ResearchJob) -> None:
         """Synchronous enqueue operation."""
         conn = sqlite3.connect(self.db_path)
         try:
@@ -367,7 +367,7 @@ class SQLiteQueue(QueueBackend):
             cursor = conn.cursor()
 
             updates = ["status = ?"]
-            values = [status.value]
+            values: list[Any] = [status.value]
 
             if error:
                 updates.append("last_error = ?")
@@ -503,7 +503,7 @@ class SQLiteQueue(QueueBackend):
             cursor = conn.cursor()
 
             query = "SELECT * FROM research_queue WHERE 1=1"
-            params = []
+            params: list[Any] = []
 
             if status:
                 query += " AND status = ?"
