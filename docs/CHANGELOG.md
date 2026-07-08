@@ -14,7 +14,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   explicitly overridden.
 - Expanded the blocking strict mypy gate to include `src/deepr/security`,
   `src/deepr/queue`, `src/deepr/storage`, `src/deepr/tools`, and
-  `src/deepr/routing`, and `src/deepr/worker` as the fourth through ninth
+  `src/deepr/routing`, `src/deepr/worker`, and `src/deepr/webhooks` as the
+  fourth through tenth
   strict islands, with CI, `pyproject.toml`, and contributor guidance kept in
   sync. Local probes
   confirmed the package targets are clean under
@@ -28,7 +29,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   and
   `mypy --strict --no-warn-unused-ignores --ignore-missing-imports src/deepr/routing`
   and
-  `mypy --strict --no-warn-unused-ignores --ignore-missing-imports src/deepr/worker`.
+  `mypy --strict --no-warn-unused-ignores --ignore-missing-imports src/deepr/worker`
+  and
+  `mypy --strict --no-warn-unused-ignores --ignore-missing-imports src/deepr/webhooks`.
 - Cleaned queue typing without changing runtime behavior: JSON fallback parsing
   now casts the parsed value to the caller-supplied fallback type, SQLite helper
   methods declare their `None` returns, SQL parameter lists are explicitly
@@ -48,6 +51,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Cleaned worker typing while preserving runtime behavior: the local job poller
   now declares queue, provider, storage, job, response, socket, and async helper
   types against the existing backend abstractions.
+- Cleaned webhooks typing while preserving runtime behavior: the Flask callback
+  boundary, webhook views, ngrok process lifecycle, and tunnel context manager
+  now have explicit strict-mode shapes.
 - Added a roadmap watch item for the official MCP `2026-07-28` release
   candidate so Deepr can evaluate stateless transport, discovery, Tasks
   extension, schema, and deprecation changes in a focused protocol cycle after

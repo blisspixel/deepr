@@ -136,7 +136,9 @@ omit = [
     "src/deepr/web/*",
     # WebSocket / SocketIO event handlers require a live Flask context.
     "src/deepr/api/websockets/*",
-    # HTTP webhook server - runs only in long-lived deployments.
+    # HTTP webhook server - long-lived deployment surface; focused auth tests
+    # cover the fail-closed request path while deployment behavior is exercised
+    # outside unit coverage.
     "src/deepr/webhooks/*",
     # S3 / blob storage - integration-tested against AWS.
     "src/deepr/storage/blob.py",
@@ -287,7 +289,7 @@ markers = [
 # gate over all of `deepr/`. Today it runs NON-BLOCKING in CI to record a
 # baseline; these settings are deliberately lenient so the baseline is the set
 # of real type errors, not import-resolution noise. Strictness is ratcheted up
-# package-by-package (core/, providers/, mcp/, security/, queue/, storage/, tools/, routing/, worker/ first) as annotations land.
+# package-by-package (core/, providers/, mcp/, security/, queue/, storage/, tools/, routing/, worker/, webhooks/ first) as annotations land.
 python_version = "3.12"
 # src layout: src is the package base, so src/deepr/foo maps to the module
 # deepr.foo (not src.deepr.foo). Without this, mypy names files passed by path
@@ -330,6 +332,8 @@ module = [
     "deepr.routing.*",
     "deepr.worker",
     "deepr.worker.*",
+    "deepr.webhooks",
+    "deepr.webhooks.*",
 ]
 disallow_untyped_defs = true
 disallow_incomplete_defs = true
