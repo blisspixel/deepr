@@ -14,9 +14,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   explicitly overridden.
 - Expanded the blocking strict mypy gate to include `src/deepr/security`,
   `src/deepr/queue`, `src/deepr/storage`, `src/deepr/tools`, and
-  `src/deepr/routing`, `src/deepr/worker`, `src/deepr/webhooks`, and
-  `src/deepr/a2a` as the fourth through eleventh
-  strict islands, with CI, `pyproject.toml`, and contributor guidance kept in
+  `src/deepr/routing`, `src/deepr/worker`, `src/deepr/webhooks`,
+  `src/deepr/a2a`, and the importable `deepr.skills` package as the fourth through
+  twelfth strict islands, with CI, `pyproject.toml`, and contributor guidance kept in
   sync. Local probes
   confirmed the package targets are clean under
   `mypy --strict --no-warn-unused-ignores --ignore-missing-imports src/deepr/security`
@@ -33,7 +33,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   and
   `mypy --strict --no-warn-unused-ignores --ignore-missing-imports src/deepr/webhooks`
   and
-  `mypy --strict --no-warn-unused-ignores --ignore-missing-imports src/deepr/a2a`.
+  `mypy --strict --no-warn-unused-ignores --ignore-missing-imports src/deepr/a2a`
+  and
+  `mypy --strict --no-warn-unused-ignores --ignore-missing-imports src/deepr/skills`.
 - Cleaned queue typing without changing runtime behavior: JSON fallback parsing
   now casts the parsed value to the caller-supplied fallback type, SQLite helper
   methods declare their `None` returns, SQL parameter lists are explicitly
@@ -59,6 +61,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Added the already strict-clean A2A protocol package to the blocking strict
   mypy gate so the Agent Card, task, validation, and consult-handoff boundary
   cannot regress silently.
+- Added the already strict-clean importable skill portability package to the blocking
+  strict mypy gate so SKILL.md generation and per-expert export contracts
+  cannot regress silently. Bundled hyphenated skill tool resource scripts remain
+  outside this scoped island until their duplicate-module/import shape is
+  normalized.
 - Updated the A2A Agent Card property tests to assert the current contract:
   registered expert skills are followed by the built-in
   `deepr_consult_experts` collaboration skill.
