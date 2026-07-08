@@ -1,17 +1,15 @@
 """Queue management for research job orchestration."""
 
+from typing import Any, Literal
+
 from .azure_queue import ServiceBusQueue
 from .base import JobStatus, QueueBackend, ResearchJob
 from .local_queue import SQLiteQueue
 
-__all__ = ["JobStatus", "QueueBackend", "ResearchJob", "SQLiteQueue", "ServiceBusQueue"]
-
-from typing import Literal
-
 QueueType = Literal["local", "azure"]
 
 
-def create_queue(queue_type: QueueType, **kwargs) -> QueueBackend:
+def create_queue(queue_type: QueueType, **kwargs: Any) -> QueueBackend:
     """
     Factory function to create the appropriate queue backend.
 

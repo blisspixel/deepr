@@ -8,12 +8,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Changed
-- Expanded the blocking strict mypy gate to include `src/deepr/security` as the
-  fourth strict island, with CI, `pyproject.toml`, and contributor guidance kept
-  in sync. Local probes confirmed `security/` is clean under
-  `mypy --strict --no-warn-unused-ignores --ignore-missing-imports src/deepr/security`; nearby
-  packages (`queue/`, `routing/`, `storage/`, and `tools/`) still have strict
-  errors and remain future package-by-package work.
+- Expanded the blocking strict mypy gate to include `src/deepr/security` and
+  `src/deepr/queue` as the fourth and fifth strict islands, with CI,
+  `pyproject.toml`, and contributor guidance kept in sync. Local probes
+  confirmed the package targets are clean under
+  `mypy --strict --no-warn-unused-ignores --ignore-missing-imports src/deepr/security`
+  and
+  `mypy --strict --no-warn-unused-ignores --ignore-missing-imports src/deepr/queue`; nearby
+  packages (`routing/`, `storage/`, and `tools/`) still have strict errors and
+  remain future package-by-package work.
+- Cleaned queue typing without changing runtime behavior: JSON fallback parsing
+  now casts the parsed value to the caller-supplied fallback type, SQLite helper
+  methods declare their `None` returns, SQL parameter lists are explicitly
+  heterogeneous, and the queue factory has typed keyword arguments.
 
 ## [2.31.0] - 2026-07-04
 
