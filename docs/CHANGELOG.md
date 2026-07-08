@@ -8,6 +8,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Changed
+- Refreshed README screenshot assets with isolated demo data so the cost
+  intelligence image no longer displays spend above its configured budget, and
+  added a screenshot QA guard that refuses future over-limit cost captures unless
+  explicitly overridden.
 - Expanded the blocking strict mypy gate to include `src/deepr/security`,
   `src/deepr/queue`, `src/deepr/storage`, and `src/deepr/tools` as the fourth
   through seventh strict islands, with CI,
