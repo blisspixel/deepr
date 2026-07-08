@@ -9,16 +9,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 - Expanded the blocking strict mypy gate to include `src/deepr/security`,
-  `src/deepr/queue`, and `src/deepr/storage` as the fourth, fifth, and sixth strict islands, with CI,
+  `src/deepr/queue`, `src/deepr/storage`, and `src/deepr/tools` as the fourth
+  through seventh strict islands, with CI,
   `pyproject.toml`, and contributor guidance kept in sync. Local probes
   confirmed the package targets are clean under
   `mypy --strict --no-warn-unused-ignores --ignore-missing-imports src/deepr/security`
   and
   `mypy --strict --no-warn-unused-ignores --ignore-missing-imports src/deepr/queue`
   and
-  `mypy --strict --no-warn-unused-ignores --ignore-missing-imports src/deepr/storage`; nearby
-  packages (`routing/` and `tools/`) still have strict errors and
-  remain future package-by-package work.
+  `mypy --strict --no-warn-unused-ignores --ignore-missing-imports src/deepr/storage`
+  and
+  `mypy --strict --no-warn-unused-ignores --ignore-missing-imports src/deepr/tools`;
+  nearby `routing/` still has strict errors and remains future package-by-package work.
 - Cleaned queue typing without changing runtime behavior: JSON fallback parsing
   now casts the parsed value to the caller-supplied fallback type, SQLite helper
   methods declare their `None` returns, SQL parameter lists are explicitly
@@ -27,6 +29,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   store now annotates lifecycle helper returns, database-row tuples, candidate
   ID sets, and close semantics, and the storage factory has typed keyword
   arguments.
+- Cleaned tools typing while preserving runtime behavior: tool result timestamps
+  now use a typed default factory, execution kwargs are typed consistently,
+  web-search provider inputs are validated before dispatch, and score parsing
+  no longer relies on object truthiness.
+- Added a roadmap watch item for the official MCP `2026-07-28` release
+  candidate so Deepr can evaluate stateless transport, discovery, Tasks
+  extension, schema, and deprecation changes in a focused protocol cycle after
+  the final spec lands.
 
 ## [2.31.0] - 2026-07-04
 

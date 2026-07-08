@@ -1,12 +1,16 @@
 """Base classes for tool system."""
 
 from abc import ABC, abstractmethod
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from typing import Any
 
 
-@dataclass
+def _utc_now() -> datetime:
+    return datetime.now(UTC)
+
+
+@dataclass(init=False)
 class ToolResult:
     """Result from tool execution."""
 
@@ -14,11 +18,21 @@ class ToolResult:
     data: Any
     error: str | None = None
     metadata: dict[str, Any] | None = None
-    timestamp: datetime = None
+    timestamp: datetime = field(init=False)
 
-    def __post_init__(self):
-        if self.timestamp is None:
-            self.timestamp = datetime.now(UTC)
+    def __init__(
+        self,
+        success: bool,
+        data: Any,
+        error: str | None = None,
+        metadata: dict[str, Any] | None = None,
+        timestamp: datetime | None = None,
+    ) -> None:
+        self.success = success
+        self.data = data
+        self.error = error
+        self.metadata = metadata
+        self.timestamp = timestamp or _utc_now()
 
 
 class Tool(ABC):
@@ -32,24 +46,24 @@ class Tool(ABC):
     @abstractmethod
     def name(self) -> str:
         """Unique tool identifier."""
-        pass
+        raise NotImplementedError
 
     @property
     @abstractmethod
     def description(self) -> str:
         """Human-readable description for AI context."""
-        pass
+        raise NotImplementedError
 
     @property
     @abstractmethod
     def parameters(self) -> dict[str, Any]:
         """JSON schema for tool parameters."""
-        pass
+        raise NotImplementedError
 
     @abstractmethod
-    async def execute(self, **kwargs) -> ToolResult:
+    async def execute(self, *args: Any, **kwargs: Any) -> ToolResult:
         """Execute the tool with given parameters."""
-        pass
+        raise NotImplementedError
 
     def to_openai_tool(self) -> dict[str, Any]:
         """Convert to OpenAI tool format."""
@@ -78,17 +92,17 @@ class ToolExecutor:
     Provides unified interface regardless of provider.
     """
 
-    def __init__(self, tools: list[Tool] | None = None):
+    def __init__(self, tools: list[Tool] | None = None) -> None:
         self.tools: dict[str, Tool] = {}
         if tools:
             for tool in tools:
                 self.register(tool)
 
-    def register(self, tool: Tool):
+    def register(self, tool: Tool) -> None:
         """Register a tool for execution."""
         self.tools[tool.name] = tool
 
-    async def execute(self, tool_name: str, **kwargs) -> ToolResult:
+    async def execute(self, tool_name: str, **kwargs: Any) -> ToolResult:
         """Execute a tool by name."""
         if tool_name not in self.tools:
             return ToolResult(success=False, data=None, error=f"Tool '{tool_name}' not found")

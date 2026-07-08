@@ -95,8 +95,26 @@ class WebSearchTool(Tool):
             "required": ["query"],
         }
 
-    async def execute(self, query: str, num_results: int = 5, **kwargs) -> ToolResult:
+    async def execute(self, *args: Any, **kwargs: Any) -> ToolResult:
         """Execute web search."""
+        if len(args) > 2:
+            return ToolResult(
+                success=False, data=None, error="Web search accepts at most query and num_results positional arguments."
+            )
+        if args and "query" in kwargs:
+            return ToolResult(success=False, data=None, error="Web search query was provided twice.")
+        if len(args) > 1 and "num_results" in kwargs:
+            return ToolResult(success=False, data=None, error="Web search num_results was provided twice.")
+
+        query = args[0] if args else kwargs.get("query")
+        num_results_value = args[1] if len(args) > 1 else kwargs.get("num_results", 5)
+        if not isinstance(query, str) or not query.strip():
+            return ToolResult(success=False, data=None, error="Web search requires a non-empty string query.")
+
+        try:
+            num_results = int(num_results_value)
+        except (TypeError, ValueError):
+            return ToolResult(success=False, data=None, error="Web search num_results must be an integer.")
 
         # Try backends in order
         backends = ["brave", "tavily", "duckduckgo"] if self.backend == "auto" else [self.backend]
@@ -121,9 +139,12 @@ class WebSearchTool(Tool):
 
     async def _search_brave(self, query: str, num_results: int) -> ToolResult:
         """Search using Brave Search API."""
+        if not self.brave_api_key:
+            return ToolResult(success=False, data=None, error="Brave Search requires BRAVE_API_KEY.")
+
         url = "https://api.search.brave.com/res/v1/web/search"
-        headers = {"Accept": "application/json", "X-Subscription-Token": self.brave_api_key}
-        params = {"q": query, "count": num_results}
+        headers: dict[str, str] = {"Accept": "application/json", "X-Subscription-Token": self.brave_api_key}
+        params: dict[str, str | int] = {"q": query, "count": num_results}
 
         response = requests.get(url, headers=headers, params=params, timeout=10)
         response.raise_for_status()
@@ -173,11 +194,12 @@ class WebSearchTool(Tool):
         retrieval path actually work. Network errors degrade to a failed
         ToolResult so the caller records "no sources" rather than crashing.
         """
+        DDGSClass: Any
         try:
-            from ddgs import DDGS
+            from ddgs import DDGS as DDGSClass
         except ImportError:
             try:
-                from duckduckgo_search import DDGS  # type: ignore[no-redef]
+                from duckduckgo_search import DDGS as DDGSClass
             except ImportError:
                 return ToolResult(
                     success=False, data=None, error="No DuckDuckGo backend installed. Run: pip install ddgs"
@@ -186,7 +208,7 @@ class WebSearchTool(Tool):
         def _query() -> list[dict[str, str | None]]:
             return [
                 {"title": r.get("title"), "url": r.get("href") or r.get("url"), "snippet": r.get("body")}
-                for r in DDGS().text(query, max_results=num_results)
+                for r in DDGSClass().text(query, max_results=num_results)
             ]
 
         try:
@@ -227,8 +249,13 @@ class MCPWebSearchTool(Tool):
             "required": ["query"],
         }
 
-    async def execute(self, query: str, **kwargs) -> ToolResult:
+    async def execute(self, *args: Any, **kwargs: Any) -> ToolResult:
         """Execute MCP web search."""
-        # TODO: Integrate with MCP server
-        # This would call Claude Code's WebFetch tool or similar
-        return ToolResult(success=False, data=None, error="MCP integration not yet implemented")
+        if len(args) > 1:
+            return ToolResult(success=False, data=None, error="MCP web search accepts at most one positional query.")
+        if args and "query" in kwargs:
+            return ToolResult(success=False, data=None, error="MCP web search query was provided twice.")
+        query = args[0] if args else kwargs.get("query")
+        if not isinstance(query, str) or not query.strip():
+            return ToolResult(success=False, data=None, error="MCP web search requires a non-empty string query.")
+        return ToolResult(success=False, data=None, error="MCP web search transport is not configured.")
