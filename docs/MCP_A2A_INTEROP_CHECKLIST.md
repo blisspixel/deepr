@@ -121,7 +121,7 @@ Expected:
 - `python scripts/check_docs_consistency.py`
 - `ruff check src/deepr/`
 - `ruff format --check src/deepr/`
-- `mypy --strict --no-warn-unused-ignores --ignore-missing-imports src/deepr/core src/deepr/providers src/deepr/mcp src/deepr/security src/deepr/queue src/deepr/storage src/deepr/tools`
+- `mypy --strict --no-warn-unused-ignores --ignore-missing-imports src/deepr/core src/deepr/providers src/deepr/mcp src/deepr/security src/deepr/queue src/deepr/storage src/deepr/tools src/deepr/routing`
 - `gitleaks detect --source . --no-banner`
 - `pip-audit --skip-editable`
 - `python -m pytest tests/unit/ --ignore=tests/data -q`

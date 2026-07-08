@@ -13,8 +13,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   added a screenshot QA guard that refuses future over-limit cost captures unless
   explicitly overridden.
 - Expanded the blocking strict mypy gate to include `src/deepr/security`,
-  `src/deepr/queue`, `src/deepr/storage`, and `src/deepr/tools` as the fourth
-  through seventh strict islands, with CI,
+  `src/deepr/queue`, `src/deepr/storage`, `src/deepr/tools`, and
+  `src/deepr/routing` as the fourth through eighth strict islands, with CI,
   `pyproject.toml`, and contributor guidance kept in sync. Local probes
   confirmed the package targets are clean under
   `mypy --strict --no-warn-unused-ignores --ignore-missing-imports src/deepr/security`
@@ -23,8 +23,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   and
   `mypy --strict --no-warn-unused-ignores --ignore-missing-imports src/deepr/storage`
   and
-  `mypy --strict --no-warn-unused-ignores --ignore-missing-imports src/deepr/tools`;
-  nearby `routing/` still has strict errors and remains future package-by-package work.
+  `mypy --strict --no-warn-unused-ignores --ignore-missing-imports src/deepr/tools`
+  and
+  `mypy --strict --no-warn-unused-ignores --ignore-missing-imports src/deepr/routing`.
 - Cleaned queue typing without changing runtime behavior: JSON fallback parsing
   now casts the parsed value to the caller-supplied fallback type, SQLite helper
   methods declare their `None` returns, SQL parameter lists are explicitly
@@ -37,6 +38,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   now use a typed default factory, execution kwargs are typed consistently,
   web-search provider inputs are validated before dispatch, and score parsing
   no longer relies on object truthiness.
+- Cleaned routing typing while preserving runtime behavior: auto-mode decisions,
+  benchmark rankings, cheapest fallback candidates, summary stats, and route
+  fallback tuples now have explicit shapes, and `ModelRouter.__init__` declares
+  its `None` return.
 - Added a roadmap watch item for the official MCP `2026-07-28` release
   candidate so Deepr can evaluate stateless transport, discovery, Tasks
   extension, schema, and deprecation changes in a focused protocol cycle after
