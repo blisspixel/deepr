@@ -12,6 +12,14 @@ from unittest.mock import AsyncMock, patch
 import pytest
 
 
+def _signature(secret: str, body: bytes) -> str:
+    import hashlib
+    import hmac
+
+    sig = hmac.new(secret.encode(), body, hashlib.sha256).hexdigest()
+    return f"sha256={sig}"
+
+
 def test_post_without_secret_returns_503():
     from deepr.webhooks.server import create_webhook_server
 
@@ -35,9 +43,6 @@ def test_non_loopback_bind_without_secret_raises():
 
 
 def test_valid_signature_passes():
-    import hashlib
-    import hmac
-
     from deepr.webhooks.server import create_webhook_server
 
     secret = "test-secret-123"
@@ -46,12 +51,15 @@ def test_valid_signature_passes():
         app = create_webhook_server(on_completion=on_completion, host="127.0.0.1", port=5000)
 
     body = b'{"id": "job-1", "status": "completed"}'
-    sig = hmac.new(secret.encode(), body, hashlib.sha256).hexdigest()
     client = app.test_client()
     resp = client.post(
-        "/webhook", data=body, content_type="application/json", headers={"X-Webhook-Signature": f"sha256={sig}"}
+        "/webhook",
+        data=body,
+        content_type="application/json",
+        headers={"X-Webhook-Signature": _signature(secret, body)},
     )
     assert resp.status_code == 200
+    on_completion.assert_called_once()
 
 
 def test_invalid_signature_returns_403():
@@ -68,3 +76,103 @@ def test_invalid_signature_returns_403():
         headers={"X-Webhook-Signature": "sha256=garbage"},
     )
     assert resp.status_code == 403
+
+
+def test_signed_invalid_json_returns_400_without_callback():
+    from deepr.webhooks.server import create_webhook_server
+
+    secret = "test-secret-123"
+    on_completion = AsyncMock()
+    with patch("os.getenv", return_value=secret):
+        app = create_webhook_server(on_completion=on_completion, host="127.0.0.1", port=5000)
+
+    body = b"{not-json"
+    resp = app.test_client().post(
+        "/webhook",
+        data=body,
+        content_type="application/json",
+        headers={"X-Webhook-Signature": _signature(secret, body)},
+    )
+
+    assert resp.status_code == 400
+    on_completion.assert_not_called()
+
+
+def test_signed_non_object_json_returns_400_without_callback():
+    from deepr.webhooks.server import create_webhook_server
+
+    secret = "test-secret-123"
+    on_completion = AsyncMock()
+    with patch("os.getenv", return_value=secret):
+        app = create_webhook_server(on_completion=on_completion, host="127.0.0.1", port=5000)
+
+    body = b"[1]"
+    resp = app.test_client().post(
+        "/webhook",
+        data=body,
+        content_type="application/json",
+        headers={"X-Webhook-Signature": _signature(secret, body)},
+    )
+
+    assert resp.status_code == 400
+    assert "json object" in resp.get_json()["error"].lower()
+    on_completion.assert_not_called()
+
+
+def test_signed_wrong_content_type_returns_400_without_callback():
+    from deepr.webhooks.server import create_webhook_server
+
+    secret = "test-secret-123"
+    on_completion = AsyncMock()
+    with patch("os.getenv", return_value=secret):
+        app = create_webhook_server(on_completion=on_completion, host="127.0.0.1", port=5000)
+
+    body = b'{"id": "job-1", "status": "completed"}'
+    resp = app.test_client().post(
+        "/webhook", data=body, content_type="text/plain", headers={"X-Webhook-Signature": _signature(secret, body)}
+    )
+
+    assert resp.status_code == 400
+    on_completion.assert_not_called()
+
+
+def test_signed_non_string_job_id_returns_400_without_callback():
+    from deepr.webhooks.server import create_webhook_server
+
+    secret = "test-secret-123"
+    on_completion = AsyncMock()
+    with patch("os.getenv", return_value=secret):
+        app = create_webhook_server(on_completion=on_completion, host="127.0.0.1", port=5000)
+
+    body = b'{"id": 123, "status": "completed"}'
+    resp = app.test_client().post(
+        "/webhook",
+        data=body,
+        content_type="application/json",
+        headers={"X-Webhook-Signature": _signature(secret, body)},
+    )
+
+    assert resp.status_code == 400
+    assert "job id" in resp.get_json()["error"].lower()
+    on_completion.assert_not_called()
+
+
+def test_signed_falsy_non_string_metadata_job_id_returns_400_without_callback():
+    from deepr.webhooks.server import create_webhook_server
+
+    secret = "test-secret-123"
+    on_completion = AsyncMock()
+    with patch("os.getenv", return_value=secret):
+        app = create_webhook_server(on_completion=on_completion, host="127.0.0.1", port=5000)
+
+    body = b'{"metadata": {"run_id": 0}, "status": "completed"}'
+    resp = app.test_client().post(
+        "/webhook",
+        data=body,
+        content_type="application/json",
+        headers={"X-Webhook-Signature": _signature(secret, body)},
+    )
+
+    assert resp.status_code == 400
+    assert "job id" in resp.get_json()["error"].lower()
+    on_completion.assert_not_called()

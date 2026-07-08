@@ -2,6 +2,8 @@
 
 import subprocess
 import time
+from types import TracebackType
+from typing import Any
 
 import requests
 
@@ -9,7 +11,7 @@ import requests
 class NgrokTunnel:
     """Manages ngrok tunnel for webhook URLs."""
 
-    def __init__(self, ngrok_path: str = "ngrok", port: int = 5000):
+    def __init__(self, ngrok_path: str = "ngrok", port: int = 5000) -> None:
         """
         Initialize ngrok tunnel manager.
 
@@ -19,7 +21,7 @@ class NgrokTunnel:
         """
         self.ngrok_path = ngrok_path
         self.port = port
-        self.process: subprocess.Popen | None = None
+        self.process: subprocess.Popen[bytes] | None = None
         self.public_url: str | None = None
 
     def start(self) -> str:
@@ -48,7 +50,7 @@ class NgrokTunnel:
             for _ in range(60):
                 try:
                     response = requests.get("http://127.0.0.1:4040/api/tunnels", timeout=2)
-                    tunnels = response.json().get("tunnels", [])
+                    tunnels: list[dict[str, Any]] = response.json().get("tunnels", [])
 
                     for tunnel in tunnels:
                         url = tunnel.get("public_url", "")
@@ -67,7 +69,7 @@ class NgrokTunnel:
             self.stop()
             raise RuntimeError(f"Ngrok startup failed: {e}") from e
 
-    def stop(self):
+    def stop(self) -> None:
         """Stop ngrok tunnel."""
         if self.process:
             try:
@@ -78,7 +80,7 @@ class NgrokTunnel:
 
         self._kill_existing()
 
-    def _kill_existing(self):
+    def _kill_existing(self) -> None:
         """Kill any existing ngrok processes."""
         import os
 
@@ -97,11 +99,16 @@ class NgrokTunnel:
                 stderr=subprocess.DEVNULL,
             )
 
-    def __enter__(self):
+    def __enter__(self) -> "NgrokTunnel":
         """Context manager entry."""
         self.start()
         return self
 
-    def __exit__(self, exc_type, exc_val, exc_tb):
+    def __exit__(
+        self,
+        exc_type: type[BaseException] | None,
+        exc_val: BaseException | None,
+        exc_tb: TracebackType | None,
+    ) -> None:
         """Context manager exit."""
         self.stop()
