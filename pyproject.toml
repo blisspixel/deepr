@@ -289,7 +289,7 @@ markers = [
 # gate over all of `deepr/`. Today it runs NON-BLOCKING in CI to record a
 # baseline; these settings are deliberately lenient so the baseline is the set
 # of real type errors, not import-resolution noise. Strictness is ratcheted up
-# package-by-package (core/, providers/, mcp/, security/, queue/, storage/, tools/, routing/, worker/, webhooks/, a2a/ first) as annotations land.
+# package-by-package (core/, providers/, mcp/, security/, queue/, storage/, tools/, routing/, worker/, webhooks/, a2a/, importable skills package first) as annotations land.
 python_version = "3.12"
 # src layout: src is the package base, so src/deepr/foo maps to the module
 # deepr.foo (not src.deepr.foo). Without this, mypy names files passed by path
@@ -336,6 +336,8 @@ module = [
     "deepr.webhooks.*",
     "deepr.a2a",
     "deepr.a2a.*",
+    "deepr.skills",
+    "deepr.skills.*",
 ]
 disallow_untyped_defs = true
 disallow_incomplete_defs = true

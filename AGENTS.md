@@ -11,7 +11,7 @@ Multi-provider research automation: routes each research question to the cheapes
 - Install: `uv pip install -e ".[dev,full]"` - `[dev]` alone is NOT enough; the suite imports azure/flask/etc. and fails collection without `[full]`.
 - Tests: `pytest tests/unit/ --ignore=tests/data -q` - this is what CI runs (7000+ tests, several minutes). The unit suite must pass with **no API keys and no .env** - tests that only pass when a dev key happens to be set are a known regression class (fixed twice). Do NOT run bare `pytest`: `tests/integration/` hits real provider APIs, fails wholesale without keys, and at least one test polls forever on 401.
 - Lint/format: `ruff check src/deepr/ && ruff format src/deepr/` (pre-commit runs these).
-- Types (blocking CI gate): `mypy --strict --no-warn-unused-ignores --ignore-missing-imports src/deepr/core src/deepr/providers src/deepr/mcp src/deepr/security src/deepr/queue src/deepr/storage src/deepr/tools src/deepr/routing src/deepr/worker src/deepr/webhooks src/deepr/a2a`. The rest of the tree is a non-blocking baseline - don't add new errors.
+- Types (blocking CI gate): `mypy --strict --no-warn-unused-ignores --ignore-missing-imports src/deepr/core src/deepr/providers src/deepr/mcp src/deepr/security src/deepr/queue src/deepr/storage src/deepr/tools src/deepr/routing src/deepr/worker src/deepr/webhooks src/deepr/a2a src/deepr/skills`. The rest of the tree is a non-blocking baseline - don't add new errors.
 - Coverage: 80% branch minimum (`fail_under`), ratcheting toward 95. New code ships with tests; every bug fix ships with a regression test.
 
 ## Hard rules
