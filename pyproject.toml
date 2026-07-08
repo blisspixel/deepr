@@ -287,7 +287,7 @@ markers = [
 # gate over all of `deepr/`. Today it runs NON-BLOCKING in CI to record a
 # baseline; these settings are deliberately lenient so the baseline is the set
 # of real type errors, not import-resolution noise. Strictness is ratcheted up
-# package-by-package (core/, providers/, mcp/ first) as annotations land.
+# package-by-package (core/, providers/, mcp/, security/ first) as annotations land.
 python_version = "3.12"
 # src layout: src is the package base, so src/deepr/foo maps to the module
 # deepr.foo (not src.deepr.foo). Without this, mypy names files passed by path
@@ -309,11 +309,9 @@ warn_redundant_casts = true
 warn_unused_ignores = false
 no_implicit_optional = true
 # Per-package strict islands: switched on here as each package is cleaned, and
-# enforced as a BLOCKING `mypy --strict deepr/<pkg>` step in CI. core/ is the
-# first island (kernel: budget, cost, contracts, research orchestration).
-# providers/ and mcp/ are next.
+# enforced as a BLOCKING `mypy --strict ... src/deepr/<pkg>` step in CI.
 [[tool.mypy.overrides]]
-module = ["deepr.core.*", "deepr.providers.*", "deepr.mcp.*"]
+module = ["deepr.core.*", "deepr.providers.*", "deepr.mcp.*", "deepr.security.*"]
 disallow_untyped_defs = true
 disallow_incomplete_defs = true
 disallow_untyped_calls = true

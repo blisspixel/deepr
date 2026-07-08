@@ -57,21 +57,19 @@ jobs:
         # Phase E (Engineering Standards): type checking is being introduced
         # incrementally. This runs non-blocking to record the baseline error
         # count in the CI log; it flips to a blocking `--strict` gate
-        # package-by-package (core/, providers/, mcp/ first) as annotations
+        # package-by-package (core/, providers/, mcp/, security/ first) as annotations
         # land. Config lives in [tool.mypy] in pyproject.toml.
         continue-on-error: true
         run: mypy
 
       - name: Type check strict islands (mypy --strict, BLOCKING)
         # Phase E: strict-clean islands enforced as a blocking gate - a strict
-        # regression in these packages fails the build. core/ (kernel: budget,
-        # cost, contracts, research orchestration) and providers/ (all adapters)
-        # are clean; mcp/ is next.
+        # regression in these packages fails the build.
         # --no-warn-unused-ignores: the lint job installs no project deps, so
         # whether a `# type: ignore[import-untyped]` is "used" depends on which
         # third-party packages are present (e.g. PyYAML). Decouple the gate
         # from that so it is reproducible regardless of the install set.
-        run: mypy --strict --no-warn-unused-ignores --ignore-missing-imports src/deepr/core src/deepr/providers src/deepr/mcp
+        run: mypy --strict --no-warn-unused-ignores --ignore-missing-imports src/deepr/core src/deepr/providers src/deepr/mcp src/deepr/security
 
   security:
     runs-on: ubuntu-latest
