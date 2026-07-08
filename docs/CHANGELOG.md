@@ -14,8 +14,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   explicitly overridden.
 - Expanded the blocking strict mypy gate to include `src/deepr/security`,
   `src/deepr/queue`, `src/deepr/storage`, `src/deepr/tools`, and
-  `src/deepr/routing` as the fourth through eighth strict islands, with CI,
-  `pyproject.toml`, and contributor guidance kept in sync. Local probes
+  `src/deepr/routing`, and `src/deepr/worker` as the fourth through ninth
+  strict islands, with CI, `pyproject.toml`, and contributor guidance kept in
+  sync. Local probes
   confirmed the package targets are clean under
   `mypy --strict --no-warn-unused-ignores --ignore-missing-imports src/deepr/security`
   and
@@ -25,7 +26,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   and
   `mypy --strict --no-warn-unused-ignores --ignore-missing-imports src/deepr/tools`
   and
-  `mypy --strict --no-warn-unused-ignores --ignore-missing-imports src/deepr/routing`.
+  `mypy --strict --no-warn-unused-ignores --ignore-missing-imports src/deepr/routing`
+  and
+  `mypy --strict --no-warn-unused-ignores --ignore-missing-imports src/deepr/worker`.
 - Cleaned queue typing without changing runtime behavior: JSON fallback parsing
   now casts the parsed value to the caller-supplied fallback type, SQLite helper
   methods declare their `None` returns, SQL parameter lists are explicitly
@@ -42,6 +45,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   benchmark rankings, cheapest fallback candidates, summary stats, and route
   fallback tuples now have explicit shapes, and `ModelRouter.__init__` declares
   its `None` return.
+- Cleaned worker typing while preserving runtime behavior: the local job poller
+  now declares queue, provider, storage, job, response, socket, and async helper
+  types against the existing backend abstractions.
 - Added a roadmap watch item for the official MCP `2026-07-28` release
   candidate so Deepr can evaluate stateless transport, discovery, Tasks
   extension, schema, and deprecation changes in a focused protocol cycle after
