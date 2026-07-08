@@ -3,12 +3,16 @@
 import asyncio
 import logging
 from datetime import UTC
+from typing import Any
 
 from ..config import load_config
 from ..core.costs import CostController
 from ..providers import create_provider
+from ..providers.base import DeepResearchProvider, ResearchResponse
 from ..queue import create_queue
+from ..queue.base import QueueBackend, ResearchJob
 from ..storage import create_storage
+from ..storage.base import StorageBackend
 
 logger = logging.getLogger(__name__)
 
@@ -24,8 +28,8 @@ class JobPoller:
     def __init__(
         self,
         poll_interval: int = 30,
-        socketio=None,
-    ):
+        socketio: Any = None,
+    ) -> None:
         """
         Initialize job poller.
 
@@ -41,15 +45,17 @@ class JobPoller:
         config = load_config()
 
         # Initialize components
-        self.queue = create_queue(
+        self.queue: QueueBackend = create_queue(
             config.get("queue", "local"), db_path=config.get("queue_db_path") or "queue/research_queue.db"
         )
 
-        self.storage = create_storage(
+        self.storage: StorageBackend = create_storage(
             config.get("storage", "local"), base_path=config.get("results_dir") or "data/reports"
         )
 
-        self.provider = create_provider(config.get("provider", "openai"), api_key=config.get("api_key"))
+        self.provider: DeepResearchProvider = create_provider(
+            config.get("provider", "openai"), api_key=config.get("api_key")
+        )
 
         self.cost_controller = CostController(
             max_cost_per_job=float(config.get("max_cost_per_job", 5.0)),
@@ -57,7 +63,7 @@ class JobPoller:
             max_monthly_cost=float(config.get("max_monthly_cost", 200.0)),
         )
 
-    async def start(self):
+    async def start(self) -> None:
         """Start the polling worker."""
         self.running = True
         logger.info(f"Job poller started (interval: {self.poll_interval}s)")
@@ -74,11 +80,11 @@ class JobPoller:
 
         logger.info("Job poller stopped")
 
-    async def stop(self):
+    async def stop(self) -> None:
         """Stop the polling worker."""
         self.running = False
 
-    async def _poll_cycle(self):
+    async def _poll_cycle(self) -> None:
         """Execute one poll cycle."""
         from ..queue.base import JobStatus
 
@@ -97,7 +103,7 @@ class JobPoller:
             except Exception:
                 logger.exception("Error checking job %s", job.id)
 
-    async def _check_job_status(self, job):
+    async def _check_job_status(self, job: ResearchJob) -> None:
         """Check status of a single job."""
         from datetime import datetime
 
@@ -159,7 +165,7 @@ class JobPoller:
             logger.exception("Error checking job %s", job.id)
             # Don't mark as failed yet, might be temporary network issue
 
-    async def _handle_completion(self, job, response):
+    async def _handle_completion(self, job: ResearchJob, response: ResearchResponse) -> None:
         """Handle job completion."""
         from ..queue.base import JobStatus
 
@@ -238,7 +244,7 @@ class JobPoller:
             logger.exception("Error handling completion for job %s", job.id)
             await self._handle_failure(job, "Result processing failed")
 
-    async def _handle_failure(self, job, error: str):
+    async def _handle_failure(self, job: ResearchJob, error: str) -> None:
         """Handle job failure."""
         from ..queue.base import JobStatus
 
@@ -254,7 +260,7 @@ class JobPoller:
             logger.exception("Error handling failure for job %s", job.id)
 
 
-async def run_poller(poll_interval: int = 30):
+async def run_poller(poll_interval: int = 30) -> None:
     """
     Run the job poller.
 
