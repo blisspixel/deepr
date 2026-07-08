@@ -41,6 +41,25 @@ async def _retry_async(
     raise ValueError("attempts must be >= 1")
 
 
+def _parse_web_search_execute_args(args: tuple[Any, ...], kwargs: dict[str, Any]) -> tuple[str, int, str | None]:
+    if len(args) > 2:
+        return "", 0, "Web search accepts at most query and num_results positional arguments."
+    if args and "query" in kwargs:
+        return "", 0, "Web search query was provided twice."
+    if len(args) > 1 and "num_results" in kwargs:
+        return "", 0, "Web search num_results was provided twice."
+
+    query = args[0] if args else kwargs.get("query")
+    if not isinstance(query, str) or not query.strip():
+        return "", 0, "Web search requires a non-empty string query."
+
+    num_results_value = args[1] if len(args) > 1 else kwargs.get("num_results", 5)
+    try:
+        return query, int(num_results_value), None
+    except (TypeError, ValueError):
+        return "", 0, "Web search num_results must be an integer."
+
+
 class WebSearchTool(Tool):
     """
     Web search tool using multiple backends.
@@ -97,24 +116,9 @@ class WebSearchTool(Tool):
 
     async def execute(self, *args: Any, **kwargs: Any) -> ToolResult:
         """Execute web search."""
-        if len(args) > 2:
-            return ToolResult(
-                success=False, data=None, error="Web search accepts at most query and num_results positional arguments."
-            )
-        if args and "query" in kwargs:
-            return ToolResult(success=False, data=None, error="Web search query was provided twice.")
-        if len(args) > 1 and "num_results" in kwargs:
-            return ToolResult(success=False, data=None, error="Web search num_results was provided twice.")
-
-        query = args[0] if args else kwargs.get("query")
-        num_results_value = args[1] if len(args) > 1 else kwargs.get("num_results", 5)
-        if not isinstance(query, str) or not query.strip():
-            return ToolResult(success=False, data=None, error="Web search requires a non-empty string query.")
-
-        try:
-            num_results = int(num_results_value)
-        except (TypeError, ValueError):
-            return ToolResult(success=False, data=None, error="Web search num_results must be an integer.")
+        query, num_results, parse_error = _parse_web_search_execute_args(args, kwargs)
+        if parse_error is not None:
+            return ToolResult(success=False, data=None, error=parse_error)
 
         # Try backends in order
         backends = ["brave", "tavily", "duckduckgo"] if self.backend == "auto" else [self.backend]
