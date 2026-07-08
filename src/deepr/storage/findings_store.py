@@ -60,7 +60,7 @@ class StoredFinding:
     metadata: dict[str, Any] = field(default_factory=dict)
     tokens: list[str] = field(default_factory=list)
 
-    def __post_init__(self):
+    def __post_init__(self) -> None:
         if not self.tokens:
             self.tokens = self._tokenize(self.text)
 
@@ -85,7 +85,7 @@ class StoredFinding:
         }
 
     @classmethod
-    def from_row(cls, row: tuple) -> "StoredFinding":
+    def from_row(cls, row: tuple[Any, ...]) -> "StoredFinding":
         """Create from database row."""
         (id, job_id, phase, text, confidence, source, finding_type, timestamp_str, metadata_json) = row
 
@@ -112,7 +112,7 @@ class FindingsStore:
         db_path: Path to SQLite database
     """
 
-    def __init__(self, db_path: Path | None = None):
+    def __init__(self, db_path: Path | None = None) -> None:
         """Initialize the findings store.
 
         Args:
@@ -140,7 +140,7 @@ class FindingsStore:
         self._doc_lengths: dict[str, int] = {}  # finding_id -> token count
         self._load_index()
 
-    def _create_tables(self):
+    def _create_tables(self) -> None:
         """Create database tables."""
         self._conn.executescript("""
             CREATE TABLE IF NOT EXISTS findings (
@@ -170,7 +170,7 @@ class FindingsStore:
         """)
         self._conn.commit()
 
-    def _load_index(self):
+    def _load_index(self) -> None:
         """Load token index from database."""
         rows = self._conn.execute("SELECT finding_id, token, count FROM finding_tokens").fetchall()
 
@@ -435,7 +435,7 @@ class FindingsStore:
         job_id: str,
         query_tokens: list[str],
         phase: int | None,
-    ) -> set:
+    ) -> set[str]:
         """Get candidate finding IDs for a query.
 
         Args:
@@ -446,7 +446,7 @@ class FindingsStore:
         Returns:
             Set of candidate finding IDs
         """
-        candidates = set()
+        candidates: set[str] = set()
 
         for token in query_tokens:
             if token in self._token_index:
@@ -522,6 +522,6 @@ class FindingsStore:
 
         return StoredFinding.from_row(row)
 
-    def close(self):
+    def close(self) -> None:
         """Close database connection."""
         self._conn.close()

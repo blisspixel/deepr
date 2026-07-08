@@ -58,7 +58,7 @@ A change is done when all of these hold - not "the code works":
 - [ ] Coverage stays at or above the gate (80% branch, `fail_under` in
       `pyproject.toml`; ratcheting toward 95).
 - [ ] `ruff check src/deepr/` and `ruff format src/deepr/` clean.
-- [ ] `mypy --strict --no-warn-unused-ignores --ignore-missing-imports src/deepr/core src/deepr/providers src/deepr/mcp src/deepr/security src/deepr/queue`
+- [ ] `mypy --strict --no-warn-unused-ignores --ignore-missing-imports src/deepr/core src/deepr/providers src/deepr/mcp src/deepr/security src/deepr/queue src/deepr/storage`
       clean (the blocking strict islands; do not regress the wider baseline).
 - [ ] `python scripts/check_docs_consistency.py` passes (doc counts match
       source).
@@ -91,7 +91,7 @@ The repository stays tidy by rule, not by cleanup:
 ## Code style
 
 - **Formatter / linter**: ruff (line length 120). Pre-commit enforces it.
-- **Types**: `core/`, `providers/`, `mcp/`, `security/`, and `queue/` are `mypy --strict`-clean and
+- **Types**: `core/`, `providers/`, `mcp/`, `security/`, `queue/`, and `storage/` are `mypy --strict`-clean and
   gated; new modules should aim for the same.
 - **Logging**: `logging.getLogger(__name__)` in library code, never
   `print()`. Specific exception types, not bare `except Exception`.
