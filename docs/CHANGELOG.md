@@ -14,8 +14,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   explicitly overridden.
 - Expanded the blocking strict mypy gate to include `src/deepr/security`,
   `src/deepr/queue`, `src/deepr/storage`, `src/deepr/tools`, and
-  `src/deepr/routing`, `src/deepr/worker`, and `src/deepr/webhooks` as the
-  fourth through tenth
+  `src/deepr/routing`, `src/deepr/worker`, `src/deepr/webhooks`, and
+  `src/deepr/a2a` as the fourth through eleventh
   strict islands, with CI, `pyproject.toml`, and contributor guidance kept in
   sync. Local probes
   confirmed the package targets are clean under
@@ -31,7 +31,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   and
   `mypy --strict --no-warn-unused-ignores --ignore-missing-imports src/deepr/worker`
   and
-  `mypy --strict --no-warn-unused-ignores --ignore-missing-imports src/deepr/webhooks`.
+  `mypy --strict --no-warn-unused-ignores --ignore-missing-imports src/deepr/webhooks`
+  and
+  `mypy --strict --no-warn-unused-ignores --ignore-missing-imports src/deepr/a2a`.
 - Cleaned queue typing without changing runtime behavior: JSON fallback parsing
   now casts the parsed value to the caller-supplied fallback type, SQLite helper
   methods declare their `None` returns, SQL parameter lists are explicitly
@@ -54,6 +56,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Cleaned webhooks typing while preserving runtime behavior: the Flask callback
   boundary, webhook views, ngrok process lifecycle, and tunnel context manager
   now have explicit strict-mode shapes.
+- Added the already strict-clean A2A protocol package to the blocking strict
+  mypy gate so the Agent Card, task, validation, and consult-handoff boundary
+  cannot regress silently.
+- Updated the A2A Agent Card property tests to assert the current contract:
+  registered expert skills are followed by the built-in
+  `deepr_consult_experts` collaboration skill.
 - Added a roadmap watch item for the official MCP `2026-07-28` release
   candidate so Deepr can evaluate stateless transport, discovery, Tasks
   extension, schema, and deprecation changes in a focused protocol cycle after
