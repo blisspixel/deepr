@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.32.0] - 2026-07-08
+
 ### Changed
 - Refreshed README screenshot assets with isolated demo data so the cost
   intelligence image no longer displays spend above its configured budget, and
