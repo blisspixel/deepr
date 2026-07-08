@@ -97,7 +97,7 @@ class ModelRouter:
         ],
     }
 
-    def __init__(self):
+    def __init__(self) -> None:
         """Initialize the model router with capability registry and benchmark data."""
         # Import registry lazily to avoid circular imports
         from deepr.providers.registry import MODEL_CAPABILITIES

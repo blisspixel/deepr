@@ -28,12 +28,12 @@ from collections import defaultdict
 from contextlib import suppress
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Literal
+from typing import Any, Literal, TypedDict
 
 from deepr.config import runtime_data_path
 from deepr.experts.router import ModelRouter
 from deepr.observability.provider_router import AutonomousProviderRouter
-from deepr.providers.registry import MODEL_CAPABILITIES
+from deepr.providers.registry import MODEL_CAPABILITIES, ModelCapability
 
 
 @dataclass
@@ -59,9 +59,9 @@ class AutoModeDecision:
     reasoning: str
     metadata: dict[str, Any] = field(default_factory=dict)
 
-    def to_dict(self) -> dict:
+    def to_dict(self) -> dict[str, Any]:
         """Convert to dictionary for serialization."""
-        d = {
+        d: dict[str, Any] = {
             "provider": self.provider,
             "model": self.model,
             "complexity": self.complexity,
@@ -89,7 +89,7 @@ class AutoModeDecision:
         return "\n".join(lines)
 
     @classmethod
-    def from_dict(cls, data: dict) -> "AutoModeDecision":
+    def from_dict(cls, data: dict[str, Any]) -> "AutoModeDecision":
         """Create from dictionary."""
         return cls(
             provider=data["provider"],
@@ -103,6 +103,12 @@ class AutoModeDecision:
         )
 
 
+class _SummaryStats(TypedDict):
+    count: int
+    cost_estimate: float
+    models: dict[str, int]
+
+
 @dataclass
 class BatchRoutingResult:
     """Result of routing a batch of queries.
@@ -114,7 +120,7 @@ class BatchRoutingResult:
     """
 
     decisions: list[AutoModeDecision]
-    summary: dict[str, dict]
+    summary: dict[str, _SummaryStats]
     total_cost_estimate: float
 
 
@@ -219,7 +225,7 @@ def _load_benchmark_rankings() -> dict[str, list[_RankingEntry]] | None:
             overall_quality[model_key] = sum(scores.values()) / len(scores)
 
     overall: list[_RankingEntry] = []
-    for model_key in sorted(overall_quality, key=overall_quality.get, reverse=True):
+    for model_key in sorted(overall_quality, key=lambda key: overall_quality[key], reverse=True):
         if "/" not in model_key:
             continue
         provider, model = model_key.split("/", 1)
@@ -255,7 +261,7 @@ _SPEC_TO_TASK_TYPES: dict[str, list[str]] = {
 }
 
 
-def _estimate_quality(cap) -> float:
+def _estimate_quality(cap: ModelCapability) -> float:
     """Provisional quality for an unbenchmarked model (<= 0.78).
 
     Prefer a published-benchmark-derived prior (``quality_priors``) when one
@@ -664,7 +670,7 @@ class AutoModeRouter:
         Returns:
             BatchRoutingResult with decisions and summary
         """
-        decisions = []
+        decisions: list[AutoModeDecision] = []
         remaining_budget = budget_total
 
         # First pass: route all queries optimally
@@ -738,10 +744,11 @@ class AutoModeRouter:
         Returns:
             (provider, model, cost, quality_score) or None
         """
-        if not _get_benchmark_rankings():
+        rankings = _get_benchmark_rankings()
+        if not rankings:
             return None
 
-        ranked = _get_benchmark_rankings().get(task_type)
+        ranked = rankings.get(task_type)
         if not ranked:
             return None
 
@@ -778,7 +785,7 @@ class AutoModeRouter:
         """
         from deepr.routing.deprecation import check_deprecation
 
-        candidates = []
+        candidates: list[tuple[str, str, float]] = []
         for cap in MODEL_CAPABILITIES.values():
             if self._is_provider_usable(cap.provider):
                 if budget is None or cap.cost_per_query <= budget:
@@ -819,7 +826,7 @@ class AutoModeRouter:
         budget: float | None,
         prefer_cost: bool,
         prefer_speed: bool,
-    ) -> tuple:
+    ) -> tuple[str, str, float, str]:
         """Route using benchmark quality rankings.
 
         Maps (complexity, task_type) to a benchmark task type, then picks
@@ -862,7 +869,7 @@ class AutoModeRouter:
         complexity: str,
         task_type: str,
         budget: float | None,
-    ) -> tuple:
+    ) -> tuple[str, str, float, str]:
         """Get fallback routing when primary provider circuit is open.
 
         Checks both API key availability and circuit breaker state.
@@ -908,13 +915,13 @@ class AutoModeRouter:
         # creation downstream and a confusing error.
         return self._cheapest_available(budget=None)
 
-    def _build_summary(self, decisions: list[AutoModeDecision]) -> dict[str, dict]:
+    def _build_summary(self, decisions: list[AutoModeDecision]) -> dict[str, _SummaryStats]:
         """Build summary statistics from routing decisions.
 
         Returns:
             Dictionary mapping complexity to stats
         """
-        summary = {}
+        summary: dict[str, _SummaryStats] = {}
 
         for decision in decisions:
             key = f"{decision.complexity}"
