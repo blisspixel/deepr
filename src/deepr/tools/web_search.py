@@ -3,7 +3,7 @@
 import asyncio
 import os
 from collections.abc import Awaitable, Callable
-from typing import Any, TypeVar
+from typing import Any, TypeVar, cast
 
 import requests
 
@@ -58,6 +58,18 @@ def _parse_web_search_execute_args(args: tuple[Any, ...], kwargs: dict[str, Any]
         return query, int(num_results_value), None
     except (TypeError, ValueError):
         return "", 0, "Web search num_results must be an integer."
+
+
+def _load_duckduckgo_client_class() -> type[Any] | None:
+    for module_name in ("ddgs", "duckduckgo_search"):
+        try:
+            module = __import__(module_name, fromlist=["DDGS"])
+        except ImportError:
+            continue
+        ddgs_class = getattr(module, "DDGS", None)
+        if ddgs_class is not None:
+            return cast(type[Any], ddgs_class)
+    return None
 
 
 class WebSearchTool(Tool):
@@ -198,21 +210,14 @@ class WebSearchTool(Tool):
         retrieval path actually work. Network errors degrade to a failed
         ToolResult so the caller records "no sources" rather than crashing.
         """
-        DDGSClass: Any
-        try:
-            from ddgs import DDGS as DDGSClass
-        except ImportError:
-            try:
-                from duckduckgo_search import DDGS as DDGSClass
-            except ImportError:
-                return ToolResult(
-                    success=False, data=None, error="No DuckDuckGo backend installed. Run: pip install ddgs"
-                )
+        ddgs_class = _load_duckduckgo_client_class()
+        if ddgs_class is None:
+            return ToolResult(success=False, data=None, error="No DuckDuckGo backend installed. Run: pip install ddgs")
 
         def _query() -> list[dict[str, str | None]]:
             return [
                 {"title": r.get("title"), "url": r.get("href") or r.get("url"), "snippet": r.get("body")}
-                for r in DDGSClass().text(query, max_results=num_results)
+                for r in ddgs_class().text(query, max_results=num_results)
             ]
 
         try:
