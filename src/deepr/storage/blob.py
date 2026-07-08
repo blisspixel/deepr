@@ -164,7 +164,7 @@ class AzureBlobStorage(StorageBackend):
             stream = await blob_client.download_blob()
             content = await stream.readall()
 
-            return content
+            return bytes(content)
 
         except ResourceNotFoundError:
             raise StorageError(
@@ -301,7 +301,7 @@ class AzureBlobStorage(StorageBackend):
                 return f"{blob_client.url}?{sas_token}"
             else:
                 # If using managed identity, return direct URL (requires public access or additional auth)
-                return blob_client.url
+                return str(blob_client.url)
 
         except AzureError as e:
             raise StorageError(

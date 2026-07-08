@@ -1,6 +1,6 @@
 """Storage abstraction for multiple backends (local, Azure Blob)."""
 
-from typing import Literal
+from typing import Any, Literal
 
 from .base import ReportMetadata, StorageBackend
 from .blob import AzureBlobStorage
@@ -10,7 +10,7 @@ from .local import LocalStorage
 StorageType = Literal["local", "blob"]
 
 
-def create_storage(storage_type: StorageType, **kwargs) -> StorageBackend:
+def create_storage(storage_type: StorageType, **kwargs: Any) -> StorageBackend:
     """
     Factory function to create the appropriate storage backend.
 

@@ -8,19 +8,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Changed
-- Expanded the blocking strict mypy gate to include `src/deepr/security` and
-  `src/deepr/queue` as the fourth and fifth strict islands, with CI,
+- Expanded the blocking strict mypy gate to include `src/deepr/security`,
+  `src/deepr/queue`, and `src/deepr/storage` as the fourth, fifth, and sixth strict islands, with CI,
   `pyproject.toml`, and contributor guidance kept in sync. Local probes
   confirmed the package targets are clean under
   `mypy --strict --no-warn-unused-ignores --ignore-missing-imports src/deepr/security`
   and
-  `mypy --strict --no-warn-unused-ignores --ignore-missing-imports src/deepr/queue`; nearby
-  packages (`routing/`, `storage/`, and `tools/`) still have strict errors and
+  `mypy --strict --no-warn-unused-ignores --ignore-missing-imports src/deepr/queue`
+  and
+  `mypy --strict --no-warn-unused-ignores --ignore-missing-imports src/deepr/storage`; nearby
+  packages (`routing/` and `tools/`) still have strict errors and
   remain future package-by-package work.
 - Cleaned queue typing without changing runtime behavior: JSON fallback parsing
   now casts the parsed value to the caller-supplied fallback type, SQLite helper
   methods declare their `None` returns, SQL parameter lists are explicitly
   heterogeneous, and the queue factory has typed keyword arguments.
+- Cleaned storage typing without changing runtime behavior: the SQLite findings
+  store now annotates lifecycle helper returns, database-row tuples, candidate
+  ID sets, and close semantics, and the storage factory has typed keyword
+  arguments.
 
 ## [2.31.0] - 2026-07-04
 
