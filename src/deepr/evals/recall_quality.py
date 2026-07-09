@@ -27,7 +27,7 @@ LEXICAL_ROUTE = "lexical_router"
 VECTOR_ROUTE = "vector_similarity"
 MIN_SCHEDULER_PREFERENCE_CASES = 3
 _ROUTE_METRICS = ("hit_at_k", "mean_reciprocal_rank", "mean_relevant_retrieved")
-_SCHEDULER_REQUIRED_VECTOR_WIN_METRICS = ("hit_at_k", "mean_reciprocal_rank")
+SCHEDULER_REQUIRED_VECTOR_WIN_METRICS = ("hit_at_k", "mean_reciprocal_rank")
 
 # One batcher shape shared with deepr.backends.local.make_local_embedder.
 QueryEmbedder = Callable[[list[str]], Awaitable[list[tuple[float, ...]]]]
@@ -298,7 +298,7 @@ def _scheduler_preference(
     if index_coverage and int(index_coverage.get("missing_or_stale_count", 0) or 0) > 0:
         reasons.append("belief_vector_index_incomplete")
     if not isinstance(winners, Mapping) or any(
-        winners.get(metric) != VECTOR_ROUTE for metric in _SCHEDULER_REQUIRED_VECTOR_WIN_METRICS
+        winners.get(metric) != VECTOR_ROUTE for metric in SCHEDULER_REQUIRED_VECTOR_WIN_METRICS
     ):
         reasons.append("vector_route_did_not_win_required_metrics")
 
@@ -309,7 +309,7 @@ def _scheduler_preference(
         "fallback_route": LEXICAL_ROUTE,
         "required_case_count": MIN_SCHEDULER_PREFERENCE_CASES,
         "evaluated_case_count": evaluated_case_count,
-        "required_win_metrics": list(_SCHEDULER_REQUIRED_VECTOR_WIN_METRICS),
+        "required_win_metrics": list(SCHEDULER_REQUIRED_VECTOR_WIN_METRICS),
         "winners_by_metric": dict(winners) if isinstance(winners, Mapping) else {},
         "reasons": sorted(set(reasons)),
         "routing_evidence_only": True,
@@ -482,6 +482,7 @@ __all__ = [
     "MIN_SCHEDULER_PREFERENCE_CASES",
     "RECALL_EVAL_CASE_LIBRARY_SCHEMA_VERSION",
     "RECALL_EVAL_REPORT_SCHEMA_VERSION",
+    "SCHEDULER_REQUIRED_VECTOR_WIN_METRICS",
     "VECTOR_ROUTE",
     "RecallEvalCase",
     "build_recall_eval_case",

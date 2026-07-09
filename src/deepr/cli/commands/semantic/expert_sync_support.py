@@ -16,14 +16,24 @@ from typing import Any
 import click
 
 from deepr.cli.colors import console, print_error, print_warning
+from deepr.evals.recall_quality import (
+    LEXICAL_ROUTE as RECALL_LEXICAL_ROUTE,
+)
+from deepr.evals.recall_quality import (
+    MIN_SCHEDULER_PREFERENCE_CASES as RECALL_MIN_SCHEDULER_PREFERENCE_CASES,
+)
+from deepr.evals.recall_quality import (
+    RECALL_EVAL_REPORT_SCHEMA_VERSION,
+)
+from deepr.evals.recall_quality import (
+    SCHEDULER_REQUIRED_VECTOR_WIN_METRICS as RECALL_REQUIRED_VECTOR_WIN_METRICS,
+)
+from deepr.evals.recall_quality import (
+    VECTOR_ROUTE as RECALL_VECTOR_ROUTE,
+)
 
 SYNC_CAPACITY_GATE_KIND = "deepr.expert.sync_capacity_gate"
 SYNC_CAPACITY_GATE_SCHEMA_VERSION = "deepr-sync-capacity-gate-v1"
-RECALL_EVAL_REPORT_SCHEMA_VERSION = "deepr-recall-eval-report-v1"
-RECALL_VECTOR_ROUTE = "vector_similarity"
-RECALL_LEXICAL_ROUTE = "lexical_router"
-RECALL_MIN_SCHEDULER_PREFERENCE_CASES = 3
-RECALL_REQUIRED_VECTOR_WIN_METRICS = ("hit_at_k", "mean_reciprocal_rank")
 
 
 def _self_model_context(expert_name: str, *, profile: Any | None = None) -> dict[str, Any]:
