@@ -1,0 +1,146 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/blisspixel/deepr/docs/schemas/recall-library-validation-plan-v1.json",
+  "title": "Deepr Recall Library Validation Plan v1",
+  "type": "object",
+  "additionalProperties": true,
+  "required": [
+    "schema_version",
+    "kind",
+    "inventory",
+    "request",
+    "contract",
+    "summary",
+    "steps",
+    "generated_at"
+  ],
+  "properties": {
+    "schema_version": {"const": "deepr-recall-library-validation-plan-v1"},
+    "kind": {"const": "deepr.eval.recall_library_validation_plan"},
+    "inventory": {
+      "type": "object",
+      "required": ["schema_version", "root", "generated_at"],
+      "properties": {
+        "schema_version": {"const": "deepr-recall-library-inventory-v1"},
+        "root": {"type": "string"},
+        "generated_at": {"type": "string"}
+      },
+      "additionalProperties": true
+    },
+    "request": {
+      "type": "object",
+      "required": ["top_k", "local_embedding_model"],
+      "properties": {
+        "top_k": {"type": "integer", "minimum": 1},
+        "local_embedding_model": {"type": "string"}
+      },
+      "additionalProperties": true
+    },
+    "contract": {
+      "type": "object",
+      "required": [
+        "cost_usd",
+        "writes_graph",
+        "writes_beliefs",
+        "writes_belief_vectors",
+        "runs_retrieval",
+        "executes_commands",
+        "semantic_verdict",
+        "routing_evidence_only",
+        "default_routing_change_allowed"
+      ],
+      "properties": {
+        "cost_usd": {"const": 0.0},
+        "writes_graph": {"const": false},
+        "writes_beliefs": {"const": false},
+        "writes_belief_vectors": {"const": false},
+        "runs_retrieval": {"const": false},
+        "executes_commands": {"const": false},
+        "semantic_verdict": {"const": false},
+        "routing_evidence_only": {"const": true},
+        "default_routing_change_allowed": {"const": false}
+      },
+      "additionalProperties": true
+    },
+    "summary": {
+      "type": "object",
+      "required": [
+        "library_count",
+        "valid_library_count",
+        "invalid_library_count",
+        "case_count",
+        "ready_for_scheduler_preference_eval_count",
+        "ready_for_operator_validation_count",
+        "blocked_count",
+        "required_case_count"
+      ],
+      "properties": {
+        "library_count": {"type": "integer", "minimum": 0},
+        "valid_library_count": {"type": "integer", "minimum": 0},
+        "invalid_library_count": {"type": "integer", "minimum": 0},
+        "case_count": {"type": "integer", "minimum": 0},
+        "ready_for_scheduler_preference_eval_count": {"type": "integer", "minimum": 0},
+        "ready_for_operator_validation_count": {"type": "integer", "minimum": 0},
+        "blocked_count": {"type": "integer", "minimum": 0},
+        "required_case_count": {"type": "integer", "minimum": 1}
+      },
+      "additionalProperties": true
+    },
+    "steps": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "expert",
+          "library_path",
+          "case_count",
+          "status",
+          "ready_for_operator_validation",
+          "blockers",
+          "eval_command_argv",
+          "expected_report_schema_version",
+          "expected_operator_validation_schema_version",
+          "post_eval_acceptance"
+        ],
+        "properties": {
+          "expert": {
+            "type": "object",
+            "required": ["name"],
+            "properties": {"name": {"type": "string"}},
+            "additionalProperties": true
+          },
+          "library_path": {"type": "string"},
+          "case_count": {"type": "integer", "minimum": 0},
+          "status": {"enum": ["ready", "blocked"]},
+          "ready_for_operator_validation": {"type": "boolean"},
+          "blockers": {"type": "array", "items": {"type": "string"}},
+          "eval_command_argv": {"type": "array", "items": {"type": "string"}},
+          "expected_report_schema_version": {"const": "deepr-recall-eval-report-v1"},
+          "expected_operator_validation_schema_version": {"const": "deepr-recall-operator-validation-v1"},
+          "post_eval_acceptance": {
+            "type": "object",
+            "required": [
+              "requires_saved_report",
+              "requires_operator_validation_ready",
+              "sync_requires_explicit_report",
+              "default_routing_change_allowed",
+              "routing_evidence_only",
+              "semantic_verdict"
+            ],
+            "properties": {
+              "requires_saved_report": {"const": true},
+              "requires_operator_validation_ready": {"const": true},
+              "sync_requires_explicit_report": {"const": true},
+              "default_routing_change_allowed": {"const": false},
+              "routing_evidence_only": {"const": true},
+              "semantic_verdict": {"const": false}
+            },
+            "additionalProperties": true
+          }
+        },
+        "additionalProperties": true
+      }
+    },
+    "generated_at": {"type": "string"}
+  }
+}

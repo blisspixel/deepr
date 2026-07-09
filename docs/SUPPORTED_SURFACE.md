@@ -185,7 +185,10 @@ must not be described as usable capacity.
   lexical routing instead of blocking verification when the local embedder
   fails. `deepr eval recall-libraries` emits a read-only
   `deepr-recall-library-inventory-v1` inventory so operators can see which
-  accumulated case libraries have enough labels for route-evidence evals.
+  accumulated case libraries have enough labels for route-evidence evals, and
+  `deepr eval recall-libraries --validation-plan --local-embedding-model MODEL`
+  emits `deepr-recall-library-validation-plan-v1` command argv for ready
+  libraries without executing retrieval or changing routing.
   `deepr eval recall NAME` can rerun accumulated operator-labeled recall case
   libraries and emits an additive `deepr-recall-operator-validation-v1` block
   describing whether the saved report is ready for explicit sync preference use.

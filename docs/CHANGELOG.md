@@ -59,6 +59,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   invalid libraries, and shows which experts have enough operator-labeled cases
   to run route-evidence evals before any explicit sync preference report is
   considered.
+- Added `deepr eval recall-libraries --validation-plan`, a read-only command
+  plan for ready accumulated recall libraries. It emits
+  `deepr-recall-library-validation-plan-v1`, includes local-embedding eval argv
+  when the operator supplies `--local-embedding-model`, and records that the
+  plan does not execute retrieval, write state, or authorize default routing.
 
 ## [2.32.0] - 2026-07-08
 
