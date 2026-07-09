@@ -17,8 +17,11 @@ from pathlib import Path
 from typing import Any
 
 from deepr.config import runtime_data_path
+from deepr.experts.paths import expert_slug
+from deepr.utils.atomic_io import atomic_write_text
 
 RECALL_EVAL_REPORT_SCHEMA_VERSION = "deepr-recall-eval-report-v1"
+RECALL_EVAL_CASE_LIBRARY_SCHEMA_VERSION = "deepr-recall-eval-case-library-v1"
 LEXICAL_ROUTE = "lexical_router"
 VECTOR_ROUTE = "vector_similarity"
 _ROUTE_METRICS = ("hit_at_k", "mean_reciprocal_rank", "mean_relevant_retrieved")
@@ -70,6 +73,124 @@ def load_recall_eval_cases(payload: Any) -> list[RecallEvalCase]:
         seen_ids.add(case_id)
         cases.append(RecallEvalCase(case_id=case_id, query=query, relevant_belief_ids=relevant))
     return cases
+
+
+def _case_payload(case: RecallEvalCase) -> dict[str, Any]:
+    return {
+        "case_id": case.case_id,
+        "query": case.query,
+        "relevant_belief_ids": list(case.relevant_belief_ids),
+    }
+
+
+def _case_library_meta(
+    path: Path,
+    case_count: int,
+    *,
+    added: int,
+    updated: int,
+    unchanged: int,
+) -> dict[str, Any]:
+    return {
+        "schema_version": RECALL_EVAL_CASE_LIBRARY_SCHEMA_VERSION,
+        "path": str(path),
+        "case_count": case_count,
+        "added_count": added,
+        "updated_count": updated,
+        "unchanged_count": unchanged,
+    }
+
+
+def recall_eval_case_library_path(expert_name: str, *, output_dir: Path | None = None) -> Path:
+    """Return the runtime-local labeled recall-case library path for an expert."""
+    root = output_dir or runtime_data_path("benchmarks", "recall_cases")
+    return root / f"{expert_slug(expert_name)}.json"
+
+
+def load_recall_eval_case_library(expert_name: str, *, output_dir: Path | None = None) -> list[RecallEvalCase]:
+    """Load accumulated labeled recall cases for one expert.
+
+    The library is operator-supplied evaluation data. It is never graph memory,
+    never a belief write, and never a semantic verdict. A raw JSON array is
+    accepted for migration from an ad hoc cases file; versioned libraries are
+    written by ``merge_recall_eval_case_library``.
+    """
+    path = recall_eval_case_library_path(expert_name, output_dir=output_dir)
+    if not path.exists():
+        raise FileNotFoundError(f"no recall case library found for {expert_name!r}; pass --cases first")
+    payload = json.loads(path.read_text(encoding="utf-8"))
+    if isinstance(payload, Mapping):
+        if payload.get("schema_version") != RECALL_EVAL_CASE_LIBRARY_SCHEMA_VERSION:
+            raise ValueError("recall case library has an unsupported schema_version")
+        raw_cases = payload.get("cases")
+    else:
+        raw_cases = payload
+    return load_recall_eval_cases(raw_cases)
+
+
+def merge_recall_eval_case_library(
+    expert_name: str,
+    cases: Sequence[RecallEvalCase],
+    *,
+    output_dir: Path | None = None,
+    source_path: Path | None = None,
+) -> dict[str, Any]:
+    """Merge labeled cases into the expert's local recall-case library.
+
+    Existing case ids are updated only when the query or relevant ids changed.
+    The result is deterministic by case id so repeated imports of the same data
+    do not churn the file. This is evaluation data only; it does not mutate
+    beliefs, graph state, or vector indexes.
+    """
+    if not cases:
+        raise ValueError("cannot merge an empty recall case set")
+    path = recall_eval_case_library_path(expert_name, output_dir=output_dir)
+    existing_cases: list[RecallEvalCase] = []
+    if path.exists():
+        existing_cases = load_recall_eval_case_library(expert_name, output_dir=output_dir)
+
+    by_id = {case.case_id: case for case in existing_cases}
+    added = 0
+    updated = 0
+    unchanged = 0
+    for case in cases:
+        prior = by_id.get(case.case_id)
+        if prior is None:
+            added += 1
+        elif prior != case:
+            updated += 1
+        else:
+            unchanged += 1
+        by_id[case.case_id] = case
+
+    merged = [by_id[case_id] for case_id in sorted(by_id)]
+    if path.exists() and added == 0 and updated == 0:
+        return _case_library_meta(path, len(merged), added=added, updated=updated, unchanged=unchanged)
+
+    payload = {
+        "schema_version": RECALL_EVAL_CASE_LIBRARY_SCHEMA_VERSION,
+        "kind": "deepr.eval.recall_case_library",
+        "expert": {"name": expert_name},
+        "contract": {
+            "cost_usd": 0.0,
+            "writes_graph": False,
+            "writes_beliefs": False,
+            "writes_belief_vectors": False,
+            "semantic_verdict": False,
+            "relevance_labels": "operator_supplied",
+        },
+        "summary": {
+            "case_count": len(merged),
+            "added_count": added,
+            "updated_count": updated,
+            "unchanged_count": unchanged,
+        },
+        "source": {"path": str(source_path) if source_path else ""},
+        "cases": [_case_payload(case) for case in merged],
+        "updated_at": datetime.now(UTC).isoformat(),
+    }
+    atomic_write_text(path, json.dumps(payload, indent=2, ensure_ascii=True) + "\n")
+    return _case_library_meta(path, len(merged), added=added, updated=updated, unchanged=unchanged)
 
 
 def _case_metrics(candidate_ids: Sequence[str], relevant_ids: Sequence[str]) -> dict[str, Any]:
@@ -274,10 +395,14 @@ def write_recall_eval_report(report: Mapping[str, Any], *, output_dir: Path | No
 
 __all__ = [
     "LEXICAL_ROUTE",
+    "RECALL_EVAL_CASE_LIBRARY_SCHEMA_VERSION",
     "RECALL_EVAL_REPORT_SCHEMA_VERSION",
     "VECTOR_ROUTE",
     "RecallEvalCase",
+    "load_recall_eval_case_library",
     "load_recall_eval_cases",
+    "merge_recall_eval_case_library",
+    "recall_eval_case_library_path",
     "run_recall_quality_eval",
     "write_recall_eval_report",
 ]
