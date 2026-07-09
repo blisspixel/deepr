@@ -13,9 +13,11 @@ from deepr.evals.recall_quality import (
     RECALL_EVAL_CASE_LIBRARY_SCHEMA_VERSION,
     RECALL_EVAL_REPORT_SCHEMA_VERSION,
     RecallEvalCase,
+    build_recall_eval_case,
     load_recall_eval_case_library,
     load_recall_eval_cases,
     merge_recall_eval_case_library,
+    recall_eval_case_id,
     recall_eval_case_library_path,
     run_recall_quality_eval,
     write_recall_eval_report,
@@ -251,6 +253,23 @@ class TestRecallCaseLibrary:
         with pytest.raises(FileNotFoundError, match="pass --cases first"):
             load_recall_eval_case_library("Recall Eval Expert", output_dir=tmp_path / "cases")
 
+    def test_single_operator_case_id_is_deterministic(self):
+        first = recall_eval_case_id("What context was missed?", ["b2", "b1"])
+        second = recall_eval_case_id("  What context was missed?  ", ["b1", "b2"])
+
+        assert first == second
+        assert first.startswith("operator_")
+
+        case = build_recall_eval_case(
+            case_id=None,
+            query="  What   context  was missed?  ",
+            relevant_belief_ids=["b1", "b1", "b2"],
+        )
+
+        assert case.case_id == first
+        assert case.query == "What context was missed?"
+        assert case.relevant_belief_ids == ("b1", "b2")
+
 
 class TestEvalRecallCommand:
     def _write_cases(self, tmp_path, belief_id: str):
@@ -344,11 +363,70 @@ class TestEvalRecallCommand:
         assert payload["case_library"]["source"] == "accumulated_library"
         assert payload["routes"]["lexical_router"]["hit_at_k"] == 1.0
 
-    def test_eval_recall_record_cases_requires_cases_file(self, tmp_path):
+    def test_eval_recall_records_single_operator_case_into_runtime_library(self, tmp_path, monkeypatch):
+        store, power, _ = _seeded_store(tmp_path)
+        case_root = tmp_path / "case-library"
+        monkeypatch.setattr("deepr.experts.beliefs.BeliefStore", lambda name: store)
+        monkeypatch.setattr(
+            "deepr.experts.profile.ExpertStore",
+            lambda: type("S", (), {"load": staticmethod(lambda name: object())})(),
+        )
+        monkeypatch.setattr("deepr.evals.recall_quality.runtime_data_path", lambda *parts: case_root.joinpath(*parts))
+
+        result = CliRunner().invoke(
+            cli,
+            [
+                "eval",
+                "recall",
+                "Recall Eval Expert",
+                "--case-id",
+                "reviewed-consult-context",
+                "--query",
+                "accelerator power deployment",
+                "--relevant-belief-id",
+                power.id,
+                "--record-cases",
+                "--json",
+            ],
+        )
+
+        assert result.exit_code == 0, result.output
+        payload = json.loads(result.output)
+        assert payload["cases"][0]["case_id"] == "reviewed-consult-context"
+        assert payload["case_library"]["added_count"] == 1
+        library_path = Path(payload["case_library"]["path"])
+        library_payload = json.loads(library_path.read_text(encoding="utf-8"))
+        assert library_payload["cases"] == [
+            {
+                "case_id": "reviewed-consult-context",
+                "query": "accelerator power deployment",
+                "relevant_belief_ids": [power.id],
+            }
+        ]
+
+    def test_eval_recall_record_cases_requires_case_input(self, tmp_path):
         result = CliRunner().invoke(cli, ["eval", "recall", "Whoever", "--record-cases"])
 
         assert result.exit_code != 0
-        assert "--record-cases requires --cases" in result.output
+        assert "--record-cases requires --cases or --query with --relevant-belief-id" in result.output
+
+    def test_eval_recall_rejects_partial_single_case_input(self, tmp_path):
+        result = CliRunner().invoke(cli, ["eval", "recall", "Whoever", "--query", "What changed?"])
+
+        assert result.exit_code != 0
+        assert "--relevant-belief-id is required with --query" in result.output
+
+    def test_eval_recall_rejects_cases_file_with_single_case_input(self, tmp_path):
+        cases_path = tmp_path / "cases.json"
+        cases_path.write_text("[]", encoding="utf-8")
+
+        result = CliRunner().invoke(
+            cli,
+            ["eval", "recall", "Whoever", "--cases", str(cases_path), "--query", "What changed?"],
+        )
+
+        assert result.exit_code != 0
+        assert "Use either --cases or --query/--relevant-belief-id" in result.output
 
     def test_eval_recall_json_save_keeps_stdout_one_json_document(self, tmp_path, monkeypatch):
         store, power, _ = _seeded_store(tmp_path)

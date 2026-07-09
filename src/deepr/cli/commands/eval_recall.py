@@ -17,6 +17,7 @@ from deepr.cli.commands.eval import evaluate
 from deepr.evals.recall_quality import (
     RECALL_EVAL_CASE_LIBRARY_SCHEMA_VERSION,
     RecallEvalCase,
+    build_recall_eval_case,
     load_recall_eval_case_library,
     load_recall_eval_cases,
     merge_recall_eval_case_library,
@@ -54,9 +55,47 @@ def _render_recall_report(report: dict, name: str, top_k: int) -> None:
     click.echo("  Routing evidence only; labels are operator-supplied, not semantic verdicts.")
 
 
-def _load_cases_for_eval(name: str, cases_path: Path | None) -> tuple[list[RecallEvalCase], dict | None]:
+def _single_case_requested(case_id: str | None, case_query: str | None, relevant_belief_ids: tuple[str, ...]) -> bool:
+    return bool(case_id or case_query or relevant_belief_ids)
+
+
+def _validate_case_input(
+    *,
+    cases_path: Path | None,
+    case_id: str | None,
+    case_query: str | None,
+    relevant_belief_ids: tuple[str, ...],
+    record_cases: bool,
+) -> None:
+    single_case = _single_case_requested(case_id, case_query, relevant_belief_ids)
+    if cases_path is not None and single_case:
+        raise click.ClickException("Use either --cases or --query/--relevant-belief-id, not both.")
+    if single_case and not case_query:
+        raise click.ClickException("--query is required with --case-id or --relevant-belief-id.")
+    if case_query and not relevant_belief_ids:
+        raise click.ClickException("--relevant-belief-id is required with --query.")
+    if record_cases and cases_path is None and not single_case:
+        raise click.ClickException("--record-cases requires --cases or --query with --relevant-belief-id.")
+
+
+def _load_cases_for_eval(
+    name: str,
+    cases_path: Path | None,
+    *,
+    case_id: str | None,
+    case_query: str | None,
+    relevant_belief_ids: tuple[str, ...],
+) -> tuple[list[RecallEvalCase], dict | None]:
     if cases_path is not None:
         return load_recall_eval_cases(json.loads(cases_path.read_text(encoding="utf-8"))), None
+    if _single_case_requested(case_id, case_query, relevant_belief_ids):
+        return [
+            build_recall_eval_case(
+                case_id=case_id,
+                query=case_query or "",
+                relevant_belief_ids=relevant_belief_ids,
+            )
+        ], None
 
     cases = load_recall_eval_case_library(name)
     return cases, {
@@ -110,10 +149,18 @@ def _resolve_query_embedding_inputs(
     help="JSON object mapping case_id to a precomputed query vector.",
 )
 @click.option("--embedding-model", default=None, help="Model label for precomputed query vectors.")
+@click.option("--case-id", default=None, help="Case id for a single operator-labeled --query input.")
+@click.option("--query", "case_query", default=None, help="Single operator-labeled recall query to evaluate or record.")
+@click.option(
+    "--relevant-belief-id",
+    "relevant_belief_ids",
+    multiple=True,
+    help="Relevant belief id for a single --query case; repeat for multiple labels.",
+)
 @click.option(
     "--record-cases",
     is_flag=True,
-    help="Merge the supplied --cases file into this expert's runtime-local labeled recall-case library.",
+    help="Merge supplied cases into this expert's runtime-local labeled recall-case library.",
 )
 @click.option("--json", "json_output", is_flag=True, help="Emit machine-readable JSON.")
 @click.option("--save", is_flag=True, help="Save JSON artifact under the configured benchmarks directory.")
@@ -124,16 +171,19 @@ def eval_recall(
     local_embedding_model: str | None,
     query_embeddings_json: Path | None,
     embedding_model: str | None,
+    case_id: str | None,
+    case_query: str | None,
+    relevant_belief_ids: tuple[str, ...],
     record_cases: bool,
     json_output: bool,
     save: bool,
 ):
     """Compare lexical vs vector recall routing on labeled cases (cost $0).
 
-    Relevance labels come from the operator-supplied cases file; this eval
-    computes only deterministic retrieval metrics against them. A route
-    winning here is routing evidence for schedulers and operators, never a
-    semantic verdict about belief truth.
+    Relevance labels come from an operator-supplied cases file or one reviewed
+    CLI case; this eval computes only deterministic retrieval metrics against
+    them. A route winning here is routing evidence for schedulers and
+    operators, never a semantic verdict about belief truth.
     """
     import asyncio
 
@@ -142,13 +192,24 @@ def eval_recall(
     from deepr.experts.profile import ExpertStore
 
     _validate_embedding_flags(local_embedding_model, query_embeddings_json, embedding_model)
-    if record_cases and cases_path is None:
-        raise click.ClickException("--record-cases requires --cases.")
+    _validate_case_input(
+        cases_path=cases_path,
+        case_id=case_id,
+        case_query=case_query,
+        relevant_belief_ids=relevant_belief_ids,
+        record_cases=record_cases,
+    )
     if ExpertStore().load(name) is None:
         raise click.ClickException(f"Expert '{name}' not found. Create one: deepr expert make '{name}'.")
 
     try:
-        cases, case_library = _load_cases_for_eval(name, cases_path)
+        cases, case_library = _load_cases_for_eval(
+            name,
+            cases_path,
+            case_id=case_id,
+            case_query=case_query,
+            relevant_belief_ids=relevant_belief_ids,
+        )
         embeddings_by_case, embed_queries, resolved_model = _resolve_query_embedding_inputs(
             local_embedding_model=local_embedding_model,
             query_embeddings_json=query_embeddings_json,
@@ -167,7 +228,7 @@ def eval_recall(
         )
         if case_library is not None:
             report["case_library"] = case_library
-        if record_cases and cases_path is not None:
+        if record_cases:
             report["case_library"] = merge_recall_eval_case_library(name, cases, source_path=cases_path)
     except (ValueError, json.JSONDecodeError) as exc:
         raise click.ClickException(str(exc))

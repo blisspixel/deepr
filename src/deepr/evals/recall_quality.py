@@ -1,14 +1,15 @@
 """$0 recall-route quality eval over stored belief state.
 
 Compares the lexical candidate router against indexed vector recall on
-operator-labeled cases. Relevance labels come from the supplied cases file
-(human or calibrated-model judgment); this module computes only deterministic
-retrieval metrics against those labels. A route winning here is routing
-evidence, never a semantic verdict about belief truth.
+operator-labeled cases. Relevance labels come from supplied cases or a
+single reviewed case (human or calibrated-model judgment); this module computes
+only deterministic retrieval metrics against those labels. A route winning here
+is routing evidence, never a semantic verdict about belief truth.
 """
 
 from __future__ import annotations
 
+import hashlib
 import json
 from collections.abc import Awaitable, Callable, Mapping, Sequence
 from dataclasses import dataclass
@@ -73,6 +74,49 @@ def load_recall_eval_cases(payload: Any) -> list[RecallEvalCase]:
         seen_ids.add(case_id)
         cases.append(RecallEvalCase(case_id=case_id, query=query, relevant_belief_ids=relevant))
     return cases
+
+
+def recall_eval_case_id(
+    query: str,
+    relevant_belief_ids: Sequence[str],
+    *,
+    prefix: str = "operator",
+) -> str:
+    """Return a stable id for one operator-labeled recall case."""
+    cleaned_query = " ".join(str(query).split())
+    cleaned_ids = sorted({str(belief_id).strip() for belief_id in relevant_belief_ids if str(belief_id).strip()})
+    if not cleaned_query:
+        raise ValueError("recall eval case query is required")
+    if not cleaned_ids:
+        raise ValueError("recall eval case needs at least one relevant belief id")
+    normalized_prefix = "_".join(str(prefix).strip().lower().split()) or "operator"
+    seed = json.dumps(
+        {"query": cleaned_query, "relevant_belief_ids": cleaned_ids},
+        ensure_ascii=True,
+        separators=(",", ":"),
+    )
+    digest = hashlib.sha256(seed.encode("utf-8")).hexdigest()[:12]
+    return f"{normalized_prefix}_{digest}"
+
+
+def build_recall_eval_case(
+    *,
+    case_id: str | None,
+    query: str,
+    relevant_belief_ids: Sequence[str],
+) -> RecallEvalCase:
+    """Build and validate one operator-labeled recall eval case."""
+    cleaned_query = " ".join(str(query).split())
+    resolved_case_id = str(case_id or "").strip() or recall_eval_case_id(query, relevant_belief_ids)
+    return load_recall_eval_cases(
+        [
+            {
+                "case_id": resolved_case_id,
+                "query": cleaned_query,
+                "relevant_belief_ids": list(relevant_belief_ids),
+            }
+        ]
+    )[0]
 
 
 def _case_payload(case: RecallEvalCase) -> dict[str, Any]:
@@ -399,9 +443,11 @@ __all__ = [
     "RECALL_EVAL_REPORT_SCHEMA_VERSION",
     "VECTOR_ROUTE",
     "RecallEvalCase",
+    "build_recall_eval_case",
     "load_recall_eval_case_library",
     "load_recall_eval_cases",
     "merge_recall_eval_case_library",
+    "recall_eval_case_id",
     "recall_eval_case_library_path",
     "run_recall_quality_eval",
     "write_recall_eval_report",
