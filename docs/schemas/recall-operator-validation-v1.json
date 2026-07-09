@@ -1,0 +1,44 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/blisspixel/deepr/docs/schemas/recall-operator-validation-v1.json",
+  "title": "Deepr Recall Operator Validation v1",
+  "type": "object",
+  "additionalProperties": true,
+  "required": [
+    "schema_version",
+    "kind",
+    "case_source",
+    "case_count",
+    "embedding_model",
+    "scheduler_preference_eligible",
+    "eligible_for_explicit_sync_preference",
+    "sync_requires_explicit_report",
+    "default_routing_change_allowed",
+    "routing_evidence_only",
+    "semantic_verdict",
+    "blockers"
+  ],
+  "properties": {
+    "schema_version": {"const": "deepr-recall-operator-validation-v1"},
+    "kind": {"const": "deepr.eval.recall_operator_validation"},
+    "case_source": {"type": "string"},
+    "case_library": {
+      "type": "object",
+      "properties": {
+        "path": {"type": "string"},
+        "case_count": {"type": "integer", "minimum": 0},
+        "source": {"type": "string"}
+      },
+      "additionalProperties": true
+    },
+    "case_count": {"type": "integer", "minimum": 0},
+    "embedding_model": {"type": "string"},
+    "scheduler_preference_eligible": {"type": "boolean"},
+    "eligible_for_explicit_sync_preference": {"type": "boolean"},
+    "sync_requires_explicit_report": {"const": true},
+    "default_routing_change_allowed": {"const": false},
+    "routing_evidence_only": {"const": true},
+    "semantic_verdict": {"const": false},
+    "blockers": {"type": "array", "items": {"type": "string"}}
+  }
+}

@@ -720,6 +720,11 @@ deepr expert why "Azure Architect" "landing zone subscription vending"
 deepr expert semantic-recall "Azure Architect" "subscription vending guardrails" --json
 # Tool: deepr_semantic_recall
 
+# Evaluate accumulated operator-labeled recall cases as routing evidence only.
+deepr eval recall "Azure Architect" --query-embeddings-json query-vectors.json --embedding-model nomic-embed-text --save
+# Saved reports include deepr-recall-operator-validation-v1. Default sync
+# routing stays lexical-first unless the operator supplies the saved report.
+
 # MCP-only temporal edge query: filter typed edge qualifiers by valid time,
 # observed time, edge type, or one belief reference.
 # Tool: deepr_temporal_edges

@@ -23,6 +23,8 @@ from deepr.utils.atomic_io import atomic_write_text
 
 RECALL_EVAL_REPORT_SCHEMA_VERSION = "deepr-recall-eval-report-v1"
 RECALL_EVAL_CASE_LIBRARY_SCHEMA_VERSION = "deepr-recall-eval-case-library-v1"
+RECALL_OPERATOR_VALIDATION_SCHEMA_VERSION = "deepr-recall-operator-validation-v1"
+RECALL_OPERATOR_VALIDATION_KIND = "deepr.eval.recall_operator_validation"
 LEXICAL_ROUTE = "lexical_router"
 VECTOR_ROUTE = "vector_similarity"
 MIN_SCHEDULER_PREFERENCE_CASES = 3
@@ -237,6 +239,74 @@ def merge_recall_eval_case_library(
     }
     atomic_write_text(path, json.dumps(payload, indent=2, ensure_ascii=True) + "\n")
     return _case_library_meta(path, len(merged), added=added, updated=updated, unchanged=unchanged)
+
+
+def _case_library_source(report: Mapping[str, Any]) -> str:
+    case_library = report.get("case_library", {})
+    if isinstance(case_library, Mapping):
+        source = str(case_library.get("source", "") or "").strip()
+        if source:
+            return source
+        if case_library.get("path"):
+            return "recorded_case_merge"
+    if report.get("cases"):
+        return "ad_hoc_cases"
+    return "unknown"
+
+
+def build_recall_operator_validation(report: Mapping[str, Any]) -> dict[str, Any]:
+    """Return the operator-facing validation state for a recall eval report.
+
+    This block is deliberately conservative: it can mark an accumulated-library
+    report ready for explicit sync preference, but it never authorizes a default
+    scheduler change. The scheduler still requires an operator-supplied saved
+    report at the sync boundary.
+    """
+    request = report.get("request", {})
+    preference = report.get("scheduler_preference", {})
+    case_library = report.get("case_library", {})
+    embedding_model = str(request.get("embedding_model", "") or "").strip() if isinstance(request, Mapping) else ""
+    case_count = int(request.get("case_count", 0) or 0) if isinstance(request, Mapping) else 0
+    source = _case_library_source(report)
+    accumulated_library = source == "accumulated_library"
+    preference_eligible = isinstance(preference, Mapping) and preference.get("eligible") is True
+    blockers: list[str] = []
+
+    if not accumulated_library:
+        blockers.append("not_accumulated_library_run")
+    if not embedding_model:
+        blockers.append("missing_embedding_model")
+    if not preference_eligible:
+        reasons = preference.get("reasons", []) if isinstance(preference, Mapping) else []
+        if isinstance(reasons, list):
+            blockers.extend(str(reason) for reason in reasons if str(reason).strip())
+        else:
+            blockers.append("scheduler_preference_not_eligible")
+
+    eligible_for_explicit_sync = accumulated_library and bool(embedding_model) and preference_eligible
+    library_payload: dict[str, Any] = {}
+    if isinstance(case_library, Mapping):
+        library_payload = {
+            "path": str(case_library.get("path", "") or ""),
+            "case_count": int(case_library.get("case_count", case_count) or 0),
+            "source": source,
+        }
+
+    return {
+        "schema_version": RECALL_OPERATOR_VALIDATION_SCHEMA_VERSION,
+        "kind": RECALL_OPERATOR_VALIDATION_KIND,
+        "case_source": source,
+        "case_library": library_payload,
+        "case_count": case_count,
+        "embedding_model": embedding_model,
+        "scheduler_preference_eligible": preference_eligible,
+        "eligible_for_explicit_sync_preference": eligible_for_explicit_sync,
+        "sync_requires_explicit_report": True,
+        "default_routing_change_allowed": False,
+        "routing_evidence_only": True,
+        "semantic_verdict": False,
+        "blockers": sorted(set(blockers)),
+    }
 
 
 def _case_metrics(candidate_ids: Sequence[str], relevant_ids: Sequence[str]) -> dict[str, Any]:
@@ -482,10 +552,13 @@ __all__ = [
     "MIN_SCHEDULER_PREFERENCE_CASES",
     "RECALL_EVAL_CASE_LIBRARY_SCHEMA_VERSION",
     "RECALL_EVAL_REPORT_SCHEMA_VERSION",
+    "RECALL_OPERATOR_VALIDATION_KIND",
+    "RECALL_OPERATOR_VALIDATION_SCHEMA_VERSION",
     "SCHEDULER_REQUIRED_VECTOR_WIN_METRICS",
     "VECTOR_ROUTE",
     "RecallEvalCase",
     "build_recall_eval_case",
+    "build_recall_operator_validation",
     "load_recall_eval_case_library",
     "load_recall_eval_cases",
     "merge_recall_eval_case_library",

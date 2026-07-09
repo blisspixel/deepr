@@ -18,6 +18,7 @@ from deepr.evals.recall_quality import (
     RECALL_EVAL_CASE_LIBRARY_SCHEMA_VERSION,
     RecallEvalCase,
     build_recall_eval_case,
+    build_recall_operator_validation,
     load_recall_eval_case_library,
     load_recall_eval_cases,
     merge_recall_eval_case_library,
@@ -59,6 +60,15 @@ def _render_recall_report(report: dict, name: str, top_k: int) -> None:
         reasons = scheduler_preference.get("reasons", [])
         reason_text = ", ".join(reasons) if isinstance(reasons, list) else "insufficient evidence"
         click.echo(f"  Scheduler preference: not eligible ({reason_text})")
+    operator_validation = report.get("operator_validation", {})
+    if isinstance(operator_validation, dict):
+        if operator_validation.get("eligible_for_explicit_sync_preference") is True:
+            click.echo("  Explicit sync preference: ready when saved and supplied by the operator")
+        else:
+            blockers = operator_validation.get("blockers", [])
+            blocker_text = ", ".join(blockers) if isinstance(blockers, list) and blockers else "not ready"
+            click.echo(f"  Explicit sync preference: not ready ({blocker_text})")
+        click.echo("  Default routing: lexical-first unchanged; explicit report required.")
     click.echo("  Routing evidence only; labels are operator-supplied, not semantic verdicts.")
 
 
@@ -237,6 +247,7 @@ def eval_recall(
             report["case_library"] = case_library
         if record_cases:
             report["case_library"] = merge_recall_eval_case_library(name, cases, source_path=cases_path)
+        report["operator_validation"] = build_recall_operator_validation(report)
     except (ValueError, json.JSONDecodeError) as exc:
         raise click.ClickException(str(exc))
     except FileNotFoundError as exc:
