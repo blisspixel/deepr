@@ -405,6 +405,70 @@ class TestEvalRecallCommand:
         assert payload["request"]["case_count"] == 1
         assert payload["case_library"]["source"] == "accumulated_library"
         assert payload["routes"]["lexical_router"]["hit_at_k"] == 1.0
+        assert payload["operator_validation"]["case_source"] == "accumulated_library"
+        assert payload["operator_validation"]["eligible_for_explicit_sync_preference"] is False
+        assert payload["operator_validation"]["default_routing_change_allowed"] is False
+        assert "missing_embedding_model" in payload["operator_validation"]["blockers"]
+
+    def test_eval_recall_marks_accumulated_library_report_ready_for_explicit_sync(self, tmp_path, monkeypatch):
+        store = _store(tmp_path)
+        first, _ = store.add_belief(
+            Belief(claim="Power delivery constrains accelerator racks.", confidence=0.84, domain="infra")
+        )
+        second, _ = store.add_belief(
+            Belief(claim="Audit retention shapes governance workflows.", confidence=0.82, domain="governance")
+        )
+        third, _ = store.add_belief(
+            Belief(claim="Cooling headroom limits dense cluster deployment.", confidence=0.83, domain="infra")
+        )
+        store.upsert_belief_embedding(first.id, [1.0, 0.0, 0.0], model="nomic-embed-text")
+        store.upsert_belief_embedding(second.id, [0.0, 1.0, 0.0], model="nomic-embed-text")
+        store.upsert_belief_embedding(third.id, [0.0, 0.0, 1.0], model="nomic-embed-text")
+        case_root = tmp_path / "case-library"
+        merge_recall_eval_case_library(
+            "Recall Eval Expert",
+            [
+                RecallEvalCase("c1", "energy ceilings", (first.id,)),
+                RecallEvalCase("c2", "records policy", (second.id,)),
+                RecallEvalCase("c3", "thermal limits", (third.id,)),
+            ],
+            output_dir=case_root / "benchmarks" / "recall_cases",
+        )
+        vectors_path = tmp_path / "query-vectors.json"
+        vectors_path.write_text(
+            json.dumps({"c1": [0.99, 0.01, 0.0], "c2": [0.0, 0.99, 0.01], "c3": [0.01, 0.0, 0.99]}),
+            encoding="utf-8",
+        )
+        monkeypatch.setattr("deepr.experts.beliefs.BeliefStore", lambda name: store)
+        monkeypatch.setattr(
+            "deepr.experts.profile.ExpertStore",
+            lambda: type("S", (), {"load": staticmethod(lambda name: object())})(),
+        )
+        monkeypatch.setattr("deepr.evals.recall_quality.runtime_data_path", lambda *parts: case_root.joinpath(*parts))
+
+        result = CliRunner().invoke(
+            cli,
+            [
+                "eval",
+                "recall",
+                "Recall Eval Expert",
+                "--query-embeddings-json",
+                str(vectors_path),
+                "--embedding-model",
+                "nomic-embed-text",
+                "--json",
+            ],
+        )
+
+        assert result.exit_code == 0, result.output
+        payload = json.loads(result.output)
+        validation = payload["operator_validation"]
+        assert payload["scheduler_preference"]["eligible"] is True
+        assert validation["case_source"] == "accumulated_library"
+        assert validation["eligible_for_explicit_sync_preference"] is True
+        assert validation["sync_requires_explicit_report"] is True
+        assert validation["default_routing_change_allowed"] is False
+        assert validation["blockers"] == []
 
     def test_eval_recall_records_single_operator_case_into_runtime_library(self, tmp_path, monkeypatch):
         store, power, _ = _seeded_store(tmp_path)

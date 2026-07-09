@@ -175,6 +175,14 @@
       "compatibility": "additive-within-v1"
     },
     {
+      "name": "recall-operator-validation",
+      "schema_version": "deepr-recall-operator-validation-v1",
+      "kind": "deepr.eval.recall_operator_validation",
+      "path": "recall-operator-validation-v1.json",
+      "status": "experimental",
+      "compatibility": "additive-within-v1"
+    },
+    {
       "name": "mcp-consult-validation",
       "schema_version": "deepr-mcp-consult-validation-v1",
       "kind": "deepr.mcp.consult_validation",

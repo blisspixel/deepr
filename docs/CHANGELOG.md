@@ -50,6 +50,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   are rechecked for enough cases, required vector metric wins, evaluated vector
   routing, no ineligible reasons, and complete current vector coverage before
   sync consumes the scheduler-preference block.
+- Added an operator-validation block to `deepr eval recall` reports. Accumulated
+  recall-library runs now declare whether their scheduler-preference evidence is
+  ready for explicit sync use, while also recording that default routing remains
+  lexical-first and still requires an operator-supplied saved report.
 
 ## [2.32.0] - 2026-07-08
 

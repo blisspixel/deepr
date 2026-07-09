@@ -62,6 +62,11 @@ from deepr.evals.hallucination_risks import (
     HALLUCINATION_RISK_REPORT_SCHEMA_VERSION,
     build_hallucination_risk_report,
 )
+from deepr.evals.recall_quality import (
+    RECALL_OPERATOR_VALIDATION_KIND,
+    RECALL_OPERATOR_VALIDATION_SCHEMA_VERSION,
+    build_recall_operator_validation,
+)
 from deepr.experts.beliefs import BeliefStore
 from deepr.experts.consult_quality import (
     CONSULT_QUALITY_REVIEW_KIND,
@@ -210,6 +215,34 @@ def test_schema_registry_points_to_existing_versioned_schemas():
         schema = _load_schema(entry["path"])
         assert schema["properties"]["schema_version"]["const"] == entry["schema_version"]
         assert schema["properties"]["kind"]["const"] == entry["kind"]
+
+
+def test_recall_operator_validation_schema_validates_runtime_payload():
+    payload = build_recall_operator_validation(
+        {
+            "request": {"case_count": 3, "embedding_model": "nomic-embed-text"},
+            "case_library": {
+                "path": "data/benchmarks/recall_cases/platform-expert.json",
+                "case_count": 3,
+                "source": "accumulated_library",
+            },
+            "scheduler_preference": {
+                "eligible": True,
+                "preferred_route": "vector_similarity",
+                "fallback_route": "lexical_router",
+                "reasons": [],
+                "routing_evidence_only": True,
+                "semantic_verdict": False,
+            },
+        }
+    )
+    schema = _load_schema("recall-operator-validation-v1.json")
+
+    _validate(schema, payload)
+    assert payload["schema_version"] == RECALL_OPERATOR_VALIDATION_SCHEMA_VERSION
+    assert payload["kind"] == RECALL_OPERATOR_VALIDATION_KIND
+    assert payload["eligible_for_explicit_sync_preference"] is True
+    assert payload["default_routing_change_allowed"] is False
 
 
 def test_loop_status_schema_validates_rollup_payload(tmp_path):
