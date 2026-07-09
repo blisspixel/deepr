@@ -52,6 +52,13 @@ def _render_recall_report(report: dict, name: str, top_k: int) -> None:
         click.echo("  Winners: " + ", ".join(f"{metric}={winner}" for metric, winner in winners.items()))
     else:
         click.echo(f"  Vector route skipped: {comparison['skip_reason']}")
+    scheduler_preference = report.get("scheduler_preference", {})
+    if scheduler_preference.get("eligible") is True:
+        click.echo(f"  Scheduler preference: {scheduler_preference['preferred_route']} eligible")
+    else:
+        reasons = scheduler_preference.get("reasons", [])
+        reason_text = ", ".join(reasons) if isinstance(reasons, list) else "insufficient evidence"
+        click.echo(f"  Scheduler preference: not eligible ({reason_text})")
     click.echo("  Routing evidence only; labels are operator-supplied, not semantic verdicts.")
 
 

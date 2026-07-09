@@ -29,6 +29,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   memory context. The published `deepr-claim-verification-v1` schema now records
   the additive draft field and summary count without auto-recording labels or
   treating recall context as a relevance verdict.
+- Added a conservative scheduler-preference eligibility block to
+  `deepr eval recall` reports. Vector recall is marked eligible only after the
+  vector route was evaluated on enough labeled cases, won required retrieval
+  metrics, and the requested belief-vector index has no missing or stale records;
+  the block remains routing evidence only and does not change scheduling yet.
 
 ## [2.32.0] - 2026-07-08
 
