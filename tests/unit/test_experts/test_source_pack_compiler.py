@@ -16,7 +16,7 @@ from deepr.experts.recall_case_candidates import (
     RECALL_EVAL_CASE_CANDIDATE_KIND,
     RECALL_EVAL_CASE_CANDIDATE_SCHEMA_VERSION,
 )
-from deepr.experts.semantic_recall import VECTOR_METHOD, RecallCandidate
+from deepr.experts.semantic_recall import LEXICAL_METHOD, VECTOR_METHOD, RecallCandidate
 from deepr.experts.source_pack_compiler import (
     CLAIM_VERIFICATION_KIND,
     CLAIM_VERIFICATION_SCHEMA_VERSION,
@@ -832,6 +832,13 @@ def test_claim_verification_uses_indexed_belief_vectors_for_recall(tmp_path):
         recall_min_score=0.9,
         recall_query_embeddings_by_candidate_id={candidate_id: [0.99, 0.01]},
         recall_embedding_model="local-test",
+        recall_route_preference={
+            "eligible": True,
+            "preferred_route": VECTOR_METHOD,
+            "fallback_route": LEXICAL_METHOD,
+            "routing_evidence_only": True,
+            "semantic_verdict": False,
+        },
     )
 
     recall_context = verification["decisions"][0]["recall_context"]
@@ -843,6 +850,13 @@ def test_claim_verification_uses_indexed_belief_vectors_for_recall(tmp_path):
     assert candidate["item_id"] == relevant.id
     assert candidate["method"] == VECTOR_METHOD
     assert candidate["metadata"]["recall_role"] == "memory_quality_candidate"
+    assert candidate["metadata"]["route_preference"] == {
+        "source": "recall_eval_scheduler_preference",
+        "preferred_route": VECTOR_METHOD,
+        "fallback_route": LEXICAL_METHOD,
+        "routing_evidence_only": True,
+        "semantic_verdict": False,
+    }
     assert "payload" not in candidate
 
 

@@ -869,6 +869,7 @@ def build_claim_verification(
     recall_min_score: float = 0.0,
     recall_query_embeddings_by_candidate_id: Mapping[str, Sequence[float]] | None = None,
     recall_embedding_model: str | None = None,
+    recall_route_preference: Mapping[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Compile verifier output into graph-commit readiness decisions.
 
@@ -888,6 +889,7 @@ def build_claim_verification(
         min_score=recall_min_score,
         query_embeddings_by_candidate_id=recall_query_embeddings_by_candidate_id,
         embedding_model=recall_embedding_model,
+        route_preference=recall_route_preference,
     )
     decisions = [
         _verification_decision(
