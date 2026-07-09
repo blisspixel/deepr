@@ -9,10 +9,19 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
+from typing import Any
 
 import click
 
 from deepr.cli.commands.eval import evaluate
+from deepr.evals.recall_quality import (
+    RECALL_EVAL_CASE_LIBRARY_SCHEMA_VERSION,
+    RecallEvalCase,
+    load_recall_eval_case_library,
+    load_recall_eval_cases,
+    merge_recall_eval_case_library,
+    recall_eval_case_library_path,
+)
 
 
 def _validate_embedding_flags(
@@ -45,13 +54,47 @@ def _render_recall_report(report: dict, name: str, top_k: int) -> None:
     click.echo("  Routing evidence only; labels are operator-supplied, not semantic verdicts.")
 
 
+def _load_cases_for_eval(name: str, cases_path: Path | None) -> tuple[list[RecallEvalCase], dict | None]:
+    if cases_path is not None:
+        return load_recall_eval_cases(json.loads(cases_path.read_text(encoding="utf-8"))), None
+
+    cases = load_recall_eval_case_library(name)
+    return cases, {
+        "schema_version": RECALL_EVAL_CASE_LIBRARY_SCHEMA_VERSION,
+        "path": str(recall_eval_case_library_path(name)),
+        "case_count": len(cases),
+        "source": "accumulated_library",
+    }
+
+
+def _resolve_query_embedding_inputs(
+    *,
+    local_embedding_model: str | None,
+    query_embeddings_json: Path | None,
+    embedding_model: str | None,
+) -> tuple[dict[str, tuple[float, ...]] | None, Any, str | None]:
+    if query_embeddings_json is not None:
+        from deepr.experts.expert_semantic_recall import coerce_belief_embedding_map
+
+        return (
+            coerce_belief_embedding_map(json.loads(query_embeddings_json.read_text(encoding="utf-8"))),
+            None,
+            embedding_model,
+        )
+    if local_embedding_model:
+        from deepr.backends.local import make_local_embedder
+
+        return None, make_local_embedder(local_embedding_model), local_embedding_model
+    return None, None, embedding_model
+
+
 @evaluate.command("recall")
 @click.argument("name")
 @click.option(
     "--cases",
     "cases_path",
     type=click.Path(exists=True, dir_okay=False, path_type=Path),
-    required=True,
+    default=None,
     help="JSON array of labeled cases: case_id, query, relevant_belief_ids.",
 )
 @click.option("--top-k", type=click.IntRange(min=1, max=50), default=5, show_default=True)
@@ -67,15 +110,21 @@ def _render_recall_report(report: dict, name: str, top_k: int) -> None:
     help="JSON object mapping case_id to a precomputed query vector.",
 )
 @click.option("--embedding-model", default=None, help="Model label for precomputed query vectors.")
+@click.option(
+    "--record-cases",
+    is_flag=True,
+    help="Merge the supplied --cases file into this expert's runtime-local labeled recall-case library.",
+)
 @click.option("--json", "json_output", is_flag=True, help="Emit machine-readable JSON.")
 @click.option("--save", is_flag=True, help="Save JSON artifact under the configured benchmarks directory.")
 def eval_recall(
     name: str,
-    cases_path: Path,
+    cases_path: Path | None,
     top_k: int,
     local_embedding_model: str | None,
     query_embeddings_json: Path | None,
     embedding_model: str | None,
+    record_cases: bool,
     json_output: bool,
     save: bool,
 ):
@@ -88,29 +137,23 @@ def eval_recall(
     """
     import asyncio
 
-    from deepr.evals.recall_quality import load_recall_eval_cases, run_recall_quality_eval, write_recall_eval_report
+    from deepr.evals.recall_quality import run_recall_quality_eval, write_recall_eval_report
     from deepr.experts.beliefs import BeliefStore
-    from deepr.experts.expert_semantic_recall import coerce_belief_embedding_map
     from deepr.experts.profile import ExpertStore
 
     _validate_embedding_flags(local_embedding_model, query_embeddings_json, embedding_model)
+    if record_cases and cases_path is None:
+        raise click.ClickException("--record-cases requires --cases.")
     if ExpertStore().load(name) is None:
         raise click.ClickException(f"Expert '{name}' not found. Create one: deepr expert make '{name}'.")
 
     try:
-        cases = load_recall_eval_cases(json.loads(cases_path.read_text(encoding="utf-8")))
-        embeddings_by_case = None
-        embed_queries = None
-        resolved_model = embedding_model
-        if query_embeddings_json is not None:
-            embeddings_by_case = coerce_belief_embedding_map(
-                json.loads(query_embeddings_json.read_text(encoding="utf-8"))
-            )
-        elif local_embedding_model:
-            from deepr.backends.local import make_local_embedder
-
-            embed_queries = make_local_embedder(local_embedding_model)
-            resolved_model = local_embedding_model
+        cases, case_library = _load_cases_for_eval(name, cases_path)
+        embeddings_by_case, embed_queries, resolved_model = _resolve_query_embedding_inputs(
+            local_embedding_model=local_embedding_model,
+            query_embeddings_json=query_embeddings_json,
+            embedding_model=embedding_model,
+        )
         report = asyncio.run(
             run_recall_quality_eval(
                 BeliefStore(name),
@@ -122,7 +165,13 @@ def eval_recall(
                 embed_queries=embed_queries,
             )
         )
+        if case_library is not None:
+            report["case_library"] = case_library
+        if record_cases and cases_path is not None:
+            report["case_library"] = merge_recall_eval_case_library(name, cases, source_path=cases_path)
     except (ValueError, json.JSONDecodeError) as exc:
+        raise click.ClickException(str(exc))
+    except FileNotFoundError as exc:
         raise click.ClickException(str(exc))
     except Exception as exc:
         raise click.ClickException(
