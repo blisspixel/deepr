@@ -25,7 +25,9 @@ RECALL_EVAL_REPORT_SCHEMA_VERSION = "deepr-recall-eval-report-v1"
 RECALL_EVAL_CASE_LIBRARY_SCHEMA_VERSION = "deepr-recall-eval-case-library-v1"
 LEXICAL_ROUTE = "lexical_router"
 VECTOR_ROUTE = "vector_similarity"
+MIN_SCHEDULER_PREFERENCE_CASES = 3
 _ROUTE_METRICS = ("hit_at_k", "mean_reciprocal_rank", "mean_relevant_retrieved")
+_SCHEDULER_REQUIRED_VECTOR_WIN_METRICS = ("hit_at_k", "mean_reciprocal_rank")
 
 # One batcher shape shared with deepr.backends.local.make_local_embedder.
 QueryEmbedder = Callable[[list[str]], Awaitable[list[tuple[float, ...]]]]
@@ -279,6 +281,42 @@ def _route_comparison(lexical: Mapping[str, Any], vector: Mapping[str, Any]) -> 
     return comparison
 
 
+def _scheduler_preference(
+    routes: Mapping[str, Any],
+    comparison: Mapping[str, Any],
+    index_coverage: Mapping[str, Any],
+) -> dict[str, Any]:
+    reasons: list[str] = []
+    vector_summary = routes.get(VECTOR_ROUTE, {})
+    winners = comparison.get("winners_by_metric", {})
+    evaluated_case_count = int(vector_summary.get("case_count", 0) or 0) if isinstance(vector_summary, Mapping) else 0
+
+    if comparison.get("vector_route_evaluated") is not True:
+        reasons.append("vector_route_not_evaluated")
+    if evaluated_case_count < MIN_SCHEDULER_PREFERENCE_CASES:
+        reasons.append("insufficient_case_count")
+    if index_coverage and int(index_coverage.get("missing_or_stale_count", 0) or 0) > 0:
+        reasons.append("belief_vector_index_incomplete")
+    if not isinstance(winners, Mapping) or any(
+        winners.get(metric) != VECTOR_ROUTE for metric in _SCHEDULER_REQUIRED_VECTOR_WIN_METRICS
+    ):
+        reasons.append("vector_route_did_not_win_required_metrics")
+
+    eligible = not reasons
+    return {
+        "eligible": eligible,
+        "preferred_route": VECTOR_ROUTE if eligible else "",
+        "fallback_route": LEXICAL_ROUTE,
+        "required_case_count": MIN_SCHEDULER_PREFERENCE_CASES,
+        "evaluated_case_count": evaluated_case_count,
+        "required_win_metrics": list(_SCHEDULER_REQUIRED_VECTOR_WIN_METRICS),
+        "winners_by_metric": dict(winners) if isinstance(winners, Mapping) else {},
+        "reasons": sorted(set(reasons)),
+        "routing_evidence_only": True,
+        "semantic_verdict": False,
+    }
+
+
 async def _resolve_query_embeddings(
     cases: Sequence[RecallEvalCase],
     *,
@@ -400,6 +438,7 @@ async def run_recall_quality_eval(
         comparison["winners_by_metric"] = _route_comparison(lexical_summary, vector_summary)
     else:
         comparison["skip_reason"] = vector_route_skip_reason
+    scheduler_preference = _scheduler_preference(routes, comparison, index_coverage)
 
     return {
         "schema_version": RECALL_EVAL_REPORT_SCHEMA_VERSION,
@@ -422,6 +461,7 @@ async def run_recall_quality_eval(
         "index": index_coverage,
         "routes": routes,
         "comparison": comparison,
+        "scheduler_preference": scheduler_preference,
         "cases": case_payloads,
         "generated_at": datetime.now(UTC).isoformat(),
     }
@@ -439,6 +479,7 @@ def write_recall_eval_report(report: Mapping[str, Any], *, output_dir: Path | No
 
 __all__ = [
     "LEXICAL_ROUTE",
+    "MIN_SCHEDULER_PREFERENCE_CASES",
     "RECALL_EVAL_CASE_LIBRARY_SCHEMA_VERSION",
     "RECALL_EVAL_REPORT_SCHEMA_VERSION",
     "VECTOR_ROUTE",

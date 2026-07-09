@@ -123,7 +123,48 @@ class TestRunEval:
         assert report["routes"]["vector_similarity"]["hit_at_k"] == 1.0
         assert report["routes"]["lexical_router"]["hit_at_k"] == 0.0
         assert report["comparison"]["winners_by_metric"]["hit_at_k"] == "vector_similarity"
+        assert report["scheduler_preference"]["eligible"] is False
+        assert "insufficient_case_count" in report["scheduler_preference"]["reasons"]
         assert report["cases"][0]["routes"]["vector_similarity"]["candidate_ids"] == [power.id]
+
+    async def test_scheduler_preference_requires_enough_vector_wins(self, tmp_path):
+        store = _store(tmp_path)
+        first, _ = store.add_belief(
+            Belief(claim="Power delivery constrains accelerator racks.", confidence=0.84, domain="infra")
+        )
+        second, _ = store.add_belief(
+            Belief(claim="Audit retention shapes governance workflows.", confidence=0.82, domain="governance")
+        )
+        third, _ = store.add_belief(
+            Belief(claim="Cooling headroom limits dense cluster deployment.", confidence=0.83, domain="infra")
+        )
+        store.upsert_belief_embedding(first.id, [1.0, 0.0, 0.0], model="nomic-embed-text")
+        store.upsert_belief_embedding(second.id, [0.0, 1.0, 0.0], model="nomic-embed-text")
+        store.upsert_belief_embedding(third.id, [0.0, 0.0, 1.0], model="nomic-embed-text")
+        cases = [
+            RecallEvalCase("c1", "energy ceilings", (first.id,)),
+            RecallEvalCase("c2", "records policy", (second.id,)),
+            RecallEvalCase("c3", "thermal limits", (third.id,)),
+        ]
+
+        async def embed_queries(queries):
+            assert queries == ["energy ceilings", "records policy", "thermal limits"]
+            return [(0.99, 0.01, 0.0), (0.0, 0.99, 0.01), (0.01, 0.0, 0.99)]
+
+        report = await run_recall_quality_eval(
+            store,
+            cases,
+            top_k=1,
+            embedding_model="nomic-embed-text",
+            embed_queries=embed_queries,
+        )
+
+        preference = report["scheduler_preference"]
+        assert preference["eligible"] is True
+        assert preference["preferred_route"] == "vector_similarity"
+        assert preference["fallback_route"] == "lexical_router"
+        assert preference["evaluated_case_count"] == 3
+        assert preference["reasons"] == []
 
     async def test_vector_route_skips_honestly_when_index_has_no_usable_vectors(self, tmp_path):
         store, power, _ = _seeded_store(tmp_path)
@@ -140,6 +181,8 @@ class TestRunEval:
         )
 
         assert report["comparison"]["vector_route_evaluated"] is False
+        assert report["scheduler_preference"]["eligible"] is False
+        assert "vector_route_not_evaluated" in report["scheduler_preference"]["reasons"]
         assert "no usable belief vectors indexed" in report["comparison"]["skip_reason"]
         assert "never-indexed-model" in report["comparison"]["skip_reason"]
         assert "vector_similarity" not in report["routes"]
