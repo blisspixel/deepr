@@ -18,12 +18,48 @@ from deepr.evals.recall_quality import (
     RECALL_EVAL_CASE_LIBRARY_SCHEMA_VERSION,
     RecallEvalCase,
     build_recall_eval_case,
+    build_recall_library_inventory,
     build_recall_operator_validation,
     load_recall_eval_case_library,
     load_recall_eval_cases,
     merge_recall_eval_case_library,
     recall_eval_case_library_path,
 )
+
+
+def _render_recall_library_inventory(payload: dict[str, Any]) -> None:
+    summary = payload["summary"]
+    click.echo(
+        "Recall case libraries  "
+        f"({summary['valid_library_count']} valid, {summary['invalid_library_count']} invalid, "
+        f"{summary['case_count']} case(s))"
+    )
+    libraries = payload["libraries"]
+    if not libraries:
+        click.echo("  No accumulated recall case libraries found.")
+        click.echo("  Add one with: deepr eval recall NAME --cases cases.json --record-cases")
+        return
+    for library in libraries:
+        expert_name = library.get("expert", {}).get("name", library.get("path", "unknown"))
+        state = "ready" if library.get("ready_for_scheduler_preference_eval") else "needs more labels"
+        if library.get("status") != "valid":
+            state = "invalid"
+        click.echo(f"  - {expert_name}: {library['case_count']} case(s), {state}")
+        blockers = library.get("blockers", [])
+        if blockers:
+            click.echo(f"    blockers: {', '.join(blockers)}")
+    click.echo("  Inventory only; run `deepr eval recall NAME --save` to produce route evidence.")
+
+
+@evaluate.command("recall-libraries")
+@click.option("--json", "json_output", is_flag=True, help="Emit the versioned library inventory as JSON.")
+def eval_recall_libraries(json_output: bool):
+    """List accumulated recall case libraries without running retrieval."""
+    payload = build_recall_library_inventory()
+    if json_output:
+        click.echo(json.dumps(payload, indent=2))
+        return
+    _render_recall_library_inventory(payload)
 
 
 def _validate_embedding_flags(

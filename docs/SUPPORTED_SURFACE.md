@@ -183,11 +183,14 @@ must not be described as usable capacity.
   embeds ready claim statements through the same local `$0` embedder so
   verifier recall context can use the indexed belief vectors, degrading to
   lexical routing instead of blocking verification when the local embedder
-  fails. `deepr eval recall NAME` can rerun accumulated operator-labeled recall
-  case libraries and emits an additive `deepr-recall-operator-validation-v1`
-  block describing whether the saved report is ready for explicit sync
-  preference use. The block is still routing evidence only: default sync routing
-  remains lexical-first unless the operator supplies a vetted report with
+  fails. `deepr eval recall-libraries` emits a read-only
+  `deepr-recall-library-inventory-v1` inventory so operators can see which
+  accumulated case libraries have enough labels for route-evidence evals.
+  `deepr eval recall NAME` can rerun accumulated operator-labeled recall case
+  libraries and emits an additive `deepr-recall-operator-validation-v1` block
+  describing whether the saved report is ready for explicit sync preference use.
+  The block is still routing evidence only: default sync routing remains
+  lexical-first unless the operator supplies a vetted report with
   `--recall-preference-report`. All of these remain explicit operator choices,
   and recall stays `candidate_only` routing in every mode.
 - `deepr expert monitor` emits a read-only `deepr-metacognitive-monitor-v1`

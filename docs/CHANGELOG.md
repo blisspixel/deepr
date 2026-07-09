@@ -54,6 +54,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   recall-library runs now declare whether their scheduler-preference evidence is
   ready for explicit sync use, while also recording that default routing remains
   lexical-first and still requires an operator-supplied saved report.
+- Added `deepr eval recall-libraries`, a read-only `$0` inventory of accumulated
+  recall case libraries. It emits `deepr-recall-library-inventory-v1`, flags
+  invalid libraries, and shows which experts have enough operator-labeled cases
+  to run route-evidence evals before any explicit sync preference report is
+  considered.
 
 ## [2.32.0] - 2026-07-08
 
