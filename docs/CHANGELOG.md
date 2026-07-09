@@ -46,6 +46,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Added validation coverage proving an accumulated `deepr eval recall` case
   library can generate an eligible report that `deepr expert sync
   --recall-preference-report` accepts without ingesting the full report body.
+- Hardened `deepr expert sync --recall-preference-report` so eligible reports
+  are rechecked for enough cases, required vector metric wins, evaluated vector
+  routing, no ineligible reasons, and complete current vector coverage before
+  sync consumes the scheduler-preference block.
 
 ## [2.32.0] - 2026-07-08
 
