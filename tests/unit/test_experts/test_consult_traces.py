@@ -12,6 +12,8 @@ from deepr.experts.consult_traces import (
     CONSULT_TRACE_CANDIDATES_SCHEMA_VERSION,
     CONSULT_TRACE_KIND,
     CONSULT_TRACE_SCHEMA_VERSION,
+    RECALL_EVAL_CASE_CANDIDATE_KIND,
+    RECALL_EVAL_CASE_CANDIDATE_SCHEMA_VERSION,
     build_consult_trace,
     build_consult_trace_candidates,
     load_consult_traces,
@@ -123,19 +125,19 @@ def test_build_consult_trace_candidates_routes_middle_context_for_review():
             "expert": "A",
             "confidence": 0.9,
             "response": "start",
-            "context": {"source": "belief_store", "selection": "start"},
+            "context": {"source": "belief_store", "selection": "start", "belief_ids": ["belief_start"]},
         },
         {
             "expert": "B",
             "confidence": 0.8,
             "response": "private middle packet content",
-            "context": {"source": "belief_store", "selection": "middle"},
+            "context": {"source": "belief_store", "selection": "middle", "belief_ids": ["belief_middle"]},
         },
         {
             "expert": "C",
             "confidence": 0.7,
             "response": "end",
-            "context": {"source": "belief_store", "selection": "end"},
+            "context": {"source": "belief_store", "selection": "end", "belief_ids": ["belief_end"]},
         },
     ]
     trace = build_consult_trace(
@@ -153,6 +155,7 @@ def test_build_consult_trace_candidates_routes_middle_context_for_review():
 
     assert candidates["candidate_count"] == 1
     assert candidates["middle_context_review_count"] == 1
+    assert candidates["recall_case_candidate_count"] == 1
     candidate = candidates["candidates"][0]
     assert candidate["reason"] == "middle_context_review"
     assert candidate["severity"] == 2
@@ -167,6 +170,13 @@ def test_build_consult_trace_candidates_routes_middle_context_for_review():
     risk_checks = {item["risk_label"]: item for item in semantic_case["hallucination_risk_checks"]}
     assert risk_checks["long_context_middle_loss"]["requires_semantic_judgment"] is True
     assert "long_context_middle_loss" in semantic_case["failure_labels"]
+    recall_candidate = candidate["recall_case_candidate"]
+    assert recall_candidate["schema_version"] == RECALL_EVAL_CASE_CANDIDATE_SCHEMA_VERSION
+    assert recall_candidate["kind"] == RECALL_EVAL_CASE_CANDIDATE_KIND
+    assert recall_candidate["contract"]["requires_operator_relevance_review"] is True
+    assert recall_candidate["contract"]["semantic_verdict"] is False
+    assert recall_candidate["input"]["candidate_belief_ids"] == ["belief_start", "belief_middle", "belief_end"]
+    assert "query" not in recall_candidate["input"]
     assert "private middle packet content" not in json.dumps(candidate)
 
 

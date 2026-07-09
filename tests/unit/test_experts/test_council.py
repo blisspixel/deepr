@@ -135,16 +135,14 @@ async def test_consult_queries_experts_with_bounded_concurrency(monkeypatch):
 @pytest.mark.asyncio
 async def test_consult_uses_stored_beliefs_before_live_session():
     store = BeliefStore("Grounded Cost Expert")
-    store.add_belief(
-        Belief(
-            claim="Prompt caching cost models must separate cache creation tokens from cache read tokens.",
-            confidence=0.92,
-            evidence_refs=["https://platform.claude.com/docs/en/build-with-claude/prompt-caching"],
-            domain="provider economics",
-            trust_class="secondary",
-        ),
-        check_conflicts=False,
+    belief = Belief(
+        claim="Prompt caching cost models must separate cache creation tokens from cache read tokens.",
+        confidence=0.92,
+        evidence_refs=["https://platform.claude.com/docs/en/build-with-claude/prompt-caching"],
+        domain="provider economics",
+        trust_class="secondary",
     )
+    store.add_belief(belief, check_conflicts=False)
 
     council = ExpertCouncil()
     experts = [{"name": "Grounded Cost Expert", "domain": "provider economics"}]
@@ -162,6 +160,7 @@ async def test_consult_uses_stored_beliefs_before_live_session():
         "selection_note": "Selected stored beliefs by query-token overlap, then confidence.",
         "beliefs_available": 1,
         "beliefs_included": 1,
+        "belief_ids": [belief.id],
         "beliefs_verified": 0,
         "matched_terms": ["cache", "cost", "prompt"],
     }
@@ -227,6 +226,7 @@ def test_stored_perspective_discloses_grounding_assurance():
     # for programmatic hosts, without dropping the unverified one.
     assert perspective.context["beliefs_included"] == 3
     assert perspective.context["beliefs_verified"] == 2
+    assert set(perspective.context["belief_ids"]) == {belief.id for belief in beliefs}
 
 
 def test_synthesis_prompt_defines_verified_labels():

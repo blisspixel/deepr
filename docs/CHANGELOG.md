@@ -17,6 +17,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   is versioned as `deepr-recall-eval-case-library-v1`, costs `$0`, writes no
   beliefs, writes no graph state, and keeps labels as operator-supplied routing
   evidence only.
+- Added review-required recall case candidates to consult trace mining.
+  Stored-belief consult context now includes selected belief ids, and
+  `deepr-consult-trace-candidates-v1` may include
+  `deepr-recall-eval-case-candidate-v1` drafts for failed-check, low-context,
+  or middle-context traces that had selected belief context. These candidates
+  are not auto-recorded as labels and require operator relevance review before
+  they become `deepr eval recall` cases.
 
 ## [2.32.0] - 2026-07-08
 

@@ -36,6 +36,7 @@
     "low_context_trace_count": {"type": "integer", "minimum": 0},
     "middle_context_review_count": {"type": "integer", "minimum": 0},
     "semantic_eval_case_count": {"type": "integer", "minimum": 0},
+    "recall_case_candidate_count": {"type": "integer", "minimum": 0},
     "candidates": {
       "type": "array",
       "items": {
@@ -99,6 +100,68 @@
               "rubric": {"type": "array"},
               "failure_labels": {"type": "array", "items": {"type": "string"}},
               "acceptance_policy": {"type": "object"}
+            },
+            "additionalProperties": true
+          },
+          "recall_case_candidate": {
+            "type": "object",
+            "required": [
+              "schema_version",
+              "kind",
+              "case_id",
+              "source_trace_id",
+              "source_reason",
+              "contract",
+              "input",
+              "operator_instruction"
+            ],
+            "properties": {
+              "schema_version": {"const": "deepr-recall-eval-case-candidate-v1"},
+              "kind": {"const": "deepr.eval.recall_case_candidate"},
+              "case_id": {"type": "string"},
+              "source_trace_id": {"type": "string"},
+              "source_reason": {"type": "string"},
+              "contract": {
+                "type": "object",
+                "required": [
+                  "cost_usd",
+                  "writes_state",
+                  "writes_graph",
+                  "writes_beliefs",
+                  "writes_belief_vectors",
+                  "semantic_verdict",
+                  "candidate_only",
+                  "requires_operator_relevance_review",
+                  "auto_record",
+                  "derived_from"
+                ],
+                "properties": {
+                  "cost_usd": {"const": 0.0},
+                  "writes_state": {"const": false},
+                  "writes_graph": {"const": false},
+                  "writes_beliefs": {"const": false},
+                  "writes_belief_vectors": {"const": false},
+                  "semantic_verdict": {"const": false},
+                  "candidate_only": {"const": true},
+                  "requires_operator_relevance_review": {"const": true},
+                  "auto_record": {"const": false},
+                  "derived_from": {"const": "deepr-consult-trace-v1"}
+                },
+                "additionalProperties": true
+              },
+              "input": {
+                "type": "object",
+                "required": ["query_hash", "query_preview", "candidate_belief_ids"],
+                "properties": {
+                  "query_hash": {"type": "string"},
+                  "query_preview": {"type": "string"},
+                  "candidate_belief_ids": {"type": "array", "items": {"type": "string"}},
+                  "selected_context_count": {"type": "integer", "minimum": 0},
+                  "middle_context_slot_count": {"type": "integer", "minimum": 0}
+                },
+                "additionalProperties": true
+              },
+              "operator_instruction": {"type": "string"}
             },
             "additionalProperties": true
           }

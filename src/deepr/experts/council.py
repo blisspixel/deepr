@@ -387,6 +387,7 @@ class ExpertCouncil:
             "selection_note": selected_context.selection_note,
             "beliefs_available": len(belief_list),
             "beliefs_included": len(selected),
+            "belief_ids": [belief.id for belief in selected],
             "beliefs_verified": sum(
                 1 for belief in selected if is_verified_assurance(getattr(belief, "grounding_assurance", ""))
             ),
