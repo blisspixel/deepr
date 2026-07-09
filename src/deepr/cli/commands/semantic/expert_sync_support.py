@@ -22,6 +22,8 @@ SYNC_CAPACITY_GATE_SCHEMA_VERSION = "deepr-sync-capacity-gate-v1"
 RECALL_EVAL_REPORT_SCHEMA_VERSION = "deepr-recall-eval-report-v1"
 RECALL_VECTOR_ROUTE = "vector_similarity"
 RECALL_LEXICAL_ROUTE = "lexical_router"
+RECALL_MIN_SCHEDULER_PREFERENCE_CASES = 3
+RECALL_REQUIRED_VECTOR_WIN_METRICS = ("hit_at_k", "mean_reciprocal_rank")
 
 
 def _self_model_context(expert_name: str, *, profile: Any | None = None) -> dict[str, Any]:
@@ -403,6 +405,68 @@ def _validate_recall_preference_contract(report: dict[str, Any]) -> None:
         raise ValueError("--recall-preference-report must be a read-only routing-evidence report.")
 
 
+def _int_report_field(payload: dict[str, Any], field: str, error: str) -> int:
+    value = payload.get(field)
+    if isinstance(value, bool) or not isinstance(value, int):
+        raise ValueError(error)
+    return value
+
+
+def _validate_eligible_preference_counts(preference: dict[str, Any]) -> None:
+    required_count = _int_report_field(
+        preference,
+        "required_case_count",
+        "--recall-preference-report eligible preference must declare required_case_count.",
+    )
+    evaluated_count = _int_report_field(
+        preference,
+        "evaluated_case_count",
+        "--recall-preference-report eligible preference must declare evaluated_case_count.",
+    )
+    if required_count < RECALL_MIN_SCHEDULER_PREFERENCE_CASES or evaluated_count < required_count:
+        raise ValueError("--recall-preference-report eligible preference does not meet its required case count.")
+
+
+def _validate_eligible_preference_vector_wins(preference: dict[str, Any]) -> None:
+    required_metrics = preference.get("required_win_metrics")
+    winners = preference.get("winners_by_metric")
+    if not isinstance(required_metrics, list) or not all(isinstance(metric, str) for metric in required_metrics):
+        raise ValueError("--recall-preference-report eligible preference must declare required vector win metrics.")
+    if not set(RECALL_REQUIRED_VECTOR_WIN_METRICS).issubset(required_metrics):
+        raise ValueError("--recall-preference-report eligible preference is missing required vector win metrics.")
+    if not isinstance(winners, dict) or any(winners.get(metric) != RECALL_VECTOR_ROUTE for metric in required_metrics):
+        raise ValueError("--recall-preference-report eligible preference must win all required vector win metrics.")
+
+
+def _validate_eligible_preference_index(report: dict[str, Any]) -> None:
+    index = report.get("index", {})
+    if not isinstance(index, dict):
+        raise ValueError("--recall-preference-report eligible preference must include vector index coverage.")
+    current_vectors = _int_report_field(
+        index,
+        "current_vector_count",
+        "--recall-preference-report eligible preference must declare current_vector_count.",
+    )
+    missing_or_stale = _int_report_field(
+        index,
+        "missing_or_stale_count",
+        "--recall-preference-report eligible preference must declare missing_or_stale_count.",
+    )
+    if current_vectors <= 0 or missing_or_stale != 0:
+        raise ValueError("--recall-preference-report eligible preference requires complete current vector coverage.")
+
+
+def _validate_eligible_preference_evidence(report: dict[str, Any], preference: dict[str, Any]) -> None:
+    comparison = report.get("comparison", {})
+    if not isinstance(comparison, dict) or comparison.get("vector_route_evaluated") is not True:
+        raise ValueError("--recall-preference-report eligible preference requires an evaluated vector route.")
+    if preference.get("reasons") not in ([], ()):
+        raise ValueError("--recall-preference-report eligible preference must not carry ineligible reasons.")
+    _validate_eligible_preference_counts(preference)
+    _validate_eligible_preference_vector_wins(preference)
+    _validate_eligible_preference_index(report)
+
+
 def _scheduler_preference_from_report(report: dict[str, Any]) -> dict[str, Any]:
     preference = report.get("scheduler_preference", {})
     if not isinstance(preference, dict):
@@ -413,6 +477,8 @@ def _scheduler_preference_from_report(report: dict[str, Any]) -> dict[str, Any]:
         raise ValueError("--recall-preference-report scheduler preference must be routing evidence only.")
     if preference.get("eligible") is True and preference.get("preferred_route") != RECALL_VECTOR_ROUTE:
         raise ValueError("--recall-preference-report eligible preference must prefer vector_similarity.")
+    if preference.get("eligible") is True:
+        _validate_eligible_preference_evidence(report, preference)
     return dict(preference)
 
 
