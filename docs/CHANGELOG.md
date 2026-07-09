@@ -11,8 +11,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Added a runtime-local recall case library for `deepr eval recall`. Operators
   can now run `deepr eval recall NAME --cases cases.json --record-cases` to
   merge labeled recall cases into `data/benchmarks/recall_cases/<expert>.json`,
-  then rerun `deepr eval recall NAME` without a cases file. The library is
-  versioned as `deepr-recall-eval-case-library-v1`, costs `$0`, writes no
+  or run `deepr eval recall NAME --query TEXT --relevant-belief-id ID
+  --record-cases` to capture one reviewed case without a scratch JSON file.
+  The accumulated set can be rerun with `deepr eval recall NAME`. The library
+  is versioned as `deepr-recall-eval-case-library-v1`, costs `$0`, writes no
   beliefs, writes no graph state, and keeps labels as operator-supplied routing
   evidence only.
 
