@@ -24,6 +24,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   or middle-context traces that had selected belief context. These candidates
   are not auto-recorded as labels and require operator relevance review before
   they become `deepr eval recall` cases.
+- Added the same review-required recall case candidate contract to claim
+  verification decisions blocked by duplicate, contradiction, or temporal-scope
+  memory context. The published `deepr-claim-verification-v1` schema now records
+  the additive draft field and summary count without auto-recording labels or
+  treating recall context as a relevance verdict.
 
 ## [2.32.0] - 2026-07-08
 

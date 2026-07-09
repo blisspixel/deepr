@@ -1052,6 +1052,7 @@ def test_claim_verification_schema_validates_runtime_payload():
             ]
         },
     )
+    duplicate_candidate_id = extraction["candidates"][1]["candidate_id"]
     payload = build_claim_verification(
         extraction,
         {
@@ -1074,14 +1075,26 @@ def test_claim_verification_schema_validates_runtime_payload():
                     ],
                 },
                 {
-                    "candidate_id": extraction["candidates"][1]["candidate_id"],
+                    "candidate_id": duplicate_candidate_id,
                     "support_verdict": "supported",
                     "contradiction_verdict": "none",
-                    "dedup_verdict": "new",
+                    "dedup_verdict": "same_as_existing",
                     "temporal_scope_verdict": "valid",
                     "confidence": 0.88,
                     "rationale": "The cited note supports the follow-on claim.",
                 },
+            ]
+        },
+        recall_candidates_by_candidate_id={
+            duplicate_candidate_id: [
+                {
+                    "item_id": "belief_schema_duplicate",
+                    "kind": "belief",
+                    "domain": "compiler",
+                    "text": "Compiler behavior changes require replayable verification.",
+                    "score": 0.84,
+                    "method": "lexical_router",
+                }
             ]
         },
         provider="local",
@@ -1098,6 +1111,11 @@ def test_claim_verification_schema_validates_runtime_payload():
     assert payload["contract"]["writes_graph"] is False
     assert payload["decisions"][0]["commit_gate"]["requires_commit_envelope"] is True
     assert payload["decisions"][0]["edge_decisions"][0]["edge_type"] == "supports"
+    assert payload["summary"]["recall_case_candidate_count"] == 1
+    recall_candidate = payload["decisions"][1]["recall_case_candidate"]
+    assert recall_candidate["schema_version"] == RECALL_EVAL_CASE_CANDIDATE_SCHEMA_VERSION
+    assert recall_candidate["kind"] == RECALL_EVAL_CASE_CANDIDATE_KIND
+    assert recall_candidate["input"]["candidate_belief_ids"] == ["belief_schema_duplicate"]
 
 
 def test_graph_commit_envelope_schema_validates_runtime_payload():

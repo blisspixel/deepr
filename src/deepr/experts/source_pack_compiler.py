@@ -11,6 +11,10 @@ from typing import Any
 
 from deepr.experts import source_pack_recall as _recall
 from deepr.experts.belief_edges import EDGE_TYPES
+from deepr.experts.recall_case_candidates import (
+    build_recall_case_candidate,
+    candidate_belief_ids_from_recall_context,
+)
 from deepr.experts.source_pack_edges import edge_decision_sets as _edge_decision_sets
 from deepr.experts.source_pack_payloads import artifact_generated_at as _artifact_generated_at
 from deepr.experts.source_pack_payloads import source_pack_from_payload as _source_pack_from_payload
@@ -526,6 +530,43 @@ def _policy_verification_failures(
     return failure_reasons + _idea_policy_failures(policy, model_judgment)
 
 
+def _recall_case_candidate_reason(failure_reasons: list[str]) -> str:
+    for reason in ("duplicate_existing_belief", "contradiction_unresolved", "temporal_scope_rejected"):
+        if reason in failure_reasons:
+            return reason
+    return ""
+
+
+def _recall_case_candidate_for_decision(
+    *,
+    candidate_id: str,
+    candidate: dict[str, Any] | None,
+    failure_reasons: list[str],
+    verdicts: dict[str, str],
+    recall_context: dict[str, Any],
+) -> dict[str, Any] | None:
+    reason = _recall_case_candidate_reason(failure_reasons)
+    if not reason or candidate is None:
+        return None
+    return build_recall_case_candidate(
+        case_id=f"{candidate_id}_{reason}_recall",
+        source_id=candidate_id,
+        source_kind="claim_verification_decision",
+        source_reason=reason,
+        query=str(candidate.get("statement", "") or ""),
+        candidate_belief_ids=candidate_belief_ids_from_recall_context(recall_context),
+        derived_from=CLAIM_VERIFICATION_SCHEMA_VERSION,
+        input_metadata={
+            "claim_candidate_id": candidate_id,
+            "claim_kind": str(candidate.get("claim_kind", "") or ""),
+            "recall_candidate_count": recall_context.get("candidate_count", 0),
+            "verifier_failure_reasons": failure_reasons,
+            "verdicts": verdicts,
+        },
+        extra_fields={"source_candidate_id": candidate_id},
+    )
+
+
 def _verification_decision(
     item: dict[str, Any],
     *,
@@ -547,7 +588,8 @@ def _verification_decision(
     failure_reasons.extend(_policy_verification_failures(policy, verdicts, model_judgment))
     failure_reasons = sorted(set(failure_reasons))
     ready = bool(candidate is not None and not failure_reasons)
-    return {
+    recall_context = _recall.build_recall_context(recall_candidates_by_candidate_id.get(candidate_id, []))
+    decision = {
         "candidate_id": candidate_id,
         "claim_kind": str((candidate or {}).get("claim_kind", item.get("claim_kind", "")) or ""),
         "state_policy": policy,
@@ -555,7 +597,7 @@ def _verification_decision(
         "model_judgment": model_judgment,
         "edge_decisions": edge_decisions,
         "edge_decision_failures": edge_decision_failures,
-        "recall_context": _recall.build_recall_context(recall_candidates_by_candidate_id.get(candidate_id, [])),
+        "recall_context": recall_context,
         "readiness": {
             "ready_for_commit_envelope": ready,
             "failure_reasons": failure_reasons,
@@ -566,6 +608,16 @@ def _verification_decision(
             "requires_commit_envelope": True,
         },
     }
+    recall_case_candidate = _recall_case_candidate_for_decision(
+        candidate_id=candidate_id,
+        candidate=candidate,
+        failure_reasons=failure_reasons,
+        verdicts=verdicts,
+        recall_context=recall_context,
+    )
+    if recall_case_candidate is not None:
+        decision["recall_case_candidate"] = recall_case_candidate
+    return decision
 
 
 def build_source_pack_manifest(
@@ -902,6 +954,7 @@ def build_claim_verification(
             "parsed_decision_count": len(decisions),
             "ready_for_commit_envelope_count": ready_count,
             "blocked_decision_count": len(decisions) - ready_count,
+            "recall_case_candidate_count": sum(1 for decision in decisions if "recall_case_candidate" in decision),
             "failure_reasons": failure_reasons,
         },
         "decisions": decisions,

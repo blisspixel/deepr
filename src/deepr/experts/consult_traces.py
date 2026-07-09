@@ -18,6 +18,7 @@ from typing import Any
 
 from deepr.config import default_data_dir
 from deepr.core.contracts import Gap
+from deepr.experts import recall_case_candidates as _recall_cases
 from deepr.experts.gap_scorer import score_gap
 from deepr.utils.atomic_io import append_jsonl_durable
 
@@ -27,8 +28,8 @@ CONSULT_TRACE_CANDIDATES_SCHEMA_VERSION = "deepr-consult-trace-candidates-v1"
 CONSULT_TRACE_CANDIDATES_KIND = "deepr.expert.consult_trace_candidates"
 CONSULT_QUALITY_EVAL_CASE_SCHEMA_VERSION = "deepr-consult-quality-eval-case-v1"
 CONSULT_QUALITY_EVAL_CASE_KIND = "deepr.eval.consult_quality_case"
-RECALL_EVAL_CASE_CANDIDATE_SCHEMA_VERSION = "deepr-recall-eval-case-candidate-v1"
-RECALL_EVAL_CASE_CANDIDATE_KIND = "deepr.eval.recall_case_candidate"
+RECALL_EVAL_CASE_CANDIDATE_SCHEMA_VERSION = _recall_cases.RECALL_EVAL_CASE_CANDIDATE_SCHEMA_VERSION
+RECALL_EVAL_CASE_CANDIDATE_KIND = _recall_cases.RECALL_EVAL_CASE_CANDIDATE_KIND
 
 
 def _utc_now() -> datetime:
@@ -361,8 +362,7 @@ def _selected_context_candidate_belief_ids(trace: dict[str, Any]) -> list[str]:
     if not isinstance(selected, list):
         return []
 
-    belief_ids: list[str] = []
-    seen: set[str] = set()
+    raw_belief_ids: list[Any] = []
     for item in selected:
         if not isinstance(item, dict):
             continue
@@ -372,14 +372,8 @@ def _selected_context_candidate_belief_ids(trace: dict[str, Any]) -> list[str]:
         raw_ids = context.get("belief_ids")
         if not isinstance(raw_ids, list):
             continue
-        for belief_id in raw_ids:
-            if not isinstance(belief_id, str):
-                continue
-            cleaned = belief_id.strip()
-            if cleaned and cleaned not in seen:
-                seen.add(cleaned)
-                belief_ids.append(cleaned)
-    return belief_ids
+        raw_belief_ids.extend(raw_ids)
+    return _recall_cases.unique_candidate_belief_ids(raw_belief_ids)
 
 
 def _candidate_reason(trace: dict[str, Any], *, low_context_threshold: int) -> tuple[str, int] | None:
@@ -574,35 +568,20 @@ def _recall_case_candidate_for_trace(trace: dict[str, Any], reason: str) -> dict
     if not question.strip() or not candidate_belief_ids:
         return None
     trace_id = str(trace.get("trace_id", "consult_unknown") or "consult_unknown")
-    return {
-        "schema_version": RECALL_EVAL_CASE_CANDIDATE_SCHEMA_VERSION,
-        "kind": RECALL_EVAL_CASE_CANDIDATE_KIND,
-        "case_id": f"{trace_id}_{reason}_recall",
-        "source_trace_id": trace_id,
-        "source_reason": reason,
-        "contract": {
-            "cost_usd": 0.0,
-            "writes_state": False,
-            "writes_graph": False,
-            "writes_beliefs": False,
-            "writes_belief_vectors": False,
-            "semantic_verdict": False,
-            "candidate_only": True,
-            "requires_operator_relevance_review": True,
-            "auto_record": False,
-            "derived_from": CONSULT_TRACE_SCHEMA_VERSION,
-        },
-        "input": {
-            "query_hash": str(input_block.get("question_hash", _sha256(question))),
-            "query_preview": _preview(question),
-            "candidate_belief_ids": candidate_belief_ids,
+    return _recall_cases.build_recall_case_candidate(
+        case_id=f"{trace_id}_{reason}_recall",
+        source_id=trace_id,
+        source_kind="consult_trace",
+        source_reason=reason,
+        query=question,
+        candidate_belief_ids=candidate_belief_ids,
+        derived_from=CONSULT_TRACE_SCHEMA_VERSION,
+        input_metadata={
             "selected_context_count": _selected_context_count(trace),
             "middle_context_slot_count": _middle_context_slot_count(trace),
         },
-        "operator_instruction": (
-            "Review candidate_belief_ids before recording any as relevant_belief_ids with deepr eval recall."
-        ),
-    }
+        extra_fields={"source_trace_id": trace_id},
+    )
 
 
 def _candidate_for_trace(

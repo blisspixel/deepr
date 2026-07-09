@@ -12,6 +12,10 @@ from deepr.experts.graph_commit_envelope import (
     build_graph_commit_envelope,
 )
 from deepr.experts.metacognition import MetaCognitionTracker
+from deepr.experts.recall_case_candidates import (
+    RECALL_EVAL_CASE_CANDIDATE_KIND,
+    RECALL_EVAL_CASE_CANDIDATE_SCHEMA_VERSION,
+)
 from deepr.experts.semantic_recall import VECTOR_METHOD, RecallCandidate
 from deepr.experts.source_pack_compiler import (
     CLAIM_VERIFICATION_KIND,
@@ -612,6 +616,8 @@ def test_claim_verification_attaches_recall_context_without_changing_readiness()
 
     decision = verification["decisions"][0]
     assert decision["readiness"]["ready_for_commit_envelope"] is True
+    assert verification["summary"]["recall_case_candidate_count"] == 0
+    assert "recall_case_candidate" not in decision
     assert decision["recall_context"]["routing"] == "candidate_only"
     assert decision["recall_context"]["semantic_verdict"] is False
     assert decision["recall_context"]["writes_graph"] is False
@@ -702,6 +708,70 @@ def test_claim_verification_builds_read_only_recall_from_belief_store(tmp_path):
     assert candidate["metadata"]["verifier_bands"] == ["deduplication", "contradiction", "temporal_scope"]
     assert candidate["metadata"]["source_type"] == "report"
     assert "payload" not in candidate
+
+
+def test_claim_verification_drafts_recall_case_candidate_for_memory_block():
+    notes = build_source_notes(_source_pack_payload())
+    note = notes["notes"][0]
+    window = note["windows"][0]
+    extraction = build_semantic_claim_extraction(
+        notes,
+        {
+            "claims": [
+                {
+                    "statement": "The compiler routes recall candidates before graph writes.",
+                    "claim_kind": "factual_claim",
+                    "confidence": 0.91,
+                    "source_refs": [{"note_id": note["note_id"], "window_id": window["window_id"]}],
+                }
+            ]
+        },
+    )
+    candidate_id = extraction["candidates"][0]["candidate_id"]
+    recall_candidate = RecallCandidate(
+        item_id="belief_recall_1",
+        text="The compiler can expose memory candidates for verifier inspection.",
+        kind="belief",
+        score=0.84,
+        method="vector_similarity",
+        domain="compiler",
+        matched_terms=("compiler", "recall"),
+        metadata={"source_type": "report"},
+    )
+
+    verification = build_claim_verification(
+        extraction,
+        {
+            "verifications": [
+                {
+                    "candidate_id": candidate_id,
+                    "support_verdict": "supported",
+                    "contradiction_verdict": "none",
+                    "dedup_verdict": "same_as_existing",
+                    "temporal_scope_verdict": "valid",
+                }
+            ]
+        },
+        recall_candidates_by_candidate_id={candidate_id: [recall_candidate]},
+    )
+
+    decision = verification["decisions"][0]
+    assert decision["readiness"]["ready_for_commit_envelope"] is False
+    assert decision["readiness"]["failure_reasons"] == ["duplicate_existing_belief"]
+    assert verification["summary"]["recall_case_candidate_count"] == 1
+    candidate = decision["recall_case_candidate"]
+    assert candidate["schema_version"] == RECALL_EVAL_CASE_CANDIDATE_SCHEMA_VERSION
+    assert candidate["kind"] == RECALL_EVAL_CASE_CANDIDATE_KIND
+    assert candidate["source_kind"] == "claim_verification_decision"
+    assert candidate["source_reason"] == "duplicate_existing_belief"
+    assert candidate["source_candidate_id"] == candidate_id
+    assert candidate["contract"]["requires_operator_relevance_review"] is True
+    assert candidate["contract"]["semantic_verdict"] is False
+    assert candidate["contract"]["auto_record"] is False
+    assert candidate["input"]["candidate_belief_ids"] == ["belief_recall_1"]
+    assert candidate["input"]["claim_candidate_id"] == candidate_id
+    assert candidate["input"]["verdicts"]["deduplication"] == "same_as_existing"
+    assert "query" not in candidate["input"]
 
 
 def test_claim_verification_uses_indexed_belief_vectors_for_recall(tmp_path):
