@@ -23,6 +23,36 @@ from deepr.cli.commands.semantic.expert_sync_support import _self_model_run_cont
 from deepr.cli.commands.semantic.experts import expert
 
 
+def _write_recall_preference_report(tmp_path, *, name="UI Experience Expert", embedding_model="nomic-embed-text"):
+    path = tmp_path / "recall-report.json"
+    path.write_text(
+        json.dumps(
+            {
+                "schema_version": "deepr-recall-eval-report-v1",
+                "kind": "deepr.eval.recall_quality",
+                "expert": {"name": name},
+                "request": {"embedding_model": embedding_model},
+                "contract": {
+                    "writes_graph": False,
+                    "writes_beliefs": False,
+                    "writes_belief_vectors": False,
+                    "semantic_verdict": False,
+                    "routing_evidence_only": True,
+                },
+                "scheduler_preference": {
+                    "eligible": True,
+                    "preferred_route": "vector_similarity",
+                    "fallback_route": "lexical_router",
+                    "routing_evidence_only": True,
+                    "semantic_verdict": False,
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+    return path
+
+
 class TestRegistration:
     def test_sync_registered_with_options(self):
         assert "sync" in expert.commands
@@ -50,6 +80,7 @@ class TestRegistration:
             "second_checker_plan_model",
             "apply_compiled_claims",
             "stage_compiled_claims",
+            "recall_preference_report",
         } <= opts
 
     def test_absorb_has_local_and_api_flags(self):
@@ -205,6 +236,45 @@ class TestBackendFlagGuard:
 
         assert r.exit_code == 2
         assert "--recall-embedding-model must not be blank" in r.output
+
+    def test_sync_rejects_recall_preference_report_without_compile_claims_before_store_work(
+        self, monkeypatch, tmp_path
+    ):
+        class ExplodingExpertStore:
+            def load(self, name):
+                raise AssertionError("recall preference validation must run before loading experts")
+
+        monkeypatch.setattr("deepr.experts.profile.ExpertStore", ExplodingExpertStore)
+        report = _write_recall_preference_report(tmp_path, name="Whoever")
+
+        r = CliRunner().invoke(expert, ["sync", "Whoever", "--recall-preference-report", str(report)])
+
+        assert r.exit_code == 2
+        assert "--recall-preference-report requires --compile-claims" in r.output
+
+    def test_sync_rejects_recall_preference_report_model_mismatch_before_store_work(self, monkeypatch, tmp_path):
+        class ExplodingExpertStore:
+            def load(self, name):
+                raise AssertionError("recall preference validation must run before loading experts")
+
+        monkeypatch.setattr("deepr.experts.profile.ExpertStore", ExplodingExpertStore)
+        report = _write_recall_preference_report(tmp_path, name="Whoever", embedding_model="other-model")
+
+        r = CliRunner().invoke(
+            expert,
+            [
+                "sync",
+                "Whoever",
+                "--compile-claims",
+                "--recall-embedding-model",
+                "nomic-embed-text",
+                "--recall-preference-report",
+                str(report),
+            ],
+        )
+
+        assert r.exit_code == 2
+        assert "embedding model does not match" in r.output
 
     def test_absorb_rejects_checker_plan_without_grounding_before_store_work(self, monkeypatch):
         class ExplodingExpertStore:
@@ -435,7 +505,7 @@ class TestBackendFlagGuard:
         assert escalator.maker_vendor == "local"
         assert escalator.available_vendors == ("kiro",)
 
-    def test_sync_compile_claims_applies_compiled_graph_commit_by_default(self, monkeypatch):
+    def test_sync_compile_claims_applies_compiled_graph_commit_by_default(self, monkeypatch, tmp_path):
         captured = {}
         profile = SimpleNamespace(name="UI Experience Expert")
 
@@ -481,6 +551,7 @@ class TestBackendFlagGuard:
             "deepr.experts.loop_runs.record_loop_run",
             lambda **kwargs: SimpleNamespace(to_dict=lambda: {"run_id": "loop_sync_complete"}),
         )
+        report = _write_recall_preference_report(tmp_path)
 
         r = CliRunner().invoke(
             expert,
@@ -489,6 +560,10 @@ class TestBackendFlagGuard:
                 "UI Experience Expert",
                 "--api",
                 "--compile-claims",
+                "--recall-embedding-model",
+                "nomic-embed-text",
+                "--recall-preference-report",
+                str(report),
                 "-y",
                 "--json",
             ],
@@ -496,6 +571,13 @@ class TestBackendFlagGuard:
 
         assert r.exit_code == 0, r.output
         assert captured["build_kwargs"]["compile_claims"] is True
+        assert captured["build_kwargs"]["recall_route_preference"] == {
+            "eligible": True,
+            "preferred_route": "vector_similarity",
+            "fallback_route": "lexical_router",
+            "routing_evidence_only": True,
+            "semantic_verdict": False,
+        }
         assert captured["sync_kwargs"]["apply_graph_commits"] is True
 
     def test_sync_stage_compiled_claims_keeps_no_apply_sidecar_path(self, monkeypatch):

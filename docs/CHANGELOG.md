@@ -38,6 +38,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   can now consume a vetted recall eval scheduler-preference block and try
   vector-only recall first while preserving lexical fallback when the preference
   is absent, ineligible, or produces no vector hits.
+- Added `deepr expert sync --recall-preference-report PATH` for compiled-claim
+  sync. The flag validates a local `deepr eval recall` report for the same
+  expert and embedding model, then passes only its scheduler-preference block
+  into claim verification; the default path remains lexical-first unless an
+  operator supplies the report explicitly.
 
 ## [2.32.0] - 2026-07-08
 

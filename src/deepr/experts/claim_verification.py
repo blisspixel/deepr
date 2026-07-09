@@ -86,6 +86,7 @@ class SemanticClaimVerifier:
     recall_min_score: float = 0.0
     recall_query_embedder: Any | None = None
     recall_embedding_model: str | None = None
+    recall_route_preference: Mapping[str, Any] | None = None
     memo: Any | None = None
 
     def _get_client(self) -> Any:
@@ -138,6 +139,7 @@ class SemanticClaimVerifier:
             recall_min_score=self.recall_min_score,
             recall_query_embeddings_by_candidate_id=recall_embeddings,
             recall_embedding_model=self.recall_embedding_model if recall_embeddings else None,
+            recall_route_preference=self.recall_route_preference,
             memo=self.memo,
         )
 
@@ -308,6 +310,7 @@ def _candidate_packets(
     recall_min_score: float,
     recall_query_embeddings_by_candidate_id: Mapping[str, Sequence[float]] | None,
     recall_embedding_model: str | None,
+    recall_route_preference: Mapping[str, Any] | None,
 ) -> tuple[list[dict[str, Any]], dict[str, list[dict[str, Any]]]]:
     candidates = _ready_candidates(claim_extraction, max_candidates=max_candidates)
     notes = _notes_by_id(source_notes)
@@ -323,6 +326,7 @@ def _candidate_packets(
             min_score=recall_min_score,
             query_embeddings_by_candidate_id=recall_query_embeddings_by_candidate_id,
             embedding_model=recall_embedding_model,
+            route_preference=recall_route_preference,
         ).items()
     }
     packets = [
@@ -370,6 +374,7 @@ def build_claim_verification_prompt(
     recall_min_score: float = 0.0,
     recall_query_embeddings_by_candidate_id: Mapping[str, Sequence[float]] | None = None,
     recall_embedding_model: str | None = None,
+    recall_route_preference: Mapping[str, Any] | None = None,
 ) -> ClaimVerificationPrompt:
     """Build bounded messages for claim verification."""
     packets, recall_candidates_by_candidate_id = _candidate_packets(
@@ -385,6 +390,7 @@ def build_claim_verification_prompt(
         recall_min_score=recall_min_score,
         recall_query_embeddings_by_candidate_id=recall_query_embeddings_by_candidate_id,
         recall_embedding_model=recall_embedding_model,
+        recall_route_preference=recall_route_preference,
     )
     if not packets:
         raise ClaimVerificationBlocked("no ready claim candidates for verification")
@@ -523,6 +529,7 @@ def _memoized_output(
     claim_extraction_artifact: str,
     generated_at: str,
     recall_embedding_model: str | None,
+    recall_route_preference: Mapping[str, Any] | None,
 ) -> dict[str, Any]:
     """Assemble a full-replay output with zero dispatch and zero cost."""
     ordered = [
@@ -542,6 +549,7 @@ def _memoized_output(
     output["recall"] = {
         "context_by_candidate_id": prompt.recall_candidates_by_candidate_id,
         "embedding_model": recall_embedding_model or "",
+        "route_preference": dict(recall_route_preference) if isinstance(recall_route_preference, Mapping) else {},
     }
     output["memo"] = _memo_metadata(memo_hits, [])
     return output
@@ -584,6 +592,7 @@ def _memo_reduced_prompt(
     recall_min_score: float,
     recall_query_embeddings_by_candidate_id: Mapping[str, Sequence[float]] | None,
     recall_embedding_model: str | None,
+    recall_route_preference: Mapping[str, Any] | None,
 ) -> tuple[ClaimVerificationPrompt, dict[str, Any] | None]:
     """Shrink the prompt to fresh candidates, or short-circuit on full replay.
 
@@ -606,6 +615,7 @@ def _memo_reduced_prompt(
             claim_extraction_artifact=claim_extraction_artifact,
             generated_at=generated_at,
             recall_embedding_model=recall_embedding_model,
+            recall_route_preference=recall_route_preference,
         )
     reduced = build_claim_verification_prompt(
         _filtered_claim_extraction(claim_extraction, fresh_ids),
@@ -617,6 +627,7 @@ def _memo_reduced_prompt(
         recall_min_score=recall_min_score,
         recall_query_embeddings_by_candidate_id=recall_query_embeddings_by_candidate_id,
         recall_embedding_model=recall_embedding_model,
+        recall_route_preference=recall_route_preference,
     )
     return reduced, None
 
@@ -716,6 +727,7 @@ async def verify_claims(
     recall_min_score: float = 0.0,
     recall_query_embeddings_by_candidate_id: Mapping[str, Sequence[float]] | None = None,
     recall_embedding_model: str | None = None,
+    recall_route_preference: Mapping[str, Any] | None = None,
     memo: Any | None = None,
 ) -> dict[str, Any]:
     """Invoke a chat client and return verifier JSON plus trusted metadata.
@@ -749,6 +761,7 @@ async def verify_claims(
         recall_min_score=recall_min_score,
         recall_query_embeddings_by_candidate_id=recall_query_embeddings_by_candidate_id,
         recall_embedding_model=recall_embedding_model,
+        recall_route_preference=recall_route_preference,
     )
     memo_hits = _memo_partition(prompt, memo, provider=provider, model=model)
     # The full prompt's recall map covers replayed candidates too; keep it so
@@ -772,6 +785,7 @@ async def verify_claims(
         recall_min_score=recall_min_score,
         recall_query_embeddings_by_candidate_id=recall_query_embeddings_by_candidate_id,
         recall_embedding_model=recall_embedding_model,
+        recall_route_preference=recall_route_preference,
     )
     if replay_output is not None:
         return replay_output
@@ -858,6 +872,7 @@ async def verify_claims(
         # what their original dispatch judged against.
         "context_by_candidate_id": {**full_recall_context, **prompt.recall_candidates_by_candidate_id},
         "embedding_model": recall_embedding_model or "",
+        "route_preference": dict(recall_route_preference) if isinstance(recall_route_preference, Mapping) else {},
     }
     _attach_memo_metadata(output, memo=memo, memo_hits=memo_hits, fresh_ids=fresh_ids)
     return output

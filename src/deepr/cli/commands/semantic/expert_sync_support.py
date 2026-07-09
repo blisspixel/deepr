@@ -10,6 +10,7 @@ from __future__ import annotations
 import asyncio
 import json
 from datetime import UTC, datetime
+from pathlib import Path
 from typing import Any
 
 import click
@@ -18,6 +19,9 @@ from deepr.cli.colors import console, print_error, print_warning
 
 SYNC_CAPACITY_GATE_KIND = "deepr.expert.sync_capacity_gate"
 SYNC_CAPACITY_GATE_SCHEMA_VERSION = "deepr-sync-capacity-gate-v1"
+RECALL_EVAL_REPORT_SCHEMA_VERSION = "deepr-recall-eval-report-v1"
+RECALL_VECTOR_ROUTE = "vector_similarity"
+RECALL_LEXICAL_ROUTE = "lexical_router"
 
 
 def _self_model_context(expert_name: str, *, profile: Any | None = None) -> dict[str, Any]:
@@ -349,6 +353,100 @@ def validate_compiled_claims_flags(
     return normalized
 
 
+def _read_recall_preference_report(normalized_path: str) -> dict[str, Any]:
+    path = Path(normalized_path).expanduser()
+    try:
+        report = json.loads(path.read_text(encoding="utf-8"))
+    except FileNotFoundError as exc:
+        raise ValueError("--recall-preference-report file does not exist.") from exc
+    except OSError as exc:
+        raise ValueError(f"--recall-preference-report could not be read: {exc}") from exc
+    except json.JSONDecodeError as exc:
+        raise ValueError(f"--recall-preference-report must be valid JSON: {exc.msg}") from exc
+
+    if not isinstance(report, dict):
+        raise ValueError("--recall-preference-report must contain a recall eval report object.")
+    if report.get("schema_version") != RECALL_EVAL_REPORT_SCHEMA_VERSION:
+        raise ValueError("--recall-preference-report must be a deepr-recall-eval-report-v1 artifact.")
+    return report
+
+
+def _validate_recall_preference_identity(
+    report: dict[str, Any],
+    *,
+    expert_name: str,
+    recall_embedding_model: str,
+) -> None:
+    report_expert = report.get("expert", {})
+    report_name = str(report_expert.get("name", "") or "").strip() if isinstance(report_expert, dict) else ""
+    if report_name.casefold() != expert_name.strip().casefold():
+        raise ValueError("--recall-preference-report expert does not match the sync target.")
+
+    request = report.get("request", {})
+    report_model = str(request.get("embedding_model", "") or "").strip() if isinstance(request, dict) else ""
+    if report_model != recall_embedding_model:
+        raise ValueError("--recall-preference-report embedding model does not match --recall-embedding-model.")
+
+
+def _validate_recall_preference_contract(report: dict[str, Any]) -> None:
+    contract = report.get("contract", {})
+    if not isinstance(contract, dict) or any(
+        contract.get(flag) is not expected
+        for flag, expected in (
+            ("writes_graph", False),
+            ("writes_beliefs", False),
+            ("writes_belief_vectors", False),
+            ("semantic_verdict", False),
+            ("routing_evidence_only", True),
+        )
+    ):
+        raise ValueError("--recall-preference-report must be a read-only routing-evidence report.")
+
+
+def _scheduler_preference_from_report(report: dict[str, Any]) -> dict[str, Any]:
+    preference = report.get("scheduler_preference", {})
+    if not isinstance(preference, dict):
+        raise ValueError("--recall-preference-report is missing scheduler_preference.")
+    if preference.get("fallback_route") != RECALL_LEXICAL_ROUTE:
+        raise ValueError("--recall-preference-report must declare lexical_router as fallback_route.")
+    if preference.get("routing_evidence_only") is not True or preference.get("semantic_verdict") is not False:
+        raise ValueError("--recall-preference-report scheduler preference must be routing evidence only.")
+    if preference.get("eligible") is True and preference.get("preferred_route") != RECALL_VECTOR_ROUTE:
+        raise ValueError("--recall-preference-report eligible preference must prefer vector_similarity.")
+    return dict(preference)
+
+
+def load_recall_route_preference_report(
+    report_path: str | None,
+    *,
+    expert_name: str,
+    compile_claims: bool,
+    recall_embedding_model: str | None,
+) -> dict[str, Any] | None:
+    """Load the scheduler preference from a local recall eval report.
+
+    The returned object is only the machine-readable scheduler-preference block;
+    local file paths are not copied into downstream artifacts.
+    """
+    if report_path is None:
+        return None
+    normalized_path = str(report_path).strip()
+    if not normalized_path:
+        raise ValueError("--recall-preference-report must not be blank.")
+    if not compile_claims:
+        raise ValueError("--recall-preference-report requires --compile-claims.")
+    if not recall_embedding_model:
+        raise ValueError("--recall-preference-report requires --recall-embedding-model.")
+    report = _read_recall_preference_report(normalized_path)
+    _validate_recall_preference_identity(
+        report,
+        expert_name=expert_name,
+        recall_embedding_model=recall_embedding_model,
+    )
+    _validate_recall_preference_contract(report)
+    return _scheduler_preference_from_report(report)
+
+
 def _run_sync_with_loop_guard(
     profile: Any,
     *,
@@ -370,6 +468,7 @@ def _run_sync_with_loop_guard(
     apply_graph_commits: bool = False,
     spend_decision_fn: Any | None = None,
     recall_embedding_model: str | None = None,
+    recall_route_preference: dict[str, Any] | None = None,
 ) -> tuple[Any, Any | None, str]:
     from deepr.experts.maintenance_engine import build_sync_engine
 
@@ -387,6 +486,7 @@ def _run_sync_with_loop_guard(
             compile_claims=compile_claims,
             spend_decision_fn=spend_decision_fn,
             recall_embedding_model=recall_embedding_model,
+            recall_route_preference=recall_route_preference,
         )
         result = asyncio.run(
             engine.sync(

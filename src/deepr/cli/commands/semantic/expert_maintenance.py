@@ -36,6 +36,7 @@ from deepr.cli.commands.semantic.expert_sync_support import (
     _run_sync_with_loop_guard,
     _sync_context_builder,
     _sync_context_mode,
+    load_recall_route_preference_report,
     validate_compiled_claims_flags,
 )
 from deepr.cli.commands.semantic.experts import expert
@@ -369,6 +370,11 @@ def absorb_report(
     "model at $0 for vector recall context; lexical fallback on failure",
 )
 @click.option(
+    "--recall-preference-report",
+    default=None,
+    help="With --compile-claims and --recall-embedding-model: local deepr eval recall report to prefer vector recall",
+)
+@click.option(
     "--checker-plan",
     type=click.Choice(PLAN_BACKEND_CHOICES),
     default=None,
@@ -420,6 +426,7 @@ def sync_cmd(
     stage_compiled_claims: bool,
     apply_compiled_claims: bool,
     recall_embedding_model: str | None,
+    recall_preference_report: str | None,
     checker_plan: str | None,
     checker_plan_model: str | None,
     second_checker_plan: str | None,
@@ -465,6 +472,12 @@ def sync_cmd(
             stage_compiled_claims=stage_compiled_claims,
             apply_compiled_claims=apply_compiled_claims,
             dry_run=dry_run,
+            recall_embedding_model=recall_embedding_model,
+        )
+        recall_route_preference = load_recall_route_preference_report(
+            recall_preference_report,
+            expert_name=name,
+            compile_claims=compile_claims,
             recall_embedding_model=recall_embedding_model,
         )
     except ValueError as exc:
@@ -688,6 +701,7 @@ def sync_cmd(
         apply_graph_commits=apply_compiled_graph_commits,
         spend_decision_fn=spend_decision_fn,
         recall_embedding_model=recall_embedding_model,
+        recall_route_preference=recall_route_preference,
     )
 
     if json_output:
