@@ -27,6 +27,8 @@ RECALL_OPERATOR_VALIDATION_SCHEMA_VERSION = "deepr-recall-operator-validation-v1
 RECALL_OPERATOR_VALIDATION_KIND = "deepr.eval.recall_operator_validation"
 RECALL_LIBRARY_INVENTORY_SCHEMA_VERSION = "deepr-recall-library-inventory-v1"
 RECALL_LIBRARY_INVENTORY_KIND = "deepr.eval.recall_library_inventory"
+RECALL_LIBRARY_VALIDATION_PLAN_SCHEMA_VERSION = "deepr-recall-library-validation-plan-v1"
+RECALL_LIBRARY_VALIDATION_PLAN_KIND = "deepr.eval.recall_library_validation_plan"
 LEXICAL_ROUTE = "lexical_router"
 VECTOR_ROUTE = "vector_similarity"
 MIN_SCHEDULER_PREFERENCE_CASES = 3
@@ -254,6 +256,106 @@ def build_recall_library_inventory(*, output_dir: Path | None = None) -> dict[st
             "required_case_count": MIN_SCHEDULER_PREFERENCE_CASES,
         },
         "libraries": records,
+        "generated_at": datetime.now(UTC).isoformat(),
+    }
+
+
+def _validation_plan_step(
+    library: Mapping[str, Any],
+    *,
+    top_k: int,
+    local_embedding_model: str | None,
+) -> dict[str, Any]:
+    expert = library.get("expert", {})
+    expert_name = str(expert.get("name", "") or "") if isinstance(expert, Mapping) else ""
+    blockers = [str(blocker) for blocker in library.get("blockers", []) if str(blocker).strip()]
+    if library.get("ready_for_scheduler_preference_eval") is not True:
+        if "insufficient_case_count_for_scheduler_preference" not in blockers:
+            blockers.append("insufficient_case_count_for_scheduler_preference")
+    if not local_embedding_model:
+        blockers.append("missing_local_embedding_model_for_vector_route")
+
+    ready = library.get("status") == "valid" and not blockers
+    command = ["deepr", "eval", "recall", expert_name, "--top-k", str(top_k), "--save"]
+    if local_embedding_model:
+        command.extend(["--local-embedding-model", local_embedding_model])
+    return {
+        "expert": {"name": expert_name},
+        "library_path": str(library.get("path", "") or ""),
+        "case_count": int(library.get("case_count", 0) or 0),
+        "status": "ready" if ready else "blocked",
+        "ready_for_operator_validation": ready,
+        "blockers": sorted(set(blockers)),
+        "eval_command_argv": command if ready else [],
+        "expected_report_schema_version": RECALL_EVAL_REPORT_SCHEMA_VERSION,
+        "expected_operator_validation_schema_version": RECALL_OPERATOR_VALIDATION_SCHEMA_VERSION,
+        "post_eval_acceptance": {
+            "requires_saved_report": True,
+            "requires_operator_validation_ready": True,
+            "sync_requires_explicit_report": True,
+            "default_routing_change_allowed": False,
+            "routing_evidence_only": True,
+            "semantic_verdict": False,
+        },
+    }
+
+
+def build_recall_library_validation_plan(
+    *,
+    output_dir: Path | None = None,
+    top_k: int = 5,
+    local_embedding_model: str | None = None,
+) -> dict[str, Any]:
+    """Build a read-only plan for validating accumulated recall libraries.
+
+    The plan emits command argv for ready libraries only. It does not call an
+    embedder, run retrieval, save reports, or change scheduler behavior.
+    """
+    if top_k <= 0:
+        raise ValueError("top_k must be positive")
+    model = str(local_embedding_model or "").strip()
+    inventory = build_recall_library_inventory(output_dir=output_dir)
+    steps = [
+        _validation_plan_step(library, top_k=top_k, local_embedding_model=model or None)
+        for library in inventory["libraries"]
+    ]
+    ready_steps = [step for step in steps if step["ready_for_operator_validation"]]
+    return {
+        "schema_version": RECALL_LIBRARY_VALIDATION_PLAN_SCHEMA_VERSION,
+        "kind": RECALL_LIBRARY_VALIDATION_PLAN_KIND,
+        "inventory": {
+            "schema_version": inventory["schema_version"],
+            "root": inventory["root"],
+            "generated_at": inventory["generated_at"],
+        },
+        "request": {
+            "top_k": top_k,
+            "local_embedding_model": model,
+        },
+        "contract": {
+            "cost_usd": 0.0,
+            "writes_graph": False,
+            "writes_beliefs": False,
+            "writes_belief_vectors": False,
+            "runs_retrieval": False,
+            "executes_commands": False,
+            "semantic_verdict": False,
+            "routing_evidence_only": True,
+            "default_routing_change_allowed": False,
+        },
+        "summary": {
+            "library_count": inventory["summary"]["library_count"],
+            "valid_library_count": inventory["summary"]["valid_library_count"],
+            "invalid_library_count": inventory["summary"]["invalid_library_count"],
+            "case_count": inventory["summary"]["case_count"],
+            "ready_for_scheduler_preference_eval_count": inventory["summary"][
+                "ready_for_scheduler_preference_eval_count"
+            ],
+            "ready_for_operator_validation_count": len(ready_steps),
+            "blocked_count": len(steps) - len(ready_steps),
+            "required_case_count": MIN_SCHEDULER_PREFERENCE_CASES,
+        },
+        "steps": steps,
         "generated_at": datetime.now(UTC).isoformat(),
     }
 
@@ -636,6 +738,8 @@ __all__ = [
     "RECALL_EVAL_REPORT_SCHEMA_VERSION",
     "RECALL_LIBRARY_INVENTORY_KIND",
     "RECALL_LIBRARY_INVENTORY_SCHEMA_VERSION",
+    "RECALL_LIBRARY_VALIDATION_PLAN_KIND",
+    "RECALL_LIBRARY_VALIDATION_PLAN_SCHEMA_VERSION",
     "RECALL_OPERATOR_VALIDATION_KIND",
     "RECALL_OPERATOR_VALIDATION_SCHEMA_VERSION",
     "SCHEDULER_REQUIRED_VECTOR_WIN_METRICS",
@@ -643,6 +747,7 @@ __all__ = [
     "RecallEvalCase",
     "build_recall_eval_case",
     "build_recall_library_inventory",
+    "build_recall_library_validation_plan",
     "build_recall_operator_validation",
     "load_recall_eval_case_library",
     "load_recall_eval_cases",

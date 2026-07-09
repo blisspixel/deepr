@@ -722,10 +722,12 @@ deepr expert semantic-recall "Azure Architect" "subscription vending guardrails"
 
 # Evaluate accumulated operator-labeled recall cases as routing evidence only.
 deepr eval recall-libraries --json
+deepr eval recall-libraries --validation-plan --local-embedding-model nomic-embed-text --json
 deepr eval recall "Azure Architect" --query-embeddings-json query-vectors.json --embedding-model nomic-embed-text --save
-# recall-libraries emits deepr-recall-library-inventory-v1; saved reports
-# include deepr-recall-operator-validation-v1. Default sync routing stays
-# lexical-first unless the operator supplies the saved report.
+# recall-libraries emits deepr-recall-library-inventory-v1 or
+# deepr-recall-library-validation-plan-v1. Saved reports include
+# deepr-recall-operator-validation-v1. Default sync routing stays lexical-first
+# unless the operator supplies the saved report.
 
 # MCP-only temporal edge query: filter typed edge qualifiers by valid time,
 # observed time, edge type, or one belief reference.

@@ -14,9 +14,12 @@ from deepr.evals.recall_quality import (
     RECALL_EVAL_REPORT_SCHEMA_VERSION,
     RECALL_LIBRARY_INVENTORY_KIND,
     RECALL_LIBRARY_INVENTORY_SCHEMA_VERSION,
+    RECALL_LIBRARY_VALIDATION_PLAN_KIND,
+    RECALL_LIBRARY_VALIDATION_PLAN_SCHEMA_VERSION,
     RecallEvalCase,
     build_recall_eval_case,
     build_recall_library_inventory,
+    build_recall_library_validation_plan,
     load_recall_eval_case_library,
     load_recall_eval_cases,
     merge_recall_eval_case_library,
@@ -346,6 +349,49 @@ class TestRecallCaseLibrary:
         assert by_name["Needs Labels"]["ready_for_scheduler_preference_eval"] is False
         assert by_name["broken"]["status"] == "invalid"
 
+    def test_case_library_validation_plan_lists_only_ready_commands(self, tmp_path):
+        root = tmp_path / "cases"
+        merge_recall_eval_case_library(
+            "Ready Expert",
+            [
+                RecallEvalCase("c1", "power", ("b1",)),
+                RecallEvalCase("c2", "records", ("b2",)),
+                RecallEvalCase("c3", "cooling", ("b3",)),
+            ],
+            output_dir=root,
+        )
+        merge_recall_eval_case_library(
+            "Needs Labels",
+            [RecallEvalCase("c1", "power", ("b1",))],
+            output_dir=root,
+        )
+
+        plan = build_recall_library_validation_plan(
+            output_dir=root,
+            top_k=3,
+            local_embedding_model="nomic-embed-text",
+        )
+
+        assert plan["schema_version"] == RECALL_LIBRARY_VALIDATION_PLAN_SCHEMA_VERSION
+        assert plan["kind"] == RECALL_LIBRARY_VALIDATION_PLAN_KIND
+        assert plan["contract"]["executes_commands"] is False
+        assert plan["contract"]["runs_retrieval"] is False
+        assert plan["summary"]["ready_for_operator_validation_count"] == 1
+        by_name = {step["expert"]["name"]: step for step in plan["steps"]}
+        assert by_name["Ready Expert"]["eval_command_argv"] == [
+            "deepr",
+            "eval",
+            "recall",
+            "Ready Expert",
+            "--top-k",
+            "3",
+            "--save",
+            "--local-embedding-model",
+            "nomic-embed-text",
+        ]
+        assert by_name["Needs Labels"]["eval_command_argv"] == []
+        assert "insufficient_case_count_for_scheduler_preference" in by_name["Needs Labels"]["blockers"]
+
 
 class TestEvalRecallCommand:
     def _write_cases(self, tmp_path, belief_id: str):
@@ -405,6 +451,48 @@ class TestEvalRecallCommand:
         assert payload["summary"]["library_count"] == 1
         assert payload["libraries"][0]["expert"]["name"] == "Recall Eval Expert"
         assert payload["libraries"][0]["ready_for_scheduler_preference_eval"] is True
+
+    def test_eval_recall_libraries_json_outputs_validation_plan(self, tmp_path, monkeypatch):
+        case_root = tmp_path / "case-library"
+        merge_recall_eval_case_library(
+            "Recall Eval Expert",
+            [
+                RecallEvalCase("c1", "power", ("b1",)),
+                RecallEvalCase("c2", "records", ("b2",)),
+                RecallEvalCase("c3", "cooling", ("b3",)),
+            ],
+            output_dir=case_root / "benchmarks" / "recall_cases",
+        )
+        monkeypatch.setattr("deepr.evals.recall_quality.runtime_data_path", lambda *parts: case_root.joinpath(*parts))
+
+        result = CliRunner().invoke(
+            cli,
+            [
+                "eval",
+                "recall-libraries",
+                "--validation-plan",
+                "--local-embedding-model",
+                "nomic-embed-text",
+                "--top-k",
+                "3",
+                "--json",
+            ],
+        )
+
+        assert result.exit_code == 0, result.output
+        payload = json.loads(result.output)
+        assert payload["schema_version"] == RECALL_LIBRARY_VALIDATION_PLAN_SCHEMA_VERSION
+        assert payload["summary"]["ready_for_operator_validation_count"] == 1
+        assert payload["steps"][0]["eval_command_argv"][-2:] == ["--local-embedding-model", "nomic-embed-text"]
+
+    def test_eval_recall_libraries_rejects_model_without_validation_plan(self):
+        result = CliRunner().invoke(
+            cli,
+            ["eval", "recall-libraries", "--local-embedding-model", "nomic-embed-text"],
+        )
+
+        assert result.exit_code != 0
+        assert "--local-embedding-model only applies with --validation-plan" in result.output
 
     def test_eval_recall_records_cases_into_runtime_library(self, tmp_path, monkeypatch):
         store, power, _ = _seeded_store(tmp_path)

@@ -19,6 +19,7 @@ from deepr.evals.recall_quality import (
     RecallEvalCase,
     build_recall_eval_case,
     build_recall_library_inventory,
+    build_recall_library_validation_plan,
     build_recall_operator_validation,
     load_recall_eval_case_library,
     load_recall_eval_cases,
@@ -51,15 +52,60 @@ def _render_recall_library_inventory(payload: dict[str, Any]) -> None:
     click.echo("  Inventory only; run `deepr eval recall NAME --save` to produce route evidence.")
 
 
+def _render_recall_library_validation_plan(payload: dict[str, Any]) -> None:
+    summary = payload["summary"]
+    click.echo(
+        "Recall library validation plan  "
+        f"({summary['ready_for_operator_validation_count']} ready, {summary['blocked_count']} blocked)"
+    )
+    if not payload["request"].get("local_embedding_model"):
+        click.echo("  Add --local-embedding-model MODEL to produce vector route evidence commands.")
+    for step in payload["steps"]:
+        expert_name = step.get("expert", {}).get("name", step.get("library_path", "unknown"))
+        click.echo(f"  - {expert_name}: {step['case_count']} case(s), {step['status']}")
+        blockers = step.get("blockers", [])
+        if blockers:
+            click.echo(f"    blockers: {', '.join(blockers)}")
+        command = step.get("eval_command_argv", [])
+        if command:
+            click.echo(f"    argv: {json.dumps(command)}")
+    click.echo("  Plan only; commands are not executed and default routing is unchanged.")
+
+
 @evaluate.command("recall-libraries")
 @click.option("--json", "json_output", is_flag=True, help="Emit the versioned library inventory as JSON.")
-def eval_recall_libraries(json_output: bool):
+@click.option(
+    "--validation-plan",
+    is_flag=True,
+    help="Emit a read-only command plan for ready libraries instead of the inventory.",
+)
+@click.option(
+    "--local-embedding-model",
+    default=None,
+    help="Model name to include in validation-plan argv; never called by this command.",
+)
+@click.option("--top-k", type=click.IntRange(min=1, max=50), default=5, show_default=True)
+def eval_recall_libraries(
+    json_output: bool,
+    validation_plan: bool,
+    local_embedding_model: str | None,
+    top_k: int,
+):
     """List accumulated recall case libraries without running retrieval."""
-    payload = build_recall_library_inventory()
+    if local_embedding_model and not validation_plan:
+        raise click.ClickException("--local-embedding-model only applies with --validation-plan.")
+    payload = (
+        build_recall_library_validation_plan(top_k=top_k, local_embedding_model=local_embedding_model)
+        if validation_plan
+        else build_recall_library_inventory()
+    )
     if json_output:
         click.echo(json.dumps(payload, indent=2))
         return
-    _render_recall_library_inventory(payload)
+    if validation_plan:
+        _render_recall_library_validation_plan(payload)
+    else:
+        _render_recall_library_inventory(payload)
 
 
 def _validate_embedding_flags(
