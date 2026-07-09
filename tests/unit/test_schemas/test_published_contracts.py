@@ -78,6 +78,8 @@ from deepr.experts.consult_traces import (
     CONSULT_TRACE_CANDIDATES_SCHEMA_VERSION,
     CONSULT_TRACE_KIND,
     CONSULT_TRACE_SCHEMA_VERSION,
+    RECALL_EVAL_CASE_CANDIDATE_KIND,
+    RECALL_EVAL_CASE_CANDIDATE_SCHEMA_VERSION,
     build_consult_trace,
     build_consult_trace_candidates,
 )
@@ -718,7 +720,30 @@ def test_consult_trace_candidates_schema_validates_runtime_payload():
         requested_experts=["AI Agent Harnesses"],
         max_experts=3,
         budget=0.0,
-        failure={"stage": "run_consult", "error_type": "RuntimeError", "message": "boom"},
+        payload={
+            "schema_version": "deepr-consult-v1",
+            "kind": "deepr.expert.consult",
+            "question": "What should the expert loop improve next?",
+            "answer": "Use traces and evals.",
+            "experts_consulted": ["AI Agent Harnesses"],
+            "perspectives": [
+                {
+                    "expert": "AI Agent Harnesses",
+                    "domain": "agent harnesses",
+                    "confidence": 0.9,
+                    "response": "Trace failed consults.",
+                    "context": {
+                        "source": "belief_store",
+                        "selection": "query_overlap",
+                        "belief_ids": ["belief_trace_1"],
+                    },
+                }
+            ],
+            "agreements": [],
+            "disagreements": [],
+            "cost_usd": 0.0,
+        },
+        result={"perspectives": [{}], "synthesis_status": "failed", "synthesis_error_type": "RuntimeError"},
         trace_id="consult_abcdef123456",
         recorded_at=datetime(2026, 6, 26, 12, 0, tzinfo=UTC),
     )
@@ -728,6 +753,9 @@ def test_consult_trace_candidates_schema_validates_runtime_payload():
     _validate(schema, payload)
     assert payload["schema_version"] == CONSULT_TRACE_CANDIDATES_SCHEMA_VERSION
     assert payload["kind"] == CONSULT_TRACE_CANDIDATES_KIND
+    recall_candidate = payload["candidates"][0]["recall_case_candidate"]
+    assert recall_candidate["schema_version"] == RECALL_EVAL_CASE_CANDIDATE_SCHEMA_VERSION
+    assert recall_candidate["kind"] == RECALL_EVAL_CASE_CANDIDATE_KIND
     assert payload["candidates"][0]["eval_case"]["source_trace_id"] == "consult_abcdef123456"
     assert payload["candidates"][0]["semantic_eval_case"]["source_trace_id"] == "consult_abcdef123456"
 
