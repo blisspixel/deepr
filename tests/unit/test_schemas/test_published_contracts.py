@@ -63,9 +63,14 @@ from deepr.evals.hallucination_risks import (
     build_hallucination_risk_report,
 )
 from deepr.evals.recall_quality import (
+    RECALL_LIBRARY_INVENTORY_KIND,
+    RECALL_LIBRARY_INVENTORY_SCHEMA_VERSION,
     RECALL_OPERATOR_VALIDATION_KIND,
     RECALL_OPERATOR_VALIDATION_SCHEMA_VERSION,
+    RecallEvalCase,
+    build_recall_library_inventory,
     build_recall_operator_validation,
+    merge_recall_eval_case_library,
 )
 from deepr.experts.beliefs import BeliefStore
 from deepr.experts.consult_quality import (
@@ -243,6 +248,26 @@ def test_recall_operator_validation_schema_validates_runtime_payload():
     assert payload["kind"] == RECALL_OPERATOR_VALIDATION_KIND
     assert payload["eligible_for_explicit_sync_preference"] is True
     assert payload["default_routing_change_allowed"] is False
+
+
+def test_recall_library_inventory_schema_validates_runtime_payload(tmp_path):
+    merge_recall_eval_case_library(
+        "Platform Expert",
+        [
+            RecallEvalCase("c1", "power", ("b1",)),
+            RecallEvalCase("c2", "records", ("b2",)),
+            RecallEvalCase("c3", "cooling", ("b3",)),
+        ],
+        output_dir=tmp_path / "recall_cases",
+    )
+    payload = build_recall_library_inventory(output_dir=tmp_path / "recall_cases")
+    schema = _load_schema("recall-library-inventory-v1.json")
+
+    _validate(schema, payload)
+    assert payload["schema_version"] == RECALL_LIBRARY_INVENTORY_SCHEMA_VERSION
+    assert payload["kind"] == RECALL_LIBRARY_INVENTORY_KIND
+    assert payload["summary"]["ready_for_scheduler_preference_eval_count"] == 1
+    assert payload["libraries"][0]["ready_for_scheduler_preference_eval"] is True
 
 
 def test_loop_status_schema_validates_rollup_payload(tmp_path):

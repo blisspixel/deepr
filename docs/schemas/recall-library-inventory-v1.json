@@ -1,0 +1,97 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/blisspixel/deepr/docs/schemas/recall-library-inventory-v1.json",
+  "title": "Deepr Recall Library Inventory v1",
+  "type": "object",
+  "additionalProperties": true,
+  "required": [
+    "schema_version",
+    "kind",
+    "root",
+    "contract",
+    "summary",
+    "libraries",
+    "generated_at"
+  ],
+  "properties": {
+    "schema_version": {"const": "deepr-recall-library-inventory-v1"},
+    "kind": {"const": "deepr.eval.recall_library_inventory"},
+    "root": {"type": "string"},
+    "contract": {
+      "type": "object",
+      "required": [
+        "cost_usd",
+        "writes_graph",
+        "writes_beliefs",
+        "writes_belief_vectors",
+        "runs_retrieval",
+        "semantic_verdict",
+        "routing_evidence_only"
+      ],
+      "properties": {
+        "cost_usd": {"const": 0.0},
+        "writes_graph": {"const": false},
+        "writes_beliefs": {"const": false},
+        "writes_belief_vectors": {"const": false},
+        "runs_retrieval": {"const": false},
+        "semantic_verdict": {"const": false},
+        "routing_evidence_only": {"const": true}
+      },
+      "additionalProperties": true
+    },
+    "summary": {
+      "type": "object",
+      "required": [
+        "library_count",
+        "valid_library_count",
+        "invalid_library_count",
+        "case_count",
+        "ready_for_scheduler_preference_eval_count",
+        "required_case_count"
+      ],
+      "properties": {
+        "library_count": {"type": "integer", "minimum": 0},
+        "valid_library_count": {"type": "integer", "minimum": 0},
+        "invalid_library_count": {"type": "integer", "minimum": 0},
+        "case_count": {"type": "integer", "minimum": 0},
+        "ready_for_scheduler_preference_eval_count": {"type": "integer", "minimum": 0},
+        "required_case_count": {"type": "integer", "minimum": 1}
+      },
+      "additionalProperties": true
+    },
+    "libraries": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "path",
+          "status",
+          "expert",
+          "case_count",
+          "ready_for_recall_eval",
+          "ready_for_scheduler_preference_eval",
+          "blockers"
+        ],
+        "properties": {
+          "path": {"type": "string"},
+          "status": {"enum": ["valid", "invalid"]},
+          "schema_version": {"type": "string"},
+          "expert": {
+            "type": "object",
+            "required": ["name"],
+            "properties": {"name": {"type": "string"}},
+            "additionalProperties": true
+          },
+          "case_count": {"type": "integer", "minimum": 0},
+          "ready_for_recall_eval": {"type": "boolean"},
+          "ready_for_scheduler_preference_eval": {"type": "boolean"},
+          "blockers": {"type": "array", "items": {"type": "string"}},
+          "updated_at": {"type": "string"},
+          "error": {"type": "string"}
+        },
+        "additionalProperties": true
+      }
+    },
+    "generated_at": {"type": "string"}
+  }
+}

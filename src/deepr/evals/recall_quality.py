@@ -25,6 +25,8 @@ RECALL_EVAL_REPORT_SCHEMA_VERSION = "deepr-recall-eval-report-v1"
 RECALL_EVAL_CASE_LIBRARY_SCHEMA_VERSION = "deepr-recall-eval-case-library-v1"
 RECALL_OPERATOR_VALIDATION_SCHEMA_VERSION = "deepr-recall-operator-validation-v1"
 RECALL_OPERATOR_VALIDATION_KIND = "deepr.eval.recall_operator_validation"
+RECALL_LIBRARY_INVENTORY_SCHEMA_VERSION = "deepr-recall-library-inventory-v1"
+RECALL_LIBRARY_INVENTORY_KIND = "deepr.eval.recall_library_inventory"
 LEXICAL_ROUTE = "lexical_router"
 VECTOR_ROUTE = "vector_similarity"
 MIN_SCHEDULER_PREFERENCE_CASES = 3
@@ -149,10 +151,24 @@ def _case_library_meta(
     }
 
 
+def recall_eval_case_library_dir(*, output_dir: Path | None = None) -> Path:
+    """Return the runtime-local directory containing labeled recall libraries."""
+    return output_dir or runtime_data_path("benchmarks", "recall_cases")
+
+
 def recall_eval_case_library_path(expert_name: str, *, output_dir: Path | None = None) -> Path:
     """Return the runtime-local labeled recall-case library path for an expert."""
-    root = output_dir or runtime_data_path("benchmarks", "recall_cases")
-    return root / f"{expert_slug(expert_name)}.json"
+    return recall_eval_case_library_dir(output_dir=output_dir) / f"{expert_slug(expert_name)}.json"
+
+
+def _load_recall_eval_case_library_payload(path: Path) -> tuple[list[RecallEvalCase], Mapping[str, Any] | None]:
+    payload = json.loads(path.read_text(encoding="utf-8"))
+    if isinstance(payload, Mapping):
+        if payload.get("schema_version") != RECALL_EVAL_CASE_LIBRARY_SCHEMA_VERSION:
+            raise ValueError("recall case library has an unsupported schema_version")
+        raw_cases = payload.get("cases")
+        return load_recall_eval_cases(raw_cases), payload
+    return load_recall_eval_cases(payload), None
 
 
 def load_recall_eval_case_library(expert_name: str, *, output_dir: Path | None = None) -> list[RecallEvalCase]:
@@ -166,14 +182,80 @@ def load_recall_eval_case_library(expert_name: str, *, output_dir: Path | None =
     path = recall_eval_case_library_path(expert_name, output_dir=output_dir)
     if not path.exists():
         raise FileNotFoundError(f"no recall case library found for {expert_name!r}; pass --cases first")
-    payload = json.loads(path.read_text(encoding="utf-8"))
-    if isinstance(payload, Mapping):
-        if payload.get("schema_version") != RECALL_EVAL_CASE_LIBRARY_SCHEMA_VERSION:
-            raise ValueError("recall case library has an unsupported schema_version")
-        raw_cases = payload.get("cases")
-    else:
-        raw_cases = payload
-    return load_recall_eval_cases(raw_cases)
+    cases, _ = _load_recall_eval_case_library_payload(path)
+    return cases
+
+
+def _library_record(path: Path) -> dict[str, Any]:
+    try:
+        cases, payload = _load_recall_eval_case_library_payload(path)
+    except (OSError, ValueError, json.JSONDecodeError) as exc:
+        return {
+            "path": str(path),
+            "status": "invalid",
+            "expert": {"name": path.stem},
+            "case_count": 0,
+            "ready_for_recall_eval": False,
+            "ready_for_scheduler_preference_eval": False,
+            "blockers": ["invalid_case_library"],
+            "error": str(exc),
+        }
+
+    expert = payload.get("expert", {}) if isinstance(payload, Mapping) else {}
+    expert_name = str(expert.get("name", "") or path.stem) if isinstance(expert, Mapping) else path.stem
+    case_count = len(cases)
+    blockers = []
+    if case_count < MIN_SCHEDULER_PREFERENCE_CASES:
+        blockers.append("insufficient_case_count_for_scheduler_preference")
+    return {
+        "path": str(path),
+        "status": "valid",
+        "schema_version": RECALL_EVAL_CASE_LIBRARY_SCHEMA_VERSION if payload is not None else "",
+        "expert": {"name": expert_name},
+        "case_count": case_count,
+        "ready_for_recall_eval": case_count > 0,
+        "ready_for_scheduler_preference_eval": case_count >= MIN_SCHEDULER_PREFERENCE_CASES,
+        "blockers": blockers,
+        "updated_at": str(payload.get("updated_at", "") or "") if isinstance(payload, Mapping) else "",
+    }
+
+
+def build_recall_library_inventory(*, output_dir: Path | None = None) -> dict[str, Any]:
+    """Inventory accumulated recall-case libraries without running retrieval.
+
+    This is the cheap first step for live/operator validation: it shows which
+    real accumulated libraries have enough labeled cases to run route evidence,
+    but it never runs an embedder, changes routing, writes graph state, or
+    infers semantic relevance.
+    """
+    root = recall_eval_case_library_dir(output_dir=output_dir)
+    records = [_library_record(path) for path in sorted(root.glob("*.json"))] if root.exists() else []
+    valid = [record for record in records if record["status"] == "valid"]
+    ready = [record for record in records if record["ready_for_scheduler_preference_eval"]]
+    return {
+        "schema_version": RECALL_LIBRARY_INVENTORY_SCHEMA_VERSION,
+        "kind": RECALL_LIBRARY_INVENTORY_KIND,
+        "root": str(root),
+        "contract": {
+            "cost_usd": 0.0,
+            "writes_graph": False,
+            "writes_beliefs": False,
+            "writes_belief_vectors": False,
+            "runs_retrieval": False,
+            "semantic_verdict": False,
+            "routing_evidence_only": True,
+        },
+        "summary": {
+            "library_count": len(records),
+            "valid_library_count": len(valid),
+            "invalid_library_count": len(records) - len(valid),
+            "case_count": sum(int(record["case_count"]) for record in valid),
+            "ready_for_scheduler_preference_eval_count": len(ready),
+            "required_case_count": MIN_SCHEDULER_PREFERENCE_CASES,
+        },
+        "libraries": records,
+        "generated_at": datetime.now(UTC).isoformat(),
+    }
 
 
 def merge_recall_eval_case_library(
@@ -552,17 +634,21 @@ __all__ = [
     "MIN_SCHEDULER_PREFERENCE_CASES",
     "RECALL_EVAL_CASE_LIBRARY_SCHEMA_VERSION",
     "RECALL_EVAL_REPORT_SCHEMA_VERSION",
+    "RECALL_LIBRARY_INVENTORY_KIND",
+    "RECALL_LIBRARY_INVENTORY_SCHEMA_VERSION",
     "RECALL_OPERATOR_VALIDATION_KIND",
     "RECALL_OPERATOR_VALIDATION_SCHEMA_VERSION",
     "SCHEDULER_REQUIRED_VECTOR_WIN_METRICS",
     "VECTOR_ROUTE",
     "RecallEvalCase",
     "build_recall_eval_case",
+    "build_recall_library_inventory",
     "build_recall_operator_validation",
     "load_recall_eval_case_library",
     "load_recall_eval_cases",
     "merge_recall_eval_case_library",
     "recall_eval_case_id",
+    "recall_eval_case_library_dir",
     "recall_eval_case_library_path",
     "run_recall_quality_eval",
     "write_recall_eval_report",

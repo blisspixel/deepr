@@ -12,8 +12,11 @@ from deepr.cli.main import cli
 from deepr.evals.recall_quality import (
     RECALL_EVAL_CASE_LIBRARY_SCHEMA_VERSION,
     RECALL_EVAL_REPORT_SCHEMA_VERSION,
+    RECALL_LIBRARY_INVENTORY_KIND,
+    RECALL_LIBRARY_INVENTORY_SCHEMA_VERSION,
     RecallEvalCase,
     build_recall_eval_case,
+    build_recall_library_inventory,
     load_recall_eval_case_library,
     load_recall_eval_cases,
     merge_recall_eval_case_library,
@@ -313,6 +316,36 @@ class TestRecallCaseLibrary:
         assert case.query == "What context was missed?"
         assert case.relevant_belief_ids == ("b1", "b2")
 
+    def test_case_library_inventory_lists_ready_and_blocked_libraries(self, tmp_path):
+        root = tmp_path / "cases"
+        merge_recall_eval_case_library(
+            "Ready Expert",
+            [
+                RecallEvalCase("c1", "power", ("b1",)),
+                RecallEvalCase("c2", "records", ("b2",)),
+                RecallEvalCase("c3", "cooling", ("b3",)),
+            ],
+            output_dir=root,
+        )
+        merge_recall_eval_case_library(
+            "Needs Labels",
+            [RecallEvalCase("c1", "power", ("b1",))],
+            output_dir=root,
+        )
+        (root / "broken.json").write_text('{"schema_version":"wrong"}', encoding="utf-8")
+
+        inventory = build_recall_library_inventory(output_dir=root)
+
+        assert inventory["schema_version"] == RECALL_LIBRARY_INVENTORY_SCHEMA_VERSION
+        assert inventory["kind"] == RECALL_LIBRARY_INVENTORY_KIND
+        assert inventory["contract"]["runs_retrieval"] is False
+        assert inventory["summary"]["library_count"] == 3
+        assert inventory["summary"]["ready_for_scheduler_preference_eval_count"] == 1
+        by_name = {record["expert"]["name"]: record for record in inventory["libraries"]}
+        assert by_name["Ready Expert"]["ready_for_scheduler_preference_eval"] is True
+        assert by_name["Needs Labels"]["ready_for_scheduler_preference_eval"] is False
+        assert by_name["broken"]["status"] == "invalid"
+
 
 class TestEvalRecallCommand:
     def _write_cases(self, tmp_path, belief_id: str):
@@ -350,6 +383,28 @@ class TestEvalRecallCommand:
         assert payload["schema_version"] == RECALL_EVAL_REPORT_SCHEMA_VERSION
         assert payload["routes"]["lexical_router"]["hit_at_k"] == 1.0
         assert payload["comparison"]["vector_route_evaluated"] is False
+
+    def test_eval_recall_libraries_json_outputs_inventory(self, tmp_path, monkeypatch):
+        case_root = tmp_path / "case-library"
+        merge_recall_eval_case_library(
+            "Recall Eval Expert",
+            [
+                RecallEvalCase("c1", "power", ("b1",)),
+                RecallEvalCase("c2", "records", ("b2",)),
+                RecallEvalCase("c3", "cooling", ("b3",)),
+            ],
+            output_dir=case_root / "benchmarks" / "recall_cases",
+        )
+        monkeypatch.setattr("deepr.evals.recall_quality.runtime_data_path", lambda *parts: case_root.joinpath(*parts))
+
+        result = CliRunner().invoke(cli, ["eval", "recall-libraries", "--json"])
+
+        assert result.exit_code == 0, result.output
+        payload = json.loads(result.output)
+        assert payload["schema_version"] == RECALL_LIBRARY_INVENTORY_SCHEMA_VERSION
+        assert payload["summary"]["library_count"] == 1
+        assert payload["libraries"][0]["expert"]["name"] == "Recall Eval Expert"
+        assert payload["libraries"][0]["ready_for_scheduler_preference_eval"] is True
 
     def test_eval_recall_records_cases_into_runtime_library(self, tmp_path, monkeypatch):
         store, power, _ = _seeded_store(tmp_path)
