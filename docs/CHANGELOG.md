@@ -43,6 +43,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   expert and embedding model, then passes only its scheduler-preference block
   into claim verification; the default path remains lexical-first unless an
   operator supplies the report explicitly.
+- Added validation coverage proving an accumulated `deepr eval recall` case
+  library can generate an eligible report that `deepr expert sync
+  --recall-preference-report` accepts without ingesting the full report body.
 
 ## [2.32.0] - 2026-07-08
 

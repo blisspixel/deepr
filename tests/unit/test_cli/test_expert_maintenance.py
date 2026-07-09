@@ -7,6 +7,7 @@ deepr/cli/commands/semantic/expert_maintenance.py must stay registered on the
 
 from __future__ import annotations
 
+import asyncio
 import json
 from contextlib import contextmanager
 from types import SimpleNamespace
@@ -21,6 +22,14 @@ from deepr.cli.commands.semantic.expert_maintenance import (
 )
 from deepr.cli.commands.semantic.expert_sync_support import _self_model_run_context, _sync_run_context
 from deepr.cli.commands.semantic.experts import expert
+from deepr.evals.recall_quality import (
+    RecallEvalCase,
+    load_recall_eval_case_library,
+    merge_recall_eval_case_library,
+    run_recall_quality_eval,
+    write_recall_eval_report,
+)
+from deepr.experts.beliefs import Belief, BeliefStore
 
 
 def _write_recall_preference_report(tmp_path, *, name="UI Experience Expert", embedding_model="nomic-embed-text"):
@@ -51,6 +60,54 @@ def _write_recall_preference_report(tmp_path, *, name="UI Experience Expert", em
         encoding="utf-8",
     )
     return path
+
+
+def _write_recall_report_from_accumulated_library(
+    tmp_path,
+    *,
+    name="UI Experience Expert",
+    embedding_model="nomic-embed-text",
+):
+    store = BeliefStore(name, storage_dir=tmp_path / "beliefs")
+    first, _ = store.add_belief(Belief(claim="Copper busways cap dense accelerator racks.", confidence=0.84))
+    second, _ = store.add_belief(Belief(claim="Immutable audit trails govern evidence retention.", confidence=0.83))
+    third, _ = store.add_belief(Belief(claim="Thermal headroom limits colocated inference clusters.", confidence=0.82))
+    store.upsert_belief_embedding(first.id, [1.0, 0.0, 0.0], model=embedding_model)
+    store.upsert_belief_embedding(second.id, [0.0, 1.0, 0.0], model=embedding_model)
+    store.upsert_belief_embedding(third.id, [0.0, 0.0, 1.0], model=embedding_model)
+
+    cases = [
+        RecallEvalCase("case-energy", "energy ceilings", (first.id,)),
+        RecallEvalCase("case-records", "records policy", (second.id,)),
+        RecallEvalCase("case-cooling", "cooling budget", (third.id,)),
+    ]
+    case_root = tmp_path / "benchmarks" / "recall_cases"
+    library_meta = merge_recall_eval_case_library(name, cases, output_dir=case_root)
+    loaded_cases = load_recall_eval_case_library(name, output_dir=case_root)
+
+    query_vectors = {
+        "energy ceilings": (0.99, 0.01, 0.0),
+        "records policy": (0.01, 0.99, 0.0),
+        "cooling budget": (0.0, 0.01, 0.99),
+    }
+
+    async def embed_queries(queries):
+        assert set(queries) == set(query_vectors)
+        return [query_vectors[query] for query in queries]
+
+    report = asyncio.run(
+        run_recall_quality_eval(
+            store,
+            loaded_cases,
+            expert_name=name,
+            top_k=1,
+            embedding_model=embedding_model,
+            embed_queries=embed_queries,
+        )
+    )
+    assert report["scheduler_preference"]["eligible"] is True
+    report["case_library"] = {**library_meta, "source": "accumulated_library"}
+    return write_recall_eval_report(report, output_dir=tmp_path / "benchmarks")
 
 
 class TestRegistration:
@@ -578,6 +635,78 @@ class TestBackendFlagGuard:
             "routing_evidence_only": True,
             "semantic_verdict": False,
         }
+        assert captured["sync_kwargs"]["apply_graph_commits"] is True
+
+    def test_sync_accepts_recall_preference_report_from_accumulated_library(self, monkeypatch, tmp_path):
+        captured = {}
+        profile = SimpleNamespace(name="UI Experience Expert")
+
+        class FakeExpertStore:
+            def load(self, name):
+                return profile
+
+        class FakeSubscriptionStore:
+            subscriptions = [SimpleNamespace(topic="UI/UX for agentic research tools", budget=1.0)]
+
+            def __init__(self, name):
+                pass
+
+            def due(self):
+                return list(self.subscriptions)
+
+        class FakeSyncResult:
+            total_cost = 0.0
+            outcomes = []
+            delta = {}
+
+            def to_dict(self):
+                return {"total_cost": 0.0, "outcomes": []}
+
+        class FakeSyncEngine:
+            async def sync(self, **kwargs):
+                captured["sync_kwargs"] = kwargs
+                return FakeSyncResult()
+
+        def fake_build_sync_engine(profile, **kwargs):
+            captured["build_kwargs"] = kwargs
+            return FakeSyncEngine(), "api_metered"
+
+        @contextmanager
+        def acquired_lock(*args, **kwargs):
+            yield True
+
+        monkeypatch.setattr("deepr.experts.profile.ExpertStore", FakeExpertStore)
+        monkeypatch.setattr("deepr.experts.sync.SubscriptionStore", FakeSubscriptionStore)
+        monkeypatch.setattr("deepr.experts.maintenance_engine.build_sync_engine", fake_build_sync_engine)
+        monkeypatch.setattr("deepr.experts.loop_lock.expert_verb_lock", acquired_lock)
+        monkeypatch.setattr(
+            "deepr.experts.loop_runs.record_loop_run",
+            lambda **kwargs: SimpleNamespace(to_dict=lambda: {"run_id": "loop_sync_complete"}),
+        )
+        report_path = _write_recall_report_from_accumulated_library(tmp_path)
+        report = json.loads(report_path.read_text(encoding="utf-8"))
+
+        r = CliRunner().invoke(
+            expert,
+            [
+                "sync",
+                "UI Experience Expert",
+                "--api",
+                "--compile-claims",
+                "--recall-embedding-model",
+                "nomic-embed-text",
+                "--recall-preference-report",
+                str(report_path),
+                "-y",
+                "--json",
+            ],
+        )
+
+        assert r.exit_code == 0, r.output
+        assert report["case_library"]["source"] == "accumulated_library"
+        assert report["scheduler_preference"]["eligible"] is True
+        assert captured["build_kwargs"]["recall_route_preference"] == report["scheduler_preference"]
+        assert "case_library" not in captured["build_kwargs"]["recall_route_preference"]
         assert captured["sync_kwargs"]["apply_graph_commits"] is True
 
     def test_sync_stage_compiled_claims_keeps_no_apply_sidecar_path(self, monkeypatch):
