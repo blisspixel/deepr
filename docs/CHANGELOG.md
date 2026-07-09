@@ -34,6 +34,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   vector route was evaluated on enough labeled cases, won required retrieval
   metrics, and the requested belief-vector index has no missing or stale records;
   the block remains routing evidence only and does not change scheduling yet.
+- Added an explicit source-pack recall route preference seam. Claim verification
+  can now consume a vetted recall eval scheduler-preference block and try
+  vector-only recall first while preserving lexical fallback when the preference
+  is absent, ineligible, or produces no vector hits.
 
 ## [2.32.0] - 2026-07-08
 

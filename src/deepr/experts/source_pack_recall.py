@@ -5,11 +5,13 @@ from __future__ import annotations
 from collections.abc import Iterable, Mapping, Sequence
 from typing import Any
 
+from deepr.experts.semantic_recall import LEXICAL_METHOD, VECTOR_METHOD
 from deepr.experts.source_pack_values import float_0_1 as _float_0_1
 
 _RECALL_ROUTING = "candidate_only"
 _RECALL_GUIDANCE = "routing_only"
 _MEMORY_QUALITY_BANDS = ("deduplication", "contradiction", "temporal_scope")
+_PREFERENCE_SOURCE = "recall_eval_scheduler_preference"
 
 
 def _recall_value(candidate: Any, key: str, default: Any = "") -> Any:
@@ -101,6 +103,33 @@ def _memory_quality_packet(candidate: Any) -> dict[str, Any]:
     return packet
 
 
+def _prefers_vector_route(route_preference: Mapping[str, Any] | None) -> bool:
+    if not isinstance(route_preference, Mapping):
+        return False
+    return (
+        route_preference.get("eligible") is True
+        and route_preference.get("preferred_route") == VECTOR_METHOD
+        and route_preference.get("fallback_route") == LEXICAL_METHOD
+        and route_preference.get("routing_evidence_only") is True
+        and route_preference.get("semantic_verdict") is False
+    )
+
+
+def _mark_preferred_route(packets: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    marked: list[dict[str, Any]] = []
+    for packet in packets:
+        metadata = dict(packet.get("metadata", {}))
+        metadata["route_preference"] = {
+            "source": _PREFERENCE_SOURCE,
+            "preferred_route": VECTOR_METHOD,
+            "fallback_route": LEXICAL_METHOD,
+            "routing_evidence_only": True,
+            "semantic_verdict": False,
+        }
+        marked.append({**packet, "metadata": metadata})
+    return marked
+
+
 async def embed_ready_claim_statements(
     claim_extraction: Mapping[str, Any],
     embed_claims: Any,
@@ -138,6 +167,7 @@ def build_verification_recall_candidates(
     query_embeddings_by_candidate_id: Mapping[str, Sequence[float]] | None = None,
     embedding_model: str | None = None,
     include_lexical_fallback: bool = True,
+    route_preference: Mapping[str, Any] | None = None,
 ) -> dict[str, list[dict[str, Any]]]:
     """Route ready claim candidates to existing beliefs for verifier inspection.
 
@@ -150,17 +180,33 @@ def build_verification_recall_candidates(
         return {}
 
     routed: dict[str, list[dict[str, Any]]] = {}
+    prefer_vector = _prefers_vector_route(route_preference)
     for candidate in _ready_claim_candidates(claim_extraction):
         candidate_id = str(candidate.get("candidate_id", "") or "")
         statement = str(candidate.get("statement", "") or "")
+        query_embedding = (
+            query_embeddings_by_candidate_id.get(candidate_id) if query_embeddings_by_candidate_id else None
+        )
+        if prefer_vector and query_embedding is not None:
+            vector_hits = recall(
+                statement,
+                top_k=top_k,
+                min_score=min_score,
+                domain=domain,
+                query_embedding=query_embedding,
+                embedding_model=embedding_model,
+                include_lexical_fallback=False,
+            )
+            packets = [_memory_quality_packet(hit) for hit in vector_hits]
+            if packets:
+                routed[candidate_id] = _mark_preferred_route(packets)
+                continue
         hits = recall(
             statement,
             top_k=top_k,
             min_score=min_score,
             domain=domain,
-            query_embedding=(
-                query_embeddings_by_candidate_id.get(candidate_id) if query_embeddings_by_candidate_id else None
-            ),
+            query_embedding=query_embedding,
             embedding_model=embedding_model,
             include_lexical_fallback=include_lexical_fallback,
         )
@@ -180,6 +226,7 @@ def resolve_verification_recall_candidates(
     min_score: float = 0.0,
     query_embeddings_by_candidate_id: Mapping[str, Sequence[float]] | None = None,
     embedding_model: str | None = None,
+    route_preference: Mapping[str, Any] | None = None,
 ) -> Mapping[str, Iterable[Any]]:
     if provided is not None:
         return provided
@@ -193,6 +240,7 @@ def resolve_verification_recall_candidates(
         min_score=min_score,
         query_embeddings_by_candidate_id=query_embeddings_by_candidate_id,
         embedding_model=embedding_model,
+        route_preference=route_preference,
     )
 
 
