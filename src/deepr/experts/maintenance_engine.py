@@ -62,6 +62,12 @@ def _with_spend_decision(engine_kwargs: dict[str, Any], spend_decision_fn: Any |
     return {**engine_kwargs, "spend_decision_fn": spend_decision_fn}
 
 
+def _with_recall_route_preference(engine_kwargs: dict[str, Any], recall_route_preference: Any | None) -> dict[str, Any]:
+    if recall_route_preference is None:
+        return engine_kwargs
+    return {**engine_kwargs, "recall_route_preference": recall_route_preference}
+
+
 def _local_research_kwargs(context_builder: Any, client: Any, claim_extractor: Any | None) -> dict[str, Any]:
     kwargs: dict[str, Any] = {"context_builder": context_builder}
     if claim_extractor is not None:
@@ -106,6 +112,7 @@ def _metered_claim_services(
     compile_claims: bool,
     recall_embedding_model: str | None = None,
     profile: ExpertProfile | Any = None,
+    recall_route_preference: Any | None = None,
 ) -> tuple[Any | None, Any | None]:
     if not compile_claims:
         return None, None
@@ -123,6 +130,7 @@ def _metered_claim_services(
         SemanticClaimVerifier(
             **service_kwargs,
             **_verifier_recall_kwargs(recall_embedding_model),
+            recall_route_preference=recall_route_preference,
             **_verifier_memo_kwargs(profile),
         ),
     )
@@ -142,6 +150,7 @@ def build_sync_engine(
     compile_claims: bool = False,
     spend_decision_fn: Any | None = None,
     recall_embedding_model: str | None = None,
+    recall_route_preference: Any | None = None,
 ) -> tuple[ExpertSyncEngine, str]:
     """Construct a sync engine for the resolved backend and report its source.
 
@@ -192,6 +201,7 @@ def build_sync_engine(
                 client=client,
                 estimated_cost_usd=0.0,
                 **_verifier_recall_kwargs(recall_embedding_model, client=client),
+                recall_route_preference=recall_route_preference,
                 **_verifier_memo_kwargs(profile),
             )
             if compile_claims
@@ -203,6 +213,7 @@ def build_sync_engine(
             ),
             "absorber": absorber,
         }
+        engine_kwargs = _with_recall_route_preference(engine_kwargs, recall_route_preference)
         engine_kwargs = _with_spend_decision(engine_kwargs, spend_decision_fn)
         engine = ExpertSyncEngine(profile, **_with_claim_services(engine_kwargs, claim_extractor, claim_verifier))
         return engine, "local"
@@ -248,6 +259,7 @@ def build_sync_engine(
                 else 0.0,
                 allow_metered=bool(getattr(plan_adapter, "metered_at_margin", False)),
                 **_verifier_recall_kwargs(recall_embedding_model),
+                recall_route_preference=recall_route_preference,
                 **_verifier_memo_kwargs(profile),
             )
             if compile_claims
@@ -259,6 +271,7 @@ def build_sync_engine(
             ),
             "absorber": absorber,
         }
+        engine_kwargs = _with_recall_route_preference(engine_kwargs, recall_route_preference)
         engine_kwargs = _with_spend_decision(engine_kwargs, spend_decision_fn)
         engine = ExpertSyncEngine(profile, **_with_claim_services(engine_kwargs, claim_extractor, claim_verifier))
         return engine, f"plan_quota:{plan_adapter.backend_id}"
@@ -266,12 +279,21 @@ def build_sync_engine(
     if grounding_checker is not None:
         from deepr.experts.report_absorber import ReportAbsorber
 
-        claim_extractor, claim_verifier = _metered_claim_services(compile_claims, recall_embedding_model, profile)
+        claim_extractor, claim_verifier = _metered_claim_services(
+            compile_claims,
+            recall_embedding_model,
+            profile,
+            recall_route_preference,
+        )
         grounding_absorber = ReportAbsorber(
             profile, **_grounding_absorber_kwargs(grounding_checker, grounding_escalator)
         )
-        engine_kwargs = _with_claim_services(
+        base_kwargs = _with_recall_route_preference(
             {"absorber": grounding_absorber},
+            recall_route_preference,
+        )
+        engine_kwargs = _with_claim_services(
+            base_kwargs,
             claim_extractor,
             claim_verifier,
         )
@@ -279,8 +301,18 @@ def build_sync_engine(
         return ExpertSyncEngine(profile, **engine_kwargs), "api_metered"
 
     if compile_claims:
-        claim_extractor, claim_verifier = _metered_claim_services(True, recall_embedding_model, profile)
-        engine_kwargs = _with_claim_services({}, claim_extractor, claim_verifier)
+        claim_extractor, claim_verifier = _metered_claim_services(
+            True,
+            recall_embedding_model,
+            profile,
+            recall_route_preference,
+        )
+        base_kwargs = _with_recall_route_preference({}, recall_route_preference)
+        engine_kwargs = _with_claim_services(
+            base_kwargs,
+            claim_extractor,
+            claim_verifier,
+        )
         engine_kwargs = _with_spend_decision(engine_kwargs, spend_decision_fn)
         return ExpertSyncEngine(profile, **engine_kwargs), "api_metered"
 

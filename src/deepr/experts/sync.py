@@ -20,7 +20,7 @@ from __future__ import annotations
 
 import json
 import logging
-from collections.abc import Awaitable, Callable
+from collections.abc import Awaitable, Callable, Mapping
 from dataclasses import dataclass, field
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
@@ -285,6 +285,7 @@ class ExpertSyncEngine:
         absorber: Any | None = None,
         claim_extractor: ClaimExtractionService | None = None,
         claim_verifier: ClaimVerificationService | None = None,
+        recall_route_preference: Mapping[str, Any] | None = None,
         metacognition_tracker: Any | None = None,
         spend_decision_fn: SpendDecisionFn | None = None,
     ) -> None:
@@ -295,6 +296,7 @@ class ExpertSyncEngine:
         self._absorber = absorber
         self._claim_extractor = claim_extractor
         self._claim_verifier = claim_verifier
+        self._recall_route_preference = dict(recall_route_preference) if recall_route_preference else None
         self._metacognition_tracker = metacognition_tracker
         self._spend_decision_fn = spend_decision_fn
 
@@ -751,6 +753,7 @@ class ExpertSyncEngine:
             ),
             recall_belief_store=self.belief_store,
             recall_domain=str(getattr(self.expert, "domain", "") or ""),
+            recall_route_preference=self._recall_route_preference,
         )
 
         # Replay honesty: when the verifier replayed memoized decisions, the

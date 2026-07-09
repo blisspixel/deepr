@@ -268,6 +268,13 @@ async def test_verifier_uses_local_query_embeddings_for_vector_recall(tmp_path):
         estimated_cost_usd=0.0,
         recall_query_embedder=embed_claims,
         recall_embedding_model="nomic-embed-text",
+        recall_route_preference={
+            "eligible": True,
+            "preferred_route": "vector_similarity",
+            "fallback_route": "lexical_router",
+            "routing_evidence_only": True,
+            "semantic_verdict": False,
+        },
     )
 
     verification = await verifier.verify(
@@ -287,10 +294,12 @@ async def test_verifier_uses_local_query_embeddings_for_vector_recall(tmp_path):
     assert verification["contract"]["cost_usd"] == 0.0
     recall_metadata = verification["recall"]
     assert recall_metadata["embedding_model"] == "nomic-embed-text"
+    assert recall_metadata["route_preference"]["preferred_route"] == "vector_similarity"
     candidate_id = extraction["candidates"][0]["candidate_id"]
     recall_packets = recall_metadata["context_by_candidate_id"][candidate_id]
     assert recall_packets[0]["item_id"] == existing.id
     assert recall_packets[0]["method"] == "vector_similarity"
+    assert recall_packets[0]["metadata"]["route_preference"]["source"] == "recall_eval_scheduler_preference"
 
 
 @pytest.mark.asyncio
