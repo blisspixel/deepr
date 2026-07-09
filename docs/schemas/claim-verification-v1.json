@@ -100,6 +100,7 @@
         "parsed_decision_count",
         "ready_for_commit_envelope_count",
         "blocked_decision_count",
+        "recall_case_candidate_count",
         "failure_reasons"
       ],
       "properties": {
@@ -107,6 +108,7 @@
         "parsed_decision_count": {"type": "integer", "minimum": 0},
         "ready_for_commit_envelope_count": {"type": "integer", "minimum": 0},
         "blocked_decision_count": {"type": "integer", "minimum": 0},
+        "recall_case_candidate_count": {"type": "integer", "minimum": 0},
         "failure_reasons": {"type": "array", "items": {"type": "string"}}
       }
     },
@@ -217,6 +219,84 @@
                   }
                 }
               }
+            }
+          },
+          "recall_case_candidate": {
+            "type": "object",
+            "additionalProperties": true,
+            "required": [
+              "schema_version",
+              "kind",
+              "case_id",
+              "source_id",
+              "source_kind",
+              "source_reason",
+              "source_candidate_id",
+              "contract",
+              "input",
+              "operator_instruction"
+            ],
+            "properties": {
+              "schema_version": {"const": "deepr-recall-eval-case-candidate-v1"},
+              "kind": {"const": "deepr.eval.recall_case_candidate"},
+              "case_id": {"type": "string"},
+              "source_id": {"type": "string"},
+              "source_kind": {"const": "claim_verification_decision"},
+              "source_reason": {
+                "enum": ["duplicate_existing_belief", "contradiction_unresolved", "temporal_scope_rejected"]
+              },
+              "source_candidate_id": {"type": "string"},
+              "contract": {
+                "type": "object",
+                "additionalProperties": true,
+                "required": [
+                  "cost_usd",
+                  "writes_state",
+                  "writes_graph",
+                  "writes_beliefs",
+                  "writes_belief_vectors",
+                  "semantic_verdict",
+                  "candidate_only",
+                  "requires_operator_relevance_review",
+                  "auto_record",
+                  "derived_from"
+                ],
+                "properties": {
+                  "cost_usd": {"const": 0.0},
+                  "writes_state": {"const": false},
+                  "writes_graph": {"const": false},
+                  "writes_beliefs": {"const": false},
+                  "writes_belief_vectors": {"const": false},
+                  "semantic_verdict": {"const": false},
+                  "candidate_only": {"const": true},
+                  "requires_operator_relevance_review": {"const": true},
+                  "auto_record": {"const": false},
+                  "derived_from": {"const": "deepr-claim-verification-v1"}
+                }
+              },
+              "input": {
+                "type": "object",
+                "additionalProperties": true,
+                "required": [
+                  "query_hash",
+                  "query_preview",
+                  "candidate_belief_ids",
+                  "claim_candidate_id",
+                  "verifier_failure_reasons",
+                  "verdicts"
+                ],
+                "properties": {
+                  "query_hash": {"type": "string", "pattern": "^[a-f0-9]{64}$"},
+                  "query_preview": {"type": "string"},
+                  "candidate_belief_ids": {"type": "array", "items": {"type": "string"}},
+                  "claim_candidate_id": {"type": "string"},
+                  "claim_kind": {"type": "string"},
+                  "recall_candidate_count": {"type": "integer", "minimum": 0},
+                  "verifier_failure_reasons": {"type": "array", "items": {"type": "string"}},
+                  "verdicts": {"type": "object", "additionalProperties": true}
+                }
+              },
+              "operator_instruction": {"type": "string"}
             }
           },
           "readiness": {
