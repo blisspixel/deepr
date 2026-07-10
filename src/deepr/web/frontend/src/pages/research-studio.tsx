@@ -6,6 +6,13 @@ import { costApi } from '@/api/cost'
 import { configApi } from '@/api/config'
 import { cn, formatCurrency } from '@/lib/utils'
 import { RESEARCH_MODES, MODELS, PRIORITIES } from '@/lib/constants'
+import {
+  loadResearchDraft,
+  removeResearchDraft,
+  resolveInitialResearchPrompt,
+  saveResearchDraft,
+  type DraftConstraints,
+} from '@/lib/research-draft'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import {
@@ -26,18 +33,42 @@ import {
   X,
 } from 'lucide-react'
 
+const RESEARCH_DRAFT_KEY = 'deepr.research-draft.v1'
+const DEFAULT_MODEL = 'o4-mini-deep-research'
+const draftStorage = () => window.sessionStorage
+const DRAFT_CONSTRAINTS: DraftConstraints = {
+  modes: RESEARCH_MODES.map((mode) => mode.value),
+  models: MODELS.map((model) => model.value),
+  priorities: PRIORITIES.map((priority) => priority.value),
+}
+
 export default function ResearchStudio() {
   const navigate = useNavigate()
   const [searchParams] = useSearchParams()
-  const [prompt, setPrompt] = useState(searchParams.get('prompt') || '')
-  const [mode, setMode] = useState<string>('research')
-  const [model, setModel] = useState('o4-mini-deep-research')
-  const [priority, setPriority] = useState(1)
-  const [enableWebSearch, setEnableWebSearch] = useState(true)
+  const [initialDraft] = useState(() => loadResearchDraft(
+    RESEARCH_DRAFT_KEY,
+    draftStorage,
+    DRAFT_CONSTRAINTS,
+  ))
+  const [initialPrompt] = useState(() => resolveInitialResearchPrompt(
+    initialDraft.draft?.prompt ?? null,
+    searchParams.get('prompt'),
+  ))
+  const [prompt, setPrompt] = useState(initialPrompt.prompt)
+  const [pendingPrefill, setPendingPrefill] = useState(initialPrompt.pendingPrefill)
+  const [invalidPrefill, setInvalidPrefill] = useState(initialPrompt.invalidPrefill)
+  const [mode, setMode] = useState<string>(initialDraft.draft?.mode || 'research')
+  const [model, setModel] = useState(initialDraft.draft?.model || DEFAULT_MODEL)
+  const [priority, setPriority] = useState(initialDraft.draft?.priority || 1)
+  const [enableWebSearch, setEnableWebSearch] = useState(initialDraft.draft?.enableWebSearch ?? true)
   const [showConfig, setShowConfig] = useState(false)
   const [isDragging, setIsDragging] = useState(false)
   const [uploadedFiles, setUploadedFiles] = useState<File[]>([])
   const [uploadedFileContents, setUploadedFileContents] = useState<{ name: string; content: string }[]>([])
+  const [draftStatus, setDraftStatus] = useState<'idle' | 'restored' | 'saved'>(
+    initialDraft.draft ? 'restored' : 'idle'
+  )
+  const [draftIssue, setDraftIssue] = useState(initialDraft.issue)
 
   const {
     data: config,
@@ -50,10 +81,41 @@ export default function ResearchStudio() {
   })
 
   useEffect(() => {
-    if (config?.default_model && MODELS.some((candidate) => candidate.value === config.default_model)) {
+    if (!initialDraft.draft
+      && config?.default_model
+      && MODELS.some((candidate) => candidate.value === config.default_model)) {
       setModel(config.default_model)
     }
-  }, [config?.default_model])
+  }, [config?.default_model, initialDraft.draft])
+
+  useEffect(() => {
+    if (!prompt.trim()) {
+      if (!invalidPrefill
+        && !removeResearchDraft(RESEARCH_DRAFT_KEY, draftStorage)) {
+        setDraftIssue('unavailable')
+      }
+      setDraftStatus('idle')
+      return
+    }
+
+    const timer = setTimeout(() => {
+      const saved = saveResearchDraft(
+        RESEARCH_DRAFT_KEY,
+        draftStorage,
+        { version: 1, prompt, mode, model, priority, enableWebSearch },
+        DRAFT_CONSTRAINTS,
+      )
+      if (saved) {
+        setDraftIssue(null)
+        setDraftStatus('saved')
+      } else {
+        setDraftIssue('unavailable')
+        setDraftStatus('idle')
+      }
+    }, 300)
+
+    return () => clearTimeout(timer)
+  }, [enableWebSearch, invalidPrefill, mode, model, priority, prompt])
 
   // Debounce prompt to avoid firing cost estimate on every keystroke
   const [debouncedPrompt, setDebouncedPrompt] = useState(prompt)
@@ -78,6 +140,9 @@ export default function ResearchStudio() {
   const submitMutation = useMutation({
     mutationFn: jobsApi.submit,
     onSuccess: (data) => {
+      if (!removeResearchDraft(RESEARCH_DRAFT_KEY, draftStorage)) {
+        toast.warning('Research submitted, but the saved draft could not be cleared in this browser.')
+      }
       navigate(`/research/${data.job.id}`)
     },
     onError: (error: Error) => {
@@ -157,6 +222,32 @@ export default function ResearchStudio() {
     setUploadedFileContents(prev => prev.filter((_, i) => i !== index))
   }
 
+  const clearDraft = () => {
+    setPrompt('')
+    setMode('research')
+    setModel(
+      config?.default_model && MODELS.some((candidate) => candidate.value === config.default_model)
+        ? config.default_model
+        : DEFAULT_MODEL
+    )
+    setPriority(1)
+    setEnableWebSearch(true)
+    setUploadedFiles([])
+    setUploadedFileContents([])
+    setDraftStatus('idle')
+    setPendingPrefill(null)
+    setInvalidPrefill(false)
+    setDraftIssue(removeResearchDraft(RESEARCH_DRAFT_KEY, draftStorage) ? null : 'unavailable')
+  }
+
+  const useLinkedPrompt = () => {
+    if (!pendingPrefill) return
+    setPrompt(pendingPrefill)
+    setPendingPrefill(null)
+    setInvalidPrefill(false)
+    setDraftStatus('idle')
+  }
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
     if (!prompt.trim()) return
@@ -192,7 +283,7 @@ export default function ResearchStudio() {
     && !submitMutation.isPending
 
   return (
-    <div className="max-w-3xl mx-auto p-6 space-y-6 animate-fade-in">
+    <div className="max-w-3xl mx-auto p-4 sm:p-6 space-y-6 animate-fade-in">
       {/* Header */}
       <div>
         <h1 className="text-2xl font-semibold text-foreground">Research Studio</h1>
@@ -233,7 +324,11 @@ export default function ResearchStudio() {
             <textarea
               id="research-prompt"
               value={prompt}
-              onChange={(e) => setPrompt(e.target.value)}
+              onChange={(e) => {
+                setPrompt(e.target.value)
+                setInvalidPrefill(false)
+                setDraftStatus('idle')
+              }}
               onKeyDown={(e) => {
                 if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') {
                   e.preventDefault()
@@ -247,22 +342,83 @@ export default function ResearchStudio() {
               maxLength={50000}
               className="w-full px-3 py-2 bg-background border rounded-lg text-foreground text-sm resize-none focus:outline-none focus:ring-2 focus:ring-ring placeholder:text-muted-foreground"
             />
-            <div className="flex justify-between text-xs text-muted-foreground mt-1">
+            <div className="flex justify-between gap-3 text-xs text-muted-foreground mt-1">
               <span>Be specific for best results</span>
               <span>{prompt.length} chars</span>
             </div>
+            {invalidPrefill && (
+              <p role="alert" className="mt-2 text-xs text-destructive">
+                The linked prompt exceeded 50,000 characters and was not loaded.
+              </p>
+            )}
+            {pendingPrefill && (
+              <div role="alert" className="mt-2 flex flex-wrap items-center justify-between gap-2 text-xs text-warning">
+                <span>A linked prompt is ready. Your saved draft was preserved.</span>
+                <span className="flex items-center gap-3">
+                  <button
+                    type="button"
+                    onClick={useLinkedPrompt}
+                    className="inline-flex min-h-11 items-center px-2 underline underline-offset-2 hover:text-foreground"
+                  >
+                    Use linked prompt
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setPendingPrefill(null)}
+                    className="inline-flex min-h-11 items-center px-2 underline underline-offset-2 hover:text-foreground"
+                  >
+                    Keep draft
+                  </button>
+                </span>
+              </div>
+            )}
+            {(prompt.trim() || draftIssue) && (
+              <div className="mt-2 flex flex-wrap items-center justify-between gap-2 text-xs">
+                {draftIssue === 'unavailable' ? (
+                  <span role="alert" className="text-destructive">
+                    Draft recovery is unavailable in this browser. Do not navigate away from this form.
+                  </span>
+                ) : draftIssue === 'discarded' ? (
+                  <span role="alert" className="text-warning">
+                    An invalid saved draft was discarded.
+                  </span>
+                ) : (
+                  <span role="status" className="text-muted-foreground">
+                    {draftStatus === 'restored'
+                      ? 'Draft restored in this tab.'
+                      : draftStatus === 'saved'
+                        ? 'Draft saved in this tab.'
+                        : 'Saving draft in this tab.'}{' '}
+                    Context files are not saved.
+                  </span>
+                )}
+                {prompt.trim() && (
+                  <button
+                    type="button"
+                    onClick={clearDraft}
+                    className="inline-flex min-h-11 items-center px-2 text-muted-foreground underline underline-offset-2 hover:text-foreground"
+                  >
+                    Clear draft
+                  </button>
+                )}
+              </div>
+            )}
           </div>
 
           {/* Mode Selector */}
           <div className="px-4 pb-3">
-            <div className="flex gap-1 p-1 bg-secondary rounded-lg">
+            <div role="group" aria-label="Research mode" className="grid grid-cols-2 gap-1 rounded-lg bg-secondary p-1 sm:grid-cols-5">
               {RESEARCH_MODES.map((m) => (
                 <button
                   key={m.value}
                   type="button"
-                  onClick={() => setMode(m.value)}
+                  onClick={() => {
+                    setMode(m.value)
+                    setDraftStatus('idle')
+                  }}
+                  aria-pressed={mode === m.value}
                   className={cn(
-                    'flex-1 px-3 py-1.5 rounded-md text-xs font-medium transition-all',
+                    'min-h-11 rounded-md px-2 py-1.5 text-xs font-medium transition-all sm:px-3',
                     mode === m.value
                       ? 'bg-background text-foreground shadow-sm'
                       : 'text-muted-foreground hover:text-foreground'
@@ -279,6 +435,8 @@ export default function ResearchStudio() {
             <button
               type="button"
               onClick={() => setShowConfig(!showConfig)}
+              aria-expanded={showConfig}
+              aria-controls="research-configuration"
               className="w-full px-4 py-2.5 flex items-center justify-between text-sm text-muted-foreground hover:text-foreground transition-colors"
             >
               <span className="font-medium">Configuration</span>
@@ -286,12 +444,18 @@ export default function ResearchStudio() {
             </button>
 
             {showConfig && (
-              <div className="px-4 pb-4 space-y-4 animate-fade-in">
+              <div id="research-configuration" className="px-4 pb-4 space-y-4 animate-fade-in">
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                   {/* Model */}
                   <div>
                     <label className="block text-xs font-medium text-muted-foreground mb-1.5">OpenAI model</label>
-                    <Select value={model} onValueChange={setModel}>
+                    <Select
+                      value={model}
+                      onValueChange={(value) => {
+                        setModel(value)
+                        setDraftStatus('idle')
+                      }}
+                    >
                       <SelectTrigger>
                         <SelectValue />
                       </SelectTrigger>
@@ -306,7 +470,13 @@ export default function ResearchStudio() {
                   {/* Priority */}
                   <div>
                     <label className="block text-xs font-medium text-muted-foreground mb-1.5">Priority</label>
-                    <Select value={priority.toString()} onValueChange={(v) => setPriority(parseInt(v))}>
+                    <Select
+                      value={priority.toString()}
+                      onValueChange={(value) => {
+                        setPriority(parseInt(value))
+                        setDraftStatus('idle')
+                      }}
+                    >
                       <SelectTrigger>
                         <SelectValue />
                       </SelectTrigger>
@@ -325,7 +495,10 @@ export default function ResearchStudio() {
                       <input
                         type="checkbox"
                         checked={enableWebSearch}
-                        onChange={(e) => setEnableWebSearch(e.target.checked)}
+                        onChange={(e) => {
+                          setEnableWebSearch(e.target.checked)
+                          setDraftStatus('idle')
+                        }}
                         className="h-4 w-4 rounded border-input"
                         id="web-search"
                       />
@@ -373,7 +546,12 @@ export default function ResearchStudio() {
                       {uploadedFiles.map((file, index) => (
                         <div key={`${file.name}-${index}`} className="flex items-center justify-between px-3 py-1.5 bg-secondary rounded">
                           <span className="text-xs text-foreground truncate">{file.name} ({(file.size / 1024).toFixed(1)} KB)</span>
-                          <button type="button" onClick={() => removeFile(index)} className="ml-2 text-muted-foreground hover:text-foreground">
+                          <button
+                            type="button"
+                            onClick={() => removeFile(index)}
+                            aria-label={`Remove ${file.name}`}
+                            className="ml-2 inline-flex h-11 w-11 flex-shrink-0 items-center justify-center text-muted-foreground hover:text-foreground"
+                          >
                             <X className="w-3.5 h-3.5" />
                           </button>
                         </div>
@@ -386,8 +564,8 @@ export default function ResearchStudio() {
           </div>
 
           {/* Cost Estimate + Submit */}
-          <div className="border-t px-4 py-3 flex items-center justify-between bg-muted/30">
-            <div className="flex items-center gap-3">
+          <div className="border-t px-4 py-3 flex flex-col gap-3 bg-muted/30 sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex min-w-0 flex-wrap items-center gap-3">
               {isEstimateError ? (
                 <span role="alert" className="flex items-center gap-1.5 text-xs text-destructive">
                   <Info className="w-3 h-3" />
@@ -421,7 +599,7 @@ export default function ResearchStudio() {
               )}
             </div>
 
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 self-end sm:self-auto">
               <kbd className="hidden sm:inline text-[10px] text-muted-foreground/60 font-mono">
                 {navigator.platform?.includes('Mac') ? '\u2318+\u21A9' : 'Ctrl+\u21B5'}
               </kbd>
@@ -444,7 +622,7 @@ export default function ResearchStudio() {
             <li>Be specific about what information you need and desired output format</li>
             <li>Mention preferred sources (peer-reviewed, government data, industry reports)</li>
             <li>Use o4-mini for faster results or o3 for more thorough OpenAI deep research</li>
-            <li>Upload reference documents for context-aware research</li>
+            <li>Open Configuration to upload reference documents for this submission</li>
           </ul>
         </div>
       </form>

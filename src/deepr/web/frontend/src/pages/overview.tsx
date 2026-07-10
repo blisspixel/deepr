@@ -87,7 +87,7 @@ export default function Overview() {
   ]
 
   return (
-    <div className="space-y-6 p-6 animate-fade-in">
+    <div className="space-y-6 p-4 sm:p-6 animate-fade-in">
       {/* Greeting + CTA */}
       <div className="flex items-center justify-between">
         <div>
@@ -117,47 +117,47 @@ export default function Overview() {
       )}
 
       {/* Stat Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">
         {/* Active Jobs */}
-        <div className="rounded-lg border bg-card p-5 space-y-2">
+        <div className="rounded-lg border bg-card p-3 sm:p-5 space-y-2">
           <div className="flex items-center gap-2">
             {processingCount > 0 && <span className="w-2 h-2 rounded-full bg-info animate-pulse" />}
             {processingCount === 0 && queuedCount > 0 && <span className="w-2 h-2 rounded-full bg-warning" />}
             <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Active Jobs</p>
           </div>
-          <p className="text-3xl font-semibold text-foreground tabular-nums">{activeCount}</p>
+          <p className="text-2xl sm:text-3xl font-semibold text-foreground tabular-nums">{activeCount}</p>
           <p className="text-xs text-muted-foreground">
             {activeCount > 0 ? `${queuedCount} queued, ${processingCount} processing` : 'No active jobs'}
           </p>
         </div>
 
         {/* Completed */}
-        <div className="rounded-lg border bg-card p-5 space-y-2">
+        <div className="rounded-lg border bg-card p-3 sm:p-5 space-y-2">
           <div className="flex items-center gap-2">
             <CheckCircle2 className="w-3.5 h-3.5 text-success" />
             <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Completed</p>
           </div>
-          <p className="text-3xl font-semibold text-foreground tabular-nums">{completedCount}</p>
+          <p className="text-2xl sm:text-3xl font-semibold text-foreground tabular-nums">{completedCount}</p>
           <p className="text-xs text-muted-foreground">All time</p>
         </div>
 
         {/* Failed */}
-        <div className="rounded-lg border bg-card p-5 space-y-2">
+        <div className="rounded-lg border bg-card p-3 sm:p-5 space-y-2">
           <div className="flex items-center gap-2">
             <XCircle className="w-3.5 h-3.5 text-destructive" />
             <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Failed</p>
           </div>
-          <p className="text-3xl font-semibold text-foreground tabular-nums">{failedCount}</p>
+          <p className="text-2xl sm:text-3xl font-semibold text-foreground tabular-nums">{failedCount}</p>
           <p className="text-xs text-muted-foreground">All time</p>
         </div>
 
         {/* Daily Spend */}
-        <div className="rounded-lg border bg-card p-5 space-y-2">
+        <div className="rounded-lg border bg-card p-3 sm:p-5 space-y-2">
           <div className="flex items-center gap-2">
             <DollarSign className="w-3.5 h-3.5 text-muted-foreground" />
             <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Today</p>
           </div>
-          <p className="text-3xl font-semibold text-foreground tabular-nums">
+          <p className="text-2xl sm:text-3xl font-semibold text-foreground tabular-nums">
             {formatCurrency(costSummary?.daily || 0)}
           </p>
           <div className="space-y-1">

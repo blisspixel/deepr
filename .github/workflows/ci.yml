@@ -164,6 +164,9 @@ jobs:
       - name: Lint (eslint, zero warnings)
         run: npm run lint
 
+      - name: Unit tests
+        run: npm test
+
       - name: Type check (tsc)
         run: npx tsc --noEmit
 

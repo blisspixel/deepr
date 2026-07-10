@@ -43,26 +43,33 @@ export default function StatusBar() {
       : isOnline
         ? 'API online, live updates unavailable'
         : 'Offline'
+  const compactConnectionLabel = wsConnected
+    ? 'Live'
+    : isOnline && wsStatus === 'reconnecting'
+      ? 'Reconnecting'
+      : isOnline
+        ? 'API only'
+        : 'Offline'
 
   return (
-    <div className="flex h-8 items-center justify-between border-t bg-background px-4 text-[11px] text-muted-foreground">
+    <div className="flex h-8 items-center justify-between gap-2 border-t bg-background px-2 text-[11px] text-muted-foreground sm:px-4">
       {/* Left section */}
-      <div className="flex items-center gap-4">
-        <div className="flex items-center gap-1.5">
+      <div className="flex min-w-0 items-center gap-2 sm:gap-4">
+        <div className="flex items-center gap-1.5 whitespace-nowrap">
           <Activity className="h-3 w-3" />
           <span>
             {activeJobs} active job{activeJobs !== 1 ? 's' : ''}
           </span>
         </div>
 
-        <div className="flex items-center gap-1.5">
+        <div className="hidden items-center gap-1.5 sm:flex">
           <DollarSign className="h-3 w-3" />
           <span>Today: {formatCurrency(todaySpend)}</span>
         </div>
       </div>
 
       {/* Right section */}
-      <div role="status" className="flex items-center gap-1.5" title={connectionLabel}>
+      <div role="status" aria-label={connectionLabel} className="flex min-w-0 items-center gap-1.5" title={connectionLabel}>
         <span
           aria-hidden="true"
           className={cn(
@@ -76,7 +83,8 @@ export default function StatusBar() {
                   : 'bg-destructive'
           )}
         />
-        <span>{connectionLabel}</span>
+        <span className="sm:hidden">{compactConnectionLabel}</span>
+        <span className="hidden sm:inline">{connectionLabel}</span>
       </div>
     </div>
   )
