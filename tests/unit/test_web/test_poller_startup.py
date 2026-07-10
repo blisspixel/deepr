@@ -199,8 +199,24 @@ def test_paid_submit_rejects_provider_lifecycle_metadata_before_reservation(clie
     )
 
     assert response.status_code == 400
-    assert response.get_json() == {"error": "metadata contains reserved fields"}
+    assert response.get_json() == {"error": "Invalid metadata"}
     coordinator.reserve.assert_not_called()
+
+
+def test_paid_submit_does_not_expose_metadata_validation_exception(client, monkeypatch):
+    def reject_metadata(_metadata):
+        raise ValueError("secret metadata validation detail")
+
+    monkeypatch.setattr(web_app.research_cost_api, "client_job_metadata", reject_metadata)
+
+    response = client.post(
+        "/api/jobs",
+        json={"prompt": "Research power-grid constraints.", "metadata": {}},
+    )
+
+    assert response.status_code == 400
+    assert response.get_json() == {"error": "Invalid metadata"}
+    assert b"secret metadata validation detail" not in response.data
 
 
 @pytest.mark.parametrize(
@@ -232,8 +248,39 @@ def test_batch_submit_rejects_reserved_metadata_before_enqueue(client, monkeypat
     )
 
     assert response.status_code == 400
-    assert response.get_json() == {"error": "metadata contains reserved fields"}
+    assert response.get_json() == {"error": "Invalid metadata"}
     queue.enqueue.assert_not_awaited()
+
+
+def test_batch_submit_does_not_expose_validation_exception(client, monkeypatch):
+    def reject_metadata(_metadata):
+        raise ValueError("secret batch validation detail")
+
+    monkeypatch.setattr(web_app.research_cost_api, "client_job_metadata", reject_metadata)
+
+    response = client.post(
+        "/api/jobs/batch",
+        json={"jobs": [{"prompt": "Safe item"}]},
+    )
+
+    assert response.status_code == 400
+    assert response.get_json() == {"error": "Invalid metadata"}
+    assert b"secret batch validation detail" not in response.data
+
+
+def test_batch_submit_reports_enqueue_value_error_as_server_failure(client, monkeypatch):
+    queue = MagicMock()
+    queue.enqueue = AsyncMock(side_effect=ValueError("secret queue detail"))
+    monkeypatch.setattr(web_app, "queue", queue)
+
+    response = client.post(
+        "/api/jobs/batch",
+        json={"jobs": [{"prompt": "Safe item"}]},
+    )
+
+    assert response.status_code == 500
+    assert response.get_json() == {"error": "Internal server error"}
+    assert b"secret queue detail" not in response.data
 
 
 def test_web_job_responses_redact_provider_lifecycle_metadata(client, monkeypatch):

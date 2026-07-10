@@ -183,7 +183,19 @@ class TestJobSubmission:
         )
 
         assert response.status_code == 400
-        assert response.get_json() == {"error": "metadata contains reserved fields"}
+        assert response.get_json() == {"error": "Invalid metadata"}
+        client.mock_provider.submit_research.assert_not_awaited()
+
+    def test_submit_job_does_not_expose_metadata_validation_exception(self, client):
+        with patch(
+            "deepr.api.app.client_job_metadata",
+            side_effect=ValueError("secret metadata validation detail"),
+        ):
+            response = client.post("/api/jobs", json={"prompt": "Research AI", "metadata": {}})
+
+        assert response.status_code == 400
+        assert response.get_json() == {"error": "Invalid metadata"}
+        assert b"secret metadata validation detail" not in response.data
         client.mock_provider.submit_research.assert_not_awaited()
 
     def test_submit_job_returns_estimated_cost(self, client):

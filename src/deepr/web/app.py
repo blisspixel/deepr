@@ -821,10 +821,8 @@ def batch_submit():
 
         return jsonify({"jobs": results, "count": len(results)})
 
-    except ValueError as exc:
-        return jsonify({"error": str(exc)}), 400
-    except Exception as e:
-        logger.error(f"Error batch submitting: {e}")
+    except Exception as exc:
+        logger.error("Error batch submitting: %s", type(exc).__name__)
         return jsonify({"error": "Internal server error"}), 500
 
 

@@ -18,6 +18,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   vector store for deletion.
 - Provider failures now persist and log fixed diagnostics plus bounded exception
   class names instead of provider-controlled response or exception content.
+- Metadata validation failures now return fixed public errors instead of
+  exception-derived text across REST and web submission paths.
 - Tightened the no-growth security-lint ratchet from 86 findings to 84 after
   the lifecycle hardening removed two findings.
 
