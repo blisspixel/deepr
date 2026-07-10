@@ -62,6 +62,29 @@ def test_valid_signature_passes():
     on_completion.assert_called_once()
 
 
+def test_valid_signed_payload_is_not_reflected():
+    from deepr.webhooks.server import create_webhook_server
+
+    secret = "test-secret-123"
+    on_completion = AsyncMock()
+    with patch("os.getenv", return_value=secret):
+        app = create_webhook_server(on_completion=on_completion, host="127.0.0.1", port=5000)
+
+    marker = "<script>alert(1)</script>"
+    body = ('{"id": "job-1", "status": "completed", "marker": "' + marker + '"}').encode()
+    resp = app.test_client().post(
+        "/webhook",
+        data=body,
+        content_type="application/json",
+        headers={"X-Webhook-Signature": _signature(secret, body)},
+    )
+
+    assert resp.status_code == 200
+    assert resp.get_json() == {"status": "success"}
+    assert marker.encode() not in resp.data
+    on_completion.assert_awaited_once_with("job-1", {"id": "job-1", "status": "completed", "marker": marker})
+
+
 def test_invalid_signature_returns_403():
     from deepr.webhooks.server import create_webhook_server
 
@@ -154,6 +177,30 @@ def test_signed_non_string_job_id_returns_400_without_callback():
 
     assert resp.status_code == 400
     assert "job id" in resp.get_json()["error"].lower()
+    on_completion.assert_not_called()
+
+
+def test_webhook_validation_exception_is_not_reflected():
+    from deepr.webhooks.server import create_webhook_server
+
+    secret = "test-secret-123"
+    on_completion = AsyncMock()
+    with patch("os.getenv", return_value=secret):
+        app = create_webhook_server(on_completion=on_completion, host="127.0.0.1", port=5000)
+
+    body = b'{"id": 123, "status": "completed"}'
+    with patch("deepr.webhooks.server._extract_job_id", side_effect=ValueError("<script>secret traceback</script>")):
+        resp = app.test_client().post(
+            "/webhook",
+            data=body,
+            content_type="application/json",
+            headers={"X-Webhook-Signature": _signature(secret, body)},
+        )
+
+    assert resp.status_code == 400
+    assert resp.mimetype == "application/json"
+    assert resp.get_json() == {"error": "Webhook job id must be a string when present"}
+    assert b"script" not in resp.data
     on_completion.assert_not_called()
 
 

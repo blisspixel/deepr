@@ -18,7 +18,7 @@ def storage(tmp_path):
 
 class TestValidation:
     def test_job_id_traversal_rejected(self, storage):
-        for bad in ["../etc", "a/b", "a\\b", ".."]:
+        for bad in ["../etc", "a/b", "a\\b", "..", "job$name"]:
             with pytest.raises(StorageError):
                 storage._validate_job_id(bad)
 
@@ -29,6 +29,33 @@ class TestValidation:
 
     def test_filename_ok(self, storage):
         assert storage._validate_filename("report.md") == "report.md"
+
+    @pytest.mark.parametrize("job_id", ["_job", "job_", "job__id"])
+    def test_valid_underscore_job_ids_are_preserved(self, storage, job_id):
+        assert storage._validate_job_id(job_id) == job_id
+
+    def test_job_dir_resolves_in_base_symlink(self, storage):
+        target = storage.base_path / "target"
+        target.mkdir()
+        link = storage.base_path / "job"
+        try:
+            link.symlink_to(target, target_is_directory=True)
+        except OSError:
+            pytest.skip("Directory symlinks are unavailable on this platform")
+
+        assert storage._get_job_dir("job") == target.resolve()
+
+    def test_job_dir_rejects_symlink_escape(self, storage, tmp_path):
+        outside = tmp_path / "outside"
+        outside.mkdir()
+        link = storage.base_path / "job"
+        try:
+            link.symlink_to(outside, target_is_directory=True)
+        except OSError:
+            pytest.skip("Directory symlinks are unavailable on this platform")
+
+        with pytest.raises(StorageError):
+            storage._get_job_dir("job")
 
 
 class TestReadableDirname:

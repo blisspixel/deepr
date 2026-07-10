@@ -648,8 +648,8 @@ def submit_job():
             model=model,
             enable_web_search=bool(enable_web_search),
         )
-    except ResearchCostBlocked as exc:
-        return jsonify({"error": str(exc)}), 429
+    except ResearchCostBlocked:
+        return jsonify({"error": "Research cost limit exceeded"}), 429
     except Exception as exc:
         logger.error("Research cost reservation unavailable: %s", exc)
         return jsonify({"error": "Cost reservation unavailable"}), 503

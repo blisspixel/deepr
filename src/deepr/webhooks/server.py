@@ -45,17 +45,18 @@ def _extract_job_id(data: dict[str, Any]) -> str | None:
     raise ValueError("Webhook job id must be a string when present")
 
 
-def _parse_webhook_payload() -> dict[str, Any] | WebhookResponse:
+def _parse_webhook_payload() -> tuple[dict[str, Any] | None, str | None]:
+    """Parse a webhook body without returning request-controlled data as a response."""
     parsed = request.get_json(silent=True)
 
     if parsed is None:
-        return jsonify({"error": "No data provided"}), 400
+        return None, "No data provided"
     if not isinstance(parsed, dict):
-        return jsonify({"error": "Webhook payload must be a JSON object"}), 400
+        return None, "Webhook payload must be a JSON object"
     if not parsed:
-        return jsonify({"error": "No data provided"}), 400
+        return None, "No data provided"
 
-    return parsed
+    return parsed, None
 
 
 def _handle_webhook(webhook_secret: str | None, on_completion: CompletionCallback) -> WebhookResponse:
@@ -73,14 +74,16 @@ def _handle_webhook(webhook_secret: str | None, on_completion: CompletionCallbac
             logger.warning("Webhook signature verification failed")
             return jsonify({"error": "Invalid signature"}), 403
 
-        payload = _parse_webhook_payload()
-        if not isinstance(payload, dict):
-            return payload
+        payload, payload_error = _parse_webhook_payload()
+        if payload_error is not None:
+            return jsonify({"error": payload_error}), 400
+        if payload is None:
+            return jsonify({"error": "No data provided"}), 400
 
         try:
             job_id = _extract_job_id(payload)
-        except ValueError as exc:
-            return jsonify({"error": str(exc)}), 400
+        except ValueError:
+            return jsonify({"error": "Webhook job id must be a string when present"}), 400
         status_value = payload.get("status", "unknown")
         status = status_value if isinstance(status_value, str) else "unknown"
 

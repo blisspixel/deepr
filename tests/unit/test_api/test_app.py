@@ -185,6 +185,18 @@ class TestJobSubmission:
         assert response.status_code == 503
         client.mock_provider.submit_research.assert_not_awaited()
 
+    def test_submit_job_does_not_expose_cost_reservation_exception(self, client):
+        from deepr.experts.research_cost_gate import ResearchCostBlocked
+
+        client.mock_reserve_cost.side_effect = ResearchCostBlocked("secret ledger traceback")
+
+        response = client.post("/api/jobs", json={"prompt": "Research quantum computing"})
+
+        assert response.status_code == 429
+        assert response.get_json() == {"error": "Research cost limit exceeded"}
+        assert b"secret ledger traceback" not in response.data
+        client.mock_provider.submit_research.assert_not_awaited()
+
     def test_submit_job_refunds_reservation_when_provider_submission_fails(self, client):
         client.mock_provider.submit_research.side_effect = RuntimeError("provider unavailable")
 
