@@ -59,8 +59,8 @@ def validate_web_research_input(
         return {"error": "Invalid model"}, 400
     try:
         client_job_metadata(metadata)
-    except ValueError as exc:
-        return {"error": str(exc)}, 400
+    except ValueError:
+        return {"error": "Invalid metadata"}, 400
     return None
 
 
@@ -80,7 +80,10 @@ def prepare_web_batch_jobs(
         return None, ({"error": "Each batch job must be an object"}, 400)
 
     items = [dict(item) for item in value]
-    metadata_items = [client_job_metadata(item.get("metadata")) for item in items]
+    try:
+        metadata_items = [client_job_metadata(item.get("metadata")) for item in items]
+    except ValueError:
+        return None, ({"error": "Invalid metadata"}, 400)
     jobs: list[ResearchJob] = []
     for item, metadata in zip(items, metadata_items, strict=True):
         prompt = str(item.get("prompt", "")).strip()

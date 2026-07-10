@@ -642,8 +642,8 @@ def submit_job():
 
     try:
         metadata = client_job_metadata(data.get("metadata"))
-    except ValueError as exc:
-        return jsonify({"error": str(exc)}), 400
+    except ValueError:
+        return jsonify({"error": "Invalid metadata"}), 400
 
     job_id = str(uuid.uuid4())
     try:
