@@ -57,7 +57,13 @@ from datetime import UTC, datetime
 from pathlib import Path
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
-sys.path.insert(0, str(PROJECT_ROOT))
+sys.path.insert(0, str(PROJECT_ROOT / "src"))
+
+from deepr.evals.benchmark_budget import (
+    BenchmarkBudgetExceeded,
+    BenchmarkCostReservation,
+    BenchmarkSpendGuard,
+)
 
 # Load .env for API keys
 try:
@@ -669,25 +675,19 @@ NEWS_MODELS = [
     "openai/gpt-5.5",
     "openai/gpt-5.4",
     "openai/gpt-5-mini",
-    # xAI (native web search)
-    "xai/grok-4-3",
-    "xai/grok-4-20-reasoning",
-    "xai/grok-4-20-non-reasoning",
     # Gemini (Google grounding)
-    "gemini/gemini-3.1-pro-preview",
-    "gemini/gemini-3.5-flash",
-    "gemini/gemini-3-flash-preview",
-    "gemini/gemini-3.1-flash-lite",
     "gemini/gemini-2.5-flash",
     "gemini/gemini-2.5-pro",
 ]
 
-RESEARCH_MODELS = [
+_UNBOUNDED_NATIVE_RESEARCH_MODELS = [
     "openai/o3-deep-research",
     "openai/o4-mini-deep-research",
     "gemini/deep-research",
 ]
-_DEEP_RESEARCH_NAMES: set[str] = {m.split("/", 1)[1] for m in RESEARCH_MODELS}
+_UNBOUNDED_NATIVE_RESEARCH_NAMES: set[str] = {
+    model_key.split("/", 1)[1] for model_key in _UNBOUNDED_NATIVE_RESEARCH_MODELS
+}
 
 # Web-search-augmented research models (no native deep research, but can do
 # multi-source synthesis via web search tools). Scored with research judge.
@@ -697,13 +697,7 @@ ORCHESTRATED_RESEARCH_MODELS = [
     "openai/o3",
     "openai/gpt-5-mini",
     # Gemini (google_search grounding)
-    "gemini/gemini-3.1-pro-preview",
     "gemini/gemini-2.5-pro",
-    "gemini/gemini-3.1-flash-lite",
-    # xAI (Responses API + web_search)
-    "xai/grok-4-20-reasoning",
-    "xai/grok-4-20-non-reasoning",
-    "xai/grok-4-3",
 ]
 
 # Documentation tier models: web-search-capable models that can fetch + document APIs.
@@ -711,13 +705,7 @@ DOCS_MODELS = [
     "openai/gpt-5.4",
     "openai/gpt-5-mini",
     "openai/o3",
-    "gemini/gemini-3.1-pro-preview",
-    "gemini/gemini-3.5-flash",
     "gemini/gemini-2.5-pro",
-    "gemini/gemini-3.1-flash-lite",
-    "xai/grok-4-20-reasoning",
-    "xai/grok-4-20-non-reasoning",
-    "xai/grok-4-3",
 ]
 
 # Provider -> (env var, API base URL)
@@ -748,7 +736,9 @@ _AZURE_API_VERSION = "2024-10-01-preview"
 
 def load_registry():
     """Load current model registry via importlib."""
-    spec = importlib.util.spec_from_file_location("registry", PROJECT_ROOT / "deepr" / "providers" / "registry.py")
+    spec = importlib.util.spec_from_file_location(
+        "registry", PROJECT_ROOT / "src" / "deepr" / "providers" / "registry.py"
+    )
     mod = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(mod)
     return mod.MODEL_CAPABILITIES
@@ -802,14 +792,22 @@ def select_models(
 ) -> list[str]:
     """Select which models to benchmark based on args, tier, and available keys."""
     if args.model:
-        # Single model specified
+        model_name = args.model.split("/", 1)[-1]
+        if model_name in _UNBOUNDED_NATIVE_RESEARCH_NAMES:
+            print(
+                f"  BLOCKED: {args.model} uses a managed deep-research agent without "
+                "a deterministic request-level spend ceiling."
+            )
+            return []
+        if tier in {"news", "research", "docs"} and _has_unbounded_search_billing(args.model):
+            print(f"  BLOCKED: {args.model} can issue an unbounded number of billable search queries in one request.")
+            return []
         return [args.model]
 
     if tier == "news":
         candidates = list(NEWS_MODELS)
     elif tier == "research":
-        # Deep research only: models with native background-research APIs
-        candidates = list(RESEARCH_MODELS)
+        candidates = list(ORCHESTRATED_RESEARCH_MODELS)
     elif tier == "docs":
         candidates = list(DOCS_MODELS)
     else:
@@ -828,6 +826,8 @@ def select_models(
         if key_status.get(provider, False):
             available.append(model_key)
 
+    if tier in _WEB_TIERS:
+        return [model_key for model_key in available if not _has_unbounded_search_billing(model_key)]
     return available
 
 
@@ -845,69 +845,108 @@ def _is_thinking_model(model_key: str) -> bool:
     )
 
 
+_JUDGE_MIN_CALL_CEILING = 0.01
+_WEB_TIERS = {"news", "research", "docs"}
+_OPENAI_WEB_SEARCH_COST_PER_CALL_CEILING = 0.05
+_GEMINI_25_GROUNDED_PROMPT_COST = 0.035
+
+
+def _has_unbounded_search_billing(model_key: str) -> bool:
+    """Return whether one search request can create unbounded tool charges."""
+    provider, _, model = model_key.partition("/")
+    return provider == "xai" or (provider == "gemini" and model.startswith("gemini-3"))
+
+
+def _tool_call_limit(tier: str) -> int:
+    """Return the provider-enforced search limit for one benchmark request."""
+    return {"news": 3, "docs": 5, "research": 8}.get(tier, 0)
+
+
+def _selected_provider_count(models: list[str]) -> int:
+    """Count providers that will participate in the selected benchmark."""
+    return len({model_key.split("/", 1)[0] for model_key in models})
+
+
+def _authorized_output_tokens(model_key: str, prompt: EvalPrompt) -> int:
+    """Mirror the maximum output-token value sent by the selected adapter."""
+    provider, _, model = model_key.partition("/")
+    if provider == "gemini":
+        thinking_headroom = 3072 if "pro" in model else 2048
+        return max(prompt.max_tokens + thinking_headroom, 4096)
+    if provider == "openai" and _is_thinking_model(model_key):
+        minimum = 4096 if prompt.tier in _WEB_TIERS else 2048
+        return max(prompt.max_tokens * 2, minimum)
+    return prompt.max_tokens
+
+
+def _tool_cost_ceiling(model_key: str, tier: str) -> float:
+    """Return the maximum server-side search charge for one bounded request."""
+    provider = model_key.partition("/")[0]
+    uses_search = tier in _WEB_TIERS
+    if not uses_search:
+        return 0.0
+    if provider == "openai":
+        return _tool_call_limit(tier) * _OPENAI_WEB_SEARCH_COST_PER_CALL_CEILING
+    if provider == "xai":
+        raise BenchmarkBudgetExceeded(f"Model {model_key!r} has no deterministic per-request search-cost ceiling")
+    if provider == "gemini":
+        if _has_unbounded_search_billing(model_key):
+            raise BenchmarkBudgetExceeded(f"Model {model_key!r} has no deterministic per-request search-cost ceiling")
+        return _GEMINI_25_GROUNDED_PROMPT_COST
+    return 0.0
+
+
+def _uses_server_search(tier: str) -> bool:
+    return tier in _WEB_TIERS
+
+
+def estimate_eval_cost(model_key: str, prompt: EvalPrompt, registry: dict) -> float:
+    """Return a conservative ceiling for one benchmark provider call."""
+    lookup_key = "openai/" + model_key.split("/", 1)[1] if model_key.startswith("azure-foundry/") else model_key
+    capability = registry.get(lookup_key) or registry.get(model_key)
+    if not capability:
+        raise BenchmarkBudgetExceeded(f"Model {model_key!r} has no trusted pricing metadata")
+
+    model_name = model_key.split("/", 1)[-1]
+    if model_name in _UNBOUNDED_NATIVE_RESEARCH_NAMES:
+        raise BenchmarkBudgetExceeded(f"Model {model_key!r} has no deterministic request-level spend ceiling")
+
+    input_tokens = max(len(prompt.prompt.encode("utf-8")), 400)
+    provider = model_key.partition("/")[0]
+    if _uses_server_search(prompt.tier) and provider in {"openai", "xai"}:
+        context_window = int(capability.context_window)
+        if context_window <= 0:
+            raise BenchmarkBudgetExceeded(f"Model {model_key!r} has no trusted context-window metadata")
+        input_tokens = max(input_tokens, context_window * max(_tool_call_limit(prompt.tier), 1))
+    output_tokens = _authorized_output_tokens(model_key, prompt)
+
+    input_cost = (input_tokens / 1_000_000) * capability.input_cost_per_1m
+    output_cost = (output_tokens / 1_000_000) * capability.output_cost_per_1m
+    tool_cost = _tool_cost_ceiling(model_key, prompt.tier)
+    price_multiplier = 2.2 if provider == "openai" and prompt.tier in _WEB_TIERS else 1.2
+    token_and_tool_ceiling = (input_cost + output_cost) * price_multiplier + tool_cost
+    return max(token_and_tool_ceiling, capability.cost_per_query)
+
+
 def estimate_cost(models: list[str], prompts: list[EvalPrompt], registry: dict) -> float:
-    """Estimate total cost for the benchmark run.
+    """Estimate the conservative ceiling for all selected evaluation calls."""
+    return sum(estimate_eval_cost(model_key, prompt, registry) for model_key in models for prompt in prompts)
 
-    Token estimates by tier:
-      Chat:     ~400 in, ~450 out (+500 thinking for reasoning models)
-      News:     ~400 in, ~800 out (+500 thinking, web search adds ~20%)
-      Research: ~2000 in, ~15000 out (deep research uses massive token budgets)
 
-    Models not in registry use a conservative fallback estimate.
-    """
-    # Per-query fallback cost for models not in registry
-    _FALLBACK_COST = {
-        "news": 0.02,  # ~$0.02 per news query
-        "research": 1.50,  # ~$1.50 per deep research query
-        "docs": 0.03,  # ~$0.03 per docs query
-        "chat": 0.005,
-    }
-
-    total = 0.0
-    for model_key in models:
-        # Azure Foundry models share pricing with their OpenAI equivalents
-        lookup_key = model_key
-        if model_key.startswith("azure-foundry/"):
-            lookup_key = "openai/" + model_key.split("/", 1)[1]
-        cap = registry.get(lookup_key) or registry.get(model_key)
-
-        for ep in prompts:
-            if cap:
-                if ep.tier == "research":
-                    # Deep research uses massive budgets; orchestrated uses web search
-                    model_name = model_key.split("/", 1)[1] if "/" in model_key else model_key
-                    if model_name in _DEEP_RESEARCH_NAMES:
-                        input_cost = (2000 / 1_000_000) * cap.input_cost_per_1m
-                        output_cost = (15000 / 1_000_000) * cap.output_cost_per_1m
-                        per_eval = input_cost + output_cost
-                    else:
-                        input_cost = (600 / 1_000_000) * cap.input_cost_per_1m
-                        output_tokens = 2500 + (500 if _is_thinking_model(model_key) else 0)
-                        output_cost = (output_tokens / 1_000_000) * cap.output_cost_per_1m
-                        per_eval = (input_cost + output_cost) * 1.2
-                elif ep.tier == "docs":
-                    # Docs: ~600 input, ~2000 output + web search overhead
-                    input_cost = (600 / 1_000_000) * cap.input_cost_per_1m
-                    output_tokens = 2000 + (500 if _is_thinking_model(model_key) else 0)
-                    output_cost = (output_tokens / 1_000_000) * cap.output_cost_per_1m
-                    per_eval = (input_cost + output_cost) * 1.2
-                elif ep.tier == "news":
-                    # News: ~400 input, ~800 output + web search overhead
-                    input_cost = (400 / 1_000_000) * cap.input_cost_per_1m
-                    output_tokens = 800 + (500 if _is_thinking_model(model_key) else 0)
-                    output_cost = (output_tokens / 1_000_000) * cap.output_cost_per_1m
-                    per_eval = (input_cost + output_cost) * 1.2  # 20% web search overhead
-                else:
-                    # Chat: ~400 input, ~450 output
-                    input_cost = (400 / 1_000_000) * cap.input_cost_per_1m
-                    output_tokens = 450 + (500 if _is_thinking_model(model_key) else 0)
-                    output_cost = (output_tokens / 1_000_000) * cap.output_cost_per_1m
-                    per_eval = input_cost + output_cost
-                total += per_eval
-            else:
-                # Model not in registry - use fallback
-                total += _FALLBACK_COST.get(ep.tier, 0.005)
-    return total
+def estimate_judge_cost(judge_model: str, registry: dict) -> float:
+    """Return a conservative ceiling for one judge call."""
+    lookup_key = "openai/" + judge_model.split("/", 1)[1] if judge_model.startswith("azure-foundry/") else judge_model
+    if not (registry.get(lookup_key) or registry.get(judge_model)):
+        raise BenchmarkBudgetExceeded(f"Judge model {judge_model!r} has no trusted pricing metadata")
+    conservative_prompt = EvalPrompt(
+        "judge",
+        "scoring",
+        "x" * 8000,
+        [],
+        max_tokens=200,
+        tier="chat",
+    )
+    return max(_JUDGE_MIN_CALL_CEILING, estimate_eval_cost(judge_model, conservative_prompt, registry))
 
 
 # ─── API callers ──────────────────────────────────────────────────────────────
@@ -1107,7 +1146,14 @@ def call_azure_foundry(endpoint: str, model: str, prompt: str, max_tokens: int) 
     return text, latency_ms, []
 
 
-def call_openai_news(api_key: str, model: str, prompt: str, max_tokens: int) -> tuple[str, int, list[dict]]:
+def call_openai_news(
+    api_key: str,
+    model: str,
+    prompt: str,
+    max_tokens: int,
+    *,
+    max_tool_calls: int,
+) -> tuple[str, int, list[dict]]:
     """Call OpenAI Responses API with web_search tool for news queries. Returns (text, latency_ms, citations)."""
     import requests
 
@@ -1115,6 +1161,7 @@ def call_openai_news(api_key: str, model: str, prompt: str, max_tokens: int) -> 
         "model": model,
         "input": prompt,
         "tools": [{"type": "web_search"}],
+        "max_tool_calls": max_tool_calls,
     }
     # GPT-5+ reasoning models need max_output_tokens with headroom for thinking
     is_reasoning = (
@@ -1157,14 +1204,13 @@ def call_openai_news(api_key: str, model: str, prompt: str, max_tokens: int) -> 
     return text, latency_ms, citations
 
 
-def call_grok_news(api_key: str, model: str, prompt: str, max_tokens: int) -> tuple[str, int, list[dict]]:
-    """Call Grok via xAI Responses API with web_search tool. Returns (text, latency_ms, citations)."""
+def call_grok_response(api_key: str, model: str, prompt: str, max_tokens: int) -> tuple[str, int, list[dict]]:
+    """Call Grok via the xAI Responses API without server-side tools."""
     import requests
 
     body = {
         "model": model,
         "input": prompt,
-        "tools": [{"type": "web_search"}],
         "max_output_tokens": max_tokens,
     }
 
@@ -1188,19 +1234,7 @@ def call_grok_news(api_key: str, model: str, prompt: str, max_tokens: int) -> tu
                     if item.get("type") == "output_text":
                         text += item.get("text", "")
 
-    # Extract citations
-    citations = []
-    for cite in data.get("citations", []):
-        citations.append({"url": cite.get("url", ""), "title": cite.get("title", "")})
-
-    # Also check output blocks for URL citations (annotations)
-    for block in data.get("output", []):
-        for item in block.get("content", []):
-            for ann in item.get("annotations", []):
-                if ann.get("type") == "url_citation":
-                    citations.append({"url": ann.get("url", ""), "title": ann.get("title", "")})
-
-    return text, latency_ms, citations
+    return text, latency_ms, []
 
 
 def call_gemini_news(api_key: str, model: str, prompt: str, max_tokens: int) -> tuple[str, int, list[dict]]:
@@ -1248,193 +1282,6 @@ def call_gemini_news(api_key: str, model: str, prompt: str, max_tokens: int) -> 
     return text, latency_ms, citations
 
 
-def call_openai_deep_research(api_key: str, model: str, prompt: str, max_tokens: int) -> tuple[str, int, list[dict]]:
-    """Call OpenAI Responses API in background mode for deep research. Returns (text, latency_ms, citations).
-
-    Submits a background job, polls until completed. Timeout: 1200s (20 min).
-    """
-    import requests
-
-    # Model name mapping
-    model_map = {
-        "o3-deep-research": "o3-deep-research-2025-06-26",
-        "o4-mini-deep-research": "o4-mini-deep-research",
-    }
-    api_model = model_map.get(model, model)
-
-    headers = {"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"}
-
-    # Submit background job
-    body = {
-        "model": api_model,
-        "input": prompt,
-        "background": True,
-        "tools": [{"type": "web_search_preview"}],
-        "store": True,
-    }
-
-    start = time.monotonic()
-    resp = requests.post("https://api.openai.com/v1/responses", headers=headers, json=body, timeout=60)
-    resp.raise_for_status()
-    job = resp.json()
-    job_id = job["id"]
-
-    # Poll until completed (max 3600s = 60 min; some deep research jobs take 45+)
-    poll_interval = 10
-    timeout = 3600
-    while True:
-        elapsed = time.monotonic() - start
-        if elapsed > timeout:
-            raise TimeoutError(
-                f"OpenAI deep research timed out after {timeout}s. "
-                f"Job {job_id} may still be running - check with: "
-                f"GET https://api.openai.com/v1/responses/{job_id}"
-            )
-
-        time.sleep(poll_interval)
-        # Ramp up interval: 10s for first 2 min, 20s up to 10 min, then 30s
-        if elapsed > 600:
-            poll_interval = 30
-        elif elapsed > 120:
-            poll_interval = 20
-
-        poll_resp = requests.get(f"https://api.openai.com/v1/responses/{job_id}", headers=headers, timeout=30)
-        poll_resp.raise_for_status()
-        status_data = poll_resp.json()
-
-        status = status_data.get("status", "")
-        if status == "completed":
-            break
-        elif status in ("failed", "cancelled"):
-            error = status_data.get("error", {}).get("message", status)
-            raise RuntimeError(f"OpenAI deep research {status}: {error}")
-        # else: in_progress, queued - keep polling
-
-    latency_ms = int((time.monotonic() - start) * 1000)
-
-    # Extract report text and citations from output
-    text = ""
-    citations = []
-    for block in status_data.get("output", []):
-        for item in block.get("content", []):
-            if item.get("type") in ("output_text", "text"):
-                text += item.get("text", "")
-            # Collect URL citation annotations
-            for ann in item.get("annotations", []):
-                if ann.get("type") == "url_citation":
-                    citations.append({"url": ann.get("url", ""), "title": ann.get("title", "")})
-
-    return text, latency_ms, citations
-
-
-def call_gemini_deep_research(api_key: str, prompt: str) -> tuple[str, int, list[dict]]:
-    """Call Gemini Deep Research via Interactions API. Returns (text, latency_ms, citations).
-
-    Submits a background interaction, polls until completed. Timeout: 1200s (20 min).
-    """
-    import requests
-
-    agent = "deep-research-pro-preview-12-2025"
-    base = "https://generativelanguage.googleapis.com/v1beta"
-    headers = {"Content-Type": "application/json"}
-
-    # Submit background interaction
-    body = {
-        "input": prompt,
-        "agent": agent,
-        "background": True,
-    }
-
-    start = time.monotonic()
-    headers = {**headers, "x-goog-api-key": api_key}
-    resp = requests.post(f"{base}/interactions", headers=headers, json=body, timeout=60)
-    resp.raise_for_status()
-    interaction = resp.json()
-    interaction_id = interaction.get("id") or interaction.get("name", "").split("/")[-1]
-
-    # Poll until completed (max 3600s = 60 min; some jobs take 45+)
-    timeout = 3600
-    while True:
-        elapsed = time.monotonic() - start
-        if elapsed > timeout:
-            raise TimeoutError(
-                f"Gemini deep research timed out after {timeout}s. Interaction {interaction_id} may still be running."
-            )
-
-        # Adaptive polling: 5s -> 10s -> 20s -> 30s
-        if elapsed < 60:
-            time.sleep(5)
-        elif elapsed < 300:
-            time.sleep(10)
-        elif elapsed < 600:
-            time.sleep(20)
-        else:
-            time.sleep(30)
-
-        poll_resp = requests.get(
-            f"{base}/interactions/{interaction_id}",
-            headers={"x-goog-api-key": api_key},
-            timeout=30,
-        )
-        poll_resp.raise_for_status()
-        status_data = poll_resp.json()
-
-        status = status_data.get("status", "")
-        if status == "completed":
-            break
-        elif status == "failed":
-            error = status_data.get("error", {}).get("message", "unknown error")
-            raise RuntimeError(f"Gemini deep research failed: {error}")
-
-    latency_ms = int((time.monotonic() - start) * 1000)
-
-    # Extract text and citations from outputs
-    # The Interactions API response structure can vary - try multiple paths:
-    #   - outputs[].text (primary)
-    #   - outputs[].content[].text (alternate)
-    #   - outputs[].groundingMetadata.groundingChunks (grounding citations)
-    #   - outputs[].citations (direct citations array)
-    #   - Inline markdown links in the report text itself
-    text = ""
-    citations = []
-    for output in status_data.get("outputs", []):
-        # Text extraction: try direct .text first, then .content[].text
-        if output.get("text"):
-            text += output["text"]
-        for part in output.get("content", []):
-            if isinstance(part, dict) and part.get("text"):
-                text += part["text"]
-
-        # Citations path 1: groundingMetadata.groundingChunks
-        grounding = output.get("groundingMetadata", {})
-        for chunk in grounding.get("groundingChunks", []):
-            web = chunk.get("web", {})
-            if web:
-                citations.append({"url": web.get("uri", ""), "title": web.get("title", "")})
-
-        # Citations path 2: direct citations array
-        for cite in output.get("citations", []):
-            url = cite.get("url", "") or cite.get("uri", "")
-            if url:
-                citations.append({"url": url, "title": cite.get("title", "")})
-
-        # Citations path 3: groundingMetadata.webSearchQueries (at least shows search was done)
-        for query in grounding.get("webSearchQueries", []):
-            if isinstance(query, str) and not citations:
-                # No structured citations but search was performed
-                pass
-
-    # Citations path 4: extract markdown links from the report text
-    # Deep research reports often embed [title](url) references
-    if not citations and text:
-        import re
-
-        for match in re.finditer(r"\[([^\]]+)\]\((https?://[^)]+)\)", text):
-            citations.append({"title": match.group(1), "url": match.group(2)})
-
-    return text, latency_ms, citations
-
-
 # Registry model names -> actual API model IDs (where they differ)
 _API_MODEL_IDS = {
     "grok-4-20-reasoning": "grok-4.20-0309-reasoning",
@@ -1454,45 +1301,37 @@ def call_model(model_key: str, prompt: str, max_tokens: int, tier: str = "chat")
     model = _API_MODEL_IDS.get(model, model)  # Translate registry name -> API model ID
     env_var, base_url = _PROVIDER_CONFIG[provider]
     api_key = os.environ.get(env_var, "")
+    if model in _UNBOUNDED_NATIVE_RESEARCH_NAMES:
+        raise BenchmarkBudgetExceeded(f"Model {model_key!r} has no deterministic request-level spend ceiling")
+    if tier in _WEB_TIERS and _has_unbounded_search_billing(model_key):
+        raise BenchmarkBudgetExceeded(f"Model {model_key!r} has no deterministic per-request search-cost ceiling")
+    tool_call_limit = _tool_call_limit(tier)
 
     # News tier: web search enabled callers
     if tier == "news":
         if provider == "openai":
-            return call_openai_news(api_key, model, prompt, max_tokens)
-        elif provider == "xai":
-            return call_grok_news(api_key, model, prompt, max_tokens)
+            return call_openai_news(api_key, model, prompt, max_tokens, max_tool_calls=tool_call_limit)
         elif provider == "gemini":
             return call_gemini_news(api_key, model, prompt, max_tokens)
 
     # Docs tier: web search callers with larger token budgets
     if tier == "docs":
         if provider == "openai":
-            return call_openai_news(api_key, model, prompt, max_tokens)
-        elif provider == "xai":
-            return call_grok_news(api_key, model, prompt, max_tokens)
+            return call_openai_news(api_key, model, prompt, max_tokens, max_tool_calls=tool_call_limit)
         elif provider == "gemini":
             return call_gemini_news(api_key, model, prompt, max_tokens)
 
-    # Research tier: deep research models -> background API, others -> web search
+    # Research tier: bounded web-search orchestration only.
     if tier == "research":
-        if model in _DEEP_RESEARCH_NAMES:
-            if provider == "openai":
-                return call_openai_deep_research(api_key, model, prompt, max_tokens)
-            elif provider == "gemini":
-                return call_gemini_deep_research(api_key, prompt)
-        else:
-            # Orchestrated research: web search callers with research-tier budgets
-            if provider == "openai":
-                return call_openai_news(api_key, model, prompt, max_tokens)
-            elif provider == "xai":
-                return call_grok_news(api_key, model, prompt, max_tokens)
-            elif provider == "gemini":
-                return call_gemini_news(api_key, model, prompt, max_tokens)
+        if provider == "openai":
+            return call_openai_news(api_key, model, prompt, max_tokens, max_tool_calls=tool_call_limit)
+        elif provider == "gemini":
+            return call_gemini_news(api_key, model, prompt, max_tokens)
 
     # Chat tier (default): standard chat completions
     if provider == "xai" and "grok-4.3" in model:
         # Grok 4.3 requires the Responses API, not chat completions
-        return call_grok_news(api_key, model, prompt, max_tokens)
+        return call_grok_response(api_key, model, prompt, max_tokens)
     elif provider in ("openai", "xai"):
         return call_openai_compatible(api_key, base_url, model, prompt, max_tokens)
     elif provider == "anthropic":
@@ -1510,7 +1349,6 @@ def call_model(model_key: str, prompt: str, max_tokens: int, tier: str = "chat")
 _CHECKPOINT_DIR = PROJECT_ROOT / "data" / "benchmarks"
 _CHECKPOINT_FILE = _CHECKPOINT_DIR / ".checkpoint.json"
 _checkpoint_lock = threading.Lock()
-_budget_lock = threading.Lock()
 
 
 def _eval_key(model_key: str, prompt_text: str) -> str:
@@ -1604,9 +1442,6 @@ def _eval_single(model_key: str, ep: EvalPrompt, registry: dict) -> tuple[EvalRe
 
     Thread-safe - no shared mutable state.
     """
-    lookup = "openai/" + model_key.split("/", 1)[1] if model_key.startswith("azure-foundry/") else model_key
-    cap = registry.get(lookup) or registry.get(model_key)
-
     result = EvalResult(
         model_key=model_key,
         task_type=ep.task_type,
@@ -1616,7 +1451,7 @@ def _eval_single(model_key: str, ep: EvalPrompt, registry: dict) -> tuple[EvalRe
         latency_ms=0,
         tier=ep.tier,
     )
-    cost = 0.0
+    cost = estimate_eval_cost(model_key, ep, registry)
 
     try:
         text, latency_ms, citations = call_model(model_key, ep.prompt, ep.max_tokens, tier=ep.tier)
@@ -1626,28 +1461,6 @@ def _eval_single(model_key: str, ep: EvalPrompt, registry: dict) -> tuple[EvalRe
         result.citation_count = len(citations)
         result.report_length = len(text.split()) if ep.tier in ("research", "docs") else 0
 
-        # Estimate cost - tier-specific token budgets
-        thinking_extra = 500 if _is_thinking_model(model_key) else 0
-        if ep.tier == "research":
-            model_name = model_key.split("/", 1)[1]
-            if model_name in _DEEP_RESEARCH_NAMES:
-                in_tokens, out_tokens = 2000, 15000
-            else:
-                in_tokens, out_tokens = 600, 2500 + thinking_extra
-        elif ep.tier == "docs":
-            in_tokens, out_tokens = 600, 2000 + thinking_extra
-        elif ep.tier == "news":
-            in_tokens, out_tokens = 400, 800 + thinking_extra
-        else:
-            in_tokens, out_tokens = 400, 450 + thinking_extra
-
-        if cap:
-            cost = (in_tokens / 1_000_000) * cap.input_cost_per_1m + (out_tokens / 1_000_000) * cap.output_cost_per_1m
-            if ep.tier in ("news", "docs"):
-                cost *= 1.2  # web search overhead
-        else:
-            fallback = {"research": 1.50, "news": 0.02, "docs": 0.03, "chat": 0.005}
-            cost = fallback.get(ep.tier, 0.005)
     except Exception as e:
         # Redact any embedded API keys / bearer tokens before storing or logging.
         # requests.HTTPError stringifies to include the request URL, which is the
@@ -1659,11 +1472,28 @@ def _eval_single(model_key: str, ep: EvalPrompt, registry: dict) -> tuple[EvalRe
     return result, cost
 
 
+def _eval_single_accounted(
+    model_key: str,
+    prompt: EvalPrompt,
+    registry: dict,
+    spend_guard: BenchmarkSpendGuard,
+    reservation: BenchmarkCostReservation,
+) -> tuple[EvalResult, float]:
+    """Run one reserved evaluation and settle its ledger event."""
+    try:
+        result, cost = _eval_single(model_key, prompt, registry)
+    except BaseException:
+        spend_guard.settle(reservation, status="ambiguous_error")
+        raise
+    spend_guard.settle(reservation, status="failed" if result.error else "completed")
+    return result, cost
+
+
 def run_evaluations(
     models: list[str],
     prompts: list[EvalPrompt],
-    budget: float | None,
     registry: dict,
+    spend_guard: BenchmarkSpendGuard,
     prior_results: list[EvalResult] | None = None,
     max_workers: int = 5,
 ) -> list[EvalResult]:
@@ -1697,21 +1527,34 @@ def run_evaluations(
         print()
         return results
 
-    spent = 0.0
     done_count = 0
-    budget_exceeded = False
 
     with ThreadPoolExecutor(max_workers=max_workers) as pool:
         futures = {}
         for model_key, ep in tasks:
-            fut = pool.submit(_eval_single, model_key, ep, registry)
+            try:
+                reservation = spend_guard.reserve(
+                    provider=model_key.split("/", 1)[0],
+                    model=model_key,
+                    cost_ceiling=estimate_eval_cost(model_key, ep, registry),
+                    operation="benchmark_evaluation",
+                    metadata={"tier": ep.tier, "task_type": ep.task_type, "difficulty": ep.difficulty},
+                )
+            except BenchmarkBudgetExceeded as exc:
+                print(f"\n  {exc}")
+                break
+            try:
+                fut = pool.submit(_eval_single_accounted, model_key, ep, registry, spend_guard, reservation)
+            except Exception:
+                spend_guard.refund(reservation)
+                raise
             futures[fut] = (model_key, ep)
 
         for fut in as_completed(futures):
             model_key, ep = futures[fut]
             done_count += 1
             try:
-                result, cost = fut.result()
+                result, _cost = fut.result()
             except Exception as e:
                 # Unexpected error in thread - create error result
                 result = EvalResult(
@@ -1724,13 +1567,7 @@ def run_evaluations(
                     error=redact_secrets(str(e)),
                     tier=ep.tier,
                 )
-                cost = 0.0
-
             results.append(result)
-
-            with _budget_lock:
-                spent += cost
-                over_budget = budget is not None and spent >= budget
 
             print(
                 f"\r  [{done_count}/{len(tasks)}] {model_key} - {ep.task_type}/{ep.difficulty} "
@@ -1740,14 +1577,6 @@ def run_evaluations(
             )
 
             _save_checkpoint(results)
-
-            if over_budget and not budget_exceeded:
-                budget_exceeded = True
-                print(f"\n  Budget limit ${budget:.2f} reached after ${spent:.2f}")
-                # Cancel remaining futures
-                for pending in futures:
-                    pending.cancel()
-                break
 
     print()  # newline after progress
     return results
@@ -2036,7 +1865,29 @@ def _judge_single(result: EvalResult, judge_model: str) -> tuple[dict[str, float
         return None, 0.0
 
 
-def run_judge(results: list[EvalResult], judge_model: str, max_workers: int = 5) -> list[EvalResult]:
+def _judge_single_accounted(
+    result: EvalResult,
+    judge_model: str,
+    spend_guard: BenchmarkSpendGuard,
+    reservation: BenchmarkCostReservation,
+) -> tuple[dict[str, float] | None, float]:
+    """Run one reserved judge call and settle its ledger event."""
+    try:
+        scores, score = _judge_single(result, judge_model)
+    except BaseException:
+        spend_guard.settle(reservation, status="ambiguous_error")
+        raise
+    spend_guard.settle(reservation, status="completed" if scores is not None else "failed")
+    return scores, score
+
+
+def run_judge(
+    results: list[EvalResult],
+    judge_model: str,
+    spend_guard: BenchmarkSpendGuard,
+    judge_cost_ceiling: float,
+    max_workers: int = 5,
+) -> list[EvalResult]:
     """Score each eval result using the LLM judge (tier-aware, parallel)."""
     judgeable = [(i, r) for i, r in enumerate(results) if not r.error]
     total = len(judgeable)
@@ -2045,7 +1896,22 @@ def run_judge(results: list[EvalResult], judge_model: str, max_workers: int = 5)
     with ThreadPoolExecutor(max_workers=max_workers) as pool:
         futures = {}
         for idx, result in judgeable:
-            fut = pool.submit(_judge_single, result, judge_model)
+            try:
+                reservation = spend_guard.reserve(
+                    provider=judge_model.split("/", 1)[0],
+                    model=judge_model,
+                    cost_ceiling=judge_cost_ceiling,
+                    operation="benchmark_judge",
+                    metadata={"tier": result.tier, "evaluated_model": result.model_key},
+                )
+            except BenchmarkBudgetExceeded as exc:
+                print(f"\n  {exc}")
+                break
+            try:
+                fut = pool.submit(_judge_single_accounted, result, judge_model, spend_guard, reservation)
+            except Exception:
+                spend_guard.refund(reservation)
+                raise
             futures[fut] = idx
 
         for fut in as_completed(futures):
@@ -2597,7 +2463,34 @@ def compare_results(current_summaries: list[ModelSummary], compare_file: str):
 # ─── Display helpers ──────────────────────────────────────────────────────────
 
 
-def run_validation(tier: str = "chat"):
+def _accounted_validation_call(
+    *,
+    spend_guard: BenchmarkSpendGuard,
+    registry: dict,
+    model_key: str,
+    prompt: str,
+    max_tokens: int,
+    tier: str,
+) -> tuple[str, int, list[dict]]:
+    """Run one reserved provider validation call and settle its ledger event."""
+    eval_prompt = EvalPrompt("provider_validation", "smoke", prompt, [], max_tokens=max_tokens, tier=tier)
+    reservation = spend_guard.reserve(
+        provider=model_key.split("/", 1)[0],
+        model=model_key,
+        cost_ceiling=estimate_eval_cost(model_key, eval_prompt, registry),
+        operation="benchmark_validation",
+        metadata={"tier": tier},
+    )
+    try:
+        response = call_model(model_key, prompt, max_tokens, tier=tier)
+    except BaseException:
+        spend_guard.settle(reservation, status="ambiguous_error")
+        raise
+    spend_guard.settle(reservation, status="completed")
+    return response
+
+
+def run_validation(registry: dict, spend_guard: BenchmarkSpendGuard, tier: str = "chat"):
     """Send 1 cheap prompt to each available provider to verify APIs work.
 
     Chat + News: cheap validation. Research: skipped by default (costs $0.50+).
@@ -2631,11 +2524,21 @@ def run_validation(tier: str = "chat"):
                 skipped += 1
                 continue
             try:
-                text, latency_ms, _ = call_model(model_key, test_prompt, 10)
+                text, latency_ms, _ = _accounted_validation_call(
+                    spend_guard=spend_guard,
+                    registry=registry,
+                    model_key=model_key,
+                    prompt=test_prompt,
+                    max_tokens=10,
+                    tier="chat",
+                )
                 has_four = "4" in text
                 status = "OK" if has_four else f"OK (unexpected: {text[:30]})"
                 print(f"  [+] {model_key:<35} {status} ({latency_ms}ms)")
                 passed += 1
+            except BenchmarkBudgetExceeded as exc:
+                print(f"  [!] Validation stopped: {exc}")
+                return
             except Exception as e:
                 print(f"  [X] {model_key:<35} FAILED: {redact_secrets(str(e))[:60]}")
                 failed += 1
@@ -2647,10 +2550,6 @@ def run_validation(tier: str = "chat"):
     if tier in ("news", "all"):
         news_prompt = "What day is it today? Include the date."
         news_tests = [
-            ("xai", "xai/grok-4-20-reasoning"),
-            ("xai", "xai/grok-4-3"),
-            ("gemini", "gemini/gemini-3-flash-preview"),
-            ("gemini", "gemini/gemini-3.1-pro-preview"),
             ("gemini", "gemini/gemini-2.5-flash"),
             ("gemini", "gemini/gemini-2.5-pro"),
         ]
@@ -2666,10 +2565,20 @@ def run_validation(tier: str = "chat"):
                 skipped += 1
                 continue
             try:
-                text, latency_ms, citations = call_model(model_key, news_prompt, 100, tier="news")
+                text, latency_ms, citations = _accounted_validation_call(
+                    spend_guard=spend_guard,
+                    registry=registry,
+                    model_key=model_key,
+                    prompt=news_prompt,
+                    max_tokens=100,
+                    tier="news",
+                )
                 cite_count = len(citations)
                 print(f"  [+] {model_key:<35} OK ({latency_ms}ms, {cite_count} citations)")
                 passed += 1
+            except BenchmarkBudgetExceeded as exc:
+                print(f"  [!] Validation stopped: {exc}")
+                return
             except Exception as e:
                 print(f"  [X] {model_key:<35} FAILED: {redact_secrets(str(e))[:60]}")
                 failed += 1
@@ -2677,18 +2586,17 @@ def run_validation(tier: str = "chat"):
         print()
         print(f"  {passed} passed, {failed} failed, {skipped} skipped")
 
-    # Research tier validation - skipped unless explicitly requested
+    # Research tier validation uses bounded web-search orchestration.
     if tier == "research":
         print()
         print("  Research Tier Validation")
         print("  " + "=" * 64)
-        print("  WARNING: Research validation costs ~$0.50+ per model.")
-        print("  Testing with a minimal prompt...")
+        print("  Testing bounded web-search orchestration with a minimal prompt...")
 
         research_prompt = "Briefly summarize the current state of AI safety research in 2-3 sentences."
         research_tests = [
-            ("openai", "openai/o3-deep-research"),
-            ("gemini", "gemini/deep-research"),
+            ("openai", "openai/gpt-5-mini"),
+            ("gemini", "gemini/gemini-2.5-pro"),
         ]
 
         passed = failed = skipped = 0
@@ -2698,11 +2606,21 @@ def run_validation(tier: str = "chat"):
                 skipped += 1
                 continue
             try:
-                text, latency_ms, citations = call_model(model_key, research_prompt, 500, tier="research")
+                text, latency_ms, citations = _accounted_validation_call(
+                    spend_guard=spend_guard,
+                    registry=registry,
+                    model_key=model_key,
+                    prompt=research_prompt,
+                    max_tokens=500,
+                    tier="research",
+                )
                 cite_count = len(citations)
                 words = len(text.split())
                 print(f"  [+] {model_key:<35} OK ({latency_ms}ms, {cite_count} cites, {words} words)")
                 passed += 1
+            except BenchmarkBudgetExceeded as exc:
+                print(f"  [!] Validation stopped: {exc}")
+                return
             except Exception as e:
                 print(f"  [X] {model_key:<35} FAILED: {redact_secrets(str(e))[:60]}")
                 failed += 1
@@ -2715,9 +2633,7 @@ def run_validation(tier: str = "chat"):
         docs_prompt = "What are the main endpoints of the Stripe API? List 3."
         docs_tests = [
             ("openai", "openai/gpt-5-mini"),
-            ("gemini", "gemini/gemini-3-flash-preview"),
-            ("xai", "xai/grok-4-20-reasoning"),
-            ("xai", "xai/grok-4-3"),
+            ("gemini", "gemini/gemini-2.5-pro"),
         ]
 
         print()
@@ -2731,10 +2647,20 @@ def run_validation(tier: str = "chat"):
                 skipped += 1
                 continue
             try:
-                text, latency_ms, citations = call_model(model_key, docs_prompt, 500, tier="docs")
+                text, latency_ms, citations = _accounted_validation_call(
+                    spend_guard=spend_guard,
+                    registry=registry,
+                    model_key=model_key,
+                    prompt=docs_prompt,
+                    max_tokens=500,
+                    tier="docs",
+                )
                 cite_count = len(citations)
                 print(f"  [+] {model_key:<35} OK ({latency_ms}ms, {cite_count} citations)")
                 passed += 1
+            except BenchmarkBudgetExceeded as exc:
+                print(f"  [!] Validation stopped: {exc}")
+                return
             except Exception as e:
                 print(f"  [X] {model_key:<35} FAILED: {redact_secrets(str(e))[:60]}")
                 failed += 1
@@ -2865,6 +2791,14 @@ def _select_prompts_for_tier(tier: str, args) -> list[EvalPrompt]:
     return prompts
 
 
+def _runtime_budget(args) -> float:
+    """Resolve the finite ceiling shared by all paid benchmark phases."""
+    value = args.budget if args.budget is not None else args.max_estimated_cost
+    if value is None:
+        raise BenchmarkBudgetExceeded("Paid benchmarks require --budget when --no-cost-cap is used")
+    return float(value)
+
+
 def main():
     parser = argparse.ArgumentParser(
         description="Benchmark model quality across providers to validate routing decisions.",
@@ -2963,7 +2897,7 @@ Examples:
     # Safe default: cap benchmark spend unless explicitly disabled/overridden.
     # This is especially important for --new-models / --fill-gaps workflows.
     if args.max_estimated_cost is None and not args.no_cost_cap:
-        args.max_estimated_cost = 1.0
+        args.max_estimated_cost = args.budget if args.budget is not None else 1.0
 
     if args.verbose:
         logging.getLogger().setLevel(logging.DEBUG)
@@ -2979,7 +2913,12 @@ Examples:
 
     # Validate: test provider APIs
     if args.validate:
-        run_validation(tier=args.tier)
+        try:
+            spend_guard = BenchmarkSpendGuard(_runtime_budget(args))
+        except BenchmarkBudgetExceeded as exc:
+            print(f"  ABORT: {exc}")
+            sys.exit(2)
+        run_validation(load_registry(), spend_guard, tier=args.tier)
         return
 
     # ─── Phase 1: Preflight ───────────────────────────────────────────────
@@ -3029,9 +2968,13 @@ Examples:
 
     # Cost estimate
     est_cost = sum(estimate_cost(models, prompts, registry) for _, models, prompts in tier_plans)
-    judge_cost = sum(len(models) * len(prompts) for _, models, prompts in tier_plans) * 0.0003
-    if args.no_judge:
-        judge_cost = 0
+    judge_model = None if args.no_judge else pick_judge_model(all_models, args.judge_model)
+    try:
+        judge_call_ceiling = estimate_judge_cost(judge_model, registry) if judge_model else 0.0
+    except BenchmarkBudgetExceeded as exc:
+        print(f"\n  ABORT: {exc}")
+        sys.exit(2)
+    judge_cost = sum(len(models) * len(prompts) for _, models, prompts in tier_plans) * judge_call_ceiling
     est_total = est_cost + judge_cost
 
     print_preflight(key_status, all_models, est_total)
@@ -3039,19 +2982,36 @@ Examples:
     if not args.skip_discovery_check:
         warn_if_newer_models_available()
 
-    if (not args.dry_run) and args.max_estimated_cost is not None and est_total > args.max_estimated_cost:
-        print(
-            f"\n  ABORT: estimated cost ${est_total:.2f} exceeds --max-estimated-cost ${args.max_estimated_cost:.2f}."
-        )
+    preflight_limits = [limit for limit in (args.max_estimated_cost, args.budget) if limit is not None]
+    preflight_limit = min(preflight_limits) if preflight_limits else None
+    if (not args.dry_run) and preflight_limit is not None and est_total > preflight_limit:
+        print(f"\n  ABORT: estimated cost ${est_total:.2f} exceeds runtime ceiling ${preflight_limit:.2f}.")
         print("  Re-run with narrower scope, --new-models/--fill-gaps, --quick, or --no-judge.")
         print("  To intentionally run expensive benchmarks, set --max-estimated-cost higher or pass --no-cost-cap.")
         sys.exit(2)
 
     # Dry run (before budget prompts)
     if args.dry_run:
-        judge_model = None if args.no_judge else pick_judge_model(all_models, args.judge_model)
-        show_dry_run(tier_plans, est_total, judge_model)
+        if args.format == "json":
+            print(
+                "DEEPR_BENCHMARK_ESTIMATE_JSON="
+                + json.dumps(
+                    {
+                        "estimated_cost": est_total,
+                        "model_count": len(all_models),
+                        "provider_count": _selected_provider_count(all_models),
+                    }
+                )
+            )
+        else:
+            show_dry_run(tier_plans, est_total, judge_model)
         return
+
+    try:
+        spend_guard = BenchmarkSpendGuard(_runtime_budget(args))
+    except BenchmarkBudgetExceeded as exc:
+        print(f"\n  ABORT: {exc}")
+        sys.exit(2)
 
     # Budget safety prompts (after dry-run, before spending money)
     if "research" in tiers and est_total > 2.0 and not args.budget:
@@ -3083,7 +3043,7 @@ Examples:
     for tier, models, prompts in tier_plans:
         print(f"Running {tier.upper()} tier evaluations...")
         all_results = run_evaluations(
-            models, prompts, args.budget, registry, prior_results=all_results, max_workers=args.workers
+            models, prompts, registry, spend_guard, prior_results=all_results, max_workers=args.workers
         )
 
     if not all_results:
@@ -3093,21 +3053,20 @@ Examples:
     # ─── Phase 3: Judge ───────────────────────────────────────────────────
     use_judge = not args.no_judge
     if use_judge:
-        judge_model = pick_judge_model(all_models, args.judge_model)
         if judge_model:
             print(f"Running LLM judge ({judge_model})...")
-            all_results = run_judge(all_results, judge_model, max_workers=args.workers)
+            all_results = run_judge(
+                all_results,
+                judge_model,
+                spend_guard,
+                judge_call_ceiling,
+                max_workers=args.workers,
+            )
         else:
             print("  No judge model available, falling back to reference/citation scoring.")
             use_judge = False
 
     all_results = compute_combined_scores(all_results, use_judge)
-
-    # Snapshot the results actually executed this run, BEFORE merging prior
-    # history. The merge below adds historical evals (for richer rankings),
-    # but those incurred no new spend - so the reported cost must come from
-    # this snapshot, not the merged dataset.
-    executed_results = list(all_results)
 
     # ─── Merge prior saved results (--fill-gaps) ─────────────────────────
     if args.fill_gaps and prior_saved:
@@ -3127,14 +3086,9 @@ Examples:
     # ─── Phase 4: Report ─────────────────────────────────────────────────
     summaries = build_summaries(all_results, registry)
 
-    # Cost reflects only evals executed this run. When --fill-gaps merges
-    # prior history into the rankings, summing every summary's cost would
-    # report the (huge) cost of re-running the entire dataset rather than
-    # this run's actual spend.
-    if len(executed_results) != len(all_results):
-        total_cost = sum(s.total_cost for s in build_summaries(executed_results, registry))
-    else:
-        total_cost = sum(s.total_cost for s in summaries)
+    # The run guard covers only work submitted during this process, including
+    # judges but excluding merged history, and matches the canonical ledger.
+    total_cost = spend_guard.scheduled_cost
 
     # Save results first (before report printing, which can fail on encoding)
     if args.save:

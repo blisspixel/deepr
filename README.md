@@ -3,7 +3,7 @@
 [![CI](https://github.com/blisspixel/deepr/actions/workflows/ci.yml/badge.svg)](https://github.com/blisspixel/deepr/actions/workflows/ci.yml)
 [![License: Apache 2.0](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](LICENSE)
 [![Python 3.12+](https://img.shields.io/badge/python-3.12+-blue.svg)](https://www.python.org/downloads/)
-[![Version](https://img.shields.io/badge/version-2.34.0-blue)](https://github.com/blisspixel/deepr/releases/tag/v2.34.0)
+[![Version](https://img.shields.io/badge/version-2.34.1-blue)](https://github.com/blisspixel/deepr/releases/tag/v2.34.1)
 
 **Domain experts that remember, not another chat window.**
 
@@ -23,6 +23,9 @@ humans or other agents can reuse later.
 A budget is a ceiling, not a target price. `--budget 3` means Deepr may spend
 up to $3 for that job, stops before the ceiling when it can, and records every
 settled cost in the append-only ledger.
+Dashboard model benchmarks bind approval to the exact run options and reserve
+each bounded token and search allowance before submission. Unpriced or
+request-unbounded benchmark adapters fail closed.
 
 Deepr is useful when research is infrastructure: recurring expert maintenance,
 batch research, citable knowledge for coding agents, and durable domain roles

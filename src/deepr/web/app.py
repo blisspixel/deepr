@@ -30,6 +30,7 @@ from deepr.config import runtime_data_path
 # used throughout this module's request handlers.
 from deepr.utils.async_runner import run_async_command as run_async
 from deepr.utils.security import is_loopback_bind_host
+from deepr.web import action_safety
 from deepr.web.expert_loop_status_api import register_expert_read_apis
 from deepr.web.portrait_api import generate_expert_portrait_response
 
@@ -2943,7 +2944,7 @@ def estimate_benchmark():
         if cached and (now - cached[0]) < _BENCHMARK_ESTIMATE_TTL:
             return jsonify({**cached[1], "cached": True})
 
-        cmd = [sys.executable, "scripts/benchmark_models.py", "--dry-run", "--tier", tier]
+        cmd = action_safety.benchmark_command("--dry-run", "--format", "json", "--skip-discovery-check", "--tier", tier)
         if quick:
             cmd.append("--quick")
         if no_judge:
@@ -2963,23 +2964,17 @@ def estimate_benchmark():
                 capture_output=True,
                 text=True,
                 timeout=15,
-                cwd=str(Path(__file__).resolve().parent.parent.parent),
+                cwd=action_safety.benchmark_project_root(),
                 check=False,
             )
 
-            estimated_cost = 0.0
-            model_count = 0
-            provider_count = 0
-            for line in result.stdout.splitlines():
-                stripped = line.strip()
-                if "Estimated cost:" in stripped:
-                    with suppress(IndexError, ValueError):
-                        estimated_cost = float(stripped.split("$")[1])
-                if "models selected" in stripped:
-                    with suppress(IndexError, ValueError):
-                        parts = stripped.split(",")
-                        provider_count = int(parts[0].strip().split()[0])
-                        model_count = int(parts[1].strip().split()[0])
+            if result.returncode != 0:
+                return jsonify({"error": "Benchmark estimation failed"}), 502
+
+            try:
+                estimated_cost, model_count, provider_count = action_safety.parse_benchmark_estimate(result.stdout)
+            except ValueError:
+                return jsonify({"error": "Benchmark estimation failed"}), 502
 
             payload = {
                 "estimated_cost": estimated_cost,
@@ -3021,15 +3016,10 @@ def start_benchmark():
             if tier not in ("all", "chat", "news", "research", "docs"):
                 return jsonify({"error": "Invalid tier"}), 400
 
-            # Build command
-            cmd = [
-                sys.executable,
-                "scripts/benchmark_models.py",
-                "--tier",
-                tier,
-                "--save",
-                "--emit-routing-config",
-            ]
+            try:
+                cmd = action_safety.approved_benchmark_command(tier, data.get("max_estimated_cost"))
+            except ValueError as exc:
+                return jsonify({"error": str(exc)}), 400
             if quick:
                 cmd.append("--quick")
             if no_judge:
@@ -3043,7 +3033,7 @@ def start_benchmark():
                 stdout=subprocess.PIPE,
                 stderr=subprocess.STDOUT,
                 text=True,
-                cwd=str(Path(__file__).resolve().parent.parent.parent),
+                cwd=action_safety.benchmark_project_root(),
             )
 
             _benchmark_proc.update(
@@ -3162,11 +3152,6 @@ def get_model_registry():
         return jsonify({"error": "Internal server error"}), 500
 
 
-# =============================================================================
-# DEMO DATA
-# =============================================================================
-
-
 def _demo_mode_enabled() -> bool:
     """Return True if demo mode is explicitly enabled via DEEPR_DEMO env var."""
     return os.environ.get("DEEPR_DEMO", "").strip().lower() in ("1", "true", "yes", "on")
@@ -3178,6 +3163,7 @@ def _confirm_destructive(data: dict | None) -> bool:
 
 
 @app.route("/api/demo/load", methods=["POST"])
+@action_safety.serialize_demo_action
 def load_demo_data():
     """Load demo experts and sample completed jobs.
 
@@ -3832,6 +3818,7 @@ def load_demo_data():
 
 
 @app.route("/api/demo/clear", methods=["POST"])
+@action_safety.serialize_demo_action
 def clear_demo_data():
     """Clear all jobs and stored reports.
 

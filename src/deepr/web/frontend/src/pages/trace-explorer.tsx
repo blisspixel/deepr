@@ -19,6 +19,7 @@ import {
   Zap,
 } from 'lucide-react'
 import { DetailSkeleton } from '@/components/ui/skeleton'
+import PartialQueryError from '@/components/shared/partial-query-error'
 
 interface SpanData {
   id: string
@@ -50,7 +51,7 @@ export default function TraceExplorer() {
   const [decisionPanelOpen, setDecisionPanelOpen] = useState(false)
   const [expandedDecision, setExpandedDecision] = useState<string | null>(null)
 
-  const { data: traceData, isLoading, isError } = useQuery({
+  const { data: traceData, isLoading, isError, isFetching: isTraceFetching, refetch: refetchTrace } = useQuery({
     queryKey: ['traces', id],
     queryFn: async () => {
       const response = await apiClient.get(`/traces/${id}`)
@@ -68,32 +69,24 @@ export default function TraceExplorer() {
     enabled: !!id,
   })
 
-  const { data: findingsData } = useQuery({
+  const { data: findingsData, isError: isFindingsError, isFetching: isFindingsFetching, refetch: refetchFindings } = useQuery({
     queryKey: ['traces', id, 'temporal'],
     queryFn: async () => {
-      try {
-        const response = await apiClient.get(`/traces/${id}/temporal`)
-        return response.data.findings as FindingData[]
-      } catch {
-        return [] as FindingData[]
-      }
+      const response = await apiClient.get(`/traces/${id}/temporal`)
+      return response.data.findings as FindingData[]
     },
     enabled: !!id,
   })
 
-  const { data: decisionsData } = useQuery({
+  const { data: decisionsData, isError: isDecisionsError, isFetching: isDecisionsFetching, refetch: refetchDecisions } = useQuery({
     queryKey: ['traces', id, 'decisions', traceData?.expert_name, traceData?.job_id],
     queryFn: async () => {
       if (!traceData?.expert_name || !traceData?.job_id) return [] as DecisionRecord[]
-      try {
-        const name = encodeURIComponent(traceData.expert_name)
-        const response = await apiClient.get(`/experts/${name}/decisions`, {
-          params: { job_id: traceData.job_id },
-        })
-        return (response.data.decisions || []) as DecisionRecord[]
-      } catch {
-        return [] as DecisionRecord[]
-      }
+      const name = encodeURIComponent(traceData.expert_name)
+      const response = await apiClient.get(`/experts/${name}/decisions`, {
+        params: { job_id: traceData.job_id },
+      })
+      return (response.data.decisions || []) as DecisionRecord[]
     },
     enabled: !!traceData?.expert_name && !!traceData?.job_id,
   })
@@ -105,13 +98,22 @@ export default function TraceExplorer() {
       <div className="flex flex-col items-center justify-center h-[60vh] text-center space-y-3">
         <AlertTriangle className="w-8 h-8 text-muted-foreground/40" />
         <p className="text-base font-medium text-foreground">Unable to load trace</p>
-        <p className="text-sm text-muted-foreground">Could not connect to the backend. Trace data will appear here once the server is running.</p>
-        <button
-          onClick={() => navigate(-1)}
-          className="px-4 py-2 bg-primary text-primary-foreground rounded-lg text-sm font-medium hover:bg-primary/90"
-        >
-          Go Back
-        </button>
+        <p className="text-sm text-muted-foreground">The trace may be unavailable, or the backend may be offline.</p>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => void refetchTrace()}
+            disabled={isTraceFetching}
+            className="px-4 py-2 bg-primary text-primary-foreground rounded-lg text-sm font-medium hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            {isTraceFetching ? 'Retrying...' : 'Retry'}
+          </button>
+          <button
+            onClick={() => navigate(-1)}
+            className="px-4 py-2 border rounded-lg text-sm font-medium text-foreground hover:bg-muted"
+          >
+            Go Back
+          </button>
+        </div>
       </div>
     )
   }
@@ -189,6 +191,27 @@ export default function TraceExplorer() {
             </div>
           )}
         </div>
+
+        {isFindingsError && (
+          <PartialQueryError
+            title={findingsData ? 'Temporal findings refresh failed' : 'Temporal findings unavailable'}
+            description={findingsData
+              ? 'Previously loaded findings remain visible, but may be out of date.'
+              : 'The trace loaded, but its findings timeline could not be retrieved.'}
+            onRetry={() => void refetchFindings()}
+            retrying={isFindingsFetching}
+          />
+        )}
+        {isDecisionsError && (
+          <PartialQueryError
+            title={decisionsData ? 'Decision evidence refresh failed' : 'Decision evidence unavailable'}
+            description={decisionsData
+              ? 'Previously loaded decisions remain visible, but may be out of date.'
+              : 'The trace loaded, but its related expert decisions could not be retrieved.'}
+            onRetry={() => void refetchDecisions()}
+            retrying={isDecisionsFetching}
+          />
+        )}
 
         {!traceData ? (
           <div className="rounded-lg border bg-card p-12 text-center space-y-3">

@@ -7,6 +7,37 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.34.1] - 2026-07-10
+
+### Changed
+
+- Bound web benchmark approval to the exact tier, quick-run, and judge options
+  used for its cost estimate. Changing an option now invalidates the approval,
+  and provider readiness filters fail closed when configuration is unavailable.
+- Added scoped recovery actions to web expert, trace, model, and settings
+  surfaces so a secondary request failure no longer erases valid primary data
+  or masquerades as a legitimate empty state.
+
+### Fixed
+
+- Preserved benchmark failure output after a run exits and added a direct path
+  back to run setup.
+- Made benchmark estimates report only providers participating in the selected
+  run instead of every configured provider.
+- Restored dashboard benchmark subprocess execution from any working directory
+  and carry the approved estimate into matching preflight and runtime caps.
+- Added durable per-call reservations and append-only ledger settlement for
+  benchmark evaluation, judge, and provider-validation calls. Parallel work is
+  submitted only after reservation, and unbounded paid runs are refused.
+- Made benchmark reservations cover the actual adapter output maxima and bounded
+  search allowances, with unknown pricing and context metadata failing closed.
+  Native managed research agents, uncapped Gemini 3 grounding, and xAI search
+  tools are excluded from paid benchmark execution; research evaluation uses
+  bounded orchestration. Grok 4.3 chat evaluation remains available without tools.
+- Made destructive demo-data mutations mutually exclusive, surfaced fixed
+  server denial messages, and linked unconfigured environments to capacity
+  setup guidance.
+
 ## [2.34.0] - 2026-07-10
 
 ### Changed

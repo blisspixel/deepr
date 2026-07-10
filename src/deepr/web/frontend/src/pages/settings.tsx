@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import { Link } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { configApi } from '@/api/config'
 import type { Config } from '@/types'
@@ -63,8 +64,8 @@ export default function Settings() {
         toast.warning(`Some demo data failed: ${data.errors[0]}`)
       }
     },
-    onError: () => {
-      toast.error('Failed to load demo data. Is the backend running?')
+    onError: (error: Error) => {
+      toast.error('Failed to load demo data', { description: error.message })
     },
   })
 
@@ -74,8 +75,8 @@ export default function Settings() {
       queryClient.invalidateQueries()
       toast.success(`Cleared ${data.cleared_jobs} jobs`)
     },
-    onError: () => {
-      toast.error('Failed to clear data')
+    onError: (error: Error) => {
+      toast.error('Failed to clear data', { description: error.message })
     },
   })
 
@@ -100,6 +101,11 @@ export default function Settings() {
       }))
     }
   }, [config])
+
+  const providerSetupNeeded = config?.provider_keys
+    ? !Object.values(config.provider_keys).some(Boolean)
+    : !config?.has_api_key
+  const demoMutationPending = loadDemoMutation.isPending || clearDemoMutation.isPending
 
   const handleChange = (field: string, value: unknown) => {
     setFormData(prev => ({ ...prev, [field]: value }))
@@ -298,10 +304,21 @@ export default function Settings() {
                     </div>
                   )}
                 </div>
+                {providerSetupNeeded && (
+                  <div role="status" className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-warning/30 bg-warning/5 px-4 py-3">
+                    <div>
+                      <p className="text-sm font-medium text-foreground">No API provider key is configured</p>
+                      <p className="text-xs text-muted-foreground">Review API, plan, and local capacity options before starting research.</p>
+                    </div>
+                    <Button asChild variant="outline" size="sm">
+                      <Link to="/help">Open capacity setup</Link>
+                    </Button>
+                  </div>
+                )}
                 <div className="border-t pt-4 flex items-center justify-between">
                   <div>
                     <p className="text-sm font-medium text-foreground">Demo Data</p>
-                    <p className="text-xs text-muted-foreground">Load or clear sample data for exploring the UI. Set <code className="px-1 py-0.5 bg-muted rounded text-[10px]">DEEPR_DEMO=1</code> to auto-load on startup.</p>
+                    <p className="text-xs text-muted-foreground">Load or clear sample data for exploring the UI. Restart with <code className="px-1 py-0.5 bg-muted rounded text-[10px]">DEEPR_DEMO=1</code> to enable these destructive controls and auto-load on startup.</p>
                   </div>
                   <div className="flex items-center gap-2">
                     <button
@@ -310,7 +327,7 @@ export default function Settings() {
                           clearDemoMutation.mutate()
                         }
                       }}
-                      disabled={clearDemoMutation.isPending}
+                      disabled={demoMutationPending}
                       className="inline-flex items-center gap-2 px-4 py-2 border rounded-lg text-sm font-medium text-muted-foreground hover:text-foreground hover:bg-accent transition-colors disabled:opacity-50"
                     >
                       {clearDemoMutation.isPending ? (
@@ -326,7 +343,7 @@ export default function Settings() {
                           loadDemoMutation.mutate()
                         }
                       }}
-                      disabled={loadDemoMutation.isPending}
+                      disabled={demoMutationPending}
                       className="inline-flex items-center gap-2 px-4 py-2 bg-secondary text-secondary-foreground rounded-lg text-sm font-medium hover:bg-secondary/80 transition-colors disabled:opacity-50"
                     >
                       {loadDemoMutation.isPending ? (

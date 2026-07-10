@@ -4,6 +4,18 @@ import { benchmarksApi } from '@/api/benchmarks'
 import { configApi } from '@/api/config'
 import { cn, formatCurrency } from '@/lib/utils'
 import { CHART_THEME } from '@/lib/chart-theme'
+import {
+  benchmarkOptionsMatch,
+  confirmedBenchmarkOptions,
+  registryFailureBlocksSurface,
+  snapshotBenchmarkEstimate,
+  verifiedProviderKeys,
+  type BenchmarkEstimateSnapshot,
+  type BenchmarkRunOptions,
+  type BenchmarkStartOptions,
+  type BenchmarkTier,
+} from '@/lib/benchmark-run'
+import PartialQueryError from '@/components/shared/partial-query-error'
 import { toast } from 'sonner'
 import {
   Play,
@@ -55,7 +67,7 @@ const MODEL_COLORS = [
   'hsl(160, 30%, 52%)',
 ]
 
-type Tier = 'all' | 'chat' | 'news' | 'research' | 'docs'
+type Tier = BenchmarkTier
 const TIER_PRIORITY: Record<string, number> = { research: 0, docs: 1, news: 2, chat: 3 }
 const TIER_ORDER: Tier[] = ['research', 'docs', 'news', 'chat']
 const TIER_LABELS: Record<string, string> = { research: 'Deep Research', docs: 'Docs', news: 'News', chat: 'Chat', all: 'All' }
@@ -102,34 +114,44 @@ export default function Benchmarks() {
   const [selectedTier, setSelectedTier] = useState<Tier>('research')
   const [expandedModel, setExpandedModel] = useState<string | null>(null)
   const [showRunPanel, setShowRunPanel] = useState(false)
-  const [runOpts, setRunOpts] = useState({ tier: 'all' as Tier, quick: false, no_judge: false })
+  const [runOpts, setRunOpts] = useState<BenchmarkRunOptions>({ tier: 'all', quick: false, no_judge: false })
   const [selectedFile, setSelectedFile] = useState<string | null>(null)
   const [showAvailableOnly, setShowAvailableOnly] = useState(true)
   const [routingMode, setRoutingMode] = useState<'best' | 'balanced' | 'value'>('balanced')
-  const [estimateData, setEstimateData] = useState<{
-    estimated_cost: number
-    model_count: number
-    provider_count: number
-    tier: string
-  } | null>(null)
+  const [estimateData, setEstimateData] = useState<BenchmarkEstimateSnapshot | null>(null)
 
-  const { data: config } = useQuery({
+  const { data: config, isError: configError, isFetching: isConfigFetching, refetch: refetchConfig } = useQuery({
     queryKey: ['config'],
     queryFn: () => configApi.get(),
   })
-  const providerKeys = useMemo(() => config?.provider_keys ?? {}, [config])
+  const providerKeys = useMemo(
+    () => verifiedProviderKeys(config?.provider_keys, configError),
+    [config, configError],
+  )
 
   const { data: fileList } = useQuery({
     queryKey: ['benchmarks', 'list'],
     queryFn: benchmarksApi.list,
   })
 
-  const { data: latestData, isLoading: benchLoading, isError: benchError } = useQuery({
+  const {
+    data: latestData,
+    isLoading: benchLoading,
+    isError: benchError,
+    isFetching: isBenchFetching,
+    refetch: refetchBenchmarks,
+  } = useQuery({
     queryKey: ['benchmarks', selectedFile ? 'file' : 'latest', selectedFile],
     queryFn: () => selectedFile ? benchmarksApi.get(selectedFile) : benchmarksApi.getLatest(),
   })
 
-  const { data: registry, isLoading: regLoading, isError: regError } = useQuery({
+  const {
+    data: registry,
+    isLoading: regLoading,
+    isError: regError,
+    isFetching: isRegistryFetching,
+    refetch: refetchRegistry,
+  } = useQuery({
     queryKey: ['models', 'registry'],
     queryFn: benchmarksApi.getRegistry,
   })
@@ -148,7 +170,7 @@ export default function Benchmarks() {
   })
 
   const startMutation = useMutation({
-    mutationFn: benchmarksApi.start,
+    mutationFn: (options: BenchmarkStartOptions) => benchmarksApi.start(options),
     onSuccess: () => {
       toast.success('Benchmark started')
       setShowRunPanel(false)
@@ -159,8 +181,8 @@ export default function Benchmarks() {
   })
 
   const estimateMutation = useMutation({
-    mutationFn: benchmarksApi.estimate,
-    onSuccess: (data) => setEstimateData(data),
+    mutationFn: (options: BenchmarkRunOptions) => benchmarksApi.estimate(options),
+    onSuccess: (data, options) => setEstimateData(snapshotBenchmarkEstimate(data, options)),
     onError: (err: Error) => toast.error(err.message || 'Failed to estimate cost'),
   })
 
@@ -207,6 +229,20 @@ export default function Benchmarks() {
     [filtered, selectedTier]
   )
 
+  const recommendationRankings = useMemo(
+    () => showAvailableOnly
+      ? rankings.filter((ranking) => providerKeys?.[ranking.model_key.split('/')[0]] === true)
+      : rankings,
+    [rankings, showAvailableOnly, providerKeys],
+  )
+
+  const visibleUnbenchmarked = useMemo(
+    () => showAvailableOnly
+      ? unbenchmarked.filter((model) => providerKeys?.[model.provider] === true)
+      : unbenchmarked,
+    [unbenchmarked, showAvailableOnly, providerKeys],
+  )
+
   // Top model per tier for hero cards - mode-aware selection
   // Best: highest quality regardless of cost (deep research default)
   // Balanced: best quality among cost-efficient models (within 10% of top quality, cheapest wins)
@@ -215,7 +251,7 @@ export default function Benchmarks() {
     const map: Record<string, BenchmarkRanking> = {}
     // Group by tier
     const byTier: Record<string, BenchmarkRanking[]> = {}
-    for (const r of rankings) {
+    for (const r of recommendationRankings) {
       if (r.num_evals === 0) continue
       byTier[r.tier] = byTier[r.tier] || []
       byTier[r.tier].push(r)
@@ -244,40 +280,55 @@ export default function Benchmarks() {
       }
     }
     return map
-  }, [rankings, routingMode])
+  }, [recommendationRankings, routingMode])
 
   // Tiers with data
   const tiers = useMemo(() => {
-    const benchTiers = new Set(rankings.map((r) => r.tier))
-    const regTiers = new Set(unbenchmarked.map((m) => m.tier))
+    const benchTiers = new Set(recommendationRankings.map((r) => r.tier))
+    const regTiers = new Set(visibleUnbenchmarked.map((m) => m.tier))
     const all = new Set([...benchTiers, ...regTiers])
     return ['all', ...TIER_ORDER.filter((t) => all.has(t))]
-  }, [rankings, unbenchmarked])
+  }, [recommendationRankings, visibleUnbenchmarked])
 
   // Unbenchmarked models for current tier
   const tierUnbenchmarked = useMemo(() => {
-    if (selectedTier === 'all') return unbenchmarked
-    return unbenchmarked.filter((m) => m.tier === selectedTier)
-  }, [unbenchmarked, selectedTier])
+    if (selectedTier === 'all') return visibleUnbenchmarked
+    return visibleUnbenchmarked.filter((m) => m.tier === selectedTier)
+  }, [visibleUnbenchmarked, selectedTier])
 
   // Filter by provider availability
   const availableSorted = useMemo(
     () => showAvailableOnly
-      ? sorted.filter((r) => providerKeys[r.model_key.split('/')[0]] !== false)
+      ? sorted.filter((r) => providerKeys?.[r.model_key.split('/')[0]] === true)
       : sorted,
     [sorted, showAvailableOnly, providerKeys]
   )
 
-  const availableUnbenchmarked = useMemo(
-    () => showAvailableOnly
-      ? tierUnbenchmarked.filter((m) => providerKeys[m.provider] !== false)
-      : tierUnbenchmarked,
-    [tierUnbenchmarked, showAvailableOnly, providerKeys]
-  )
+  const availableUnbenchmarked = tierUnbenchmarked
 
   const isRunning = benchStatus?.status === 'running'
   const isLoading = benchLoading || regLoading
   const totalModels = registry?.filter(isBenchmarkableRegistryModel).length ?? 0
+  const estimateMatchesCurrent = estimateData
+    ? benchmarkOptionsMatch(estimateData.options, runOpts)
+    : false
+
+  const updateRunOptions = (updates: Partial<BenchmarkRunOptions>) => {
+    setRunOpts((current) => ({ ...current, ...updates }))
+    setEstimateData(null)
+  }
+
+  const confirmBenchmark = () => {
+    if (!estimateData) return
+    const approvedOptions = confirmedBenchmarkOptions(estimateData, runOpts)
+    if (!approvedOptions) {
+      setEstimateData(null)
+      toast.error('Benchmark options changed. Estimate the current options before starting.')
+      return
+    }
+    startMutation.mutate(approvedOptions)
+    setEstimateData(null)
+  }
 
   // Compute average report length per tier from results
   // NOTE: must be before early returns to satisfy Rules of Hooks
@@ -290,7 +341,7 @@ export default function Benchmarks() {
     )
   }
 
-  if (regError && benchError && !registry && !result) {
+  if (registryFailureBlocksSurface(regError, Boolean(registry), Boolean(result))) {
     return (
       <div className="p-6 space-y-6 animate-fade-in">
         <div>
@@ -369,7 +420,8 @@ export default function Benchmarks() {
               {(['all', 'research', 'docs', 'news', 'chat'] as Tier[]).map((t) => (
                 <button
                   key={t}
-                  onClick={() => setRunOpts({ ...runOpts, tier: t })}
+                  onClick={() => updateRunOptions({ tier: t })}
+                  aria-pressed={runOpts.tier === t}
                   className={cn(
                     'px-2.5 py-1 rounded text-xs font-medium transition-colors',
                     runOpts.tier === t ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground hover:text-foreground'
@@ -380,15 +432,15 @@ export default function Benchmarks() {
               ))}
             </div>
             <label className="inline-flex items-center gap-1.5 text-xs text-muted-foreground cursor-pointer">
-              <input type="checkbox" checked={runOpts.quick} onChange={() => setRunOpts({ ...runOpts, quick: !runOpts.quick })} className="rounded" />
+              <input type="checkbox" checked={runOpts.quick} onChange={() => updateRunOptions({ quick: !runOpts.quick })} className="rounded" />
               Quick
             </label>
             <label className="inline-flex items-center gap-1.5 text-xs text-muted-foreground cursor-pointer">
-              <input type="checkbox" checked={runOpts.no_judge} onChange={() => setRunOpts({ ...runOpts, no_judge: !runOpts.no_judge })} className="rounded" />
+              <input type="checkbox" checked={runOpts.no_judge} onChange={() => updateRunOptions({ no_judge: !runOpts.no_judge })} className="rounded" />
               Skip judge
             </label>
             <button
-              onClick={() => { setEstimateData(null); estimateMutation.mutate(runOpts) }}
+              onClick={() => { setEstimateData(null); estimateMutation.mutate({ ...runOpts }) }}
               disabled={estimateMutation.isPending || startMutation.isPending}
               className="inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-50 ml-auto"
             >
@@ -396,19 +448,19 @@ export default function Benchmarks() {
               Estimate Cost
             </button>
           </div>
-          {estimateData && (
+          {estimateData && estimateMatchesCurrent && (
             <div className="rounded-md border border-yellow-200 dark:border-yellow-800 bg-yellow-50 dark:bg-yellow-950/20 p-3 space-y-2">
               <div>
                 <p className="text-sm font-medium text-yellow-800 dark:text-yellow-200">
                   Estimated cost: {formatCurrency(estimateData.estimated_cost)}
                 </p>
                 <p className="text-xs text-yellow-700 dark:text-yellow-300">
-                  {estimateData.model_count} models from {estimateData.provider_count} providers ({estimateData.tier} tier)
+                  {estimateData.model_count} models from {estimateData.provider_count} providers ({estimateData.tier} tier, {estimateData.options.quick ? 'quick' : 'full'}, {estimateData.options.no_judge ? 'judge skipped' : 'judged'})
                 </p>
               </div>
               <div className="flex gap-2">
                 <button
-                  onClick={() => { startMutation.mutate(runOpts); setEstimateData(null) }}
+                  onClick={confirmBenchmark}
                   disabled={startMutation.isPending}
                   className="inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
                 >
@@ -446,10 +498,49 @@ export default function Benchmarks() {
         </div>
       )}
       {benchStatus?.status === 'failed' && (
-        <div className="rounded-lg bg-red-50 dark:bg-red-950/20 border border-red-200 dark:border-red-800 px-4 py-2.5 flex items-center gap-2 text-sm">
-          <AlertCircle className="h-4 w-4 text-red-600 shrink-0" />
-          <span className="text-red-800 dark:text-red-200">Last benchmark failed (exit code {benchStatus.exit_code})</span>
+        <div role="alert" className="rounded-lg bg-red-50 dark:bg-red-950/20 border border-red-200 dark:border-red-800 px-4 py-3 space-y-2 text-sm">
+          <div className="flex items-center gap-2">
+            <AlertCircle className="h-4 w-4 text-red-600 shrink-0" />
+            <span className="text-red-800 dark:text-red-200">Last benchmark failed (exit code {benchStatus.exit_code})</span>
+            <button
+              type="button"
+              onClick={() => setShowRunPanel(true)}
+              className="ml-auto text-xs text-red-700 dark:text-red-300 underline hover:no-underline"
+            >
+              Open run setup
+            </button>
+          </div>
+          {benchStatus.output_lines && benchStatus.output_lines.length > 0 && (
+            <pre className="max-h-24 overflow-y-auto whitespace-pre-wrap rounded bg-red-100/50 p-2 font-mono text-xs text-red-900 dark:bg-red-950/40 dark:text-red-100">
+              {benchStatus.output_lines.slice(-4).join('\n')}
+            </pre>
+          )}
         </div>
+      )}
+
+      {configError && (
+        <PartialQueryError
+          title="Provider readiness unavailable"
+          description="Available-only filtering is fail-closed until provider configuration can be verified."
+          onRetry={() => void refetchConfig()}
+          retrying={isConfigFetching}
+        />
+      )}
+      {benchError && registry && (
+        <PartialQueryError
+          title="Benchmark results unavailable"
+          description="The model registry is current, but saved benchmark evidence could not be loaded."
+          onRetry={() => void refetchBenchmarks()}
+          retrying={isBenchFetching}
+        />
+      )}
+      {regError && (registry || result) && (
+        <PartialQueryError
+          title="Model registry refresh failed"
+          description="Loaded model or benchmark data remains visible, but registry metadata may be incomplete or out of date."
+          onRetry={() => void refetchRegistry()}
+          retrying={isRegistryFetching}
+        />
       )}
 
       {/* Routing mode toggle + Top picks per tier */}
@@ -519,11 +610,11 @@ export default function Benchmarks() {
         <div className="flex gap-1 flex-1">
           {tiers.map((tier) => {
             const benchCount = tier === 'all'
-              ? rankings.filter(r => r.num_evals > 0).length
-              : rankings.filter(r => r.num_evals > 0 && r.tier === tier).length
+              ? recommendationRankings.filter(r => r.num_evals > 0).length
+              : recommendationRankings.filter(r => r.num_evals > 0 && r.tier === tier).length
             const unbenchCount = tier === 'all'
-              ? unbenchmarked.length
-              : unbenchmarked.filter(m => m.tier === tier).length
+              ? visibleUnbenchmarked.length
+              : visibleUnbenchmarked.filter(m => m.tier === tier).length
             const total = benchCount + unbenchCount
             return (
               <button
@@ -542,14 +633,18 @@ export default function Benchmarks() {
           })}
         </div>
         <button
-          onClick={() => setShowAvailableOnly(!showAvailableOnly)}
+          onClick={() => {
+            const next = !showAvailableOnly
+            setShowAvailableOnly(next)
+            if (next) setSelectedTier('all')
+          }}
           className={cn(
             'inline-flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-xs font-medium transition-colors border mb-px',
             showAvailableOnly
               ? 'bg-primary/10 text-primary border-primary/30'
               : 'text-muted-foreground hover:text-foreground border-transparent hover:border-border'
           )}
-          title={showAvailableOnly ? 'Showing models with configured API keys' : 'Showing all models'}
+          title={showAvailableOnly ? 'Showing models with verified configured API keys' : 'Showing all models'}
         >
           {showAvailableOnly ? <Key className="h-3 w-3" /> : <KeyRound className="h-3 w-3" />}
           {showAvailableOnly ? 'Available' : 'All'}
@@ -557,7 +652,7 @@ export default function Benchmarks() {
       </div>
 
       {/* Provider key status pills */}
-      {Object.keys(providerKeys).length > 0 && (
+      {providerKeys && Object.keys(providerKeys).length > 0 && (
         <div className="flex flex-wrap gap-1.5">
           {Object.entries(providerKeys).map(([provider, hasKey]) => (
             <span
@@ -573,6 +668,21 @@ export default function Benchmarks() {
               {providerLabel(provider)}
             </span>
           ))}
+        </div>
+      )}
+
+      {showAvailableOnly && providerKeys && !configError && availableSorted.length === 0 && availableUnbenchmarked.length === 0 && (
+        <div role="status" className="rounded-lg border bg-card px-6 py-10 text-center">
+          <KeyRound className="mx-auto mb-3 h-8 w-8 text-muted-foreground/40" />
+          <p className="text-sm font-medium text-foreground">No verified models in this tier</p>
+          <p className="mt-1 text-xs text-muted-foreground">Configure a provider key, or show all registry models.</p>
+          <button
+            type="button"
+            onClick={() => setShowAvailableOnly(false)}
+            className="mt-3 text-xs font-medium text-primary underline hover:no-underline"
+          >
+            Show all models
+          </button>
         </div>
       )}
 
