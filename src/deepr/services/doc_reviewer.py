@@ -70,7 +70,7 @@ class DocReviewer:
         if not self.api_key:
             raise ValueError("OPENAI_API_KEY not found")
 
-        self.client = OpenAI(api_key=self.api_key)
+        self.client = OpenAI(api_key=self.api_key, max_retries=0)
         self.model = model
         self.docs_path = docs_path
 
@@ -173,16 +173,24 @@ class DocReviewer:
         prompt = self._build_evaluation_prompt(scenario, context, docs_to_review)
 
         # Call GPT-5 for evaluation
-        response = self.client.chat.completions.create(
+        from deepr.services.metered_call import execute_reserved_sync_call
+
+        response = execute_reserved_sync_call(
+            operation_prefix="doc-review",
+            provider="openai",
             model=self.model,
-            messages=[
-                {
-                    "role": "system",
-                    "content": "You are a research strategist evaluating existing documentation for reuse opportunities. Your goal is to save costs by reusing good existing research and only requesting updates or new research where genuinely needed.",
-                },
-                {"role": "user", "content": prompt},
-            ],
-            response_format={"type": "json_object"},
+            source="services.doc_reviewer.review_docs",
+            call=lambda: self.client.chat.completions.create(
+                model=self.model,
+                messages=[
+                    {
+                        "role": "system",
+                        "content": "You are a research strategist evaluating existing documentation for reuse opportunities. Your goal is to save costs by reusing good existing research and only requesting updates or new research where genuinely needed.",
+                    },
+                    {"role": "user", "content": prompt},
+                ],
+                response_format={"type": "json_object"},
+            ),
         )
 
         # Parse response

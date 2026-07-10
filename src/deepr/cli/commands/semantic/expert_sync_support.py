@@ -20,17 +20,13 @@ from deepr.evals.recall_quality import (
     LEXICAL_ROUTE as RECALL_LEXICAL_ROUTE,
 )
 from deepr.evals.recall_quality import (
-    MIN_SCHEDULER_PREFERENCE_CASES as RECALL_MIN_SCHEDULER_PREFERENCE_CASES,
-)
-from deepr.evals.recall_quality import (
     RECALL_EVAL_REPORT_SCHEMA_VERSION,
-)
-from deepr.evals.recall_quality import (
-    SCHEDULER_REQUIRED_VECTOR_WIN_METRICS as RECALL_REQUIRED_VECTOR_WIN_METRICS,
+    validate_recall_preference_evidence,
 )
 from deepr.evals.recall_quality import (
     VECTOR_ROUTE as RECALL_VECTOR_ROUTE,
 )
+from deepr.experts.recall_preference import belief_index_coverage, validate_preference_current_index
 
 SYNC_CAPACITY_GATE_KIND = "deepr.expert.sync_capacity_gate"
 SYNC_CAPACITY_GATE_SCHEMA_VERSION = "deepr-sync-capacity-gate-v1"
@@ -379,7 +375,10 @@ def _read_recall_preference_report(normalized_path: str) -> dict[str, Any]:
     if not isinstance(report, dict):
         raise ValueError("--recall-preference-report must contain a recall eval report object.")
     if report.get("schema_version") != RECALL_EVAL_REPORT_SCHEMA_VERSION:
-        raise ValueError("--recall-preference-report must be a deepr-recall-eval-report-v1 artifact.")
+        raise ValueError(
+            "--recall-preference-report must be a deepr-recall-eval-report-v2 artifact; "
+            "rerun the local recall eval to replace legacy point-estimate evidence."
+        )
     return report
 
 
@@ -402,79 +401,25 @@ def _validate_recall_preference_identity(
 
 def _validate_recall_preference_contract(report: dict[str, Any]) -> None:
     contract = report.get("contract", {})
-    if not isinstance(contract, dict) or any(
-        contract.get(flag) is not expected
-        for flag, expected in (
-            ("writes_graph", False),
-            ("writes_beliefs", False),
-            ("writes_belief_vectors", False),
-            ("semantic_verdict", False),
-            ("routing_evidence_only", True),
+    cost_usd = contract.get("cost_usd") if isinstance(contract, dict) else None
+    if (
+        not isinstance(contract, dict)
+        or isinstance(cost_usd, bool)
+        or not isinstance(cost_usd, (int, float))
+        or float(cost_usd) != 0.0
+        or contract.get("relevance_labels") != "operator_supplied"
+        or any(
+            contract.get(flag) is not expected
+            for flag, expected in (
+                ("writes_graph", False),
+                ("writes_beliefs", False),
+                ("writes_belief_vectors", False),
+                ("semantic_verdict", False),
+                ("routing_evidence_only", True),
+            )
         )
     ):
         raise ValueError("--recall-preference-report must be a read-only routing-evidence report.")
-
-
-def _int_report_field(payload: dict[str, Any], field: str, error: str) -> int:
-    value = payload.get(field)
-    if isinstance(value, bool) or not isinstance(value, int):
-        raise ValueError(error)
-    return value
-
-
-def _validate_eligible_preference_counts(preference: dict[str, Any]) -> None:
-    required_count = _int_report_field(
-        preference,
-        "required_case_count",
-        "--recall-preference-report eligible preference must declare required_case_count.",
-    )
-    evaluated_count = _int_report_field(
-        preference,
-        "evaluated_case_count",
-        "--recall-preference-report eligible preference must declare evaluated_case_count.",
-    )
-    if required_count < RECALL_MIN_SCHEDULER_PREFERENCE_CASES or evaluated_count < required_count:
-        raise ValueError("--recall-preference-report eligible preference does not meet its required case count.")
-
-
-def _validate_eligible_preference_vector_wins(preference: dict[str, Any]) -> None:
-    required_metrics = preference.get("required_win_metrics")
-    winners = preference.get("winners_by_metric")
-    if not isinstance(required_metrics, list) or not all(isinstance(metric, str) for metric in required_metrics):
-        raise ValueError("--recall-preference-report eligible preference must declare required vector win metrics.")
-    if not set(RECALL_REQUIRED_VECTOR_WIN_METRICS).issubset(required_metrics):
-        raise ValueError("--recall-preference-report eligible preference is missing required vector win metrics.")
-    if not isinstance(winners, dict) or any(winners.get(metric) != RECALL_VECTOR_ROUTE for metric in required_metrics):
-        raise ValueError("--recall-preference-report eligible preference must win all required vector win metrics.")
-
-
-def _validate_eligible_preference_index(report: dict[str, Any]) -> None:
-    index = report.get("index", {})
-    if not isinstance(index, dict):
-        raise ValueError("--recall-preference-report eligible preference must include vector index coverage.")
-    current_vectors = _int_report_field(
-        index,
-        "current_vector_count",
-        "--recall-preference-report eligible preference must declare current_vector_count.",
-    )
-    missing_or_stale = _int_report_field(
-        index,
-        "missing_or_stale_count",
-        "--recall-preference-report eligible preference must declare missing_or_stale_count.",
-    )
-    if current_vectors <= 0 or missing_or_stale != 0:
-        raise ValueError("--recall-preference-report eligible preference requires complete current vector coverage.")
-
-
-def _validate_eligible_preference_evidence(report: dict[str, Any], preference: dict[str, Any]) -> None:
-    comparison = report.get("comparison", {})
-    if not isinstance(comparison, dict) or comparison.get("vector_route_evaluated") is not True:
-        raise ValueError("--recall-preference-report eligible preference requires an evaluated vector route.")
-    if preference.get("reasons") not in ([], ()):
-        raise ValueError("--recall-preference-report eligible preference must not carry ineligible reasons.")
-    _validate_eligible_preference_counts(preference)
-    _validate_eligible_preference_vector_wins(preference)
-    _validate_eligible_preference_index(report)
 
 
 def _scheduler_preference_from_report(report: dict[str, Any]) -> dict[str, Any]:
@@ -488,7 +433,10 @@ def _scheduler_preference_from_report(report: dict[str, Any]) -> dict[str, Any]:
     if preference.get("eligible") is True and preference.get("preferred_route") != RECALL_VECTOR_ROUTE:
         raise ValueError("--recall-preference-report eligible preference must prefer vector_similarity.")
     if preference.get("eligible") is True:
-        _validate_eligible_preference_evidence(report, preference)
+        try:
+            return validate_recall_preference_evidence(report)
+        except (TypeError, ValueError) as exc:
+            raise ValueError(f"--recall-preference-report {exc}") from exc
     return dict(preference)
 
 
@@ -520,7 +468,20 @@ def load_recall_route_preference_report(
         recall_embedding_model=recall_embedding_model,
     )
     _validate_recall_preference_contract(report)
-    return _scheduler_preference_from_report(report)
+    preference = _scheduler_preference_from_report(report)
+    if preference.get("eligible") is True:
+        from deepr.experts.beliefs import BeliefStore
+
+        try:
+            current_index = belief_index_coverage(BeliefStore(expert_name), recall_embedding_model)
+            validate_preference_current_index(
+                preference,
+                current_index,
+                embedding_model=recall_embedding_model,
+            )
+        except (TypeError, ValueError) as exc:
+            raise ValueError(f"--recall-preference-report {exc}") from exc
+    return preference
 
 
 def _run_sync_with_loop_guard(

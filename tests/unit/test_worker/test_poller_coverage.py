@@ -167,15 +167,14 @@ class TestCheckJobStatus:
         assert "auto-cancelled" in msg
 
     @pytest.mark.asyncio
-    async def test_queued_stuck_cancel_failure_still_marks_failed(self, poller):
+    async def test_queued_stuck_cancel_failure_retains_tracking(self, poller):
         old = datetime.now(UTC) - timedelta(minutes=20)
         resp = MagicMock(status="queued")
         poller.provider.get_status = AsyncMock(return_value=resp)
         poller.provider.cancel_job = AsyncMock(side_effect=RuntimeError("no can do"))
         poller._handle_failure = AsyncMock()
         await poller._check_job_status(_job(submitted_at=old))
-        # Failure still recorded even though cancel raised.
-        poller._handle_failure.assert_awaited_once()
+        poller._handle_failure.assert_not_awaited()
 
     @pytest.mark.asyncio
     async def test_naive_submitted_at_gets_utc(self, poller):

@@ -4,9 +4,7 @@ import asyncio
 import logging
 import os
 import time
-import uuid
 from dataclasses import dataclass
-from datetime import UTC, datetime
 from pathlib import Path
 
 import click
@@ -14,6 +12,16 @@ import click
 from deepr.cli.async_runner import run_async_command
 from deepr.cli.colors import console, print_warning
 from deepr.cli.commands.budget import check_budget_approval
+from deepr.cli.commands.run_submission import (
+    AcceptedProviderTrackingError,
+)
+from deepr.cli.commands.run_submission import enqueue_reserved_job as _enqueue_reserved_job
+from deepr.cli.commands.run_submission import (
+    handle_immediate_job as _handle_immediate_job,
+)
+from deepr.cli.commands.run_submission import recover_provider_tracking_failure as _recover_provider_tracking_failure
+from deepr.cli.commands.run_submission import reserve_job_submission as _reserve_job_submission
+from deepr.cli.commands.run_submission import rollback_prepared_submission as _rollback_prepared_submission
 from deepr.cli.live_status import shimmer_status
 from deepr.cli.output import (
     OperationResult,
@@ -24,7 +32,7 @@ from deepr.cli.output import (
     format_duration,
     output_options,
 )
-from deepr.queue.base import JobStatus, ResearchJob
+from deepr.queue.base import JobStatus
 from deepr.queue.local_queue import SQLiteQueue
 
 MAX_FALLBACK_ATTEMPTS = 3
@@ -298,14 +306,7 @@ def focus(
 
 
 def _model_supports_web_search(model: str) -> bool:
-    """Whether a model accepts the web-search tool on submission.
-
-    Nano-tier models reject web_search_preview outright (live finding
-    2026-06-11: --auto routed gpt-4.1-nano with the tool attached and every
-    provider failed). Unknown models default to True; the submit loop also
-    retries once without the tool on a tool-rejection error, so this list
-    only needs to catch the common cases up front.
-    """
+    """Return whether a model accepts the web-search tool on submission."""
     return "nano" not in model.lower()
 
 
@@ -331,7 +332,9 @@ async def _mark_job_failed(job_id: str, error: str) -> None:
     Best-effort: a queue error must not mask the original failure.
     """
     try:
-        queue = SQLiteQueue()
+        from deepr.config import load_config
+
+        queue = SQLiteQueue(str(load_config().get("queue_db_path") or "queue/research_queue.db"))
         await queue.update_status(job_id=job_id, status=JobStatus.FAILED, error=str(error)[:500])
     except Exception as exc:
         logger.warning("Could not mark job %s as failed: %s", job_id, exc)
@@ -483,42 +486,99 @@ async def _run_single(
             emitter.fail_task(op, "budget_declined")
             return
 
+        if no_web and no_code and not upload and supports_vector_stores(provider) and "deep-research" in model:
+            _handle_missing_tools_error(None, model, formatter, start_time)
+            emitter.fail_task(op, "missing_required_tools")
+            return
+
+        from deepr.config import load_config
+
+        config = load_config()
+        queue_db_path = str(config.get("queue_db_path") or "queue/research_queue.db")
+        live_status.update("Reserving cost ceiling...")
+        job_id, reservation = await _reserve_job_submission(model, provider, limit, queue_db_path)
+
         # Handle file uploads using refactored module
         document_ids = []
         vector_store_id = None
-        if upload:
-            live_status.update("Uploading context files...")
-            from deepr.config import load_config
+        upload_result = None
+        try:
+            if upload:
+                live_status.update("Uploading context files...")
 
-            config = load_config()
+                upload_op = emitter.start_task(
+                    "file_upload",
+                    attributes={
+                        "file_count": len(upload),
+                    },
+                )
 
-            upload_op = emitter.start_task(
-                "file_upload",
-                attributes={
-                    "file_count": len(upload),
-                },
+                upload_result = await handle_file_uploads(provider, upload, formatter, config)
+
+                # Report errors in verbose mode
+                if upload_result.has_errors and output_context.mode == OutputMode.VERBOSE:
+                    for error in upload_result.errors:
+                        print_warning(error)
+
+                # Extract results
+                vector_store_id = upload_result.vector_store_id
+                if not supports_vector_stores(provider):
+                    document_ids = upload_result.uploaded_ids
+
+                upload_op.set_attribute("uploaded_count", len(upload_result.uploaded_ids))
+                emitter.complete_task(upload_op)
+
+            if (
+                no_web
+                and no_code
+                and not vector_store_id
+                and supports_vector_stores(provider)
+                and "deep-research" in model
+            ):
+                await _rollback_prepared_submission(
+                    reservation,
+                    upload_result,
+                    source="cli.run.missing_tools",
+                    formatter=formatter,
+                )
+                _handle_missing_tools_error(None, model, formatter, start_time)
+                emitter.fail_task(op, "missing_required_tools")
+                return
+
+            live_status.update("Queueing job...")
+            await _enqueue_reserved_job(
+                job_id=job_id,
+                reservation=reservation,
+                query=query,
+                model=model,
+                provider=provider,
+                no_web=no_web,
+                no_code=no_code,
+                document_ids=document_ids,
+                vector_store_id=vector_store_id,
+                limit=limit,
+                upload=upload,
+                queue_db_path=queue_db_path,
+                provider_file_ids=upload_result.uploaded_ids if upload_result is not None else [],
             )
+        except Exception:
+            await _rollback_prepared_submission(
+                reservation,
+                upload_result,
+                source="cli.run.pre_submit_failure",
+                formatter=formatter,
+            )
+            raise
 
-            upload_result = await handle_file_uploads(provider, upload, formatter, config)
-
-            # Report errors in verbose mode
-            if upload_result.has_errors and output_context.mode == OutputMode.VERBOSE:
-                for error in upload_result.errors:
-                    print_warning(error)
-
-            # Extract results
-            vector_store_id = upload_result.vector_store_id
-            if not supports_vector_stores(provider):
-                document_ids = upload_result.uploaded_ids
-
-            upload_op.set_attribute("uploaded_count", len(upload_result.uploaded_ids))
-            emitter.complete_task(upload_op)
-
-        live_status.update("Queueing job...")
-        # Create and enqueue job
-        job_id, _job = await _create_and_enqueue_job(
-            query, model, provider, no_web, no_code, document_ids, vector_store_id, limit, upload
-        )
+        submission_queue = SQLiteQueue(queue_db_path)
+        if not await submission_queue.claim_submission(job_id):
+            await _rollback_prepared_submission(
+                reservation,
+                upload_result,
+                source="cli.run.claim_failure",
+                formatter=formatter,
+            )
+            raise RuntimeError("Research job could not be claimed for provider submission")
         op.set_attribute("job_id", job_id)
         formatter.progress("Submitting research job...")
 
@@ -544,7 +604,7 @@ async def _run_single(
                         )
 
                 submit_start = time.time()
-                await _submit_to_provider(
+                submission_terminal = await _submit_to_provider(
                     job_id,
                     query,
                     current_model,
@@ -557,7 +617,12 @@ async def _run_single(
                     formatter,
                     start_time,
                     emitter,
+                    reservation,
                 )
+                if submission_terminal and upload_result is not None:
+                    from deepr.cli.commands.file_handler import cleanup_file_uploads
+
+                    await cleanup_file_uploads(upload_result, formatter)
 
                 # Success - record metrics
                 submit_latency = (time.time() - submit_start) * 1000
@@ -572,6 +637,25 @@ async def _run_single(
                     logger.debug("Failed to record provider router metric: %s", exc, exc_info=exc)
                 success = True
                 break
+
+            except AcceptedProviderTrackingError as e:
+                if e.cancellation_confirmed and upload_result is not None:
+                    from deepr.cli.commands.file_handler import cleanup_file_uploads
+
+                    await cleanup_file_uploads(upload_result, formatter)
+                await _mark_job_failed(job_id, str(e))
+                formatter.complete(
+                    OperationResult(
+                        success=False,
+                        duration_seconds=time.time() - start_time,
+                        cost_usd=reservation.estimated_cost,
+                        job_id=job_id,
+                        error=str(e),
+                        error_code="PROVIDER_TRACKING_FAILED",
+                    )
+                )
+                emitter.fail_task(op, "provider_tracking_failed")
+                return
 
             except ProviderAuthError as e:
                 # Auth errors: skip provider entirely, don't retry same provider
@@ -594,24 +678,54 @@ async def _run_single(
                 attempted.append((current_provider, current_model))
 
             except ProviderTimeoutError as e:
-                # Timeout: retry same provider once, then fallback
                 last_error = e
-                if (current_provider, current_model) not in attempted:
-                    # First timeout for this provider - retry once
-                    attempted.append((current_provider, current_model))
-                    if output_context.mode == OutputMode.VERBOSE:
-                        console.print(f"  [yellow]Timeout on {current_provider}/{current_model}, retrying...[/yellow]")
-                    continue  # Retry same provider without incrementing fallback_count
+                from deepr.experts.research_cost_gate import settle_research_cost
 
-                # Second timeout - record and fall through to fallback
-                try:
-                    router.record_result(current_provider, current_model, success=False, error=str(e))
-                except Exception as exc:
-                    logger.debug("Failed to record provider router metric: %s", exc, exc_info=exc)
+                settle_research_cost(
+                    reservation,
+                    actual_cost=None,
+                    source="cli.run.ambiguous_provider_timeout",
+                )
+                await _mark_job_failed(job_id, f"Provider outcome uncertain: {e}")
+                formatter.complete(
+                    OperationResult(
+                        success=False,
+                        duration_seconds=time.time() - start_time,
+                        cost_usd=reservation.estimated_cost,
+                        job_id=job_id,
+                        error="Provider outcome is uncertain; automatic fallback was suppressed",
+                        error_code="AMBIGUOUS_PROVIDER_OUTCOME",
+                    )
+                )
+                emitter.fail_task(op, "ambiguous_provider_outcome")
+                return
 
             except CoreProviderError as e:
                 # Generic provider error or unavailable: immediate fallback
                 last_error = e
+                from deepr.services.research_submission import submission_outcome_is_ambiguous
+
+                if submission_outcome_is_ambiguous(e):
+                    from deepr.experts.research_cost_gate import settle_research_cost
+
+                    settle_research_cost(
+                        reservation,
+                        actual_cost=None,
+                        source="cli.run.ambiguous_provider_error",
+                    )
+                    await _mark_job_failed(job_id, f"Provider outcome uncertain: {e}")
+                    formatter.complete(
+                        OperationResult(
+                            success=False,
+                            duration_seconds=time.time() - start_time,
+                            cost_usd=reservation.estimated_cost,
+                            job_id=job_id,
+                            error="Provider outcome is uncertain; automatic fallback was suppressed",
+                            error_code="AMBIGUOUS_PROVIDER_OUTCOME",
+                        )
+                    )
+                    emitter.fail_task(op, "ambiguous_provider_outcome")
+                    return
                 # Tool-rejection defense: if the model rejected the web-search
                 # tool, retry the SAME provider/model once without it instead
                 # of burning through every fallback with the same bad request.
@@ -637,6 +751,9 @@ async def _run_single(
 
             # If --no-fallback, stop after first error
             if no_fallback:
+                await _rollback_prepared_submission(
+                    reservation, upload_result, source="cli.run.no_fallback", formatter=formatter
+                )
                 duration = time.time() - start_time
                 result = OperationResult(
                     success=False,
@@ -665,6 +782,9 @@ async def _run_single(
                     fallback = None
 
             if fallback is None:
+                await _rollback_prepared_submission(
+                    reservation, upload_result, source="cli.run.no_fallback_available", formatter=formatter
+                )
                 # No more fallbacks available
                 duration = time.time() - start_time
                 result = OperationResult(
@@ -708,6 +828,9 @@ async def _run_single(
         live_status.update("Finalizing trace...")
 
     if not success:
+        await _rollback_prepared_submission(
+            reservation, upload_result, source="cli.run.fallback_exhausted", formatter=formatter
+        )
         duration = time.time() - start_time
         result = OperationResult(
             success=False,
@@ -749,7 +872,7 @@ async def _run_single(
 
 def _show_research_header(
     output_context: OutputContext, query: str, provider: str, model: str, estimated_cost: float, upload: tuple
-) -> None:
+) -> bool:
     """Display research header in verbose mode."""
     if output_context.mode == OutputMode.VERBOSE:
         console.print()
@@ -800,45 +923,6 @@ def _check_budget(yes: bool, estimated_cost: float, output_context: OutputContex
     return False
 
 
-async def _create_and_enqueue_job(
-    query: str,
-    model: str,
-    provider: str,
-    no_web: bool,
-    no_code: bool,
-    document_ids: list[str],
-    vector_store_id: str | None,
-    limit: float | None,
-    upload: tuple,
-) -> tuple:
-    """Create research job and add to queue. Returns (job_id, job)."""
-    # Prepare job metadata for cleanup tracking
-    job_metadata = {}
-    if vector_store_id:
-        job_metadata["vector_store_id"] = vector_store_id
-        job_metadata["cleanup_vector_store"] = True
-    if upload:
-        job_metadata["uploaded_files"] = list(upload)
-
-    job = ResearchJob(
-        id=f"research-{uuid.uuid4().hex[:12]}",
-        prompt=query,
-        model=model,
-        provider=provider,
-        status=JobStatus.QUEUED,
-        submitted_at=datetime.now(UTC),
-        enable_web_search=not no_web,
-        enable_code_interpreter=not no_code,
-        documents=document_ids,
-        cost_limit=limit,
-        metadata=job_metadata,
-    )
-
-    queue = SQLiteQueue()
-    job_id = await queue.enqueue(job)
-    return job_id, job
-
-
 async def _submit_to_provider(
     job_id: str,
     query: str,
@@ -852,6 +936,7 @@ async def _submit_to_provider(
     formatter: OutputFormatter,
     start_time: float,
     emitter=None,
+    reservation=None,
 ) -> None:
     """Submit job to provider API and handle response."""
     from deepr.cli.commands.provider_factory import (
@@ -863,7 +948,7 @@ async def _submit_to_provider(
     from deepr.providers.base import ResearchRequest
 
     config = load_config()
-    queue = SQLiteQueue()
+    queue = SQLiteQueue(str(config.get("queue_db_path") or "queue/research_queue.db"))
 
     # Start provider submission span
     submit_op = None
@@ -886,8 +971,7 @@ async def _submit_to_provider(
 
         # Validate tools for deep research models
         if supports_vector_stores(provider) and "deep-research" in model and not tools:
-            _handle_missing_tools_error(job_id, model, formatter, start_time)
-            return
+            raise ValueError(f"{model} requires at least one tool")
 
         # Create and submit research request
         request = ResearchRequest(
@@ -897,38 +981,49 @@ async def _submit_to_provider(
             tools=tools,
             background=supports_background_jobs(provider),
             document_ids=document_ids if document_ids else None,
+            idempotency_key=f"deepr-research-{job_id}",
         )
 
         provider_job_id = await provider_instance.submit_research(request)
         if submit_op:
             submit_op.set_attribute("provider_job_id", provider_job_id)
 
-        # Handle response based on provider type
-        if supports_background_jobs(provider):
-            if submit_op:
-                emitter.complete_task(submit_op)
-            await _handle_background_job(job_id, provider_job_id, output_context, queue)
-        else:
-            await _handle_immediate_job(
-                job_id,
-                provider_job_id,
-                query,
-                model,
-                provider_instance,
-                output_context,
-                formatter,
-                start_time,
-                config,
-                queue,
-                emitter,
-                submit_op,
-            )
-
     except Exception as e:
         if submit_op and emitter:
             emitter.fail_task(submit_op, str(e))
         # Re-raise as classified core error for the fallback loop in _run_single
         _classify_provider_error(e, provider)
+
+    try:
+        if supports_background_jobs(provider):
+            if submit_op:
+                emitter.complete_task(submit_op)
+            await _handle_background_job(job_id, provider_job_id, output_context, queue)
+            return False
+        else:
+            return await _handle_immediate_job(
+                job_id=job_id,
+                provider_job_id=provider_job_id,
+                query=query,
+                model=model,
+                provider_instance=provider_instance,
+                output_context=output_context,
+                formatter=formatter,
+                start_time=start_time,
+                config=config,
+                queue=queue,
+                reservation=reservation,
+                emitter=emitter,
+                submit_op=submit_op,
+            )
+    except Exception as exc:
+        cancellation_confirmed = await _recover_provider_tracking_failure(
+            provider_instance, provider_job_id, reservation
+        )
+        raise AcceptedProviderTrackingError(
+            f"Provider accepted work, but local tracking failed: {exc}",
+            cancellation_confirmed=cancellation_confirmed,
+        ) from exc
 
 
 def _build_tools_list(provider: str, no_web: bool, no_code: bool, vector_store_id: str | None) -> list:
@@ -950,7 +1045,7 @@ def _build_tools_list(provider: str, no_web: bool, no_code: bool, vector_store_i
     return tools
 
 
-def _handle_missing_tools_error(job_id: str, model: str, formatter: OutputFormatter, start_time: float) -> None:
+def _handle_missing_tools_error(job_id: str | None, model: str, formatter: OutputFormatter, start_time: float) -> None:
     """Handle error when deep research model has no tools."""
     duration = time.time() - start_time
     result = OperationResult(
@@ -968,7 +1063,9 @@ async def _handle_background_job(
     job_id: str, provider_job_id: str, output_context: OutputContext, queue: SQLiteQueue
 ) -> None:
     """Handle OpenAI/Azure background job submission."""
-    await queue.update_status(job_id=job_id, status=JobStatus.PROCESSING, provider_job_id=provider_job_id)
+    updated = await queue.update_status(job_id=job_id, status=JobStatus.PROCESSING, provider_job_id=provider_job_id)
+    if not updated:
+        raise RuntimeError("queue rejected background provider tracking update")
 
     if output_context.mode == OutputMode.VERBOSE:
         click.echo(f"\nJob submitted: {job_id[:12]}")
@@ -980,108 +1077,6 @@ async def _handle_background_job(
         import json as json_module
 
         print(json_module.dumps({"status": "pending", "job_id": job_id, "provider_job_id": provider_job_id}))
-
-
-async def _handle_immediate_job(
-    job_id: str,
-    provider_job_id: str,
-    query: str,
-    model: str,
-    provider_instance,
-    output_context: OutputContext,
-    formatter: OutputFormatter,
-    start_time: float,
-    config: dict,
-    queue: SQLiteQueue,
-    emitter=None,
-    submit_op=None,
-) -> None:
-    """Handle Gemini/Grok immediate job completion."""
-    response = await provider_instance.get_status(provider_job_id)
-
-    if response.status == "completed":
-        # Extract and save content
-        content = _extract_response_content(response)
-
-        from deepr.storage import create_storage
-
-        storage = create_storage(config.get("storage", "local"), base_path=config.get("results_dir", "data/reports"))
-
-        # Compute cost for report metadata
-        actual_cost_meta = response.usage.cost if response.usage and response.usage.cost else 0.0
-        report_metadata = await storage.save_report(
-            job_id=job_id,
-            filename="report.md",
-            content=content.encode("utf-8"),
-            content_type="text/markdown",
-            metadata={
-                "prompt": query,
-                "model": model,
-                "status": "completed",
-                "provider_job_id": provider_job_id,
-                "total_cost": actual_cost_meta,
-                "cost_by_model": {model: actual_cost_meta},
-            },
-        )
-
-        # Update queue
-        await queue.update_status(job_id, JobStatus.COMPLETED)
-        actual_cost = response.usage.cost if response.usage and response.usage.cost else 0.0
-        if response.usage and response.usage.cost:
-            await queue.update_results(
-                job_id,
-                report_paths={"markdown": report_metadata.url},
-                cost=response.usage.cost,
-                tokens_used=response.usage.total_tokens,
-            )
-
-        # Record cost/tokens in trace
-        if submit_op:
-            submit_op.set_cost(actual_cost)
-            if response.usage:
-                submit_op.set_tokens(
-                    getattr(response.usage, "input_tokens", 0) or 0,
-                    getattr(response.usage, "output_tokens", 0) or 0,
-                )
-            if emitter:
-                emitter.complete_task(submit_op)
-
-        # Output result
-        duration = time.time() - start_time
-        result = OperationResult(
-            success=True,
-            duration_seconds=duration,
-            cost_usd=actual_cost,
-            report_path=str(report_metadata.url),
-            job_id=job_id,
-        )
-        formatter.complete(result)
-    else:
-        # Still processing
-        if submit_op and emitter:
-            emitter.complete_task(submit_op)
-        await queue.update_status(job_id=job_id, status=JobStatus.PROCESSING, provider_job_id=provider_job_id)
-        if output_context.mode == OutputMode.VERBOSE:
-            click.echo(f"\nJob submitted: {job_id[:12]}")
-            click.echo(f"Provider job ID: {provider_job_id}")
-        elif output_context.mode == OutputMode.JSON:
-            import json as json_module
-
-            print(json_module.dumps({"status": "pending", "job_id": job_id, "provider_job_id": provider_job_id}))
-
-
-def _extract_response_content(response) -> str:
-    """Extract text content from provider response."""
-    content = ""
-    if response.output:
-        for block in response.output:
-            if block.get("type") == "message":
-                for item in block.get("content", []):
-                    if item.get("type") in ["output_text", "text"]:
-                        text = item.get("text", "")
-                        if text:
-                            content += text + "\n"
-    return content
 
 
 @run.command()
@@ -1198,7 +1193,7 @@ async def _run_campaign(
         provider_name = "openai"
 
     # Initialize services
-    queue = create_queue("local")
+    queue = create_queue("local", db_path=str(config.get("queue_db_path") or "queue/research_queue.db"))
     provider_instance = create_provider(provider_name, api_key=api_key)
     storage = create_storage(config.get("storage", "local"), base_path=config.get("results_dir", "data/reports"))
     context_builder = ContextBuilder(api_key=config.get("api_key"))
@@ -1208,8 +1203,11 @@ async def _run_campaign(
     campaign_id = f"campaign-{int(time.time())}"
     results = await executor.execute_campaign(tasks, campaign_id)
 
-    click.echo("\nCampaign completed!")
-    click.echo(f"Results: {len(results.get('tasks', {}))} tasks finished")
+    if results.get("status") == "pending":
+        click.echo("\nCampaign remains in progress; durable job tracking was retained.")
+    else:
+        click.echo("\nCampaign completed!")
+    click.echo(f"Results: {len(results.get('tasks', {}))} tasks recorded")
     click.echo("\nFor better control, use: deepr prep plan / deepr prep execute")
 
 

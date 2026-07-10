@@ -10,8 +10,9 @@ provider has an API key configured.
 
 Models added to the registry without benchmark data receive provisional
 quality scores derived from pricing tier and specializations, so they
-participate in routing immediately. Background auto-eval refines these
-estimates when new models are detected.
+participate in routing immediately. Operators may opt in to background
+auto-eval with ``DEEPR_AUTO_EVAL=true`` to refine these estimates when new
+models are detected.
 
 This enables processing 20+ queries for $1-2 instead of $20-40.
 """
@@ -393,8 +394,7 @@ def _get_benchmark_rankings() -> dict[str, list[_RankingEntry]] | None:
 
 
 # ─── Background Auto-Eval ─────────────────────────────────────────────────────
-# When new models are added to the registry, automatically run quick evals
-# in the background so routing data stays current.
+# Operators may opt in to quick background evals when registry models change.
 
 _auto_eval_started = False
 _auto_eval_lock = threading.Lock()
@@ -467,12 +467,7 @@ def trigger_background_eval_if_needed(
     global _auto_eval_started
 
     if enabled is None:
-        enabled = os.environ.get("DEEPR_AUTO_EVAL", "true").lower() not in (
-            "false",
-            "0",
-            "no",
-            "off",
-        )
+        enabled = os.environ.get("DEEPR_AUTO_EVAL", "false").lower() in ("true", "1", "yes", "on")
     if not enabled:
         return False
 

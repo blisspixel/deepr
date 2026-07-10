@@ -358,6 +358,62 @@ class SQLiteQueue(QueueBackend):
         """Update job status."""
         return await asyncio.to_thread(self._update_status_sync, job_id, status, error, provider_job_id)
 
+    async def claim_submission(self, job_id: str) -> bool:
+        """Atomically claim one queued job before any provider POST."""
+        return await asyncio.to_thread(self._claim_submission_sync, job_id)
+
+    def _claim_submission_sync(self, job_id: str) -> bool:
+        connection = sqlite3.connect(self.db_path)
+        try:
+            cursor = connection.execute(
+                """
+                UPDATE research_queue
+                SET status = ?, started_at = COALESCE(started_at, ?)
+                WHERE id = ? AND status = ?
+                """,
+                (
+                    JobStatus.PROCESSING.value,
+                    datetime.now(UTC).isoformat(),
+                    job_id,
+                    JobStatus.QUEUED.value,
+                ),
+            )
+            connection.commit()
+            return cursor.rowcount == 1
+        except Exception:
+            connection.rollback()
+            raise
+        finally:
+            connection.close()
+
+    async def cancel_queued_submission(self, job_id: str) -> bool:
+        """Atomically cancel a job only while provider submission is unclaimed."""
+        return await asyncio.to_thread(self._cancel_queued_submission_sync, job_id)
+
+    def _cancel_queued_submission_sync(self, job_id: str) -> bool:
+        connection = sqlite3.connect(self.db_path)
+        try:
+            cursor = connection.execute(
+                """
+                UPDATE research_queue
+                SET status = ?, completed_at = COALESCE(completed_at, ?)
+                WHERE id = ? AND status = ?
+                """,
+                (
+                    JobStatus.CANCELLED.value,
+                    datetime.now(UTC).isoformat(),
+                    job_id,
+                    JobStatus.QUEUED.value,
+                ),
+            )
+            connection.commit()
+            return cursor.rowcount == 1
+        except Exception:
+            connection.rollback()
+            raise
+        finally:
+            connection.close()
+
     def _update_status_sync(
         self, job_id: str, status: JobStatus, error: str | None, provider_job_id: str | None
     ) -> bool:
@@ -442,6 +498,9 @@ class SQLiteQueue(QueueBackend):
                 if delta > 0:
                     try:
                         dashboard = self._get_cost_dashboard()
+                        idempotency_key = (
+                            f"job:{job_id}:completion" if prior == 0 else f"job:{job_id}:correction:{float(cost):.6f}"
+                        )
                         dashboard.record(
                             operation="research_job",
                             provider=provider or "unknown",
@@ -451,7 +510,7 @@ class SQLiteQueue(QueueBackend):
                             task_id=job_id,
                             metadata={
                                 "source": "queue.update_results",
-                                "idempotency_key": f"queue:update_results:{job_id}:{float(cost):.6f}",
+                                "idempotency_key": idempotency_key,
                             },
                         )
                         ledger_recorded = True

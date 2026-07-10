@@ -11,6 +11,7 @@ Workflow:
 """
 
 import os
+from functools import partial
 
 from openai import OpenAI
 
@@ -39,7 +40,7 @@ class ResearchReviewer:
             raise ValueError(f"Invalid model: {model}. Must be one of {valid_models}")
 
         self.model = model
-        self.client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+        self.client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"), max_retries=0)
 
     def review_and_plan_next(
         self,
@@ -106,9 +107,18 @@ Generate up to {max_tasks} next research tasks, or indicate we're ready to synth
 
 Return ONLY valid JSON, no other text."""
 
-        response = self.client.responses.create(
+        from deepr.services.metered_call import execute_reserved_sync_call
+
+        response = execute_reserved_sync_call(
+            operation_prefix="research-review",
+            provider="openai",
             model=self.model,
-            input=[{"role": "system", "content": system_prompt}, {"role": "user", "content": user_prompt}],
+            source="services.research_reviewer.review_and_plan_next",
+            call=partial(
+                self.client.responses.create,
+                model=self.model,
+                input=[{"role": "system", "content": system_prompt}, {"role": "user", "content": user_prompt}],
+            ),
         )
 
         # Parse response

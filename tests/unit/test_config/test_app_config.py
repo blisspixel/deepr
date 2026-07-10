@@ -41,6 +41,12 @@ class TestProviderConfig:
         pc = ProviderConfig(type="azure")
         assert pc.azure_endpoint == "https://my.azure.com/"
 
+    def test_blank_azure_endpoint_is_unconfigured(self, monkeypatch):
+        """A blank endpoint has the same meaning as an absent endpoint."""
+        monkeypatch.setenv("AZURE_OPENAI_ENDPOINT", "")
+        pc = ProviderConfig(type="azure")
+        assert pc.azure_endpoint is None
+
     def test_default_provider_from_env(self, monkeypatch):
         """DEEPR_DEFAULT_PROVIDER overrides default."""
         monkeypatch.setenv("DEEPR_DEFAULT_PROVIDER", "azure")

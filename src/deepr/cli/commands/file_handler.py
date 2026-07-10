@@ -6,11 +6,15 @@ Reduces complexity in run.py by centralizing file operations.
 Requirements: 6.3 - Extract file handling logic
 """
 
+import logging
 import uuid
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
+from typing import Any
 
 from deepr.cli.output import OutputFormatter
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -21,6 +25,7 @@ class FileUploadResult:
     uploaded_ids: list[str]
     vector_store_id: str | None
     errors: list[str]
+    provider_instance: Any | None = field(default=None, repr=False, compare=False)
 
     @property
     def success(self) -> bool:
@@ -189,6 +194,7 @@ async def handle_file_uploads(
     except Exception as e:
         result.errors.append(f"Failed to create provider: {e}")
         return result
+    result.provider_instance = provider_instance
 
     # Upload files
     uploaded_ids, upload_errors = await upload_files(provider_instance, resolved_files, formatter)
@@ -210,3 +216,30 @@ async def handle_file_uploads(
             formatter.progress(f"{len(uploaded_ids)} files ready for research")
 
     return result
+
+
+async def cleanup_file_uploads(result: FileUploadResult, formatter: OutputFormatter | None = None) -> bool:
+    """Delete every provider resource created by one upload preparation."""
+    provider = result.provider_instance
+    if provider is None:
+        return not result.vector_store_id and not result.uploaded_ids
+
+    cleanup_succeeded = True
+    if result.vector_store_id:
+        try:
+            cleanup_succeeded = bool(await provider.delete_vector_store(result.vector_store_id)) and cleanup_succeeded
+        except Exception:
+            logger.exception("Failed to delete provider vector store %s", result.vector_store_id)
+            cleanup_succeeded = False
+
+    for file_id in result.uploaded_ids:
+        try:
+            cleanup_succeeded = bool(await provider.delete_document(file_id)) and cleanup_succeeded
+        except Exception:
+            logger.exception("Failed to delete provider file %s", file_id)
+            cleanup_succeeded = False
+
+    if formatter:
+        status = "complete" if cleanup_succeeded else "incomplete"
+        formatter.progress(f"Provider upload cleanup {status}")
+    return cleanup_succeeded

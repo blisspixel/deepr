@@ -1,7 +1,7 @@
 """Tests for auto-fallback on provider failures (ROADMAP 5.2).
 
-Tests the fallback loop in _run_single() that automatically retries
-with different providers when one fails, using the AutonomousProviderRouter.
+Tests the fallback loop in _run_single() that routes definitive failures to a
+different provider while suppressing replay after an ambiguous paid outcome.
 
 All tests use mocks to avoid external API calls.
 """
@@ -53,6 +53,8 @@ def mock_queue():
     with patch("deepr.cli.commands.run.SQLiteQueue") as mock_cls:
         queue = MagicMock()
         queue.enqueue = AsyncMock(return_value="research-test123")
+        queue.claim_submission = AsyncMock(return_value=True)
+        queue.get_job = AsyncMock(return_value=None)
         queue.update_status = AsyncMock()
         queue.update_results = AsyncMock()
         mock_cls.return_value = queue
@@ -168,11 +170,11 @@ class TestFallbackOnRateLimit:
 
 
 class TestFallbackOnTimeout:
-    """Test timeout retry-then-fallback behavior."""
+    """Test fail-closed ambiguous timeout behavior."""
 
     @pytest.mark.asyncio
-    async def test_timeout_retries_then_falls_back(self, mock_queue, mock_budget):
-        """Timeout should retry same provider once, then fallback."""
+    async def test_timeout_is_not_replayed_or_fallen_back(self, mock_queue, mock_budget):
+        """A timeout may hide accepted spend, so it must not be replayed."""
         calls = []
 
         async def mock_submit(*args, **kwargs):
@@ -211,11 +213,9 @@ class TestFallbackOnTimeout:
                 _make_output_context(),
             )
 
-            # Should retry openai once, then fallback to xai
-            assert len(calls) == 3  # openai, openai (retry), xai
+            assert len(calls) == 1
             assert calls[0] == ("openai", "o4-mini-deep-research")
-            assert calls[1] == ("openai", "o4-mini-deep-research")
-            assert calls[2] == ("xai", "grok-4-1-fast-non-reasoning")
+            router.get_fallback.assert_not_called()
 
 
 class TestFallbackOnAuth:
@@ -416,10 +416,11 @@ class TestVectorStoreDegradation:
         with (
             patch("deepr.observability.provider_router.AutonomousProviderRouter", return_value=router),
             patch("deepr.cli.commands.run._submit_to_provider", side_effect=mock_submit),
-            patch("deepr.cli.commands.run._create_and_enqueue_job", new_callable=AsyncMock) as mock_enqueue,
+            patch("deepr.cli.commands.run._reserve_job_submission", new_callable=AsyncMock) as mock_reserve,
+            patch("deepr.cli.commands.run._enqueue_reserved_job", new_callable=AsyncMock),
             patch("deepr.observability.metadata.MetadataEmitter") as mock_emitter_cls,
         ):
-            mock_enqueue.return_value = ("research-test123", MagicMock())
+            mock_reserve.return_value = ("research-test123", MagicMock())
             emitter = MagicMock()
             emitter.tasks = []
             emitter.trace_context.spans = []

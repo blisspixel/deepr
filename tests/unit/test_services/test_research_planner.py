@@ -26,7 +26,7 @@ class TestResearchPlanner:
 
     def test_init_valid_models(self, mock_openai_env):
         """All GPT-5 variants accepted."""
-        with patch("deepr.services.research_planner.OpenAI"):
+        with patch("deepr.services.research_planner.OpenAI") as client:
             with patch("deepr.services.research_planner.DefaultAzureCredential"):
                 with patch("deepr.services.research_planner.get_bearer_token_provider"):
                     from deepr.services.research_planner import ResearchPlanner
@@ -34,6 +34,7 @@ class TestResearchPlanner:
                     for model in ["gpt-5", "gpt-5-mini", "gpt-5-nano", "gpt-5-chat"]:
                         p = ResearchPlanner(model=model)
                         assert p.model == model
+                    assert all(call.kwargs.get("max_retries") == 0 for call in client.call_args_list)
 
     def test_init_invalid_model_raises(self, mock_openai_env):
         """Non-GPT-5 models raise ValueError."""

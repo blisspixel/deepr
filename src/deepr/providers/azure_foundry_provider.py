@@ -281,9 +281,6 @@ class AzureFoundryProvider(DeepResearchProvider):
 
     async def _submit_deep_research(self, request: ResearchRequest) -> str:
         """Submit deep research via Agent + DeepResearchTool + Bing grounding."""
-        max_retries = 3
-        retry_delay = 5
-
         # Build prompt
         prompt_parts = []
         if request.system_message:
@@ -291,130 +288,86 @@ class AzureFoundryProvider(DeepResearchProvider):
         prompt_parts.append(request.prompt)
         prompt = "\n\n".join(prompt_parts)
 
-        for attempt in range(max_retries):
-            try:
+        try:
 
-                def _create_run() -> Any:
-                    agents_client = self._get_agents_client()
-                    agent_id = self._ensure_deep_research_agent()
+            def _create_run() -> Any:
+                agents_client = self._get_agents_client()
+                agent_id = self._ensure_deep_research_agent()
+                thread = agents_client.threads.create()
+                agents_client.messages.create(thread_id=thread.id, role="user", content=prompt)
+                run = agents_client.runs.create(
+                    thread_id=thread.id,
+                    agent_id=agent_id,
+                    metadata={"deepr_idempotency_key": request.idempotency_key},
+                )
+                return thread.id, run.id
 
-                    thread = agents_client.threads.create()
-                    agents_client.messages.create(
-                        thread_id=thread.id,
-                        role="user",
-                        content=prompt,
-                    )
-                    run = agents_client.runs.create(
-                        thread_id=thread.id,
-                        agent_id=agent_id,
-                    )
-                    return thread.id, run.id
+            thread_id, run_id = await asyncio.to_thread(_create_run)
+        except Exception as exc:
+            # Foundry run creation has no server-side deduplication contract.
+            # A caller with a durable reservation handles ambiguity; repeating
+            # the POST here could create another paid run.
+            raise ProviderError(
+                message=f"Failed to start Foundry deep research: {exc}",
+                provider="azure-foundry",
+                original_error=exc,
+            ) from exc
 
-                thread_id, run_id = await asyncio.to_thread(_create_run)
-                job_id = f"{thread_id}:{run_id}"
-
-                self._jobs[job_id] = {
-                    "status": "in_progress",
-                    "kind": "deep_research",
-                    "thread_id": thread_id,
-                    "run_id": run_id,
-                    "created_at": datetime.now(UTC),
-                    "model": self.deep_research_deployment,
-                    "request": request,
-                }
-
-                logger.info("Foundry deep research started: %s", job_id)
-                return job_id
-
-            except Exception as e:
-                if attempt < max_retries - 1:
-                    wait_time = retry_delay * (2**attempt)
-                    logger.warning(
-                        "Foundry deep research submit error (attempt %d/%d): %s",
-                        attempt + 1,
-                        max_retries,
-                        e,
-                    )
-                    await asyncio.sleep(wait_time)
-                    continue
-                raise ProviderError(
-                    message=f"Failed to start Foundry deep research after {max_retries} attempts: {e}",
-                    provider="azure-foundry",
-                    original_error=e,
-                ) from e
-
-        raise ProviderError(
-            message="Failed to start Foundry deep research after all retries",
-            provider="azure-foundry",
-        )
+        job_id = f"{thread_id}:{run_id}"
+        self._jobs[job_id] = {
+            "status": "in_progress",
+            "kind": "deep_research",
+            "thread_id": thread_id,
+            "run_id": run_id,
+            "created_at": datetime.now(UTC),
+            "model": self.deep_research_deployment,
+            "request": request,
+        }
+        logger.info("Foundry deep research started: %s", job_id)
+        return job_id
 
     async def _submit_regular_research(self, request: ResearchRequest, model: str) -> str:
         """Submit a regular (non-deep-research) job using a lightweight agent."""
-        max_retries = 3
-        retry_delay = 2
-
         prompt_parts = []
         if request.system_message:
             prompt_parts.append(request.system_message)
         prompt_parts.append(request.prompt)
         prompt = "\n\n".join(prompt_parts)
 
-        for attempt in range(max_retries):
-            try:
+        try:
 
-                def _create_run() -> Any:
-                    agents_client = self._get_agents_client()
-                    agent_id = self._ensure_regular_agent(request.model)
+            def _create_run() -> Any:
+                agents_client = self._get_agents_client()
+                agent_id = self._ensure_regular_agent(request.model)
+                thread = agents_client.threads.create()
+                agents_client.messages.create(thread_id=thread.id, role="user", content=prompt)
+                run = agents_client.runs.create(
+                    thread_id=thread.id,
+                    agent_id=agent_id,
+                    metadata={"deepr_idempotency_key": request.idempotency_key},
+                )
+                return thread.id, run.id
 
-                    thread = agents_client.threads.create()
-                    agents_client.messages.create(
-                        thread_id=thread.id,
-                        role="user",
-                        content=prompt,
-                    )
-                    run = agents_client.runs.create(
-                        thread_id=thread.id,
-                        agent_id=agent_id,
-                    )
-                    return thread.id, run.id
+            thread_id, run_id = await asyncio.to_thread(_create_run)
+        except Exception as exc:
+            raise ProviderError(
+                message=f"Failed to start Foundry job: {exc}",
+                provider="azure-foundry",
+                original_error=exc,
+            ) from exc
 
-                thread_id, run_id = await asyncio.to_thread(_create_run)
-                job_id = f"{thread_id}:{run_id}"
-
-                self._jobs[job_id] = {
-                    "status": "in_progress",
-                    "kind": "regular",
-                    "thread_id": thread_id,
-                    "run_id": run_id,
-                    "created_at": datetime.now(UTC),
-                    "model": model,
-                    "request": request,
-                }
-
-                logger.info("Foundry regular job started: %s (model=%s)", job_id, model)
-                return job_id
-
-            except Exception as e:
-                if attempt < max_retries - 1:
-                    wait_time = retry_delay * (2**attempt)
-                    logger.warning(
-                        "Foundry regular submit error (attempt %d/%d): %s",
-                        attempt + 1,
-                        max_retries,
-                        e,
-                    )
-                    await asyncio.sleep(wait_time)
-                    continue
-                raise ProviderError(
-                    message=f"Failed to start Foundry job after {max_retries} attempts: {e}",
-                    provider="azure-foundry",
-                    original_error=e,
-                ) from e
-
-        raise ProviderError(
-            message="Failed to start Foundry job after all retries",
-            provider="azure-foundry",
-        )
+        job_id = f"{thread_id}:{run_id}"
+        self._jobs[job_id] = {
+            "status": "in_progress",
+            "kind": "regular",
+            "thread_id": thread_id,
+            "run_id": run_id,
+            "created_at": datetime.now(UTC),
+            "model": model,
+            "request": request,
+        }
+        logger.info("Foundry regular job started: %s (model=%s)", job_id, model)
+        return job_id
 
     # =========================================================================
     # Get status - handles both deep research and regular jobs

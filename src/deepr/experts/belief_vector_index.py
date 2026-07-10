@@ -201,16 +201,34 @@ class BeliefVectorIndex:
         ]
 
     def stats(self, beliefs: Iterable[Any] = (), *, model: str | None = None) -> dict[str, Any]:
-        """Return local index statistics without inspecting vector values."""
+        """Return local index statistics and a digest without exposing vectors."""
         belief_list = list(beliefs)
         current_vectors = self.vectors_for(belief_list, model=model) if belief_list else {}
         dimensions = sorted({len(vector) for vector in current_vectors.values()})
+        state_payload = {
+            "model": str(model or ""),
+            "beliefs": [
+                {
+                    "belief_id": str(getattr(belief, "id", "") or ""),
+                    "claim_hash": belief_claim_hash(str(getattr(belief, "claim", "") or "")),
+                    "domain": str(getattr(belief, "domain", "") or ""),
+                    "embedding": list(current_vectors[belief_id]) if belief_id in current_vectors else None,
+                }
+                for belief in sorted(belief_list, key=lambda item: str(getattr(item, "id", "") or ""))
+                if (belief_id := str(getattr(belief, "id", "") or ""))
+            ],
+        }
+        state_digest = hashlib.sha256(
+            json.dumps(state_payload, sort_keys=True, separators=(",", ":")).encode("utf-8")
+        ).hexdigest()
         return {
             "schema_version": BELIEF_VECTOR_INDEX_SCHEMA_VERSION,
             "record_count": len(self.records),
+            "belief_count": len(belief_list),
             "current_vector_count": len(current_vectors),
             "missing_or_stale_count": (len(self.missing_or_stale_ids(belief_list, model=model)) if belief_list else 0),
             "dimensions": dimensions,
+            "state_digest": state_digest,
             "path": str(self.path),
         }
 

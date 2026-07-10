@@ -39,6 +39,8 @@ class ResearchRequest:
     per_agent_budget: float | None = None  # Max cost per agent in USD
     # Trace correlation
     trace_id: str = ""  # Trace ID for distributed tracing across agent boundaries
+    # Stable retry identity for provider POST requests
+    idempotency_key: str = ""
 
 
 @dataclass
@@ -219,6 +221,10 @@ class DeepResearchProvider(ABC):
             ProviderError: If upload fails
         """
         raise NotImplementedError
+
+    async def delete_document(self, file_id: str) -> bool:
+        """Delete a persistent provider file when the adapter supports it."""
+        return False
 
     @abstractmethod
     async def create_vector_store(self, name: str, file_ids: list[str]) -> VectorStore:

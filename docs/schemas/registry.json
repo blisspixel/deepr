@@ -175,6 +175,14 @@
       "compatibility": "additive-within-v1"
     },
     {
+      "name": "recall-eval-report",
+      "schema_version": "deepr-recall-eval-report-v2",
+      "kind": "deepr.eval.recall_quality",
+      "path": "recall-eval-report-v2.json",
+      "status": "experimental",
+      "compatibility": "additive-within-v2"
+    },
+    {
       "name": "recall-operator-validation",
       "schema_version": "deepr-recall-operator-validation-v1",
       "kind": "deepr.eval.recall_operator_validation",

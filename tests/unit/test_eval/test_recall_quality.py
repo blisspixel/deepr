@@ -4,12 +4,14 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 from click.testing import CliRunner
 
 from deepr.cli.main import cli
 from deepr.evals.recall_quality import (
+    MIN_SCHEDULER_PREFERENCE_CASES,
     RECALL_EVAL_CASE_LIBRARY_SCHEMA_VERSION,
     RECALL_EVAL_REPORT_SCHEMA_VERSION,
     RECALL_LIBRARY_INVENTORY_KIND,
@@ -17,6 +19,8 @@ from deepr.evals.recall_quality import (
     RECALL_LIBRARY_VALIDATION_PLAN_KIND,
     RECALL_LIBRARY_VALIDATION_PLAN_SCHEMA_VERSION,
     RecallEvalCase,
+    _case_metrics,
+    _paired_bootstrap_comparison,
     build_recall_eval_case,
     build_recall_library_inventory,
     build_recall_library_validation_plan,
@@ -28,6 +32,7 @@ from deepr.evals.recall_quality import (
     run_recall_quality_eval,
     write_recall_eval_report,
 )
+from deepr.evals.retrieval_metrics import RETRIEVAL_METRIC_CASE_FIELDS
 from deepr.experts.beliefs import Belief, BeliefStore
 
 
@@ -52,6 +57,19 @@ def _seeded_store(tmp_path) -> tuple[BeliefStore, Belief, Belief]:
         )
     )
     return store, power, retention
+
+
+def _scheduler_cases(
+    belief_ids: tuple[str, ...] = ("b1", "b2", "b3"),
+) -> list[RecallEvalCase]:
+    return [
+        RecallEvalCase(
+            f"case-{index:02d}",
+            f"opaque retrieval query {index:02d}",
+            (belief_ids[index % len(belief_ids)],),
+        )
+        for index in range(MIN_SCHEDULER_PREFERENCE_CASES)
+    ]
 
 
 class TestLoadCases:
@@ -91,6 +109,84 @@ class TestLoadCases:
             load_recall_eval_cases(payload)
 
 
+class TestRetrievalMetrics:
+    def test_case_metrics_cover_ranking_recall_and_duplicate_candidates(self):
+        metrics = _case_metrics(
+            ["irrelevant", "b1", "b1", "b2"],
+            ["b1", "b2", "b3"],
+            top_k=4,
+        )
+
+        assert metrics == {
+            "candidate_ids": ["irrelevant", "b1", "b1", "b2"],
+            "hit_at_k": True,
+            "reciprocal_rank": 0.5,
+            "precision_at_k": 0.5,
+            "recall_at_k": 0.666667,
+            "average_precision_at_k": 0.333333,
+            "ndcg_at_k": 0.498189,
+            "relevant_retrieved": 2,
+            "relevant_total": 3,
+        }
+
+    def test_case_metrics_treat_missing_result_positions_as_non_relevant(self):
+        metrics = _case_metrics(["irrelevant"], ["relevant"], top_k=3)
+
+        assert metrics["candidate_ids"] == ["irrelevant"]
+        assert metrics["hit_at_k"] is False
+        assert metrics["reciprocal_rank"] == 0.0
+        assert metrics["precision_at_k"] == 0.0
+        assert metrics["recall_at_k"] == 0.0
+        assert metrics["average_precision_at_k"] == 0.0
+        assert metrics["ndcg_at_k"] == 0.0
+
+    def test_paired_bootstrap_is_deterministic_and_exposes_uncertainty(self):
+        tied = {
+            "hit_at_k": False,
+            "reciprocal_rank": 0.0,
+            "precision_at_k": 0.0,
+            "recall_at_k": 0.0,
+            "average_precision_at_k": 0.0,
+            "ndcg_at_k": 0.0,
+            "relevant_retrieved": 0,
+        }
+        improved = {
+            **tied,
+            "hit_at_k": True,
+            "reciprocal_rank": 1.0,
+            "precision_at_k": 1.0,
+            "recall_at_k": 1.0,
+            "average_precision_at_k": 1.0,
+            "ndcg_at_k": 1.0,
+            "relevant_retrieved": 1,
+        }
+        lexical = [dict(tied) for _ in range(MIN_SCHEDULER_PREFERENCE_CASES)]
+        vector = [dict(tied) for _ in range(MIN_SCHEDULER_PREFERENCE_CASES)]
+        vector[0] = improved
+
+        first = _paired_bootstrap_comparison(lexical, vector)
+        second = _paired_bootstrap_comparison(lexical, vector)
+
+        assert first == second
+        assert first["method"] == "paired_percentile_bootstrap"
+        assert first["case_count"] == MIN_SCHEDULER_PREFERENCE_CASES
+        assert first["resamples"] == 9_999
+        assert first["confidence_level"] == 0.95
+        hit_evidence = first["metrics"]["hit_at_k"]
+        assert hit_evidence["mean_difference"] > 0.0
+        assert hit_evidence["confidence_interval"]["lower"] == 0.0
+        assert hit_evidence["vector_superiority_supported"] is False
+
+    def test_paired_bootstrap_uses_published_precision_for_superiority(self):
+        baseline = [{field: 0.0 for field in RETRIEVAL_METRIC_CASE_FIELDS.values()}]
+        candidate = [{field: 0.0000004 for field in RETRIEVAL_METRIC_CASE_FIELDS.values()}]
+
+        evidence = _paired_bootstrap_comparison(baseline, candidate)["metrics"]["hit_at_k"]
+
+        assert evidence["confidence_interval"]["lower"] == 0.0
+        assert evidence["vector_superiority_supported"] is False
+
+
 class TestRunEval:
     async def test_lexical_only_report_records_skip_reason(self, tmp_path):
         store, power, _ = _seeded_store(tmp_path)
@@ -102,9 +198,32 @@ class TestRunEval:
         assert report["contract"]["cost_usd"] == 0.0
         assert report["contract"]["semantic_verdict"] is False
         assert report["contract"]["relevance_labels"] == "operator_supplied"
+        assert report["request"]["domain"] == ""
+        assert report["request"]["min_score"] == 0.0
         assert report["routes"]["lexical_router"]["hit_at_k"] == 1.0
         assert report["comparison"]["vector_route_evaluated"] is False
         assert "no query embeddings supplied" in report["comparison"]["skip_reason"]
+
+    async def test_report_binds_the_evaluated_retrieval_contract(self, tmp_path):
+        store, power, _ = _seeded_store(tmp_path)
+        cases = [RecallEvalCase("c1", "accelerator power deployment", (power.id,))]
+
+        report = await run_recall_quality_eval(
+            store,
+            cases,
+            top_k=3,
+            domain="ai-infra",
+            min_score=0.0,
+        )
+
+        expected = {"top_k": 3, "domain": "ai-infra", "min_score": 0.0}
+        assert report["request"] == {
+            "case_count": 1,
+            **expected,
+            "embedding_model": "",
+        }
+        assert report["scheduler_preference"]["retrieval_contract"] == expected
+        assert report["routes"]["lexical_router"]["hit_at_k"] == 1.0
 
     async def test_vector_route_wins_when_index_matches_labels(self, tmp_path):
         store, power, retention = _seeded_store(tmp_path)
@@ -147,15 +266,16 @@ class TestRunEval:
         store.upsert_belief_embedding(first.id, [1.0, 0.0, 0.0], model="nomic-embed-text")
         store.upsert_belief_embedding(second.id, [0.0, 1.0, 0.0], model="nomic-embed-text")
         store.upsert_belief_embedding(third.id, [0.0, 0.0, 1.0], model="nomic-embed-text")
+        beliefs = (first, second, third)
         cases = [
-            RecallEvalCase("c1", "energy ceilings", (first.id,)),
-            RecallEvalCase("c2", "records policy", (second.id,)),
-            RecallEvalCase("c3", "thermal limits", (third.id,)),
+            RecallEvalCase(f"c{index}", f"opaque retrieval query {index}", (beliefs[index % 3].id,))
+            for index in range(MIN_SCHEDULER_PREFERENCE_CASES)
         ]
 
         async def embed_queries(queries):
-            assert queries == ["energy ceilings", "records policy", "thermal limits"]
-            return [(0.99, 0.01, 0.0), (0.0, 0.99, 0.01), (0.01, 0.0, 0.99)]
+            assert queries == [case.query for case in cases]
+            basis = ((0.99, 0.01, 0.0), (0.0, 0.99, 0.01), (0.01, 0.0, 0.99))
+            return [basis[index % 3] for index in range(len(queries))]
 
         report = await run_recall_quality_eval(
             store,
@@ -169,8 +289,87 @@ class TestRunEval:
         assert preference["eligible"] is True
         assert preference["preferred_route"] == "vector_similarity"
         assert preference["fallback_route"] == "lexical_router"
-        assert preference["evaluated_case_count"] == 3
+        assert preference["evaluated_case_count"] == MIN_SCHEDULER_PREFERENCE_CASES
+        assert preference["confidence_supported_metrics"] == preference["required_win_metrics"]
         assert preference["reasons"] == []
+
+    async def test_scheduler_preference_rejects_inconclusive_point_estimate_win(self):
+        class MostlyTiedStore:
+            def recall_belief_candidates(self, query, *, query_embedding=None, **kwargs):
+                index = int(query.rsplit(" ", maxsplit=1)[-1])
+                if query_embedding is None and index == 0:
+                    return []
+                return [SimpleNamespace(item_id=f"belief-{index}")]
+
+            def belief_embedding_stats(self, *, embedding_model):
+                return {
+                    "current_vector_count": MIN_SCHEDULER_PREFERENCE_CASES,
+                    "missing_or_stale_count": 0,
+                    "record_count": MIN_SCHEDULER_PREFERENCE_CASES,
+                    "belief_count": MIN_SCHEDULER_PREFERENCE_CASES,
+                    "state_digest": "a" * 64,
+                }
+
+        cases = [
+            RecallEvalCase(f"c{index}", f"paired query {index}", (f"belief-{index}",))
+            for index in range(MIN_SCHEDULER_PREFERENCE_CASES)
+        ]
+
+        async def embed_queries(queries):
+            return [(1.0,) for _ in queries]
+
+        report = await run_recall_quality_eval(
+            MostlyTiedStore(),
+            cases,
+            top_k=1,
+            embedding_model="nomic-embed-text",
+            embed_queries=embed_queries,
+        )
+
+        preference = report["scheduler_preference"]
+        assert all(
+            preference["winners_by_metric"][metric] == "vector_similarity"
+            for metric in preference["required_win_metrics"]
+        )
+        assert preference["eligible"] is False
+        assert "vector_route_superiority_not_confident" in preference["reasons"]
+        assert preference["confidence_supported_metrics"] == []
+
+    async def test_scheduler_preference_rejects_incomplete_vector_coverage(self):
+        class IncompleteIndexStore:
+            def recall_belief_candidates(self, query, *, query_embedding=None, **kwargs):
+                if query_embedding is None:
+                    return []
+                index = int(query.rsplit(" ", maxsplit=1)[-1])
+                return [SimpleNamespace(item_id=f"belief-{index}")]
+
+            def belief_embedding_stats(self, *, embedding_model):
+                return {
+                    "current_vector_count": MIN_SCHEDULER_PREFERENCE_CASES - 1,
+                    "missing_or_stale_count": 1,
+                    "record_count": MIN_SCHEDULER_PREFERENCE_CASES - 1,
+                    "belief_count": MIN_SCHEDULER_PREFERENCE_CASES,
+                    "state_digest": "b" * 64,
+                }
+
+        cases = [
+            RecallEvalCase(f"c{index}", f"paired query {index}", (f"belief-{index}",))
+            for index in range(MIN_SCHEDULER_PREFERENCE_CASES)
+        ]
+
+        async def embed_queries(queries):
+            return [(1.0,) for _ in queries]
+
+        report = await run_recall_quality_eval(
+            IncompleteIndexStore(),
+            cases,
+            top_k=1,
+            embedding_model="nomic-embed-text",
+            embed_queries=embed_queries,
+        )
+
+        assert report["scheduler_preference"]["eligible"] is False
+        assert "belief_vector_index_incomplete" in report["scheduler_preference"]["reasons"]
 
     async def test_vector_route_skips_honestly_when_index_has_no_usable_vectors(self, tmp_path):
         store, power, _ = _seeded_store(tmp_path)
@@ -323,11 +522,7 @@ class TestRecallCaseLibrary:
         root = tmp_path / "cases"
         merge_recall_eval_case_library(
             "Ready Expert",
-            [
-                RecallEvalCase("c1", "power", ("b1",)),
-                RecallEvalCase("c2", "records", ("b2",)),
-                RecallEvalCase("c3", "cooling", ("b3",)),
-            ],
+            _scheduler_cases(),
             output_dir=root,
         )
         merge_recall_eval_case_library(
@@ -353,11 +548,7 @@ class TestRecallCaseLibrary:
         root = tmp_path / "cases"
         merge_recall_eval_case_library(
             "Ready Expert",
-            [
-                RecallEvalCase("c1", "power", ("b1",)),
-                RecallEvalCase("c2", "records", ("b2",)),
-                RecallEvalCase("c3", "cooling", ("b3",)),
-            ],
+            _scheduler_cases(),
             output_dir=root,
         )
         merge_recall_eval_case_library(
@@ -434,11 +625,7 @@ class TestEvalRecallCommand:
         case_root = tmp_path / "case-library"
         merge_recall_eval_case_library(
             "Recall Eval Expert",
-            [
-                RecallEvalCase("c1", "power", ("b1",)),
-                RecallEvalCase("c2", "records", ("b2",)),
-                RecallEvalCase("c3", "cooling", ("b3",)),
-            ],
+            _scheduler_cases(),
             output_dir=case_root / "benchmarks" / "recall_cases",
         )
         monkeypatch.setattr("deepr.evals.recall_quality.runtime_data_path", lambda *parts: case_root.joinpath(*parts))
@@ -456,11 +643,7 @@ class TestEvalRecallCommand:
         case_root = tmp_path / "case-library"
         merge_recall_eval_case_library(
             "Recall Eval Expert",
-            [
-                RecallEvalCase("c1", "power", ("b1",)),
-                RecallEvalCase("c2", "records", ("b2",)),
-                RecallEvalCase("c3", "cooling", ("b3",)),
-            ],
+            _scheduler_cases(),
             output_dir=case_root / "benchmarks" / "recall_cases",
         )
         monkeypatch.setattr("deepr.evals.recall_quality.runtime_data_path", lambda *parts: case_root.joinpath(*parts))
@@ -568,18 +751,16 @@ class TestEvalRecallCommand:
         store.upsert_belief_embedding(second.id, [0.0, 1.0, 0.0], model="nomic-embed-text")
         store.upsert_belief_embedding(third.id, [0.0, 0.0, 1.0], model="nomic-embed-text")
         case_root = tmp_path / "case-library"
+        cases = _scheduler_cases((first.id, second.id, third.id))
         merge_recall_eval_case_library(
             "Recall Eval Expert",
-            [
-                RecallEvalCase("c1", "energy ceilings", (first.id,)),
-                RecallEvalCase("c2", "records policy", (second.id,)),
-                RecallEvalCase("c3", "thermal limits", (third.id,)),
-            ],
+            cases,
             output_dir=case_root / "benchmarks" / "recall_cases",
         )
         vectors_path = tmp_path / "query-vectors.json"
+        basis = ([0.99, 0.01, 0.0], [0.0, 0.99, 0.01], [0.01, 0.0, 0.99])
         vectors_path.write_text(
-            json.dumps({"c1": [0.99, 0.01, 0.0], "c2": [0.0, 0.99, 0.01], "c3": [0.01, 0.0, 0.99]}),
+            json.dumps({case.case_id: basis[index % 3] for index, case in enumerate(cases)}),
             encoding="utf-8",
         )
         monkeypatch.setattr("deepr.experts.beliefs.BeliefStore", lambda name: store)

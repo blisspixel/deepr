@@ -115,7 +115,7 @@
           "ready_for_operator_validation": {"type": "boolean"},
           "blockers": {"type": "array", "items": {"type": "string"}},
           "eval_command_argv": {"type": "array", "items": {"type": "string"}},
-          "expected_report_schema_version": {"const": "deepr-recall-eval-report-v1"},
+          "expected_report_schema_version": {"const": "deepr-recall-eval-report-v2"},
           "expected_operator_validation_schema_version": {"const": "deepr-recall-operator-validation-v1"},
           "post_eval_acceptance": {
             "type": "object",

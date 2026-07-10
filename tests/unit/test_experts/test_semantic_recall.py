@@ -74,9 +74,14 @@ def test_belief_vector_index_persists_and_filters_stale_claims(tmp_path):
     assert index.upsert_belief(belief, [0.7, 0.3], model="local-test")
 
     loaded = BeliefVectorIndex.for_belief_store(store.storage_dir)
-    assert loaded.stats(store.beliefs.values(), model="local-test") == {
+    stats = loaded.stats(store.beliefs.values(), model="local-test")
+    state_digest = stats.pop("state_digest")
+    assert len(state_digest) == 64
+    assert all(character in "0123456789abcdef" for character in state_digest)
+    assert stats == {
         "schema_version": BELIEF_VECTOR_INDEX_SCHEMA_VERSION,
         "record_count": 1,
+        "belief_count": 1,
         "current_vector_count": 1,
         "missing_or_stale_count": 0,
         "dimensions": [2],
@@ -88,6 +93,7 @@ def test_belief_vector_index_persists_and_filters_stale_claims(tmp_path):
 
     assert loaded.vectors_for(store.beliefs.values(), model="local-test") == {}
     assert loaded.missing_or_stale_ids(store.beliefs.values(), model="local-test") == [belief.id]
+    assert loaded.stats(store.beliefs.values(), model="local-test")["state_digest"] != state_digest
 
 
 def test_store_recall_uses_persisted_belief_vectors(tmp_path):

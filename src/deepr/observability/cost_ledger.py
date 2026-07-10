@@ -1,15 +1,19 @@
 """Canonical append-only cost ledger for Deepr."""
 
+import importlib
 import json
 import logging
 import os
 import threading
+from collections.abc import Callable, Iterator
+from contextlib import contextmanager
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any
+from typing import Any, TypeVar
 
 logger = logging.getLogger(__name__)
+T = TypeVar("T")
 
 
 def _utc_now() -> datetime:
@@ -95,7 +99,35 @@ class CostLedger:
         self.ledger_path.parent.mkdir(parents=True, exist_ok=True)
         self._lock = threading.Lock()
         self._idempotency_keys: set[str] = set()
-        self._load_idempotency_index()
+        with self._interprocess_lock():
+            self._load_idempotency_index()
+
+    @contextmanager
+    def _interprocess_lock(self) -> Iterator[None]:
+        """Serialize ledger reads and writes across Windows and POSIX processes."""
+        lock_path = self.ledger_path.with_name(f"{self.ledger_path.name}.lock")
+        with open(lock_path, "a+b") as handle:
+            handle.seek(0, os.SEEK_END)
+            if handle.tell() == 0:
+                handle.write(b"\0")
+                handle.flush()
+            handle.seek(0)
+            if os.name == "nt":
+                import msvcrt
+
+                msvcrt.locking(handle.fileno(), msvcrt.LK_LOCK, 1)
+                try:
+                    yield
+                finally:
+                    handle.seek(0)
+                    msvcrt.locking(handle.fileno(), msvcrt.LK_UNLCK, 1)
+            else:
+                fcntl: Any = importlib.import_module("fcntl")
+                fcntl.flock(handle.fileno(), fcntl.LOCK_EX)
+                try:
+                    yield
+                finally:
+                    fcntl.flock(handle.fileno(), fcntl.LOCK_UN)
 
     def _load_idempotency_index(self) -> None:
         if not self.ledger_path.exists():
@@ -163,31 +195,49 @@ class CostLedger:
         )
 
         with self._lock:
-            if idempotency_key and idempotency_key in self._idempotency_keys:
-                return event, False
+            with self._interprocess_lock():
+                if idempotency_key:
+                    self._idempotency_keys.clear()
+                    self._load_idempotency_index()
+                    if idempotency_key in self._idempotency_keys:
+                        return event, False
 
-            # Durable append: flush + fsync before releasing the lock so
-            # a crash between write() and process exit can't truncate the
-            # last record of the canonical cost ledger.
-            line = json.dumps(event.to_dict(), ensure_ascii=True)
-            with open(self.ledger_path, "a", encoding="utf-8") as f:
-                f.write(line + "\n")
-                f.flush()
-                try:
-                    os.fsync(f.fileno())
-                except OSError:
-                    # fsync is unavailable on some filesystems / network
-                    # mounts. We've already buffered the line; downgrade
-                    # silently rather than failing the API call.
-                    pass
+                # Durable append: flush + fsync before releasing the lock so
+                # a crash between write() and process exit can't truncate the
+                # last record of the canonical cost ledger.
+                line = json.dumps(event.to_dict(), ensure_ascii=True)
+                with open(self.ledger_path, "a", encoding="utf-8") as f:
+                    f.write(line + "\n")
+                    f.flush()
+                    try:
+                        os.fsync(f.fileno())
+                    except OSError as exc:
+                        # fsync is unavailable on some filesystems / network
+                        # mounts. We've already buffered the line; downgrade
+                        # silently rather than failing the API call.
+                        logger.debug("Cost ledger fsync unavailable: %s", exc)
 
-            if idempotency_key:
-                self._idempotency_keys.add(idempotency_key)
+                if idempotency_key:
+                    self._idempotency_keys.add(idempotency_key)
 
         return event, True
 
     def get_events(
         self,
+        start_date: datetime | None = None,
+        end_date: datetime | None = None,
+        source: str | None = None,
+    ) -> list[CostLedgerEvent]:
+        return self.with_locked_events(
+            lambda events: events,
+            start_date=start_date,
+            end_date=end_date,
+            source=source,
+        )
+
+    def _get_events_unlocked(
+        self,
+        *,
         start_date: datetime | None = None,
         end_date: datetime | None = None,
         source: str | None = None,
@@ -218,6 +268,20 @@ class CostLedger:
 
         return events
 
+    def with_locked_events(
+        self,
+        operation: Callable[[list[CostLedgerEvent]], T],
+        *,
+        start_date: datetime | None = None,
+        end_date: datetime | None = None,
+        source: str | None = None,
+    ) -> T:
+        """Run an operation against a stable snapshot under the ledger lock."""
+        with self._lock:
+            with self._interprocess_lock():
+                events = self._get_events_unlocked(start_date=start_date, end_date=end_date, source=source)
+                return operation(events)
+
     def get_total_cost(
         self,
         start_date: datetime | None = None,
@@ -225,6 +289,16 @@ class CostLedger:
         source: str | None = None,
     ) -> float:
         return sum(e.cost_usd for e in self.get_events(start_date=start_date, end_date=end_date, source=source))
+
+    def has_idempotency_key(self, idempotency_key: str) -> bool:
+        """Check a canonical event key against a fresh locked ledger index."""
+        if not idempotency_key:
+            return False
+        with self._lock:
+            with self._interprocess_lock():
+                self._idempotency_keys.clear()
+                self._load_idempotency_index()
+                return idempotency_key in self._idempotency_keys
 
     def get_health(self) -> dict[str, Any]:
         writable = False

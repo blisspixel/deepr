@@ -96,6 +96,7 @@ async def _search_query(query: str, top: int, threshold: float, keyword_only: bo
         # no-op. The intent is: keyword pass runs by default, and stays
         # the only retrieval pass when ``--keyword-only`` is set.
         include_keyword=True,
+        include_semantic=not keyword_only,
     )
 
     if json_output:

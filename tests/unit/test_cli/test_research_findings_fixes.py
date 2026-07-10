@@ -60,6 +60,9 @@ class TestZombieJobCleanup:
         calls = {}
 
         class FakeQueue:
+            def __init__(self, db_path):
+                calls["db_path"] = db_path
+
             async def update_status(self, job_id, status, error=None, provider_job_id=None):
                 calls["job_id"] = job_id
                 calls["status"] = status
@@ -72,12 +75,16 @@ class TestZombieJobCleanup:
         await _mark_job_failed("research-abc123", "All providers failed. Last error: boom")
 
         assert calls["job_id"] == "research-abc123"
+        assert calls["db_path"]
         assert calls["status"].name == "FAILED"
         assert "boom" in calls["error"]
 
     @pytest.mark.asyncio
     async def test_queue_errors_never_mask_the_original_failure(self, monkeypatch):
         class ExplodingQueue:
+            def __init__(self, db_path):
+                self.db_path = db_path
+
             async def update_status(self, **kwargs):
                 raise RuntimeError("db locked")
 

@@ -23,11 +23,12 @@ class TestTeamArchitect:
 
     def test_init_with_api_key(self):
         """Direct API key accepted."""
-        with patch("deepr.services.team_architect.OpenAI"):
+        with patch("deepr.services.team_architect.OpenAI") as client:
             from deepr.services.team_architect import TeamArchitect
 
             a = TeamArchitect(api_key="direct-key")
             assert a.api_key == "direct-key"
+            client.assert_called_once_with(api_key="direct-key", max_retries=0)
 
     def test_init_with_env_key(self, mock_openai_env):
         """Falls back to OPENAI_API_KEY env."""
@@ -187,11 +188,12 @@ class TestTeamSynthesizer:
 
     def test_init_with_api_key(self):
         """Direct API key accepted."""
-        with patch("deepr.services.team_architect.OpenAI"):
+        with patch("deepr.services.team_architect.OpenAI") as client:
             from deepr.services.team_architect import TeamSynthesizer
 
             s = TeamSynthesizer(api_key="direct-key")
             assert s.api_key == "direct-key"
+            client.assert_called_once_with(api_key="direct-key", max_retries=0)
 
     def test_init_no_key_raises(self, monkeypatch):
         """No API key raises ValueError."""

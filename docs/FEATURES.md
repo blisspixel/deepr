@@ -165,8 +165,11 @@ Find and reuse prior research to avoid redundant work and build on existing know
 ### Search Prior Research
 
 ```bash
-# Search for related prior research using semantic + keyword matching
+# Search using a durably budgeted semantic embedding plus keyword matching
 deepr search query "kubernetes deployment patterns"
+
+# Use only the local keyword index with no model call or metered spend
+deepr search query "kubernetes deployment patterns" --keyword-only
 
 # More results with lower threshold
 deepr search query "AWS security" --top 10 --threshold 0.6
@@ -178,7 +181,7 @@ deepr search query "machine learning" --json
 ### Index Reports
 
 ```bash
-# Index new reports for search
+# Index new reports with durably admitted, ledgered embeddings
 deepr search index
 
 # Force re-index all reports
@@ -193,7 +196,9 @@ deepr search clear
 
 ### Use Prior Research as Context
 
-When submitting new research, Deepr automatically detects related prior research:
+When submitting new research, Deepr automatically detects related prior research
+through the local keyword index. Pre-confirmation discovery never creates a
+metered embedding request:
 
 ```bash
 # Automatic detection (shown before confirmation)
@@ -725,9 +730,14 @@ deepr eval recall-libraries --json
 deepr eval recall-libraries --validation-plan --local-embedding-model nomic-embed-text --json
 deepr eval recall "Azure Architect" --query-embeddings-json query-vectors.json --embedding-model nomic-embed-text --save
 # recall-libraries emits deepr-recall-library-inventory-v1 or
-# deepr-recall-library-validation-plan-v1. Saved reports include
-# deepr-recall-operator-validation-v1. Default sync routing stays lexical-first
-# unless the operator supplies the saved report.
+# deepr-recall-library-validation-plan-v1. Saved evaluations emit
+# deepr-recall-eval-report-v2 with hit@k, MRR, precision@k, recall@k, MAP@k,
+# NDCG@k, and deterministic paired uncertainty. Preference eligibility needs
+# 30 cases, complete current vectors, required metric wins, and 95 percent
+# confidence lower bounds above zero. Sync also rejects the report after any
+# belief or vector state-digest drift, or when runtime top-k, expert domain, or
+# minimum score differs from the evaluated retrieval contract. Default sync
+# routing stays lexical-first.
 
 # MCP-only temporal edge query: filter typed edge qualifiers by valid time,
 # observed time, edge type, or one belief reference.
@@ -1243,6 +1253,14 @@ budgets, rate limits, audit logs, and provider keys on the origin side.
 See [design/capacity-waterfall.md](design/capacity-waterfall.md) for the capacity model and [design/local-fresh-context.md](design/local-fresh-context.md) for the fresh-context loop.
 
 ## Cost Management
+
+Provider-backed REST, web, CLI, campaign-batch, MCP, and internal orchestrator
+research share cross-process maximum-cost reservations before provider work.
+Paid synchronous planning calls reserve the full configured per-call ceiling,
+then settle provider token usage. Queued cancellation and dispatch use atomic
+competing transitions. Timeout and connection outcomes settle conservatively
+and do not trigger an application-level replay when acceptance is uncertain.
+See [design/research-cost-reservations.md](design/research-cost-reservations.md).
 
 ### Cost Estimation
 

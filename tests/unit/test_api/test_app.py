@@ -30,6 +30,8 @@ def mock_queue():
     """Create a mock queue with common async methods."""
     mock = MagicMock()
     mock.enqueue = AsyncMock(return_value=None)
+    mock.claim_submission = AsyncMock(return_value=True)
+    mock.cancel_queued_submission = AsyncMock(return_value=True)
     mock.update_status = AsyncMock(return_value=None)
     mock.get_job = AsyncMock(return_value=None)
     mock.list_jobs = AsyncMock(return_value=[])
@@ -42,6 +44,7 @@ def mock_provider():
     """Create a mock provider with common async methods."""
     mock = MagicMock()
     mock.submit_research = AsyncMock(return_value="provider-job-123")
+    mock.cancel_job = AsyncMock(return_value=True)
     return mock
 
 
@@ -62,11 +65,7 @@ def client(mock_queue, mock_provider, mock_storage):
     causes normal import to return the app instead of the module.
     We need the module to patch its globals (queue, provider, storage).
     """
-    # Ensure API key exists before import triggers OpenAIProvider init
-    import os
     import sys
-
-    os.environ.setdefault("OPENAI_API_KEY", "sk-test-dummy-for-unit-tests")
 
     # Import the module first to ensure it's loaded
     import deepr.api.app  # noqa: F401 (side-effect import to populate sys.modules)
@@ -75,10 +74,17 @@ def client(mock_queue, mock_provider, mock_storage):
     app_module = sys.modules["deepr.api.app"]
 
     # Patch the module-level globals
+    estimate = MagicMock(min_cost=0.1, max_cost=0.3, expected_cost=0.2)
+    reservation = MagicMock()
+    reservation.reservation_id = "test-reservation"
+    reservation.manager = MagicMock()
+    reservation.metadata.return_value = {}
     with (
         patch.object(app_module, "queue", mock_queue),
         patch.object(app_module, "provider", mock_provider),
         patch.object(app_module, "storage", mock_storage),
+        patch.object(app_module, "reserve_api_research_cost", return_value=(estimate, reservation)) as reserve_cost,
+        patch("deepr.services.research_submission.ResearchReservationStore.is_active", return_value=True),
     ):
         app_module.app.config["TESTING"] = True
 
@@ -87,6 +93,8 @@ def client(mock_queue, mock_provider, mock_storage):
             test_client.mock_queue = mock_queue
             test_client.mock_provider = mock_provider
             test_client.mock_storage = mock_storage
+            test_client.mock_reserve_cost = reserve_cost
+            test_client.mock_reservation = reservation
             yield test_client
 
 
@@ -168,6 +176,22 @@ class TestJobSubmission:
         assert "max_cost" in data["estimated_cost"]
         assert "estimated_cost" in data["estimated_cost"]
         assert data["estimated_cost"]["currency"] == "USD"
+
+    def test_submit_job_fails_closed_when_cost_reservation_is_unavailable(self, client):
+        client.mock_reserve_cost.side_effect = RuntimeError("ledger unavailable")
+
+        response = client.post("/api/jobs", json={"prompt": "Research quantum computing"})
+
+        assert response.status_code == 503
+        client.mock_provider.submit_research.assert_not_awaited()
+
+    def test_submit_job_refunds_reservation_when_provider_submission_fails(self, client):
+        client.mock_provider.submit_research.side_effect = RuntimeError("provider unavailable")
+
+        response = client.post("/api/jobs", json={"prompt": "Research quantum computing"})
+
+        assert response.status_code == 500
+        client.mock_reservation.manager.refund_reservation.assert_called_once_with("test-reservation")
 
 
 # =============================================================================
@@ -293,6 +317,9 @@ class TestJobCancellation:
     def test_cancel_job_success(self, client):
         """Test that POST /api/jobs/<id>/cancel returns success."""
         client.mock_queue.cancel_job = AsyncMock(return_value=True)
+        from deepr.queue.base import ResearchJob
+
+        client.mock_queue.get_job.return_value = ResearchJob(id="test-job-123", prompt="Test")
 
         response = client.post("/api/jobs/test-job-123/cancel")
 
@@ -322,6 +349,9 @@ class TestJobDeletion:
     def test_delete_job_success(self, client):
         """Test that DELETE /api/jobs/<id> returns success."""
         client.mock_queue.cancel_job = AsyncMock(return_value=True)
+        from deepr.queue.base import ResearchJob
+
+        client.mock_queue.get_job.return_value = ResearchJob(id="test-job-123", prompt="Test")
 
         response = client.delete("/api/jobs/test-job-123")
 
@@ -519,7 +549,9 @@ class TestAPIResponseStructure:
         # Create fresh mocks for each test iteration
         mock_queue = MagicMock()
         mock_queue.enqueue = AsyncMock(return_value=None)
+        mock_queue.claim_submission = AsyncMock(return_value=True)
         mock_queue.update_status = AsyncMock(return_value=None)
+        mock_queue.get_job = AsyncMock(return_value=None)
 
         mock_provider = MagicMock()
         mock_provider.submit_research = AsyncMock(return_value="provider-job-123")
@@ -528,11 +560,16 @@ class TestAPIResponseStructure:
 
         # Import and patch
         app_module = sys.modules["deepr.api.app"]
+        estimate = MagicMock(min_cost=0.1, max_cost=0.3, expected_cost=0.2)
+        reservation = MagicMock(reservation_id="property-reservation")
+        reservation.metadata.return_value = {}
 
         with (
             patch.object(app_module, "queue", mock_queue),
             patch.object(app_module, "provider", mock_provider),
             patch.object(app_module, "storage", mock_storage),
+            patch.object(app_module, "reserve_api_research_cost", return_value=(estimate, reservation)),
+            patch("deepr.services.research_submission.ResearchReservationStore.is_active", return_value=True),
         ):
             app_module.app.config["TESTING"] = True
 

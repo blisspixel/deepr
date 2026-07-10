@@ -61,6 +61,16 @@ def _isolate_cost_data(tmp_path, monkeypatch):
 
 
 @pytest.fixture(autouse=True)
+def _reset_cost_safety_singleton():
+    """Keep in-memory reservations and their ledger path test-local."""
+    from deepr.experts.cost_safety import reset_cost_safety_manager
+
+    reset_cost_safety_manager()
+    yield
+    reset_cost_safety_manager()
+
+
+@pytest.fixture(autouse=True)
 def _isolate_capacity_data(tmp_path, monkeypatch):
     """Keep local and plan admission state out of tests unless a test opts in."""
     monkeypatch.setenv("DEEPR_CAPACITY_DATA_DIR", str(tmp_path / "capacity"))

@@ -232,7 +232,7 @@ class ContextIndex:
 
         logger.info("Indexing %d reports", len(reports))
 
-        client = AsyncOpenAI()
+        client = AsyncOpenAI(max_retries=0)
         new_embeddings = []
         indexed_count = 0
 
@@ -267,7 +267,15 @@ class ContextIndex:
             # Generate embedding
             try:
                 embed_text = f"{prompt}\n\n{summary}"[:8000]
-                response = await client.embeddings.create(model="text-embedding-3-small", input=embed_text)
+                from deepr.services.metered_call import execute_reserved_async_call
+
+                response = await execute_reserved_async_call(
+                    operation_prefix="context-index",
+                    provider="openai",
+                    model="text-embedding-3-small",
+                    source="services.context_index.index_reports",
+                    call=lambda text=embed_text: client.embeddings.create(model="text-embedding-3-small", input=text),
+                )
                 embedding = np.array(response.data[0].embedding)
                 embedding_idx = len(new_embeddings)
                 if self.embeddings is not None:
@@ -343,6 +351,7 @@ class ContextIndex:
         top_k: int = 5,
         threshold: float = 0.7,
         include_keyword: bool = True,
+        include_semantic: bool = True,
     ) -> list[SearchResult]:
         """Search for related reports.
 
@@ -358,7 +367,7 @@ class ContextIndex:
         results: dict[str, SearchResult] = {}
 
         # Semantic search
-        if self.embeddings is not None and len(self.embeddings) > 0:
+        if include_semantic and self.embeddings is not None and len(self.embeddings) > 0:
             semantic_results = await self._semantic_search(query, top_k * 2, threshold)
             for r in semantic_results:
                 results[r.report_id] = r
@@ -386,8 +395,16 @@ class ContextIndex:
 
         # Embed query
         try:
-            client = AsyncOpenAI()
-            response = await client.embeddings.create(model="text-embedding-3-small", input=query)
+            from deepr.services.metered_call import execute_reserved_async_call
+
+            client = AsyncOpenAI(max_retries=0)
+            response = await execute_reserved_async_call(
+                operation_prefix="context-query",
+                provider="openai",
+                model="text-embedding-3-small",
+                source="services.context_index.semantic_search",
+                call=lambda: client.embeddings.create(model="text-embedding-3-small", input=query),
+            )
             query_embedding = np.array(response.data[0].embedding)
         except Exception as e:
             logger.error("Failed to embed query: %s", e)
@@ -555,6 +572,7 @@ class ContextIndex:
             top_k=top_k + 5,  # Fetch extra to filter
             threshold=threshold,
             include_keyword=True,
+            include_semantic=False,
         )
 
         # Filter out the excluded job and any very old or low-quality matches

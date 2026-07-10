@@ -60,16 +60,18 @@ class ResearchPlanner:
             self.client = OpenAI(
                 base_url=f"{azure_endpoint}/openai/v1/",
                 api_key=token_provider,
+                max_retries=0,
             )
         elif use_azure:
             # Azure with API key
             self.client = OpenAI(
                 base_url=f"{azure_endpoint}/openai/v1/",
                 api_key=os.getenv("AZURE_OPENAI_API_KEY"),
+                max_retries=0,
             )
         else:
             # OpenAI
-            self.client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+            self.client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"), max_retries=0)
 
     def plan_research(
         self,
@@ -167,10 +169,20 @@ Max research tasks: {max_tasks}"""
 Please analyze this scenario and generate {max_tasks} distinct research tasks that would provide comprehensive preparation. Return ONLY a JSON array, no other text."""
 
         try:
-            response = self.client.responses.create(
+            from deepr.services.metered_call import execute_reserved_sync_call
+
+            response = execute_reserved_sync_call(
+                operation_prefix="research-plan",
+                provider="azure" if self.use_azure else "openai",
                 model=self.model,
-                input=[{"role": "system", "content": system_prompt}, {"role": "user", "content": user_prompt}],
-                # Note: GPT-5 reasoning models don't support temperature parameter
+                source="services.research_planner.plan_research",
+                call=lambda: self.client.responses.create(
+                    model=self.model,
+                    input=[
+                        {"role": "system", "content": system_prompt},
+                        {"role": "user", "content": user_prompt},
+                    ],
+                ),
             )
 
             # Extract the response text

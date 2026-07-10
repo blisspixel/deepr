@@ -5,6 +5,11 @@ from __future__ import annotations
 from collections.abc import Iterable, Mapping, Sequence
 from typing import Any
 
+from deepr.experts.recall_preference import (
+    belief_index_coverage,
+    validate_preference_current_index,
+    validate_preference_retrieval_contract,
+)
 from deepr.experts.semantic_recall import LEXICAL_METHOD, VECTOR_METHOD
 from deepr.experts.source_pack_values import float_0_1 as _float_0_1
 
@@ -23,6 +28,7 @@ def _recall_value(candidate: Any, key: str, default: Any = "") -> Any:
 def _recall_string_list(value: Any) -> list[str]:
     if isinstance(value, str):
         return [value] if value else []
+    values: Iterable[Any]
     if isinstance(value, set):
         values = sorted(value)
     elif isinstance(value, Iterable):
@@ -103,16 +109,42 @@ def _memory_quality_packet(candidate: Any) -> dict[str, Any]:
     return packet
 
 
-def _prefers_vector_route(route_preference: Mapping[str, Any] | None) -> bool:
+def _prefers_vector_route(
+    route_preference: Mapping[str, Any] | None,
+    belief_store: Any,
+    embedding_model: str | None,
+    *,
+    top_k: int,
+    domain: str | None,
+    min_score: float,
+) -> bool:
     if not isinstance(route_preference, Mapping):
         return False
-    return (
+    contract_allows_vector = (
         route_preference.get("eligible") is True
         and route_preference.get("preferred_route") == VECTOR_METHOD
         and route_preference.get("fallback_route") == LEXICAL_METHOD
         and route_preference.get("routing_evidence_only") is True
         and route_preference.get("semantic_verdict") is False
     )
+    if not contract_allows_vector or not embedding_model:
+        return False
+    try:
+        current_index = belief_index_coverage(belief_store, embedding_model)
+        validate_preference_current_index(
+            route_preference,
+            current_index,
+            embedding_model=embedding_model,
+        )
+        validate_preference_retrieval_contract(
+            route_preference,
+            top_k=top_k,
+            domain=domain,
+            min_score=min_score,
+        )
+    except (TypeError, ValueError):
+        return False
+    return True
 
 
 def _mark_preferred_route(packets: list[dict[str, Any]]) -> list[dict[str, Any]]:
@@ -180,7 +212,14 @@ def build_verification_recall_candidates(
         return {}
 
     routed: dict[str, list[dict[str, Any]]] = {}
-    prefer_vector = _prefers_vector_route(route_preference)
+    prefer_vector = _prefers_vector_route(
+        route_preference,
+        belief_store,
+        embedding_model,
+        top_k=top_k,
+        domain=domain,
+        min_score=min_score,
+    )
     for candidate in _ready_claim_candidates(claim_extraction):
         candidate_id = str(candidate.get("candidate_id", "") or "")
         statement = str(candidate.get("statement", "") or "")
@@ -201,14 +240,18 @@ def build_verification_recall_candidates(
             if packets:
                 routed[candidate_id] = _mark_preferred_route(packets)
                 continue
+            if not include_lexical_fallback:
+                continue
+        if not include_lexical_fallback:
+            continue
         hits = recall(
             statement,
             top_k=top_k,
             min_score=min_score,
             domain=domain,
-            query_embedding=query_embedding,
-            embedding_model=embedding_model,
-            include_lexical_fallback=include_lexical_fallback,
+            query_embedding=None,
+            embedding_model=None,
+            include_lexical_fallback=True,
         )
         packets = [_memory_quality_packet(hit) for hit in hits]
         if packets:

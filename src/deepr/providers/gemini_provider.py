@@ -88,6 +88,7 @@ class _UnavailableGeminiClient:
             get=_unavailable,
         )
         self.files = SimpleNamespace(
+            delete=_unavailable,
             get=_unavailable,
             upload=_unavailable,
         )
@@ -301,9 +302,6 @@ class GeminiProvider(DeepResearchProvider):
         This is a background async job - returns an interaction ID immediately.
         Poll with get_status() to check for completion.
         """
-        max_retries = 3
-        retry_delay = 60  # Deep research retries need longer delays
-
         # Build prompt combining system message and user prompt
         prompt_parts = []
         if request.system_message:
@@ -323,48 +321,38 @@ class GeminiProvider(DeepResearchProvider):
             if file_store_name:
                 tools.append({"type": "file_search", "file_search_store_names": [file_store_name]})
 
-        for attempt in range(max_retries):
-            try:
-                create_kwargs: dict[str, Any] = {
-                    "input": prompt,
-                    "agent": DEEP_RESEARCH_AGENT,
-                    "background": True,
-                }
-                if tools:
-                    create_kwargs["tools"] = tools
+        create_kwargs: dict[str, Any] = {
+            "input": prompt,
+            "agent": DEEP_RESEARCH_AGENT,
+            "background": True,
+        }
+        if tools:
+            create_kwargs["tools"] = tools
 
-                interaction = self.client.interactions.create(**create_kwargs)
-                interaction_id = interaction.id
+        try:
+            # Interactions creation has no documented idempotency token. Do not
+            # retry an ambiguous POST at this layer; the caller conservatively
+            # settles its maximum reservation when the outcome is unknown.
+            interaction = self.client.interactions.create(**create_kwargs)
+        except GenaiAPIError as exc:
+            if file_store_name:
+                await self._cleanup_file_search_store(file_store_name)
+            raise ProviderError(
+                message=f"Failed to start deep research: {exc}",
+                provider="gemini",
+                original_error=exc,
+            ) from exc
 
-                # Track this deep research job
-                self._deep_research_jobs[interaction_id] = {
-                    "status": "in_progress",
-                    "created_at": datetime.now(UTC),
-                    "model": DEEP_RESEARCH_AGENT,
-                    "file_store_name": file_store_name,
-                    "request": request,
-                }
-
-                logger.info(f"Gemini deep research started: {interaction_id}")
-                return str(interaction_id)
-
-            except GenaiAPIError as e:
-                if attempt < max_retries - 1:
-                    wait_time = retry_delay * (2**attempt)
-                    logger.warning(f"Gemini deep research error (attempt {attempt + 1}/{max_retries}): {e}")
-                    await asyncio.sleep(wait_time)
-                    continue
-                else:
-                    # Cleanup file store on final failure
-                    if file_store_name:
-                        await self._cleanup_file_search_store(file_store_name)
-                    raise ProviderError(
-                        message=f"Failed to start deep research after {max_retries} attempts: {e}",
-                        provider="gemini",
-                        original_error=e,
-                    ) from e
-
-        raise ProviderError(message="Failed to start deep research after all retries", provider="gemini")
+        interaction_id = interaction.id
+        self._deep_research_jobs[interaction_id] = {
+            "status": "in_progress",
+            "created_at": datetime.now(UTC),
+            "model": DEEP_RESEARCH_AGENT,
+            "file_store_name": file_store_name,
+            "request": request,
+        }
+        logger.info("Gemini deep research started: %s", interaction_id)
+        return str(interaction_id)
 
     async def _submit_regular_research(self, request: ResearchRequest) -> str:
         """Submit regular (non-deep-research) job using generate_content."""
@@ -386,136 +374,116 @@ class GeminiProvider(DeepResearchProvider):
         """Execute regular research task with generate_content streaming."""
         job_data = self.jobs[job_id]
         request = job_data["request"]
-
-        max_retries = 3
-        retry_delay = 1
-
         job_data["status"] = "in_progress"
+        try:
+            model = job_data["model"]
 
-        for attempt in range(max_retries):
-            try:
-                model = job_data["model"]
+            prompt_length = len(request.prompt)
+            if prompt_length < 200:
+                complexity = "easy"
+            elif prompt_length > 1000 or "analyze" in request.prompt.lower() or "research" in request.prompt.lower():
+                complexity = "hard"
+            else:
+                complexity = "medium"
 
-                prompt_length = len(request.prompt)
-                if prompt_length < 200:
-                    complexity = "easy"
-                elif (
-                    prompt_length > 1000 or "analyze" in request.prompt.lower() or "research" in request.prompt.lower()
-                ):
-                    complexity = "hard"
-                else:
-                    complexity = "medium"
+            config_params: dict[str, Any] = {}
 
-                config_params: dict[str, Any] = {}
+            thinking_config = self._get_thinking_config(model, complexity)
+            if thinking_config:
+                config_params["thinking_config"] = thinking_config
 
-                thinking_config = self._get_thinking_config(model, complexity)
-                if thinking_config:
-                    config_params["thinking_config"] = thinking_config
+            if request.system_message:
+                config_params["system_instruction"] = request.system_message
 
-                if request.system_message:
-                    config_params["system_instruction"] = request.system_message
+            if request.temperature is not None:
+                config_params["temperature"] = request.temperature
 
-                if request.temperature is not None:
-                    config_params["temperature"] = request.temperature
+            enable_search = any(tool.type in ("web_search_preview", "google_search") for tool in request.tools)
+            if enable_search:
+                config_params["tools"] = [{"google_search": {}}]
 
-                enable_search = any(tool.type in ("web_search_preview", "google_search") for tool in request.tools)
-                if enable_search:
-                    config_params["tools"] = [{"google_search": {}}]
+            if request.metadata and request.metadata.get("structured_output"):
+                schema = request.metadata.get("response_schema")
+                if schema:
+                    config_params["response_mime_type"] = "application/json"
+                    config_params["response_schema"] = schema
 
-                if request.metadata and request.metadata.get("structured_output"):
-                    schema = request.metadata.get("response_schema")
-                    if schema:
-                        config_params["response_mime_type"] = "application/json"
-                        config_params["response_schema"] = schema
+            contents = [request.prompt]
 
-                contents = [request.prompt]
+            if request.document_ids:
+                for doc_id in request.document_ids:
+                    file_obj = self.client.files.get(name=doc_id)
+                    contents.insert(0, file_obj)
 
-                if request.document_ids:
-                    for doc_id in request.document_ids:
-                        file_obj = self.client.files.get(name=doc_id)
-                        contents.insert(0, file_obj)
+            config = types.GenerateContentConfig(**config_params) if config_params else None
 
-                config = types.GenerateContentConfig(**config_params) if config_params else None
+            response_parts = []
+            thought_parts = []
+            # Per-chunk usage from the Gemini SDK. The previous
+            # implementation discarded these and substituted a
+            # len(text) // 4 estimate, which dramatically under-counts
+            # prompts (no system instructions, no embedded media) and
+            # drops thinking tokens entirely - for gemini-2.5-pro
+            # (mandatory thinking) that's often 10x the visible output.
+            last_usage: Any = None
 
-                response_parts = []
-                thought_parts = []
-                # Per-chunk usage from the Gemini SDK. The previous
-                # implementation discarded these and substituted a
-                # len(text) // 4 estimate, which dramatically under-counts
-                # prompts (no system instructions, no embedded media) and
-                # drops thinking tokens entirely - for gemini-2.5-pro
-                # (mandatory thinking) that's often 10x the visible output.
-                last_usage: Any = None
-
-                if config:
-                    response_stream = self.client.models.generate_content_stream(
-                        model=model, contents=contents, config=config
-                    )
-                else:
-                    response_stream = self.client.models.generate_content_stream(model=model, contents=contents)
-
-                for chunk in response_stream:
-                    if hasattr(chunk, "candidates") and chunk.candidates:
-                        candidate = chunk.candidates[0]
-                        if hasattr(candidate, "content") and candidate.content:
-                            for part in candidate.content.parts or []:
-                                if hasattr(part, "text") and part.text:
-                                    if hasattr(part, "thought") and part.thought:
-                                        thought_parts.append(part.text)
-                                    else:
-                                        response_parts.append(part.text)
-                    # usage_metadata lands on the final chunk; keep the
-                    # latest non-None reference.
-                    chunk_usage = getattr(chunk, "usage_metadata", None)
-                    if chunk_usage is not None:
-                        last_usage = chunk_usage
-
-                full_response = "".join(response_parts)
-                thoughts_summary = "".join(thought_parts) if thought_parts else None
-
-                if last_usage is not None:
-                    prompt_tokens = int(getattr(last_usage, "prompt_token_count", 0) or 0)
-                    candidates_tokens = int(getattr(last_usage, "candidates_token_count", 0) or 0)
-                    thoughts_tokens = int(getattr(last_usage, "thoughts_token_count", 0) or 0)
-                    total_tokens = int(getattr(last_usage, "total_token_count", 0) or 0)
-                    input_tokens = prompt_tokens
-                    output_tokens = candidates_tokens + thoughts_tokens
-                    if total_tokens <= 0:
-                        total_tokens = input_tokens + output_tokens
-                else:
-                    # Fallback only if the SDK didn't emit usage_metadata.
-                    input_tokens = len(request.prompt) // 4
-                    output_tokens = len(full_response) // 4
-                    total_tokens = input_tokens + output_tokens
-
-                job_data.update(
-                    {
-                        "status": "completed",
-                        "completed_at": datetime.now(UTC),
-                        "output": full_response,
-                        "thoughts": thoughts_summary,
-                        "usage": {
-                            "input_tokens": int(input_tokens),
-                            "output_tokens": int(output_tokens),
-                            "total_tokens": int(total_tokens),
-                        },
-                    }
+            if config:
+                response_stream = self.client.models.generate_content_stream(
+                    model=model, contents=contents, config=config
                 )
+            else:
+                response_stream = self.client.models.generate_content_stream(model=model, contents=contents)
 
-                return
+            for chunk in response_stream:
+                if hasattr(chunk, "candidates") and chunk.candidates:
+                    candidate = chunk.candidates[0]
+                    if hasattr(candidate, "content") and candidate.content:
+                        for part in candidate.content.parts or []:
+                            if hasattr(part, "text") and part.text:
+                                if hasattr(part, "thought") and part.thought:
+                                    thought_parts.append(part.text)
+                                else:
+                                    response_parts.append(part.text)
+                chunk_usage = getattr(chunk, "usage_metadata", None)
+                if chunk_usage is not None:
+                    last_usage = chunk_usage
 
-            except GenaiAPIError as e:
-                if attempt < max_retries - 1:
-                    wait_time = retry_delay * (2**attempt)
-                    logger.warning(f"Gemini error (attempt {attempt + 1}/{max_retries}): {e}")
-                    await asyncio.sleep(wait_time)
-                    continue
-                else:
-                    job_data.update({"status": "failed", "error": str(e), "completed_at": datetime.now(UTC)})
-                    return
-            except Exception as e:
-                job_data.update({"status": "failed", "error": str(e), "completed_at": datetime.now(UTC)})
-                return
+            full_response = "".join(response_parts)
+            thoughts_summary = "".join(thought_parts) if thought_parts else None
+
+            if last_usage is not None:
+                prompt_tokens = int(getattr(last_usage, "prompt_token_count", 0) or 0)
+                candidates_tokens = int(getattr(last_usage, "candidates_token_count", 0) or 0)
+                thoughts_tokens = int(getattr(last_usage, "thoughts_token_count", 0) or 0)
+                total_tokens = int(getattr(last_usage, "total_token_count", 0) or 0)
+                input_tokens = prompt_tokens
+                output_tokens = candidates_tokens + thoughts_tokens
+                if total_tokens <= 0:
+                    total_tokens = input_tokens + output_tokens
+            else:
+                input_tokens = len(request.prompt) // 4
+                output_tokens = len(full_response) // 4
+                total_tokens = input_tokens + output_tokens
+
+            job_data.update(
+                {
+                    "status": "completed",
+                    "completed_at": datetime.now(UTC),
+                    "output": full_response,
+                    "thoughts": thoughts_summary,
+                    "usage": {
+                        "input_tokens": int(input_tokens),
+                        "output_tokens": int(output_tokens),
+                        "total_tokens": int(total_tokens),
+                    },
+                }
+            )
+        except GenaiAPIError as exc:
+            # The API has no documented idempotency token for this streaming
+            # generation call, so an ambiguous paid attempt is never replayed.
+            job_data.update({"status": "failed", "error": str(exc), "completed_at": datetime.now(UTC)})
+        except Exception as exc:
+            job_data.update({"status": "failed", "error": str(exc), "completed_at": datetime.now(UTC)})
 
     # =========================================================================
     # Get status - handles both deep research and regular jobs
@@ -902,6 +870,14 @@ class GeminiProvider(DeepResearchProvider):
 
         except (OSError, GenaiAPIError) as e:
             raise ProviderError(message=f"Failed to upload document: {e!s}", provider="gemini", original_error=e) from e
+
+    async def delete_document(self, file_id: str) -> bool:
+        """Delete an uploaded Gemini file."""
+        try:
+            self.client.files.delete(name=file_id)
+            return True
+        except GenaiAPIError as e:
+            raise ProviderError(message=f"Failed to delete document: {e!s}", provider="gemini", original_error=e) from e
 
     async def create_vector_store(self, name: str, file_ids: list[str]) -> VectorStore:
         """

@@ -212,6 +212,9 @@ class TestBatchExecutor:
         mock_provider.submit_research.return_value = "provider-123"
         await executor._submit_task("Prompt", 1, "campaign-1", {"phase": 1, "title": "T"})
         mock_queue.enqueue.assert_called_once()
+        queued_job = mock_queue.enqueue.call_args.args[0]
+        assert queued_job.metadata["cost_reservation_id"]
+        assert queued_job.metadata["cost_reservation_estimated_usd"] > 0
 
     @pytest.mark.asyncio
     async def test_submit_task_submits_to_provider(self, executor, mock_queue, mock_provider):
@@ -230,6 +233,40 @@ class TestBatchExecutor:
         assert call_kwargs["status"] == JobStatus.PROCESSING
 
     @pytest.mark.asyncio
+    async def test_submit_task_preserves_selected_model(self, executor, mock_queue, mock_provider):
+        """The selected campaign model reaches admission, queue, and provider."""
+        mock_provider.submit_research.return_value = "provider-123"
+        reservation = MagicMock()
+        reservation.metadata.return_value = {
+            "cost_reservation_id": "reservation-1",
+            "cost_reservation_estimated_usd": 1.0,
+        }
+
+        with (
+            patch(
+                "deepr.experts.research_cost_gate.reserve_configured_research_cost",
+                return_value=(1.0, reservation),
+            ) as reserve,
+            patch(
+                "deepr.services.research_submission.dispatch_reserved_research",
+                new_callable=AsyncMock,
+            ) as dispatch,
+        ):
+            await executor._submit_task(
+                "Prompt",
+                1,
+                "campaign-1",
+                {"phase": 1, "title": "T"},
+                model="o3-deep-research",
+            )
+
+        queued_job = dispatch.await_args.kwargs["job"]
+        submitted_request = dispatch.await_args.kwargs["request"]
+        assert reserve.call_args.kwargs["model"] == "o3-deep-research"
+        assert queued_job.model == "o3-deep-research"
+        assert submitted_request.model == "o3-deep-research"
+
+    @pytest.mark.asyncio
     @patch("deepr.services.batch_executor.asyncio.sleep", new_callable=AsyncMock)
     async def test_wait_for_completion_failed(self, mock_sleep, executor, mock_queue, mock_storage):
         """Failed job records failure."""
@@ -240,6 +277,82 @@ class TestBatchExecutor:
         tasks = [{"id": 1, "title": "Failing task"}]
         results = await executor._wait_for_completion({1: "job-fail"}, tasks)
         assert results[1]["status"] == "failed"
+
+    @pytest.mark.asyncio
+    @patch("deepr.services.batch_executor.asyncio.sleep", new_callable=AsyncMock)
+    async def test_wait_for_completion_polls_provider_without_external_worker(
+        self, mock_sleep, executor, mock_queue, mock_storage
+    ):
+        processing = MagicMock(status=JobStatus.PROCESSING, provider_job_id="provider-1")
+        completed = MagicMock(
+            status=JobStatus.COMPLETED,
+            provider_job_id="provider-1",
+            report_paths={"markdown": "report.md"},
+            cost=0.2,
+            tokens_used=10,
+        )
+        mock_queue.get_job.side_effect = [processing, completed]
+        mock_storage.get_report.return_value = b"Report"
+        poller = MagicMock(check_job_status=AsyncMock())
+
+        with patch("deepr.worker.poller.JobPoller", return_value=poller):
+            results = await executor._wait_for_completion(
+                {1: "job-1"},
+                [{"id": 1, "title": "Task"}],
+            )
+
+        poller.check_job_status.assert_awaited_once_with(processing)
+        assert results[1]["status"] == "completed"
+
+    @pytest.mark.asyncio
+    async def test_wait_timeout_retains_pending_job_when_cancel_is_unconfirmed(self, executor, mock_queue):
+        from deepr.services.research_cancellation import ResearchCancellationOutcome
+
+        processing = MagicMock(status=JobStatus.PROCESSING, provider_job_id="provider-1")
+        mock_queue.get_job.return_value = processing
+        outcome = ResearchCancellationOutcome(queue_cancelled=False, cost_closed=False)
+
+        with (
+            patch("time.monotonic", side_effect=[0.0, 2.0]),
+            patch(
+                "deepr.services.research_cancellation.cancel_reserved_research",
+                new_callable=AsyncMock,
+                return_value=outcome,
+            ) as cancel,
+        ):
+            results = await executor._wait_for_completion(
+                {1: "job-1"},
+                [{"id": 1, "title": "Task"}],
+                max_wait_seconds=1.0,
+            )
+
+        cancel.assert_awaited_once()
+        assert results[1]["status"] == "pending"
+        assert "tracking remains active" in results[1]["error"]
+
+    @pytest.mark.asyncio
+    async def test_campaign_pauses_before_later_phase_when_work_is_pending(self, executor):
+        pending_result = {
+            1: {
+                "title": "Foundation",
+                "job_id": "job-1",
+                "status": "pending",
+                "result": "",
+                "cost": 0.0,
+            }
+        }
+        executor._execute_phase = AsyncMock(return_value=(pending_result, None))
+        executor._save_campaign_results = AsyncMock()
+        tasks = [
+            {"id": 1, "title": "Foundation", "prompt": "P1", "phase": 1},
+            {"id": 2, "title": "Analysis", "prompt": "P2", "phase": 2, "depends_on": [1]},
+        ]
+
+        result = await executor.execute_campaign(tasks, "campaign-pending")
+
+        assert result["status"] == "pending"
+        assert executor._execute_phase.await_count == 1
+        assert 2 not in result["phases"]
 
     def test_generate_campaign_summary_format(self, executor):
         """Summary contains phases and tasks."""

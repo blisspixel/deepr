@@ -5,6 +5,7 @@ import logging
 import os
 from datetime import UTC, datetime
 from typing import Any
+from uuid import uuid4
 
 from azure.identity.aio import DefaultAzureCredential
 from openai import APIConnectionError, APITimeoutError, AsyncAzureOpenAI, RateLimitError
@@ -126,8 +127,11 @@ class AzureProvider(DeepResearchProvider):
         }
 
         # Add webhook if provided
+        extra_headers = {}
         if request.webhook_url:
-            payload["extra_headers"] = {"OpenAI-Hook-URL": request.webhook_url}
+            extra_headers["OpenAI-Hook-URL"] = request.webhook_url
+        extra_headers["Idempotency-Key"] = request.idempotency_key or f"deepr-provider-{uuid4().hex}"
+        payload["extra_headers"] = extra_headers
 
         # Add temperature if specified
         if request.temperature is not None:
@@ -279,11 +283,26 @@ class AzureProvider(DeepResearchProvider):
                 original_error=e,
             ) from e
 
+    async def delete_document(self, file_id: str) -> bool:
+        """Delete an uploaded Azure OpenAI file."""
+        try:
+            await self.client.files.delete(file_id)
+            return True
+        except OpenAIAPIError as e:
+            raise ProviderError(
+                message=f"Failed to delete document from Azure: {e!s}",
+                provider="azure",
+                original_error=e,
+            ) from e
+
     async def create_vector_store(self, name: str, file_ids: list[str]) -> VectorStore:
         """Create vector store in Azure OpenAI."""
         try:
             # Create vector store
-            vs = await self.client.vector_stores.create(name=name)
+            vs = await self.client.vector_stores.create(
+                name=name,
+                expires_after={"anchor": "last_active_at", "days": 1},
+            )
 
             # Attach files
             for file_id in file_ids:

@@ -15,6 +15,7 @@ Includes token budget management and intelligent context pruning.
 import asyncio
 import os
 from datetime import UTC
+from functools import partial
 
 from openai import OpenAI
 
@@ -47,7 +48,7 @@ class ContextBuilder:
         # absent so the env-var fallback applies instead of a bogus key.
         if api_key in ("***", ""):
             api_key = None
-        self.client = OpenAI(api_key=api_key or os.getenv("OPENAI_API_KEY"))
+        self.client = OpenAI(api_key=api_key or os.getenv("OPENAI_API_KEY"), max_retries=0)
         self.token_budget = token_budget or MAX_CONTEXT_TOKENS
         self.enable_pruning = enable_pruning
 
@@ -92,12 +93,21 @@ Research Report:
 
 Summary (bullet list, ~{target_words} words):"""
 
+        from deepr.services.metered_call import execute_reserved_sync_call
+
         response = await asyncio.to_thread(
-            self.client.chat.completions.create,
-            model="gpt-5-mini",  # Fast and cheap reasoning model for summarization
-            messages=[{"role": "user", "content": prompt}],
-            temperature=0.3,  # Lower temp for factual extraction
-            max_completion_tokens=max_tokens + 100,  # Allow some buffer
+            execute_reserved_sync_call,
+            operation_prefix="context-summary",
+            provider="openai",
+            model="gpt-5-mini",
+            source="services.context_builder.summarize_research",
+            call=partial(
+                self.client.chat.completions.create,
+                model="gpt-5-mini",
+                messages=[{"role": "user", "content": prompt}],
+                temperature=0.3,
+                max_completion_tokens=max_tokens + 100,
+            ),
         )
 
         return (response.choices[0].message.content or "").strip()

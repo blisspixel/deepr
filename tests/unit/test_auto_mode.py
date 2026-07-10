@@ -56,6 +56,15 @@ _MOCK_RANKINGS = {
 }
 
 
+def test_background_eval_is_disabled_without_explicit_opt_in(monkeypatch):
+    """Constructing a router must not silently start paid evaluation."""
+    monkeypatch.delenv("DEEPR_AUTO_EVAL", raising=False)
+    monkeypatch.setattr(auto_mode_module, "_auto_eval_started", False)
+
+    assert auto_mode_module.trigger_background_eval_if_needed() is False
+    assert auto_mode_module._auto_eval_started is False
+
+
 class TestAutoModeDecision:
     """Tests for AutoModeDecision dataclass."""
 

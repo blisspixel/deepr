@@ -503,27 +503,11 @@ class DeeprMCPServer:
             if not expert:
                 return _make_error("EXPERT_NOT_FOUND", f"Expert '{expert_name}' not found")
 
-            # Validation runs one small paid LLM call. ExpertValidator clamps
-            # max_evidence and rejects off-allowlist model overrides, but the
-            # spend itself must still pass through cost safety so the "free"
-            # label cannot be used to drain budget across repeated calls.
-            from deepr.experts.cost_safety import get_cost_safety_manager
             from deepr.services.expert_validator import (
                 DEFAULT_VALIDATION_MODEL,
                 ExpertValidator,
                 ExpertValidatorError,
             )
-
-            cost_safety = get_cost_safety_manager()
-            session_id = f"mcp_validate_{uuid.uuid4().hex[:8]}"
-            _validate_cost = 0.02
-            allowed, reason, _ = cost_safety.check_operation(
-                session_id=session_id,
-                operation_type="mcp_expert_validate",
-                estimated_cost=_validate_cost,
-            )
-            if not allowed:
-                return _make_error("BUDGET_EXCEEDED", f"Validation blocked by cost safety: {reason}")
 
             try:
                 validator = ExpertValidator(
@@ -533,14 +517,8 @@ class DeeprMCPServer:
                 result = await validator.validate(expert, claim)
             except ExpertValidatorError as e:
                 return _make_error("EXPERT_VALIDATE_INVALID_INPUT", str(e))
-
-            cost_safety.record_cost(
-                session_id=session_id,
-                operation_type="mcp_expert_validate",
-                actual_cost=_validate_cost,
-                provider="openai",
-                model=validator.model if isinstance(validator.model, str) else "",
-            )
+            except ValueError as e:
+                return _make_error("BUDGET_EXCEEDED", f"Validation blocked by durable cost admission: {e}")
 
             return result.to_dict()
         except (OSError, KeyError, ValueError, DeeprError) as e:

@@ -228,8 +228,12 @@ class TestAutoBatchExecutor:
     """Tests for AutoBatchExecutor."""
 
     @pytest.fixture
-    def executor(self):
-        """Create an executor instance."""
+    def executor(self, monkeypatch):
+        """Create an executor with deterministic credential availability."""
+        monkeypatch.setattr(
+            "deepr.routing.auto_mode.AutoModeRouter._is_provider_usable",
+            lambda _router, provider: provider == "openai",
+        )
         return AutoBatchExecutor()
 
     @pytest.fixture

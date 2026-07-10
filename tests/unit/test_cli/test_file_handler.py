@@ -280,3 +280,18 @@ class TestHandleFileUploads:
             assert result.vector_store_id is None
             # Vector store should not be created for Gemini
             mock_vs.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_cleanup_file_uploads_deletes_store_and_files() -> None:
+    from deepr.cli.commands.file_handler import FileUploadResult, cleanup_file_uploads
+
+    provider = MagicMock(
+        delete_vector_store=AsyncMock(return_value=True),
+        delete_document=AsyncMock(return_value=True),
+    )
+    result = FileUploadResult([], ["file-1", "file-2"], "vs-1", [], provider)
+
+    assert await cleanup_file_uploads(result)
+    provider.delete_vector_store.assert_awaited_once_with("vs-1")
+    assert provider.delete_document.await_count == 2

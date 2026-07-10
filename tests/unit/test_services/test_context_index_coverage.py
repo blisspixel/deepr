@@ -297,6 +297,14 @@ class TestSearch:
 
 class TestFindRelated:
     @pytest.mark.asyncio
+    async def test_automatic_related_search_is_keyword_only(self, populated_index):
+        populated_index.search = AsyncMock(return_value=[])
+
+        await populated_index.find_related("query")
+
+        assert populated_index.search.await_args.kwargs["include_semantic"] is False
+
+    @pytest.mark.asyncio
     async def test_excludes_specified_job(self, populated_index):
         vec = np.zeros(1536, dtype=np.float32)
         vec[0] = 1.0

@@ -117,6 +117,7 @@ class TestSubmitResearch:
                 system_message="sys",
                 tools=[],
                 metadata={},
+                idempotency_key="deepr-research-job-1",
             )
             jid = await provider.submit_research(req)
             assert jid == "resp_xyz"
@@ -125,6 +126,7 @@ class TestSubmitResearch:
             assert kwargs["model"] == "o3-deep-research"
             assert kwargs["store"] is True
             assert kwargs["background"] is True
+            assert kwargs["extra_headers"] == {"Idempotency-Key": "deepr-research-job-1"}
 
     @pytest.mark.asyncio
     async def test_submit_with_file_search_tool(self, provider):
@@ -176,7 +178,8 @@ class TestSubmitResearch:
             )
             await provider.submit_research(req)
             kwargs = create.call_args.kwargs
-            assert kwargs["extra_headers"] == {"OpenAI-Hook-URL": "https://hook.example/notify"}
+            assert kwargs["extra_headers"]["OpenAI-Hook-URL"] == "https://hook.example/notify"
+            assert kwargs["extra_headers"]["Idempotency-Key"].startswith("deepr-provider-")
             assert kwargs["temperature"] == 0.42
 
     @pytest.mark.asyncio
@@ -199,6 +202,11 @@ class TestSubmitResearch:
             req = ResearchRequest(prompt="p", model="o3", system_message="s", tools=[], metadata=None)
             jid = await provider.submit_research(req)
             assert jid == "resp_after_retry"
+            keys = {
+                call.kwargs["extra_headers"]["Idempotency-Key"]
+                for call in provider.client.responses.create.call_args_list
+            }
+            assert len(keys) == 1
 
     @pytest.mark.asyncio
     async def test_submit_retries_exhausted(self, provider, monkeypatch):

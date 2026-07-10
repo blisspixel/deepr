@@ -5,6 +5,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import httpx
 import pytest
+from google.genai.errors import APIError as GenaiAPIError
 
 from deepr.providers.base import ResearchRequest, ToolConfig
 from deepr.providers.gemini_provider import (
@@ -397,6 +398,23 @@ class TestDeepResearchSubmission:
         assert job_id.startswith("gemini-")
         assert job_id not in provider._deep_research_jobs
         assert job_id in provider.jobs
+
+    async def test_regular_generation_does_not_replay_ambiguous_api_error(self, provider):
+        provider.client.models.generate_content_stream.side_effect = GenaiAPIError(
+            503,
+            {"error": {"message": "stream interrupted", "status": "UNAVAILABLE"}},
+        )
+        request = ResearchRequest(
+            prompt="Simple question",
+            model="gemini-2.5-flash",
+            system_message="",
+            tools=[],
+        )
+
+        job_id = await provider.submit_research(request)
+
+        provider.client.models.generate_content_stream.assert_called_once()
+        assert provider.jobs[job_id]["status"] == "failed"
 
 
 @pytest.mark.asyncio

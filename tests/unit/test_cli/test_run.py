@@ -143,6 +143,8 @@ class TestRunSingleAsync:
                     with patch("deepr.cli.commands.run.SQLiteQueue") as mock_queue_class:
                         mock_queue_instance = MagicMock()
                         mock_queue_instance.enqueue = AsyncMock(return_value="job-123")
+                        mock_queue_instance.claim_submission = AsyncMock(return_value=True)
+                        mock_queue_instance.get_job = AsyncMock(return_value=None)
                         mock_queue_class.return_value = mock_queue_instance
 
                         # This should not raise
@@ -157,6 +159,191 @@ class TestRunSingleAsync:
                             yes=True,  # Skip confirmation
                             output_context=output_context,
                         )
+
+    @pytest.mark.asyncio
+    async def test_run_submission_persists_durable_ceiling_metadata(self, tmp_path, monkeypatch):
+        from deepr.cli.commands import run_submission
+        from deepr.experts.research_cost_gate import refund_research_cost
+        from deepr.experts.research_reservation_store import ResearchReservationStore
+        from deepr.queue.local_queue import SQLiteQueue
+
+        queue = SQLiteQueue(str(tmp_path / "queue.db"))
+        monkeypatch.setattr(run_submission, "SQLiteQueue", lambda: queue)
+
+        job_id, job, reservation = await run_submission.create_and_enqueue_job(
+            "Research safely",
+            "o4-mini-deep-research",
+            "openai",
+            False,
+            False,
+            [],
+            None,
+            5.0,
+            (),
+        )
+
+        persisted = await queue.get_job(job_id)
+        assert persisted is not None
+        assert persisted.metadata == job.metadata
+        assert persisted.metadata["cost_reservation_id"] == reservation.reservation_id
+        assert ResearchReservationStore().active_cost() == pytest.approx(5.0)
+        refund_research_cost(reservation)
+
+    @pytest.mark.asyncio
+    async def test_run_submission_uses_configured_queue_path(self, tmp_path):
+        from deepr.cli.commands import run_submission
+        from deepr.experts.research_cost_gate import refund_research_cost
+        from deepr.queue.local_queue import SQLiteQueue
+
+        queue_path = tmp_path / "runtime" / "configured.db"
+        job_id, _, reservation = await run_submission.create_and_enqueue_job(
+            "Research safely",
+            "o4-mini-deep-research",
+            "openai",
+            False,
+            False,
+            [],
+            None,
+            5.0,
+            (),
+            str(queue_path),
+        )
+
+        assert await SQLiteQueue(str(queue_path)).get_job(job_id) is not None
+        refund_research_cost(reservation)
+
+    @pytest.mark.asyncio
+    async def test_post_upload_rollback_cleans_resources_and_accounts_cost(self):
+        from deepr.cli.commands import run_submission
+
+        reservation = MagicMock()
+        upload_result = MagicMock(uploaded_ids=["file-1"], vector_store_id="vs-1")
+        with (
+            patch(
+                "deepr.cli.commands.file_handler.cleanup_file_uploads",
+                new_callable=AsyncMock,
+                return_value=True,
+            ) as cleanup,
+            patch("deepr.experts.research_cost_gate.settle_research_cost") as settle,
+            patch("deepr.cli.commands.run_submission.refund_research_cost") as refund,
+        ):
+            await run_submission.rollback_prepared_submission(
+                reservation,
+                upload_result,
+                source="test.rollback",
+            )
+
+        cleanup.assert_awaited_once()
+        settle.assert_called_once_with(
+            reservation,
+            actual_cost=None,
+            source="test.rollback.cleanup_confirmed",
+        )
+        refund.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_missing_deep_research_tools_fail_before_queue_or_reservation(self):
+        from deepr.cli.commands.run import _run_single
+        from deepr.cli.output import OutputContext, OutputMode
+
+        with (
+            patch("deepr.cli.commands.run._check_budget", return_value=True),
+            patch("deepr.cli.commands.run._reserve_job_submission", new_callable=AsyncMock) as reserve,
+        ):
+            await _run_single(
+                query="Test query",
+                model="o4-mini-deep-research",
+                provider="openai",
+                no_web=True,
+                no_code=True,
+                upload=(),
+                limit=None,
+                yes=True,
+                output_context=OutputContext(mode=OutputMode.QUIET),
+            )
+
+        reserve.assert_not_awaited()
+
+    @pytest.mark.asyncio
+    async def test_cost_admission_precedes_provider_file_upload(self):
+        """No provider resource is created before the durable hold exists."""
+        from deepr.cli.commands.run import _run_single
+        from deepr.cli.output import OutputContext, OutputMode
+
+        events: list[str] = []
+        reserve_args: tuple[object, ...] = ()
+        reservation = MagicMock()
+
+        async def reserve(*_args):
+            nonlocal reserve_args
+            reserve_args = _args
+            events.append("reserve")
+            return "research-1", reservation
+
+        async def upload(*_args):
+            events.append("upload")
+            return MagicMock(
+                has_errors=False,
+                errors=[],
+                vector_store_id="vs-1",
+                uploaded_ids=["file-1"],
+            )
+
+        queue = MagicMock(claim_submission=AsyncMock(return_value=True))
+        with (
+            patch("deepr.cli.commands.run._check_budget", return_value=True),
+            patch("deepr.cli.commands.run._reserve_job_submission", side_effect=reserve),
+            patch("deepr.cli.commands.file_handler.handle_file_uploads", side_effect=upload),
+            patch("deepr.cli.commands.run._enqueue_reserved_job", new_callable=AsyncMock) as enqueue,
+            patch("deepr.cli.commands.run._submit_to_provider", new_callable=AsyncMock),
+            patch("deepr.cli.commands.run.SQLiteQueue", return_value=queue),
+            patch("deepr.config.load_config", return_value={"queue_db_path": "custom/research.db"}),
+        ):
+            await _run_single(
+                query="Test query",
+                model="o4-mini-deep-research",
+                provider="openai",
+                no_web=False,
+                no_code=False,
+                upload=("test.pdf",),
+                limit=1.0,
+                yes=True,
+                output_context=OutputContext(mode=OutputMode.QUIET),
+            )
+
+        assert events == ["reserve", "upload"]
+        assert reserve_args[-1] == "custom/research.db"
+        assert enqueue.await_args.kwargs["queue_db_path"] == "custom/research.db"
+
+    @pytest.mark.asyncio
+    async def test_rejected_cost_admission_creates_no_provider_resources(self):
+        """A rejected hold cannot leak uploads or vector stores."""
+        from deepr.cli.commands.run import _run_single
+        from deepr.cli.output import OutputContext, OutputMode
+
+        with (
+            patch("deepr.cli.commands.run._check_budget", return_value=True),
+            patch(
+                "deepr.cli.commands.run._reserve_job_submission",
+                new_callable=AsyncMock,
+                side_effect=RuntimeError("cost limit exceeded"),
+            ),
+            patch("deepr.cli.commands.file_handler.handle_file_uploads", new_callable=AsyncMock) as upload,
+            pytest.raises(RuntimeError, match="cost limit exceeded"),
+        ):
+            await _run_single(
+                query="Test query",
+                model="o4-mini-deep-research",
+                provider="openai",
+                no_web=False,
+                no_code=False,
+                upload=("test.pdf",),
+                limit=0.01,
+                yes=True,
+                output_context=OutputContext(mode=OutputMode.QUIET),
+            )
+
+        upload.assert_not_awaited()
 
     @pytest.mark.asyncio
     async def test_run_single_respects_yes_flag(self):

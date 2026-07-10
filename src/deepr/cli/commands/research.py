@@ -1,36 +1,16 @@
 # research.py
 """Research commands - submit and manage individual research jobs."""
 
-import os
 from datetime import UTC
 
 import click
 
 from deepr.cli.colors import console, print_error, print_section_header, print_success, print_warning
+from deepr.cli.commands import research_support
 
-# -------------------------------
-# Helpers
-# -------------------------------
-
-
-def _ensure_parent_dir(path: str) -> None:
-    parent = os.path.dirname(os.path.abspath(path))
-    if parent and not os.path.exists(parent):
-        os.makedirs(parent, exist_ok=True)
-
-
-async def _resolve_job_id(queue, maybe_prefix: str):
-    """Allow users to pass a short prefix (first 8 chars). Falls back to exact match."""
-    if len(maybe_prefix) >= 32:  # likely a full UUID
-        job = await queue.get_job(maybe_prefix)
-        return job.id if job else None
-
-    # naive prefix scan; optimize in queue layer if needed
-    jobs = await queue.list_jobs(limit=500)  # implement list_jobs in queue if missing
-    for j in jobs:
-        if j.id.startswith(maybe_prefix):
-            return j.id
-    return None
+_build_research_prompt = research_support.build_research_prompt
+_ensure_parent_dir = research_support.ensure_parent_dir
+_resolve_job_id = research_support.resolve_job_id
 
 
 @click.group()
@@ -222,11 +202,14 @@ def submit(
         from datetime import datetime
 
         # Initialize metadata emitter for tracing
+        from deepr.experts.research_cost_gate import refund_research_cost, reserve_configured_research_cost
         from deepr.observability.metadata import MetadataEmitter
         from deepr.providers import create_provider
         from deepr.providers.base import ResearchRequest, ToolConfig
         from deepr.queue import create_queue
         from deepr.queue.base import JobStatus, ResearchJob
+        from deepr.services.research_cost_reconciliation import reconcile_research_cost_reservations
+        from deepr.services.research_submission import dispatch_reserved_research
 
         emitter = MetadataEmitter()
         op = emitter.start_task(
@@ -250,13 +233,33 @@ def submit(
         else:  # openai
             api_key = config.get("api_key")
 
-        provider_instance = create_provider(resolved_provider, api_key=api_key)
-
         job_id = str(uuid.uuid4())
+        research_prompt = _build_research_prompt(prompt, context_content)
+
+        asyncio.run(
+            reconcile_research_cost_reservations(
+                queue,
+                default_provider=resolved_provider,
+            )
+        )
+        _, reservation = reserve_configured_research_cost(
+            job_id=job_id,
+            provider=resolved_provider,
+            prompt=research_prompt,
+            model=model,
+            enable_web_search=web_search,
+            max_cost_per_job=cost_limit,
+        )
+        try:
+            provider_instance = create_provider(resolved_provider, api_key=api_key)
+        except Exception:
+            refund_research_cost(reservation)
+            raise
 
         # Build metadata with new options
         job_metadata = {
             "research_mode": research_mode,
+            **reservation.metadata(),
         }
         if entropy_threshold is not None:
             job_metadata["entropy_threshold"] = entropy_threshold
@@ -281,24 +284,11 @@ def submit(
         )
 
         async def submit_job():
-            await queue.enqueue(job)
-
             # Use provider-specific tool names
             tools = []
             if web_search:
                 tool_name = "web_search" if resolved_provider in ["grok", "xai"] else "web_search_preview"
                 tools.append(ToolConfig(type=tool_name))
-
-            # Build the prompt with optional context (6.3)
-            research_prompt = prompt
-            if context_content:
-                research_prompt = (
-                    f"## Prior Research Context\n\n"
-                    f"The following prior research may be relevant. Use it as background "
-                    f"but verify and update any findings:\n\n"
-                    f"---\n{context_content}\n---\n\n"
-                    f"## New Research Query\n\n{prompt}"
-                )
 
             request = ResearchRequest(
                 prompt=research_prompt,
@@ -310,9 +300,13 @@ def submit(
                 tools=tools,
                 background=True if resolved_provider in ["openai", "azure"] else False,
             )
-            provider_job_id = await provider_instance.submit_research(request)
-            await queue.update_status(job_id=job_id, status=JobStatus.PROCESSING, provider_job_id=provider_job_id)
-            return provider_job_id
+            return await dispatch_reserved_research(
+                queue=queue,
+                provider=provider_instance,
+                job=job,
+                request=request,
+                reservation=reservation,
+            )
 
         provider_job_id = asyncio.run(submit_job())
 
