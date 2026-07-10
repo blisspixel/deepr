@@ -586,6 +586,60 @@ class SQLiteQueue(QueueBackend):
         """Cancel a job."""
         return await self.update_status(job_id, JobStatus.CANCELLED)
 
+    async def cancel_active_job(self, job_id: str) -> bool:
+        """Atomically cancel a job only while it remains active."""
+        return await asyncio.to_thread(self._cancel_active_job_sync, job_id)
+
+    def _cancel_active_job_sync(self, job_id: str) -> bool:
+        connection = sqlite3.connect(self.db_path)
+        try:
+            cursor = connection.execute(
+                """
+                UPDATE research_queue
+                SET status = ?, completed_at = COALESCE(completed_at, ?)
+                WHERE id = ? AND status IN (?, ?)
+                """,
+                (
+                    JobStatus.CANCELLED.value,
+                    datetime.now(UTC).isoformat(),
+                    job_id,
+                    JobStatus.QUEUED.value,
+                    JobStatus.PROCESSING.value,
+                ),
+            )
+            connection.commit()
+            return cursor.rowcount == 1
+        except Exception:
+            connection.rollback()
+            raise
+        finally:
+            connection.close()
+
+    async def clear_cleanup_metadata(self, job_id: str) -> bool:
+        """Atomically clear provider resource IDs after confirmed cleanup."""
+        return await asyncio.to_thread(self._clear_cleanup_metadata_sync, job_id)
+
+    def _clear_cleanup_metadata_sync(self, job_id: str) -> bool:
+        connection = sqlite3.connect(self.db_path)
+        try:
+            row = connection.execute("SELECT metadata FROM research_queue WHERE id = ?", (job_id,)).fetchone()
+            if row is None:
+                return False
+            metadata: dict[str, Any] = _safe_json_loads(row[0], {}, f"job {job_id} metadata")
+            for key in ("cleanup_vector_store", "provider_file_ids", "uploaded_files", "vector_store_id"):
+                metadata.pop(key, None)
+            cursor = connection.execute(
+                "UPDATE research_queue SET metadata = ? WHERE id = ?",
+                (json.dumps(metadata), job_id),
+            )
+            connection.commit()
+            return cursor.rowcount == 1
+        except Exception:
+            connection.rollback()
+            raise
+        finally:
+            connection.close()
+
     async def get_queue_stats(self) -> dict[str, Any]:
         """Get queue statistics."""
         return await asyncio.to_thread(self._get_stats_sync)

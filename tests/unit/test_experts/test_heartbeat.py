@@ -36,7 +36,9 @@ class TestSendHeartbeat:
 
     def test_success_pings_base_url(self, monkeypatch):
         seen = {}
-        monkeypatch.setattr(hb.requests, "get", lambda url, timeout: seen.update(url=url, timeout=timeout) or _Resp(200))
+        monkeypatch.setattr(
+            hb.requests, "get", lambda url, timeout: seen.update(url=url, timeout=timeout) or _Resp(200)
+        )
         assert hb.send_heartbeat(url="https://hc.example/abc") is True
         assert seen["url"] == "https://hc.example/abc"
 

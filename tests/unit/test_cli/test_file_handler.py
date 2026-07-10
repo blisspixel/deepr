@@ -295,3 +295,25 @@ async def test_cleanup_file_uploads_deletes_store_and_files() -> None:
     assert await cleanup_file_uploads(result)
     provider.delete_vector_store.assert_awaited_once_with("vs-1")
     assert provider.delete_document.await_count == 2
+
+
+@pytest.mark.asyncio
+async def test_cleanup_file_uploads_treats_structured_not_found_as_already_deleted() -> None:
+    from deepr.cli.commands.file_handler import FileUploadResult, cleanup_file_uploads
+    from deepr.providers.base import ProviderError
+
+    class MissingResourceError(Exception):
+        status_code = 404
+
+    missing = ProviderError(
+        message="resource absent",
+        provider="test",
+        original_error=MissingResourceError(),
+    )
+    provider = MagicMock(
+        delete_vector_store=AsyncMock(side_effect=missing),
+        delete_document=AsyncMock(side_effect=missing),
+    )
+    result = FileUploadResult([], ["file-1"], "vs-1", [], provider)
+
+    assert await cleanup_file_uploads(result) is True

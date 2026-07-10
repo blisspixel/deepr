@@ -95,9 +95,7 @@ def _check_auth():
         return jsonify({"error": "Unauthorized"}), 401
 
 
-# =============================================================================
 # OpenAPI/Swagger Configuration
-# =============================================================================
 
 swagger_template = {
     "swagger": "2.0",
@@ -306,13 +304,11 @@ swagger = Swagger(app, template=swagger_template, config=swagger_config)
 # The 429 error handler is registered by create_limiter()
 limiter = create_limiter(app)
 
-# Register centralized error handlers for DeeprError and unexpected exceptions
-# This ensures consistent error responses and secure logging (sanitize_log_message)
 register_error_handlers(app)
 
-# Initialize services
 import uuid
 
+from deepr.api.job_cancellation import cancellation_response
 from deepr.api.research_cost import reserve_api_research_cost
 from deepr.config import load_config
 from deepr.experts.research_cost_gate import (
@@ -321,14 +317,14 @@ from deepr.experts.research_cost_gate import (
 )
 from deepr.providers.base import DeepResearchProvider, ResearchRequest, ToolConfig
 from deepr.providers.lazy import LazyProviderResolver, config_api_key
-from deepr.queue.base import JobStatus, ResearchJob
+from deepr.queue.base import JobStatus, ResearchJob, client_job_metadata, public_job_metadata
 from deepr.queue.local_queue import SQLiteQueue
+from deepr.services.job_provider import create_job_provider
 from deepr.services.research_cancellation import cancel_reserved_research
 from deepr.services.research_cost_reconciliation import reconcile_research_cost_reservations
 from deepr.services.research_submission import dispatch_reserved_research
 from deepr.storage.local import LocalStorage
 
-# Load config to get correct queue path
 config = load_config()
 queue = SQLiteQueue(config["queue_db_path"])
 storage = LocalStorage(config["results_dir"])
@@ -340,18 +336,29 @@ _provider_resolver = LazyProviderResolver(
 
 def _cancel_job_with_cost_safety(job: ResearchJob) -> bool:
     active_provider = provider
-    if job.provider_job_id and active_provider is None:
-        active_provider = _provider_resolver.resolve()
+    configured_provider = str(config.get("provider", "openai"))
+    provider_resources = any(job.metadata.get(key) for key in ("provider_file_ids", "vector_store_id")) or (
+        job.status != JobStatus.CANCELLED and job.provider_job_id
+    )
+    if provider_resources:
+        try:
+            active_provider = (
+                create_job_provider(job, config)
+                if job.provider != configured_provider
+                else active_provider or _provider_resolver.resolve()
+            )
+        except Exception:
+            return False
     outcome = run_async(
         cancel_reserved_research(
             queue=queue,
             provider=active_provider,
             job=job,
-            default_provider=str(config.get("provider", "openai")),
+            default_provider=job.provider,
             source="api.cancel_job",
         )
     )
-    return outcome.queue_cancelled
+    return outcome.confirmed
 
 
 @app.route("/api/jobs", methods=["GET"])
@@ -448,7 +455,7 @@ def list_jobs():
                 "submitted_at": job.submitted_at.isoformat() if job.submitted_at else None,
                 "started_at": job.started_at.isoformat() if job.started_at else None,
                 "completed_at": job.completed_at.isoformat() if job.completed_at else None,
-                "metadata": job.metadata or {},
+                "metadata": public_job_metadata(job.metadata),
                 "provider_job_id": job.provider_job_id,
                 "enable_web_search": job.enable_web_search,
                 "last_error": job.last_error,
@@ -529,7 +536,7 @@ def get_job(job_id):
         "submitted_at": job.submitted_at.isoformat() if job.submitted_at else None,
         "started_at": job.started_at.isoformat() if job.started_at else None,
         "completed_at": job.completed_at.isoformat() if job.completed_at else None,
-        "metadata": job.metadata or {},
+        "metadata": public_job_metadata(job.metadata),
         "provider_job_id": job.provider_job_id,
         "enable_web_search": job.enable_web_search,
         "last_error": job.last_error,
@@ -633,6 +640,11 @@ def submit_job():
     if not isinstance(model, str) or model not in _ALLOWED_MODELS:
         return jsonify({"error": "Invalid model"}), 400
 
+    try:
+        metadata = client_job_metadata(data.get("metadata"))
+    except ValueError as exc:
+        return jsonify({"error": str(exc)}), 400
+
     job_id = str(uuid.uuid4())
     try:
         run_async(
@@ -659,14 +671,12 @@ def submit_job():
         refund_research_cost(reservation)
         return jsonify({"error": "Research provider is not configured"}), 503
 
-    # Create job
-    raw_metadata = data.get("metadata", {})
-    metadata = dict(raw_metadata) if isinstance(raw_metadata, dict) else {}
     metadata.update(reservation.metadata())
     job = ResearchJob(
         id=job_id,
         prompt=prompt,
         model=model,
+        provider=str(config.get("provider", "openai")),
         priority=priority,
         enable_web_search=enable_web_search,
         status=JobStatus.QUEUED,
@@ -738,15 +748,14 @@ def cancel_job(job_id):
             success:
               type: boolean
               description: Whether cancellation was successful
-        examples:
-          application/json:
-            success: true
+      404:
+        description: Job not found
+      409:
+        description: Terminal job state cannot be cancelled
+      503:
+        description: Cancellation could not be confirmed
       429:
         description: Rate limit exceeded
-        headers:
-          Retry-After:
-            type: integer
-            description: Seconds to wait before retrying
         schema:
           $ref: '#/definitions/RateLimitError'
       500:
@@ -754,9 +763,7 @@ def cancel_job(job_id):
         schema:
           $ref: '#/definitions/Error'
     """
-    job = run_async(queue.get_job(job_id))
-    success = _cancel_job_with_cost_safety(job) if job is not None else False
-    return jsonify({"success": success})
+    return cancellation_response(run_async(queue.get_job(job_id)), _cancel_job_with_cost_safety)
 
 
 @app.route("/api/jobs/<job_id>", methods=["DELETE"])
@@ -785,15 +792,14 @@ def delete_job(job_id):
             success:
               type: boolean
               description: Whether deletion was successful
-        examples:
-          application/json:
-            success: true
+      404:
+        description: Job not found
+      409:
+        description: Terminal job state cannot be cancelled
+      503:
+        description: Cancellation could not be confirmed
       429:
         description: Rate limit exceeded
-        headers:
-          Retry-After:
-            type: integer
-            description: Seconds to wait before retrying
         schema:
           $ref: '#/definitions/RateLimitError'
       500:
@@ -801,9 +807,7 @@ def delete_job(job_id):
         schema:
           $ref: '#/definitions/Error'
     """
-    job = run_async(queue.get_job(job_id))
-    success = _cancel_job_with_cost_safety(job) if job is not None else False
-    return jsonify({"success": success})
+    return cancellation_response(run_async(queue.get_job(job_id)), _cancel_job_with_cost_safety)
 
 
 @app.route("/api/jobs/stats", methods=["GET"])
@@ -934,7 +938,6 @@ def get_result(job_id):
     if job.status != JobStatus.COMPLETED:
         return jsonify({"error": "Job not completed yet"}), 400
 
-    # Get result
     result = run_async(storage.get_report(job_id=job_id, filename="report.md"))
 
     return jsonify({"job_id": job_id, "content": result.decode("utf-8"), "format": "markdown"})
@@ -985,7 +988,6 @@ def get_cost_summary():
     total_cost = sum(j.cost or 0 for j in all_jobs)
     completed = [j for j in all_jobs if j.status == JobStatus.COMPLETED]
 
-    # Simple mock for daily/monthly - in real impl, filter by date
     summary = {
         "daily": total_cost,
         "monthly": total_cost,

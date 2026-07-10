@@ -17,6 +17,7 @@ import {
 import { useEffect, useState } from 'react'
 import { wsClient } from '@/api/websocket'
 import { DetailSkeleton } from '@/components/ui/skeleton'
+import { CANCELLATION_RETRY_MESSAGE, isTerminalJobStatus } from '@/lib/job-lifecycle'
 import {
   AlertDialog,
   AlertDialogAction,
@@ -41,7 +42,7 @@ export default function ResearchLive() {
     enabled: !!id,
     refetchInterval: (query) => {
       const status = query.state.data?.status
-      return (status === 'completed' || status === 'failed') ? false : 3000
+      return isTerminalJobStatus(status) ? false : 3000
     },
   })
 
@@ -60,7 +61,7 @@ export default function ResearchLive() {
 
   // Elapsed timer
   useEffect(() => {
-    if (!job?.started_at || job.status === 'completed' || job.status === 'failed') return
+    if (!job?.started_at || isTerminalJobStatus(job.status)) return
     const start = new Date(job.started_at).getTime()
     setElapsed(Math.floor((Date.now() - start) / 1000))
     const interval = setInterval(() => {
@@ -246,6 +247,13 @@ export default function ResearchLive() {
         </div>
       )}
 
+      {job.status === 'cancelled' && (
+        <div className="rounded-lg border border-warning/30 bg-warning/5 p-6">
+          <h2 className="text-sm font-semibold text-warning mb-2">Research Cancelled</h2>
+          <p className="text-sm text-foreground">Provider cancellation and local job closure were confirmed.</p>
+        </div>
+      )}
+
       {/* Live Metrics */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         <div className="rounded-lg border bg-card p-4 space-y-1">
@@ -309,7 +317,8 @@ export default function ResearchLive() {
               <AlertDialogHeader>
                 <AlertDialogTitle>Cancel this research job?</AlertDialogTitle>
                 <AlertDialogDescription>
-                  This will stop the job immediately. Any partial results will be lost and cannot be recovered.
+                  Deepr will ask the provider to stop the job and close local cost state. If confirmation fails,
+                  the job will remain active so you can retry.
                 </AlertDialogDescription>
               </AlertDialogHeader>
               <AlertDialogFooter>
@@ -323,6 +332,12 @@ export default function ResearchLive() {
               </AlertDialogFooter>
             </AlertDialogContent>
           </AlertDialog>
+        </div>
+      )}
+
+      {cancelMutation.isError && (
+        <div role="alert" className="rounded-lg border border-destructive/30 bg-destructive/5 p-4 text-sm text-destructive">
+          {CANCELLATION_RETRY_MESSAGE}
         </div>
       )}
     </div>

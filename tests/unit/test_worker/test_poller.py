@@ -5,6 +5,8 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
+from deepr.queue.base import JobStatus, ResearchJob
+
 
 class TestJobPoller:
     """Test JobPoller polling and job management."""
@@ -121,7 +123,7 @@ class TestJobPoller:
         await poller._check_job_status(mock_job)
         poller.queue.update_status.assert_called_once()
         call_kwargs = poller.queue.update_status.call_args[1]
-        assert "Rate limit" in call_kwargs["error"]
+        assert call_kwargs["error"] == "Provider reported research failure"
 
     @pytest.mark.asyncio
     async def test_check_job_in_progress_no_action(self, poller):
@@ -233,8 +235,26 @@ class TestJobPoller:
         )
 
     @pytest.mark.asyncio
-    async def test_completion_error_becomes_failure(self, poller):
-        """Error during completion handling triggers failure path."""
+    async def test_handle_failure_retains_active_state_when_cost_closure_fails(self, poller):
+        mock_job = ResearchJob(
+            id="cost-open",
+            prompt="test",
+            status=JobStatus.PROCESSING,
+            provider_job_id="provider-job",
+        )
+        poller.queue.update_status = AsyncMock()
+
+        with patch(
+            "deepr.worker.poller.restore_research_cost_reservation",
+            side_effect=RuntimeError("ledger unavailable"),
+        ):
+            await poller._handle_failure(mock_job, "Provider cancelled", status=JobStatus.CANCELLED)
+
+        poller.queue.update_status.assert_not_awaited()
+
+    @pytest.mark.asyncio
+    async def test_completion_error_retains_processing_for_retry(self, poller):
+        """Local completion failure must not rewrite provider success."""
         mock_job = MagicMock()
         mock_job.id = "err-comp"
         mock_job.prompt = "Test"
@@ -247,12 +267,11 @@ class TestJobPoller:
         poller.storage.save_report.side_effect = Exception("Storage down")
 
         await poller._handle_completion(mock_job, mock_resp)
-        # Should call _handle_failure, which calls update_status
-        poller.queue.update_status.assert_called()
+        poller.queue.update_status.assert_not_called()
 
     @pytest.mark.asyncio
-    async def test_handle_completion_update_results_failure_marks_job_failed(self, poller):
-        """If queue result persistence fails, completion should fall back to FAILED status."""
+    async def test_handle_completion_update_results_failure_retains_processing(self, poller):
+        """Result persistence failure must remain retryable."""
         mock_job = MagicMock()
         mock_job.id = "comp-results-fail"
         mock_job.prompt = "Test prompt"
@@ -267,10 +286,7 @@ class TestJobPoller:
 
         await poller._handle_completion(mock_job, mock_resp)
 
-        assert poller.queue.update_status.call_count == 1
-        kwargs = poller.queue.update_status.call_args.kwargs
-        assert kwargs["job_id"] == "comp-results-fail"
-        assert kwargs["status"].value == "failed"
+        poller.queue.update_status.assert_not_called()
 
     @pytest.mark.asyncio
     async def test_handle_failure_logs_when_status_not_persisted(self, poller, caplog):

@@ -54,8 +54,7 @@ def test_handoff_route_returns_versioned_payload(client):
         build_handoff.return_value = payload
 
         resp = client.get(
-            "/api/experts/Platform%20Expert/handoff"
-            "?max_claims=500&max_gaps=500&loop_limit=500&include_decisions=true"
+            "/api/experts/Platform%20Expert/handoff?max_claims=500&max_gaps=500&loop_limit=500&include_decisions=true"
         )
 
     assert resp.status_code == 200

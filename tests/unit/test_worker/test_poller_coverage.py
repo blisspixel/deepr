@@ -14,6 +14,7 @@ import pytest
 
 sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent))
 
+from deepr.queue.base import JobStatus
 from deepr.worker.poller import JobPoller
 
 
@@ -47,6 +48,7 @@ def _job(
     j.prompt = "p"
     j.model = "m"
     j.provider = "openai"
+    j.metadata = {}
     return j
 
 
@@ -127,11 +129,48 @@ class TestCheckJobStatus:
 
     @pytest.mark.asyncio
     async def test_failed_routes_to_failure_handler(self, poller):
-        resp = MagicMock(status="failed", error="oops")
+        resp = MagicMock(status="failed", error="secret\nforged")
+        job = _job()
         poller.provider.get_status = AsyncMock(return_value=resp)
         poller._handle_failure = AsyncMock()
+        await poller._check_job_status(job)
+        poller._handle_failure.assert_awaited_once_with(job, "Provider reported research failure")
+
+    @pytest.mark.asyncio
+    async def test_incomplete_routes_to_content_free_terminal_failure(self, poller):
+        resp = MagicMock(status="incomplete", error="secret\nforged")
+        job = _job()
+        poller.provider.get_status = AsyncMock(return_value=resp)
+        poller._handle_failure = AsyncMock()
+
+        await poller._check_job_status(job)
+
+        poller._handle_failure.assert_awaited_once_with(job, "Provider returned an incomplete research result")
+
+    @pytest.mark.asyncio
+    async def test_cancelled_persists_cancelled_terminal_state(self, poller):
+        job = _job()
+        poller.provider.get_status = AsyncMock(return_value=MagicMock(status="cancelled"))
+        poller._handle_failure = AsyncMock()
+
+        await poller._check_job_status(job)
+
+        poller._handle_failure.assert_awaited_once_with(
+            job,
+            "Provider reported research cancellation",
+            status=JobStatus.CANCELLED,
+        )
+
+    @pytest.mark.asyncio
+    async def test_unknown_status_remains_active_and_is_logged_without_content(self, poller, caplog):
+        poller.provider.get_status = AsyncMock(return_value=MagicMock(status="new\nforged"))
+        poller._handle_failure = AsyncMock()
+
         await poller._check_job_status(_job())
-        poller._handle_failure.assert_awaited_once()
+
+        poller._handle_failure.assert_not_awaited()
+        assert "unsupported provider status" in caplog.text
+        assert "forged" not in caplog.text
 
     @pytest.mark.asyncio
     async def test_in_progress_is_no_op(self, poller):
@@ -188,10 +227,13 @@ class TestCheckJobStatus:
         poller._handle_failure.assert_awaited_once()
 
     @pytest.mark.asyncio
-    async def test_provider_status_exception_swallowed(self, poller):
-        poller.provider.get_status = AsyncMock(side_effect=RuntimeError("net"))
+    async def test_provider_status_exception_swallowed_without_content(self, poller, caplog):
+        poller.provider.get_status = AsyncMock(side_effect=RuntimeError("secret\nforged"))
         # Should not raise; logs and exits.
         await poller._check_job_status(_job())
+
+        assert "RuntimeError" in caplog.text
+        assert "secret" not in caplog.text
 
 
 class TestHandleCompletion:
@@ -211,7 +253,7 @@ class TestHandleCompletion:
         poller.queue.update_status.assert_awaited()
 
     @pytest.mark.asyncio
-    async def test_queue_update_failure_promotes_to_failure(self, poller):
+    async def test_queue_update_failure_retains_processing_for_retry(self, poller):
         resp = MagicMock()
         resp.output = []
         resp.usage = None
@@ -220,10 +262,10 @@ class TestHandleCompletion:
         poller._handle_failure = AsyncMock()
         with patch("deepr.experts.cost_safety.get_cost_safety_manager"):
             await poller._handle_completion(_job(), resp)
-        poller._handle_failure.assert_awaited_once()
+        poller._handle_failure.assert_not_awaited()
 
     @pytest.mark.asyncio
-    async def test_status_update_failure_promotes_to_failure(self, poller):
+    async def test_status_update_failure_retains_processing_for_retry(self, poller):
         resp = MagicMock()
         resp.output = []
         resp.usage = None
@@ -233,7 +275,7 @@ class TestHandleCompletion:
         poller._handle_failure = AsyncMock()
         with patch("deepr.experts.cost_safety.get_cost_safety_manager"):
             await poller._handle_completion(_job(), resp)
-        poller._handle_failure.assert_awaited_once()
+        poller._handle_failure.assert_not_awaited()
 
 
 class TestHandleFailure:

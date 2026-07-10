@@ -129,6 +129,34 @@ class TestSQLiteQueue:
         assert claimed is not None
         assert claimed.status == JobStatus.PROCESSING
 
+    async def test_cancel_active_job_preserves_terminal_history(self, queue, sample_job):
+        await queue.enqueue(sample_job)
+
+        assert await queue.cancel_active_job(sample_job.id) is True
+        assert await queue.cancel_active_job(sample_job.id) is False
+        assert await queue.update_status(sample_job.id, JobStatus.COMPLETED) is True
+        assert await queue.cancel_active_job(sample_job.id) is False
+        completed = await queue.get_job(sample_job.id)
+        assert completed is not None
+        assert completed.status == JobStatus.COMPLETED
+
+    async def test_clear_cleanup_metadata_preserves_public_annotations(self, queue):
+        job = ResearchJob(
+            id="cleanup-job",
+            prompt="cleanup",
+            metadata={
+                "campaign": "launch",
+                "provider_file_ids": ["file-1"],
+                "vector_store_id": "vs-1",
+            },
+        )
+        await queue.enqueue(job)
+
+        assert await queue.clear_cleanup_metadata(job.id) is True
+        updated = await queue.get_job(job.id)
+        assert updated is not None
+        assert updated.metadata == {"campaign": "launch"}
+
     async def test_update_results(self, queue, sample_job):
         """Test results updates."""
         await queue.enqueue(sample_job)

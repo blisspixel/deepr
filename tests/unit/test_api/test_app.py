@@ -83,6 +83,7 @@ def client(mock_queue, mock_provider, mock_storage):
         patch.object(app_module, "queue", mock_queue),
         patch.object(app_module, "provider", mock_provider),
         patch.object(app_module, "storage", mock_storage),
+        patch.object(app_module.limiter, "enabled", False),
         patch.object(app_module, "reserve_api_research_cost", return_value=(estimate, reservation)) as reserve_cost,
         patch("deepr.services.research_submission.ResearchReservationStore.is_active", return_value=True),
     ):
@@ -161,6 +162,29 @@ class TestJobSubmission:
             "/api/jobs", json={"prompt": "Research AI", "enable_web_search": False}, content_type="application/json"
         )
         assert response.status_code == 200
+
+    @pytest.mark.parametrize(
+        "reserved_key",
+        [
+            "cleanup_vector_store",
+            "cost_reservation_estimated_usd",
+            "cost_reservation_id",
+            "cost_reservation_model",
+            "cost_reservation_provider",
+            "provider_file_ids",
+            "uploaded_files",
+            "vector_store_id",
+        ],
+    )
+    def test_submit_job_rejects_provider_lifecycle_metadata(self, client, reserved_key):
+        response = client.post(
+            "/api/jobs",
+            json={"prompt": "Research AI", "metadata": {reserved_key: "client-selected"}},
+        )
+
+        assert response.status_code == 400
+        assert response.get_json() == {"error": "metadata contains reserved fields"}
+        client.mock_provider.submit_research.assert_not_awaited()
 
     def test_submit_job_returns_estimated_cost(self, client):
         """Test that POST /api/jobs returns estimated cost."""
@@ -253,6 +277,25 @@ class TestJobRetrieval:
         assert data["job"]["status"] == "completed"
         assert data["job"]["cost"] == 0.50
 
+    def test_get_job_redacts_provider_lifecycle_metadata(self, client):
+        from deepr.queue.base import JobStatus, ResearchJob
+
+        client.mock_queue.get_job.return_value = ResearchJob(
+            id="test-job-123",
+            prompt="Test prompt",
+            status=JobStatus.PROCESSING,
+            metadata={
+                "campaign": "launch",
+                "provider_file_ids": ["file-private"],
+                "vector_store_id": "vs-private",
+            },
+        )
+
+        response = client.get("/api/jobs/test-job-123")
+
+        assert response.status_code == 200
+        assert response.get_json()["job"]["metadata"] == {"campaign": "launch"}
+
 
 # =============================================================================
 # Job Listing Tests
@@ -297,6 +340,22 @@ class TestJobListing:
         assert len(data["jobs"]) == 2
         assert data["total"] == 2
 
+    def test_list_jobs_redacts_provider_lifecycle_metadata(self, client):
+        from deepr.queue.base import ResearchJob
+
+        client.mock_queue.list_jobs.return_value = [
+            ResearchJob(
+                id="job-1",
+                prompt="Prompt 1",
+                metadata={"campaign": "launch", "provider_file_ids": ["file-private"]},
+            )
+        ]
+
+        response = client.get("/api/jobs")
+
+        assert response.status_code == 200
+        assert response.get_json()["jobs"][0]["metadata"] == {"campaign": "launch"}
+
     def test_list_jobs_with_status_filter(self, client):
         """Test that GET /api/jobs accepts status filter."""
         from deepr.queue.base import JobStatus, ResearchJob
@@ -328,26 +387,93 @@ class TestJobCancellation:
 
     def test_cancel_job_success(self, client):
         """Test that POST /api/jobs/<id>/cancel returns success."""
-        client.mock_queue.cancel_job = AsyncMock(return_value=True)
         from deepr.queue.base import ResearchJob
 
         client.mock_queue.get_job.return_value = ResearchJob(id="test-job-123", prompt="Test")
 
-        response = client.post("/api/jobs/test-job-123/cancel")
+        with patch("deepr.api.app._cancel_job_with_cost_safety", return_value=True):
+            response = client.post("/api/jobs/test-job-123/cancel")
 
         assert response.status_code == 200
         data = json.loads(response.data)
         assert data["success"] is True
 
     def test_cancel_job_failure(self, client):
-        """Test that POST /api/jobs/<id>/cancel returns failure."""
-        client.mock_queue.cancel_job = AsyncMock(return_value=False)
+        """Test that a missing job returns a not-found error."""
 
         response = client.post("/api/jobs/nonexistent-job/cancel")
 
+        assert response.status_code == 404
+        assert response.get_json() == {"error": "Job not found"}
+
+    def test_cancel_job_unconfirmed_returns_retryable_failure(self, client):
+        from deepr.queue.base import ResearchJob
+
+        client.mock_queue.get_job.return_value = ResearchJob(id="test-job-123", prompt="Test")
+
+        with patch("deepr.api.app._cancel_job_with_cost_safety", return_value=False):
+            response = client.post("/api/jobs/test-job-123/cancel")
+
+        assert response.status_code == 503
+        assert response.get_json() == {"error": "Job cancellation could not be confirmed"}
+
+    def test_cancel_job_preserves_completed_terminal_history(self, client):
+        from deepr.queue.base import JobStatus, ResearchJob
+
+        client.mock_queue.get_job.return_value = ResearchJob(
+            id="test-job-123",
+            prompt="Test",
+            status=JobStatus.COMPLETED,
+        )
+
+        response = client.post("/api/jobs/test-job-123/cancel")
+
+        assert response.status_code == 409
+        assert response.get_json() == {"error": "Terminal job state cannot be cancelled"}
+
+    def test_cancel_job_is_idempotent_after_confirmed_cancellation(self, client):
+        from deepr.queue.base import JobStatus, ResearchJob
+
+        client.mock_queue.get_job.return_value = ResearchJob(
+            id="test-job-123",
+            prompt="Test",
+            status=JobStatus.CANCELLED,
+        )
+
+        response = client.post("/api/jobs/test-job-123/cancel")
+
         assert response.status_code == 200
-        data = json.loads(response.data)
-        assert data["success"] is False
+        assert response.get_json() == {"success": True}
+
+    def test_cancel_uses_provider_recorded_on_job(self, client):
+        import sys
+
+        from deepr.queue.base import JobStatus, ResearchJob
+        from deepr.services.research_cancellation import ResearchCancellationOutcome
+
+        app_module = sys.modules["deepr.api.app"]
+
+        job = ResearchJob(
+            id="test-job-123",
+            prompt="Test",
+            provider="gemini",
+            provider_job_id="gemini-job",
+            status=JobStatus.PROCESSING,
+        )
+        owned_provider = MagicMock()
+
+        with (
+            patch("deepr.api.app.create_job_provider", return_value=owned_provider) as create,
+            patch(
+                "deepr.api.app.cancel_reserved_research",
+                new=AsyncMock(return_value=ResearchCancellationOutcome(True, True)),
+            ) as cancel,
+        ):
+            assert app_module._cancel_job_with_cost_safety(job) is True
+
+        create.assert_called_once_with(job, app_module.config)
+        assert cancel.await_args.kwargs["provider"] is owned_provider
+        assert cancel.await_args.kwargs["default_provider"] == "gemini"
 
 
 # =============================================================================
@@ -360,16 +486,30 @@ class TestJobDeletion:
 
     def test_delete_job_success(self, client):
         """Test that DELETE /api/jobs/<id> returns success."""
-        client.mock_queue.cancel_job = AsyncMock(return_value=True)
         from deepr.queue.base import ResearchJob
 
         client.mock_queue.get_job.return_value = ResearchJob(id="test-job-123", prompt="Test")
 
-        response = client.delete("/api/jobs/test-job-123")
+        with patch("deepr.api.app._cancel_job_with_cost_safety", return_value=True):
+            response = client.delete("/api/jobs/test-job-123")
 
         assert response.status_code == 200
         data = json.loads(response.data)
         assert data["success"] is True
+
+    def test_delete_job_preserves_failed_terminal_history(self, client):
+        from deepr.queue.base import JobStatus, ResearchJob
+
+        client.mock_queue.get_job.return_value = ResearchJob(
+            id="test-job-123",
+            prompt="Test",
+            status=JobStatus.FAILED,
+        )
+
+        response = client.delete("/api/jobs/test-job-123")
+
+        assert response.status_code == 409
+        assert response.get_json() == {"error": "Terminal job state cannot be cancelled"}
 
 
 # =============================================================================

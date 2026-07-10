@@ -55,6 +55,12 @@ class ServiceBusQueue(QueueBackend):
     async def cancel_job(self, job_id: str) -> bool:
         raise NotImplementedError()
 
+    async def cancel_active_job(self, job_id: str) -> bool:
+        raise NotImplementedError()
+
+    async def clear_cleanup_metadata(self, job_id: str) -> bool:
+        raise NotImplementedError()
+
     async def get_queue_stats(self) -> dict[str, Any]:
         raise NotImplementedError()
 

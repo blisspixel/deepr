@@ -300,66 +300,49 @@ deepr prep auto "Research goal" --rounds 3
 
 ## Real-Time Progress
 
-Track long-running research operations with live progress updates.
+Track long-running research operations through their durable job status.
 
 ### Progress Tracking
 
 ```bash
-# Wait for job with real-time progress display
-deepr research wait abc123 --progress
+# Read the current durable status
+deepr jobs status abc123
 
-# With custom poll interval (default 5s)
-deepr research wait abc123 --progress --poll-interval 10
-
-# Simple wait without progress UI
-deepr research wait abc123 --timeout 600
+# Open the dashboard and follow an active job
+deepr web
 ```
 
-**Progress phases:** queued -> initializing -> searching -> analyzing -> synthesizing -> finalizing -> completed
-
-The progress display shows:
-- Current phase with completion indicators
-- Progress bar with percentage estimate
-- Elapsed time
-- Partial results preview (when available)
+The Research Live dashboard polls while a job is `queued` or `processing` and
+stops when it reaches `completed`, `failed`, or `cancelled`. Deepr does not
+invent percentage completion for providers that expose only lifecycle status.
 
 ## Research Observability
 
-Understand how research was conducted with trace inspection tools.
+Request research-path evidence on a direct research run.
 
 ### Trace Commands
 
 ```bash
-# View research path explanation
-deepr research trace abc123 --explain
+# Explain task routing and execution after the run
+deepr research "Question" --explain
 
-# Show reasoning evolution timeline
-deepr research trace abc123 --timeline
+# Show the execution timeline after the run
+deepr research "Question" --timeline
 
-# Show temporal knowledge timeline (findings & hypotheses)
-deepr research trace abc123 --temporal
-
-# Show context lineage (which sources informed which tasks)
-deepr research trace abc123 --lineage
-
-# Show token budget utilization
-deepr research trace abc123 --show-budget
-
-# Export complete audit trail
-deepr research trace abc123 --full-trace -o trace.json
+# Include the full trace in the completed run output
+deepr research "Question" --full-trace
 ```
 
 ### Understanding Traces
 
-**--explain:** Shows task hierarchy with model, cost, and context sources per operation. Also displays a **decision table** (type, decision, confidence, cost impact) when decision records are available.
+**--explain:** Shows the task hierarchy, selected model, cost, and available
+decision evidence.
 
-**--timeline:** Rich table showing offset, task type, status, duration, and cost
+**--timeline:** Shows the completed task sequence, status, duration, and cost.
 
-**--temporal:** Findings discovered over time with confidence scores and hypothesis evolution
-
-**--lineage:** Tree visualization of context flow (which documents/findings informed each task)
-
-**--show-budget:** Token usage breakdown by phase with budget utilization percentage
+**--full-trace:** Includes the complete available execution trace. These flags
+apply to the direct `research` command; there is no separate `research trace`
+subcommand for a queued job.
 
 ## Provider Intelligence
 
@@ -1466,31 +1449,23 @@ deepr analytics failures
 ### Export Research
 
 ```bash
-# Export to markdown (default)
-deepr jobs export <job-id>
-
-# Specific format
-deepr jobs export <job-id> --format json
-deepr jobs export <job-id> --format html
-deepr jobs export <job-id> --format txt
-
-# Custom output
-deepr jobs export <job-id> --format html --output report.html
+# Print the stored result for a completed job
+deepr jobs get <job-id>
 ```
 
-**Formats:**
-- `markdown` - Markdown with citations
-- `txt` - Plain text
-- `json` - Structured JSON with metadata
-- `html` - Formatted HTML report
+Completed reports remain under the configured reports root, which defaults to
+`data/reports/`. Deepr currently has no `jobs export` subcommand.
 
 ### Cancel Jobs
 
 ```bash
 # Cancel running job
 deepr jobs cancel <job-id>
-deepr jobs cancel <job-id> --yes
 ```
+
+The command exits successfully only after Deepr confirms cancellation,
+cost-reservation closure, and provider-resource cleanup. On a nonzero exit, inspect `deepr jobs status
+<job-id>` before retrying.
 
 ## Command Reference
 
@@ -1559,7 +1534,7 @@ deepr jobs list --status completed
 
 ```bash
 # Daily batch job
-deepr jobs list --status pending
+deepr jobs list --status queued
 
 # Cost monitoring
 deepr costs show

@@ -1,6 +1,7 @@
 """Job management commands - unified namespace for job operations."""
 
 import asyncio
+import logging
 from datetime import UTC
 from pathlib import Path
 
@@ -12,6 +13,16 @@ from deepr.cli.colors import (
 )
 from deepr.queue.base import JobStatus
 from deepr.queue.local_queue import SQLiteQueue
+from deepr.services.job_provider import create_job_provider
+from deepr.services.provider_completion import finalize_provider_completion
+from deepr.services.provider_status import (
+    classify_provider_status,
+    provider_exception_name,
+    terminal_provider_error,
+)
+from deepr.services.research_cancellation import cancel_reserved_research
+
+logger = logging.getLogger(__name__)
 
 
 @click.group()
@@ -61,42 +72,24 @@ async def _show_status(job_id: str):
 
                 try:
                     from deepr.config import load_config
-                    from deepr.providers import create_provider
 
                     config = load_config()
-                    # Use the job's provider, not the config default
-                    provider_name = (
-                        job.provider if hasattr(job, "provider") and job.provider else config.get("provider", "openai")
-                    )
-
-                    # Get provider-specific API key
-                    if provider_name == "gemini":
-                        api_key = config.get("gemini_api_key")
-                    elif provider_name == "grok":
-                        api_key = config.get("xai_api_key")
-                    elif provider_name == "azure":
-                        api_key = config.get("azure_api_key")
-                    else:  # openai
-                        api_key = config.get("api_key")
-
-                    provider = create_provider(provider_name, api_key=api_key)
+                    provider = create_job_provider(job, config)
                     response = await provider.get_status(job.provider_job_id)
+                    provider_status = classify_provider_status(response.status)
 
-                    if response.status == "completed":
+                    if provider_status == "completed":
                         console.print("[success]Provider reports: COMPLETED[/success] [dim](local DB was stale)[/dim]")
                         click.echo("Use 'deepr jobs get " + job_id + "' to retrieve results\n")
-                    elif response.status in ["failed", "expired", "cancelled"]:
-                        console.print(
-                            f"[error]Provider reports: {response.status.upper()}[/error] [dim](local DB was stale)[/dim]"
-                        )
-                        await queue.update_status(
-                            job_id, JobStatus.FAILED if response.status != "cancelled" else JobStatus.CANCELLED
-                        )
-                        job = await queue.get_job(job_id)
+                    elif terminal_error := terminal_provider_error(provider_status):
+                        console.print(f"[error]{terminal_error}[/error] [dim](local DB was stale)[/dim]")
+                        click.echo("Local lifecycle reconciliation is still pending.\n")
+                    elif provider_status == "unsupported":
+                        click.echo("Warning: Provider returned an unsupported status; the job remains active.\n")
                     else:
-                        console.print(f"[success]Provider confirms: still {response.status}[/success]")
-                except Exception as e:
-                    click.echo(f"Warning: Could not verify with provider: {e}\n")
+                        console.print(f"[success]Provider confirms: still {provider_status}[/success]")
+                except Exception as exc:
+                    click.echo(f"Warning: Could not verify with provider ({provider_exception_name(exc)})\n")
 
     from deepr.cli.colors import print_key_value, print_section_header
 
@@ -187,79 +180,40 @@ async def _get_results(job_id: str):
 
         try:
             from deepr.config import load_config
-            from deepr.providers import create_provider
             from deepr.storage import create_storage
 
             config = load_config()
-            # Use the job's provider, not the config default
-            provider_name = (
-                job.provider if hasattr(job, "provider") and job.provider else config.get("provider", "openai")
-            )
-
-            # Get provider-specific API key
-            if provider_name == "gemini":
-                api_key = config.get("gemini_api_key")
-            elif provider_name == "grok":
-                api_key = config.get("xai_api_key")
-            elif provider_name == "azure":
-                api_key = config.get("azure_api_key")
-            else:  # openai
-                api_key = config.get("api_key")
-
-            provider = create_provider(provider_name, api_key=api_key)
+            provider = create_job_provider(job, config)
 
             # Fetch from provider
             response = await provider.get_status(job.provider_job_id)
+            provider_status = classify_provider_status(response.status)
 
-            if response.status == "completed":
-                console.print("[success]Retrieved results from provider[/success]")
-
-                # Extract content from response
-                content = ""
-                if response.output:
-                    for block in response.output:
-                        if block.get("type") == "message":
-                            for item in block.get("content", []):
-                                if item.get("type") in ["output_text", "text"]:
-                                    text = item.get("text", "")
-                                    if text:
-                                        content += text + "\n"
-
-                # Save to storage
+            if provider_status == "completed":
                 storage = create_storage("local")
-                report_metadata = await storage.save_report(
-                    job_id=job_id, filename="report.md", content=content.encode("utf-8"), content_type="text/markdown"
+                job = await finalize_provider_completion(
+                    queue=queue,
+                    storage=storage,
+                    provider=provider,
+                    job=job,
+                    response=response,
+                    source="cli.jobs.get",
                 )
-                report_paths = {"markdown": report_metadata.url}
-
-                # Update job in queue
-                await queue.update_status(job_id, JobStatus.COMPLETED)
-                if response.usage and response.usage.cost:
-                    await queue.update_results(
-                        job_id,
-                        report_paths=report_paths,
-                        cost=response.usage.cost,
-                        tokens_used=response.usage.total_tokens if response.usage.total_tokens else 0,
-                    )
-
-                job = await queue.get_job(job_id)
-            elif response.status == "failed":
-                console.print(f"[error]Job failed at provider: {response.error}[/error]")
-                await queue.update_status(job_id, JobStatus.FAILED)
+                console.print("[success]Retrieved and finalized results from provider[/success]")
+            elif terminal_error := terminal_provider_error(provider_status):
+                console.print(f"[error]{terminal_error}[/error]")
+                click.echo("Local lifecycle reconciliation is still pending.")
                 return
-            elif response.status in ["expired", "cancelled"]:
-                console.print(f"[error]Job {response.status} at provider[/error]")
-                await queue.update_status(
-                    job_id, JobStatus.FAILED if response.status == "expired" else JobStatus.CANCELLED
-                )
+            elif provider_status == "unsupported":
+                click.echo("Warning: Provider returned an unsupported status; the job remains active.")
                 return
             else:
-                console.print(f"[success]Confirmed with provider: Job still {response.status}[/success]")
+                console.print(f"[success]Confirmed with provider: Job still {provider_status}[/success]")
                 click.echo(f"Use 'deepr jobs status {job_id}' to check progress")
                 return
 
-        except Exception as e:
-            click.echo(f"Error fetching from provider: {e}")
+        except Exception as exc:
+            click.echo(f"Error fetching from provider ({provider_exception_name(exc)})")
             return
 
     # Display results
@@ -308,7 +262,6 @@ async def _refresh_job_statuses(queue, jobs):
     """Refresh job statuses from provider API."""
     try:
         from deepr.config import load_config
-        from deepr.providers import create_provider
         from deepr.storage import create_storage
 
         config = load_config()
@@ -316,70 +269,40 @@ async def _refresh_job_statuses(queue, jobs):
 
         for job in jobs:
             try:
-                # Use the job's provider, not the config default
-                provider_name = (
-                    job.provider if hasattr(job, "provider") and job.provider else config.get("provider", "openai")
-                )
-
-                # Get provider-specific API key
-                if provider_name == "gemini":
-                    api_key = config.get("gemini_api_key")
-                elif provider_name == "grok":
-                    api_key = config.get("xai_api_key")
-                elif provider_name == "azure":
-                    api_key = config.get("azure_api_key")
-                else:  # openai
-                    api_key = config.get("api_key")
-
-                provider = create_provider(provider_name, api_key=api_key)
+                provider = create_job_provider(job, config)
                 response = await provider.get_status(job.provider_job_id)
+                provider_status = classify_provider_status(response.status)
 
-                if response.status == "completed":
-                    # Download results
-                    content = ""
-                    if response.output:
-                        for block in response.output:
-                            if block.get("type") == "message":
-                                for item in block.get("content", []):
-                                    if item.get("type") in ["output_text", "text"]:
-                                        text = item.get("text", "")
-                                        if text:
-                                            content += text + "\n"
-
-                    # Save report
-                    report_metadata = await storage.save_report(
-                        job_id=job.id,
-                        filename="report.md",
-                        content=content.encode("utf-8"),
-                        content_type="text/markdown",
-                        metadata={
-                            "prompt": job.prompt,
-                            "model": job.model,
-                            "status": "completed",
-                            "provider_job_id": job.provider_job_id,
-                        },
+                if provider_status == "completed":
+                    await finalize_provider_completion(
+                        queue=queue,
+                        storage=storage,
+                        provider=provider,
+                        job=job,
+                        response=response,
+                        source="cli.jobs.list_refresh",
                     )
 
-                    # Update queue
-                    await queue.update_status(job.id, JobStatus.COMPLETED)
-                    if response.usage and response.usage.cost:
-                        await queue.update_results(
-                            job.id, report_paths={"markdown": report_metadata.url}, cost=response.usage.cost
-                        )
-
-                elif response.status == "failed":
-                    error_msg = response.error if response.error else "Unknown error"
-                    await queue.update_status(job.id, JobStatus.FAILED, error=error_msg)
+                elif terminal_error := terminal_provider_error(provider_status):
+                    logger.warning(
+                        "Provider terminal state for job %s awaits lifecycle reconciliation: %s",
+                        job.id,
+                        terminal_error,
+                    )
+                elif provider_status == "unsupported":
+                    logger.warning("Provider returned an unsupported status for job %s; tracking continues", job.id)
 
                 # If still queued/processing, leave it (no update needed)
 
-            except Exception:
-                # Silently skip jobs that fail to refresh (best-effort status sync)
-                pass
+            except Exception as exc:
+                logger.warning(
+                    "Could not refresh provider status for job %s (%s)",
+                    job.id,
+                    provider_exception_name(exc),
+                )
 
-    except Exception:
-        # If provider init fails, silently skip refresh (best-effort status sync)
-        pass
+    except Exception as exc:
+        logger.warning("Could not initialize job status refresh (%s)", provider_exception_name(exc))
 
 
 async def _list_jobs(status_filter: str, limit: int):
@@ -553,35 +476,37 @@ async def _cancel_job(job_id: str):
     job = await queue.get_job(job_id)
 
     if not job:
-        click.echo(f"Job not found: {job_id}")
-        return
+        raise click.ClickException(f"Job not found: {job_id}")
 
-    if job.status in [JobStatus.COMPLETED, JobStatus.FAILED, JobStatus.CANCELLED]:
-        click.echo(f"Job already {job.status.value}, cannot cancel")
-        return
+    if job.status in [JobStatus.COMPLETED, JobStatus.FAILED]:
+        raise click.ClickException(f"Job already {job.status.value}, cannot cancel")
 
-    # Try to cancel with provider if it's processing. Use the job's
-    # OWN provider - falling back to the config default sent the cancel
-    # request to whichever vendor was configured last, leaking job IDs
-    # cross-vendor and failing auth.
-    if job.provider_job_id and job.status == JobStatus.PROCESSING:
+    from deepr.config import load_config
+
+    config = load_config()
+    provider_name = getattr(job, "provider", None) or config.get("provider", "openai")
+    provider = None
+    provider_resources = any(job.metadata.get(key) for key in ("provider_file_ids", "vector_store_id")) or (
+        job.status != JobStatus.CANCELLED and job.provider_job_id
+    )
+    if provider_resources:
         try:
-            from deepr.config import load_config
-            from deepr.providers import create_provider
+            provider = create_job_provider(job, config)
+        except Exception as exc:
+            raise click.ClickException("Job cancellation could not be confirmed; local state was unchanged") from exc
 
-            config = load_config()
-            provider_name = getattr(job, "provider", None) or config.get("provider", "openai")
-            api_key_for_provider = config.get(f"{provider_name}_api_key") or config.get("api_key")
-            provider = create_provider(provider_name, api_key=api_key_for_provider)
+    outcome = await cancel_reserved_research(
+        queue=queue,
+        provider=provider,
+        job=job,
+        default_provider=provider_name,
+        source=f"cli.jobs.cancel.{job.id}",
+    )
+    if not outcome.queue_cancelled:
+        raise click.ClickException("Job cancellation could not be confirmed; local state was unchanged")
+    if not outcome.confirmed:
+        raise click.ClickException("Job was cancelled, but cost or cleanup closure could not be confirmed")
 
-            cancelled = await provider.cancel_job(job.provider_job_id)
-            if cancelled:
-                console.print("[success]Cancelled with provider[/success]")
-        except Exception as e:
-            click.echo(f"Warning: Could not cancel with provider: {e}")
-
-    # Update local queue
-    await queue.update_status(job_id, JobStatus.CANCELLED)
     console.print(f"[success]Job {job_id[:12]} cancelled[/success]")
 
 

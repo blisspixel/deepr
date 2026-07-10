@@ -228,18 +228,35 @@ async def cleanup_file_uploads(result: FileUploadResult, formatter: OutputFormat
     if result.vector_store_id:
         try:
             cleanup_succeeded = bool(await provider.delete_vector_store(result.vector_store_id)) and cleanup_succeeded
-        except Exception:
-            logger.exception("Failed to delete provider vector store %s", result.vector_store_id)
-            cleanup_succeeded = False
+        except Exception as exc:
+            if not _provider_resource_absent(exc):
+                logger.exception("Failed to delete provider vector store %s", result.vector_store_id)
+                cleanup_succeeded = False
 
     for file_id in result.uploaded_ids:
         try:
             cleanup_succeeded = bool(await provider.delete_document(file_id)) and cleanup_succeeded
-        except Exception:
-            logger.exception("Failed to delete provider file %s", file_id)
-            cleanup_succeeded = False
+        except Exception as exc:
+            if not _provider_resource_absent(exc):
+                logger.exception("Failed to delete provider file %s", file_id)
+                cleanup_succeeded = False
 
     if formatter:
         status = "complete" if cleanup_succeeded else "incomplete"
         formatter.progress(f"Provider upload cleanup {status}")
     return cleanup_succeeded
+
+
+def _provider_resource_absent(error: BaseException) -> bool:
+    """Recognize structured provider 404 responses as idempotent deletion."""
+    current: BaseException | None = error
+    for _ in range(4):
+        status_code = getattr(current, "status_code", None)
+        response = getattr(current, "response", None)
+        if status_code == 404 or getattr(response, "status_code", None) == 404:
+            return True
+        original = getattr(current, "original_error", None)
+        current = original if isinstance(original, BaseException) else current.__cause__
+        if current is None:
+            break
+    return False
