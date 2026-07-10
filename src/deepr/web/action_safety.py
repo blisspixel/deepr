@@ -15,6 +15,7 @@ from flask import jsonify
 
 _PROJECT_ROOT = Path(__file__).resolve().parents[3]
 _DEMO_ACTION_LOCK = Lock()
+BENCHMARK_COST_VALIDATION_ERROR = "Approved benchmark cost must be a non-negative number"
 _Handler = TypeVar("_Handler", bound=Callable[..., Any])
 
 
@@ -31,15 +32,15 @@ def benchmark_project_root() -> str:
 def approved_benchmark_cost(value: object) -> float:
     """Validate the user-approved maximum benchmark cost in dollars."""
     if isinstance(value, bool):
-        raise ValueError("Approved benchmark cost must be a non-negative number")
+        raise ValueError(BENCHMARK_COST_VALIDATION_ERROR)
     if not isinstance(value, (int, float, str)):
-        raise ValueError("Approved benchmark cost must be a non-negative number")
+        raise ValueError(BENCHMARK_COST_VALIDATION_ERROR)
     try:
         cost = float(value)
     except (TypeError, ValueError) as exc:
-        raise ValueError("Approved benchmark cost must be a non-negative number") from exc
+        raise ValueError(BENCHMARK_COST_VALIDATION_ERROR) from exc
     if not math.isfinite(cost) or cost < 0:
-        raise ValueError("Approved benchmark cost must be a non-negative number")
+        raise ValueError(BENCHMARK_COST_VALIDATION_ERROR)
     return cost
 
 

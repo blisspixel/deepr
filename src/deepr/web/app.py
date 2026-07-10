@@ -3018,8 +3018,8 @@ def start_benchmark():
 
             try:
                 cmd = action_safety.approved_benchmark_command(tier, data.get("max_estimated_cost"))
-            except ValueError as exc:
-                return jsonify({"error": str(exc)}), 400
+            except ValueError:
+                return jsonify({"error": action_safety.BENCHMARK_COST_VALIDATION_ERROR}), 400
             if quick:
                 cmd.append("--quick")
             if no_judge:
