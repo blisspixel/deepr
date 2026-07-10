@@ -41,3 +41,10 @@ export const configApi = {
     return response.data
   },
 }
+
+export const healthApi = {
+  get: async () => {
+    const response = await apiClient.get<{ version: string }>('/health')
+    return response.data
+  },
+}

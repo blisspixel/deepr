@@ -1,8 +1,9 @@
 import { useState, useCallback, useEffect } from 'react'
-import { useNavigate, useSearchParams } from 'react-router-dom'
+import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { useMutation, useQuery } from '@tanstack/react-query'
 import { jobsApi } from '@/api/jobs'
 import { costApi } from '@/api/cost'
+import { configApi } from '@/api/config'
 import { cn, formatCurrency } from '@/lib/utils'
 import { RESEARCH_MODES, MODELS, PRIORITIES } from '@/lib/constants'
 import { toast } from 'sonner'
@@ -38,6 +39,22 @@ export default function ResearchStudio() {
   const [uploadedFiles, setUploadedFiles] = useState<File[]>([])
   const [uploadedFileContents, setUploadedFileContents] = useState<{ name: string; content: string }[]>([])
 
+  const {
+    data: config,
+    isLoading: isConfigLoading,
+    isError: isConfigError,
+    refetch: refetchConfig,
+  } = useQuery({
+    queryKey: ['config'],
+    queryFn: () => configApi.get(),
+  })
+
+  useEffect(() => {
+    if (config?.default_model && MODELS.some((candidate) => candidate.value === config.default_model)) {
+      setModel(config.default_model)
+    }
+  }, [config?.default_model])
+
   // Debounce prompt to avoid firing cost estimate on every keystroke
   const [debouncedPrompt, setDebouncedPrompt] = useState(prompt)
   useEffect(() => {
@@ -46,10 +63,15 @@ export default function ResearchStudio() {
   }, [prompt])
 
   // Cost estimate
-  const { data: costEstimate, isLoading: isEstimating } = useQuery({
+  const {
+    data: costEstimate,
+    isFetching: isEstimating,
+    isError: isEstimateError,
+    refetch: refetchEstimate,
+  } = useQuery({
     queryKey: ['cost', 'estimate', debouncedPrompt, model, enableWebSearch],
     queryFn: () => costApi.estimate({ prompt: debouncedPrompt, model, enable_web_search: enableWebSearch }),
-    enabled: debouncedPrompt.length > 10,
+    enabled: debouncedPrompt.trim().length > 0,
   })
 
   // Submit
@@ -58,9 +80,9 @@ export default function ResearchStudio() {
     onSuccess: (data) => {
       navigate(`/research/${data.job.id}`)
     },
-    onError: () => {
+    onError: (error: Error) => {
       toast.error('Failed to submit research', {
-        description: 'Check your API keys and budget limits.',
+        description: error.message || 'The server rejected the submission.',
       })
     },
   })
@@ -156,7 +178,18 @@ export default function ResearchStudio() {
     })
   }
 
-  const isAllowed = costEstimate?.allowed ?? true
+  const requiresEstimate = Boolean(prompt.trim())
+  const hasCurrentEstimate = !requiresEstimate || (
+    debouncedPrompt === prompt && Boolean(costEstimate) && !isEstimateError
+  )
+  const isAllowed = hasCurrentEstimate && (costEstimate?.allowed ?? true)
+  const providerReady = config?.has_api_key === true
+  const canSubmit = Boolean(prompt.trim())
+    && providerReady
+    && !isConfigLoading
+    && !isConfigError
+    && isAllowed
+    && !submitMutation.isPending
 
   return (
     <div className="max-w-3xl mx-auto p-6 space-y-6 animate-fade-in">
@@ -165,6 +198,29 @@ export default function ResearchStudio() {
         <h1 className="text-2xl font-semibold text-foreground">Research Studio</h1>
         <p className="text-sm text-muted-foreground mt-0.5">Configure and submit research tasks</p>
       </div>
+
+      {isConfigError && (
+        <div role="alert" className="rounded-lg border border-warning/30 bg-warning/5 px-4 py-3 flex items-center gap-3">
+          <Info className="w-4 h-4 text-warning flex-shrink-0" />
+          <p className="text-sm text-muted-foreground flex-1">
+            Provider readiness could not be verified. Research submission is paused.
+          </p>
+          <button type="button" onClick={() => refetchConfig()} className="text-sm text-primary hover:underline">
+            Retry
+          </button>
+        </div>
+      )}
+
+      {config && !providerReady && (
+        <div role="alert" className="rounded-lg border border-warning/30 bg-warning/5 px-4 py-3 flex items-start gap-3">
+          <Info className="w-4 h-4 text-warning flex-shrink-0 mt-0.5" />
+          <p className="text-sm text-muted-foreground">
+            Dashboard research currently requires OpenAI, but <code className="text-xs">OPENAI_API_KEY</code> is not set.
+            Add the key and restart Deepr before submitting. Other configured providers remain available through CLI workflows.{' '}
+            <Link to="/help" className="text-primary hover:underline">View capacity setup</Link>.
+          </p>
+        </div>
+      )}
 
       <form onSubmit={handleSubmit} className="space-y-4">
         {/* Main Input Card */}
@@ -181,7 +237,7 @@ export default function ResearchStudio() {
               onKeyDown={(e) => {
                 if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') {
                   e.preventDefault()
-                  if (prompt.trim() && isAllowed && !submitMutation.isPending) {
+                  if (canSubmit) {
                     handleSubmit(e as unknown as React.FormEvent)
                   }
                 }
@@ -234,7 +290,7 @@ export default function ResearchStudio() {
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                   {/* Model */}
                   <div>
-                    <label className="block text-xs font-medium text-muted-foreground mb-1.5">Model</label>
+                    <label className="block text-xs font-medium text-muted-foreground mb-1.5">OpenAI model</label>
                     <Select value={model} onValueChange={setModel}>
                       <SelectTrigger>
                         <SelectValue />
@@ -279,6 +335,10 @@ export default function ResearchStudio() {
                     </div>
                   </div>
                 </div>
+
+                <p className="text-xs text-muted-foreground">
+                  Dashboard research uses the OpenAI background-research API. Use the CLI for Gemini, xAI, local, or plan-quota capacity.
+                </p>
 
                 {/* File Upload */}
                 <div>
@@ -328,7 +388,15 @@ export default function ResearchStudio() {
           {/* Cost Estimate + Submit */}
           <div className="border-t px-4 py-3 flex items-center justify-between bg-muted/30">
             <div className="flex items-center gap-3">
-              {isEstimating ? (
+              {isEstimateError ? (
+                <span role="alert" className="flex items-center gap-1.5 text-xs text-destructive">
+                  <Info className="w-3 h-3" />
+                  Estimate unavailable.
+                  <button type="button" onClick={() => refetchEstimate()} className="underline underline-offset-2">
+                    Retry
+                  </button>
+                </span>
+              ) : isEstimating || (requiresEstimate && debouncedPrompt !== prompt) ? (
                 <span className="flex items-center gap-1.5 text-xs text-muted-foreground">
                   <Loader2 className="w-3 h-3 animate-spin" />
                   Estimating...
@@ -359,7 +427,7 @@ export default function ResearchStudio() {
               </kbd>
               <Button
                 type="submit"
-                disabled={!prompt.trim() || !isAllowed}
+                disabled={!canSubmit}
                 loading={submitMutation.isPending}
               >
                 <Send className="w-4 h-4" />
@@ -375,7 +443,7 @@ export default function ResearchStudio() {
           <ul className="space-y-1 text-xs text-muted-foreground">
             <li>Be specific about what information you need and desired output format</li>
             <li>Mention preferred sources (peer-reviewed, government data, industry reports)</li>
-            <li>Use o4-mini for fast results, o3 for thorough analysis, Gemini for Google-grounded research</li>
+            <li>Use o4-mini for faster results or o3 for more thorough OpenAI deep research</li>
             <li>Upload reference documents for context-aware research</li>
           </ul>
         </div>

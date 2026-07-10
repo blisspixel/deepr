@@ -7,6 +7,35 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- Made the experimental web Research Studio readiness-aware. It now identifies
+  its OpenAI-backed submission boundary, pauses when OpenAI configuration or
+  cost estimation is unavailable, removes misleading static price claims, and
+  preserves fixed server denial messages for actionable recovery.
+- Reconciled dashboard queue and ledger language. Overview and the persistent
+  status bar now use the full queued-plus-processing total, queued work no
+  longer claims to be processing, job cards show submission age, and Cost
+  Intelligence separates all-operation ledger spend from queue completion.
+- Made stale-job cleanup state its 30-minute queued/processing scope before
+  confirmation and report the number of records safely transitioned.
+
+### Fixed
+
+- Restored semantic keyboard navigation for active jobs, recent activity,
+  result cards, and result pagination, including named controls and current-page
+  state for assistive technology. Collapsed navigation and command search also
+  retain explicit accessible names.
+- Changed Socket.IO startup to polling-first fallback before WebSocket upgrade,
+  restored same-origin connections on custom CLI hosts and ports without
+  broadening cross-origin access, and replaced the unlabeled footer dot with a
+  named connection state.
+- Removed the hardcoded Help version and now render the running package version
+  from the existing health response without full-page internal navigation.
+- Closed unit-test isolation gaps in CLI run and fallback coverage. Tests now
+  mock the durable enqueue seam instead of writing synthetic queued jobs into
+  the developer's machine-local research database.
+
 ## [2.33.1] - 2026-07-09
 
 ### Security

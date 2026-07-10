@@ -36,11 +36,11 @@ deepr web
 
 **Overview** - Landing page with active jobs, recent activity feed, spending summary, and system health status.
 
-**Research Studio** - Submit research with mode selection (research, check, learn, team, docs), model picker, priority, and web search toggle. Drag-and-drop file upload with type filtering (.txt, .md, .json, .csv). Ctrl+Enter / Cmd+Enter keyboard shortcut to submit. Real-time cost estimation as you type. Supports pre-filled prompts via URL query parameter.
+**Research Studio** - Submit OpenAI background research with mode selection (research, check, learn, team, docs), an o3/o4-mini model picker, priority, and web search toggle. The form checks OpenAI readiness and pauses submission when provider configuration or cost estimation is unavailable. Drag-and-drop file upload supports type filtering (.txt, .md, .json, .csv). Ctrl+Enter / Cmd+Enter submits only after the same readiness and budget checks as the button. Request-specific cost estimation appears as you type. Use CLI workflows for Gemini, xAI, local, and plan-quota capacity. Supports pre-filled prompts via URL query parameter.
 
-**Research Live** - Real-time progress tracking for running jobs via WebSocket push (no polling). Background poller checks provider API every 15 seconds. Completed jobs show enriched summary with cost, tokens, model, completion date, and content preview.
+**Research Live** - Real-time progress tracking for running jobs via Socket.IO. The browser starts with reliable HTTP polling and upgrades to WebSocket when supported. A background server poller checks the provider API every 15 seconds. Completed jobs show enriched summary with cost, tokens, model, completion date, and content preview.
 
-**Results Library** - Browse and search completed research with sorting (date, cost, model). Paginated grid view (12 per page). Total result count in header.
+**Results Library** - Browse and search completed research with sorting (date, cost, model). Result cards and pagination are semantic keyboard-accessible links and controls. Paginated grid view (12 per page). Total result count in header.
 
 **Result Detail** - Full markdown report viewer with citation sidebar showing source URLs and snippets. Copy-to-clipboard button for the full report content. Export dropdown for downloading results.
 
@@ -48,13 +48,13 @@ deepr web
 
 **Expert Profile** - Seven tabs: Chat (agentic streaming chat with slash commands, mode switching, visible reasoning panel, approval dialogs, context compaction, follow-up suggestions), Claims (tracked assertions with confidence scores and source provenance), Knowledge Gaps (view gaps with EV/cost priority, click to research), Decisions (reasoning audit trail with rationale and alternatives), History (learning timeline with costs), Skills (install/remove domain-specific capability packages), and Conversations (browse and resume past chat sessions).
 
-**Cost Intelligence** - Spending trends over configurable time ranges (7/30/90 days), per-model cost breakdown with charts, budget limit controls with debounced sliders, success rate, and average cost per job. Accuracy disclaimer noting costs are Deepr-internal estimates.
+**Cost Intelligence** - Append-only ledger spending trends over configurable time ranges (7/30/90 days), per-model cost breakdown with charts, budget limit controls with debounced sliders, all-operation ledger total, and queue completion progress. The scope note explains that imported or demo result costs do not create ledger spend and provider billing remains authoritative.
 
 **Models & Benchmarks** - Model registry browser with provider grouping, benchmark results with quality rankings by tier (chat/news/research), quality bar charts and radar charts, run benchmarks from the UI with tier and budget controls, benchmark history file selector, routing configuration display.
 
 **Trace Explorer** - Inspect research execution traces. View span hierarchy with timing, cost attribution, token counts, and model info for each operation. Collapsible decision sidebar showing reasoning audit trail.
 
-**Help** - API key setup guide with provider links, CLI quick reference with common commands, model tier explanations (research/news/chat), and getting-started walkthrough.
+**Help** - API key setup guide with provider links, CLI quick reference with common commands, model tier explanations (research/news/chat), getting-started walkthrough, and the running package version.
 
 **Settings** - Theme selection (light/dark/system), default model, web search toggle, budget limit configuration, environment info (provider, queue, storage, API key status), and demo data loader for populating the UI with sample data.
 
@@ -67,7 +67,7 @@ deepr web
 ### Technical Details
 
 - Code-split routing: each page loads independently via React.lazy and Suspense
-- Real-time updates: WebSocket (Socket.io) with Flask-SocketIO backend push for job events
+- Real-time updates: Socket.IO with Flask-SocketIO backend push for job events, using polling first and WebSocket upgrade when supported; same-origin connections follow the actual CLI host and port, while cross-origin clients require `DEEPR_CORS_ORIGINS`
 - Background poller: daemon thread checks provider API every 15s for PROCESSING jobs
 - State management: Zustand for UI state, React Query for server data with automatic cache invalidation on WebSocket events
 - Component library: Radix UI primitives (shadcn/ui pattern) with Tailwind CSS

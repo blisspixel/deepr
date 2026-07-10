@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { useNavigate } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import { resultsApi } from '@/api/results'
 import { cn, formatCurrency, formatRelativeTime, truncateText } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
@@ -162,10 +162,10 @@ export default function ResultsLibrary() {
       ) : viewMode === 'grid' ? (
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
           {results.map((result) => (
-            <div
+            <Link
               key={result.id}
-              className="rounded-lg border bg-card hover:border-primary/20 hover:shadow-md transition-all cursor-pointer group"
-              onClick={() => navigate(`/results/${result.id}`)}
+              to={`/results/${result.id}`}
+              className="rounded-lg border bg-card hover:border-primary/20 hover:shadow-md transition-all group focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
             >
               <div className="p-4 space-y-3">
                 <p className="text-sm font-medium text-foreground line-clamp-2 group-hover:text-primary transition-colors">
@@ -183,16 +183,16 @@ export default function ResultsLibrary() {
                   <span className="ml-auto">{formatRelativeTime(result.completed_at)}</span>
                 </div>
               </div>
-            </div>
+            </Link>
           ))}
         </div>
       ) : (
         <div className="rounded-lg border bg-card divide-y">
           {results.map((result) => (
-            <div
+            <Link
               key={result.id}
-              className="p-4 flex items-start gap-4 cursor-pointer hover:bg-accent/50 transition-colors"
-              onClick={() => navigate(`/results/${result.id}`)}
+              to={`/results/${result.id}`}
+              className="p-4 flex items-start gap-4 hover:bg-accent/50 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
             >
               <div className="flex-1 min-w-0 space-y-1">
                 <p className="text-sm font-medium text-foreground">{result.prompt}</p>
@@ -206,7 +206,7 @@ export default function ResultsLibrary() {
                   <span>{formatRelativeTime(result.completed_at)}</span>
                 </div>
               </div>
-            </div>
+            </Link>
           ))}
         </div>
       )}
@@ -222,6 +222,7 @@ export default function ResultsLibrary() {
               variant="outline"
               size="icon"
               className="h-8 w-8"
+              aria-label="Previous results page"
               disabled={page === 0}
               onClick={() => setPage(p => p - 1)}
             >
@@ -236,6 +237,8 @@ export default function ResultsLibrary() {
                   variant={pageNum === page ? 'default' : 'outline'}
                   size="icon"
                   className="h-8 w-8 text-xs"
+                  aria-label={`Go to results page ${pageNum + 1}`}
+                  aria-current={pageNum === page ? 'page' : undefined}
                   onClick={() => setPage(pageNum)}
                 >
                   {pageNum + 1}
@@ -246,6 +249,7 @@ export default function ResultsLibrary() {
               variant="outline"
               size="icon"
               className="h-8 w-8"
+              aria-label="Next results page"
               disabled={page >= totalPages - 1}
               onClick={() => setPage(p => p + 1)}
             >

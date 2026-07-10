@@ -146,9 +146,8 @@ export default function CostIntelligence() {
       <div className="rounded-lg border bg-muted/30 px-4 py-2.5 flex items-start gap-2.5 text-xs text-muted-foreground">
         <AlertTriangle className="w-3.5 h-3.5 mt-0.5 shrink-0" />
         <p>
-          Costs shown are tracked by Deepr from API usage metadata and may not reflect
-          exact billing. Check your provider billing consoles (OpenAI, xAI, Google, etc.)
-          for authoritative charges.
+          Spend totals come from Deepr's append-only cost ledger and may not reflect exact provider billing.
+          Imported or demo result costs do not create ledger spend. Check provider billing consoles for authoritative charges.
         </p>
       </div>
 
@@ -204,21 +203,21 @@ export default function CostIntelligence() {
           </div>
         </div>
 
-        {/* Avg/Job */}
+        {/* Ledger Total */}
         <div className="rounded-lg border bg-card p-5 space-y-2">
-          <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Avg per Job</p>
-          <p className="text-2xl font-semibold text-foreground tabular-nums">{formatCurrency(summary?.avg_cost_per_job || 0)}</p>
-          <p className="text-xs text-muted-foreground">{summary?.completed_jobs || 0} completed</p>
+          <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Ledger Total</p>
+          <p className="text-2xl font-semibold text-foreground tabular-nums">{formatCurrency(summary?.total || 0)}</p>
+          <p className="text-xs text-muted-foreground">All recorded Deepr operations</p>
         </div>
 
-        {/* Success Rate */}
+        {/* Queue Progress */}
         <div className="rounded-lg border bg-card p-5 space-y-2">
-          <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Success Rate</p>
+          <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Queue Progress</p>
           <p className="text-2xl font-semibold text-foreground tabular-nums">
             {summary?.total_jobs ? `${((summary.completed_jobs / summary.total_jobs) * 100).toFixed(0)}%` : 'N/A'}
           </p>
           <p className="text-xs text-muted-foreground">
-            {summary?.completed_jobs || 0}/{summary?.total_jobs || 0} jobs
+            {summary?.completed_jobs || 0} of {summary?.total_jobs || 0} completed
           </p>
         </div>
       </div>

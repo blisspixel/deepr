@@ -28,6 +28,24 @@ def test_web_import_does_not_construct_metered_provider(monkeypatch):
         web_app._default_openai_provider()
 
 
+def test_socketio_accepts_same_origin_on_custom_local_port(client):
+    response = client.get(
+        "/socket.io/?EIO=4&transport=polling",
+        headers={"Host": "127.0.0.1:5071", "Origin": "http://127.0.0.1:5071"},
+    )
+
+    assert response.status_code == 200
+
+
+def test_socketio_rejects_cross_origin_without_explicit_allowlist(client):
+    response = client.get(
+        "/socket.io/?EIO=4&transport=polling",
+        headers={"Host": "127.0.0.1:5071", "Origin": "https://attacker.example"},
+    )
+
+    assert response.status_code == 400
+
+
 def test_testing_mode_does_not_start_background_poller(monkeypatch):
     monkeypatch.setitem(web_app.app.config, "TESTING", True)
     monkeypatch.setattr(web_app, "_poller_started", False)

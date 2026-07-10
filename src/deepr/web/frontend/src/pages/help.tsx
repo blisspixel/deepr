@@ -1,4 +1,6 @@
 import { useState } from 'react'
+import { useQuery } from '@tanstack/react-query'
+import { Link } from 'react-router-dom'
 import {
   Key,
   Zap,
@@ -13,6 +15,7 @@ import {
   FileText,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { healthApi } from '@/api/config'
 
 interface ProviderKey {
   provider: string
@@ -64,6 +67,7 @@ function Accordion({ title, icon, children, defaultOpen }: { title: string; icon
     <div className="rounded-lg border bg-card overflow-hidden">
       <button
         onClick={() => setOpen(!open)}
+        aria-expanded={open}
         className="w-full flex items-center gap-3 px-5 py-4 text-left hover:bg-muted/30 transition-colors"
       >
         <div className="text-muted-foreground">{icon}</div>
@@ -76,6 +80,11 @@ function Accordion({ title, icon, children, defaultOpen }: { title: string; icon
 }
 
 export default function Help() {
+  const { data: health } = useQuery({
+    queryKey: ['health'],
+    queryFn: () => healthApi.get(),
+  })
+
   return (
     <div className="p-6 space-y-6 max-w-3xl">
       {/* Header */}
@@ -225,9 +234,9 @@ cp .env.example .env
             </pre>
             <p className="text-xs text-muted-foreground mt-2">
               Then configure your budget in{' '}
-              <a href="/settings" className="text-primary hover:underline">Settings &rarr; Budget</a>
+              <Link to="/settings" className="text-primary hover:underline">Settings</Link>
               {' '}or{' '}
-              <a href="/costs" className="text-primary hover:underline">Cost Intelligence</a>.
+              <Link to="/costs" className="text-primary hover:underline">Cost Intelligence</Link>.
             </p>
           </div>
         </div>
@@ -292,7 +301,7 @@ cp .env.example .env
 
       {/* Footer */}
       <div className="text-xs text-muted-foreground text-center py-4">
-        Deepr v2.28.0 &middot; Apache 2.0 License &middot;{' '}
+        Deepr{health?.version ? ` v${health.version}` : ''} &middot; Apache 2.0 License &middot;{' '}
         <a href="https://github.com/blisspixel/deepr" target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">
           GitHub
         </a>

@@ -4,23 +4,23 @@ import { Activity, DollarSign } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { jobsApi } from '@/api/jobs'
 import { costApi } from '@/api/cost'
-import { wsClient } from '@/api/websocket'
+import { wsClient, type WebSocketStatus } from '@/api/websocket'
 import { formatCurrency } from '@/lib/utils'
 
 export default function StatusBar() {
-  const [wsConnected, setWsConnected] = useState(wsClient.connected)
+  const [wsStatus, setWsStatus] = useState<WebSocketStatus>(wsClient.status)
 
   useEffect(() => {
-    setWsConnected(wsClient.connected)
-    const cleanup = wsClient.on('ws_status', (data: { connected: boolean }) => {
-      setWsConnected(data.connected)
+    setWsStatus(wsClient.status)
+    const cleanup = wsClient.on('ws_status', (data: { status: WebSocketStatus }) => {
+      setWsStatus(data.status)
     })
     return cleanup
   }, [])
 
-  const { data: jobsData, isSuccess: jobsOk } = useQuery({
-    queryKey: ['jobs', 'active'],
-    queryFn: () => jobsApi.list({ status: 'processing' }),
+  const { data: jobStats, isSuccess: jobsOk } = useQuery({
+    queryKey: ['jobs', 'stats'],
+    queryFn: () => jobsApi.getStats(),
     refetchInterval: 15000,
   })
 
@@ -31,10 +31,18 @@ export default function StatusBar() {
   })
 
   // Online if WebSocket connected OR HTTP API responds
+  const wsConnected = wsStatus === 'connected'
   const isOnline = wsConnected || jobsOk || costOk
 
-  const activeJobs = jobsData?.jobs?.length ?? 0
+  const activeJobs = (jobStats?.queued ?? 0) + (jobStats?.processing ?? 0)
   const todaySpend = costSummary?.daily ?? 0
+  const connectionLabel = wsConnected
+    ? 'Live updates connected'
+    : isOnline && wsStatus === 'reconnecting'
+      ? 'API online, live updates reconnecting'
+      : isOnline
+        ? 'API online, live updates unavailable'
+        : 'Offline'
 
   return (
     <div className="flex h-8 items-center justify-between border-t bg-background px-4 text-[11px] text-muted-foreground">
@@ -54,13 +62,21 @@ export default function StatusBar() {
       </div>
 
       {/* Right section */}
-      <div className="flex items-center gap-1.5">
+      <div role="status" className="flex items-center gap-1.5" title={connectionLabel}>
         <span
+          aria-hidden="true"
           className={cn(
             'inline-block h-2 w-2 rounded-full',
-            isOnline ? 'bg-green-500' : 'bg-destructive'
+            !isOnline
+              ? 'bg-destructive'
+              : wsConnected
+                ? 'bg-green-500'
+                : wsStatus === 'reconnecting'
+                  ? 'bg-warning'
+                  : 'bg-destructive'
           )}
         />
+        <span>{connectionLabel}</span>
       </div>
     </div>
   )
