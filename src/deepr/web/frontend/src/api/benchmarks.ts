@@ -31,7 +31,7 @@ export const benchmarksApi = {
     return response.data
   },
 
-  start: async (opts: { tier?: string; quick?: boolean; no_judge?: boolean }) => {
+  start: async (opts: { tier: string; quick: boolean; no_judge: boolean; max_estimated_cost: number }) => {
     const response = await apiClient.post<{ status: string; started_at: string }>(
       '/benchmarks/start',
       opts

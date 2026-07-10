@@ -39,6 +39,7 @@ import {
 } from 'lucide-react'
 import { DetailSkeleton } from '@/components/ui/skeleton'
 import EmptyState from '@/components/shared/empty-state'
+import PartialQueryError from '@/components/shared/partial-query-error'
 import { ExpertPortrait } from '@/components/expert-portrait'
 
 type TabKey = 'chat' | 'claims' | 'gaps' | 'decisions' | 'history' | 'skills'
@@ -276,37 +277,37 @@ export default function ExpertProfile() {
     enabled: !!decodedName,
   })
 
-  const { data: gaps, isLoading: isGapsLoading } = useQuery({
+  const { data: gaps, isLoading: isGapsLoading, isError: isGapsError, isFetching: isGapsFetching, refetch: refetchGaps } = useQuery({
     queryKey: ['experts', decodedName, 'gaps'],
     queryFn: () => expertsApi.getGaps(encodedName),
     enabled: !!decodedName && activeTab === 'gaps',
   })
 
-  const { data: claims, isLoading: isClaimsLoading } = useQuery({
+  const { data: claims, isLoading: isClaimsLoading, isError: isClaimsError, isFetching: isClaimsFetching, refetch: refetchClaims } = useQuery({
     queryKey: ['experts', decodedName, 'claims'],
     queryFn: () => expertsApi.getClaims(encodedName),
     enabled: !!decodedName && activeTab === 'claims',
   })
 
-  const { data: decisions, isLoading: isDecisionsLoading } = useQuery({
+  const { data: decisions, isLoading: isDecisionsLoading, isError: isDecisionsError, isFetching: isDecisionsFetching, refetch: refetchDecisions } = useQuery({
     queryKey: ['experts', decodedName, 'decisions'],
     queryFn: () => expertsApi.getDecisions(encodedName),
     enabled: !!decodedName && activeTab === 'decisions',
   })
 
-  const { data: history } = useQuery({
+  const { data: history, isLoading: isHistoryLoading, isError: isHistoryError, isFetching: isHistoryFetching, refetch: refetchHistory } = useQuery({
     queryKey: ['experts', decodedName, 'history'],
     queryFn: () => expertsApi.getHistory(encodedName),
     enabled: !!decodedName && activeTab === 'history',
   })
 
-  const { data: skillsData, refetch: refetchSkills } = useQuery({
+  const { data: skillsData, isLoading: isSkillsLoading, isError: isSkillsError, isFetching: isSkillsFetching, refetch: refetchSkills } = useQuery({
     queryKey: ['experts', decodedName, 'skills'],
     queryFn: () => expertsApi.getSkills(encodedName),
     enabled: !!decodedName && activeTab === 'skills',
   })
 
-  const { data: conversations, refetch: refetchConversations } = useQuery({
+  const { data: conversations, isError: isConversationsError, isFetching: isConversationsFetching, refetch: refetchConversations } = useQuery({
     queryKey: ['experts', decodedName, 'conversations'],
     queryFn: () => expertsApi.listConversations(encodedName),
     enabled: !!decodedName && activeTab === 'chat',
@@ -666,6 +667,18 @@ export default function ExpertProfile() {
             )}
             {/* Chat area */}
             <div className="flex-1 flex flex-col min-w-0">
+            {isConversationsError && (
+              <div className="p-4 pb-0">
+                <PartialQueryError
+                  title={conversations ? 'Conversation history refresh failed' : 'Conversation history unavailable'}
+                  description={conversations
+                    ? 'Previously loaded conversations remain visible, but may be out of date.'
+                    : 'You can keep chatting, but saved conversations could not be loaded.'}
+                  onRetry={() => void refetchConversations()}
+                  retrying={isConversationsFetching}
+                />
+              </div>
+            )}
             {/* Messages */}
             <div
               className="flex-1 overflow-auto p-6 space-y-4"
@@ -888,11 +901,26 @@ export default function ExpertProfile() {
         )}
 
         {activeTab === 'claims' && (
-          <div className="p-6">
+          <div className="p-6 space-y-3">
+            {isClaimsError && claims && (
+              <PartialQueryError
+                title="Claims refresh failed"
+                description="Previously loaded claims remain visible, but may be out of date."
+                onRetry={() => void refetchClaims()}
+                retrying={isClaimsFetching}
+              />
+            )}
             {isClaimsLoading ? (
               <div className="flex items-center justify-center py-12">
                 <Loader2 className="w-5 h-5 animate-spin text-muted-foreground" />
               </div>
+            ) : isClaimsError && !claims ? (
+              <PartialQueryError
+                title="Claims unavailable"
+                description="The expert loaded, but its claims could not be retrieved."
+                onRetry={() => void refetchClaims()}
+                retrying={isClaimsFetching}
+              />
             ) : !sortedClaims.length ? (
               <EmptyState icon={Lightbulb} title="No claims yet" description="Claims will appear here as the expert forms beliefs from evidence." />
             ) : (
@@ -937,10 +965,25 @@ export default function ExpertProfile() {
 
         {activeTab === 'gaps' && (
           <div className="p-6 space-y-3">
+            {isGapsError && gaps && (
+              <PartialQueryError
+                title="Knowledge gaps refresh failed"
+                description="Previously loaded knowledge gaps remain visible, but may be out of date."
+                onRetry={() => void refetchGaps()}
+                retrying={isGapsFetching}
+              />
+            )}
             {isGapsLoading ? (
               <div className="flex items-center justify-center py-12">
                 <Loader2 className="w-5 h-5 animate-spin text-muted-foreground" />
               </div>
+            ) : isGapsError && !gaps ? (
+              <PartialQueryError
+                title="Knowledge gaps unavailable"
+                description="The expert loaded, but its knowledge gaps could not be retrieved."
+                onRetry={() => void refetchGaps()}
+                retrying={isGapsFetching}
+              />
             ) : !gaps || gaps.length === 0 ? (
               <EmptyState icon={SearchX} title="No knowledge gaps" description="Knowledge gaps will appear here as the expert identifies areas needing more research." />
             ) : (
@@ -985,10 +1028,25 @@ export default function ExpertProfile() {
 
         {activeTab === 'decisions' && (
           <div className="p-6 space-y-3">
+            {isDecisionsError && decisions && (
+              <PartialQueryError
+                title="Decisions refresh failed"
+                description="Previously loaded decisions remain visible, but may be out of date."
+                onRetry={() => void refetchDecisions()}
+                retrying={isDecisionsFetching}
+              />
+            )}
             {isDecisionsLoading ? (
               <div className="flex items-center justify-center py-12">
                 <Loader2 className="w-5 h-5 animate-spin text-muted-foreground" />
               </div>
+            ) : isDecisionsError && !decisions ? (
+              <PartialQueryError
+                title="Decisions unavailable"
+                description="The expert loaded, but its decision records could not be retrieved."
+                onRetry={() => void refetchDecisions()}
+                retrying={isDecisionsFetching}
+              />
             ) : !sortedDecisions.length ? (
               <EmptyState icon={GitBranch} title="No decisions yet" description="Decision records will appear here as the expert makes research decisions." />
             ) : (
@@ -1031,7 +1089,26 @@ export default function ExpertProfile() {
 
         {activeTab === 'history' && (
           <div className="p-6 space-y-3">
-            {!history || history.length === 0 ? (
+            {isHistoryError && history && (
+              <PartialQueryError
+                title="Activity history refresh failed"
+                description="Previously loaded activity remains visible, but may be out of date."
+                onRetry={() => void refetchHistory()}
+                retrying={isHistoryFetching}
+              />
+            )}
+            {isHistoryLoading ? (
+              <div className="flex items-center justify-center py-12">
+                <Loader2 className="w-5 h-5 animate-spin text-muted-foreground" />
+              </div>
+            ) : isHistoryError && !history ? (
+              <PartialQueryError
+                title="Activity history unavailable"
+                description="The expert loaded, but its learning history could not be retrieved."
+                onRetry={() => void refetchHistory()}
+                retrying={isHistoryFetching}
+              />
+            ) : !history || history.length === 0 ? (
               <EmptyState icon={Clock} title="No activity yet" description="Learning events and research activity will be logged here." />
             ) : (
               history.map((event) => (
@@ -1052,6 +1129,27 @@ export default function ExpertProfile() {
 
         {activeTab === 'skills' && (
           <div className="p-6 space-y-6">
+            {isSkillsError && skillsData && (
+              <PartialQueryError
+                title="Skills refresh failed"
+                description="Previously loaded skills remain visible, but may be out of date."
+                onRetry={() => void refetchSkills()}
+                retrying={isSkillsFetching}
+              />
+            )}
+            {isSkillsLoading ? (
+              <div className="flex items-center justify-center py-12">
+                <Loader2 className="w-5 h-5 animate-spin text-muted-foreground" />
+              </div>
+            ) : isSkillsError && !skillsData ? (
+              <PartialQueryError
+                title="Skills unavailable"
+                description="Installed and available skills could not be retrieved for this expert."
+                onRetry={() => void refetchSkills()}
+                retrying={isSkillsFetching}
+              />
+            ) : (
+              <>
             {/* Installed Skills */}
             <div>
               <h3 className="text-sm font-semibold text-foreground mb-3">Installed Skills</h3>
@@ -1107,6 +1205,8 @@ export default function ExpertProfile() {
                   ))}
                 </div>
               </div>
+            )}
+              </>
             )}
           </div>
         )}

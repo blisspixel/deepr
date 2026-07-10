@@ -13,9 +13,9 @@ Deepr includes a tiered model benchmark system that tests every provider across 
 | Tier | What it tests | Models | Prompts | API | Typical cost |
 |------|--------------|--------|---------|-----|-------------|
 | **Chat** | Training data knowledge, reasoning, docs | 22 default + opt-in premium | 18 (6 task types) | Chat completions | Dry-run estimate |
-| **News** | Web search, freshness, citations | 12 | 6 (3 task types) | OpenAI web search, xAI search, Gemini grounding | Dry-run estimate |
-| **Research** | Autonomous multi-source reports | 3 native + 9 orchestrated | 4 (2 task types) | Deep research APIs + web-search orchestration | Dry-run estimate |
-| **Docs** | API doc fetching, SDK guides | 10 | 5 (3 task types) | Web search + chat completions | Dry-run estimate |
+| **News** | Web search, freshness, citations | 5 | 6 (3 task types) | OpenAI web search, Gemini 2.5 grounding | Dry-run ceiling |
+| **Research** | Bounded multi-source reports | 4 orchestrated | 4 (2 task types) | Bounded web-search orchestration | Dry-run ceiling |
+| **Docs** | API doc fetching, SDK guides | 4 | 5 (3 task types) | Bounded web search + chat completions | Dry-run ceiling |
 
 Every run prints a preflight estimate and defaults to a `$1` cap. Use
 `--dry-run` first, then raise `--max-estimated-cost` intentionally if the
@@ -42,7 +42,7 @@ python scripts/benchmark_models.py --tier chat --model gemini/gemini-2.5-pro --s
 
 ## Current Benchmark Target Sets
 
-These lists mirror `scripts/benchmark_models.py` as of 2026-07-01 and exclude
+These lists mirror `scripts/benchmark_models.py` as of 2026-07-10 and exclude
 deprecated registry entries. Historical tables below may still mention retired
 or deprecated models because they describe prior saved runs.
 
@@ -61,33 +61,32 @@ or deprecated models because they describe prior saved runs.
 Optional expensive models (add `--include-expensive`): `openai/gpt-5.5-pro`,
 `openai/gpt-5.4-pro`, and `anthropic/claude-fable-5`.
 
-### News Tier (12 models)
+### News Tier (5 models)
 
 - OpenAI Responses API with web search: `gpt-5.5`, `gpt-5.4`,
   `gpt-5-mini`
-- xAI native web search: `grok-4.3`, `grok-4.20-reasoning`,
-  `grok-4.20-non-reasoning`
-- Gemini grounding: `gemini-3.1-pro-preview`, `gemini-3.5-flash`,
-  `gemini-3-flash-preview`, `gemini-3.1-flash-lite`,
-  `gemini-2.5-flash`, `gemini-2.5-pro`
+- Gemini grounding: `gemini-2.5-flash`, `gemini-2.5-pro`
 
-### Research Tier (3 models)
+### Research Tier (4 bounded models)
 
-| Model | Provider | API used | Typical time |
-|-------|----------|----------|-------------|
-| openai/o3-deep-research | OpenAI | Responses API (background + polling) | 5-15 min |
-| openai/o4-mini-deep-research | OpenAI | Responses API (background + polling) | 10-20 min |
-| gemini/deep-research | Google | Interactions API (background + polling) | 5-15 min |
+| Provider | Models | API used |
+|----------|--------|----------|
+| OpenAI | `gpt-5.4`, `o3`, `gpt-5-mini` | Responses API with bounded web-search calls |
+| Gemini | `gemini-2.5-pro` | Generate Content with one grounded-prompt charge |
 
-Research tier jobs run asynchronously - the benchmark submits them with `"background": true`, then polls every 5-30s until completion. Timeout: 60 minutes per job.
+Native OpenAI and Gemini managed deep-research agents are not benchmark execution
+targets. Their autonomous token and tool loops do not expose a deterministic
+request-level monetary ceiling. Gemini 3 grounded requests are also excluded
+because one request can issue multiple separately billed search queries without
+a documented per-request query cap. xAI search is excluded because `max_turns`
+does not bound the number of parallel billable tool invocations within a turn.
+Historical native-agent results remain below as dated evidence, not as current
+executable targets.
 
-### Docs Tier (10 models)
+### Docs Tier (4 models)
 
 - OpenAI: `gpt-5.4`, `gpt-5-mini`, `o3`
-- Gemini: `gemini-3.1-pro-preview`, `gemini-3.5-flash`,
-  `gemini-2.5-pro`, `gemini-3.1-flash-lite`
-- xAI: `grok-4.20-reasoning`, `grok-4.20-non-reasoning`,
-  `grok-4.3`
+- Gemini: `gemini-2.5-pro`
 
 ## Scoring
 
@@ -105,7 +104,20 @@ Each tier uses a different scoring formula optimized for what matters:
 - **Judge**: Scores comprehensiveness (0.25), accuracy (0.25), synthesis (0.20), structure (0.15), citation integration (0.15)
 - **Citation score**: 35% count (0-20) + 25% domain diversity (0-10) + 25% report length (0-2000 words) + 15% structure (headings present)
 
-By default, benchmark runs now use a `$1` preflight cap. Increase with `--max-estimated-cost` or disable with `--no-cost-cap` when you intentionally want a larger run.
+By default, benchmark runs use a `$1` preflight and runtime ceiling. Every
+evaluation, judge, and provider-validation call reserves a conservative ceiling
+before submission and settles it to Deepr's append-only cost ledger. Because the
+raw benchmark adapters do not yet expose one normalized usage shape, ledger
+events record the conservative call ceiling rather than claiming exact provider
+billing. Increase the ceiling with `--budget`; `--no-cost-cap` still requires an
+explicit finite `--budget` before paid work can start.
+
+The estimate mirrors each adapter's outbound output-token maximum and adds its
+bounded server-side search allowance. OpenAI search estimates also cover the
+full advertised model context for every permitted tool call. Unknown pricing,
+unknown context limits, and provider paths without a deterministic request-level
+ceiling fail before submission. This deliberately favors an overstated approval
+ceiling over a silent-money path.
 
 ## CLI Reference
 
@@ -120,7 +132,7 @@ python scripts/benchmark_models.py [OPTIONS]
 | `--provider PROVIDER` | Only benchmark models from this provider |
 | `--quick` | Run 1 prompt per task type instead of all |
 | `--no-judge` | Skip LLM judge, use reference/citation scoring only |
-| `--budget DOLLARS` | Maximum spend - bypasses interactive safety prompt |
+| `--budget DOLLARS` | Hard runtime ceiling shared by evaluation, judge, and validation calls |
 | `--save` | Save results to `data/benchmarks/` |
 | `--resume` | Resume from checkpoint - skip completed evals |
 | `--compare FILE` | Compare against a previous benchmark run |
@@ -130,8 +142,8 @@ python scripts/benchmark_models.py [OPTIONS]
 | `--include-expensive` | Add expensive opt-in models to chat tier |
 | `--fill-gaps` | Load prior results and run only missing model+tier combos |
 | `--new-models` | Alias for `--fill-gaps` (recommended for new model launches) |
-| `--max-estimated-cost DOLLARS` | Abort before execution when preflight estimate exceeds threshold |
-| `--no-cost-cap` | Disable default preflight cost cap (use sparingly) |
+| `--max-estimated-cost DOLLARS` | Preflight threshold and runtime ceiling when `--budget` is absent |
+| `--no-cost-cap` | Disable the default `$1` cap; paid work still requires a finite `--budget` |
 | `--judge-model MODEL` | Override the judge (default: openai/gpt-4.1-mini) |
 | `--format table\|json` | Output format |
 | `--emit-routing-config` | Write `routing_preferences.json` for auto-mode |
@@ -269,9 +281,10 @@ Use this process whenever providers release new models.
 
 3. Tier placement
 - Put each model only in relevant tiers in `scripts/benchmark_models.py`:
-  - `RESEARCH_MODELS` for native deep-research APIs
   - `ORCHESTRATED_RESEARCH_MODELS` for web-search orchestration
   - `NEWS_MODELS` / `DOCS_MODELS` only if web-grounded docs/news behavior matters
+- Do not add a managed agent or grounded model unless its token and tool charges
+  have deterministic request-level maxima that the estimator covers.
 
 4. Cost-gated eval (default flow)
 - Estimate first: `deepr eval new --dry-run --tier all`
@@ -289,7 +302,6 @@ Use this process whenever providers release new models.
 2. Add it to the appropriate tier list in `scripts/benchmark_models.py`:
    - `DEFAULT_MODELS` for chat tier
    - `NEWS_MODELS` for news tier
-   - `RESEARCH_MODELS` for research tier (native deep research)
    - `ORCHESTRATED_RESEARCH_MODELS` for research tier (web-search orchestration)
    - `DOCS_MODELS` for docs tier
 3. If it needs a new API caller, add a `call_*` function and route it in `call_model()`
@@ -338,5 +350,11 @@ Results are saved to `data/benchmarks/benchmark_YYYYMMDD_HHMMSS.json` with struc
 
 - **Gemini 2.5 Pro (chat tier)**: Mandatory thinking tokens consume the entire `maxOutputTokens` budget on small prompts. Fixed by increasing the budget to `max_tokens + 3072` for pro models. Re-run required for older results.
 - **GPT-5 timeouts**: Reasoning-hard prompts can exceed the 60s timeout. 2 of 18 evals failed in the baseline run.
-- **Gemini deep-research citations**: The Interactions API returns citations in a structure that may differ from what the parser expects, resulting in 0 parsed citations despite the reports containing source references.
-- **Gemini 3 grounding**: Newer than 2.5, but currently produces fewer grounding citations in the news tier (5-7 avg vs 14-20 for 2.5 models). May improve as the API matures.
+- **Managed deep-research agents**: Historical results remain documented, but
+  paid benchmark execution is blocked until provider APIs expose deterministic
+  per-request token and tool ceilings.
+- **Gemini 3 grounding**: Paid benchmark execution is blocked because billing is
+  per generated search query and the API documents no per-request query cap.
+- **xAI search tools**: Paid benchmark execution is blocked because `max_turns`
+  does not cap parallel billable tool invocations within each turn. Chat-tier
+  Grok 4.3 evaluation uses the Responses API without server-side tools.
