@@ -118,22 +118,30 @@ class BatchExecutor:
             )
 
             # Store results
+            completed_results = [result for result in phase_results.values() if result.get("status") == "completed"]
             campaign_results["phases"][phase_num] = {
                 "task_count": len(phase_tasks),
-                "completed": len(phase_results),
+                "completed": len(completed_results),
                 "entropy": stopping_decision.entropy if stopping_decision else None,
                 "information_gain": stopping_decision.information_gain if stopping_decision else None,
             }
 
             for task_id, result in phase_results.items():
-                completed_tasks[task_id] = result
+                if result.get("status") == "completed":
+                    completed_tasks[task_id] = result
                 campaign_results["tasks"][task_id] = {
                     "title": result["title"],
                     "phase": phase_num,
                     "job_id": result["job_id"],
                     "status": result["status"],
+                    "result": result.get("result", ""),
                     "cost": result.get("cost", 0.0),
                 }
+
+            if any(result.get("status") == "pending" for result in phase_results.values()):
+                campaign_results["status"] = "pending"
+                logger.warning("Campaign %s paused with pending provider work in phase %s", campaign_id, phase_num)
+                break
 
             # Update prior entropy for next phase
             if stopping_decision:
@@ -157,6 +165,7 @@ class BatchExecutor:
                 break
 
         # Save campaign results
+        campaign_results.setdefault("status", "completed")
         campaign_results["completed_at"] = datetime.now(UTC).isoformat()
         campaign_results["total_cost"] = sum(t.get("cost", 0.0) for t in campaign_results["tasks"].values())
 
@@ -213,6 +222,7 @@ class BatchExecutor:
                 prompt=full_prompt,
                 task_id=task_id,
                 campaign_id=campaign_id,
+                model=task.get("model", "o4-mini-deep-research"),
                 metadata={
                     "phase": phase_num,
                     "title": task["title"],
@@ -304,87 +314,63 @@ class BatchExecutor:
         task_id: int,
         campaign_id: str,
         metadata: dict,
+        model: str = "o4-mini-deep-research",
     ) -> str:
         """Submit a single task to the queue."""
 
-        from deepr.experts.cost_safety import get_cost_safety_manager
+        from deepr.experts.research_cost_gate import reserve_configured_research_cost
         from deepr.providers.base import ResearchRequest, ToolConfig
-        from deepr.providers.registry import get_cost_estimate as _get_cost_estimate
+        from deepr.services.research_cost_reconciliation import reconcile_research_cost_reservations
+        from deepr.services.research_submission import dispatch_reserved_research
 
         # Generate unique job ID for this task
         job_id = f"{campaign_id}-task-{task_id}"
 
-        # Pre-flight budget check. _submit_task was previously
-        # firing provider.submit_research() with no cost-safety gate,
-        # so a 50-task batch could rack up $100+ of o4-mini-deep-research
-        # spend silently. Estimate per-task cost from the registry and
-        # let cost_safety veto if the daily/session budget can't cover it.
-        try:
-            est_cost = float(_get_cost_estimate("o4-mini-deep-research"))
-        except Exception:
-            est_cost = 2.0
-
-        cost_safety = get_cost_safety_manager()
-        allowed, deny_reason, _ = cost_safety.check_operation(
-            session_id=f"batch_{campaign_id}",
-            operation_type="batch_research",
-            estimated_cost=est_cost,
-            require_confirmation=False,
+        provider_name = getattr(self.provider, "name", "openai")
+        if not isinstance(provider_name, str) or not provider_name:
+            provider_name = "openai"
+        await reconcile_research_cost_reservations(
+            self.queue,
+            default_provider=provider_name,
         )
-        if not allowed:
-            raise RuntimeError(f"Batch task {task_id} blocked by cost-safety: {deny_reason}")
+        _, reservation = reserve_configured_research_cost(
+            job_id=job_id,
+            provider=provider_name,
+            prompt=prompt,
+            model=model,
+            enable_web_search=True,
+        )
 
         # Create job in queue
         job = ResearchJob(
             id=job_id,
             prompt=prompt,
-            model="o4-mini-deep-research",
+            model=model,
             enable_web_search=True,
             metadata={
                 **metadata,
                 "campaign_id": campaign_id,
                 "task_id": task_id,
+                **reservation.metadata(),
             },
         )
-
-        await self.queue.enqueue(job)
 
         # Submit to provider
         request = ResearchRequest(
             prompt=prompt,
-            model="o4-mini-deep-research",
+            model=model,
             system_message="You are a research assistant conducting comprehensive research. Provide detailed, citation-backed analysis.",
             tools=[ToolConfig(type="web_search_preview")],
             background=True,
         )
 
-        provider_job_id = await self.provider.submit_research(request)
-
-        # Update queue with provider job ID
-        await self.queue.update_status(
-            job_id=job.id,
-            status=JobStatus.PROCESSING,
-            provider_job_id=provider_job_id,
+        await dispatch_reserved_research(
+            queue=self.queue,
+            provider=self.provider,
+            job=job,
+            request=request,
+            reservation=reservation,
         )
-
-        # Settle the estimated cost into the cost-safety manager so
-        # daily / monthly totals don't drift below reality. The
-        # pre-flight check at the top of this method had registered an
-        # implicit "intent to spend" but never committed it; long-running
-        # campaigns previously kept passing the daily cap because
-        # ``record_cost`` was never called.
-        try:
-            cost_safety.record_cost(
-                session_id=f"batch_{campaign_id}",
-                operation_type="batch_research",
-                actual_cost=est_cost,
-                provider=getattr(self.provider, "name", "openai"),
-                model="o4-mini-deep-research",
-                idempotency_key=f"batch:{campaign_id}:task:{task_id}:submit",
-                source="services.batch_executor._submit_task",
-            )
-        except Exception:
-            pass  # cost safety bookkeeping must never block batch task submission
 
         return job.id
 
@@ -413,6 +399,9 @@ class BatchExecutor:
 
         results = {}
         pending = set(job_ids.keys())
+        from deepr.worker.poller import JobPoller
+
+        poller = JobPoller(queue=self.queue, provider=self.provider, storage=self.storage)
 
         # Create lookup for task titles
         task_titles = {t["id"]: t["title"] for t in tasks}
@@ -420,16 +409,13 @@ class BatchExecutor:
         wait_started = _time.monotonic()
         while pending:
             if _time.monotonic() - wait_started > max_wait_seconds:
-                # Mark any still-pending tasks as failed and exit.
-                for task_id in list(pending):
-                    results[task_id] = {
-                        "title": task_titles.get(task_id, ""),
-                        "job_id": job_ids[task_id],
-                        "status": "failed",
-                        "result": "",
-                        "cost": 0.0,
-                        "error": f"Batch wait timed out after {max_wait_seconds:.0f}s",
-                    }
+                timeout_results = await self._handle_wait_timeout(
+                    pending=pending,
+                    job_ids=job_ids,
+                    task_titles=task_titles,
+                    max_wait_seconds=max_wait_seconds,
+                )
+                results.update(timeout_results)
                 logger.warning(
                     "BatchExecutor._wait_for_completion timed out after %ss with %d jobs still pending",
                     max_wait_seconds,
@@ -442,6 +428,13 @@ class BatchExecutor:
             for task_id in list(pending):
                 job_id = job_ids[task_id]
                 job = await self.queue.get_job(job_id)
+                if job is None:
+                    continue
+                if job.status == JobStatus.PROCESSING and job.provider_job_id:
+                    await poller.check_job_status(job)
+                    job = await self.queue.get_job(job_id)
+                    if job is None:
+                        continue
 
                 if job.status == JobStatus.FAILED:
                     results[task_id] = {
@@ -490,6 +483,45 @@ class BatchExecutor:
                         pending.remove(task_id)
                         logger.warning("Task %s: %s (Report error: %s)", task_id, task_titles[task_id], e)
 
+        return results
+
+    async def _handle_wait_timeout(
+        self,
+        *,
+        pending: set[int],
+        job_ids: dict[int, str],
+        task_titles: dict[int, str],
+        max_wait_seconds: float,
+    ) -> dict[int, dict]:
+        """Attempt cancellation without inventing terminal state when it fails."""
+        from deepr.services.research_cancellation import cancel_reserved_research
+
+        results: dict[int, dict] = {}
+        provider_name = getattr(self.provider, "name", "openai")
+        for task_id in list(pending):
+            job = await self.queue.get_job(job_ids[task_id])
+            cancelled = False
+            if job is not None:
+                outcome = await cancel_reserved_research(
+                    queue=self.queue,
+                    provider=self.provider,
+                    job=job,
+                    default_provider=provider_name,
+                    source="services.batch_executor.timeout",
+                )
+                cancelled = outcome.queue_cancelled and outcome.cost_closed
+            if cancelled:
+                error = f"Batch wait timed out and provider cancellation was confirmed after {max_wait_seconds:.0f}s"
+            else:
+                error = f"Batch wait timed out after {max_wait_seconds:.0f}s; durable tracking remains active"
+            results[task_id] = {
+                "title": task_titles.get(task_id, ""),
+                "job_id": job_ids[task_id],
+                "status": "cancelled" if cancelled else "pending",
+                "result": "",
+                "cost": 0.0,
+                "error": error,
+            }
         return results
 
     def _group_by_phase(self, tasks: list[dict]) -> dict[int, list[dict]]:

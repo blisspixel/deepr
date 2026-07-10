@@ -90,7 +90,7 @@ def eval_recall_libraries(
     validation_plan: bool,
     local_embedding_model: str | None,
     top_k: int,
-):
+) -> None:
     """List accumulated recall case libraries without running retrieval."""
     if local_embedding_model and not validation_plan:
         raise click.ClickException("--local-embedding-model only applies with --validation-plan.")
@@ -121,13 +121,15 @@ def _validate_embedding_flags(
         raise click.ClickException("--embedding-model applies only to --query-embeddings-json.")
 
 
-def _render_recall_report(report: dict, name: str, top_k: int) -> None:
+def _render_recall_report(report: dict[str, Any], name: str, top_k: int) -> None:
     click.echo(f"Recall routing eval for {name}  ({report['request']['case_count']} case(s), top_k={top_k})")
     for route_name, summary in report["routes"].items():
         click.echo(
             f"  - {route_name:18s}  hit@k {summary['hit_at_k']:6.1%}  "
             f"MRR {summary['mean_reciprocal_rank']:.3f}  "
-            f"relevant/case {summary['mean_relevant_retrieved']:.2f}"
+            f"recall@k {summary['mean_recall_at_k']:.3f}  "
+            f"MAP@k {summary['mean_average_precision_at_k']:.3f}  "
+            f"NDCG@k {summary['mean_ndcg_at_k']:.3f}"
         )
     comparison = report["comparison"]
     if comparison["vector_route_evaluated"]:
@@ -184,7 +186,7 @@ def _load_cases_for_eval(
     case_id: str | None,
     case_query: str | None,
     relevant_belief_ids: tuple[str, ...],
-) -> tuple[list[RecallEvalCase], dict | None]:
+) -> tuple[list[RecallEvalCase], dict[str, Any] | None]:
     if cases_path is not None:
         return load_recall_eval_cases(json.loads(cases_path.read_text(encoding="utf-8"))), None
     if _single_case_requested(case_id, case_query, relevant_belief_ids):
@@ -276,7 +278,7 @@ def eval_recall(
     record_cases: bool,
     json_output: bool,
     save: bool,
-):
+) -> None:
     """Compare lexical vs vector recall routing on labeled cases (cost $0).
 
     Relevance labels come from an operator-supplied cases file or one reviewed
@@ -298,8 +300,10 @@ def eval_recall(
         relevant_belief_ids=relevant_belief_ids,
         record_cases=record_cases,
     )
-    if ExpertStore().load(name) is None:
+    expert = ExpertStore().load(name)
+    if expert is None:
         raise click.ClickException(f"Expert '{name}' not found. Create one: deepr expert make '{name}'.")
+    domain = str(getattr(expert, "domain", "") or "")
 
     try:
         cases, case_library = _load_cases_for_eval(
@@ -320,6 +324,7 @@ def eval_recall(
                 cases,
                 expert_name=name,
                 top_k=top_k,
+                domain=domain,
                 embedding_model=resolved_model,
                 query_embeddings_by_case_id=embeddings_by_case,
                 embed_queries=embed_queries,

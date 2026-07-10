@@ -101,6 +101,7 @@ class TestRequestConstruction:
                 system_message="Test system message",
                 tools=[ToolConfig(type="web_search_preview")],
                 metadata={"test": "value"},
+                idempotency_key="deepr-research-job-1",
             )
 
             job_id = await provider.submit_research(request)
@@ -114,6 +115,7 @@ class TestRequestConstruction:
             assert call_kwargs["metadata"] == {"test": "value"}
             assert call_kwargs["store"] is True
             assert call_kwargs["background"] is True
+            assert call_kwargs["extra_headers"] == {"Idempotency-Key": "deepr-research-job-1"}
 
     @pytest.mark.asyncio
     async def test_submit_research_with_web_search_tool(self, provider):
@@ -516,6 +518,8 @@ class TestErrorHandling:
             job_id = await provider.submit_research(request)
             assert job_id == "resp_test123"
             assert mock_create.call_count == 2
+            keys = {call.kwargs["extra_headers"]["Idempotency-Key"] for call in mock_create.call_args_list}
+            assert len(keys) == 1
 
     @pytest.mark.asyncio
     async def test_submit_research_retries_on_connection_error(self, provider):
@@ -695,7 +699,10 @@ class TestDocumentOperations:
                 assert vs.id == "vs_test123"
                 assert vs.name == "test-store"
                 assert vs.file_ids == ["file_1", "file_2"]
-                mock_create.assert_called_once_with(name="test-store")
+                mock_create.assert_called_once_with(
+                    name="test-store",
+                    expires_after={"anchor": "last_active_at", "days": 1},
+                )
                 assert mock_file_create.call_count == 2
 
     @pytest.mark.asyncio

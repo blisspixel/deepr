@@ -12,6 +12,7 @@ import json
 from contextlib import contextmanager
 from types import SimpleNamespace
 
+import pytest
 from click.testing import CliRunner
 
 from deepr.backends.capacity_actions import CAPACITY_NEXT_KIND, CAPACITY_NEXT_SCHEMA_VERSION, CapacityNextAction
@@ -23,8 +24,8 @@ from deepr.cli.commands.semantic.expert_maintenance import (
 from deepr.cli.commands.semantic.expert_sync_support import _self_model_run_context, _sync_run_context
 from deepr.cli.commands.semantic.experts import expert
 from deepr.evals.recall_quality import (
+    MIN_SCHEDULER_PREFERENCE_CASES,
     RecallEvalCase,
-    load_recall_eval_case_library,
     merge_recall_eval_case_library,
     run_recall_quality_eval,
     write_recall_eval_report,
@@ -32,22 +33,45 @@ from deepr.evals.recall_quality import (
 from deepr.experts.beliefs import Belief, BeliefStore
 
 
-def _eligible_recall_preference():
-    return {
-        "eligible": True,
-        "preferred_route": "vector_similarity",
-        "fallback_route": "lexical_router",
-        "required_case_count": 3,
-        "evaluated_case_count": 3,
-        "required_win_metrics": ["hit_at_k", "mean_reciprocal_rank"],
-        "winners_by_metric": {
-            "hit_at_k": "vector_similarity",
-            "mean_reciprocal_rank": "vector_similarity",
-        },
-        "reasons": [],
-        "routing_evidence_only": True,
-        "semantic_verdict": False,
-    }
+def _build_eligible_recall_report(tmp_path, *, name: str, embedding_model: str):
+    store = BeliefStore(name, storage_dir=tmp_path / "beliefs")
+    beliefs = [
+        store.add_belief(Belief(claim=claim, confidence=confidence))[0]
+        for claim, confidence in (
+            ("Copper busways cap dense accelerator racks.", 0.84),
+            ("Immutable audit trails govern evidence retention.", 0.83),
+            ("Thermal headroom limits colocated inference clusters.", 0.82),
+        )
+    ]
+    basis = ((1.0, 0.0, 0.0), (0.0, 1.0, 0.0), (0.0, 0.0, 1.0))
+    for belief, vector in zip(beliefs, basis, strict=True):
+        store.upsert_belief_embedding(belief.id, vector, model=embedding_model)
+
+    cases = [
+        RecallEvalCase(
+            f"case-{index:02d}",
+            f"opaque retrieval query {index:02d}",
+            (beliefs[index % len(beliefs)].id,),
+        )
+        for index in range(MIN_SCHEDULER_PREFERENCE_CASES)
+    ]
+
+    async def embed_queries(queries):
+        assert queries == [case.query for case in cases]
+        return [basis[index % len(basis)] for index in range(len(queries))]
+
+    report = asyncio.run(
+        run_recall_quality_eval(
+            store,
+            cases,
+            expert_name=name,
+            top_k=5,
+            embedding_model=embedding_model,
+            embed_queries=embed_queries,
+        )
+    )
+    assert report["scheduler_preference"]["eligible"] is True
+    return report, cases
 
 
 def _write_recall_preference_report(
@@ -57,41 +81,11 @@ def _write_recall_preference_report(
     embedding_model="nomic-embed-text",
     scheduler_preference=None,
 ):
+    report, _ = _build_eligible_recall_report(tmp_path, name=name, embedding_model=embedding_model)
+    if scheduler_preference is not None:
+        report["scheduler_preference"] = {**report["scheduler_preference"], **scheduler_preference}
     path = tmp_path / "recall-report.json"
-    path.write_text(
-        json.dumps(
-            {
-                "schema_version": "deepr-recall-eval-report-v1",
-                "kind": "deepr.eval.recall_quality",
-                "expert": {"name": name},
-                "request": {"embedding_model": embedding_model},
-                "index": {
-                    "embedding_model": embedding_model,
-                    "current_vector_count": 3,
-                    "missing_or_stale_count": 0,
-                    "record_count": 3,
-                },
-                "comparison": {
-                    "vector_route_evaluated": True,
-                    "winners_by_metric": {
-                        "hit_at_k": "vector_similarity",
-                        "mean_reciprocal_rank": "vector_similarity",
-                    },
-                },
-                "contract": {
-                    "writes_graph": False,
-                    "writes_beliefs": False,
-                    "writes_belief_vectors": False,
-                    "semantic_verdict": False,
-                    "routing_evidence_only": True,
-                },
-                "scheduler_preference": (
-                    _eligible_recall_preference() if scheduler_preference is None else scheduler_preference
-                ),
-            }
-        ),
-        encoding="utf-8",
-    )
+    path.write_text(json.dumps(report), encoding="utf-8")
     return path
 
 
@@ -101,46 +95,26 @@ def _write_recall_report_from_accumulated_library(
     name="UI Experience Expert",
     embedding_model="nomic-embed-text",
 ):
-    store = BeliefStore(name, storage_dir=tmp_path / "beliefs")
-    first, _ = store.add_belief(Belief(claim="Copper busways cap dense accelerator racks.", confidence=0.84))
-    second, _ = store.add_belief(Belief(claim="Immutable audit trails govern evidence retention.", confidence=0.83))
-    third, _ = store.add_belief(Belief(claim="Thermal headroom limits colocated inference clusters.", confidence=0.82))
-    store.upsert_belief_embedding(first.id, [1.0, 0.0, 0.0], model=embedding_model)
-    store.upsert_belief_embedding(second.id, [0.0, 1.0, 0.0], model=embedding_model)
-    store.upsert_belief_embedding(third.id, [0.0, 0.0, 1.0], model=embedding_model)
-
-    cases = [
-        RecallEvalCase("case-energy", "energy ceilings", (first.id,)),
-        RecallEvalCase("case-records", "records policy", (second.id,)),
-        RecallEvalCase("case-cooling", "cooling budget", (third.id,)),
-    ]
+    report, cases = _build_eligible_recall_report(tmp_path, name=name, embedding_model=embedding_model)
     case_root = tmp_path / "benchmarks" / "recall_cases"
     library_meta = merge_recall_eval_case_library(name, cases, output_dir=case_root)
-    loaded_cases = load_recall_eval_case_library(name, output_dir=case_root)
-
-    query_vectors = {
-        "energy ceilings": (0.99, 0.01, 0.0),
-        "records policy": (0.01, 0.99, 0.0),
-        "cooling budget": (0.0, 0.01, 0.99),
-    }
-
-    async def embed_queries(queries):
-        assert set(queries) == set(query_vectors)
-        return [query_vectors[query] for query in queries]
-
-    report = asyncio.run(
-        run_recall_quality_eval(
-            store,
-            loaded_cases,
-            expert_name=name,
-            top_k=1,
-            embedding_model=embedding_model,
-            embed_queries=embed_queries,
-        )
-    )
-    assert report["scheduler_preference"]["eligible"] is True
     report["case_library"] = {**library_meta, "source": "accumulated_library"}
     return write_recall_eval_report(report, output_dir=tmp_path / "benchmarks")
+
+
+def _patch_current_recall_index(monkeypatch, report_path):
+    report = json.loads(report_path.read_text(encoding="utf-8"))
+    index = report["index"]
+
+    class CurrentBeliefStore:
+        def __init__(self, name):
+            self.name = name
+
+        def belief_embedding_stats(self, *, embedding_model):
+            assert embedding_model == index["embedding_model"]
+            return dict(index)
+
+    monkeypatch.setattr("deepr.experts.beliefs.BeliefStore", CurrentBeliefStore)
 
 
 class TestRegistration:
@@ -366,14 +340,205 @@ class TestBackendFlagGuard:
         assert r.exit_code == 2
         assert "embedding model does not match" in r.output
 
+    def test_sync_rejects_legacy_recall_preference_report_before_store_work(self, monkeypatch, tmp_path):
+        class ExplodingExpertStore:
+            def load(self, name):
+                raise AssertionError("recall preference version validation must run before loading experts")
+
+        monkeypatch.setattr("deepr.experts.profile.ExpertStore", ExplodingExpertStore)
+        report_path = _write_recall_preference_report(tmp_path, name="Whoever")
+        report = json.loads(report_path.read_text(encoding="utf-8"))
+        report["schema_version"] = "deepr-recall-eval-report-v1"
+        report_path.write_text(json.dumps(report), encoding="utf-8")
+
+        r = CliRunner().invoke(
+            expert,
+            [
+                "sync",
+                "Whoever",
+                "--compile-claims",
+                "--recall-embedding-model",
+                "nomic-embed-text",
+                "--recall-preference-report",
+                str(report_path),
+            ],
+        )
+
+        assert r.exit_code == 2
+        assert "deepr-recall-eval-report-v2" in r.output
+        assert "rerun" in r.output
+
+    def test_sync_rejects_report_without_paired_uncertainty_before_store_work(self, monkeypatch, tmp_path):
+        class ExplodingExpertStore:
+            def load(self, name):
+                raise AssertionError("recall preference evidence validation must run before loading experts")
+
+        monkeypatch.setattr("deepr.experts.profile.ExpertStore", ExplodingExpertStore)
+        report_path = _write_recall_preference_report(tmp_path, name="Whoever")
+        report = json.loads(report_path.read_text(encoding="utf-8"))
+        del report["comparison"]["paired_bootstrap"]
+        report_path.write_text(json.dumps(report), encoding="utf-8")
+
+        r = CliRunner().invoke(
+            expert,
+            [
+                "sync",
+                "Whoever",
+                "--compile-claims",
+                "--recall-embedding-model",
+                "nomic-embed-text",
+                "--recall-preference-report",
+                str(report_path),
+            ],
+        )
+
+        assert r.exit_code == 2
+        assert "paired comparison" in r.output
+        assert "inconsistent" in r.output
+
+    @pytest.mark.parametrize(
+        ("field", "value"),
+        [("cost_usd", 1.0), ("cost_usd", False), ("relevance_labels", "model_generated")],
+    )
+    def test_sync_rejects_non_operator_or_nonzero_cost_recall_evidence(
+        self,
+        monkeypatch,
+        tmp_path,
+        field,
+        value,
+    ):
+        class ExplodingExpertStore:
+            def load(self, name):
+                raise AssertionError("recall preference contract validation must run before loading experts")
+
+        monkeypatch.setattr("deepr.experts.profile.ExpertStore", ExplodingExpertStore)
+        report_path = _write_recall_preference_report(tmp_path, name="Whoever")
+        report = json.loads(report_path.read_text(encoding="utf-8"))
+        report["contract"][field] = value
+        report_path.write_text(json.dumps(report), encoding="utf-8")
+
+        r = CliRunner().invoke(
+            expert,
+            [
+                "sync",
+                "Whoever",
+                "--compile-claims",
+                "--recall-embedding-model",
+                "nomic-embed-text",
+                "--recall-preference-report",
+                str(report_path),
+            ],
+        )
+
+        assert r.exit_code == 2
+        assert "read-only routing-evidence report" in r.output
+
+    @pytest.mark.parametrize("value", [-1, [], False])
+    def test_sync_rejects_malformed_recall_index_counts(self, monkeypatch, tmp_path, value):
+        class ExplodingExpertStore:
+            def load(self, name):
+                raise AssertionError("recall index validation must run before loading experts")
+
+        monkeypatch.setattr("deepr.experts.profile.ExpertStore", ExplodingExpertStore)
+        report_path = _write_recall_preference_report(tmp_path, name="Whoever")
+        report = json.loads(report_path.read_text(encoding="utf-8"))
+        report["index"]["missing_or_stale_count"] = value
+        report_path.write_text(json.dumps(report), encoding="utf-8")
+
+        r = CliRunner().invoke(
+            expert,
+            [
+                "sync",
+                "Whoever",
+                "--compile-claims",
+                "--recall-embedding-model",
+                "nomic-embed-text",
+                "--recall-preference-report",
+                str(report_path),
+            ],
+        )
+
+        assert r.exit_code == 2
+        assert "index has invalid" in r.output
+        assert "missing_or_stale_count" in r.output
+
+    def test_sync_rejects_recall_index_model_mismatch(self, monkeypatch, tmp_path):
+        class ExplodingExpertStore:
+            def load(self, name):
+                raise AssertionError("recall index validation must run before loading experts")
+
+        monkeypatch.setattr("deepr.experts.profile.ExpertStore", ExplodingExpertStore)
+        report_path = _write_recall_preference_report(tmp_path, name="Whoever")
+        report = json.loads(report_path.read_text(encoding="utf-8"))
+        report["index"]["embedding_model"] = "other-model"
+        report_path.write_text(json.dumps(report), encoding="utf-8")
+
+        r = CliRunner().invoke(
+            expert,
+            [
+                "sync",
+                "Whoever",
+                "--compile-claims",
+                "--recall-embedding-model",
+                "nomic-embed-text",
+                "--recall-preference-report",
+                str(report_path),
+            ],
+        )
+
+        assert r.exit_code == 2
+        assert "index model does not match" in r.output
+
+    def test_sync_rejects_recall_report_after_live_index_drift(self, monkeypatch, tmp_path):
+        class ExplodingExpertStore:
+            def load(self, name):
+                raise AssertionError("live recall index validation must run before loading experts")
+
+        class DriftedBeliefStore:
+            def __init__(self, name):
+                self.name = name
+
+            def belief_embedding_stats(self, *, embedding_model):
+                return {
+                    "record_count": 3,
+                    "belief_count": 3,
+                    "current_vector_count": 3,
+                    "missing_or_stale_count": 0,
+                    "state_digest": "b" * 64,
+                }
+
+        monkeypatch.setattr("deepr.experts.profile.ExpertStore", ExplodingExpertStore)
+        monkeypatch.setattr("deepr.experts.beliefs.BeliefStore", DriftedBeliefStore)
+        report_path = _write_recall_preference_report(tmp_path, name="Whoever")
+
+        r = CliRunner().invoke(
+            expert,
+            [
+                "sync",
+                "Whoever",
+                "--compile-claims",
+                "--recall-embedding-model",
+                "nomic-embed-text",
+                "--recall-preference-report",
+                str(report_path),
+            ],
+        )
+
+        assert r.exit_code == 2
+        assert "report is stale for the current" in r.output
+        assert "belief-vector index" in r.output
+
     def test_sync_rejects_recall_preference_report_with_too_few_cases_before_store_work(self, monkeypatch, tmp_path):
         class ExplodingExpertStore:
             def load(self, name):
                 raise AssertionError("recall preference evidence validation must run before loading experts")
 
         monkeypatch.setattr("deepr.experts.profile.ExpertStore", ExplodingExpertStore)
-        preference = {**_eligible_recall_preference(), "evaluated_case_count": 1}
-        report = _write_recall_preference_report(tmp_path, name="Whoever", scheduler_preference=preference)
+        report = _write_recall_preference_report(
+            tmp_path,
+            name="Whoever",
+            scheduler_preference={"evaluated_case_count": 1},
+        )
 
         r = CliRunner().invoke(
             expert,
@@ -389,8 +554,8 @@ class TestBackendFlagGuard:
         )
 
         assert r.exit_code == 2
-        assert "does not meet" in r.output
-        assert "required case" in r.output
+        assert "scheduler preference" in r.output
+        assert "inconsistent" in r.output
 
     def test_sync_rejects_recall_preference_report_without_required_vector_wins_before_store_work(
         self, monkeypatch, tmp_path
@@ -400,14 +565,18 @@ class TestBackendFlagGuard:
                 raise AssertionError("recall preference evidence validation must run before loading experts")
 
         monkeypatch.setattr("deepr.experts.profile.ExpertStore", ExplodingExpertStore)
-        preference = {
-            **_eligible_recall_preference(),
-            "winners_by_metric": {
-                "hit_at_k": "vector_similarity",
-                "mean_reciprocal_rank": "tie",
+        report = _write_recall_preference_report(
+            tmp_path,
+            name="Whoever",
+            scheduler_preference={
+                "winners_by_metric": {
+                    "hit_at_k": "vector_similarity",
+                    "mean_reciprocal_rank": "tie",
+                    "mean_recall_at_k": "vector_similarity",
+                    "mean_ndcg_at_k": "vector_similarity",
+                }
             },
-        }
-        report = _write_recall_preference_report(tmp_path, name="Whoever", scheduler_preference=preference)
+        )
 
         r = CliRunner().invoke(
             expert,
@@ -423,7 +592,8 @@ class TestBackendFlagGuard:
         )
 
         assert r.exit_code == 2
-        assert "must win all required vector win" in r.output
+        assert "scheduler preference" in r.output
+        assert "inconsistent" in r.output
 
     def test_absorb_rejects_checker_plan_without_grounding_before_store_work(self, monkeypatch):
         class ExplodingExpertStore:
@@ -701,6 +871,8 @@ class TestBackendFlagGuard:
             lambda **kwargs: SimpleNamespace(to_dict=lambda: {"run_id": "loop_sync_complete"}),
         )
         report = _write_recall_preference_report(tmp_path)
+        _patch_current_recall_index(monkeypatch, report)
+        expected_preference = json.loads(report.read_text(encoding="utf-8"))["scheduler_preference"]
 
         r = CliRunner().invoke(
             expert,
@@ -720,7 +892,7 @@ class TestBackendFlagGuard:
 
         assert r.exit_code == 0, r.output
         assert captured["build_kwargs"]["compile_claims"] is True
-        assert captured["build_kwargs"]["recall_route_preference"] == _eligible_recall_preference()
+        assert captured["build_kwargs"]["recall_route_preference"] == expected_preference
         assert captured["sync_kwargs"]["apply_graph_commits"] is True
 
     def test_sync_accepts_recall_preference_report_from_accumulated_library(self, monkeypatch, tmp_path):
@@ -770,6 +942,7 @@ class TestBackendFlagGuard:
             lambda **kwargs: SimpleNamespace(to_dict=lambda: {"run_id": "loop_sync_complete"}),
         )
         report_path = _write_recall_report_from_accumulated_library(tmp_path)
+        _patch_current_recall_index(monkeypatch, report_path)
         report = json.loads(report_path.read_text(encoding="utf-8"))
 
         r = CliRunner().invoke(

@@ -1,6 +1,6 @@
 # Supported Surface
 
-Status: v2.32.0 current main, 2026-07-08. This document defines what users and host
+Status: v2.33.0 current main, 2026-07-09. This document defines what users and host
 agents can rely on today, what is experimental, what is planned only, and what
 data remains portable if development stops.
 
@@ -22,6 +22,12 @@ must not be described as usable capacity.
 
 - Core research commands: `deepr research`, `deepr check`, `deepr learn`.
 - Budget ceilings, cost estimates, and the canonical append-only cost ledger.
+  Provider-backed REST, web, direct CLI, campaign-batch, MCP, and internal
+  orchestrator jobs use cross-process maximum-cost reservations, conservative
+  ambiguous-outcome settlement, and terminal-state reconciliation before new
+  spend is admitted. Paid synchronous planning calls reserve the full
+  configured per-call ceiling and settle provider token usage. Adapters retry
+  creation only with a supported server-side idempotency contract.
 - Provider routing and fallback when the user supplies provider keys and a
   budget ceiling.
 - Local report storage under the configured reports root.
@@ -190,9 +196,16 @@ must not be described as usable capacity.
   emits `deepr-recall-library-validation-plan-v1` command argv for ready
   libraries without executing retrieval or changing routing.
   `deepr eval recall NAME` can rerun accumulated operator-labeled recall case
-  libraries and emits an additive `deepr-recall-operator-validation-v1` block
-  describing whether the saved report is ready for explicit sync preference use.
-  The block is still routing evidence only: default sync routing remains
+  libraries and emits `deepr-recall-eval-report-v2` with hit@k, MRR,
+  precision@k, recall@k, MAP@k, NDCG@k, and deterministic paired bootstrap
+  intervals. Explicit vector preference needs at least 30 paired cases,
+  complete current vectors, required point-estimate wins, and 95 percent
+  interval lower bounds above zero. Sync recomputes case metrics, route
+  summaries, paired intervals, preference, and the live belief/vector state
+  digest before accepting eligible evidence. The source-pack recall path checks
+  the digest again at use time and requires an exact evaluated top-k, expert
+  domain, and minimum-score match, falling back lexically after any drift. The report
+  remains routing evidence only: default sync routing is
   lexical-first unless the operator supplies a vetted report with
   `--recall-preference-report`. All of these remain explicit operator choices,
   and recall stays `candidate_only` routing in every mode.

@@ -31,6 +31,7 @@ class TestJobPoller:
             patch("deepr.worker.poller.create_storage") as mock_cs,
             patch("deepr.worker.poller.create_provider") as mock_cp,
             patch("deepr.worker.poller.CostController"),
+            patch("deepr.worker.poller.reconcile_research_cost_from_ledger", return_value=True),
         ):
             mock_cq.return_value = AsyncMock()
             mock_cs.return_value = AsyncMock()
@@ -38,7 +39,7 @@ class TestJobPoller:
             from deepr.worker.poller import JobPoller
 
             p = JobPoller(poll_interval=5)
-            return p
+            yield p
 
     def test_init_sets_poll_interval(self, poller):
         """poll_interval stored correctly."""
@@ -170,6 +171,34 @@ class TestJobPoller:
         poller.queue.update_results.assert_called_once()
 
     @pytest.mark.asyncio
+    async def test_handle_completion_settles_persisted_cost_reservation(self, poller):
+        mock_job = MagicMock()
+        mock_job.id = "reserved-job"
+        mock_job.prompt = "Test prompt"
+        mock_job.model = "o3"
+        mock_job.provider = "openai"
+        mock_job.provider_job_id = "provider-job"
+        mock_job.metadata = {"cost_reservation_id": "reservation"}
+        response = MagicMock()
+        response.output = []
+        response.usage = MagicMock(cost=0.6, total_tokens=120)
+        reservation = MagicMock()
+
+        with (
+            patch("deepr.worker.poller.restore_research_cost_reservation", return_value=reservation),
+            patch("deepr.worker.poller.settle_research_cost") as settle,
+        ):
+            await poller._handle_completion(mock_job, response)
+
+        settle.assert_called_once_with(
+            reservation,
+            actual_cost=0.6,
+            tokens=120,
+            request_id="provider-job",
+            source="worker.poller._handle_completion",
+        )
+
+    @pytest.mark.asyncio
     async def test_handle_failure_updates_queue(self, poller):
         """_handle_failure updates queue status to FAILED."""
         mock_job = MagicMock()
@@ -179,6 +208,29 @@ class TestJobPoller:
         poller.queue.update_status.assert_called_once()
         call_kwargs = poller.queue.update_status.call_args[1]
         assert call_kwargs["error"] == "Test error"
+
+    @pytest.mark.asyncio
+    async def test_handle_failure_settles_accepted_job_estimate(self, poller):
+        mock_job = MagicMock()
+        mock_job.id = "accepted-failure"
+        mock_job.model = "o3"
+        mock_job.provider = "openai"
+        mock_job.provider_job_id = "provider-job"
+        mock_job.metadata = {"cost_reservation_id": "reservation"}
+        reservation = MagicMock()
+
+        with (
+            patch("deepr.worker.poller.restore_research_cost_reservation", return_value=reservation),
+            patch("deepr.worker.poller.settle_research_cost") as settle,
+        ):
+            await poller._handle_failure(mock_job, "Provider failed")
+
+        settle.assert_called_once_with(
+            reservation,
+            actual_cost=None,
+            request_id="provider-job",
+            source="worker.poller._handle_failure",
+        )
 
     @pytest.mark.asyncio
     async def test_completion_error_becomes_failure(self, poller):

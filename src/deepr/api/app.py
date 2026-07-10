@@ -14,10 +14,7 @@ from flasgger import Swagger
 from flask import Flask, jsonify, request
 from flask_cors import CORS
 
-# Import error handler middleware
 from deepr.api.middleware.errors import register_error_handlers
-
-# Import rate limiter middleware
 from deepr.api.middleware.rate_limiter import create_limiter, limit_job_status, limit_job_submit, limit_listing
 
 # The shared sync-to-async bridge (Phase Q1.3), aliased to the historical name
@@ -25,11 +22,8 @@ from deepr.api.middleware.rate_limiter import create_limiter, limit_job_status, 
 from deepr.utils.async_runner import run_async_command as run_async
 from deepr.utils.security import is_loopback_bind_host
 
-# Import rate limit constants for documentation
-
 load_dotenv()
 
-# Configure logging for rate limit events
 logger = logging.getLogger(__name__)
 
 app = Flask(__name__)
@@ -319,19 +313,45 @@ register_error_handlers(app)
 # Initialize services
 import uuid
 
+from deepr.api.research_cost import reserve_api_research_cost
 from deepr.config import load_config
-from deepr.providers import create_provider
-from deepr.providers.base import ResearchRequest, ToolConfig
+from deepr.experts.research_cost_gate import (
+    ResearchCostBlocked,
+    refund_research_cost,
+)
+from deepr.providers.base import DeepResearchProvider, ResearchRequest, ToolConfig
+from deepr.providers.lazy import LazyProviderResolver, config_api_key
 from deepr.queue.base import JobStatus, ResearchJob
 from deepr.queue.local_queue import SQLiteQueue
+from deepr.services.research_cancellation import cancel_reserved_research
+from deepr.services.research_cost_reconciliation import reconcile_research_cost_reservations
+from deepr.services.research_submission import dispatch_reserved_research
 from deepr.storage.local import LocalStorage
 
 # Load config to get correct queue path
 config = load_config()
 queue = SQLiteQueue(config["queue_db_path"])
 storage = LocalStorage(config["results_dir"])
-# Use factory so masked "api_key" from legacy load_config falls back to env
-provider = create_provider(config.get("provider", "openai"), api_key=config.get("api_key"))
+provider: DeepResearchProvider | None = None
+_provider_resolver = LazyProviderResolver(
+    config.get("provider", "openai"), config_api_key(config.get("api_key")), logger
+)
+
+
+def _cancel_job_with_cost_safety(job: ResearchJob) -> bool:
+    active_provider = provider
+    if job.provider_job_id and active_provider is None:
+        active_provider = _provider_resolver.resolve()
+    outcome = run_async(
+        cancel_reserved_research(
+            queue=queue,
+            provider=active_provider,
+            job=job,
+            default_provider=str(config.get("provider", "openai")),
+            source="api.cancel_job",
+        )
+    )
+    return outcome.queue_cancelled
 
 
 @app.route("/api/jobs", methods=["GET"])
@@ -613,46 +633,36 @@ def submit_job():
     if not isinstance(model, str) or model not in _ALLOWED_MODELS:
         return jsonify({"error": "Invalid model"}), 400
 
-    # Pre-submit budget check using the canonical cost controller before any
-    # provider call. Without this, an authenticated caller could fan out
-    # arbitrary paid jobs before the cost ledger noticed.
+    job_id = str(uuid.uuid4())
     try:
-        from deepr.core.costs import CostController, CostEstimator
-
-        _estimate = CostEstimator.estimate_cost(prompt=prompt, model=model, enable_web_search=enable_web_search)
-        _controller = CostController(
-            max_cost_per_job=float(os.getenv("DEEPR_PER_JOB_LIMIT", "5") or "5"),
-            max_daily_cost=float(os.getenv("DEEPR_DAILY_LIMIT", "10") or "10"),
-            max_monthly_cost=float(os.getenv("DEEPR_MONTHLY_LIMIT", "20") or "20"),
+        run_async(
+            reconcile_research_cost_reservations(
+                queue,
+                default_provider=str(config.get("provider", "openai")),
+            )
         )
-        allowed, reason = _controller.check_cost_limit(_estimate)
-        if not allowed:
-            return jsonify(
-                {
-                    "error": reason,
-                    "estimated_cost": {
-                        "min_cost": _estimate.min_cost,
-                        "max_cost": _estimate.max_cost,
-                        "estimated_cost": _estimate.expected_cost,
-                        "currency": "USD",
-                    },
-                }
-            ), 429
-    except ImportError as _e:
-        # CostController/Estimator missing is a deployment problem, not a
-        # situation we should silently fall through. Fail-closed so the
-        # cost-gate cannot be bypassed by a broken dependency.
-        logger.error("Cost guard unavailable (ImportError): %s", _e)
-        return jsonify({"error": "Cost controller unavailable"}), 503
-    except (ValueError, TypeError) as _e:
-        # Estimator-input problems are the caller's; everything else
-        # should propagate and surface as a 500 instead of bypassing the
-        # gate the way the previous broad except did.
-        logger.warning("Cost guard input rejected: %s", _e)
-        return jsonify({"error": "Invalid request: cost estimation failed"}), 400
+        estimate, reservation = reserve_api_research_cost(
+            job_id=job_id,
+            provider=str(config.get("provider", "openai")),
+            prompt=prompt,
+            model=model,
+            enable_web_search=bool(enable_web_search),
+        )
+    except ResearchCostBlocked as exc:
+        return jsonify({"error": str(exc)}), 429
+    except Exception as exc:
+        logger.error("Research cost reservation unavailable: %s", exc)
+        return jsonify({"error": "Cost reservation unavailable"}), 503
+
+    active_provider = provider if provider is not None else _provider_resolver.resolve()
+    if active_provider is None:
+        refund_research_cost(reservation)
+        return jsonify({"error": "Research provider is not configured"}), 503
 
     # Create job
-    job_id = str(uuid.uuid4())
+    raw_metadata = data.get("metadata", {})
+    metadata = dict(raw_metadata) if isinstance(raw_metadata, dict) else {}
+    metadata.update(reservation.metadata())
     job = ResearchJob(
         id=job_id,
         prompt=prompt,
@@ -660,12 +670,9 @@ def submit_job():
         priority=priority,
         enable_web_search=enable_web_search,
         status=JobStatus.QUEUED,
-        metadata=data.get("metadata", {}),
+        metadata=metadata,
     )
 
-    run_async(queue.enqueue(job))
-
-    # Submit to provider
     req = ResearchRequest(
         prompt=prompt,
         model=model,
@@ -673,22 +680,20 @@ def submit_job():
         tools=[ToolConfig(type="web_search_preview")] if enable_web_search else [],
         background=True,
     )
+    provider_job_id = run_async(
+        dispatch_reserved_research(
+            queue=queue,
+            provider=active_provider,
+            job=job,
+            request=req,
+            reservation=reservation,
+        )
+    )
 
-    provider_job_id = run_async(provider.submit_research(req))
-
-    # Update status
-    run_async(queue.update_status(job_id=job_id, status=JobStatus.PROCESSING, provider_job_id=provider_job_id))
-
-    # Calculate cost estimate from the registry (source of truth). A prior
-    # name heuristic ("mini" -> $0.5 else $5.0) wildly misestimated nano /
-    # flash-lite (over) and deep-research (under) models.
-    from deepr.providers.registry import get_cost_estimate
-
-    avg_cost = get_cost_estimate(model)
     estimated_cost = {
-        "min_cost": avg_cost * 0.5,
-        "max_cost": avg_cost * 2.0,
-        "estimated_cost": avg_cost,
+        "min_cost": estimate.min_cost,
+        "max_cost": estimate.max_cost,
+        "estimated_cost": estimate.expected_cost,
         "currency": "USD",
     }
 
@@ -749,7 +754,8 @@ def cancel_job(job_id):
         schema:
           $ref: '#/definitions/Error'
     """
-    success = run_async(queue.cancel_job(job_id))
+    job = run_async(queue.get_job(job_id))
+    success = _cancel_job_with_cost_safety(job) if job is not None else False
     return jsonify({"success": success})
 
 
@@ -795,8 +801,8 @@ def delete_job(job_id):
         schema:
           $ref: '#/definitions/Error'
     """
-    # For now, just cancel it
-    success = run_async(queue.cancel_job(job_id))
+    job = run_async(queue.get_job(job_id))
+    success = _cancel_job_with_cost_safety(job) if job is not None else False
     return jsonify({"success": success})
 
 

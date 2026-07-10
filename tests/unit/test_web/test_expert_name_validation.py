@@ -14,7 +14,7 @@ import pytest
 
 pytest.importorskip("flask")
 
-# deepr.web.app builds a provider at import time, which needs a key present
+# Keep provider-backed submission out of this validation-only test module.
 # (never called here). CI has none, so set a dummy before import.
 os.environ.setdefault("OPENAI_API_KEY", "sk-test-dummy-key")
 

@@ -1,0 +1,340 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/blisspixel/deepr/docs/schemas/recall-eval-report-v2.json",
+  "title": "Deepr Recall Evaluation Report v2",
+  "type": "object",
+  "additionalProperties": true,
+  "required": [
+    "schema_version",
+    "kind",
+    "expert",
+    "request",
+    "contract",
+    "index",
+    "routes",
+    "comparison",
+    "scheduler_preference",
+    "cases",
+    "generated_at"
+  ],
+  "properties": {
+    "schema_version": {"const": "deepr-recall-eval-report-v2"},
+    "kind": {"const": "deepr.eval.recall_quality"},
+    "expert": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name"],
+      "properties": {"name": {"type": "string"}}
+    },
+    "request": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["case_count", "top_k", "domain", "min_score", "embedding_model"],
+      "properties": {
+        "case_count": {"type": "integer", "minimum": 1},
+        "top_k": {"type": "integer", "minimum": 1},
+        "domain": {"type": "string"},
+        "min_score": {"type": "number", "minimum": 0.0, "maximum": 1.0},
+        "embedding_model": {"type": "string"}
+      }
+    },
+    "contract": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "cost_usd",
+        "writes_graph",
+        "writes_beliefs",
+        "writes_belief_vectors",
+        "semantic_verdict",
+        "relevance_labels",
+        "routing_evidence_only"
+      ],
+      "properties": {
+        "cost_usd": {"const": 0.0},
+        "writes_graph": {"const": false},
+        "writes_beliefs": {"const": false},
+        "writes_belief_vectors": {"const": false},
+        "semantic_verdict": {"const": false},
+        "relevance_labels": {"const": "operator_supplied"},
+        "routing_evidence_only": {"const": true}
+      }
+    },
+    "index": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "embedding_model": {"type": "string"},
+        "belief_count": {"type": "integer", "minimum": 0},
+        "current_vector_count": {"type": "integer", "minimum": 0},
+        "missing_or_stale_count": {"type": "integer", "minimum": 0},
+        "record_count": {"type": "integer", "minimum": 0},
+        "state_digest": {"type": "string", "pattern": "^[0-9a-f]{64}$"}
+      }
+    },
+    "routes": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["lexical_router"],
+      "properties": {
+        "lexical_router": {"$ref": "#/$defs/route_summary"},
+        "vector_similarity": {"$ref": "#/$defs/route_summary"}
+      }
+    },
+    "comparison": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["vector_route_evaluated"],
+      "properties": {
+        "vector_route_evaluated": {"type": "boolean"},
+        "skip_reason": {"type": "string", "minLength": 1},
+        "winners_by_metric": {"$ref": "#/$defs/winners"},
+        "paired_bootstrap": {"$ref": "#/$defs/paired_bootstrap"}
+      },
+      "allOf": [
+        {
+          "if": {"properties": {"vector_route_evaluated": {"const": true}}},
+          "then": {"required": ["winners_by_metric", "paired_bootstrap"]},
+          "else": {"required": ["skip_reason"]}
+        }
+      ]
+    },
+    "scheduler_preference": {"$ref": "#/$defs/scheduler_preference"},
+    "cases": {
+      "type": "array",
+      "minItems": 1,
+      "items": {"$ref": "#/$defs/case"}
+    },
+    "generated_at": {"type": "string", "format": "date-time"}
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "scheduler_preference": {
+            "properties": {"eligible": {"const": true}},
+            "required": ["eligible"]
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "index": {
+            "required": [
+              "embedding_model",
+              "belief_count",
+              "current_vector_count",
+              "missing_or_stale_count",
+              "record_count",
+              "state_digest"
+            ]
+          }
+        }
+      }
+    }
+  ],
+  "$defs": {
+    "score": {"type": "number", "minimum": 0.0, "maximum": 1.0},
+    "route_summary": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "case_count",
+        "hit_at_k",
+        "mean_reciprocal_rank",
+        "mean_precision_at_k",
+        "mean_recall_at_k",
+        "mean_average_precision_at_k",
+        "mean_ndcg_at_k",
+        "mean_relevant_retrieved"
+      ],
+      "properties": {
+        "case_count": {"type": "integer", "minimum": 1},
+        "hit_at_k": {"$ref": "#/$defs/score"},
+        "mean_reciprocal_rank": {"$ref": "#/$defs/score"},
+        "mean_precision_at_k": {"$ref": "#/$defs/score"},
+        "mean_recall_at_k": {"$ref": "#/$defs/score"},
+        "mean_average_precision_at_k": {"$ref": "#/$defs/score"},
+        "mean_ndcg_at_k": {"$ref": "#/$defs/score"},
+        "mean_relevant_retrieved": {"type": "number", "minimum": 0.0}
+      }
+    },
+    "winner": {"enum": ["lexical_router", "vector_similarity", "tie"]},
+    "winners": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "hit_at_k": {"$ref": "#/$defs/winner"},
+        "mean_reciprocal_rank": {"$ref": "#/$defs/winner"},
+        "mean_precision_at_k": {"$ref": "#/$defs/winner"},
+        "mean_recall_at_k": {"$ref": "#/$defs/winner"},
+        "mean_average_precision_at_k": {"$ref": "#/$defs/winner"},
+        "mean_ndcg_at_k": {"$ref": "#/$defs/winner"},
+        "mean_relevant_retrieved": {"$ref": "#/$defs/winner"}
+      }
+    },
+    "metric_evidence": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["mean_difference", "confidence_interval", "vector_superiority_supported"],
+      "properties": {
+        "mean_difference": {"type": "number"},
+        "confidence_interval": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["lower", "upper"],
+          "properties": {
+            "lower": {"type": "number"},
+            "upper": {"type": "number"}
+          }
+        },
+        "vector_superiority_supported": {"type": "boolean"}
+      }
+    },
+    "bootstrap_metrics": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "hit_at_k",
+        "mean_reciprocal_rank",
+        "mean_precision_at_k",
+        "mean_recall_at_k",
+        "mean_average_precision_at_k",
+        "mean_ndcg_at_k",
+        "mean_relevant_retrieved"
+      ],
+      "properties": {
+        "hit_at_k": {"$ref": "#/$defs/metric_evidence"},
+        "mean_reciprocal_rank": {"$ref": "#/$defs/metric_evidence"},
+        "mean_precision_at_k": {"$ref": "#/$defs/metric_evidence"},
+        "mean_recall_at_k": {"$ref": "#/$defs/metric_evidence"},
+        "mean_average_precision_at_k": {"$ref": "#/$defs/metric_evidence"},
+        "mean_ndcg_at_k": {"$ref": "#/$defs/metric_evidence"},
+        "mean_relevant_retrieved": {"$ref": "#/$defs/metric_evidence"}
+      }
+    },
+    "paired_bootstrap": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["method", "rng", "case_count", "resamples", "confidence_level", "seed", "metrics"],
+      "properties": {
+        "method": {"const": "paired_percentile_bootstrap"},
+        "rng": {"const": "numpy.PCG64"},
+        "case_count": {"type": "integer", "minimum": 1},
+        "resamples": {"type": "integer", "minimum": 9999},
+        "confidence_level": {"type": "number", "minimum": 0.95, "maximum": 1.0},
+        "seed": {"type": "string", "pattern": "^[0-9a-f]{16}$"},
+        "metrics": {"$ref": "#/$defs/bootstrap_metrics"}
+      }
+    },
+    "scheduler_preference": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "eligible",
+        "preferred_route",
+        "fallback_route",
+        "required_case_count",
+        "evaluated_case_count",
+        "required_win_metrics",
+        "winners_by_metric",
+        "minimum_confidence_level",
+        "minimum_bootstrap_resamples",
+        "confidence_supported_metrics",
+        "embedding_model",
+        "index_state_digest",
+        "retrieval_contract",
+        "reasons",
+        "routing_evidence_only",
+        "semantic_verdict"
+      ],
+      "properties": {
+        "eligible": {"type": "boolean"},
+        "preferred_route": {"enum": ["", "vector_similarity"]},
+        "fallback_route": {"const": "lexical_router"},
+        "required_case_count": {"type": "integer", "minimum": 30},
+        "evaluated_case_count": {"type": "integer", "minimum": 0},
+        "required_win_metrics": {
+          "type": "array",
+          "minItems": 4,
+          "uniqueItems": true,
+          "items": {"type": "string"}
+        },
+        "winners_by_metric": {"$ref": "#/$defs/winners"},
+        "minimum_confidence_level": {"type": "number", "minimum": 0.95, "maximum": 1.0},
+        "minimum_bootstrap_resamples": {"type": "integer", "minimum": 9999},
+        "confidence_supported_metrics": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {"type": "string"}
+        },
+        "embedding_model": {"type": "string"},
+        "index_state_digest": {"type": "string", "pattern": "^(|[0-9a-f]{64})$"},
+        "retrieval_contract": {"$ref": "#/$defs/retrieval_contract"},
+        "reasons": {"type": "array", "uniqueItems": true, "items": {"type": "string"}},
+        "routing_evidence_only": {"const": true},
+        "semantic_verdict": {"const": false}
+      }
+    },
+    "retrieval_contract": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["top_k", "domain", "min_score"],
+      "properties": {
+        "top_k": {"type": "integer", "minimum": 1},
+        "domain": {"type": "string"},
+        "min_score": {"type": "number", "minimum": 0.0, "maximum": 1.0}
+      }
+    },
+    "case_route": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "candidate_ids",
+        "hit_at_k",
+        "reciprocal_rank",
+        "precision_at_k",
+        "recall_at_k",
+        "average_precision_at_k",
+        "ndcg_at_k",
+        "relevant_retrieved",
+        "relevant_total"
+      ],
+      "properties": {
+        "candidate_ids": {"type": "array", "items": {"type": "string"}},
+        "hit_at_k": {"type": "boolean"},
+        "reciprocal_rank": {"$ref": "#/$defs/score"},
+        "precision_at_k": {"$ref": "#/$defs/score"},
+        "recall_at_k": {"$ref": "#/$defs/score"},
+        "average_precision_at_k": {"$ref": "#/$defs/score"},
+        "ndcg_at_k": {"$ref": "#/$defs/score"},
+        "relevant_retrieved": {"type": "integer", "minimum": 0},
+        "relevant_total": {"type": "integer", "minimum": 1}
+      }
+    },
+    "case": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["case_id", "query", "relevant_belief_ids", "routes"],
+      "properties": {
+        "case_id": {"type": "string", "minLength": 1},
+        "query": {"type": "string", "minLength": 1},
+        "relevant_belief_ids": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {"type": "string", "minLength": 1}
+        },
+        "routes": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["lexical_router"],
+          "properties": {
+            "lexical_router": {"$ref": "#/$defs/case_route"},
+            "vector_similarity": {"$ref": "#/$defs/case_route"}
+          }
+        }
+      }
+    }
+  }
+}

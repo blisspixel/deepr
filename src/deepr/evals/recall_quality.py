@@ -18,10 +18,23 @@ from pathlib import Path
 from typing import Any
 
 from deepr.config import runtime_data_path
+from deepr.evals.retrieval_metrics import (
+    BOOTSTRAP_CONFIDENCE_LEVEL as RECALL_PREFERENCE_CONFIDENCE_LEVEL,
+)
+from deepr.evals.retrieval_metrics import BOOTSTRAP_METHOD as RECALL_PREFERENCE_BOOTSTRAP_METHOD
+from deepr.evals.retrieval_metrics import BOOTSTRAP_RESAMPLES as RECALL_PREFERENCE_BOOTSTRAP_RESAMPLES
+from deepr.evals.retrieval_metrics import BOOTSTRAP_RNG as RECALL_PREFERENCE_BOOTSTRAP_RNG
+from deepr.evals.retrieval_metrics import compare_retrieval_routes
+from deepr.evals.retrieval_metrics import paired_vector_bootstrap_comparison as _paired_bootstrap_comparison
+from deepr.evals.retrieval_metrics import ranked_binary_retrieval_metrics as _case_metrics
+from deepr.evals.retrieval_metrics import summarize_retrieval_route as _route_summary
 from deepr.experts.paths import expert_slug
+from deepr.experts.recall_preference import belief_index_coverage as recall_index_coverage
+from deepr.experts.recall_preference import recall_retrieval_contract
+from deepr.experts.recall_preference import validate_belief_index_coverage as _validated_index_coverage
 from deepr.utils.atomic_io import atomic_write_text
 
-RECALL_EVAL_REPORT_SCHEMA_VERSION = "deepr-recall-eval-report-v1"
+RECALL_EVAL_REPORT_SCHEMA_VERSION = "deepr-recall-eval-report-v2"
 RECALL_EVAL_CASE_LIBRARY_SCHEMA_VERSION = "deepr-recall-eval-case-library-v1"
 RECALL_OPERATOR_VALIDATION_SCHEMA_VERSION = "deepr-recall-operator-validation-v1"
 RECALL_OPERATOR_VALIDATION_KIND = "deepr.eval.recall_operator_validation"
@@ -31,9 +44,13 @@ RECALL_LIBRARY_VALIDATION_PLAN_SCHEMA_VERSION = "deepr-recall-library-validation
 RECALL_LIBRARY_VALIDATION_PLAN_KIND = "deepr.eval.recall_library_validation_plan"
 LEXICAL_ROUTE = "lexical_router"
 VECTOR_ROUTE = "vector_similarity"
-MIN_SCHEDULER_PREFERENCE_CASES = 3
-_ROUTE_METRICS = ("hit_at_k", "mean_reciprocal_rank", "mean_relevant_retrieved")
-SCHEDULER_REQUIRED_VECTOR_WIN_METRICS = ("hit_at_k", "mean_reciprocal_rank")
+MIN_SCHEDULER_PREFERENCE_CASES = 30
+SCHEDULER_REQUIRED_VECTOR_WIN_METRICS = (
+    "hit_at_k",
+    "mean_reciprocal_rank",
+    "mean_recall_at_k",
+    "mean_ndcg_at_k",
+)
 
 # One batcher shape shared with deepr.backends.local.make_local_embedder.
 QueryEmbedder = Callable[[list[str]], Awaitable[list[tuple[float, ...]]]]
@@ -493,68 +510,61 @@ def build_recall_operator_validation(report: Mapping[str, Any]) -> dict[str, Any
     }
 
 
-def _case_metrics(candidate_ids: Sequence[str], relevant_ids: Sequence[str]) -> dict[str, Any]:
-    relevant = set(relevant_ids)
-    first_relevant_rank = next(
-        (rank for rank, candidate_id in enumerate(candidate_ids, start=1) if candidate_id in relevant),
-        None,
-    )
-    retrieved_relevant = sum(1 for candidate_id in candidate_ids if candidate_id in relevant)
-    return {
-        "candidate_ids": list(candidate_ids),
-        "hit_at_k": first_relevant_rank is not None,
-        "reciprocal_rank": 0.0 if first_relevant_rank is None else round(1.0 / first_relevant_rank, 6),
-        "relevant_retrieved": retrieved_relevant,
-        "relevant_total": len(relevant),
-    }
-
-
-def _route_summary(case_results: Sequence[Mapping[str, Any]]) -> dict[str, Any]:
-    if not case_results:
-        return {"case_count": 0}
-    count = len(case_results)
-    return {
-        "case_count": count,
-        "hit_at_k": round(sum(1 for case in case_results if case["hit_at_k"]) / count, 6),
-        "mean_reciprocal_rank": round(sum(case["reciprocal_rank"] for case in case_results) / count, 6),
-        "mean_relevant_retrieved": round(sum(case["relevant_retrieved"] for case in case_results) / count, 6),
-    }
-
-
 def _route_comparison(lexical: Mapping[str, Any], vector: Mapping[str, Any]) -> dict[str, str]:
-    comparison: dict[str, str] = {}
-    for metric in _ROUTE_METRICS:
-        lexical_score = float(lexical.get(metric, 0.0))
-        vector_score = float(vector.get(metric, 0.0))
-        if vector_score > lexical_score:
-            comparison[metric] = VECTOR_ROUTE
-        elif lexical_score > vector_score:
-            comparison[metric] = LEXICAL_ROUTE
-        else:
-            comparison[metric] = "tie"
-    return comparison
+    return compare_retrieval_routes(
+        lexical,
+        vector,
+        baseline_label=LEXICAL_ROUTE,
+        candidate_label=VECTOR_ROUTE,
+    )
 
 
 def _scheduler_preference(
     routes: Mapping[str, Any],
     comparison: Mapping[str, Any],
     index_coverage: Mapping[str, Any],
+    retrieval_contract: Mapping[str, Any],
 ) -> dict[str, Any]:
     reasons: list[str] = []
     vector_summary = routes.get(VECTOR_ROUTE, {})
     winners = comparison.get("winners_by_metric", {})
+    bootstrap = comparison.get("paired_bootstrap", {})
     evaluated_case_count = int(vector_summary.get("case_count", 0) or 0) if isinstance(vector_summary, Mapping) else 0
 
     if comparison.get("vector_route_evaluated") is not True:
         reasons.append("vector_route_not_evaluated")
     if evaluated_case_count < MIN_SCHEDULER_PREFERENCE_CASES:
         reasons.append("insufficient_case_count")
-    if index_coverage and int(index_coverage.get("missing_or_stale_count", 0) or 0) > 0:
+    if (
+        not index_coverage
+        or int(index_coverage.get("current_vector_count", 0) or 0) <= 0
+        or int(index_coverage.get("missing_or_stale_count", 0) or 0) > 0
+        or not str(index_coverage.get("state_digest", "") or "")
+    ):
         reasons.append("belief_vector_index_incomplete")
     if not isinstance(winners, Mapping) or any(
         winners.get(metric) != VECTOR_ROUTE for metric in SCHEDULER_REQUIRED_VECTOR_WIN_METRICS
     ):
         reasons.append("vector_route_did_not_win_required_metrics")
+
+    bootstrap_metrics = bootstrap.get("metrics", {}) if isinstance(bootstrap, Mapping) else {}
+    confidence_supported_metrics = [
+        metric
+        for metric in SCHEDULER_REQUIRED_VECTOR_WIN_METRICS
+        if isinstance(bootstrap_metrics, Mapping)
+        and isinstance(bootstrap_metrics.get(metric), Mapping)
+        and bootstrap_metrics[metric].get("vector_superiority_supported") is True
+    ]
+    bootstrap_contract_valid = (
+        isinstance(bootstrap, Mapping)
+        and bootstrap.get("method") == RECALL_PREFERENCE_BOOTSTRAP_METHOD
+        and bootstrap.get("rng") == RECALL_PREFERENCE_BOOTSTRAP_RNG
+        and bootstrap.get("case_count") == evaluated_case_count
+        and bootstrap.get("resamples") == RECALL_PREFERENCE_BOOTSTRAP_RESAMPLES
+        and bootstrap.get("confidence_level") == RECALL_PREFERENCE_CONFIDENCE_LEVEL
+    )
+    if not bootstrap_contract_valid or len(confidence_supported_metrics) != len(SCHEDULER_REQUIRED_VECTOR_WIN_METRICS):
+        reasons.append("vector_route_superiority_not_confident")
 
     eligible = not reasons
     return {
@@ -565,10 +575,142 @@ def _scheduler_preference(
         "evaluated_case_count": evaluated_case_count,
         "required_win_metrics": list(SCHEDULER_REQUIRED_VECTOR_WIN_METRICS),
         "winners_by_metric": dict(winners) if isinstance(winners, Mapping) else {},
+        "minimum_confidence_level": RECALL_PREFERENCE_CONFIDENCE_LEVEL,
+        "minimum_bootstrap_resamples": RECALL_PREFERENCE_BOOTSTRAP_RESAMPLES,
+        "confidence_supported_metrics": confidence_supported_metrics,
+        "embedding_model": str(index_coverage.get("embedding_model", "") or ""),
+        "index_state_digest": str(index_coverage.get("state_digest", "") or ""),
+        "retrieval_contract": dict(retrieval_contract),
         "reasons": sorted(set(reasons)),
         "routing_evidence_only": True,
         "semantic_verdict": False,
     }
+
+
+def _recomputed_case_routes(raw_case: Mapping[str, Any], *, top_k: int) -> tuple[dict[str, Any], dict[str, Any]]:
+    relevant_ids = raw_case.get("relevant_belief_ids")
+    routes = raw_case.get("routes")
+    if (
+        not isinstance(relevant_ids, list)
+        or not relevant_ids
+        or not all(isinstance(item, str) for item in relevant_ids)
+    ):
+        raise ValueError("recall eval report case has invalid relevance labels")
+    if not isinstance(routes, Mapping):
+        raise ValueError("recall eval report case is missing route results")
+
+    recomputed: dict[str, dict[str, Any]] = {}
+    for route in (LEXICAL_ROUTE, VECTOR_ROUTE):
+        result = routes.get(route)
+        if not isinstance(result, Mapping):
+            raise ValueError(f"recall eval report case is missing {route} results")
+        candidate_ids = result.get("candidate_ids")
+        if not isinstance(candidate_ids, list) or not all(isinstance(item, str) for item in candidate_ids):
+            raise ValueError(f"recall eval report case has invalid {route} candidate ids")
+        expected = _case_metrics(candidate_ids, relevant_ids, top_k=top_k)
+        if dict(result) != expected:
+            raise ValueError(f"recall eval report case has inconsistent {route} metrics")
+        recomputed[route] = expected
+    return recomputed[LEXICAL_ROUTE], recomputed[VECTOR_ROUTE]
+
+
+def _validated_report_retrieval_contract(request: Mapping[str, Any]) -> dict[str, Any]:
+    """Validate and normalize the report's measured retrieval parameters."""
+    top_k = request.get("top_k")
+    domain = request.get("domain")
+    min_score = request.get("min_score")
+    if isinstance(top_k, bool) or not isinstance(top_k, int) or top_k <= 0:
+        raise ValueError("recall eval report has invalid top_k")
+    if not isinstance(domain, str):
+        raise ValueError("recall eval report has invalid domain")
+    if isinstance(min_score, bool) or not isinstance(min_score, (int, float)):
+        raise ValueError("recall eval report has invalid min_score")
+    try:
+        retrieval_contract = recall_retrieval_contract(top_k=top_k, domain=domain, min_score=float(min_score))
+    except (TypeError, ValueError) as exc:
+        raise ValueError("recall eval report has invalid retrieval parameters") from exc
+    return retrieval_contract
+
+
+def _validated_preference_report_cases(
+    report: Mapping[str, Any],
+) -> tuple[int, str, float, str, list[Mapping[str, Any]]]:
+    if report.get("schema_version") != RECALL_EVAL_REPORT_SCHEMA_VERSION:
+        raise ValueError(f"recall eval report must use {RECALL_EVAL_REPORT_SCHEMA_VERSION}")
+    if report.get("kind") != "deepr.eval.recall_quality":
+        raise ValueError("recall eval report has an invalid kind")
+    request = report.get("request")
+    raw_cases = report.get("cases")
+    if not isinstance(request, Mapping) or not isinstance(raw_cases, list) or not raw_cases:
+        raise ValueError("recall eval report is missing request or case evidence")
+    retrieval_contract = _validated_report_retrieval_contract(request)
+    case_count = request.get("case_count")
+    embedding_model = request.get("embedding_model")
+    if isinstance(case_count, bool) or not isinstance(case_count, int) or case_count != len(raw_cases):
+        raise ValueError("recall eval report case count is inconsistent")
+    if not isinstance(embedding_model, str) or not embedding_model.strip():
+        raise ValueError("recall eval report has an invalid embedding model")
+    case_objects: list[Mapping[str, Any]] = []
+    for raw_case in raw_cases:
+        if not isinstance(raw_case, Mapping):
+            raise ValueError("recall eval report cases must be objects")
+        case_objects.append(raw_case)
+    load_recall_eval_cases(
+        [
+            {
+                "case_id": raw_case.get("case_id"),
+                "query": raw_case.get("query"),
+                "relevant_belief_ids": raw_case.get("relevant_belief_ids"),
+            }
+            for raw_case in case_objects
+        ]
+    )
+    return (
+        retrieval_contract["top_k"],
+        retrieval_contract["domain"],
+        retrieval_contract["min_score"],
+        embedding_model,
+        case_objects,
+    )
+
+
+def validate_recall_preference_evidence(report: Mapping[str, Any]) -> dict[str, Any]:
+    """Recompute and validate an eligible v2 scheduler-preference report."""
+    top_k, domain, min_score, embedding_model, raw_cases = _validated_preference_report_cases(report)
+
+    lexical_cases: list[dict[str, Any]] = []
+    vector_cases: list[dict[str, Any]] = []
+    for raw_case in raw_cases:
+        lexical_case, vector_case = _recomputed_case_routes(raw_case, top_k=top_k)
+        lexical_cases.append(lexical_case)
+        vector_cases.append(vector_case)
+
+    expected_routes = {
+        LEXICAL_ROUTE: _route_summary(lexical_cases),
+        VECTOR_ROUTE: _route_summary(vector_cases),
+    }
+    expected_comparison = {
+        "vector_route_evaluated": True,
+        "winners_by_metric": _route_comparison(expected_routes[LEXICAL_ROUTE], expected_routes[VECTOR_ROUTE]),
+        "paired_bootstrap": _paired_bootstrap_comparison(lexical_cases, vector_cases),
+    }
+    index = _validated_index_coverage(report.get("index"), embedding_model=embedding_model)
+    expected_preference = _scheduler_preference(
+        expected_routes,
+        expected_comparison,
+        index,
+        recall_retrieval_contract(top_k=top_k, domain=domain, min_score=min_score),
+    )
+
+    if report.get("routes") != expected_routes:
+        raise ValueError("recall eval report route summaries are inconsistent")
+    if report.get("comparison") != expected_comparison:
+        raise ValueError("recall eval report paired comparison is inconsistent")
+    if report.get("scheduler_preference") != expected_preference:
+        raise ValueError("recall eval report scheduler preference is inconsistent")
+    if expected_preference["eligible"] is not True:
+        raise ValueError("recall eval report does not contain eligible vector preference evidence")
+    return expected_preference
 
 
 async def _resolve_query_embeddings(
@@ -603,30 +745,14 @@ async def _resolve_query_embeddings(
     return {case.case_id: tuple(vector) for case, vector in zip(cases, vectors, strict=True)}, ""
 
 
-def _index_coverage(belief_store: Any, embedding_model: str | None) -> dict[str, Any]:
-    """Sanitized belief-vector index coverage for the requested model label.
-
-    The local index path is deliberately omitted from the payload. An empty
-    dict means no model label was requested or the store exposes no stats.
-    """
-    stats_fn = getattr(belief_store, "belief_embedding_stats", None)
-    if not callable(stats_fn) or not embedding_model:
-        return {}
-    stats = dict(stats_fn(embedding_model=embedding_model))
-    return {
-        "embedding_model": embedding_model,
-        "current_vector_count": int(stats.get("current_vector_count", 0) or 0),
-        "missing_or_stale_count": int(stats.get("missing_or_stale_count", 0) or 0),
-        "record_count": int(stats.get("record_count", 0) or 0),
-    }
-
-
 async def run_recall_quality_eval(
     belief_store: Any,
     cases: Sequence[RecallEvalCase],
     *,
     expert_name: str = "",
     top_k: int = 5,
+    domain: str | None = None,
+    min_score: float = 0.0,
     embedding_model: str | None = None,
     query_embeddings_by_case_id: Mapping[str, Sequence[float]] | None = None,
     embed_queries: QueryEmbedder | None = None,
@@ -640,13 +766,15 @@ async def run_recall_quality_eval(
     """
     if top_k <= 0:
         raise ValueError("top_k must be positive")
+    retrieval_contract = recall_retrieval_contract(top_k=top_k, domain=domain, min_score=min_score)
+    retrieval_domain = retrieval_contract["domain"] or None
     resolved_embeddings, vector_route_skip_reason = await _resolve_query_embeddings(
         cases,
         embedding_model=embedding_model,
         query_embeddings_by_case_id=query_embeddings_by_case_id,
         embed_queries=embed_queries,
     )
-    index_coverage = _index_coverage(belief_store, embedding_model if resolved_embeddings else None)
+    index_coverage = recall_index_coverage(belief_store, embedding_model if resolved_embeddings else None)
     if resolved_embeddings and index_coverage and index_coverage["current_vector_count"] == 0:
         # Without usable belief vectors under this model label, every vector
         # query would return nothing and the comparison would read as a
@@ -661,8 +789,17 @@ async def run_recall_quality_eval(
     vector_cases: list[dict[str, Any]] = []
     case_payloads: list[dict[str, Any]] = []
     for case in cases:
-        lexical_hits = belief_store.recall_belief_candidates(case.query, top_k=top_k)
-        lexical_result = _case_metrics([hit.item_id for hit in lexical_hits], case.relevant_belief_ids)
+        lexical_hits = belief_store.recall_belief_candidates(
+            case.query,
+            top_k=top_k,
+            min_score=min_score,
+            domain=retrieval_domain,
+        )
+        lexical_result = _case_metrics(
+            [hit.item_id for hit in lexical_hits],
+            case.relevant_belief_ids,
+            top_k=top_k,
+        )
         lexical_cases.append(lexical_result)
         case_payload: dict[str, Any] = {
             "case_id": case.case_id,
@@ -674,11 +811,17 @@ async def run_recall_quality_eval(
             vector_hits = belief_store.recall_belief_candidates(
                 case.query,
                 top_k=top_k,
+                min_score=min_score,
+                domain=retrieval_domain,
                 query_embedding=resolved_embeddings[case.case_id],
                 embedding_model=embedding_model,
                 include_lexical_fallback=False,
             )
-            vector_result = _case_metrics([hit.item_id for hit in vector_hits], case.relevant_belief_ids)
+            vector_result = _case_metrics(
+                [hit.item_id for hit in vector_hits],
+                case.relevant_belief_ids,
+                top_k=top_k,
+            )
             vector_cases.append(vector_result)
             case_payload["routes"][VECTOR_ROUTE] = vector_result
         case_payloads.append(case_payload)
@@ -690,9 +833,10 @@ async def run_recall_quality_eval(
     if vector_cases:
         routes[VECTOR_ROUTE] = vector_summary
         comparison["winners_by_metric"] = _route_comparison(lexical_summary, vector_summary)
+        comparison["paired_bootstrap"] = _paired_bootstrap_comparison(lexical_cases, vector_cases)
     else:
         comparison["skip_reason"] = vector_route_skip_reason
-    scheduler_preference = _scheduler_preference(routes, comparison, index_coverage)
+    scheduler_preference = _scheduler_preference(routes, comparison, index_coverage, retrieval_contract)
 
     return {
         "schema_version": RECALL_EVAL_REPORT_SCHEMA_VERSION,
@@ -701,6 +845,8 @@ async def run_recall_quality_eval(
         "request": {
             "case_count": len(cases),
             "top_k": top_k,
+            "domain": retrieval_contract["domain"],
+            "min_score": retrieval_contract["min_score"],
             "embedding_model": embedding_model or "",
         },
         "contract": {

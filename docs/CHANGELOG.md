@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.33.0] - 2026-07-09
+
 ### Added
 - Added a runtime-local recall case library for `deepr eval recall`. Operators
   can now run `deepr eval recall NAME --cases cases.json --record-cases` to
@@ -64,6 +66,109 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `deepr-recall-library-validation-plan-v1`, includes local-embedding eval argv
   when the operator supplies `--local-embedding-model`, and records that the
   plan does not execute retrieval, write state, or authorize default routing.
+
+### Changed
+- Raised the web extra's Mistune floor to 3.3.0 and refreshed the lock to
+  3.3.3, clearing CVE-2026-49851 inherited through Flasgger.
+- Refreshed the lock to pip 26.1.2, clearing CVE-2026-8643 from the complete
+  development and optional-extra dependency audit.
+- Deferred web and REST research-provider construction until a request crosses
+  the cost gate. Importing either application without provider credentials is
+  now safe, and a paid submit fails closed with HTTP 503 when its provider is
+  not configured.
+- Closed the web submit fail-open path when cost-control initialization,
+  estimation, or ledger checks fail. Paid submission now returns HTTP 503
+  before provider construction whenever the money gate is unavailable.
+- Provider-backed REST, web, direct CLI, campaign-batch, MCP, and internal
+  orchestrator research now reserves maximum estimated cost atomically across
+  processes against cumulative daily and monthly limits before provider work.
+  Completion settles provider-reported cost, missing usage settles the held
+  estimate, pre-provider failures or queued cancellations refund the
+  reservation, and accepted cancellations settle the estimate conservatively;
+  every settlement writes the canonical append-only ledger idempotently.
+- Provider POST retries now reuse a stable idempotency key when the provider
+  supports server-side idempotency. Gemini and Azure Foundry creation calls do
+  not apply an application retry because those adapters expose no supported
+  idempotency contract. Ambiguous timeout or connection outcomes settle the
+  maximum hold instead of refunding potentially accepted work, while terminal
+  queue and ledger evidence repair orphaned holds.
+- Extended durable maximum-cost admission to direct CLI research and campaign
+  batch tasks. Dispatch and queued cancellation now use competing atomic queue
+  transitions, preventing a stale queued snapshot from refunding an in-flight
+  provider submission.
+- Added durable admission to document review, research planning, and team
+  architecture model calls. These synchronous planning operations reserve the
+  full configured per-call ceiling, settle provider token usage, and refuse to
+  replay ambiguous failures. Interactive docs and team commands now confirm
+  before those planning calls. Context-augmented CLI research now estimates
+  and reserves the exact expanded prompt sent to the provider.
+- Disabled OpenAI SDK retries for synchronous document review, research
+  planning, team architecture, and team synthesis calls because those request
+  shapes do not carry a supported application idempotency key. Team synthesis
+  now uses the same durable ceiling and usage settlement as the other planning
+  calls.
+- Repaired `deepr docs analyze` to use the implemented document-review contract
+  and configured queue path, and repaired `deepr team analyze` to construct the
+  batch executor dependencies and call its supported campaign API.
+- Closed reservation lifecycle gaps for pre-submit document failures,
+  exact enhanced-prompt estimation, missing deep-research tools, immediate CLI
+  completions, and the final dream-team task.
+- Moved direct CLI cost admission ahead of provider file uploads and vector-store
+  creation, so a rejected ceiling cannot create billable or persistent provider
+  resources. Team and campaign research now honor the configured queue path and
+  selected model through admission, persistence, and provider dispatch.
+- Added compensating cleanup for files and vector stores when direct CLI
+  preparation cannot reach provider submission. Because preparation may itself
+  incur provider cost, any rollback after a created provider resource settles
+  the held ceiling conservatively even when deletion is confirmed.
+- Persisted provider file identifiers for completion cleanup, wired the worker
+  and immediate-result paths to delete successful-job uploads, and gave
+  OpenAI-compatible vector stores a one-day last-active expiry as a final leak
+  bound when cleanup cannot be confirmed.
+- Extended upload cleanup to terminal provider failure, confirmed cancellation,
+  and the enqueue-to-claim cancellation race. Unconfirmed provider cancellation
+  now retains processing state and resources for later polling instead of
+  deleting context beneath live work.
+- Replaced dream-team research's destructive 10-minute timeout behavior with a
+  cancellation-aware boundary. Confirmed provider cancellation settles the
+  maximum hold conservatively; an unconfirmed cancellation leaves the job in
+  durable processing state with its reservation active for later polling and
+  reconciliation.
+- Campaign execution now polls accepted provider jobs through the same result
+  finalization path as the worker. Its bounded wait attempts cost-safe provider
+  cancellation and reports an unconfirmed job as pending without releasing its
+  durable hold. Pending phases now pause the campaign and suppress downstream
+  synthesis instead of finalizing an incomplete report.
+- Added durable admission and no-replay behavior to campaign context summaries,
+  autonomous research reviews, context-index construction, and explicit
+  semantic context queries. Automatic pre-confirmation context discovery is
+  keyword-only, so cancelling a research submission cannot spend on an
+  embedding request.
+- Added expert claim validation to the same durable metered-call contract and
+  disabled SDK retries for its non-idempotent model request. CLI and MCP
+  validation now share one cross-process ceiling and one canonical ledger
+  settlement instead of separate process-local accounting.
+- Changed registry background evaluation from default-on to explicit opt-in
+  through `DEEPR_AUTO_EVAL=true`, preventing router construction and dry-run
+  previews from silently starting provider-backed benchmark work.
+- Replaced the recall preference point-estimate artifact with published
+  `deepr-recall-eval-report-v2`. Reports now include hit@k, MRR, precision@k,
+  recall@k, MAP@k, NDCG@k, and deterministic 95 percent paired percentile
+  bootstrap intervals over 9,999 resamples.
+- Tightened explicit vector preference eligibility to require at least 30
+  paired operator-labeled cases, complete current vector coverage, required
+  metric wins, and confidence lower bounds above zero for every required
+  metric. The 30-case threshold is an operating floor, not a claim that the
+  library represents future traffic.
+- Hardened `--recall-preference-report` by recomputing case metrics, route
+  summaries, paired uncertainty, and the scheduler-preference block before
+  expert state is loaded, then matching its model-specific belief/vector state
+  digest against live local state. The recall path repeats the digest check at
+  use time, requires runtime top-k, expert domain, and minimum score to match
+  the evaluated retrieval contract, and falls back lexically after any drift.
+  Legacy v1 point-estimate reports, stale indexes, non-operator labels, and
+  nonzero-cost evidence now fail closed with guidance to rerun the local `$0`
+  evaluation. Default routing remains lexical-first.
 
 ## [2.32.0] - 2026-07-08
 

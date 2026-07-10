@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import pytest
 
+from deepr.experts.beliefs import Belief, BeliefStore
 from deepr.experts.semantic_recall import LEXICAL_METHOD, VECTOR_METHOD
 from deepr.experts.source_pack_recall import build_verification_recall_candidates, embed_ready_claim_statements
 
@@ -27,6 +28,9 @@ def _eligible_vector_preference() -> dict:
         "fallback_route": LEXICAL_METHOD,
         "routing_evidence_only": True,
         "semantic_verdict": False,
+        "embedding_model": "local-test",
+        "index_state_digest": "a" * 64,
+        "retrieval_contract": {"top_k": 5, "domain": "", "min_score": 0.0},
     }
 
 
@@ -41,6 +45,16 @@ class RecordingRecallStore:
         if kwargs["include_lexical_fallback"] is False:
             return self.vector_hits
         return self.lexical_hits
+
+    def belief_embedding_stats(self, *, embedding_model: str) -> dict:
+        assert embedding_model == "local-test"
+        return {
+            "record_count": 1,
+            "belief_count": 1,
+            "current_vector_count": 1,
+            "missing_or_stale_count": 0,
+            "state_digest": "a" * 64,
+        }
 
 
 def _recall_hit(item_id: str, *, method: str) -> dict:
@@ -149,3 +163,80 @@ def test_vector_preference_falls_back_to_lexical_when_vector_route_has_no_hits()
     assert [call["include_lexical_fallback"] for call in store.calls] == [False, True]
     assert routed["cand-1"][0]["item_id"] == "lexical-1"
     assert routed["cand-1"][0]["method"] == LEXICAL_METHOD
+
+
+def test_vector_preference_falls_back_to_lexical_after_index_state_drift():
+    store = RecordingRecallStore(lexical_hits=[_recall_hit("lexical-1", method=LEXICAL_METHOD)])
+    preference = {**_eligible_vector_preference(), "index_state_digest": "b" * 64}
+
+    routed = build_verification_recall_candidates(
+        _extraction([_ready("cand-1", "GPU power limits are binding.")]),
+        store,
+        query_embeddings_by_candidate_id={"cand-1": [1.0, 0.0]},
+        embedding_model="local-test",
+        route_preference=preference,
+    )
+
+    assert [call["include_lexical_fallback"] for call in store.calls] == [True]
+    assert routed["cand-1"][0]["item_id"] == "lexical-1"
+    assert "route_preference" not in routed["cand-1"][0]["metadata"]
+
+
+@pytest.mark.parametrize(
+    ("call_kwargs", "contract"),
+    [
+        ({"top_k": 3}, {"top_k": 5, "domain": "", "min_score": 0.0}),
+        ({"domain": "infra"}, {"top_k": 5, "domain": "", "min_score": 0.0}),
+        ({"min_score": 0.2}, {"top_k": 5, "domain": "", "min_score": 0.0}),
+    ],
+)
+def test_vector_preference_falls_back_when_retrieval_contract_differs(call_kwargs, contract):
+    store = RecordingRecallStore(lexical_hits=[_recall_hit("lexical-1", method=LEXICAL_METHOD)])
+    preference = {**_eligible_vector_preference(), "retrieval_contract": contract}
+
+    routed = build_verification_recall_candidates(
+        _extraction([_ready("cand-1", "GPU power limits are binding.")]),
+        store,
+        query_embeddings_by_candidate_id={"cand-1": [1.0, 0.0]},
+        embedding_model="local-test",
+        route_preference=preference,
+        **call_kwargs,
+    )
+
+    assert [call["include_lexical_fallback"] for call in store.calls] == [True]
+    assert routed["cand-1"][0]["item_id"] == "lexical-1"
+    assert "route_preference" not in routed["cand-1"][0]["metadata"]
+
+
+def test_retrieval_contract_mismatch_forces_lexical_scoring_with_real_store(tmp_path):
+    store = BeliefStore("Recall Fallback", storage_dir=tmp_path / "beliefs")
+    lexical_belief, _ = store.add_belief(
+        Belief("Power grid constraints limit accelerator racks.", 0.9, domain="infra"),
+        check_conflicts=False,
+    )
+    vector_belief, _ = store.add_belief(
+        Belief("Employee travel policy changed.", 0.8, domain="infra"),
+        check_conflicts=False,
+    )
+    store.upsert_belief_embedding(lexical_belief.id, [0.0, 1.0], model="local-test")
+    store.upsert_belief_embedding(vector_belief.id, [1.0, 0.0], model="local-test")
+    index = store.belief_embedding_stats(embedding_model="local-test")
+    preference = {
+        **_eligible_vector_preference(),
+        "index_state_digest": index["state_digest"],
+        "retrieval_contract": {"top_k": 1, "domain": "infra", "min_score": 0.0},
+    }
+
+    routed = build_verification_recall_candidates(
+        _extraction([_ready("cand-1", "Power grid constraints limit accelerator racks.")]),
+        store,
+        domain="infra",
+        top_k=2,
+        query_embeddings_by_candidate_id={"cand-1": [1.0, 0.0]},
+        embedding_model="local-test",
+        route_preference=preference,
+    )
+
+    assert routed["cand-1"][0]["item_id"] == lexical_belief.id
+    assert routed["cand-1"][0]["method"] == LEXICAL_METHOD
+    assert "route_preference" not in routed["cand-1"][0]["metadata"]

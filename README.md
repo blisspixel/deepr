@@ -3,7 +3,7 @@
 [![CI](https://github.com/blisspixel/deepr/actions/workflows/ci.yml/badge.svg)](https://github.com/blisspixel/deepr/actions/workflows/ci.yml)
 [![License: Apache 2.0](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](LICENSE)
 [![Python 3.12+](https://img.shields.io/badge/python-3.12+-blue.svg)](https://www.python.org/downloads/)
-[![Version](https://img.shields.io/badge/version-2.32.0-blue)](https://github.com/blisspixel/deepr/releases/tag/v2.32.0)
+[![Version](https://img.shields.io/badge/version-2.33.0-blue)](https://github.com/blisspixel/deepr/releases/tag/v2.33.0)
 
 **Domain experts that remember, not another chat window.**
 
@@ -355,10 +355,14 @@ order of operations in [ROADMAP.md](ROADMAP.md).
 
 ## Cost Controls
 
-Every metered path is supposed to estimate before dispatch and settle after
-usage. Deepr has per-operation limits, daily and monthly caps, budget
-reservations, anomaly checks, and an append-only cost ledger at
-`data/costs/cost_ledger.jsonl`.
+Provider-backed research and paid synchronous planning reserve cost before
+dispatch and settle after usage. Research admission coordinates REST, web,
+CLI, batch, MCP, and internal orchestrator processes through durable maximum
+holds, while ambiguous provider outcomes settle conservatively and are not
+automatically replayed. Deepr also has per-operation limits, daily and monthly
+caps, anomaly checks, and an append-only cost ledger at
+`data/costs/cost_ledger.jsonl`. See
+[research-cost-reservations.md](docs/design/research-cost-reservations.md).
 
 Defaults favor owned capacity: local `$0` backends first, then explicit
 plan-quota capacity where supported, with metered APIs treated as premium

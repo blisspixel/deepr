@@ -41,7 +41,7 @@ class TeamArchitect:
         if not self.api_key:
             raise ValueError("OPENAI_API_KEY not found")
 
-        self.client = OpenAI(api_key=self.api_key)
+        self.client = OpenAI(api_key=self.api_key, max_retries=0)
         self.model = model
 
     def design_team(
@@ -93,16 +93,24 @@ class TeamArchitect:
             question, context, team_size, company_intel, perspective_lens, adversarial
         )
 
-        response = self.client.chat.completions.create(
+        from deepr.services.metered_call import execute_reserved_sync_call
+
+        response = execute_reserved_sync_call(
+            operation_prefix="team-design",
+            provider="openai",
             model=self.model,
-            messages=[
-                {
-                    "role": "system",
-                    "content": "You are a research team architect. Design optimal teams with diverse perspectives.",
-                },
-                {"role": "user", "content": prompt},
-            ],
-            response_format={"type": "json_object"},
+            source="services.team_architect.design_team",
+            call=lambda: self.client.chat.completions.create(
+                model=self.model,
+                messages=[
+                    {
+                        "role": "system",
+                        "content": "You are a research team architect. Design optimal teams with diverse perspectives.",
+                    },
+                    {"role": "user", "content": prompt},
+                ],
+                response_format={"type": "json_object"},
+            ),
         )
 
         result = json.loads(response.choices[0].message.content or "{}")
@@ -155,16 +163,24 @@ Return JSON:
 Only include people you find with actual research. If unable to find information, return empty lists."""
 
         try:
-            response = self.client.chat.completions.create(
-                model="gpt-5",  # Use latest model for research
-                messages=[
-                    {
-                        "role": "system",
-                        "content": "You are a research analyst. Find factual information about company leadership.",
-                    },
-                    {"role": "user", "content": prompt},
-                ],
-                response_format={"type": "json_object"},
+            from deepr.services.metered_call import execute_reserved_sync_call
+
+            response = execute_reserved_sync_call(
+                operation_prefix="company-leadership",
+                provider="openai",
+                model="gpt-5",
+                source="services.team_architect.research_company_people",
+                call=lambda: self.client.chat.completions.create(
+                    model="gpt-5",
+                    messages=[
+                        {
+                            "role": "system",
+                            "content": "You are a research analyst. Find factual information about company leadership.",
+                        },
+                        {"role": "user", "content": prompt},
+                    ],
+                    response_format={"type": "json_object"},
+                ),
             )
 
             return json.loads(response.choices[0].message.content or "{}")
@@ -302,7 +318,7 @@ class TeamSynthesizer:
         if not self.api_key:
             raise ValueError("OPENAI_API_KEY not found")
 
-        self.client = OpenAI(api_key=self.api_key)
+        self.client = OpenAI(api_key=self.api_key, max_retries=0)
         self.model = model
 
     def synthesize_with_conflict_analysis(self, question: str, team_results: list[dict[str, Any]]) -> str:
@@ -318,15 +334,23 @@ class TeamSynthesizer:
         """
         prompt = self._build_synthesis_prompt(question, team_results)
 
-        response = self.client.chat.completions.create(
+        from deepr.services.metered_call import execute_reserved_sync_call
+
+        response = execute_reserved_sync_call(
+            operation_prefix="team-synthesis",
+            provider="openai",
             model=self.model,
-            messages=[
-                {
-                    "role": "system",
-                    "content": "You are the Lead Researcher synthesizing diverse team perspectives. Show your work. Make conflicts explicit. Attribute findings to team members.",
-                },
-                {"role": "user", "content": prompt},
-            ],
+            source="services.team_architect.synthesize_with_conflict_analysis",
+            call=lambda: self.client.chat.completions.create(
+                model=self.model,
+                messages=[
+                    {
+                        "role": "system",
+                        "content": "You are the Lead Researcher synthesizing diverse team perspectives. Show your work. Make conflicts explicit. Attribute findings to team members.",
+                    },
+                    {"role": "user", "content": prompt},
+                ],
+            ),
         )
 
         return response.choices[0].message.content or ""

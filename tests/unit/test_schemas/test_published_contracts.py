@@ -63,6 +63,8 @@ from deepr.evals.hallucination_risks import (
     build_hallucination_risk_report,
 )
 from deepr.evals.recall_quality import (
+    MIN_SCHEDULER_PREFERENCE_CASES,
+    RECALL_EVAL_REPORT_SCHEMA_VERSION,
     RECALL_LIBRARY_INVENTORY_KIND,
     RECALL_LIBRARY_INVENTORY_SCHEMA_VERSION,
     RECALL_LIBRARY_VALIDATION_PLAN_KIND,
@@ -74,6 +76,7 @@ from deepr.evals.recall_quality import (
     build_recall_library_validation_plan,
     build_recall_operator_validation,
     merge_recall_eval_case_library,
+    run_recall_quality_eval,
 )
 from deepr.experts.beliefs import BeliefStore
 from deepr.experts.consult_quality import (
@@ -214,6 +217,13 @@ def _validate(schema: dict[str, Any], payload: dict[str, Any]) -> None:
     _assert_required(schema, payload)
 
 
+def _scheduler_cases() -> list[RecallEvalCase]:
+    return [
+        RecallEvalCase(f"case-{index:02d}", f"query {index:02d}", (f"belief-{index % 3}",))
+        for index in range(MIN_SCHEDULER_PREFERENCE_CASES)
+    ]
+
+
 def test_schema_registry_points_to_existing_versioned_schemas():
     registry = _load_schema("registry.json")
 
@@ -228,10 +238,10 @@ def test_schema_registry_points_to_existing_versioned_schemas():
 def test_recall_operator_validation_schema_validates_runtime_payload():
     payload = build_recall_operator_validation(
         {
-            "request": {"case_count": 3, "embedding_model": "nomic-embed-text"},
+            "request": {"case_count": MIN_SCHEDULER_PREFERENCE_CASES, "embedding_model": "nomic-embed-text"},
             "case_library": {
                 "path": "data/benchmarks/recall_cases/platform-expert.json",
-                "case_count": 3,
+                "case_count": MIN_SCHEDULER_PREFERENCE_CASES,
                 "source": "accumulated_library",
             },
             "scheduler_preference": {
@@ -253,14 +263,47 @@ def test_recall_operator_validation_schema_validates_runtime_payload():
     assert payload["default_routing_change_allowed"] is False
 
 
+async def test_recall_eval_report_schema_validates_runtime_payload():
+    class RecallStore:
+        def recall_belief_candidates(self, query, *, query_embedding=None, **kwargs):
+            if query_embedding is None:
+                return []
+            index = int(query.rsplit(" ", maxsplit=1)[-1])
+            return [SimpleNamespace(item_id=f"belief-{index % 3}")]
+
+        def belief_embedding_stats(self, *, embedding_model):
+            return {
+                "current_vector_count": 3,
+                "missing_or_stale_count": 0,
+                "record_count": 3,
+                "belief_count": 3,
+                "state_digest": "a" * 64,
+            }
+
+    cases = _scheduler_cases()
+
+    async def embed_queries(queries):
+        return [(1.0, 0.0, 0.0) for _ in queries]
+
+    payload = await run_recall_quality_eval(
+        RecallStore(),
+        cases,
+        expert_name="Platform Expert",
+        top_k=1,
+        embedding_model="nomic-embed-text",
+        embed_queries=embed_queries,
+    )
+    schema = _load_schema("recall-eval-report-v2.json")
+
+    _validate(schema, payload)
+    assert payload["schema_version"] == RECALL_EVAL_REPORT_SCHEMA_VERSION
+    assert payload["scheduler_preference"]["eligible"] is True
+
+
 def test_recall_library_inventory_schema_validates_runtime_payload(tmp_path):
     merge_recall_eval_case_library(
         "Platform Expert",
-        [
-            RecallEvalCase("c1", "power", ("b1",)),
-            RecallEvalCase("c2", "records", ("b2",)),
-            RecallEvalCase("c3", "cooling", ("b3",)),
-        ],
+        _scheduler_cases(),
         output_dir=tmp_path / "recall_cases",
     )
     payload = build_recall_library_inventory(output_dir=tmp_path / "recall_cases")
@@ -276,11 +319,7 @@ def test_recall_library_inventory_schema_validates_runtime_payload(tmp_path):
 def test_recall_library_validation_plan_schema_validates_runtime_payload(tmp_path):
     merge_recall_eval_case_library(
         "Platform Expert",
-        [
-            RecallEvalCase("c1", "power", ("b1",)),
-            RecallEvalCase("c2", "records", ("b2",)),
-            RecallEvalCase("c3", "cooling", ("b3",)),
-        ],
+        _scheduler_cases(),
         output_dir=tmp_path / "recall_cases",
     )
     payload = build_recall_library_validation_plan(

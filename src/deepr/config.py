@@ -226,7 +226,7 @@ class ProviderConfig(BaseModel):
             if not self.azure_use_managed_identity and not self.azure_api_key:
                 self.azure_api_key = os.getenv("AZURE_OPENAI_KEY")
             if not self.azure_endpoint:
-                self.azure_endpoint = os.getenv("AZURE_OPENAI_ENDPOINT")
+                self.azure_endpoint = os.getenv("AZURE_OPENAI_ENDPOINT") or None
         if self.type == "azure-foundry":
             if not self.azure_foundry_endpoint:
                 self.azure_foundry_endpoint = os.getenv("AZURE_PROJECT_ENDPOINT")
@@ -422,7 +422,7 @@ class AppConfig(BaseModel):
             openai_base_url=os.getenv("OPENAI_BASE_URL"),
             openai_organization=os.getenv("OPENAI_ORGANIZATION"),
             azure_api_key=os.getenv("AZURE_OPENAI_KEY"),
-            azure_endpoint=os.getenv("AZURE_OPENAI_ENDPOINT"),
+            azure_endpoint=os.getenv("AZURE_OPENAI_ENDPOINT") or None,
             azure_api_version=os.getenv("AZURE_API_VERSION", "2024-10-01-preview"),
             azure_use_managed_identity=os.getenv("AZURE_USE_MANAGED_IDENTITY", "false").lower() == "true",
             default_model=os.getenv("DEEPR_DEFAULT_MODEL", "o3-deep-research"),

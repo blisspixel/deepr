@@ -260,6 +260,7 @@ async def test_verifier_uses_local_query_embeddings_for_vector_recall(tmp_path):
         embedded.append(list(claims))
         return [(1.0, 0.0)] * len(claims)
 
+    index_stats = store.belief_embedding_stats(embedding_model="nomic-embed-text")
     verifier = SemanticClaimVerifier(
         provider="local",
         model="qwen-local",
@@ -274,6 +275,9 @@ async def test_verifier_uses_local_query_embeddings_for_vector_recall(tmp_path):
             "fallback_route": "lexical_router",
             "routing_evidence_only": True,
             "semantic_verdict": False,
+            "embedding_model": "nomic-embed-text",
+            "index_state_digest": index_stats["state_digest"],
+            "retrieval_contract": {"top_k": 5, "domain": "compiler", "min_score": 0.0},
         },
     )
 

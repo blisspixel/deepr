@@ -181,7 +181,10 @@ from deepr.providers.base import ResearchRequest, ToolConfig
 from deepr.providers.openai_provider import OpenAIProvider
 from deepr.queue.base import JobStatus, ResearchJob
 from deepr.queue.local_queue import SQLiteQueue
+from deepr.services.research_cost_reconciliation import reconcile_research_cost_reservations
+from deepr.services.research_submission import dispatch_reserved_research
 from deepr.storage.local import LocalStorage
+from deepr.web.research_cost_api import WebResearchCostCoordinator, validate_web_research_input
 
 _cfg = load_config()
 config_path = Path(".deepr")
@@ -189,7 +192,24 @@ config_path.mkdir(exist_ok=True)
 
 queue = SQLiteQueue(_cfg.get("queue_db_path", str(config_path / "queue.db")))
 storage = LocalStorage(_cfg.get("results_dir", str(config_path / "storage")))
-provider = OpenAIProvider(api_key=os.getenv("OPENAI_API_KEY"))
+provider: OpenAIProvider | None = None
+_provider_lock = threading.Lock()
+
+
+def _default_openai_provider() -> OpenAIProvider:
+    """Create the metered provider only at a gated provider operation."""
+    global provider
+    if provider is not None:
+        return provider
+    with _provider_lock:
+        if provider is not None:
+            return provider
+        api_key = os.getenv("OPENAI_API_KEY", "").strip()
+        if not api_key:
+            raise RuntimeError("OpenAI is not configured; set OPENAI_API_KEY before submitting research")
+        provider = OpenAIProvider(api_key=api_key)
+        return provider
+
 
 # Canonical, CWD-independent experts root (ADR 0004): web + CLI read one store.
 _experts_dir = experts_root()
@@ -242,9 +262,11 @@ try:
     )
     cost_estimator = CostEstimator()
 except Exception as e:
-    logger.warning(f"Cost controller init failed: {e}, using defaults")
+    logger.error("Cost controls unavailable; paid submissions are disabled: %s", e)
     cost_controller = None
     cost_estimator = None
+
+research_costs = WebResearchCostCoordinator(cost_controller, cost_estimator)
 
 # Register WebSocket event handlers
 from deepr.api.websockets.events import (
@@ -302,7 +324,7 @@ def _check_job(loop, job):
         return
 
     try:
-        response = loop.run_until_complete(provider.get_status(job.provider_job_id))
+        response = loop.run_until_complete(_default_openai_provider().get_status(job.provider_job_id))
     except Exception as exc:
         logger.warning("Poller: provider error for job %s: %s", job.id, exc)
         _check_stuck(loop, job)
@@ -343,16 +365,8 @@ def _handle_completion(loop, job, response):
     cost = response.usage.cost if response.usage else None
     tokens = response.usage.total_tokens if response.usage else None
 
-    loop.run_until_complete(queue.update_status(job_id=job.id, status=JobStatus.COMPLETED))
-    if cost is not None or tokens is not None:
-        loop.run_until_complete(
-            queue.update_results(
-                job_id=job.id,
-                report_paths={"markdown": "report.md"},
-                cost=cost,
-                tokens_used=tokens,
-            )
-        )
+    research_costs.finalize_completed_job(loop=loop, queue=queue, job=job, actual_cost=cost, tokens=tokens)
+    research_costs.cleanup_uploads(loop=loop, job=job, provider_factory=_default_openai_provider)
 
     # Re-fetch to get updated job for the event payload
     updated_job = loop.run_until_complete(queue.get_job(job.id))
@@ -365,6 +379,11 @@ def _handle_completion(loop, job, response):
 
 def _handle_failure(loop, job, error):
     """Mark job as failed and emit failure event."""
+    try:
+        research_costs.fail_job(job)
+    except Exception:
+        logger.exception("Poller: failed to close provider cost for failed job %s", job.id)
+    research_costs.cleanup_uploads(loop=loop, job=job, provider_factory=_default_openai_provider)
     loop.run_until_complete(queue.update_status(job_id=job.id, status=JobStatus.FAILED, error=str(error)))
     updated_job = loop.run_until_complete(queue.get_job(job.id))
     if updated_job:
@@ -374,12 +393,22 @@ def _handle_failure(loop, job, error):
     logger.info("Poller: job %s failed: %s", job.id, error)
 
 
+def _cancel_job_with_cost_safety(job) -> bool:
+    return run_async(research_costs.cancel_job(queue=queue, job=job, provider_factory=_default_openai_provider))
+
+
 def _check_stuck(loop, job):
-    """If a job has been PROCESSING for too long, mark it failed."""
+    """Cancel a stale job before closing its cost, state, or resources."""
     if not job.started_at:
         return
     if datetime.now(UTC) - _ensure_utc(job.started_at) > _STUCK_THRESHOLD:
-        _handle_failure(loop, job, "Job stuck - exceeded 30 minute processing threshold")
+        try:
+            cancelled = _cancel_job_with_cost_safety(job)
+        except Exception:
+            cancelled = False
+            logger.exception("Poller: stuck-job cancellation failed for %s", job.id)
+        if not cancelled:
+            logger.warning("Poller: retaining stuck job %s after unconfirmed cancellation", job.id)
 
 
 @app.before_request
@@ -608,7 +637,8 @@ def delete_job(job_id):
 
         # Mark as cancelled
         if job.status in [JobStatus.QUEUED, JobStatus.PROCESSING]:
-            run_async(queue.cancel_job(job_id))
+            if not _cancel_job_with_cost_safety(job):
+                return jsonify({"error": "Job could not be cancelled safely"}), 503
         elif job.status not in [JobStatus.CANCELLED]:
             run_async(queue.update_status(job_id, JobStatus.CANCELLED))
 
@@ -623,6 +653,8 @@ def delete_job(job_id):
 @(limiter.limit("10 per minute") if limiter else (lambda f: f))
 def submit_job():
     """Submit a new research job."""
+    reservation = None
+    provider_submitted = False
     try:
         data = request.json
         if not data:
@@ -632,55 +664,43 @@ def submit_job():
         priority = max(1, min(10, _safe_int(data.get("priority", 3), 3)))
         enable_web_search = data.get("enable_web_search", True)
 
-        if not prompt:
-            return jsonify({"error": "Prompt required"}), 400
-        if len(prompt) > _MAX_PROMPT_LENGTH:
-            return jsonify({"error": f"Prompt exceeds {_MAX_PROMPT_LENGTH} character limit"}), 400
-        if model not in _ALLOWED_MODELS:
-            return jsonify({"error": "Invalid model"}), 400
+        input_denial = validate_web_research_input(
+            prompt=prompt,
+            model=model,
+            max_prompt_length=_MAX_PROMPT_LENGTH,
+            allowed_models=_ALLOWED_MODELS,
+        )
+        if input_denial is not None:
+            payload, status = input_denial
+            return jsonify(payload), status
 
-        # Estimate cost first
-        estimated_cost = None
-        estimate_obj = None
-        if cost_estimator:
-            try:
-                estimate_obj = cost_estimator.estimate_cost(prompt, model)
-                estimated_cost = {
-                    "min_cost": estimate_obj.min_cost,
-                    "max_cost": estimate_obj.max_cost,
-                    "expected_cost": estimate_obj.expected_cost,
-                }
-            except Exception as e:
-                logger.warning(f"Cost estimation failed: {e}")
-                estimated_cost = {"min_cost": 1.0, "max_cost": 5.0, "expected_cost": 2.0}
+        job_id = str(uuid.uuid4())
+        run_async(reconcile_research_cost_reservations(queue, default_provider="openai"))
+        estimated_cost, reservation, denial = research_costs.reserve(
+            job_id=job_id,
+            prompt=prompt,
+            model=model,
+        )
+        if denial is not None:
+            payload, status = denial
+            return jsonify(payload), status
 
-        # Enforce per-job, daily, and monthly cost limits BEFORE submitting
-        # to the provider. Without this gate an authenticated UI/API caller
-        # could fire unbounded paid jobs (only flask-limiter's 10/min
-        # throttle would constrain spend, which at $5/job = $50/min cap).
-        if cost_controller and estimate_obj is not None:
-            try:
-                allowed, deny_reason = cost_controller.check_cost_limit(estimate_obj)
-            except Exception as exc:
-                # Fail CLOSED: a broken money-gate must not wave spend
-                # through (previously this defaulted to allowed=True).
-                logger.error(f"CostController.check_cost_limit failed; denying submission: {exc}")
-                allowed, deny_reason = False, "Cost limit check unavailable; submission denied (fail-closed)"
-            if not allowed:
-                return jsonify(
-                    {
-                        "error": deny_reason or "Cost limit exceeded",
-                        "estimated_cost": estimated_cost,
-                    }
-                ), 429
+        try:
+            active_provider = _default_openai_provider()
+        except RuntimeError as exc:
+            research_costs.refund(reservation)
+            reservation = None
+            return jsonify({"error": str(exc)}), 503
 
         # Create job
-        job_id = str(uuid.uuid4())
         now = datetime.now(UTC)
-        metadata = data.get("metadata", {})
+        raw_metadata = data.get("metadata", {})
+        metadata = dict(raw_metadata) if isinstance(raw_metadata, dict) else {}
         mode = data.get("mode")
         if mode:
             metadata["mode"] = mode
+        if reservation is not None:
+            metadata.update(reservation.metadata())
         job = ResearchJob(
             id=job_id,
             prompt=prompt,
@@ -692,9 +712,6 @@ def submit_job():
             metadata=metadata,
         )
 
-        run_async(queue.enqueue(job))
-
-        # Submit to provider
         req = ResearchRequest(
             prompt=prompt,
             model=model,
@@ -704,11 +721,20 @@ def submit_job():
         )
 
         try:
-            provider_job_id = run_async(provider.submit_research(req))
-
-            # Update status
-            run_async(queue.update_status(job_id=job_id, status=JobStatus.PROCESSING, provider_job_id=provider_job_id))
+            provider_job_id = run_async(
+                dispatch_reserved_research(
+                    queue=queue,
+                    provider=active_provider,
+                    job=job,
+                    request=req,
+                    reservation=reservation,
+                )
+            )
+            provider_submitted = True
+            research_costs.remember(reservation)
         except Exception as e:
+            research_costs.refund_job(job)
+            reservation = None
             logger.error(f"Provider submission failed: {e}")
             run_async(queue.update_status(job_id=job_id, status=JobStatus.FAILED, error=str(e)))
             # Notify WebSocket clients so the job shows up as failed
@@ -743,11 +769,13 @@ def submit_job():
         return jsonify(
             {
                 "job": job_response,
-                "estimated_cost": estimated_cost or {"min_cost": 1.0, "max_cost": 5.0, "expected_cost": 2.0},
+                "estimated_cost": estimated_cost,
             }
         )
 
     except Exception as e:
+        if reservation is not None and not provider_submitted:
+            research_costs.refund(reservation)
         logger.error(f"Error submitting job: {e}")
         return jsonify({"error": "Internal server error"}), 500
 
@@ -815,7 +843,8 @@ def bulk_cancel():
         failed = []
         for job_id in job_ids:
             try:
-                success = run_async(queue.cancel_job(job_id))
+                job = run_async(queue.get_job(job_id))
+                success = _cancel_job_with_cost_safety(job) if job is not None else False
                 if success:
                     cancelled.append(job_id)
                 else:
@@ -835,7 +864,8 @@ def bulk_cancel():
 def cancel_job(job_id):
     """Cancel a job."""
     try:
-        success = run_async(queue.cancel_job(job_id))
+        job = run_async(queue.get_job(job_id))
+        success = _cancel_job_with_cost_safety(job) if job is not None else False
         return jsonify({"success": success})
 
     except Exception as e:
@@ -869,6 +899,8 @@ def cleanup_stale_jobs():
             is_no_provider = job.status == JobStatus.PROCESSING and not job.provider_job_id
 
             if is_old or is_no_provider:
+                if not _cancel_job_with_cost_safety(job):
+                    continue
                 run_async(
                     queue.update_status(
                         job_id=job.id,

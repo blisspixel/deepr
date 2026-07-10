@@ -9,6 +9,7 @@ import openai
 
 logger = logging.getLogger(__name__)
 from datetime import UTC, datetime
+from uuid import uuid4
 
 from openai import AsyncOpenAI
 
@@ -74,6 +75,7 @@ class OpenAIProvider(DeepResearchProvider):
         max_retries = 3
         retry_delay = 1  # seconds
         fallback_model = None
+        idempotency_key = request.idempotency_key or f"deepr-provider-{uuid4().hex}"
 
         # Determine fallback model if o3 fails
         if "o3-deep-research" in request.model:
@@ -134,8 +136,12 @@ class OpenAIProvider(DeepResearchProvider):
                     payload["metadata"] = request.metadata
 
                 # Add webhook if provided
+                extra_headers = {}
                 if request.webhook_url:
-                    payload["extra_headers"] = {"OpenAI-Hook-URL": request.webhook_url}
+                    extra_headers["OpenAI-Hook-URL"] = request.webhook_url
+                extra_headers["Idempotency-Key"] = idempotency_key
+                if extra_headers:
+                    payload["extra_headers"] = extra_headers
 
                 # Add temperature if specified (but NOT for GPT-5 models - they don't support it)
                 if request.temperature is not None and not model.startswith("gpt-5"):
@@ -296,11 +302,26 @@ class OpenAIProvider(DeepResearchProvider):
                 original_error=e,
             ) from e
 
+    async def delete_document(self, file_id: str) -> bool:
+        """Delete an uploaded OpenAI file."""
+        try:
+            await self.client.files.delete(file_id)
+            return True
+        except openai.OpenAIError as e:
+            raise ProviderError(
+                message=f"Failed to delete document: {e!s}",
+                provider="openai",
+                original_error=e,
+            ) from e
+
     async def create_vector_store(self, name: str, file_ids: list[str]) -> VectorStore:
         """Create vector store in OpenAI."""
         try:
             # Create vector store
-            vs = await self.client.vector_stores.create(name=name)
+            vs = await self.client.vector_stores.create(
+                name=name,
+                expires_after={"anchor": "last_active_at", "days": 1},
+            )
 
             # Attach files
             for file_id in file_ids:

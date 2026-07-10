@@ -27,7 +27,7 @@ class TestContextBuilder:
             from deepr.services.context_builder import ContextBuilder
 
             ContextBuilder(api_key="explicit-key")
-            mock_cls.assert_called_once_with(api_key="explicit-key")
+            mock_cls.assert_called_once_with(api_key="explicit-key", max_retries=0)
 
     def test_init_with_env_key(self, mock_openai_env):
         """Falls back to OPENAI_API_KEY env var."""

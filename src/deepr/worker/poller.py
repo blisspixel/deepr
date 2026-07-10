@@ -7,6 +7,14 @@ from typing import Any
 
 from ..config import load_config
 from ..core.costs import CostController
+from ..experts.research_cost_gate import (
+    ResearchCostReservation,
+    reconcile_research_cost_from_ledger,
+    record_unreserved_research_cost,
+    refund_research_cost,
+    restore_research_cost_reservation,
+    settle_research_cost,
+)
 from ..providers import create_provider
 from ..providers.base import DeepResearchProvider, ResearchResponse
 from ..queue import create_queue
@@ -29,6 +37,9 @@ class JobPoller:
         self,
         poll_interval: int = 30,
         socketio: Any = None,
+        queue: QueueBackend | None = None,
+        provider: DeepResearchProvider | None = None,
+        storage: StorageBackend | None = None,
     ) -> None:
         """
         Initialize job poller.
@@ -45,15 +56,15 @@ class JobPoller:
         config = load_config()
 
         # Initialize components
-        self.queue: QueueBackend = create_queue(
+        self.queue: QueueBackend = queue or create_queue(
             config.get("queue", "local"), db_path=config.get("queue_db_path") or "queue/research_queue.db"
         )
 
-        self.storage: StorageBackend = create_storage(
+        self.storage: StorageBackend = storage or create_storage(
             config.get("storage", "local"), base_path=config.get("results_dir") or "data/reports"
         )
 
-        self.provider: DeepResearchProvider = create_provider(
+        self.provider: DeepResearchProvider = provider or create_provider(
             config.get("provider", "openai"), api_key=config.get("api_key")
         )
 
@@ -99,9 +110,13 @@ class JobPoller:
 
         for job in jobs:
             try:
-                await self._check_job_status(job)
+                await self.check_job_status(job)
             except Exception:
                 logger.exception("Error checking job %s", job.id)
+
+    async def check_job_status(self, job: ResearchJob) -> None:
+        """Poll and persist one injected or worker-owned research job."""
+        await self._check_job_status(job)
 
     async def _check_job_status(self, job: ResearchJob) -> None:
         """Check status of a single job."""
@@ -122,8 +137,8 @@ class JobPoller:
                 await self._handle_completion(job, response)
 
             # Handle failure
-            elif response.status == "failed":
-                error = response.error or "Job failed"
+            elif response.status in {"failed", "cancelled", "expired"}:
+                error = response.error or f"Provider status: {response.status}"
                 await self._handle_failure(job, error)
 
             # Update progress if available (in_progress stays as is)
@@ -149,15 +164,22 @@ class JobPoller:
 
                         # Try to cancel at provider
                         try:
-                            await self.provider.cancel_job(job.provider_job_id)
-                            logger.info(f"Cancelled stuck job {job.id} at provider")
+                            cancelled = bool(await self.provider.cancel_job(job.provider_job_id))
+                            if cancelled:
+                                logger.info(f"Cancelled stuck job {job.id} at provider")
+                            else:
+                                logger.warning("Provider did not confirm cancellation for stuck job %s", job.id)
                         except Exception:
+                            cancelled = False
                             logger.warning("Could not cancel job %s at provider", job.id)
 
-                        # Mark as failed in queue
-                        await self._handle_failure(
-                            job, f"Job stuck in provider queue for {queue_time_minutes:.1f} minutes - auto-cancelled"
-                        )
+                        if cancelled:
+                            await self._handle_failure(
+                                job,
+                                f"Job stuck in provider queue for {queue_time_minutes:.1f} minutes - auto-cancelled",
+                            )
+                        else:
+                            logger.warning("Retaining stuck job %s for later polling", job.id)
                     else:
                         logger.debug(f"Job {job.id} queued for {queue_time_minutes:.1f} minutes")
 
@@ -197,8 +219,9 @@ class JobPoller:
             )
 
             # Extract cost and tokens
-            cost = response.usage.cost if response.usage else 0
+            cost = response.usage.cost if response.usage else None
             tokens = response.usage.total_tokens if response.usage else 0
+            reservation: ResearchCostReservation | None = None
 
             # Settle the cost against CostController and the cost-safety
             # ledger. The CostController instance was previously created
@@ -211,18 +234,30 @@ class JobPoller:
             except Exception:
                 logger.debug("CostController.record_cost failed for job %s", job.id, exc_info=True)
             try:
-                from deepr.experts.cost_safety import get_cost_safety_manager
-
-                get_cost_safety_manager().record_cost(
-                    session_id=f"poller_{job.id}",
-                    operation_type="research_completion",
-                    actual_cost=float(cost or 0),
+                reservation = restore_research_cost_reservation(
+                    job_id=job.id,
+                    metadata=job.metadata,
                     provider=getattr(job, "provider", "") or "",
-                    model=getattr(job, "model", "") or "",
-                    request_id=getattr(job, "provider_job_id", "") or "",
-                    idempotency_key=f"job:{job.id}:completion",
-                    source="worker.poller._handle_completion",
+                    model=job.model,
                 )
+                if reservation is not None:
+                    settle_research_cost(
+                        reservation,
+                        actual_cost=cost,
+                        tokens=tokens,
+                        request_id=job.provider_job_id or "",
+                        source="worker.poller._handle_completion",
+                    )
+                else:
+                    record_unreserved_research_cost(
+                        job_id=job.id,
+                        provider=getattr(job, "provider", "") or "",
+                        model=job.model,
+                        actual_cost=float(cost or 0),
+                        tokens=tokens,
+                        request_id=job.provider_job_id or "",
+                        source="worker.poller._handle_completion",
+                    )
             except Exception:
                 logger.debug("cost_safety.record_cost failed for job %s", job.id, exc_info=True)
 
@@ -232,13 +267,20 @@ class JobPoller:
             )
             if not results_updated:
                 raise RuntimeError(f"Queue update_results failed for job {job.id}")
+            if not reconcile_research_cost_from_ledger(reservation, job_id=job.id):
+                raise RuntimeError(f"Canonical cost settlement missing for completed job {job.id}")
+
+            from ..cli.commands.run_submission import cleanup_persisted_uploads
+
+            if not await cleanup_persisted_uploads(self.provider, job):
+                logger.error("Provider upload cleanup incomplete for completed job %s", job.id)
 
             # Mark as completed
             status_updated = await self.queue.update_status(job.id, JobStatus.COMPLETED)
             if not status_updated:
                 raise RuntimeError(f"Queue update_status(COMPLETED) failed for job {job.id}")
 
-            logger.info(f"Job {job.id} completed successfully (cost: ${cost:.4f})")
+            logger.info("Job %s completed successfully (cost: $%.4f)", job.id, cost or 0.0)
 
         except Exception:
             logger.exception("Error handling completion for job %s", job.id)
@@ -250,6 +292,29 @@ class JobPoller:
 
         try:
             logger.error("Job %s failed: %s", job.id, error)
+            try:
+                reservation = restore_research_cost_reservation(
+                    job_id=job.id,
+                    metadata=job.metadata,
+                    provider=getattr(job, "provider", "") or "",
+                    model=job.model,
+                )
+                if reservation is not None and job.provider_job_id:
+                    settle_research_cost(
+                        reservation,
+                        actual_cost=None,
+                        request_id=job.provider_job_id,
+                        source="worker.poller._handle_failure",
+                    )
+                else:
+                    refund_research_cost(reservation)
+            except Exception:
+                logger.exception("Failed to close provider cost for failed job %s", job.id)
+
+            from ..cli.commands.run_submission import cleanup_persisted_uploads
+
+            if not await cleanup_persisted_uploads(self.provider, job):
+                logger.error("Provider upload cleanup incomplete for failed job %s", job.id)
 
             # Update queue with failure status
             status_updated = await self.queue.update_status(job_id=job.id, status=JobStatus.FAILED, error=error)

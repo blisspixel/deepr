@@ -151,7 +151,7 @@ class ExpertValidator:
             api_key = os.getenv("OPENAI_API_KEY")
             if not api_key:
                 raise ExpertValidatorError("OPENAI_API_KEY is not set. Pass a client explicitly or set the env var.")
-            client = AsyncOpenAI(api_key=api_key)
+            client = AsyncOpenAI(api_key=api_key, max_retries=0)
         self.client = client
         # Reject an out-of-allowlist model override rather than trusting it:
         # the validate surface is advertised as a cheap "free" tool, so a
@@ -216,13 +216,21 @@ class ExpertValidator:
             "  caveats: list of strings calling out gaps, uncertainties, or scope limits relevant to this claim\n"
         )
 
-        response = await self.client.chat.completions.create(
+        from deepr.services.metered_call import execute_reserved_async_call
+
+        response = await execute_reserved_async_call(
+            operation_prefix="expert-validation",
+            provider="openai",
             model=self.model,
-            messages=[
-                {"role": "system", "content": system},
-                {"role": "user", "content": user},
-            ],
-            response_format={"type": "json_object"},
+            source="services.expert_validator.validate",
+            call=lambda: self.client.chat.completions.create(
+                model=self.model,
+                messages=[
+                    {"role": "system", "content": system},
+                    {"role": "user", "content": user},
+                ],
+                response_format={"type": "json_object"},
+            ),
         )
 
         raw = response.choices[0].message.content or ""

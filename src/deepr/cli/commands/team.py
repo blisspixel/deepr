@@ -1,11 +1,36 @@
 """Team commands - dynamic dream team research."""
 
 from datetime import UTC
+from typing import Any
 
 import click
 
 from deepr.cli.async_runner import run_async_command
 from deepr.cli.colors import console, print_section_header, print_success
+
+TEAM_POLL_INTERVAL_SECONDS = 5
+TEAM_POLL_TIMEOUT_SECONDS = 600
+
+
+async def _poll_team_job(provider: Any, provider_job_id: str) -> tuple[Any, bool, Exception | None]:
+    """Poll one team job, then cancel it if the bounded wait expires."""
+    import asyncio
+
+    response = await provider.get_status(provider_job_id)
+    waited = 0
+    while response.status in ["queued", "in_progress"] and waited < TEAM_POLL_TIMEOUT_SECONDS:
+        await asyncio.sleep(TEAM_POLL_INTERVAL_SECONDS)
+        waited += TEAM_POLL_INTERVAL_SECONDS
+        response = await provider.get_status(provider_job_id)
+
+    if response.status not in ["queued", "in_progress"]:
+        return response, False, None
+
+    try:
+        cancelled = bool(await provider.cancel_job(provider_job_id))
+    except Exception as exc:
+        return response, False, exc
+    return response, cancelled, None
 
 
 async def run_dream_team(
@@ -27,10 +52,18 @@ async def run_dream_team(
     from datetime import datetime
 
     from deepr.config import load_config
+    from deepr.experts.research_cost_gate import (
+        refund_research_cost,
+        reserve_configured_research_cost,
+        settle_research_cost,
+    )
+    from deepr.experts.research_reservation_store import ResearchReservationStore
     from deepr.providers import create_provider
     from deepr.providers.base import ResearchRequest, ToolConfig
     from deepr.queue import create_queue
     from deepr.queue.base import JobStatus, ResearchJob
+    from deepr.services.research_cost_reconciliation import reconcile_research_cost_reservations
+    from deepr.services.research_submission import dispatch_reserved_research
     from deepr.services.team_architect import TeamArchitect
     from deepr.storage import create_storage
 
@@ -77,8 +110,8 @@ async def run_dream_team(
         click.echo(f"  {i}. {role}: {focus}...")
 
     # Phase 2: Execute research for each perspective
-    provider_instance = create_provider(provider, api_key=api_key)
-    queue = create_queue("local")
+    provider_instance = None
+    queue = create_queue("local", db_path=str(config["queue_db_path"]))
     storage = create_storage(config.get("storage", "local"), base_path=config.get("results_dir", "data/reports"))
 
     click.echo(f"\nExecuting research from {len(team)} perspectives...")
@@ -95,6 +128,21 @@ Rationale: {member["rationale"]}
 Provide your analysis from this perspective."""
 
         job_id = f"team-{uuid.uuid4().hex[:12]}"
+        await reconcile_research_cost_reservations(queue, default_provider=provider)
+        _, reservation = reserve_configured_research_cost(
+            job_id=job_id,
+            provider=provider,
+            prompt=prompt,
+            model=model,
+            enable_web_search=True,
+        )
+
+        if provider_instance is None:
+            try:
+                provider_instance = create_provider(provider, api_key=api_key)
+            except Exception:
+                refund_research_cost(reservation)
+                raise
 
         # Store job in queue first
         job = ResearchJob(
@@ -102,19 +150,22 @@ Provide your analysis from this perspective."""
             prompt=prompt,
             model=model,
             provider=provider,
-            status=JobStatus.PROCESSING,
+            status=JobStatus.QUEUED,
             submitted_at=datetime.now(UTC),
-            started_at=datetime.now(UTC),
             enable_web_search=True,
-            metadata={"team_role": member["role"], "question": question},
+            metadata={
+                "team_role": member["role"],
+                "question": question,
+                **reservation.metadata(),
+            },
         )
-        await queue.enqueue(job)
 
         # Handle Unicode encoding issues on Windows
         role = member["role"].encode("ascii", "replace").decode("ascii")
         click.echo(f"\n[{i}/{len(team)}] {role}...")
 
         # Submit to provider
+        provider_job_id = ""
         try:
             # OpenAI's deep-research tool name is "web_search_preview".
             # xAI auto-enables web search and rejects unknown tool entries,
@@ -127,25 +178,62 @@ Provide your analysis from this perspective."""
                 tools=[ToolConfig(type=tool_type)] if provider != "xai" else [],
             )
 
-            provider_job_id = await provider_instance.submit_research(request)
-
-            # Update job with provider job ID
-            await queue.update_status(job_id, JobStatus.PROCESSING, provider_job_id=provider_job_id)
+            provider_job_id = await dispatch_reserved_research(
+                queue=queue,
+                provider=provider_instance,
+                job=job,
+                request=request,
+                reservation=reservation,
+            )
 
             # Wait for completion (immediate for xAI/Gemini, polling for OpenAI)
-            response = await provider_instance.get_status(provider_job_id)
+            response, cancelled_after_timeout, cancellation_error = await _poll_team_job(
+                provider_instance, provider_job_id
+            )
 
-            # For async providers, poll until complete
-            import asyncio
-
-            max_wait = 600  # 10 minutes max
-            waited = 0
-            while response.status in ["queued", "in_progress"] and waited < max_wait:
-                await asyncio.sleep(5)
-                waited += 5
-                response = await provider_instance.get_status(provider_job_id)
+            if response.status in ["queued", "in_progress"]:
+                if cancelled_after_timeout:
+                    settle_research_cost(
+                        reservation,
+                        actual_cost=None,
+                        request_id=provider_job_id,
+                        source="cli.team.timeout_cancelled",
+                    )
+                    await queue.update_status(
+                        job_id,
+                        JobStatus.CANCELLED,
+                        error=f"Provider job cancelled after {TEAM_POLL_TIMEOUT_SECONDS}s CLI wait",
+                    )
+                    console.print("  [warning]Timed out and cancelled provider job[/warning]")
+                else:
+                    await queue.update_status(
+                        job_id,
+                        JobStatus.PROCESSING,
+                        provider_job_id=provider_job_id,
+                    )
+                    results.append(
+                        {
+                            "job_id": job_id,
+                            "provider_job_id": provider_job_id,
+                            "role": member["role"],
+                            "status": "pending",
+                            "content": "",
+                            "cost": 0.0,
+                        }
+                    )
+                    detail = f": {cancellation_error}" if cancellation_error else ""
+                    console.print(f"  [warning]Still running; durable tracking retained{detail}[/warning]")
+                continue
 
             if response.status == "completed":
+                cost = float(response.usage.cost or 0.0) if response.usage else 0.0
+                settle_research_cost(
+                    reservation,
+                    actual_cost=cost,
+                    tokens=response.usage.total_tokens if response.usage else 0,
+                    request_id=provider_job_id,
+                    source="cli.team.immediate_completion",
+                )
                 # Extract content
                 content = ""
                 if response.output:
@@ -173,7 +261,6 @@ Provide your analysis from this perspective."""
 
                 # Update queue
                 await queue.update_status(job_id, JobStatus.COMPLETED)
-                cost = response.usage.cost if response.usage else 0.0
                 await queue.update_results(job_id, report_paths={"markdown": report_metadata.url}, cost=cost)
 
                 results.append({"job_id": job_id, "role": member["role"], "content": content, "cost": cost})
@@ -182,10 +269,23 @@ Provide your analysis from this perspective."""
 
             else:
                 error_msg = response.error if response.error else "Unknown error"
+                settle_research_cost(
+                    reservation,
+                    actual_cost=None,
+                    request_id=provider_job_id,
+                    source="cli.team.provider_failure",
+                )
                 await queue.update_status(job_id, JobStatus.FAILED, error=error_msg)
                 console.print(f"  [error]Failed: {error_msg}[/error]")
 
         except Exception as e:
+            if provider_job_id and ResearchReservationStore().is_active(reservation.reservation_id):
+                settle_research_cost(
+                    reservation,
+                    actual_cost=None,
+                    request_id=provider_job_id,
+                    source="cli.team.tracking_failure",
+                )
             await queue.update_status(job_id, JobStatus.FAILED, error=str(e))
             console.print(f"  [error]Error: {e}[/error]")
 
@@ -270,13 +370,20 @@ def analyze(
         from datetime import datetime
         from pathlib import Path
 
+        from deepr.config import load_config
+        from deepr.providers import create_provider
+        from deepr.queue.local_queue import SQLiteQueue
         from deepr.services.batch_executor import BatchExecutor
+        from deepr.services.context_builder import ContextBuilder
         from deepr.services.team_architect import TeamArchitect, TeamSynthesizer
         from deepr.storage.local import LocalStorage
 
         # Phase 1: GPT-5 designs optimal team for THIS question
         if company:
             click.echo(f"[Phase 0] Researching {company}'s leadership for grounded personas...\n")
+
+        if not yes:
+            click.confirm("Run the metered, budget-gated team architecture call?", abort=True)
 
         click.echo("[Phase 1] GPT-5 assembling dream team for this question...\n")
 
@@ -355,17 +462,36 @@ Provide analysis and insights from your unique perspective. Don't try to cover e
         click.echo("Each member will research independently from their perspective.")
         click.echo(f"This will take ~{len(tasks) * 5}-{len(tasks) * 15} minutes.\n")
 
-        # Execute asynchronously
-        executor = BatchExecutor()
-        storage = LocalStorage()
+        config = load_config()
+        queue = SQLiteQueue(str(config["queue_db_path"]))
+        provider_instance = create_provider("openai", api_key=config.get("api_key"))
+        storage = LocalStorage(str(config["results_dir"]))
+        executor = BatchExecutor(
+            queue=queue,
+            provider=provider_instance,
+            storage=storage,
+            context_builder=ContextBuilder(api_key=config.get("api_key")),
+        )
+        campaign_id = f"team-{datetime.now(UTC).strftime('%Y%m%d%H%M%S')}"
 
         async def run_research():
-            results = await executor.execute_batch(
-                tasks=tasks, campaign_id=f"team-{datetime.now(UTC).strftime('%Y%m%d%H%M%S')}", storage=storage
-            )
-            return results
+            return await executor.execute_campaign(tasks=tasks, campaign_id=campaign_id)
 
-        results = run_async_command(run_research())
+        campaign = run_async_command(run_research())
+        campaign_tasks = campaign.get("tasks", {})
+        results = []
+        for task in tasks:
+            task_result = dict(campaign_tasks.get(task["id"], {}))
+            task_result["team_member"] = task["team_member"]
+            results.append(task_result)
+
+        if campaign.get("status") == "pending":
+            plan_data["results"] = results
+            plan_data["status"] = "pending"
+            with open(plan_path, "w", encoding="utf-8") as f:
+                json.dump(plan_data, f, indent=2)
+            print_success("Research remains in progress. Durable job tracking was retained.")
+            return
 
         # Update plan with results
         plan_data["results"] = results

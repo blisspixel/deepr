@@ -32,11 +32,12 @@ class TestDocReviewer:
 
     def test_init_with_api_key(self):
         """Direct API key accepted."""
-        with patch("deepr.services.doc_reviewer.OpenAI"):
+        with patch("deepr.services.doc_reviewer.OpenAI") as client:
             from deepr.services.doc_reviewer import DocReviewer
 
             r = DocReviewer(api_key="direct-key")
             assert r.api_key == "direct-key"
+            client.assert_called_once_with(api_key="direct-key", max_retries=0)
 
     def test_init_no_key_raises(self, monkeypatch):
         """No API key raises ValueError."""

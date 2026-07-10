@@ -65,10 +65,12 @@ async def _analyze_and_queue(
 ):
     """Execute the agentic documentation analysis workflow."""
     import asyncio
+    import json
     import os
     import uuid
     from pathlib import Path
 
+    from deepr.config import load_config
     from deepr.providers.base import ResearchRequest, ToolConfig
     from deepr.providers.openai_provider import OpenAIProvider
     from deepr.queue.base import JobStatus, ResearchJob
@@ -87,20 +89,27 @@ async def _analyze_and_queue(
         console.print(f"Scenario: {scenario}")
         console.print(f"Max research tasks: {max_topics}\n")
 
+        if not auto_execute:
+            click.confirm(
+                "Run metered document review and research planning? Both calls are budget-gated.",
+                abort=True,
+            )
+
         # Step 1: Scan and analyze docs with GPT-5
         console.print("Step 1: Analyzing existing documentation...")
-        reviewer = DocReviewer(model=planner_model)
+        reviewer = DocReviewer(model=planner_model, docs_path=str(docs_dir))
 
-        analysis = reviewer.check_existing_docs(scenario=scenario, docs_dir=str(docs_dir))
+        analysis = reviewer.review_docs(scenario=scenario)
 
-        relevant = analysis.get("relevant_docs", [])
+        relevant = [*analysis.get("sufficient", []), *analysis.get("needs_update", [])]
         gaps = analysis.get("gaps", [])
 
         if relevant:
             print_success(f"Found {len(relevant)} relevant docs")
             for doc in relevant[:5]:
-                quality = doc.get("quality", "unknown")
-                console.print(f"  - {Path(doc['path']).name} ({quality})")
+                quality = doc.get("quality", "unknown") if isinstance(doc, dict) else "unknown"
+                doc_path = str(doc.get("path") or doc.get("name") or "document") if isinstance(doc, dict) else str(doc)
+                console.print(f"  - {Path(doc_path).name} ({quality})")
             if len(relevant) > 5:
                 console.print(f"  ... and {len(relevant) - 5} more")
 
@@ -114,7 +123,7 @@ async def _analyze_and_queue(
         # Step 2: Generate research plan with GPT-5
         console.print("\nStep 2: Generating research plan...")
 
-        context = reviewer.generate_enhanced_plan_context(scenario, analysis)
+        context = json.dumps(analysis, sort_keys=True)
 
         planner = ResearchPlanner(model=planner_model)
         tasks = planner.plan_research(scenario=scenario, max_tasks=max_topics, context=context)
@@ -151,12 +160,15 @@ async def _analyze_and_queue(
         # Step 4: Submit jobs
         console.print("\nStep 3: Submitting research jobs...")
 
-        # Initialize services (non-blocking)
-        config_path = Path(".deepr")
-        await asyncio.to_thread(config_path.mkdir, exist_ok=True)
+        config = load_config()
+        queue_path = Path(str(config["queue_db_path"]))
+        await asyncio.to_thread(queue_path.parent.mkdir, parents=True, exist_ok=True)
+        queue = SQLiteQueue(str(queue_path))
+        provider = None
 
-        queue = SQLiteQueue(str(config_path / "queue.db"))
-        provider = OpenAIProvider(api_key=os.getenv("OPENAI_API_KEY"))
+        from deepr.experts.research_cost_gate import refund_research_cost, reserve_configured_research_cost
+        from deepr.services.research_cost_reconciliation import reconcile_research_cost_reservations
+        from deepr.services.research_submission import dispatch_reserved_research
 
         job_ids = []
 
@@ -167,6 +179,20 @@ async def _analyze_and_queue(
 
             # Create job
             job_id = str(uuid.uuid4())
+            await reconcile_research_cost_reservations(queue, default_provider="openai")
+            _, reservation = reserve_configured_research_cost(
+                job_id=job_id,
+                provider="openai",
+                prompt=task["prompt"],
+                model=task_model,
+                enable_web_search=True,
+            )
+            if provider is None:
+                try:
+                    provider = OpenAIProvider(api_key=os.getenv("OPENAI_API_KEY"))
+                except Exception:
+                    refund_research_cost(reservation)
+                    raise
             job = ResearchJob(
                 id=job_id,
                 prompt=task["prompt"],
@@ -180,10 +206,9 @@ async def _analyze_and_queue(
                     "scenario": scenario,
                     "docs_path": str(docs_dir),
                     "batch_id": f"docs_analysis_{uuid.uuid4().hex[:8]}",
+                    **reservation.metadata(),
                 },
             )
-
-            await queue.enqueue(job)
 
             # Submit to provider
             request = ResearchRequest(
@@ -194,13 +219,12 @@ async def _analyze_and_queue(
                 background=True,
             )
 
-            provider_job_id = await provider.submit_research(request)
-
-            # Update status
-            await queue.update_status(
-                job_id=job_id,
-                status=JobStatus.PROCESSING,
-                provider_job_id=provider_job_id,
+            await dispatch_reserved_research(
+                queue=queue,
+                provider=provider,
+                job=job,
+                request=request,
+                reservation=reservation,
             )
 
             job_ids.append(job_id)

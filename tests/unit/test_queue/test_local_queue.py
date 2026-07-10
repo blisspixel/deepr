@@ -4,6 +4,10 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
+from deepr.core.costs import CostEstimate
+from deepr.experts.cost_safety import CostSafetyManager
+from deepr.experts.research_cost_gate import reserve_research_cost, settle_research_cost
+from deepr.observability.cost_ledger import CostLedger
 from deepr.queue import JobStatus, ResearchJob, SQLiteQueue
 
 
@@ -98,6 +102,33 @@ class TestSQLiteQueue:
         assert job.status == JobStatus.PROCESSING
         assert job.provider_job_id == "provider-123"
 
+    async def test_claim_submission_is_atomic_compare_and_set(self, queue, sample_job):
+        await queue.enqueue(sample_job)
+
+        assert await queue.claim_submission(sample_job.id) is True
+        assert await queue.claim_submission(sample_job.id) is False
+        claimed = await queue.get_job(sample_job.id)
+        assert claimed is not None
+        assert claimed.status == JobStatus.PROCESSING
+
+    async def test_cancel_queued_submission_is_atomic_compare_and_set(self, queue, sample_job):
+        await queue.enqueue(sample_job)
+
+        assert await queue.cancel_queued_submission(sample_job.id) is True
+        assert await queue.cancel_queued_submission(sample_job.id) is False
+        cancelled = await queue.get_job(sample_job.id)
+        assert cancelled is not None
+        assert cancelled.status == JobStatus.CANCELLED
+
+    async def test_cancel_queued_submission_loses_to_dispatch_claim(self, queue, sample_job):
+        await queue.enqueue(sample_job)
+
+        assert await queue.claim_submission(sample_job.id) is True
+        assert await queue.cancel_queued_submission(sample_job.id) is False
+        claimed = await queue.get_job(sample_job.id)
+        assert claimed is not None
+        assert claimed.status == JobStatus.PROCESSING
+
     async def test_update_results(self, queue, sample_job):
         """Test results updates."""
         await queue.enqueue(sample_job)
@@ -156,8 +187,36 @@ class TestSQLiteQueue:
         assert first["model"] == sample_job.model
         assert first["cost"] == 2.50
         assert first["task_id"] == sample_job.id
+        assert first["metadata"]["idempotency_key"] == f"job:{sample_job.id}:completion"
 
         assert second["cost"] == 0.50
+        assert second["metadata"]["idempotency_key"] == f"job:{sample_job.id}:correction:3.000000"
+
+    async def test_reserved_settlement_and_result_update_share_one_ledger_event(self, queue, sample_job):
+        await queue.enqueue(sample_job)
+        reservation = reserve_research_cost(
+            job_id=sample_job.id,
+            provider=sample_job.provider,
+            model=sample_job.model,
+            estimate=CostEstimate(
+                min_cost=0.1,
+                max_cost=0.3,
+                expected_cost=0.2,
+                model=sample_job.model,
+                reasoning="test",
+            ),
+            max_cost_per_job=1.0,
+            max_daily_cost=2.0,
+            max_monthly_cost=5.0,
+            manager=CostSafetyManager(),
+        )
+
+        settle_research_cost(reservation, actual_cost=0.2, source="test.poller")
+        await queue.update_results(sample_job.id, {"md": "report.md"}, cost=0.2, tokens_used=100)
+
+        events = CostLedger().get_events()
+        assert len(events) == 1
+        assert events[0].cost_usd == 0.2
 
     async def test_list_jobs_filter_by_status(self, queue):
         """Test listing jobs filtered by status."""

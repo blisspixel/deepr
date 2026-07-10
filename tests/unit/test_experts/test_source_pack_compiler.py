@@ -813,6 +813,7 @@ def test_claim_verification_uses_indexed_belief_vectors_for_recall(tmp_path):
     )
     store.upsert_belief_embedding(relevant.id, [1.0, 0.0], model="local-test")
     store.upsert_belief_embedding(unrelated.id, [0.0, 1.0], model="local-test")
+    recall_index = store.belief_embedding_stats(embedding_model="local-test")
 
     verification = build_claim_verification(
         extraction,
@@ -838,6 +839,9 @@ def test_claim_verification_uses_indexed_belief_vectors_for_recall(tmp_path):
             "fallback_route": LEXICAL_METHOD,
             "routing_evidence_only": True,
             "semantic_verdict": False,
+            "embedding_model": "local-test",
+            "index_state_digest": recall_index["state_digest"],
+            "retrieval_contract": {"top_k": 2, "domain": "", "min_score": 0.9},
         },
     )
 

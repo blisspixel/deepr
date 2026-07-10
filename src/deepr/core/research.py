@@ -27,7 +27,7 @@ from ..providers.base import DeepResearchProvider, ResearchRequest, ToolConfig
 
 # Cost estimates sourced from the model registry (single source of truth).
 # get_cost_estimate() looks up cost_per_query from providers/registry.py.
-from ..providers.registry import MODEL_CAPABILITIES, get_cost_estimate
+from ..providers.registry import MODEL_CAPABILITIES
 from ..services.context_chainer import ContextChainer
 from ..storage.base import StorageBackend
 from ..utils.prompt_security import PromptSanitizer
@@ -199,182 +199,157 @@ class ResearchOrchestrator:
                     op.add_event("prompt_sanitized", {"patterns": sanitization_result.patterns_detected})
                 prompt = sanitization_result.sanitized
 
-            # CRITICAL: Validate budget BEFORE any API calls
-            estimated_cost = get_cost_estimate(model)
-            op.set_attribute("estimated_cost", estimated_cost)
-
-            # Check against explicit budget limit if provided
-            if budget_limit is not None and estimated_cost > budget_limit:
-                op.add_event("budget_exceeded", {"limit": budget_limit, "estimated": estimated_cost})
-                raise ValueError(f"Estimated cost ${estimated_cost:.2f} exceeds budget limit ${budget_limit:.2f}")
-
-            # Import cost safety manager for budget validation
-            from ..experts.cost_safety import get_cost_safety_manager
-
-            cost_safety = get_cost_safety_manager()
-
-            # Create or use session for tracking
-            tracking_session_id = session_id or f"research_{uuid.uuid4().hex[:8]}"
-            op.set_attribute("session_id", tracking_session_id)
-
-            # Check against global limits (daily/monthly)
-            allowed, reason, _needs_confirm, reservation_id = self._check_and_reserve_cost(
-                cost_safety=cost_safety,
-                session_id=tracking_session_id,
-                estimated_cost=estimated_cost,
-            )
-
-            if not allowed:
-                op.add_event("budget_blocked", {"reason": reason})
-                raise ValueError(f"Research blocked by cost safety: {reason}")
-
-            op.add_event("budget_validated", {"estimated_cost": estimated_cost})
-
-            # Generate job ID
+            # Generate the internal job ID before durable cost admission so the
+            # reservation remains traceable even when provider submission fails.
             job_id = str(uuid.uuid4())
             op.set_attribute("job_id", job_id)
 
-            # Initialize temporal tracking for this job (6.4). Pass
-            # ``job_id`` so the emitter stores the tracker per-job
-            # rather than overwriting a single shared field (R4 audit
-            # finding - two concurrent jobs would otherwise clobber).
-            if self._enable_temporal:
-                tracker = TemporalKnowledgeTracker(job_id=job_id)
-                self._temporal_trackers[job_id] = tracker
-                self._emitter.set_temporal_tracker(tracker, job_id=job_id)
-                op.add_event("temporal_tracking_enabled", {"job_id": job_id})
-
-            # Prepare metadata
-            job_metadata = metadata or {}
-            job_metadata["job_id"] = job_id
-            # Truncate prompt in metadata to fit OpenAI's 512-char metadata field limit
-            job_metadata["original_prompt"] = prompt[:500] if len(prompt) > 500 else prompt
-
-            # Use provided vector_store_id or create one from documents
-            documents_count = 0
-            if documents:
-                documents_count = len(documents)
-                op.set_attribute("documents_count", documents_count)
-                op.add_event("document_upload_start", {"count": documents_count})
-
-                file_ids = await self.document_manager.upload_documents(documents, self.provider)
-
-                if file_ids:
-                    op.add_event("document_upload_complete", {"file_ids_count": len(file_ids)})
-                    vector_store = await self.document_manager.create_vector_store(
-                        f"deepr-{job_id}", file_ids, self.provider
-                    )
-                    vector_store_id = vector_store.id
-                    self.active_vector_stores[job_id] = vector_store_id
-                    op.set_attribute("vector_store_id", vector_store_id)
-            # If vector_store_id provided but no documents, use the existing vector store
-            # Don't track it for cleanup since we didn't create it
-            elif vector_store_id:
-                op.set_attribute("vector_store_id", vector_store_id)
-                op.set_attribute("vector_store_existing", True)
-
-            # Build tools configuration
-            tools = self._build_tools(
-                vector_store_id=vector_store_id,
-                enable_web_search=enable_web_search,
-                enable_code_interpreter=enable_code_interpreter and not cost_sensitive,
-            )
-
-            # Track enabled tools
-            enabled_tools = [t.type for t in tools]
-            op.set_attribute("tools_enabled", enabled_tools)
-
-            # Use cost-sensitive model if requested
             original_model = model
-            if cost_sensitive:
-                if "o3" in model:
-                    model = "o4-mini-deep-research"
-                    op.add_event("model_downgraded", {"from": original_model, "to": model})
+            if cost_sensitive and "o3" in model:
+                model = "o4-mini-deep-research"
+                op.add_event("model_downgraded", {"from": original_model, "to": model})
+            enhanced_prompt = self._enhance_prompt(prompt, documents is not None)
 
-            # Set final model info
-            op.set_model(model, self.provider.__class__.__name__)
+            from ..experts.research_cost_gate import reserve_configured_research_cost
 
-            # Build research request
-            request = ResearchRequest(
-                prompt=self._enhance_prompt(prompt, documents is not None),
-                model=model,
-                system_message=custom_system_message or self.system_message,
-                tools=tools,
-                metadata=job_metadata,
-                webhook_url=webhook_url,
-                tool_choice="required" if vector_store_id else "auto",
-            )
+            try:
+                estimate, reservation = reserve_configured_research_cost(
+                    job_id=job_id,
+                    provider=self.provider.__class__.__name__,
+                    prompt=enhanced_prompt,
+                    model=model,
+                    enable_web_search=enable_web_search,
+                    max_cost_per_job=budget_limit,
+                )
+            except ValueError as exc:
+                if budget_limit is not None and "exceeds limit" in str(exc):
+                    raise ValueError(
+                        f"Estimated research cost exceeds budget limit ${budget_limit:.2f}: {exc}"
+                    ) from exc
+                raise
+            estimated_cost = estimate.max_cost
+            op.set_attribute("estimated_cost", estimated_cost)
+
+            tracking_session_id = session_id or f"research_{uuid.uuid4().hex[:8]}"
+            op.set_attribute("session_id", tracking_session_id)
+            op.add_event("budget_validated", {"estimated_cost": estimated_cost})
+            try:
+                request = await self._prepare_research_request(
+                    job_id=job_id,
+                    prompt=prompt,
+                    enhanced_prompt=enhanced_prompt,
+                    model=model,
+                    documents=documents,
+                    vector_store_id=vector_store_id,
+                    metadata=metadata,
+                    webhook_url=webhook_url,
+                    enable_web_search=enable_web_search,
+                    enable_code_interpreter=enable_code_interpreter and not cost_sensitive,
+                    custom_system_message=custom_system_message,
+                    op=op,
+                )
+            except Exception:
+                from ..experts.research_cost_gate import refund_research_cost
+
+                refund_research_cost(reservation)
+                await self._cleanup_vector_store(job_id)
+                self._temporal_trackers.pop(job_id, None)
+                self._emitter.clear_temporal_tracker(job_id)
+                raise
 
             # Submit to provider
             op.add_event("provider_submit_start", {"model": model})
             try:
                 response_id = await self.provider.submit_research(request)
-            except Exception:
-                self._refund_cost_reservation(cost_safety, reservation_id)
+            except Exception as exc:
+                from ..experts.research_cost_gate import refund_research_cost, settle_research_cost
+                from ..services.research_submission import submission_outcome_is_ambiguous
+
+                if submission_outcome_is_ambiguous(exc):
+                    settle_research_cost(
+                        reservation,
+                        actual_cost=None,
+                        source="core.research.submit_research.ambiguous",
+                    )
+                else:
+                    refund_research_cost(reservation)
                 raise
             op.add_event("provider_submit_complete", {"response_id": response_id})
 
-            if reservation_id:
-                self._cost_tracking[response_id] = {
-                    "session_id": tracking_session_id,
-                    "reservation_id": reservation_id,
-                    "estimated_cost": estimated_cost,
-                    "provider": self.provider.__class__.__name__,
-                    "model": model,
-                    "prompt_preview": prompt[:50],
-                }
-            else:
-                # Compatibility path for legacy or mocked cost managers that
-                # do not expose check_and_reserve().
-                cost_safety.record_cost(
-                    session_id=tracking_session_id,
-                    operation_type="research_submit",
-                    actual_cost=estimated_cost,
-                    details=f"Job {response_id}: {prompt[:50]}...",
-                )
+            self._cost_tracking[response_id] = {
+                "session_id": tracking_session_id,
+                "reservation": reservation,
+                "estimated_cost": estimated_cost,
+                "provider": self.provider.__class__.__name__,
+                "model": model,
+                "prompt_preview": prompt[:50],
+            }
 
             # Set final cost on span
             op.set_cost(estimated_cost)
 
             return response_id
 
-    @staticmethod
-    def _check_and_reserve_cost(
+    async def _prepare_research_request(
+        self,
         *,
-        cost_safety: Any,
-        session_id: str,
-        estimated_cost: float,
-    ) -> tuple[bool, str, bool, str]:
-        """Reserve estimated research cost when the manager supports it."""
-        check_and_reserve = getattr(cost_safety, "check_and_reserve", None)
-        if callable(check_and_reserve):
-            result = check_and_reserve(
-                session_id=session_id,
-                operation_type="research_submit",
-                estimated_cost=estimated_cost,
-                require_confirmation=False,
-                reserve=True,
-            )
-            if isinstance(result, tuple) and len(result) == 4:
-                allowed, reason, needs_confirm, reservation_id = result
-                return bool(allowed), str(reason), bool(needs_confirm), str(reservation_id)
+        job_id: str,
+        prompt: str,
+        enhanced_prompt: str,
+        model: str,
+        documents: list[str] | None,
+        vector_store_id: str | None,
+        metadata: dict[str, Any] | None,
+        webhook_url: str | None,
+        enable_web_search: bool,
+        enable_code_interpreter: bool,
+        custom_system_message: str | None,
+        op: Any,
+    ) -> ResearchRequest:
+        """Prepare uploads, tools, metadata, and the exact provider request."""
+        if self._enable_temporal:
+            tracker = TemporalKnowledgeTracker(job_id=job_id)
+            self._temporal_trackers[job_id] = tracker
+            self._emitter.set_temporal_tracker(tracker, job_id=job_id)
+            op.add_event("temporal_tracking_enabled", {"job_id": job_id})
 
-        allowed, reason, needs_confirm = cost_safety.check_operation(
-            session_id=session_id,
-            operation_type="research_submit",
-            estimated_cost=estimated_cost,
-            require_confirmation=False,
+        job_metadata = dict(metadata or {})
+        job_metadata["job_id"] = job_id
+        job_metadata["original_prompt"] = prompt[:500]
+
+        if documents:
+            op.set_attribute("documents_count", len(documents))
+            op.add_event("document_upload_start", {"count": len(documents)})
+            file_ids = await self.document_manager.upload_documents(documents, self.provider)
+            if file_ids:
+                op.add_event("document_upload_complete", {"file_ids_count": len(file_ids)})
+                vector_store = await self.document_manager.create_vector_store(
+                    f"deepr-{job_id}", file_ids, self.provider
+                )
+                vector_store_id = vector_store.id
+                self.active_vector_stores[job_id] = vector_store_id
+                op.set_attribute("vector_store_id", vector_store_id)
+        elif vector_store_id:
+            op.set_attribute("vector_store_id", vector_store_id)
+            op.set_attribute("vector_store_existing", True)
+
+        tools = self._build_tools(
+            vector_store_id=vector_store_id,
+            enable_web_search=enable_web_search,
+            enable_code_interpreter=enable_code_interpreter,
         )
-        return bool(allowed), str(reason), bool(needs_confirm), ""
-
-    @staticmethod
-    def _refund_cost_reservation(cost_safety: Any, reservation_id: str) -> None:
-        """Refund a cost reservation if the manager supports refunds."""
-        if not reservation_id:
-            return
-        refund = getattr(cost_safety, "refund_reservation", None)
-        if callable(refund):
-            refund(reservation_id)
+        op.set_attribute("tools_enabled", [tool.type for tool in tools])
+        op.set_model(model, self.provider.__class__.__name__)
+        return ResearchRequest(
+            prompt=enhanced_prompt,
+            model=model,
+            system_message=custom_system_message or self.system_message,
+            tools=tools,
+            metadata=job_metadata,
+            webhook_url=webhook_url,
+            tool_choice="required" if vector_store_id else "auto",
+            idempotency_key=f"deepr-research-{job_id}",
+        )
 
     def _settle_research_cost(self, job_id: str, response: Any, op: Any) -> None:
         """Settle reserved research cost using provider-reported usage."""
@@ -382,7 +357,7 @@ class ResearchOrchestrator:
         if not tracking:
             return
 
-        from ..experts.cost_safety import get_cost_safety_manager
+        from ..experts.research_cost_gate import ResearchCostReservation, settle_research_cost
 
         usage = getattr(response, "usage", None)
         estimated_cost = float(tracking.get("estimated_cost", 0.0) or 0.0)
@@ -394,38 +369,16 @@ class ResearchOrchestrator:
             actual_cost = estimated_cost
             cost_source = "estimate_fallback"
 
-        tokens_input = getattr(usage, "input_tokens", 0) if usage is not None else 0
         tokens_output = getattr(usage, "output_tokens", 0) if usage is not None else 0
-        metadata = {
-            "estimated_cost": estimated_cost,
-            "cost_source": cost_source,
-        }
-        if usage is not None:
-            for field in (
-                "cached_input_tokens",
-                "cache_creation_input_tokens",
-                "cache_read_input_tokens",
-                "reasoning_tokens",
-            ):
-                value = getattr(usage, field, 0)
-                if isinstance(value, int) and value > 0:
-                    metadata[field] = value
-
-        cost_safety = get_cost_safety_manager()
-        cost_safety.record_cost(
-            session_id=str(tracking.get("session_id", "")),
-            operation_type="research_submit",
+        reservation = tracking.get("reservation")
+        if not isinstance(reservation, ResearchCostReservation):
+            return
+        settle_research_cost(
+            reservation,
             actual_cost=actual_cost,
-            details=f"Job {job_id}: {tracking.get('prompt_preview', '')}...",
-            provider=str(tracking.get("provider", "unknown")),
-            model=str(getattr(response, "model", None) or tracking.get("model", "")),
-            tokens_input=tokens_input if isinstance(tokens_input, int) else 0,
-            tokens_output=tokens_output if isinstance(tokens_output, int) else 0,
+            tokens=tokens_output if isinstance(tokens_output, int) else 0,
             request_id=job_id,
-            idempotency_key=f"{job_id}:research_submit:settle",
             source="research_orchestrator.process_completion",
-            metadata=metadata,
-            reservation_id=str(tracking.get("reservation_id", "")),
         )
         op.add_event(
             "cost_settled",
@@ -617,6 +570,18 @@ class ResearchOrchestrator:
 
             if success:
                 op.add_event("job_cancelled")
+                tracking = self._cost_tracking.pop(job_id, None)
+                if tracking:
+                    from ..experts.research_cost_gate import ResearchCostReservation, settle_research_cost
+
+                    reservation = tracking.get("reservation")
+                    if isinstance(reservation, ResearchCostReservation):
+                        settle_research_cost(
+                            reservation,
+                            actual_cost=None,
+                            request_id=job_id,
+                            source="research_orchestrator.cancel_job",
+                        )
                 await self._cleanup_vector_store(job_id)
                 # Drop the temporal tracker so long-running orchestrators
                 # don't leak one entry per cancelled job. The
