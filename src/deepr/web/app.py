@@ -184,7 +184,7 @@ from deepr.queue.local_queue import SQLiteQueue
 from deepr.services.research_cost_reconciliation import reconcile_research_cost_reservations
 from deepr.services.research_submission import dispatch_reserved_research
 from deepr.storage.local import LocalStorage
-from deepr.web.research_cost_api import WebResearchCostCoordinator, validate_web_research_input
+from deepr.web import research_cost_api
 
 _cfg = load_config()
 config_path = Path(".deepr")
@@ -206,7 +206,7 @@ def _default_openai_provider() -> OpenAIProvider:
             return provider
         api_key = os.getenv("OPENAI_API_KEY", "").strip()
         if not api_key:
-            raise RuntimeError("OpenAI is not configured; set OPENAI_API_KEY before submitting research")
+            raise research_cost_api.WebProviderNotConfiguredError(research_cost_api.OPENAI_NOT_CONFIGURED)
         provider = OpenAIProvider(api_key=api_key)
         return provider
 
@@ -266,7 +266,7 @@ except Exception as e:
     cost_controller = None
     cost_estimator = None
 
-research_costs = WebResearchCostCoordinator(cost_controller, cost_estimator)
+research_costs = research_cost_api.WebResearchCostCoordinator(cost_controller, cost_estimator)
 
 # Register WebSocket event handlers
 from deepr.api.websockets.events import (
@@ -664,7 +664,7 @@ def submit_job():
         priority = max(1, min(10, _safe_int(data.get("priority", 3), 3)))
         enable_web_search = data.get("enable_web_search", True)
 
-        input_denial = validate_web_research_input(
+        input_denial = research_cost_api.validate_web_research_input(
             prompt=prompt,
             model=model,
             max_prompt_length=_MAX_PROMPT_LENGTH,
@@ -685,12 +685,12 @@ def submit_job():
             payload, status = denial
             return jsonify(payload), status
 
-        try:
-            active_provider = _default_openai_provider()
-        except RuntimeError as exc:
+        active_provider, provider_denial = research_cost_api.resolve_web_research_provider(_default_openai_provider)
+        if provider_denial is not None:
             research_costs.refund(reservation)
             reservation = None
-            return jsonify({"error": str(exc)}), 503
+            payload, status = provider_denial
+            return jsonify(payload), status
 
         # Create job
         now = datetime.now(UTC)

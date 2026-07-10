@@ -7,6 +7,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.33.1] - 2026-07-09
+
+### Security
+
+- Replaced exception-derived API and web research errors with fixed public
+  messages and safe server-side failure classification. Cost-limit and
+  provider-construction failures can no longer expose dependency, ledger, or
+  configuration exception text to clients.
+- Separated webhook payload parsing from HTTP response construction. Signed
+  invalid payloads and job identifiers now return fixed JSON errors, while
+  request-controlled payload objects can reach only the authenticated callback
+  and are never reused as route responses.
+- Tightened local report job identifiers to an exact alphanumeric, hyphen, and
+  underscore allowlist instead of silently rewriting punctuation. Direct job
+  paths now pass resolved-base containment before the first filesystem probe,
+  including rejection of symlink escapes.
+
 ## [2.33.0] - 2026-07-09
 
 ### Added

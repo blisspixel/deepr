@@ -6,7 +6,7 @@ from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any
 
-from deepr.utils.security import InvalidInputError, PathTraversalError, sanitize_name
+from deepr.utils.security import InvalidInputError, PathTraversalError
 
 from .base import ReportMetadata, StorageBackend, StorageError
 
@@ -47,15 +47,10 @@ class LocalStorage(StorageBackend):
         Raises:
             StorageError: If job_id is invalid or contains traversal sequences
         """
-        try:
-            # Check for path traversal patterns
-            if ".." in job_id or "/" in job_id or "\\" in job_id:
-                raise PathTraversalError(f"Invalid job_id contains path traversal: {job_id}")
-            # Validate format (alphanumeric, hyphens, underscores)
-            sanitized = sanitize_name(job_id, allowed_chars=r"a-zA-Z0-9_-")
-            return sanitized
-        except (PathTraversalError, InvalidInputError) as e:
-            raise StorageError(message=f"Invalid job_id: {e!s}", storage_type="local", original_error=e) from e
+        if not job_id or re.fullmatch(r"[A-Za-z0-9_-]+", job_id) is None:
+            error = InvalidInputError("Job id must contain only letters, numbers, hyphens, and underscores")
+            raise StorageError(message=f"Invalid job_id: {error}", storage_type="local", original_error=error)
+        return job_id
 
     def _validate_filename(self, filename: str) -> str:
         """Validate filename has no directory components.
@@ -121,7 +116,7 @@ class LocalStorage(StorageBackend):
                 storage_type="local",
                 original_error=PathTraversalError(f"Path escape: {job_dir}"),
             ) from err
-        return job_dir
+        return resolved
 
     def _create_readable_dirname(self, job_id: str, prompt: str, is_campaign: bool = False) -> str:
         """
@@ -187,9 +182,9 @@ class LocalStorage(StorageBackend):
         validated_id = self._validate_job_id(job_id)
 
         # First, check exact legacy directory names.
-        direct_path = self.base_path / validated_id
+        direct_path = self._ensure_within_base(job_id, self.base_path / validated_id)
         if direct_path.exists():
-            return self._ensure_within_base(job_id, direct_path)
+            return direct_path
 
         if validated_id.startswith("campaign-"):
             readable_dir = self._find_readable_dir(self.campaigns_path, validated_id)

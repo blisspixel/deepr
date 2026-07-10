@@ -90,3 +90,67 @@ def test_paid_submit_fails_closed_when_cost_limit_check_raises(client, monkeypat
     assert response.status_code == 503
     assert response.get_json()["error"] == "Cost limit check unavailable; submission denied"
     provider_factory.assert_not_called()
+
+
+def test_paid_submit_does_not_expose_cost_reservation_exception(client, monkeypatch):
+    from deepr.experts.research_cost_gate import ResearchCostBlocked
+
+    provider_factory = MagicMock()
+    estimate = MagicMock(min_cost=0.1, max_cost=0.3, expected_cost=0.2)
+    estimator = MagicMock()
+    estimator.estimate_cost.return_value = estimate
+    controller = MagicMock(max_cost_per_job=1.0, max_daily_cost=5.0, max_monthly_cost=20.0)
+    controller.check_cost_limit.return_value = (True, None)
+    coordinator = WebResearchCostCoordinator(controller, estimator)
+    monkeypatch.setattr(web_app, "research_costs", coordinator)
+    monkeypatch.setattr(web_app, "_default_openai_provider", provider_factory)
+    monkeypatch.setattr(
+        "deepr.web.research_cost_api.reserve_research_cost",
+        MagicMock(side_effect=ResearchCostBlocked("secret ledger traceback")),
+    )
+
+    response = client.post("/api/jobs", json={"prompt": "Research power-grid constraints."})
+
+    assert response.status_code == 429
+    assert response.get_json()["error"] == "Research cost limit exceeded"
+    assert b"secret ledger traceback" not in response.data
+    provider_factory.assert_not_called()
+
+
+def test_paid_submit_does_not_expose_provider_configuration_exception(client, monkeypatch):
+    reservation = MagicMock()
+    coordinator = MagicMock()
+    coordinator.reserve.return_value = (
+        {"min_cost": 0.1, "max_cost": 0.3, "expected_cost": 0.2},
+        reservation,
+        None,
+    )
+    provider_factory = MagicMock(side_effect=RuntimeError("secret provider traceback"))
+    monkeypatch.setattr(web_app, "research_costs", coordinator)
+    monkeypatch.setattr(web_app, "_default_openai_provider", provider_factory)
+
+    response = client.post("/api/jobs", json={"prompt": "Research power-grid constraints."})
+
+    assert response.status_code == 503
+    assert response.get_json() == {"error": "Research provider is unavailable"}
+    assert b"secret provider traceback" not in response.data
+    coordinator.refund.assert_called_once_with(reservation)
+
+
+def test_paid_submit_preserves_explicit_no_key_error(client, monkeypatch):
+    reservation = MagicMock()
+    coordinator = MagicMock()
+    coordinator.reserve.return_value = (
+        {"min_cost": 0.1, "max_cost": 0.3, "expected_cost": 0.2},
+        reservation,
+        None,
+    )
+    monkeypatch.setattr(web_app, "research_costs", coordinator)
+    monkeypatch.setattr(web_app, "provider", None)
+    monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+
+    response = client.post("/api/jobs", json={"prompt": "Research power-grid constraints."})
+
+    assert response.status_code == 503
+    assert response.get_json() == {"error": web_app.research_cost_api.OPENAI_NOT_CONFIGURED}
+    coordinator.refund.assert_called_once_with(reservation)

@@ -21,6 +21,22 @@ from deepr.queue.base import JobStatus
 from deepr.services.research_cancellation import cancel_reserved_research
 
 logger = logging.getLogger(__name__)
+OPENAI_NOT_CONFIGURED = "OpenAI is not configured; set OPENAI_API_KEY before submitting research"
+
+
+class WebProviderNotConfiguredError(RuntimeError):
+    """Raised when web research lacks required provider configuration."""
+
+
+def resolve_web_research_provider(factory: Callable[[], Any]) -> tuple[Any | None, tuple[dict[str, str], int] | None]:
+    """Resolve a gated provider without exposing construction exceptions."""
+    try:
+        return factory(), None
+    except WebProviderNotConfiguredError:
+        return None, ({"error": OPENAI_NOT_CONFIGURED}, 503)
+    except Exception as exc:
+        logger.error("Research provider construction failed: %s", type(exc).__name__)
+        return None, ({"error": "Research provider is unavailable"}, 503)
 
 
 def validate_web_research_input(
@@ -94,8 +110,12 @@ class WebResearchCostCoordinator:
                 max_daily_cost=self._controller.max_daily_cost,
                 max_monthly_cost=self._controller.max_monthly_cost,
             )
-        except ResearchCostBlocked as exc:
-            return estimated_cost, None, ({"error": str(exc), "estimated_cost": estimated_cost}, 429)
+        except ResearchCostBlocked:
+            return (
+                estimated_cost,
+                None,
+                ({"error": "Research cost limit exceeded", "estimated_cost": estimated_cost}, 429),
+            )
         except Exception as exc:
             logger.error("Paid submission denied because cost reservation failed: %s", exc)
             return None, None, ({"error": "Cost reservation unavailable; submission denied"}, 503)
@@ -238,4 +258,10 @@ class WebResearchCostCoordinator:
         )
 
 
-__all__ = ["WebResearchCostCoordinator", "validate_web_research_input"]
+__all__ = [
+    "OPENAI_NOT_CONFIGURED",
+    "WebProviderNotConfiguredError",
+    "WebResearchCostCoordinator",
+    "resolve_web_research_provider",
+    "validate_web_research_input",
+]
