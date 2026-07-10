@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.34.2] - 2026-07-10
+
+### Security
+
+- Stopped provider validation from echoing unexpected model response content
+  into console and dashboard-captured output. Unexpected responses now fail
+  validation and produce a nonzero command exit while preserving a fixed
+  diagnostic state and latency.
+- Replaced benchmark-start exception serialization with a fixed validation
+  response so internal exception details cannot cross the HTTP boundary.
+
 ## [2.34.1] - 2026-07-10
 
 ### Changed

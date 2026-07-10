@@ -2490,12 +2490,13 @@ def _accounted_validation_call(
     return response
 
 
-def run_validation(registry: dict, spend_guard: BenchmarkSpendGuard, tier: str = "chat"):
+def run_validation(registry: dict, spend_guard: BenchmarkSpendGuard, tier: str = "chat") -> bool:
     """Send 1 cheap prompt to each available provider to verify APIs work.
 
     Chat + News: cheap validation. Research: skipped by default (costs $0.50+).
     """
     key_status = check_api_keys()
+    validation_succeeded = True
 
     # Chat tier validation (existing)
     if tier in ("chat", "all"):
@@ -2533,15 +2534,20 @@ def run_validation(registry: dict, spend_guard: BenchmarkSpendGuard, tier: str =
                     tier="chat",
                 )
                 has_four = "4" in text
-                status = "OK" if has_four else f"OK (unexpected: {text[:30]})"
-                print(f"  [+] {model_key:<35} {status} ({latency_ms}ms)")
-                passed += 1
+                if has_four:
+                    print(f"  [+] {model_key:<35} OK ({latency_ms}ms)")
+                    passed += 1
+                else:
+                    print(f"  [X] {model_key:<35} FAILED (unexpected response) ({latency_ms}ms)")
+                    failed += 1
+                    validation_succeeded = False
             except BenchmarkBudgetExceeded as exc:
                 print(f"  [!] Validation stopped: {exc}")
-                return
+                return False
             except Exception as e:
                 print(f"  [X] {model_key:<35} FAILED: {redact_secrets(str(e))[:60]}")
                 failed += 1
+                validation_succeeded = False
 
         print()
         print(f"  {passed} passed, {failed} failed, {skipped} skipped")
@@ -2578,10 +2584,11 @@ def run_validation(registry: dict, spend_guard: BenchmarkSpendGuard, tier: str =
                 passed += 1
             except BenchmarkBudgetExceeded as exc:
                 print(f"  [!] Validation stopped: {exc}")
-                return
+                return False
             except Exception as e:
                 print(f"  [X] {model_key:<35} FAILED: {redact_secrets(str(e))[:60]}")
                 failed += 1
+                validation_succeeded = False
 
         print()
         print(f"  {passed} passed, {failed} failed, {skipped} skipped")
@@ -2620,10 +2627,11 @@ def run_validation(registry: dict, spend_guard: BenchmarkSpendGuard, tier: str =
                 passed += 1
             except BenchmarkBudgetExceeded as exc:
                 print(f"  [!] Validation stopped: {exc}")
-                return
+                return False
             except Exception as e:
                 print(f"  [X] {model_key:<35} FAILED: {redact_secrets(str(e))[:60]}")
                 failed += 1
+                validation_succeeded = False
 
         print()
         print(f"  {passed} passed, {failed} failed, {skipped} skipped")
@@ -2660,10 +2668,11 @@ def run_validation(registry: dict, spend_guard: BenchmarkSpendGuard, tier: str =
                 passed += 1
             except BenchmarkBudgetExceeded as exc:
                 print(f"  [!] Validation stopped: {exc}")
-                return
+                return False
             except Exception as e:
                 print(f"  [X] {model_key:<35} FAILED: {redact_secrets(str(e))[:60]}")
                 failed += 1
+                validation_succeeded = False
 
         print()
         print(f"  {passed} passed, {failed} failed, {skipped} skipped")
@@ -2673,6 +2682,7 @@ def run_validation(registry: dict, spend_guard: BenchmarkSpendGuard, tier: str =
         print("  NOTE: Research tier skipped (costs $0.50+). Use --validate --tier research to test.")
 
     print()
+    return validation_succeeded
 
 
 def show_prompts(tier: str = "all"):
@@ -2918,8 +2928,7 @@ Examples:
         except BenchmarkBudgetExceeded as exc:
             print(f"  ABORT: {exc}")
             sys.exit(2)
-        run_validation(load_registry(), spend_guard, tier=args.tier)
-        return
+        sys.exit(0 if run_validation(load_registry(), spend_guard, tier=args.tier) else 1)
 
     # ─── Phase 1: Preflight ───────────────────────────────────────────────
     print("Loading registry...")

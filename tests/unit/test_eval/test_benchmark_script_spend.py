@@ -235,3 +235,36 @@ def test_xai_search_dispatch_is_blocked_before_network(benchmark_module, monkeyp
 
     with pytest.raises(BenchmarkBudgetExceeded, match="search-cost ceiling"):
         benchmark_module.call_model("xai/grok-4-3", "latest", 500, tier="news")
+
+
+def test_provider_validation_redacts_and_fails_unexpected_response(benchmark_module, monkeypatch, capsys):
+    monkeypatch.setattr(
+        benchmark_module,
+        "check_api_keys",
+        lambda: {"openai": True, "xai": False, "gemini": False, "anthropic": False, "azure-foundry": False},
+    )
+    monkeypatch.setattr(
+        benchmark_module,
+        "_accounted_validation_call",
+        lambda **_kwargs: ("password=hunter2", 1, []),
+    )
+
+    succeeded = benchmark_module.run_validation({}, object(), tier="chat")
+
+    output = capsys.readouterr().out
+    assert succeeded is False
+    assert "password" not in output
+    assert "hunter2" not in output
+    assert "FAILED (unexpected response)" in output
+    assert "0 passed, 2 failed" in output
+
+
+def test_provider_validation_failure_exits_nonzero(benchmark_module, monkeypatch):
+    monkeypatch.setattr(benchmark_module, "load_registry", lambda: {})
+    monkeypatch.setattr(benchmark_module, "run_validation", lambda *_args, **_kwargs: False)
+    monkeypatch.setattr(sys, "argv", [str(_SCRIPT), "--validate", "--budget", "0.01"])
+
+    with pytest.raises(SystemExit) as exc_info:
+        benchmark_module.main()
+
+    assert exc_info.value.code == 1

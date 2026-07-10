@@ -90,6 +90,7 @@ def test_benchmark_start_enforces_approved_cost_and_repository_script(client, mo
 
     missing = client.post("/api/benchmarks/start", json={"tier": "chat"})
     assert missing.status_code == 400
+    assert missing.get_json() == {"error": action_safety.BENCHMARK_COST_VALIDATION_ERROR}
     assert calls == []
 
     response = client.post(
@@ -104,6 +105,22 @@ def test_benchmark_start_enforces_approved_cost_and_repository_script(client, mo
     assert command[command.index("--budget") + 1] == "1.25"
     assert command[command.index("--max-estimated-cost") + 1] == "1.25"
     assert Path(kwargs["cwd"]) == Path(action_safety.benchmark_project_root())
+
+
+def test_benchmark_start_never_exposes_validation_exception(client, monkeypatch):
+    def reject_with_sensitive_exception(_tier, _value):
+        raise ValueError("password=hunter2")
+
+    monkeypatch.setattr(action_safety, "approved_benchmark_command", reject_with_sensitive_exception)
+
+    response = client.post(
+        "/api/benchmarks/start",
+        json={"tier": "chat", "max_estimated_cost": "password=hunter2"},
+    )
+
+    assert response.status_code == 400
+    assert response.get_json() == {"error": action_safety.BENCHMARK_COST_VALIDATION_ERROR}
+    assert "hunter2" not in response.get_data(as_text=True)
 
 
 def test_real_benchmark_dry_run_emits_exact_json_without_provider_calls():
