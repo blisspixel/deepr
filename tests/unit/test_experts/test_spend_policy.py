@@ -97,8 +97,12 @@ class TestValueGate:
         assert under.benefit == 0.0  # one clamped to 0 -> product 0
 
     def test_benefit_is_monotonic_in_factors(self):
-        low = evaluate_spend(spent=8.0, cap=10.0, est_cost=0.50, gap_closure=0.5, value=0.5, urgency=0.5, volatility=0.5)
-        high = evaluate_spend(spent=8.0, cap=10.0, est_cost=0.50, gap_closure=0.9, value=0.9, urgency=0.9, volatility=0.9)
+        low = evaluate_spend(
+            spent=8.0, cap=10.0, est_cost=0.50, gap_closure=0.5, value=0.5, urgency=0.5, volatility=0.5
+        )
+        high = evaluate_spend(
+            spent=8.0, cap=10.0, est_cost=0.50, gap_closure=0.9, value=0.9, urgency=0.9, volatility=0.9
+        )
         assert high.benefit > low.benefit
 
 

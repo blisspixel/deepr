@@ -7,6 +7,37 @@ from enum import Enum
 from pathlib import Path
 from typing import Any
 
+_INTERNAL_JOB_METADATA_KEYS = frozenset(
+    {
+        "cleanup_vector_store",
+        "cost_reservation_estimated_usd",
+        "cost_reservation_id",
+        "cost_reservation_model",
+        "cost_reservation_provider",
+        "provider_file_ids",
+        "uploaded_files",
+        "vector_store_id",
+    }
+)
+
+
+def client_job_metadata(value: object) -> dict[str, Any]:
+    """Validate metadata supplied by an untrusted job client."""
+    if value is None:
+        return {}
+    if not isinstance(value, dict):
+        raise ValueError("metadata must be an object")
+    if _INTERNAL_JOB_METADATA_KEYS.intersection(value):
+        raise ValueError("metadata contains reserved fields")
+    return dict(value)
+
+
+def public_job_metadata(value: object) -> dict[str, Any]:
+    """Return client-visible metadata without provider lifecycle authority."""
+    if not isinstance(value, dict):
+        return {}
+    return {key: item for key, item in value.items() if key not in _INTERNAL_JOB_METADATA_KEYS}
+
 
 def _utc_now() -> datetime:
     """Return current UTC time (timezone-aware)."""
@@ -80,7 +111,7 @@ class ResearchJob:
                 value = value.isoformat()
             elif isinstance(value, Path):
                 value = str(value)
-            result[f.name] = value
+            result[f.name] = public_job_metadata(value) if f.name == "metadata" else value
         return result
 
 
@@ -211,6 +242,16 @@ class QueueBackend(ABC):
             True if cancelled
         """
         pass
+
+    @abstractmethod
+    async def cancel_active_job(self, job_id: str) -> bool:
+        """Cancel a job only while its durable state is queued or processing."""
+        raise NotImplementedError
+
+    @abstractmethod
+    async def clear_cleanup_metadata(self, job_id: str) -> bool:
+        """Remove provider cleanup authority after confirmed deletion."""
+        raise NotImplementedError
 
     @abstractmethod
     async def get_queue_stats(self) -> dict[str, Any]:

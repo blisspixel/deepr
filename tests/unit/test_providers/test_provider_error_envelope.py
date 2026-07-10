@@ -68,9 +68,7 @@ class TestProviderErrorAutoClassification:
 
     def test_explicit_values_override_auto_classification(self):
         # An explicit retryable=False wins even over a transient original_error.
-        err = ProviderError(
-            "wrapped", provider="grok", original_error=_RateLimitError(retry_after=5), retryable=False
-        )
+        err = ProviderError("wrapped", provider="grok", original_error=_RateLimitError(retry_after=5), retryable=False)
         assert err.retryable is False
 
     def test_no_original_error_keeps_provider_defaults(self):

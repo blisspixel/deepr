@@ -4,7 +4,9 @@ from __future__ import annotations
 
 import logging
 import threading
+import uuid
 from collections.abc import Callable
+from datetime import UTC, datetime
 from typing import Any
 
 from deepr.experts.research_cost_gate import (
@@ -17,7 +19,8 @@ from deepr.experts.research_cost_gate import (
     restore_research_cost_reservation,
     settle_research_cost,
 )
-from deepr.queue.base import JobStatus
+from deepr.queue.base import JobStatus, ResearchJob, client_job_metadata
+from deepr.services.provider_status import provider_exception_name
 from deepr.services.research_cancellation import cancel_reserved_research
 
 logger = logging.getLogger(__name__)
@@ -45,6 +48,7 @@ def validate_web_research_input(
     model: str,
     max_prompt_length: int,
     allowed_models: set[str],
+    metadata: object = None,
 ) -> tuple[dict[str, str], int] | None:
     """Return an HTTP-safe deterministic input denial, if any."""
     if not prompt:
@@ -53,7 +57,52 @@ def validate_web_research_input(
         return {"error": f"Prompt exceeds {max_prompt_length} character limit"}, 400
     if model not in allowed_models:
         return {"error": "Invalid model"}, 400
+    try:
+        client_job_metadata(metadata)
+    except ValueError as exc:
+        return {"error": str(exc)}, 400
     return None
+
+
+def prepare_web_batch_jobs(
+    value: object,
+    *,
+    max_batch_size: int,
+    max_prompt_length: int,
+    allowed_models: set[str],
+) -> tuple[list[ResearchJob] | None, tuple[dict[str, str], int] | None]:
+    """Validate a complete public batch before creating any durable jobs."""
+    if not isinstance(value, list) or not value:
+        return None, ({"error": "No jobs provided"}, 400)
+    if len(value) > max_batch_size:
+        return None, ({"error": f"Batch size exceeds limit of {max_batch_size}"}, 400)
+    if not all(isinstance(item, dict) for item in value):
+        return None, ({"error": "Each batch job must be an object"}, 400)
+
+    items = [dict(item) for item in value]
+    metadata_items = [client_job_metadata(item.get("metadata")) for item in items]
+    jobs: list[ResearchJob] = []
+    for item, metadata in zip(items, metadata_items, strict=True):
+        prompt = str(item.get("prompt", "")).strip()
+        model = item.get("model", "o4-mini-deep-research")
+        if not prompt or len(prompt) > max_prompt_length or model not in allowed_models:
+            continue
+        mode = item.get("mode")
+        if mode:
+            metadata["mode"] = mode
+        jobs.append(
+            ResearchJob(
+                id=str(uuid.uuid4()),
+                prompt=prompt,
+                model=model,
+                priority=item.get("priority", 3),
+                enable_web_search=item.get("enable_web_search", True),
+                status=JobStatus.QUEUED,
+                submitted_at=datetime.now(UTC),
+                metadata=metadata,
+            )
+        )
+    return jobs, None
 
 
 class WebResearchCostCoordinator:
@@ -138,13 +187,24 @@ class WebResearchCostCoordinator:
         with self._lock:
             self._reservations.pop(job_id, None)
 
-    def cleanup_uploads(self, *, loop: Any, job: Any, provider_factory: Callable[[], Any]) -> None:
-        """Delete persisted provider resources after terminal work."""
+    def cleanup_uploads(
+        self,
+        *,
+        loop: Any,
+        queue: Any,
+        job: Any,
+        provider_factory: Callable[[], Any],
+    ) -> None:
+        """Delete provider resources and persist idempotent cleanup evidence."""
         from deepr.cli.commands.run_submission import cleanup_persisted_uploads
 
         cleaned = loop.run_until_complete(cleanup_persisted_uploads(provider_factory(), job))
         if not cleaned:
-            logger.error("Poller: provider upload cleanup incomplete for job %s", job.id)
+            raise RuntimeError(f"Provider upload cleanup incomplete for job {job.id}")
+        metadata = getattr(job, "metadata", {}) or {}
+        has_cleanup_metadata = bool(metadata.get("provider_file_ids") or metadata.get("vector_store_id"))
+        if has_cleanup_metadata and not loop.run_until_complete(queue.clear_cleanup_metadata(job.id)):
+            raise RuntimeError(f"Provider cleanup state missing for job {job.id}")
 
     def _take(self, job: Any) -> ResearchCostReservation | None:
         with self._lock:
@@ -178,22 +238,29 @@ class WebResearchCostCoordinator:
         active_provider = None
         metadata = getattr(job, "metadata", {}) or {}
         has_provider_resources = bool(metadata.get("provider_file_ids") or metadata.get("vector_store_id"))
-        if getattr(job, "provider_job_id", None) or has_provider_resources:
+        needs_provider = has_provider_resources or (
+            getattr(job, "status", None) != JobStatus.CANCELLED and getattr(job, "provider_job_id", None)
+        )
+        if needs_provider:
             try:
                 active_provider = provider_factory()
             except Exception as exc:
-                logger.error("Cannot cancel provider job %s safely: %s", job.provider_job_id, exc)
+                logger.error(
+                    "Cannot configure provider cancellation for job %s (%s)",
+                    job.id,
+                    provider_exception_name(exc),
+                )
                 return False
         outcome = await cancel_reserved_research(
             queue=queue,
             provider=active_provider,
             job=job,
-            default_provider="openai",
+            default_provider=str(getattr(job, "provider", "") or "openai"),
             source="web.cancel_job",
         )
         if outcome.cost_closed:
             self.forget(str(job.id))
-        return outcome.queue_cancelled
+        return outcome.confirmed
 
     def safe_settle_job(self, job: Any, *, actual_cost: float | None, tokens: int) -> None:
         """Settle completion without breaking queue finalization on ledger errors."""

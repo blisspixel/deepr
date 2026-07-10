@@ -17,6 +17,7 @@ import threading
 import time
 from contextlib import suppress
 from datetime import UTC, datetime, timedelta
+from functools import partial
 from pathlib import Path
 
 from dotenv import load_dotenv
@@ -170,18 +171,21 @@ def _set_security_headers(response):
     return response
 
 
-# Initialize services
 import uuid
 
 import deepr
-
-# Load project config for correct paths
 from deepr.config import experts_root, load_config
 from deepr.core.costs import CostController, CostEstimator
 from deepr.providers.base import ResearchRequest, ToolConfig
 from deepr.providers.openai_provider import OpenAIProvider
-from deepr.queue.base import JobStatus, ResearchJob
+from deepr.queue.base import JobStatus, ResearchJob, client_job_metadata, public_job_metadata
 from deepr.queue.local_queue import SQLiteQueue
+from deepr.services.job_provider import create_job_provider
+from deepr.services.provider_status import (
+    classify_provider_status,
+    provider_exception_name,
+    terminal_provider_error,
+)
 from deepr.services.research_cost_reconciliation import reconcile_research_cost_reservations
 from deepr.services.research_submission import dispatch_reserved_research
 from deepr.storage.local import LocalStorage
@@ -253,7 +257,6 @@ def _save_limits(per_job: float, daily: float, monthly: float):
         raise
 
 
-# Initialize cost tracking
 try:
     _limits = _load_persisted_limits()
     cost_controller = CostController(
@@ -269,7 +272,6 @@ except Exception as e:
 
 research_costs = research_cost_api.WebResearchCostCoordinator(cost_controller, cost_estimator)
 
-# Register WebSocket event handlers
 from deepr.api.websockets.events import (
     emit_job_completed,
     emit_job_created,
@@ -327,21 +329,30 @@ def _check_job(loop, job):
     try:
         response = loop.run_until_complete(_default_openai_provider().get_status(job.provider_job_id))
     except Exception as exc:
-        logger.warning("Poller: provider error for job %s: %s", job.id, exc)
+        logger.warning(
+            "Poller: provider status check failed for job %s (%s)",
+            job.id,
+            provider_exception_name(exc),
+        )
         _check_stuck(loop, job)
         return
 
-    if response.status == "completed":
+    provider_status = classify_provider_status(response.status)
+    if provider_status == "completed":
         _handle_completion(loop, job, response)
-    elif response.status in ("failed", "cancelled", "expired"):
-        _handle_failure(loop, job, response.error or f"Provider status: {response.status}")
-    else:
+    elif terminal_error := terminal_provider_error(provider_status):
+        if provider_status == "cancelled":
+            _handle_failure(loop, job, terminal_error, status=JobStatus.CANCELLED)
+        else:
+            _handle_failure(loop, job, terminal_error)
+    elif provider_status in ("in_progress", "queued", "unsupported"):
+        if provider_status == "unsupported":
+            logger.warning("Poller: job %s returned an unsupported provider status", job.id)
         _check_stuck(loop, job)
 
 
 def _handle_completion(loop, job, response):
     """Save results and emit completion event."""
-    # Extract report text from provider output
     report_text = ""
     if response.output:
         for block in response.output:
@@ -366,10 +377,9 @@ def _handle_completion(loop, job, response):
     cost = response.usage.cost if response.usage else None
     tokens = response.usage.total_tokens if response.usage else None
 
+    research_costs.cleanup_uploads(loop=loop, queue=queue, job=job, provider_factory=_default_openai_provider)
     research_costs.finalize_completed_job(loop=loop, queue=queue, job=job, actual_cost=cost, tokens=tokens)
-    research_costs.cleanup_uploads(loop=loop, job=job, provider_factory=_default_openai_provider)
 
-    # Re-fetch to get updated job for the event payload
     updated_job = loop.run_until_complete(queue.get_job(job.id))
     if updated_job:
         emit_job_completed(socketio, updated_job)
@@ -378,14 +388,15 @@ def _handle_completion(loop, job, response):
     logger.info("Poller: job %s completed (cost=%.4f)", job.id, cost or 0)
 
 
-def _handle_failure(loop, job, error):
-    """Mark job as failed and emit failure event."""
+def _handle_failure(loop, job, error, *, status=JobStatus.FAILED):
+    """Close a terminal provider outcome and emit its state change."""
     try:
         research_costs.fail_job(job)
     except Exception:
         logger.exception("Poller: failed to close provider cost for failed job %s", job.id)
-    research_costs.cleanup_uploads(loop=loop, job=job, provider_factory=_default_openai_provider)
-    loop.run_until_complete(queue.update_status(job_id=job.id, status=JobStatus.FAILED, error=str(error)))
+        return
+    research_costs.cleanup_uploads(loop=loop, queue=queue, job=job, provider_factory=_default_openai_provider)
+    loop.run_until_complete(queue.update_status(job_id=job.id, status=status, error=str(error)))
     updated_job = loop.run_until_complete(queue.get_job(job.id))
     if updated_job:
         emit_job_failed(socketio, updated_job, str(error))
@@ -395,7 +406,8 @@ def _handle_failure(loop, job, error):
 
 
 def _cancel_job_with_cost_safety(job) -> bool:
-    return run_async(research_costs.cancel_job(queue=queue, job=job, provider_factory=_default_openai_provider))
+    provider_factory = partial(create_job_provider, job, _cfg)
+    return run_async(research_costs.cancel_job(queue=queue, job=job, provider_factory=provider_factory))
 
 
 def _check_stuck(loop, job):
@@ -532,7 +544,6 @@ def get_jobs():
         else:
             jobs = run_async(queue.list_jobs(limit=limit + offset))
 
-        # Apply offset
         jobs = jobs[offset : offset + limit]
 
         jobs_data = []
@@ -548,11 +559,10 @@ def get_jobs():
                     "tokens_used": job.tokens_used or 0,
                     "submitted_at": job.submitted_at.isoformat() if job.submitted_at else None,
                     "completed_at": job.completed_at.isoformat() if job.completed_at else None,
-                    "metadata": job.metadata or {},
+                    "metadata": public_job_metadata(job.metadata),
                 }
             )
 
-        # Get total count
         all_jobs = run_async(queue.list_jobs(limit=10000))
         total = len(all_jobs)
 
@@ -607,13 +617,12 @@ def get_job(job_id):
             "submitted_at": job.submitted_at.isoformat() if job.submitted_at else None,
             "started_at": job.started_at.isoformat() if job.started_at else None,
             "completed_at": job.completed_at.isoformat() if job.completed_at else None,
-            "metadata": job.metadata or {},
+            "metadata": public_job_metadata(job.metadata),
             "provider_job_id": job.provider_job_id,
             "last_error": job.last_error,
             "result": None,
         }
 
-        # Get result if completed
         if job.status == JobStatus.COMPLETED:
             try:
                 result = run_async(storage.get_report(job_id=job_id, filename="report.md"))
@@ -636,12 +645,14 @@ def delete_job(job_id):
         if not job:
             return jsonify({"error": "Job not found"}), 404
 
-        # Mark as cancelled
-        if job.status in [JobStatus.QUEUED, JobStatus.PROCESSING]:
-            if not _cancel_job_with_cost_safety(job):
-                return jsonify({"error": "Job could not be cancelled safely"}), 503
-        elif job.status not in [JobStatus.CANCELLED]:
-            run_async(queue.update_status(job_id, JobStatus.CANCELLED))
+        if job.status == JobStatus.CANCELLED:
+            if _cancel_job_with_cost_safety(job):
+                return jsonify({"success": True})
+            return jsonify({"error": "Cancellation closure could not be confirmed"}), 503
+        if job.status not in {JobStatus.QUEUED, JobStatus.PROCESSING}:
+            return jsonify({"error": "Terminal job state cannot be cancelled"}), 409
+        if not _cancel_job_with_cost_safety(job):
+            return jsonify({"error": "Job could not be cancelled safely"}), 503
 
         return jsonify({"success": True})
 
@@ -670,10 +681,13 @@ def submit_job():
             model=model,
             max_prompt_length=_MAX_PROMPT_LENGTH,
             allowed_models=_ALLOWED_MODELS,
+            metadata=data.get("metadata"),
         )
         if input_denial is not None:
             payload, status = input_denial
             return jsonify(payload), status
+
+        metadata = client_job_metadata(data.get("metadata"))
 
         job_id = str(uuid.uuid4())
         run_async(reconcile_research_cost_reservations(queue, default_provider="openai"))
@@ -693,10 +707,7 @@ def submit_job():
             payload, status = provider_denial
             return jsonify(payload), status
 
-        # Create job
         now = datetime.now(UTC)
-        raw_metadata = data.get("metadata", {})
-        metadata = dict(raw_metadata) if isinstance(raw_metadata, dict) else {}
         mode = data.get("mode")
         if mode:
             metadata["mode"] = mode
@@ -733,15 +744,20 @@ def submit_job():
             )
             provider_submitted = True
             research_costs.remember(reservation)
-        except Exception as e:
+        except Exception as exc:
             research_costs.refund_job(job)
             reservation = None
-            logger.error(f"Provider submission failed: {e}")
-            run_async(queue.update_status(job_id=job_id, status=JobStatus.FAILED, error=str(e)))
+            error = "Provider submission failed"
+            logger.error(
+                "Provider submission failed for job %s (%s)",
+                job_id,
+                provider_exception_name(exc),
+            )
+            run_async(queue.update_status(job_id=job_id, status=JobStatus.FAILED, error=error))
             # Notify WebSocket clients so the job shows up as failed
             job.status = JobStatus.FAILED
-            job.last_error = str(e)
-            emit_job_failed(socketio, job, str(e))
+            job.last_error = error
+            emit_job_failed(socketio, job, error)
             return jsonify(
                 {
                     "error": "Provider submission failed",
@@ -788,44 +804,25 @@ def batch_submit():
         data = request.json
         if not data:
             return jsonify({"error": "Request body required"}), 400
-        jobs_data = data.get("jobs", [])
-
-        if not jobs_data:
-            return jsonify({"error": "No jobs provided"}), 400
-        if len(jobs_data) > _MAX_BATCH_SIZE:
-            return jsonify({"error": f"Batch size exceeds limit of {_MAX_BATCH_SIZE}"}), 400
+        jobs, denial = research_cost_api.prepare_web_batch_jobs(
+            data.get("jobs"),
+            max_batch_size=_MAX_BATCH_SIZE,
+            max_prompt_length=_MAX_PROMPT_LENGTH,
+            allowed_models=_ALLOWED_MODELS,
+        )
+        if denial is not None:
+            payload, status = denial
+            return jsonify(payload), status
 
         results = []
-        for job_input in jobs_data:
-            prompt = str(job_input.get("prompt", "")).strip()
-            if not prompt:
-                continue  # Skip empty prompts
-            if len(prompt) > _MAX_PROMPT_LENGTH:
-                continue  # Skip oversized prompts
-            model = job_input.get("model", "o4-mini-deep-research")
-            if model not in _ALLOWED_MODELS:
-                continue  # Skip jobs with invalid models
-            job_id = str(uuid.uuid4())
-            now = datetime.now(UTC)
-            metadata = job_input.get("metadata", {})
-            mode = job_input.get("mode")
-            if mode:
-                metadata["mode"] = mode
-            job = ResearchJob(
-                id=job_id,
-                prompt=prompt,
-                model=model,
-                priority=job_input.get("priority", 3),
-                enable_web_search=job_input.get("enable_web_search", True),
-                status=JobStatus.QUEUED,
-                submitted_at=now,
-                metadata=metadata,
-            )
+        for job in jobs or []:
             run_async(queue.enqueue(job))
-            results.append({"job_id": job_id, "status": "queued"})
+            results.append({"job_id": job.id, "status": "queued"})
 
         return jsonify({"jobs": results, "count": len(results)})
 
+    except ValueError as exc:
+        return jsonify({"error": str(exc)}), 400
     except Exception as e:
         logger.error(f"Error batch submitting: {e}")
         return jsonify({"error": "Internal server error"}), 500
@@ -845,7 +842,15 @@ def bulk_cancel():
         for job_id in job_ids:
             try:
                 job = run_async(queue.get_job(job_id))
-                success = _cancel_job_with_cost_safety(job) if job is not None else False
+                success = bool(
+                    job is not None
+                    and (
+                        (job.status == JobStatus.CANCELLED and _cancel_job_with_cost_safety(job))
+                        or (
+                            job.status in {JobStatus.QUEUED, JobStatus.PROCESSING} and _cancel_job_with_cost_safety(job)
+                        )
+                    )
+                )
                 if success:
                     cancelled.append(job_id)
                 else:
@@ -866,11 +871,24 @@ def cancel_job(job_id):
     """Cancel a job."""
     try:
         job = run_async(queue.get_job(job_id))
-        success = _cancel_job_with_cost_safety(job) if job is not None else False
-        return jsonify({"success": success})
+        if job is None:
+            return jsonify({"error": "Job not found"}), 404
+        if job.status == JobStatus.CANCELLED:
+            if _cancel_job_with_cost_safety(job):
+                return jsonify({"success": True})
+            return jsonify({"error": "Cancellation closure could not be confirmed"}), 503
+        if job.status not in {JobStatus.QUEUED, JobStatus.PROCESSING}:
+            return jsonify({"error": "Terminal job state cannot be cancelled"}), 409
+        if not _cancel_job_with_cost_safety(job):
+            return jsonify({"error": "Job cancellation could not be confirmed"}), 503
+        return jsonify({"success": True})
 
-    except Exception as e:
-        logger.error(f"Error cancelling job {job_id}: {e}")
+    except Exception as exc:
+        logger.error(
+            "Job cancellation failed for job %s (%s)",
+            job_id,
+            provider_exception_name(exc),
+        )
         return jsonify({"error": "Internal server error"}), 500
 
 
@@ -1323,7 +1341,7 @@ def get_result(job_id):
             "citations": [],
             "tags": job.tags if hasattr(job, "tags") else [],
             "enable_web_search": job.enable_web_search,
-            "metadata": job.metadata or {},
+            "metadata": public_job_metadata(job.metadata),
         }
 
         # Get full content

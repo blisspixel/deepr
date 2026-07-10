@@ -18,7 +18,12 @@ from ..experts.research_cost_gate import (
 from ..providers import create_provider
 from ..providers.base import DeepResearchProvider, ResearchResponse
 from ..queue import create_queue
-from ..queue.base import QueueBackend, ResearchJob
+from ..queue.base import JobStatus, QueueBackend, ResearchJob
+from ..services.provider_status import (
+    classify_provider_status,
+    provider_exception_name,
+    terminal_provider_error,
+)
 from ..storage import create_storage
 from ..storage.base import StorageBackend
 
@@ -130,23 +135,28 @@ class JobPoller:
             # Get status from provider
             response = await self.provider.get_status(job.provider_job_id)
 
-            logger.debug(f"Job {job.id} provider status: {response.status}")
+            provider_status = classify_provider_status(response.status)
+            logger.debug("Job %s provider status class: %s", job.id, provider_status)
 
             # Handle completion
-            if response.status == "completed":
+            if provider_status == "completed":
                 await self._handle_completion(job, response)
 
-            # Handle failure
-            elif response.status in {"failed", "cancelled", "expired"}:
-                error = response.error or f"Provider status: {response.status}"
-                await self._handle_failure(job, error)
+            elif terminal_error := terminal_provider_error(provider_status):
+                if provider_status == "cancelled":
+                    await self._handle_failure(job, terminal_error, status=JobStatus.CANCELLED)
+                else:
+                    await self._handle_failure(job, terminal_error)
+
+            elif provider_status == "unsupported":
+                logger.warning("Job %s returned an unsupported provider status", job.id)
 
             # Update progress if available (in_progress stays as is)
-            elif response.status == "in_progress":
+            elif provider_status == "in_progress":
                 logger.debug(f"Job {job.id} still in progress")
 
             # Check for stuck jobs in "queued" status
-            elif response.status == "queued":
+            elif provider_status == "queued":
                 # Calculate time in queue
                 if job.submitted_at:
                     submitted = job.submitted_at
@@ -183,8 +193,12 @@ class JobPoller:
                     else:
                         logger.debug(f"Job {job.id} queued for {queue_time_minutes:.1f} minutes")
 
-        except Exception:
-            logger.exception("Error checking job %s", job.id)
+        except Exception as exc:
+            logger.warning(
+                "Provider status check failed for job %s (%s)",
+                job.id,
+                provider_exception_name(exc),
+            )
             # Don't mark as failed yet, might be temporary network issue
 
     async def _handle_completion(self, job: ResearchJob, response: ResearchResponse) -> None:
@@ -273,7 +287,10 @@ class JobPoller:
             from ..cli.commands.run_submission import cleanup_persisted_uploads
 
             if not await cleanup_persisted_uploads(self.provider, job):
-                logger.error("Provider upload cleanup incomplete for completed job %s", job.id)
+                raise RuntimeError(f"Provider upload cleanup incomplete for completed job {job.id}")
+            has_cleanup_metadata = bool(job.metadata.get("provider_file_ids") or job.metadata.get("vector_store_id"))
+            if has_cleanup_metadata and not await self.queue.clear_cleanup_metadata(job.id):
+                raise RuntimeError(f"Provider cleanup state missing for completed job {job.id}")
 
             # Mark as completed
             status_updated = await self.queue.update_status(job.id, JobStatus.COMPLETED)
@@ -284,14 +301,20 @@ class JobPoller:
 
         except Exception:
             logger.exception("Error handling completion for job %s", job.id)
-            await self._handle_failure(job, "Result processing failed")
+            # Provider completion is authoritative. Retain PROCESSING so the
+            # next poll refetches durable cleanup evidence and retries local
+            # finalization instead of rewriting completed provider work as failed.
 
-    async def _handle_failure(self, job: ResearchJob, error: str) -> None:
-        """Handle job failure."""
-        from ..queue.base import JobStatus
-
+    async def _handle_failure(
+        self,
+        job: ResearchJob,
+        error: str,
+        *,
+        status: JobStatus = JobStatus.FAILED,
+    ) -> None:
+        """Close a terminal provider outcome and persist its local status."""
         try:
-            logger.error("Job %s failed: %s", job.id, error)
+            logger.error("Job %s reached %s: %s", job.id, status.value, error)
             try:
                 reservation = restore_research_cost_reservation(
                     job_id=job.id,
@@ -310,16 +333,21 @@ class JobPoller:
                     refund_research_cost(reservation)
             except Exception:
                 logger.exception("Failed to close provider cost for failed job %s", job.id)
+                return
 
             from ..cli.commands.run_submission import cleanup_persisted_uploads
 
             if not await cleanup_persisted_uploads(self.provider, job):
                 logger.error("Provider upload cleanup incomplete for failed job %s", job.id)
+                return
+            has_cleanup_metadata = bool(job.metadata.get("provider_file_ids") or job.metadata.get("vector_store_id"))
+            if has_cleanup_metadata and not await self.queue.clear_cleanup_metadata(job.id):
+                logger.error("Provider cleanup state missing for failed job %s", job.id)
+                return
 
-            # Update queue with failure status
-            status_updated = await self.queue.update_status(job_id=job.id, status=JobStatus.FAILED, error=error)
+            status_updated = await self.queue.update_status(job_id=job.id, status=status, error=error)
             if not status_updated:
-                logger.error("Failed to persist FAILED status for job %s", job.id)
+                logger.error("Failed to persist %s status for job %s", status.value.upper(), job.id)
 
         except Exception:
             logger.exception("Error handling failure for job %s", job.id)

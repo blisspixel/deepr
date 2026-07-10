@@ -114,7 +114,9 @@ async def test_research_web_local_builds_cited_report():
 
 async def test_research_web_local_errors_without_results():
     search = FakeSearch([], success=False)
-    out = await research_web_local("x", model="m", client=FakeChatClient("ignored"), search=search, browser=FakeBrowser({}))
+    out = await research_web_local(
+        "x", model="m", client=FakeChatClient("ignored"), search=search, browser=FakeBrowser({})
+    )
     assert out["answer"] == ""
     assert "no web results" in out["error"]
 
@@ -130,7 +132,9 @@ async def test_research_web_local_errors_on_empty_model_output():
 
 async def test_research_web_local_no_model_available():
     # model=None and (faked) no default local model -> clean error, no raise.
-    out = await research_web_local("x", model="", client=FakeChatClient("x"), search=FakeSearch([]), browser=FakeBrowser({}))
+    out = await research_web_local(
+        "x", model="", client=FakeChatClient("x"), search=FakeSearch([]), browser=FakeBrowser({})
+    )
     assert out["answer"] == ""
     assert "no local model" in out["error"]
 

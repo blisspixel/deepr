@@ -27,8 +27,7 @@ class TestNoHardcodedRoot:
             if any(pat in text for pat in _FORBIDDEN):
                 offenders.append(str(py.relative_to(_DEEPR_PKG.parent)))
         assert not offenders, (
-            "These modules hardcode the experts root; use deepr.config.experts_root() instead "
-            f"(ADR 0004): {offenders}"
+            f"These modules hardcode the experts root; use deepr.config.experts_root() instead (ADR 0004): {offenders}"
         )
 
 

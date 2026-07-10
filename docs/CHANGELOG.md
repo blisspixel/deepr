@@ -7,6 +7,47 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.34.3] - 2026-07-10
+
+### Security
+
+- Reserved provider cleanup identifiers are now server-owned job metadata.
+  Public API, single-job web, and batch web submissions reject those fields,
+  and public job responses
+  redact them so callers cannot select another same-credential provider file or
+  vector store for deletion.
+- Provider failures now persist and log fixed diagnostics plus bounded exception
+  class names instead of provider-controlled response or exception content.
+- Tightened the no-growth security-lint ratchet from 86 findings to 84 after
+  the lifecycle hardening removed two findings.
+
+### Changed
+
+- API, web, and CLI cancellation now reports success only after the job
+  transition, cost-reservation closure, and provider-resource cleanup are confirmed. Unconfirmed outcomes
+  remain visible as retryable failures.
+- Cancellation resolves the provider recorded on the job, atomically preserves
+  concurrent terminal history, and remains available for provider-free queued
+  jobs after credentials are removed.
+- Repeated cancellation verifies or repairs durable cost closure before
+  returning success, including after an interrupted queue or settlement step.
+- The Research Live page stops polling on cancellation and keeps failed
+  cancellation attempts visible with an actionable retry message.
+- Provider `incomplete`, `failed`, and `cancelled` terminal states now converge
+  deterministically across worker and web polling paths. Unknown future status
+  values remain active, bounded, and observable until the provider contract is
+  understood.
+- CLI result retrieval and stale-list refresh now settle canonical cost, verify
+  the ledger, clean provider resources, persist results, and only then mark a
+  provider-completed job `COMPLETED`.
+
+### Documentation
+
+- Replaced removed `research wait`, `research trace`, and `jobs export` examples
+  with the current durable-status, direct trace-flag, and stored-result commands.
+- Updated the supported-version policy and documented truthful cancellation
+  semantics.
+
 ## [2.34.2] - 2026-07-10
 
 ### Security

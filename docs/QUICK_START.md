@@ -55,6 +55,11 @@ ANTHROPIC_API_KEY=...       # Complex reasoning - https://console.anthropic.com/
 deepr doctor
 ```
 
+Cancellation succeeds only when Deepr confirms the job transition,
+cost-reservation closure, and provider-resource cleanup. A nonzero exit means cancellation was not fully
+confirmed and the job should still be treated as active until its status is
+checked again.
+
 If all checks pass, you're ready.
 
 ---

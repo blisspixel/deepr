@@ -3,7 +3,7 @@
 [![CI](https://github.com/blisspixel/deepr/actions/workflows/ci.yml/badge.svg)](https://github.com/blisspixel/deepr/actions/workflows/ci.yml)
 [![License: Apache 2.0](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](LICENSE)
 [![Python 3.12+](https://img.shields.io/badge/python-3.12+-blue.svg)](https://www.python.org/downloads/)
-[![Version](https://img.shields.io/badge/version-2.34.2-blue)](https://github.com/blisspixel/deepr/releases/tag/v2.34.2)
+[![Version](https://img.shields.io/badge/version-2.34.3-blue)](https://github.com/blisspixel/deepr/releases/tag/v2.34.3)
 
 **Domain experts that remember, not another chat window.**
 
@@ -155,6 +155,11 @@ Results are saved under the configured reports root, defaulting to
 | Domain experts | Works for expert creation, chat, consult, beliefs, gaps, loop status, OKF export/import, self-model reads, monitor proposals, reviewed monitor promotion, and self-model update review and acceptance records | [docs/EXPERTS.md](docs/EXPERTS.md) |
 | MCP | Works for local stdio and experimental HTTP/SSE with scoped keys, budgets, rate limits, audit logs, smoke checks, no-metered consult validation, and registration manifests | [mcp/README.md](mcp/README.md) |
 | Web dashboard | Experimental but usable for reports, experts, costs, model views, loop status, and OpenAI-backed research submission; use CLI workflows for other providers | [docs/FEATURES.md](docs/FEATURES.md) |
+
+Job cancellation reports success only after the provider or queue transition,
+cost reservation closure, and recorded provider-resource cleanup are confirmed. If any state cannot be confirmed,
+the API, web dashboard, and CLI report a retryable failure instead of claiming
+that the job was cancelled.
 
 Automatic routing to plan-quota CLIs is still conservative. Explicit `--plan`
 is the works-now path for selected expert workflows. Auto-routing to plan
