@@ -3,14 +3,26 @@ import type { Job, CommandResult, ThoughtItem, PlanStep, ConfirmRequest } from '
 
 const WS_URL = import.meta.env.VITE_WS_URL || `${window.location.protocol}//${window.location.host}`
 const isDev = import.meta.env.DEV
+export type WebSocketStatus = 'connected' | 'reconnecting' | 'unavailable'
 
 class WebSocketClient {
   private socket: Socket | null = null
   private listeners: Map<string, Set<(data: any) => void>> = new Map()
   private _connected = false
+  private _status: WebSocketStatus = 'reconnecting'
 
   get connected() {
     return this._connected
+  }
+
+  get status() {
+    return this._status
+  }
+
+  private setStatus(status: WebSocketStatus) {
+    this._status = status
+    this._connected = status === 'connected'
+    this.emit('ws_status', { connected: this._connected, status })
   }
 
   connect() {
@@ -18,7 +30,7 @@ class WebSocketClient {
 
     const token = localStorage.getItem('api_token') || ''
     this.socket = io(WS_URL, {
-      transports: ['websocket', 'polling'],
+      transports: ['polling', 'websocket'],
       reconnection: true,
       reconnectionDelay: 1000,
       reconnectionAttempts: 5,
@@ -27,27 +39,24 @@ class WebSocketClient {
 
     this.socket.on('connect', () => {
       if (isDev) console.log('WebSocket connected')
-      this._connected = true
-      this.emit('ws_status', { connected: true })
+      this.setStatus('connected')
       this.subscribeToJobs()
     })
 
-    this.socket.on('disconnect', () => {
+    this.socket.on('disconnect', (reason) => {
       if (isDev) console.log('WebSocket disconnected')
-      this._connected = false
-      this.emit('ws_status', { connected: false })
+      const terminal = reason === 'io client disconnect' || reason === 'io server disconnect'
+      this.setStatus(terminal ? 'unavailable' : 'reconnecting')
     })
 
     this.socket.on('connect_error', () => {
       if (isDev) console.warn('WebSocket connection error')
-      this._connected = false
-      this.emit('ws_status', { connected: false })
+      this.setStatus('reconnecting')
     })
 
-    this.socket.on('reconnect_failed' as any, () => {
+    this.socket.io.on('reconnect_failed', () => {
       if (isDev) console.warn('WebSocket reconnection failed')
-      this._connected = false
-      this.emit('ws_status', { connected: false })
+      this.setStatus('unavailable')
     })
 
     this.socket.on('job_created', (job: Job) => {

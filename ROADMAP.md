@@ -215,7 +215,7 @@ These features are well-tested and used regularly:
 
 These features work but APIs or behavior may change:
 
-- **Web dashboard**: Local research management UI - 12 polished pages with WebSocket push, skeleton loading, shadcn/ui components, mobile nav, accessibility
+- **Web dashboard**: Local research management UI - 12 polished pages with Socket.IO push and polling fallback, readiness-aware OpenAI-backed submission, explicit queue and ledger semantics, skeleton loading, shadcn/ui components, mobile nav, and accessible result navigation
 - **Expert skills**: Domain-specific capability packages with Python tools and MCP bridging. 7 built-in skills (incl. native Recon, Distillr, and Primr), CLI management, web API, auto-activation triggers
 - **Native Recon instrument** (v2.11.0): auto-discovered when `pip install recon-tool` is present; autonomous cost-$0 domain probe in agentic expert chat; passive infrastructure/email-security intelligence absorbed into expert context
 - **Native Distillr instrument** (v2.12): auto-discovered when `pip install distillr` is present (`distill-mcp` on PATH); source ingestion (papers/videos/sites) into a synthesized corpus, absorbed as academic knowledge with provenance; budget-capped and approval-gated (free `find_insights` corpus search first)

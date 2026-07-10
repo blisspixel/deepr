@@ -151,7 +151,7 @@ Results are saved under the configured reports root, defaulting to
 | Explicit plan-quota execution | Works for selected expert sync, sync-all, gap-fill, absorb, learn, consult, and probe commands behind auth-mode and no-surprise-bills checks | [docs/CAPACITY.md](docs/CAPACITY.md), [docs/design/plan-quota-cli-backends.md](docs/design/plan-quota-cli-backends.md) |
 | Domain experts | Works for expert creation, chat, consult, beliefs, gaps, loop status, OKF export/import, self-model reads, monitor proposals, reviewed monitor promotion, and self-model update review and acceptance records | [docs/EXPERTS.md](docs/EXPERTS.md) |
 | MCP | Works for local stdio and experimental HTTP/SSE with scoped keys, budgets, rate limits, audit logs, smoke checks, no-metered consult validation, and registration manifests | [mcp/README.md](mcp/README.md) |
-| Web dashboard | Experimental but usable for reports, experts, costs, model views, and loop status | [docs/FEATURES.md](docs/FEATURES.md) |
+| Web dashboard | Experimental but usable for reports, experts, costs, model views, loop status, and OpenAI-backed research submission; use CLI workflows for other providers | [docs/FEATURES.md](docs/FEATURES.md) |
 
 Automatic routing to plan-quota CLIs is still conservative. Explicit `--plan`
 is the works-now path for selected expert workflows. Auto-routing to plan

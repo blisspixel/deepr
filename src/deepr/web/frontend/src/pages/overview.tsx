@@ -1,4 +1,4 @@
-import { useNavigate } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { jobsApi } from '@/api/jobs'
 import { costApi } from '@/api/cost'
@@ -9,6 +9,7 @@ import {
   AlertTriangle,
   ArrowRight,
   CheckCircle2,
+  Clock3,
   DollarSign,
   Loader2,
   Plus,
@@ -17,6 +18,7 @@ import {
   Users,
   XCircle,
 } from 'lucide-react'
+import { toast } from 'sonner'
 import { Sparkline } from '@/components/charts/sparkline'
 import { BUDGET_DEFAULTS } from '@/lib/constants'
 
@@ -26,8 +28,18 @@ export default function Overview() {
 
   const cleanupMutation = useMutation({
     mutationFn: () => jobsApi.cleanupStale(),
-    onSuccess: () => {
+    onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ['jobs'] })
+      toast.success(
+        data.cleaned === 1
+          ? 'Marked 1 stale job as failed'
+          : `Marked ${data.cleaned} stale jobs as failed`
+      )
+    },
+    onError: (error: Error) => {
+      toast.error('Stale-job cleanup failed', {
+        description: error.message || 'The server could not complete cleanup safely.',
+      })
     },
   })
 
@@ -58,6 +70,9 @@ export default function Overview() {
   const liveJobs = jobs.filter(j => ['queued', 'processing'].includes(j.status))
   const completedCount = jobStats?.completed ?? jobs.filter(j => j.status === 'completed').length
   const failedCount = jobStats?.failed ?? jobs.filter(j => j.status === 'failed').length
+  const queuedCount = jobStats?.queued ?? liveJobs.filter(j => j.status === 'queued').length
+  const processingCount = jobStats?.processing ?? liveJobs.filter(j => j.status === 'processing').length
+  const activeCount = queuedCount + processingCount
   const dailyUtilization = costSummary && costSummary.daily_limit > 0
     ? (costSummary.daily / costSummary.daily_limit) * 100
     : 0
@@ -103,15 +118,16 @@ export default function Overview() {
 
       {/* Stat Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        {/* Live Jobs */}
+        {/* Active Jobs */}
         <div className="rounded-lg border bg-card p-5 space-y-2">
           <div className="flex items-center gap-2">
-            {liveJobs.length > 0 && <span className="w-2 h-2 rounded-full bg-info animate-pulse" />}
-            <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Live Jobs</p>
+            {processingCount > 0 && <span className="w-2 h-2 rounded-full bg-info animate-pulse" />}
+            {processingCount === 0 && queuedCount > 0 && <span className="w-2 h-2 rounded-full bg-warning" />}
+            <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Active Jobs</p>
           </div>
-          <p className="text-3xl font-semibold text-foreground tabular-nums">{liveJobs.length}</p>
+          <p className="text-3xl font-semibold text-foreground tabular-nums">{activeCount}</p>
           <p className="text-xs text-muted-foreground">
-            {liveJobs.length > 0 ? 'Processing now' : 'No active jobs'}
+            {activeCount > 0 ? `${queuedCount} queued, ${processingCount} processing` : 'No active jobs'}
           </p>
         </div>
 
@@ -167,15 +183,15 @@ export default function Overview() {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Live Jobs + Activity */}
         <div className="lg:col-span-2 space-y-6">
-          {/* Live Jobs */}
+          {/* Recent Active Jobs */}
           {liveJobs.length > 0 && (
             <div className="space-y-3">
               <div className="flex items-center justify-between">
-                <h2 className="text-sm font-semibold text-foreground uppercase tracking-wider">Live Jobs</h2>
+                <h2 className="text-sm font-semibold text-foreground uppercase tracking-wider">Recent Active Jobs</h2>
                 <div className="flex items-center gap-3">
                   <button
                     onClick={() => {
-                      if (window.confirm('Mark all stuck-processing jobs as failed? Active jobs are unaffected.')) {
+                      if (window.confirm('Mark queued and processing jobs older than 30 minutes as failed? Processing jobs missing required provider state are also included. Recent healthy jobs are unaffected.')) {
                         cleanupMutation.mutate()
                       }
                     }}
@@ -189,18 +205,17 @@ export default function Overview() {
                     )}
                     Clean up stale
                   </button>
-                  <span className="flex items-center gap-1.5 text-xs text-info">
-                    <Loader2 className="w-3 h-3 animate-spin" />
-                    {liveJobs.length} running
+                  <span className="text-xs text-muted-foreground">
+                    Showing {liveJobs.length} of {activeCount} active
                   </span>
                 </div>
               </div>
               <div className="space-y-2">
                 {liveJobs.map((job) => (
-                  <div
+                  <Link
                     key={job.id}
-                    className="rounded-lg border bg-card p-4 cursor-pointer hover:border-primary/30 hover:shadow-md transition-all"
-                    onClick={() => navigate(`/research/${job.id}`)}
+                    to={`/research/${job.id}`}
+                    className="block rounded-lg border bg-card p-4 hover:border-primary/30 hover:shadow-md transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                   >
                     <div className="flex justify-between items-start gap-3">
                       <div className="flex-1 min-w-0">
@@ -210,9 +225,18 @@ export default function Overview() {
                         <div className="flex items-center gap-2 mt-1.5">
                           <span className="text-xs text-muted-foreground">{job.model}</span>
                           <span className="text-border">·</span>
-                          <span className="inline-flex items-center gap-1 text-xs text-info">
-                            <Loader2 className="w-3 h-3 animate-spin" />
+                          <span className={cn(
+                            'inline-flex items-center gap-1 text-xs',
+                            job.status === 'processing' ? 'text-info' : 'text-warning'
+                          )}>
+                            {job.status === 'processing'
+                              ? <Loader2 className="w-3 h-3 animate-spin" />
+                              : <Clock3 className="w-3 h-3" />}
                             {job.status === 'processing' ? 'Analyzing' : 'Queued'}
+                          </span>
+                          <span className="text-border">·</span>
+                          <span className="text-xs text-muted-foreground">
+                            Submitted {formatRelativeTime(job.submitted_at)}
                           </span>
                         </div>
                       </div>
@@ -222,11 +246,12 @@ export default function Overview() {
                         </span>
                       )}
                     </div>
-                    {/* Progress bar */}
-                    <div className="mt-3 w-full h-1 bg-secondary rounded-full overflow-hidden">
-                      <div className="h-full bg-primary/60 rounded-full animate-pulse w-full" />
-                    </div>
-                  </div>
+                    {job.status === 'processing' && (
+                      <div className="mt-3 w-full h-1 bg-secondary rounded-full overflow-hidden" aria-hidden="true">
+                        <div className="h-full bg-primary/60 rounded-full animate-pulse w-full" />
+                      </div>
+                    )}
+                  </Link>
                 ))}
               </div>
             </div>
@@ -283,14 +308,10 @@ export default function Overview() {
                 </div>
               ) : (
                 jobs.slice(0, 8).map((job) => (
-                  <div
+                  <Link
                     key={job.id}
-                    className="px-4 py-3 flex items-center gap-3 cursor-pointer hover:bg-accent/50 transition-colors"
-                    onClick={() => {
-                      if (job.status === 'completed') navigate(`/results/${job.id}`)
-                      else if (['queued', 'processing'].includes(job.status)) navigate(`/research/${job.id}`)
-                      else navigate(`/results/${job.id}`)
-                    }}
+                    to={['queued', 'processing'].includes(job.status) ? `/research/${job.id}` : `/results/${job.id}`}
+                    className="px-4 py-3 flex items-center gap-3 hover:bg-accent/50 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
                   >
                     <div className="flex-shrink-0">
                       {job.status === 'completed' ? <CheckCircle2 className="w-4 h-4 text-success" /> :
@@ -323,7 +344,7 @@ export default function Overview() {
                         {job.submitted_at ? formatRelativeTime(job.submitted_at) : ''}
                       </span>
                     </div>
-                  </div>
+                  </Link>
                 ))
               )}
             </div>
@@ -374,12 +395,14 @@ export default function Overview() {
                 <span className="text-sm text-muted-foreground tabular-nums">{formatCurrency(costSummary?.monthly_limit || BUDGET_DEFAULTS.MONTHLY)}</span>
               </div>
               <div className="flex justify-between items-baseline">
-                <span className="text-sm text-muted-foreground">Avg/Job</span>
-                <span className="text-sm text-muted-foreground tabular-nums">{formatCurrency(costSummary?.avg_cost_per_job || 0)}</span>
+                <span className="text-sm text-muted-foreground">Ledger total</span>
+                <span className="text-sm text-muted-foreground tabular-nums">{formatCurrency(costSummary?.total || 0)}</span>
               </div>
               <div className="flex justify-between items-baseline">
-                <span className="text-sm text-muted-foreground">Jobs</span>
-                <span className="text-sm text-muted-foreground tabular-nums">{costSummary?.completed_jobs || 0} completed</span>
+                <span className="text-sm text-muted-foreground">Queue progress</span>
+                <span className="text-sm text-muted-foreground tabular-nums">
+                  {costSummary?.completed_jobs || 0} of {costSummary?.total_jobs || 0}
+                </span>
               </div>
             </div>
           </div>

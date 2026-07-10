@@ -49,6 +49,7 @@ _frontend_dist = Path(__file__).parent / "frontend" / "dist"
 # demo data wipe endpoints.
 _API_KEY = os.getenv("DEEPR_API_KEY", "")  # empty = auth disabled (local dev)
 _CORS_ORIGINS = os.getenv("DEEPR_CORS_ORIGINS", "http://localhost:5000").split(",")
+_SOCKETIO_CORS_ORIGINS = _CORS_ORIGINS if os.getenv("DEEPR_CORS_ORIGINS") else None
 _MAX_PROMPT_LENGTH = 50_000  # characters
 _MAX_BATCH_SIZE = 50
 _MAX_QUERY_LIMIT = 1000
@@ -76,9 +77,8 @@ app = Flask(
     static_url_path="/assets",
 )
 app.config["MAX_CONTENT_LENGTH"] = 1 * 1024 * 1024  # 1 MB request body limit
-
 CORS(app, origins=_CORS_ORIGINS)
-socketio = SocketIO(app, cors_allowed_origins=_CORS_ORIGINS, async_mode="threading")
+socketio = SocketIO(app, cors_allowed_origins=_SOCKETIO_CORS_ORIGINS, async_mode="threading")
 
 # ---------------------------------------------------------------------------
 # Rate limiting (requires flask-limiter)

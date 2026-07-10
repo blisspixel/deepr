@@ -140,7 +140,10 @@ class TestRunSingleAsync:
                 mock_create.return_value = mock_provider
 
                 with patch("deepr.config.load_config", return_value={"api_key": "test"}):
-                    with patch("deepr.cli.commands.run.SQLiteQueue") as mock_queue_class:
+                    with (
+                        patch("deepr.cli.commands.run.SQLiteQueue") as mock_queue_class,
+                        patch("deepr.cli.commands.run._enqueue_reserved_job", new_callable=AsyncMock),
+                    ):
                         mock_queue_instance = MagicMock()
                         mock_queue_instance.enqueue = AsyncMock(return_value="job-123")
                         mock_queue_instance.claim_submission = AsyncMock(return_value=True)
@@ -362,7 +365,10 @@ class TestRunSingleAsync:
                 mock_create.return_value = mock_provider
 
                 with patch("deepr.config.load_config", return_value={"api_key": "test"}):
-                    with patch("deepr.cli.commands.run.SQLiteQueue") as mock_queue_class:
+                    with (
+                        patch("deepr.cli.commands.run.SQLiteQueue") as mock_queue_class,
+                        patch("deepr.cli.commands.run._enqueue_reserved_job", new_callable=AsyncMock),
+                    ):
                         mock_queue_instance = MagicMock()
                         mock_queue_instance.enqueue = AsyncMock(return_value="job-123")
                         mock_queue_class.return_value = mock_queue_instance
