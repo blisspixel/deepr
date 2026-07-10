@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.34.0] - 2026-07-10
+
 ### Changed
 
 - Made the experimental web Research Studio readiness-aware. It now identifies
@@ -19,6 +21,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   Intelligence separates all-operation ledger spend from queue completion.
 - Made stale-job cleanup state its 30-minute queued/processing scope before
   confirmation and report the number of records safely transitioned.
+- Added session-scoped Research Studio draft recovery for prompts and scalar
+  configuration. The dashboard validates restored state, excludes uploaded
+  file contents, reports unavailable storage, preserves drafts until a
+  different URL-prefilled prompt is explicitly accepted, and clears drafts
+  explicitly or after successful submission.
+- Tightened narrow-screen hierarchy with compact Overview KPIs, responsive
+  research and status actions, and 44-pixel Results view controls.
 
 ### Fixed
 
@@ -35,6 +44,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Closed unit-test isolation gaps in CLI run and fallback coverage. Tests now
   mock the durable enqueue seam instead of writing synthetic queued jobs into
   the developer's machine-local research database.
+- Exposed Research Studio mode, Configuration, file-removal, and Results view
+  state to assistive technology, and clarified where context-file upload lives.
+- Added blocking frontend unit coverage for draft validation, privacy,
+  persistence failure, URL-prefill arbitration, and clearing behavior.
+- Replaced deprecated package-license table metadata with its SPDX expression
+  and explicit license file before the setuptools 2027 removal deadline.
 
 ## [2.33.1] - 2026-07-09
 
