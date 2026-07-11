@@ -82,23 +82,35 @@ def _render_next_actions(payload: dict[str, Any]) -> None:
 def expert_next(name: str, limit: int, json_output: bool) -> None:
     """Show the highest-value next actions for an expert at $0."""
     from deepr.experts.loop_runs import ExpertLoopRunStore
+    from deepr.utils.security import PathTraversalError
 
-    store = ExpertStore(create=False)
-    profile = store.load(name, migrate=True, persist_migration=False)
+    try:
+        store = ExpertStore(create=False)
+        profile = store.load(name, migrate=True, persist_migration=False)
+        expert_dir = store.find_existing_dir(name)
+    except PathTraversalError:
+        print_error("Expert storage failed safety validation")
+        raise click.Abort() from None
     if profile is None:
         print_error(f"Expert '{name}' not found")
+        raise click.Abort()
+    if expert_dir is None:
+        print_error(f"Expert '{name}' storage directory not found")
         raise click.Abort()
 
     try:
         loop_runs = ExpertLoopRunStore(profile.name).list_runs(limit=20)
         payload = build_expert_next_actions(
             profile,
-            profile.get_manifest(read_only=True),
+            profile.get_manifest(read_only=True, expert_dir=expert_dir),
             loop_runs=loop_runs,
             max_actions=limit,
         )
     except ValueError as exc:
         raise click.BadParameter(str(exc), param_hint="--limit") from exc
+    except PathTraversalError:
+        print_error("Expert storage failed safety validation")
+        raise click.Abort() from None
     if json_output:
         click.echo(json.dumps(payload, indent=2, default=str))
         return

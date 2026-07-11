@@ -9,6 +9,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [2.34.4] - 2026-07-10
 
+### Security
+
+- Read-only expert guidance resolves belief storage only from an existing,
+  containment-validated directory enumerated below the configured expert root;
+  stored or command-line expert names do not become unchecked filesystem paths.
+
 ### Added
 
 - Added `deepr expert next NAME`, a `$0`, read-only navigator that returns a

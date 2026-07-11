@@ -208,6 +208,24 @@ class ExpertStore:
         """
         return self._get_expert_dir(name) / "profile.json"
 
+    def find_existing_dir(self, name: str) -> Path | None:
+        """Resolve an existing expert directory without constructing a path from input."""
+        from deepr.experts.paths import expert_slug
+        from deepr.utils.security import validate_path
+
+        if not self.base_path.is_dir():
+            return None
+        expected = expert_slug(name)
+        for candidate in self.base_path.iterdir():
+            if candidate.name == expected and candidate.is_dir():
+                return validate_path(
+                    candidate,
+                    base_dir=self.base_path,
+                    must_exist=True,
+                    allow_create=False,
+                )
+        return None
+
     def get_documents_dir(self, name: str) -> Path:
         """Get documents directory for expert.
 

@@ -17,6 +17,7 @@ Requirements: 1.2 - ExpertProfile Refactoring
 import shlex
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
+from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
@@ -346,7 +347,12 @@ class ExpertProfile:
     # Manifest generation
     # =========================================================================
 
-    def get_manifest(self, *, read_only: bool = False) -> "ExpertManifest":
+    def get_manifest(
+        self,
+        *,
+        read_only: bool = False,
+        expert_dir: Path | None = None,
+    ) -> "ExpertManifest":
         """Build a complete ExpertManifest snapshot.
 
         Loads beliefs from BeliefStore, worldview from synthesis, gaps from
@@ -355,10 +361,27 @@ class ExpertProfile:
         Args:
             read_only: Avoid directory creation and belief-format migration
                 writes while assembling the snapshot.
+            expert_dir: Validated existing expert directory required to confine
+                read-only belief storage.
 
         Returns:
             ExpertManifest composing all expert state.
         """
+        if read_only and expert_dir is None:
+            raise ValueError("read-only manifest loading requires expert_dir")
+        beliefs_path: Path | None = None
+        if read_only:
+            from deepr.utils.security import validate_path
+
+            try:
+                beliefs_path = validate_path(
+                    Path("beliefs") / "beliefs.json",
+                    base_dir=expert_dir,
+                    must_exist=True,
+                    allow_create=False,
+                )
+            except FileNotFoundError:
+                pass
         from deepr.core.contracts import ExpertManifest, Gap
         from deepr.experts.gap_scorer import score_gap
 
@@ -369,12 +392,19 @@ class ExpertProfile:
         try:
             from deepr.experts.beliefs import BeliefStore
 
-            store = BeliefStore(self.name, read_only=read_only)
-            for belief in store.beliefs.values():
-                claim = belief.to_claim()
-                if claim.statement not in seen_statements:
-                    claims.append(claim)
-                    seen_statements.add(claim.statement)
+            if not read_only or beliefs_path is not None:
+                beliefs_dir = beliefs_path.parent if beliefs_path is not None else None
+                store = BeliefStore(
+                    self.name,
+                    storage_dir=beliefs_dir,
+                    read_only=read_only,
+                    read_path=beliefs_path,
+                )
+                for belief in store.beliefs.values():
+                    claim = belief.to_claim()
+                    if claim.statement not in seen_statements:
+                        claims.append(claim)
+                        seen_statements.add(claim.statement)
         except Exception:
             pass  # best-effort load of one source (beliefs/worldview/gaps/logs); missing or corrupt artifacts do not prevent manifest assembly
 
