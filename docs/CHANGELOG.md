@@ -7,6 +7,39 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.34.4] - 2026-07-10
+
+### Added
+
+- Added `deepr expert next NAME`, a `$0`, read-only navigator that returns a
+  bounded action plan from current claims, freshness, gaps, contradictions,
+  and durable learning-loop evidence. Its published `deepr-expert-next-v1`
+  contract uses argument-safe argv plans, checks capacity before scheduled
+  compiled sync, and explicitly disclaims semantic maturity scoring and policy
+  changes.
+- Added current research and staged designs for forgetting-aware expert
+  improvement, bitemporal event authority, device-partitioned continuity,
+  historically grounded perspective lenses, and modern agent-harness run
+  control.
+
+### Changed
+
+- `deepr doctor`, README, ROADMAP, expert docs, supported-surface docs, and the
+  portability ADR now state that generic synced folders support sequential
+  device use only: one writer at a time, then a completed sync before switching
+  devices. Concurrent multi-device mutation remains planned rather than
+  marketed as shipped.
+- Portability documentation now states that `DEEPR_DATA_DIR` also relocates
+  queues, traces, benchmarks, observability artifacts, and several MCP
+  databases instead of incorrectly describing them all as machine-local.
+
+### Fixed
+
+- Local experts no longer appear blocked merely because they have no provider
+  vector store, and incomplete or stale expert guidance now routes through
+  `deepr expert next` instead of emitting a topic-less learning command that
+  cannot run.
+
 ## [2.34.3] - 2026-07-10
 
 ### Security
@@ -3837,4 +3870,4 @@ adds explicit opt-out flags for previously implicit unsafe behavior.
 
 ---
 
-For more details on upcoming features, see [ROADMAP.md](ROADMAP.md).
+For more details on upcoming features, see [ROADMAP.md](../ROADMAP.md).

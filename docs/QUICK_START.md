@@ -233,8 +233,8 @@ deepr jobs get <job-id>
 # 4. Create expert from results
 deepr expert make "Python Async Expert" --files "data/reports/*/*.md"
 
-# 5. Have expert learn more
-deepr expert make "Python Async Expert" --files "./docs/*.md" --learn --budget 5
+# 5. Ask for the safest next learning or repair actions at $0
+deepr expert next "Python Async Expert"
 
 # 6. Chat with expert
 deepr expert chat "Python Async Expert" --budget 3  # agentic by default
@@ -255,11 +255,12 @@ deepr expert chat "Python Async Expert" --budget 3  # agentic by default
 
 1. **Start small** - Use `deepr research` with small budgets first
 2. **Be specific** - Vague prompts produce vague results (see [EXAMPLES.md](EXAMPLES.md))
-3. **Add more API keys** - Each key you add makes auto mode smarter (routes to best model per task)
+3. **Add useful capacity** - Configure only the provider keys, admitted local models, or explicit plan backends you intend to use
 4. **Monitor costs** - Check `deepr costs show` regularly
-5. **Use `--auto`** - Auto mode routes simple queries to $0.01 models, saves 90%+ on batch jobs
+5. **Use `--auto`** - Auto mode chooses the cheapest admitted capable backend under the current registry and budget gates
 6. **Build experts gradually** - Start with documents, add learning later
 7. **Set session budgets** - Always use `--budget` with agentic chat
+8. **Switch devices sequentially** - If `DEEPR_DATA_DIR` is synced, stop Deepr services, use one writer at a time, and wait for sync before changing devices
 
 ---
 

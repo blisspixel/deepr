@@ -1,0 +1,76 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/blisspixel/deepr/docs/schemas/expert-next-v1.json",
+  "title": "Deepr Expert Next Actions v1",
+  "type": "object",
+  "additionalProperties": true,
+  "required": ["schema_version", "kind", "contract", "expert", "stage", "evidence", "next_actions", "limitations"],
+  "properties": {
+    "schema_version": {"const": "deepr-expert-next-v1"},
+    "kind": {"const": "deepr.expert.next"},
+    "contract": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": ["read_only", "cost_usd", "structural_signals_only", "semantic_maturity_verdict", "default_policy_change_allowed"],
+      "properties": {
+        "read_only": {"const": true},
+        "cost_usd": {"const": 0.0},
+        "structural_signals_only": {"const": true},
+        "semantic_maturity_verdict": {"const": false},
+        "default_policy_change_allowed": {"const": false}
+      }
+    },
+    "expert": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": ["name", "domain"],
+      "properties": {
+        "name": {"type": "string", "minLength": 1},
+        "domain": {"type": "string", "minLength": 1}
+      }
+    },
+    "stage": {"enum": ["foundation", "recovery", "learning", "maintenance"]},
+    "evidence": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": ["claim_count", "open_gap_count", "avg_confidence", "freshness_status", "active_contradiction_claim_count", "learning_loops"],
+      "properties": {
+        "claim_count": {"type": "integer", "minimum": 0},
+        "open_gap_count": {"type": "integer", "minimum": 0},
+        "avg_confidence": {"type": "number", "minimum": 0, "maximum": 1},
+        "freshness_status": {"type": "string"},
+        "active_contradiction_claim_count": {"type": "integer", "minimum": 0},
+        "learning_loops": {
+          "type": "object",
+          "additionalProperties": true,
+          "required": ["run_count", "completed_count", "failed_count", "waiting_count", "verified_improvement_count", "latest_status", "latest_stop_reason"]
+        }
+      }
+    },
+    "next_actions": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": true,
+        "required": ["id", "priority", "title", "reason", "command_argv"],
+        "properties": {
+          "id": {"type": "string", "minLength": 1},
+          "priority": {"type": "integer", "minimum": 1},
+          "title": {"type": "string", "minLength": 1},
+          "reason": {"type": "string", "minLength": 1},
+          "command_argv": {
+            "type": "array",
+            "minItems": 1,
+            "items": {
+              "type": "array",
+              "minItems": 1,
+              "items": {"type": "string"}
+            }
+          }
+        }
+      }
+    },
+    "limitations": {"type": "array", "minItems": 1, "items": {"type": "string", "minLength": 1}}
+  }
+}

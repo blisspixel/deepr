@@ -1,6 +1,6 @@
 # Expert System Guide
 
-> **Note**: Model names and capabilities live in the registry (`../deepr/providers/registry.py`), the single source of truth. AI moves fast - verify at provider websites.
+> **Note**: Model names and capabilities live in the registry (`../src/deepr/providers/registry.py`), the single source of truth. AI moves fast - verify at provider websites.
 
 ## Overview
 
@@ -57,7 +57,26 @@ deepr expert chat "Azure Architect" --budget 5  # agentic by default
 
 # Regenerate the expert's derived memory card for humans and host agents
 deepr expert memory-card "Azure Architect" --write
+
+# Ask Deepr for the highest-value next actions from current structural evidence
+deepr expert next "Azure Architect"
 ```
+
+## What Should This Expert Do Next?
+
+```bash
+deepr expert next "Azure Architect"
+deepr expert next "Azure Architect" --limit 5 --json
+```
+
+The command reads the current claim count, freshness, open gaps,
+contradictions, and durable loop outcomes, then returns a short list of
+argument arrays. It costs `$0`, runs no recommended command, and changes no
+state. The capacity check precedes scheduled compiled sync so the navigator
+does not assume local Ollama is available or fall through to metered use.
+`foundation`, `recovery`, `learning`, and `maintenance` are operational
+navigation stages only. They are not semantic maturity scores and cannot prove
+that an expert's perspective is accurate or improved.
 
 ## Creating Experts
 
@@ -80,6 +99,11 @@ Deepr copies the seed documents into the expert's local documents folder and
 records them in the profile. Local creation does not run the API-backed
 `--learn` curriculum; use subscriptions plus `expert sync --local` for $0
 maintenance.
+
+After creation, `deepr expert next NAME` is the shortest path through the
+available controls. An empty local profile receives a subscription plus local
+fresh-context compiled-sync plan; a stale or failed expert receives repair
+actions before new unattended work.
 
 Use `--fresh-context` when a local sync needs current web grounding. Use
 `--deep-context` when the topic needs broader source coverage before the local
@@ -156,11 +180,16 @@ Expert: "Based on my research, there are three approaches:
 
 Experts choose appropriate research depth:
 
-| Tier | Cost | Time | Use Case |
-|------|------|------|----------|
-| `quick_lookup` | FREE | <5s | Simple factual questions |
-| `standard_research` | $0.01-0.05 | 30-60s | Moderate complexity |
-| `deep_research` | $0.10-0.30 | 5-20 min | Complex topics |
+| Tier | Cost posture | Use Case |
+|------|--------------|----------|
+| `quick_lookup` | Cheapest allowed lookup path; not assumed free | Simple factual questions |
+| `standard_research` | Estimated and bounded before dispatch | Moderate complexity |
+| `deep_research` | Highest-cost tier; budget and confirmation gates apply | Complex topics |
+
+Exact price and latency depend on the current provider, model, search tools,
+and response bounds. The provider registry and preflight estimate are
+authoritative; this guide intentionally does not hardcode volatile dollar or
+time ranges.
 
 ### Slash Commands and Chat Modes
 

@@ -146,6 +146,7 @@ class TestStalenessDetection:
         assert "urgency" in details
         assert "estimated_refresh_cost" in details
         assert "refresh_command" in details
+        assert "deepr expert next" in details["refresh_command"]
 
     def test_staleness_urgency_levels(self):
         """Test urgency levels based on staleness.

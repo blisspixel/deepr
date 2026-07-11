@@ -165,17 +165,20 @@ class ExpertStore:
         all_experts = store.list_all()
     """
 
-    def __init__(self, base_path: str | None = None):
+    def __init__(self, base_path: str | None = None, *, create: bool = True):
         """Initialize the expert store.
 
         Args:
             base_path: Base directory for storing expert data (default: the
                 configured experts root, deepr.config.experts_root).
+            create: Create the experts root when it does not exist. Read-only
+                callers set this to false to avoid hidden filesystem writes.
         """
         from deepr.config import experts_root
 
         self.base_path = Path(base_path) if base_path else experts_root()
-        self.base_path.mkdir(parents=True, exist_ok=True)
+        if create:
+            self.base_path.mkdir(parents=True, exist_ok=True)
 
     # =========================================================================
     # Path helpers
@@ -293,14 +296,23 @@ class ExpertStore:
         with FileLock(str(lock_path), timeout=10):
             atomic_write_json(path, data)
 
-    def load(self, name: str, migrate: bool = True) -> ExpertProfile | None:
+    def load(
+        self,
+        name: str,
+        migrate: bool = True,
+        *,
+        persist_migration: bool = True,
+    ) -> ExpertProfile | None:
         """Load expert profile from disk.
 
         Automatically migrates old schema versions if migrate=True.
 
         Args:
             name: Expert name
-            migrate: Whether to apply schema migrations
+            migrate: Apply schema migrations to the in-memory profile.
+            persist_migration: Write a migrated profile back to disk. Read-only
+                callers disable persistence while retaining compatibility with
+                legacy schemas.
 
         Returns:
             ExpertProfile instance or None if not found
@@ -320,7 +332,7 @@ class ExpertStore:
             data = migrate_profile_data(data)
 
             # Save migrated data if version changed
-            if data.get("schema_version", 1) > original_version:
+            if persist_migration and data.get("schema_version", 1) > original_version:
                 from deepr.utils.atomic_io import atomic_write_json
 
                 atomic_write_json(path, data)

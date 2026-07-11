@@ -83,6 +83,14 @@ deepr costs spend-decisions --expert "Platform Team Expert" --decision deferred
 deepr costs spend-decisions --json
 ```
 
+The OneDrive example relocates expert, report, and `DEEPR_DATA_DIR` runtime
+state for sequential device use. It does not enable concurrent writers: stop
+Deepr services, finish mutations, and wait for file synchronization before
+switching devices. Credentials remain local. Cost and device-capacity ledgers
+should remain machine-specific through their dedicated root overrides, while
+queues, traces, benchmarks, observability artifacts, and several MCP databases
+follow a synced `DEEPR_DATA_DIR` today.
+
 `deepr capacity next` runs no research and makes no provider generation call. It
 explains whether a job can use local capacity, whether the local model lacks
 admission evidence, whether a plan quota is observed, or whether the operator

@@ -23,6 +23,14 @@
       "compatibility": "additive-within-v1"
     },
     {
+      "name": "expert-next",
+      "schema_version": "deepr-expert-next-v1",
+      "kind": "deepr.expert.next",
+      "path": "expert-next-v1.json",
+      "status": "experimental",
+      "compatibility": "additive-within-v1"
+    },
+    {
       "name": "expert-memory-card",
       "schema_version": "deepr-expert-memory-card-v1",
       "kind": "deepr.expert.memory_card",

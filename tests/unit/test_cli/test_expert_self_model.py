@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import shutil
 from datetime import UTC, datetime
 from unittest.mock import MagicMock, patch
 
@@ -11,6 +12,7 @@ from click.testing import CliRunner
 from deepr.cli.commands.semantic.expert_self_model import (
     expert_accept_self_model,
     expert_monitor,
+    expert_next,
     expert_promote_monitor,
     expert_propose_self_model,
     expert_self_model,
@@ -18,6 +20,7 @@ from deepr.cli.commands.semantic.expert_self_model import (
 from deepr.cli.main import cli
 from deepr.core.contracts import Claim, ExpertManifest, Gap
 from deepr.experts.profile import ExpertProfile
+from deepr.experts.profile_store import ExpertStore
 
 
 def _profile() -> ExpertProfile:
@@ -34,7 +37,7 @@ def _profile() -> ExpertProfile:
         claims=[Claim.create("Trace failures into evals.", "agent harnesses", 0.9)],
         gaps=[Gap.create("semantic quality evals", questions=["Which answers failed?"], ev_cost_ratio=5.0)],
     )
-    profile.get_manifest = lambda: manifest  # type: ignore[method-assign]
+    profile.get_manifest = lambda **_kwargs: manifest  # type: ignore[method-assign]
     return profile
 
 
@@ -50,6 +53,82 @@ def test_self_model_registered_in_expert_help():
 
     assert result.exit_code == 0
     assert "read-only self-model" in result.output.lower()
+
+
+def test_next_registered_in_expert_help():
+    result = CliRunner().invoke(cli, ["expert", "next", "--help"])
+
+    assert result.exit_code == 0
+    assert "highest-value next actions" in result.output.lower()
+
+
+def test_next_json_output(monkeypatch):
+    profile = _profile()
+
+    class FakeLoopStore:
+        def __init__(self, name):
+            assert name == profile.name
+
+        def list_runs(self, *, limit):
+            assert limit == 20
+            return []
+
+    monkeypatch.setattr("deepr.experts.loop_runs.ExpertLoopRunStore", FakeLoopStore)
+    with _patch_store(profile):
+        result = CliRunner().invoke(expert_next, [profile.name, "--limit", "2", "--json"])
+
+    assert result.exit_code == 0, result.output
+    payload = json.loads(result.output)
+    assert payload["schema_version"] == "deepr-expert-next-v1"
+    assert payload["kind"] == "deepr.expert.next"
+    assert len(payload["next_actions"]) == 2
+
+
+def test_next_rejects_nonpositive_limit():
+    with _patch_store(_profile()):
+        result = CliRunner().invoke(expert_next, ["Agent Harness Expert", "--limit", "0"])
+
+    assert result.exit_code != 0
+    assert "max_actions must be positive" in result.output
+
+
+def test_next_human_output_preserves_rich_markup_literals():
+    profile = _profile()
+    profile.name = "[bold]Expert[/bold]"
+    profile.domain = "[bold]literal[/bold]"
+    profile.get_manifest = lambda **_kwargs: ExpertManifest(  # type: ignore[method-assign]
+        expert_name=profile.name,
+        domain=profile.domain,
+    )
+
+    with _patch_store(profile):
+        result = CliRunner().invoke(expert_next, [profile.name])
+
+    assert result.exit_code == 0, result.output
+    assert "[bold]Expert[/bold]" in result.output
+    assert "[bold]literal[/bold]" in result.output
+
+
+def test_next_real_cli_does_not_mutate_expert_storage(monkeypatch, tmp_path):
+    experts_dir = tmp_path / "experts"
+    profile = _profile()
+    ExpertStore(base_path=str(experts_dir)).save(profile)
+    expert_dir = experts_dir / "agent_harness_expert"
+    shutil.rmtree(expert_dir / "beliefs")
+    profile_path = expert_dir / "profile.json"
+    legacy_profile = json.loads(profile_path.read_text(encoding="utf-8"))
+    legacy_profile["schema_version"] = 1
+    legacy_profile["learning_budget"] = legacy_profile.pop("monthly_learning_budget")
+    profile_path.write_text(json.dumps(legacy_profile, indent=2), encoding="utf-8")
+    before = {path.relative_to(experts_dir): path.read_bytes() for path in experts_dir.rglob("*") if path.is_file()}
+    monkeypatch.setenv("DEEPR_EXPERTS_PATH", str(experts_dir))
+
+    result = CliRunner().invoke(cli, ["expert", "next", profile.name, "--json"])
+
+    assert result.exit_code == 0, result.output
+    after = {path.relative_to(experts_dir): path.read_bytes() for path in experts_dir.rglob("*") if path.is_file()}
+    assert after == before
+    assert not (experts_dir / "agent_harness_expert" / "beliefs").exists()
 
 
 def test_monitor_registered_in_expert_help():

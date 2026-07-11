@@ -7,9 +7,11 @@ from pathlib import Path
 from typing import Any
 
 import click
+from rich.markup import escape
 
 from deepr.cli.colors import console, print_error, print_key_value, print_section_header
 from deepr.cli.commands.semantic.experts import expert
+from deepr.experts.next_actions import build_expert_next_actions
 from deepr.experts.profile import ExpertStore
 from deepr.experts.self_model import build_expert_self_model
 
@@ -51,6 +53,56 @@ def expert_self_model(name: str, focus_limit: int, json_output: bool) -> None:
         click.echo(json.dumps(payload, indent=2, default=str))
         return
     _render(payload)
+
+
+def _render_next_actions(payload: dict[str, Any]) -> None:
+    print_section_header("Expert Next Actions")
+    print_key_value("Expert", escape(str(payload["expert"]["name"])))
+    print_key_value("Stage", payload["stage"])
+    evidence = payload["evidence"]
+    print_key_value("Claims", str(evidence["claim_count"]))
+    print_key_value("Open gaps", str(evidence["open_gap_count"]))
+    print_key_value("Freshness", evidence["freshness_status"])
+    print_key_value("Verified improvements", str(evidence["learning_loops"]["verified_improvement_count"]))
+
+    console.print("\n[bold]Recommended next actions[/bold]")
+    for index, action in enumerate(payload["next_actions"], start=1):
+        console.print(f"\n  [bold]{index}. {action['title']}[/bold]")
+        console.print(f"     {action['reason']}")
+        for command_argv in action["command_argv"]:
+            rendered_argv = json.dumps(command_argv, ensure_ascii=False)
+            console.print(f"     argv: {rendered_argv}", style="dim", markup=False)
+    console.print("\n[dim]Structural guidance only; semantic quality still requires measured review.[/dim]")
+
+
+@expert.command(name="next")
+@click.argument("name")
+@click.option("--limit", type=int, default=3, show_default=True, help="Maximum recommended actions.")
+@click.option("--json", "json_output", is_flag=True, help="Emit machine-readable JSON.")
+def expert_next(name: str, limit: int, json_output: bool) -> None:
+    """Show the highest-value next actions for an expert at $0."""
+    from deepr.experts.loop_runs import ExpertLoopRunStore
+
+    store = ExpertStore(create=False)
+    profile = store.load(name, migrate=True, persist_migration=False)
+    if profile is None:
+        print_error(f"Expert '{name}' not found")
+        raise click.Abort()
+
+    try:
+        loop_runs = ExpertLoopRunStore(profile.name).list_runs(limit=20)
+        payload = build_expert_next_actions(
+            profile,
+            profile.get_manifest(read_only=True),
+            loop_runs=loop_runs,
+            max_actions=limit,
+        )
+    except ValueError as exc:
+        raise click.BadParameter(str(exc), param_hint="--limit") from exc
+    if json_output:
+        click.echo(json.dumps(payload, indent=2, default=str))
+        return
+    _render_next_actions(payload)
 
 
 def _render_monitor(payload: dict[str, Any]) -> None:

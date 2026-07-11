@@ -157,7 +157,7 @@ class TestFreshnessStatus:
         assert status["status"] == "incomplete"
         assert "learning" in status["message"].lower()
         assert "action_required" in status
-        assert "deepr expert learn" in status["action_required"]
+        assert "deepr expert next" in status["action_required"]
 
     def test_get_freshness_status_fresh(self):
         """Test status for expert with fresh knowledge.

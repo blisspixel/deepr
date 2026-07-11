@@ -224,7 +224,7 @@ class ExpertProfile:
             return {
                 "status": "incomplete",
                 "message": "Expert needs initial learning curriculum",
-                "action_required": f"Run: deepr expert learn {shlex.quote(self.name)} --budget 5",
+                "action_required": f"Run: deepr expert next {shlex.quote(self.name)}",
             }
 
         status = self.freshness_checker.check(last_learning=self.knowledge_cutoff_date, last_activity=self.updated_at)
@@ -282,7 +282,7 @@ class ExpertProfile:
             "knowledge_cutoff": datetime_to_iso(self.knowledge_cutoff_date),
             "message": freshness.get("message"),
             "action_required": freshness.get("action_required"),
-            "refresh_command": f"deepr expert learn {shlex.quote(self.name)} --budget {estimated_cost:.2f}",
+            "refresh_command": f"deepr expert next {shlex.quote(self.name)}",
         }
 
     def suggest_refresh(self) -> dict[str, Any] | None:
@@ -346,11 +346,15 @@ class ExpertProfile:
     # Manifest generation
     # =========================================================================
 
-    def get_manifest(self) -> "ExpertManifest":
+    def get_manifest(self, *, read_only: bool = False) -> "ExpertManifest":
         """Build a complete ExpertManifest snapshot.
 
         Loads beliefs from BeliefStore, worldview from synthesis, gaps from
         metacognition + synthesis, and decision records from ThoughtStream logs.
+
+        Args:
+            read_only: Avoid directory creation and belief-format migration
+                writes while assembling the snapshot.
 
         Returns:
             ExpertManifest composing all expert state.
@@ -365,7 +369,7 @@ class ExpertProfile:
         try:
             from deepr.experts.beliefs import BeliefStore
 
-            store = BeliefStore(self.name)
+            store = BeliefStore(self.name, read_only=read_only)
             for belief in store.beliefs.values():
                 claim = belief.to_claim()
                 if claim.statement not in seen_statements:

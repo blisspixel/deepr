@@ -19,6 +19,7 @@ All v1 schemas are additive within the same schema version:
 |---|---|---|
 | `deepr-expert-handoff-v1` | [expert-handoff-v1.json](expert-handoff-v1.json) | Bounded read-only expert handoff payload for MCP and web consumers |
 | `deepr-expert-self-model-v1` | [expert-self-model-v1.json](expert-self-model-v1.json) | Read-only expert capabilities, limits, goals, calibration, risks, and current-focus packet |
+| `deepr-expert-next-v1` | [expert-next-v1.json](expert-next-v1.json) | Read-only structural next-action guidance for building, recovering, learning, or maintaining one expert |
 | `deepr-expert-memory-card-v1` | [expert-memory-card-v1.json](expert-memory-card-v1.json) | Generated `EXPERT.md` orientation view over profile, manifest, belief events, and self-model state |
 | `deepr-expert-mutation-audit-v1` | [expert-mutation-audit-v1.json](expert-mutation-audit-v1.json) | Append-only belief mutation audit entry with actor, operation, and before/after state hashes |
 | `deepr-expert-self-model-update-v1` | [expert-self-model-update-v1.json](expert-self-model-update-v1.json) | Verifier-gated review record for monitor proposals that would change self-model interpretation |

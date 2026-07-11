@@ -73,6 +73,14 @@ class TestDoctorChecks:
         indicators = ["ok", "error", "pass", "fail", "[ok]", "[error]"]
         assert any(indicator in output for indicator in indicators)
 
+    def test_storage_guidance_warns_against_concurrent_device_writers(self):
+        from deepr.cli.commands.doctor import check_storage_locations
+
+        expert_check = check_storage_locations()[0]
+
+        assert any("one writer at a time" in detail.lower() for detail in expert_check.details)
+        assert any("wait for sync" in detail.lower() for detail in expert_check.details)
+
 
 class TestDoctorOutput:
     """Test doctor command output formatting."""
