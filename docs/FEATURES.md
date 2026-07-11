@@ -561,6 +561,10 @@ is available.
 `deepr expert self-model NAME --json` emits a read-only
 `deepr-expert-self-model-v1` record with capabilities, limits, goals,
 calibration, risks, and the bounded current-focus packet.
+`deepr expert next NAME --json` emits a read-only `deepr-expert-next-v1`
+action plan over claims, freshness, gaps, contradictions, and durable loop
+outcomes. It routes structural evidence to argument-safe argv plans but cannot judge
+semantic maturity, execute work, or change learning policy.
 `deepr expert monitor NAME --json` emits a read-only
 `deepr-metacognitive-monitor-v1` artifact that converts self-model risks,
 failed loop runs, capacity waits, and consult trace candidates into
@@ -728,6 +732,9 @@ deepr eval recall "Azure Architect" --query-embeddings-json query-vectors.json -
 
 # Derived self-model: capabilities, limits, goals, calibration, current focus.
 deepr expert self-model "Azure Architect" --json
+
+# Structural next actions: what to repair, learn, or review now at $0.
+deepr expert next "Azure Architect"
 
 # Generated EXPERT.md orientation for humans and host agents. This is a
 # derived view, not canonical memory.
@@ -1022,7 +1029,7 @@ deepr expert health-check "Platform Team Expert" --scheduled --json
 deepr capacity --json
 ```
 
-`deepr init` writes `DEEPR_DATA_DIR` (and `DEEPR_EXPERTS_PATH` / `DEEPR_REPORTS_PATH`). Pointing the data dir at a synced folder (OneDrive, Dropbox, iCloud) makes experts and research follow you across machines; cost ledger, queue, and traces stay machine-local ([ADR 0004](decisions/0004-one-experts-root-and-portable-data-dir.md)).
+`deepr init` writes `DEEPR_DATA_DIR` plus explicit `DEEPR_EXPERTS_PATH` and `DEEPR_REPORTS_PATH` children. Pointing the data dir at OneDrive, Dropbox, iCloud, or another synced folder therefore relocates experts, reports, and runtime artifacts that use `DEEPR_DATA_DIR`, including queues, traces, benchmarks, observability, and several MCP databases. Use one Deepr writer or service at a time and wait for sync to finish before switching devices; generic file sync does not safely merge concurrent expert or operational state. The cost and capacity ledgers can remain machine-specific through their dedicated root overrides. See [ADR 0004](decisions/0004-one-experts-root-and-portable-data-dir.md) and the [multi-device design](design/multi-device-expert-continuity.md).
 
 Capacity source status:
 
@@ -1611,7 +1618,7 @@ deepr jobs list --status failed
 
 ## Next Steps
 
-- Read [INSTALL.md](../INSTALL.md) for setup
+- Read [INSTALL.md](INSTALL.md) for setup
 - See [ROADMAP.md](../ROADMAP.md) for upcoming features
-- Check [CHANGELOG.md](../CHANGELOG.md) for latest changes
+- Check [CHANGELOG.md](CHANGELOG.md) for latest changes
 - Visit [README.md](../README.md) for quick start

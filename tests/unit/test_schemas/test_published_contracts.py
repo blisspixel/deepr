@@ -138,6 +138,11 @@ from deepr.experts.mutation_audit import (
 from deepr.experts.mutation_audit import (
     build_mutation_audit_entry,
 )
+from deepr.experts.next_actions import (
+    EXPERT_NEXT_KIND,
+    EXPERT_NEXT_SCHEMA_VERSION,
+    build_expert_next_actions,
+)
 from deepr.experts.profile import ExpertProfile
 from deepr.experts.self_model import (
     EXPERT_SELF_MODEL_KIND,
@@ -497,6 +502,27 @@ def test_expert_self_model_schema_validates_runtime_payload():
     assert payload["schema_version"] == EXPERT_SELF_MODEL_SCHEMA_VERSION
     assert payload["kind"] == EXPERT_SELF_MODEL_KIND
     assert payload["contract"]["goal_changes_require_review"] is True
+
+
+def test_expert_next_schema_validates_runtime_payload():
+    profile = ExpertProfile(
+        name="Next Action Expert",
+        vector_store_id="",
+        domain="expert operations",
+        knowledge_cutoff_date=datetime(2026, 6, 26, 12, 0, tzinfo=UTC),
+    )
+    manifest = ExpertManifest(
+        expert_name=profile.name,
+        domain=profile.domain,
+        claims=[Claim.create("Structural evidence should guide the next action.", profile.domain, 0.82)],
+    )
+    payload = build_expert_next_actions(profile, manifest)
+    schema = _load_schema("expert-next-v1.json")
+
+    _validate(schema, payload)
+    assert payload["schema_version"] == EXPERT_NEXT_SCHEMA_VERSION
+    assert payload["kind"] == EXPERT_NEXT_KIND
+    assert payload["contract"]["semantic_maturity_verdict"] is False
 
 
 def test_expert_memory_card_schema_validates_runtime_payload():

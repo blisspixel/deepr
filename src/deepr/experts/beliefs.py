@@ -381,6 +381,8 @@ class BeliefStore:
         expert_name: str,
         storage_dir: Path | None = None,
         conflict_resolution: ConflictResolution = ConflictResolution.HIGHER_CONFIDENCE,
+        *,
+        read_only: bool = False,
     ):
         """Initialize belief store.
 
@@ -388,10 +390,12 @@ class BeliefStore:
             expert_name: Name of the expert
             storage_dir: Directory for storage
             conflict_resolution: Default conflict resolution strategy
+            read_only: Load existing state without creating directories or
+                persisting format migrations.
         """
         self.expert_name = expert_name
         self.conflict_resolution = conflict_resolution
-
+        self.read_only = read_only
         if storage_dir is None:
             # Resolve through the one canonical resolver so beliefs land in the
             # SAME directory as the rest of the expert's state (profile, loop
@@ -403,21 +407,19 @@ class BeliefStore:
 
             storage_dir = canonical_expert_dir(expert_name) / "beliefs"
         self.storage_dir = storage_dir
-        self.storage_dir.mkdir(parents=True, exist_ok=True)
-
+        if not self.read_only:
+            self.storage_dir.mkdir(parents=True, exist_ok=True)
         self.storage_path = self.storage_dir / "beliefs.json"
         self.changes_path = self.storage_dir / "changes.json"
         # Append-only belief event log (TKG step 1): every change is kept here
         # while changes.json remains a capped legacy window.
         self.events_path = self.storage_dir / "events.jsonl"
         self.mutation_audit_path = self.storage_dir / "mutation_audit.jsonl"
-
         self.beliefs: dict[str, Belief] = {}
         self.domain_index: dict[str, set[str]] = {}
         self.changes: list[BeliefChange] = []
         self.edges: dict[tuple[str, str, str], Edge] = {}
         self._lock = threading.Lock()
-
         self._load()
 
     def _store_edge(self, edge: Edge, provenance: str, temporal_context: dict[str, str] | None) -> Edge:
@@ -1144,7 +1146,6 @@ class BeliefStore:
         """
         if not self.storage_path.exists():
             return
-
         try:
             if self.storage_path.stat().st_size > 50 * 1024 * 1024:
                 logger.error(
@@ -1157,7 +1158,6 @@ class BeliefStore:
         except (json.JSONDecodeError, OSError) as exc:
             logger.error("Failed to load beliefs from %s: %s. Starting fresh.", self.storage_path, exc)
             return
-
         self.beliefs = {bid: Belief.from_dict(bdata) for bid, bdata in data.get("beliefs", {}).items()}
 
         # Rebuild domain index
@@ -1185,7 +1185,7 @@ class BeliefStore:
                     probe.provenance.append(_MIGRATED_PROVENANCE)
                     self.edges[probe.key()] = probe
                     migrated += 1
-        if migrated:
+        if migrated and not self.read_only:
             logger.info("Migrated %d contradictions_with pair(s) to typed edges for %s", migrated, self.expert_name)
             self._save()
 

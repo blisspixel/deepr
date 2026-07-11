@@ -37,26 +37,27 @@ _DEFAULT_JOB_BUDGET = 5.0
 _DEFAULT_DAY_BUDGET = 25.0
 _DEFAULT_MONTH_BUDGET = 200.0
 
-# Data-location env vars (ADR 0004). DEEPR_DATA_DIR is the one knob; experts
-# and reports derive from it. Point it at a synced folder (OneDrive/Dropbox/
-# iCloud) and your experts + research follow you across machines.
+# Data-location env vars (ADR 0004). Experts and reports receive explicit
+# children, while DEEPR_DATA_DIR also roots operational runtime artifacts.
+# A synced root therefore requires sequential use across all Deepr services.
 _DATA_DIR = "DEEPR_DATA_DIR"
 _EXPERTS_PATH = "DEEPR_EXPERTS_PATH"
 _REPORTS_PATH = "DEEPR_REPORTS_PATH"
 
 
 def _resolve_data_dir_updates(env_file: dict[str, str], *, yes: bool, data_dir: str | None) -> dict[str, str]:
-    """Decide data-location env updates so experts + reports can be portable.
+    """Decide data-location env updates for a relocatable Deepr data root.
 
     A chosen directory sets DEEPR_DATA_DIR plus explicit experts/reports
-    subpaths (so both follow it). Blank/unset keeps the default ./data
-    (backward compatible). Never overwrites an existing DEEPR_DATA_DIR silently.
+    subpaths so all three roots follow it. Blank input preserves the split
+    defaults: experts under ~/.deepr/experts, reports under data/reports, and
+    operational state under data. Never overwrite an existing DEEPR_DATA_DIR
+    silently.
     """
     chosen = data_dir
     if chosen is None and not yes and not env_file.get(_DATA_DIR):
         entered = click.prompt(
-            "\nData folder for experts + research (blank = ./data; or a synced "
-            "folder like ~/OneDrive/deepr to share across machines)",
+            "\nDeepr data folder (blank keeps existing split defaults; synced folders require one device at a time)",
             default="",
             show_default=False,
         ).strip()

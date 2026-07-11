@@ -3,7 +3,7 @@
 [![CI](https://github.com/blisspixel/deepr/actions/workflows/ci.yml/badge.svg)](https://github.com/blisspixel/deepr/actions/workflows/ci.yml)
 [![License: Apache 2.0](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](LICENSE)
 [![Python 3.12+](https://img.shields.io/badge/python-3.12+-blue.svg)](https://www.python.org/downloads/)
-[![Version](https://img.shields.io/badge/version-2.34.3-blue)](https://github.com/blisspixel/deepr/releases/tag/v2.34.3)
+[![Version](https://img.shields.io/badge/version-2.34.4-blue)](https://github.com/blisspixel/deepr/releases/tag/v2.34.4)
 
 **Domain experts that remember, not another chat window.**
 
@@ -152,7 +152,7 @@ Results are saved under the configured reports root, defaulting to
 | API-backed research | Works with provider keys, preflight estimates, budget ceilings, and append-only cost settlement | [docs/FEATURES.md](docs/FEATURES.md), [docs/MODELS.md](docs/MODELS.md) |
 | Local expert maintenance | Works through Ollama for local expert setup, absorb, sync, fresh/deep local context, eval, and scored admission | [docs/CAPACITY.md](docs/CAPACITY.md) |
 | Explicit plan-quota execution | Works for selected expert sync, sync-all, gap-fill, absorb, learn, consult, and probe commands behind auth-mode and no-surprise-bills checks | [docs/CAPACITY.md](docs/CAPACITY.md), [docs/design/plan-quota-cli-backends.md](docs/design/plan-quota-cli-backends.md) |
-| Domain experts | Works for expert creation, chat, consult, beliefs, gaps, loop status, OKF export/import, self-model reads, monitor proposals, reviewed monitor promotion, and self-model update review and acceptance records | [docs/EXPERTS.md](docs/EXPERTS.md) |
+| Domain experts | Works for expert creation, `$0` next-action guidance, chat, consult, beliefs, gaps, loop status, OKF export/import, self-model reads, monitor proposals, reviewed monitor promotion, and self-model update review and acceptance records | [docs/EXPERTS.md](docs/EXPERTS.md) |
 | MCP | Works for local stdio and experimental HTTP/SSE with scoped keys, budgets, rate limits, audit logs, smoke checks, no-metered consult validation, and registration manifests | [mcp/README.md](mcp/README.md) |
 | Web dashboard | Experimental but usable for reports, experts, costs, model views, loop status, and OpenAI-backed research submission; use CLI workflows for other providers | [docs/FEATURES.md](docs/FEATURES.md) |
 
@@ -164,6 +164,15 @@ that the job was cancelled.
 Automatic routing to plan-quota CLIs is still conservative. Explicit `--plan`
 is the works-now path for selected expert workflows. Auto-routing to plan
 capacity waits for operator admission and trusted remaining-quota observations.
+
+`deepr init --data-dir PATH` configures expert, report, and operational
+runtime roots below one folder. That folder can be synced for sequential use
+across devices. Setting `DEEPR_DATA_DIR` manually relocates experts and runtime
+state but does not override the separate report root. Stop Deepr services, use
+one writer at a time, and wait for the sync provider to finish before switching
+devices. Concurrent multi-device mutation is not shipped; the staged
+event-journal design is documented in
+[multi-device-expert-continuity.md](docs/design/multi-device-expert-continuity.md).
 
 ## Core Workflows
 
@@ -193,6 +202,7 @@ deepr expert consult "What should our agentic harness improve next?" --local
 deepr eval consult --json
 deepr eval hallucination-risks --json
 deepr expert self-model "AI Policy Expert" --json
+deepr expert next "AI Policy Expert"
 deepr expert monitor "AI Policy Expert" --json
 deepr expert review-consult-quality "AI Policy Expert" consult_abc123 --score uses_expert_state=5 --score surfaces_uncertainty=5 --score preserves_dissent=5 --score actionability=5 --score grounded_when_factual=5 --score original_thought=5 --reviewer operator --decision accept --target eval --apply
 deepr expert judge-consult-quality "AI Policy Expert" consult_abc123 --local-judge-model qwen2.5 --target eval --json
@@ -216,6 +226,13 @@ contradiction signals, gap backlogs, freshness watchlists, and regenerated
 digest, memory-card, or handoff views. Generated reports, digests, `EXPERT.md`
 memory cards, OKF bundles, and handoff payloads are derived views over
 structured state.
+
+`deepr expert next NAME` turns current claims, freshness, gaps,
+contradictions, and durable loop outcomes into at most three argument-safe next
+actions. Its JSON contract carries argv arrays instead of shell text, so names
+and domains are never reinterpreted as commands. It is a `$0`, read-only
+structural navigator, not a semantic maturity score and never a default-policy
+change.
 
 `deepr expert sync --compile-claims` now runs budget-gated semantic extraction
 and verification over source-note windows, builds a verified graph-commit

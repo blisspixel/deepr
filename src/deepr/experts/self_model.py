@@ -87,7 +87,7 @@ def _blocked_capabilities(profile: ExpertProfile, manifest: ExpertManifest) -> l
                 "next_action": "Run local or approved expert learning before relying on this expert.",
             }
         )
-    if not profile.vector_store_id:
+    if not profile.vector_store_id and profile.provider != "local":
         blocked.append(
             {
                 "code": "no_vector_store",

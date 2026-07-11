@@ -210,6 +210,9 @@ strategies."
 
 ## What Exists Now
 
+- `deepr expert next` emits `deepr-expert-next-v1`, a `$0` structural plan that
+  tells an operator what to repair, learn, or review without awarding a
+  semantic maturity score or changing policy.
 - Agents can talk to experts over MCP using `deepr_list_experts`,
   `deepr_get_expert_info`, `deepr_expert_handoff`,
   `deepr_expert_loop_status`, `deepr_explain_belief`, and
@@ -248,27 +251,27 @@ strategies."
 
 ## Level 5 Gaps
 
-- Consult traces need to be first-class records, not only returned payloads.
-- Failed consults need to become durable eval cases or gap-fill tasks.
-- The research-processing compiler still needs source-note, atomic-claim,
-  graph-edge, contradiction-agenda, and digest-regeneration stages to be
-  explicit and replayable.
-- Source packs now have deterministic manifests; later compiler stages still
-  need prompt/model versions, normalized evidence windows, and verification
-  outcomes so improvements can be replayed.
-- Local and plan capacity need enough measured quality data to be trusted for
-  unattended expert maintenance.
-- Each expert needs a first-class self-model record: capabilities,
-  limitations, confidence calibration, active goals, learning strategy,
-  continuity summary, and unresolved risks.
-- The consult flow needs a global-workspace packet: selected beliefs, selected
-  gaps, active contradictions, current goal, and allowed tools for the next
-  step.
-- Reviewed monitor proposal promotion exists for gap/eval creation,
-  verifier-gated self-model update records exist as review artifacts, and
-  accepted self-model update records now enter sync loop-run context as
-  read-only guidance. The remaining gap is making any concrete learning-policy
-  effect require measured before/after evidence.
+- Concrete learning-policy effects still require measured before and after
+  outcomes. Accepted self-model updates remain read-only guidance until that
+  evidence exists.
+- Expert memory evals must measure selective forgetting, obsolete-belief use,
+  retained correctness, forward transfer, and negative transfer instead of
+  rewarding accumulation or recall alone.
+- Human-anchored consult-review coverage remains too small to trust most model
+  judges as product metrics or automatic regression selectors.
+- Sequential synced-folder portability is shipped, but safe concurrent
+  multi-device mutation needs device-partitioned event journals, deterministic
+  merge, tombstones, and explicit semantic conflict review.
+- Local and plan capacity need broader measured quality evidence before more
+  unattended learning paths can change their defaults.
+- Host-agent certification still needs live third-party registration and
+  replayable no-hidden-spend validation across supported MCP and A2A hosts.
+
+Shipped foundations include first-class consult traces and review candidates,
+the source-note and graph-commit compiler, replayable verifier artifacts,
+derived digests and memory cards, explicit self-model records, bounded
+current-focus packets, and `deepr expert next` structural navigation. These are
+no longer roadmap gaps.
 
 ## Level 6 Gaps
 
@@ -325,6 +328,24 @@ The safe order is:
 For Level 5/6 agent maturity research, the local `long-running-agentic-workflows`
 Distillr corpus was useful on 2026-06-25, so no new papers run was needed.
 Future papers ingestion remains optional and budget-gated.
+
+## 2026 research refinements
+
+Three narrower designs now refine this maturity path:
+
+- [Expert Event Memory V2](expert-event-memory-v2.md) makes replayable
+  bitemporal events, memory lanes, selective forgetting, and held-out promotion
+  evidence prerequisites for durable self-improvement and multi-device merge.
+- [Historically Grounded Perspectives](historically-grounded-perspectives.md)
+  treats a Leonardo-informed or Beethoven-informed lens as sourced perspective
+  state with disclosure and non-impersonation, never as human identity.
+- [Agent Harness Lessons for Deepr](agent-harness-lessons-2026.md) adds
+  capability snapshots, prepared approval artifacts, steer versus follow-up
+  semantics, fork lineage, and verified skill candidates around expert loops.
+
+These additions do not raise an expert's maturity from structural volume.
+Held-out improvement, retained correctness, provenance, calibration, and
+negative-transfer evidence remain the gate.
 
 ## Reference URLs
 

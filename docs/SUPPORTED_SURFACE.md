@@ -1,6 +1,6 @@
 # Supported Surface
 
-Status: v2.34.3 current main, 2026-07-10. This document defines what users and host
+Status: v2.34.4 current main, 2026-07-10. This document defines what users and host
 agents can rely on today, what is experimental, what is planned only, and what
 data remains portable if development stops.
 
@@ -32,8 +32,12 @@ must not be described as usable capacity.
   budget ceiling.
 - Local report storage under the configured reports root.
 - Expert creation, chat, import/export, and profile storage.
-- Portable data root through `DEEPR_DATA_DIR`, with expert and research state
-  kept under that root unless a more specific path is configured.
+- Relocatable data through coordinated roots written by `deepr init --data-dir`.
+  `DEEPR_DATA_DIR` covers expert, queue, trace, benchmark, observability, and
+  selected MCP state; reports use `DEEPR_REPORTS_PATH`. Synced-folder portability supports
+  sequential device use only: one Deepr writer or service at a time, then wait
+  for sync before switching devices. Concurrent multi-device mutation is
+  planned, not shipped.
 - CLI output modes: `--json`, `--quiet`, `--verbose`, and trace flags where
   documented. The shared `OperationResult` JSON envelope is versioned as
   `deepr-cli-operation-result-v1`.
@@ -157,6 +161,11 @@ must not be described as usable capacity.
   profile is available. Sync learning loop records expose it under
   `run_context.self_model`, and sync capacity wait/block payloads expose the
   same compact block as read-only scheduler context.
+- `deepr expert next` emits `deepr-expert-next-v1`, a `$0`, read-only plan of
+  at most three actions derived from claims, freshness, gaps, contradictions,
+  and durable loop outcomes. Its stage is operational navigation, not a
+  semantic maturity score, and it cannot change policy or run the commands it
+  recommends.
 - `deepr expert memory-card` emits or writes a generated
   `deepr-expert-memory-card-v1` / `EXPERT.md` orientation view over profile,
   manifest, belief events, and self-model state. It includes identity policy,

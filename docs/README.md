@@ -1,6 +1,6 @@
 # Deepr Documentation
 
-> Model names and pricing live in the registry (`src/deepr/providers/registry.py`),
+> Model names and pricing live in the registry (`../src/deepr/providers/registry.py`),
 > which is the single source of truth. AI moves fast - verify at provider
 > websites and treat the registry, not prose, as canonical.
 
@@ -40,6 +40,21 @@ The reasoning behind contract-spanning choices, kept versioned with the code.
 - **[design/level-5-6-expert-maturity.md](design/level-5-6-expert-maturity.md)** -
   concrete gates for bounded self-improving experts, self-models,
   metacognitive monitoring, and the expert-fleet control plane.
+- **[design/expert-next-actions.md](design/expert-next-actions.md)** -
+  the `$0` structural navigator that turns current expert evidence into a short,
+  argument-safe argv plan without claiming semantic maturity.
+- **[design/multi-device-expert-continuity.md](design/multi-device-expert-continuity.md)** -
+  the current sequential-device portability contract and staged path to
+  device-partitioned, mergeable expert events.
+- **[design/expert-event-memory-v2.md](design/expert-event-memory-v2.md)** -
+  the proposed bitemporal event authority, deterministic replay, selective
+  forgetting, and replica-convergence sequence.
+- **[design/historically-grounded-perspectives.md](design/historically-grounded-perspectives.md)** -
+  sourced Leonardo-informed and Beethoven-informed perspective lenses with a
+  strict non-impersonation boundary.
+- **[design/agent-harness-lessons-2026.md](design/agent-harness-lessons-2026.md)** -
+  concrete lessons from Hermes, OpenClaw, Pi, OpenHands, Goose, and Letta for
+  run snapshots, approvals, steering, skill learning, and control-plane proof.
 - **[design/evidence-correlation-and-hypothesis-memory.md](design/evidence-correlation-and-hypothesis-memory.md)** -
   how Deepr uses correlation math for evidence dependence, hypothesis memory,
   freshness priority, and candidate routing without turning scores into meaning

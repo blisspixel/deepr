@@ -102,6 +102,14 @@ def test_build_expert_self_model_surfaces_blockers_and_risks():
     assert "No current claims in manifest." in payload["limitations"]
 
 
+def test_build_expert_self_model_does_not_require_vector_store_for_local_expert():
+    profile = _profile(provider="local", vector_store_id="")
+
+    payload = build_expert_self_model(profile, _manifest())
+
+    assert "no_vector_store" not in {item["code"] for item in payload["blocked_capabilities"]}
+
+
 def test_build_expert_self_model_does_not_mutate_inputs():
     profile = _profile()
     manifest = _manifest()

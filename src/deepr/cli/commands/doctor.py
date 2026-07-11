@@ -532,15 +532,18 @@ def check_native_instruments() -> list[DiagnosticCheck]:
 def check_storage_locations() -> list[DiagnosticCheck]:
     """Show where experts and research are stored (portable-data visibility).
 
-    These are the artifacts that follow you across machines when DEEPR_DATA_DIR
-    points at a synced folder (ADR 0004). Informational, never a failure.
+    These artifacts can follow a user across machines when DEEPR_DATA_DIR
+    points at a synced folder (ADR 0004). Generic file sync is safe only for
+    sequential device use; it is not a concurrent-write protocol.
     """
     from deepr.config import experts_root, load_config
 
     experts = DiagnosticCheck("Experts", "Storage")
     experts.passed = True
     experts.message = str(experts_root())
-    experts.details.append("Set DEEPR_DATA_DIR (or DEEPR_EXPERTS_PATH) to a synced folder to share across machines")
+    experts.details.append("Set DEEPR_DATA_DIR (or DEEPR_EXPERTS_PATH) to move portable state across machines")
+    experts.details.append("A synced DEEPR_DATA_DIR includes runtime state; stop Deepr services before switching")
+    experts.details.append("Use one writer at a time and wait for sync to finish before switching devices")
 
     reports = DiagnosticCheck("Research reports", "Storage")
     reports.passed = True

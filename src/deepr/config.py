@@ -32,11 +32,13 @@ def default_data_dir() -> Path:
 def runtime_data_root() -> Path:
     """Root for runtime artifacts that historically live under repo-local data.
 
-    ``DEEPR_DATA_DIR`` is the portable-data override. When it is unset, keep the
-    long-standing CWD-local ``data`` default for reports, queues, benchmarks,
-    audit logs, and observability artifacts. This is intentionally different
-    from ``default_data_dir()``, which is used for per-user global config and
-    expert discovery from any working directory.
+    ``DEEPR_DATA_DIR`` relocates queues, benchmarks, audit logs,
+    observability artifacts, and several operational databases. Reports use
+    the separate ``DEEPR_REPORTS_PATH`` contract. A synced runtime root
+    requires sequential use because these files do not support concurrent
+    cross-device merging. When the variable is unset, keep the long-standing
+    CWD-local ``data`` default. This differs from ``default_data_dir()``,
+    which is used for per-user global config and expert discovery.
     """
     configured = os.getenv("DEEPR_DATA_DIR")
     return Path(configured) if configured else Path("data")
