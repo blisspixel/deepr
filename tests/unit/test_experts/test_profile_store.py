@@ -94,6 +94,20 @@ class TestExpertStore:
         assert loaded.description == "Test expert for unit tests"
         assert loaded.schema_version == PROFILE_SCHEMA_VERSION
 
+    def test_find_existing_dir_returns_validated_directory(self, store, sample_profile):
+        store.save(sample_profile)
+
+        resolved = store.find_existing_dir(sample_profile.name)
+
+        assert resolved == (store.base_path / "test-expert").resolve()
+        assert resolved is not None
+        assert resolved.is_relative_to(store.base_path.resolve())
+
+    def test_find_existing_dir_returns_none_for_missing_root(self, tmp_path):
+        store = ExpertStore(base_path=str(tmp_path / "missing"), create=False)
+
+        assert store.find_existing_dir("../../missing") is None
+
     def test_save_creates_directories(self, store, sample_profile):
         """Test that save creates required directories."""
         store.save(sample_profile)

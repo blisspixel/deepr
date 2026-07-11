@@ -5,8 +5,10 @@ from __future__ import annotations
 import json
 import shutil
 from datetime import UTC, datetime
+from pathlib import Path
 from unittest.mock import MagicMock, patch
 
+import pytest
 from click.testing import CliRunner
 
 from deepr.cli.commands.semantic.expert_self_model import (
@@ -19,6 +21,7 @@ from deepr.cli.commands.semantic.expert_self_model import (
 )
 from deepr.cli.main import cli
 from deepr.core.contracts import Claim, ExpertManifest, Gap
+from deepr.experts.beliefs import Belief
 from deepr.experts.profile import ExpertProfile
 from deepr.experts.profile_store import ExpertStore
 
@@ -42,9 +45,13 @@ def _profile() -> ExpertProfile:
 
 
 def _patch_store(profile):
+    expert_dir = Path("experts") / "agent_harness_expert"
     return patch(
         "deepr.cli.commands.semantic.expert_self_model.ExpertStore",
-        return_value=MagicMock(load=MagicMock(return_value=profile)),
+        return_value=MagicMock(
+            load=MagicMock(return_value=profile),
+            find_existing_dir=MagicMock(return_value=expert_dir),
+        ),
     )
 
 
@@ -92,6 +99,18 @@ def test_next_rejects_nonpositive_limit():
     assert "max_actions must be positive" in result.output
 
 
+def test_next_reports_missing_expert_storage():
+    store = MagicMock(
+        load=MagicMock(return_value=_profile()),
+        find_existing_dir=MagicMock(return_value=None),
+    )
+    with patch("deepr.cli.commands.semantic.expert_self_model.ExpertStore", return_value=store):
+        result = CliRunner().invoke(expert_next, ["Agent Harness Expert"])
+
+    assert result.exit_code != 0
+    assert "storage directory not found" in result.output
+
+
 def test_next_human_output_preserves_rich_markup_literals():
     profile = _profile()
     profile.name = "[bold]Expert[/bold]"
@@ -129,6 +148,92 @@ def test_next_real_cli_does_not_mutate_expert_storage(monkeypatch, tmp_path):
     after = {path.relative_to(experts_dir): path.read_bytes() for path in experts_dir.rglob("*") if path.is_file()}
     assert after == before
     assert not (experts_dir / "agent_harness_expert" / "beliefs").exists()
+
+
+def test_next_rejects_beliefs_symlink_that_escapes_expert_root(monkeypatch, tmp_path):
+    experts_dir = tmp_path / "experts"
+    profile = _profile()
+    ExpertStore(base_path=str(experts_dir)).save(profile)
+    beliefs_dir = experts_dir / "agent_harness_expert" / "beliefs"
+    shutil.rmtree(beliefs_dir)
+    outside = tmp_path / "outside"
+    outside.mkdir()
+    try:
+        beliefs_dir.symlink_to(outside, target_is_directory=True)
+    except OSError:
+        pytest.skip("directory symlinks are not available on this platform")
+    monkeypatch.setenv("DEEPR_EXPERTS_PATH", str(experts_dir))
+
+    result = CliRunner().invoke(cli, ["expert", "next", profile.name, "--json"])
+
+    assert result.exit_code != 0
+    assert "storage failed safety validation" in result.output
+
+
+def test_next_rejects_expert_directory_symlink_that_escapes_root(monkeypatch, tmp_path):
+    experts_dir = tmp_path / "experts"
+    experts_dir.mkdir()
+    outside_root = tmp_path / "outside"
+    profile = _profile()
+    ExpertStore(base_path=str(outside_root)).save(profile)
+    outside_expert = outside_root / "agent_harness_expert"
+    try:
+        (experts_dir / "agent_harness_expert").symlink_to(outside_expert, target_is_directory=True)
+    except OSError:
+        pytest.skip("directory symlinks are not available on this platform")
+    monkeypatch.setenv("DEEPR_EXPERTS_PATH", str(experts_dir))
+
+    result = CliRunner().invoke(cli, ["expert", "next", profile.name, "--json"])
+
+    assert result.exit_code != 0
+    assert "storage failed safety validation" in result.output
+
+
+def test_next_rejects_belief_file_symlink_that_escapes_expert_root(monkeypatch, tmp_path):
+    experts_dir = tmp_path / "experts"
+    profile = _profile()
+    ExpertStore(base_path=str(experts_dir)).save(profile)
+    outside_file = tmp_path / "outside-beliefs.json"
+    outside_file.write_text('{"beliefs": {}}', encoding="utf-8")
+    beliefs_file = experts_dir / "agent_harness_expert" / "beliefs" / "beliefs.json"
+    try:
+        beliefs_file.symlink_to(outside_file)
+    except OSError:
+        pytest.skip("file symlinks are not available on this platform")
+    monkeypatch.setenv("DEEPR_EXPERTS_PATH", str(experts_dir))
+
+    result = CliRunner().invoke(cli, ["expert", "next", profile.name, "--json"])
+
+    assert result.exit_code != 0
+    assert "storage failed safety validation" in result.output
+
+
+def test_next_reads_exact_validated_file_when_symlink_changes_basename(monkeypatch, tmp_path):
+    experts_dir = tmp_path / "experts"
+    profile = _profile()
+    ExpertStore(base_path=str(experts_dir)).save(profile)
+    expert_dir = experts_dir / "agent_harness_expert"
+    alt_dir = expert_dir / "alt"
+    alt_dir.mkdir()
+    safe_file = alt_dir / "safe.json"
+    safe_file.write_text('{"beliefs": {}}', encoding="utf-8")
+    outside_file = tmp_path / "outside-beliefs.json"
+    belief = Belief(claim="Unvalidated claim", confidence=0.9, domain=profile.domain)
+    outside_file.write_text(
+        json.dumps({"beliefs": {belief.id: belief.to_dict()}}),
+        encoding="utf-8",
+    )
+    try:
+        (expert_dir / "beliefs" / "beliefs.json").symlink_to(safe_file)
+        (alt_dir / "beliefs.json").symlink_to(outside_file)
+    except OSError:
+        pytest.skip("file symlinks are not available on this platform")
+    monkeypatch.setenv("DEEPR_EXPERTS_PATH", str(experts_dir))
+
+    result = CliRunner().invoke(cli, ["expert", "next", profile.name, "--json"])
+
+    assert result.exit_code == 0, result.output
+    assert json.loads(result.output)["evidence"]["claim_count"] == 0
 
 
 def test_monitor_registered_in_expert_help():

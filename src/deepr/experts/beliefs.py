@@ -383,6 +383,7 @@ class BeliefStore:
         conflict_resolution: ConflictResolution = ConflictResolution.HIGHER_CONFIDENCE,
         *,
         read_only: bool = False,
+        read_path: Path | None = None,
     ):
         """Initialize belief store.
 
@@ -391,8 +392,10 @@ class BeliefStore:
             storage_dir: Directory for storage
             conflict_resolution: Default conflict resolution strategy
             read_only: Load existing state without creating directories or
-                persisting format migrations.
+                migrations; read_path selects the exact validated beliefs file.
         """
+        if read_path is not None and not read_only:
+            raise ValueError("read_path requires read_only")
         self.expert_name = expert_name
         self.conflict_resolution = conflict_resolution
         self.read_only = read_only
@@ -409,7 +412,7 @@ class BeliefStore:
         self.storage_dir = storage_dir
         if not self.read_only:
             self.storage_dir.mkdir(parents=True, exist_ok=True)
-        self.storage_path = self.storage_dir / "beliefs.json"
+        self.storage_path = read_path if read_path is not None else self.storage_dir / "beliefs.json"
         self.changes_path = self.storage_dir / "changes.json"
         # Append-only belief event log (TKG step 1): every change is kept here
         # while changes.json remains a capped legacy window.
@@ -1159,11 +1162,9 @@ class BeliefStore:
             logger.error("Failed to load beliefs from %s: %s. Starting fresh.", self.storage_path, exc)
             return
         self.beliefs = {bid: Belief.from_dict(bdata) for bid, bdata in data.get("beliefs", {}).items()}
-
         # Rebuild domain index
         for belief in self.beliefs.values():
             self._index_belief(belief)
-
         # Load typed edges
         for edata in data.get("edges", []):
             try:
