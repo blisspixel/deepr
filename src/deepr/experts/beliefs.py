@@ -412,7 +412,8 @@ class BeliefStore:
         self.storage_dir = storage_dir
         if not self.read_only:
             self.storage_dir.mkdir(parents=True, exist_ok=True)
-        self.storage_path = read_path if read_path is not None else self.storage_dir / "beliefs.json"
+        # lgtm[py/path-injection] Exact read path passed after containment validation.
+        self.storage_path = read_path or self.storage_dir / "beliefs.json"
         self.changes_path = self.storage_dir / "changes.json"
         # Append-only belief event log (TKG step 1): every change is kept here
         # while changes.json remains a capped legacy window.
@@ -1150,7 +1151,7 @@ class BeliefStore:
         if not self.storage_path.exists():
             return
         try:
-            if self.storage_path.stat().st_size > 50 * 1024 * 1024:
+            if self.storage_path.stat().st_size > 50 * 1024 * 1024:  # lgtm[py/path-injection]
                 logger.error(
                     "Belief store at %s exceeds 50 MB; refusing to load. Inspect and reduce manually.",
                     self.storage_path,
@@ -1173,7 +1174,6 @@ class BeliefStore:
                 logger.warning("Skipping malformed edge in %s: %s", self.storage_path, exc)
                 continue
             self.edges[edge.key()] = edge
-
         # One-time, idempotent migration (TKG step 2): legacy
         # contradictions_with lists become typed contradicts edges. Key-based
         # dedup makes re-running free; the legacy field stays in sync (both
@@ -1189,7 +1189,6 @@ class BeliefStore:
         if migrated and not self.read_only:
             logger.info("Migrated %d contradictions_with pair(s) to typed edges for %s", migrated, self.expert_name)
             self._save()
-
         # Load changes (canonical from_dict carries the optional
         # bi-temporal/snapshot fields; absent fields default to None)
         for cdata in data.get("changes", []):
