@@ -412,7 +412,7 @@ class BeliefStore:
         self.storage_dir = storage_dir
         if not self.read_only:
             self.storage_dir.mkdir(parents=True, exist_ok=True)
-        # lgtm[py/path-injection] Exact read path passed after containment validation.
+        # Exact read path passed only after containment validation.
         self.storage_path = read_path or self.storage_dir / "beliefs.json"
         self.changes_path = self.storage_dir / "changes.json"
         # Append-only belief event log (TKG step 1): every change is kept here
@@ -1151,7 +1151,7 @@ class BeliefStore:
         if not self.storage_path.exists():
             return
         try:
-            if self.storage_path.stat().st_size > 50 * 1024 * 1024:  # lgtm[py/path-injection]
+            if self.storage_path.stat().st_size > 50 * 1024 * 1024:
                 logger.error(
                     "Belief store at %s exceeds 50 MB; refusing to load. Inspect and reduce manually.",
                     self.storage_path,
