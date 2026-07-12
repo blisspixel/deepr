@@ -25,7 +25,10 @@ def build_archive() -> Path:
     index = DIST_ROOT / "index.html"
     if not index.is_file():
         raise SystemExit(f"frontend build missing: {index}")
-    files = sorted(path for path in DIST_ROOT.rglob("*") if path.is_file())
+    files = sorted(
+        (path for path in DIST_ROOT.rglob("*") if path.is_file()),
+        key=lambda path: path.relative_to(DIST_ROOT).as_posix(),
+    )
     if not files:
         raise SystemExit(f"frontend build is empty: {DIST_ROOT}")
 
