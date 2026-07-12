@@ -132,7 +132,7 @@ class AnthropicProvider(DeepResearchProvider):
         # discarded both, leaving every Anthropic call to be billed by
         # the provider while the cost ledger recorded $0.
         self._jobs: dict[str, ResearchResponse] = {}
-        self.client = Anthropic(api_key=self.api_key, timeout=1200.0)  # 20 min timeout
+        self.client = Anthropic(api_key=self.api_key, timeout=1200.0, max_retries=0)  # 20 min timeout
 
         # Initialize tool executor
         self.tool_executor = ToolRegistry.create_executor(web_search=True, backend=web_search_backend)
@@ -156,7 +156,7 @@ class AnthropicProvider(DeepResearchProvider):
         cache_creation_cost = (max(cache_creation_tokens, 0) / 1_000_000) * cache_rates["cache_write"]
         cache_read_cost = (max(cache_read_tokens, 0) / 1_000_000) * cache_rates["cache_read"]
 
-        return round(input_cost + output_cost + cache_creation_cost + cache_read_cost, 6)
+        return input_cost + output_cost + cache_creation_cost + cache_read_cost
 
     def _cache_rates_for_model(self, input_rate: float) -> dict[str, float]:
         """Return Anthropic prompt-cache rates for the configured model."""
@@ -168,7 +168,7 @@ class AnthropicProvider(DeepResearchProvider):
             "cache_read": round(input_rate * 0.10, 6),
         }
 
-    def _build_thinking_param(self) -> dict[str, Any] | None:
+    def _build_thinking_param(self, max_output_tokens: int | None = None) -> dict[str, Any] | None:
         """Return the thinking config appropriate for the configured model.
 
         - Adaptive-only models (Sonnet 5, Opus 4.6+, Sonnet 4.6, Fable 5): sending
@@ -180,7 +180,10 @@ class AnthropicProvider(DeepResearchProvider):
             return None
         if any(self.model.startswith(m) for m in self.ADAPTIVE_THINKING_MODELS):
             return {"type": "adaptive"}
-        return {"type": "enabled", "budget_tokens": self.thinking_budget}
+        budget = self.thinking_budget
+        if max_output_tokens is not None:
+            budget = min(budget, max(1024, max_output_tokens - 1024))
+        return {"type": "enabled", "budget_tokens": budget}
 
     async def submit_research(self, request: ResearchRequest) -> str:
         """
@@ -210,7 +213,7 @@ class AnthropicProvider(DeepResearchProvider):
             messages: list[dict[str, Any]] = [{"role": "user", "content": user_message}]
             thinking_content = []
             response_content = []
-            tool_calls_made = []
+            tool_calls_made: list[dict[str, Any]] = []
 
             # Per-turn token accumulation. The previous implementation
             # dropped response.usage entirely so every Anthropic research
@@ -222,18 +225,21 @@ class AnthropicProvider(DeepResearchProvider):
             total_cache_creation_tokens = 0
 
             # Multi-turn loop for tool use
-            max_turns = 5  # Prevent infinite loops
+            max_turns = request.max_provider_requests
             for _turn in range(max_turns):
                 request_kwargs: dict[str, Any] = {
                     "model": self.model,
-                    "max_tokens": self.thinking_budget + 16000,  # Headroom above thinking
+                    "max_tokens": request.max_output_tokens,
                     "system": system_prompt,
                     "messages": messages,
                     "tools": tools,
                 }
-                thinking_param = self._build_thinking_param()
+                thinking_param = self._build_thinking_param(request.max_output_tokens)
                 if thinking_param is not None:
                     request_kwargs["thinking"] = thinking_param
+                from deepr.services.research_bounds import validate_provider_payload_bytes
+
+                validate_provider_payload_bytes(request_kwargs, request.max_request_bytes)
                 response = self.client.messages.create(  # type: ignore[call-overload]  # plain dicts for thinking/messages/tools; SDK wants typed params
                     **request_kwargs
                 )
@@ -273,6 +279,10 @@ class AnthropicProvider(DeepResearchProvider):
                     elif block.type == "text":
                         response_content.append(block.text)
                     elif block.type == "tool_use":
+                        if len(tool_calls_made) >= request.max_tool_calls:
+                            response_content.append("\n\n_[Report truncated: tool-call ceiling reached.]_")
+                            has_tool_use = False
+                            break
                         has_tool_use = True
                         # Execute tool
                         tool_result = await self.tool_executor.execute(block.name, **block.input)

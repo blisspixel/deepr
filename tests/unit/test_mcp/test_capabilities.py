@@ -18,7 +18,6 @@ def _registry() -> ToolRegistry:
         ("deepr_list_experts", "free"),
         ("deepr_query_expert", "low"),
         ("deepr_consult_experts", "low"),
-        ("deepr_agentic_research", "high"),
     ]:
         registry.register(ToolSchema(name=name, description="d", input_schema={}, cost_tier=tier))
     return registry
@@ -63,7 +62,7 @@ def test_cost_tiers_come_from_registry_not_hardcoded():
     assert tiers["deepr_list_experts"] == "free"
     assert tiers["deepr_query_expert"] == "low"
     assert tiers["deepr_consult_experts"] == "low"
-    assert tiers["deepr_agentic_research"] == "high"
+    assert "deepr_agentic_research" not in tiers
 
 
 def test_unregistered_key_tools_are_omitted_not_crashing():

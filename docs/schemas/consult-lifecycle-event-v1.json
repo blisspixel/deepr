@@ -1,0 +1,294 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/blisspixel/deepr/docs/schemas/consult-lifecycle-event-v1.json",
+  "title": "Deepr Consult Lifecycle Event v1",
+  "description": "Append-only run lifecycle event opened before consult backend construction and kept separate from the final consult trace. Elapsed bounds cover cumulative active-attempt work and are enforced at lifecycle checkpoints; synchronous durable I/O is cooperative and lock waits are bounded separately.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "kind",
+    "contract",
+    "trace_id",
+    "attempt_id",
+    "sequence",
+    "recorded_at",
+    "event_type",
+    "state",
+    "previous_state",
+    "phase",
+    "reason_code",
+    "elapsed_ms",
+    "max_elapsed_seconds",
+    "lineage",
+    "capacity",
+    "bounds",
+    "progress",
+    "remaining",
+    "ownership"
+  ],
+  "properties": {
+    "schema_version": {"const": "deepr-consult-lifecycle-event-v1"},
+    "kind": {"const": "deepr.expert.consult_lifecycle_event"},
+    "contract": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "append_only",
+        "trace_writes_only",
+        "writes_expert_state",
+        "writes_graph",
+        "writes_routing_state",
+        "answer_text_allowed",
+        "private_reasoning_allowed"
+      ],
+      "properties": {
+        "append_only": {"const": true},
+        "trace_writes_only": {"const": true},
+        "writes_expert_state": {"const": false},
+        "writes_graph": {"const": false},
+        "writes_routing_state": {"const": false},
+        "answer_text_allowed": {"const": false},
+        "private_reasoning_allowed": {"const": false}
+      }
+    },
+    "trace_id": {
+      "type": "string",
+      "pattern": "^consult_[A-Za-z0-9][A-Za-z0-9._-]{0,127}$"
+    },
+    "attempt_id": {
+      "type": "string",
+      "pattern": "^attempt_[a-f0-9]{12}$"
+    },
+    "sequence": {"type": "integer", "minimum": 1},
+    "recorded_at": {"type": "string", "format": "date-time"},
+    "event_type": {
+      "enum": ["started", "heartbeat", "state_transition"]
+    },
+    "state": {
+      "enum": [
+        "running",
+        "waiting_capacity",
+        "interrupted",
+        "completed",
+        "cancelled",
+        "verifier_failed",
+        "budget_exhausted",
+        "failed"
+      ]
+    },
+    "previous_state": {
+      "type": ["string", "null"],
+      "enum": [
+        null,
+        "running",
+        "waiting_capacity",
+        "interrupted",
+        "completed",
+        "cancelled",
+        "verifier_failed",
+        "budget_exhausted",
+        "failed"
+      ]
+    },
+    "phase": {
+      "enum": ["preflight", "perspectives", "synthesis", "trace_finalize", "deliberation"]
+    },
+    "reason_code": {
+      "type": ["string", "null"],
+      "pattern": "^[a-z][a-z0-9_]{0,63}$"
+    },
+    "elapsed_ms": {"type": "integer", "minimum": 0},
+    "max_elapsed_seconds": {
+      "type": "number",
+      "exclusiveMinimum": 0,
+      "maximum": 31536000,
+      "description": "Cumulative active-attempt ceiling checked at lifecycle boundaries and at the next checkpoint after synchronous durable I/O returns."
+    },
+    "lineage": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["operation", "question_hash", "roster_hash"],
+      "properties": {
+        "operation": {"enum": ["one_shot", "deliberation"]},
+        "question_hash": {"type": "string", "pattern": "^[a-f0-9]{64}$"},
+        "roster_hash": {"type": "string", "pattern": "^[a-f0-9]{64}$"},
+        "snapshot_set_hash": {"type": "string", "pattern": "^[a-f0-9]{64}$"}
+      }
+    },
+    "capacity": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "source",
+        "backend",
+        "provider",
+        "model",
+        "admission",
+        "live_metered_fallback"
+      ],
+      "properties": {
+        "source": {"type": "string", "minLength": 1, "maxLength": 128},
+        "backend": {"type": "string", "minLength": 1, "maxLength": 128},
+        "provider": {"type": "string", "maxLength": 256},
+        "model": {"type": "string", "maxLength": 256},
+        "admission": {"enum": ["admitted", "waiting", "unavailable", "unknown"]},
+        "live_metered_fallback": {"type": "boolean"}
+      }
+    },
+    "bounds": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "dispatch_scope",
+        "max_cost_usd",
+        "max_dispatches"
+      ],
+      "properties": {
+        "dispatch_scope": {"enum": ["council_work_item", "provider_call"]},
+        "max_context_bytes": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Optional aggregate context ceiling. Present only when the caller measures and enforces it."
+        },
+        "max_cost_usd": {"type": "number", "minimum": 0, "maximum": 1000000000000},
+        "max_dispatches": {"type": "integer", "minimum": 1},
+        "max_output_tokens": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Optional aggregate output-token ceiling. Present only when the caller measures and enforces it."
+        }
+      }
+    },
+    "progress": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "cost_usd_observed",
+        "dispatches_completed"
+      ],
+      "properties": {
+        "context_bytes_observed": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Optional measured aggregate, valid only with bounds.max_context_bytes."
+        },
+        "cost_usd_observed": {"type": "number", "minimum": 0, "maximum": 1000000000000},
+        "dispatches_completed": {"type": "integer", "minimum": 0},
+        "output_tokens_observed": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Optional measured aggregate, valid only with bounds.max_output_tokens."
+        }
+      }
+    },
+    "remaining": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["cost_usd", "dispatches", "elapsed_ms"],
+      "properties": {
+        "context_bytes": {"type": "integer", "minimum": 0},
+        "cost_usd": {"type": "number", "minimum": 0, "maximum": 1000000000000},
+        "dispatches": {"type": "integer", "minimum": 0},
+        "elapsed_ms": {"type": "integer", "minimum": 0},
+        "output_tokens": {"type": "integer", "minimum": 0}
+      }
+    },
+    "ownership": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["process_id", "thread_id"],
+      "properties": {
+        "process_id": {"type": "integer", "minimum": 0},
+        "thread_id": {"type": "integer", "minimum": 0}
+      }
+    }
+  },
+  "allOf": [
+    {
+      "if": {"properties": {"event_type": {"const": "started"}}},
+      "then": {
+        "properties": {
+          "state": {"const": "running"},
+          "previous_state": {"enum": [null, "waiting_capacity", "interrupted"]}
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "event_type": {"const": "started"},
+          "previous_state": {"const": null}
+        }
+      },
+      "then": {"properties": {"reason_code": {"const": null}}}
+    },
+    {
+      "if": {
+        "properties": {
+          "event_type": {"const": "started"},
+          "previous_state": {"enum": ["waiting_capacity", "interrupted"]}
+        }
+      },
+      "then": {"properties": {"reason_code": {"const": "resumed"}}}
+    },
+    {
+      "if": {"properties": {"event_type": {"const": "heartbeat"}}},
+      "then": {
+        "properties": {
+          "state": {"const": "running"},
+          "previous_state": {"const": "running"},
+          "reason_code": {"const": null}
+        }
+      }
+    },
+    {
+      "if": {"properties": {"event_type": {"const": "state_transition"}}},
+      "then": {
+        "properties": {
+          "state": {
+            "enum": [
+              "waiting_capacity",
+              "interrupted",
+              "completed",
+              "cancelled",
+              "verifier_failed",
+              "budget_exhausted",
+              "failed"
+            ]
+          },
+          "previous_state": {"const": "running"},
+          "reason_code": {"type": "string", "pattern": "^[a-z][a-z0-9_]{0,63}$"}
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {"bounds": {"required": ["max_context_bytes"]}}
+      },
+      "then": {
+        "properties": {"remaining": {"required": ["context_bytes"]}}
+      },
+      "else": {
+        "properties": {
+          "progress": {"not": {"required": ["context_bytes_observed"]}},
+          "remaining": {"not": {"required": ["context_bytes"]}}
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {"bounds": {"required": ["max_output_tokens"]}}
+      },
+      "then": {
+        "properties": {"remaining": {"required": ["output_tokens"]}}
+      },
+      "else": {
+        "properties": {
+          "progress": {"not": {"required": ["output_tokens_observed"]}},
+          "remaining": {"not": {"required": ["output_tokens"]}}
+        }
+      }
+    }
+  ]
+}

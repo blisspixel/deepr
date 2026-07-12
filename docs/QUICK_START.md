@@ -7,10 +7,12 @@ Get started with Deepr in 5 minutes.
 ## Prerequisites
 
 - Python 3.12 or higher
-- **One API key** from any supported provider (OpenAI, Gemini, Grok, Anthropic, or Azure)
-- 10-15 minutes for first research run
+- At least one capacity source: local Ollama, a supported non-metered plan CLI,
+  or an API key for a provider/model/tool envelope Deepr can bound completely
+- Provider-dependent time for a live research run
 
-> **One key is all you need.** Deepr works with any single provider. Add more keys later and auto mode will route queries to the best available model for each task.
+Local and explicit plan expert workflows do not require an API key. Direct API
+research fails closed when pricing, tools, output, or context cannot be bounded.
 
 ---
 
@@ -39,10 +41,10 @@ pip install -e ".[full]"                # All features
 cp .env.example .env
 ```
 
-Edit `.env` and add at least one API key:
+For direct API research, edit `.env` and add the key you intend to use:
 
 ```bash
-# Pick one to start (add more later for smarter auto-routing):
+# Configure only providers you intend to use:
 OPENAI_API_KEY=sk-...      # Deep research + GPT models - https://platform.openai.com/api-keys
 GEMINI_API_KEY=...          # Cost-effective research - https://aistudio.google.com/app/apikey
 XAI_API_KEY=...             # Cheapest, web search - https://console.x.ai/
@@ -60,7 +62,7 @@ cost-reservation closure, and provider-resource cleanup. A nonzero exit means ca
 confirmed and the job should still be treated as active until its status is
 checked again.
 
-If all checks pass, you're ready.
+If at least one intended capacity path is ready, continue.
 
 ---
 
@@ -74,17 +76,18 @@ deepr budget set 5
 
 Start with $5 to stay safe. You can increase later.
 
-### Run Simple Research
+### Preview and Run One Bounded Job
 
 ```bash
-deepr research "What are the top 3 programming languages for web development in 2026 and why?"
+deepr research "What are the top 3 programming languages for web development in 2026 and why?" --provider openai --model o4-mini-deep-research --preview
+deepr research "What are the top 3 programming languages for web development in 2026 and why?" --provider openai --model o4-mini-deep-research --budget 2
 ```
 
 This will:
-1. Submit research job to AI provider
-2. Take 5-15 minutes to complete
-3. Cost approximately $0.50-$2.00
-4. Produce a comprehensive cited report
+1. Show the exact hard request maximum without spending.
+2. Submit only if the same request envelope fits the explicit and configured budgets.
+3. Settle provider-reported usage or the conservative held maximum.
+4. Produce a cited report when the provider completes successfully.
 
 ### Check Status
 
@@ -108,37 +111,44 @@ Results are saved to the `data/reports/` directory with citations and sources.
 
 ## Next Steps
 
-### Try Multi-Phase Learning
+### Preview Batch Routing at $0
 
 ```bash
-deepr learn "GraphQL vs REST APIs: architecture, performance, developer experience" --phases 3
+deepr research --auto --batch queries.txt --preview
 ```
 
-More comprehensive (15-30 min, $2-$5), connects multiple research phases.
+Metered batch and multi-phase execution are gated in v2.36 until every nested
+call belongs to one durable parent reservation.
 
 ### Create a Domain Expert
 
 ```bash
-deepr expert make "Web Dev Expert" --files "./docs/*.md"
+deepr expert make "Web Dev Expert" --local --files "./docs/*.md"
 ```
 
-Upload your documents to create an expert you can chat with.
+Copy your documents into a local expert profile without a provider call.
 
-### Chat with Expert
+### Consult an Expert
 
 ```bash
-deepr expert chat "Web Dev Expert"
+deepr expert consult "What should I verify next?" --experts "Web Dev Expert" --local
 ```
 
-Interactive Q&A with your custom knowledge base.
+This is a bounded local consult over stored expert state.
 
-### Enable Autonomous Research
+### Add Local Fresh Context
 
 ```bash
-deepr expert chat "Web Dev Expert" --budget 3  # agentic by default
+deepr expert subscribe "Web Dev Expert" "modern web development"
+deepr expert sync "Web Dev Expert" --local --fresh-context -y
 ```
 
-Expert can trigger research when it encounters knowledge gaps.
+Standalone metered expert chat and unsafe metered expert lifecycle commands are
+gated in v2.36. Local, explicit plan-quota, scheduled, dry-run, history-only,
+and graded-file paths remain available where the command supports them.
+
+Use `deepr expert next NAME` to inspect safe follow-up actions. No local or plan
+query silently falls through to a paid provider.
 
 ---
 
@@ -171,14 +181,14 @@ deepr doctor
 
 ## Cost Guidance
 
-| Task | Estimated Cost | Time |
-|------|---------------|------|
-| Simple research | $0.50-$2 | 5-15 min |
-| Multi-phase learning | $2-$5 | 15-30 min |
-| Expert creation (basic) | Free | 1 min |
-| Expert with autonomous learning | $5-$20 | 30-90 min |
-| Expert chat (no research) | $0.01-$0.10 | Instant |
-| Expert chat (with research) | $0.50-$2 | 5-15 min |
+| Task | Deepr cost posture | Availability |
+|------|-------------------|--------------|
+| Direct bounded research | Exact maximum from `--preview`; actual provider billing varies | Works for supported finite envelopes |
+| Local expert setup and maintenance | `$0` provider cost | Works with local capacity |
+| Explicit plan expert maintenance and consult | `$0` Deepr ledger cost; consumes external plan quota | Works for supported non-metered adapters |
+| Local expert consult | `$0` provider cost | Works |
+| Metered batch, campaign, team, and agentic research | No dispatch | Gated in v2.36 |
+| Standalone metered expert chat and unsafe lifecycle paths | No dispatch | Gated in v2.36 |
 
 Always set a budget: `deepr budget set <amount>`
 
@@ -192,7 +202,8 @@ Check your `.env` file has at least one provider key set.
 
 ### "Budget exceeded"
 
-Increase budget: `deepr budget set 10`
+Inspect the exact preview first. Choose a cheaper bounded model or intentionally
+raise the configured budget only if the maximum is acceptable.
 
 ### "Job failed"
 
@@ -221,23 +232,23 @@ Complete workflow from zero to expert:
 
 ```bash
 # 1. Set budget
-deepr budget set 10
+deepr budget set 2
 
 # 2. Research a topic
-deepr research "Python async/await best practices" --provider grok
+deepr research "Python async/await best practices" --provider openai --model o4-mini-deep-research --budget 2
 
 # 3. Check results
 deepr jobs list
 deepr jobs get <job-id>
 
-# 4. Create expert from results
-deepr expert make "Python Async Expert" --files "data/reports/*/*.md"
+# 4. Create a local expert from results
+deepr expert make "Python Async Expert" --local --files "data/reports/*/*.md"
 
 # 5. Ask for the safest next learning or repair actions at $0
 deepr expert next "Python Async Expert"
 
-# 6. Chat with expert
-deepr expert chat "Python Async Expert" --budget 3  # agentic by default
+# 6. Consult the expert on local capacity
+deepr expert consult "Which asyncio pitfalls matter most?" --experts "Python Async Expert" --local
 ```
 
 ---
@@ -257,9 +268,9 @@ deepr expert chat "Python Async Expert" --budget 3  # agentic by default
 2. **Be specific** - Vague prompts produce vague results (see [EXAMPLES.md](EXAMPLES.md))
 3. **Add useful capacity** - Configure only the provider keys, admitted local models, or explicit plan backends you intend to use
 4. **Monitor costs** - Check `deepr costs show` regularly
-5. **Use `--auto`** - Auto mode chooses the cheapest admitted capable backend under the current registry and budget gates
-6. **Build experts gradually** - Start with documents, add learning later
-7. **Set session budgets** - Always use `--budget` with agentic chat
+5. **Use `--auto --preview` first** - Routing is advisory until the selected request clears exact admission
+6. **Build experts gradually** - Start with local documents, then use local or explicit plan maintenance
+7. **Keep metered chat gated** - Use local or explicit plan query and consult paths
 8. **Switch devices sequentially** - If `DEEPR_DATA_DIR` is synced, stop Deepr services, use one writer at a time, and wait for sync before changing devices
 
 ---

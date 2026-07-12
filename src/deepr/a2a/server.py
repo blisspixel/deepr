@@ -208,9 +208,11 @@ class A2AServer:
                 task = self._task_manager.transition(
                     task.id,
                     TaskState.FAILED,
+                    result=outcome.result,
                     error=outcome.error,
                     cost=outcome.cost,
                     trace_id=outcome.trace_id,
+                    artifacts=outcome.artifacts or [],
                 )
         return self._task_response(201, task)
 

@@ -160,11 +160,11 @@ class TestDefaultRegistry:
         assert registry.get("deepr_query_expert") is not None
         assert registry.get("deepr_expert_loop_status") is not None
 
-    def test_query_expert_description_marks_legacy_metered_boundary(self):
+    def test_query_expert_description_marks_metered_backend_block(self):
         registry = create_default_registry()
         tool = registry.get("deepr_query_expert")
         assert tool is not None
-        assert "provider='anthropic' runs non-agentic native Anthropic chat" in tool.description
+        assert "backend='api' is blocked before provider dispatch" in tool.description
         assert "backend='local' or backend='plan'" in tool.description
         assert tool.input_schema["properties"]["backend"]["enum"] == ["api", "local", "plan"]
         assert tool.input_schema["properties"]["provider"]["enum"] == ["openai", "anthropic"]

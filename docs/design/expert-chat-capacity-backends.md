@@ -1,6 +1,6 @@
 # Expert Chat Capacity Backends
 
-Status: design note, refreshed 2026-07-11.
+Status: design note, refreshed 2026-07-12.
 
 Scope: `deepr expert consult`, `deepr_consult_experts`, `deepr expert chat`,
 `deepr_query_expert`, and browser Socket.IO/REST expert chat.
@@ -17,6 +17,21 @@ These modes must be honest. Local and plan paths may be slower or lower quality,
 but they must not fall through to metered APIs. Paid API paths may be stronger,
 but every request must estimate, reserve, settle, and append to the canonical
 cost ledger.
+
+## Current v2.36 Release Gate
+
+Every standalone metered `ExpertChatSession` dispatch fails closed before the
+provider call in v2.36. This includes `deepr expert chat`, browser Socket.IO and
+REST chat, and `deepr_query_expert backend=api`. Local and explicit plan
+`deepr_query_expert` read-only compiled-context turns remain available. API
+council synthesis is a separate bounded surface and is not disabled by this
+gate. No metered expert-chat live validation is claimed for v2.36.
+
+Restoration is P1 work. Every provider and auxiliary call must have a durable
+estimate, reserve, dispatch mark, and settlement; hard output ceilings; one
+parent session budget; and per-session turn serialization. The intended API and
+browser contracts below remain design targets and historical implementation
+context, not shipped metered capacity in this release.
 
 ## Current Code Constraints
 
@@ -50,10 +65,9 @@ cost ledger.
   helper rejects requested tools before backend dispatch when
   `supports_tools=false` and omits `tool_choice` on no-tool turns.
 - MCP `deepr_consult_experts` accepts `synthesis_backend=api|local|plan`.
-  MCP `deepr_query_expert` accepts `backend=api|local|plan`. The default
-  `api` path is OpenAI unless the caller explicitly sets `provider=anthropic`.
-  Anthropic API query chat is metered, non-agentic, and no-tool. `local` and
-  `plan` compile the expert handoff state into one read-only no-tool chat turn
+  MCP `deepr_query_expert` accepts `backend=local|plan` as usable capacity in
+  v2.36; `backend=api` is accepted only to return the fail-closed release gate.
+  `local` and `plan` compile the expert handoff state into one read-only no-tool chat turn
   through the owned-capacity backend seam, with live metered fallback disabled,
   no research trigger, and a `readonly_chat_artifact` attached to the result.
 - `AnthropicProvider` is still a research provider. Expert chat uses the
@@ -242,7 +256,8 @@ Expert chat comes next:
 }
 ```
 
-For API chat:
+The following API-chat request is rejected by the v2.36 release gate before
+provider dispatch. It documents the intended future contract only:
 
 ```json
 {
@@ -261,15 +276,17 @@ For API chat:
 
 `deepr_query_expert` local and plan modes return the normal query shape plus
 `capacity` and `readonly_chat_artifact`, set `research_triggered=0`, reject
-`agentic=true`, and never fall through to metered APIs. API mode defaults to
-OpenAI and can be pinned to non-agentic Anthropic chat with `provider=anthropic`
-and an Anthropic model.
+`agentic=true`, and never fall through to metered APIs. API mode is gated in
+v2.36. Its intended future contract defaults to OpenAI and can be pinned to
+non-agentic Anthropic chat with `provider=anthropic` and an Anthropic model only
+after the P1 restoration criteria pass.
 
 ### Browser Socket.IO contract
 
-The experimental browser chat is a distinct public boundary because one
+The gated browser chat is a distinct public boundary because one
 Socket.IO connection owns interactive session state across turns. Its current
-contract is intentionally narrower than MCP query chat:
+request shape is intentionally narrower than MCP query chat, but v2.36 rejects
+it before provider dispatch:
 
 ```json
 {

@@ -34,13 +34,12 @@ _KEY_TOOLS: tuple[tuple[str, str], ...] = (
     ),
     (
         "deepr_query_expert",
-        "Ask one expert; use backend local or plan for no-metered read-only context chat, api for OpenAI or non-agentic Anthropic chat.",
+        "Ask one expert through explicit local or plan read-only capacity; the api backend is blocked in v2.36.",
     ),
     ("deepr_what_changed", "See what an expert learned since a prior point."),
     ("deepr_explain_belief", "Get why an expert holds a claim, with its evidence."),
     ("deepr_temporal_edges", "Filter time-scoped belief relationships by valid or observed time."),
     ("deepr_expert_handoff", "Get a versioned snapshot of an expert to hand to another agent."),
-    ("deepr_agentic_research", "Run a deep autonomous Plan-Execute-Review investigation (metered; confirm budget)."),
 )
 
 
@@ -72,9 +71,9 @@ def build_capabilities(store: Any, registry: ToolRegistry, *, version: str) -> d
         },
         "cost_tiers": {
             "free": "$0, read-only",
-            "low": "cents; owned/prepaid capable",
+            "low": "owned/prepaid capable or separately bounded; inspect requested capacity",
             "medium": "metered; confirm budget first",
-            "high": "metered and larger; confirm budget first",
+            "high": "metered or gated high-impact surface; inspect status before approval",
         },
         "error_contract": {
             "fields": ["error_code", "category", "retryable", "message"],

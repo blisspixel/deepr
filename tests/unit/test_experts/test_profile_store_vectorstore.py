@@ -21,6 +21,14 @@ def store(tmp_path):
     return ExpertStore(base_path=str(tmp_path / "experts"))
 
 
+@pytest.fixture(autouse=True)
+def _enable_legacy_vector_behavior_for_unit_tests(monkeypatch):
+    monkeypatch.setattr(
+        "deepr.experts.profile_store.require_metered_expert_mutation",
+        lambda *_args, **_kwargs: None,
+    )
+
+
 def _profile(name: str = "vs-expert", domain: str = "testing") -> ExpertProfile:
     return ExpertProfile(name=name, vector_store_id="vs_1", description="d", domain=domain)
 

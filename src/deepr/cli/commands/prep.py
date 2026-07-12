@@ -13,11 +13,12 @@ from deepr.cli.colors import (
     print_success,
     print_warning,
 )
+from deepr.cli.commands.research_safety import require_parent_budget
 
 
 @click.group()
 def prep():
-    """Plan and execute multi-angle research (uses GPT-5)."""
+    """Plan multi-angle research; metered multi-call execution is gated."""
     pass
 
 
@@ -346,10 +347,8 @@ def execute(yes: bool):
     - Phase 2+: Analysis tasks (with Phase 1 context injected)
     - Final: Synthesis (with all prior research integrated)
 
-    Example:
-        deepr prep execute
-        deepr prep execute --yes
     """
+    require_parent_budget("Prepared campaign")
     print_section_header("Execute Research Campaign")
 
     try:
@@ -714,13 +713,8 @@ def continue_research(topics: int, yes: bool):
     3. Plans Phase N+1 research tasks
     4. Optionally executes immediately
 
-    Example:
-        deepr prep plan "..." --topics 4
-        deepr prep execute --yes
-        # Wait for completion...
-        deepr prep continue --topics 3 --yes
-        # Continues with Phase 2 based on Phase 1 findings
     """
+    require_parent_budget("Campaign continuation")
     print_section_header("Continue Research Campaign")
 
     try:
@@ -871,7 +865,7 @@ def continue_research(topics: int, yes: bool):
 @click.option("--topics-per-round", "-n", default=4, help="Tasks per round")
 def auto(scenario: str, rounds: int, topics_per_round: int):
     """
-    Fully autonomous multi-round research.
+    Fully autonomous multi-round research, gated for metered execution in v2.36.
 
     Runs complete research campaign without user intervention:
     - Round 1: Foundation research
@@ -882,6 +876,7 @@ def auto(scenario: str, rounds: int, topics_per_round: int):
         deepr prep auto "What should Ford do in EVs for 2026?" --rounds 3
         deepr prep auto "Strategic analysis of our product roadmap" --rounds 2
     """
+    require_parent_budget("Autonomous multi-round research")
     print_section_header("Autonomous Multi-Round Research")
 
     click.echo(f"\nScenario: {scenario}")

@@ -12,6 +12,7 @@ from pathlib import Path
 from typing import Any
 
 from deepr.config import experts_root
+from deepr.experts.chat_capacity import MeteredExpertChatDisabledError
 from deepr.web.expert_chat_contract import BrowserChatContractError, BrowserExpertChatRequest
 
 logger = logging.getLogger(__name__)
@@ -182,6 +183,8 @@ def handle_browser_expert_chat_request(
         return jsonify_response(build_response(session, response_text, parsed.session_id))
     except BrowserChatContractError as exc:
         return jsonify_response(exc.to_dict()), exc.status_code
+    except MeteredExpertChatDisabledError as exc:
+        return jsonify_response({"error": str(exc), "error_code": exc.code, **exc.to_dict()}), 409
     except ImportError:
         return jsonify_response({"error": "Expert system not available"}), 404
     except ValueError as exc:

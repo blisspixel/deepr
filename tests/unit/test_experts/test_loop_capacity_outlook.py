@@ -18,7 +18,7 @@ def _patch_active(monkeypatch, admissions: list[SimpleNamespace]) -> None:
     monkeypatch.setattr(admission_mod, "list_active", lambda *, now=None, path=None: list(admissions))
 
 
-def test_empty_ledger_is_all_metered(monkeypatch):
+def test_empty_ledger_has_no_admitted_cheap_capacity(monkeypatch):
     _patch_active(monkeypatch, [])
 
     outlook = build_capacity_outlook()
@@ -47,7 +47,7 @@ def test_local_admission_marks_local_capacity(monkeypatch):
     assert sync["local_capacity_admitted"] is True
     assert sync["plan_capacity_admitted"] is False
     assert sync["admitted_local_models"] == ["qwen-local"]
-    # Task classes with no admission still read as metered.
+    # Task classes with no admission remain explicit about missing cheap capacity.
     assert outlook["task_classes"][TASK_CLASS_GAP_FILL]["local_capacity_admitted"] is False
     assert outlook["task_classes"][TASK_CLASS_REFLECT]["local_capacity_admitted"] is False
 
@@ -95,6 +95,8 @@ def test_note_is_honest_about_liveness(monkeypatch):
     # The outlook must not overclaim: admitted != reachable now.
     assert "no" in note.lower() and "probe" in note.lower()
     assert "metered" in note.lower()
+    assert "never falls through" in note
+    assert "may wait, require explicit metered approval, or refuse" in note
 
 
 def test_real_admission_ledger_round_trip(tmp_path):

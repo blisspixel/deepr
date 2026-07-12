@@ -302,6 +302,19 @@ def benchmark(quick: bool, target_provider: str | None, iterations: int, history
             console.print(task_table)
 
         return
+
+    from deepr.experts.metered_mutation_gate import (
+        MeteredExpertMutationDisabledError,
+        require_metered_expert_mutation,
+    )
+
+    try:
+        require_metered_expert_mutation(
+            "api_provider_benchmark",
+            safe_alternative="deepr providers benchmark --history",
+        )
+    except MeteredExpertMutationDisabledError as exc:
+        raise click.ClickException(str(exc)) from exc
     import time
 
     from rich.progress import Progress, SpinnerColumn, TextColumn

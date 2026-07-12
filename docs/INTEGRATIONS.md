@@ -12,24 +12,32 @@ Deepr, Recon, Distillr, and Primr are four independent tools that each solve one
 
 | Tool | Solo value | Install |
 |------|-----------|---------|
-| **Recon** | Passive domain intelligence - tech stack, email security, identity providers | `pip install recon-tool` |
+| **Recon** | Passive domain observations - DNS, email security, and identity indicators | `pip install recon-tool` |
 | **Distillr** | Source ingestion - YouTube, websites, arXiv -> structured Markdown corpus | `pip install distillr` |
 | **Primr** | Company strategic intelligence - adaptive scraping + AI synthesis -> consultant-grade briefs | `pip install primr` |
 | **Deepr** | Multi-provider research automation with persistent expert agents | `pip install -e .` |
 
 **What Deepr adds that none of them have:**
 
-- **Persistent memory** - Recon, Distillr, and Primr produce artifacts. Deepr experts *retain* them as permanent knowledge with beliefs, confidence levels, and gap tracking.
-- **Cross-tool synthesis** - A Deepr expert can combine recon facts + distillr corpus + primr briefs into a unified understanding that no single tool produces.
-- **Autonomous gap detection** - Experts notice what's missing and can trigger the right tool to fill it, without human intervention.
-- **Budget orchestration** - Deepr manages the total spend across all tools under a single budget contract.
+- **Persistent verified memory** - Recon, Distillr, and Primr produce evidence
+  artifacts. Deepr can ingest them through explicit verification and graph apply;
+  the artifact itself never has belief-write authority.
+- **Cross-tool synthesis** - A Deepr expert can combine Recon observations and candidate inferences with a Distillr corpus and Primr briefs without erasing their different evidence status.
+- **Gap visibility** - Experts expose missing knowledge and can propose which
+  instrument may help. A user or host harness authorizes and executes the call.
+- **Traceable handoffs** - Versioned evidence and trace ids can join tool runs,
+  but each external tool retains its own spend and credential boundary.
 - **Temporal continuity** - Run recon today, primr next week, distillr next month. The expert integrates findings over time and tracks what changed.
 
 **What Deepr does NOT do:**
 
 - Deepr does not replace these tools. It does not re-implement scraping, DNS lookups, or paper ingestion.
-- Deepr does not require these tools. Every integration is optional. An expert without recon/distillr/primr still works - it just uses LLM research instead.
-- Deepr does not orchestrate these tools in a fixed pipeline. The expert decides what to call based on its gaps, not a hardcoded workflow.
+- Deepr does not require these tools. Every integration is optional. An expert
+  without them still supports stored-state reads and explicit local/plan
+  maintenance.
+- Deepr does not autonomously orchestrate cross-tool execution in v2.36.
+  Experts propose gaps and evidence needs; the user or host harness decides and
+  enacts calls under each tool's authority and budget.
 
 ---
 
@@ -39,7 +47,7 @@ Each project must remain fully standalone. No circular dependencies, no import-t
 
 ```
 ┌─────────────────────────────────────────────────────────┐
-│                      Deepr (orchestrator)                │
+│                 Deepr (evidence consumer / role)         │
 │  Experts consume structured output from any tool via    │
 │  MCP client connections. No direct Python imports.      │
 └────────────┬──────────────────┬──────────────────┬──────┘
@@ -70,42 +78,46 @@ Each project must remain fully standalone. No circular dependencies, no import-t
 
 ## How They Work Together
 
-### Compound Workflow: Company Research
+### Illustrative Compound Workflow: Company Research
 
-The most natural compound workflow. An expert researching a company can use all three tools in sequence, each building on the previous:
+This is an operator- or host-harness-guided sequence, not an autonomous v2.36
+Deepr loop. Preview and approve each external tool independently, then submit
+its output to Deepr's verification boundary.
 
 ```
 User asks expert: "What's Stripe's competitive position in embedded finance?"
 
 Expert detects gaps:
-  - Infrastructure facts (what does Stripe actually run?)
+  - Domain-scoped infrastructure indicators (what is observable from stripe.com?)
   - Academic context (embedded finance research landscape)
   - Full strategic picture (competitive positioning, hiring signals, initiatives)
 
-Expert orchestrates:
+Operator or host orchestrates:
   1. Recon -> stripe.com (2s, $0)
-     Returns: Cloudflare CDN, AWS infrastructure, Okta identity,
-              DMARC reject, 47 related subdomains
-     Expert absorbs as grounding facts.
+     Returns: timestamped DNS and service indicators, collection status,
+              provenance, and unresolved explanations
+     Expert retains the observations without promoting them to claims about
+              what the Stripe organization operates.
 
-  2. Distillr -> papers "embedded finance platform economics" (6 min, ~$0.80)
+  2. Distillr -> papers "embedded finance platform economics"
      Returns: 12 papers ingested, cross-paper synthesis on platform
               economics, network effects, regulatory moats
      Expert absorbs as academic context.
 
-  3. Primr -> stripe.com (40 min, ~$0.60)
+  3. Primr -> stripe.com
      Returns: Full strategic brief - competitive positioning,
               hiring signals (50+ ML roles), API-first architecture,
               regulatory strategy, partnership patterns
      Expert absorbs as strategic knowledge.
 
-  4. Expert synthesizes across all three + its own LLM research
-     Output: Integrated analysis with infrastructure facts, academic
+  4. Expert consult synthesizes the verified stored evidence through explicit
+     local, plan, or separately bounded council capacity
+     Output: Integrated analysis with domain observations, explicit inferences, academic
              grounding, and strategic synthesis. Citations trace back
              to DNS records, papers, and primary sources.
 ```
 
-**Key insight:** No single tool produces this output. Recon gives facts. Distillr gives academic depth. Primr gives strategic synthesis. The Deepr expert is the only thing that *combines* them into a unified, persistent understanding.
+**Key insight:** No single tool produces this output. Recon gives time-scoped observations and candidate explanations. Distillr gives academic depth. Primr gives strategic synthesis. Deepr can combine them while preserving their provenance and epistemic boundaries.
 
 ### Compound Workflow: Sector Mapping
 
@@ -115,8 +127,9 @@ An expert covering a sector (e.g., "AI Infrastructure") can batch across tools:
 Expert "AI Infrastructure Expert" tasked with sector map:
 
   1. Recon batch -> [anthropic.com, openai.com, together.ai, anyscale.com, ...]
-     Returns: Per-company tech stack fingerprints
-     Expert clusters companies by infrastructure patterns.
+     Returns: Per-domain infrastructure indicators
+     Expert can propose provisional clusters while retaining alternatives and
+             avoiding company-wide stack verdicts.
 
   2. Distillr -> papers "LLM inference optimization" + latest YouTube talks
      Returns: Technical landscape corpus
@@ -139,8 +152,10 @@ For acquisition or partnership evaluation:
 Expert "M&A Technical Expert" evaluating target company:
 
   1. Recon -> target.com
-     Immediate: What they actually run. Cloud maturity signals.
-     Red flags: Outdated email security, no CAA, legacy identity.
+     Immediate: What the queried domain exposed at observation time.
+     Review leads: email-security posture, CAA absence, identity indicators.
+     These are investigation inputs, not proof of organization-wide operation
+     or maturity.
 
   2. Distillr -> target's engineering blog + relevant papers
      Deep: Technical depth, innovation velocity, research contributions.
@@ -159,10 +174,11 @@ Not every workflow needs all three tools. The simplest compound use:
 
 ```
 Expert researching any company topic:
-  1. Recon -> domain (2s, $0) - establish facts
-  2. Expert proceeds with LLM research, grounded in real data
+  1. Recon -> domain (2s, $0) - collect timestamped observations
+  2. Expert proceeds with the observation and inference boundary intact
 
-No Distillr, no Primr needed. Just factual anchoring.
+No Distillr or Primr is required. This is evidence anchoring, not automatic
+company or product attribution.
 ```
 
 ---
@@ -173,12 +189,12 @@ Not all integrations are equal in complexity or value. Ship them in order of eff
 
 ### Tier 1: Recon (Ship First)
 
-**Why first:** Fast (2-5s), free ($0), stateless, structured JSON output. The simplest possible MCP client integration. Immediate value with zero risk.
+**Why first:** Fast (2-5s), free ($0), stateless, structured JSON output. The simplest possible MCP client integration, with no model spend. Its evidence still needs the inference boundary below.
 
 **What Deepr needs:**
 - MCP client connection to `recon mcp` (stdio)
 - Auto-approve all tools (they're free and fast)
-- Parse JSON response into expert grounding context
+- Parse JSON response into the versioned evidence handoff before any belief review
 
 **What Recon needs:**
 - Accept optional `trace_id` in MCP tool params (pass-through, log it)
@@ -186,9 +202,9 @@ Not all integrations are equal in complexity or value. Ship them in order of eff
 
 **Expert skill behavior:**
 - **Trigger:** Expert encounters a company domain in its research context
-- **Action:** Run `domain_lookup`, absorb results as grounding facts
-- **Confidence:** High (DNS is factual, not inferred)
-- **Retention:** Store as "infrastructure facts" with timestamp (these change over time)
+- **Action:** Run `domain_lookup`, retain raw observations, then keep any interpretation separate
+- **Confidence:** Attach confidence to the exact observation and its collection basis. Do not transfer it to a product-use inference.
+- **Retention:** Store time-scoped observations, provenance, collection opportunity, and unresolved candidate explanations
 
 **Effort:** Small. A few hours of wiring on the Deepr side once MCP client basics exist.
 
@@ -256,27 +272,102 @@ Each tool produces output in a specific shape. Deepr consumes these shapes witho
 
 ### Recon -> Deepr
 
+The required Recon boundary is a versioned evidence handoff, not a product-use
+verdict. Before Recon output can authorize a structured belief, an adapter must
+emit the published
+[`deepr-recon-evidence-handoff-v1`](schemas/recon-evidence-handoff-v1.json)
+contract. The contract is the interop expectation and frozen-fixture validation
+target; it does not claim that every current Recon payload already emits this
+shape. It is lossless for the evidence Deepr receives and preserves:
+
+- the exact queried-domain scope and every name for which collection was attempted;
+- direct observations separately from candidate inferences;
+- the unmodified source payload plus raw observation data, provenance references, and content hashes;
+- observation time plus explicit freshness state and basis;
+- each collection opportunity, including whether it was attempted and whether it succeeded;
+- unresolved alternatives rather than collapsing them into one provider attribution; and
+- a separate confidence score and written basis for each observation or inference.
+
+High confidence in a successful DNS observation applies only to that response
+for that name at that time. It does not become high confidence that the legal
+organization uses or operates a product. An AWS-attributed address, CNAME, or
+route can reflect a CDN, hosted dependency, contractor, acquired property,
+shared service, or one public edge among several alternatives. A downstream
+organization-use belief requires independent evidence and semantic review
+outside this handoff.
+
+The contract also distinguishes a successful empty result from a failed or
+unattempted collection opportunity. Absence is not evidence when the relevant
+collection did not succeed. Removing these distinctions or changing their
+meaning requires a new schema version.
+
+Abbreviated handoff view:
+
 ```json
 {
-  "domain": "stripe.com",
-  "provider": "AWS",
-  "tenant_type": null,
-  "confidence": "high",
-  "services": {
-    "email": ["Google Workspace", "DMARC reject", "SPF strict"],
-    "identity": ["Okta"],
-    "cloud": ["AWS Route 53", "Cloudflare CDN"],
-    "security": ["CAA: 2 issuers"],
-    "collaboration": ["Slack", "Atlassian"]
+  "schema_version": "deepr-recon-evidence-handoff-v1",
+  "kind": "deepr.integration.recon_evidence_handoff",
+  "contract": {
+    "lossless_handoff": true,
+    "observation_inference_separated": true,
+    "organization_product_use_verdict_allowed": false,
+    "belief_write_allowed": false
   },
-  "related_domains": ["api.stripe.com", "dashboard.stripe.com", ...],
-  "insights": ["Federated identity via Okta", "Email security 5/5", ...],
-  "trace_id": "deepr-trace-abc123",
-  "cost": 0.00
+  "source_payload": {
+    "media_type": "application/json",
+    "raw": {"domain": "stripe.com", "provider": "AWS", "confidence": "high"},
+    "content_sha256": "<sha256 of the canonical raw payload>"
+  },
+  "query_scope": {
+    "queried_domain": "stripe.com",
+    "queried_names": ["stripe.com"],
+    "organization_scope_inferred": false
+  },
+  "collection": {
+    "status": "complete",
+    "opportunities": [
+      {
+        "method": "dns_resolution",
+        "target": "stripe.com",
+        "attempted": true,
+        "succeeded": true
+      }
+    ]
+  },
+  "observations": [
+    {
+      "subject": {"kind": "queried_domain", "value": "stripe.com"},
+      "predicate": "dns_resolution_indicator",
+      "object": {"provider_indicator": "AWS"},
+      "observed_at": "2026-05-07T12:00:00Z",
+      "freshness": {"state": "fresh_at_collection", "basis": "DNS TTL"},
+      "confidence": {
+        "score": 0.99,
+        "basis": "successful DNS response",
+        "applies_to": "observation"
+      }
+    }
+  ],
+  "inferences": [
+    {
+      "claim_class": "candidate_explanation",
+      "status": "unresolved",
+      "organization_product_use_verdict": false,
+      "eligible_for_belief_write": false,
+      "unresolved_alternatives": [
+        "The endpoint could be a third-party hosted dependency."
+      ]
+    }
+  ]
 }
 ```
 
-**Deepr absorbs as:** Infrastructure facts with high confidence. Stored as structured beliefs: "stripe.com uses AWS (confidence: high, source: DNS, observed: 2026-05-07)".
+**Admission expectation:** Retain this as replayable domain evidence. For example, "a successful
+DNS observation for stripe.com had an AWS-attributed indicator at the observed
+time" can remain an observation. "Stripe uses AWS" is an organization-level
+inference and is not a verdict authorized by Recon evidence alone. The frozen
+[regression fixture](../tests/unit/test_schemas/fixtures/stripe-aws-dns-indicator-v1.json)
+captures this boundary.
 
 ### Distillr -> Deepr
 
@@ -322,7 +413,7 @@ Primr produces a full strategic report. The MCP tool returns structured metadata
 ```
 
 **Deepr absorbs as:** Structured company knowledge across multiple belief categories:
-- Infrastructure (from recon pre-flight embedded in primr)
+- Domain observations and candidate infrastructure interpretations (from the Recon pre-flight embedded in Primr)
 - Competitive positioning (from strategic analysis)
 - Hiring signals (from job posting analysis)
 - Strategic initiatives (from synthesis)
@@ -345,6 +436,8 @@ Already done:
 Needed for Deepr integration:
 - [ ] Accept optional `trace_id` param in all MCP tools
 - [ ] Return `cost: 0.00` field in all MCP responses (consistency)
+- [ ] Emit, or let a Deepr adapter wrap output into, `deepr-recon-evidence-handoff-v1`
+- [ ] Preserve raw observations, query scope, collection opportunity, time and freshness, provenance, confidence basis, and unresolved alternatives
 - [ ] Document MCP tool input/output schemas in a machine-readable format (JSON Schema)
 
 Nice to have:
@@ -429,7 +522,7 @@ integrations:
     budget_propagation: false
     auto_approve: [domain_lookup, batch_lookup, delta]
     timeout: 30s
-    
+
   distillr:
     command: "distill-mcp"
     transport: stdio
@@ -440,7 +533,7 @@ integrations:
     require_approval: [ingest_papers, ingest_youtube, ingest_sites, discover]
     timeout: 15m
     progress: true
-    
+
   primr:
     command: "primr-mcp --stdio"
     transport: stdio
@@ -471,20 +564,20 @@ skill:
   name: "domain-intelligence"
   tool: recon
   version: "1.0"
-  
+
 triggers:
   - type: domain_mention
     pattern: "\\b[a-z0-9-]+\\.(com|io|ai|org|net|co)\\b"
     action: suggest  # suggest to expert, don't auto-run
-    
+
   - type: gap_detected
     categories: ["infrastructure", "tech_stack", "cloud_platform"]
     action: auto_run  # run automatically for infrastructure gaps
-    
+
 behavior:
   pre_research: true  # run before LLM research, not after
-  confidence: high    # recon output is factual
-  retention: structured_beliefs  # store as typed beliefs, not free text
+  confidence: source_scoped  # observation confidence does not transfer to inference
+  retention: structured_evidence  # keep observations, candidates, and provenance distinct
   refresh_policy: 30d  # re-run if data older than 30 days
 ```
 
@@ -494,7 +587,7 @@ When a tool returns results, the expert needs to *absorb* them - not just store 
 
 1. **Parse** - Extract structured data from tool response
 2. **Categorize** - Map findings to expert knowledge categories (infrastructure, competitive, academic, strategic)
-3. **Confidence-tag** - Assign confidence based on source type (DNS = high, LLM synthesis = medium, inference = low)
+3. **Confidence-tag** - Score the exact observation or inference and record its basis. Source confidence never transfers automatically to a broader claim.
 4. **Deduplicate** - Check if expert already knows this (avoid redundant beliefs)
 5. **Integrate** - Update existing beliefs or add new ones with provenance
 6. **Gap-check** - After absorption, re-evaluate gap backlog (some gaps may now be filled)
@@ -525,7 +618,8 @@ All four projects (Deepr, Recon, Distillr, Primr) should follow:
 ### Testing Strategy
 
 - **Unit tests in Deepr:** Mock MCP responses from each tool, test absorption pipeline
-- **Integration tests:** Require actual tool installed, run against real (but cheap) targets
+- **Integration tests:** Explicit opt-in only, with each external tool installed,
+  its cost estimated, and its own authorization present. CI uses frozen fixtures.
 - **Contract tests:** Each sibling repo includes a test that validates its MCP output against the shared schema (catches drift before it reaches Deepr)
 
 ---
@@ -539,20 +633,22 @@ Individual tools are useful. The compound system is qualitatively different:
 | Company tech stack | yes (one-shot) | - | yes (embedded) | yes (persistent, tracked over time) |
 | Academic depth | - | yes (one-shot corpus) | - | yes (absorbed into expert memory, cross-referenced with company data) |
 | Strategic analysis | - | - | yes (one-shot report) | yes (persistent, updated, synthesized across companies) |
-| Cross-source synthesis | - | - | - | yes (expert combines all sources into unified understanding) |
-| Temporal tracking | - | - | - | yes (expert knows what changed since last analysis) |
-| Autonomous gap filling | - | - | - | yes (expert detects gaps, triggers right tool, absorbs results) |
-| Budget-aware orchestration | - | - | - | yes (single budget across all tools, smart allocation) |
-| Audit trail | - | - | - | yes (every tool call traced, every decision logged) |
+| Cross-source synthesis | - | - | - | yes, after explicit verified ingestion |
+| Temporal tracking | - | - | - | yes, from durable observation and belief events |
+| Gap proposals | - | - | - | yes; execution remains user or host authorized |
+| Cross-tool budget | - | - | - | no single shared external-tool budget in v2.36 |
+| Audit trail | - | - | - | Deepr traces its own handoffs; external tools retain their own logs |
 
-The bottom four rows are things that *only exist* when Deepr orchestrates the tools. That's the value proposition of the integrated system.
+The compound value is durable, provenance-preserving expert state over explicit
+tool handoffs. Autonomous cross-tool execution and one shared budget remain
+future work, not shipped v2.36 behavior.
 
 ---
 
 ## Links
 
 - [Recon](https://github.com/blisspixel/recon) - Passive domain intelligence
-- [Distillr](https://github.com/blisspixel/distillr) - Source ingestion engine  
+- [Distillr](https://github.com/blisspixel/distillr) - Source ingestion engine
 - [Primr](https://github.com/blisspixel/primr) - Strategic company intelligence
 - [Deepr Roadmap - Phase 2](../ROADMAP.md) - MCP client infrastructure
 - [Deepr Roadmap - Phase 2b](../ROADMAP.md) - First-party integrations

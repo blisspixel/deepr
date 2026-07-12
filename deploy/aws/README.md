@@ -2,6 +2,15 @@
 
 Deploy Deepr to AWS using SAM (Serverless Application Model).
 
+## v2.36 status
+
+This template is an infrastructure preview. Paid research execution is gated
+in v2.36. Authenticated `POST /jobs` returns HTTP 503 with
+`aws_metered_research_accounting_unavailable` before DynamoDB or SQS writes.
+The Fargate worker independently rejects old or manually queued work before it
+imports or constructs a provider. Health and read-only job, result, and cost
+inspection remain available. Supplying provider keys does not enable dispatch.
+
 ## Architecture
 
 ```
@@ -70,10 +79,12 @@ docker push \
 After deployment, SAM outputs the API endpoint:
 
 ```bash
-# Submit a job
+# Verify the fail-closed submission boundary
 curl -X POST https://xxxxx.execute-api.us-east-1.amazonaws.com/Prod/jobs \
   -H "Content-Type: application/json" \
   -d '{"prompt": "What are the best practices for PostgreSQL connection pooling?"}'
+# Expected: HTTP 503 with
+# error_code=aws_metered_research_accounting_unavailable
 
 # Check job status
 curl https://xxxxx.execute-api.us-east-1.amazonaws.com/Prod/jobs/{job_id}
@@ -89,9 +100,9 @@ curl https://xxxxx.execute-api.us-east-1.amazonaws.com/Prod/results/{job_id}
 | Parameter | Default | Description |
 |-----------|---------|-------------|
 | Environment | prod | Deployment environment (dev/staging/prod) |
-| OpenAIApiKey | - | Required: OpenAI API key |
-| GoogleApiKey | - | Optional: Google API key for Gemini |
-| XaiApiKey | - | Optional: xAI API key for Grok |
+| OpenAIApiKey | - | Accepted by the template but cannot enable v2.36 dispatch |
+| GoogleApiKey | - | Accepted by the template but cannot enable v2.36 dispatch |
+| XaiApiKey | - | Accepted by the template but cannot enable v2.36 dispatch |
 | DailyBudget | 50 | Daily spending limit (USD) |
 | MonthlyBudget | 500 | Monthly spending limit (USD) |
 
@@ -134,7 +145,8 @@ Estimated monthly costs (varies by usage):
 | S3 | $1-10 |
 | **Total infrastructure** | **$30-150** |
 
-Note: LLM API costs (OpenAI, Gemini, etc.) are separate and depend on research volume.
+The v2.36 gate prevents LLM API research costs. Infrastructure resources can
+still incur the costs above.
 
 ## Cleanup
 

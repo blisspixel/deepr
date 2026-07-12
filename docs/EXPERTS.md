@@ -4,7 +4,10 @@
 
 ## Overview
 
-Deepr's expert system creates domain experts from documents that can answer questions, recognize knowledge gaps, and autonomously research to fill them.
+Deepr's expert system creates domain experts from documents that can answer
+questions, recognize knowledge gaps, and propose the next bounded research or
+maintenance step. Explicit local and non-metered plan workflows can execute
+documented updates; metered autonomous expert work is gated in v2.36.
 Expert learning is not passive document accumulation. New material is processed
 into canonical beliefs, concepts, hypotheses, stance, original ideas,
 provenance refs, temporal graph edges, contradiction signals, gap backlogs, freshness watchlists, and
@@ -26,8 +29,8 @@ Traditional RAG systems:
 
 Deepr experts:
 - Recognize knowledge gaps
-- Can trigger research when needed
-- Integrate new knowledge permanently
+- Propose research when needed; execution remains capacity- and user-gated
+- Integrate verified knowledge through an explicit graph-commit apply boundary
 - Track what they know vs don't know
 - Maintain concepts, hypotheses, stance, original ideas, and tradeoffs
 - Keep up with current developments on their topic
@@ -43,17 +46,17 @@ find where the expert needs to update its understanding.
 ## Quick Start
 
 ```bash
-# Create expert from documents
-deepr expert make "Azure Architect" --files docs/*.md
+# Create a local expert from documents
+deepr expert make "Azure Architect" --local --files docs/*.md
 
 # Create a local-only expert profile with no provider API calls
 deepr expert make "UI Experience Expert" --local -d "UI/UX for agentic research tools"
 
-# Chat with expert
-deepr expert chat "Azure Architect"
+# Consult stored expert knowledge on local capacity
+deepr expert consult "How should we review this architecture?" --experts "Azure Architect" --local
 
-# Chat with research capability
-deepr expert chat "Azure Architect" --budget 5  # agentic by default
+# Or use an explicit plan-quota CLI for synthesis
+deepr expert consult "What evidence is missing?" --experts "Azure Architect" --plan codex
 
 # Regenerate the expert's derived memory card for humans and host agents
 deepr expert memory-card "Azure Architect" --write
@@ -82,7 +85,7 @@ that an expert's perspective is accurate or improved.
 
 ### Basic Creation
 ```bash
-deepr expert make "Expert Name" --files path/to/docs/*.md
+deepr expert make "Expert Name" --local --files path/to/docs/*.md
 ```
 
 ### Local-Only Creation
@@ -99,6 +102,14 @@ Deepr copies the seed documents into the expert's local documents folder and
 records them in the profile. Local creation does not run the API-backed
 `--learn` curriculum; use subscriptions plus `expert sync --local` for $0
 maintenance.
+
+The v2.36 safety gate also blocks provider-backed `expert refresh` and
+`--synthesize`, API `fill-gaps` including consensus and deep modes, and API
+`expert sync --compile-claims`. Paid `deepr eval calibrate --corpus` is gated;
+`deepr eval calibrate --from` remains a `$0` read of existing graded pairs.
+Each metered surface returns only after it has migrated to one durable per-call
+and parent-run budget transaction with storage and tool pricing. Local and
+explicit plan-quota expert paths remain available.
 
 After creation, `deepr expert next NAME` is the shortest path through the
 available controls. An empty local profile receives a subscription plus local
@@ -119,25 +130,26 @@ explicit URL review retains a one-source path. If retrieval is thinner, Deepr
 persists the attempted source pack and returns a retryable no-metered failure
 without calling the model or advancing the subscription cadence.
 
-### With Autonomous Learning
+### Gated Metered Autonomous Learning
+
+Nonlocal `expert make` and `--learn` fail closed in v2.36 while hosted storage,
+curriculum calls, nested research, and absorption move to one durable parent-run
+budget transaction. Use local profile creation plus local or explicit plan
+maintenance:
+
 ```bash
-deepr expert make "FDA Regulations" \
-  --files docs/*.pdf \
-  --learn \
-  --budget 10 \
-  --topics 10
+deepr expert make "FDA Regulations" --local --files docs/*.pdf
+deepr expert subscribe "FDA Regulations" "FDA regulatory changes"
+deepr expert sync "FDA Regulations" --local --fresh-context -y
 ```
 
-This will:
-1. Upload documents to vector store
-2. Generate a learning curriculum with the configured synthesis model
-3. Research each topic autonomously
-4. Integrate findings into expert's knowledge
+An explicit plan-quota sync can replace `--local` when approved subscription
+capacity is available. Neither path falls through to a metered API.
 
 ### Learning Curriculum
 
-When using `--learn`, Deepr uses the configured synthesis model to generate a
-curriculum:
+The gated `--learn` design uses a synthesis model to generate a curriculum. The
+example below illustrates the intended preview, not a v2.36 dispatchable path:
 
 ```
 Learning Curriculum (10 topics):
@@ -152,21 +164,30 @@ Budget limit: $10.00  WITHIN BUDGET
 Proceed? [y/N]
 ```
 
-## Expert Chat
+## Expert Query and Chat
 
-### Basic Q&A
+Standalone metered expert chat is gated in v2.36. `deepr expert chat`, browser
+Socket.IO/REST chat, and `deepr_query_expert backend=api` fail closed before a
+provider dispatch. This release does not claim live metered chat validation.
+Restoration requires durable reserve, dispatch-mark, and settlement for every
+provider call, hard output ceilings, all auxiliary calls charged to the parent
+session budget, and serialized turns per session.
+
+### Available Read-Only Paths
 ```bash
-deepr expert chat "Azure Architect"
+deepr expert consult "How should we handle tenant isolation?" --experts "Azure Architect" --local
+deepr expert consult "Which assumptions need evidence?" --experts "Azure Architect" --plan codex
 ```
 
-Expert searches its knowledge base and answers from documents.
+MCP hosts can also call `deepr_query_expert` with explicit `backend=local` or
+`backend=plan`. These modes compile stored expert context into one read-only,
+no-tool turn and never fall through to a metered API. API council synthesis is
+a separate bounded surface and remains available with explicit approval.
 
-### Agentic Mode
-```bash
-deepr expert chat "Azure Architect" --budget 5  # agentic by default
-```
+### Gated Interactive Design
 
-Expert can trigger research when it recognizes knowledge gaps:
+The interactive design can trigger research when it recognizes knowledge gaps,
+but its metered provider dispatch is disabled in v2.36:
 
 ```
 You: How should we handle OneLake security for multi-tenant SaaS?
@@ -198,9 +219,11 @@ and response bounds. The provider registry and preflight estimate are
 authoritative; this guide intentionally does not hardcode volatile dollar or
 time ranges.
 
-### Slash Commands and Chat Modes
+### Gated Slash Commands and Chat Modes
 
-Agentic chat supports 27 slash commands (use `/` in web, `\` in CLI). Chat modes control the expert's behavior:
+The interactive design includes 27 slash commands (use `/` in web, `\` in
+CLI). These commands do not authorize a metered provider dispatch in v2.36.
+Chat modes describe the intended expert behavior:
 
 - **`/ask`** - Quick answers from knowledge base only
 - **`/research`** - Default mode with all tools available
@@ -240,20 +263,12 @@ The system suggests compaction automatically after 30+ messages or when estimate
 
 ## Preview a Curriculum
 
-Before creating an expert with `--learn`, preview what it would research:
+API curriculum `expert plan` is gated in v2.36. It cannot yet bind curriculum
+generation and every resulting call to one durable run ceiling. Use the `$0`
+structural navigator instead:
 
 ```bash
-# See the full research plan (no expert created, no cost)
-deepr expert plan "Azure Architect"
-
-# Budget-constrained plan
-deepr expert plan "Cloud Security" --budget 10
-
-# JSON output for scripting
-deepr expert plan "Kubernetes" --json
-
-# Just the prompts
-deepr expert plan "FastAPI" -q
+deepr expert next "Azure Architect" --json
 ```
 
 ## Managing Experts
@@ -294,16 +309,15 @@ result to every belief.
 ```bash
 # Preferred no-surprise path: local or plan-quota first
 deepr expert route-gaps "Azure Architect" --execute --scheduled --top 3
-
-# Legacy metered OpenAI path, explicit only
-deepr expert fill-gaps "Azure Architect" --api --budget 5 --top 3
 ```
+
+API `fill-gaps`, including consensus and deep modes, fails closed in v2.36.
+Use `route-gaps --execute` with local or explicit plan-quota capacity.
 
 ### Resume Paused Learning
-```bash
-# If learning hit budget limits
-deepr expert resume "Azure Architect"
-```
+Saved progress remains intact, but direct API `deepr expert resume` fails closed
+in v2.36 pending the shared durable transaction. Continue maintenance through
+local or explicit plan-quota sync while the resume path is migrated.
 
 ### Absorb a Report into Knowledge
 Promote a completed research report into the expert's permanent beliefs instead
@@ -331,10 +345,12 @@ deepr expert absorb "Azure Architect" <job_id> --min-confidence 0.7 --budget 0.1
 Self-evaluate a report against its question before relying on or absorbing it:
 scores grounding, completeness, calibration, and directness, then returns a
 verdict (accept / revise / re-research) with issues and follow-up queries. A
-natural pre-step to `absorb`. Costs one small evaluation call.
+natural pre-step to `absorb`. Normal metered reflection fails closed in v2.36;
+the scheduled capacity waterfall can run on admitted local or trusted explicit
+plan capacity, or return a wait payload without spending.
 ```bash
-deepr expert reflect "Azure Architect" <job_id>
-deepr expert reflect "Azure Architect" <job_id> --depth 2 --json
+deepr expert reflect "Azure Architect" <job_id> --scheduled
+deepr expert reflect "Azure Architect" <job_id> --depth 2 --scheduled --json
 ```
 
 ## Knowledge Maintenance
@@ -410,7 +426,7 @@ spend money. A "no significant changes" answer skips the paid extraction.
 deepr expert subscribe "Azure Architect" "Azure Landing Zone updates" --every 7 --budget 0.50
 deepr expert subscriptions "Azure Architect"          # list, with due markers
 deepr expert sync "Azure Architect" --dry-run         # preview, $0
-deepr expert sync "Azure Architect" -y                # run due topics
+deepr expert sync "Azure Architect" --local -y        # run due topics locally
 ```
 
 ### Auto Re-Research from Reflection
@@ -418,7 +434,7 @@ When `expert reflect` finds a report weak, it emits follow-up queries. With
 `--execute-followups` they actually run (same budget discipline) and absorb -
 reflection stops being advisory exactly when the report needs reinforcement.
 ```bash
-deepr expert reflect "Azure Architect" <job_id> --execute-followups --budget 1 -y
+deepr expert reflect "Azure Architect" <job_id> --execute-followups --scheduled --budget 1 -y
 ```
 
 ## Temporal Perspective Queries
@@ -478,7 +494,7 @@ from Deepr spend. Claim verification can
 carry recall hits as read-only `recall_context`; the concrete sync verifier now
 uses that context in its bounded prompt, and still owns support, contradiction,
 deduplication, temporal scope, and edge judgment.
-`deepr expert sync --compile-claims --recall-embedding-model MODEL` embeds
+`deepr expert sync --local --compile-claims --recall-embedding-model MODEL` embeds
 ready claim statements through the same local `$0` Ollama embedder so verifier
 recall context can use the indexed belief vectors; if the local embedder fails,
 recall degrades to lexical routing without blocking the gated verification
@@ -581,13 +597,11 @@ deepr expert review-consult-quality "Azure Architect" consult_abc123 \
 `deepr expert judge-consult-quality` runs the same review path with an explicit
 calibrated-model judge. Use `--local-judge-model MODEL` for local Ollama at `$0`
 or `--plan BACKEND` with optional `--plan-model MODEL` for an explicit
-plan-quota CLI. Use `--api-provider PROVIDER --api-model MODEL --budget USD
---confirm-metered-cost` for a premium metered API judge. Plan judges consume
-subscription quota, record `$0` Deepr cost metadata, and never fall back to
-metered provider APIs. API judges reserve the estimate before dispatch and
-settle usage through the append-only cost ledger. Deepr stores only the
-validated review fields and calibrated judge metadata, not the raw judge
-response or raw trace answer.
+plan-quota CLI. The `--api-provider` implementation is gated in v2.36 pending
+the shared durable transaction. Plan judges consume subscription quota, record
+`$0` Deepr cost metadata, and never fall back to metered provider APIs. Deepr
+stores only validated review fields and calibrated judge metadata, not the raw
+judge response or raw trace answer.
 
 ### Propose Self-Model Updates (review record)
 Preview or write a verifier-gated self-model update review record for a
@@ -800,9 +814,12 @@ Experts are prompted with intellectual humility:
 Multiple layers prevent runaway costs:
 
 ### Per-Session Limits
-```bash
-deepr expert chat "Name" --budget 5  # agentic by default; pass --no-research to disable
-```
+
+The v2.36 fail-closed gate overrides metered chat session settings. Local and
+explicit plan read-only query turns remain available. A future restored session
+must reserve its full approved ceiling before every call, mark dispatch
+durably, settle every outcome, bound output, charge auxiliaries to the same
+parent budget, and serialize turns.
 
 ### Hard Limits (Cannot Override)
 - Per operation: $10 max
@@ -810,11 +827,8 @@ deepr expert chat "Name" --budget 5  # agentic by default; pass --no-research to
 - Per month: $500 max
 
 ### Pause/Resume
-When learning hits limits, progress is saved:
-```bash
-# Resume next day
-deepr expert resume "Azure Architect"
-```
+When learning hits limits, progress is saved. Direct API resume fails closed in
+v2.36 while its durable transaction is migrated; saved progress is not deleted.
 
 See [ARCHITECTURE.md](ARCHITECTURE.md#security) for full budget protection details.
 
@@ -879,11 +893,16 @@ expected_value = (priority / 5.0) + frequency_boost
 estimated_cost = domain velocity lookup (fast=$0.25, medium=$1.00, slow=$2.00)
 ```
 
-Higher-ratio gaps are filled first, making `expert route-gaps --execute --top N` a rational allocation rather than arbitrary ordering. The legacy `expert fill-gaps` command is metered API only and requires `--api`.
+Higher-ratio gaps are filled first, making `expert route-gaps --execute --top N`
+a rational allocation rather than arbitrary ordering. The legacy metered API
+`expert fill-gaps` command fails closed in v2.36; local and explicit plan routes
+remain available.
 
 ### Decision Records
 
-Every autonomous action - routing decisions, source trust evaluations, stop conditions, gap fills - is captured as a structured **decision record**:
+Every executed workflow action, including routing decisions, source-trust
+metadata, stop conditions, and gap-fill outcomes, can be captured as a
+structured **decision record**:
 
 - Type: routing, stop, pivot, budget, belief_revision, gap_fill, conflict_resolution, source_selection
 - Includes: title, rationale, confidence, alternatives considered, evidence refs, cost impact
@@ -910,21 +929,20 @@ The manifest includes computed properties: `claim_count`, `open_gap_count`, `avg
 
 ### Continuous Learning
 
-After research conversations, experts can re-synthesize to integrate new knowledge.
+Local and explicit plan maintenance can re-synthesize new knowledge.
+Provider-backed `expert refresh` and `--synthesize` are gated in v2.36 pending
+the shared durable parent-run budget transaction.
 
 ### Expert Council
 
 Consult multiple experts on cross-domain questions. The system selects relevant experts (or you specify them), queries each in parallel, and synthesizes the perspectives into agreements, disagreements, and a unified recommendation.
 
 ```bash
-# Via slash command in chat
-/council "How will AI regulation affect our cloud architecture?"
+# Local bounded consult
+deepr expert consult "Build vs buy?" --experts "Tech Architect,Business Strategist" --local
 
-# Via CLI subcommand
-deepr expert council "Build vs buy?" --experts "Tech Architect,Business Strategist" --budget 5
-
-# Via REST API
-POST /api/experts/council
+# Explicit plan-quota bounded consult
+deepr expert consult "Which assumption is weakest?" --experts "Tech Architect,Business Strategist" --plan codex
 ```
 
 Budget is split evenly among consulted experts with a 10% reserve for synthesis,
@@ -932,8 +950,9 @@ reserved upfront against the global cost-safety manager so a parallel fan-out
 cannot over-commit the daily cap. Auto-selection fans out to up to 10 experts
 (default 3; pass `--max-experts`), with a relevance floor so a wide fan-out drops
 zero-overlap experts instead of padding the council; naming experts explicitly is
-uncapped. Parallelism is bounded so a 10-expert fan-out runs in waves, not all at
-once.
+capped at the same ten experts. Exact, case, and slug aliases for one canonical
+expert are rejected before coroutine creation. Parallelism is bounded so a
+10-expert fan-out runs in waves, not all at once.
 
 #### Consulting on owned or prepaid capacity ($0)
 
@@ -944,7 +963,7 @@ Run the synthesis without touching a metered API key:
 
 ```bash
 deepr expert consult "How do we keep expert knowledge current and cheap?" --plan claude
-deepr expert consult "Cost vs quality tradeoff?" --local --max-experts 8
+deepr expert consult "Cost vs quality tradeoff?" --local --max-experts 8 --max-elapsed-seconds 600
 ```
 
 `--plan <id>` (codex, claude, ...) and `--local` run synthesis on prepaid or local
@@ -954,6 +973,26 @@ Deepr consults its own experts about its own work (the self-consultation loop).
 Every CLI and MCP consult writes a local `deepr-consult-trace-v1` record for the
 improvement loop: question, requested experts, selected context metadata, capacity
 posture, checks run, output artifact, and first-class synthesis failure events.
+It also opens `deepr-consult-lifecycle-event-v1` before cancellable local model
+discovery or backend dispatch. The append-only journal uses the same trace id and
+records phase heartbeats, process ownership, finite logical-work, time, and spend
+ceilings, observed and remaining spend, one-way capacity resolution, and typed
+cancellation or failure. The current one-shot wrapper does not measure aggregate
+provider token or context totals, so it omits those optional lifecycle fields.
+It stores no answer or private reasoning. CLI and MCP default the cumulative
+elapsed ceiling to 600 seconds and allow up to 21,600 seconds. It bounds
+cancellable setup and generation and is checked at lifecycle boundaries. CLI
+and MCP durable operations run off the
+event loop but are still awaited through cancellation, so no timed-out writer
+continues invisibly. Cancellation never falls through to another backend.
+Every local and cross-process trace lock wait is capped at five seconds. Active
+lifecycle and final-trace writes also use the smaller remaining allowance.
+Pre-dispatch contention is retryable; contention after provider work may have
+run is non-retryable and path-safe until finalization-only resume exists. The
+same rule applies to elapsed stops: only a stop before provider work is
+retryable. Typed storage I/O failures distinguish an unambiguous pre-write
+failure from a possibly partial append. A settled metered cancellation estimate
+is copied into lifecycle spend evidence only after canonical settlement.
 MCP consult results also return `structuredContent` for clients that support the
 current MCP structured-result contract, while preserving text JSON for older
 hosts.
@@ -987,12 +1026,29 @@ The review output is `deepr-consult-trace-candidates-v1`: sanitized gap and eval
 candidates for failed or low-context consults. It does not expose the local trace
 file path or dump raw trace payloads into the host artifact.
 
+Before adding live expert-to-expert rounds, run:
+
+```bash
+deepr eval deliberation --json
+```
+
+This emits `deepr-deliberation-eval-v1` from eleven frozen-fixture structural
+checks at `$0`. The report validates bounds, lineage, independent first
+positions, targeted challenges, the default evidence-seeking skeptic, dissent
+preservation, typed stops, inert untrusted text, and proposal-only authority.
+Only future explicit deep mode reserves a synthesis dispatch. The report marks
+semantic quality `unreviewed` and does not enable live multi-round execution;
+that surface remains gated on measured provider-call token and context
+enforcement.
+
 ## Limitations
 
 - Early-stage software - more testing needed
 - Vector search quality depends on document quality
-- Research costs can add up with agentic mode
-- Decision records are generated during agentic operations; non-agentic queries produce reports but not decisions
+- Standalone metered agentic chat is gated in v2.36; local and plan read-only
+  turns cannot launch research.
+- Deliberation and consult traces are derived proposal artifacts, not authority
+  to spend, call tools, or write beliefs.
 
 ## See Also
 

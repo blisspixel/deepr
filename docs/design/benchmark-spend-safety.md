@@ -1,6 +1,7 @@
 # Benchmark Spend Safety
 
-Status: accepted for v2.34.1 implementation, 2026-07-10.
+Status: historical v2.34.1 design, superseded for execution by the v2.36
+fail-closed release gate. Dry-run and saved-artifact reads remain available.
 
 ## Problem
 
@@ -10,7 +11,11 @@ submitted, judge calls did not consume that budget, and benchmark spend did not
 write the canonical append-only ledger. The dashboard therefore could not
 truthfully treat an approved estimate as a runtime ceiling.
 
-## Decision
+## Restoration Contract
+
+Live provider benchmarks are disabled in v2.36. The following describes the
+minimum transaction required before they can be re-enabled; the existing
+benchmark-specific reservation substrate is not a works-now execution claim.
 
 Every benchmark evaluation, judge, and provider-validation call must reserve a
 conservative call ceiling before it is submitted. Reservation uses the existing
@@ -38,8 +43,9 @@ request-level token and tool ceiling. Gemini 3 search grounding is also excluded
 one request can issue multiple separately billed searches, and the provider does
 not document a per-request query cap. The research tier uses bounded web-search
 orchestration instead. xAI search is excluded because `max_turns` does not bound
-parallel billable tool invocations within a turn. Grok 4.3 remains available for
-chat-tier evaluation through a no-tool Responses request.
+parallel billable tool invocations within a turn. Grok 4.3 was part of the
+historical chat-tier adapter set, but is not a live v2.36 benchmark execution
+path.
 
 The scheduler may retain bounded parallelism, but only futures with completed
 reservations may be submitted. Evaluation and judge work share one run ceiling.
@@ -59,10 +65,11 @@ and do not write spend events.
   normalized usage.
 - Allowing managed research agents under an average-job estimate was rejected
   because an average cannot enforce a hard spend ceiling.
-- Disabling all benchmarks was rejected because bounded adapters can use the
-  project's established reservation and ledger substrate safely.
+- The v2.34 design rejected disabling all benchmarks. v2.36 supersedes that
+  choice because benchmark calls must use the same shared durable transaction
+  as other provider work before live execution resumes.
 
-## Verification
+## Verification Required Before Re-enablement
 
 - No future is submitted without a reservation.
 - Evaluation, judge, and validation calls consume the same finite run ceiling.

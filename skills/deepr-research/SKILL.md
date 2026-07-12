@@ -1,258 +1,167 @@
 ---
 name: deepr-research
 description: |
-  Deep research infrastructure for comprehensive analysis. Use when users need
-  to research a topic in depth, consult domain experts, preview research curricula,
-  run async investigations, compare options with citations, or manage research budgets.
-  Keywords: research, deep research, investigate, analyze, domain expert, expert plan,
-  comprehensive analysis, async research, expert consultation, knowledge synthesis,
-  autonomous learning, curriculum, fill gaps, cost estimate
-license: MIT
-compatibility: |
-  Requires python3 and OPENAI_API_KEY. Optional: XAI_API_KEY, GEMINI_API_KEY,
-  AZURE_OPENAI_API_KEY. Runs on macOS, Linux, Windows.
-allowed-tools: >-
-  deepr_tool_search deepr_status deepr_research deepr_check_status
-  deepr_get_result deepr_cancel_job deepr_agentic_research
-  deepr_list_experts deepr_query_expert deepr_get_expert_info
-argument-hint: "[research query or expert command]"
+  Use Deepr for bounded deep research, async cited reports, and consultation
+  with persistent domain experts. Trigger when a user asks for current sourced
+  analysis, a research cost preview, a domain expert or expert council, or
+  inspection of durable beliefs, gaps, confidence, and provenance.
 metadata:
-  version: "2.8.0"
-  author: Nick Seal
+  version: "2.36.0"
 ---
 
-# Deepr Research Skill
+# Deepr research
 
-You have access to Deepr - the same deep research APIs behind ChatGPT and Gemini, but callable as tools. It produces cited, comprehensive reports through async deep research, domain experts, and agentic workflows. Use it when you need accurate, current information with sources instead of relying on your training data.
+Use Deepr as a bounded research and persistent-expert service. Preserve
+citations, budget posture, capacity provenance, uncertainty, and dissent.
 
-## When to Use Deepr
+## Release-safe operating contract
 
-**Use Deepr when:**
-- The user needs current information beyond your training cutoff
-- A question requires cited, comprehensive analysis - not a best guess
-- You're mid-task and need verified facts (latest API docs, compliance rules, pricing)
-- The user explicitly asks for research or to consult a domain expert
-- You need to compare options with evidence, not just opinions
+Treat these as works-now surfaces in v2.36:
 
-**Don't use Deepr when:**
-- You're confident in your answer and the user isn't asking for citations
-- The question is well-covered by your training data
-- The user just needs code written, not researched
-- Speed matters more than depth (Deepr takes 30 seconds to 20 minutes)
+- One API-backed research job when the provider, model, tools, token ceilings,
+  and price are all known.
+- Explicit local Ollama or non-metered plan-quota expert workflows.
+- Read-only expert state, handoffs, loop status, memory cards, and derived
+  exports.
+- One-expert or multi-expert consultation through explicit local or plan
+  synthesis. Separately bounded API council synthesis is available only after
+  explicit approval and a positive budget.
 
-## Choosing a Mode
+Treat these as execution-blocked, even if a tool or flag remains visible:
 
-| User Need | Mode | Cost | Time |
-|-----------|------|------|------|
-| Quick current info, moderate analysis | Standard | $0.001-0.01 | 30-60 sec |
-| Comprehensive analysis, critical decisions | Deep | $0.10-0.50 | 5-20 min |
-| Multi-step autonomous investigation | Agentic | $1-10 | 15-60 min |
-| Unsure of complexity | Auto | varies | varies |
+- `deepr_agentic_research` and other autonomous multi-round metered work.
+- `deepr_query_expert` with `backend="api"` or `agentic=true`.
+- Automatic cross-provider metered fallback.
+- Metered batch, campaign, team, prepared, or continuation execution.
+- Hosted upload, file-search, or vector-store attachment to research.
+- Generic metered expert creation, learning, resume, refresh, gap fill,
+  reflection, portrait generation, or corpus calibration.
 
-**When in doubt, use auto mode.** It analyzes query complexity and routes to the cheapest sufficient model - simple questions go to grok-4-1-fast-non-reasoning ($0.01) instead of o3-deep-research ($0.50). This saves 10-20x on costs.
+Do not retry a blocked surface with a larger budget or another provider. A
+capacity gate means the accounting contract is unavailable, not that the user
+asked a bad question.
 
-```
-Can I answer this confidently from training data?
-  YES -> Just answer, skip Deepr
-  NO  -> Does it need multi-step autonomous exploration?
-          YES -> Agentic Research (confirm budget first)
-          NO  -> Is comprehensive, multi-source analysis needed?
-                  YES -> Deep Research
-                  NO  -> Standard Research (or auto mode)
-```
+## Select capacity explicitly
 
-See `references/research_modes.md` for model details and async workflow patterns.
+1. Prefer existing expert state when it already covers the question.
+2. Prefer `backend="local"` for a true `$0` marginal-cost expert turn when an
+   admitted Ollama model is ready.
+3. Use `backend="plan"` only with an explicit non-metered plan id. Do not infer
+   that CLI presence proves free quota. Copilot is visible/read-only in v2.36.
+4. Use one bounded API research request only after the user authorizes spend.
+   Pass an explicit provider, model, and budget ceiling.
+5. Never silently fall through between capacity classes.
 
-## Core Pattern: Research-Augmented Work
+## Run one bounded research job
 
-The most common use case: you're working on a task and hit something you're not sure about. Instead of guessing, research it.
+Use this sequence:
 
-```
-1. Recognize uncertainty
-   -> You're about to make a claim or decision you're not confident about
+1. State that the budget is a maximum, not a predicted final charge.
+2. Obtain explicit approval before a paid call.
+3. Call `deepr_research` with one focused prompt, an explicit provider/model,
+   and the approved budget.
+4. Omit `files` in v2.36 because hosted research context is gated. Put compact
+   non-sensitive context in the prompt or use local source packs outside this
+   tool.
+5. Monitor the returned job id or returned resource URI with
+   `deepr_check_status` or a resource subscription.
+6. Retrieve the completed report with `deepr_get_result`.
+7. Report actual settled cost when available and preserve inline citations.
 
-2. Research it
-   -> deepr_research(query="your question", mode="auto")
-   -> Returns: job_id
+Do not invent fixed prices or promise a completion time. Model rates, tool
+charges, provider latency, and the hard request envelope determine the
+admission result. If the envelope exceeds the approved budget, stop and return
+the denial rather than weakening the ceiling.
 
-3. Wait for results
-   -> Subscribe to deepr://campaigns/{job_id}/status (preferred, 70% fewer tokens)
-   -> Or poll with deepr_check_status(job_id)
+## Consult persistent experts
 
-4. Present cited answer
-   -> deepr_get_result(job_id)
-   -> Integrate findings into your response with citations preserved
-   -> Clearly mark what came from research vs your own knowledge
-```
+Start by calling `deepr_list_experts` and, when useful,
+`deepr_get_expert_info`. Then choose one of these no-metered paths:
 
-## Working With Experts
-
-Domain experts are persistent knowledge entities that synthesize beliefs from documents, track what they don't know, and can research to fill their own gaps. They get smarter over time.
-
-**Query an expert** when the question falls within their domain - it's faster and cheaper than fresh research:
-
-```
-deepr_list_experts()           -> See what experts exist
-deepr_query_expert(name, question)  -> Ask a question
-deepr_get_expert_info(name)    -> Check profile, beliefs, gaps
-```
-
-**The expert-research chain** is Deepr's key differentiator. When an expert has low confidence or identifies a knowledge gap, suggest filling it:
-
-```
-1. Query expert -> expert responds with LOW confidence or identifies gap
-2. Tell the user: "The expert doesn't have current info on this.
-   Want me to research it? (~$0.15)"
-3. User confirms -> deepr_research(query="the gap topic")
-4. Expert integrates the findings permanently
-5. Next time anyone asks, the expert knows
+```text
+deepr_query_expert(
+  expert_name="Security Analyst",
+  question="What evidence should guide this decision?",
+  backend="local",
+  agentic=false,
+  budget=0
+)
 ```
 
-This loop - query -> gap -> research -> learn - is how experts improve. Actively suggest it when you see low confidence. Use `deepr_query_expert(..., agentic=true)` to let the expert trigger research autonomously (costs more, needs budget confirmation).
-
-**When to use experts vs fresh research:**
-- Expert has the domain knowledge -> query the expert (fast, cheap)
-- Current events or topic outside their domain -> fresh research
-- Expert shows low confidence -> fill the gap, then re-query
-
-See `references/expert_system.md` for confidence levels, belief formation, and best practices.
-
-## Cost Rules
-
-1. **Always state the estimated cost** before research that costs more than $0.01
-2. **Get explicit confirmation** before any operation over $5
-3. **Always confirm** agentic research - it's $1-10+
-4. **Prefer auto mode** when the right depth is unclear
-5. **Mention cumulative cost** if you've run multiple research operations in one session
-6. When the system **pauses for budget**, relay the three options to the user:
-   - APPROVE_OVERRIDE - continue at higher cost
-   - OPTIMIZE_FOR_COST - switch to cheaper model
-   - ABORT - cancel, return partial results
-
-See `references/cost_guidance.md` for pricing tables, budget tiers, and optimization strategies.
-
-## Presenting Results
-
-1. **Preserve all inline citations** - [1], [2] etc. are the whole point of using Deepr
-2. **Lead with the answer** - executive summary first, details after
-3. **Distinguish sources** - clearly mark what came from Deepr vs your own knowledge
-4. **Include metadata** - cost, time, number of sources consulted
-5. **Structure for scannability** - sections, bullets, tables where appropriate
-
-## Gotchas
-
-Real failure modes, learned from use. Read these before relying on a result.
-
-- **Deep/agentic research is async** (30 sec to 20+ min). Do not block waiting - subscribe to the status resource or poll, tell the user it is running, and continue other work. Treat a missing result as "still running", not "failed".
-- **Auto mode can under-route a nuanced question** to a cheap model. If the answer looks shallow for a critical decision, re-run explicitly in `deep` mode rather than trusting the first cheap pass.
-- **Citations are the whole point - never strip them.** When you summarize a result, preserve `[1][2]` markers and clearly separate research-derived facts from your own knowledge. An uncited synthesis defeats the reason to use Deepr.
-- **An expert's answer is bounded by its sources and may be stale.** A `PASS` from `deepr_expert_validate` means "consistent with the expert's current beliefs", not ground truth; confidence is trust-floor-capped (web-sourced caps at ~0.60 single-source / ~0.80 with two independent sources), so a high number is a ceiling, not certainty. On low confidence or a flagged gap, offer to fill it - do not present it as authoritative.
-- **Cost accrues across a session.** State cumulative spend when you have run several operations; agentic research is $1-10+ and must be confirmed before it starts.
-- **`BUDGET_EXCEEDED` / `PROVIDER_NOT_CONFIGURED` are configuration states, not bad questions.** Relay the fix (raise the budget, set the API key) instead of retrying the same call.
-
-## Tool Discovery
-
-Deepr uses dynamic tool discovery to minimize context window usage. If you need a capability and don't see the right tool, search for it:
-
-```
-deepr_tool_search(query="what you need to do")
--> Returns matching tool schemas on demand
+```text
+deepr_query_expert(
+  expert_name="Security Analyst",
+  question="What evidence should guide this decision?",
+  backend="plan",
+  plan="codex",
+  agentic=false,
+  budget=0
+)
 ```
 
-## Conversation Examples
+For several experts, prefer `deepr_consult_experts` with
+`synthesis_backend="local"` or `synthesis_backend="plan"`. Keep the roster at
+10 or fewer, preserve disagreements, and verify that
+`capacity.live_metered_fallback` is `false`.
 
-### Mid-task research
+An expert answer is a perspective over stored state, not ground truth. Surface
+confidence, contested beliefs, stale evidence, missing sources, and known gaps.
+Do not claim that a fresh research report was permanently absorbed unless a
+separate verified write workflow actually completed.
 
-```
-User: Set up a VPC with private subnets for ECS Fargate
+## Handle local capacity defensively
 
-You: I'll set up the VPC. Let me check the current AWS recommendations
-     for Fargate networking to make sure this follows best practices.
+For scheduled local maintenance, treat `busy` as a waiting outcome. Preserve
+the returned retry time and do not fall through to plan or API capacity.
+Expected retry guidance uses bounded 30-minute, 2-hour, then 6-hour cadence.
+Explicit unscheduled local work is an operator override; do not simulate that
+override on the user's behalf.
 
-     [calls deepr_research("AWS ECS Fargate VPC networking best practices 2026")]
-     [receives result in ~45 seconds]
+## Present results
 
-You: Based on current AWS documentation [1][2], here's the recommended setup:
-     - Use at least 2 AZs with private subnets for tasks...
-     [continues with cited infrastructure code]
+- Lead with the answer.
+- Preserve every citation marker and source URL returned by Deepr.
+- Separate research-derived claims from your own inference.
+- Include provider/capacity, actual settled cost, and important limits.
+- Preserve council dissent instead of flattening it into false consensus.
+- Say when semantic quality is unreviewed. Structural eval success is not proof
+  that an answer is true or wise.
 
-     Research cost: $0.005 · 8 sources
-```
+## Tool guide
 
-### Comprehensive analysis
+| Tool | Use |
+|------|-----|
+| `deepr_tool_search` | Discover a current tool schema before calling it |
+| `deepr_status` | Inspect service readiness and spending posture |
+| `deepr_research` | Submit one bounded paid research job after approval |
+| `deepr_check_status` | Inspect an accepted job |
+| `deepr_get_result` | Retrieve a completed cited report |
+| `deepr_cancel_job` | Request cancellation and retain accounting state |
+| `deepr_list_experts` | List persistent experts |
+| `deepr_get_expert_info` | Inspect expert profile and gaps |
+| `deepr_query_expert` | Run one local or plan read-only expert turn |
+| `deepr_consult_experts` | Produce a bounded one- or multi-expert consult artifact |
 
-```
-User: Compare Kubernetes vs ECS for our microservices migration
+## Error handling
 
-You: This needs comprehensive analysis across cost, complexity, ecosystem,
-     and team readiness. Deep research will take 10-20 minutes and cost
-     ~$0.30-0.50. Want me to proceed?
+- `BUDGET_EXCEEDED` or `BUDGET_INSUFFICIENT`: return the required ceiling and
+  ask whether the user wants to approve a new bounded attempt.
+- `PROVIDER_NOT_CONFIGURED`: identify the missing explicit capacity without
+  switching providers.
+- `metered_expert_chat_accounting_unavailable` or another capacity block: use
+  local/plan read-only consultation or stop.
+- Busy local capacity: report the durable wait and retry time.
+- Ambiguous provider failure: do not resubmit automatically. The reservation
+  may have been conservatively settled.
 
-User: Yes
+Read these only when needed:
 
-You: Starting deep research now. I'll let you know when results are ready.
-
-     [calls deepr_research(query="...", mode="deep")]
-     [subscribes to status updates]
-     [~14 minutes later, result is ready]
-
-You: Research complete ($0.35, 23 sources). Here's what I found:
-
-     ## Executive Summary
-     [structured findings with all citations preserved]
-     [clearly attributes everything to Deepr research, not own knowledge]
-```
-
-### Expert with gap filling
-
-```
-User: Ask the security expert about OWASP API Top 10 changes for 2026
-
-You: [calls deepr_list_experts() -> finds "Security Analyst"]
-     [calls deepr_query_expert("Security Analyst", "OWASP API Top 10 2026 changes?")]
-
-You: The Security Analyst has medium confidence here and flagged a knowledge
-     gap around the 2026 updates specifically. Want me to research the latest
-     changes so the expert can learn them? (~$0.15)
-
-User: Sure
-
-You: [calls deepr_research("OWASP API Security Top 10 2026 changes and updates")]
-     [expert integrates findings]
-
-You: Here's what changed in the 2026 OWASP API Security Top 10: [1][2][3]
-     [presents findings with citations]
-
-     The Security Analyst now has this information for future queries.
-```
-
-## Available Tools
-
-| Tool | Purpose | Cost |
-|------|---------|------|
-| `deepr_tool_search` | Search available capabilities by description | Free |
-| `deepr_status` | System health, active jobs, spending summary | Free |
-| `deepr_research` | Submit research job (standard, deep, or auto mode) | $0.001-0.50 |
-| `deepr_check_status` | Check job progress | Free |
-| `deepr_get_result` | Retrieve completed research results | Free |
-| `deepr_cancel_job` | Cancel a running job | Free |
-| `deepr_agentic_research` | Autonomous multi-step research campaign | $1-10 |
-| `deepr_list_experts` | List available domain experts | Free |
-| `deepr_query_expert` | Query an expert (optionally with agentic research) | Low |
-| `deepr_get_expert_info` | Detailed expert profile and stats | Free |
-
-## Error Handling
-
-Tools return structured errors with `error_code`, `message`, and optional `retry_hint` / `fallback_suggestion`.
-
-| Error | What to Do |
-|-------|------------|
-| `BUDGET_EXCEEDED` | Tell user the limit was hit, offer alternatives or suggest daily reset |
-| `JOB_NOT_FOUND` | Double-check the job_id |
-| `EXPERT_NOT_FOUND` | Run `deepr_list_experts` and suggest available experts |
-| `PROVIDER_NOT_CONFIGURED` | Tell user which API key is needed |
-| `BUDGET_INSUFFICIENT` | Suggest increasing the budget parameter |
-
-See `references/` for detailed documentation on [MCP patterns](references/mcp_patterns.md), [cost guidance](references/cost_guidance.md), [research modes](references/research_modes.md), [expert system](references/expert_system.md), and [troubleshooting](references/troubleshooting.md).
-
-The `scripts/` directory contains Python modules for Deepr's MCP server (result formatting, query classification) - reference implementations, not used by the skill directly.
+- [Research modes](references/research_modes.md) for the exact works-now and
+  gated research boundary.
+- [Expert system](references/expert_system.md) for read-only consultation and
+  verified update boundaries.
+- [Cost guidance](references/cost_guidance.md) for ceilings and ledger rules.
+- [MCP patterns](references/mcp_patterns.md) for discovery, resources, and
+  host-agent contracts.
+- [Troubleshooting](references/troubleshooting.md) for typed failure handling.
+- [Prompt patterns](references/prompt_patterns.md) for bounded research prompts.

@@ -1,66 +1,38 @@
-# /research Command
+# /research command
 
-Submit a deep research job with comprehensive analysis.
+Submit one bounded research job. Metered batch, campaign, continuation, and
+agentic execution are gated in v2.36.
 
 ## Syntax
 
+```text
+/research <query> [--budget <amount>] [--provider <provider>] [--model <model>]
 ```
-/research <query> [--budget <amount>] [--model <model>] [--agentic]
-```
 
-## Parameters
-
-| Parameter | Required | Default | Description |
-|-----------|----------|---------|-------------|
-| `query` | Yes | - | Research question or topic |
-| `--budget` | No | 1.00 | Maximum cost in USD |
-| `--model` | No | gpt-4o | Model for research (gpt-4o, grok-4, gemini-2.0-flash) |
-| `--agentic` | No | false | Enable autonomous multi-step research |
-
-## Examples
-
-```
-/research "What are the leading approaches to quantum error correction?"
-
-/research "Compare React vs Vue for enterprise applications" --budget 2.00
-
-/research "Analyze the competitive landscape for AI code assistants" --agentic --budget 5.00
-```
+Use an explicit provider, model, and positive budget ceiling. The budget is a
+maximum, not a target or fixed quote. Obtain approval before dispatch.
 
 ## Workflow
 
-1. **Classify**: Determine research depth needed
-2. **Estimate**: Calculate expected cost and time
-3. **Confirm**: Request approval if cost exceeds threshold
-4. **Submit**: Create research job via `deepr_research` or `deepr_agentic_research`
-5. **Monitor**: Subscribe to `deepr://campaigns/{id}/status` for updates
-6. **Deliver**: Present results with preserved citations
+1. Narrow the question to one research job.
+2. Preview the exact CLI envelope when a CLI preview is available.
+3. Confirm the ceiling with the user.
+4. Call `deepr_research` once.
+5. Monitor the returned job id or resource URI.
+6. Retrieve the report and preserve citations.
+7. Report actual settled cost when available.
 
-## Cost Tiers
+Do not pass hosted files in v2.36. Use local source packs or compact prompt
+context. Do not call `deepr_agentic_research`; its visible adapter fails closed
+until parent-run accounting is complete.
 
-| Mode | Typical Cost | Time | Use When |
-|------|-------------|------|----------|
-| Standard | $0.10-0.50 | 5-20 min | Comprehensive single-topic analysis |
-| Agentic | $1-10 | 15-60 min | Multi-step autonomous research |
-
-## Output Format
-
-Results include:
-- Executive summary
-- Detailed findings with inline citations
-- Source list with URLs
-- Metadata (cost, time, model, sources count)
-
-## Related Commands
-
-- `/check` - Monitor job progress
-- `/expert` - Query domain expert instead of fresh research
-- `/costs` - View research spending
-
-## Error Handling
+## Errors
 
 | Error | Resolution |
 |-------|------------|
-| `BUDGET_EXCEEDED` | Increase budget or wait for daily reset |
-| `PROVIDER_NOT_CONFIGURED` | Set required API key in environment |
-| `BUDGET_INSUFFICIENT` | Specified budget too low for query complexity |
+| `BUDGET_EXCEEDED` | Return the denial and ask before changing the ceiling |
+| `BUDGET_INSUFFICIENT` | Show the required bound; do not weaken it |
+| `PROVIDER_NOT_CONFIGURED` | Identify the missing explicit provider capacity |
+| Capacity/accounting unavailable | Stop or choose an explicit local/plan consult path |
+
+Related read-only commands: `/check`, `/costs`, and `/expert`.

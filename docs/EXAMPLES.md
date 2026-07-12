@@ -1,13 +1,21 @@
-# Deepr Examples
+# Deepr Scenario Catalog
 
-Detailed real-world examples demonstrating Deepr's capabilities across different domains.
+These examples illustrate useful research scenarios. They are not the current
+command contract. In v2.36, direct bounded single-job research works only when
+preview can prove a complete finite envelope. Metered `learn`, `team`, expert
+chat, nonlocal expert `--learn`, hosted `--upload`, vector stores, campaigns,
+and legacy artifact generation are gated before provider work. Use
+[Supported Surface](SUPPORTED_SURFACE.md) and [Features](FEATURES.md) for
+executable commands. Prices and completion times below are historical examples,
+not estimates or guarantees; run `deepr research ... --preview` for the current
+maximum.
 
 ---
 
 ## Investment Due Diligence
 
 ```bash
-deepr learn "Commercial real estate market in Austin Texas: cap rates, vacancy trends, development pipeline, demographic shifts"
+deepr research "Commercial real estate market in Austin Texas: cap rates, vacancy trends, development pipeline, demographic shifts" --provider openai --model o4-mini-deep-research --budget 2
 ```
 
 ### Scenario
@@ -24,14 +32,15 @@ A real estate investor needs comprehensive market intelligence before a $20M acq
 
 ### Real Benefit
 
-Professional-grade market analysis in 45 minutes for $3, versus $5K consultant fees and 2-week turnaround.
+The intended benefit is a repeatable, cited research artifact with an explicit
+budget ceiling. Actual time and cost depend on the selected bounded route.
 
 ---
 
 ## Regulatory Compliance Research
 
 ```bash
-deepr research "GDPR and CCPA requirements for SaaS platforms handling EU and California customer data"
+deepr research "GDPR and CCPA requirements for SaaS platforms handling EU and California customer data" --provider openai --model o4-mini-deep-research --budget 2
 ```
 
 ### Scenario
@@ -48,14 +57,15 @@ A compliance officer needs current regulatory guidance before a product launch. 
 
 ### Real Benefit
 
-Clear compliance roadmap in 20 minutes, avoiding costly legal consultations for preliminary research.
+A cited preliminary research artifact for expert review. This is not legal
+advice, and provider completion time is not guaranteed.
 
 ---
 
 ## Strategic Business Decision
 
 ```bash
-deepr team "Should our manufacturing company invest in solar panels and battery storage for our facility?"
+deepr research "Should our manufacturing company invest in solar panels and battery storage for our facility? Compare financial, operational, and sustainability perspectives." --provider openai --model o4-mini-deep-research --budget 2
 ```
 
 ### Scenario
@@ -79,7 +89,7 @@ Weeks of cross-functional research compressed into one comprehensive report, rev
 ## Technical Implementation Research
 
 ```bash
-deepr research "PostgreSQL connection pooling and read replica strategies for high-traffic web applications" --scrape https://www.postgresql.org/docs/
+deepr research "PostgreSQL connection pooling and read replica strategies for high-traffic web applications" --provider openai --model o4-mini-deep-research --budget 2
 ```
 
 ### Scenario
@@ -96,14 +106,15 @@ A development team needs to scale their database infrastructure to handle 10x tr
 
 ### Cost
 
-$0.50-$2.00 depending on depth, 15-30 minutes
+Run `--preview` first. The exact maximum and provider completion time replace a
+fixed cost or duration claim.
 
 ---
 
 ## Competitive Intelligence
 
 ```bash
-deepr research "Current social media sentiment on autonomous vehicle safety" --provider grok
+deepr research "Current public sentiment on autonomous vehicle safety" --provider openai --model o4-mini-deep-research --budget 2
 ```
 
 ### Scenario
@@ -120,47 +131,37 @@ An automotive company needs to understand public perception before a major produ
 
 ### Cost
 
-$0.50-$1.50 using Grok with X search integration
+Run `--preview` first. xAI server-side search is gated because its invocation
+cost has no complete request ceiling.
 
 ---
 
-## Learning Campaign: Kubernetes
+## Local Expert Learning: Kubernetes
 
-Complete learning workflow from fundamentals to strategic decision:
+Build and maintain a local expert without a metered campaign:
 
 ```bash
-# 1. NEWS: What's happening in the ecosystem?
-deepr news "Kubernetes latest developments" > knowledge/news/news-kubernetes.md
+# 1. Seed from local documents
+deepr expert make "Kubernetes Expert" --local --files "docs/kubernetes/*.md"
 
-# 2. DOCS: What are the fundamentals?
-deepr research "Summarize Kubernetes core concepts" \
-  --scrape https://kubernetes.io/docs/concepts \
-  --model grok-4.3 \
-  > knowledge/docs/docs-kubernetes-core.md
+# 2. Add fresh free retrieval context through local capacity
+deepr expert subscribe "Kubernetes Expert" "Kubernetes networking and managed service changes"
+deepr expert sync "Kubernetes Expert" --local --fresh-context -y
 
-# 3. RESEARCH: How does it work? What are trade-offs?
-deepr research "Kubernetes networking deep dive - CNI, Services, Ingress" \
-  --model o4-mini-deep-research \
-  > knowledge/research/research-kubernetes-networking.md
-
-# 4. TEAM: Should we adopt it? What are risks?
-deepr team "Should we self-host Kubernetes or use EKS/GKE?" \
-  --perspectives 6 \
-  --model grok-4.3 \
-  > knowledge/team/team-kubernetes-hosting-decision.md
+# 3. Consult stored state locally
+deepr expert consult "Should we self-host Kubernetes or use EKS/GKE?" --experts "Kubernetes Expert" --local
 ```
 
 ### Total Cost
 
-Estimate first with `--dry-run`; actual cost depends on provider pricing,
-prompt size, tool use, and whether local or plan-quota capacity is selected.
+Local model provider cost is `$0`; local electricity is outside Deepr's ledger.
 
 ---
 
-## Multi-Phase Strategic Research
+## Strategic Research Scenario
 
 ```bash
-deepr learn "Evaluate acquisition target: financial viability, market position, cultural fit, integration risks" --phases 3
+deepr research "Evaluate an acquisition target across financial viability, market position, cultural fit, and integration risks" --provider openai --model o4-mini-deep-research --budget 2
 ```
 
 ### What Happens
@@ -180,53 +181,39 @@ deepr learn "Evaluate acquisition target: financial viability, market position, 
 - Synergy opportunities
 - Go/no-go recommendation with reasoning
 
-### Cost
-
-$5-$15 depending on depth and context size
+Metered multi-phase execution is gated. This direct example is one bounded job;
+preview its exact maximum before running.
 
 ---
 
 ## Creating Domain Experts
 
 ```bash
-# Preview what an expert would learn before committing
-deepr expert plan "Azure Fabric" --budget 10
-
 # Create expert from your proprietary documents
 deepr expert make "Azure Fabric Expert" \
+  --local \
   --files "./docs/*.md" \
   --description "Azure Landing Zones and Fabric governance"
 
-# Have expert autonomously learn the domain
+# Create another local expert
 deepr expert make "Supply Chain Management" \
-  --files "C:\Docs\*.pdf" \
-  --learn \
-  --budget 10
+  --local \
+  --files "C:\Docs\*.pdf"
 ```
 
-### What Happens (with --learn)
+### What Happens
 
-1. Expert analyzes initial documents
-2. The configured synthesis model generates a learning curriculum (5-20 research topics)
-3. Shows estimated costs before submission
-4. Submits deep research jobs to build comprehensive knowledge
-5. Polls for completion and integrates results
-6. You now have a domain expert ready for Q&A
-
-### Cost
-
-$5-$20 depending on domain complexity and number of research topics
+1. Deepr creates a provider-free local profile.
+2. Local files enter the verified expert learning path.
+3. The structured belief store remains canonical.
+4. Future maintenance can use local or explicit non-metered plan capacity.
 
 ---
 
-## Expert Chat with Autonomous Learning
+## Local Expert Consultation
 
 ```bash
-# Basic chat (uses knowledge base only)
-deepr expert chat "Azure Fabric Expert"
-
-# Agentic mode (can trigger research autonomously)
-deepr expert chat "AWS Expert" --budget 5  # agentic by default
+deepr expert consult "How should we handle OneLake security for multi-tenant SaaS?" --experts "Azure Fabric Expert" --local
 ```
 
 ### Example Conversation
@@ -234,26 +221,16 @@ deepr expert chat "AWS Expert" --budget 5  # agentic by default
 ```
 You: How should we handle OneLake security for multi-tenant SaaS?
 
-Expert: I have general OneLake concepts, but not specific multi-tenant SaaS patterns.
-Let me research this to give you accurate guidance...
-
-[Triggers: deepr research "OneLake multi-tenant security SaaS 2025" --mode docs]
-[Cost: $0.15, Time: ~8 minutes]
-
-Expert: My research found three approaches:
-1. Workspace-per-tenant isolation [Source: Research job-abc123]
-2. Lakehouse-per-tenant with RLS [Source: Research job-abc123]
-3. Shared lakehouse with strict RLS [Source: Research job-abc123]
+Expert: Based on stored evidence, three approaches need comparison:
+1. Workspace-per-tenant isolation [Source: stored belief provenance]
+2. Lakehouse-per-tenant with RLS [Source: stored belief provenance]
+3. Shared lakehouse with strict RLS [Source: stored belief provenance]
 
 For your SaaS scenario, I recommend approach 2...
 
-Should I remember this for future questions?
-
-You: Yes
-
-Expert: Added to my permanent knowledge base.
-
-Session budget remaining: $4.83
+Missing evidence remains a gap for a later explicit local, plan, or bounded
+research action. The consult does not silently trigger paid research or write
+new beliefs.
 ```
 
 ---
@@ -263,7 +240,7 @@ Session budget remaining: $4.83
 ### Vague Prompt (Poor)
 
 ```bash
-deepr research "healthcare regulations"
+deepr research "healthcare regulations" --provider openai --model o4-mini-deep-research --preview
 ```
 
 This will produce generic, unfocused results.
@@ -271,7 +248,7 @@ This will produce generic, unfocused results.
 ### Specific Prompt (Good)
 
 ```bash
-deepr research "Compare HIPAA, HITECH, and state privacy laws for telehealth services in California, Texas, and New York. Focus on consent requirements, data retention policies, breach notification timelines, and penalties. Include cross-state patient care implications. Provide compliance checklist for a telehealth platform serving all three states."
+deepr research "Compare HIPAA, HITECH, and state privacy laws for telehealth services in California, Texas, and New York. Focus on consent requirements, data retention policies, breach notification timelines, and penalties. Include cross-state patient care implications. Provide compliance checklist for a telehealth platform serving all three states." --provider openai --model o4-mini-deep-research --preview
 ```
 
 ### Best Practices
@@ -290,38 +267,30 @@ deepr research "[ACTION] [TOPIC] for [CONTEXT]. Focus on [ASPECTS]. Include [DEL
 
 Example:
 ```
-deepr research "Evaluate API gateway options (Kong, Tyk, AWS API Gateway) for fintech platform handling 100K requests/minute. Focus on latency, cost, compliance (PCI-DSS), and operational complexity. Include TCO comparison and implementation checklist."
+deepr research "Evaluate API gateway options (Kong, Tyk, AWS API Gateway) for fintech platform handling 100K requests/minute. Focus on latency, cost, compliance (PCI-DSS), and operational complexity. Include TCO comparison and implementation checklist." --provider openai --model o4-mini-deep-research --preview
 ```
 
 ---
 
 ## Advanced Context Integration
 
-```bash
-# Combine proprietary documents with external research
-deepr research "Review our Q4 product roadmap against competitor capabilities and market trends" \
-  --upload "C:\Documents\q4-roadmap.pdf" \
-  --upload "C:\Documents\competitor-analysis.xlsx"
-```
+Hosted document attachment is gated in v2.36. Build a local expert from the
+documents and consult it locally, or submit a separate bounded provider research
+job without hosted file context.
 
-Deepr will:
-1. Parse and understand your internal documents
-2. Research current market trends and competitor public information
-3. Synthesize analysis combining internal and external data
-4. Provide strategic recommendations grounded in both contexts
+```bash
+deepr expert make "Roadmap Expert" --local --files "C:\Documents\q4-roadmap.pdf"
+deepr expert consult "Compare the roadmap with stored evidence" --experts "Roadmap Expert" --local
+```
 
 ---
 
 ## Prompt Refinement
 
-```bash
-# Enable automatic prompt refinement
-echo "DEEPR_AUTO_REFINE=true" >> .env
-
-deepr research "llm pricing"
-```
-
-Vague prompt "llm pricing" automatically expands into:
+The `PromptRefiner` substrate is not wired into the supported research command,
+so `DEEPR_AUTO_REFINE` must not be treated as an active feature. Write the
+desired scope directly. A vague prompt such as "llm pricing" could instead be
+expanded by the operator to include:
 - Pricing models across providers (per-token, per-request, subscription)
 - Cost per token by model tier
 - Volume discounts and enterprise pricing
@@ -332,17 +301,9 @@ Vague prompt "llm pricing" automatically expands into:
 
 ## Vector Knowledge Stores
 
-```bash
-# Build searchable knowledge base from research
-deepr vector create --name "customer-feedback-2024" \
-  --files "C:\Projects\interviews\*.pdf" "C:\Projects\reports\*.md"
-
-# Query the knowledge base
-deepr research "What are the top 3 feature requests across all customer interviews?" \
-  --vector-store customer-feedback-2024
-```
-
-Create persistent knowledge bases from documents and past research. Query them semantically without re-uploading files.
+New provider vector-store creation and research attachment are gated in v2.36
+until upload, indexing, retention, retrieval, and cleanup costs share the same
+reservation. For a local corpus, use `deepr expert make NAME --local --files`.
 
 ---
 

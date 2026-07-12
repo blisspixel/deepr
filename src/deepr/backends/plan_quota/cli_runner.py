@@ -14,8 +14,9 @@ the one shared, hardened invocation primitive every adapter uses:
 - a scratch working directory by default so an agentic CLI cannot wander the
   user's repository.
 
-It never raises: callers get a structured ``CliResult`` and decide. That keeps
-the ``research_fn`` seam contract (report, do not raise) intact end to end.
+Ordinary launch, timeout, and process failures return a structured ``CliResult``
+for callers to decide. Task cancellation kills and reaps the process tree, then
+propagates so orchestration can stop promptly.
 """
 
 from __future__ import annotations
@@ -28,13 +29,17 @@ import subprocess
 import tempfile
 import time
 from collections.abc import Mapping
-from dataclasses import dataclass
+from dataclasses import dataclass, field
+from math import isfinite
 from pathlib import Path
 from typing import Any
 
 # Generous default: agentic CLIs reason for a while. Scheduled maintenance is
 # time-flexible by design, but a hung process must still be reaped.
 DEFAULT_TIMEOUT_S = 240.0
+_PROCESS_CLEANUP_TIMEOUT_S = 1.0
+_LAUNCH_CLEANUP_GRACE_S = 1.0
+_BACKGROUND_CLEANUPS: set[asyncio.Task[None]] = set()
 
 
 @dataclass(frozen=True)
@@ -48,10 +53,13 @@ class CliResult:
     timed_out: bool
     launch_error: str
     duration_ms: int
+    launch_exception: BaseException | None = field(default=None, repr=False, compare=False)
+    runtime_error: str = ""
+    runtime_exception: BaseException | None = field(default=None, repr=False, compare=False)
 
     @property
     def ok(self) -> bool:
-        return self.returncode == 0 and not self.timed_out and not self.launch_error
+        return self.returncode == 0 and not self.timed_out and not self.launch_error and not self.runtime_error
 
 
 def _scratch_dir() -> str:
@@ -69,15 +77,29 @@ async def run_cli(
     env: Mapping[str, object] | None = None,
     cwd: str | None = None,
 ) -> CliResult:
-    """Run ``argv`` to completion and return a structured result. Never raises."""
+    """Return a structured process result, while propagating cancellation."""
     start = time.perf_counter()
-    run_cwd = cwd if cwd is not None else _scratch_dir()
-    run_argv = _clean_argv(argv)
-    run_env = _clean_env(env)
+    validated_timeout = validate_timeout(timeout)
+    executable = str(argv[0]) if argv else "plan-cli"
+    try:
+        run_cwd = cwd if cwd is not None else _scratch_dir()
+        run_argv = _clean_argv(argv)
+        run_env = _clean_env(env)
+        input_bytes = stdin.encode("utf-8") if stdin is not None else None
+    except Exception as error:
+        return CliResult(
+            None,
+            "",
+            "",
+            False,
+            _safe_launch_error(executable, error),
+            _ms(start),
+            launch_exception=error,
+        )
     if not run_argv:
         return CliResult(None, "", "", False, "failed to launch: empty argv", _ms(start))
-    try:
-        proc = await asyncio.create_subprocess_exec(
+    launch_task = asyncio.create_task(
+        asyncio.create_subprocess_exec(
             *run_argv,
             stdin=asyncio.subprocess.PIPE if stdin is not None else None,
             stdout=asyncio.subprocess.PIPE,
@@ -85,25 +107,66 @@ async def run_cli(
             env=run_env,
             cwd=run_cwd,
             **_process_group_kwargs(),
-        )
-    except (OSError, ValueError) as e:
-        return CliResult(None, "", "", False, f"failed to launch {run_argv[0]!r}: {e}", _ms(start))
-
-    input_bytes = stdin.encode("utf-8") if stdin is not None else None
+        ),
+        name="plan-quota-cli-launch",
+    )
     try:
-        out, err = await asyncio.wait_for(proc.communicate(input_bytes), timeout=timeout)
+        proc = await asyncio.shield(launch_task)
+    except asyncio.CancelledError:
+        cleanup_task = asyncio.create_task(
+            _cleanup_cancelled_launch(launch_task),
+            name="plan-quota-cancelled-launch-cleanup",
+        )
+        _track_background_cleanup(cleanup_task)
+        await _wait_for_launch_cleanup_grace(cleanup_task)
+        raise
+    except (OSError, ValueError) as e:
+        return CliResult(
+            None,
+            "",
+            "",
+            False,
+            _safe_launch_error(run_argv[0], e),
+            _ms(start),
+            launch_exception=e,
+        )
+
+    try:
+        out, err = await asyncio.wait_for(proc.communicate(input_bytes), timeout=validated_timeout)
     except TimeoutError:
-        await _kill_process_tree(proc)
-        # Reap the killed process so it leaves no zombie / unawaited warning;
-        # it is already being reported as a timeout, so drain errors are moot.
-        with contextlib.suppress(Exception):
-            await proc.communicate()
+        cleanup_task = asyncio.create_task(
+            _terminate_and_reap(proc),
+            name="plan-quota-timeout-cleanup",
+        )
+        try:
+            await asyncio.shield(cleanup_task)
+        except asyncio.CancelledError:
+            await _finish_cleanup(cleanup_task)
+            raise
         return CliResult(None, "", "", True, "", _ms(start))
     except asyncio.CancelledError:
-        await _kill_process_tree(proc)
-        with contextlib.suppress(Exception):
-            await proc.communicate()
+        cleanup_task = asyncio.create_task(
+            _terminate_and_reap(proc),
+            name="plan-quota-process-cleanup",
+        )
+        await _finish_cleanup(cleanup_task)
         raise
+    except Exception as error:
+        cleanup_task = asyncio.create_task(
+            _terminate_and_reap(proc),
+            name="plan-quota-error-cleanup",
+        )
+        await _finish_cleanup(cleanup_task)
+        return CliResult(
+            proc.returncode,
+            "",
+            "",
+            False,
+            "",
+            _ms(start),
+            runtime_error=safe_runtime_error(error),
+            runtime_exception=error,
+        )
 
     return CliResult(
         proc.returncode,
@@ -121,21 +184,103 @@ def _process_group_kwargs() -> dict[str, Any]:
     return {"start_new_session": True}
 
 
+async def _cleanup_cancelled_launch(
+    launch_task: asyncio.Task[asyncio.subprocess.Process],
+) -> None:
+    """Own a shielded launch through completion and clean up any late process."""
+    try:
+        proc = await launch_task
+    except (asyncio.CancelledError, OSError, ValueError):
+        return
+    await _terminate_and_reap(proc)
+
+
+def _track_background_cleanup(cleanup_task: asyncio.Task[None]) -> None:
+    """Keep ownership until a late launch has either failed or been reaped."""
+    _BACKGROUND_CLEANUPS.add(cleanup_task)
+
+    def discard_finished(task: asyncio.Task[None]) -> None:
+        _BACKGROUND_CLEANUPS.discard(task)
+        with contextlib.suppress(asyncio.CancelledError, Exception):
+            task.result()
+
+    cleanup_task.add_done_callback(discard_finished)
+
+
+async def _wait_for_launch_cleanup_grace(cleanup_task: asyncio.Task[None]) -> None:
+    """Give normal launches time to resolve without trapping cancellation."""
+    try:
+        await asyncio.wait(
+            {cleanup_task},
+            timeout=_LAUNCH_CLEANUP_GRACE_S,
+        )
+    except asyncio.CancelledError:
+        # A repeated cancellation must not detach the tracked cleanup owner.
+        return
+
+
+async def _finish_cleanup(cleanup_task: asyncio.Task[None]) -> None:
+    """Wait through repeated cancellation so cleanup is not abandoned."""
+    while True:
+        try:
+            await asyncio.shield(cleanup_task)
+            return
+        except asyncio.CancelledError:
+            if cleanup_task.done():
+                return
+        except Exception:
+            return
+
+
+async def _terminate_and_reap(proc: asyncio.subprocess.Process) -> None:
+    """Best-effort process-tree termination with bounded cleanup waits."""
+    await _kill_process_tree(proc)
+    try:
+        await asyncio.wait_for(
+            proc.communicate(),
+            timeout=_PROCESS_CLEANUP_TIMEOUT_S,
+        )
+    except (Exception, asyncio.CancelledError):
+        if proc.returncode is None:
+            with contextlib.suppress(ProcessLookupError):
+                proc.kill()
+        with contextlib.suppress(Exception):
+            await asyncio.wait_for(
+                proc.wait(),
+                timeout=_PROCESS_CLEANUP_TIMEOUT_S,
+            )
+
+
 async def _kill_process_tree(proc: asyncio.subprocess.Process) -> None:
     if proc.returncode is not None:
         return
     if hasattr(subprocess, "CREATE_NEW_PROCESS_GROUP"):
         with contextlib.suppress(Exception):
-            killer = await asyncio.create_subprocess_exec(
-                "taskkill",
-                "/PID",
-                str(proc.pid),
-                "/T",
-                "/F",
-                stdout=subprocess.DEVNULL,
-                stderr=subprocess.DEVNULL,
+            killer = await asyncio.wait_for(
+                asyncio.create_subprocess_exec(
+                    "taskkill",
+                    "/PID",
+                    str(proc.pid),
+                    "/T",
+                    "/F",
+                    stdout=subprocess.DEVNULL,
+                    stderr=subprocess.DEVNULL,
+                ),
+                timeout=_PROCESS_CLEANUP_TIMEOUT_S,
             )
-            await killer.wait()
+            try:
+                await asyncio.wait_for(
+                    killer.wait(),
+                    timeout=_PROCESS_CLEANUP_TIMEOUT_S,
+                )
+            except TimeoutError:
+                with contextlib.suppress(ProcessLookupError):
+                    killer.kill()
+                with contextlib.suppress(Exception):
+                    await asyncio.wait_for(
+                        killer.wait(),
+                        timeout=_PROCESS_CLEANUP_TIMEOUT_S,
+                    )
         if proc.returncode is None:
             with contextlib.suppress(ProcessLookupError):
                 proc.kill()
@@ -144,7 +289,10 @@ async def _kill_process_tree(proc: asyncio.subprocess.Process) -> None:
     with contextlib.suppress(ProcessLookupError):
         import os
 
-        os.killpg(proc.pid, signal.SIGKILL)
+        kill_process_group = getattr(os, "killpg", None)
+        sigkill = getattr(signal, "SIGKILL", None)
+        if callable(kill_process_group) and sigkill is not None:
+            kill_process_group(proc.pid, sigkill)
     if proc.returncode is None:
         with contextlib.suppress(ProcessLookupError):
             proc.kill()
@@ -152,6 +300,28 @@ async def _kill_process_tree(proc: asyncio.subprocess.Process) -> None:
 
 def _ms(start: float) -> int:
     return int((time.perf_counter() - start) * 1000)
+
+
+def _safe_launch_error(executable: str, error: BaseException) -> str:
+    """Describe launch failure without exposing resolved paths or OS prose."""
+    executable_name = executable.replace("\\", "/").rsplit("/", 1)[-1] or "plan-cli"
+    errno = getattr(error, "errno", None)
+    errno_detail = f", errno={errno}" if isinstance(errno, int) else ""
+    return f"failed to launch {executable_name!r} ({type(error).__name__}{errno_detail})"
+
+
+def safe_runtime_error(error: BaseException) -> str:
+    """Describe a post-launch runner failure without rendering OS details."""
+    errno = getattr(error, "errno", None)
+    errno_detail = f", errno={errno}" if isinstance(errno, int) else ""
+    return f"runner failed ({type(error).__name__}{errno_detail})"
+
+
+def validate_timeout(timeout: object) -> float:
+    """Return a finite positive hard timeout before any process can launch."""
+    if isinstance(timeout, bool) or not isinstance(timeout, (int, float)) or not isfinite(timeout) or timeout <= 0:
+        raise ValueError("timeout must be a finite positive number")
+    return float(timeout)
 
 
 def _clean_argv(argv: list[str]) -> list[str]:

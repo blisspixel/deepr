@@ -1,6 +1,6 @@
 # Research cost reservation safety
 
-Date: 2026-07-09, absorber and provider-lifecycle extensions 2026-07-11
+Date: 2026-07-09, absorber and provider-lifecycle extensions 2026-07-12
 Status: implemented
 
 ## Context
@@ -12,14 +12,35 @@ accepted even when its response is lost. The cost ledger is append-only, while
 queue state and reservations use SQLite, so completion cannot rely on a single
 cross-file transaction.
 
+## v2.36 Scope Correction
+
+The shared provider-research and metered absorber reservation contracts below
+remain implemented. A release safety audit found that several higher-level
+expert lifecycle commands still compose calls, hosted storage, and tools
+outside one durable parent-run transaction. v2.36 therefore gates nonlocal
+`expert make` and `--learn`, API curriculum `expert plan`, provider-backed
+`expert refresh` and `--synthesize`, API `fill-gaps` including consensus and
+deep modes, API `expert sync --compile-claims`, and paid
+`deepr eval calibrate --corpus` before provider work.
+
+Re-enable each surface only after every nested call uses the shared durable
+reserve, dispatch-mark, and required settlement wrapper; all storage and tool
+side effects are priced; and the parent run ceiling survives cancellation,
+concurrency, replay, and ledger failure. Local and explicit plan-quota expert
+paths and `$0` `deepr eval calibrate --from` remain available.
+
 ## Decision
 
-Provider-backed REST, web, direct CLI, campaign-batch, MCP, and internal
-orchestrator research reserves the maximum estimate before provider
-submission. Direct CLI admission also precedes document upload and vector-store
-creation, so provider-side preparation cannot occur after a rejected ceiling.
-CLI fallback routes reserve the full configured per-call ceiling because the
-eventual provider and model may differ from the initial route.
+Provider-backed REST, web, direct CLI, MCP, and internal single-job orchestrator
+research reserves the maximum estimate before provider submission for the
+bounded surfaces that remain enabled. In v2.36,
+hosted document upload, file search, and vector-store creation or attachment
+fail before provider work because their complete storage lifecycle is not yet
+priced. Metered batch, campaign, team, and prepared multi-call execution also
+fails before paid work until every nested call belongs to one durable parent
+reservation. Automatic cross-provider metered fallback is disabled until each
+provider attempt owns a separate reservation and the full retry envelope is
+approved.
 Paid synchronous planning calls also reserve that full ceiling, then settle
 provider-reported token usage. `research_reservations.db` serializes active
 holds with
@@ -158,12 +179,9 @@ call.
   preparation occurred; otherwise it cleans created resources and settles the
   held maximum conservatively.
 - Duplicate settlement and queue result writes are idempotent across processes.
-- Provider files and vector stores created after admission are deleted on a
-  pre-submit rollback. The held maximum is still settled because deletion does
-  not prove that provider-side preparation incurred no charge.
-- Successful direct-CLI jobs persist provider file identifiers and delete files
-  and vector stores during immediate or worker completion. OpenAI-compatible
-  vector stores also expire one day after last activity if cleanup is missed.
+- Legacy cleanup remains available for provider files and vector stores created
+  by earlier releases. New hosted storage creation and attachment are gated in
+  v2.36 before any provider side effect.
 - Synchronous campaign commands poll accepted jobs through the worker's shared
   finalization path. A bounded-wait cancellation that cannot be confirmed keeps
   both processing state and its hold active.

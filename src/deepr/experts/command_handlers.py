@@ -22,6 +22,7 @@ from deepr.experts.commands import (
     CommandResult,
 )
 from deepr.experts.constants import TOOL_DESCRIPTIONS
+from deepr.experts.metered_mutation_gate import require_metered_expert_mutation
 
 if TYPE_CHECKING:
     from deepr.experts.chat import ExpertChatSession
@@ -331,6 +332,10 @@ async def handle_council(session: ExpertChatSession, args: str, context: dict) -
     if not query:
         return CommandResult(output="Usage: /council <query>", success=False)
     try:
+        require_metered_expert_mutation(
+            "api_expert_chat_council",
+            safe_alternative="use deepr expert consult with --local or --plan",
+        )
         from deepr.experts.council import ExpertCouncil
 
         council = ExpertCouncil()
@@ -346,6 +351,10 @@ async def handle_plan(session: ExpertChatSession, args: str, context: dict) -> C
     if not query:
         return CommandResult(output="Usage: /plan <query>", success=False)
     try:
+        require_metered_expert_mutation(
+            "api_expert_chat_plan",
+            safe_alternative="use a local or explicit plan-quota consultation",
+        )
         from deepr.experts.task_planner import TaskPlanner
 
         planner = TaskPlanner(session)

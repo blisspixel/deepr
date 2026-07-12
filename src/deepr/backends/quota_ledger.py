@@ -16,20 +16,73 @@ from __future__ import annotations
 import json
 import os
 import threading
-from contextlib import suppress
+import time
+from collections.abc import Iterator
+from contextlib import contextmanager
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from enum import Enum
+from math import isfinite
 from pathlib import Path
 from typing import Any, TypeVar
 
 from filelock import FileLock
+from filelock import Timeout as FileLockTimeout
 
 from deepr.backends.admission import default_capacity_data_dir
 from deepr.backends.capacity import CostModel
 
 _PATH_LOCKS: dict[Path, threading.Lock] = {}
 _PATH_LOCKS_GUARD = threading.Lock()
+_CANONICAL_EVENT_FIELDS = {
+    "timestamp",
+    "backend_id",
+    "account_id",
+    "event_type",
+    "cost_model",
+    "window_kind",
+    "units_used",
+    "units_remaining",
+    "unit_name",
+    "remaining_confidence",
+    "window_start",
+    "window_end",
+    "reset_at",
+    "reserve_floor_fraction",
+    "overage_enabled",
+    "detail",
+    "metadata",
+    "idempotency_key",
+}
+_PRE_IDEMPOTENCY_EVENT_FIELDS = _CANONICAL_EVENT_FIELDS - {"idempotency_key"}
+
+
+class QuotaLedgerLockTimeout(TimeoutError):
+    """A bounded quota-ledger lock attempt expired."""
+
+
+class QuotaLedgerStorageError(RuntimeError):
+    """Quota-ledger storage failed without exposing its configured path."""
+
+
+class QuotaLedgerLockError(QuotaLedgerStorageError):
+    """The quota ledger's interprocess lock could not be acquired."""
+
+
+class QuotaLedgerReadError(QuotaLedgerStorageError):
+    """The quota ledger could not be parsed safely before an append."""
+
+
+class QuotaLedgerWriteError(QuotaLedgerStorageError):
+    """The quota ledger could not accept a complete append."""
+
+
+class QuotaLedgerDurabilityError(QuotaLedgerStorageError):
+    """A required quota-ledger durability barrier failed."""
+
+
+class QuotaLedgerIdempotencyConflict(ValueError):
+    """An idempotency key was reused for a different quota observation."""
 
 
 def _utc_now() -> datetime:
@@ -129,6 +182,7 @@ class QuotaLedgerEvent:
     overage_enabled: bool | None = None
     detail: str = ""
     metadata: dict[str, Any] = field(default_factory=dict)
+    idempotency_key: str = ""
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -149,6 +203,7 @@ class QuotaLedgerEvent:
             "overage_enabled": self.overage_enabled,
             "detail": self.detail,
             "metadata": self.metadata,
+            "idempotency_key": self.idempotency_key,
         }
 
     @classmethod
@@ -183,15 +238,19 @@ class QuotaLedgerEvent:
             overage_enabled=_optional_bool(data.get("overage_enabled")),
             detail=str(data.get("detail", "")),
             metadata=_metadata_or_empty(data.get("metadata")),
+            idempotency_key=str(data.get("idempotency_key", "") or ""),
         )
 
 
 def _optional_float(value: object) -> float | None:
     if value is None:
         return None
-    if not isinstance(value, (int, float, str)):
+    if isinstance(value, bool) or not isinstance(value, (int, float, str)):
         raise TypeError("quota numeric field must be an int, float, or string")
-    return float(value)
+    parsed = float(value)
+    if not isfinite(parsed):
+        raise ValueError("quota numeric field must be finite")
+    return parsed
 
 
 def _optional_bool(value: object) -> bool | None:
@@ -251,25 +310,151 @@ class QuotaState:
 class QuotaLedger:
     """Durable append-only quota ledger."""
 
-    def __init__(self, ledger_path: Path | None = None):
+    def __init__(
+        self,
+        ledger_path: Path | None = None,
+        *,
+        lock_timeout_seconds: float | None = None,
+    ):
         self.ledger_path = quota_ledger_path(ledger_path)
-        self.ledger_path.parent.mkdir(parents=True, exist_ok=True)
+        try:
+            self.ledger_path.parent.mkdir(parents=True, exist_ok=True)
+        except OSError as error:
+            raise QuotaLedgerWriteError("quota ledger parent directory could not be created") from error
         self._lock = _shared_path_lock(self.ledger_path)
         resolved_path = self.ledger_path.resolve()
         self._file_lock = FileLock(str(resolved_path.with_name(f"{resolved_path.name}.lock")))
+        self._lock_timeout_seconds = _validated_lock_timeout(lock_timeout_seconds)
 
-    def record_event(self, event: QuotaLedgerEvent) -> QuotaLedgerEvent:
-        if not event.backend_id.strip():
-            raise ValueError("backend_id is required")
+    @contextmanager
+    def _locked(self) -> Iterator[None]:
+        timeout = self._lock_timeout_seconds
+        if timeout is None:
+            with self._lock:
+                try:
+                    self._file_lock.acquire()
+                except OSError as error:
+                    raise QuotaLedgerLockError("quota ledger lock could not be acquired") from error
+                try:
+                    yield
+                finally:
+                    try:
+                        self._file_lock.release()
+                    except OSError as error:
+                        raise QuotaLedgerLockError("quota ledger lock could not be released") from error
+            return
 
-        with self._lock, self._file_lock:
-            line = json.dumps(event.to_dict(), ensure_ascii=True)
-            with self.ledger_path.open("a", encoding="utf-8") as f:
-                f.write(line + "\n")
-                f.flush()
-                with suppress(OSError):
-                    os.fsync(f.fileno())
+        started = time.monotonic()
+        if not self._lock.acquire(timeout=timeout):
+            raise QuotaLedgerLockTimeout("quota ledger lock unavailable within the configured timeout")
+        try:
+            remaining = max(0.0, timeout - (time.monotonic() - started))
+            try:
+                self._file_lock.acquire(timeout=remaining)
+            except FileLockTimeout as error:
+                raise QuotaLedgerLockTimeout("quota ledger lock unavailable within the configured timeout") from error
+            except OSError as error:
+                raise QuotaLedgerLockError("quota ledger lock could not be acquired") from error
+            try:
+                yield
+            finally:
+                try:
+                    self._file_lock.release()
+                except OSError as error:
+                    raise QuotaLedgerLockError("quota ledger lock could not be released") from error
+        finally:
+            self._lock.release()
+
+    def record_event(
+        self,
+        event: QuotaLedgerEvent,
+        *,
+        require_fsync: bool = False,
+    ) -> QuotaLedgerEvent:
+        _validate_record_request(event, require_fsync=require_fsync)
+        line = _serialize_event(event)
+
+        with self._locked():
+            matching_event = self._find_idempotent_event(event)
+            if matching_event is not None:
+                return self._accept_replay(
+                    matching_event,
+                    require_fsync=require_fsync,
+                )
+            self._append_line(line, require_fsync=require_fsync)
         return event
+
+    def _accept_replay(
+        self,
+        matching_event: QuotaLedgerEvent,
+        *,
+        require_fsync: bool,
+    ) -> QuotaLedgerEvent:
+        if require_fsync:
+            self._require_existing_durability()
+        return matching_event
+
+    def _append_line(self, line: str, *, require_fsync: bool) -> None:
+        try:
+            with self.ledger_path.open("a", encoding="utf-8") as handle:
+                handle.write(line + "\n")
+                handle.flush()
+                if require_fsync:
+                    self._require_handle_durability(handle)
+        except QuotaLedgerDurabilityError:
+            raise
+        except OSError as error:
+            raise QuotaLedgerWriteError("quota ledger append failed") from error
+
+    @staticmethod
+    def _require_handle_durability(handle: Any) -> None:
+        try:
+            os.fsync(handle.fileno())
+        except OSError as error:
+            raise QuotaLedgerDurabilityError("quota ledger durability barrier failed") from error
+
+    def _find_idempotent_event(self, proposed: QuotaLedgerEvent) -> QuotaLedgerEvent | None:
+        """Scan strictly before append so corruption cannot bypass replay safety."""
+        if not self.ledger_path.exists():
+            return None
+        matching_event: QuotaLedgerEvent | None = None
+        try:
+            with self.ledger_path.open(encoding="utf-8") as existing_file:
+                for line_no, raw_line in enumerate(existing_file, start=1):
+                    line = raw_line.strip()
+                    if not line:
+                        continue
+                    try:
+                        data = json.loads(line, parse_constant=_reject_json_constant)
+                        if not isinstance(data, dict):
+                            raise TypeError("quota ledger record must be an object")
+                        _validate_accounting_record_shape(data)
+                        existing = QuotaLedgerEvent.from_dict(data)
+                    except (json.JSONDecodeError, KeyError, TypeError, ValueError) as error:
+                        raise QuotaLedgerReadError(
+                            f"quota ledger contains an invalid record at line {line_no}"
+                        ) from error
+                    if not proposed.idempotency_key or existing.idempotency_key != proposed.idempotency_key:
+                        continue
+                    if not _same_idempotent_observation(existing, proposed):
+                        raise QuotaLedgerIdempotencyConflict(
+                            "idempotency key conflicts with an existing quota observation"
+                        )
+                    matching_event = existing
+        except QuotaLedgerReadError:
+            raise
+        except (OSError, UnicodeError) as error:
+            raise QuotaLedgerReadError("quota ledger could not be read before append") from error
+        return matching_event
+
+    def _require_existing_durability(self) -> None:
+        """Retry the durability barrier before accepting an existing replay."""
+        try:
+            with self.ledger_path.open("a", encoding="utf-8") as handle:
+                handle.flush()
+                os.fsync(handle.fileno())
+        except OSError as error:
+            raise QuotaLedgerDurabilityError("quota ledger durability barrier failed") from error
 
     def get_events(
         self,
@@ -280,7 +465,7 @@ class QuotaLedger:
         end_date: datetime | None = None,
     ) -> list[QuotaLedgerEvent]:
         events: list[QuotaLedgerEvent] = []
-        with self._lock, self._file_lock:
+        with self._locked():
             if not self.ledger_path.exists():
                 return events
             with self.ledger_path.open(encoding="utf-8") as f:
@@ -343,3 +528,174 @@ def latest_quota_by_backend(path: Path | None = None) -> dict[tuple[str, str], Q
 
 def summarize_quota_state(path: Path | None = None) -> list[QuotaState]:
     return QuotaLedger(path).summarize()
+
+
+def _validated_lock_timeout(value: float | None) -> float | None:
+    if value is None:
+        return None
+    if isinstance(value, bool) or not isinstance(value, (int, float)) or not isfinite(value) or value < 0:
+        raise ValueError("lock_timeout_seconds must be finite and non-negative")
+    return float(value)
+
+
+def _validate_accounting_record_shape(data: dict[str, Any]) -> None:
+    """Reject shapes that could make an idempotency scan misclassify a row."""
+    _validate_canonical_record_header(data)
+    _validate_canonical_quota_fields(data)
+    _validate_canonical_window_fields(data)
+    _validate_canonical_identity_fields(data)
+
+
+def _validate_canonical_record_header(data: dict[str, Any]) -> None:
+    if not _PRE_IDEMPOTENCY_EVENT_FIELDS.issubset(data):
+        raise ValueError("quota ledger record is incomplete")
+    backend_id = data.get("backend_id")
+    if not isinstance(backend_id, str) or not backend_id.strip():
+        raise ValueError("quota ledger backend_id must be a non-empty string")
+    timestamp = data.get("timestamp")
+    if not isinstance(timestamp, str) or not timestamp:
+        raise ValueError("quota ledger timestamp must be a non-empty string")
+    event_type = data.get("event_type")
+    if not isinstance(event_type, str):
+        raise TypeError("quota ledger event_type must be a string")
+    try:
+        QuotaEventType(event_type)
+    except ValueError as error:
+        raise ValueError("quota ledger event_type is unknown") from error
+
+
+def _validate_canonical_quota_fields(data: dict[str, Any]) -> None:
+    account_id = data.get("account_id")
+    if not isinstance(account_id, str):
+        raise TypeError("quota ledger account_id must be a string")
+    _validate_optional_enum(data.get("cost_model"), CostModel, field_name="cost_model")
+    _validate_required_enum(data.get("window_kind"), QuotaWindowKind, field_name="window_kind")
+    _validate_optional_raw_number(data.get("units_used"), field_name="units_used")
+    _validate_optional_raw_number(data.get("units_remaining"), field_name="units_remaining")
+    unit_name = data.get("unit_name")
+    if not isinstance(unit_name, str):
+        raise TypeError("quota ledger unit_name must be a string")
+    _validate_required_enum(
+        data.get("remaining_confidence"),
+        QuotaConfidence,
+        field_name="remaining_confidence",
+    )
+
+
+def _validate_canonical_window_fields(data: dict[str, Any]) -> None:
+    for field_name in ("window_start", "window_end", "reset_at"):
+        value = data.get(field_name)
+        if value is not None and not isinstance(value, str):
+            raise TypeError(f"quota ledger {field_name} must be a string or null")
+    _validate_optional_raw_number(
+        data.get("reserve_floor_fraction"),
+        field_name="reserve_floor_fraction",
+    )
+    overage_enabled = data.get("overage_enabled")
+    if overage_enabled is not None and not isinstance(overage_enabled, bool):
+        raise TypeError("quota ledger overage_enabled must be a boolean or null")
+    detail = data.get("detail")
+    if not isinstance(detail, str):
+        raise TypeError("quota ledger detail must be a string")
+
+
+def _validate_canonical_identity_fields(data: dict[str, Any]) -> None:
+    idempotency_key = data.get("idempotency_key", "")
+    if not isinstance(idempotency_key, str):
+        raise TypeError("quota ledger idempotency_key must be a string")
+    metadata = data.get("metadata", {})
+    if not isinstance(metadata, dict):
+        raise TypeError("quota ledger metadata must be an object")
+    if idempotency_key and not _CANONICAL_EVENT_FIELDS.issubset(data):
+        raise ValueError("idempotent quota ledger record is incomplete")
+
+
+def _validate_record_request(event: QuotaLedgerEvent, *, require_fsync: bool) -> None:
+    if not isinstance(event.backend_id, str) or not event.backend_id.strip():
+        raise ValueError("backend_id is required")
+    if not isinstance(event.idempotency_key, str):
+        raise TypeError("idempotency_key must be a string")
+    if not isinstance(require_fsync, bool):
+        raise TypeError("require_fsync must be a boolean")
+    _validate_proposed_event(event)
+
+
+def _serialize_event(event: QuotaLedgerEvent) -> str:
+    try:
+        return json.dumps(event.to_dict(), ensure_ascii=True, allow_nan=False)
+    except (TypeError, ValueError) as error:
+        raise ValueError("quota event must be JSON serializable with finite values") from error
+
+
+def _reject_json_constant(value: str) -> None:
+    raise ValueError(f"non-standard JSON constant is not allowed: {value}")
+
+
+def _validate_optional_raw_number(value: object, *, field_name: str) -> None:
+    if value is None:
+        return
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        raise TypeError(f"quota ledger {field_name} must be numeric or null")
+    if not isfinite(value):
+        raise ValueError(f"quota ledger {field_name} must be finite")
+
+
+def _validate_required_enum(
+    value: object,
+    enum_type: type[EnumT],
+    *,
+    field_name: str,
+) -> None:
+    if not isinstance(value, str):
+        raise TypeError(f"quota ledger {field_name} must be a string")
+    try:
+        enum_type(value)
+    except ValueError as error:
+        raise ValueError(f"quota ledger {field_name} is unknown") from error
+
+
+def _validate_optional_enum(
+    value: object,
+    enum_type: type[EnumT],
+    *,
+    field_name: str,
+) -> None:
+    if value is None:
+        return
+    _validate_required_enum(value, enum_type, field_name=field_name)
+
+
+def _validate_proposed_event(event: QuotaLedgerEvent) -> None:
+    for field_name in (
+        "units_used",
+        "units_remaining",
+        "reserve_floor_fraction",
+    ):
+        value = getattr(event, field_name)
+        if value is None:
+            continue
+        if isinstance(value, bool) or not isinstance(value, (int, float)):
+            raise TypeError(f"{field_name} must be an int or float")
+        if not isfinite(value):
+            raise ValueError(f"{field_name} must be finite")
+
+
+def _same_idempotent_observation(existing: QuotaLedgerEvent, proposed: QuotaLedgerEvent) -> bool:
+    """Compare quota-event identity while ignoring timestamp and prose detail."""
+    return (
+        existing.backend_id == proposed.backend_id
+        and existing.account_id == proposed.account_id
+        and existing.event_type == proposed.event_type
+        and existing.cost_model == proposed.cost_model
+        and existing.window_kind == proposed.window_kind
+        and existing.units_used == proposed.units_used
+        and existing.units_remaining == proposed.units_remaining
+        and existing.unit_name == proposed.unit_name
+        and existing.remaining_confidence == proposed.remaining_confidence
+        and existing.window_start == proposed.window_start
+        and existing.window_end == proposed.window_end
+        and existing.reset_at == proposed.reset_at
+        and existing.reserve_floor_fraction == proposed.reserve_floor_fraction
+        and existing.overage_enabled == proposed.overage_enabled
+        and existing.metadata == proposed.metadata
+    )

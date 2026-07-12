@@ -9,7 +9,7 @@ Features:
 - CRUD operations for ExpertProfile
 - Schema versioning with migration support
 - Directory structure management
-- Vector store integration
+- Legacy hosted vector-store integration, execution-gated in v2.36
 
 Requirements: 1.2 - ExpertProfile Refactoring
 """
@@ -25,6 +25,8 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 from filelock import FileLock
+
+from deepr.experts.metered_mutation_gate import require_metered_expert_mutation
 
 if TYPE_CHECKING:
     from deepr.experts.profile import ExpertProfile
@@ -514,6 +516,10 @@ class ExpertStore:
         Returns:
             Dictionary with uploaded, failed, and skipped lists
         """
+        require_metered_expert_mutation(
+            "hosted_expert_vector_upload",
+            safe_alternative="use local source packs and expert absorb --local",
+        )
         if not provider_client:
             from deepr.core.settings import get_settings
             from deepr.providers import create_provider

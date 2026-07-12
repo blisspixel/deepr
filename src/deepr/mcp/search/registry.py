@@ -407,12 +407,11 @@ def create_default_registry() -> ToolRegistry:
         ToolSchema(
             name="deepr_query_expert",
             description=(
-                "Single-expert question path. Default backend='api' uses OpenAI "
-                "metered-capable chat; backend='api' with provider='anthropic' runs "
-                "non-agentic native Anthropic chat and rejects agentic=true. "
+                "Single-expert question path. In v2.36 backend='api' is blocked before "
+                "provider dispatch until durable per-call accounting ships. "
                 "backend='local' or backend='plan' runs one read-only compiled-context "
-                "turn through owned or explicit plan capacity with live metered fallback "
-                "disabled and research_triggered=0."
+                "turn through owned or explicit non-metered plan capacity with live "
+                "metered fallback disabled and research_triggered=0."
             ),
             input_schema=QUERY_EXPERT_INPUT_SCHEMA,
             category="experts",
@@ -949,12 +948,10 @@ def create_default_registry() -> ToolRegistry:
         ToolSchema(
             name="deepr_agentic_research",
             description=(
-                "Start autonomous multi-step research workflow with Plan-Execute-Review "
-                "cycles. An expert autonomously decomposes goals, conducts research, and "
-                "synthesizes findings. Costs $1-$10. Requires an existing expert. "
-                "Always confirm budget with user before calling. "
-                "Example: deepr_agentic_research(goal='Evaluate database options for "
-                "our recommendation engine', expert_name='Tech Architect', budget=5.0)"
+                "Compatibility adapter for autonomous multi-step research. In v2.36 it "
+                "always fails closed before provider work with "
+                "metered_expert_chat_accounting_unavailable. Decompose work into "
+                "separately previewed and approved bounded jobs instead."
             ),
             input_schema={
                 "type": "object",
@@ -967,7 +964,11 @@ def create_default_registry() -> ToolRegistry:
                         "type": "string",
                         "description": "Expert to use for reasoning (required). See deepr_list_experts.",
                     },
-                    "budget": {"type": "number", "default": 5.0, "description": "Total budget for workflow ($1-$10)"},
+                    "budget": {
+                        "type": "number",
+                        "default": 5.0,
+                        "description": "Compatibility input; a larger value does not unlock the v2.36 gate.",
+                    },
                 },
                 "required": ["goal", "expert_name"],
             },

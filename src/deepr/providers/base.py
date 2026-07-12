@@ -5,6 +5,12 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Any, Literal
 
+DEFAULT_RESEARCH_MAX_INPUT_TOKENS = 128_000
+DEFAULT_RESEARCH_MAX_OUTPUT_TOKENS = 16_000
+DEFAULT_RESEARCH_MAX_TOOL_CALLS = 16
+DEFAULT_RESEARCH_MAX_PROVIDER_REQUESTS = 3
+DEFAULT_RESEARCH_MAX_REQUEST_BYTES = 64 * 1024
+
 
 @dataclass
 class ToolConfig:
@@ -41,6 +47,13 @@ class ResearchRequest:
     trace_id: str = ""  # Trace ID for distributed tracing across agent boundaries
     # Stable retry identity for provider POST requests
     idempotency_key: str = ""
+    # Deterministic spend and payload ceilings. Providers must either enforce
+    # these at their API boundary or fail before dispatch.
+    max_input_tokens: int = DEFAULT_RESEARCH_MAX_INPUT_TOKENS
+    max_output_tokens: int = DEFAULT_RESEARCH_MAX_OUTPUT_TOKENS
+    max_tool_calls: int = DEFAULT_RESEARCH_MAX_TOOL_CALLS
+    max_provider_requests: int = DEFAULT_RESEARCH_MAX_PROVIDER_REQUESTS
+    max_request_bytes: int = DEFAULT_RESEARCH_MAX_REQUEST_BYTES
 
 
 @dataclass
@@ -73,7 +86,7 @@ class UsageStats:
         input_cost = (input_tokens / 1_000_000) * prices["input"]
         output_cost = (output_tokens / 1_000_000) * prices["output"]
 
-        return round(input_cost + output_cost, 6)
+        return input_cost + output_cost
 
     @classmethod
     def calculate_cost_with_cached_input(
@@ -101,7 +114,7 @@ class UsageStats:
         cached_input_cost = (normalized_cached / 1_000_000) * cached_input_rate
         output_cost = (normalized_output / 1_000_000) * prices["output"]
 
-        return round(input_cost + cached_input_cost + output_cost, 6)
+        return input_cost + cached_input_cost + output_cost
 
 
 def coerce_usage_int(value: Any) -> int:

@@ -10,11 +10,19 @@ from __future__ import annotations
 
 import hashlib
 import json
+import math
 import os
+import threading
+import time
 import uuid
+from collections.abc import Iterator
+from contextlib import contextmanager
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
+
+from filelock import FileLock
+from filelock import Timeout as FileLockTimeout
 
 from deepr.config import default_data_dir, runtime_data_path
 from deepr.core.contracts import Gap
@@ -30,6 +38,31 @@ CONSULT_QUALITY_EVAL_CASE_SCHEMA_VERSION = "deepr-consult-quality-eval-case-v1"
 CONSULT_QUALITY_EVAL_CASE_KIND = "deepr.eval.consult_quality_case"
 RECALL_EVAL_CASE_CANDIDATE_SCHEMA_VERSION = _recall_cases.RECALL_EVAL_CASE_CANDIDATE_SCHEMA_VERSION
 RECALL_EVAL_CASE_CANDIDATE_KIND = _recall_cases.RECALL_EVAL_CASE_CANDIDATE_KIND
+
+_TRACE_PATH_LOCKS: dict[Path, threading.Lock] = {}
+_TRACE_PATH_LOCKS_GUARD = threading.Lock()
+_DEFAULT_TRACE_LOCK_TIMEOUT_SECONDS = 5.0
+
+
+class ConsultTraceLockTimeoutError(RuntimeError):
+    """Raised when bounded consult-trace serialization cannot acquire its locks."""
+
+    def __init__(self, message: str, *, path: Path | None, timeout_seconds: float) -> None:
+        self.path = path
+        self.timeout_seconds = timeout_seconds
+        self.trace_id = ""
+        super().__init__(message)
+
+
+class ConsultTraceStorageError(RuntimeError):
+    """Raised when durable trace I/O fails without exposing its local path."""
+
+    def __init__(self, operation: str, *, partial_write_possible: bool) -> None:
+        self.operation = operation
+        self.partial_write_possible = partial_write_possible
+        self.trace_id = ""
+        ambiguity = " after a write may have started" if partial_write_possible else " before a trace write"
+        super().__init__(f"Consult trace storage failed during {operation}{ambiguity}")
 
 
 def _utc_now() -> datetime:
@@ -58,6 +91,67 @@ def _trace_path(path: Path | None = None) -> Path:
     return default_data_dir() / "consult_traces" / "consult_traces.jsonl"
 
 
+def _shared_trace_path_lock(path: Path) -> threading.Lock:
+    """Return one process-local lock for every resolved trace path."""
+    resolved = path.resolve()
+    with _TRACE_PATH_LOCKS_GUARD:
+        return _TRACE_PATH_LOCKS.setdefault(resolved, threading.Lock())
+
+
+@contextmanager
+def _bounded_trace_lock(path: Path, timeout_seconds: float) -> Iterator[None]:
+    if not math.isfinite(timeout_seconds) or timeout_seconds < 0:
+        raise ValueError("lock_timeout_seconds must be finite and non-negative")
+    timeout_seconds = min(_DEFAULT_TRACE_LOCK_TIMEOUT_SECONDS, timeout_seconds)
+    started = time.perf_counter()
+    try:
+        local_lock = _shared_trace_path_lock(path)
+    except (OSError, RuntimeError) as exc:
+        raise ConsultTraceStorageError("lock preparation", partial_write_possible=False) from exc
+    if not local_lock.acquire(timeout=timeout_seconds):
+        raise ConsultTraceLockTimeoutError(
+            "Timed out acquiring consult trace process lock", path=path, timeout_seconds=timeout_seconds
+        )
+    try:
+        try:
+            file_lock = FileLock(str(path.resolve().with_name(f"{path.name}.lock")))
+            remaining = max(0.0, timeout_seconds - (time.perf_counter() - started))
+            file_lock.acquire(timeout=remaining)
+        except FileLockTimeout as exc:
+            raise ConsultTraceLockTimeoutError(
+                "Timed out acquiring consult trace file lock", path=path, timeout_seconds=timeout_seconds
+            ) from exc
+        except (OSError, RuntimeError) as exc:
+            raise ConsultTraceStorageError("lock preparation", partial_write_possible=False) from exc
+        try:
+            yield
+        finally:
+            try:
+                file_lock.release()
+            except OSError as exc:
+                raise ConsultTraceStorageError("lock release", partial_write_possible=True) from exc
+    finally:
+        local_lock.release()
+
+
+def _append_consult_trace(
+    path: Path,
+    record: dict[str, Any],
+    *,
+    lock_timeout_seconds: float = _DEFAULT_TRACE_LOCK_TIMEOUT_SECONDS,
+) -> None:
+    """Serialize a durable trace append across threads and processes."""
+    try:
+        path.parent.mkdir(parents=True, exist_ok=True)
+    except OSError as exc:
+        raise ConsultTraceStorageError("parent preparation", partial_write_possible=False) from exc
+    with _bounded_trace_lock(path, lock_timeout_seconds):
+        try:
+            append_jsonl_durable(path, record, fsync=True)
+        except OSError as exc:
+            raise ConsultTraceStorageError("trace append", partial_write_possible=True) from exc
+
+
 def new_consult_trace_id() -> str:
     return f"consult_{uuid.uuid4().hex[:12]}"
 
@@ -81,14 +175,18 @@ def _capacity_block(capacity: dict[str, Any] | None) -> dict[str, Any]:
             "synthesis_backend": "api",
             "provider": "openai",
             "model": "",
-            "live_metered_fallback": True,
+            "live_metered_fallback": False,
         }
     return {
         "synthesis_backend": str(capacity.get("synthesis_backend", "api")),
         "provider": str(capacity.get("provider", "")),
         "model": str(capacity.get("model") or ""),
-        "live_metered_fallback": bool(capacity.get("live_metered_fallback", True)),
+        "live_metered_fallback": bool(capacity.get("live_metered_fallback", False)),
     }
+
+
+def _dict_block(value: object) -> dict[str, Any]:
+    return cast(dict[str, Any], value) if isinstance(value, dict) else {}
 
 
 def _selected_order_position(index: int, total: int) -> dict[str, Any]:
@@ -301,10 +399,19 @@ def public_trace_ref(record: dict[str, Any]) -> dict[str, Any]:
     }
 
 
-def record_consult_trace(*, path: Path | None = None, **kwargs: Any) -> dict[str, Any]:
+def record_consult_trace(
+    *,
+    path: Path | None = None,
+    lock_timeout_seconds: float = _DEFAULT_TRACE_LOCK_TIMEOUT_SECONDS,
+    **kwargs: Any,
+) -> dict[str, Any]:
     """Append a consult trace and return its safe public reference."""
     record = build_consult_trace(**kwargs)
-    append_jsonl_durable(_trace_path(path), record, fsync=True)
+    try:
+        _append_consult_trace(_trace_path(path), record, lock_timeout_seconds=lock_timeout_seconds)
+    except (ConsultTraceLockTimeoutError, ConsultTraceStorageError) as exc:
+        exc.trace_id = str(record["trace_id"])
+        raise
     return public_trace_ref(record)
 
 
@@ -424,7 +531,7 @@ def _gap_for_trace(trace: dict[str, Any], reason: str, priority: int) -> Gap:
 
 
 def _eval_case_for_trace(trace: dict[str, Any], reason: str) -> dict[str, Any]:
-    input_block = trace.get("input") if isinstance(trace.get("input"), dict) else {}
+    input_block = _dict_block(trace.get("input"))
     question = str(input_block.get("question", ""))
     return {
         "case_id": f"{trace.get('trace_id', 'consult_unknown')}_{reason}",
@@ -497,7 +604,7 @@ def _failure_labels_for_trace(trace: dict[str, Any]) -> list[str]:
 
 
 def _semantic_eval_case_for_trace(trace: dict[str, Any], reason: str) -> dict[str, Any]:
-    input_block = trace.get("input") if isinstance(trace.get("input"), dict) else {}
+    input_block = _dict_block(trace.get("input"))
     question = str(input_block.get("question", ""))
     middle_context_slot_count = _middle_context_slot_count(trace)
     return {
@@ -517,7 +624,7 @@ def _semantic_eval_case_for_trace(trace: dict[str, Any], reason: str) -> dict[st
             "question_hash": str(input_block.get("question_hash", _sha256(question))),
             "question_preview": _preview(question),
             "reason": reason,
-            "capacity": _capacity_block(trace.get("capacity") if isinstance(trace.get("capacity"), dict) else None),
+            "capacity": _capacity_block(_dict_block(trace.get("capacity"))),
             "selected_context_count": _selected_context_count(trace),
             "context_position_zones": _selected_context_position_zones(trace),
             "middle_context_slot_count": middle_context_slot_count,
@@ -575,7 +682,7 @@ def _semantic_eval_case_for_trace(trace: dict[str, Any], reason: str) -> dict[st
 
 
 def _recall_case_candidate_for_trace(trace: dict[str, Any], reason: str) -> dict[str, Any] | None:
-    input_block = trace.get("input") if isinstance(trace.get("input"), dict) else {}
+    input_block = _dict_block(trace.get("input"))
     question = str(input_block.get("question", ""))
     candidate_belief_ids = _selected_context_candidate_belief_ids(trace)
     if not question.strip() or not candidate_belief_ids:
@@ -604,7 +711,7 @@ def _candidate_for_trace(
     priority: int,
 ) -> dict[str, Any]:
     gap = _gap_for_trace(trace, reason, priority)
-    input_block = trace.get("input") if isinstance(trace.get("input"), dict) else {}
+    input_block = _dict_block(trace.get("input"))
     candidate = {
         "trace_id": str(trace.get("trace_id", "")),
         "recorded_at": str(trace.get("recorded_at", "")),

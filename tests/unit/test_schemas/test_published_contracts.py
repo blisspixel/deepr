@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import json
 from datetime import UTC, datetime
 from pathlib import Path
@@ -238,6 +239,51 @@ def test_schema_registry_points_to_existing_versioned_schemas():
         schema = _load_schema(entry["path"])
         assert schema["properties"]["schema_version"]["const"] == entry["schema_version"]
         assert schema["properties"]["kind"]["const"] == entry["kind"]
+
+
+def test_recon_dns_indicator_handoff_cannot_authorize_product_use_verdict():
+    fixture_path = Path(__file__).with_name("fixtures") / "stripe-aws-dns-indicator-v1.json"
+    payload = json.loads(fixture_path.read_text(encoding="utf-8"))
+    schema = _load_schema("recon-evidence-handoff-v1.json")
+
+    _validate(schema, payload)
+    canonical_source = json.dumps(payload["source_payload"]["raw"], sort_keys=True, separators=(",", ":")).encode()
+    assert hashlib.sha256(canonical_source).hexdigest() == payload["source_payload"]["content_sha256"]
+    assert payload["query_scope"] == {
+        "scope_kind": "domain",
+        "queried_domain": "stripe.com",
+        "queried_names": ["stripe.com"],
+        "organization_scope_inferred": False,
+    }
+    opportunity = payload["collection"]["opportunities"][0]
+    assert opportunity["attempted"] is True
+    assert opportunity["succeeded"] is True
+    assert opportunity["outcome"] == "records_observed"
+    observation = payload["observations"][0]
+    canonical_raw = json.dumps(observation["raw_observation"], sort_keys=True, separators=(",", ":")).encode()
+    assert hashlib.sha256(canonical_raw).hexdigest() == observation["provenance"][0]["content_sha256"]
+    assert observation["observed_at"] == observation["freshness"]["as_of"]
+    assert observation["freshness"]["basis"]
+    assert observation["confidence"]["applies_to"] == "observation"
+    assert observation["confidence"]["basis"]
+
+    inference = payload["inferences"][0]
+    assert set(inference["basis_observation_ids"]) <= {item["observation_id"] for item in payload["observations"]}
+    assert inference["status"] == "unresolved"
+    assert inference["unresolved_alternatives"]
+    assert inference["organization_product_use_verdict"] is False
+    assert inference["eligible_for_belief_write"] is False
+    assert inference["confidence"]["applies_to"] == "inference"
+    assert inference["confidence"]["basis"]
+
+    inference_contract = schema["$defs"]["inference"]["properties"]
+    assert inference_contract["organization_product_use_verdict"]["const"] is False
+    assert inference_contract["eligible_for_belief_write"]["const"] is False
+    if Draft202012Validator is not None:
+        for field in ("organization_product_use_verdict", "eligible_for_belief_write"):
+            invalid = json.loads(json.dumps(payload))
+            invalid["inferences"][0][field] = True
+            assert list(Draft202012Validator(schema).iter_errors(invalid))
 
 
 def test_recall_operator_validation_schema_validates_runtime_payload():

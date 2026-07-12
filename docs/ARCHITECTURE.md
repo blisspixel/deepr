@@ -15,18 +15,18 @@ graph TB
     end
 
     subgraph Core
-        Router["Auto Mode Router<br/><i>complexity analysis, cost optimization</i>"]
-        Research["Research Engine<br/><i>multi-phase, context chaining</i>"]
-        Experts["Expert System<br/><i>beliefs, memory, autonomous learning</i>"]
+        Router["Preview and Admission Router<br/><i>capacity, quality, exact cost gates</i>"]
+        Research["Research Engine<br/><i>one bounded request; fan-out gated</i>"]
+        Experts["Expert System<br/><i>beliefs, memory, verified local/plan loops</i>"]
         Context["Context Discovery<br/><i>semantic search, temporal tracking</i>"]
     end
 
     subgraph Providers
         OpenAI["OpenAI<br/>GPT-5.5 family, GPT-5.4 family, o3 / o4-mini deep research"]
-        Gemini["Gemini<br/>Deep Research Agent, 3.5 Flash, 3.1, 2.5"]
+        Gemini["Gemini<br/>3.5 Flash, 3.1, 2.5; managed research gated"]
         Grok["Grok<br/>4.3, 4.20, explicit Imagine image"]
         Anthropic["Anthropic<br/>Claude Sonnet 5, Opus 4.8, Fable 5, Haiku 4.5"]
-        AzureFoundry["Azure AI Foundry<br/>o3 deep research, GPT-5, GPT-4.1 + Bing"]
+        AzureFoundry["Azure AI Foundry<br/>metadata visible; agent execution gated"]
     end
 
     subgraph Infrastructure
@@ -66,28 +66,45 @@ graph TB
     Observe -.->|"tracks"| Providers
 ```
 
+Provider edges show registry and adapter boundaries, not unconditional runtime
+dispatch. In v2.36, one request runs only when its provider/model/tool envelope
+is finite and fully priced. Managed Gemini Deep Research, xAI multi-agent
+research, Azure Foundry agents, hosted context, automatic metered fallback, and
+metered multi-call fan-out fail closed.
+
 ## Design Decisions
 
 - **Local-first with SQLite, not Postgres.** Research results, expert profiles, job queues, and cost tracking all use SQLite. No database server to run, no connection strings to manage. Users `pip install` and go. Cloud deployment swaps in DynamoDB/CosmosDB/Firestore via storage abstractions, but the local experience stays zero-config.
 
-- **Experts are not just RAG.** Most "chat with your docs" tools do retrieval then generation and stop there. Deepr experts have a metacognition layer - they track what they know (claims with confidence), recognize what they don't know (gaps with priority), and (in agentic mode) autonomously research to fill those gaps. The knowledge persists permanently, so the expert improves over time rather than resetting each session.
+- **Experts are not just RAG.** Deepr experts track claims, confidence, evidence,
+  contradictions, gaps, perspective state, and durable loop outcomes. Explicit
+  local and non-metered plan workflows can propose and verify updates. Standalone
+  metered agentic chat and expert lifecycle mutation are gated in v2.36, and no
+  conversation can authorize its own spend or permanent belief writes.
 
-- **Auto-mode routing analyzes query complexity before choosing a model.** Simple factual questions prefer the cheapest admitted local, plan-quota, or metered model that satisfies the quality floor. Complex multi-source research can route to deep-research style providers only when the previewed estimate and budget ceiling allow it. This is not just keyword matching - routing factors in configured capacity, current budget, provider health, and registry cost metadata.
+- **Routing separates preview from execution.** Registry metadata, admitted
+  quality, local readiness, trusted plan-quota evidence, and exact API envelopes
+  inform previews and selected scheduled maintenance paths. Global
+  cheapest-first runtime execution and automatic cross-provider metered
+  fallback are not shipped in v2.36. Lexical signals may route a preview but
+  never decide semantic complexity or authorize spend.
 
 - **Multi-layer budget controls because research costs real money.** Per-operation limits, daily caps, monthly ceilings, pre-submission estimates, and a circuit breaker that pauses after repeated failures. The system saves progress on pause so you can resume later. An uncapped loop calling o3-deep-research could burn $100+ before you notice.
 
-- **Provider abstraction with circuit breakers, not just try/catch.** Each provider has health scoring with exponential decay, latency percentile tracking (p50/p95/p99), and automatic disabling after sustained failures. The router uses exploration/exploitation (10% exploration by default) to discover when a degraded provider recovers.
+- **Provider abstraction preserves lifecycle ownership.** Each accepted job
+  records its provider for polling, cancellation, settlement, and cleanup.
+  Health and latency metrics remain observable, but a failed provider never
+  triggers an unapproved metered fallback or exploratory dispatch.
 
 ## Core Components
 
 ### 1. Research Engine
 - **Location**: `src/deepr/research_agent/`
-- **Purpose**: Conducts multi-step research using AI models
-- **Modes** (via `ResearchMode` enum in `core/settings.py`):
-  - `READ_ONLY`: Browse existing knowledge only
-  - `STANDARD`: Standard research with web search (~$0.25)
-  - `EXTENDED`: Deep research with multi-step analysis (~$2.00)
-  - `UNRESTRICTED`: Full autonomous research
+- **Purpose**: Prepares and tracks provider research under explicit bounds.
+- **Policy modes** (via `ResearchMode` in `core/settings.py`) classify tool
+  permissions. They are not cost quotes or execution claims. `READ_ONLY` is
+  provider-free; `STANDARD`, `EXTENDED`, and `UNRESTRICTED` remain subordinate
+  to the v2.36 request, parent-budget, and interface gates.
 
 ### 2. Expert System
 - **Location**: `src/deepr/experts/`
@@ -134,9 +151,9 @@ graph TB
 - **Providers**:
   - OpenAI (GPT-5.5 family, GPT-5.4 family, GPT-5 family, GPT-4.1 family, o3/o4-mini deep research)
   - Azure OpenAI (same models, Azure-hosted)
-  - Azure AI Foundry (o3 deep research + Bing, GPT-5, GPT-4.1)
+  - Azure AI Foundry model metadata (Agent/Thread/Run execution gated in v2.36)
   - xAI (Grok 4.3, Grok 4.20, explicit premium image generation)
-  - Google (Gemini 3.5 Flash, Gemini 3.1, Gemini 2.5, Deep Research Agent)
+  - Google (Gemini 3.5 Flash, Gemini 3.1, Gemini 2.5; managed Deep Research gated)
   - Anthropic (Claude Sonnet 5, Opus 4.8, Fable 5, Haiku 4.5)
 
 ### 4. Model Registry
@@ -183,16 +200,20 @@ User receives report
 
 ### Expert Flow
 ```
-Create Expert
+Create Local Expert
     |
-Curriculum Generator (plans learning topics)
+Structured Beliefs, Gaps, and Source Packs
     |
-Research Agent (learns each topic)
+Explicit Local or Plan-Quota Sync
     |
-Vector Store (stores knowledge)
+Verification and One Belief-Store Commit
     |
-Expert ready to answer questions
+Local or Plan Query and Consult
 ```
+
+Metered curriculum generation, hosted vector storage, standalone expert chat,
+and API lifecycle mutation fail closed in v2.36 until their nested calls and
+storage side effects share one durable parent transaction.
 
 ## Model Selection
 
@@ -205,10 +226,10 @@ secondary docs.
 ### Current Registry Highlights
 
 - **OpenAI**: GPT-5.5 and GPT-5.4 families for synthesis and planning, plus o3/o4-mini deep research for explicitly deep async jobs.
-- **xAI**: Grok 4.3 for current text research and agentic work, Grok 4.20 for explicit multi-agent research, and explicit-only image generation.
-- **Google Gemini**: Gemini 3.5 Flash and 3.1/2.5 families for long-context and multimodal work, plus the Deep Research Agent.
+- **xAI**: Grok text-model metadata is available where pricing is complete; multi-agent research is gated in v2.36.
+- **Google Gemini**: Gemini 3.5 Flash and 3.1/2.5 model metadata is available; the managed Deep Research Agent is gated in v2.36.
 - **Anthropic**: Claude Sonnet 5 for balanced chat/synthesis, Opus 4.8 for high-reasoning work, and Fable 5 as premium opt-in capacity.
-- **Azure AI Foundry**: Deployment-specific OpenAI model targets with Azure identity, enterprise controls, and optional Bing grounding.
+- **Azure AI Foundry**: Deployment metadata remains available; Agent/Thread/Run work with Bing grounding is gated until the multi-call and tool-cost envelope is complete.
 
 Run `python scripts/discover_models.py --show-registry` for the current exact
 model IDs, pricing estimates, context windows, and deprecation flags.
@@ -383,27 +404,19 @@ Multiple layers prevent runaway costs. Implementation in `src/deepr/experts/cost
 - Requires confirmation for budgets > $25
 - Shows daily/monthly spending status with `/status` command in expert chat
 
-**Pause/Resume for Long-Running Processes:**
+**Paused long-running expert state:**
 
-When learning or curriculum execution hits limits:
-1. Progress saved to `data/experts/<name>/knowledge/learning_progress.json`
-2. Clear message about when to resume
-3. Resume with `deepr expert resume "<name>"`
-
-```bash
-# If daily limit hit during learning:
-PAUSED - Daily/Monthly Limit Reached
-Progress: 8 topics completed, 7 remaining
-
-To resume:
-  deepr expert resume "Azure Architect"
-```
+Historical learning progress remains inspectable for recovery. The metered
+`deepr expert resume` dispatch path is gated in v2.36 until every nested call
+shares the durable parent budget and exact settlement transaction. Use explicit
+local or documented non-metered plan maintenance instead of resuming through a
+provider API.
 
 #### Rate Limiting
 
 - API endpoints have request rate limits
-- Provider calls respect upstream rate limits
-- Exponential backoff on rate limit errors
+- Provider calls return typed upstream rate-limit state. Deepr-created bounded
+  clients disable hidden SDK retries so one reservation cannot multiply calls.
 
 ### Audit Logging
 
@@ -448,11 +461,11 @@ The `src/deepr/observability/` module provides monitoring and cost management:
 - Budget alerts with configurable thresholds
 - Atomic persistence to prevent data corruption
 
-### Provider Router (`provider_router.py`)
-- Autonomous provider selection based on cost, latency, and availability
-- Fallback handling when providers fail
-- Health scoring with exponential decay
-- Metrics tracking (success rate, latency, costs)
+### Routing (`routing/`)
+- Read-only route previews and registry/eligibility metadata
+- Explicit local, plan, and bounded API capacity selection
+- Health, success, latency, and cost metrics
+- No automatic cross-provider metered fallback in v2.36
 
 ### Quality Metrics (`quality_metrics.py`)
 - Response quality scoring

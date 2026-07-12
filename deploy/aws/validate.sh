@@ -55,35 +55,38 @@ echo "1. Health Check"
 HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" "$API_URL/health" 2>/dev/null || echo "000")
 check "GET /health returns 200" $([ "$HTTP_CODE" = "200" ] && echo 0 || echo 1)
 
-# 2. Submit a test job
+# 2. Verify metered submission is fail-closed without enqueueing work
 echo ""
-echo "2. Submit Test Job"
+echo "2. Metered Research Gate"
 if [ -n "$API_KEY" ]; then
-    SUBMIT_RESPONSE=$(curl -s -X POST "$API_URL/jobs" \
+    SUBMIT_RESPONSE=$(curl -s -w '\n%{http_code}' -X POST "$API_URL/jobs" \
         -H "Content-Type: application/json" \
         -H "X-Api-Key: $API_KEY" \
-        -d '{"prompt": "What is 2+2? Answer in one word.", "model": "grok-4-1-fast-non-reasoning"}' 2>/dev/null || echo "{}")
+        -d '{"prompt": "Validate the v2.36 AWS admission boundary."}' 2>/dev/null || printf '{}\n000')
 else
-    SUBMIT_RESPONSE=$(curl -s -X POST "$API_URL/jobs" \
+    SUBMIT_RESPONSE=$(curl -s -w '\n%{http_code}' -X POST "$API_URL/jobs" \
         -H "Content-Type: application/json" \
-        -d '{"prompt": "What is 2+2? Answer in one word.", "model": "grok-4-1-fast-non-reasoning"}' 2>/dev/null || echo "{}")
+        -d '{"prompt": "Validate the v2.36 AWS admission boundary."}' 2>/dev/null || printf '{}\n000')
 fi
 
-JOB_ID=$(echo "$SUBMIT_RESPONSE" | python3 -c "import sys,json; print(json.load(sys.stdin).get('job_id',''))" 2>/dev/null || echo "")
-check "POST /jobs returns job_id" $([ -n "$JOB_ID" ] && echo 0 || echo 1)
+SUBMIT_HTTP_CODE=$(printf '%s\n' "$SUBMIT_RESPONSE" | tail -n 1)
+SUBMIT_BODY=$(printf '%s\n' "$SUBMIT_RESPONSE" | sed '$d')
+SUBMIT_ERROR_CODE=$(printf '%s' "$SUBMIT_BODY" | python3 -c \
+    "import sys,json; print(json.load(sys.stdin).get('error_code',''))" 2>/dev/null || echo "")
+check "POST /jobs returns the v2.36 accounting gate" \
+    $([ "$SUBMIT_HTTP_CODE" = "503" ] && \
+       [ "$SUBMIT_ERROR_CODE" = "aws_metered_research_accounting_unavailable" ] && echo 0 || echo 1)
 
-# 3. Check job status
+# 3. Verify the read-only jobs endpoint remains available
 echo ""
-echo "3. Check Job Status"
-if [ -n "$JOB_ID" ] && [ -n "$API_KEY" ]; then
-    STATUS_CODE=$(curl -s -o /dev/null -w "%{http_code}" "$API_URL/jobs/$JOB_ID" \
+echo "3. Job List"
+if [ -n "$API_KEY" ]; then
+    STATUS_CODE=$(curl -s -o /dev/null -w "%{http_code}" "$API_URL/jobs" \
         -H "X-Api-Key: $API_KEY" 2>/dev/null || echo "000")
-elif [ -n "$JOB_ID" ]; then
-    STATUS_CODE=$(curl -s -o /dev/null -w "%{http_code}" "$API_URL/jobs/$JOB_ID" 2>/dev/null || echo "000")
 else
-    STATUS_CODE="000"
+    STATUS_CODE=$(curl -s -o /dev/null -w "%{http_code}" "$API_URL/jobs" 2>/dev/null || echo "000")
 fi
-check "GET /jobs/{id} returns 200" $([ "$STATUS_CODE" = "200" ] && echo 0 || echo 1)
+check "GET /jobs returns 200" $([ "$STATUS_CODE" = "200" ] && echo 0 || echo 1)
 
 # 4. Check costs endpoint
 echo ""

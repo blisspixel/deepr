@@ -39,7 +39,9 @@ PROMPTS: dict[str, dict[str, Any]] = {
                     "text": (
                         f"Please conduct a comprehensive deep research report on: {args['topic']}\n\n"
                         f"{'Scope: ' + args['scope'] if args.get('scope') else ''}\n\n"
-                        "Use the deepr_research tool. Focus on empirical data and cite all sources. "
+                        "After explicit user approval, use one bounded deepr_research call with an explicit "
+                        "provider, model, and budget. Do not attach hosted files or fall through to another "
+                        "provider. Focus on empirical data and cite all sources. "
                         "After the research completes, present the findings with:\n"
                         "1. Executive summary\n"
                         "2. Key findings with citations\n"
@@ -76,9 +78,9 @@ PROMPTS: dict[str, dict[str, Any]] = {
                     "text": (
                         f"I'd like to consult the '{args['expert_name']}' expert.\n\n"
                         f"Question: {args['question']}\n\n"
-                        "Use deepr_query_expert to get the answer. If the expert indicates "
-                        "low confidence or a knowledge gap, offer to enable agentic mode "
-                        "for autonomous research to fill the gap."
+                        "Use deepr_query_expert with backend='local' or backend='plan', agentic=false, "
+                        "and explicit corresponding capacity. If the expert indicates low confidence or a "
+                        "knowledge gap, report it and offer a separately approved bounded research job."
                     ),
                 },
             }
@@ -110,7 +112,8 @@ PROMPTS: dict[str, dict[str, Any]] = {
                     "text": (
                         f"Please conduct a comparative analysis of: {args['options']}\n\n"
                         f"{'Evaluation criteria: ' + args['criteria'] if args.get('criteria') else ''}\n\n"
-                        "Use deepr_research to investigate each option. Produce a structured "
+                        "After explicit user approval, use one bounded deepr_research call that compares all "
+                        "options inside the same request. Produce a structured "
                         "comparison with:\n"
                         "1. Overview of each option\n"
                         "2. Decision matrix (options x criteria)\n"

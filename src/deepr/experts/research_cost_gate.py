@@ -9,13 +9,15 @@ from datetime import UTC, datetime
 from math import isfinite
 from typing import Any
 
-from deepr.core.costs import CostEstimate, CostEstimator
+from deepr.core.costs import CostEstimate
 from deepr.experts.cost_safety import CostSafetyManager, get_cost_safety_manager
 from deepr.experts.research_reservation_store import (
     ResearchReservationLimitExceeded,
     ResearchReservationStore,
 )
 from deepr.observability.cost_ledger import CostLedger
+from deepr.providers.base import ResearchRequest, ToolConfig
+from deepr.services.research_bounds import bounded_research_cost_estimate
 
 _configuration_lock = threading.Lock()
 _configured_managers: weakref.WeakKeyDictionary[CostSafetyManager, bool] = weakref.WeakKeyDictionary()
@@ -78,7 +80,10 @@ def reserve_configured_research_cost(
     prompt: str,
     model: str,
     enable_web_search: bool,
+    enable_code_interpreter: bool = False,
+    enable_file_search: bool = False,
     max_cost_per_job: float | None = None,
+    request: ResearchRequest | None = None,
 ) -> tuple[CostEstimate, ResearchCostReservation]:
     """Estimate and reserve one research job under configured hard limits."""
     from deepr.config import load_config
@@ -86,11 +91,22 @@ def reserve_configured_research_cost(
     config = load_config()
     configured_per_job = float(config.get("max_cost_per_job", 5.0))
     per_job = min(configured_per_job, max_cost_per_job) if max_cost_per_job is not None else configured_per_job
-    estimate = CostEstimator.estimate_cost(
-        prompt=prompt,
-        model=model,
-        enable_web_search=enable_web_search,
-    )
+    bounded_request = request
+    if bounded_request is None:
+        tools: list[ToolConfig] = []
+        if enable_web_search:
+            tools.append(ToolConfig(type="web_search_preview"))
+        if enable_code_interpreter:
+            tools.append(ToolConfig(type="code_interpreter", container={"type": "auto", "memory_limit": "1g"}))
+        if enable_file_search:
+            tools.append(ToolConfig(type="file_search"))
+        bounded_request = ResearchRequest(
+            prompt=prompt,
+            model=model,
+            system_message="Research request",
+            tools=tools,
+        )
+    estimate = bounded_research_cost_estimate(request=bounded_request, provider=provider)
     reservation = reserve_research_cost(
         job_id=job_id,
         provider=provider,
@@ -202,6 +218,11 @@ def refund_research_cost(reservation: ResearchCostReservation | None) -> None:
             ResearchReservationStore().refund(reservation.reservation_id)
         finally:
             reservation.manager.refund_reservation(reservation.reservation_id)
+
+
+def mark_research_provider_work(reservation: ResearchCostReservation) -> None:
+    """Durably mark that the provider boundary is about to be crossed."""
+    ResearchReservationStore().mark_provider_work_may_have_run(reservation.reservation_id)
 
 
 def restore_research_cost_reservation(
@@ -330,6 +351,7 @@ def record_unreserved_research_cost(
 __all__ = [
     "ResearchCostBlocked",
     "ResearchCostReservation",
+    "mark_research_provider_work",
     "reconcile_research_cost_from_ledger",
     "record_unreserved_research_cost",
     "refund_research_cost",

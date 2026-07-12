@@ -83,6 +83,9 @@ class BatchExecutor:
         Returns:
             Campaign results with all task outputs
         """
+        from deepr.services.research_bounds import require_research_parent_budget_accounting
+
+        require_research_parent_budget_accounting("BatchExecutor campaign")
         # Reset trackers for new campaign
         self.stopping_criteria.reset()
         self.info_gain_tracker.reset()

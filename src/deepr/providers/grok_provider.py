@@ -61,6 +61,7 @@ class GrokProvider(DeepResearchProvider):
             api_key=api_key,
             base_url=base_url,
             timeout=timeout,
+            max_retries=0,
         )
 
         # Store timeout for xAI SDK client
@@ -222,6 +223,7 @@ class GrokProvider(DeepResearchProvider):
                 "model": model,
                 "messages": messages,
                 "temperature": request.temperature if request.temperature is not None else 0.7,
+                "max_tokens": request.max_output_tokens,
             }
 
             # Add tools if specified
@@ -234,6 +236,9 @@ class GrokProvider(DeepResearchProvider):
                 completion_params["reasoning_effort"] = reasoning_effort
 
             # Execute chat completion
+            from deepr.services.research_bounds import validate_provider_payload_bytes
+
+            validate_provider_payload_bytes(completion_params, request.max_request_bytes)
             response = await self.client.chat.completions.create(**completion_params)
 
             # Extract content
@@ -694,7 +699,7 @@ class GrokProvider(DeepResearchProvider):
         total_output_tokens = max(completion_tokens, 0) + max(reasoning_tokens, 0)
         output_cost = (total_output_tokens / 1_000_000) * prices["output"]
 
-        return round(input_cost + cached_input_cost + output_cost, 6)
+        return input_cost + cached_input_cost + output_cost
 
     async def upload_document(self, file_path: str, purpose: str = "assistants") -> str:
         """

@@ -71,6 +71,7 @@ def test_settlement_releases_reservation_and_records_actual_cost() -> None:
     assert len(events) == 1
     assert events[0].cost_usd == pytest.approx(0.6)
     assert events[0].idempotency_key == "job:job-1:completion"
+    assert ResearchReservationStore().state(reservation.reservation_id) == "settled"
 
 
 def test_conservative_settlement_is_not_labeled_as_reported_actual_cost() -> None:
@@ -109,6 +110,8 @@ def test_refund_releases_reservation_without_ledger_spend() -> None:
     assert manager._reserved_daily == 0.0
     assert manager.daily_cost == 0.0
     assert CostLedger().get_events() == []
+    assert ResearchReservationStore().state(reservation.reservation_id) == "refunded"
+    assert ResearchReservationStore().state("missing") is None
 
 
 def test_active_reservation_check_binds_job_and_reserved_cost() -> None:
@@ -262,7 +265,7 @@ def test_configured_reservation_only_tightens_per_job_limit() -> None:
             },
         ),
         patch(
-            "deepr.experts.research_cost_gate.CostEstimator.estimate_cost",
+            "deepr.experts.research_cost_gate.bounded_research_cost_estimate",
             return_value=_estimate(0.5, maximum=1.0),
         ),
         patch(

@@ -5,6 +5,7 @@ Validates: Requirements 2.1, 2.2, 2.3, 10.2
 """
 
 import sys
+from math import isinf
 from pathlib import Path
 
 import pytest
@@ -47,8 +48,8 @@ class TestResearchModeClassification:
         """
         decision = classify_query(query)
         assert isinstance(decision.cost, CostEstimate)
-        assert decision.cost.min_cost >= 0
-        assert decision.cost.max_cost >= decision.cost.min_cost
+        assert decision.cost.min_cost == 0
+        assert isinf(decision.cost.max_cost)
 
     @given(st.text(min_size=1, max_size=500).filter(lambda x: x.strip()))
     @settings(max_examples=100)
@@ -58,8 +59,7 @@ class TestResearchModeClassification:
         Validates: Requirements 10.2
         """
         decision = classify_query(query)
-        assert isinstance(decision.model, str)
-        assert len(decision.model) > 0
+        assert decision.model == "explicit-model-required"
 
     @given(st.text(min_size=1, max_size=500).filter(lambda x: x.strip()))
     @settings(max_examples=100)
@@ -99,19 +99,17 @@ class TestForcedModeOverride:
 
 
 class TestBudgetConstraint:
-    """Test budget constraint application."""
+    """A lexical hint must never claim that a paid request fits a budget."""
 
     @given(
         st.text(min_size=1, max_size=200).filter(lambda x: x.strip()),
         st.floats(min_value=0.0, max_value=100.0, allow_nan=False, allow_infinity=False),
     )
     @settings(max_examples=100)
-    def test_budget_constraint_respected(self, query: str, max_budget: float):
-        """
-        Property: Result cost never exceeds specified budget.
-        """
+    def test_budget_requires_exact_preview(self, query: str, max_budget: float):
         decision = classify_query(query, max_budget=max_budget)
-        assert decision.cost.max_cost <= max_budget or decision.mode == ResearchMode.QUICK
+        assert isinf(decision.cost.max_cost)
+        assert "exact provider preview required" in decision.rationale
 
 
 class TestCostEstimateProperties:
@@ -139,6 +137,11 @@ class TestCostEstimateProperties:
 
         assert isinstance(cost_str, str)
         assert cost_str == "FREE" or cost_str.startswith("$")
+
+    def test_unknown_envelope_is_not_rendered_as_a_price(self):
+        estimate = CostEstimate(0.0, float("inf"), 0, 0)
+        assert estimate.cost_range == "EXACT PREVIEW REQUIRED"
+        assert estimate.time_range == "UNKNOWN"
 
     @given(
         st.floats(min_value=0.0, max_value=10.0, allow_nan=False, allow_infinity=False),

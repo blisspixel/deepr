@@ -15,6 +15,11 @@ _INTERNAL_JOB_METADATA_KEYS = frozenset(
         "cost_reservation_model",
         "cost_reservation_provider",
         "provider_file_ids",
+        "research_max_input_tokens",
+        "research_max_output_tokens",
+        "research_max_provider_requests",
+        "research_max_request_bytes",
+        "research_max_tool_calls",
         "uploaded_files",
         "vector_store_id",
     }

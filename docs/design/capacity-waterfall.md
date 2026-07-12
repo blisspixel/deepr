@@ -6,13 +6,13 @@ in v2.17.0; vendor surfaces were researched June 2026 and must be re-verified
 at adapter implementation because this market moves monthly.
 
 Current implementation: `CostModel`/`BackendKind` types and read-only
-`deepr capacity` detection (step 2); local-only expert creation with
-`expert make --local`; the `local-ollama` backend and `--local` execution
-(step 4 substrate); and eval-gated **local admission** with automatic
-owned-capacity-first selection for expert maintenance - `deepr capacity admit`
-/ `admissions` / `revoke`, and `expert sync`/`absorb` auto-routing to an
-admitted local model at $0 before metered API (the local rung of step 5, with
-`--local`/`--api` overrides); free local retrieval context for sync
+`deepr capacity` detection; local-only expert creation with
+`expert make --local`; the `local-ollama` backend and explicit `--local`
+execution; and eval-gated local admission with owned-capacity selection for
+selected expert maintenance. `deepr capacity admit` / `admissions` / `revoke`
+and local sync/absorb may select an admitted model, but unavailable local
+capacity stops or waits instead of falling through to a metered API. Explicit
+API expert lifecycle overrides are gated in v2.36. Free local retrieval context for sync
 (`--fresh-context` and bounded multi-query `--deep-context`, with optional
 SearXNG); the normalized `ResearchBackend` profile; plus the append-only
 `quota_ledger.jsonl` substrate and `deepr capacity`
@@ -24,7 +24,7 @@ judge or an explicitly approved CLI judge for producing review evidence before
 admission; `deepr capacity admit --from-eval latest`, which turns saved
 zero-cost local eval artifacts into admission records; runtime admitted-score
 quality-floor selection for expert maintenance; and `deepr capacity next` for
-ranked local setup, admission, eval refresh, fallback guidance, and concrete
+ranked local setup, admission, eval refresh, wait guidance, and concrete
 scheduled-maintenance previews. Explicit plan-quota CLI execution now works for
 maintenance and bootstrap through `expert sync --plan <id>`,
 `expert absorb --plan <id>`, topic `expert learn --plan <id>`, the explicit
@@ -58,16 +58,16 @@ classified as busy. Wait records retain argument-safe requested-operation argv
 and selected model metadata. Explicit local work without `--scheduled` remains
 the operator override.
 
-## Problem
+## Historical Problem Statement
 
 Most operators already pay for capacity Deepr never uses: subscription
 plans with included quota (Claude Max credit pool, ChatGPT Plus / Codex
 5-hour windows, Antigravity weekly compute, Kiro monthly credits) and
-owned hardware (RTX-class GPUs running Ollama). Deepr routes everything to
-metered APIs. The inversion: metered API should be the *explicit last
+owned hardware (RTX-class GPUs running Ollama). Earlier Deepr paths routed too
+much work to metered APIs. The inversion: metered API should be the *explicit last
 resort*, and "I think this is free" must never silently become a bill.
 
-## Design
+## Target Design
 
 ### Backend abstraction
 
@@ -78,6 +78,9 @@ its subscription auth), `local` (Ollama/opencode). Each backend declares a
 owned_hardware`. The router consults backends in waterfall order:
 
     local (if eval-admitted) -> plan_quota (if window open) -> api_metered (budget-gated)
+
+The final automatic metered rung is not enabled in v2.36. Current scheduled
+automation stops or waits when owned/prepaid capacity is unavailable.
 
 Measured quality gates are part of selection: a backend is routable only when
 its task score clears the floor. The selector enforces numeric evidence; evals
@@ -229,7 +232,8 @@ audit, but they do not silently take over `expert sync` or `expert absorb`.
 `deepr capacity next` is the first quality-of-life surface over those gates. It
 does not run research or make provider calls; it ranks the current local-routing
 block reason, Ollama setup, latest usable eval-artifact admission, eval refresh,
-and explicit metered fallback for a task class.
+and honest waiting or gated status. It never authorizes a metered expert
+lifecycle fallback.
 
 ### No-surprise-bills invariants
 
@@ -289,9 +293,10 @@ scheduler work remains.
 - ToS drift: each adapter ships with a "sanctioned as of <date>" note and
   a kill switch.
 
-## Exit criteria
+## Exit criteria for full waterfall routing
 
-`deepr capacity` shows live window/credit state across configured
-backends; a sync run drains plan quota before touching metered API; the
-cost ledger shows $0 for plan-served work; quarantine + reserve-floor
-paths covered by fault-injection tests.
+These criteria are not all met in v2.36: `deepr capacity` must show trustworthy
+live remaining window/credit state, a sync must drain admitted plan quota before
+an independently reserved metered API rung, the ledger must show `$0` for
+plan-served work, and quarantine plus reserve-floor paths must pass
+fault-injection tests. Until then automation stops before the metered rung.

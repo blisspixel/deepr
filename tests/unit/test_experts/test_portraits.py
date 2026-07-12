@@ -131,6 +131,23 @@ class TestLocalImageProvider:
 
 
 class TestPortraitCostGate:
+    @pytest.fixture(autouse=True)
+    def _enable_legacy_metered_path_for_characterization(self, monkeypatch):
+        from deepr.experts import metered_mutation_gate
+
+        monkeypatch.setattr(metered_mutation_gate, "METERED_EXPERT_MUTATIONS_ENABLED", True)
+
+    @pytest.mark.asyncio
+    async def test_paid_gate_precedes_cost_reservation_and_provider(self, monkeypatch):
+        from deepr.experts import cost_safety, metered_mutation_gate
+
+        monkeypatch.setattr(metered_mutation_gate, "METERED_EXPERT_MUTATIONS_ENABLED", False)
+        monkeypatch.setattr(cost_safety, "get_cost_safety_manager", lambda: pytest.fail("must not reserve"))
+        monkeypatch.setattr(P, "generate_portrait", pytest.fail)
+
+        with pytest.raises(metered_mutation_gate.MeteredExpertMutationDisabledError):
+            await P.generate_and_save_portrait(SimpleNamespace(name="Paid Expert"), MagicMock(), provider="openai")
+
     @pytest.mark.asyncio
     async def test_generate_and_save_blocks_before_provider_spend(self, monkeypatch):
         profile = SimpleNamespace(name="Budget Expert", domain="cost", description="test")
@@ -348,6 +365,37 @@ class TestPortraitCliCostConfirmation:
 
         assert result.exit_code == 2
         assert "--confirm-metered-cost" in result.output
+
+    def test_confirmed_paid_fails_closed_while_local_remains_available(self, monkeypatch):
+        from deepr.cli.commands.semantic import expert_portrait as portrait_command_module
+        from deepr.cli.commands.semantic.expert_portrait import expert_portrait
+
+        profile = SimpleNamespace(name="Portrait Expert", portrait_url=None)
+        store = MagicMock()
+        store.load.return_value = profile
+
+        import deepr.experts.profile as profile_module
+
+        calls = []
+
+        async def fake_batch(*_args, **kwargs):
+            calls.append(kwargs["provider"])
+            return 1
+
+        monkeypatch.setattr(profile_module, "ExpertStore", lambda: store)
+        monkeypatch.setattr(P, "portrait_cost", lambda provider: 0.0 if provider == "local" else 0.04)
+        monkeypatch.setattr(portrait_command_module, "_run_portrait_batch", fake_batch)
+
+        paid = CliRunner().invoke(
+            expert_portrait,
+            ["Portrait Expert", "--provider", "openai", "-y", "--confirm-metered-cost"],
+        )
+        local = CliRunner().invoke(expert_portrait, ["Portrait Expert", "--provider", "local", "-y"])
+
+        assert paid.exit_code == 1
+        assert "temporarily disabled" in paid.output.lower()
+        assert local.exit_code == 0, local.output
+        assert calls == ["local"]
 
 
 class TestPortraitStyle:

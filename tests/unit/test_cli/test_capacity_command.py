@@ -121,6 +121,21 @@ class TestAdmitPlan:
         assert "Nothing to revoke" in r.output
 
 
+class TestLocalAdmissionGuidance:
+    def test_revoke_does_not_claim_automatic_metered_fallback(self, monkeypatch, tmp_path):
+        monkeypatch.setenv("DEEPR_CAPACITY_DATA_DIR", str(tmp_path))
+        runner = CliRunner()
+        admitted = runner.invoke(capacity, ["admit", "qwen-local", "--task-class", "sync", "--yes"])
+        assert admitted.exit_code == 0, admitted.output
+
+        revoked = runner.invoke(capacity, ["revoke", "qwen-local", "--task-class", "sync"])
+
+        assert revoked.exit_code == 0, revoked.output
+        assert "Local preference removed" in revoked.output
+        assert "capacity next" in revoked.output
+        assert "falls back" not in revoked.output
+
+
 class TestProbePlan:
     def test_registered(self):
         assert "probe-plan" in capacity.commands

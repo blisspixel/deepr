@@ -1,7 +1,7 @@
-"""Sampling request and fallback logic for MCP provider.
+"""Sampling request logic for MCP provider.
 
 Issues sampling/createMessage requests to connected MCP clients
-with fallback to Deepr's own provider and trace logging.
+with trace logging. Metered provider fallback is disabled.
 
 Feature: mcp-client-agent-interop
 """
@@ -14,6 +14,10 @@ from dataclasses import dataclass, field
 from typing import Any, Protocol
 
 logger = logging.getLogger(__name__)
+
+
+class SamplingFallbackDisabledError(RuntimeError):
+    """A host sampling request cannot silently fall through to paid capacity."""
 
 
 @dataclass
@@ -80,11 +84,11 @@ class TraceLogProtocol(Protocol):
 
 
 class SamplingHandler:
-    """Handle sampling requests with fallback and trace logging.
+    """Handle host sampling requests with trace logging.
 
     Issues sampling/createMessage requests to the connected MCP client.
-    Falls back to Deepr's own provider if the client doesn't support
-    sampling. Records all requests in the trace log.
+    A configured provider fallback is retained only for API compatibility and
+    is never dispatched because it has no durable cost transaction.
 
     Usage::
 
@@ -108,10 +112,10 @@ class SamplingHandler:
         self._trace_entries: list[SamplingTraceEntry] = []
 
     async def sample(self, request: SamplingRequest) -> SamplingResponse:
-        """Issue a sampling request with fallback.
+        """Issue a sampling request without metered fallback.
 
-        Tries the MCP client first. If not supported or unavailable,
-        falls back to Deepr's own provider.
+        Tries the MCP client first. If not supported or unavailable, a
+        configured provider fallback fails closed before dispatch.
         """
         start = time.monotonic()
         used_fallback = False
@@ -138,9 +142,8 @@ class SamplingHandler:
 
         # Fallback to Deepr's provider
         if used_fallback and self._fallback is not None:
-            content = await self._fallback.complete(
-                request.prompt,
-                request.max_tokens,
+            raise SamplingFallbackDisabledError(
+                "MCP provider sampling fallback is disabled until it has durable reservation and settlement"
             )
 
         latency_ms = (time.monotonic() - start) * 1000

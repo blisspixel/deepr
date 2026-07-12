@@ -25,6 +25,10 @@ from deepr.backends.local_capacity import LocalCapacityObservation, LocalCapacit
 from deepr.cli.colors import console, print_error, print_header, print_success, print_warning
 from deepr.cli.commands.semantic.experts import expert
 from deepr.cli.commands.semantic.grounding_support import PLAN_BACKEND_CHOICES
+from deepr.experts.metered_mutation_gate import (
+    MeteredExpertMutationDisabledError,
+    require_metered_expert_mutation,
+)
 
 _STATUS_MARKERS = {
     "synced": "[green]synced[/green]",
@@ -374,6 +378,20 @@ def _validate_sync_all_flags(*, local: bool, api: bool, plan: str | None, plan_m
         raise ValueError("Use --plan-model only with --plan.")
 
 
+def _gate_explicit_api_sync_all(*, api: bool, dry_run: bool) -> None:
+    """Keep explicit API execution outside the command's orchestration complexity."""
+    if not api or dry_run:
+        return
+    try:
+        require_metered_expert_mutation(
+            "api_expert_sync_all",
+            safe_alternative="deepr expert sync-all --local --scheduled --yes",
+        )
+    except MeteredExpertMutationDisabledError as exc:
+        print_error(str(exc))
+        sys.exit(2)
+
+
 def _emit_backend_notes(backend: _PassBackend, *, json_output: bool) -> None:
     if json_output:
         return
@@ -517,6 +535,8 @@ def sync_all_cmd(
     except ValueError as exc:
         print_error(str(exc))
         sys.exit(2)
+
+    _gate_explicit_api_sync_all(api=api, dry_run=dry_run)
 
     names = [profile.name for profile in ExpertStore().list_all()]
     if not names:

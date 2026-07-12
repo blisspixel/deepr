@@ -15,7 +15,7 @@ import pytest
 
 from deepr.mcp.provider.prompts import PromptRenderer
 from deepr.mcp.provider.resources import ResourceHandler
-from deepr.mcp.provider.sampling import SamplingHandler, SamplingRequest
+from deepr.mcp.provider.sampling import SamplingFallbackDisabledError, SamplingHandler, SamplingRequest
 
 # --- Mock implementations ---
 
@@ -208,50 +208,42 @@ class TestPromptTemplates:
 
 
 class TestSamplingFallback:
-    """Test sampling fallback when client doesn't support it."""
+    """Test fail-closed sampling when the host cannot complete the request."""
 
     @pytest.mark.asyncio
     async def test_fallback_when_no_client(self) -> None:
-        """Falls back to own provider when no client configured."""
+        """A missing host never falls through to an unaccounted provider."""
         fallback = FakeFallbackProvider()
         trace_log = FakeTraceLog()
         handler = SamplingHandler(client=None, fallback=fallback, trace_log=trace_log)
 
         request = SamplingRequest(prompt="Analyze market trends")
-        response = await handler.sample(request)
-
-        assert response.used_fallback is True
-        assert response.content.startswith("fallback:")
+        with pytest.raises(SamplingFallbackDisabledError, match="durable reservation"):
+            await handler.sample(request)
 
     @pytest.mark.asyncio
     async def test_fallback_when_client_returns_none(self) -> None:
-        """Falls back when client returns None (doesn't support sampling)."""
+        """An unsupported host never triggers an unaccounted provider call."""
         client = FakeSamplingClient()
         fallback = FakeFallbackProvider()
         trace_log = FakeTraceLog()
         handler = SamplingHandler(client=client, fallback=fallback, trace_log=trace_log)
 
         request = SamplingRequest(prompt="Synthesize findings")
-        response = await handler.sample(request)
-
-        assert response.used_fallback is True
-        assert response.content.startswith("fallback:")
+        with pytest.raises(SamplingFallbackDisabledError, match="durable reservation"):
+            await handler.sample(request)
 
     @pytest.mark.asyncio
-    async def test_trace_recorded_on_fallback(self) -> None:
-        """Trace entry is recorded even when using fallback."""
+    async def test_trace_is_not_falsely_recorded_when_fallback_is_blocked(self) -> None:
         trace_log = FakeTraceLog()
         fallback = FakeFallbackProvider()
         handler = SamplingHandler(client=None, fallback=fallback, trace_log=trace_log)
 
         request = SamplingRequest(prompt="Test prompt")
-        await handler.sample(request)
+        with pytest.raises(SamplingFallbackDisabledError):
+            await handler.sample(request)
 
-        assert len(trace_log.entries) == 1
-        entry = trace_log.entries[0]
-        assert entry["type"] == "sampling"
-        assert entry["data"]["prompt_length"] == len("Test prompt")
-        assert entry["data"]["used_fallback"] is True
+        assert trace_log.entries == []
 
     def test_max_tokens_in_request(self) -> None:
         """SamplingRequest includes maxTokens parameter."""

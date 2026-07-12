@@ -128,7 +128,8 @@ mode, admitted for the task class, **and has a trusted remaining-quota
 observation** in the local quota ledger. A backend seen `EXHAUSTED` with a
 future `reset_at` is skipped. Once the reset passes, the exhaustion no longer
 blocks it, but a fresh trusted remaining-quota observation is still required
-before auto-routing resumes. Metered stays the budget-gated last resort.
+before auto-routing resumes. A future fully accounted metered rung is the
+budget-gated last resort; v2.36 stops rather than falling through to it.
 
 The explicit path needs no admission (the operator chose it directly), but it
 still requires a non-metered adapter that clears the safety gate:

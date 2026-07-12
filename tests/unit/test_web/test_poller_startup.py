@@ -83,9 +83,11 @@ def test_paid_submit_fails_closed_when_cost_controls_are_unavailable(client, mon
 
 def test_paid_submit_fails_closed_when_cost_estimation_raises(client, monkeypatch):
     provider_factory = MagicMock()
-    estimator = MagicMock()
-    estimator.estimate_cost.side_effect = RuntimeError("estimator unavailable")
-    monkeypatch.setattr(web_app, "research_costs", WebResearchCostCoordinator(MagicMock(), estimator))
+    monkeypatch.setattr(
+        "deepr.web.research_cost_api.bounded_research_cost_estimate",
+        MagicMock(side_effect=RuntimeError("estimator unavailable")),
+    )
+    monkeypatch.setattr(web_app, "research_costs", WebResearchCostCoordinator(MagicMock(), MagicMock()))
     monkeypatch.setattr(web_app, "_default_openai_provider", provider_factory)
 
     response = client.post("/api/jobs", json={"prompt": "Research power-grid constraints."})

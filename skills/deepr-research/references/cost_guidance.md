@@ -1,162 +1,63 @@
-# Cost Guidance Reference
+# Cost and budget guidance
 
-This document provides detailed cost information and budget management guidance for Deepr operations.
+## Core rules
 
-## Cost Tables by Operation
+1. A budget is a hard ceiling, not a target or fixed quote.
+2. Preview and dispatch must use the same finite request envelope.
+3. Reserve the maximum before provider dispatch.
+4. Durably mark the provider boundary before the call.
+5. Settle exact reported usage when valid; otherwise settle the conservative
+   reserved bound after an ambiguous provider outcome.
+6. Write every spend source to the append-only canonical ledger.
+7. Never retry or switch metered providers without a separate approved
+   reservation.
 
-### Research Operations
+Do not use static "typical cost" tables as authorization. Pricing, context
+limits, built-in tool charges, provider-request count, output ceilings, and
+serialized payload size determine the current hard envelope.
 
-| Operation | Model | Typical Cost | Range |
-|-----------|-------|--------------|-------|
-| Web Search | N/A | FREE | $0 |
-| Standard Research | grok-4-1-fast-non-reasoning | $0.005 | $0.001-0.01 |
-| Deep Research Mini | o4-mini-deep-research | $2.00 | $1.50-2.50 |
-| Deep Research Full | o3-deep-research | $0.50 | $0.30-0.70 |
-| Agentic Research | Multi-model | $3.00 | $1-10 |
+## Capacity classes
 
-### Expert Operations
+| Capacity | Deepr dollar ledger | Important caveat |
+|----------|---------------------|------------------|
+| Local Ollama | `$0` | Consumes local hardware and may be busy |
+| Non-metered plan CLI | `$0` | May consume subscription quota or credits Deepr cannot prove |
+| Metered-at-margin CLI | Blocked | Requires complete estimate/reserve/settle support |
+| Bounded provider API | Actual or conservative settlement | Requires explicit approval and positive ceiling |
 
-| Operation | Typical Cost | Range |
-|-----------|--------------|-------|
-| Expert Query (no agentic) | $0.01 | $0.005-0.02 |
-| Expert Query (agentic) | $2.00 | $0.50-5.00 |
-| Expert Creation (docs only) | $0.10 | $0.05-0.20 |
-| Expert Creation (with learning) | $5.00 | $2-10 |
-| Fill Knowledge Gaps | $3.00 | $1-5 |
+Copilot is visible/read-only in v2.36. CLI presence is never proof of free
+remaining quota.
 
-### Document Operations
+## Before a paid call
 
-| Operation | Typical Cost | Range |
-|-----------|--------------|-------|
-| Document Analysis | $0.02 | $0.01-0.05 |
-| Multi-doc Synthesis | $0.10 | $0.05-0.20 |
-| Large Document (>100 pages) | $0.50 | $0.20-1.00 |
+- State the selected provider, model, tools, and budget ceiling.
+- Explain that final cost can be lower, but cannot exceed the admitted bound.
+- Obtain explicit user approval.
+- Submit one bounded job.
+- Preserve reservation and trace identifiers.
 
-## Budget Recommendations by Use Case
+If the current model/tool combination is unpriced or request-unbounded, stop.
+Do not estimate from a similar model or remove a guard to make the call pass.
 
-### Casual Research
-- Budget: $1-2 per session
-- Use: Standard research, expert queries
-- Avoid: Deep research, agentic mode
+## After a call
 
-### Professional Research
-- Budget: $5-10 per session
-- Use: Mix of standard and deep research
-- Enable: Agentic expert queries with limits
+- Report actual settled cost and cumulative task spend.
+- If the outcome is ambiguous, say that the conservative ceiling may have been
+  charged in Deepr's ledger.
+- Reconcile provider-reported usage when the adapter supports it.
+- Do not call a fallback provider automatically.
 
-### Comprehensive Analysis
-- Budget: $10-25 per session
-- Use: Deep research, agentic workflows
-- Enable: Full autonomous capabilities
+## Multi-call work
 
-### Expert Building
-- Budget: $10-20 per expert
-- Use: Document ingestion + learning phases
-- Plan: Multiple sessions for refinement
+Metered batch, campaign, team, continuation, prepared, and autonomous runs are
+gated until one durable parent reservation covers every nested call and each
+child settles exactly. `$0` previews do not authorize execution.
 
-## Confirmation Thresholds
+Hosted file upload, indexing, search, vector retention, retrieval, and cleanup
+are also gated until those lifecycle costs fit the same reservation.
 
-| Cost Level | Action Required |
-|------------|-----------------|
-| < $1 | No confirmation needed |
-| $1-5 | Inform user of cost |
-| $5-10 | Explicit confirmation required |
-| > $10 | Strong confirmation + alternatives |
+## Local waits
 
-## Elicitation Decisions
-
-When costs exceed budget, the system pauses and offers choices:
-
-### APPROVE_OVERRIDE
-- Proceed with the higher cost
-- Use when: Task is critical, budget is flexible
-- Risk: May significantly exceed original budget
-
-### OPTIMIZE_FOR_COST
-- Switch to cheaper models
-- Use when: Results acceptable with less depth
-- Trade-off: Reduced quality for lower cost
-
-Model switching:
-- o3-deep-research -> o4-mini-deep-research
-- o4-mini-deep-research -> grok-4-1-fast-non-reasoning
-- grok-4-1-fast-non-reasoning -> gemini-flash
-
-### ABORT
-- Cancel the operation
-- Use when: Cost is unacceptable
-- Result: Partial results may be available
-
-## Session Cost Tracking
-
-Track cumulative costs during a session:
-
-```
-Session Start: $0.00
-  + Standard research: $0.005
-  + Expert query: $0.01
-  + Deep research: $0.15
-  ----------------------
-  Session Total: $0.165
-```
-
-Always report:
-1. Individual operation costs
-2. Cumulative session total
-3. Remaining budget (if set)
-
-## Budget Protection Layers
-
-Deepr implements multi-layer budget protection:
-
-| Layer | Default | Hard Cap |
-|-------|---------|----------|
-| Per Operation | $5 | $10 |
-| Per Day | $25 | $50 |
-| Per Month | $200 | $500 |
-
-## Cost Optimization Strategies
-
-### 1. Start Shallow, Go Deep
-Begin with standard research. Only escalate to deep research if needed.
-
-### 2. Use Expert Knowledge First
-Query existing experts before triggering new research.
-
-### 3. Batch Related Queries
-Combine related questions into single research jobs.
-
-### 4. Set Explicit Budgets
-Always specify budget limits for agentic operations.
-
-### 5. Monitor Cumulative Costs
-Track session totals and pause if approaching limits.
-
-### 6. Use OPTIMIZE_FOR_COST
-When elicited, consider cheaper models for non-critical tasks.
-
-## Cost Estimation Formula
-
-Approximate cost calculation:
-
-```
-Base Cost = Model Rate x Estimated Tokens
-Research Cost = Base Cost x Number of Phases
-Agentic Cost = Research Cost x Autonomy Factor (1.5-3x)
-```
-
-## Reporting Costs to Users
-
-Always include in responses:
-- Estimated cost before operation
-- Actual cost after completion
-- Cumulative session total
-- Budget remaining (if applicable)
-
-Example:
-```
-Research complete.
-- This operation: $0.15
-- Session total: $0.32
-- Budget remaining: $4.68
-```
+A scheduled local `busy` result costs `$0` and records the next action. Report
+the retry time and stop. Do not wait in-process for hours and do not fall
+through to plan or API capacity.

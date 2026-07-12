@@ -7,6 +7,186 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.36.0] - 2026-07-12
+
+### Added
+
+- Consults now allocate their final trace id before cancellable setup and open
+  an append-only `deepr-consult-lifecycle-event-v1` journal before backend
+  construction or dispatch. The journal records bounded phase, ownership,
+  logical-work, elapsed-time, capacity, spend, cancellation, and failure state
+  without storing answers or private reasoning. Final consult traces remain the
+  derived transaction artifact under the same id.
+- Added `deepr eval deliberation`, an offline `$0`
+  `deepr-deliberation-eval-v1` evaluator over eleven frozen structural cases.
+  It checks lineage, independent first positions, targeted questions, dissent
+  preservation, typed stops, call ceilings, proposal-only authority, inert
+  adversarial text, and no-write/no-fallback boundaries. Semantic review stays
+  `unreviewed`; no live multi-round CLI, MCP, or A2A surface is enabled.
+- Published the lifecycle and deliberation evaluator schemas and registered
+  exact `openai/gpt-4o-mini` pricing and context metadata. The documented
+  registry snapshot now contains 56 models, including 39 active benchmarkable
+  public text or research models.
+- Published `deepr-recon-evidence-handoff-v1` with a frozen fixture for
+  evidence-only Recon observations. The contract forbids belief-write authority
+  and keeps inferred infrastructure relationships labeled as observations for
+  later verification.
+
+### Changed
+
+- One-shot consults now use a 600-second cumulative elapsed ceiling by default,
+  accept an explicit ceiling up to 21,600 seconds, and cap one canonical roster
+  at 10 experts. Case and slug aliases resolve to one canonical identity;
+  duplicate identities fail before dispatch.
+- Consult lifecycle and final-trace storage run off the event loop, use bounded
+  process-local and OS lock waits, and remain owned through cancellation.
+  Cancellation never selects another backend. Retryability is limited to
+  failures proven to occur before provider work or any possibly partial write.
+- API council synthesis uses exact supported pricing, conservative token and
+  context bounds, full reservation before dispatch, provider usage settlement,
+  and canonical append-only cost events. OpenAI cached input is separated when
+  reported; Anthropic uses native Messages usage without unsupported cache
+  controls. Live metered perspective fallback remains gated when stored expert
+  context is unavailable, even when metered synthesis itself was explicitly
+  approved.
+- Every standalone metered `ExpertChatSession` dispatch now fails closed before
+  provider work. Local and explicit plan `deepr_query_expert` read-only turns
+  remain available, and API council synthesis remains a separate bounded
+  surface. The release gate is
+  `METERED_EXPERT_CHAT_EXECUTION_ENABLED = False` and returns
+  `metered_expert_chat_accounting_unavailable`. No metered expert-chat live
+  validation was performed or claimed.
+- Unsafe metered expert lifecycle entry points also fail closed in v2.36:
+  nonlocal profile creation and `--learn`, API curriculum planning,
+  provider-backed refresh and synthesis, resume, normal metered CLI and MCP
+  reflection, API gap filling, explicit API sync and sync-all, paid portraits,
+  API consult-quality judging, live provider benchmarks, and paid corpus
+  calibration. Local, scheduled, dry-run, history-only, and explicit plan-quota
+  paths where available, plus `$0` calibration from existing graded pairs, remain
+  available.
+- Direct research preview, reservation, queued metadata, provider payload, and
+  settlement now share one finite request envelope covering input, output,
+  provider-request, tool-call, and serialized-byte ceilings. Exact pricing and
+  bounded OpenAI or Azure built-in tools remain usable; unknown pricing,
+  unsupported bounds, Gemini managed Deep Research, Azure Foundry agents, xAI
+  multi-agent fan-out, and unpriced tool loops fail before provider work.
+- Hosted file upload, file search, vector-store creation or attachment,
+  automatic cross-provider metered fallback, and metered batch, campaign, team,
+  prepared campaign, continuation, and autonomous multi-round execution now
+  fail closed. Their restoration requires complete storage lifecycle pricing or
+  one durable parent reservation with separately settled nested calls.
+- Legacy metered `deepr check`, `deepr make docs`, `deepr make strategy`, and
+  `deepr agentic research` fail before provider construction until they use the
+  shared durable call transaction. MCP sampling no longer silently falls
+  through from host capacity to an unaccounted provider fallback.
+- Plan-quota attempt accounting now writes paired idempotent quota and `$0` cost
+  events with required durability and bounded locks. Dispatch-boundary errors,
+  cancellation, timeout, launch failure, and post-launch runner failure retain
+  honest usage uncertainty and partial-accounting status.
+- The v2.36 validation pass used local or frozen fixtures and made no paid
+  provider calls.
+- Bundled host-agent skill guidance now distinguishes executable local, plan,
+  bounded single-job API, visible/read-only, and gated capacity. It no longer
+  recommends agentic research, API expert chat, hosted context, metered fan-out,
+  or automatic provider fallback. Its lexical research-decision helper is now
+  a non-authoritative preview router with no static price or paid-model verdict;
+  exact provider preview and explicit approval own admission.
+
+### Fixed
+
+- Read-only council selection no longer creates or rewrites expert belief state.
+  Canonical roster selection and consult traces now preserve exact runtime
+  capacity, dissent, truncation, and typed synthesis failure without treating a
+  structural result as semantic acceptance.
+- Consult trace and lifecycle writers now serialize across threads and
+  processes, fail closed on corrupt or partial journals, keep storage paths out
+  of public errors, and preserve settled cancellation cost before terminal
+  lifecycle state.
+- Metered synthesis settlement now completes before fallible completion hooks,
+  runs off the event loop, survives cancellation without a hidden late writer,
+  and attaches recovery metadata when canonical settlement fails.
+- Cost and quota ledgers now reject non-finite money or quota values, fail
+  closed on malformed history before an accounting append, detect conflicting
+  idempotency keys, and re-run a required fsync before accepting a replay after
+  ambiguous durability failure.
+- Plan CLI launch cancellation now retains ownership of a process that appears
+  late, then kills and reaps it. Windows taskkill and post-kill cleanup are
+  bounded; prelaunch scratch, stdin encoding, and timeout validation cannot be
+  misclassified as vendor dispatch; public runner errors omit private paths.
+- Shared metered-call helpers now mark durable dispatch before invoking a
+  provider, conservatively settle the full reserved ceiling for cancellation,
+  provider failure, or malformed usage, and keep reserve, mark, settle, and
+  refund work off the event loop and owned through cancellation.
+- Research reservation store operations now close every SQLite connection
+  explicitly after commit or rollback, including cancellation cleanup, so
+  Windows does not retain database handles after an operation returns.
+- `scripts/check_costs.py` now reads the canonical append-only cost ledger
+  instead of the obsolete `research_queue` SQLite table. A subprocess
+  regression covers the standalone QA command.
+- The legacy `scripts/submit_doc_research_jobs.py` no longer constructs an
+  OpenAI provider or submits an unreserved six-job batch. It is now a
+  compatibility stub that returns `research_parent_budget_unavailable` before
+  filesystem writes or provider construction, with a subprocess regression.
+- Direct `scripts/benchmark_models.py` execution now applies the same v2.36
+  fail-closed live-provider gate as the supported CLI. Provider validation,
+  evaluation, and judge calls cannot bypass admission, while `--dry-run` no
+  longer performs optional network model discovery.
+- `scripts/analyze_doc_gaps.py` and the `scripts/discover_models.py --llm`
+  path now fail closed before credential loading or model work. Offline registry
+  display and read-only provider model-list discovery remain available.
+- Interactive `deepr expert chat` now fails before session construction. Its
+  task-planning and council slash commands, hosted-vector upload helper, and
+  legacy knowledge-synthesis calls carry independent inner gates so direct
+  command or Python invocation cannot reach an unreserved charge.
+- Capacity guidance no longer suggests a plan fallback during an explicit local
+  wait, and revocation guidance names only commands that can actually recover
+  the blocked state.
+
+### Security
+
+- A2A consult validation now requires exact booleans and finite numeric budget
+  and elapsed values instead of accepting truthy or coercible substitutes.
+- Metered council synthesis refuses unknown pricing, unaffordable context or
+  output bounds, invalid usage, actual cost above the reserved bound, and
+  non-finite settlement. Deepr-created OpenAI and Anthropic synthesis clients
+  disable hidden SDK retries so one admitted dispatch cannot multiply behind
+  one reservation.
+- Plan and consult accounting surfaces preserve path-safe typed errors, exact
+  attempt or trace ids, and paired-ledger status without rendering raw OS
+  exceptions or credential-bearing CLI output.
+- Research dispatch refuses a reservation smaller than its exact request
+  envelope, persists and revalidates every bound before provider dispatch, and
+  conservatively settles a marked attempt on provider failure. A definite
+  pre-dispatch validation failure refunds its hold.
+- AWS hosted research now returns
+  `aws_metered_research_accounting_unavailable` before API request parsing or
+  DynamoDB and SQS writes. The Fargate worker independently blocks legacy or
+  manually queued work before provider import or construction and records only
+  the fixed path-safe failure contract.
+
+### Migration
+
+- Callers with more than 10 experts must split the roster into separate bounded
+  consults. Callers that need more than the new 600-second default must pass an
+  explicit `max_elapsed_seconds` no greater than 21,600.
+- The lifecycle journal and evaluator schemas are additive derived artifacts;
+  existing belief stores and `deepr-consult-trace-v1` records require no data
+  migration.
+- Existing callers of standalone metered expert chat must use local or explicit
+  plan read-only query capacity, or the separate bounded council synthesis
+  surface, until the P1 restoration contract is complete.
+- Callers of gated metered expert lifecycle commands must use local, scheduled,
+  dry-run, history-only, or explicit plan-quota equivalents where available.
+  Paid `eval calibrate --corpus` must
+  be replaced with `$0` `eval calibrate --from` until each surface migrates to
+  the shared durable per-call and parent-run budget transaction with storage
+  and tool pricing.
+- Hosted-context callers must use local source packs or local expert files.
+  Multi-call research callers must submit bounded jobs one at a time. Legacy
+  fact-check and artifact-generation callers must use direct bounded research or
+  local or explicit plan expert consultation until their transaction gates are
+  complete.
+
 ## [2.35.0] - 2026-07-11
 
 ### Added
@@ -3181,7 +3361,7 @@ pass. Coverage threshold raised from 60% to 75%.
   timeouts.
 - **MCP HTTP transport bearer over plain HTTP** now emits a warning at
   subscribe time when the URL is non-loopback. Body cap set explicitly.
-- **`deepr templates show/delete/use`** sanitise the template name  - 
+- **`deepr templates show/delete/use`** sanitise the template name  -
   ``../`` no longer reads or deletes arbitrary files.
 - **MCP confirmation gate** strips the ``_approved`` kwarg before
   dispatch so handlers without that parameter no longer crash with

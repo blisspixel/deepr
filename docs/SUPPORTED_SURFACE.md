@@ -1,6 +1,6 @@
 # Supported Surface
 
-Status: v2.35.0 current main, 2026-07-11. This document defines what users and host
+Status: v2.36.0 current main, 2026-07-12. This document defines what users and host
 agents can rely on today, what is experimental, what is planned only, and what
 data remains portable if development stops.
 
@@ -20,18 +20,22 @@ must not be described as usable capacity.
 
 ## Stable Today
 
-- Core research commands: `deepr research`, `deepr check`, `deepr learn`.
+- Direct bounded research through `deepr research` for provider/model/tool
+  combinations with a complete finite cost envelope. `--preview` and dispatch
+  use the same maximum request bound.
 - Budget ceilings, cost estimates, and the canonical append-only cost ledger.
-  Provider-backed REST, web, direct CLI, campaign-batch, MCP, and internal
+  Provider-backed REST, web, direct CLI, MCP, and internal single-job
   orchestrator jobs use cross-process maximum-cost reservations, conservative
   ambiguous-outcome settlement, and terminal-state reconciliation before new
   spend is admitted. Paid synchronous planning calls reserve the full
   configured per-call ceiling and settle provider token usage. Adapters retry
   creation only with a supported server-side idempotency contract.
-- Provider routing and fallback when the user supplies provider keys and a
-  budget ceiling.
+- Explicit provider selection and automatic single-route selection when the
+  chosen request has a complete finite cost envelope. Automatic cross-provider
+  metered fallback is disabled in v2.36.
 - Local report storage under the configured reports root.
-- Expert creation, chat, import/export, and profile storage.
+- Local expert creation, expert import/export, profile storage, and bounded
+  local or explicit plan consult/query surfaces.
 - Relocatable data through coordinated roots written by `deepr init --data-dir`.
   `DEEPR_DATA_DIR` covers expert, queue, trace, benchmark, observability, and
   selected MCP state; reports use `DEEPR_REPORTS_PATH`. Synced-folder portability supports
@@ -47,8 +51,8 @@ must not be described as usable capacity.
 ## Experimental But Usable
 
 - Web dashboard and dashboard APIs.
-- Agentic expert chat, slash commands, councils, task planning, and approval
-  flows.
+- Expert councils, task planning contracts, and approval flows. Standalone
+  metered expert chat is gated as described under Visible Or Planned Only.
 - Expert skills and first-party instruments.
 - MCP stdio server and MCP HTTP serve mode.
 - Scoped MCP keys, per-key budgets, per-key rate limits, HTTP concurrency caps,
@@ -67,6 +71,8 @@ must not be described as usable capacity.
   `deepr-consult-v1` payload as an A2A task artifact. A2A consult defaults to
   local no-metered synthesis and requires explicit
   `allow_metered_api=true` plus a positive budget before API synthesis.
+  Malformed metadata objects, expert rosters, and backend/model selectors return
+  typed validation errors before the MCP consult tool can dispatch.
 - Scheduled expert maintenance JSON contracts for sync capacity gates, gap-fill
   waits, reflection waits, health-check action plans, and health-check archive
   confirmations. These are experimental but schema-versioned and additive.
@@ -123,16 +129,34 @@ must not be described as usable capacity.
   no-metered single-expert consult; `deepr_query_expert` also supports explicit
   `backend=local|plan` as a read-only compiled-context chat turn with
   `readonly_chat_artifact`, `research_triggered=0`, and no live metered fallback.
-  `deepr_query_expert backend=api` supports OpenAI by default and explicit
-  `provider=anthropic` for non-agentic metered API turns. The Anthropic path
-  uses the native Messages API, defaults to `claude-sonnet-5`, disables tools,
-  supports non-agentic text streaming, rejects `agentic=true`, and records
-  Anthropic usage buckets through the chat ledger.
+  In v2.36, `deepr_query_expert backend=api` and every other standalone
+  metered `ExpertChatSession` path fail closed before provider dispatch. Local
+  and explicit plan read-only query turns are unchanged. API council synthesis
+  is a separate bounded surface. Its approval covers final synthesis only;
+  live metered perspective fallback remains gated when a selected expert has no
+  stored context.
   Passing several experts gives a bounded council with preserved dissent. CLI
   and MCP consults append local
   `deepr-consult-trace-v1` records with selected context metadata, checks run,
-  capacity posture, and synthesis failure events. CLI `deepr expert
-  consult-traces` is a read-only local review surface that emits sanitized
+  capacity posture, and synthesis failure events. Before cancellable local
+  discovery or backend dispatch they open a separate append-only
+  `deepr-consult-lifecycle-event-v1` journal under the same trace id. It records
+  phase heartbeats, process ownership, finite logical-work, elapsed-time, and
+  spend ceilings, observed and remaining spend, one-way capacity resolution,
+  and typed cancellation or failure state. The current one-shot wrapper does
+  not measure aggregate provider token or context totals and omits those
+  optional lifecycle counters. It never stores answers or private reasoning.
+  CLI and MCP accept a cumulative ceiling for
+  cancellable setup and generation plus lifecycle checkpoints. Durable
+  lifecycle and final-trace operations run off the event loop and are awaited
+  through cancellation; cancellation never selects another backend. Every
+  journal or trace lock wait is capped at five seconds. Active-attempt writes
+  also use the smaller remaining allowance. Pre-dispatch elapsed or storage
+  contention is retryable; post-dispatch failure and any possibly partial write
+  are not. Lock and I/O errors are typed separately and neither discloses the
+  local path. Canonically settled cancellation cost is checkpointed into the
+  lifecycle before its terminal event. CLI `deepr expert consult-traces` is a
+  read-only local review surface that emits sanitized
   `deepr-consult-trace-candidates-v1` gap/eval candidates with embedded
   `deepr-consult-quality-eval-case-v1` semantic review packets. The review
   packets are `$0`, read-only, non-verdict artifacts for human or calibrated
@@ -153,6 +177,15 @@ must not be described as usable capacity.
   instead of creating a parallel answer shape. `deepr a2a validate-host` emits
   `deepr-a2a-host-validation-v1` reports for offline fixtures and remote A2A
   endpoint checks.
+- `deepr eval deliberation` emits `deepr-deliberation-eval-v1` from eleven
+  built-in frozen-fixture checks at `$0`. It checks round-one independence,
+  lineage, targeted-question cardinality, dissent and original-position
+  preservation, typed stops, provider-call ceilings, proposal-only authority,
+  the default evidence-seeking skeptic, inert adversarial text, and the no-write
+  and no-fallback boundaries. It makes no semantic verdict and reports semantic
+  review as `unreviewed`. Synthesis is reserved for future explicit deep mode.
+  No live multi-round CLI, MCP, or A2A surface is shipped; it remains gated on
+  measured provider-call token and context enforcement.
 - `deepr expert self-model` emits a read-only `deepr-expert-self-model-v1`
   record with expert capabilities, limits, goals, calibration, learning
   strategy, continuity, blockers, risks, and a bounded current-focus packet.
@@ -234,16 +267,14 @@ must not be described as usable capacity.
 - `deepr expert judge-consult-quality NAME TRACE_ID --local-judge-model MODEL`
   runs consult-quality review with an explicit local Ollama judge at `$0`.
   `--plan BACKEND` with optional `--plan-model MODEL` runs the same path through
-  an explicit plan-quota CLI. `--api-provider PROVIDER --api-model MODEL
-  --budget USD --confirm-metered-cost` runs a premium metered API judge behind
-  preflight reservation and ledger settlement. The judge prompt uses the local
-  trace answer at command time, validates the returned scores and labels
-  against the review rubric, and stores only the review artifact plus calibrated
-  judge metadata. Plan judges consume subscription quota, write `$0` Deepr cost
-  metadata through the plan-quota path, and do not silently fall back to metered
-  capacity. API judges write metered cost metadata through the canonical cost
-  ledger. The command does not write beliefs, expose trace paths, or store the
-  raw judge response.
+  an explicit plan-quota CLI. The judge prompt uses the local trace answer at
+  command time, validates returned scores and labels against the review rubric,
+  and stores only the review artifact plus calibrated judge metadata. Plan
+  judges consume subscription quota, write `$0` Deepr cost metadata through the
+  plan-quota path, and do not silently fall back to metered capacity. The
+  premium `--api-provider` implementation is gated under Visible Or Planned
+  Only. The command does not write beliefs, expose trace paths, or store the raw
+  judge response.
 - `deepr expert consult-quality-trends NAME` emits
   `deepr-consult-quality-trend-v1`, a `$0` read-only trend report over reviewed
   consult-quality artifacts. It summarizes score dimensions, review statuses,
@@ -287,8 +318,10 @@ must not be described as usable capacity.
   `deepr expert learn-web --plan <id>` alias, and
   `deepr capacity probe-plan <id>` run through deterministic auth-mode and
   no-surprise-bills guards. Codex, Claude Code, and OpenCode are eligible for
-  operator admission; Kiro, Grok Build, Antigravity, and GitHub Copilot remain
-  explicit-only.
+  operator admission; Kiro, Grok Build, and Antigravity remain explicit-only.
+  GitHub Copilot is visible/read-only, and plan-quota execution is blocked until
+  deterministic estimation, reservation, usage settlement, and canonical
+  cost-ledger support exist.
 - Quota metadata refresh:
   `deepr capacity refresh-quota codex` reads local Codex session `rate_limits`
   metadata, and `deepr capacity refresh-quota claude` reads Claude Code OAuth
@@ -336,6 +369,51 @@ must not be described as usable capacity.
 
 ## Visible Or Planned Only
 
+- Hosted file upload, file search, and vector-store creation or attachment fail
+  before provider work with `research_file_storage_unbounded`. Existing provider
+  vector stores can still be listed, inspected, and explicitly deleted. Re-enable
+  creation and research attachment only when upload, indexing, retention,
+  retrieval, and cleanup costs share the same reservation.
+- Metered auto-batch, multi-phase campaign, dream-team, prepared campaign,
+  continuation, and autonomous multi-round execution fail before paid work with
+  `research_parent_budget_unavailable`. Routing and plan previews remain
+  available. Re-enable only after every nested call belongs to one durable
+  parent reservation with exact per-call settlement and cancellation handling.
+- Automatic cross-provider metered fallback is disabled. A definite or
+  ambiguous provider failure closes the current reservation according to its
+  durable state and does not spend through another provider. Re-enable only
+  when each attempt owns a separate reservation and the user approves the full
+  retry envelope.
+- Legacy metered `deepr check`, `deepr make docs`, `deepr make strategy`, and
+  `deepr agentic research` fail before provider construction. MCP sampling also
+  never falls through from host capacity to Deepr-owned provider capacity.
+  Re-enable these only after their calls use durable reservation, bounded
+  output, canonical settlement, and one parent ceiling where multiple calls are
+  possible.
+- Standalone metered expert chat is disabled by
+  `METERED_EXPERT_CHAT_EXECUTION_ENABLED = False`. Browser, CLI, MCP API, and
+  direct API chat fail before provider work with
+  `metered_expert_chat_accounting_unavailable`. Re-enable only after one shared
+  per-call reserve, durable dispatch mark, and required settlement contract
+  covers every primary, tool-loop, streaming, research, compaction, follow-up,
+  synthesis, embedding, vector, and metered-skill call. The acceptance gate also
+  requires output ceilings, strict usage parsing with full-bound fallback, one
+  parent session budget, session serialization and cross-process holds,
+  cancellation settlement, canonical-ledger idempotency, zero hidden retries,
+  and concurrency and ledger-failure regressions. Local and explicit plan
+  read-only query is shipped and unaffected.
+- Unsafe metered expert lifecycle surfaces also fail closed in v2.36:
+  nonlocal `expert make` and `--learn`, API curriculum `expert plan`,
+  provider-backed `expert refresh` and `--synthesize`, `expert resume`, normal
+  metered `expert reflect` and MCP `deepr_reflect`, API `fill-gaps` including
+  consensus and deep modes, explicit API sync and sync-all, paid portraits,
+  API consult-quality judging, live provider benchmarks, and paid
+  `deepr eval calibrate --corpus`. Re-enable each only after it uses the
+  shared durable per-call and parent-run budget transaction, including storage
+  and tool pricing. Local, scheduled, dry-run, history-only, and explicit
+  plan-quota expert paths where available, plus `$0`
+  `deepr eval calibrate --from`, remain
+  shipped.
 - Automatic routing to plan-quota CLIs remains gated until Deepr has trusted
   live remaining-quota signals for the candidate backend. `expert sync-all` and
   scheduled `route-gaps --execute` consume admitted, quota-observed plan

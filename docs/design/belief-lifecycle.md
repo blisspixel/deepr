@@ -35,7 +35,7 @@ with 17 of the 20 systems surveyed in the kilo-agent-memory corpus.
 
 Nine corpora from the operator's distillr library: `deepr-tkg` and
 `deepr-calibration` (already grounding the TKG and calibration designs),
-plus `kilo-tkg` (~40 papers), `kilo-agent-memory` (~20), 
+plus `kilo-tkg` (~40 papers), `kilo-agent-memory` (~20),
 `kilo-episodic-memory` (~15), `kilo-memory` (~20), `agentic-memory`,
 `memory` (mixed-source), and `claim-verification` (~8). Findings mapped
 to deepr, strongest first:

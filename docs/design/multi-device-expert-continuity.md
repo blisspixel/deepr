@@ -1,6 +1,6 @@
 # Multi-Device Expert Continuity
 
-Status: staged design, 2026-07-10. Current shipped mode is sequential-device
+Status: staged design, 2026-07-12. Current shipped mode is sequential-device
 portability only.
 
 ## Problem
@@ -39,7 +39,7 @@ instead of resolving them.
 
 ## Shipped contract
 
-Current v2.35.0 behavior is intentionally conservative:
+Current v2.36.0 behavior is intentionally conservative:
 
 - experts and reports may be placed in a synced folder for sequential use;
 - only one device may run mutating Deepr commands at a time;

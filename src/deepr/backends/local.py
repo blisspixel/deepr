@@ -89,6 +89,31 @@ def default_local_model(base_url: str | None = None) -> str | None:
     return None
 
 
+async def default_local_model_async(base_url: str | None = None, *, timeout: float = 0.5) -> str | None:
+    """Resolve the default local model through a cancellable bounded probe."""
+    explicit = os.getenv("DEEPR_LOCAL_MODEL")
+    if explicit:
+        return explicit
+    url = _base_url(base_url)
+    try:
+        import httpx
+
+        async with httpx.AsyncClient(timeout=timeout) as client:
+            response = await client.get(f"{url}/api/tags")
+            response.raise_for_status()
+        payload = response.json()
+        models = payload.get("models", []) if isinstance(payload, dict) else []
+        for model in models:
+            if not isinstance(model, dict):
+                continue
+            name = str(model.get("name", "") or "").strip()
+            if name:
+                return name
+    except Exception:
+        return None
+    return None
+
+
 def resolve_local_maintenance_model(
     profile: object | None,
     *,

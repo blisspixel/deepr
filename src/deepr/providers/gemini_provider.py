@@ -234,7 +234,7 @@ class GeminiProvider(DeepResearchProvider):
         input_cost = (input_tokens / 1_000_000) * prices["input"] * input_multiplier
         output_cost = (output_tokens / 1_000_000) * prices["output"] * output_multiplier
 
-        return round(input_cost + output_cost, 6)
+        return input_cost + output_cost
 
     def _get_thinking_config(self, model: str, complexity: str = "medium") -> types.ThinkingConfig | None:
         """
@@ -387,6 +387,7 @@ class GeminiProvider(DeepResearchProvider):
                 complexity = "medium"
 
             config_params: dict[str, Any] = {}
+            config_params["max_output_tokens"] = request.max_output_tokens
 
             thinking_config = self._get_thinking_config(model, complexity)
             if thinking_config:
@@ -416,6 +417,14 @@ class GeminiProvider(DeepResearchProvider):
                     contents.insert(0, file_obj)
 
             config = types.GenerateContentConfig(**config_params) if config_params else None
+
+            from deepr.services.research_bounds import validate_provider_payload_bytes
+
+            serialized_config = config.model_dump(mode="json", exclude_none=True) if config is not None else None
+            validate_provider_payload_bytes(
+                {"model": model, "contents": [request.prompt], "config": serialized_config},
+                request.max_request_bytes,
+            )
 
             response_parts = []
             thought_parts = []

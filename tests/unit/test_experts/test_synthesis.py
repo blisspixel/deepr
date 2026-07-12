@@ -269,8 +269,12 @@ class TestKnowledgeSynthesizer:
         return client
 
     @pytest.fixture
-    def synthesizer(self, mock_client):
+    def synthesizer(self, mock_client, monkeypatch):
         """Create a synthesizer with mock client."""
+        monkeypatch.setattr(
+            "deepr.experts.synthesis.require_metered_expert_mutation",
+            lambda *_args, **_kwargs: None,
+        )
         return KnowledgeSynthesizer(mock_client)
 
     def test_synthesizer_init(self, mock_client):

@@ -1,8 +1,4 @@
-"""Self-directed learning curriculum generation for domain experts.
-
-This module enables experts to autonomously generate comprehensive learning plans
-based on their domain and initial knowledge base.
-"""
+"""Self-directed learning curriculum generation for domain experts."""
 
 import json
 import logging
@@ -16,6 +12,7 @@ import httpx
 from openai import AsyncOpenAI
 
 from deepr.config import AppConfig
+from deepr.experts.metered_mutation_gate import require_api_curriculum_generation
 
 logger = logging.getLogger(__name__)
 
@@ -420,6 +417,8 @@ class CurriculumGenerator:
             APIServerError: If server error persists after all retries
             CurriculumGenerationError: For other API errors
         """
+        require_api_curriculum_generation()
+
         import asyncio
 
         import openai

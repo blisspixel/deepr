@@ -15,6 +15,7 @@ from flask_socketio import SocketIOTestClient
 os.environ.setdefault("OPENAI_API_KEY", "sk-test-dummy-key")
 
 from deepr.api.websockets import events
+from deepr.experts.chat_capacity import MeteredExpertChatDisabledError
 from deepr.experts.commands import ChatMode
 from deepr.experts.profile import ExpertStore
 from deepr.experts.router import ModelConfig
@@ -88,6 +89,9 @@ class _FakeSession:
     def select_model_for_turn(self, message):
         return self.selected_model
 
+    def require_provider_dispatch_allowed(self, _operation: str) -> None:
+        """This fake represents a pre-accounted test-only backend."""
+
     async def send_message_streaming(self, message, *, token_callback, status_callback, selected_model):
         self.dispatched_models.append(selected_model)
         self.turns.append((message, self.chat_mode))
@@ -123,6 +127,11 @@ class _FakeSession:
             "research_jobs_triggered": 0,
             "reasoning_steps": 0,
         }
+
+
+class _MeteredBlockedSession(_FakeSession):
+    def require_provider_dispatch_allowed(self, operation: str) -> None:
+        raise MeteredExpertChatDisabledError(operation)
 
 
 class _BlockingSession(_FakeSession):
@@ -282,6 +291,27 @@ def test_socket_reuses_session_honors_modes_and_runs_commands(
     assert len(events._active_sessions) == 1
     assert chat_accounting.reserve.call_count == 2
     assert chat_accounting.refund.call_count == 2
+    chat_accounting.settle.assert_not_called()
+
+
+def test_socket_metered_chat_gate_runs_before_reservation_or_provider(
+    socket_client,
+    monkeypatch,
+    chat_accounting,
+) -> None:
+    session = _MeteredBlockedSession()
+    monkeypatch.setattr("deepr.experts.chat.start_chat_session", AsyncMock(return_value=session))
+
+    socket_client.emit("chat_start", _request(message="must not dispatch"))
+
+    error = _wait_for_event(socket_client, "chat_error")
+    assert error["error_code"] == "metered_expert_chat_accounting_unavailable"
+    assert error["status"] == "blocked"
+    assert error["provider_work_dispatched"] is False
+    assert error["retryable"] is False
+    assert session.turns == []
+    chat_accounting.reserve.assert_not_called()
+    chat_accounting.refund.assert_not_called()
     chat_accounting.settle.assert_not_called()
 
 
@@ -516,6 +546,27 @@ def test_rest_chat_requires_same_metered_contract_before_provider(monkeypatch):
     assert response.status_code == 402
     assert response.get_json()["error_code"] == "metered_chat_not_confirmed"
     start.assert_not_awaited()
+
+
+def test_rest_metered_chat_gate_runs_before_reservation_or_provider(monkeypatch, chat_accounting) -> None:
+    session = _MeteredBlockedSession()
+    monkeypatch.setattr("deepr.experts.chat.start_chat_session", AsyncMock(return_value=session))
+    flask_client = web_app.app.test_client()
+
+    response = flask_client.post(
+        "/api/experts/Budget%20Expert/chat",
+        json=_request(message="REST must not dispatch"),
+    )
+
+    assert response.status_code == 409
+    payload = response.get_json()
+    assert payload["error_code"] == "metered_expert_chat_accounting_unavailable"
+    assert payload["status"] == "blocked"
+    assert payload["provider_work_dispatched"] is False
+    assert session.turns == []
+    chat_accounting.reserve.assert_not_called()
+    chat_accounting.refund.assert_not_called()
+    chat_accounting.settle.assert_not_called()
 
 
 def test_rest_chat_honors_explicit_budget_and_mode(monkeypatch) -> None:

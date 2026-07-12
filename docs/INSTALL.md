@@ -97,11 +97,11 @@ or any mix of those. Add API keys only when you want metered cloud providers:
 
 ```bash
 # Metered cloud capacity. Pick any one to start, or use none for local/plan
-# workflows. Add more keys later and auto mode can route to the best allowed
-# model per task.
+# workflows. Additional keys enable explicit bounded provider choices;
+# automatic cross-provider metered fallback is gated in v2.36.
 
 OPENAI_API_KEY=sk-...       # GPT-5.5/5.4 families + o3/o4-mini deep research
-GEMINI_API_KEY=...          # Gemini 3.5/3.1/2.5, multimodal, Deep Research Agent
+GEMINI_API_KEY=...          # Gemini text/multimodal; managed Deep Research is gated
 XAI_API_KEY=xai-...         # Grok 4.3, Grok 4.20, explicit premium image calls
 ANTHROPIC_API_KEY=...       # Claude Sonnet 5, Opus 4.8, Fable 5, Haiku 4.5
 
@@ -137,14 +137,14 @@ deepr budget set 50
 ### Step 4: Run Your First Research
 
 ```bash
-# Simple test query
-deepr research "What is 2+2?" --auto
+# Free preflight
+deepr research "What is 2+2?" --provider openai --model o4-mini-deep-research --preview
 
-# Real research query
-deepr research "What are the latest developments in quantum computing?"
+# One bounded live query
+deepr research "What are the latest developments in quantum computing?" --provider openai --model o4-mini-deep-research --budget 2
 
-# With specific provider
-deepr research "Explain transformer architecture" --provider gemini -m gemini-2.5-flash
+# Bounded xAI text without unpriced server-side tools
+deepr research "Explain transformer architecture" --provider xai -m grok-4.3 --no-web --no-code --preview
 ```
 
 That's it! You're ready to use Deepr.
@@ -155,7 +155,7 @@ That's it! You're ready to use Deepr.
 
 ```bash
 # Download the wheel for the selected release, then install it locally.
-python -m pip install ./deepr_research-2.35.0-py3-none-any.whl
+python -m pip install ./deepr_research-2.36.0-py3-none-any.whl
 deepr --version
 ```
 
@@ -186,7 +186,7 @@ python -m pytest tests/unit/ --ignore=tests/data -q --timeout=120
 docker build -t deepr .
 
 # Run with environment variables
-docker run -e OPENAI_API_KEY=sk-... deepr research "Your query" --auto
+docker run -e OPENAI_API_KEY=sk-... deepr research "Your query" --provider openai --model o4-mini-deep-research --preview
 ```
 
 ## Configuration Details
@@ -199,7 +199,7 @@ Edit `.env` file:
 # Provider API Keys (optional individually; local and plan-quota workflows can
 # run without them)
 OPENAI_API_KEY=sk-...               # OpenAI GPT and deep research models
-GEMINI_API_KEY=...                  # Google Gemini and Deep Research Agent
+GEMINI_API_KEY=...                  # Google Gemini; managed Deep Research is gated
 XAI_API_KEY=xai-...                 # xAI Grok text models and explicit image calls
 ANTHROPIC_API_KEY=...               # Anthropic Claude models
 # AZURE_OPENAI_KEY=...              # Azure OpenAI (enterprise)
@@ -235,12 +235,20 @@ Pick based on your priority:
 - **Grok** - Freshness-oriented Grok text models and explicit premium images
 - **Anthropic** - Claude Sonnet 5 balance, Opus/Fable premium reasoning
 
-**Recommended (two keys):** OpenAI + Grok or Gemini + Grok. This gives you deep research *and* a cheap fallback for simple queries. Auto mode routes appropriately.
+**Recommended:** start with one provider key for bounded API research, or no key
+for local/plan expert workflows. Add another provider only when you need an
+explicit alternative. Deepr previews each bounded choice, but v2.36 does not
+automatically fall through from one metered provider to another.
 
-**Full setup (all keys):** Auto mode has maximum flexibility - $0.01 for lookups, $0.04 for moderate queries, $0.50 for deep research. Each provider's strengths are used where they matter most.
+**All keys:** model and provider metadata becomes visible for explicit selection.
+This does not enable managed Deep Research agents, multi-agent research, hosted
+file/vector context, or automatic metered fallback while their complete cost
+transactions remain gated.
 
 **For enterprise:**
-- Use Azure OpenAI or Azure AI Foundry for compliance and governance
+- Use a fully priced bounded Azure OpenAI request where its deployment and tool
+  envelope is supported. Azure AI Foundry Agent/Thread/Run execution is gated
+  in v2.36; its metadata and deployment guidance do not imply dispatch.
 - Set strict budget limits in .env
 
 ## Troubleshooting
@@ -309,8 +317,8 @@ deepr -h
 deepr --help
 deepr research --help
 
-# Test basic functionality (with API key configured)
-deepr research "What is 2+2?" --auto
+# Test bounded planning without a provider call
+deepr research "What is 2+2?" --provider openai --model o4-mini-deep-research --preview
 
 # Check budget status
 deepr budget status

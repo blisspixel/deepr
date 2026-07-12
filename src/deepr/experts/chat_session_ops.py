@@ -10,28 +10,14 @@ from datetime import UTC, datetime
 from typing import Any
 
 from deepr.experts.chat_backends import ExpertChatRequest
-from deepr.experts.chat_turns import chat_token_cost, chat_usage_tokens
 
 logger = logging.getLogger(__name__)
 
 
 async def generate_follow_ups(session: Any, user_message: str, response: str) -> list[str]:
-    """Generate bounded suggestions while settling every possible dispatch."""
+    """Generate suggestions only on explicit owned-capacity backends."""
+    session.require_provider_dispatch_allowed("expert_chat_follow_ups")
     model_name = session._provider_model_or("gpt-4o-mini")
-    estimated_cost = max(0.01, session._estimate_chat_model_cost(model_name))
-    try:
-        allowed, _reason, needs_confirmation, reservation_id = session.cost_safety.check_and_reserve(
-            session_id=session.session_id,
-            operation_type="expert_chat_follow_ups",
-            estimated_cost=estimated_cost,
-            require_confirmation=False,
-        )
-    except Exception as exc:
-        logger.warning("Follow-up cost reservation failed: %s", type(exc).__name__)
-        return []
-    if not allowed or needs_confirmation or not reservation_id:
-        return []
-
     try:
         result = await session.chat_backend.complete(
             ExpertChatRequest(
@@ -51,55 +37,10 @@ async def generate_follow_ups(session: Any, user_message: str, response: str) ->
             )
         )
     except asyncio.CancelledError:
-        try:
-            session.cost_safety.record_cost(
-                session_id=session.session_id,
-                operation_type="expert_chat_follow_ups",
-                actual_cost=estimated_cost,
-                provider=session.chat_provider,
-                model=model_name,
-                source="experts.chat.follow_ups.cancelled",
-                metadata={"actual_cost_reported": False},
-                reservation_id=reservation_id,
-            )
-            session.cost_accumulated += estimated_cost
-        except Exception as exc:
-            logger.error(
-                "Follow-up cancellation left its cost reservation active: %s",
-                type(exc).__name__,
-            )
         raise
-    except Exception:
-        session.cost_safety.record_cost(
-            session_id=session.session_id,
-            operation_type="expert_chat_follow_ups",
-            actual_cost=estimated_cost,
-            provider=session.chat_provider,
-            model=model_name,
-            source="experts.chat.follow_ups.failed",
-            metadata={"actual_cost_reported": False},
-            reservation_id=reservation_id,
-        )
-        session.cost_accumulated += estimated_cost
+    except Exception as exc:
+        logger.warning("Owned-capacity follow-up generation failed: %s", type(exc).__name__)
         return []
-
-    usage = result.usage
-    actual_cost = chat_token_cost(usage, model_name) if usage is not None else estimated_cost
-    tokens_input, tokens_output = chat_usage_tokens(usage)
-    session.cost_safety.record_cost(
-        session_id=session.session_id,
-        operation_type="expert_chat_follow_ups",
-        actual_cost=actual_cost,
-        provider=session.chat_provider,
-        model=model_name,
-        tokens_input=tokens_input,
-        tokens_output=tokens_output,
-        request_id=result.provider_request_id,
-        source="experts.chat.follow_ups",
-        metadata={"actual_cost_reported": usage is not None},
-        reservation_id=reservation_id,
-    )
-    session.cost_accumulated += actual_cost
 
     try:
         raw = result.text.strip()
@@ -155,6 +96,7 @@ async def cancel_inflight_provider_work(session: Any) -> dict[str, Any]:
 
 async def compact_conversation(session: Any) -> dict[str, Any]:
     """Replace older messages with one structured compact summary."""
+    session.require_provider_dispatch_allowed("expert_chat_compaction")
     if len(session.messages) <= 6:
         return {"original_messages": len(session.messages), "summary_length": 0, "status": "too_short"}
 

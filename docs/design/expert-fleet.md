@@ -323,10 +323,10 @@ Deepr already ships the comparison tooling:
 
 - **`deepr eval local`** ($0) - compares installed local models with a local
   judge on a prompt set; picks the best local extraction model for free.
-- **`deepr eval calibrate --corpus <dir> --grader-model <strong> --max-cost X`**
-  (paid, spend-guarded) - extracts claims with the model under test and grades
-  grounding with a strong grader: "does 0.7 confidence mean ~70% grounded?" The
-  `--from <graded.jsonl>` mode then publishes the reliability curve at $0.
+- **`deepr eval calibrate --corpus <dir>`** is gated in v2.36 until every paid
+  extraction and grader call belongs to one durable parent-run transaction.
+  The `--from <graded.jsonl>` mode remains available and publishes the
+  reliability curve at $0 from existing pairs.
 - **`deepr eval continuity`** ($0) - per-expert continuity / staleness honesty.
 
 Methodology (an afternoon, a few dollars at most): build the **same expert twice**

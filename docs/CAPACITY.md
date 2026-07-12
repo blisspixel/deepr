@@ -12,45 +12,36 @@ inside Deepr but may consume a subscription quota, monthly credit pool, or
 external credits. Metered APIs cost money and must be estimated, reserved, and
 settled through the canonical ledger.
 
-Metered APIs are the premium fallback, not the default spending path. Feature
+Metered APIs are explicit premium paths, not an automatic fallback in v2.36. Feature
 surfaces that can trigger a distinct paid class, such as image generation, must
 not infer paid execution from a text-model API key alone. Portrait generation
-auto-selects only a local image endpoint unless the operator passes an explicit
-paid provider or sets the single premium auto opt-in
-`DEEPR_ALLOW_METERED_IMAGE_AUTO=1`. Provider-specific image auto env vars are
-ignored. It also treats portraits as create-once artifacts by default: existing
-portraits are skipped unless the caller explicitly forces regeneration, and
-metered web or CLI requests must acknowledge the estimated cost before dispatch.
-CLI `--yes` can skip unattended prompts only for free/local image generation unless
-`--confirm-metered-cost` is also supplied. Generated portraits live under the
-configured runtime data root, and forced regeneration archives the previous
-image before replacement.
+auto-selects only a local image endpoint. Paid portrait providers are recognized
+but gated before provider construction until they use the shared durable call
+transaction. Existing portraits are skipped unless the caller explicitly
+forces local regeneration. Generated portraits live under the configured
+runtime data root, and forced regeneration archives the previous image before
+replacement.
 
-API-backed expert profile setup is treated the same way. `deepr expert make`
-previews the metered provider, file count, upload size, and hosted-vector-store
-storage estimate where Deepr has provider-specific pricing before it constructs
-a provider client.
-Unattended `--yes` runs must also pass `--confirm-metered-profile`. Local
-profile creation through `deepr expert make --local` stays provider-free and
-does not need that acknowledgement.
+API-backed expert profile setup is gated in v2.36 because hosted storage and
+nested learning calls do not yet share one durable parent reservation. Local
+profile creation through `deepr expert make --local` stays provider-free.
 
 ## Current Status
 
 | Source | Works now | Guardrail |
 |---|---|---|
 | Local Ollama | `expert make --local`, `expert absorb --local`, `expert sync --local`, `expert sync --local --fresh-context`, `expert sync --local --deep-context`, `eval local`, `eval local-context`, and scored admission | No provider API key required; automatic routing requires measured local quality evidence |
-| Provider APIs | Full research and high-quality synthesis when keys are configured | Premium fallback behind budget ceilings, preflight estimates, reservations, and append-only cost settlement; API-backed expert profile setup previews provider upload/storage posture before provider dispatch |
+| Provider APIs | Direct single-job research and separately bounded council synthesis for supported finite provider/model/tool envelopes | Explicit premium paths with preflight maximums, reservations, and append-only settlement; no automatic paid fallback, hosted storage, standalone metered chat, or unsafe lifecycle dispatch |
 | Plan-quota CLIs | Explicit `expert sync --plan <id>`, `expert sync-all --plan <id>`, `expert route-gaps --execute --plan <id>`, `expert absorb --plan <id>`, `expert learn --plan <id>`, `expert learn-web --plan <id>`, `expert consult --plan <id>`, and `capacity probe-plan <id>` for non-metered adapters | Metered API-key env vars are stripped from child processes, auth mode is checked, metered-at-margin adapters fail before probe or client construction until full cost accounting exists, and automatic routing waits for trusted remaining-quota evidence |
-| CLI judges | Explicit local eval judging with `--allow-cli-judge`; consult-quality judging through explicit local Ollama, `--plan <id>`, or `--api-provider` | Opt-in only because Deepr cannot prove whether a vendor CLI uses quota, credits, or metered credentials; plan consult-quality judges record `$0` Deepr cost metadata and consume subscription quota; API consult-quality judges require a model, positive budget, cost confirmation, preflight reservation, and ledger settlement |
+| CLI judges | Explicit local eval judging with `--allow-cli-judge`; consult-quality judging through explicit local Ollama or `--plan <id>` | Opt-in only because Deepr cannot prove whether a vendor CLI uses quota, credits, or metered credentials; plan consult-quality judges record `$0` Deepr cost metadata and consume subscription quota; API consult-quality judging is gated in v2.36 |
 
 Expert consult synthesis already supports local and explicit plan capacity.
 MCP `deepr_query_expert backend=local|plan` now runs one read-only
 compiled-context turn through owned-capacity chat backends with live metered
-fallback disabled. MCP `deepr_query_expert backend=api provider=anthropic`
-now supports explicit non-agentic metered Anthropic chat with native usage
-settlement. Full interactive `expert chat` still needs more backend-neutral
-work before it can honestly claim local, plan, tool, streaming, and paid API
-parity. The implementation plan is
+fallback disabled. MCP `deepr_query_expert backend=api` and every standalone
+metered chat path fail closed in v2.36. Full interactive `expert chat` still
+needs the shared per-call transaction before it can honestly claim local, plan,
+tool, streaming, and paid API parity. The implementation plan is
 [expert-chat-capacity-backends.md](design/expert-chat-capacity-backends.md).
 
 Automatic plan routing is not a blanket claim. Codex, Claude Code, and Grok
@@ -153,8 +144,8 @@ on non-metered plan capacity they cost `$0` inside Deepr but consume
 subscription quota. A metered-at-margin plan CLI remains visible but cannot
 dispatch until its adapter has deterministic estimation, durable reservation,
 usage settlement, and canonical cost-ledger support. Confirmation flags cannot
-override that boundary. Metered API capacity uses its existing budget and
-cost-ledger gate. If the source pack cannot
+override that boundary. Metered API compiled sync is gated in v2.36 until every
+nested call uses the shared durable transaction. If the source pack cannot
 be persisted, Deepr
 fails closed and does not absorb the context-grounded answer.
 
@@ -192,8 +183,9 @@ deepr expert absorb "Platform Team Expert" report.md --plan claude -y
 deepr expert learn "Platform Team Expert" "new platform engineering signals" --plan codex -y
 deepr expert consult "What changed in plan capacity?" --plan grok --json
 deepr expert judge-consult-quality "Platform Team Expert" consult_abc123 --plan codex --plan-model gpt-5-mini --json
-deepr expert judge-consult-quality "Platform Team Expert" consult_abc123 --api-provider xai --api-model grok-4.3 --budget 0.50 --confirm-metered-cost --json
 ```
+
+The API judge form is visible but gated in v2.36.
 
 Before launch, Deepr removes known metered API-key environment variables for the
 selected adapter and evaluates the sanitized child environment. If the CLI would
@@ -247,9 +239,10 @@ deepr expert loop-status "Platform Team Expert" --json
 
 Scheduled sync consumes `capacity next` guidance. Scheduled gap-fill,
 reflection, and health-check surfaces return wait or action-plan payloads
-instead of starting metered work unless the operator deliberately reruns without
-`--scheduled` or supplies the required confirmation. These payloads include
-durable loop-run records and published schema identifiers.
+instead of starting metered work. Rerunning without `--scheduled` or supplying
+confirmation does not unlock metered gap-fill or reflection in v2.36. Use an
+explicit local or trusted plan path where supported; otherwise wait or stop.
+These payloads include durable loop-run records and published schema identifiers.
 
 Scheduled local sync, sync-all, and local route-gaps take one read-only
 best-effort GPU occupancy observation before constructing the maintenance
@@ -281,9 +274,11 @@ API work in scheduled mode. `sync-all --plan <id>` and
 ## Cost Accounting Rules
 
 - Local Ollama and explicit plan-quota services report `$0` Deepr dollar cost.
-- Provider API calls reserve estimated cost before dispatch.
-- Provider API completions settle from provider-reported usage.
-- Submit failures refund reservations.
+- Every enabled provider API call reserves a complete finite maximum before dispatch.
+- Enabled provider API completions settle from provider-reported usage or the
+  conservative held maximum when usage is absent or invalid.
+- Definite pre-dispatch failures refund reservations. Ambiguous or marked
+  post-dispatch failures settle conservatively.
 - Cached input, cache creation, cache reads, reasoning tokens, and large-context
   pricing tiers are provider-specific and must be preserved in usage metadata.
 - If a provider omits cached-input pricing, Deepr charges cached tokens at the

@@ -6,6 +6,8 @@ Includes property-based tests for circuit breaker behavior.
 Requirements: 8.2 - Cost circuit breaker
 """
 
+import os
+import threading
 import time
 from unittest.mock import patch
 
@@ -367,6 +369,7 @@ class TestPropertyBasedCircuitBreaker:
 
 # Import new classes for testing
 from deepr.experts.cost_safety import CostSafetyManager, get_cost_safety_manager, reset_cost_safety_manager
+from deepr.experts.cost_safety_ledger import DurableCostReservationError
 
 
 class TestCostSafetyManager:
@@ -445,6 +448,263 @@ class TestCostSafetyManager:
         assert manager.get_session_cost("session-1") == 0.50
         assert manager.get_session_cost("session-2") == 0.30
 
+    @pytest.mark.parametrize(
+        "invalid_cost",
+        [True, False, "0.1", None, float("nan"), float("inf"), float("-inf"), -0.01],
+    )
+    def test_check_and_reserve_rejects_invalid_money(self, invalid_cost):
+        manager = CostSafetyManager()
+
+        with pytest.raises(ValueError, match="finite non-negative"):
+            manager.check_and_reserve("session-1", "research", invalid_cost)
+
+        assert manager._reservations == {}
+        assert manager._reserved_daily == 0.0
+
+    @pytest.mark.parametrize(
+        "invalid_cost",
+        [True, False, "0.1", None, float("nan"), float("inf"), float("-inf"), -0.01],
+    )
+    def test_record_cost_rejects_invalid_money_before_accounting(self, invalid_cost):
+        manager = CostSafetyManager()
+        _allowed, _reason, _confirm, reservation_id = manager.check_and_reserve(
+            "session-1",
+            "research",
+            1.0,
+        )
+
+        with pytest.raises(ValueError, match="finite non-negative"):
+            manager.record_cost(
+                "session-1",
+                "research",
+                invalid_cost,
+                reservation_id=reservation_id,
+            )
+
+        assert manager.daily_cost == 0.0
+        assert manager.get_session_cost("session-1") == 0.0
+        assert manager._reserved_daily == 1.0
+        assert manager._ledger.get_events() == []
+        manager.refund_reservation(reservation_id)
+
+    def test_required_fsync_replay_settles_process_counters_once(self, monkeypatch, tmp_path):
+        from deepr.experts.cost_safety_ledger import CostLedgerCommitError
+
+        manager = CostSafetyManager()
+        _allowed, _reason, _confirm, reservation_id = manager.check_and_reserve(
+            "session-1",
+            "research",
+            1.0,
+        )
+        real_fsync = os.fsync
+        calls = 0
+
+        def fail_once(fd):
+            nonlocal calls
+            calls += 1
+            if calls == 1:
+                raise OSError(5, "durability unavailable", str(tmp_path / "private"))
+            real_fsync(fd)
+
+        monkeypatch.setattr(os, "fsync", fail_once)
+        kwargs = {
+            "session_id": "session-1",
+            "operation_type": "research",
+            "actual_cost": 0.1,
+            "idempotency_key": "required-replay",
+            "reservation_id": reservation_id,
+            "require_ledger": True,
+        }
+
+        with pytest.raises(CostLedgerCommitError):
+            manager.record_cost(**kwargs)
+
+        assert manager.daily_cost == 0.0
+        assert manager._reserved_daily == 1.0
+
+        manager.record_cost(**kwargs)
+        manager.record_cost(**{**kwargs, "reservation_id": ""})
+
+        assert calls == 3
+        assert manager.daily_cost == pytest.approx(0.1)
+        assert manager.monthly_cost == pytest.approx(0.1)
+        assert manager.get_session_cost("session-1") == pytest.approx(0.1)
+        assert manager._reserved_daily == 0.0
+        assert len(manager._ledger.get_events()) == 1
+
+    def test_durable_duplicate_from_another_manager_does_not_increment_local_totals(self):
+        first = CostSafetyManager()
+        first.record_cost(
+            session_id="shared-session",
+            operation_type="research",
+            actual_cost=0.1,
+            idempotency_key="shared-durable-event",
+        )
+        second = CostSafetyManager()
+        _allowed, _reason, _confirm, reservation_id = second.check_and_reserve(
+            "shared-session",
+            "research",
+            1.0,
+        )
+
+        second.record_cost(
+            session_id="shared-session",
+            operation_type="research",
+            actual_cost=0.1,
+            idempotency_key="shared-durable-event",
+            reservation_id=reservation_id,
+        )
+
+        assert second.daily_cost == 0.0
+        assert second.monthly_cost == 0.0
+        assert second.get_session_cost("shared-session") == 0.0
+        assert second._reserved_daily == 0.0
+        assert second.circuit_breaker.get_recent_events() == []
+
+    def test_durable_reservations_serialize_budget_across_managers(self):
+        first = CostSafetyManager()
+        second = CostSafetyManager()
+        first.max_daily = second.max_daily = 1.0
+        first.max_monthly = second.max_monthly = 1.0
+
+        allowed, _, _, first_id = first.check_and_reserve(
+            "first-session",
+            "council_consult",
+            0.8,
+            durable_reservation=True,
+            reservation_job_id="council_first",
+        )
+        denied, reason, _, second_id = second.check_and_reserve(
+            "second-session",
+            "council_consult",
+            0.3,
+            durable_reservation=True,
+            reservation_job_id="council_second",
+        )
+
+        assert allowed is True
+        assert denied is False
+        assert "Daily limit $1.00 would be exceeded" in reason
+        assert second_id == ""
+        assert first._get_reservation_store().active_cost() == pytest.approx(0.8)
+        first.refund_reservation(first_id, provider_work_did_not_run=True)
+
+    def test_durable_reserve_includes_existing_canonical_ledger_spend(self):
+        first = CostSafetyManager()
+        first.record_cost(
+            session_id="prior-session",
+            operation_type="research",
+            actual_cost=0.8,
+            idempotency_key="prior-canonical-spend",
+            require_ledger=True,
+        )
+        second = CostSafetyManager()
+        second.max_daily = 1.0
+        second.max_monthly = 1.0
+
+        allowed, reason, _, reservation_id = second.check_and_reserve(
+            "new-session",
+            "council_consult",
+            0.3,
+            durable_reservation=True,
+            reservation_job_id="council_after_spend",
+        )
+
+        assert allowed is False
+        assert "spent $0.80" in reason
+        assert reservation_id == ""
+        assert second._get_reservation_store().active_cost() == 0.0
+
+    def test_malformed_canonical_ledger_fails_durable_reserve_closed(self):
+        manager = CostSafetyManager()
+        manager._ledger.ledger_path.write_text('{"broken":', encoding="utf-8")
+
+        with pytest.raises(DurableCostReservationError, match="durable cost reservation failed"):
+            manager.check_and_reserve(
+                "malformed-session",
+                "council_consult",
+                0.2,
+                durable_reservation=True,
+                reservation_job_id="council_malformed",
+            )
+
+        assert manager._reservations == {}
+        assert manager._reserved_daily == 0.0
+
+    def test_concurrent_durable_reserve_and_settle_have_no_lock_order_cycle(self, monkeypatch):
+        manager = CostSafetyManager()
+        allowed, _, _, first_id = manager.check_and_reserve(
+            "first-session",
+            "council_consult",
+            0.2,
+            durable_reservation=True,
+            reservation_job_id="council_lock_order_first",
+        )
+        assert allowed
+        manager.mark_provider_work_may_have_run(first_id)
+        store = manager._get_reservation_store()
+        settlement_holds_sqlite = threading.Event()
+        release_settlement = threading.Event()
+        reserve_entered = threading.Event()
+        errors: list[BaseException] = []
+        second_reservation: list[str] = []
+        real_record_event = manager._ledger.record_event
+        real_reserve = store.reserve
+
+        def blocked_record_event(*args, **kwargs):
+            settlement_holds_sqlite.set()
+            assert release_settlement.wait(timeout=2.0)
+            return real_record_event(*args, **kwargs)
+
+        def observed_reserve(**kwargs):
+            reserve_entered.set()
+            return real_reserve(**kwargs)
+
+        monkeypatch.setattr(manager._ledger, "record_event", blocked_record_event)
+        monkeypatch.setattr(store, "reserve", observed_reserve)
+
+        def settle() -> None:
+            try:
+                manager.record_cost(
+                    session_id="first-session",
+                    operation_type="council_synthesis",
+                    actual_cost=0.1,
+                    idempotency_key="lock-order-settlement",
+                    reservation_id=first_id,
+                    require_ledger=True,
+                )
+            except BaseException as error:
+                errors.append(error)
+
+        def reserve() -> None:
+            try:
+                result = manager.check_and_reserve(
+                    "second-session",
+                    "council_consult",
+                    0.2,
+                    durable_reservation=True,
+                    reservation_job_id="council_lock_order_second",
+                )
+                second_reservation.append(result[3])
+            except BaseException as error:
+                errors.append(error)
+
+        settle_thread = threading.Thread(target=settle)
+        reserve_thread = threading.Thread(target=reserve)
+        settle_thread.start()
+        assert settlement_holds_sqlite.wait(timeout=2.0)
+        reserve_thread.start()
+        assert reserve_entered.wait(timeout=2.0)
+        release_settlement.set()
+        settle_thread.join(timeout=2.0)
+        reserve_thread.join(timeout=2.0)
+
+        assert not settle_thread.is_alive()
+        assert not reserve_thread.is_alive()
+        assert errors == []
+        assert second_reservation and second_reservation[0]
+        manager.refund_reservation(second_reservation[0], provider_work_did_not_run=True)
+
     def test_get_session_cost_unknown_session(self):
         """Test get_session_cost for unknown session."""
         manager = CostSafetyManager()
@@ -483,19 +743,47 @@ class TestCostSafetyManager:
             assert kwargs["idempotency_key"] == "k1"
             assert kwargs["metadata"]["details"] == "test details"
 
-    def test_record_cost_strict_mode_raises_on_ledger_error(self, monkeypatch):
+    def test_record_cost_strict_mode_raises_path_safe_ledger_error(self, monkeypatch, tmp_path):
         """Strict mode should fail fast when ledger write fails."""
         monkeypatch.setenv("DEEPR_COST_TRACKING_STRICT", "1")
+        sensitive_path = tmp_path / "private" / "cost_ledger.jsonl"
+        ledger_error = OSError(28, "No space left on device", str(sensitive_path))
         with patch("deepr.experts.cost_safety.CostLedger") as mock_ledger_cls:
             manager = CostSafetyManager()
-            mock_ledger_cls.return_value.record_event.side_effect = OSError("disk full")
+            mock_ledger_cls.return_value.record_event.side_effect = ledger_error
 
-            with pytest.raises(RuntimeError, match="strict mode"):
+            with pytest.raises(RuntimeError) as exc_info:
                 manager.record_cost(
                     session_id="session-1",
                     operation_type="research_submit",
                     actual_cost=0.10,
                 )
+
+        public_error = exc_info.value
+        assert str(public_error) == "Cost ledger write failed in strict mode."
+        assert str(sensitive_path) not in str(public_error)
+        assert public_error.__cause__ is ledger_error
+        assert public_error.ledger_error is ledger_error
+        assert public_error.metadata == {"error_type": "OSError", "errno": 28, "mode": "strict"}
+
+    def test_record_cost_nonstrict_ledger_error_log_is_path_safe(self, monkeypatch, tmp_path, caplog):
+        """Best-effort ledger failures must not place local paths in logs."""
+        monkeypatch.delenv("DEEPR_COST_TRACKING_STRICT", raising=False)
+        sensitive_path = tmp_path / "private" / "cost_ledger.jsonl"
+        ledger_error = OSError(28, "No space left on device", str(sensitive_path))
+        with patch("deepr.experts.cost_safety.CostLedger") as mock_ledger_cls:
+            manager = CostSafetyManager()
+            mock_ledger_cls.return_value.record_event.side_effect = ledger_error
+
+            with caplog.at_level("WARNING", logger="deepr.experts.cost_safety_ledger"):
+                manager.record_cost(
+                    session_id="session-1",
+                    operation_type="research_submit",
+                    actual_cost=0.10,
+                )
+
+        assert str(sensitive_path) not in caplog.text
+        assert "error_type=OSError, errno=28" in caplog.text
 
     def test_reset_clears_all_state(self):
         """Test that reset clears all tracking state."""
@@ -649,3 +937,14 @@ class TestSpendingSummaryContract:
         manager = CostSafetyManager()
         assert manager.max_daily == 50.0
         assert manager.max_monthly == CostSafetyManager.ABSOLUTE_MAX_MONTHLY
+
+    @pytest.mark.parametrize("value", ["nan", "inf", "-inf"])
+    def test_env_caps_nonfinite_values_fall_back(self, monkeypatch, value):
+        from deepr.experts.cost_safety import CostSafetyManager
+
+        monkeypatch.setenv("DEEPR_MAX_COST_PER_DAY", value)
+        monkeypatch.setenv("DEEPR_MAX_COST_PER_MONTH", value)
+        manager = CostSafetyManager()
+
+        assert manager.max_daily == 50.0
+        assert manager.max_monthly == 500.0

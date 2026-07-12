@@ -272,22 +272,24 @@ All tests passing with 100% success rate.
 
 ## Integration with deepr
 
-This scraping skill integrates with deepr's research capabilities:
+The scraper produces local evidence input. It does not authorize provider
+research, expert learning, or team fan-out.
 
-### Research Orchestrator
+### Local source preparation
 ```bash
-deepr research "strategic analysis of Acme Corp" --scrape https://acmecorp.com
+python examples/scrape_demo.py
 ```
 
-### Expert Learning
+Review the generated content and ingest it through a provider-free expert path:
+
 ```bash
-deepr expert make strategy --learn-from https://acmecorp.com
+deepr expert make "Acme Analyst" --local --files ./reviewed-sources
 ```
 
-### Team Research
-```bash
-deepr team research competitive-intel --scrape competitor-urls.txt
-```
+Metered scrape-to-research, nonlocal expert learning, and team research are not
+works-now v2.36 commands. A host may coordinate separate bounded operations,
+but each external fetch, provider call, and belief write retains its own
+approval and verification boundary.
 
 ## Dependencies
 

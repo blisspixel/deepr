@@ -3,10 +3,18 @@
 from __future__ import annotations
 
 import json
+import multiprocessing
+import threading
+import time
+from concurrent.futures import ThreadPoolExecutor
 from datetime import UTC, datetime
 from pathlib import Path
 from unittest.mock import patch
 
+import pytest
+from filelock import FileLock
+
+from deepr.experts import consult_traces as consult_traces_module
 from deepr.experts.consult_traces import (
     CONSULT_QUALITY_EVAL_CASE_KIND,
     CONSULT_QUALITY_EVAL_CASE_SCHEMA_VERSION,
@@ -16,6 +24,7 @@ from deepr.experts.consult_traces import (
     CONSULT_TRACE_SCHEMA_VERSION,
     RECALL_EVAL_CASE_CANDIDATE_KIND,
     RECALL_EVAL_CASE_CANDIDATE_SCHEMA_VERSION,
+    ConsultTraceLockTimeoutError,
     _trace_path,
     build_consult_trace,
     build_consult_trace_candidates,
@@ -23,6 +32,24 @@ from deepr.experts.consult_traces import (
     record_consult_trace,
     review_consult_traces,
 )
+
+
+def _record_consult_traces_in_process(path: str, worker_id: int, count: int) -> None:
+    """Append deterministic traces from a spawned process."""
+    for index in range(count):
+        record_consult_trace(
+            path=Path(path),
+            question=f"worker {worker_id} question {index}",
+            requested_experts=[f"expert-{worker_id}"],
+            max_experts=1,
+            budget=0.0,
+            payload={
+                **_payload(),
+                "answer": f"worker-{worker_id}-trace-{index}-" + ("x" * 65_536),
+            },
+            result={"perspectives": [{}], "synthesis_status": "completed"},
+            trace_id=f"consult_worker_{worker_id}_{index}",
+        )
 
 
 def _payload() -> dict:
@@ -45,6 +72,37 @@ def _payload() -> dict:
         "disagreements": [],
         "cost_usd": 0.0,
     }
+
+
+def _record_with_timeout(path: Path, timeout: float) -> None:
+    record_consult_trace(
+        path=path,
+        lock_timeout_seconds=timeout,
+        question="lock contention",
+        requested_experts=["A"],
+        max_experts=1,
+        budget=0.0,
+        payload=_payload(),
+        result={"perspectives": [{}], "synthesis_status": "completed"},
+        trace_id="consult_lock_test",
+    )
+
+
+def test_trace_process_and_file_lock_waits_are_bounded_without_late_write(tmp_path: Path) -> None:
+    for name, lock_factory in (
+        ("process", lambda path: consult_traces_module._shared_trace_path_lock(path)),
+        ("file", lambda path: FileLock(str(path.resolve().with_name(f"{path.name}.lock")))),
+    ):
+        path = tmp_path / f"{name}.jsonl"
+        held_lock = lock_factory(path)
+        held_lock.acquire()
+        try:
+            with pytest.raises(ConsultTraceLockTimeoutError) as raised:
+                _record_with_timeout(path, 0.01)
+        finally:
+            held_lock.release()
+        assert raised.value.trace_id == "consult_lock_test"
+        assert not path.exists()
 
 
 def test_build_consult_trace_records_replay_context():
@@ -263,6 +321,65 @@ def test_record_consult_trace_appends_jsonl_and_returns_public_ref(tmp_path):
         "recorded": True,
         "checks_ran": [check["name"] for check in data["checks"]],
     }
+
+
+def test_record_consult_trace_serializes_same_path_thread_appends(tmp_path, monkeypatch):
+    path = tmp_path / "consult_traces.jsonl"
+    worker_count = 8
+    start = threading.Barrier(worker_count)
+    counter_lock = threading.Lock()
+    active = 0
+    peak_active = 0
+
+    def observed_append(*args, **kwargs):
+        nonlocal active, peak_active
+        with counter_lock:
+            active += 1
+            peak_active = max(peak_active, active)
+        time.sleep(0.01)
+        with counter_lock:
+            active -= 1
+
+    monkeypatch.setattr("deepr.experts.consult_traces.append_jsonl_durable", observed_append)
+
+    def record(index):
+        start.wait(timeout=5)
+        return record_consult_trace(
+            path=path,
+            question=f"thread question {index}",
+            requested_experts=[],
+            max_experts=1,
+            budget=0.0,
+            trace_id=f"consult_thread_{index}",
+        )
+
+    with ThreadPoolExecutor(max_workers=worker_count) as executor:
+        refs = list(executor.map(record, range(worker_count)))
+
+    assert peak_active == 1
+    assert {ref["trace_id"] for ref in refs} == {f"consult_thread_{index}" for index in range(worker_count)}
+
+
+def test_spawned_consult_trace_writers_preserve_every_jsonl_record(tmp_path):
+    path = tmp_path / "consult_traces.jsonl"
+    context = multiprocessing.get_context("spawn")
+    processes = [
+        context.Process(target=_record_consult_traces_in_process, args=(str(path), worker_id, 8))
+        for worker_id in range(3)
+    ]
+
+    for process in processes:
+        process.start()
+    for process in processes:
+        process.join(timeout=30)
+        assert process.exitcode == 0
+
+    records = load_consult_traces(path=path, limit=100)
+    assert len(records) == 24
+    assert {record["trace_id"] for record in records} == {
+        f"consult_worker_{worker_id}_{index}" for worker_id in range(3) for index in range(8)
+    }
+    assert len(path.read_text(encoding="utf-8").splitlines()) == 24
 
 
 def test_default_trace_path_uses_runtime_data_root(tmp_path, monkeypatch):

@@ -15,6 +15,18 @@ from deepr.cli.colors import (
     print_success,
     print_warning,
 )
+from deepr.experts.metered_mutation_gate import (
+    MeteredExpertMutationDisabledError,
+    require_metered_expert_mutation,
+)
+
+
+def _require_metered_expert_cli(operation: str, *, safe_alternative: str) -> None:
+    """Translate the shared fail-closed expert gate into a Click error."""
+    try:
+        require_metered_expert_mutation(operation, safe_alternative=safe_alternative)
+    except MeteredExpertMutationDisabledError as exc:
+        raise click.ClickException(str(exc)) from exc
 
 
 @click.group(invoke_without_command=True)
@@ -23,8 +35,9 @@ from deepr.cli.colors import (
 def expert(ctx, list_flag):
     """Create and interact with domain experts.
 
-    Experts combine knowledge bases with agentic research capabilities.
-    They can autonomously research when they encounter knowledge gaps.
+    Experts combine structured knowledge with bounded local or plan-quota
+    maintenance and consultation. Legacy metered lifecycle and chat execution
+    fail closed in v2.36.
 
     COMMON COMMANDS:
       deepr expert list              List all experts
@@ -147,6 +160,11 @@ def make_expert(
         click.echo("Example: deepr expert make 'My Expert' -f docs/*.md")
         click.echo("Or: deepr expert make 'My Expert' --learn --budget 10")
         return
+
+    _require_metered_expert_cli(
+        "api_expert_make",
+        safe_alternative=f'deepr expert make "{name}" --local',
+    )
 
     from deepr.cli.commands.semantic.expert_make_profile_setup import confirm_provider_profile_setup
 
@@ -434,6 +452,11 @@ def plan_curriculum(
       # Skip source discovery (faster, cheaper)
       deepr expert plan "React hooks" --no-discovery
     """
+    _require_metered_expert_cli(
+        "api_curriculum_generation",
+        safe_alternative="create a local expert and use expert next or explicit plan-quota sync",
+    )
+
     import json as json_mod
 
     async def generate():
@@ -1407,6 +1430,12 @@ def learn_expert(
             return
         topic = None
 
+    if files:
+        _require_metered_expert_cli(
+            "api_expert_file_learning",
+            safe_alternative=f'deepr expert make "{name}" --local --files <paths> or absorb verified local source notes',
+        )
+
     if not yes:
         try:
             budget = validate_budget(budget, min_budget=0.1)
@@ -1631,6 +1660,10 @@ def resume_expert_learning(name: str, budget: float | None, yes: bool):
         console.print("  deepr expert list")
         return
 
+    _require_metered_expert_cli(
+        "api_expert_resume", safe_alternative=f'deepr expert sync "{name}" --local --scheduled --yes'
+    )
+
     config = AppConfig.from_env()
     learner = AutonomousLearner(config)
     saved_progress = learner.load_learning_progress(name)
@@ -1769,21 +1802,15 @@ def reflect_report(
 ):
     """Self-evaluate a research report before relying on or absorbing it.
 
-    Scores the report against its question on grounding, completeness,
-    calibration, and directness, then returns a verdict (accept / revise /
-    re-research) with concrete issues and follow-up queries. Judged in the
-    context of NAME's domain. A natural pre-step to `expert absorb`. Costs one
-    small evaluation call.
+    Scores grounding, completeness, calibration, and directness, then returns
+    a verdict with concrete issues and follow-up queries.
 
     With --execute-followups the loop closes: the emitted follow-up queries
     actually run (budget-bounded, skip-not-fail) and their findings absorb
     through the verification-gated pipeline - reflection stops being
     advisory exactly when the report needs reinforcement.
 
-    EXAMPLES:
-      deepr expert reflect "AI Strategy Expert" <job_id>
-      deepr expert reflect "AI Strategy Expert" <job_id> --execute-followups --budget 1 -y
-      deepr expert reflect "AI Strategy Expert" <job_id> --execute-followups --scheduled --json
+    Use --scheduled for the local or plan capacity waterfall.
     """
     import json as _json
     import sys
@@ -1821,6 +1848,10 @@ def reflect_report(
             json_output=json_output,
         )
         return
+
+    _require_metered_expert_cli(
+        "api_expert_reflect", safe_alternative=f'deepr expert reflect "{name}" "{report_id}" --scheduled --json'
+    )
 
     from deepr.cli.commands.semantic.expert_reflection_loop import record_completed_reflection_loop
     from deepr.experts.reflection import ReflectionEngine, ReflectionError
@@ -2107,6 +2138,11 @@ def import_expert(name: str, corpus: str, yes: bool):
       # Skip confirmation
       deepr expert import "New Expert" -c ./corpus -y
     """
+    _require_metered_expert_cli(
+        "api_expert_import",
+        safe_alternative="import or make a local expert from owned files, then use local or plan-quota maintenance",
+    )
+
     import asyncio
     from pathlib import Path
 
@@ -2250,6 +2286,10 @@ def fill_gaps(
         raise click.UsageError(
             "Legacy metered gap filling with --yes requires --confirm-metered-cost after reviewing the estimate."
         )
+    _require_metered_expert_cli(
+        "api_fill_gaps",
+        safe_alternative=f'deepr expert route-gaps "{name}" --execute --scheduled',
+    )
 
     # Load expert
     store = ExpertStore()
@@ -2520,6 +2560,11 @@ def validate_citations_cmd(name: str):
     EXAMPLES:
       deepr expert validate-citations "AWS Expert"
     """
+    _require_metered_expert_cli(
+        "api_validate_citations",
+        safe_alternative="review stored citations locally or use an explicit plan-quota verifier",
+    )
+
     import asyncio
 
     from deepr.config import AppConfig
@@ -2592,6 +2637,11 @@ def discover_gaps_cmd(name: str):
     EXAMPLES:
       deepr expert discover-gaps "Python Expert"
     """
+    _require_metered_expert_cli(
+        "api_discover_gaps",
+        safe_alternative=f'deepr expert next "{name}"',
+    )
+
     import asyncio
 
     from deepr.experts.profile import ExpertStore
@@ -2692,6 +2742,11 @@ def refresh_expert(name: str, synthesize: bool, yes: bool):
         deepr expert refresh "Agentic Digital Consciousness"
         deepr expert refresh "Azure Architect" --synthesize
     """
+    _require_metered_expert_cli(
+        "api_expert_refresh",
+        safe_alternative=f'deepr expert sync "{name}" --local --scheduled --yes',
+    )
+
     import asyncio
 
     from deepr.experts.profile import ExpertStore
@@ -2838,34 +2893,29 @@ def refresh_expert(name: str, synthesize: bool, yes: bool):
 
 @expert.command(name="chat")
 @click.argument("name")
-@click.option("--budget", "-b", type=float, default=5.0, help="Session budget limit for research (default: $5)")
 @click.option(
-    "--no-research", is_flag=True, default=False, help="Disable agentic research (experts can research by default)"
+    "--budget",
+    "-b",
+    type=float,
+    default=5.0,
+    help="Legacy session budget; metered chat execution is gated in v2.36.",
+)
+@click.option(
+    "--no-research",
+    is_flag=True,
+    default=False,
+    help="Legacy option retained for compatibility; execution remains gated.",
 )
 def chat_with_expert(name: str, budget: float | None, no_research: bool):
-    """Start an interactive chat session with an expert.
+    """Compatibility command for legacy metered expert chat.
 
-    Chat with a domain expert using their knowledge base. The expert will
-    answer questions based on their accumulated knowledge and cite sources.
-
-    The expert provides "Glass Box" transparency:
-    - Every answer cites exact sources with filenames
-    - Reasoning traces show what was searched and why
-    - Full audit trail for accountability
-
-    Examples:
-        deepr expert chat "AWS Solutions Architect"
-        deepr expert chat "Python Expert" --budget 5
-        deepr expert chat "Python Expert" --no-research  # Disable research
-
-    Commands during chat:
-        /quit or /exit - End the session
-        /status - Show session statistics and costs
-        /clear - Clear conversation history
-        /trace - Show reasoning trace (what the expert searched and why)
-        /learn <file_path> - Upload a document to expert's knowledge base
-        /synthesize - Trigger consciousness synthesis (form beliefs from recent learning)
+    This command fails closed before session or provider construction in v2.36.
+    Use `expert consult QUESTION -e NAME --local` or an explicit plan backend.
     """
+    _require_metered_expert_cli(
+        "api_expert_chat_session",
+        safe_alternative='deepr expert consult "QUESTION" -e "EXPERT" --local',
+    )
     import asyncio
     from datetime import datetime
 

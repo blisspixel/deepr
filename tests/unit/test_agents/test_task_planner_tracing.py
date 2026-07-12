@@ -11,6 +11,10 @@ from deepr.agents.contract import AgentIdentity, AgentRole
 def _fake_openai_key(monkeypatch):
     """Provide a dummy OPENAI_API_KEY so AsyncOpenAI() doesn't raise."""
     monkeypatch.setenv("OPENAI_API_KEY", "sk-test-fake-key")
+    monkeypatch.setattr(
+        "deepr.experts.task_planner.require_metered_expert_mutation",
+        lambda *_args, **_kwargs: None,
+    )
 
 
 @pytest.fixture

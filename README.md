@@ -3,41 +3,42 @@
 [![CI](https://github.com/blisspixel/deepr/actions/workflows/ci.yml/badge.svg)](https://github.com/blisspixel/deepr/actions/workflows/ci.yml)
 [![License: Apache 2.0](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](LICENSE)
 [![Python 3.12+](https://img.shields.io/badge/python-3.12+-blue.svg)](https://www.python.org/downloads/)
-[![Version](https://img.shields.io/badge/version-2.35.0-blue)](https://github.com/blisspixel/deepr/releases/tag/v2.35.0)
+[![Version](https://img.shields.io/badge/version-2.36.0-blue)](https://github.com/blisspixel/deepr/releases/tag/v2.36.0)
 
 **Domain experts that remember, not another chat window.**
 
 You bring the AI accounts, plan quotas, API keys, or local models you already
-have. Deepr previews the route, runs each research task through the cheapest
-capable path, and turns useful results into durable experts with beliefs, gaps,
-contradictions, confidence, provenance, loop records, and handoff payloads that
-humans or other agents can reuse later.
+have. Deepr previews explicit local, plan-quota, and bounded API paths, dispatches
+only when capacity and cost can be proven, and turns useful results into durable
+experts with beliefs, gaps, contradictions, confidence, provenance, loop
+records, and handoff payloads that humans or other agents can reuse later.
 
 - Local Ollama is the true `$0` marginal-cost path for quality-tolerant expert
   setup, absorb, sync, eval, and local-context workflows.
 - Explicit non-metered plan-quota CLIs run on prepaid or subscription capacity
   only after deterministic no-surprise-bills checks. Metered-at-margin adapters
   remain visible but blocked until they have complete cost accounting.
-- Cloud APIs remain the strongest full research path when you provide keys and
-  a budget ceiling.
+- Cloud APIs remain the strongest bounded single-job research path when you
+  provide keys, a budget ceiling, and a provider/model/tool envelope Deepr can
+  price completely.
 
 A budget is a ceiling, not a target price. `--budget 3` means Deepr may spend
 up to $3 for that job, stops before the ceiling when it can, and records every
 settled cost in the append-only ledger.
-Dashboard model benchmarks bind approval to the exact run options and reserve
-each bounded token and search allowance before submission. Unpriced or
-request-unbounded benchmark adapters fail closed.
+Saved dashboard benchmark artifacts remain readable. Live provider benchmark
+execution is gated in v2.36 until it uses the shared durable research
+transaction; unpriced or request-unbounded benchmark adapters fail closed.
 
 Deepr is useful when research is infrastructure: recurring expert maintenance,
-batch research, citable knowledge for coding agents, and durable domain roles
+repeatable bounded research, citable knowledge for coding agents, and durable domain roles
 that stay current over time.
 
 ```bash
-# Preview route and cost before spending.
-deepr research "What bottlenecks could constrain NVIDIA Blackwell deployment?" --auto --dry-run
+# Preview the exact hard request maximum before spending.
+deepr research "What bottlenecks could constrain NVIDIA Blackwell deployment?" --provider openai --model o4-mini-deep-research --dry-run
 
-# Run a research job with a $3 budget ceiling.
-deepr research "Will open-weight frontier models erode AI enterprise margins by 2027?" --auto --budget 3
+# Run one research job with a $2 budget ceiling.
+deepr research "Will open-weight frontier models erode AI enterprise margins by 2027?" --provider openai --model o4-mini-deep-research --budget 2
 
 # Consult a persistent expert at $0 through local synthesis.
 deepr expert consult "What should this agentic harness improve next?" --local
@@ -70,8 +71,9 @@ artifacts you own. Deepr also exposes 32 MCP tools for agent hosts.
 If you need one report, a vendor chat product is easier. Deepr is for the cases
 where research needs to be repeatable, budgeted, auditable, and reusable.
 
-- **Batch research**: run many questions through previewed, budgeted routing
-  instead of manually clicking deep research one question at a time.
+- **Budgeted research**: run one fully priced provider request under the same
+  hard envelope shown by preview. Metered batch execution remains gated until
+  one durable parent reservation can cover every child request.
 - **Persistent experts**: maintain named roles such as "AI Strategy Expert" or
   "Security Specialist" with beliefs, gaps, provenance, and loop history.
 - **Agent handoffs**: let coding agents query a stable knowledge layer over MCP
@@ -126,8 +128,9 @@ Open a new terminal after install:
 ```bash
 deepr init
 deepr doctor
-# Budget ceiling: spend at most $3 for this job.
-deepr research "Your question here" --auto --budget 3
+# Preview, then use the same bounded provider/model with a hard ceiling.
+deepr research "Your question here" --provider openai --model o4-mini-deep-research --preview
+deepr research "Your question here" --provider openai --model o4-mini-deep-research --budget 2
 ```
 
 Install from source when developing:
@@ -155,7 +158,7 @@ Results are saved under the configured reports root, defaulting to
 
 | Area | Status | Where to go |
 |---|---|---|
-| API-backed research | Works with provider keys, preflight estimates, budget ceilings, and append-only cost settlement | [docs/FEATURES.md](docs/FEATURES.md), [docs/MODELS.md](docs/MODELS.md) |
+| API-backed research | Single bounded jobs work for provider/model/tool combinations with complete finite pricing. Preview and dispatch use the same hard envelope. Automatic metered fallback, hosted file/vector context, and multi-call campaigns are gated in v2.36. | [docs/FEATURES.md](docs/FEATURES.md), [docs/MODELS.md](docs/MODELS.md) |
 | Local expert maintenance | Works through Ollama for local expert setup, absorb, sync, fresh/deep local context, eval, and scored admission | [docs/CAPACITY.md](docs/CAPACITY.md) |
 | Explicit plan-quota execution | Works for selected non-metered expert sync, sync-all, gap-fill, absorb, learn, consult, and probe commands behind auth-mode and no-surprise-bills checks | [docs/CAPACITY.md](docs/CAPACITY.md), [docs/design/plan-quota-cli-backends.md](docs/design/plan-quota-cli-backends.md) |
 | Domain experts | Works for expert creation, `$0` next-action guidance, chat, consult, beliefs, gaps, loop status, OKF export/import, self-model reads, monitor proposals, reviewed monitor promotion, and self-model update review and acceptance records | [docs/EXPERTS.md](docs/EXPERTS.md) |
@@ -190,10 +193,21 @@ event-journal design is documented in
 ### Research
 
 ```bash
-deepr research "What changed in AI infrastructure economics this quarter?" --auto --explain
+# Inspect the exact maximum before any provider call.
+deepr research "What changed in AI infrastructure economics this quarter?" --provider openai --model o4-mini-deep-research --preview
+
+# Run one bounded job. The budget is a hard ceiling.
+deepr research "What changed in AI infrastructure economics this quarter?" --provider openai --model o4-mini-deep-research --budget 2
+
+# Batch routing preview is $0; metered batch execution is gated in v2.36.
 deepr research --auto --batch queries.txt --dry-run
-deepr research "Analyze this corpus" --files docs/*.md --budget 5
 ```
+
+Hosted file upload, file search, vector-store creation, metered multi-job
+campaigns, dream-team research, and automatic cross-provider metered fallback
+fail closed in v2.36 until their full storage or parent-run costs share the
+durable reservation. Use local source packs, `expert make --local --files`, or
+one bounded research job at a time.
 
 Model names and prices move quickly. The registry under
 `src/deepr/providers/registry.py` is the canonical source for pricing used by
@@ -207,10 +221,12 @@ Anthropic's current docs list lower introductory pricing through 2026-08-31.
 ### Experts
 
 ```bash
-deepr expert make "AI Policy Expert" -d "EU AI Act enforcement timeline" --learn --budget 5
-deepr expert chat "AI Policy Expert" --budget 3
+deepr expert make "AI Policy Expert" --local -d "EU AI Act enforcement timeline"
+deepr expert subscribe "AI Policy Expert" "EU AI Act enforcement timeline"
+deepr expert sync "AI Policy Expert" --local --fresh-context -y
 deepr expert consult "What should our agentic harness improve next?" --local
 deepr eval consult --json
+deepr eval deliberation --json
 deepr eval hallucination-risks --json
 deepr expert self-model "AI Policy Expert" --json
 deepr expert next "AI Policy Expert"
@@ -218,7 +234,6 @@ deepr expert monitor "AI Policy Expert" --json
 deepr expert review-consult-quality "AI Policy Expert" consult_abc123 --score uses_expert_state=5 --score surfaces_uncertainty=5 --score preserves_dissent=5 --score actionability=5 --score grounded_when_factual=5 --score original_thought=5 --reviewer operator --decision accept --target eval --apply
 deepr expert judge-consult-quality "AI Policy Expert" consult_abc123 --local-judge-model qwen2.5 --target eval --json
 deepr expert judge-consult-quality "AI Policy Expert" consult_abc123 --plan codex --plan-model gpt-5-mini --target eval --json
-deepr expert judge-consult-quality "AI Policy Expert" consult_abc123 --api-provider xai --api-model grok-4.3 --budget 0.50 --confirm-metered-cost --target eval --json
 deepr expert promote-monitor "AI Policy Expert" meta_abc123 --target gap --apply
 deepr expert propose-self-model "AI Policy Expert" meta_def456 --json
 deepr expert accept-self-model "AI Policy Expert" ./data/self_model_updates/ai-policy/self_model_update_meta_def456_20260626_120000000000.json --outcome-evidence loop_run:loop_123 --reviewer operator --json
@@ -245,8 +260,9 @@ and domains are never reinterpreted as commands. It is a `$0`, read-only
 structural navigator, not a semantic maturity score and never a default-policy
 change.
 
-`deepr expert sync --compile-claims` now runs budget-gated semantic extraction
-and verification over source-note windows, builds a verified graph-commit
+Compiled sync through `--local` or explicit `--plan <id>` capacity runs
+budget-gated semantic extraction and verification over source-note windows,
+builds a verified graph-commit
 envelope, and applies that envelope instead of calling the legacy absorber. It
 writes claim-extraction, claim-verification, graph-commit envelope, and
 `graph_commit_apply_results` sidecars with prompt, schema, provider, model,
@@ -271,6 +287,13 @@ no-metered capacity posture, dissent preservation, replayable traces, and
 sanitized semantic quality review cases. It does not score answer meaning with
 brittle lexical rules.
 
+`deepr eval deliberation` is the `$0`, frozen-fixture gate for future
+expert-to-expert discussion. Its eleven checks cover bounded round lineage,
+independent first positions, targeted challenges, dissent preservation, typed
+stops, inert untrusted text, no fallback, and proposal-only authority. The
+report is explicitly `unreviewed` for semantic quality, and no live multi-round
+surface is enabled by this command.
+
 `deepr expert review-consult-quality` turns one review-ready consult trace case
 into a `deepr-consult-quality-review-v1` artifact. Human or calibrated-model
 scores own semantic judgment; Deepr only validates score shape, records the
@@ -279,13 +302,12 @@ or eval artifacts. This path costs `$0` and never commits beliefs.
 `deepr expert judge-consult-quality NAME TRACE_ID --local-judge-model MODEL`
 runs that same review path with an explicit local Ollama judge. The command can
 also use an explicit plan-quota judge with `--plan BACKEND` and optional
-`--plan-model MODEL`, or an explicit premium API judge with `--api-provider`,
-`--api-model`, `--budget`, and `--confirm-metered-cost`. The judge sees the
-local trace answer at command time, but Deepr stores only validated scores,
-labels, notes, and bounded judge metadata in the review artifact. Plan judges
-consume subscription quota and record `$0` Deepr cost metadata through the
-plan-quota ledger path. API judges reserve the estimate before dispatch and
-settle usage into the append-only cost ledger after the call.
+`--plan-model MODEL`. The judge sees the local trace answer at command time,
+but Deepr stores only validated scores, labels, notes, and bounded judge
+metadata in the review artifact. Plan judges consume subscription quota and
+record `$0` Deepr cost metadata through the plan-quota ledger path. The premium
+`--api-provider` implementation is gated in v2.36 pending the shared durable
+transaction.
 `deepr expert consult-quality-trends NAME` summarizes those reviewed artifacts
 as `deepr-consult-quality-trend-v1`, including score trends and deterministic
 prompt-regression candidates selected only from reviewer scores and review
@@ -317,17 +339,22 @@ deepr capacity admit --from-eval latest --task-class sync --yes
 Local and non-metered plan-backed services must not create dollar cost inside
 Deepr. They may consume hardware time, subscription quota, or external credits
 that Deepr cannot prove, so explicit plan and CLI-judge paths stay opt-in and
-documented. Metered-at-margin plan CLIs are billed per use and remain
-explicit-only behind budget and cost-ledger gates.
+documented. Metered-at-margin plan CLIs remain execution-blocked until their
+estimation, reservation, settlement, and canonical ledger contracts are
+complete. Copilot is visible/read-only capacity metadata in v2.36.
 
 ### MCP and Agents
 
 Deepr experts are consultable roles for host agents. An agent can list experts,
 read a handoff, inspect loop state, run a one-expert or multi-expert consult,
 use `deepr_query_expert` with explicit local or plan capacity for a no-metered
-read-only compiled-context turn, or use API chat with an operator-approved
-budget. API query chat supports OpenAI by default and explicit Anthropic
-non-agentic turns through `provider=anthropic`. The host remains the
+read-only compiled-context turn. In v2.36, every standalone metered
+`ExpertChatSession` dispatch fails closed, including CLI, browser, and
+`deepr_query_expert backend=api` paths. Restoring metered chat requires a
+durable reserve, dispatch-mark, and settlement lifecycle for every provider
+call, hard output ceilings, auxiliary calls charged to the parent budget, and
+serialized turns per session. API council synthesis is a separate bounded
+surface and remains available with explicit approval. The host remains the
 orchestrator; Deepr provides the verified knowledge layer.
 
 ```bash
@@ -391,35 +418,43 @@ order of operations in [ROADMAP.md](ROADMAP.md).
 
 ## Cost Controls
 
-Provider-backed research and paid synchronous planning reserve cost before
-dispatch and settle after usage. Research admission coordinates REST, web,
-CLI, batch, MCP, and internal orchestrator processes through durable maximum
-holds, while ambiguous provider outcomes settle conservatively and are not
-automatically replayed. Deepr also has per-operation limits, daily and monthly
+Bounded single-job provider research and paid synchronous planning reserve cost
+before dispatch and settle after usage. Research admission coordinates REST,
+web, direct CLI, MCP, and internal single-job orchestrator processes through
+durable maximum holds. Ambiguous provider outcomes settle conservatively and
+are not automatically replayed. Deepr also has per-operation limits, daily and monthly
 caps, anomaly checks, and an append-only cost ledger at
 `data/costs/cost_ledger.jsonl`. See
 [research-cost-reservations.md](docs/design/research-cost-reservations.md).
 
 Defaults favor owned capacity: local `$0` backends first, then explicit
-plan-quota capacity where supported, with metered APIs treated as premium
-fallbacks behind budget gates. Image generation follows the same rule:
+plan-quota capacity where supported. Metered APIs are explicit premium paths;
+Deepr does not automatically fall through to another paid provider in v2.36.
+Image generation follows the same rule:
 `DEEPR_LOCAL_IMAGE_URL` is the only portrait provider auto-selected by default.
-OpenAI, Gemini, and xAI image generation require an explicit provider selection
-or the single premium auto opt-in `DEEPR_ALLOW_METERED_IMAGE_AUTO=1`; Deepr
-does not honor provider-specific image auto env vars. Existing portraits are not
-regenerated by default; use explicit force/regenerate controls for ad hoc
-replacement, and metered portrait calls must acknowledge the displayed estimate
-before dispatch.
-CLI `--yes` can skip unattended prompts only for free/local image generation
-unless `--confirm-metered-cost` is also supplied. Generated portraits live
-under the configured runtime data root and forced regeneration archives the
+OpenAI, Gemini, and xAI remain recognized explicit provider choices, but paid
+portrait dispatch fails closed in v2.36 pending the shared durable transaction.
+Set `DEEPR_LOCAL_IMAGE_URL` and pass `--provider local` for the shipped path.
+Existing portraits are not regenerated by default. Generated portraits live
+under the configured runtime data root, and forced regeneration archives the
 previous image before replacement.
 
-API-backed `deepr expert make` is also explicit about cost posture. Before any
-provider client is constructed, it previews the provider, selected upload size,
-and hosted-vector-store storage estimate where Deepr can calculate one. `--yes`
-requires `--confirm-metered-profile` on that path. `deepr expert make --local`
-remains the provider-free `$0` profile setup path.
+In v2.36, unsafe metered expert lifecycle entry points fail closed while their
+shared durable transaction is completed. This includes nonlocal `expert make`
+and `--learn`, API curriculum `expert plan`, `expert resume`, normal metered
+`expert reflect` and MCP `deepr_reflect`, provider-backed `expert refresh` and
+`--synthesize`, API `fill-gaps`, explicit API sync and sync-all, paid portraits,
+API consult-quality judging, live provider benchmarks, and paid
+`deepr eval calibrate --corpus`. Use local, scheduled, dry-run, history-only,
+or explicit plan-quota paths where available; `$0`
+`deepr eval calibrate --from` remains available.
+`deepr expert make --local` is the provider-free profile setup path.
+Hosted file/vector context and metered multi-call research also fail closed.
+Their `$0` previews remain available, but batch, campaign, team, and prepared
+campaign execution require one durable parent reservation before re-enablement.
+Legacy metered `deepr check`, `deepr make docs`, `deepr make strategy`, and
+`deepr agentic research` also fail before provider construction until they use
+the shared durable call transaction.
 
 ```bash
 deepr budget set 5
@@ -437,15 +472,19 @@ provider-returned exact cost settlement.
 
 ## Stable vs Experimental
 
-Stable today: core research commands, guided setup, cost controls, provider
-routing with user keys, local report storage, expert profiles, CLI output modes,
-and published schemas.
+Stable today: bounded single-job research for supported provider/model/tool
+envelopes, guided setup, cost controls, provider selection with user keys,
+local report storage, expert profiles, CLI output modes, and published schemas.
 
-Experimental but usable: web dashboard, agentic expert chat, councils, skills,
+Experimental but usable: web dashboard, councils, skills,
 MCP HTTP, scoped keys, remote-call audits, loop status, OKF interchange,
 self-model reads, metacognitive monitor proposals, reviewed monitor promotion,
 local execution, plan-quota execution, local evals, red-team metrics, and fleet
 maintenance surfaces.
+
+Standalone metered expert chat is gated in v2.36. Local and explicit plan
+`deepr_query_expert` read-only turns remain available, and no metered chat live
+validation is claimed for this release.
 
 See [docs/SUPPORTED_SURFACE.md](docs/SUPPORTED_SURFACE.md) for the contract.
 
@@ -478,7 +517,7 @@ See [docs/SUPPORTED_SURFACE.md](docs/SUPPORTED_SURFACE.md) for the contract.
 
 ## Project Notes
 
-The test suite has 7000+ tests (Python 3.12-3.14), with an 80% coverage gate.
+The test suite has 8000+ tests (Python 3.12-3.14), with an 80% coverage gate.
 Pre-commit and CI run ruff, mypy on strict islands, docs consistency checks,
 file-size ratchets, and security/complexity ratchets.
 

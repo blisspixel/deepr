@@ -34,6 +34,32 @@ JOBS_TABLE = os.environ.get("JOBS_TABLE")
 # to the result endpoint.
 jobs_table = dynamodb.Table(JOBS_TABLE) if JOBS_TABLE else None
 
+# Keep this gate local to the worker image. The worker must remain safe even if
+# an old API deployment, a manual SQS write, or a replayed message bypasses the
+# current API-side admission boundary.
+AWS_METERED_RESEARCH_EXECUTION_ENABLED = False
+AWS_METERED_RESEARCH_BLOCK_CODE = "aws_metered_research_accounting_unavailable"
+AWS_METERED_RESEARCH_BLOCK_MESSAGE = (
+    "AWS metered research is disabled until durable reservation and canonical settlement are implemented."
+)
+
+
+class AWSMeteredResearchDisabledError(RuntimeError):
+    """Raised before the AWS worker imports or constructs a paid provider."""
+
+    code = AWS_METERED_RESEARCH_BLOCK_CODE
+    retryable = False
+    provider_work_started = False
+
+    def __init__(self) -> None:
+        super().__init__(AWS_METERED_RESEARCH_BLOCK_MESSAGE)
+
+
+def require_aws_metered_research_dispatch() -> None:
+    """Refuse the unreserved AWS provider path before provider construction."""
+    if not AWS_METERED_RESEARCH_EXECUTION_ENABLED:
+        raise AWSMeteredResearchDisabledError
+
 
 def load_secrets():
     """Load API keys from Secrets Manager into environment."""
@@ -147,6 +173,8 @@ def save_result(job_id: str, content: str):
 
 async def execute_research(job: dict) -> tuple[str, float, int]:
     """Execute research job using Deepr providers."""
+    require_aws_metered_research_dispatch()
+
     # Import here after secrets are loaded
     from deepr.providers.base import ResearchRequest, ToolConfig
     from deepr.providers.openai_provider import OpenAIProvider
@@ -219,6 +247,23 @@ async def process_message(message):
         # Check cancellation in DynamoDB before spending any provider call.
         if is_job_cancelled(job_id):
             logger.info("Job %s was cancelled in DynamoDB, skipping provider call", job_id)
+            return True
+
+        try:
+            require_aws_metered_research_dispatch()
+        except AWSMeteredResearchDisabledError as error:
+            logger.warning("Blocked AWS metered research job %s: %s", job_id, error.code)
+            update_job_status(
+                job_id,
+                "failed",
+                error=AWS_METERED_RESEARCH_BLOCK_MESSAGE,
+                error_code=error.code,
+                retryable=error.retryable,
+                provider_work_started=error.provider_work_started,
+            )
+            # Acknowledging the message prevents an unsafe legacy job from
+            # retrying forever. The independent execute_research gate still
+            # protects direct or future callers.
             return True
 
         # Update status to processing

@@ -873,6 +873,9 @@ class TestBackendFlagGuard:
         assert escalator.available_vendors == ("kiro",)
 
     def test_sync_compile_claims_applies_compiled_graph_commit_by_default(self, monkeypatch, tmp_path):
+        from deepr.experts import metered_mutation_gate
+
+        monkeypatch.setattr(metered_mutation_gate, "METERED_EXPERT_MUTATIONS_ENABLED", True)
         captured = {}
         profile = SimpleNamespace(name="UI Experience Expert")
 
@@ -944,6 +947,9 @@ class TestBackendFlagGuard:
         assert captured["sync_kwargs"]["apply_graph_commits"] is True
 
     def test_sync_accepts_recall_preference_report_from_accumulated_library(self, monkeypatch, tmp_path):
+        from deepr.experts import metered_mutation_gate
+
+        monkeypatch.setattr(metered_mutation_gate, "METERED_EXPERT_MUTATIONS_ENABLED", True)
         captured = {}
         profile = SimpleNamespace(name="UI Experience Expert")
 
@@ -1017,6 +1023,9 @@ class TestBackendFlagGuard:
         assert captured["sync_kwargs"]["apply_graph_commits"] is True
 
     def test_sync_stage_compiled_claims_keeps_no_apply_sidecar_path(self, monkeypatch):
+        from deepr.experts import metered_mutation_gate
+
+        monkeypatch.setattr(metered_mutation_gate, "METERED_EXPERT_MUTATIONS_ENABLED", True)
         captured = {}
         profile = SimpleNamespace(name="UI Experience Expert")
 
@@ -1181,7 +1190,7 @@ class TestBackendFlagGuard:
             }
         }
 
-    def test_sync_overlap_lock_records_skip_without_building_engine(self, monkeypatch):
+    def test_explicit_api_sync_fails_closed_without_building_engine(self, monkeypatch):
         captured = {}
         profile = SimpleNamespace(name="UI Experience Expert")
 
@@ -1231,16 +1240,10 @@ class TestBackendFlagGuard:
             ["sync", "UI Experience Expert", "--api", "--scheduled", "--jitter", "30", "-y", "--json"],
         )
 
-        assert r.exit_code == 0, r.output
-        payload = json.loads(r.output)
-        assert captured["jitter"] == ("UI Experience Expert", 30.0)
-        assert captured["lock"] == ("UI Experience Expert", "sync")
-        assert payload["outcomes"][0]["status"] == "skipped"
-        assert payload["outcomes"][0]["detail"] == "another sync for this expert is already running"
-        assert payload["loop_run"]["run_id"] == "loop_locked"
-        assert payload["loop_run"]["status"] == "waiting"
-        assert payload["loop_run"]["stop_reason"] == "overlap_locked"
-        assert captured["loop_run_kwargs"]["capacity_source"] == "api_metered"
+        assert r.exit_code == 2
+        assert "temporarily disabled" in r.output.lower()
+        assert "--local" in r.output
+        assert captured == {}
 
     def test_sync_deep_context_rejects_api(self):
         r = CliRunner().invoke(expert, ["sync", "Whoever", "--api", "--deep-context"])

@@ -446,6 +446,18 @@ def expert_judge_consult_quality(
     )
     try:
         if api_provider:
+            from deepr.experts.metered_mutation_gate import (
+                MeteredExpertMutationDisabledError,
+                require_metered_expert_mutation,
+            )
+
+            try:
+                require_metered_expert_mutation(
+                    "api_consult_quality_judge",
+                    safe_alternative="use --local-judge-model or --plan for a non-metered judge",
+                )
+            except MeteredExpertMutationDisabledError as exc:
+                raise click.ClickException(str(exc)) from exc
             payload = _run_api_consult_quality_judge(
                 profile,
                 trace_id,

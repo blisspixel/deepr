@@ -199,6 +199,11 @@ class TestRunSingleAsync:
         assert persisted is not None
         assert persisted.metadata == job.metadata
         assert persisted.metadata["cost_reservation_id"] == reservation.reservation_id
+        assert persisted.metadata["research_max_input_tokens"] == 128_000
+        assert persisted.metadata["research_max_output_tokens"] == 16_000
+        assert persisted.metadata["research_max_tool_calls"] == 16
+        assert persisted.metadata["research_max_provider_requests"] == 3
+        assert persisted.metadata["research_max_request_bytes"] == 64 * 1024
         assert ResearchReservationStore().active_cost() == pytest.approx(5.0)
         refund_research_cost(reservation)
 
@@ -278,44 +283,18 @@ class TestRunSingleAsync:
         reserve.assert_not_awaited()
 
     @pytest.mark.asyncio
-    async def test_cost_admission_precedes_provider_file_upload(self):
-        """No provider resource is created before the durable hold exists."""
+    async def test_file_storage_gate_precedes_cost_and_provider_work(self):
+        """Unbounded provider storage is rejected before any side effect."""
         from deepr.cli.commands.run import _run_single
         from deepr.cli.output import OutputContext, OutputMode
+        from deepr.services.research_bounds import ResearchRequestBoundsError
 
-        events: list[str] = []
-        reserve_args: tuple[object, ...] = ()
-        reservation = MagicMock()
-
-        async def reserve(*_args):
-            nonlocal reserve_args
-            reserve_args = _args
-            events.append("reserve")
-            return "research-1", reservation
-
-        async def upload(*_args):
-            events.append("upload")
-            return MagicMock(
-                has_errors=False,
-                errors=[],
-                vector_store_id="vs-1",
-                uploaded_ids=["file-1"],
-            )
-
-        queue = MagicMock(claim_submission=AsyncMock(return_value=True))
         with (
             patch("deepr.cli.commands.run._check_budget", return_value=True),
-            patch("deepr.cli.commands.run._reserve_job_submission", side_effect=reserve),
-            patch("deepr.cli.commands.file_handler.handle_file_uploads", side_effect=upload),
-            patch("deepr.cli.commands.run._enqueue_reserved_job", new_callable=AsyncMock) as enqueue,
-            patch("deepr.cli.commands.run._submit_to_provider", new_callable=AsyncMock),
-            patch(
-                "deepr.cli.commands.run._ensure_reservation",
-                new_callable=AsyncMock,
-                side_effect=_restore_expected_reservation,
-            ),
-            patch("deepr.cli.commands.run.SQLiteQueue", return_value=queue),
-            patch("deepr.config.load_config", return_value={"queue_db_path": "custom/research.db"}),
+            patch("deepr.cli.commands.run._reserve_job_submission", new_callable=AsyncMock) as reserve,
+            patch("deepr.cli.commands.file_handler.handle_file_uploads", new_callable=AsyncMock) as upload,
+            patch("deepr.cli.commands.run._submit_to_provider", new_callable=AsyncMock) as submit,
+            pytest.raises(ResearchRequestBoundsError) as exc_info,
         ):
             await _run_single(
                 query="Test query",
@@ -329,9 +308,51 @@ class TestRunSingleAsync:
                 output_context=OutputContext(mode=OutputMode.QUIET),
             )
 
-        assert events == ["reserve", "upload"]
-        assert reserve_args[-1] == "custom/research.db"
-        assert enqueue.await_args.kwargs["queue_db_path"] == "custom/research.db"
+        assert exc_info.value.code == "research_file_storage_unbounded"
+        reserve.assert_not_awaited()
+        upload.assert_not_awaited()
+        submit.assert_not_awaited()
+
+    @pytest.mark.asyncio
+    async def test_provider_submit_uses_shared_durable_dispatch_boundary(self):
+        from deepr.cli.commands.run import _submit_to_provider
+        from deepr.cli.output import OutputContext, OutputMode
+
+        provider = MagicMock(submit_research=AsyncMock(side_effect=AssertionError("direct dispatch")))
+        reservation = MagicMock()
+        queue = MagicMock()
+        with (
+            patch("deepr.cli.commands.provider_factory.create_provider_instance", return_value=provider),
+            patch("deepr.cli.commands.provider_factory.supports_background_jobs", return_value=True),
+            patch("deepr.cli.commands.run.SQLiteQueue", return_value=queue),
+            patch("deepr.config.load_config", return_value={"queue_db_path": "queue.db"}),
+            patch(
+                "deepr.services.research_submission.submit_reserved_provider_research",
+                new_callable=AsyncMock,
+                return_value="provider-job",
+            ) as dispatch,
+            patch("deepr.cli.commands.run._handle_background_job", new_callable=AsyncMock) as background,
+        ):
+            await _submit_to_provider(
+                job_id="research-job",
+                query="Bounded research",
+                model="o4-mini-deep-research",
+                provider="openai",
+                no_web=False,
+                no_code=False,
+                document_ids=[],
+                vector_store_id=None,
+                output_context=OutputContext(mode=OutputMode.QUIET),
+                formatter=MagicMock(),
+                start_time=0.0,
+                reservation=reservation,
+            )
+
+        dispatch.assert_awaited_once()
+        assert dispatch.await_args.kwargs["reservation"] is reservation
+        assert dispatch.await_args.kwargs["request"].idempotency_key == "deepr-research-research-job"
+        provider.submit_research.assert_not_awaited()
+        background.assert_awaited_once()
 
     @pytest.mark.asyncio
     async def test_closed_persisted_reservation_blocks_cli_provider_dispatch(self):
@@ -464,7 +485,7 @@ class TestRunSingleAsync:
                 provider="openai",
                 no_web=False,
                 no_code=False,
-                upload=("test.pdf",),
+                upload=(),
                 limit=0.01,
                 yes=True,
                 output_context=OutputContext(mode=OutputMode.QUIET),

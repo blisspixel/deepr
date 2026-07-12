@@ -317,6 +317,26 @@ class AutoBatchExecutor:
                 failure_count=0,
             )
 
+        from deepr.services.research_bounds import (
+            ResearchRequestBoundsError,
+            require_research_parent_budget_accounting,
+        )
+
+        try:
+            require_research_parent_budget_accounting("Auto-batch research")
+        except ResearchRequestBoundsError as exc:
+            return BatchResult(
+                batch_id=batch_id,
+                started_at=started_at,
+                completed_at=datetime.now(UTC),
+                results=[],
+                total_cost_estimated=routing.total_cost_estimate,
+                total_cost_actual=0.0,
+                success_count=0,
+                failure_count=len(items),
+                error=f"{exc.code}: {exc}",
+            )
+
         # Cost-safety gate. Without this, an N-query batch could spend
         # the full routing.total_cost_estimate (potentially hundreds of
         # dollars on a 100-query batch) without any per-batch ceiling

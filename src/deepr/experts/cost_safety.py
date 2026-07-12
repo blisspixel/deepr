@@ -9,236 +9,47 @@ Requirements: 8.2 - Implement rapid cost accumulation detection and circuit brea
 import os
 import threading
 import time
-from collections import deque
 from dataclasses import dataclass
+from math import isfinite
+from typing import Any
 
-from deepr.observability.cost_ledger import CostLedger
-
-
-@dataclass
-class CostEvent:
-    """Record of a cost-incurring event."""
-
-    timestamp: float
-    cost: float
-    operation: str
-    job_id: str | None = None
-
-
-@dataclass
-class CircuitBreakerState:
-    """Current state of the circuit breaker."""
-
-    is_open: bool
-    reason: str | None
-    opened_at: float | None
-    total_cost_window: float
-    event_count_window: int
-    cooldown_remaining: float
-
-    @property
-    def is_closed(self) -> bool:
-        """Check if circuit is closed (normal operation)."""
-        return not self.is_open
+from deepr.experts.cost_circuit_breaker import (
+    CircuitBreakerState as CircuitBreakerState,
+)
+from deepr.experts.cost_circuit_breaker import (
+    CostCircuitBreaker,
+)
+from deepr.experts.cost_circuit_breaker import (
+    CostEvent as CostEvent,
+)
+from deepr.experts.cost_circuit_breaker import (
+    CostLimitExceeded as CostLimitExceeded,
+)
+from deepr.experts.cost_safety_ledger import (
+    CostLedgerCommitError,
+    CostRecord,
+    DurableCostReservationError,
+    append_cost_record,
+)
+from deepr.experts.research_reservation_store import (
+    ResearchReservationLimitExceeded,
+    ResearchReservationStore,
+)
+from deepr.observability.cost_ledger import CostLedger, CostLedgerDurabilityError
 
 
-class CostCircuitBreaker:
-    """Circuit breaker for cost control.
-
-    Trips when spending exceeds a threshold (total cost, event count, or a single
-    operation's cost) over a rolling window, then auto-resets after a cooldown.
-    Call ``allow_request`` before an API call and ``record_cost`` after.
-    """
-
-    def __init__(
-        self,
-        cost_threshold: float = 10.0,
-        window_seconds: float = 300.0,
-        event_threshold: int = 50,
-        cooldown_seconds: float = 60.0,
-        max_single_cost: float = 5.0,
-    ):
-        """Initialize circuit breaker.
-
-        Args:
-            cost_threshold: Maximum total cost allowed in window (default $10)
-            window_seconds: Time window for cost tracking (default 5 minutes)
-            event_threshold: Maximum events allowed in window (default 50)
-            cooldown_seconds: Time to wait before auto-reset (default 60s)
-            max_single_cost: Maximum cost for single operation (default $5)
-        """
-        self.cost_threshold = cost_threshold
-        self.window_seconds = window_seconds
-        self.event_threshold = event_threshold
-        self.cooldown_seconds = cooldown_seconds
-        self.max_single_cost = max_single_cost
-
-        # State
-        self._events: deque = deque()
-        self._is_open = False
-        self._opened_at: float | None = None
-        self._open_reason: str | None = None
-
-    def _prune_old_events(self) -> None:
-        """Remove events outside the time window."""
-        cutoff = time.time() - self.window_seconds
-        while self._events and self._events[0].timestamp < cutoff:
-            self._events.popleft()
-
-    def _calculate_window_cost(self) -> float:
-        """Calculate total cost in current window."""
-        self._prune_old_events()
-        return sum(event.cost for event in self._events)
-
-    def _calculate_window_events(self) -> int:
-        """Count events in current window."""
-        self._prune_old_events()
-        return len(self._events)
-
-    def _check_auto_reset(self) -> bool:
-        """Check if circuit should auto-reset after cooldown."""
-        if not self._is_open or self._opened_at is None:
-            return False
-
-        elapsed = time.time() - self._opened_at
-        if elapsed >= self.cooldown_seconds:
-            self._is_open = False
-            self._opened_at = None
-            self._open_reason = None
-            return True
-
-        return False
-
-    def get_state(self) -> CircuitBreakerState:
-        """Get current circuit breaker state.
-
-        Returns:
-            CircuitBreakerState with current metrics
-        """
-        self._check_auto_reset()
-        self._prune_old_events()
-
-        cooldown_remaining = 0.0
-        if self._is_open and self._opened_at:
-            elapsed = time.time() - self._opened_at
-            cooldown_remaining = max(0.0, self.cooldown_seconds - elapsed)
-
-        return CircuitBreakerState(
-            is_open=self._is_open,
-            reason=self._open_reason,
-            opened_at=self._opened_at,
-            total_cost_window=self._calculate_window_cost(),
-            event_count_window=len(self._events),
-            cooldown_remaining=cooldown_remaining,
-        )
-
-    def allow_request(self, estimated_cost: float = 0.0) -> tuple[bool, str | None]:
-        """Check if a request should be allowed.
-
-        Args:
-            estimated_cost: Estimated cost of the operation
-
-        Returns:
-            Tuple of (allowed, reason_if_denied)
-        """
-        # Check auto-reset
-        self._check_auto_reset()
-
-        # If circuit is open, deny
-        if self._is_open:
-            return False, f"Circuit breaker open: {self._open_reason}"
-
-        # Check single operation limit
-        if estimated_cost > self.max_single_cost:
-            return False, f"Single operation cost ${estimated_cost:.2f} exceeds limit ${self.max_single_cost:.2f}"
-
-        # Check if this would exceed cost threshold
-        current_cost = self._calculate_window_cost()
-        if current_cost + estimated_cost > self.cost_threshold:
-            return (
-                False,
-                f"Would exceed cost threshold: ${current_cost:.2f} + ${estimated_cost:.2f} > ${self.cost_threshold:.2f}",
-            )
-
-        # Check event count
-        event_count = self._calculate_window_events()
-        if event_count >= self.event_threshold:
-            return False, f"Event threshold reached: {event_count} >= {self.event_threshold}"
-
-        return True, None
-
-    def record_cost(self, cost: float, operation: str, job_id: str | None = None) -> bool:
-        """Record a cost event and check if circuit should trip.
-
-        Args:
-            cost: Cost of the operation
-            operation: Description of the operation
-            job_id: Optional job ID for tracking
-
-        Returns:
-            True if circuit is still closed, False if it tripped
-        """
-        # Record the event
-        event = CostEvent(timestamp=time.time(), cost=cost, operation=operation, job_id=job_id)
-        self._events.append(event)
-
-        # Check thresholds
-        total_cost = self._calculate_window_cost()
-        event_count = self._calculate_window_events()
-
-        # Trip if cost threshold exceeded
-        if total_cost > self.cost_threshold:
-            self._trip(f"Cost threshold exceeded: ${total_cost:.2f} > ${self.cost_threshold:.2f}")
-            return False
-
-        # Trip if event threshold exceeded
-        if event_count > self.event_threshold:
-            self._trip(f"Event threshold exceeded: {event_count} > {self.event_threshold}")
-            return False
-
-        # Trip if single operation too expensive
-        if cost > self.max_single_cost:
-            self._trip(f"Single operation too expensive: ${cost:.2f} > ${self.max_single_cost:.2f}")
-            return False
-
-        return True
-
-    def _trip(self, reason: str) -> None:
-        """Trip the circuit breaker."""
-        self._is_open = True
-        self._opened_at = time.time()
-        self._open_reason = reason
-
-    def reset(self) -> None:
-        """Manually reset the circuit breaker."""
-        self._is_open = False
-        self._opened_at = None
-        self._open_reason = None
-
-    def force_open(self, reason: str = "Manual override") -> None:
-        """Manually open the circuit breaker."""
-        self._trip(reason)
-
-    def get_recent_events(self, limit: int = 10) -> list[CostEvent]:
-        """Get recent cost events.
-
-        Args:
-            limit: Maximum number of events to return
-
-        Returns:
-            List of recent CostEvent objects
-        """
-        self._prune_old_events()
-        events = list(self._events)
-        return events[-limit:] if len(events) > limit else events
+def _validated_money(value: object, *, field_name: str) -> float:
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        raise ValueError(f"{field_name} must be a finite non-negative number")
+    numeric = float(value)
+    if not isfinite(numeric) or numeric < 0:
+        raise ValueError(f"{field_name} must be a finite non-negative number")
+    return numeric
 
 
-class CostLimitExceeded(Exception):
-    """Exception raised when cost limits are exceeded."""
-
-    def __init__(self, message: str, state: CircuitBreakerState | None = None):
-        super().__init__(message)
-        self.state = state
+def _validate_durable_request(enabled: bool, reserve: bool, job_id: str) -> None:
+    if enabled and (not reserve or not job_id.strip()):
+        raise ValueError("durable reservations require reserve=True and a reservation_job_id")
 
 
 @dataclass
@@ -252,7 +63,7 @@ class CostAlert:
     current_cost: float
     budget_limit: float
 
-    def to_dict(self) -> dict:
+    def to_dict(self) -> dict[str, Any]:
         """Convert to dictionary for JSON serialization."""
         return {
             "level": self.level,
@@ -312,9 +123,9 @@ class CostSession:
 
         # State
         self.total_cost: float = 0.0
-        self.operations: list[dict] = []
+        self.operations: list[dict[str, Any]] = []
         self.alerts: list[CostAlert] = []
-        self.failures: list[dict] = []
+        self.failures: list[dict[str, Any]] = []
         self.is_circuit_open: bool = False
         self._circuit_open_reason: str | None = None
         self.created_at: float = time.time()
@@ -345,6 +156,8 @@ class CostSession:
         Returns:
             Tuple of (can_proceed, reason)
         """
+        estimated_cost = _validated_money(estimated_cost, field_name="estimated_cost")
+
         # Check circuit breaker
         if self.is_circuit_open:
             return False, f"Session circuit breaker open: {self._circuit_open_reason}"
@@ -365,7 +178,13 @@ class CostSession:
 
         return True, "OK"
 
-    def record_operation(self, operation_type: str, cost: float, details: str | None = None, **kwargs) -> None:
+    def record_operation(
+        self,
+        operation_type: str,
+        cost: float,
+        details: str | None = None,
+        **kwargs: Any,
+    ) -> None:
         """Record a cost-incurring operation.
 
         Args:
@@ -374,6 +193,7 @@ class CostSession:
             details: Optional details
             **kwargs: Additional metadata
         """
+        cost = _validated_money(cost, field_name="cost")
         self.total_cost += cost
 
         operation = {
@@ -442,7 +262,7 @@ class CostSession:
             self.alerts.append(alert)
             self._warning_sent = True
 
-    def get_summary(self) -> dict:
+    def get_summary(self) -> dict[str, Any]:
         """Get session summary.
 
         Returns:
@@ -525,7 +345,7 @@ class CostSafetyManager:
         self._circuit_breaker = circuit_breaker or create_default_circuit_breaker()
         self._session_costs: dict[str, float] = {}
         self._sessions: dict[str, CostSession] = {}
-        self._ledger = CostLedger()
+        self._ledger = CostLedger(lock_timeout_seconds=5.0)
         self._strict_tracking = os.getenv("DEEPR_COST_TRACKING_STRICT", "0").lower() in {"1", "true", "yes", "on"}
 
         # Global daily/monthly tracking. Limits honor the same env caps the
@@ -554,6 +374,21 @@ class CostSafetyManager:
         self._reservations: dict[str, float] = {}
         # reservation_id -> creation time, for the leaked-reservation TTL sweep.
         self._reservation_started: dict[str, float] = {}
+        # Stable event keys already reflected in this process's counters.
+        # The canonical ledger remains authoritative across processes.
+        self._locally_accounted_idempotency_keys: set[str] = set()
+        # Required appends that wrote a line but could not confirm fsync. A
+        # successful idempotent replay may account these locally exactly once.
+        self._pending_local_durability_keys: set[str] = set()
+        self._durable_reservation_jobs: dict[str, str] = {}
+        self._provider_work_may_have_run: set[str] = set()
+        self._unresolved_durable_reservations: set[str] = set()
+        self._reservation_store: ResearchReservationStore | None = None
+
+    def _get_reservation_store(self) -> ResearchReservationStore:
+        if self._reservation_store is None:
+            self._reservation_store = ResearchReservationStore(lock_timeout_seconds=5.0)
+        return self._reservation_store
 
     @staticmethod
     def _env_limit(var: str, default: float, ceiling: float) -> float:
@@ -565,7 +400,7 @@ class CostSafetyManager:
             value = float(raw)
         except ValueError:
             return default
-        if value <= 0:
+        if not isfinite(value) or value <= 0:
             return default
         return min(value, ceiling)
 
@@ -585,6 +420,7 @@ class CostSafetyManager:
         Returns:
             CostSession instance for tracking
         """
+        budget_limit = _validated_money(budget_limit, field_name="budget_limit")
         session = CostSession(session_id=session_id, session_type=session_type, budget_limit=budget_limit)
         self._sessions[session_id] = session
         return session
@@ -634,6 +470,8 @@ class CostSafetyManager:
         estimated_cost: float,
         require_confirmation: bool = False,
         reserve: bool = True,
+        durable_reservation: bool = False,
+        reservation_job_id: str = "",
     ) -> tuple[bool, str, bool, str]:
         """Atomic check + (optional) reservation of estimated_cost.
 
@@ -648,6 +486,8 @@ class CostSafetyManager:
         Returns ``(allowed, reason, needs_confirmation, reservation_id)``.
         ``reservation_id`` is empty when no reservation was placed.
         """
+        estimated_cost = _validated_money(estimated_cost, field_name="estimated_cost")
+        _validate_durable_request(durable_reservation, reserve, reservation_job_id)
         with self._budget_lock:
             # Release any leaked reservations before projecting, so a crashed
             # caller's stale hold cannot keep blocking the pool.
@@ -696,19 +536,49 @@ class CostSafetyManager:
             # Reserve
             reservation_id = ""
             if reserve:
-                import uuid as _uuid
-
-                reservation_id = _uuid.uuid4().hex[:16]
-                self._reservations[reservation_id] = estimated_cost
-                self._reservation_started[reservation_id] = time.time()
-                self._reserved_daily += estimated_cost
-                self._reserved_monthly += estimated_cost
+                placed, placement_reason, reservation_id = self._place_reservation(
+                    estimated_cost=estimated_cost,
+                    durable_reservation=durable_reservation,
+                    reservation_job_id=reservation_job_id,
+                )
+                if not placed:
+                    return False, placement_reason, False, ""
 
             # Confirmation needed?
             if require_confirmation and estimated_cost > 1.0:
                 return True, f"High cost operation: ${estimated_cost:.2f}", True, reservation_id
 
             return True, "OK", False, reservation_id
+
+    def _place_reservation(
+        self,
+        *,
+        estimated_cost: float,
+        durable_reservation: bool,
+        reservation_job_id: str,
+    ) -> tuple[bool, str, str]:
+        import uuid as _uuid
+
+        reservation_id = _uuid.uuid4().hex[:16]
+        if durable_reservation:
+            try:
+                self._get_reservation_store().reserve(
+                    reservation_id=reservation_id,
+                    job_id=reservation_job_id,
+                    reserved_cost=estimated_cost,
+                    max_daily_cost=self.max_daily,
+                    max_monthly_cost=self.max_monthly,
+                )
+            except ResearchReservationLimitExceeded as error:
+                return False, str(error), ""
+            except Exception as error:
+                raise DurableCostReservationError("durable cost reservation failed") from error
+            self._durable_reservation_jobs[reservation_id] = reservation_job_id
+        self._reservations[reservation_id] = estimated_cost
+        self._reservation_started[reservation_id] = time.time()
+        self._reserved_daily += estimated_cost
+        self._reserved_monthly += estimated_cost
+        return True, "OK", reservation_id
 
     def _sweep_stale_reservations(self, now: float) -> None:
         """Release reservations older than the TTL. Caller holds ``_budget_lock``.
@@ -718,7 +588,9 @@ class CostSafetyManager:
         forever; on a tight monthly reserve that silently starves the fleet.
         """
         stale = [
-            rid for rid, started in self._reservation_started.items() if now - started > self.RESERVATION_TTL_SECONDS
+            rid
+            for rid, started in self._reservation_started.items()
+            if rid not in self._durable_reservation_jobs and now - started > self.RESERVATION_TTL_SECONDS
         ]
         for rid in stale:
             held = self._reservations.pop(rid, 0.0)
@@ -726,15 +598,52 @@ class CostSafetyManager:
             self._reserved_daily = max(0.0, self._reserved_daily - held)
             self._reserved_monthly = max(0.0, self._reserved_monthly - held)
 
-    def refund_reservation(self, reservation_id: str) -> None:
+    def mark_provider_work_may_have_run(self, reservation_id: str) -> None:
+        """Persist that a durable hold can no longer be safely auto-refunded."""
+        if not reservation_id:
+            return
+        with self._budget_lock:
+            durable = reservation_id in self._durable_reservation_jobs
+        if not durable:
+            return
+        try:
+            self._get_reservation_store().mark_provider_work_may_have_run(reservation_id)
+        except Exception as error:
+            raise DurableCostReservationError("durable reservation dispatch mark failed") from error
+        with self._budget_lock:
+            self._provider_work_may_have_run.add(reservation_id)
+
+    def mark_reservation_unresolved(self, reservation_id: str) -> None:
+        """Keep a durable hold active after required accounting failure."""
+        if not reservation_id:
+            return
+        with self._budget_lock:
+            if reservation_id in self._durable_reservation_jobs:
+                self._unresolved_durable_reservations.add(reservation_id)
+
+    def refund_reservation(self, reservation_id: str, *, provider_work_did_not_run: bool = False) -> None:
         """Release a reservation without recording a cost (e.g. on caller error)."""
         if not reservation_id:
             return
+        with self._budget_lock:
+            durable = reservation_id in self._durable_reservation_jobs
+            provider_work_possible = reservation_id in self._provider_work_may_have_run
+            unresolved = reservation_id in self._unresolved_durable_reservations
+        if durable and (provider_work_possible or unresolved) and not provider_work_did_not_run:
+            return
+        if durable:
+            try:
+                self._get_reservation_store().refund(reservation_id)
+            except Exception as error:
+                raise DurableCostReservationError("durable reservation refund failed") from error
         with self._budget_lock:
             held = self._reservations.pop(reservation_id, 0.0)
             self._reservation_started.pop(reservation_id, None)
             self._reserved_daily = max(0.0, self._reserved_daily - held)
             self._reserved_monthly = max(0.0, self._reserved_monthly - held)
+            self._durable_reservation_jobs.pop(reservation_id, None)
+            self._provider_work_may_have_run.discard(reservation_id)
+            self._unresolved_durable_reservations.discard(reservation_id)
 
     def record_cost(
         self,
@@ -749,61 +658,136 @@ class CostSafetyManager:
         request_id: str = "",
         idempotency_key: str = "",
         source: str = "cost_safety.record_cost",
-        metadata: dict | None = None,
+        metadata: dict[str, Any] | None = None,
         agent_id: str = "",
         reservation_id: str = "",
+        require_ledger: bool = False,
     ) -> bool:
         """Record a cost event and settle any reservation.
 
         Pass ``reservation_id`` returned from ``check_and_reserve`` to
-        release the reservation pool slot as part of this commit.
+        release the reservation pool slot as part of this commit. Set
+        ``require_ledger`` for spend boundaries that must not settle unless the
+        canonical append succeeds. An idempotent duplicate releases its
+        reservation but does not increment process-local totals again.
         """
-        # Settle reservation + commit daily/monthly atomically.
+        actual_cost = _validated_money(actual_cost, field_name="actual_cost")
         with self._budget_lock:
-            if reservation_id:
-                held = self._reservations.pop(reservation_id, 0.0)
-                self._reservation_started.pop(reservation_id, None)
+            durable_job_id = self._durable_reservation_jobs.get(reservation_id, "")
+        event_metadata = dict(metadata or {})
+        if durable_job_id:
+            event_metadata["cost_reservation_id"] = reservation_id
+            event_metadata["cost_reservation_job_id"] = durable_job_id
+        record = CostRecord(
+            session_id=session_id,
+            operation_type=operation_type,
+            actual_cost=actual_cost,
+            details=details,
+            provider=provider,
+            model=model,
+            tokens_input=tokens_input,
+            tokens_output=tokens_output,
+            request_id=request_id,
+            idempotency_key=idempotency_key,
+            source=source,
+            metadata=event_metadata,
+            agent_id=agent_id,
+            reservation_id=reservation_id,
+            require_ledger=require_ledger or bool(durable_job_id),
+        )
+        return self._settle_durable_record(record) if durable_job_id else self._record_cost_once(record)
+
+    def _settle_durable_record(self, record: CostRecord) -> bool:
+        callback_ran = False
+        ledger_appended = False
+
+        def append_only() -> None:
+            nonlocal callback_ran, ledger_appended
+            callback_ran = True
+            ledger_appended = append_cost_record(self._ledger, record, strict_tracking=self._strict_tracking)
+
+        try:
+            outcome = self._get_reservation_store().settle(
+                record.reservation_id,
+                record.actual_cost,
+                append_only,
+            )
+        except CostLedgerCommitError as error:
+            self._remember_durability_failure(record, error)
+            self.mark_reservation_unresolved(record.reservation_id)
+            raise
+        except Exception as error:
+            self.mark_reservation_unresolved(record.reservation_id)
+            raise DurableCostReservationError("durable cost reservation settlement failed") from error
+        if outcome != "settled":
+            self.mark_reservation_unresolved(record.reservation_id)
+            raise DurableCostReservationError(f"durable cost reservation is {outcome}")
+        if not callback_ran:
+            self.mark_reservation_unresolved(record.reservation_id)
+            raise DurableCostReservationError("durable cost reservation settlement was not verified")
+        result = self._account_cost_record(record, ledger_appended)
+        with self._budget_lock:
+            self._durable_reservation_jobs.pop(record.reservation_id, None)
+            self._provider_work_may_have_run.discard(record.reservation_id)
+            self._unresolved_durable_reservations.discard(record.reservation_id)
+        return result
+
+    def _record_cost_once(self, record: CostRecord) -> bool:
+        try:
+            ledger_appended = append_cost_record(self._ledger, record, strict_tracking=self._strict_tracking)
+        except CostLedgerCommitError as error:
+            self._remember_durability_failure(record, error)
+            raise
+        return self._account_cost_record(record, ledger_appended)
+
+    def _remember_durability_failure(self, record: CostRecord, error: CostLedgerCommitError) -> None:
+        if (
+            record.require_ledger
+            and record.idempotency_key
+            and isinstance(error.ledger_error, CostLedgerDurabilityError)
+        ):
+            with self._budget_lock:
+                self._pending_local_durability_keys.add(record.idempotency_key)
+
+    def _account_cost_record(self, record: CostRecord, ledger_appended: bool) -> bool:
+        """Apply one committed event to process-local accounting."""
+        with self._budget_lock:
+            if record.reservation_id:
+                held = self._reservations.pop(record.reservation_id, 0.0)
+                self._reservation_started.pop(record.reservation_id, None)
                 self._reserved_daily = max(0.0, self._reserved_daily - held)
                 self._reserved_monthly = max(0.0, self._reserved_monthly - held)
+                self._unresolved_durable_reservations.discard(record.reservation_id)
 
-            # Track session cost (legacy)
-            self._session_costs[session_id] = self._session_costs.get(session_id, 0.0) + actual_cost
-
-            # Track in session if exists
-            session = self._sessions.get(session_id)
-            if session:
-                session.record_operation(operation_type, actual_cost, details)
-
-            # Track daily/monthly
-            self.daily_cost += actual_cost
-            self.monthly_cost += actual_cost
-
-        # Record canonical ledger event
-        event_metadata = dict(metadata or {})
-        if details:
-            event_metadata["details"] = details
-        try:
-            self._ledger.record_event(
-                operation=operation_type,
-                provider=provider or "unknown",
-                model=model or "",
-                cost_usd=actual_cost,
-                tokens_input=tokens_input,
-                tokens_output=tokens_output,
-                task_id=session_id,
-                session_id=session_id,
-                request_id=request_id,
-                source=source,
-                idempotency_key=idempotency_key,
-                metadata=event_metadata,
-                agent_id=agent_id,
+            recovering_durability = bool(
+                record.idempotency_key and record.idempotency_key in self._pending_local_durability_keys
             )
-        except OSError as e:
-            if self._strict_tracking:
-                raise RuntimeError(f"Cost ledger write failed in strict mode: {e}") from e
+            if record.idempotency_key:
+                self._pending_local_durability_keys.discard(record.idempotency_key)
+            already_accounted = bool(
+                record.idempotency_key and record.idempotency_key in self._locally_accounted_idempotency_keys
+            )
+            if already_accounted:
+                return True
+            if not ledger_appended and not recovering_durability:
+                return True
+            if record.idempotency_key:
+                self._locally_accounted_idempotency_keys.add(record.idempotency_key)
 
-        # Record in circuit breaker
-        return self._circuit_breaker.record_cost(cost=actual_cost, operation=operation_type, job_id=session_id)
+            self._session_costs[record.session_id] = (
+                self._session_costs.get(record.session_id, 0.0) + record.actual_cost
+            )
+            session = self._sessions.get(record.session_id)
+            if session:
+                session.record_operation(record.operation_type, record.actual_cost, record.details)
+            self.daily_cost += record.actual_cost
+            self.monthly_cost += record.actual_cost
+
+        return self._circuit_breaker.record_cost(
+            cost=record.actual_cost,
+            operation=record.operation_type,
+            job_id=record.session_id,
+        )
 
     def record_failure(self, session_id: str, operation_type: str, error: str) -> None:
         """Record a failed operation.
@@ -828,7 +812,7 @@ class CostSafetyManager:
         """
         return self._session_costs.get(session_id, 0.0)
 
-    def get_spending_summary(self) -> dict:
+    def get_spending_summary(self) -> dict[str, Any]:
         """Get global spending summary.
 
         Returns:
@@ -862,7 +846,7 @@ class CostSafetyManager:
             "active_sessions": len(self._sessions),
         }
 
-    def close_session(self, session_id: str) -> dict | None:
+    def close_session(self, session_id: str) -> dict[str, Any] | None:
         """Close a cost tracking session and return its summary.
 
         Args:
@@ -898,10 +882,20 @@ class CostSafetyManager:
         self._sessions.clear()
         self.daily_cost = 0.0
         self.monthly_cost = 0.0
+        self._reserved_daily = 0.0
+        self._reserved_monthly = 0.0
+        self._reservations.clear()
+        self._reservation_started.clear()
+        self._locally_accounted_idempotency_keys.clear()
+        self._pending_local_durability_keys.clear()
+        self._durable_reservation_jobs.clear()
+        self._provider_work_may_have_run.clear()
+        self._unresolved_durable_reservations.clear()
 
 
 # Global singleton instance
 _cost_safety_manager: CostSafetyManager | None = None
+_cost_safety_manager_lock = threading.Lock()
 
 
 def get_cost_safety_manager() -> CostSafetyManager:
@@ -912,7 +906,9 @@ def get_cost_safety_manager() -> CostSafetyManager:
     """
     global _cost_safety_manager
     if _cost_safety_manager is None:
-        _cost_safety_manager = CostSafetyManager()
+        with _cost_safety_manager_lock:
+            if _cost_safety_manager is None:
+                _cost_safety_manager = CostSafetyManager()
     return _cost_safety_manager
 
 
@@ -922,9 +918,10 @@ def reset_cost_safety_manager() -> None:
     Useful for testing or when starting a new session.
     """
     global _cost_safety_manager
-    if _cost_safety_manager is not None:
-        _cost_safety_manager.reset()
-    _cost_safety_manager = None
+    with _cost_safety_manager_lock:
+        if _cost_safety_manager is not None:
+            _cost_safety_manager.reset()
+        _cost_safety_manager = None
 
 
 def estimate_curriculum_cost(
@@ -932,7 +929,7 @@ def estimate_curriculum_cost(
     deep_research_count: int = 0,
     quick_research_count: int = 0,
     docs_count: int = 0,
-) -> dict:
+) -> dict[str, float | int]:
     """Estimate the cost of executing a learning curriculum.
 
     Returns dict with expected_cost, min_cost, max_cost.

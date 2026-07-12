@@ -1,6 +1,7 @@
 """Unit tests for canonical cost ledger."""
 
 import json
+import os
 from concurrent.futures import ThreadPoolExecutor
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
@@ -8,7 +9,13 @@ from threading import Barrier, Event
 
 import pytest
 
-from deepr.observability.cost_ledger import CostLedger
+from deepr.observability.cost_ledger import (
+    CostLedger,
+    CostLedgerDurabilityError,
+    CostLedgerIdempotencyConflict,
+    CostLedgerLockTimeout,
+    CostLedgerReadError,
+)
 
 
 def test_record_and_total(tmp_path: Path):
@@ -40,6 +47,78 @@ def test_idempotency_key_deduplicates(tmp_path: Path):
     )
     assert created2 is False
     assert len(ledger.get_events()) == 1
+
+
+def test_idempotency_key_rejects_materially_different_cost_event(tmp_path: Path):
+    ledger = CostLedger(ledger_path=tmp_path / "cost_ledger.jsonl")
+    ledger.record_event(
+        operation="research",
+        provider="openai",
+        cost_usd=1.0,
+        request_id="request-a",
+        idempotency_key="shared-key",
+    )
+
+    with pytest.raises(CostLedgerIdempotencyConflict, match="conflicts"):
+        ledger.record_event(
+            operation="research",
+            provider="anthropic",
+            cost_usd=2.0,
+            request_id="request-b",
+            idempotency_key="shared-key",
+        )
+
+    events = ledger.get_events()
+    assert len(events) == 1
+    assert events[0].provider == "openai"
+    assert events[0].cost_usd == 1.0
+
+
+def test_idempotency_replay_fails_closed_on_historical_key_conflict(tmp_path: Path):
+    path = tmp_path / "cost_ledger.jsonl"
+    ledger = CostLedger(ledger_path=path)
+    ledger.record_event(
+        operation="research",
+        provider="openai",
+        cost_usd=1.0,
+        idempotency_key="shared-key",
+    )
+    conflicting = json.loads(path.read_text(encoding="utf-8"))
+    conflicting["provider"] = "anthropic"
+    with path.open("a", encoding="utf-8") as handle:
+        handle.write(json.dumps(conflicting) + "\n")
+
+    with pytest.raises(CostLedgerIdempotencyConflict, match="conflicting"):
+        ledger.record_event(
+            operation="research",
+            provider="openai",
+            cost_usd=1.0,
+            idempotency_key="shared-key",
+        )
+
+
+def test_idempotency_refresh_read_error_fails_closed_before_duplicate_append(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+):
+    path = tmp_path / "cost_ledger.jsonl"
+    ledger = CostLedger(ledger_path=path)
+    ledger.record_event("research", "openai", 1.0, idempotency_key="shared-key")
+    before = path.read_bytes()
+    real_open = open
+
+    def guarded_open(file, mode="r", *args, **kwargs):
+        if Path(file) == path and mode == "r":
+            raise PermissionError("blocked canonical read")
+        return real_open(file, mode, *args, **kwargs)
+
+    monkeypatch.setattr("builtins.open", guarded_open)
+
+    with pytest.raises(CostLedgerReadError, match="could not be read") as exc_info:
+        ledger.record_event("research", "openai", 1.0, idempotency_key="shared-key")
+
+    assert str(tmp_path) not in str(exc_info.value)
+    assert path.read_bytes() == before
 
 
 def test_idempotency_key_deduplicates_preinitialized_instances(tmp_path: Path):
@@ -95,6 +174,124 @@ def test_locked_snapshot_blocks_concurrent_writer_until_operation_commits(tmp_pa
         writer_future.result(timeout=5)
 
     assert writer_finished.is_set()
+
+
+def test_optional_interprocess_lock_timeout_is_bounded(tmp_path: Path):
+    ledger_path = tmp_path / "cost_ledger.jsonl"
+    holder = CostLedger(ledger_path=ledger_path)
+    entered = Event()
+    release = Event()
+
+    def hold_lock() -> None:
+        with holder._interprocess_lock():
+            entered.set()
+            assert release.wait(timeout=5)
+
+    with ThreadPoolExecutor(max_workers=1) as executor:
+        future = executor.submit(hold_lock)
+        assert entered.wait(timeout=5)
+        try:
+            with pytest.raises(CostLedgerLockTimeout, match="configured timeout"):
+                CostLedger(ledger_path=ledger_path, lock_timeout_seconds=0.05)
+        finally:
+            release.set()
+        future.result(timeout=5)
+
+
+def test_record_event_per_call_thread_lock_timeout_is_bounded(tmp_path: Path):
+    ledger = CostLedger(ledger_path=tmp_path / "cost_ledger.jsonl")
+    assert ledger._lock.acquire(timeout=1)
+    try:
+        with pytest.raises(CostLedgerLockTimeout, match="configured timeout"):
+            ledger.record_event(
+                "research",
+                "openai",
+                0.1,
+                lock_timeout_seconds=0.01,
+                require_fsync=True,
+            )
+    finally:
+        ledger._lock.release()
+
+
+def test_accounting_append_fails_closed_on_torn_line_without_idempotency_key(tmp_path: Path):
+    path = tmp_path / "cost_ledger.jsonl"
+    ledger = CostLedger(ledger_path=path)
+    path.write_text('{"partial":', encoding="utf-8")
+
+    with pytest.raises(CostLedgerReadError, match="malformed event"):
+        ledger.record_event("research", "openai", 0.1)
+
+    assert path.read_text(encoding="utf-8") == '{"partial":'
+
+
+def test_accounting_append_fails_closed_on_structurally_partial_object(tmp_path: Path):
+    path = tmp_path / "cost_ledger.jsonl"
+    path.write_text("{}\n", encoding="utf-8")
+    ledger = CostLedger(ledger_path=path)
+
+    assert ledger.get_events() == []
+    with pytest.raises(CostLedgerReadError, match="malformed event"):
+        ledger.record_event("research", "openai", 0.1, idempotency_key="new-event")
+
+    assert path.read_text(encoding="utf-8") == "{}\n"
+
+
+@pytest.mark.parametrize(
+    "invalid_cost",
+    [True, False, "0.1", None, float("nan"), float("inf"), float("-inf"), -0.01],
+)
+def test_record_event_rejects_invalid_money_without_writing(tmp_path: Path, invalid_cost: object):
+    path = tmp_path / "cost_ledger.jsonl"
+    ledger = CostLedger(ledger_path=path)
+
+    with pytest.raises(ValueError, match="finite non-negative"):
+        ledger.record_event("research", "openai", invalid_cost)  # type: ignore[arg-type]
+
+    assert not path.exists()
+
+
+def test_required_fsync_failure_replays_without_duplicate_and_reconfirms_durability(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+):
+    path = tmp_path / "cost_ledger.jsonl"
+    ledger = CostLedger(ledger_path=path)
+    real_fsync = os.fsync
+    calls = 0
+
+    def fail_once(fd: int) -> None:
+        nonlocal calls
+        calls += 1
+        if calls == 1:
+            raise OSError(5, "durability unavailable", str(tmp_path / "private"))
+        real_fsync(fd)
+
+    monkeypatch.setattr(os, "fsync", fail_once)
+
+    with pytest.raises(CostLedgerDurabilityError, match="durability could not be confirmed") as exc_info:
+        ledger.record_event(
+            "research",
+            "openai",
+            0.1,
+            idempotency_key="required-event",
+            require_fsync=True,
+        )
+
+    assert str(tmp_path) not in str(exc_info.value)
+    assert len(path.read_text(encoding="utf-8").splitlines()) == 1
+
+    _event, created = ledger.record_event(
+        "research",
+        "openai",
+        0.1,
+        idempotency_key="required-event",
+        require_fsync=True,
+    )
+
+    assert created is False
+    assert calls == 2
+    assert len(path.read_text(encoding="utf-8").splitlines()) == 1
 
 
 def test_health_reports_file_and_counts(tmp_path: Path):

@@ -13,6 +13,7 @@ from __future__ import annotations
 import asyncio
 import json as _json
 import sys
+from math import isfinite
 from typing import Any
 
 import click
@@ -23,13 +24,20 @@ from deepr.cli.commands.semantic.experts import expert
 # Shared core (also used by the deepr_consult_experts MCP tool). Re-exported so
 # existing importers/tests keep working.
 from deepr.experts.consult import (
+    MAX_CONSULT_EXPERTS,
     ConsultBackendError,
     build_consult_payload,
     build_synthesis_backend,
-    record_consult_payload_trace,
     run_consult,
 )
-from deepr.experts.consult_traces import record_consult_trace
+from deepr.experts.consult_transaction import (
+    DEFAULT_CONSULT_MAX_ELAPSED_SECONDS,
+    MAX_CONSULT_MAX_ELAPSED_SECONDS,
+    ConsultElapsedLimitError,
+    ConsultStorageError,
+    execute_consult_transaction,
+    requested_consult_capacity,
+)
 
 __all__ = ["build_consult_payload", "expert_consult", "run_consult"]
 
@@ -79,13 +87,142 @@ def _render(payload: dict[str, Any]) -> None:
     console.print(f"\n[dim]Cost: ${payload['cost_usd']:.4f}[/dim]")
 
 
-def _capacity_payload(backend_mode: str, backend: Any) -> dict[str, Any]:
-    return {
-        "synthesis_backend": backend_mode,
-        "provider": backend.provider,
-        "model": backend.model,
-        "live_metered_fallback": backend.allow_live_fallback,
-    }
+def _validate_consult_limits(
+    *,
+    budget: float,
+    use_local: bool,
+    plan_backend: str | None,
+    max_elapsed_seconds: float,
+) -> None:
+    if not isfinite(budget) or budget < 0 or (budget <= 0 and not use_local and not plan_backend):
+        print_error("--budget must be finite and non-negative; API-backed consults require a positive value.")
+        sys.exit(2)
+    if (
+        not isfinite(max_elapsed_seconds)
+        or max_elapsed_seconds <= 0
+        or max_elapsed_seconds > MAX_CONSULT_MAX_ELAPSED_SECONDS
+    ):
+        print_error("--max-elapsed-seconds must be finite, greater than zero, and no more than 21600.")
+        sys.exit(2)
+
+
+def _requested_capacity(
+    *,
+    use_local: bool,
+    local_model: str | None,
+    plan_backend: str | None,
+    plan_model: str | None,
+    api_provider: str | None,
+    api_model: str | None,
+) -> tuple[str, dict[str, object]]:
+    backend_mode = "local" if use_local else "plan" if plan_backend else "api"
+    capacity = requested_consult_capacity(
+        backend_mode=backend_mode,
+        provider=("local" if use_local else f"plan_quota:{plan_backend}" if plan_backend else api_provider or "openai"),
+        model=(local_model or "" if use_local else plan_model or "" if plan_backend else api_model or ""),
+    )
+    return backend_mode, capacity
+
+
+def _make_backend_factory(
+    *,
+    use_local: bool,
+    local_model: str | None,
+    plan_backend: str | None,
+    plan_model: str | None,
+    api_provider: str | None,
+    api_model: str | None,
+    json_output: bool,
+):
+    async def build_backend():
+        resolved_local_model = local_model
+        if use_local and not resolved_local_model:
+            from deepr.backends.local import default_local_model_async
+
+            resolved_local_model = await default_local_model_async()
+        return await asyncio.to_thread(
+            _build_cli_synthesis_backend,
+            use_local=use_local,
+            local_model=resolved_local_model,
+            plan_backend=plan_backend,
+            plan_model=plan_model,
+            api_provider=api_provider,
+            api_model=api_model,
+            json_output=json_output,
+        )
+
+    return build_backend
+
+
+def _make_report_callbacks(json_output: bool):
+    def report_started(trace_id: str) -> None:
+        if not json_output:
+            console.print(f"[dim]Consult trace: {trace_id}[/dim]")
+
+    def report_backend(backend: Any) -> None:
+        if backend.note and not json_output:
+            console.print(f"[dim]{backend.note}[/dim]")
+
+    return report_started, report_backend
+
+
+def _execute_cli_consult(
+    *,
+    question: str,
+    experts: tuple[str, ...],
+    max_experts: int,
+    budget: float,
+    backend_mode: str,
+    backend_factory: Any,
+    capacity_request: dict[str, object],
+    max_elapsed_seconds: float,
+    report_started: Any,
+    report_backend: Any,
+) -> dict[str, Any]:
+    try:
+        return asyncio.run(
+            execute_consult_transaction(
+                question=question,
+                requested_experts=list(experts),
+                max_experts=max_experts,
+                budget=budget,
+                backend_mode=backend_mode,
+                backend_factory=backend_factory,
+                requested_capacity=capacity_request,
+                max_elapsed_seconds=max_elapsed_seconds,
+                run_consult_fn=run_consult,
+                on_started=report_started,
+                on_backend_ready=report_backend,
+            )
+        )
+    except click.UsageError as exc:
+        print_error(str(exc))
+        sys.exit(2)
+    except ConsultElapsedLimitError as exc:
+        guidance = "retry safely" if exc.retryable else "do not retry the full consultation"
+        print_error(f"{exc} {guidance}.")
+        sys.exit(1)
+    except ConsultStorageError as exc:
+        guidance = "retry safely" if exc.retryable else "do not retry the full consultation"
+        print_error(f"Consultation storage failed; {guidance}: {exc}")
+        sys.exit(1)
+    except Exception as exc:  # surface the failure honestly; never a silent empty result
+        print_error(f"Consultation failed: {exc}")
+        sys.exit(1)
+
+
+def _emit_consult_result(payload: dict[str, Any], *, json_output: bool) -> None:
+    if json_output:
+        click.echo(_json.dumps(payload, indent=2))
+    else:
+        _render(payload)
+
+    if not payload["experts_consulted"]:
+        if not json_output:
+            print_warning("No experts were consulted - create experts first or name them with -e.")
+        sys.exit(2)
+    if payload["synthesis_status"] not in {"completed", "skipped_no_valid_perspectives"}:
+        sys.exit(1)
 
 
 @expert.command(name="consult")
@@ -97,7 +234,13 @@ def _capacity_payload(backend_mode: str, backend: Any) -> dict[str, Any]:
     multiple=True,
     help="Expert to include (repeatable). Omit to auto-select relevant experts.",
 )
-@click.option("--max-experts", default=3, show_default=True, help="Max experts when auto-selecting (capped at 10).")
+@click.option(
+    "--max-experts",
+    type=click.IntRange(1, MAX_CONSULT_EXPERTS),
+    default=3,
+    show_default=True,
+    help="Max experts when auto-selecting (capped at 10).",
+)
 @click.option("--budget", "-b", default=2.0, show_default=True, help="USD ceiling for this consultation.")
 @click.option(
     "--provider",
@@ -111,6 +254,16 @@ def _capacity_payload(backend_mode: str, backend: Any) -> dict[str, Any]:
 @click.option("--local-model", default=None, help="Local Ollama model for synthesis. Defaults to detected model.")
 @click.option("--plan", "plan_backend", default=None, help="Use an explicit plan-quota CLI for synthesis.")
 @click.option("--plan-model", default=None, help="Model hint for the plan-quota CLI.")
+@click.option(
+    "--max-elapsed-seconds",
+    default=DEFAULT_CONSULT_MAX_ELAPSED_SECONDS,
+    show_default=True,
+    help=(
+        "Cumulative ceiling for cancellable consult work and lifecycle checkpoints. "
+        "Durable writes are awaited off the event loop and lock waits are bounded separately; "
+        "no backend fallback occurs."
+    ),
+)
 @click.option("--json", "json_output", is_flag=True, help="Emit the versioned consult artifact (deepr-consult-v1).")
 @click.option("-y", "--yes", is_flag=True, help="Skip the spend confirmation.")
 def expert_consult(
@@ -124,6 +277,7 @@ def expert_consult(
     local_model,
     plan_backend,
     plan_model,
+    max_elapsed_seconds,
     json_output,
     yes,
 ):
@@ -138,74 +292,45 @@ def expert_consult(
       deepr expert consult "Cost vs quality tradeoff?" -e "AI Cost Optimization" -e "LLM Evaluation and Calibration"
       deepr expert consult "What changed in MCP?" --json
     """
-    if budget < 0 or (budget <= 0 and not use_local and not plan_backend):
-        print_error("--budget must be positive for API-backed consults.")
-        sys.exit(2)
-    try:
-        synthesis_backend = _build_cli_synthesis_backend(
-            use_local=use_local,
-            local_model=local_model,
-            plan_backend=plan_backend,
-            plan_model=plan_model,
-            api_provider=api_provider,
-            api_model=api_model,
-            json_output=json_output,
-        )
-    except click.UsageError as e:
-        print_error(str(e))
-        sys.exit(2)
+    _validate_consult_limits(
+        budget=budget,
+        use_local=use_local,
+        plan_backend=plan_backend,
+        max_elapsed_seconds=max_elapsed_seconds,
+    )
+    backend_mode, capacity_request = _requested_capacity(
+        use_local=use_local,
+        local_model=local_model,
+        plan_backend=plan_backend,
+        plan_model=plan_model,
+        api_provider=api_provider,
+        api_model=api_model,
+    )
 
     if not yes and not json_output and not click.confirm(f"Consult experts (budget ${budget:.2f})?", default=True):
         print_warning("Cancelled.")
         return
-    if synthesis_backend.note and not json_output:
-        console.print(f"[dim]{synthesis_backend.note}[/dim]")
 
-    try:
-        result = asyncio.run(
-            run_consult(
-                question,
-                list(experts),
-                max_experts,
-                budget,
-                synthesis_client=synthesis_backend.client,
-                synthesis_model=synthesis_backend.model,
-                synthesis_provider=synthesis_backend.provider,
-                allow_live_fallback=synthesis_backend.allow_live_fallback,
-            )
-        )
-    except Exception as e:  # surface the failure honestly; never a silent empty result
-        record_consult_trace(
-            question=question,
-            requested_experts=list(experts),
-            max_experts=max_experts,
-            budget=budget,
-            capacity=_capacity_payload("local" if use_local else "plan" if plan_backend else "api", synthesis_backend),
-            failure={"stage": "run_consult", "error_type": type(e).__name__, "message": str(e)},
-        )
-        print_error(f"Consultation failed: {e}")
-        sys.exit(1)
-
-    payload = build_consult_payload(question, result)
-    capacity = _capacity_payload("local" if use_local else "plan" if plan_backend else "api", synthesis_backend)
-    payload["capacity"] = capacity
-    record_consult_payload_trace(
-        payload,
+    backend_factory = _make_backend_factory(
+        use_local=use_local,
+        local_model=local_model,
+        plan_backend=plan_backend,
+        plan_model=plan_model,
+        api_provider=api_provider,
+        api_model=api_model,
+        json_output=json_output,
+    )
+    report_started, report_backend = _make_report_callbacks(json_output)
+    payload = _execute_cli_consult(
         question=question,
-        requested_experts=list(experts),
+        experts=experts,
         max_experts=max_experts,
         budget=budget,
-        result=result,
-        capacity=capacity,
+        backend_mode=backend_mode,
+        backend_factory=backend_factory,
+        capacity_request=capacity_request,
+        max_elapsed_seconds=max_elapsed_seconds,
+        report_started=report_started,
+        report_backend=report_backend,
     )
-    if json_output:
-        click.echo(_json.dumps(payload, indent=2))
-    else:
-        _render(payload)
-
-    if not payload["experts_consulted"]:
-        if not json_output:
-            print_warning("No experts were consulted - create experts first or name them with -e.")
-        sys.exit(2)
-    if payload["synthesis_status"] not in {"completed", "skipped_no_valid_perspectives"}:
-        sys.exit(1)
+    _emit_consult_result(payload, json_output=json_output)

@@ -7,23 +7,18 @@ import click
 
 from deepr.cli.async_runner import run_async_command
 from deepr.cli.colors import console, print_error, print_header, print_key_value, print_section_header
+from deepr.cli.commands.research_safety import require_metered_interface, require_parent_budget
 
 
 @click.group()
 def make():
-    """Create artifacts from research.
+    """Create artifacts from research (metered generation gated in v2.36).
 
     Generate documentation, strategic analysis, and other artifacts
     from research results.
 
-    COMMANDS:
-      deepr make docs "topic"      Generate documentation
-      deepr make strategy "topic"  Strategic analysis
-
-    EXAMPLES:
-      deepr make docs "Azure Landing Zone guide"
-      deepr make docs "API reference" --format html
-      deepr make strategy "Cloud migration" --perspective technical
+    The command group remains visible for compatibility, but its provider
+    completions fail closed until durable accounting is wired.
     """
     pass
 
@@ -64,7 +59,7 @@ def make_docs(
     output: str | None,
     yes: bool,
 ):
-    """Generate structured documentation from research.
+    """Generate structured documentation (metered path gated in v2.36).
 
     Creates comprehensive documentation with inline citations from research
     sources. Supports multiple output formats and can incorporate existing
@@ -105,6 +100,7 @@ def make_docs(
             click.echo(f"Error: {e}", err=True)
             return
 
+    require_metered_interface("Artifact documentation generation")
     run_async_command(_generate_docs(topic, output_format, outline, files, provider, model, output, yes))
 
 
@@ -378,7 +374,7 @@ def make_strategy(
     output: str | None,
     yes: bool,
 ):
-    """Generate strategic analysis from research.
+    """Generate strategic analysis (metered path gated in v2.36).
 
     Creates business-focused strategic synthesis with executive summary,
     key findings, recommendations, risks, and timeline.
@@ -405,6 +401,7 @@ def make_strategy(
         click.echo(f"Error: {e}", err=True)
         return
 
+    require_metered_interface("Artifact strategy generation")
     run_async_command(_generate_strategy(topic, perspective, time_horizon, provider, model, output, yes))
 
 
@@ -621,7 +618,7 @@ def agentic_research(
     resume: bool,
     yes: bool,
 ):
-    """Execute autonomous multi-step research workflow.
+    """Execute autonomous multi-step research, gated in v2.36.
 
     Runs Plan-Execute-Review cycles to achieve complex research goals.
     Each cycle:
@@ -650,6 +647,8 @@ def agentic_research(
     except click.UsageError as e:
         click.echo(f"Error: {e}", err=True)
         return
+
+    require_parent_budget("Agentic artifact research")
 
     # Validate budget
     if not yes:

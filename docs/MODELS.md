@@ -1,6 +1,6 @@
 # Model Selection Guide
 
-Status: current with Deepr v2.35.0. Last reviewed: 2026-07-11.
+Status: current with Deepr v2.36.0. Last reviewed: 2026-07-12.
 
 The source of truth for model IDs, pricing estimates, context windows, and
 routing metadata is [src/deepr/providers/registry.py](../src/deepr/providers/registry.py).
@@ -36,7 +36,7 @@ External model docs checked on 2026-07-01:
 |----------|-------------------------|--------------|--------|
 | OpenAI | Official API docs list GPT-5.5 as the recommended flagship and GPT-5.6 as trusted-partner preview only. | GPT-5.5 is registered. GPT-5.6 is watchlist-only. | Keep GPT-5.6 out of auto-routing until self-serve API access, pricing, context, and adapter behavior are verified. |
 | Anthropic | Claude docs list Fable 5 as generally available, Mythos 5 as limited availability, and Sonnet 5 as the current balanced Sonnet with adaptive thinking. | Fable 5, Sonnet 5, Opus 4.8, and Haiku 4.5 are registered. Mythos is not registered. | Keep Sonnet 5 as the balanced Anthropic default. Keep Mythos out until access and settlement are normal. |
-| Google Gemini | Gemini docs list Gemini 3.5 Flash and Gemini 3.1 Flash-Lite as stable; Gemini 3 Pro Preview and Gemini 3.1 Flash-Lite Preview are in the shut-down previous-model set. | Stable Gemini text/research models are active. The shut-down preview IDs are deprecated migration entries. | Do not target shut-down preview IDs in new benchmark or routing runs. |
+| Google Gemini | Gemini docs list Gemini 3.5 Flash and Gemini 3.1 Flash-Lite as stable; Gemini 3 Pro Preview and Gemini 3.1 Flash-Lite Preview are in the shut-down previous-model set. | Stable Gemini text models are registered. Managed Gemini Deep Research dispatch is gated because its autonomous loop lacks a complete request ceiling. The shut-down preview IDs are deprecated migration entries. | Do not target shut-down preview IDs in new benchmark or routing runs. |
 | xAI | xAI docs direct general text work to Grok 4.3, list Grok Build 0.1 for coding, and price Imagine image/video APIs separately. | Grok 4.3 is the preferred xAI text default. Grok Build is watchlist-only. xAI image remains explicit premium capacity. | Keep coding and media model additions behind registry, adapter, and no-surprise-bills tests. |
 | Azure AI Foundry | Foundry docs expose agents through the Responses API, deployment catalogs, regional limits, and managed endpoint controls. | Azure entries remain deployment targets, not global public model defaults. | Treat availability as subscription, deployment, and region dependent. |
 
@@ -90,8 +90,9 @@ Pricing notes:
 - Run `deepr providers models` or `python scripts/discover_models.py` only when
   you intentionally want live provider model-list checks. API discovery lists
   model names only; most provider APIs do not expose pricing.
-- Treat `python scripts/discover_models.py --llm` as an explicit model call.
-  Estimate cost first and do not use it as a default refresh path.
+- `python scripts/discover_models.py --llm` is gated in v2.36 before any model
+  call. Restore it only with an exact estimate, explicit approval, durable
+  reservation, and canonical settlement.
 - Use `deepr research ... --dry-run` or the web preflight estimate before any
   metered research.
 - Prefer local Ollama and admitted plan-quota capacity for routine maintenance.
@@ -109,10 +110,10 @@ Pricing notes:
 
 ## Current Deepr Registry Snapshot
 
-The registry currently contains 55 models across OpenAI, Gemini, xAI,
+The registry currently contains 56 models across OpenAI, Gemini, xAI,
 Anthropic, and Azure AI Foundry. The list below mirrors the registry on
-2026-07-01; run the command above for exact pricing and context values. The web
-Models page intentionally reports 38 active benchmarkable public text or
+2026-07-12; run the command above for exact pricing and context values. The web
+Models page intentionally reports 39 active benchmarkable public text or
 research models because Azure AI Foundry entries are deployment targets, premium
 media entries are not chat capacity, and deprecated migration entries are hidden
 from new benchmark target lists.
@@ -133,6 +134,7 @@ Registered IDs:
 - `openai/gpt-5`
 - `openai/gpt-5-mini`
 - `openai/gpt-5-nano`
+- `openai/gpt-4o-mini`
 - `openai/gpt-4.1`
 - `openai/gpt-4.1-mini`
 - `openai/gpt-4.1-nano`
@@ -214,11 +216,11 @@ Registered IDs:
 
 Default posture:
 
-- Prefer current Grok text models for explicitly selected xAI research and
-  freshness-oriented work when the budget estimate fits.
-- Grok 4.3 is the preferred xAI text default. Grok 4.20 multi-agent is a
-  deliberate deep-research style choice because its agent fan-out can multiply
-  spend and latency.
+- Prefer current Grok text models only for explicitly selected bounded xAI work
+  without unpriced server-side tools.
+- Grok 4.3 is the preferred xAI text default. Grok 4.20 multi-agent dispatch is
+  gated because its fan-out is not yet covered by one durable parent
+  reservation.
 - Grok Build 0.1 is visible in current xAI docs as a coding-specific model, but
   it is not yet registered in Deepr. Add it only with pricing, adapter, and
   no-surprise-bills tests.
@@ -295,8 +297,9 @@ Default posture:
 - Azure model availability is deployment and region dependent. The registry
   names Deepr-tested deployment targets, not every model Microsoft may expose
   in a given subscription.
-- Use Azure AI Foundry deep research only when Bing grounding, enterprise
-  controls, and Azure identity are intentional requirements.
+- Azure AI Foundry deep research remains a registered deployment target but is
+  gated until the agent run exposes the complete output and tool ceiling needed
+  for paid dispatch.
 - Refresh Azure registry entries only after adapter behavior and deployment
   names are tested locally or in CI-like validation.
 
@@ -313,12 +316,12 @@ Manual verification:
 
 | Workload | Preferred capacity order | Notes |
 |----------|--------------------------|-------|
-| Scheduled expert maintenance | Local admitted model, then observed non-metered plan quota, then explicit metered API | Background loops should wait or skip before spending. |
+| Scheduled expert maintenance | Local admitted model, then observed non-metered plan quota | Background loops wait or stop when owned capacity is unavailable; automatic and explicit metered maintenance are gated in v2.36. |
 | Quick lookup or lightweight synthesis | Cheapest capable registered model from configured provider, or local/plan backend if admitted | Keep quality floor and budget estimate visible. |
-| Large document analysis | Gemini, GPT long-context, or Claude long-context depending on configured keys and registry estimate | Use dry-run for large prompts. |
-| Deep research | OpenAI Deep Research, Gemini Deep Research, xAI multi-agent, or Azure Foundry deep research | Always explicit, async where applicable, budget-capped. |
-| Expert consult chat | Selected `ExpertChatBackend` from local, plan, or explicit API capacity | Tools and streaming depend on backend capability declarations. |
-| Portraits and images | Existing portrait, local image endpoint, then explicit premium provider | Do not regenerate repeatedly or in background. |
+| Large inline prompt analysis | A registered long-context model whose declared request bound fits its context window | Hosted file and vector context is gated; preview the complete inline envelope. |
+| Deep research | Bounded OpenAI or Azure OpenAI research envelopes | Gemini managed research, xAI multi-agent, and Azure Foundry agents are registered but gated until their complete run cost is enforceable. |
+| Expert consultation | Local or explicit plan query/consult, or separately bounded API council synthesis | Standalone metered chat is gated; tools and streaming are not implied. |
+| Portraits and images | Existing portrait or explicit local image endpoint | Paid portrait dispatch is gated in v2.36. |
 
 ## Safe Refresh Workflow
 

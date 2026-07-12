@@ -313,14 +313,19 @@ class TestBudgetTierGate:
         assert r.exit_code == 0
         assert json.loads(r.output)["schema_version"] == "deepr-library-sync-v1"  # ran, not deferred
 
-    def test_api_override_bypasses_the_soft_tier(self, monkeypatch):
-        import json
-
-        self._manager(monkeypatch, spent=9.6)  # drained, but --api is explicit
+    def test_api_override_fails_closed_before_sync(self, monkeypatch):
+        self._manager(monkeypatch, spent=9.6)
         _wire(monkeypatch, _sync_result(SyncOutcome("t", "synced"), cost=0.0))
         r = CliRunner().invoke(expert, ["sync-all", "--all", "--api", "-y", "--json"])
-        assert r.exit_code == 0
-        assert json.loads(r.output)["schema_version"] == "deepr-library-sync-v1"
+        assert r.exit_code == 2
+        assert "temporarily disabled" in r.output.lower()
+        assert "--local" in r.output
+
+    def test_api_dry_run_remains_available(self, monkeypatch):
+        _wire(monkeypatch, _sync_result(SyncOutcome("t", "would_sync"), cost=0.0))
+        r = CliRunner().invoke(expert, ["sync-all", "--all", "--api", "--dry-run", "--json"])
+        assert r.exit_code == 0, r.output
+        assert "temporarily disabled" not in r.output.lower()
 
     def test_dry_run_previews_even_when_drained(self, monkeypatch):
         self._auto_metered(monkeypatch)

@@ -18,6 +18,13 @@ _TIERED_PRICING: dict[str, tuple[int, float, float]] = {
     "gemini-3-pro-preview": (200_000, 2.0, 1.5),
 }
 
+# Specialized input-only models stay outside the chat/research capability
+# roster so generic cheapest-model routing cannot select an embedding model.
+# Source: official OpenAI model pricing, checked 2026-07-12.
+_SPECIALIZED_TOKEN_PRICING: dict[str, dict[str, float]] = {
+    "text-embedding-3-small": {"input": 0.02, "output": 0.0},
+}
+
 
 def _normalize_model_name(name: str) -> str:
     """Normalize a model name so dot/hyphen variants compare equal."""
@@ -81,6 +88,10 @@ def _with_token_tier(model: str, prices: dict[str, float], input_tokens: int | N
 
 def get_token_pricing(model: str, input_tokens: int | None = None) -> dict[str, float]:
     """Get input and output pricing per 1M tokens for a model."""
+    normalized = _resolved_model_needle(model)
+    for model_name, pricing in _SPECIALIZED_TOKEN_PRICING.items():
+        if _normalize_model_name(model_name) == normalized:
+            return dict(pricing)
     cap = _find_model_capability(model, require_token_pricing=True)
     if cap is not None:
         return _with_token_tier(
@@ -118,6 +129,11 @@ def get_cost_estimate(model: str, input_tokens: int | None = None) -> float:
     if input_tokens is not None:
         for tiered_model, (threshold, input_mult, _output_mult) in _TIERED_PRICING.items():
             if _normalize_model_name(tiered_model) in needle and input_tokens > threshold:
-                return round(base * input_mult, 4)
+                return base * input_mult
 
     return base
+
+
+def get_resolved_model_capability(model: str) -> ModelCapability | None:
+    """Return the exact registry pricing/context contract for a model alias."""
+    return _find_model_capability(model, require_token_pricing=True)

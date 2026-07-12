@@ -7,7 +7,7 @@ Tests the Phase 1 implementation:
 - Synthesis trigger logic
 """
 
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
 import pytest
 
@@ -158,11 +158,12 @@ class TestTriggerBackgroundSynthesis:
                     assert result.get("status") == "skipped"
 
     @pytest.mark.asyncio
-    async def test_logs_to_reasoning_trace(self):
-        """Should log synthesis attempt to reasoning trace."""
+    async def test_metered_synthesis_fails_before_store_access(self):
+        """Metered synthesis stays blocked until shared accounting exists."""
         with patch("deepr.experts.chat_api_backends.AsyncOpenAI"):
             with patch.dict("os.environ", {"OPENAI_API_KEY": "test-key"}):
                 from deepr.experts.chat import ExpertChatSession
+                from deepr.experts.chat_capacity import MeteredExpertChatDisabledError
                 from deepr.experts.profile import ExpertProfile
 
                 expert = ExpertProfile(name="Test Expert", domain="testing", vector_store_id="vs_test")
@@ -173,46 +174,33 @@ class TestTriggerBackgroundSynthesis:
 
                 initial_trace_count = len(session.reasoning_trace)
 
-                # Mock the synthesis dependencies
                 with patch("deepr.experts.chat.ExpertStore") as mock_store:
-                    mock_store_instance = MagicMock()
-                    mock_store.return_value = mock_store_instance
+                    with pytest.raises(MeteredExpertChatDisabledError, match="durable reserve"):
+                        await session._trigger_background_synthesis()
 
-                    mock_knowledge_dir = MagicMock()
-                    mock_knowledge_dir.exists.return_value = False
-                    mock_store_instance.get_knowledge_dir.return_value = mock_knowledge_dir
-
-                    mock_docs_dir = MagicMock()
-                    mock_docs_dir.exists.return_value = False
-                    mock_store_instance.get_documents_dir.return_value = mock_docs_dir
-
-                    await session._trigger_background_synthesis()
-
-                    # Should NOT add to trace when skipped (no documents)
-                    # Trace is only added on success or error
-                    # This is expected behavior - skipped doesn't log
+                    mock_store.assert_not_called()
+                    assert len(session.reasoning_trace) == initial_trace_count
 
     @pytest.mark.asyncio
-    async def test_handles_synthesis_error_gracefully(self):
-        """Should not crash on synthesis error."""
+    async def test_metered_synthesis_gate_precedes_internal_errors(self):
+        """The capacity gate runs before synthesis dependencies are touched."""
         with patch("deepr.experts.chat_api_backends.AsyncOpenAI"):
             with patch.dict("os.environ", {"OPENAI_API_KEY": "test-key"}):
                 from deepr.experts.chat import ExpertChatSession
+                from deepr.experts.chat_capacity import MeteredExpertChatDisabledError
                 from deepr.experts.profile import ExpertProfile
 
                 expert = ExpertProfile(name="Test Expert", domain="testing", vector_store_id="vs_test")
 
                 session = ExpertChatSession(expert, agentic=True)
 
-                # Mock to raise an exception
                 with patch("deepr.experts.chat.ExpertStore") as mock_store:
                     mock_store.side_effect = Exception("Test error")
 
-                    result = await session._trigger_background_synthesis()
+                    with pytest.raises(MeteredExpertChatDisabledError):
+                        await session._trigger_background_synthesis()
 
-                    # Should return error status, not crash
-                    assert result.get("status") == "error"
-                    assert "error" in result
+                    mock_store.assert_not_called()
 
 
 class TestResearchCountIncrement:
