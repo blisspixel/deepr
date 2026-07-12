@@ -15,8 +15,12 @@ def test_frontend_archive_is_deterministic(monkeypatch, tmp_path: Path):
     assets.mkdir(parents=True)
     index = dist / "index.html"
     javascript = assets / "app.js"
+    uppercase_asset = assets / "Z.js"
+    lowercase_asset = assets / "a.js"
     index.write_bytes(b"<main>\r\nDeepr\r\r\n</main>\r\n")
     javascript.write_bytes(b"const name = 'deepr';\r\nconsole.log(name);\r\n")
+    uppercase_asset.write_bytes(b"export const upper = true;\r\n")
+    lowercase_asset.write_bytes(b"export const lower = true;\r\n")
     archive = tmp_path / "frontend-dist.zip"
     monkeypatch.setattr(build_frontend_archive, "DIST_ROOT", dist)
     monkeypatch.setattr(build_frontend_archive, "ARCHIVE_PATH", archive)
@@ -25,11 +29,13 @@ def test_frontend_archive_is_deterministic(monkeypatch, tmp_path: Path):
     first = archive.read_bytes()
     index.write_bytes(index.read_bytes().replace(b"\r\n", b"\n"))
     javascript.write_bytes(javascript.read_bytes().replace(b"\r\n", b"\n"))
+    uppercase_asset.write_bytes(uppercase_asset.read_bytes().replace(b"\r\n", b"\n"))
+    lowercase_asset.write_bytes(lowercase_asset.read_bytes().replace(b"\r\n", b"\n"))
     build_frontend_archive.build_archive()
 
     assert archive.read_bytes() == first
     with ZipFile(archive) as built:
-        assert built.namelist() == ["assets/app.js", "index.html"]
+        assert built.namelist() == ["assets/Z.js", "assets/a.js", "assets/app.js", "index.html"]
         assert {entry.create_system for entry in built.infolist()} == {3}
         assert {entry.external_attr >> 16 for entry in built.infolist()} == {0o644}
         assert {entry.compress_type for entry in built.infolist()} == {ZIP_STORED}
