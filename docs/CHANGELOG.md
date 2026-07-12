@@ -141,6 +141,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Capacity guidance no longer suggests a plan fallback during an explicit local
   wait, and revocation guidance names only commands that can actually recover
   the blocked state.
+- The API-consult zero-budget regression now normalizes Click's wrapped output,
+  so the same error contract passes on Windows and Linux terminal widths.
 
 ### Security
 

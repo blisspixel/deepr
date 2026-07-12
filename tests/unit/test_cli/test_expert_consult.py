@@ -174,7 +174,7 @@ def test_consult_no_experts_exits_2(monkeypatch):
 def test_api_budget_must_be_positive():
     result = CliRunner().invoke(expert_consult, ["q", "--budget", "0", "-y"])
     assert result.exit_code == 2
-    assert "positive value" in result.output
+    assert "positive value" in " ".join(result.output.split())
 
 
 @pytest.mark.parametrize("value", ["0", "11"])
