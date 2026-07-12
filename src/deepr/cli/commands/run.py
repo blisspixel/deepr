@@ -16,6 +16,7 @@ from deepr.cli.commands.run_submission import (
     AcceptedProviderTrackingError,
 )
 from deepr.cli.commands.run_submission import enqueue_reserved_job as _enqueue_reserved_job
+from deepr.cli.commands.run_submission import ensure_cli_dispatch_reservation as _ensure_reservation
 from deepr.cli.commands.run_submission import (
     handle_immediate_job as _handle_immediate_job,
 )
@@ -571,6 +572,7 @@ async def _run_single(
             raise
 
         submission_queue = SQLiteQueue(queue_db_path)
+        reservation = await _ensure_reservation(submission_queue, job_id, reservation, upload_result, formatter)
         if not await submission_queue.claim_submission(job_id):
             await _rollback_prepared_submission(
                 reservation,

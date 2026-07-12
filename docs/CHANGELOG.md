@@ -7,6 +7,279 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.35.0] - 2026-07-11
+
+### Added
+
+- Scheduled local sync, sync-all, local route-gaps, and plan-backed compiled
+  sync with a local recall embedder now take a read-only, best-effort GPU
+  utilization observation before local model dispatch. Confirmed contention records
+  durable per-expert `capacity_unavailable` WAITING outcomes with a bounded
+  30-minute, 2-hour, then 6-hour retry cadence and never sleeps in-process or
+  falls through to plan/API capacity. `deepr capacity` and `capacity next`
+  expose local capacity as `free`, `busy`, or `unknown`; missing or malformed
+  platform support remains unknown, and resident Ollama VRAM is not treated as
+  contention. Busy artifacts preserve the requested verb and material options
+  as argument-safe argv plus selected capacity/model metadata, and embedded
+  guidance never advertises a fallback that contradicts an explicit-local
+  wait. Explicit local work without `--scheduled` remains an operator override.
+- `deepr expert migrate-legacy-state NAME` now previews a one-expert migration
+  of known runtime artifacts from legacy display-name directories into the
+  canonical expert directory. Apply refuses differing collisions, verifies
+  copied bytes before removing a source, and leaves unknown content untouched.
+- Python source and wheel distributions now include the built dashboard plus
+  required configuration, skill, and template data. The frontend archive is
+  deterministic, wheel contents are validated in CI, and package builds fail
+  when the committed dashboard archive is missing or stale.
+- Added an evidence-gated polyglot architecture decision and a measured local
+  baseline. Deepr remains Python-first while explicit benchmark, correctness,
+  packaging, fallback, and end-to-end value gates define when a bounded Rust
+  engine, Go hosted runner, Mojo kernel, or free-threaded Python experiment may
+  be justified.
+
+### Fixed
+
+- Public installers and `deepr upgrade` now resolve an exact version-matched
+  wheel from the latest GitHub release, validate that the asset belongs to the
+  Deepr repository, and stop before subprocess changes when release metadata is
+  offline, invalid, or missing the wheel. Documentation now states that GitHub
+  Releases is the working binary channel, PyPI is future/manual, editable
+  installs receive source-update guidance, and installer next steps accept
+  local Ollama, supported plan CLIs, or API providers.
+- Root CLI help and version handling now use a static lazy command registry,
+  while provider and expert package exports load their implementations only on
+  first use. A 20-process Windows benchmark reduced `deepr --version` p95 from
+  roughly 4 to 5.4 seconds to about 223 ms and root help to about 217 ms. Import
+  regressions prove these no-provider paths do not load OpenAI, Anthropic,
+  Google, Azure, NumPy, or expert-chat implementations.
+- Quota-ledger reads and durable appends now share one resolved-path lock across
+  instances and an OS-backed lock across processes. Spawned-writer regressions
+  prove concurrent fleet observations preserve every JSONL event on Windows.
+- Brave, Tavily, and built-in scraper requests no longer execute synchronous
+  network work on the async event loop. Concurrency regressions prove other
+  tasks can continue while these compatibility adapters use bounded worker
+  threads.
+- Fresh/deep context and topic-learning page retrieval now preserve exact caps
+  and output order while using four slots across distinct hosts and serializing
+  requests to the same normalized host. Built-in DuckDuckGo and automatic
+  multi-query search stay serial, explicit backends use bounded search fanout,
+  and worker polling checks at most eight unique jobs concurrently with
+  per-job in-flight protection and cancellation cleanup.
+- Direct HTTP and Wayback page bodies now stream under an 8 MiB default
+  decompressed-byte ceiling configurable with `SCRAPE_MAX_RESPONSE_BYTES`.
+  Trustworthy oversized lengths fail before a body read; chunked and compressed
+  bodies stop at the limit plus one byte; the failure is typed and cannot fall
+  through to heavier strategies. Wayback metadata has a separate 256 KiB limit,
+  and untrusted snapshot URLs and every redirect pass the public-host SSRF gate
+  before dispatch with all intermediate responses closed.
+- Browser expert-chat thought markers now use the packaged Lucide icon set
+  instead of emoji glyphs. A frontend source-policy regression rejects emoji
+  and en or em dash characters in authored frontend source.
+- Council synthesis now reports output-limit and reasoning-only responses as
+  incomplete instead of successful. Local Ollama synthesis disables hidden
+  reasoning through its supported compatibility option. Durable consult traces
+  now allocate the trace id before one append-only write and record the same
+  roster, capacity, trace, and no-fallback contract returned by CLI and MCP,
+  including explicit rosters and truncated results.
+- Concurrent absorb through CLI or MCP now takes one non-blocking per-expert
+  guard before store, backend, or model construction. A colliding run exits at
+  `$0`, preventing stale snapshots from admitting duplicate beliefs. The wider
+  cross-verb knowledge-mutation transaction remains tracked separately.
+- Thought logs, hierarchical memory, document reconstruction, graph and RAG
+  state, feedback, prompt optimization, and knowledge consolidation now resolve
+  through the canonical expert directory unless an explicit storage override
+  is supplied. Generated memory-card commands use the same canonical identity.
+- Reconciliation-aware cost attribution now applies a unique append-only
+  correction to the derived provider/model breakdown without changing raw
+  events or dollar totals. Zero-dollar correction events no longer inflate call
+  counts, and ambiguous or malformed corrections remain unapplied.
+- Consult trace defaults now honor `DEEPR_DATA_DIR` before the legacy per-user
+  path, preventing unit evaluations from mixing live operator traces into test
+  results while retaining backward compatibility when no runtime root is set.
+- Expert knowledge freshness now advances both the cutoff and last-refresh
+  fields from the successful completion observation across accepted absorption,
+  topic learning, source-backed sync, graph commits, corpus and vector writes,
+  MCP, chat, learner, reflection follow-ups, and gap filling. Dry runs,
+  all-rejected absorption, under-ready evidence, failed or empty ingestion, and
+  ungrounded no-change markers remain non-advancing. Partial file learning
+  counts only successful uploads. `expert reconcile-freshness` provides a
+  cost-$0 preview-first metadata repair based only on accepted append-only
+  events for currently live beliefs, with no provider call or belief mutation.
+- Queue-backed research dispatch now restores the persisted cost reservation
+  immediately before its atomic submission claim and verifies the exact
+  reservation ID, job ID, provider, model, and held maximum against an active
+  job-owned row. Missing, closed, or mismatched holds fail durably before any
+  provider POST. A transient reservation-store read failure keeps the job
+  queued and its possible hold intact for retry. The modern CLI now uses the
+  same gate instead of trusting only its in-memory reservation.
+- The local research queue now has one compatibility-safe path contract across
+  both legacy config loaders and no-argument `SQLiteQueue` callers. An explicit
+  `DEEPR_QUEUE_DB_PATH` wins, `DEEPR_DATA_DIR` places the queue under
+  `<runtime-root>/queue/research_queue.db`, and an unset environment preserves
+  `queue/research_queue.db`. Unit tests pin both variables to a per-test temp
+  root so CLI commands cannot populate the workspace queue. `deepr doctor` now
+  inspects the real `research_queue` table in SQLite read-only mode and reports
+  queued zero-attempt rows older than 24 hours as advisory lifecycle candidates,
+  including reservation-reference counts, without changing jobs or holds.
+- Compiled graph commits now apply the verifier-ready subset when one claim
+  verification artifact contains both accepted and rejected candidates. Each
+  rejected candidate and reason remains in the envelope, sync reports ready and
+  blocked counts, and apply still validates all selected operations before any
+  write. Top-level extraction or verification schema, kind, model-response, or
+  response-failure defects continue to block the entire envelope. Regression
+  coverage preserves the live 7-candidate shape with 4 atomic writes and 3
+  reviewable rejections.
+- Metered-at-margin plan adapters now fail before probe or client construction
+  until they implement adapter-specific deterministic estimates, durable cost
+  reservations, provider-usage settlement, and canonical cost-ledger writes.
+  This closes Copilot `$0` accounting paths in `capacity probe-plan`,
+  `capacity probe-fleet`, expert sync, and expert absorb, including JSON and
+  `-y`; retained backend choices and acknowledgement flags cannot override the
+  gate, while non-metered plan adapters are unchanged.
+- Plan CLI failures now preserve a bounded credential-redacted terminal stderr
+  cause instead of truncating the start of a banner or progress stream, with
+  prompt-overlap suppression before display. Every eligible dispatched attempt
+  writes exactly one canonical `$0` cost event. Successful usage, exhaustion,
+  ambiguous nonzero/timeout/empty-output attempts, and launch failures retain
+  distinct honest quota metadata, and fleet status no longer calls an ambiguous
+  failed attempt active.
+- Codex's current `You've hit your usage limit` stderr wording now records an
+  exhausted plan instead of an unknown failed attempt. Its absolute
+  `try again at H:MM AM/PM` hint resolves through the host timezone and DST
+  rules to one future UTC reset, including next-day rollover. Ambiguous,
+  nonexistent, or unavailable local clocks remain unknown rather than using a
+  guessed offset, and the phrase is never classified from answer stdout.
+- Non-dry single-expert sync and each overlap-locked sync-all attempt now append
+  a durable RUNNING loop snapshot after the
+  overlap lock and before maintenance-engine construction, then appends its
+  completion or caught execution failure with the same run id. A hard process
+  termination therefore leaves visible interrupted-work state instead of
+  source-pack partials with no loop record. Dry runs remain write-free, and an
+  unavailable loop store blocks dispatch rather than allowing untracked work.
+  Caught failures preserve any settled non-negative spend exposed by the error
+  chain in both the failed run and sync-all rollup instead of resetting it to
+  `$0`.
+- Local expert maintenance now honors the model recorded by
+  `expert make --local --local-model` instead of silently replacing it with
+  the first process-wide Ollama default. Explicit command and admitted-capacity
+  models still take precedence, non-local profiles retain the existing default,
+  and the shared resolution contract covers sync, forced-local roster sync,
+  absorb, topic learn, OKF absorb, and gap-fill construction.
+- API-backed expert absorption now enforces one caller-supplied run ceiling
+  across extraction plus every dynamically routed contradiction, dedup, and
+  optional adjudication call. Each dispatch reserves before provider work,
+  derives a provider `max_completion_tokens` cap from exact model pricing and a
+  conservative input bound, settles reported token usage into the canonical
+  append-only cost ledger, and
+  contributes to the returned aggregate `actual_cost`; a missing usage record
+  consumes its hold and an unavailable budget or settlement fails closed.
+  Direct CLI, MCP, OKF, sync, and gap-fill totals now use settled cost, including
+  paid previews and partial failed runs. MCP no longer records a duplicate
+  process-local estimate, adjudication cannot write contested state after a
+  budget denial, and explicit local or prepaid-plan absorbers retain `$0` cost.
+- Contradiction routing can no longer become semantic graph truth by itself.
+  Normal `ConflictResolver.detect_contradictions` returns only model-selected
+  pairs, and generic `BeliefStore.add_belief` never persists lexical router
+  hits as typed contradiction edges. After an initial absorb-time YES, a second
+  fresh-context structured disconfirmation pass reverses statement order and
+  searches for a compatible reading; only two agreeing judgments create a
+  model-confirmed edge. Ambiguous or disabled verification preserves both
+  claims without an edge or lexical dedup collapse. Contested read surfaces now
+  expose model-confirmed versus unverified provenance, and continuity
+  methodology v1.3 separates structural surfacing from verification coverage
+  without claiming either proves semantic accuracy.
+- Ordinary expert health checks are read-only again. Manual and scheduled
+  audit-only paths no longer append loop records or expose a pending execution
+  state for proposed actions. Scheduled action-plan JSON now uses
+  `deepr-health-check-action-plan-v2`; the v1 schema remains published for
+  historical consumers. Explicit `--archive-stale` mutation and wait paths
+  continue to record durable loop state.
+- Legacy CLI and web conflict-resolution mutations now fail before expert-store
+  or provider construction. Their numeric budget previously limited only pair
+  count while detection, adjudication, and consensus calls could bypass durable
+  reservation and canonical settlement. The `$0` contested view remains
+  available while a fully accounted local/plan-first replacement is tracked.
+- Fresh and deep local or plan-context sync now sends search a concise
+  subscription topic plus bounded focus instead of the full synthesis prompt,
+  while retaining explicit URLs and the full answer instructions for the
+  generation backend. A provenance-only preflight requires enough replayable,
+  content-addressed evidence before local or plan generation, without requiring
+  every search result to fetch or making a lexical relevance verdict. Sparse
+  packs persist for diagnosis and return a retryable no-metered failure without
+  advancing sync cadence or consuming local model or plan quota.
+- Topic `expert learn` and `learn-web` no longer count search snippets or failed
+  page fetches as synthesized live sources. Search-discovered runs require two
+  fetched, content-addressed pages before local or plan generation, while an
+  explicit URL retains a one-source path. Every attempt persists a source pack,
+  manifest, source notes, and snapshots under the configured expert root, and a
+  successful run also persists its report. Candidate extraction selects exact
+  supporting labels; only the selected replay pointers enter each belief, and
+  candidates without a valid pointer are rejected. Under-ready runs remain
+  retryable, never fall through to metered capacity, and do not update knowledge
+  freshness.
+- Topic-learning extraction now accepts an exact replay-catalog value or treats
+  one citation-style bracket pair as key form, so both
+  `source_note:sn_...:w0` membership and `[S1]` resolve without fuzzy matching.
+  Unknown pointers, semantic aliases, nested wrappers, and citation prose remain
+  invalid. An all-rejected run no longer advances expert freshness. Human output
+  groups rejection reasons and identifies failed retrieval candidates with
+  bounded labels and URLs that omit userinfo, query parameters, and fragments.
+  Structured learn-web failures suppress redundant low-level strategy warnings;
+  generic scrape callers retain their existing warnings.
+- Browser expert chat now requires an explicit API backend, positive bounded
+  session budget, selected chat mode, and two metered-cost acknowledgements
+  before provider construction. Socket.IO follow-ups and slash commands reuse
+  one serialized session, cannot raise its approved ceiling, and clean up on
+  explicit end, disconnect, or terminal failure. The REST fallback enforces
+  the same contract, while unsupported browser local and plan capacity is
+  rejected explicitly.
+- Browser Stop now cancels the in-flight chat coroutine on its owning event
+  loop, requests cancellation for accepted background provider jobs where the
+  provider exposes it, suppresses conversation save and completion after
+  cancellation, and closes provider plus cost-session resources before the
+  `chat_cancelled` acknowledgement. Each browser turn holds its approved
+  remaining ceiling durably, refunds it before dispatch, or settles the
+  unaccounted remainder conservatively after an ambiguous dispatch. The UI
+  waits for that acknowledgement before preserving partial text and no longer
+  terminates healthy 5-20 minute modes with an artificial 60-second timeout.
+  Provider exceptions returned through the legacy session string interface are
+  typed as terminal failures before browser save or completion. Optional
+  follow-up suggestions now reserve a conservative, 200-output-token bound,
+  settle reported usage or ambiguous failure cost, and skip provider dispatch
+  when that bound does not fit the approved session ceiling.
+- Browser chat now initializes its displayed session ceiling from the loaded
+  server maximum and clamps stale or oversized values. Terminal turn failures
+  remain visible as failed assistant entries, retain partial text, and require
+  the user to re-confirm the metered ceiling before Retry. Durable browser holds
+  use the validated routed API provider/model passed to the turn, fail closed
+  when that identity is unknown or mismatched, and label an ambiguous
+  unaccounted-ceiling settlement as conservative rather than provider-reported
+  actual usage. OpenAI and Anthropic expert-chat clients disable hidden SDK
+  retries so one admitted dispatch cannot silently multiply behind one Deepr
+  reservation. `costs show --daily-limit` and `--monthly-limit` now apply their
+  explicit display overrides after persisted dashboard state loads.
+- Cost Intelligence now distinguishes a loading model breakdown, a retryable
+  ledger-query failure, a populated model breakdown, and a genuinely empty
+  time range. The web breakdown endpoint has regression coverage proving it
+  reads model-attributed and unknown-model events from the canonical ledger.
+- Web polling now resolves the provider recorded on each persisted job for
+  status reads, terminal cost settlement, cancellation, and provider-resource
+  cleanup. Unknown or unavailable adapters remain active and visible without
+  falling through to OpenAI. The OpenAI-only single and batch dashboard
+  submission paths reject other provider model families before reservation or
+  provider construction and persist their OpenAI ownership explicitly.
+- `deepr web` now refuses to run the Werkzeug development server on a
+  non-loopback interface, even when API authentication or the legacy public
+  bind acknowledgement is present. Loopback development remains supported;
+  network exposure requires a production WSGI server.
+- Direct `python -m deepr.web.app` startup now passes Flask-SocketIO's Werkzeug
+  safety override only through a helper that first validates the bind as
+  loopback. This keeps intended local development startup working while
+  preserving the non-loopback refusal before server construction.
+- Installation guidance no longer claims an unavailable public PyPI package.
+  Until a separate PyPI publication workflow exists, releases provide verified
+  wheel and source archives on GitHub and source installation remains supported.
+
 ## [2.34.4] - 2026-07-10
 
 ### Security

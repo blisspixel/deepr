@@ -125,6 +125,21 @@ class TestRunLibrarySync:
         assert statuses["B"] == "synced"
         assert "provider down" in next(s.detail for s in result.summaries if s.expert == "A")
 
+    async def test_failure_preserves_known_spend_in_summary_and_roster_total(self):
+        class CostedRuntimeError(RuntimeError):
+            actual_cost = 0.23
+
+        result = await run_library_sync(
+            sync_one=_sync_one({"A": CostedRuntimeError("provider down")}),
+            expert_names=["A"],
+            budget=1.0,
+            subscription_store_factory=_subs({}),
+        )
+
+        assert result.summaries[0].status == "failed"
+        assert result.summaries[0].cost == 0.23
+        assert result.total_cost == 0.23
+
     async def test_overlap_lock_reports_locked(self, tmp_path):
         behaviors = {"A": (_result(SyncOutcome("t", "synced"), cost=0.0), "local")}
         # Hold A's sync lock for the duration of the pass.

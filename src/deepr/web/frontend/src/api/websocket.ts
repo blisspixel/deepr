@@ -1,5 +1,6 @@
 import { io, Socket } from 'socket.io-client'
 import type { Job, CommandResult, ThoughtItem, PlanStep, ConfirmRequest } from '../types'
+import type { BrowserExpertChatRequestPayload } from '../lib/expert-chat-contract'
 
 const WS_URL = import.meta.env.VITE_WS_URL || `${window.location.protocol}//${window.location.host}`
 const isDev = import.meta.env.DEV
@@ -106,20 +107,30 @@ class WebSocketClient {
     this.socket.emit('unsubscribe_jobs', data)
   }
 
-  startChat(expertName: string, message: string, sessionId?: string, mode?: string) {
+  startChat(
+    expertName: string,
+    chatRequest: BrowserExpertChatRequestPayload,
+    sessionId?: string,
+  ) {
     if (!this.socket?.connected) return false
     this.socket.emit('chat_start', {
       expert_name: expertName,
-      message,
+      ...chatRequest,
       ...(sessionId && { session_id: sessionId }),
-      ...(mode && { mode }),
     })
     return true
   }
 
   stopChat() {
-    if (!this.socket?.connected) return
+    if (!this.socket?.connected) return false
     this.socket.emit('chat_stop', {})
+    return true
+  }
+
+  endChat() {
+    if (!this.socket?.connected) return false
+    this.socket.emit('chat_end', {})
+    return true
   }
 
   onChatToken(callback: (data: { content: string }) => void) {
@@ -161,10 +172,20 @@ class WebSocketClient {
     return () => { this.socket?.off('chat_complete', callback) }
   }
 
-  onChatError(callback: (data: { error: string }) => void) {
+  onChatError(callback: (data: { error: string; error_code?: string; retryable?: boolean }) => void) {
     if (!this.socket) return () => {}
     this.socket.on('chat_error', callback)
     return () => { this.socket?.off('chat_error', callback) }
+  }
+
+  onChatCancelled(callback: (data: {
+    status: 'cancelled'
+    provider_cancel_status: string
+    cost_status: string
+  }) => void) {
+    if (!this.socket) return () => {}
+    this.socket.on('chat_cancelled', callback)
+    return () => { this.socket?.off('chat_cancelled', callback) }
   }
 
   // --- Agentic chat events ---

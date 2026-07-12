@@ -52,7 +52,7 @@ import uuid
 from collections.abc import Awaitable, Callable
 from contextlib import suppress
 from dataclasses import dataclass
-from datetime import UTC, datetime
+from datetime import datetime
 from pathlib import Path
 from typing import Any
 
@@ -675,6 +675,7 @@ class DeeprMCPServer:
         report_id: str,
         min_confidence: float = 0.6,
         dry_run: bool = False,
+        budget: float = 0.10,
     ) -> dict[str, Any]:
         """Promote a research report into an expert's beliefs, verification-gated.
 
@@ -683,57 +684,64 @@ class DeeprMCPServer:
         provenance (deduped). Mutates the expert and runs one small extraction
         call. Set dry_run to preview without writing.
         """
-        from deepr.experts.report_absorber import ESTIMATED_EXTRACTION_COST, ReportAbsorber, ReportAbsorberError
+        from deepr.experts.loop_lock import expert_verb_lock
+        from deepr.experts.report_absorber import (
+            ReportAbsorber,
+            ReportAbsorberCostError,
+            ReportAbsorberError,
+            absorption_result_cost,
+        )
         from deepr.services.context_index import ContextIndex
 
-        try:
-            expert = self.store.load(expert_name)
-            if not expert:
-                return _make_error("EXPERT_NOT_FOUND", f"Expert '{expert_name}' not found")
+        with expert_verb_lock(expert_name, "absorb") as acquired:
+            if not acquired:
+                return _make_error(
+                    "ABSORB_OVERLAP_LOCKED",
+                    f"Another absorb is already running for expert '{expert_name}'.",
+                    "Retry after the active absorb finishes.",
+                    category="conflict",
+                    retryable=True,
+                )
+            try:
+                expert = self.store.load(expert_name)
+                if not expert:
+                    return _make_error("EXPERT_NOT_FOUND", f"Expert '{expert_name}' not found")
 
-            report_text = ContextIndex().get_report_content(report_id, max_chars=100000)
-            if not report_text:
-                return _make_error("REPORT_NOT_FOUND", f"No report found for id '{report_id}'")
+                report_text = ContextIndex().get_report_content(report_id, max_chars=100000)
+                if not report_text:
+                    return _make_error("REPORT_NOT_FOUND", f"No report found for id '{report_id}'")
 
-            # Absorption runs a paid extraction call (even in dry_run, which
-            # only skips the writes). Gate it through the same cost-safety
-            # manager that deepr_research uses so daily/monthly limits and the
-            # circuit breaker apply instead of being bypassed.
-            from deepr.experts.cost_safety import get_cost_safety_manager
+                # ReportAbsorber owns durable per-dispatch reservation,
+                # settlement, and canonical ledger writes for extraction and
+                # semantic verdicts. Keeping that boundary in the service also
+                # covers CLI and sync and avoids a second MCP ledger write.
+                absorber = ReportAbsorber(expert)
+                result = await absorber.absorb(
+                    report_id,
+                    report_text,
+                    min_confidence=min_confidence,
+                    dry_run=dry_run,
+                    budget=budget,
+                )
 
-            cost_safety = get_cost_safety_manager()
-            session_id = f"mcp_absorb_{uuid.uuid4().hex[:8]}"
-            allowed, reason, _ = cost_safety.check_operation(
-                session_id=session_id,
-                operation_type="mcp_expert_absorb",
-                estimated_cost=ESTIMATED_EXTRACTION_COST,
-            )
-            if not allowed:
-                return _make_error("BUDGET_EXCEEDED", f"Absorb blocked by cost safety: {reason}")
+                settled_cost = absorption_result_cost(result)
+                if settled_cost > 0:
+                    expert.total_research_cost += settled_cost
+                from deepr.experts.knowledge_freshness import advance_from_absorption
 
-            absorber = ReportAbsorber(expert)
-            result = await absorber.absorb(report_id, report_text, min_confidence=min_confidence, dry_run=dry_run)
-
-            # Record the extraction spend regardless of dry_run - the provider
-            # call happened either way, so the ledger must reflect it.
-            _absorb_model = getattr(absorber, "model", "")
-            cost_safety.record_cost(
-                session_id=session_id,
-                operation_type="mcp_expert_absorb",
-                actual_cost=float(result.estimated_cost),
-                provider="openai",
-                model=_absorb_model if isinstance(_absorb_model, str) else "",
-            )
-
-            if not result.dry_run:
-                expert.total_research_cost += result.estimated_cost
-                expert.last_knowledge_refresh = datetime.now(UTC)
-                self.store.save(expert)
-            return result.to_dict()
-        except ReportAbsorberError as e:
-            return _make_error("ABSORB_INVALID_INPUT", str(e))
-        except (OSError, KeyError, ValueError) as e:
-            return _make_error("ABSORB_FAILED", str(e))
+                knowledge_changed = advance_from_absorption(expert, result)
+                if settled_cost > 0 or knowledge_changed:
+                    self.store.save(expert)
+                return result.to_dict()
+            except ReportAbsorberCostError as e:
+                if e.actual_cost > 0 and expert is not None:
+                    expert.total_research_cost += e.actual_cost
+                    self.store.save(expert)
+                return _make_error("BUDGET_EXCEEDED", str(e))
+            except ReportAbsorberError as e:
+                return _make_error("ABSORB_INVALID_INPUT", str(e))
+            except (OSError, KeyError, ValueError) as e:
+                return _make_error("ABSORB_FAILED", str(e))
 
     # ------------------------------------------------------------------ #
     # Tool: deepr_reflect
@@ -1706,6 +1714,7 @@ async def _handle_tools_call(server: DeeprMCPServer, params: dict[str, Any]) -> 
             report_id=args.get("report_id", ""),
             min_confidence=args.get("min_confidence", 0.6),
             dry_run=args.get("dry_run", False),
+            budget=args.get("budget", 0.10),
         ),
         # Task durability endpoints
         "deepr_get_task_progress": lambda args: server.deepr_get_task_progress(

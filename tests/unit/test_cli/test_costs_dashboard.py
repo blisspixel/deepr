@@ -75,6 +75,42 @@ def _make_dashboard_mock(entries=None, days=7, base_cost=1.0, anomaly_day=None):
     return dashboard
 
 
+class TestShow:
+    def test_command_line_limits_override_persisted_dashboard_limits(self, runner):
+        dashboard = MagicMock(spec=CostDashboard)
+        dashboard.daily_limit = 10.0
+        dashboard.monthly_limit = 100.0
+
+        def get_summary():
+            return {
+                "daily": {
+                    "total": 0.2,
+                    "limit": dashboard.daily_limit,
+                    "remaining": dashboard.daily_limit - 0.2,
+                    "utilization": 0.2 / dashboard.daily_limit,
+                },
+                "monthly": {
+                    "total": 1.0,
+                    "limit": dashboard.monthly_limit,
+                    "remaining": dashboard.monthly_limit - 1.0,
+                    "utilization": 1.0 / dashboard.monthly_limit,
+                },
+                "active_alerts": [],
+            }
+
+        dashboard.get_summary.side_effect = get_summary
+        with patch("deepr.cli.commands.costs.CostDashboard", return_value=dashboard) as dashboard_cls:
+            result = runner.invoke(
+                cli,
+                ["costs", "show", "--daily-limit", "2", "--monthly-limit", "20"],
+            )
+
+        assert result.exit_code == 0
+        assert "$0.20 / $2.00" in result.output
+        assert "$1.00 / $20.00" in result.output
+        dashboard_cls.assert_called_once_with()
+
+
 class TestTimeline:
     """Tests for deepr costs timeline command."""
 

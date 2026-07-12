@@ -377,6 +377,28 @@ class TestImportCorpus:
                     new_expert_name="Existing Expert", corpus_dir=corpus_dir, store=mock_store, provider=mock_provider
                 )
 
+    @pytest.mark.asyncio
+    async def test_failed_vector_indexing_does_not_mark_import_fresh(self, tmp_path, mock_store, mock_provider):
+        corpus_dir = tmp_path / "corpus"
+        documents_dir = corpus_dir / "documents"
+        documents_dir.mkdir(parents=True)
+        CorpusManifest(name="test", domain="testing").save(corpus_dir / "manifest.json")
+        (documents_dir / "source.md").write_text("accepted upload, failed indexing", encoding="utf-8")
+        mock_provider.wait_for_vector_store.return_value = False
+        mock_store.get_knowledge_dir.return_value = tmp_path / "expert" / "knowledge"
+        mock_store.get_documents_dir.return_value = tmp_path / "expert" / "documents"
+
+        profile = await import_corpus(
+            new_expert_name="Index Failure Expert",
+            corpus_dir=corpus_dir,
+            store=mock_store,
+            provider=mock_provider,
+        )
+
+        assert profile.knowledge_cutoff_date is None
+        assert profile.last_knowledge_refresh is None
+        assert "UNKNOWN" in profile.system_message
+
 
 class TestCorpusEdgeCases:
     """Test edge cases in corpus operations."""

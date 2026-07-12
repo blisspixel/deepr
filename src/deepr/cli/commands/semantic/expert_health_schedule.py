@@ -11,7 +11,7 @@ from deepr.cli.colors import console, print_section_header, print_warning
 from deepr.experts.approval import ApprovalTier
 
 HEALTH_CHECK_ACTION_PLAN_KIND = "deepr.expert.health_check_action_plan"
-HEALTH_CHECK_ACTION_PLAN_SCHEMA_VERSION = "deepr-health-check-action-plan-v1"
+HEALTH_CHECK_ACTION_PLAN_SCHEMA_VERSION = "deepr-health-check-action-plan-v2"
 HEALTH_CHECK_ARCHIVE_CONFIRMATION_KIND = "deepr.expert.health_check_archive_confirmation"
 HEALTH_CHECK_ARCHIVE_CONFIRMATION_SCHEMA_VERSION = "deepr-health-check-archive-confirmation-v1"
 
@@ -28,7 +28,9 @@ def _scheduled_health_contract() -> dict[str, Any]:
         "compatibility": {
             "additive_fields": True,
             "breaking_changes_require_new_schema_version": True,
-            "deprecation_policy": "Fields in this v1 payload are additive within v1; removals use a new schema.",
+            "deprecation_policy": (
+                "Fields are additive within their declared schema version; removals use a new schema."
+            ),
         },
     }
 
@@ -83,30 +85,6 @@ def scheduled_health_payload(report: Any) -> dict[str, Any]:
     payload["scheduled"] = True
     plan = scheduled_health_action_plan(report)
     payload["scheduled_action_plan"] = plan
-    from deepr.experts.loop_runs import LoopRunStatus, LoopStopReason, record_loop_run
-
-    if plan["status"] == "waiting_for_confirmation":
-        status = LoopRunStatus.WAITING
-        stop_reason = LoopStopReason.HUMAN_GATE_REQUIRED
-    elif plan["status"] == "waiting_for_capacity":
-        status = LoopRunStatus.WAITING
-        stop_reason = LoopStopReason.CAPACITY_UNAVAILABLE
-    elif plan["status"] == "no_actions":
-        status = LoopRunStatus.COMPLETED
-        stop_reason = LoopStopReason.NO_DUE_WORK
-    else:
-        status = LoopRunStatus.PENDING
-        stop_reason = None
-    loop_run = record_loop_run(
-        expert_name=report.expert_name,
-        loop_type="health_check",
-        goal=f"Audit health-check actions for {report.expert_name}",
-        trigger="scheduled",
-        status=status,
-        stop_reason=stop_reason,
-        next_action=plan["actions"][0] if plan["actions"] else {},
-    )
-    payload["loop_run"] = loop_run.to_dict()
     return payload
 
 
@@ -120,7 +98,7 @@ def print_scheduled_health_action_plan(plan: dict[str, Any]) -> None:
 
 
 def scheduled_archive_confirmation_payload(expert_name: str, candidates: list[Any]) -> dict[str, Any]:
-    payload = {
+    payload: dict[str, Any] = {
         "schema_version": HEALTH_CHECK_ARCHIVE_CONFIRMATION_SCHEMA_VERSION,
         "kind": HEALTH_CHECK_ARCHIVE_CONFIRMATION_KIND,
         "contract": _scheduled_health_contract(),
@@ -167,7 +145,7 @@ def scheduled_archive_confirmation_payload(expert_name: str, candidates: list[An
 
 
 def scheduled_archive_overlap_payload(expert_name: str) -> dict[str, Any]:
-    payload = {
+    payload: dict[str, Any] = {
         "schema_version": HEALTH_CHECK_ARCHIVE_CONFIRMATION_SCHEMA_VERSION,
         "kind": HEALTH_CHECK_ARCHIVE_CONFIRMATION_KIND,
         "contract": _scheduled_health_contract(),

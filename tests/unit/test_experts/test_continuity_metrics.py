@@ -89,6 +89,26 @@ class TestContradictionSurfacing:
         assert m.detail["recorded_pairs"] == 1
         assert m.detail["surfaced_pairs"] == 1
 
+        # A perfect surfacing score means the read view reproduced the stored
+        # edge. It does not make the unverified edge semantically correct.
+        verification = _metric(measure_continuity(store), "contradiction_verification_coverage")
+        assert verification.score == 0.0
+        assert verification.detail["model_confirmed_pairs"] == 0
+        assert "not model accuracy" in verification.detail["semantic_scope"]
+
+    def test_twice_confirmed_contradiction_has_verification_coverage(self, tmp_path):
+        store = _store(tmp_path)
+        a = _belief("X is true")
+        store.add_belief(a, check_conflicts=False)
+        b = _belief("X is false", confidence=0.9)
+        store.add_contested_belief(b, [a], verification="model_confirmed")
+
+        m = _metric(measure_continuity(store), "contradiction_verification_coverage")
+
+        assert m.score == 1.0
+        assert m.detail["model_confirmed_pairs"] == 1
+        assert m.detail["unverified_pairs"] == []
+
     def test_edge_only_contradiction_not_surfaced_is_caught(self, tmp_path):
         # A contradicts edge with no mirrored contradictions_with: recorded
         # ground truth includes it, but the contested view (which reads
@@ -282,6 +302,6 @@ class TestReport:
         d = measure_continuity(store, expert_name="Named").to_dict()
         assert d["expert_name"] == "Named"
         assert "overall" in d
-        assert len(d["metrics"]) == 6
+        assert len(d["metrics"]) == 7
         for metric in d["metrics"]:
             assert metric["status"] in ("measured", "not_applicable")

@@ -212,5 +212,32 @@ class ResearchReservationStore:
             ).fetchone()
         return row is not None
 
+    def is_active_for_job(
+        self,
+        *,
+        reservation_id: str,
+        job_id: str,
+        reserved_cost: float,
+    ) -> bool:
+        """Return whether an exact job-owned hold is active.
+
+        Dispatch must bind all three durable identifiers. Checking only the
+        reservation ID could let stale or corrupted queue metadata borrow an
+        unrelated job's active hold.
+        """
+        with self._connect() as connection:
+            row = connection.execute(
+                """
+                SELECT 1
+                FROM research_cost_reservations
+                WHERE reservation_id = ?
+                  AND job_id = ?
+                  AND reserved_cost = ?
+                  AND state = 'active'
+                """,
+                (reservation_id, job_id, reserved_cost),
+            ).fetchone()
+        return row is not None
+
 
 __all__ = ["ActiveResearchReservation", "ResearchReservationLimitExceeded", "ResearchReservationStore"]

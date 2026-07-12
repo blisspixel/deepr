@@ -39,6 +39,26 @@ The first loop should have four pieces:
 The gate is the product boundary. A model can propose completion, but the loop
 only closes when the verifier and workflow state agree.
 
+### Sync dispatch snapshots
+
+Non-dry single-expert sync writes a `running` snapshot after acquiring the per-expert overlap
+lock and before maintenance-engine construction or model dispatch. Completion
+or caught execution failure appends a second snapshot with the same `run_id`,
+so the append-only store presents one evolving run rather than two attempts. A
+hard process termination cannot append a final transition, but the durable
+`running` snapshot remains visible to loop-status and recovery tooling instead
+of leaving artifacts with no run record. Dry runs remain write-free, and a
+failed RUNNING write blocks dispatch because untracked autonomous work is not an
+acceptable degradation.
+
+Sync-all applies the same snapshot rule inside each already overlap-locked
+per-expert attempt: RUNNING is durable before engine construction, and the
+completion or caught-failure snapshot reuses that run id. When an exception
+exposes a settled non-negative `actual_cost`, `total_cost`, or `budget_spent`,
+the failed snapshot preserves the greatest known amount instead of resetting
+spend to zero, and sync-all carries that amount into its failed summary and
+roster total. Exception text remains out of durable failure metadata.
+
 ## Autonomy ladder
 
 Deepr should build from the smallest reliable loop upward:
@@ -129,8 +149,9 @@ generated-artifact regeneration invariant.
 1. Define the `ExpertLoopRun` schema, typed stop reasons, and append-only run
    storage.
 2. Add `deepr expert loop-status NAME` plus the MCP read tool.
-3. Instrument existing sync, absorb, reflection, and health-check actions as
-   loop attempts without changing behavior.
+3. Instrument existing sync, absorb, reflection, and explicit health-check
+   archive mutation or wait actions as loop attempts without changing behavior.
+   Audit-only health reads remain state-free and return plans, not loop runs.
 4. Add verifier adapters for continuity, gap closure, contradiction state,
    citation freshness, and budget/capacity eligibility.
 5. Turn one existing advisory surface into a closed goal loop behind the

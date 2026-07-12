@@ -2,8 +2,8 @@
 
 One glance at every supported CLI: is it installed, what auth mode would it run
 in, may Deepr auto-route to it, and what is the latest *observed* quota state
-(active / exhausted / quarantined / unobserved) - with a reset time when the
-vendor's exhaustion message gave us one. Derived purely from detection (PATH),
+(active / attempt_failed / exhausted / quarantined / unobserved) - with a reset
+time when the vendor's exhaustion message gave us one. Derived purely from detection (PATH),
 the deterministic auth-mode gate, and the append-only quota ledger; it never runs
 a CLI and never spends. "Unobserved" and a blank reset are honest: Deepr only
 knows what it has seen, and vendors do not expose remaining quota reliably.
@@ -24,7 +24,8 @@ from deepr.backends.quota_ledger import QuotaEventType, QuotaState, summarize_qu
 FLEET_SCHEMA_VERSION = "deepr-plan-fleet-v1"
 FLEET_KIND = "deepr.capacity.fleet"
 
-_TERMINAL_STATUS = {
+_EVENT_STATUS = {
+    QuotaEventType.ATTEMPT_OBSERVED: "attempt_failed",
     QuotaEventType.EXHAUSTED: "exhausted",
     QuotaEventType.QUARANTINED: "quarantined",
 }
@@ -61,7 +62,7 @@ def build_fleet_status(
         installed = which(adapter.exe) is not None
         state = states.get(adapter.backend_id)
         event = state.latest_event if state else None
-        status = "unobserved" if event is None else _TERMINAL_STATUS.get(event.event_type, "active")
+        status = "unobserved" if event is None else _EVENT_STATUS.get(event.event_type, "active")
         raw_auth_mode = detect_auth_mode(adapter, resolved_env).value if installed else None
         auth_mode = evaluate_plan_quota_safety(adapter, env=resolved_env).auth_mode.value if installed else None
         rows.append(

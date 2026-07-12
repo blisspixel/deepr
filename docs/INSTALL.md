@@ -4,9 +4,31 @@ Complete installation guide for Deepr on Linux, macOS, and Windows.
 
 ## Quick Install (5 minutes)
 
-**Deepr works on Windows, macOS, and Linux** (Python 3.12+). The package on PyPI is `deepr-research`; the CLI command is `deepr`.
+**Deepr works on Windows, macOS, and Linux** (Python 3.12+). The distribution
+package is named `deepr-research`; the CLI command is `deepr`. Public packages
+currently ship as verified GitHub release assets. PyPI publication is not yet
+enabled.
 
-### Recommended: virtual environment (avoids Windows PATH surprises)
+### Recommended release install
+
+**Windows PowerShell:**
+
+```powershell
+powershell -ExecutionPolicy ByPass -c "irm https://raw.githubusercontent.com/blisspixel/deepr/main/scripts/install.ps1 | iex"
+```
+
+**Linux / macOS:**
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/blisspixel/deepr/main/scripts/install.sh | bash
+```
+
+The installers resolve the latest supported wheel from GitHub Releases and
+install it in an isolated pipx environment. They exit without changing an
+existing Deepr installation when GitHub is unreachable or the latest release
+does not contain a supported wheel.
+
+### Development or source install
 
 **Linux / macOS:**
 ```bash
@@ -44,23 +66,17 @@ deepr --version
 
 ```bash
 pipx install -e .
-# later from PyPI: pipx install deepr-research
 ```
 
-### Bare / fast path (works if you previously fixed the user PATH)
+### Bare / fast path
 
 ```powershell
 pip install -e .
 ```
 
-**Windows note:** Bare installs with a global Python often put the CLI in `%APPDATA%\Python\Python312\Scripts`, which may not be on PATH. The venv/pipx recommendations above are strongly preferred. recon-tool (for native domain intel in experts) is **optional** - `deepr doctor` will suggest it when useful, but it is not a required dependency.
-
-
-```powershell
-pip install -e .
-```
-
-**Windows note (common gotcha):** A bare `pip install` with a global Python (e.g. `C:\Program Files\Python...`) without admin rights puts scripts in your user `%APPDATA%\Python\Python312\Scripts`. That folder is often missing from `PATH`, so `deepr` won't be found even though the package installed. The venv or pipx path above is the reliable fix. (We now document this pattern across projects.)
+**Windows note:** A bare install with a global Python often puts the CLI in
+`%APPDATA%\Python\Python312\Scripts`, which may not be on `PATH`. The virtual
+environment or pipx paths above are preferred.
 
 **Note on optional recon-tool:** `deepr doctor` may suggest `pip install -U recon-tool` for enhanced native domain intelligence in experts. This is **optional** - not a hard dependency. It adds passive DNS recon when available.
 
@@ -135,12 +151,18 @@ That's it! You're ready to use Deepr.
 
 ## Advanced Installation
 
-### From PyPI
+### From a GitHub release
 
 ```bash
-pip install deepr-research
+# Download the wheel for the selected release, then install it locally.
+python -m pip install ./deepr_research-2.35.0-py3-none-any.whl
 deepr --version
 ```
+
+Release assets are published at
+<https://github.com/blisspixel/deepr/releases>. Verify the release tag and the
+asset checksum shown by GitHub before installation. PyPI publication is a
+separate future release channel and is not currently available.
 
 ### Development Installation (recommended)
 
@@ -192,10 +214,12 @@ DEEPR_MAX_COST_PER_MONTH=1000.0     # Monthly spending limit
 # Features
 DEEPR_AUTO_REFINE=false             # Auto-optimize prompts before submission
 DEEPR_AUTO_EVAL=false               # Explicit opt-in to cost-capped model evals
+SCRAPE_MAX_RESPONSE_BYTES=8388608   # Decompressed HTTP body ceiling per page
 
 # Storage
-DEEPR_RESULTS_DIR=data/reports      # Where reports are saved
-DEEPR_QUEUE_DB=queue/research_queue.db  # Job queue database
+DEEPR_DATA_DIR=data                 # Runtime root, including data/queue/research_queue.db
+DEEPR_REPORTS_PATH=data/reports     # Separate report root
+# DEEPR_QUEUE_DB_PATH=queue/research_queue.db  # Optional explicit queue override
 ```
 
 ### Recommended Provider Setup

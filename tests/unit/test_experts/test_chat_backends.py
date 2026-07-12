@@ -3,9 +3,11 @@
 from __future__ import annotations
 
 from types import SimpleNamespace
+from unittest.mock import MagicMock
 
 import pytest
 
+from deepr.experts import chat_api_backends
 from deepr.experts.chat_backends import (
     AnthropicExpertChatBackend,
     ExpertChatRequest,
@@ -36,6 +38,40 @@ class RecordingChatBackend:
 
     def stream(self, request: ExpertChatRequest):
         raise AssertionError("stream should not be called")
+
+
+def test_openai_chat_client_disables_hidden_sdk_retries(monkeypatch):
+    client = SimpleNamespace()
+    constructor = MagicMock(return_value=client)
+    monkeypatch.setenv("OPENAI_API_KEY", "sk-test")
+    monkeypatch.setattr(chat_api_backends, "AsyncOpenAI", constructor)
+
+    provider, model, built_client, _backend = chat_api_backends.build_api_expert_chat_backend(
+        provider="openai",
+        model="gpt-5.2",
+        expert_model="qwen3:latest",
+        agentic=True,
+    )
+
+    assert (provider, model, built_client) == ("openai", "gpt-5.2", client)
+    constructor.assert_called_once_with(api_key="sk-test", max_retries=0)
+
+
+def test_anthropic_chat_client_disables_hidden_sdk_retries(monkeypatch):
+    client = SimpleNamespace()
+    constructor = MagicMock(return_value=client)
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-ant-test")
+    monkeypatch.setattr(chat_api_backends, "AsyncAnthropic", constructor)
+
+    provider, model, built_client, _backend = chat_api_backends.build_api_expert_chat_backend(
+        provider="anthropic",
+        model="claude-sonnet-5",
+        expert_model="qwen3:latest",
+        agentic=False,
+    )
+
+    assert (provider, model, built_client) == ("anthropic", "claude-sonnet-5", client)
+    constructor.assert_called_once_with(api_key="sk-ant-test", max_retries=0)
 
 
 @pytest.mark.asyncio

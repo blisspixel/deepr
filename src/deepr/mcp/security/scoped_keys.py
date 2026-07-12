@@ -30,12 +30,13 @@ _BUDGET_ARGUMENT_TOOLS = frozenset(
     {
         "deepr_agentic_research",
         "deepr_consult_experts",
+        "deepr_expert_absorb",
         "deepr_query_expert",
         "deepr_research",
     }
 )
 _FIXED_TOOL_COST_ESTIMATES_USD = {
-    "deepr_expert_absorb": 0.03,
+    "deepr_expert_absorb": 0.10,
     "deepr_expert_validate": 0.02,
     "deepr_reflect": 0.02,
 }

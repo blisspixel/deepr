@@ -14,7 +14,7 @@ from __future__ import annotations
 
 import json
 from types import SimpleNamespace
-from unittest.mock import MagicMock
+from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
@@ -23,8 +23,11 @@ from deepr.experts.maker_checker import CheckAssurance, CheckVerdict
 from deepr.experts.report_absorber import (
     AbsorptionResult,
     ReportAbsorber,
+    ReportAbsorberCostError,
     ReportAbsorberError,
 )
+from deepr.experts.research_reservation_store import ResearchReservationStore
+from deepr.observability.cost_ledger import CostLedger
 
 
 class _FakeClient:
@@ -55,31 +58,81 @@ class _SeqClient:
     subsequent calls return the contradiction-verdict word, so the two-stage
     contradiction gate (extract, then entailment verdict) can be exercised."""
 
-    def __init__(self, extraction_json: str, verdict: str):
-        self._extraction = extraction_json
-        self._verdict = verdict
+    def __init__(self, extraction_json: str, verdict: str, *later: str):
+        self._responses = [extraction_json, verdict, *later]
         self._calls = 0
+        self.requests: list[dict] = []
         self.chat = SimpleNamespace(completions=SimpleNamespace(create=self._create))
 
     async def _create(self, **kwargs):
+        self.requests.append(kwargs)
+        index = min(self._calls, len(self._responses) - 1)
         self._calls += 1
-        content = self._extraction if self._calls == 1 else self._verdict
+        content = self._responses[index]
         return SimpleNamespace(choices=[SimpleNamespace(message=SimpleNamespace(content=content))])
+
+
+class _UsageSeqClient:
+    """Sequential fake whose responses include provider-style token usage."""
+
+    def __init__(self, *contents: str):
+        self._contents = list(contents)
+        self._calls = 0
+        self.requests: list[dict] = []
+        self.chat = SimpleNamespace(completions=SimpleNamespace(create=self._create))
+
+    async def _create(self, **kwargs):
+        self.requests.append(kwargs)
+        content = self._contents[self._calls]
+        self._calls += 1
+        return SimpleNamespace(
+            choices=[SimpleNamespace(message=SimpleNamespace(content=content))],
+            usage=SimpleNamespace(prompt_tokens=100, completion_tokens=50),
+        )
 
 
 def _claims_json(*claims: dict) -> str:
     return json.dumps({"claims": list(claims)})
 
 
+def _confirmed_contradiction_json(a: str = "A", b: str = "not A") -> str:
+    return json.dumps(
+        {
+            "verdict": "contradiction",
+            "same_scope": True,
+            "incompatible_propositions": [a, b],
+            "compatible_reading": "",
+        }
+    )
+
+
+def _compatible_json(reading: str = "Both statements describe the same compatible position.") -> str:
+    return json.dumps(
+        {
+            "verdict": "compatible",
+            "same_scope": False,
+            "incompatible_propositions": [],
+            "compatible_reading": reading,
+        }
+    )
+
+
 def _expert():
     return SimpleNamespace(name="Test Expert", domain="ai")
 
 
-def _absorber(content: str, tmp_path, *, beliefs: list[Belief] | None = None) -> ReportAbsorber:
+def _absorber(
+    content: str,
+    tmp_path,
+    *,
+    beliefs: list[Belief] | None = None,
+    contradiction_responses: tuple[str, ...] = (),
+) -> ReportAbsorber:
     store = BeliefStore("Test Expert", storage_dir=tmp_path / "beliefs")
     for b in beliefs or []:
         store.add_belief(b, check_conflicts=False)
-    return ReportAbsorber(_expert(), client=_FakeClient(content), belief_store=store)
+    client = _SeqClient(content, *contradiction_responses) if contradiction_responses else _FakeClient(content)
+    return ReportAbsorber(_expert(), client=client, belief_store=store, estimated_cost=0.0)
 
 
 @pytest.mark.asyncio
@@ -138,6 +191,103 @@ async def test_absorbs_strong_claim_with_provenance(tmp_path):
 
 
 @pytest.mark.asyncio
+async def test_source_ref_catalog_records_only_model_selected_replay_pointer(tmp_path):
+    content = _claims_json(
+        {
+            "statement": "Model X changed its release policy",
+            "confidence": 0.9,
+            "evidence": ["The release policy changed."],
+            "source_refs": ["[S2]"],
+        }
+    )
+    store = BeliefStore("Test Expert", storage_dir=tmp_path / "beliefs")
+    client = _CapturingClient(content)
+    absorber = ReportAbsorber(_expert(), client=client, belief_store=store, estimated_cost=0.0)
+
+    result = await absorber.absorb(
+        "learn_web_artifacts/reports/run.json",
+        "Fact [S2].\n\n[S1] A\n[S2] B",
+        source_ref_catalog={
+            "S1": "source_note:sn_a:sn_a:w0",
+            "S2": "source_note:sn_b:sn_b:w0",
+        },
+    )
+
+    assert result.added_count == 1
+    stored = next(iter(store.beliefs.values()))
+    assert stored.evidence_refs == ["source_note:sn_b:sn_b:w0", "The release policy changed."]
+    assert "source_note:sn_a:sn_a:w0" not in stored.evidence_refs
+    assert not any(ref.startswith("report:") for ref in stored.evidence_refs)
+    extraction_prompt = client.calls[0]["messages"][-1]["content"]
+    assert '"S1": "source_note:sn_a:sn_a:w0"' in extraction_prompt
+    assert "Do not attach every label by default" in extraction_prompt
+
+
+@pytest.mark.asyncio
+async def test_source_ref_catalog_accepts_exact_catalog_value(tmp_path):
+    replay_ref = "source_note:sn_b:sn_b:w0"
+    content = _claims_json(
+        {
+            "statement": "Model X changed its release policy",
+            "confidence": 0.9,
+            "evidence": ["The release policy changed [S1]."],
+            "source_refs": [replay_ref],
+        }
+    )
+    absorber = _absorber(content, tmp_path)
+
+    result = await absorber.absorb(
+        "durable-report.json",
+        "The release policy changed [S1].",
+        source_ref_catalog={"S1": replay_ref},
+    )
+
+    assert result.added_count == 1
+    stored = next(iter(absorber.belief_store.beliefs.values()))
+    assert stored.evidence_refs[0] == replay_ref
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "source_refs",
+    [[], ["S9"], ["Source S1"], ["[[S1]]"], ["source_note:sn_unknown:sn_unknown:w0"]],
+)
+async def test_source_ref_catalog_rejects_claim_without_valid_selected_pointer(tmp_path, source_refs):
+    content = _claims_json(
+        {
+            "statement": "An unsupported candidate",
+            "confidence": 0.9,
+            "evidence": ["supporting prose [S1]"],
+            "source_refs": source_refs,
+        }
+    )
+    absorber = _absorber(content, tmp_path)
+
+    result = await absorber.absorb(
+        "durable-report.json",
+        "report body",
+        source_ref_catalog={"S1": "source_note:sn_a:sn_a:w0"},
+    )
+
+    assert result.added_count == 0
+    assert result.rejected[0].reason == "missing_replayable_provenance"
+    assert absorber.belief_store.beliefs == {}
+
+
+@pytest.mark.asyncio
+async def test_invalid_source_ref_catalog_fails_before_model_dispatch(tmp_path):
+    content = _claims_json({"statement": "unused", "confidence": 0.9, "source_refs": ["S1"]})
+    store = BeliefStore("Test Expert", storage_dir=tmp_path / "beliefs")
+    client = _CapturingClient(content)
+    absorber = ReportAbsorber(_expert(), client=client, belief_store=store, estimated_cost=0.0)
+
+    with pytest.raises(ReportAbsorberError, match="compact replay refs"):
+        await absorber.absorb("report", "body", source_ref_catalog={"S1": "not a compact pointer"})
+
+    assert client.calls == []
+
+
+@pytest.mark.asyncio
 async def test_string_evidence_is_preserved_as_one_excerpt(tmp_path):
     quote = "The report states that model X leads on benchmark Y."
     content = _claims_json({"statement": "Model X leads on benchmark Y", "confidence": 0.95, "evidence": quote})
@@ -178,11 +328,209 @@ async def test_absorber_uses_injected_cost_estimate(tmp_path):
 
 
 @pytest.mark.asyncio
+async def test_metered_absorb_reserves_and_ledgers_each_semantic_call(tmp_path):
+    existing_conflict = Belief(claim="The system is memory safe by default", confidence=0.9, domain="ai")
+    existing_similar = Belief(claim="GPT-5 costs $10 per million tokens", confidence=0.9, domain="ai")
+    extraction = _claims_json(
+        {
+            "statement": "The system is not memory safe by default",
+            "confidence": 0.9,
+            "evidence": ["security section"],
+        },
+        {
+            "statement": "GPT-5 costs $30 per million tokens",
+            "confidence": 0.9,
+            "evidence": ["pricing table"],
+        },
+    )
+    store = BeliefStore("Test Expert", storage_dir=tmp_path / "beliefs")
+    store.add_belief(existing_conflict, check_conflicts=False)
+    store.add_belief(existing_similar, check_conflicts=False)
+    client = _UsageSeqClient(extraction, "YES", _confirmed_contradiction_json(), "DIFFERENT")
+    absorber = ReportAbsorber(_expert(), client=client, belief_store=store)
+
+    result = await absorber.absorb("rep-metered", "report body", budget=0.10)
+
+    events = CostLedger().get_events()
+    assert [event.source for event in events] == [
+        "expert_absorb.extraction",
+        "expert_absorb.contradiction",
+        "expert_absorb.contradiction_confirmation",
+        "expert_absorb.dedup",
+    ]
+    assert all(event.provider == "openai" and event.model == "gpt-5-mini" for event in events)
+    assert all(event.idempotency_key.startswith("job:expert-absorb-") for event in events)
+    assert result.actual_cost == pytest.approx(sum(event.cost_usd for event in events))
+    assert result.to_dict()["actual_cost"] == pytest.approx(result.actual_cost)
+    assert result.budget == pytest.approx(0.10)
+    assert [request["max_completion_tokens"] for request in client.requests] == [8192, 16, 384, 16]
+    assert ResearchReservationStore().active_cost() == 0.0
+
+
+@pytest.mark.asyncio
+async def test_metered_run_ceiling_blocks_dynamic_call_before_dispatch(tmp_path):
+    existing = Belief(claim="The system is memory safe by default", confidence=0.9, domain="ai")
+    extraction = _claims_json(
+        {"statement": "The system is not memory safe by default", "confidence": 0.9, "evidence": []}
+    )
+    store = BeliefStore("Test Expert", storage_dir=tmp_path / "beliefs")
+    store.add_belief(existing, check_conflicts=False)
+    client = _UsageSeqClient(extraction, "YES")
+    absorber = ReportAbsorber(_expert(), client=client, belief_store=store)
+
+    with pytest.raises(ReportAbsorberCostError, match="contradiction blocked by run budget") as caught:
+        await absorber.absorb("rep-capped", "report body", budget=0.03)
+
+    assert client._calls == 1
+    events = CostLedger().get_events()
+    assert [event.source for event in events] == ["expert_absorb.extraction"]
+    assert caught.value.actual_cost == pytest.approx(events[0].cost_usd)
+    assert set(store.beliefs) == {existing.id}
+
+
+@pytest.mark.asyncio
+async def test_metered_request_derives_provider_output_cap_inside_call_ceiling(tmp_path):
+    client = _CapturingClient(_claims_json())
+    store = BeliefStore("Test Expert", storage_dir=tmp_path / "beliefs")
+    absorber = ReportAbsorber(_expert(), client=client, belief_store=store)
+
+    result = await absorber.absorb("rep-bounded", "x" * 90_000, budget=0.03)
+
+    output_cap = client.calls[0]["max_completion_tokens"]
+    assert 0 < output_cap < 8192
+    assert result.actual_cost == pytest.approx(0.03)
+
+
+@pytest.mark.asyncio
+async def test_metered_input_that_cannot_fit_call_ceiling_fails_before_dispatch(tmp_path):
+    client = _CapturingClient(_claims_json())
+    store = BeliefStore("Test Expert", storage_dir=tmp_path / "beliefs")
+    absorber = ReportAbsorber(_expert(), client=client, belief_store=store)
+
+    with pytest.raises(ReportAbsorberCostError, match="leaves no output token"):
+        await absorber.absorb("rep-too-large", "x" * 200_000, budget=0.10)
+
+    assert client.calls == []
+    assert CostLedger().get_events() == []
+
+
+@pytest.mark.asyncio
+async def test_metered_unknown_model_fails_before_dispatch(tmp_path):
+    client = _CapturingClient(_claims_json())
+    store = BeliefStore("Test Expert", storage_dir=tmp_path / "beliefs")
+    absorber = ReportAbsorber(_expert(), client=client, model="unknown-paid-model", belief_store=store)
+
+    with pytest.raises(ReportAbsorberCostError, match="no exact OpenAI pricing contract"):
+        await absorber.absorb("rep-unknown-model", "report body", budget=0.10)
+
+    assert client.calls == []
+    assert CostLedger().get_events() == []
+
+
+@pytest.mark.asyncio
+async def test_ambiguous_extraction_failure_surfaces_settled_cost(tmp_path):
+    create = AsyncMock(side_effect=TimeoutError("response lost"))
+    client = SimpleNamespace(chat=SimpleNamespace(completions=SimpleNamespace(create=create)))
+    store = BeliefStore("Test Expert", storage_dir=tmp_path / "beliefs")
+    absorber = ReportAbsorber(_expert(), client=client, belief_store=store)
+
+    with pytest.raises(ReportAbsorberCostError, match="settled provider spend") as caught:
+        await absorber.absorb("rep-timeout", "report body", budget=0.10)
+
+    assert caught.value.actual_cost == pytest.approx(0.03)
+    assert CostLedger().get_events()[0].cost_usd == pytest.approx(0.03)
+    assert store.beliefs == {}
+
+
+@pytest.mark.asyncio
+async def test_adjudication_shares_run_ceiling_and_exact_cost_total(tmp_path):
+    existing = Belief(claim="The system is memory safe by default", confidence=0.9, domain="ai")
+    extraction = _claims_json(
+        {"statement": "The system is not memory safe by default", "confidence": 0.9, "evidence": []}
+    )
+    resolution = json.dumps({"winner": "unclear", "explanation": "needs current evidence"})
+    store = BeliefStore("Test Expert", storage_dir=tmp_path / "beliefs")
+    store.add_belief(existing, check_conflicts=False)
+    client = _UsageSeqClient(extraction, "YES", _confirmed_contradiction_json(), resolution)
+    absorber = ReportAbsorber(_expert(), client=client, belief_store=store)
+
+    result = await absorber.absorb("rep-adjudicated", "report body", adjudicate=True, budget=0.20)
+
+    events = CostLedger().get_events()
+    assert [event.source for event in events] == [
+        "expert_absorb.extraction",
+        "expert_absorb.contradiction",
+        "expert_absorb.contradiction_confirmation",
+        "expert_absorb.adjudication",
+    ]
+    assert result.actual_cost == pytest.approx(sum(event.cost_usd for event in events))
+    assert result.flagged[0].resolution == "needs_human_review"
+
+
+@pytest.mark.asyncio
+async def test_adjudication_budget_failure_does_not_write_contested_belief(tmp_path):
+    existing = Belief(claim="The system is memory safe by default", confidence=0.9, domain="ai")
+    extraction = _claims_json(
+        {"statement": "The system is not memory safe by default", "confidence": 0.9, "evidence": []}
+    )
+    store = BeliefStore("Test Expert", storage_dir=tmp_path / "beliefs")
+    store.add_belief(existing, check_conflicts=False)
+    client = _UsageSeqClient(extraction, "YES", _confirmed_contradiction_json(), "unused")
+    absorber = ReportAbsorber(_expert(), client=client, belief_store=store)
+
+    with pytest.raises(ReportAbsorberCostError, match="adjudication blocked by run budget"):
+        await absorber.absorb("rep-adjudication-capped", "report body", adjudicate=True, budget=0.05)
+
+    assert client._calls == 3
+    assert set(store.beliefs) == {existing.id}
+
+
+@pytest.mark.asyncio
+async def test_zero_cost_absorber_bypasses_metered_reservations(tmp_path, monkeypatch):
+    content = _claims_json({"statement": "Local extraction stays free", "confidence": 0.9})
+    store = BeliefStore("Test Expert", storage_dir=tmp_path / "beliefs")
+    metered = AsyncMock(side_effect=AssertionError("metered path must not run"))
+    monkeypatch.setattr("deepr.services.metered_call.execute_reserved_async_call", metered)
+    absorber = ReportAbsorber(_expert(), client=_FakeClient(content), belief_store=store, estimated_cost=0.0)
+
+    result = await absorber.absorb("rep-local", "report body")
+
+    assert result.added_count == 1
+    metered.assert_not_awaited()
+    assert CostLedger().get_events() == []
+
+
+@pytest.mark.asyncio
+async def test_verdict_accounting_failure_aborts_absorption(tmp_path, monkeypatch):
+    from deepr.services.metered_call import MeteredCallAccountingError
+
+    existing = Belief(claim="The system is memory safe by default", confidence=0.9, domain="ai")
+    extraction = _claims_json(
+        {"statement": "The system is not memory safe by default", "confidence": 0.9, "evidence": []}
+    )
+    store = BeliefStore("Test Expert", storage_dir=tmp_path / "beliefs")
+    store.add_belief(existing, check_conflicts=False)
+    completion = SimpleNamespace(
+        choices=[SimpleNamespace(message=SimpleNamespace(content=extraction))],
+        usage=SimpleNamespace(prompt_tokens=10, completion_tokens=5),
+    )
+    reserved_call = AsyncMock(side_effect=[completion, MeteredCallAccountingError("ledger unavailable")])
+    monkeypatch.setattr("deepr.services.metered_call.execute_reserved_async_call", reserved_call)
+    absorber = ReportAbsorber(_expert(), client=_FakeClient(extraction), belief_store=store)
+
+    with pytest.raises(ReportAbsorberCostError, match="contradiction blocked by cost safety"):
+        await absorber.absorb("rep-accounting", "report body")
+
+    assert set(store.beliefs) == {existing.id}
+    assert reserved_call.await_count == 2
+
+
+@pytest.mark.asyncio
 async def test_extraction_prompt_quarantines_untrusted_report_text(tmp_path):
     content = _claims_json({"statement": "Grounded fact remains", "confidence": 0.9, "evidence": ["section"]})
     client = _CapturingClient(content)
     store = BeliefStore("Test Expert", storage_dir=tmp_path / "beliefs")
-    absorber = ReportAbsorber(_expert(), client=client, belief_store=store)
+    absorber = ReportAbsorber(_expert(), client=client, belief_store=store, estimated_cost=0.0)
 
     await absorber.absorb(
         "rep-123",
@@ -241,7 +589,12 @@ async def test_contradicting_claim_flagged_as_contested(tmp_path):
     """
     existing = Belief(claim="The system is memory safe by default", confidence=0.9, domain="ai")
     content = _claims_json({"statement": "The system is not memory safe by default", "confidence": 0.9, "evidence": []})
-    absorber = _absorber(content, tmp_path, beliefs=[existing])
+    absorber = _absorber(
+        content,
+        tmp_path,
+        beliefs=[existing],
+        contradiction_responses=("YES", _confirmed_contradiction_json()),
+    )
     result = await absorber.absorb("rep1", "body")
 
     assert result.absorbed == []
@@ -274,7 +627,12 @@ async def test_flagged_contradiction_never_overwrites_existing(tmp_path):
     content = _claims_json(
         {"statement": "The system is not memory safe by default", "confidence": 0.95, "evidence": []}
     )
-    absorber = _absorber(content, tmp_path, beliefs=[existing])
+    absorber = _absorber(
+        content,
+        tmp_path,
+        beliefs=[existing],
+        contradiction_responses=("YES", _confirmed_contradiction_json()),
+    )
     result = await absorber.absorb("rep1", "body")
 
     assert len(result.flagged) == 1
@@ -288,7 +646,12 @@ async def test_flagged_contradiction_never_overwrites_existing(tmp_path):
 async def test_contradiction_dry_run_flags_without_writing(tmp_path):
     existing = Belief(claim="The system is memory safe by default", confidence=0.9, domain="ai")
     content = _claims_json({"statement": "The system is not memory safe by default", "confidence": 0.9, "evidence": []})
-    absorber = _absorber(content, tmp_path, beliefs=[existing])
+    absorber = _absorber(
+        content,
+        tmp_path,
+        beliefs=[existing],
+        contradiction_responses=("YES", _confirmed_contradiction_json()),
+    )
     result = await absorber.absorb("rep1", "body", dry_run=True)
 
     assert len(result.flagged) == 1
@@ -302,7 +665,12 @@ async def test_contradiction_dry_run_flags_without_writing(tmp_path):
 async def test_contradicting_claim_rejected_with_legacy_flag_off(tmp_path):
     existing = Belief(claim="The system is memory safe by default", confidence=0.9, domain="ai")
     content = _claims_json({"statement": "The system is not memory safe by default", "confidence": 0.9, "evidence": []})
-    absorber = _absorber(content, tmp_path, beliefs=[existing])
+    absorber = _absorber(
+        content,
+        tmp_path,
+        beliefs=[existing],
+        contradiction_responses=("YES", _confirmed_contradiction_json()),
+    )
     result = await absorber.absorb("rep1", "body", flag_contradictions=False)
 
     assert result.absorbed == []
@@ -330,7 +698,12 @@ async def test_adjudication_verdict_recorded_but_never_applied(tmp_path, monkeyp
 
     existing = Belief(claim="The system is memory safe by default", confidence=0.9, domain="ai")
     content = _claims_json({"statement": "The system is not memory safe by default", "confidence": 0.9, "evidence": []})
-    absorber = _absorber(content, tmp_path, beliefs=[existing])
+    absorber = _absorber(
+        content,
+        tmp_path,
+        beliefs=[existing],
+        contradiction_responses=("YES", _confirmed_contradiction_json()),
+    )
     result = await absorber.absorb("rep1", "body", adjudicate=True)
 
     flag = result.flagged[0]
@@ -344,7 +717,12 @@ async def test_adjudication_verdict_recorded_but_never_applied(tmp_path, monkeyp
 async def test_flagged_contradiction_serializes(tmp_path):
     existing = Belief(claim="The system is memory safe by default", confidence=0.9, domain="ai")
     content = _claims_json({"statement": "The system is not memory safe by default", "confidence": 0.9, "evidence": []})
-    absorber = _absorber(content, tmp_path, beliefs=[existing])
+    absorber = _absorber(
+        content,
+        tmp_path,
+        beliefs=[existing],
+        contradiction_responses=("YES", _confirmed_contradiction_json()),
+    )
     result = await absorber.absorb("rep1", "body")
 
     d = result.to_dict()
@@ -410,11 +788,11 @@ async def test_result_serializes(tmp_path):
 
 
 @pytest.mark.asyncio
-async def test_flag_verification_marks_lexical_unverified(tmp_path):
-    """A flag detected by the free heuristic is labeled unverified, not a verdict.
+async def test_ambiguous_verdict_does_not_write_typed_contradiction_edge(tmp_path):
+    """A router hit without a model verdict preserves both claims without an edge.
 
-    The lexical heuristic is a high-recall router; honesty requires the flag to
-    say a model has not confirmed the contradiction
+    The lexical heuristic is a high-recall router; honesty requires it not to
+    mint a semantic graph relation or collapse the two claims through dedup
     (docs/design/checks-deterministic-vs-agentic.md).
     """
     existing = Belief(claim="The system is memory safe by default", confidence=0.9, domain="ai")
@@ -422,8 +800,10 @@ async def test_flag_verification_marks_lexical_unverified(tmp_path):
     absorber = _absorber(content, tmp_path, beliefs=[existing])
     result = await absorber.absorb("rep1", "body")
 
-    assert result.flagged[0].verification == "lexical_unverified"
-    assert result.to_dict()["flagged"][0]["verification"] == "lexical_unverified"
+    assert result.flagged == []
+    assert len(result.absorbed) == 1
+    assert len(absorber.belief_store.beliefs) == 2
+    assert absorber.belief_store.edges_for(existing.id, "contradicts") == []
 
 
 @pytest.mark.asyncio
@@ -441,7 +821,7 @@ async def test_model_refuted_contradiction_is_absorbed_not_flagged(tmp_path):
     )
     store = BeliefStore("Test Expert", storage_dir=tmp_path / "beliefs")
     store.add_belief(existing, check_conflicts=False)
-    absorber = ReportAbsorber(_expert(), client=_SeqClient(content, "NO"), belief_store=store)
+    absorber = ReportAbsorber(_expert(), client=_SeqClient(content, "NO"), belief_store=store, estimated_cost=0.0)
 
     result = await absorber.absorb("rep1", "body")
 
@@ -456,33 +836,74 @@ async def test_model_refuted_contradiction_is_absorbed_not_flagged(tmp_path):
 
 
 @pytest.mark.asyncio
+async def test_dogfood_false_yes_is_refuted_by_fresh_context_confirmation(tmp_path):
+    existing_claim = (
+        "Fitz argues consciousness is a property of collective intelligence emerging from communication between "
+        "agents, differing from the Damasio-derived single-agent self/world-model integration tested by Immertreu et al."
+    )
+    candidate_claim = (
+        "Fitz's central claim is that consciousness is not an epiphenomenon of individual modeling but an emergent "
+        "property of collective intelligence systems that synchronize prediction through communication."
+    )
+    existing = Belief(claim=existing_claim, confidence=0.9, domain="ai")
+    content = _claims_json({"statement": candidate_claim, "confidence": 0.9, "evidence": ["Fitz analysis"]})
+    store = BeliefStore("Test Expert", storage_dir=tmp_path / "beliefs")
+    store.add_belief(existing, check_conflicts=False)
+    client = _SeqClient(
+        content,
+        "YES",
+        _compatible_json("Both claims say collective communication gives rise to consciousness."),
+    )
+    absorber = ReportAbsorber(_expert(), client=client, belief_store=store, estimated_cost=0.0)
+
+    result = await absorber.absorb("rep-dogfood", "report body")
+
+    assert client._calls == 3
+    confirmation_user = client.requests[2]["messages"][1]["content"]
+    assert confirmation_user.index(candidate_claim) < confirmation_user.index(existing_claim)
+    assert "previous verdict" not in confirmation_user.lower()
+    assert result.flagged == []
+    assert result.contradictions_refuted == 1
+    assert {belief.claim for belief in store.beliefs.values()} == {existing_claim, candidate_claim}
+    assert store.edges_for(existing.id, "contradicts") == []
+
+
+@pytest.mark.asyncio
 async def test_model_confirmed_contradiction_is_flagged(tmp_path):
     """A genuine contradiction the model confirms is flagged, marked model_confirmed."""
     existing = Belief(claim="The system is memory safe by default", confidence=0.9, domain="ai")
     content = _claims_json({"statement": "The system is not memory safe by default", "confidence": 0.9, "evidence": []})
     store = BeliefStore("Test Expert", storage_dir=tmp_path / "beliefs")
     store.add_belief(existing, check_conflicts=False)
-    absorber = ReportAbsorber(_expert(), client=_SeqClient(content, "YES"), belief_store=store)
+    absorber = ReportAbsorber(
+        _expert(),
+        client=_SeqClient(content, "YES", _confirmed_contradiction_json()),
+        belief_store=store,
+        estimated_cost=0.0,
+    )
 
     result = await absorber.absorb("rep1", "body")
 
     assert len(result.flagged) == 1
     assert result.flagged[0].verification == "model_confirmed"
+    edge = store.edges_for(existing.id, "contradicts")[0]
+    assert "contradiction_verification:model_confirmed" in edge.provenance
     # Existing belief still untouched (contested path bypasses merge/revision).
     assert store.beliefs[existing.id].claim == existing.claim
 
 
 @pytest.mark.asyncio
-async def test_verify_off_keeps_lexical_only_flagging(tmp_path):
-    """verify_contradictions=False restores the old lexical-only flag."""
+async def test_verify_off_cannot_restore_lexical_only_graph_writes(tmp_path):
+    """Disabling the verifier cannot turn the lexical router into a verdict."""
     existing = Belief(claim="The system is memory safe by default", confidence=0.9, domain="ai")
     content = _claims_json({"statement": "The system is not memory safe by default", "confidence": 0.9, "evidence": []})
     absorber = _absorber(content, tmp_path, beliefs=[existing])
 
     result = await absorber.absorb("rep1", "body", verify_contradictions=False)
 
-    assert len(result.flagged) == 1
-    assert result.flagged[0].verification == "lexical_unverified"
+    assert result.flagged == []
+    assert len(absorber.belief_store.beliefs) == 2
+    assert absorber.belief_store.edges_for(existing.id, "contradicts") == []
 
 
 @pytest.mark.asyncio
@@ -494,7 +915,9 @@ async def test_dedup_keeps_distinct_claims_that_share_words(tmp_path):
     content = _claims_json({"statement": "GPT-5 costs $30 per million tokens", "confidence": 0.9, "evidence": []})
     store = BeliefStore("Test Expert", storage_dir=tmp_path / "beliefs")
     store.add_belief(existing, check_conflicts=False)
-    absorber = ReportAbsorber(_expert(), client=_SeqClient(content, "DIFFERENT"), belief_store=store)
+    absorber = ReportAbsorber(
+        _expert(), client=_SeqClient(content, "DIFFERENT"), belief_store=store, estimated_cost=0.0
+    )
 
     result = await absorber.absorb("rep1", "body")
 
@@ -514,7 +937,7 @@ async def test_dedup_merges_same_claim_after_verdict(tmp_path):
     )
     store = BeliefStore("Test Expert", storage_dir=tmp_path / "beliefs")
     store.add_belief(existing, check_conflicts=False)
-    absorber = ReportAbsorber(_expert(), client=_SeqClient(content, "SAME"), belief_store=store)
+    absorber = ReportAbsorber(_expert(), client=_SeqClient(content, "SAME"), belief_store=store, estimated_cost=0.0)
 
     await absorber.absorb("rep1", "body")
 
@@ -576,7 +999,13 @@ def _checker(verdict: CheckVerdict):
 
 def _grounding_absorber(content, tmp_path, checker):
     store = BeliefStore("Test Expert", storage_dir=tmp_path / "beliefs")
-    return ReportAbsorber(_expert(), client=_FakeClient(content), belief_store=store, grounding_checker=checker)
+    return ReportAbsorber(
+        _expert(),
+        client=_FakeClient(content),
+        belief_store=store,
+        grounding_checker=checker,
+        estimated_cost=0.0,
+    )
 
 
 class TestGroundingCheck:
@@ -678,6 +1107,7 @@ class TestGroundingEscalation:
             belief_store=store,
             grounding_checker=first_checker,
             grounding_escalator=escalator,
+            estimated_cost=0.0,
         )
 
     @pytest.mark.asyncio

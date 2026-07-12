@@ -39,7 +39,11 @@
     },
     "synthesis_error_type": {
       "type": "string",
-      "description": "Error class name when synthesis_status is failed; empty otherwise."
+      "description": "Error class name when synthesis failed or was incomplete; empty otherwise."
+    },
+    "synthesis_stop_reason": {
+      "type": "string",
+      "description": "Provider completion reason when available, including output-limit stops."
     },
     "experts_consulted": {"type": "array", "items": {"type": "string"}},
     "perspectives": {

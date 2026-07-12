@@ -30,6 +30,7 @@ CONSULT_EXPERTS_OUTPUT_SCHEMA: dict[str, Any] = {
         "kind": {"const": consult_core.CONSULT_KIND},
         "synthesis_status": {"type": "string"},
         "synthesis_error_type": {"type": "string"},
+        "synthesis_stop_reason": {"type": "string"},
         "cost_usd": {"type": "number", "minimum": 0},
         "capacity": {
             "type": "object",
@@ -177,19 +178,13 @@ async def consult_experts_tool(
 
     payload = consult_core.build_consult_payload(question, result)
     payload["capacity"] = _capacity_payload(backend_mode, backend)
-    payload["trace"] = record_consult_trace(
+    consult_core.record_consult_payload_trace(
+        payload,
         question=question,
         requested_experts=requested_experts,
         max_experts=max_experts,
         budget=budget,
-        payload=payload,
         result=result,
         capacity=payload["capacity"],
-    )
-    consult_core.attach_collaboration_runtime(
-        payload,
-        result=result,
-        capacity=payload["capacity"],
-        trace=payload["trace"],
     )
     return payload

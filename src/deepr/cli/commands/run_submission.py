@@ -142,6 +142,37 @@ async def create_and_enqueue_job(
     return queued_job_id, job, reservation
 
 
+async def ensure_cli_dispatch_reservation(
+    queue: Any,
+    job_id: str,
+    reservation: ResearchCostReservation,
+    upload_result: Any | None,
+    formatter: OutputFormatter,
+) -> ResearchCostReservation:
+    """Restore the CLI job's durable hold immediately before queue claim."""
+    from deepr.services.research_submission import (
+        ResearchDispatchReservationError,
+        restore_active_queued_reservation,
+    )
+
+    try:
+        _, restored = await restore_active_queued_reservation(
+            queue=queue,
+            job_id=job_id,
+            expected=reservation,
+        )
+    except ResearchDispatchReservationError as exc:
+        if not exc.retryable:
+            await rollback_prepared_submission(
+                reservation,
+                upload_result,
+                source=f"cli.run.{exc.code}",
+                formatter=formatter,
+            )
+        raise
+    return restored
+
+
 async def rollback_prepared_submission(
     reservation: ResearchCostReservation,
     upload_result: Any | None,
@@ -343,6 +374,7 @@ __all__ = [
     "cleanup_persisted_uploads",
     "create_and_enqueue_job",
     "enqueue_reserved_job",
+    "ensure_cli_dispatch_reservation",
     "handle_immediate_job",
     "recover_provider_tracking_failure",
     "reserve_job_submission",

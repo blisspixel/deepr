@@ -299,7 +299,9 @@ def choose_plan_quota_backend(
 
     Unlike the auto rung, an explicit operator request does not require an
     observed quota window (the operator chose it), but it still passes the
-    deterministic safety gate (auth mode is plan, billing acknowledged).
+    deterministic safety gate. ``allow_metered_at_margin`` remains in the
+    signature for caller compatibility; it cannot override incomplete cost
+    accounting for a metered-at-margin adapter.
     """
     from deepr.backends.plan_quota.adapters import get_adapter
     from deepr.backends.plan_quota.safety import evaluate_plan_quota_safety

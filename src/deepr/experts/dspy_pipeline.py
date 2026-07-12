@@ -339,9 +339,9 @@ class FeedbackCollector:
         self.expert_name = expert_name
 
         if storage_dir is None:
-            from deepr.config import experts_root
+            from deepr.experts.paths import canonical_expert_dir
 
-            storage_dir = experts_root() / expert_name / "feedback"
+            storage_dir = canonical_expert_dir(expert_name) / "feedback"
         self.storage_dir = storage_dir
         self.storage_dir.mkdir(parents=True, exist_ok=True)
 
@@ -500,9 +500,9 @@ class DSPyOptimizer:
         self.feedback_collector = feedback_collector or FeedbackCollector(expert_name)
 
         if storage_dir is None:
-            from deepr.config import experts_root
+            from deepr.experts.paths import canonical_expert_dir
 
-            storage_dir = experts_root() / expert_name / "dspy"
+            storage_dir = canonical_expert_dir(expert_name) / "dspy"
         self.storage_dir = storage_dir
         self.storage_dir.mkdir(parents=True, exist_ok=True)
 

@@ -3,7 +3,7 @@
 Deepr has three capacity rungs:
 
 1. Local hardware through Ollama.
-2. Explicit plan-quota CLIs the operator already pays for.
+2. Explicit non-metered plan-quota CLIs the operator already pays for.
 3. Metered provider APIs with budget ceilings.
 
 The routing principle is cheapest capable path first, but only when the path is
@@ -40,7 +40,7 @@ does not need that acknowledgement.
 |---|---|---|
 | Local Ollama | `expert make --local`, `expert absorb --local`, `expert sync --local`, `expert sync --local --fresh-context`, `expert sync --local --deep-context`, `eval local`, `eval local-context`, and scored admission | No provider API key required; automatic routing requires measured local quality evidence |
 | Provider APIs | Full research and high-quality synthesis when keys are configured | Premium fallback behind budget ceilings, preflight estimates, reservations, and append-only cost settlement; API-backed expert profile setup previews provider upload/storage posture before provider dispatch |
-| Plan-quota CLIs | Explicit `expert sync --plan <id>`, `expert sync-all --plan <id>`, `expert route-gaps --execute --plan <id>`, `expert absorb --plan <id>`, `expert learn --plan <id>`, `expert learn-web --plan <id>`, `expert consult --plan <id>`, and `capacity probe-plan <id>` | Metered API-key env vars are stripped from child processes, auth mode is checked, metered-at-margin CLI backends are rejected for roster plan dispatch, and automatic routing waits for trusted remaining-quota evidence |
+| Plan-quota CLIs | Explicit `expert sync --plan <id>`, `expert sync-all --plan <id>`, `expert route-gaps --execute --plan <id>`, `expert absorb --plan <id>`, `expert learn --plan <id>`, `expert learn-web --plan <id>`, `expert consult --plan <id>`, and `capacity probe-plan <id>` for non-metered adapters | Metered API-key env vars are stripped from child processes, auth mode is checked, metered-at-margin adapters fail before probe or client construction until full cost accounting exists, and automatic routing waits for trusted remaining-quota evidence |
 | CLI judges | Explicit local eval judging with `--allow-cli-judge`; consult-quality judging through explicit local Ollama, `--plan <id>`, or `--api-provider` | Opt-in only because Deepr cannot prove whether a vendor CLI uses quota, credits, or metered credentials; plan consult-quality judges record `$0` Deepr cost metadata and consume subscription quota; API consult-quality judges require a model, positive budget, cost confirmation, preflight reservation, and ledger settlement |
 
 Expert consult synthesis already supports local and explicit plan capacity.
@@ -115,8 +115,12 @@ deepr expert sync "Platform Team Expert" --local --fresh-context --compile-claim
 builds a bounded multi-query retrieval pack. These paths can fetch explicit
 URLs, use configured SearXNG through `DEEPR_SEARXNG_URL`, or use DuckDuckGo
 when the optional `ddgs` dependency is installed. They do not use Brave, Tavily,
-or other API-key search backends. If no fresh sources are retrieved, Deepr
-records no changes instead of absorbing uncertainty as permanent beliefs.
+or other API-key search backends. Before any local or plan model dispatch,
+search-discovered fresh context must contain at least two content-addressed
+sources, deep context must contain at least three, and an explicit-URL request
+must contain at least one. Under-ready packs are still persisted for diagnosis,
+then return a retryable no-metered failure without a model/plan call or cadence
+advance instead of absorbing uncertainty as permanent beliefs.
 
 Context-bearing sync runs write a source-pack artifact and deterministic
 compiler artifacts under the expert knowledge directory:
@@ -146,10 +150,11 @@ compatibility alias for the default compiled apply behavior and is rejected with
 `--dry-run`.
 On local capacity they cost `$0`;
 on non-metered plan capacity they cost `$0` inside Deepr but consume
-subscription quota. A metered-at-margin plan CLI is explicit-only, shows the run
-budget ceiling and known claim-compilation estimate in the confirmation prompt,
-and must pass the budget and cost-ledger gate before dispatch. Metered API
-capacity uses the same budget and cost-ledger gate. If the source pack cannot
+subscription quota. A metered-at-margin plan CLI remains visible but cannot
+dispatch until its adapter has deterministic estimation, durable reservation,
+usage settlement, and canonical cost-ledger support. Confirmation flags cannot
+override that boundary. Metered API capacity uses its existing budget and
+cost-ledger gate. If the source pack cannot
 be persisted, Deepr
 fails closed and does not absorb the context-grounded answer.
 
@@ -196,6 +201,13 @@ authenticate through a metered API key, Deepr refuses the plan path. This lets a
 normal API-capable shell still run explicit plan commands without surprise
 bills.
 
+Metered-at-margin adapters such as Copilot are fleet-visible but not executable
+through plan-quota commands. `probe-plan`, `probe-fleet`, sync, and absorb reject
+them before probe or client construction because the existing `$0` quota event
+cannot truthfully represent per-token spend. The retained Copilot choice,
+`--include-metered`, and `-y` flags are compatibility surfaces, not spending
+authorization.
+
 Long prompts go through safe delivery modes:
 
 - Codex uses stdin.
@@ -203,9 +215,9 @@ Long prompts go through safe delivery modes:
 - Grok uses a prompt file.
 - Antigravity recovers the answer from its transcript when stdout is empty.
 
-Quota events go to `data/capacity/quota_ledger.jsonl`. Dollar-cost events still
-write the canonical cost ledger as `$0` entries when Deepr itself made no
-metered API call.
+Quota events go to `data/capacity/quota_ledger.jsonl`. Eligible non-metered
+plan calls write the canonical cost ledger as `$0` entries when Deepr itself
+made no metered API call.
 
 `deepr capacity probe-fleet` validates plan CLI transport and auth in one
 bounded concurrent pass. `deepr capacity validate-fleet` is the operator
@@ -238,6 +250,25 @@ reflection, and health-check surfaces return wait or action-plan payloads
 instead of starting metered work unless the operator deliberately reruns without
 `--scheduled` or supplies the required confirmation. These payloads include
 durable loop-run records and published schema identifiers.
+
+Scheduled local sync, sync-all, and local route-gaps take one read-only
+best-effort GPU occupancy observation before constructing the maintenance
+engine. Plan-backed scheduled compiled sync applies the same gate when
+`--recall-embedding-model` adds a local Ollama embedding step. A confirmed busy signal
+records a per-expert WAITING loop outcome with
+`stop_reason=capacity_unavailable`, `capacity_unavailable_reason=local_gpu_busy`,
+`retry_after_seconds`, and an absolute UTC `retry_at`. Consecutive busy waits
+adapt from 30 minutes to 2 hours to a capped 6 hours. The command does not sleep,
+kill another workload, or fall through to plan/API capacity. `nvidia-smi` GPU
+utilization is the first supported signal; resident VRAM is deliberately not a
+busy verdict because Ollama keeps models loaded. Missing or malformed probe
+support reports `unknown` and allows dispatch. `deepr capacity` and
+`deepr capacity next` expose the observation. Busy wait artifacts preserve the
+requested operation and material options as argument-safe `command_argv`, plus
+the selected capacity and model identifiers, so retries retain local/plan,
+sync-all, context, compile, and route settings without shell reconstruction.
+Explicit local work without `--scheduled` remains an operator override. See
+[scheduled-local-capacity.md](design/scheduled-local-capacity.md).
 
 `deepr expert sync-all --scheduled` and scheduled `deepr expert route-gaps
 --execute` now use the shared waterfall for non-metered dispatch. `sync-all`

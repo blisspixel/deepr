@@ -351,6 +351,10 @@ def run_scheduled_reflection(
                 fill_engine, fill_capacity = followup_backend
                 routes = routes_from_queries(report.followups)
                 fill_result = asyncio.run(fill_engine.execute(routes, budget=budget, top=len(routes)))
+                if getattr(fill_result, "knowledge_observed_at", None) is not None:
+                    from deepr.experts.profile import ExpertStore
+
+                    ExpertStore().save(profile)
                 followups_section = {
                     "requested": True,
                     "status": "executed",

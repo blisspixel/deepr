@@ -7,9 +7,14 @@ import json
 from datetime import UTC, datetime
 from typing import Any
 
-from deepr.experts.beliefs import EDGE_TYPES
+from deepr.experts.belief_edges import EDGE_TYPES
 from deepr.experts.edge_temporal import normalize_temporal_context
-from deepr.experts.source_pack_compiler import CLAIM_VERIFICATION_SCHEMA_VERSION
+from deepr.experts.source_pack_compiler import (
+    CLAIM_VERIFICATION_KIND,
+    CLAIM_VERIFICATION_SCHEMA_VERSION,
+    SEMANTIC_CLAIM_EXTRACTION_KIND,
+    SEMANTIC_CLAIM_EXTRACTION_SCHEMA_VERSION,
+)
 
 GRAPH_COMMIT_ENVELOPE_SCHEMA_VERSION_V1 = "deepr-graph-commit-envelope-v1"
 GRAPH_COMMIT_ENVELOPE_SCHEMA_VERSION_V2 = "deepr-graph-commit-envelope-v2"
@@ -81,7 +86,7 @@ def _confidence(candidate: dict[str, Any], decision: dict[str, Any]) -> float:
     if value in (None, ""):
         value = candidate.get("confidence")
     try:
-        parsed = float(value)
+        parsed = float(str(value))
     except (TypeError, ValueError):
         parsed = 0.0
     return max(0.0, min(1.0, parsed))
@@ -232,7 +237,7 @@ def _edge_operation(
         return None
     if source_belief_id == target_belief_id:
         return None
-    result = {
+    result: dict[str, Any] = {
         "src_id": source_belief_id,
         "dst_id": target_belief_id,
         "edge_type": edge_type,
@@ -789,6 +794,42 @@ def _blocked_entry(
     }
 
 
+def _model_response_failure(payload: dict[str, Any], *, stage: str) -> list[str]:
+    model = payload.get("model")
+    if not isinstance(model, dict):
+        return [f"invalid_{stage}_model_metadata"]
+    response_failure = model.get("response_failure")
+    if not isinstance(response_failure, str):
+        return [f"invalid_{stage}_response_failure"]
+    if response_failure:
+        return [f"{stage}_response_failure"]
+    return []
+
+
+def _global_integrity_failures(
+    claim_extraction: dict[str, Any],
+    claim_verification: dict[str, Any],
+) -> list[str]:
+    """Return top-level failures that invalidate every proposed operation."""
+    failures: list[str] = []
+    if claim_extraction.get("schema_version") != SEMANTIC_CLAIM_EXTRACTION_SCHEMA_VERSION:
+        failures.append("unsupported_claim_extraction_schema_version")
+    if claim_extraction.get("kind") != SEMANTIC_CLAIM_EXTRACTION_KIND:
+        failures.append("unsupported_claim_extraction_kind")
+    if not isinstance(claim_extraction.get("candidates"), list):
+        failures.append("invalid_claim_extraction_candidates")
+    failures.extend(_model_response_failure(claim_extraction, stage="claim_extraction"))
+
+    if claim_verification.get("schema_version") != CLAIM_VERIFICATION_SCHEMA_VERSION:
+        failures.append("unsupported_claim_verification_schema_version")
+    if claim_verification.get("kind") != CLAIM_VERIFICATION_KIND:
+        failures.append("unsupported_claim_verification_kind")
+    if not isinstance(claim_verification.get("decisions"), list):
+        failures.append("invalid_claim_verification_decisions")
+    failures.extend(_model_response_failure(claim_verification, stage="claim_verification"))
+    return sorted(set(failures))
+
+
 def build_graph_commit_envelope(
     claim_extraction: dict[str, Any],
     claim_verification: dict[str, Any],
@@ -804,9 +845,10 @@ def build_graph_commit_envelope(
     """Build the deterministic write boundary after claim verification.
 
     The envelope makes no model calls and writes no graph state. It only
-    converts verified decisions into idempotent write operations and blocks
-    anything that still needs a richer perspective-state store or a clearer
-    semantic verifier decision.
+    converts verifier-ready decisions into idempotent write operations. A
+    rejected decision remains a reviewable blocked artifact without vetoing
+    unrelated ready operations. Top-level artifact integrity failures still
+    block the entire envelope.
     """
     candidates_by_id = _candidate_by_id(claim_extraction)
     ready_pairs: list[tuple[dict[str, Any], dict[str, Any]]] = []
@@ -856,10 +898,12 @@ def build_graph_commit_envelope(
             )
         )
 
-    failure_reasons = sorted({reason for entry in blocked for reason in entry["failure_reasons"]})
-    if not operations and not blocked:
+    blocked_failure_reasons = sorted({reason for entry in blocked for reason in entry["failure_reasons"]})
+    global_failure_reasons = _global_integrity_failures(claim_extraction, claim_verification)
+    failure_reasons = sorted(set(blocked_failure_reasons) | set(global_failure_reasons))
+    if not operations and not blocked and not global_failure_reasons:
         status = "empty"
-    elif operations and not blocked:
+    elif operations and not global_failure_reasons:
         status = "ready_for_commit"
     else:
         status = "blocked"
@@ -899,6 +943,8 @@ def build_graph_commit_envelope(
             "skipped_edge_count": skipped_edge_count,
             "blocked_decision_count": len(blocked),
             "failure_reasons": failure_reasons,
+            "global_failure_reasons": global_failure_reasons,
+            "blocked_decision_failure_reasons": blocked_failure_reasons,
         },
         "operations": operations,
         "blocked_decisions": blocked,

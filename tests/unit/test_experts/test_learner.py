@@ -444,6 +444,63 @@ class TestDurableJobTracking:
         }
         return AutonomousLearner(config)
 
+    def test_completed_learning_advances_both_profile_freshness_fields(self, tmp_path):
+        from deepr.experts.profile import ExpertProfile
+
+        learner = self._learner(tmp_path)
+        completed_at = datetime.now(UTC) - timedelta(minutes=1)
+        curriculum = LearningCurriculum(
+            expert_name="Test Expert",
+            domain="testing",
+            topics=[self._topic()],
+            total_estimated_cost=0.1,
+            total_estimated_minutes=5,
+            generated_at=completed_at,
+        )
+        progress = LearningProgress(
+            curriculum=curriculum,
+            completed_topics=["Topic 1"],
+            failed_topics=[],
+            total_cost=0.1,
+            started_at=completed_at - timedelta(minutes=5),
+            completed_at=completed_at,
+        )
+        profile = ExpertProfile(name="Test Expert", vector_store_id="vs")
+
+        with patch("deepr.experts.learner.ExpertStore") as store_class:
+            learner._update_expert_profile(profile, progress, {"Topic 1": {"job_id": "job-1"}})
+
+        assert profile.knowledge_cutoff_date == completed_at
+        assert profile.last_knowledge_refresh == completed_at
+        store_class.return_value.save.assert_called_once_with(profile)
+
+    def test_failed_learning_does_not_advance_profile_freshness(self, tmp_path):
+        from deepr.experts.profile import ExpertProfile
+
+        learner = self._learner(tmp_path)
+        curriculum = LearningCurriculum(
+            expert_name="Test Expert",
+            domain="testing",
+            topics=[self._topic()],
+            total_estimated_cost=0.1,
+            total_estimated_minutes=5,
+            generated_at=datetime.now(UTC),
+        )
+        progress = LearningProgress(
+            curriculum=curriculum,
+            completed_topics=[],
+            failed_topics=["Topic 1"],
+            total_cost=0.0,
+            started_at=datetime.now(UTC),
+        )
+        profile = ExpertProfile(name="Test Expert", vector_store_id="vs")
+
+        with patch("deepr.experts.learner.ExpertStore"):
+            learner._update_expert_profile(profile, progress, {})
+
+        assert profile.knowledge_cutoff_date is None
+        assert profile.last_knowledge_refresh is None
+
     @pytest.mark.asyncio
     async def test_record_job_in_queue_creates_processing_job(self, tmp_path):
         from deepr.queue import create_queue
@@ -464,6 +521,30 @@ class TestDurableJobTracking:
         assert job.provider_job_id == "resp_abc123"
         assert job.metadata["expert_name"] == "Test Expert"
         assert job.metadata["source"] == "expert_learn"
+
+    @pytest.mark.asyncio
+    async def test_record_job_without_config_path_follows_runtime_root(self, monkeypatch, tmp_path):
+        from deepr.queue import create_queue
+
+        runtime_root = tmp_path / "portable"
+        monkeypatch.setenv("DEEPR_DATA_DIR", str(runtime_root))
+        monkeypatch.delenv("DEEPR_QUEUE_DB_PATH", raising=False)
+        learner = AutonomousLearner(
+            {
+                "openai_api_key": "test-key",
+                "storage_path": str(tmp_path / "out"),
+            }
+        )
+        expert = MagicMock()
+        expert.name = "Test Expert"
+
+        local_id = await learner._record_job_in_queue("resp_portable", self._topic(), expert)
+
+        expected_path = runtime_root / "queue" / "research_queue.db"
+        assert local_id is not None
+        job = await create_queue("local", db_path=str(expected_path)).get_job(local_id)
+        assert job is not None
+        assert expected_path.exists()
 
     @pytest.mark.asyncio
     async def test_sync_marks_completed_with_cost(self, tmp_path):

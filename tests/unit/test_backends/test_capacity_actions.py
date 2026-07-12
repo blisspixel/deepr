@@ -17,6 +17,7 @@ from deepr.backends.capacity_actions import (
     build_capacity_next_actions,
     build_capacity_next_payload,
 )
+from deepr.backends.local_capacity import LocalCapacityObservation, LocalCapacityState
 from deepr.cli.commands.capacity import capacity
 
 T0 = datetime(2026, 6, 18, tzinfo=UTC)
@@ -94,6 +95,19 @@ class TestCapacityNextActions:
         assert payload["job_context"]["expert_name"] == "Policy Expert"
         assert payload["actions"][0]["status"] == "wait"
 
+    def test_payload_exposes_local_capacity_observation(self):
+        context = CapacityJobContext(task_class="sync", scheduled=True)
+        observation = LocalCapacityObservation(
+            state=LocalCapacityState.UNKNOWN,
+            source="nvidia-smi",
+            detail="nvidia-smi is not available",
+        )
+
+        payload = build_capacity_next_payload(context, [], local_capacity=observation)
+
+        assert payload["local_capacity"]["state"] == "unknown"
+        assert payload["local_capacity"]["read_only"] is True
+
     def test_ready_when_scored_admission_is_available(self, tmp_path):
         p = tmp_path / "adm.jsonl"
         record_admission("good-local", "sync", score=0.82, now=T0, path=p)
@@ -110,6 +124,31 @@ class TestCapacityNextActions:
         assert [action.status for action in actions] == ["ready"]
         assert "Automatic local routing is ready" == actions[0].title
         assert actions[0].command == 'deepr expert sync "<expert>" -y'
+
+    def test_scheduled_admitted_local_waits_when_gpu_is_busy(self, tmp_path):
+        p = tmp_path / "adm.jsonl"
+        record_admission("good-local", "sync", score=0.82, now=T0, path=p)
+        observation = LocalCapacityObservation(
+            state=LocalCapacityState.BUSY,
+            source="nvidia-smi",
+            detail="peak utilization 90%",
+            gpu_utilization_percent=(90.0,),
+        )
+
+        actions = build_capacity_next_actions(
+            task_class="sync",
+            job_context=CapacityJobContext(task_class="sync", scheduled=True),
+            now=T0,
+            capacity_sources=[_local_source(), _metered_source()],
+            local_models=["good-local"],
+            admissions_path=p,
+            benchmarks_dir=tmp_path / "benchmarks",
+            local_capacity=observation,
+        )
+
+        assert [action.status for action in actions] == ["wait"]
+        assert "will not fall through" in actions[0].detail
+        assert "--api" not in actions[0].command
 
     def test_live_probe_failure_blocks_ready_local_routing(self, tmp_path):
         p = tmp_path / "adm.jsonl"

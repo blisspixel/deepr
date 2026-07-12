@@ -1,10 +1,6 @@
-"""`deepr capacity` - show research capacity sources (read-only, $0).
+"""Show read-only local, plan-quota, and metered research capacity.
 
-Surfaces what capacity is available - local hardware, plan-quota CLIs, metered
-APIs - so the operator can see the owned/prepaid capacity that capacity-aware
-routing drains before touching a metered API. Visibility only today: this
-detects sources and never runs research or spends. Design:
-docs/design/capacity-waterfall.md.
+Design: docs/design/capacity-waterfall.md.
 """
 
 from __future__ import annotations
@@ -17,7 +13,8 @@ from typing import Any
 
 import click
 
-from deepr.backends.capacity import BackendKind, detect_capacity
+from deepr.backends.capacity import BackendKind, CostModel, detect_capacity
+from deepr.backends.local_capacity import LocalCapacityObservation, probe_local_gpu_occupancy
 from deepr.backends.quota_ledger import QuotaState, summarize_quota_state
 from deepr.cli.commands.capacity_validation import (
     FLEET_VALIDATION_DEFAULT_TIMEOUT_S,
@@ -44,13 +41,9 @@ def capacity(ctx: click.Context, json_output: bool, probe: bool):
     """Show available research capacity (local, plan quota, metered API).
 
     Capacity-aware routing (v2.16) drains owned and prepaid capacity before any
-    metered API call. With no subcommand this shows what capacity is available
-    (runs no research, spends nothing); --probe does one tiny $0 round-trip to
-    the local Ollama model to confirm local execution actually works.
-
-    Admit a local model for automatic owned-capacity-first maintenance with
-    `deepr capacity admit`; list or revoke admissions with `admissions` /
-    `revoke`.
+    metered API call. The default view spends nothing; --probe does one tiny $0
+    local round-trip. Manage automatic local maintenance with admit, admissions,
+    and revoke.
     """
     # Group with a default action: only run the status view when no subcommand
     # was given (e.g. `deepr capacity admit ...` skips this body).
@@ -59,22 +52,41 @@ def capacity(ctx: click.Context, json_output: bool, probe: bool):
 
     sources = detect_capacity()
     quota_states = summarize_quota_state()
+    local_capacity = probe_local_gpu_occupancy()
 
     local_probe = _run_local_probe() if probe else None
     if probe and not json_output and local_probe is not None:
         _print_local_probe(local_probe)
 
     if json_output:
-        click.echo(_json.dumps([_source_to_dict(s, quota_states, local_probe=local_probe) for s in sources], indent=2))
+        click.echo(
+            _json.dumps(
+                [
+                    _source_to_dict(
+                        s,
+                        quota_states,
+                        local_probe=local_probe,
+                        local_capacity=local_capacity,
+                    )
+                    for s in sources
+                ],
+                indent=2,
+            )
+        )
         return
 
     _print_sources(sources)
+    _print_local_capacity(local_capacity)
     _print_quota_summary(quota_states)
     _print_admissions_summary()
 
 
 def _source_to_dict(
-    source, quota_states: list[QuotaState], *, local_probe: dict[str, object] | None = None
+    source,
+    quota_states: list[QuotaState],
+    *,
+    local_probe: dict[str, object] | None = None,
+    local_capacity: LocalCapacityObservation | None = None,
 ) -> dict[str, object]:
     d = source.to_dict()
     states = _quota_states_for(source.backend_id, quota_states)
@@ -83,6 +95,8 @@ def _source_to_dict(
     d["quota_states"] = [s.to_dict() for s in states]
     if local_probe is not None and source.kind == BackendKind.LOCAL:
         d["local_probe"] = local_probe
+    if local_capacity is not None and source.kind == BackendKind.LOCAL:
+        d["local_capacity"] = local_capacity.to_dict()
     return d
 
 
@@ -95,7 +109,11 @@ def _quota_states_for(backend_id: str, quota_states: list[QuotaState]) -> list[Q
 def _primary_quota_state(quota_states: list[QuotaState]) -> QuotaState | None:
     if not quota_states:
         return None
-    return next((state for state in quota_states if not state.account_id), quota_states[0])
+    # Account-scoped metadata probes can be newer and more authoritative than
+    # an older backend-wide transport observation. The singular compatibility
+    # field must not report stale exhaustion while ``quota_states`` contains a
+    # fresh active account snapshot (or the inverse).
+    return max(quota_states, key=lambda state: state.latest_event.timestamp)
 
 
 def _run_local_probe() -> dict[str, object]:
@@ -130,7 +148,11 @@ def _print_sources(sources) -> None:
             click.echo(f"  [{mark}] {s.name:24s} {status:14s} {s.marginal_cost:16s} {s.detail}")
         click.echo("")
 
-    local_or_plan = [s for s in sources if s.kind in (BackendKind.LOCAL, BackendKind.PLAN_QUOTA) and s.available]
+    local_or_plan = [
+        s
+        for s in sources
+        if s.kind in (BackendKind.LOCAL, BackendKind.PLAN_QUOTA) and s.cost_model != CostModel.METERED and s.available
+    ]
     if local_or_plan:
         names = ", ".join(s.name for s in local_or_plan)
         click.echo(f"Owned/prepaid capacity available: {names}")
@@ -140,6 +162,11 @@ def _print_sources(sources) -> None:
         )
     click.echo("Note: CLI 'available' means installed on PATH only - auth, quota window, and overflow")
     click.echo("state are verified by the adapter at run time. Only the local probe (--probe) round-trips.")
+
+
+def _print_local_capacity(observation: LocalCapacityObservation) -> None:
+    click.echo("")
+    click.echo(f"Local GPU capacity: {observation.state.value} - {observation.detail}")
 
 
 def _print_quota_summary(quota_states: list[QuotaState]) -> None:
@@ -231,6 +258,7 @@ def capacity_next(
     )
 
     local_probe = None
+    local_capacity = probe_local_gpu_occupancy()
     try:
         job_context = CapacityJobContext(
             task_class=task_class,
@@ -240,16 +268,27 @@ def capacity_next(
             scheduled=scheduled,
         )
         local_probe = _run_local_probe() if probe else None
-        actions = build_capacity_next_actions(task_class=task_class, job_context=job_context, local_probe=local_probe)
+        actions = build_capacity_next_actions(
+            task_class=task_class,
+            job_context=job_context,
+            local_probe=local_probe,
+            local_capacity=local_capacity,
+        )
     except ValueError as exc:
         raise click.ClickException(str(exc)) from exc
 
     if json_output:
-        payload = build_capacity_next_payload(job_context, actions, local_probe=local_probe)
+        payload = build_capacity_next_payload(
+            job_context,
+            actions,
+            local_probe=local_probe,
+            local_capacity=local_capacity,
+        )
         click.echo(_json.dumps(payload, indent=2))
         return
 
     click.echo(f"Capacity next actions for task class: {task_class}\n")
+    _print_local_capacity(local_capacity)
     if local_probe is not None:
         _print_local_probe(local_probe)
     if context_mode != "none" or scheduled or expert_name != "<expert>" or report_id != "<report_id>":
@@ -515,14 +554,20 @@ def _fmt_reset(reset_at_iso: str | None) -> str:
     type=click.Choice(_PLAN_BACKEND_IDS),
 )
 @click.option("--model", default=None, help="Model to pass to the CLI (e.g. anthropic/claude-sonnet-5 for opencode).")
-@click.option("--yes", "-y", is_flag=True, help="Skip the confirmation for a metered-at-margin CLI.")
+@click.option(
+    "--yes",
+    "-y",
+    is_flag=True,
+    help="Compatibility confirmation flag; it cannot authorize a metered-at-margin adapter.",
+)
 @click.option("--json", "json_output", is_flag=True, help="Emit machine-readable JSON.")
 def capacity_probe_plan(backend: str, model: str | None, yes: bool, json_output: bool):
     """Validate that a plan-quota CLI backend works: auth gate + one round-trip.
 
     Runs the deterministic no-surprise-bills / auth-mode gate, then a single tiny
-    call through the vendor CLI. Marginal cost is $0 on a subscription plan; a
-    metered-at-margin CLI (e.g. copilot) bills one call and is asked first.
+    call through the vendor CLI. Marginal cost must be $0 on a subscription
+    plan. Metered-at-margin adapters remain visible choices but fail closed
+    until complete cost accounting exists; ``-y`` cannot override that gate.
     """
     import os
     import sys
@@ -537,7 +582,22 @@ def capacity_probe_plan(backend: str, model: str | None, yes: bool, json_output:
 
     decision = evaluate_plan_quota_safety(adapter, env=dict(os.environ))
     if not decision.safe:
-        click.echo(f"Cannot probe {adapter.display_name}: {decision.reason}", err=True)
+        if json_output:
+            click.echo(
+                _json.dumps(
+                    {
+                        "backend": backend,
+                        "auth_mode": decision.auth_mode.value,
+                        "ok": False,
+                        "reply": "",
+                        "latency_ms": 0,
+                        "error": decision.reason,
+                    },
+                    indent=2,
+                )
+            )
+        else:
+            click.echo(f"Cannot probe {adapter.display_name}: {decision.reason}", err=True)
         sys.exit(2)
     if decision.requires_ack and not yes and not json_output:
         if not click.confirm(f"{adapter.display_name} bills per use. Run one probe call?", default=False):
@@ -581,10 +641,15 @@ def capacity_probe_plan(backend: str, model: str | None, yes: bool, json_output:
 @click.option(
     "--include-metered",
     is_flag=True,
-    help="Allow metered-at-margin plan adapters such as Copilot. Requires -y.",
+    help="Compatibility selector for metered adapters; execution stays blocked until cost accounting exists.",
 )
 @click.option("--concurrency", type=click.IntRange(1, len(_PLAN_BACKEND_IDS)), default=4, show_default=True)
-@click.option("--yes", "-y", is_flag=True, help="Confirm any metered-at-margin probe enabled by --include-metered.")
+@click.option(
+    "--yes",
+    "-y",
+    is_flag=True,
+    help="Compatibility confirmation flag; it cannot authorize a metered-at-margin adapter.",
+)
 @click.option("--json", "json_output", is_flag=True, help="Emit the versioned probe payload as JSON.")
 def capacity_probe_fleet(
     backends: tuple[str, ...],
@@ -598,14 +663,16 @@ def capacity_probe_fleet(
 
     This is an operator validation surface, not an auto-routing shortcut. It
     probes only selected plan CLIs, records quota observations from successful
-    or exhausted probes, and skips metered-at-margin adapters unless explicitly
-    allowed with --include-metered -y.
+    or exhausted probes. Metered-at-margin adapters fail before probe dispatch;
+    the retained ``--include-metered`` and ``-y`` flags cannot authorize them.
     """
     import sys
 
-    if not _confirm_fleet_probe_metered(include_metered=include_metered, yes=yes, json_output=json_output):
-        return
-    adapters = _resolve_fleet_probe_adapters(backends=backends, all_backends=all_backends)
+    adapters = _resolve_fleet_probe_adapters(
+        backends=backends,
+        all_backends=all_backends,
+        include_metered=include_metered,
+    )
     payload = _fleet_probe_payload_for(adapters, include_metered=include_metered, concurrency=concurrency)
     _emit_fleet_probe_payload(payload, json_output=json_output)
 
@@ -679,18 +746,12 @@ def capacity_validate_fleet(
         sys.exit(1)
 
 
-def _confirm_fleet_probe_metered(*, include_metered: bool, yes: bool, json_output: bool) -> bool:
-    if not include_metered or yes:
-        return True
-    if json_output:
-        raise click.ClickException("--include-metered requires -y in JSON mode.")
-    if click.confirm("Include metered-at-margin plan adapters in the probe?", default=False):
-        return True
-    click.echo("Cancelled.")
-    return False
-
-
-def _resolve_fleet_probe_adapters(*, backends: tuple[str, ...], all_backends: bool):
+def _resolve_fleet_probe_adapters(
+    *,
+    backends: tuple[str, ...],
+    all_backends: bool,
+    include_metered: bool = False,
+):
     from deepr.backends.plan_quota import all_adapters
 
     if backends and all_backends:
@@ -699,7 +760,11 @@ def _resolve_fleet_probe_adapters(*, backends: tuple[str, ...], all_backends: bo
     if backends:
         return [adapter_index[backend] for backend in backends]
     if all_backends:
-        return [adapter for adapter in adapter_index.values() if _fleet_probe_installed(adapter)]
+        return [
+            adapter
+            for adapter in adapter_index.values()
+            if _fleet_probe_installed(adapter) and (include_metered or not adapter.metered_at_margin)
+        ]
     return [
         adapter for adapter in adapter_index.values() if adapter.enabled_by_default and _fleet_probe_installed(adapter)
     ]
@@ -768,6 +833,8 @@ async def _probe_fleet_backend(adapter, *, env: dict[str, str], include_metered:
     decision = evaluate_plan_quota_safety(adapter, env=env)
     base["auth_mode"] = decision.auth_mode.value
     base["safety"] = decision.to_dict()
+    if not decision.safe:
+        return {**base, "status": "failed", "error": decision.reason}
     if decision.requires_ack and not include_metered:
         return {
             **base,
@@ -775,9 +842,6 @@ async def _probe_fleet_backend(adapter, *, env: dict[str, str], include_metered:
             "status": "skipped",
             "error": "metered-at-margin backend skipped; pass --include-metered -y to probe",
         }
-    if not decision.safe:
-        return {**base, "status": "failed", "error": decision.reason}
-
     result = await probe_plan_quota(adapter)
     _record_probe_plan_observation(adapter, result)
     status = "ok" if result.get("ok") is True else "failed"
@@ -797,6 +861,7 @@ def _fleet_probe_payload(results: list[dict[str, Any]], *, concurrency: int) -> 
             "cost_usd": 0.0,
             "uses_plan_quota": True,
             "metered_backends_skipped_by_default": True,
+            "metered_backends_blocked_without_cost_accounting": True,
             "quota_observations_recorded": True,
         },
         "concurrency": concurrency,
@@ -835,6 +900,12 @@ def _record_probe_plan_observation(adapter, result: dict[str, object]) -> None:
         QuotaLedger,
         QuotaLedgerEvent,
     )
+
+    # The real probe owns attempt accounting so direct library calls and CLI
+    # calls have the same append-only behavior. Retain this compatibility path
+    # for injected/legacy probe implementations that do not return the field.
+    if "quota_observation_recorded" in result:
+        return
 
     event_type = None
     detail = ""

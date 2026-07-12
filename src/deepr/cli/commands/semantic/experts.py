@@ -195,9 +195,9 @@ def make_expert(
                 click.echo("Error: Indexing timed out")
                 return None
 
-        # Create expert profile with programmatic system message
-        # Set initial knowledge cutoff to now (will be updated when learning is added)
-        now = datetime.now(UTC)
+        # Uploaded seed documents establish the initial observation time. An
+        # empty --learn profile stays incomplete until learning actually writes.
+        knowledge_observed_at = datetime.now(UTC) if files else None
 
         profile = ExpertProfile(
             name=name,
@@ -206,10 +206,10 @@ def make_expert(
             domain=description,
             source_files=[str(f) for f in files],
             total_documents=len(files),
-            knowledge_cutoff_date=now,  # Initial docs uploaded now
-            last_knowledge_refresh=now,
+            knowledge_cutoff_date=knowledge_observed_at,
+            last_knowledge_refresh=knowledge_observed_at,
             system_message=get_expert_system_message(
-                knowledge_cutoff_date=now,
+                knowledge_cutoff_date=knowledge_observed_at,
                 domain_velocity="medium",  # Default, can be customized later
             ),
             provider=provider,
@@ -597,11 +597,13 @@ def list_experts():
             else:
                 status_color = "red"
             console.print(f"    Knowledge: {age_days} days old [{status_color}]{status}[/{status_color}]")
+        else:
+            console.print("    Knowledge: [yellow]incomplete - no verified knowledge yet[/yellow]")
 
         console.print()
 
     console.print("Usage:")
-    console.print('  deepr chat expert "<name>"')
+    console.print('  deepr expert chat "<name>"')
 
 
 @expert.command(name="info")
@@ -857,7 +859,6 @@ def health_check(name: str, json_output: bool, archive_stale: bool, scheduled: b
     import json as _json
     import sys
 
-    from deepr.cli.commands.semantic.expert_health_loop import record_completed_health_check
     from deepr.experts.health_check import ExpertHealthChecker
     from deepr.experts.profile import ExpertStore
 
@@ -892,10 +893,7 @@ def health_check(name: str, json_output: bool, archive_stale: bool, scheduled: b
 
             click.echo(_json.dumps(scheduled_health_payload(report), indent=2))
             return
-        loop_run = record_completed_health_check(report)
-        payload = report.to_dict()
-        payload["loop_run"] = loop_run.to_dict()
-        click.echo(_json.dumps(payload, indent=2))
+        click.echo(_json.dumps(report.to_dict(), indent=2))
         return
 
     status_color = {"healthy": "green", "needs_attention": "yellow", "critical": "red"}.get(report.status, "white")
@@ -939,7 +937,6 @@ def health_check(name: str, json_output: bool, archive_stale: bool, scheduled: b
 
     if report.status == "critical":
         print_warning("This expert needs attention before it should be relied on.")
-    record_completed_health_check(report)
 
 
 @expert.command(name="what-changed")
@@ -1085,9 +1082,10 @@ def why_cmd(name: str, belief_ref: str, depth: int, json_output: bool):
 
     if result.contradicts:
         console.print()
-        print_section_header(f"Contradicted by ({len(result.contradicts)})")
+        print_section_header(f"Contested with ({len(result.contradicts)})")
         for c in result.contradicts:
-            console.print(f"  - {c['claim']}  [dim](conf {c['confidence']}, {c['status']})[/dim]")
+            verification = c.get("verification", "unverified")
+            console.print(f"  - {c['claim']}  [dim](conf {c['confidence']}, {c['status']}, {verification})[/dim]")
         console.print(f"  [dim]Adjudicate: deepr expert resolve-conflicts '{name}'[/dim]")
 
     if not (result.evidence_roots or result.trajectory or result.supports or result.contradicts):
@@ -1098,10 +1096,10 @@ def why_cmd(name: str, belief_ref: str, depth: int, json_output: bool):
 @click.argument("name")
 @click.option("--json", "json_output", is_flag=True, help="Output JSON")
 def contested_cmd(name: str, json_output: bool):
-    """Show NAME's open contradictions - both sides, confidence, provenance.
+    """Show NAME's contradiction candidates and verification provenance.
 
-    Read-only and cost-$0. Surfaces live conflicts (recorded by absorb-time
-    flagging and belief integration) instead of a smoothed narrative.
+    Read-only and cost-$0. Surfaces live contested pairs instead of a smoothed
+    narrative. An unverified pair is a review candidate, not a semantic verdict.
     Resolve them with: deepr expert resolve-conflicts NAME
 
     EXAMPLE:
@@ -1125,7 +1123,10 @@ def contested_cmd(name: str, json_output: bool):
         return
 
     print_header(f"Contested beliefs: {name}")
-    console.print(f"{result['contested_count']} pair(s), {result['open_count']} open")
+    console.print(
+        f"{result['contested_count']} pair(s), {result['open_count']} open, "
+        f"{result['model_confirmed_count']} model-confirmed, {result['unverified_count']} unverified"
+    )
     for pair in result["pairs"]:
         console.print()
         marker = "[yellow]open[/yellow]" if pair["status"] == "open" else "[dim]dangling[/dim]"
@@ -1135,6 +1136,7 @@ def contested_cmd(name: str, json_output: bool):
         b_conf = pair["b"].get("confidence")
         conf_str = f"  [dim](conf {b_conf:.2f})[/dim]" if isinstance(b_conf, (int, float)) else ""
         console.print(f"  B: {b_claim}{conf_str}")
+        console.print(f"  [dim]verification: {pair.get('verification', 'unverified')}[/dim]")
 
     if result["contested_count"] == 0:
         console.print("[dim]No contested beliefs.[/dim]")
@@ -1322,9 +1324,19 @@ def delete_expert(name: str, purge: bool, yes: bool):
 @click.option("--plan", "plan", default=None, help="Use a plan-quota CLI backend for topic learning")
 @click.option("--plan-model", "plan_model", default=None, help="Model to pass to the plan-quota CLI")
 @click.option(
-    "--num-results", type=int, default=8, show_default=True, help="Web results to retrieve for topic learning"
+    "--num-results",
+    type=click.IntRange(min=1, max=20),
+    default=8,
+    show_default=True,
+    help="Web results to retrieve for topic learning",
 )
-@click.option("--max-pages", type=int, default=5, show_default=True, help="Top web results to fetch in full")
+@click.option(
+    "--max-pages",
+    type=click.IntRange(min=1, max=8),
+    default=5,
+    show_default=True,
+    help="Top web results to fetch in full",
+)
 @click.option("--min-confidence", type=float, default=0.6, show_default=True, help="Drop weaker extracted claims")
 @click.option("--dry-run", is_flag=True, help="Preview topic claims; write no beliefs")
 @click.option("--yes", "-y", is_flag=True, help="Skip confirmation")
@@ -1496,20 +1508,24 @@ def learn_expert(
             if uploaded_files:
                 click.echo(f"\nUploading {len(uploaded_files)} files to vector store...")
 
-                try:
-                    for file_path in uploaded_files:
+                successfully_indexed = []
+                for file_path in uploaded_files:
+                    try:
                         file_id = await provider.upload_document(str(file_path))
                         await provider.add_file_to_vector_store(profile.vector_store_id, file_id)
                         documents_added += 1
+                        successfully_indexed.append(file_path)
                         console.print(f"[success]Indexed: {file_path.name}[/success]")
+                    except Exception as e:
+                        print_error(f"Vector store upload failed for {file_path.name}: {e}")
 
-                    profile.total_documents += len(uploaded_files)
-                    profile.source_files.extend([str(f) for f in uploaded_files])
-                    profile.updated_at = datetime.now(UTC)
+                if successfully_indexed:
+                    profile.total_documents += len(successfully_indexed)
+                    profile.source_files.extend([str(f) for f in successfully_indexed])
+                    from deepr.experts.knowledge_freshness import advance_knowledge_freshness
+
+                    advance_knowledge_freshness(profile, datetime.now(UTC))
                     store.save(profile)
-
-                except Exception as e:
-                    print_error(f"Vector store upload failed: {e}")
 
         if synthesize and documents_added > 0:
             print_section_header("Phase 3: Re-synthesizing Consciousness")
@@ -1909,6 +1925,8 @@ def reflect_report(
 
             routes = routes_from_queries(report.followups)
             fill = asyncio.run(GapFillEngine(profile).execute(routes, budget=budget, top=len(routes)))
+            if getattr(fill, "knowledge_observed_at", None) is not None:
+                store.save(profile)
 
         console.print()
         print_section_header("Follow-up execution")
@@ -2640,76 +2658,15 @@ def resolve_conflicts_cmd(name: str, budget: float, consensus: bool):
       deepr expert resolve-conflicts "AI Expert"
       deepr expert resolve-conflicts "AI Expert" --consensus --budget 10
     """
-    import asyncio
-
-    from deepr.config import AppConfig
-    from deepr.experts.profile import ExpertStore
-    from deepr.experts.synthesis import Worldview
-    from deepr.providers import create_provider
-
-    print_header(f"Resolve Conflicts: {name}")
-
-    store = ExpertStore()
-    profile = store.load(name)
-    if not profile:
-        print_error(f"Expert not found: {name}")
-        return
-
-    knowledge_dir = store.get_knowledge_dir(name)
-    worldview_path = knowledge_dir / "worldview.json"
-    if not worldview_path.exists():
-        print_error("Expert has no worldview yet.")
-        return
-
-    try:
-        worldview = Worldview.load(worldview_path)
-    except Exception as e:
-        print_error(f"Error loading worldview: {e}")
-        return
-
-    if not worldview.beliefs:
-        print_warning("Expert has no beliefs to check.")
-        return
-
-    async def do_resolve():
-        from deepr.experts.beliefs import Belief as BeliefObj
-        from deepr.experts.conflict_resolver import ConflictResolver
-
-        consensus_engine = None
-        if consensus:
-            from deepr.experts.consensus import ConsensusEngine
-
-            consensus_engine = ConsensusEngine()
-
-        config = AppConfig.from_env()
-        provider = create_provider("openai", api_key=config.provider.openai_api_key)
-        resolver = ConflictResolver(consensus_engine=consensus_engine, client=provider.client)
-
-        # Convert synthesis Beliefs to beliefs.py Belief objects
-        belief_objects = []
-        for b in worldview.beliefs:
-            belief_objects.append(
-                BeliefObj(
-                    claim=b.statement,
-                    confidence=b.confidence,
-                    evidence_refs=b.evidence,
-                    domain=b.topic,
-                )
-            )
-
-        return await resolver.resolve_all(belief_objects, budget=budget)
-
-    results = asyncio.run(do_resolve())
-
-    if not results:
-        print_success("No contradictions found!")
-        return
-
-    console.print(f"Resolved {len(results)} contradictions:\n")
-    for r in results:
-        console.print(f"  Outcome: {r.outcome}")
-        console.print(f"  Explanation: {r.explanation[:100]}")
-        console.print("")
+    # This legacy surface used its numeric budget only to limit pair count;
+    # detection, adjudication, and consensus provider calls had no durable
+    # reservation or canonical settlement. Refuse before provider construction
+    # until it is rebuilt on the metered-call contract.
+    click.echo(f"Review conflicts without spend: deepr expert contested {name!r}")
+    raise click.ClickException(
+        "Conflict resolution is temporarily blocked: this legacy path cannot yet "
+        "guarantee reservation, settlement, and an append-only cost record for every provider call."
+    )
 
 
 @expert.command(name="refresh")
@@ -3314,7 +3271,9 @@ from deepr.cli.commands.semantic import expert_cleanup as _expert_cleanup  # noq
 from deepr.cli.commands.semantic import expert_consult as _expert_consult  # noqa: F401
 from deepr.cli.commands.semantic import expert_consult_quality as _expert_consult_quality  # noqa: F401
 from deepr.cli.commands.semantic import expert_consult_traces as _expert_consult_traces  # noqa: F401
+from deepr.cli.commands.semantic import expert_freshness as _expert_freshness  # noqa: F401
 from deepr.cli.commands.semantic import expert_gap_routes as _expert_gap_routes  # noqa: F401
+from deepr.cli.commands.semantic import expert_learn_web as _expert_learn_web  # noqa: F401
 from deepr.cli.commands.semantic import expert_loop_status as _expert_loop_status  # noqa: F401
 from deepr.cli.commands.semantic import expert_maintenance as _expert_maintenance  # noqa: F401
 from deepr.cli.commands.semantic import expert_memory_card as _expert_memory_card  # noqa: F401

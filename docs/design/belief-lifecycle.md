@@ -170,17 +170,17 @@ ALL of:
 Dry-run by default; `-y` applies; every archival is event-logged with
 snapshot, reason, and the thresholds used. $0, no LLM.
 
-### 5. Entailment-shaped contradiction screen (v2.15)
+### 5. Entailment-shaped contradiction screen (v2.15, hardened 2026-07-11)
 
-The known phrasing-level false flags in absorb-time contradiction
-detection get one cheap entailment-shaped call per flagged pair, in the
-uncertain band only - merged with the selective-recalibration mechanism
-from the calibration design (one budget, one injection point, injectable
-research_fn for $0 tests). Lexical heuristics stay as the free first
-pass; entailment is the screen, per finding 8. The deterministic-vs-agentic
-boundary this rests on (lexical as a high-recall router, never a verdict;
-decomposition and entailment are model-based) is set out, with cited
-June-2026 grounding, in
+The known phrasing-level false flags in absorb-time contradiction detection
+enter through a cheap lexical router. A first model YES now receives a second
+fresh-context structured disconfirmation pass with statement order reversed;
+only two agreeing judgments create a model-confirmed typed edge. Lexical-only,
+ambiguous, and disabled-verifier paths create no typed contradiction edge and
+cannot collapse the routed pair through lexical dedup. Every recorded edge
+exposes verification provenance. The deterministic-vs-agentic boundary this
+rests on (lexical as a high-recall router, never a verdict; decomposition and
+entailment as model judgment) is set out, with cited June-2026 grounding, in
 [checks-deterministic-vs-agentic.md](checks-deterministic-vs-agentic.md).
 
 ### 6. Atomic claim decomposition at absorb (v2.15)
@@ -222,13 +222,15 @@ red-team artifacts.
    (one mechanism, two consumers).
 3. Atomicity enforcement in the extraction prompt + atomicity rate in
    the calibration harness.
-4. [x] Continuity metrics (2026-06-13; methodology v1.2 on 2026-06-29):
+4. [x] Continuity metrics (2026-06-13; methodology v1.3 on 2026-07-11):
    `src/deepr/experts/continuity_metrics.py` + `deepr eval continuity NAME`
    scores staleness, abstention, contradiction surfacing, what-changed
-   exactness, read-side temporal edge qualifier visibility, and generated-digest
-   temporal edge qualifier visibility from stored state at $0, each against
-   ground truth derived independently of the surface it scores,
-   methodology-versioned for run comparability.
+   exactness, contradiction verification-provenance coverage, read-side
+   temporal edge qualifier visibility, and generated-digest temporal edge
+   qualifier visibility from stored state at $0. Structural contradiction
+   surfacing is explicitly separate from semantic assurance so an unverified
+   false edge cannot hide behind an unexplained 1.0. The provenance metric does
+   not claim model accuracy. Runs remain methodology-versioned for comparison.
 5. Red-team additions land with the Phase 5 suite.
 
 ## Invariants

@@ -15,7 +15,8 @@ from hashlib import sha256
 from pathlib import Path
 from typing import Any
 
-from deepr.experts.beliefs import Belief, BeliefChange, BeliefStore, Edge
+from deepr.experts.belief_edges import Edge
+from deepr.experts.beliefs import Belief, BeliefChange, BeliefStore
 from deepr.experts.perspective import contested as contested_query
 
 OKF_SCHEMA_VERSION = "deepr-okf-v1"
@@ -89,9 +90,13 @@ def _aware(value: datetime | None) -> datetime | None:
 
 
 def _as_of(store: BeliefStore, events: list[BeliefChange]) -> str:
-    timestamps = [_aware(event.timestamp) for event in events]
-    timestamps.extend(_aware(belief.updated_at) for belief in store.beliefs.values())
-    timestamps = [timestamp for timestamp in timestamps if timestamp is not None]
+    timestamps: list[datetime] = []
+    for event in events:
+        if (timestamp := _aware(event.timestamp)) is not None:
+            timestamps.append(timestamp)
+    for belief in store.beliefs.values():
+        if (timestamp := _aware(belief.updated_at)) is not None:
+            timestamps.append(timestamp)
     if not timestamps:
         return "never"
     return max(timestamps).isoformat()
@@ -288,12 +293,14 @@ def _build_concept(
     paths_by_id: dict[str, str],
     as_of: str,
 ) -> str:
+    updated_at = _aware(belief.updated_at)
+    created_at = _aware(belief.created_at)
     fields = {
         "type": "deepr.okf.concept",
         "title": belief.claim,
         "description": belief.claim,
         "tags": [belief.domain or "general", belief.source_type, belief.trust_class],
-        "timestamp": _aware(belief.updated_at).isoformat() if _aware(belief.updated_at) else as_of,
+        "timestamp": updated_at.isoformat() if updated_at else as_of,
         "deepr": {
             "schema_version": OKF_SCHEMA_VERSION,
             "source_expert": str(profile.name),
@@ -320,8 +327,8 @@ def _build_concept(
         f"- Confidence: {_fmt_num(belief.get_current_confidence())}",
         f"- Source type: {belief.source_type}",
         f"- Trust class: {belief.trust_class}",
-        f"- Created: {_aware(belief.created_at).isoformat() if _aware(belief.created_at) else ''}",
-        f"- Updated: {_aware(belief.updated_at).isoformat() if _aware(belief.updated_at) else ''}",
+        f"- Created: {created_at.isoformat() if created_at else ''}",
+        f"- Updated: {updated_at.isoformat() if updated_at else ''}",
         "",
         "## Citations",
         "",
@@ -401,7 +408,7 @@ def _build_contested(profile: Any, store: BeliefStore, as_of: str) -> str:
     fields = {
         "type": "deepr.okf.contested",
         "title": f"{profile.name} contested claims",
-        "description": "Open contradiction pairs exported from typed Deepr belief edges.",
+        "description": "Recorded contradiction candidates exported with verification provenance.",
         "tags": [str(getattr(profile, "domain", "") or "general"), "contested"],
         "timestamp": as_of,
         "deepr": {
@@ -427,6 +434,7 @@ def _build_contested(profile: Any, store: BeliefStore, as_of: str) -> str:
                 "",
                 f"- A `{a.get('belief_id', '')}`: {a.get('claim', '')}",
                 f"- B `{b.get('belief_id', '')}`: {b.get('claim', '')}",
+                f"- Verification: {pair.get('verification', 'unverified')}",
                 f"- Provenance: {', '.join(provenance) or 'unspecified'}",
                 "",
             ]
@@ -453,7 +461,8 @@ def _build_log(profile: Any, events: list[BeliefChange], as_of: str, paths_by_id
         return _doc(fields, body)
 
     for event in sorted(events, key=lambda change: _aware(change.timestamp) or datetime.min.replace(tzinfo=UTC)):
-        timestamp = _aware(event.timestamp).isoformat() if _aware(event.timestamp) else ""
+        event_time = _aware(event.timestamp)
+        timestamp = event_time.isoformat() if event_time else ""
         concept_path = paths_by_id.get(event.belief_id)
         belief_ref = f"[`{event.belief_id}`]({concept_path})" if concept_path else f"`{event.belief_id}`"
         body.append(f"- {timestamp} `{event.change_type}` {belief_ref}: {event.new_claim or event.old_claim}")

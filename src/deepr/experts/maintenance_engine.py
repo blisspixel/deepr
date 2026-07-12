@@ -219,10 +219,17 @@ def build_sync_engine(
         return engine, "local"
 
     if use_plan and plan_adapter is not None:
-        from deepr.backends.plan_quota import PlanQuotaChatClient, make_plan_quota_research_fn
+        from deepr.backends.plan_quota import (
+            PlanQuotaChatClient,
+            make_plan_quota_research_fn,
+            metered_plan_execution_block_reason,
+        )
         from deepr.experts.claim_extraction import SemanticClaimExtractor
-        from deepr.experts.claim_verification import ESTIMATED_VERIFICATION_COST, SemanticClaimVerifier
-        from deepr.experts.report_absorber import ESTIMATED_EXTRACTION_COST, ReportAbsorber
+        from deepr.experts.claim_verification import SemanticClaimVerifier
+        from deepr.experts.report_absorber import ReportAbsorber
+
+        if bool(getattr(plan_adapter, "metered_at_margin", False)):
+            raise ValueError(metered_plan_execution_block_reason(plan_adapter))
 
         # One client serves research and verified extraction, so the whole sync
         # stays on prepaid plan capacity with no silent metered call.
@@ -240,10 +247,8 @@ def build_sync_engine(
                 model=plan_model or plan_adapter.backend_id,
                 capacity_source=f"plan_quota:{plan_adapter.backend_id}",
                 client=client,
-                estimated_cost_usd=ESTIMATED_EXTRACTION_COST
-                if bool(getattr(plan_adapter, "metered_at_margin", False))
-                else 0.0,
-                allow_metered=bool(getattr(plan_adapter, "metered_at_margin", False)),
+                estimated_cost_usd=0.0,
+                allow_metered=False,
             )
             if compile_claims
             else None
@@ -254,10 +259,8 @@ def build_sync_engine(
                 model=plan_model or plan_adapter.backend_id,
                 capacity_source=f"plan_quota:{plan_adapter.backend_id}",
                 client=client,
-                estimated_cost_usd=ESTIMATED_VERIFICATION_COST
-                if bool(getattr(plan_adapter, "metered_at_margin", False))
-                else 0.0,
-                allow_metered=bool(getattr(plan_adapter, "metered_at_margin", False)),
+                estimated_cost_usd=0.0,
+                allow_metered=False,
                 **_verifier_recall_kwargs(recall_embedding_model),
                 recall_route_preference=recall_route_preference,
                 **_verifier_memo_kwargs(profile),

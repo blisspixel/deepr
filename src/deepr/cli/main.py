@@ -16,6 +16,8 @@ Interactive Mode:
 
 import os
 import sys
+from importlib import import_module
+from typing import NamedTuple
 
 import click
 
@@ -30,6 +32,213 @@ _CORE_COMMAND_ORDER = ["research", "expert", "costs", "doctor", "web"]
 _CORE_COMMANDS = set(_CORE_COMMAND_ORDER)
 
 
+class _LazyCommandSpec(NamedTuple):
+    """Import recipe and root-help metadata for one top-level command."""
+
+    module: str
+    attribute: str
+    short_help: str
+    hidden: bool = False
+    load_after: tuple[str, ...] = ()
+
+
+_COMMAND_SPECS: dict[str, _LazyCommandSpec] = {
+    "a2a": _LazyCommandSpec(
+        "deepr.cli.commands.a2a",
+        "a2a",
+        "Agent-to-Agent interoperability tools.",
+    ),
+    "agentic": _LazyCommandSpec(
+        "deepr.cli.commands.semantic",
+        "agentic",
+        "Autonomous multi-step research workflows.",
+    ),
+    "analytics": _LazyCommandSpec(
+        "deepr.cli.commands.analytics",
+        "analytics",
+        "View usage analytics and success metrics.",
+    ),
+    "budget": _LazyCommandSpec(
+        "deepr.cli.commands.budget",
+        "budget",
+        "Manage monthly research budget.",
+    ),
+    "cancel": _LazyCommandSpec("deepr.cli.commands.status", "cancel", "Cancel a research job.", True),
+    "capacity": _LazyCommandSpec(
+        "deepr.cli.commands.capacity",
+        "capacity",
+        "Show available research capacity (local, plan quota,...",
+    ),
+    "check": _LazyCommandSpec(
+        "deepr.cli.commands.semantic",
+        "check",
+        "Verify a factual claim quickly.",
+    ),
+    "completion": _LazyCommandSpec(
+        "deepr.cli.commands.completion",
+        "completion",
+        "Output a tab-completion script for SHELL (bash, zsh, or...",
+    ),
+    "config": _LazyCommandSpec(
+        "deepr.cli.commands.config",
+        "config",
+        "Manage and validate configuration.",
+    ),
+    "cost": _LazyCommandSpec(
+        "deepr.cli.commands.cost",
+        "cost",
+        "Deprecated alias for costs.",
+        True,
+    ),
+    "costs": _LazyCommandSpec(
+        "deepr.cli.commands.costs",
+        "costs",
+        "Cost tracking and budget management.",
+    ),
+    "diagnostics": _LazyCommandSpec(
+        "deepr.cli.commands.diagnostics",
+        "diagnostics_cli",
+        "Diagnostics and self-awareness tools for experts.",
+    ),
+    "docs": _LazyCommandSpec(
+        "deepr.cli.commands.docs",
+        "docs",
+        "Analyze documentation and queue research for gaps.",
+    ),
+    "doctor": _LazyCommandSpec(
+        "deepr.cli.commands.doctor",
+        "doctor",
+        "Run diagnostics to check Deepr configuration and...",
+    ),
+    "eval": _LazyCommandSpec(
+        "deepr.cli.commands.eval",
+        "evaluate",
+        "Run model evaluation workflows with cost safety defaults.",
+        load_after=(
+            "deepr.cli.commands.eval_grounding_correctness",
+            "deepr.cli.commands.eval_judge_calibration",
+            "deepr.cli.commands.eval_recall",
+        ),
+    ),
+    "expert": _LazyCommandSpec(
+        "deepr.cli.commands.semantic",
+        "expert",
+        "Create and interact with domain experts.",
+    ),
+    "fleet": _LazyCommandSpec(
+        "deepr.cli.commands.fleet",
+        "fleet",
+        "Roster-wide expert fleet health (read-only, $0).",
+    ),
+    "get": _LazyCommandSpec("deepr.cli.commands.status", "get", "Get a research result.", True),
+    "help": _LazyCommandSpec(
+        "deepr.cli.commands.help",
+        "help",
+        "Get help on Deepr commands and concepts.",
+    ),
+    "init": _LazyCommandSpec(
+        "deepr.cli.commands.init",
+        "init",
+        "Guided first-run setup: detect keys, write .env, set a...",
+    ),
+    "interactive": _LazyCommandSpec(
+        "deepr.cli.commands.interactive",
+        "interactive",
+        "Start interactive mode for guided research.",
+    ),
+    "jobs": _LazyCommandSpec(
+        "deepr.cli.commands.jobs",
+        "jobs",
+        "Manage research jobs (list, status, get results, cancel).",
+    ),
+    "knowledge": _LazyCommandSpec(
+        "deepr.cli.commands.vector",
+        "vector",
+        "Manage knowledge bases (vector stores) for experts and...",
+    ),
+    "l": _LazyCommandSpec("deepr.cli.commands.status", "list_alias", "List research jobs.", True),
+    "learn": _LazyCommandSpec(
+        "deepr.cli.commands.semantic",
+        "learn",
+        "Learn about a topic through multi-phase research.",
+    ),
+    "list": _LazyCommandSpec("deepr.cli.commands.status", "list_jobs", "List research jobs.", True),
+    "make": _LazyCommandSpec(
+        "deepr.cli.commands.semantic",
+        "make",
+        "Create artifacts from research.",
+    ),
+    "mcp": _LazyCommandSpec(
+        "deepr.cli.commands.mcp",
+        "mcp",
+        "Model Context Protocol server for AI agent integration.",
+    ),
+    "migrate": _LazyCommandSpec(
+        "deepr.cli.commands.migrate",
+        "migrate",
+        "Migrate and organize legacy reports.",
+    ),
+    "providers": _LazyCommandSpec(
+        "deepr.cli.commands.providers",
+        "providers",
+        "Provider management and monitoring.",
+    ),
+    "r": _LazyCommandSpec("deepr.cli.commands.run", "run_alias", "Run one research job.", True),
+    "research": _LazyCommandSpec(
+        "deepr.cli.commands.semantic",
+        "research",
+        "Run research with automatic mode detection.",
+    ),
+    "route": _LazyCommandSpec(
+        "deepr.cli.commands.route",
+        "route",
+        "Inspect deterministic routing decisions before dispatching...",
+    ),
+    "run": _LazyCommandSpec(
+        "deepr.cli.commands.run",
+        "run",
+        "Run research jobs (single, campaign, or team).",
+    ),
+    "s": _LazyCommandSpec("deepr.cli.commands.status", "status_alias", "Show research status.", True),
+    "search": _LazyCommandSpec(
+        "deepr.cli.commands.search",
+        "search",
+        "Search and discover related research.",
+    ),
+    "skill": _LazyCommandSpec(
+        "deepr.cli.commands.semantic.skills",
+        "skill",
+        "Manage expert skills - domain-specific capability packages.",
+    ),
+    "status": _LazyCommandSpec("deepr.cli.commands.status", "status", "Show research status.", True),
+    "team": _LazyCommandSpec(
+        "deepr.cli.commands.semantic",
+        "team",
+        "Analyze a question from multiple perspectives (dream team).",
+    ),
+    "templates": _LazyCommandSpec(
+        "deepr.cli.commands.templates",
+        "templates",
+        "Manage prompt templates.",
+    ),
+    "upgrade": _LazyCommandSpec(
+        "deepr.cli.commands.upgrade",
+        "upgrade",
+        "Update deepr to the latest released version.",
+    ),
+    "vector": _LazyCommandSpec(
+        "deepr.cli.commands.vector",
+        "vector",
+        "Manage knowledge bases (vector stores) for experts and...",
+    ),
+    "web": _LazyCommandSpec(
+        "deepr.cli.commands.web",
+        "web",
+        "Start the Deepr web dashboard.",
+    ),
+}
+
+
 def _apply_no_color_option(_ctx: click.Context, _param: click.Option, value: bool) -> bool:
     if value:
         apply_no_color()
@@ -37,24 +246,49 @@ def _apply_no_color_option(_ctx: click.Context, _param: click.Option, value: boo
 
 
 class SectionedGroup(click.Group):
-    """Click group whose help lists core commands first, the rest as Advanced."""
+    """Click group with static root help and lazy top-level command imports."""
+
+    def list_commands(self, ctx: click.Context) -> list[str]:
+        """List built-in recipes plus commands registered dynamically by callers."""
+        return sorted(set(_COMMAND_SPECS) | set(super().list_commands(ctx)))
+
+    def get_command(self, ctx: click.Context, cmd_name: str) -> click.Command | None:
+        """Import only the command selected by Click."""
+        loaded = super().get_command(ctx, cmd_name)
+        if loaded is not None:
+            return loaded
+
+        spec = _COMMAND_SPECS.get(cmd_name)
+        if spec is None:
+            return None
+
+        module = import_module(spec.module)
+        for module_name in spec.load_after:
+            import_module(module_name)
+        command = getattr(module, spec.attribute)
+        if not isinstance(command, click.Command):
+            raise TypeError(f"Lazy command target {spec.module}:{spec.attribute} is not a Click command")
+        command.hidden = spec.hidden
+        self.commands[cmd_name] = command
+        return command
 
     def format_commands(self, ctx: click.Context, formatter: click.HelpFormatter) -> None:
-        visible: list[tuple[str, click.Command]] = []
+        visible: list[tuple[str, str]] = []
         for name in self.list_commands(ctx):
-            cmd = self.get_command(ctx, name)
-            if cmd is None or cmd.hidden:
+            spec = _COMMAND_SPECS.get(name)
+            if spec is not None:
+                if not spec.hidden:
+                    visible.append((name, spec.short_help))
                 continue
-            visible.append((name, cmd))
+            command = super().get_command(ctx, name)
+            if command is not None and not command.hidden:
+                visible.append((name, command.get_short_help_str()))
         if not visible:
             return
 
-        limit = formatter.width - 6 - max(len(name) for name, _ in visible)
-
         core: dict[str, str] = {}
         advanced: list[tuple[str, str]] = []
-        for name, cmd in visible:
-            short = cmd.get_short_help_str(limit)
+        for name, short in visible:
             if name in _CORE_COMMANDS:
                 core[name] = short
             else:
@@ -93,127 +327,6 @@ def cli():
     Advanced commands below - you will not need most of it on day one.
     """
     return None
-
-
-# Import command groups (after cli group to avoid circular imports)
-from deepr.cli.commands import (
-    a2a,
-    analytics,
-    budget,
-    completion,
-    config,
-    cost,
-    costs,
-    diagnostics,
-    docs,
-    doctor,
-    interactive,
-    jobs,
-    mcp,
-    migrate,
-    providers,
-    route,
-    run,
-    search,
-    semantic,
-    status,
-    templates,
-    upgrade,
-    vector,
-    web,
-)
-from deepr.cli.commands import (
-    capacity as capacity_cmd,
-)
-from deepr.cli.commands import (
-    eval as eval_cmd,
-)
-
-# Imported for their registration side effect on the `eval` group; eval.py is
-# at the file-size ceiling, so extra subcommands live in their own modules.
-from deepr.cli.commands import (
-    eval_grounding_correctness as _eval_grounding_correctness_cmd,  # noqa: F401
-)
-from deepr.cli.commands import (
-    eval_judge_calibration as _eval_judge_calibration_cmd,  # noqa: F401
-)
-from deepr.cli.commands import (
-    eval_recall as _eval_recall_cmd,  # noqa: F401
-)
-from deepr.cli.commands import (
-    fleet as fleet_cmd,
-)
-from deepr.cli.commands import help as help_cmd
-from deepr.cli.commands import (
-    init as init_cmd,
-)
-
-# Core commands - new structure
-cli.add_command(run.run)
-cli.add_command(jobs.jobs)
-
-# Semantic commands - intent-based interface
-cli.add_command(semantic.research)
-cli.add_command(semantic.learn)
-cli.add_command(semantic.team)
-cli.add_command(semantic.check)
-cli.add_command(semantic.make)
-cli.add_command(semantic.agentic)
-cli.add_command(semantic.expert)
-
-# Route inspection (deterministic, $0, no model call)
-cli.add_command(route.route)
-
-# Skill management
-from deepr.cli.commands.semantic.skills import skill
-
-cli.add_command(skill)
-
-# Deprecated commands (kept for backward compatibility with warnings).
-# Hidden from --help so the listing stays navigable; they still execute.
-for _legacy in (status.status, status.get, status.list_jobs, status.cancel):
-    _legacy.hidden = True
-cli.add_command(status.status)
-cli.add_command(status.get)
-cli.add_command(status.list_jobs, name="list")
-cli.add_command(status.cancel)
-
-# Quick single-letter aliases - functional but hidden from --help
-for _alias in (run.run_alias, status.status_alias, status.list_alias):
-    _alias.hidden = True
-cli.add_command(run.run_alias)
-cli.add_command(status.status_alias)
-cli.add_command(status.list_alias)
-
-# Supporting commands
-cli.add_command(budget.budget)
-cli.add_command(capacity_cmd.capacity)
-cli.add_command(fleet_cmd.fleet)
-# `cost` is a deprecated alias for `costs` (Phase Q1.2): functional but hidden
-# from --help, emits a deprecation warning on use.
-cost.cost.hidden = True
-cli.add_command(cost.cost)
-cli.add_command(interactive.interactive)
-cli.add_command(docs.docs)
-cli.add_command(vector.vector)
-cli.add_command(vector.vector, name="knowledge")  # Intuitive alias for vector
-cli.add_command(config.config)
-cli.add_command(analytics.analytics)
-cli.add_command(templates.templates)
-cli.add_command(migrate.migrate)
-cli.add_command(completion.completion)
-cli.add_command(upgrade.upgrade)
-cli.add_command(doctor.doctor)
-cli.add_command(init_cmd.init)
-cli.add_command(diagnostics.diagnostics_cli)
-cli.add_command(a2a.a2a)
-cli.add_command(mcp.mcp)
-cli.add_command(help_cmd.help)
-cli.add_command(costs.costs)
-cli.add_command(providers.providers)
-cli.add_command(search.search)
-cli.add_command(web.web)
-cli.add_command(eval_cmd.evaluate)
 
 
 def _ensure_utf8_console() -> None:

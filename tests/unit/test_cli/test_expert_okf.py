@@ -12,6 +12,7 @@ from deepr.cli.main import cli
 from deepr.experts.beliefs import Belief, BeliefStore
 from deepr.experts.okf import build_okf_bundle, write_okf_bundle
 from deepr.experts.profile import ExpertProfile
+from deepr.experts.report_absorber import AbsorbedClaim, AbsorptionResult
 
 
 def test_export_okf_registered():
@@ -67,7 +68,13 @@ def test_absorb_okf_rejects_local_and_api_together():
 
 def test_absorb_okf_local_dry_run_routes_parsed_text_to_absorber(monkeypatch, tmp_path):
     captured = {}
-    profile = ExpertProfile(name="OKF Expert", vector_store_id="vs-okf", domain="ai")
+    profile = ExpertProfile(
+        name="OKF Expert",
+        vector_store_id="local-only:okf-expert",
+        domain="ai",
+        provider="local",
+        model="qwen-profile",
+    )
     store = BeliefStore("OKF Expert", storage_dir=tmp_path / "beliefs")
     store.add_belief(Belief("OKF claims need verification", 0.9, domain="ai"), check_conflicts=False)
     bundle = build_okf_bundle(profile, store, manifest=profile.get_manifest())
@@ -89,11 +96,12 @@ def test_absorb_okf_local_dry_run_routes_parsed_text_to_absorber(monkeypatch, tm
             captured["client"] = client
             captured["estimated_cost"] = estimated_cost
 
-        async def absorb(self, report_id, report_text, *, min_confidence, dry_run):
+        async def absorb(self, report_id, report_text, *, min_confidence, dry_run, budget):
             captured["report_id"] = report_id
             captured["report_text"] = report_text
             captured["min_confidence"] = min_confidence
             captured["dry_run"] = dry_run
+            captured["budget"] = budget
             return SimpleNamespace(
                 dry_run=True,
                 estimated_cost=0.0,
@@ -105,7 +113,7 @@ def test_absorb_okf_local_dry_run_routes_parsed_text_to_absorber(monkeypatch, tm
 
     monkeypatch.setattr("deepr.experts.profile.ExpertStore", FakeExpertStore)
     monkeypatch.setattr("deepr.experts.report_absorber.ReportAbsorber", FakeReportAbsorber)
-    monkeypatch.setattr("deepr.backends.local.default_local_model", lambda: "qwen-local")
+    monkeypatch.setattr("deepr.backends.local.default_local_model", lambda: "qwen-global")
     monkeypatch.setattr("deepr.backends.local.ollama_chat_client", lambda: "client")
 
     result = CliRunner().invoke(
@@ -117,9 +125,50 @@ def test_absorb_okf_local_dry_run_routes_parsed_text_to_absorber(monkeypatch, tm
     payload = json.loads(result.output)
     assert payload["okf"]["concept_count"] == 1
     assert payload["absorption"]["dry_run"] is True
-    assert captured["model"] == "qwen-local"
+    assert captured["model"] == "qwen-profile"
     assert captured["estimated_cost"] == 0.0
     assert captured["dry_run"] is True
+    assert captured["budget"] == 0.10
     assert captured["report_id"].startswith("okf:okf:")
     assert "OKF claims need verification" in captured["report_text"]
     assert "saved_profile" not in captured
+
+
+def test_absorb_okf_accepted_write_advances_both_freshness_fields(monkeypatch, tmp_path):
+    from deepr.cli.commands.semantic import expert_okf
+
+    profile = ExpertProfile(name="OKF Freshness Expert", vector_store_id="local-only:okf", domain="ai")
+    captured = {}
+
+    class FakeStore:
+        def save(self, saved_profile):
+            captured["saved"] = saved_profile
+
+    corpus = SimpleNamespace(
+        report_id="okf:test:1",
+        report_text="Verified OKF source text",
+        to_dict=lambda: {"report_id": "okf:test:1"},
+    )
+    absorption = AbsorptionResult(
+        expert_name=profile.name,
+        report_id=corpus.report_id,
+        dry_run=False,
+        total_candidates=1,
+        absorbed=[AbsorbedClaim("Accepted OKF claim", 0.8, "belief-1", "added")],
+    )
+
+    monkeypatch.setattr(expert_okf, "_load_expert_or_exit", lambda name: (FakeStore(), profile))
+    monkeypatch.setattr(expert_okf, "_build_okf_corpus_or_exit", lambda path: corpus)
+    monkeypatch.setattr(expert_okf, "_choose_absorb_backend", lambda *args: (True, "qwen", ""))
+    monkeypatch.setattr(expert_okf, "_make_absorber_or_exit", lambda *args, **kwargs: (object(), "$0"))
+    monkeypatch.setattr(expert_okf, "_run_okf_absorb_or_exit", lambda *args, **kwargs: absorption)
+
+    result = CliRunner().invoke(
+        cli,
+        ["expert", "absorb-okf", profile.name, str(tmp_path), "--local", "--yes", "--json"],
+    )
+
+    assert result.exit_code == 0, result.output
+    assert captured["saved"] is profile
+    assert profile.knowledge_cutoff_date == absorption.generated_at
+    assert profile.last_knowledge_refresh == absorption.generated_at

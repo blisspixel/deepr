@@ -10,9 +10,10 @@ imports this module at its bottom so the decorators run.
 from __future__ import annotations
 
 import asyncio
+import functools
 import json
 import sys
-from datetime import UTC, datetime
+from typing import Any
 
 import click
 
@@ -36,6 +37,7 @@ from deepr.cli.commands.semantic.expert_sync_support import (
     _run_sync_with_loop_guard,
     _sync_context_builder,
     _sync_context_mode,
+    _sync_retry_command_argv,
     load_recall_route_preference_report,
     validate_compiled_claims_flags,
 )
@@ -52,6 +54,40 @@ __all__ = [
     "_build_sync_capacity_payload",
     "_record_completed_sync_loop",
 ]
+
+
+def _emit_backend_setup_error(message: str, *, json_output: bool) -> None:
+    """Emit a backend preflight failure without constructing a model client."""
+    if json_output:
+        click.echo(json.dumps({"status": "error", "error": message}, indent=2))
+        return
+    print_error(message)
+
+
+def _with_absorb_overlap_guard(command):
+    """Skip a second same-expert absorb before model construction.
+
+    Metered dry-runs do not write beliefs, but they still settle cost and save
+    the expert profile.  They therefore share the same read-modify-write race
+    as an applying absorb and must use the guard too.
+    """
+
+    @functools.wraps(command)
+    def guarded(*args, **kwargs):
+        name = str(kwargs.get("name") or (args[0] if args else ""))
+        from deepr.experts.loop_lock import expert_verb_lock
+
+        with expert_verb_lock(name, "absorb") as acquired:
+            if acquired:
+                return command(*args, **kwargs)
+            payload = {"status": "skipped", "reason": "overlap_locked", "expert": name, "cost_usd": 0.0}
+            if kwargs.get("json_output", False):
+                click.echo(json.dumps(payload, indent=2))
+            else:
+                print_warning(f"Another absorb is already running for {name!r}; skipped before model construction.")
+            return None
+
+    return guarded
 
 
 @expert.command(name="absorb")
@@ -72,6 +108,13 @@ __all__ = [
     help="Drop candidate claims the report supports more weakly than this",
 )
 @click.option("--model", default=None, help="Override the extraction model (default: gpt-5-mini)")
+@click.option(
+    "--budget",
+    type=click.FloatRange(min=0.0, min_open=True),
+    default=0.10,
+    show_default=True,
+    help="Hard ceiling across extraction and dynamically routed semantic verdicts",
+)
 @click.option("--dry-run", is_flag=True, help="Preview what would be absorbed; write nothing (still runs extraction)")
 @click.option(
     "--local",
@@ -84,7 +127,7 @@ __all__ = [
     "plan",
     type=click.Choice(PLAN_BACKEND_CHOICES),
     default=None,
-    help="Run extraction on a plan-quota CLI backend (prepaid subscription capacity). See: deepr capacity",
+    help="Run extraction on a non-metered plan-quota CLI backend. Metered-at-margin adapters are blocked.",
 )
 @click.option("--plan-model", "plan_model", default=None, help="Model to pass to the plan-quota CLI")
 @click.option("--check-grounding", is_flag=True, help="Check absorbed claims with a fresh-context verifier")
@@ -104,12 +147,14 @@ __all__ = [
 @click.option("--second-checker-plan-model", default=None, help="Model to pass to the second-checker plan CLI")
 @click.option("--yes", "-y", is_flag=True, help="Skip the confirmation prompt")
 @click.option("--json", "json_output", is_flag=True, help="Emit the structured absorption result as JSON")
+@_with_absorb_overlap_guard
 def absorb_report(
     name: str,
     report_id: str | None,
     doc_file: str | None,
     min_confidence: float,
     model: str | None,
+    budget: float,
     dry_run: bool,
     local: bool,
     api: bool,
@@ -130,9 +175,11 @@ def absorb_report(
     beliefs with the report id recorded as provenance. Deduped against existing
     beliefs, so re-absorbing only adds the delta.
 
-    Costs one small extraction call (~$0.03), or $0 on a local model - forced
-    with --local, or automatically when one is admitted for absorb (see
-    `deepr capacity admit`). Use --dry-run to preview claims without writing.
+    Costs one small extraction call plus only the semantic verdicts dynamically
+    routed by the report, all inside --budget (default $0.10), or $0 on a local
+    model - forced with --local, or automatically when one is admitted for
+    absorb (see `deepr capacity admit`). Use --dry-run to preview claims without
+    writing; a metered preview still records its provider cost.
 
     REPORT_ID is the job id of a completed report (the same id you pass to
     `deepr research --context`; find it with `deepr search`). A job-id prefix
@@ -165,7 +212,12 @@ def absorb_report(
         sys.exit(2)
 
     from deepr.experts.profile import ExpertStore
-    from deepr.experts.report_absorber import ReportAbsorberError
+    from deepr.experts.report_absorber import (
+        ReportAbsorberCostError,
+        ReportAbsorberError,
+        absorber_estimated_cost,
+        absorption_result_cost,
+    )
     from deepr.services.context_index import ContextIndex
 
     store = ExpertStore()
@@ -220,10 +272,12 @@ def absorb_report(
             json_output=json_output,
         )
     except AbsorbBackendError as exc:
-        print_error(str(exc))
+        _emit_backend_setup_error(str(exc), json_output=json_output)
         sys.exit(2)
     absorber = backend.absorber
     cost_note = backend.cost_note
+    if absorber_estimated_cost(absorber) > 0:
+        cost_note = f"{cost_note}; hard run ceiling ${budget:.2f}"
 
     # Confirm before the extraction call (cost is incurred whether or not we
     # write, so gate it even for --dry-run; local is $0 but still confirmed).
@@ -235,7 +289,21 @@ def absorb_report(
             sys.exit(0)
 
     try:
-        result = asyncio.run(absorber.absorb(report_id, report_text, min_confidence=min_confidence, dry_run=dry_run))
+        result = asyncio.run(
+            absorber.absorb(
+                report_id,
+                report_text,
+                min_confidence=min_confidence,
+                dry_run=dry_run,
+                budget=budget,
+            )
+        )
+    except ReportAbsorberCostError as e:
+        if e.actual_cost > 0:
+            profile.total_research_cost += e.actual_cost
+            store.save(profile)
+        print_error(str(e))
+        sys.exit(2)
     except ReportAbsorberError as e:
         print_error(str(e))
         sys.exit(2)
@@ -243,10 +311,13 @@ def absorb_report(
         print_error(f"Absorption failed: {e}")
         sys.exit(1)
 
-    if not result.dry_run:
-        # Record the spend + refresh timestamp on the profile, then persist.
-        profile.total_research_cost += result.estimated_cost
-        profile.last_knowledge_refresh = datetime.now(UTC)
+    settled_cost = absorption_result_cost(result)
+    if settled_cost > 0:
+        profile.total_research_cost += settled_cost
+    from deepr.experts.knowledge_freshness import advance_from_absorption
+
+    knowledge_changed = advance_from_absorption(profile, result)
+    if settled_cost > 0 or knowledge_changed:
         store.save(profile)
 
     if json_output:
@@ -339,7 +410,7 @@ def absorb_report(
     "plan",
     type=click.Choice(PLAN_BACKEND_CHOICES),
     default=None,
-    help="Run sync on a plan-quota CLI backend (prepaid subscription capacity). See: deepr capacity",
+    help="Run sync on a non-metered plan-quota CLI backend. Metered-at-margin adapters are blocked.",
 )
 @click.option(
     "--plan-model",
@@ -516,13 +587,14 @@ def sync_cmd(
     use_local = local
     use_plan = False
     plan_backend_id: str | None = plan
+    selected_local_model: str | None = None
     selection_note = ""
     if plan:
         from deepr.backends.waterfall import choose_plan_quota_backend
 
         choice = choose_plan_quota_backend(plan, allow_metered_at_margin=True)
         if not choice.is_plan_quota:
-            print_error(choice.reason)
+            _emit_backend_setup_error(choice.reason, json_output=json_output)
             sys.exit(2)
         use_plan = True
         plan_backend_id = choice.plan_backend_id
@@ -535,11 +607,37 @@ def sync_cmd(
         use_local = choice.is_local
         use_plan = choice.is_plan_quota
         plan_backend_id = choice.plan_backend_id
+        if use_local:
+            selected_local_model = choice.model
         if use_local or use_plan:
             selection_note = choice.reason
 
     owned_or_prepaid = use_local or use_plan
     context_mode = _sync_context_mode(fresh_context=fresh_context, deep_context=deep_context)
+    retry_command_argv = _sync_retry_command_argv(
+        name=name,
+        budget=budget,
+        sync_all=sync_all,
+        local=local,
+        api=api,
+        plan=plan,
+        plan_model=plan_model,
+        check_grounding=check_grounding,
+        compile_claims=compile_claims,
+        stage_compiled_claims=stage_compiled_claims,
+        apply_compiled_claims=apply_compiled_claims,
+        recall_embedding_model=recall_embedding_model,
+        recall_preference_report=recall_preference_report,
+        checker_plan=checker_plan,
+        checker_plan_model=checker_plan_model,
+        second_checker_plan=second_checker_plan,
+        second_checker_plan_model=second_checker_plan_model,
+        fresh_context=fresh_context,
+        deep_context=deep_context,
+        jitter=jitter,
+        yes=yes,
+        json_output=json_output,
+    )
     if scheduled and not api and not owned_or_prepaid:
         _emit_scheduled_capacity_wait(
             name,
@@ -547,6 +645,7 @@ def sync_cmd(
             json_output=json_output,
             detail="scheduled sync is waiting for owned/prepaid capacity instead of using metered API",
             profile=profile,
+            command_argv=retry_command_argv,
         )
         return
 
@@ -562,9 +661,9 @@ def sync_cmd(
 
     local_model = None
     if use_local:
-        from deepr.backends.local import default_local_model
+        from deepr.backends.local import resolve_local_maintenance_model
 
-        local_model = default_local_model()
+        local_model = resolve_local_maintenance_model(profile, explicit_model=selected_local_model)
         if not local_model:
             if scheduled:
                 _emit_scheduled_capacity_wait(
@@ -573,16 +672,57 @@ def sync_cmd(
                     json_output=json_output,
                     detail="scheduled local sync is waiting for a running local model",
                     profile=profile,
+                    command_argv=retry_command_argv,
+                    capacity_source="local",
                 )
                 return
             print_error("No local model available. Is Ollama running? Check: deepr capacity --probe")
             sys.exit(2)
+
+        if scheduled and not dry_run:
+            from deepr.backends.local_capacity import LocalCapacityState, probe_local_gpu_occupancy
+
+            local_capacity = probe_local_gpu_occupancy()
+            if local_capacity.state == LocalCapacityState.BUSY:
+                _emit_scheduled_capacity_wait(
+                    name,
+                    context_mode=context_mode,
+                    json_output=json_output,
+                    detail="scheduled local sync found meaningful GPU contention and will not dispatch or fall back",
+                    profile=profile,
+                    local_capacity=local_capacity,
+                    budget_limit=budget,
+                    command_argv=retry_command_argv,
+                    capacity_source="local",
+                    backend_profile_id=local_model,
+                )
+                return
 
     plan_adapter = None
     if use_plan:
         from deepr.backends.plan_quota import get_adapter
 
         plan_adapter = get_adapter(plan_backend_id or "")
+
+    if scheduled and not dry_run and use_plan and compile_claims and recall_embedding_model:
+        from deepr.backends.local_capacity import LocalCapacityState, probe_local_gpu_occupancy
+
+        local_capacity = probe_local_gpu_occupancy()
+        if local_capacity.state == LocalCapacityState.BUSY:
+            selected_plan = plan_backend_id or "unknown"
+            _emit_scheduled_capacity_wait(
+                name,
+                context_mode=context_mode,
+                json_output=json_output,
+                detail="scheduled plan sync is waiting for its local recall embedding step",
+                profile=profile,
+                local_capacity=local_capacity,
+                budget_limit=budget,
+                command_argv=retry_command_argv,
+                capacity_source=f"plan_quota:{selected_plan}+local_embedding",
+                backend_profile_id=recall_embedding_model,
+            )
+            return
 
     grounding_checker = None
     grounding_escalator = None
@@ -724,6 +864,8 @@ def sync_cmd(
         if o.status == "synced":
             if o.graph_commit_apply_status:
                 line += f"  [dim](graph apply {o.graph_commit_apply_status}, {o.absorbed} writes, ${o.cost:.3f})[/dim]"
+                if o.blocked:
+                    line += f"  [dim]({o.blocked} verifier-blocked)[/dim]"
             else:
                 line += f"  [dim](+{o.absorbed} beliefs, {o.flagged} contested, ${o.cost:.3f})[/dim]"
         elif o.detail:
@@ -747,201 +889,15 @@ def sync_cmd(
             print_warning(f"Contested beliefs recorded. Review: deepr expert contested '{name}'")
 
 
-def _emit_absorb_result(result, name: str, json_output: bool) -> None:
-    """Render an absorption result as JSON or a human summary (shared by learn-web)."""
-    if json_output:
-        click.echo(json.dumps(result.to_dict(), indent=2))
-        return
-    if result.dry_run:
-        console.print("[yellow]DRY RUN[/yellow] - nothing written")
-    console.print(
-        f"Candidates: {result.total_candidates}  Absorbed: {len(result.absorbed)} "
-        f"(added {result.added_count}, merged {result.merged_count})  Rejected: {len(result.rejected)}"
-    )
-    for a in result.absorbed:
-        print_list_item(f"{a.statement}  [dim](conf {a.confidence:.2f}, {a.outcome})[/dim]")
-    console.print(f"\nAudit anytime: deepr expert health-check '{name}'")
-
-
-def _learn_web_plan_backend(plan: str, plan_model: str | None, json_output: bool):
-    from deepr.backends.plan_quota import PlanQuotaChatClient, get_adapter
-    from deepr.backends.waterfall import choose_plan_quota_backend
-
-    choice = choose_plan_quota_backend(plan)
-    if not choice.is_plan_quota:
-        print_error(choice.reason)
-        raise click.exceptions.Exit(2)
-    adapter = get_adapter(choice.plan_backend_id or "")
-    if adapter is None:
-        print_error(f"Unknown plan-quota backend: {plan}")
-        raise click.exceptions.Exit(2)
-    client = PlanQuotaChatClient(adapter, model=plan_model, operation="plan_quota_learn_web")
-    selected_model = plan_model or adapter.backend_id
-    cost_desc = "billed per use" if adapter.metered_at_margin else "$0 at the margin (prepaid plan)"
-    if adapter.tos_note and not json_output:
-        print_warning(adapter.tos_note)
-    return selected_model, client, f"{adapter.display_name}: {selected_model}  ({cost_desc})"
-
-
-def _learn_web_local_backend(model: str | None):
-    from deepr.backends.local import default_local_model, ollama_chat_client
-
-    selected_model = model or default_local_model()
-    if not selected_model:
-        print_error("No local model available. Is Ollama running? Check: deepr capacity --probe")
-        raise click.exceptions.Exit(2)
-    return selected_model, ollama_chat_client(), f"Local model: {selected_model}  ($0, owned hardware)"
-
-
-def _learn_web_backend(model: str | None, plan: str | None, plan_model: str | None, json_output: bool):
-    if model and plan:
-        print_error("Use only one of --model or --plan.")
-        raise click.exceptions.Exit(2)
-    if plan:
-        return _learn_web_plan_backend(plan, plan_model, json_output)
-    return _learn_web_local_backend(model)
-
-
-def run_learn_web_pipeline(
-    *,
-    name: str,
-    topic: str,
-    model: str | None,
-    plan: str | None,
-    plan_model: str | None,
-    num_results: int,
-    max_pages: int,
-    min_confidence: float,
-    save_path: str | None,
-    dry_run: bool,
-    yes: bool,
-    json_output: bool,
-    title: str,
-) -> None:
-    """Research a topic with free web retrieval, then absorb verified beliefs."""
-    from pathlib import Path
-
-    from deepr.experts.local_research import research_web_local
-    from deepr.experts.profile import ExpertStore
-    from deepr.experts.report_absorber import ReportAbsorber, ReportAbsorberError
-
-    store = ExpertStore()
-    profile = store.load(name)
-    if not profile:
-        print_error(f"Expert not found: {name}")
-        click.echo("List available experts: deepr expert list")
-        sys.exit(2)
-
-    model, client, run_label = _learn_web_backend(model, plan, plan_model, json_output)
-
-    print_header(title)
-    console.print(f"  Topic: {topic}")
-    console.print(f"  {run_label}")
-    if not yes and not click.confirm("\nSearch the live web and absorb findings?", default=True):
-        print_warning("Cancelled.")
-        sys.exit(0)
-
-    console.print("[dim]Searching the web, fetching pages, and synthesizing without metered spend...[/dim]")
-    research = asyncio.run(
-        research_web_local(topic, model=model, client=client, num_results=num_results, max_pages=max_pages)
-    )
-    report = research.get("answer") or ""
-    if not report:
-        print_error(f"Web research produced no report: {research.get('error', 'empty')}")
-        sys.exit(1)
-    console.print(f"[dim]Synthesized a report from {len(research.get('sources', []))} live source(s).[/dim]")
-    if save_path:
-        Path(save_path).write_text(report, encoding="utf-8")
-        console.print(f"[dim]Report saved: {save_path}[/dim]")
-
-    absorber = ReportAbsorber(
-        profile,
-        model=model,
-        client=client,
-        estimated_cost=0.0,
-    )
-    try:
-        result = asyncio.run(absorber.absorb(f"web:{topic}", report, min_confidence=min_confidence, dry_run=dry_run))
-    except ReportAbsorberError as e:
-        print_error(str(e))
-        sys.exit(2)
-
-    if not result.dry_run:
-        profile.last_knowledge_refresh = datetime.now(UTC)
-        store.save(profile)
-
-    _emit_absorb_result(result, name, json_output)
-
-
-@expert.command(name="learn-web")
-@click.argument("name")
-@click.argument("topic")
-@click.option(
-    "--model",
-    default=None,
-    help="Local Ollama model for synthesis + extraction. Pick for quality; runtime does not matter.",
-)
-@click.option(
-    "--plan",
-    "plan",
-    default=None,
-    help="Use a plan-quota CLI backend for synthesis + extraction. See: deepr capacity",
-)
-@click.option("--plan-model", "plan_model", default=None, help="Model to pass to the plan-quota CLI")
-@click.option("--num-results", type=int, default=8, show_default=True, help="Web results to retrieve")
-@click.option("--max-pages", type=int, default=5, show_default=True, help="Top results to fetch in full")
-@click.option("--min-confidence", type=float, default=0.6, show_default=True, help="Drop weaker claims")
-@click.option("--save", "save_path", type=click.Path(), default=None, help="Also save the report markdown here")
-@click.option("--dry-run", is_flag=True, help="Research + preview claims; write no beliefs")
-@click.option("--yes", "-y", is_flag=True, help="Skip the confirmation prompt")
-@click.option("--json", "json_output", is_flag=True, help="Emit the absorption result as JSON")
-def learn_web(
-    name,
-    topic,
-    model,
-    plan,
-    plan_model,
-    num_results,
-    max_pages,
-    min_confidence,
-    save_path,
-    dry_run,
-    yes,
-    json_output,
-):
-    """Research a TOPIC on the LIVE web, then absorb the findings.
-
-    The default pipeline runs at $0 on owned hardware: free web search
-    (DuckDuckGo) plus the built-in scraper fetch CURRENT sources, the local model
-    synthesizes a cited report, and the report is absorbed into the expert's
-    belief store with real URL provenance. ``--plan`` uses an explicit
-    plan-quota CLI backend instead, still with free web retrieval and no silent
-    metered API fallback.
-
-    EXAMPLES:
-      deepr expert learn-web "TKG Expert" "latest temporal knowledge graph research 2026"
-      deepr expert learn-web "MCP Expert" "Model Context Protocol updates" --model qwen3.6:27b
-      deepr expert learn-web "CI Expert" "GitHub Actions reliability 2026" --plan codex
-    """
-    run_learn_web_pipeline(
-        name=name,
-        topic=topic,
-        model=model,
-        plan=plan,
-        plan_model=plan_model,
-        num_results=num_results,
-        max_pages=max_pages,
-        min_confidence=min_confidence,
-        save_path=save_path,
-        dry_run=dry_run,
-        yes=yes,
-        json_output=json_output,
-        title=f"Learn from the web: {name}",
-    )
-
-
 # Register the sibling `expert sync-all` maintenance command. It lives in its own
 # module (kept lean) but registers here rather than in experts.py, which is at
 # its grandfathered file-size cap (the registry line would trip the ratchet).
 from deepr.cli.commands.semantic import expert_graph_commit as _expert_graph_commit  # noqa: F401
 from deepr.cli.commands.semantic import expert_sync_all as _expert_sync_all  # noqa: F401
+
+
+def run_learn_web_pipeline(**kwargs: Any) -> None:
+    """Compatibility wrapper for the extracted topic-learning command."""
+    from deepr.cli.commands.semantic.expert_learn_web import run_learn_web_pipeline as implementation
+
+    implementation(**kwargs)

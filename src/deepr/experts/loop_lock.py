@@ -1,7 +1,7 @@
 """Non-blocking per-(expert, verb) overlap guard and startup jitter.
 
-Scheduled expert verbs (sync, health-check, reflect, route-gaps, and the future
-sync-all) are meant to run unattended on a cadence. Two hazards follow:
+State-changing expert verbs, including scheduled maintenance and explicit
+absorption, can overlap across processes. Two hazards follow:
 
 - *Overlap.* A cron firing and a manual run, or two overlapping cron firings,
   can execute the same verb on the same expert at once and race on its on-disk

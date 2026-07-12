@@ -108,6 +108,10 @@ def test_consult_writes_replayable_trace(monkeypatch, consult_trace_path):
     assert trace["input"]["question"] == "q"
     assert trace["context_packet"]["selected"][0]["context"]["source"] == "belief_store"
     assert trace["capacity"]["synthesis_backend"] == "api"
+    assert trace["output"]["collaboration"] == parsed["collaboration"]
+    assert trace["output"]["collaboration"]["task"]["consult_trace_id"] == trace["trace_id"]
+    assert trace["output"]["collaboration"]["budget_capacity_contract"]["capacity"] == parsed["capacity"]
+    assert trace["output"]["collaboration"]["budget_capacity_contract"]["metered_fallback_allowed"] is True
 
 
 def test_consult_human_render(monkeypatch):
@@ -117,6 +121,46 @@ def test_consult_human_render(monkeypatch):
     assert "Synthesis" in result.output
     assert "the synthesized answer" in result.output
     assert "Disagreements" in result.output
+
+
+def test_consult_truncated_synthesis_emits_artifact_and_exits_nonzero(monkeypatch, consult_trace_path):
+    _patch(
+        monkeypatch,
+        _result(
+            synthesis="partial answer",
+            synthesis_status="truncated",
+            synthesis_error_type="OutputLimit",
+            synthesis_stop_reason="length",
+        ),
+    )
+
+    result = CliRunner().invoke(expert_consult, ["q", "--json"])
+
+    assert result.exit_code == 1
+    parsed = json.loads(result.output)
+    assert parsed["answer"] == "partial answer"
+    assert parsed["synthesis_status"] == "truncated"
+    assert parsed["synthesis_stop_reason"] == "length"
+    assert parsed["trace"]["status"] == "failed"
+    trace = json.loads(consult_trace_path.read_text(encoding="utf-8").strip())
+    assert trace["status"] == "failed"
+    assert trace["output"]["collaboration"] == parsed["collaboration"]
+    assert trace["output"]["collaboration"]["task"]["shared_task_trace_id"] == trace["trace_id"]
+
+
+def test_consult_trace_records_effective_explicit_roster_size(monkeypatch, consult_trace_path):
+    _patch(monkeypatch, _result())
+
+    result = CliRunner().invoke(
+        expert_consult,
+        ["q", "-e", "A", "-e", "B", "-e", "C", "-e", "D", "--budget", "1", "--json"],
+    )
+
+    assert result.exit_code == 0
+    trace = json.loads(consult_trace_path.read_text(encoding="utf-8").strip())
+    assert trace["input"]["selection_mode"] == "explicit"
+    assert trace["input"]["requested_max_experts"] == 3
+    assert trace["input"]["max_experts"] == 4
 
 
 def test_consult_no_experts_exits_2(monkeypatch):

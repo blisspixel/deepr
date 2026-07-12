@@ -5,6 +5,7 @@ from __future__ import annotations
 import copy
 import json
 import sys
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
@@ -169,6 +170,12 @@ def expert_apply_graph_commit(name: str, envelope: Path, dry_run: bool, yes: boo
                 gap_tracker=MetaCognitionTracker(profile.name),
                 dry_run=False,
             )
+
+    if bool(result.get("contract", {}).get("writes_graph")):
+        from deepr.experts.knowledge_freshness import advance_knowledge_freshness
+
+        advance_knowledge_freshness(profile, datetime.now(UTC))
+        ExpertStore().save(profile)
 
     if json_output:
         click.echo(json.dumps(result, indent=2))

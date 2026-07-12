@@ -6,7 +6,9 @@ or provider API is touched.
 
 from __future__ import annotations
 
+import multiprocessing
 from datetime import UTC, datetime, timedelta
+from pathlib import Path
 
 import pytest
 
@@ -25,6 +27,19 @@ from deepr.backends.quota_ledger import (
 )
 
 T0 = datetime(2026, 6, 17, tzinfo=UTC)
+
+
+def _record_events_in_process(path: str, worker_id: int, count: int) -> None:
+    """Append deterministic events from a spawned process."""
+    for index in range(count):
+        record_quota_event(
+            _event(
+                backend_id=f"worker-{worker_id}",
+                timestamp=T0 + timedelta(microseconds=index),
+                remaining=float(index),
+            ),
+            path=Path(path),
+        )
 
 
 def _event(
@@ -75,6 +90,29 @@ class TestQuotaLedger:
     def test_requires_backend_id(self, tmp_path):
         with pytest.raises(ValueError, match="backend_id"):
             record_quota_event(_event(backend_id=" "), path=tmp_path / "quota.jsonl")
+
+    def test_instances_share_one_process_local_path_lock(self, tmp_path):
+        path = tmp_path / "quota.jsonl"
+
+        assert QuotaLedger(path)._lock is QuotaLedger(path)._lock
+
+    def test_spawned_writers_preserve_every_jsonl_event(self, tmp_path):
+        path = tmp_path / "quota.jsonl"
+        context = multiprocessing.get_context("spawn")
+        processes = [
+            context.Process(target=_record_events_in_process, args=(str(path), worker_id, 12)) for worker_id in range(3)
+        ]
+
+        for process in processes:
+            process.start()
+        for process in processes:
+            process.join(timeout=20)
+            assert process.exitcode == 0
+
+        events = load_quota_events(path)
+        assert len(events) == 36
+        assert {event.backend_id for event in events} == {"worker-0", "worker-1", "worker-2"}
+        assert len(path.read_text(encoding="utf-8").splitlines()) == 36
 
 
 class TestSummary:

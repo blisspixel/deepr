@@ -72,11 +72,15 @@ def estimate(prompt: str, model: str, web_search: bool):
 
 
 @costs.command()
-@click.option("--daily-limit", type=float, help="Daily spending limit")
-@click.option("--monthly-limit", type=float, help="Monthly spending limit")
+@click.option("--daily-limit", type=click.FloatRange(min=0.0, min_open=True), help="Daily spending limit")
+@click.option("--monthly-limit", type=click.FloatRange(min=0.0, min_open=True), help="Monthly spending limit")
 def show(daily_limit: float | None, monthly_limit: float | None):
     """Show cost summary."""
-    dashboard = CostDashboard(daily_limit=daily_limit or 10.0, monthly_limit=monthly_limit or 100.0)
+    dashboard = CostDashboard()
+    if daily_limit is not None:
+        dashboard.daily_limit = daily_limit
+    if monthly_limit is not None:
+        dashboard.monthly_limit = monthly_limit
 
     summary = dashboard.get_summary()
 

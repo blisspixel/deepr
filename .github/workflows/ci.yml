@@ -115,11 +115,11 @@ jobs:
   core-install:
     # The dev/test/[full] installs always include numpy, bs4, etc., so a broken
     # *core* install - a runtime import that lives only in an extra - cannot be
-    # caught by the unit suite: it ships green and crashes on the user's first
-    # command. This happened (numpy was in the `docs` extra but imported at CLI
-    # startup, so `pip install deepr-research` produced a CLI that died on every
-    # command). This job installs CORE ONLY and exercises the no-network command
-    # surface, so that class fails here, not on a user's machine.
+    # caught by the unit suite: it ships green and crashes when a core surface
+    # imports the missing dependency. Before lazy startup, this happened when
+    # numpy lived only in the `docs` extra and every CLI command imported it.
+    # This job installs CORE ONLY and exercises the no-network command surface,
+    # so that class fails here, not on a user's machine.
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
@@ -172,6 +172,26 @@ jobs:
 
       - name: Production build (vite)
         run: npx vite build
+
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
+        with:
+          python-version: "3.12"
+
+      - name: Verify committed frontend archive is current
+        working-directory: ${{ github.workspace }}
+        run: |
+          python scripts/build_frontend_archive.py
+          git diff --exit-code -- src/deepr/web/frontend/frontend-dist.zip
+
+      - name: Build Python distributions with packaged frontend
+        working-directory: ${{ github.workspace }}
+        run: |
+          python -m pip install build
+          python -m build
+
+      - name: Verify wheel contains dashboard assets
+        working-directory: ${{ github.workspace }}
+        run: python scripts/check_wheel_frontend.py "$(find dist -maxdepth 1 -name '*.whl' -print -quit)"
 
   test:
     runs-on: ubuntu-latest

@@ -5,6 +5,7 @@ and connectivity issues.
 """
 
 import sys
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from unittest.mock import patch
 
@@ -80,6 +81,28 @@ class TestDoctorChecks:
 
         assert any("one writer at a time" in detail.lower() for detail in expert_check.details)
         assert any("wait for sync" in detail.lower() for detail in expert_check.details)
+
+    async def test_database_check_surfaces_stale_queue_candidates_read_only(self, tmp_path):
+        from deepr.cli.commands.doctor import check_database
+        from deepr.queue import ResearchJob, SQLiteQueue
+
+        db_path = tmp_path / "queue.db"
+        queue = SQLiteQueue(db_path)
+        stale = ResearchJob(
+            id="stale",
+            prompt="inspect only",
+            submitted_at=datetime.now(UTC) - timedelta(days=2),
+            metadata={"cost_reservation_id": "reservation-1"},
+        )
+        await queue.enqueue(stale)
+        before = db_path.read_bytes()
+
+        checks = {check.name: check for check in await check_database({"queue_db_path": str(db_path)})}
+
+        assert checks["Job Database"].passed
+        assert checks["Queue Lifecycle"].severity == "warning"
+        assert "1 stale queued candidate" in checks["Queue Lifecycle"].message
+        assert db_path.read_bytes() == before
 
 
 class TestDoctorOutput:

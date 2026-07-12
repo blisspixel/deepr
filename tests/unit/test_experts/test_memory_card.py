@@ -110,6 +110,12 @@ def test_build_expert_memory_card_is_read_only_derived_view(tmp_path):
     assert payload["gaps"][0]["topic"] == "identity update review"
     assert payload["recent_belief_events"][0]["new_claim"] == "Memory cards are derived."
     assert "hypothesis or original idea" in payload["collaboration"]["host_agent_guidance"][2]
+    assert payload["collaboration"]["next_commands"] == [
+        'deepr expert self-model "Memory Card Expert" --json',
+        'deepr expert consult "QUESTION" --expert "Memory Card Expert" --json',
+        'deepr expert why "Memory Card Expert" BELIEF_ID',
+        'deepr expert sync "Memory Card Expert" --local',
+    ]
 
 
 def test_build_expert_memory_card_includes_original_ideas_as_perspective_state():
@@ -185,3 +191,5 @@ def test_write_expert_memory_card_writes_output_path(tmp_path):
     assert output_path.exists()
     assert output_path.read_text(encoding="utf-8") == artifact.markdown
     assert artifact.payload["artifact"]["filename"] == "EXPERT.md"
+    assert artifact.payload["contract"]["read_only"] is True
+    assert artifact.payload["contract"]["writes"] == "derived_view_only"

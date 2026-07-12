@@ -589,6 +589,21 @@ class TestReconstructedContext:
 class TestHierarchicalMemoryReconstructContext:
     """Tests for context reconstruction in HierarchicalMemory."""
 
+    def test_reconstruct_context_reads_documents_from_canonical_expert_directory(self, tmp_path, monkeypatch):
+        monkeypatch.delenv("DEEPR_EXPERTS_PATH", raising=False)
+        monkeypatch.setenv("DEEPR_DATA_DIR", str(tmp_path))
+        docs_dir = tmp_path / "experts" / "portable_expert" / "documents"
+        docs_dir.mkdir(parents=True)
+        (docs_dir / "source.md").write_text("canonical document", encoding="utf-8")
+        memory = HierarchicalMemory(expert_name="Portable Expert")
+        episode_id = memory.add_episode(Episode(query="Question", response="Answer", context_docs=["source.md"]))
+
+        context = memory.reconstruct_context(episode_id)
+
+        assert context is not None
+        assert context.documents == [{"name": "source.md", "content": "canonical document"}]
+        assert not (tmp_path / "experts" / "Portable Expert").exists()
+
     def test_reconstruct_context(self, tmp_path):
         """Test reconstructing context from episode."""
         memory = HierarchicalMemory(expert_name="test_expert", storage_dir=tmp_path / "memory")

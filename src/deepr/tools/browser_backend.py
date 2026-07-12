@@ -7,6 +7,7 @@ client transports; callers must wire a concrete transport-backed adapter before
 using MCP-hosted browsing.
 """
 
+import asyncio
 from dataclasses import dataclass
 from typing import Protocol, runtime_checkable
 
@@ -74,16 +75,30 @@ class BrowserBackend(Protocol):
 class BuiltinBrowserBackend:
     """Browser backend using Deepr's built-in scraper."""
 
+    def __init__(self, *, structured_failure_reporting: bool = False) -> None:
+        self._structured_failure_reporting = structured_failure_reporting
+
     @property
     def name(self) -> str:
         return "builtin"
 
     async def fetch_page(self, url: str, *, validators: PageValidators | None = None) -> PageContent:
-        """Fetch page using built-in scraper."""
+        """Fetch a page without running the synchronous scraper on the event loop."""
+        return await asyncio.to_thread(self._fetch_page_sync, url, validators)
+
+    def _fetch_page_sync(self, url: str, validators: PageValidators | None) -> PageContent:
+        """Run the existing requests-based scraper in a bounded worker thread."""
         try:
             from deepr.utils.scrape import ContentExtractor, ContentFetcher, ScrapeConfig
 
-            config = ScrapeConfig(max_pages=1, max_depth=0, try_selenium=False, try_pdf=False, try_archive=False)
+            config = ScrapeConfig(
+                max_pages=1,
+                max_depth=0,
+                try_selenium=False,
+                try_pdf=False,
+                try_archive=False,
+                log_strategy_failures=not self._structured_failure_reporting,
+            )
             fetcher = ContentFetcher(config)
             result = (
                 fetcher.fetch(url, headers=validators.conditional_headers())

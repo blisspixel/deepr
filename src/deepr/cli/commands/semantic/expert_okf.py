@@ -51,9 +51,9 @@ def _make_absorber_or_exit(profile, *, use_local: bool, model: str | None):
     if not use_local:
         return ReportAbsorber(profile, model=model or "gpt-5-mini"), f"~${ESTIMATED_EXTRACTION_COST:.2f}"
 
-    from deepr.backends.local import default_local_model, ollama_chat_client
+    from deepr.backends.local import ollama_chat_client, resolve_local_maintenance_model
 
-    local_model = model or default_local_model()
+    local_model = resolve_local_maintenance_model(profile, explicit_model=model)
     if not local_model:
         print_error("No local model available. Is Ollama running? Check: deepr capacity --probe")
         sys.exit(2)
@@ -61,10 +61,19 @@ def _make_absorber_or_exit(profile, *, use_local: bool, model: str | None):
     return absorber, f"$0 (local model {local_model})"
 
 
-def _run_okf_absorb_or_exit(absorber, corpus, *, min_confidence: float, dry_run: bool):
+def _run_okf_absorb_or_exit(
+    absorber,
+    corpus,
+    *,
+    min_confidence: float,
+    dry_run: bool,
+    budget: float,
+    profile,
+    store,
+):
     import asyncio
 
-    from deepr.experts.report_absorber import ReportAbsorberError
+    from deepr.experts.report_absorber import ReportAbsorberCostError, ReportAbsorberError
 
     try:
         return asyncio.run(
@@ -73,14 +82,48 @@ def _run_okf_absorb_or_exit(absorber, corpus, *, min_confidence: float, dry_run:
                 corpus.report_text,
                 min_confidence=min_confidence,
                 dry_run=dry_run,
+                budget=budget,
             )
         )
+    except ReportAbsorberCostError as exc:
+        if exc.actual_cost > 0:
+            profile.total_research_cost += exc.actual_cost
+            store.save(profile)
+        print_error(str(exc))
+        sys.exit(2)
     except ReportAbsorberError as exc:
         print_error(str(exc))
         sys.exit(2)
     except Exception as exc:
         print_error(f"OKF absorption failed: {exc}")
         sys.exit(1)
+
+
+def _settle_okf_absorption(store, profile, result) -> None:
+    from deepr.experts.knowledge_freshness import advance_from_absorption
+    from deepr.experts.report_absorber import absorption_result_cost
+
+    settled_cost = absorption_result_cost(result)
+    if settled_cost > 0:
+        profile.total_research_cost += settled_cost
+    knowledge_changed = advance_from_absorption(profile, result)
+    if settled_cost > 0 or knowledge_changed:
+        store.save(profile)
+
+
+def _emit_okf_absorption(profile, corpus, result) -> None:
+    print_header(f"Absorb OKF into {profile.name}")
+    if result.dry_run:
+        console.print("[yellow]DRY RUN[/yellow] - nothing written")
+    print_key_value("OKF concepts", str(corpus.concept_count))
+    print_key_value("Candidates", str(result.total_candidates))
+    print_key_value("Absorbed", str(len(result.absorbed)))
+    print_key_value("Flagged contradictions", str(len(result.flagged)))
+    print_key_value("Report id", corpus.report_id)
+    if not result.dry_run and (result.absorbed or result.flagged):
+        print_success("OKF source passed through the verified absorb gate.")
+    elif not result.absorbed and not result.flagged:
+        print_warning("No OKF claims were absorbed.")
 
 
 @expert.command(name="export-okf")
@@ -148,6 +191,13 @@ def export_okf(name: str, output: str, force: bool, include_llms: bool, json_out
     help="Drop candidate claims the OKF source supports more weakly than this",
 )
 @click.option("--model", default=None, help="Override the extraction model")
+@click.option(
+    "--budget",
+    type=click.FloatRange(min=0.0, min_open=True),
+    default=0.10,
+    show_default=True,
+    help="Hard ceiling across extraction and dynamically routed semantic verdicts",
+)
 @click.option("--dry-run", is_flag=True, help="Preview what would be absorbed; write nothing")
 @click.option("--local", is_flag=True, help="Force extraction on the local Ollama model at $0")
 @click.option("--api", is_flag=True, help="Force the metered API even if a local model is admitted")
@@ -158,6 +208,7 @@ def absorb_okf(
     path: str,
     min_confidence: float,
     model: str | None,
+    budget: float,
     dry_run: bool,
     local: bool,
     api: bool,
@@ -175,8 +226,6 @@ def absorb_okf(
       deepr expert absorb-okf "AI Strategy Expert" ./okf/ai-strategy --dry-run
       deepr expert absorb-okf "AI Strategy Expert" ./okf/ai-strategy --local -y
     """
-    from datetime import UTC, datetime
-
     if local and api:
         print_error("Use either --local or --api, not both.")
         sys.exit(2)
@@ -185,6 +234,10 @@ def absorb_okf(
     corpus = _build_okf_corpus_or_exit(path)
     use_local, model, selection_note = _choose_absorb_backend(local, api, model)
     absorber, cost_note = _make_absorber_or_exit(profile, use_local=use_local, model=model)
+    from deepr.experts.report_absorber import absorber_estimated_cost
+
+    if absorber_estimated_cost(absorber) > 0:
+        cost_note = f"{cost_note}; hard run ceiling ${budget:.2f}"
     if selection_note and not json_output:
         console.print(f"[dim]{selection_note}[/dim]")
 
@@ -194,27 +247,21 @@ def absorb_okf(
             print_warning("Cancelled.")
             sys.exit(0)
 
-    result = _run_okf_absorb_or_exit(absorber, corpus, min_confidence=min_confidence, dry_run=dry_run)
+    result = _run_okf_absorb_or_exit(
+        absorber,
+        corpus,
+        min_confidence=min_confidence,
+        dry_run=dry_run,
+        budget=budget,
+        profile=profile,
+        store=store,
+    )
 
-    if not result.dry_run:
-        profile.total_research_cost += result.estimated_cost
-        profile.last_knowledge_refresh = datetime.now(UTC)
-        store.save(profile)
+    _settle_okf_absorption(store, profile, result)
 
     payload = {"okf": corpus.to_dict(), "absorption": result.to_dict()}
     if json_output:
         click.echo(_json.dumps(payload, indent=2))
         return
 
-    print_header(f"Absorb OKF into {profile.name}")
-    if result.dry_run:
-        console.print("[yellow]DRY RUN[/yellow] - nothing written")
-    print_key_value("OKF concepts", str(corpus.concept_count))
-    print_key_value("Candidates", str(result.total_candidates))
-    print_key_value("Absorbed", str(len(result.absorbed)))
-    print_key_value("Flagged contradictions", str(len(result.flagged)))
-    print_key_value("Report id", corpus.report_id)
-    if not result.dry_run and (result.absorbed or result.flagged):
-        print_success("OKF source passed through the verified absorb gate.")
-    elif not result.absorbed and not result.flagged:
-        print_warning("No OKF claims were absorbed.")
+    _emit_okf_absorption(profile, corpus, result)

@@ -1,9 +1,9 @@
 # Expert Chat Capacity Backends
 
-Status: design note, refreshed 2026-06-30.
+Status: design note, refreshed 2026-07-11.
 
 Scope: `deepr expert consult`, `deepr_consult_experts`, `deepr expert chat`,
-and `deepr_query_expert`.
+`deepr_query_expert`, and browser Socket.IO/REST expert chat.
 
 ## Purpose
 
@@ -265,6 +265,85 @@ For API chat:
 OpenAI and can be pinned to non-agentic Anthropic chat with `provider=anthropic`
 and an Anthropic model.
 
+### Browser Socket.IO contract
+
+The experimental browser chat is a distinct public boundary because one
+Socket.IO connection owns interactive session state across turns. Its current
+contract is intentionally narrower than MCP query chat:
+
+```json
+{
+  "expert_name": "AI Agent Harnesses",
+  "message": "What changed?",
+  "session_id": "optional-saved-conversation-id",
+  "backend": "api",
+  "chat_mode": "research",
+  "budget": 0.5,
+  "allow_metered_api": true,
+  "confirm_metered_cost": true
+}
+```
+
+- `backend="api"` is required. Browser `local` and `plan` modes are rejected
+  explicitly until the UI can represent their read-only, no-tool, and
+  no-streaming capability limits without implying interactive parity.
+- `budget` is a required finite positive per-session ceiling bounded by
+  the configured web per-job limit and
+  `CostSafetyManager.ABSOLUTE_MAX_PER_OPERATION`. It is never defaulted from a
+  hardcoded browser allowance, and browser chat fails closed when the configured
+  ceiling is unavailable.
+- Both metered fields must be the boolean value `true`. A configured API key,
+  an existing conversation, or a prior browser visit is not approval to spend.
+- `chat_mode` must be one of `ask`, `research`, `advise`, or `focus`. The server
+  applies the selected mode before every turn and rejects unknown values before
+  provider construction.
+- The first accepted turn creates one session for the Socket.IO client. Normal
+  follow-up turns and slash commands reuse that session and its original
+  approved ceiling. A second turn while one is running is rejected rather than
+  dispatched concurrently.
+- The session is removed on `/quit`, disconnect, or a terminal setup or turn
+  failure. `chat_stop`, explicit end, and disconnect cancel the active asyncio
+  task on its owning event loop, which propagates cancellation into the active
+  provider request where the SDK and transport support it. A cancelled turn
+  never emits `chat_complete`; its provider client and cost session close before
+  the terminal cancellation event. Normal `chat_complete` keeps the session
+  alive.
+- Follow-up payloads must repeat the same backend, acknowledgement, and approved
+  budget. Changing the ceiling requires ending the session and making a new
+  explicit approval. `/budget` may inspect or reduce the ceiling, but it cannot
+  raise it above the browser-approved amount.
+- The REST fallback enforces the same API-only budget and acknowledgement
+  contract. It remains one-shot and does not advertise persistent slash-command
+  state.
+- Each browser turn holds a durable ceiling before model dispatch. A successful
+  turn releases that hold after ordinary usage accounting. Cancellation after a
+  provider dispatch conservatively settles the unaccounted remainder; a turn
+  cancelled before dispatch refunds it. If durable closure fails, the hold
+  remains active and the cancellation event reports pending reconciliation
+  instead of implying the cost is known.
+- Optional follow-up suggestion generation is a separate bounded auxiliary
+  call with at most 200 output tokens. It atomically reserves a conservative
+  estimate against the same session ceiling, skips generation when that bound
+  does not fit, and settles provider usage or the full estimate after an
+  ambiguous provider failure. It never dispatches as untracked presentation
+  work.
+- A provider exception returned through the legacy session string interface is
+  also exposed as typed terminal-turn state. Browser Socket.IO and REST treat
+  that state as failure, settle the outer hold conservatively, and do not save
+  or publish the error string as a successful answer.
+- Browser streaming has no short wall-clock timeout. Agentic research can take
+  5-20 minutes, so the UI remains attached while Socket.IO status and token
+  events are healthy and offers an explicit Stop action. Transport disconnect
+  ends the streaming state and cancels server work; it does not present a
+  timeout as provider failure.
+
+This is a workflow safety envelope around model-owned conversation meaning.
+Retry behavior is fail-closed: no automatic provider retry or capacity fallback
+is introduced here. The per-client in-flight guard prevents duplicate turns;
+conversation persistence remains the existing explicit save after a successful
+turn. Session cleanup closes provider clients on a best-effort basis and never
+changes expert belief state.
+
 ## Cost And Security Rules
 
 - API backend requires a positive budget and an approved scoped key or local
@@ -285,6 +364,9 @@ and an Anthropic model.
   `$0` scoped key may call local or plan query mode, but must reject API chat.
 - Generated remote guide files and MCP key stores must remain under ignored
   `data/` paths.
+- Browser API chat must validate its explicit backend, bounded positive budget,
+  metered acknowledgement, expert identity, and mode before constructing an API
+  session. A connected socket is transport state, not spend authorization.
 
 ## Agentic Balance
 

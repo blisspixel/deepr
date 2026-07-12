@@ -6,6 +6,7 @@ to retrieve from the vector store.
 Instrumented with distributed tracing for observability (4.2 Auto-Generated Metadata).
 """
 
+import asyncio
 import json
 import logging
 from datetime import UTC, datetime
@@ -17,6 +18,15 @@ from deepr.experts.chat_backends import (
     ExpertChatRequest,
     complete_expert_chat_turn,
     stream_expert_chat_turn,
+)
+from deepr.experts.chat_session_ops import (
+    cancel_inflight_provider_work as cancel_chat_provider_work,
+)
+from deepr.experts.chat_session_ops import (
+    compact_conversation as compact_chat_conversation,
+)
+from deepr.experts.chat_session_ops import (
+    generate_follow_ups,
 )
 from deepr.experts.chat_turns import (
     chat_generation_budget_denial,
@@ -31,6 +41,7 @@ from deepr.experts.chat_turns import (
     chat_usage_tokens as _chat_usage_tokens,
 )
 from deepr.experts.commands import MODE_CONFIGS, ChatMode
+from deepr.experts.knowledge_freshness import advance_knowledge_freshness
 from deepr.experts.lazy_graph_rag import LazyGraphRAG
 from deepr.experts.memory import Episode, HierarchicalMemory, ReasoningStep
 from deepr.experts.metacognition import MetaCognitionTracker
@@ -158,6 +169,7 @@ class ExpertChatSession:
 
         # Autonomous first-party instrument findings (recon pilot)
         self._last_recon_findings: list = []  # list[AbsorbedFinding]
+        self.last_turn_failed = False
 
         # Chat mode + command system (Phase: Agentic UX)
         self.chat_mode: ChatMode = ChatMode.RESEARCH
@@ -386,6 +398,20 @@ Budget remaining: ${budget_remaining:.2f}
             provider_constraint="openai",  # Expert vector store requires OpenAI
             allow_research_model=self.agentic,
         )
+
+    def _validate_turn_model(self, selected_model: ModelConfig) -> ModelConfig:
+        """Validate that a routed model identifies this session's API backend."""
+        provider = str(getattr(selected_model, "provider", "") or "").strip().lower()
+        model = str(getattr(selected_model, "model", "") or "").strip()
+        if not provider or not model or model.casefold() == "unknown":
+            raise RuntimeError("Expert chat dispatch provider and model must be known before dispatch")
+        if provider != self.chat_provider:
+            raise RuntimeError("Expert chat routed provider does not match the configured API backend")
+        return selected_model
+
+    def select_model_for_turn(self, query: str) -> ModelConfig:
+        """Resolve and validate the exact provider/model target for one turn."""
+        return self._validate_turn_model(self._select_model_for_query(query))
 
     def _estimate_chat_model_cost(self, model_name: str) -> float:
         return estimate_chat_model_cost(model_name)
@@ -1146,11 +1172,10 @@ Budget remaining: ${budget_remaining:.2f}
                 vector_store_id=self.expert.vector_store_id, file_id=file_obj.id
             )
 
-            # Update expert profile
             self.expert.total_documents += 1
             self.expert.source_files.append(str(filepath))
+            advance_knowledge_freshness(self.expert, datetime.now(UTC))
             store.save(self.expert)
-
             # Track temporal knowledge (when this was learned)
             if self.temporal:
                 # Extract topic from query
@@ -1323,7 +1348,13 @@ Budget remaining: ${budget_remaining:.2f}
         except Exception:
             logger.debug("Chat cost ledger write failed", exc_info=True)
 
-    async def send_message(self, user_message: str, status_callback=None) -> str:
+    async def send_message(
+        self,
+        user_message: str,
+        status_callback=None,
+        *,
+        selected_model: ModelConfig | None = None,
+    ) -> str:
         """Send a message to the expert and get a response using GPT-5 + tool calling.
 
         Args:
@@ -1333,6 +1364,8 @@ Budget remaining: ${budget_remaining:.2f}
         Returns:
             The expert's response
         """
+
+        self.last_turn_failed = False
 
         def report_status(status: str):
             """Report status if callback is provided."""
@@ -1356,7 +1389,11 @@ Budget remaining: ${budget_remaining:.2f}
 
             # Select and budget-check before any path that can reach a metered
             # model, including advanced reasoning or embedding-backed recall.
-            selected_model = self._select_model_for_query(user_message)
+            selected_model = (
+                self.select_model_for_turn(user_message)
+                if selected_model is None
+                else self._validate_turn_model(selected_model)
+            )
 
             if self.enable_router:
                 record_model_routing(
@@ -1935,6 +1972,7 @@ Budget remaining: ${budget_remaining:.2f}
             return final_message
 
         except Exception as e:
+            self.last_turn_failed = True
             # Cleanup skill executors on error too
             for executor in self.skill_executors.values():
                 await executor.cleanup()
@@ -1942,7 +1980,14 @@ Budget remaining: ${budget_remaining:.2f}
             self._emitter.fail_task(op, str(e))
             return f"Error communicating with expert: {e!s}"
 
-    async def send_message_streaming(self, user_message: str, token_callback=None, status_callback=None) -> str:
+    async def send_message_streaming(
+        self,
+        user_message: str,
+        token_callback=None,
+        status_callback=None,
+        *,
+        selected_model: ModelConfig | None = None,
+    ) -> str:
         """Send a message and stream the final response token-by-token.
 
         Tool-call rounds use standard (non-streaming) completions. Only the final
@@ -1957,6 +2002,8 @@ Budget remaining: ${budget_remaining:.2f}
         Returns:
             The complete expert response text.
         """
+
+        self.last_turn_failed = False
 
         def report_status(status: str):
             if status_callback:
@@ -1976,7 +2023,11 @@ Budget remaining: ${budget_remaining:.2f}
             # Fresh autonomous findings for this turn only
             self._last_recon_findings = []
 
-            selected_model = self._select_model_for_query(user_message)
+            selected_model = (
+                self.select_model_for_turn(user_message)
+                if selected_model is None
+                else self._validate_turn_model(selected_model)
+            )
 
             if self.enable_router:
                 record_model_routing(
@@ -2375,46 +2426,40 @@ Budget remaining: ${budget_remaining:.2f}
 
             return final_message or ""
 
+        except asyncio.CancelledError:
+            for executor in self.skill_executors.values():
+                try:
+                    await executor.cleanup()
+                except Exception as cleanup_exc:
+                    logger.warning(
+                        "Skill cleanup after chat cancellation failed: %s",
+                        type(cleanup_exc).__name__,
+                    )
+            self._emitter.fail_task(op, "cancelled")
+            raise
         except Exception as e:
+            self.last_turn_failed = True
             for executor in self.skill_executors.values():
                 await executor.cleanup()
             self._emitter.fail_task(op, str(e))
             return f"Error communicating with expert: {e!s}"
 
     async def _generate_follow_ups(self, user_message: str, response: str) -> list[str]:
-        """Generate 2-3 follow-up question suggestions."""
-        try:
-            model_name = self._provider_model_or("gpt-4o-mini")
-            result = await self.chat_backend.complete(
-                ExpertChatRequest(
-                    model=model_name,
-                    messages=[
-                        {
-                            "role": "system",
-                            "content": "Generate 2-3 short follow-up questions a user might ask after this exchange. "
-                            "Return ONLY a JSON array of strings. No explanation.",
-                        },
-                        {
-                            "role": "user",
-                            "content": f"User asked: {user_message[:300]}\n\nExpert replied: {response[:500]}",
-                        },
-                    ],
-                    extra={"temperature": 0.7, "max_tokens": 200},
-                )
-            )
-            import json as _json
-
-            raw = result.text.strip()
-            # Strip markdown fences if present
-            if raw.startswith("```"):
-                raw = raw.split("\n", 1)[-1].rsplit("```", 1)[0].strip()
-            return _json.loads(raw)
-        except Exception:
-            return []
+        """Generate bounded, fully accounted follow-up suggestions."""
+        return await generate_follow_ups(self, user_message, response)
 
     def get_active_tools(self) -> list[str]:
         """Return tool names allowed in the current chat mode."""
         return list(MODE_CONFIGS.get(self.chat_mode, MODE_CONFIGS[ChatMode.RESEARCH])["tools"])
+
+    async def cancel_inflight_provider_work(self) -> dict[str, Any]:
+        """Request cancellation for provider jobs accepted during this session.
+
+        Cancelling the owning chat task already propagates into the active SDK
+        await. Accepted background Responses API jobs need their own explicit
+        cancellation request because they can outlive that transport call.
+        """
+        return await cancel_chat_provider_work(self)
 
     def _estimate_tokens(self) -> int:
         """Rough token estimate (~4 chars per token)."""
@@ -2431,71 +2476,7 @@ Budget remaining: ${budget_remaining:.2f}
 
         Returns dict with ``original_messages`` and ``summary_length``.
         """
-        if len(self.messages) <= 6:
-            return {"original_messages": len(self.messages), "summary_length": 0, "status": "too_short"}
-
-        keep_count = 4
-        to_summarise = self.messages[:-keep_count]
-        kept = self.messages[-keep_count:]
-
-        # Build text to summarise
-        text_parts = []
-        for msg in to_summarise:
-            role = msg.get("role", "unknown")
-            content = msg.get("content", "")
-            text_parts.append(f"{role}: {content[:500]}")
-        conversation_text = "\n".join(text_parts)
-
-        try:
-            model_name = self._provider_model_or("gpt-4o-mini")
-            result = await self.chat_backend.complete(
-                ExpertChatRequest(
-                    model=model_name,
-                    messages=[
-                        {
-                            "role": "system",
-                            "content": (
-                                "Summarise the following conversation into structured sections. "
-                                "Use these exact headings:\n"
-                                "KEY_FACTS: Important facts established\n"
-                                "DECISIONS_MADE: Decisions or conclusions reached\n"
-                                "OPEN_QUESTIONS: Unresolved questions\n"
-                                "USER_PREFERENCES: Any user preferences noted\n"
-                                "Keep each section to 2-3 bullet points max. Be concise."
-                            ),
-                        },
-                        {"role": "user", "content": conversation_text[:8000]},
-                    ],
-                    extra={"temperature": 0.3, "max_tokens": 500},
-                )
-            )
-            summary = result.text or "Summary unavailable."
-        except Exception as e:
-            logger.warning("Compact summary failed: %s", e)
-            summary = f"[{len(to_summarise)} earlier messages - summary unavailable]"
-
-        # Replace messages
-        summary_msg = {
-            "role": "system",
-            "content": f"CONVERSATION SUMMARY (compacted from {len(to_summarise)} messages):\n\n{summary}",
-        }
-        self.messages = [summary_msg, *kept]
-
-        self.reasoning_trace.append(
-            {
-                "step": "compact_conversation",
-                "timestamp": datetime.now(UTC).isoformat(),
-                "original_messages": len(to_summarise) + keep_count,
-                "kept_messages": keep_count,
-                "summary_length": len(summary),
-            }
-        )
-
-        return {
-            "original_messages": len(to_summarise) + keep_count,
-            "summary_length": len(summary),
-            "status": "compacted",
-        }
+        return await compact_chat_conversation(self)
 
     def get_session_summary(self) -> dict:
         """Get a summary of the chat session including cost safety status."""

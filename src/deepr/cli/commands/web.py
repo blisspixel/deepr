@@ -28,9 +28,12 @@ def _is_loopback(host: str) -> bool:
 @click.option(
     "--allow-unauthenticated-public-bind",
     is_flag=True,
-    help="DANGEROUS: explicitly allow binding non-loopback interfaces without DEEPR_API_KEY set. Only use on a trusted network.",
+    help=(
+        "Acknowledge an unauthenticated public-bind request. The built-in Werkzeug launcher "
+        "still refuses non-loopback hosts; use a production WSGI server."
+    ),
 )
-def web(host: str, port: int, debug: bool, allow_unauthenticated_public_bind: bool):
+def web(host: str, port: int, debug: bool, allow_unauthenticated_public_bind: bool) -> None:
     """Start the Deepr web dashboard.
 
     Launches the Flask web interface with real-time WebSocket updates.
@@ -39,7 +42,7 @@ def web(host: str, port: int, debug: bool, allow_unauthenticated_public_bind: bo
     Examples:
         deepr web                  # Bind to 127.0.0.1:5000 (safe default)
         deepr web -p 8080          # Use port 8080
-        deepr web --host 0.0.0.0   # Expose on all interfaces (set DEEPR_API_KEY first)
+        deepr web --host 0.0.0.0   # Refused by the built-in development server
         deepr web --debug          # Enable debug mode
     """
     try:
@@ -62,20 +65,14 @@ def web(host: str, port: int, debug: bool, allow_unauthenticated_public_bind: bo
             "    (only on a trusted network)."
         )
 
+    if not loopback:
+        raise click.ClickException(
+            "Refusing to run the Werkzeug development server on a non-loopback host. "
+            "Use a production WSGI server and configure DEEPR_API_KEY before exposing the dashboard."
+        )
+
     click.echo("\n  Deepr Web Dashboard")
     click.echo(f"  http://{host}:{port}")
-    if not loopback:
-        if api_key_set:
-            click.secho(
-                "  WARNING: binding non-loopback interface. API auth is enabled via DEEPR_API_KEY.",
-                fg="yellow",
-            )
-        else:
-            click.secho(
-                "  WARNING: binding non-loopback interface WITHOUT authentication. "
-                "Any network peer can submit research, read reports, and spend provider budget.",
-                fg="red",
-            )
     click.echo("")
 
     socketio.run(
@@ -83,5 +80,5 @@ def web(host: str, port: int, debug: bool, allow_unauthenticated_public_bind: bo
         debug=debug,
         host=host,
         port=port,
-        allow_unsafe_werkzeug=True,
+        allow_unsafe_werkzeug=loopback,
     )

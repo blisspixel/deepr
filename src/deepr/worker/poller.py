@@ -28,6 +28,7 @@ from ..storage import create_storage
 from ..storage.base import StorageBackend
 
 logger = logging.getLogger(__name__)
+_MAX_CONCURRENT_POLLS = 8
 
 
 class JobPoller:
@@ -56,6 +57,7 @@ class JobPoller:
         self.poll_interval = poll_interval
         self.socketio = socketio
         self.running = False
+        self._in_flight_job_ids: set[str] = set()
 
         # Load config
         config = load_config()
@@ -102,8 +104,6 @@ class JobPoller:
 
     async def _poll_cycle(self) -> None:
         """Execute one poll cycle."""
-        from ..queue.base import JobStatus
-
         # Get all processing jobs
         jobs = await self.queue.list_jobs(status=JobStatus.PROCESSING, limit=100)
 
@@ -111,17 +111,39 @@ class JobPoller:
             logger.debug("No active jobs to poll")
             return
 
-        logger.info(f"Polling {len(jobs)} active jobs")
-
+        unique_jobs: list[ResearchJob] = []
+        seen_job_ids: set[str] = set()
         for job in jobs:
-            try:
-                await self.check_job_status(job)
-            except Exception:
-                logger.exception("Error checking job %s", job.id)
+            job_id = str(job.id)
+            if job_id in seen_job_ids:
+                logger.warning("Ignoring duplicate active job %s in one poll cycle", job_id)
+                continue
+            seen_job_ids.add(job_id)
+            unique_jobs.append(job)
+
+        logger.info("Polling %s active jobs", len(unique_jobs))
+        for offset in range(0, len(unique_jobs), _MAX_CONCURRENT_POLLS):
+            batch = unique_jobs[offset : offset + _MAX_CONCURRENT_POLLS]
+            await asyncio.gather(*(self._poll_job(job) for job in batch))
+
+    async def _poll_job(self, job: ResearchJob) -> None:
+        """Check one job while isolating non-cancellation failures."""
+        try:
+            await self.check_job_status(job)
+        except Exception:
+            logger.exception("Error checking job %s", job.id)
 
     async def check_job_status(self, job: ResearchJob) -> None:
-        """Poll and persist one injected or worker-owned research job."""
-        await self._check_job_status(job)
+        """Poll one job unless the same job is already in flight."""
+        job_id = str(job.id)
+        if job_id in self._in_flight_job_ids:
+            logger.debug("Job %s already has a status check in flight", job_id)
+            return
+        self._in_flight_job_ids.add(job_id)
+        try:
+            await self._check_job_status(job)
+        finally:
+            self._in_flight_job_ids.discard(job_id)
 
     async def _check_job_status(self, job: ResearchJob) -> None:
         """Check status of a single job."""

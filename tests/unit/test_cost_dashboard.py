@@ -18,6 +18,7 @@ def utc_now():
     return datetime.now(UTC)
 
 
+from deepr.observability.cost_ledger import CostLedger
 from deepr.observability.costs import (
     AlertManager,
     CostAggregator,
@@ -784,6 +785,48 @@ class TestCostDashboard:
         assert abs(breakdown["gpt-4o"] - 0.15) < 0.0001  # 0.10 + 0.05
         assert abs(breakdown["gpt-4o-mini"] - 0.15) < 0.0001
         assert abs(breakdown["unknown"] - 0.02) < 0.0001  # Empty model becomes "unknown"
+
+    def test_breakdowns_use_validated_ledger_attribution_correction(self, temp_storage):
+        ledger = CostLedger(ledger_path=temp_storage.with_name("cost_ledger.jsonl"))
+        ledger.record_event(
+            "research_completion",
+            "wrong-provider",
+            0.2,
+            model="wrong-model",
+            task_id="attribution-task",
+            session_id="attribution-task",
+            idempotency_key="attribution-target",
+        )
+        ledger.record_event(
+            "cost_accounting_reconciliation",
+            "openai",
+            0.0,
+            model="gpt-5.2",
+            task_id="attribution-task",
+            session_id="attribution-task",
+            idempotency_key="attribution-correction",
+            metadata={
+                "schema_version": "deepr-cost-attribution-reconciliation-v1",
+                "supersedes_idempotency_key": "attribution-target",
+                "correction_type": "attribution_metadata",
+                "observed_outcome": "provider_attribution_audit",
+                "conservative_ceiling_charge_usd": 0.2,
+                "actual_cost_reported": False,
+                "settlement_basis": "conservative_unaccounted_ceiling",
+                "original_provider_attribution": "wrong-provider",
+                "routed_provider_attribution": "openai",
+                "original_model_attribution": "wrong-model",
+                "routed_model_attribution": "gpt-5.2",
+                "total_adjustment_usd": 0.0,
+            },
+        )
+
+        dashboard = CostDashboard(storage_path=temp_storage)
+
+        assert dashboard.get_breakdown_by_provider() == {"openai": 0.2}
+        assert dashboard.get_breakdown_by_model() == {"gpt-5.2": 0.2}
+        assert dashboard.get_daily_total() == pytest.approx(0.2)
+        assert ledger.get_total_cost() == pytest.approx(0.2)
 
     def test_check_alerts_daily_warning(self, temp_storage):
         """Should trigger daily warning alert at 50% threshold."""

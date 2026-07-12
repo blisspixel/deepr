@@ -54,6 +54,16 @@ class TestExpertCommandStructure:
         assert "domain" in output or "knowledge" in output or "expert" in output
 
 
+def test_resolve_conflicts_fails_before_provider_construction():
+    with patch("deepr.providers.create_provider") as create_provider:
+        result = CliRunner().invoke(cli, ["expert", "resolve-conflicts", "Safety Expert", "--budget", "1"])
+
+    assert result.exit_code != 0
+    assert "temporarily blocked" in result.output
+    assert "expert contested" in result.output
+    create_provider.assert_not_called()
+
+
 class TestExpertFillGapsCommand:
     """Cost-safety regressions for the legacy fill-gaps command."""
 
@@ -171,6 +181,33 @@ class TestExpertMakeCommand:
         assert profile.vector_store_id == "local-only:local_ux_expert"
         assert profile.total_documents == 0
         assert profile.monthly_learning_budget == 0.0
+        assert profile.knowledge_cutoff_date is None
+        assert profile.last_knowledge_refresh is None
+        assert profile.get_freshness_status()["status"] == "incomplete"
+
+    def test_expert_make_local_refuses_to_overwrite_existing_profile(self, runner, monkeypatch):
+        """Repeating local make must preserve the existing expert metadata."""
+        from deepr.experts.profile import ExpertStore
+
+        monkeypatch.setenv("DEEPR_LOCAL_MODEL", "first-local-model")
+        first = runner.invoke(
+            cli,
+            ["expert", "make", "Existing Local Expert", "--local", "-d", "Original domain"],
+        )
+        assert first.exit_code == 0, first.output
+
+        monkeypatch.setenv("DEEPR_LOCAL_MODEL", "replacement-model")
+        second = runner.invoke(
+            cli,
+            ["expert", "make", "Existing Local Expert", "--local", "-d", "Replacement domain"],
+        )
+
+        assert second.exit_code != 0
+        assert "expert already exists" in second.output.lower()
+        profile = ExpertStore().load("Existing Local Expert")
+        assert profile is not None
+        assert profile.description == "Original domain"
+        assert profile.model == "first-local-model"
 
     def test_expert_make_local_copies_seed_files(self, runner, tmp_path, monkeypatch):
         """Seed documents become owned local expert documents."""
@@ -288,6 +325,48 @@ class TestExpertMakeCommand:
         assert profile.vector_store_id == "vs_seed"
         assert profile.source_files == [str(source)]
 
+    def test_expert_make_empty_learn_profile_stays_incomplete(self, runner, monkeypatch):
+        from deepr.experts.profile import ExpertStore
+
+        class FakeProvider:
+            async def create_vector_store(self, name, file_ids):
+                assert name == "expert-empty-learn-expert"
+                assert file_ids == []
+                return SimpleNamespace(id="vs-empty")
+
+        async def fail_curriculum(self, **kwargs):
+            raise RuntimeError("curriculum unavailable")
+
+        monkeypatch.setattr("deepr.providers.create_provider", lambda *args, **kwargs: FakeProvider())
+        monkeypatch.setattr(
+            "deepr.experts.curriculum.CurriculumGenerator.generate_curriculum",
+            fail_curriculum,
+        )
+
+        result = runner.invoke(
+            cli,
+            [
+                "expert",
+                "make",
+                "Empty Learn Expert",
+                "--learn",
+                "--budget",
+                "1",
+                "--no-discovery",
+                "--yes",
+                "--confirm-metered-profile",
+            ],
+        )
+
+        assert result.exit_code == 0, result.output
+        profile = ExpertStore().load("Empty Learn Expert")
+        assert profile is not None
+        assert profile.total_documents == 0
+        assert profile.knowledge_cutoff_date is None
+        assert profile.last_knowledge_refresh is None
+        assert profile.get_freshness_status()["status"] == "incomplete"
+        assert "knowledge cutoff: UNKNOWN" in profile.system_message
+
 
 class TestExpertListCommand:
     """Test 'expert list' command."""
@@ -346,6 +425,8 @@ class TestExpertListCommand:
             assert "Description:" in output
             assert "5" in output  # Documents count
             assert "10" in output  # Conversations count
+            assert "incomplete - no verified knowledge yet" in output
+            assert 'deepr expert chat "<name>"' in output
 
 
 class TestExpertInfoCommand:
@@ -487,9 +568,6 @@ class TestExpertHealthCheckCommand:
             patch("deepr.experts.health_check.ExpertHealthChecker") as mock_checker,
             patch("deepr.experts.loop_runs.record_loop_run") as mock_record,
         ):
-            loop_run = MagicMock()
-            loop_run.to_dict.return_value = {"run_id": "loop_health_complete"}
-            mock_record.return_value = loop_run
             mock_store = MagicMock()
             mock_store.load.return_value = MagicMock(name="Test Expert")
             mock_store_class.return_value = mock_store
@@ -502,21 +580,16 @@ class TestExpertHealthCheckCommand:
             assert "NEEDS ATTENTION" in out
             assert "freshness" in out
             assert "deepr expert refresh Test Expert" in out
-            assert mock_record.call_args.kwargs["verifier_outcome"] == "needs_attention"
+            mock_record.assert_not_called()
 
     def test_health_check_json_output(self, runner):
         import json
-
-        from deepr.experts.loop_runs import LoopRunStatus, LoopStopReason
 
         with (
             patch("deepr.experts.profile.ExpertStore") as mock_store_class,
             patch("deepr.experts.health_check.ExpertHealthChecker") as mock_checker,
             patch("deepr.experts.loop_runs.record_loop_run") as mock_record,
         ):
-            loop_run = MagicMock()
-            loop_run.to_dict.return_value = {"run_id": "loop_health_complete"}
-            mock_record.return_value = loop_run
             mock_store = MagicMock()
             mock_store.load.return_value = MagicMock(name="Test Expert")
             mock_store_class.return_value = mock_store
@@ -529,9 +602,8 @@ class TestExpertHealthCheckCommand:
             assert payload["expert_name"] == "Test Expert"
             assert payload["status"] == "needs_attention"
             assert payload["findings"][0]["category"] == "freshness"
-            assert payload["loop_run"]["run_id"] == "loop_health_complete"
-            assert mock_record.call_args.kwargs["status"] == LoopRunStatus.WAITING
-            assert mock_record.call_args.kwargs["stop_reason"] == LoopStopReason.CAPACITY_UNAVAILABLE
+            assert "loop_run" not in payload
+            mock_record.assert_not_called()
 
     def test_health_check_scheduled_json_includes_action_plan(self, runner):
         import json
@@ -546,9 +618,6 @@ class TestExpertHealthCheckCommand:
             patch("deepr.experts.health_check.ExpertHealthChecker") as mock_checker,
             patch("deepr.experts.loop_runs.record_loop_run") as mock_record,
         ):
-            loop_run = MagicMock()
-            loop_run.to_dict.return_value = {"run_id": "loop_health"}
-            mock_record.return_value = loop_run
             mock_store = MagicMock()
             mock_store.load.return_value = MagicMock(name="Test Expert")
             mock_store_class.return_value = mock_store
@@ -564,12 +633,12 @@ class TestExpertHealthCheckCommand:
             plan = payload["scheduled_action_plan"]
             assert plan["status"] == "waiting_for_capacity"
             assert plan["actions"][0]["scheduler_status"] == "waiting_for_capacity"
-            assert payload["loop_run"]["run_id"] == "loop_health"
+            assert "loop_run" not in payload
+            mock_record.assert_not_called()
 
-    def test_scheduled_health_ready_actions_record_pending_loop(self):
+    def test_scheduled_health_ready_actions_are_plan_only(self):
         from deepr.cli.commands.semantic.expert_health_schedule import scheduled_health_payload
         from deepr.experts.health_check import HealthFinding, HealthReport, RecommendedAction
-        from deepr.experts.loop_runs import LoopRunStatus
 
         report = HealthReport(
             expert_name="Test Expert",
@@ -588,16 +657,11 @@ class TestExpertHealthCheckCommand:
         )
 
         with patch("deepr.experts.loop_runs.record_loop_run") as mock_record:
-            loop_run = MagicMock()
-            loop_run.to_dict.return_value = {"run_id": "loop_health_ready"}
-            mock_record.return_value = loop_run
-
             payload = scheduled_health_payload(report)
 
         assert payload["scheduled_action_plan"]["status"] == "ready"
-        assert payload["loop_run"]["run_id"] == "loop_health_ready"
-        assert mock_record.call_args.kwargs["status"] == LoopRunStatus.PENDING
-        assert mock_record.call_args.kwargs["stop_reason"] is None
+        assert "loop_run" not in payload
+        mock_record.assert_not_called()
 
     def test_scheduled_archive_waits_for_confirmation_without_mutating(self, runner, tmp_path):
         import json
@@ -753,6 +817,8 @@ class TestExpertAbsorbCommand:
             absorbed=[AbsorbedClaim("A grounded claim", 0.9, "abc123", "would_add" if dry_run else "added")],
             rejected=[],
             estimated_cost=0.03,
+            actual_cost=0.0125,
+            budget=0.10,
         )
 
     def test_absorb_help(self, runner):
@@ -790,14 +856,18 @@ class TestExpertAbsorbCommand:
             assert "no report found" in result.output.lower()
             assert result.exit_code == 2
 
-    def test_absorb_dry_run_does_not_save(self, runner):
+    def test_paid_absorb_dry_run_saves_cost_but_not_refresh(self, runner):
         with (
             patch("deepr.experts.profile.ExpertStore") as mock_store_class,
             patch("deepr.services.context_index.ContextIndex") as mock_idx,
             patch("deepr.experts.report_absorber.ReportAbsorber") as mock_absorber,
         ):
             mock_store = MagicMock()
-            mock_store.load.return_value = MagicMock(name="Test Expert")
+            expert = MagicMock(name="Test Expert")
+            expert.total_research_cost = 0.0
+            expert.knowledge_cutoff_date = None
+            expert.last_knowledge_refresh = None
+            mock_store.load.return_value = expert
             mock_store_class.return_value = mock_store
             mock_idx.return_value.get_report_content.return_value = "report body"
             inst = MagicMock()
@@ -808,7 +878,10 @@ class TestExpertAbsorbCommand:
 
             assert result.exit_code == 0
             assert "DRY RUN" in result.output
-            mock_store.save.assert_not_called()
+            assert expert.total_research_cost == 0.0125
+            assert expert.knowledge_cutoff_date is None
+            assert expert.last_knowledge_refresh is None
+            mock_store.save.assert_called_once_with(expert)
 
     def test_absorb_applies_and_saves(self, runner):
         with (
@@ -819,6 +892,8 @@ class TestExpertAbsorbCommand:
             mock_store = MagicMock()
             expert = MagicMock(name="Test Expert")
             expert.total_research_cost = 0.0
+            expert.knowledge_cutoff_date = None
+            expert.last_knowledge_refresh = None
             mock_store.load.return_value = expert
             mock_store_class.return_value = mock_store
             mock_idx.return_value.get_report_content.return_value = "report body"
@@ -833,6 +908,9 @@ class TestExpertAbsorbCommand:
 
             payload = json.loads(result.output)
             assert payload["report_id"] == "rep1"
+            assert expert.total_research_cost == 0.0125
+            assert expert.knowledge_cutoff_date == inst.absorb.return_value.generated_at
+            assert expert.last_knowledge_refresh == inst.absorb.return_value.generated_at
             mock_store.save.assert_called_once()
 
     def test_absorb_cancel_at_prompt(self, runner):
@@ -1434,6 +1512,51 @@ class TestExpertRouteGapsCommand:
         assert "--scheduled" in result.output
         assert "--jitter" in result.output
 
+    def test_local_engine_prefers_recorded_profile_model(self):
+        from deepr.cli.commands.semantic.expert_gap_routes import _build_gap_fill_engine
+
+        captured = {}
+        profile = SimpleNamespace(name="AI Strategy Expert", provider="local", model="profile-model")
+
+        class FakeGapFillEngine:
+            def __init__(self, loaded_profile, *, research_fn, absorber):
+                assert loaded_profile is profile
+                captured["research_fn"] = research_fn
+                captured["absorber"] = absorber
+
+        def fake_research_fn(model):
+            captured["research_model"] = model
+            return "research-fn"
+
+        def fake_absorber(loaded_profile, *, model, client, estimated_cost):
+            assert loaded_profile is profile
+            captured["absorber_model"] = model
+            return "absorber"
+
+        with (
+            patch("deepr.experts.gap_fill.GapFillEngine", FakeGapFillEngine),
+            patch("deepr.backends.local.default_local_model", return_value="global-model"),
+            patch("deepr.backends.local.make_local_research_fn", side_effect=fake_research_fn),
+            patch("deepr.backends.local.ollama_chat_client", return_value="client"),
+            patch("deepr.experts.report_absorber.ReportAbsorber", side_effect=fake_absorber),
+        ):
+            _engine, source = _build_gap_fill_engine(
+                profile,
+                use_local=True,
+                local_model=None,
+                use_plan=False,
+                plan_backend_id=None,
+                plan_model=None,
+                selection_note="",
+                json_output=True,
+            )
+
+        assert source == "local"
+        assert captured["research_model"] == "profile-model"
+        assert captured["absorber_model"] == "profile-model"
+        assert captured["research_fn"] == "research-fn"
+        assert captured["absorber"] == "absorber"
+
     def test_nonexistent_expert(self, runner):
         with patch("deepr.experts.profile.ExpertStore") as mock_store_class:
             mock_store = MagicMock()
@@ -1548,6 +1671,7 @@ class TestExpertRouteGapsCommand:
         mock_store_class.assert_not_called()
 
     def test_execute_overlap_lock_records_skip_without_building_engine(self, runner):
+        from deepr.backends.local_capacity import LocalCapacityObservation, LocalCapacityState
         from deepr.experts.gap_router import GapRoute
         from deepr.experts.loop_runs import LoopRunStatus, LoopStopReason
 
@@ -1594,6 +1718,14 @@ class TestExpertRouteGapsCommand:
             patch("deepr.experts.loop_lock.apply_startup_jitter", fake_jitter),
             patch("deepr.experts.loop_lock.expert_verb_lock", fake_lock),
             patch("deepr.experts.loop_runs.record_loop_run", side_effect=fake_record),
+            patch(
+                "deepr.backends.local_capacity.probe_local_gpu_occupancy",
+                return_value=LocalCapacityObservation(
+                    state=LocalCapacityState.FREE,
+                    source="test",
+                    detail="local GPU capacity is free",
+                ),
+            ),
         ):
             mock_store = MagicMock()
             mock_store.load.return_value = expert

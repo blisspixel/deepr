@@ -3,6 +3,7 @@ import { useParams, useNavigate, useSearchParams } from 'react-router-dom'
 import { useQuery, useMutation } from '@tanstack/react-query'
 import { cn, formatCurrency, formatRelativeTime } from '@/lib/utils'
 import { expertsApi } from '@/api/experts'
+import { costApi } from '@/api/cost'
 import { wsClient } from '@/api/websocket'
 import { toast } from 'sonner'
 import { Textarea } from '@/components/ui/textarea'
@@ -16,6 +17,12 @@ import { CompactBanner } from '@/components/chat/compact-banner'
 import { ConfirmDialog } from '@/components/chat/confirm-dialog'
 import { PlanDisplay } from '@/components/chat/plan-display'
 import { CHAT_MODES } from '@/lib/constants'
+import {
+  browserExpertChatFailureMessage,
+  clampBrowserExpertChatBudgetInput,
+  prepareBrowserExpertChatRequest,
+  type BrowserExpertChatRequestPayload,
+} from '@/lib/expert-chat-contract'
 import type { ExpertChat, Skill, SupportClass, ChatMode, ThoughtItem, ConfirmRequest, PlanStep } from '@/types'
 import {
   AlertTriangle,
@@ -146,9 +153,13 @@ export default function ExpertProfile() {
   const [chatMessages, setChatMessages] = useState<ExpertChat[]>([])
   const [sessionId, setSessionId] = useState<string | null>(null)
   const [isStreaming, setIsStreaming] = useState(false)
+  const [isStopping, setIsStopping] = useState(false)
   const [streamingContent, setStreamingContent] = useState('')
   const [activeTools, setActiveTools] = useState<{ tool: string; query: string; startedAt: number }[]>([])
   const [chatMode, setChatMode] = useState<ChatMode>('research')
+  const [chatBudgetInput, setChatBudgetInput] = useState('')
+  const [meteredChatConfirmed, setMeteredChatConfirmed] = useState(false)
+  const [socketSessionActive, setSocketSessionActive] = useState(false)
   const [thoughts, setThoughts] = useState<ThoughtItem[]>([])
   const [showSlashMenu, setShowSlashMenu] = useState(false)
   const [compactSuggest, setCompactSuggest] = useState<{ messageCount: number } | null>(null)
@@ -157,28 +168,31 @@ export default function ExpertProfile() {
   const [planQuery, setPlanQuery] = useState('')
   const chatEndRef = useRef<HTMLDivElement>(null)
   const userScrolledRef = useRef(false)
-  // Safety timer that clears streaming state if the WS chat_complete /
-  // chat_error event is dropped - UI was previously stuck on "streaming"
-  // forever in that case (R3 frontend-audit finding).
-  const streamTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const streamingContentRef = useRef('')
 
   const decodedName = decodeURIComponent(name || '')
   const encodedName = encodeURIComponent(decodedName)
 
   // Reset chat when switching experts
   useEffect(() => {
+    wsClient.endChat()
     setChatMessages([])
     setChatInput('')
     setSessionId(null)
     setIsStreaming(false)
+    setIsStopping(false)
     setStreamingContent('')
+    streamingContentRef.current = ''
     setActiveTools([])
+    setSocketSessionActive(false)
+    setMeteredChatConfirmed(false)
   }, [decodedName])
 
   // Wire Socket.IO chat events
   useEffect(() => {
     const cleanups = [
       wsClient.onChatToken(({ content }) => {
+        streamingContentRef.current += content
         setStreamingContent(prev => prev + content)
       }),
       wsClient.onChatToolStart(({ tool, query }) => {
@@ -191,16 +205,15 @@ export default function ExpertProfile() {
         })
       }),
       wsClient.onChatComplete((data) => {
-        if (streamTimeoutRef.current) {
-          clearTimeout(streamTimeoutRef.current)
-          streamTimeoutRef.current = null
-        }
         setIsStreaming(false)
+        setIsStopping(false)
         setStreamingContent('')
+        streamingContentRef.current = ''
         setActiveTools([])
         setThoughts([])
         if (data.session_id) setSessionId(data.session_id)
         if (data.mode) setChatMode(data.mode as ChatMode)
+        setSocketSessionActive(true)
         setChatMessages(prev => [...prev, {
           id: data.id,
           role: 'assistant',
@@ -213,16 +226,58 @@ export default function ExpertProfile() {
           confidence: data.confidence,
         }])
       }),
-      wsClient.onChatError(({ error }) => {
-        if (streamTimeoutRef.current) {
-          clearTimeout(streamTimeoutRef.current)
-          streamTimeoutRef.current = null
+      wsClient.onChatError(({ error, error_code, retryable }) => {
+        if (error_code === 'chat_turn_in_progress') {
+          toast.error(`Chat error: ${error}`)
+          return
         }
+        const partialContent = streamingContentRef.current
         setIsStreaming(false)
+        setIsStopping(false)
         setStreamingContent('')
+        streamingContentRef.current = ''
         setActiveTools([])
         setThoughts([])
+        if (error_code === 'chat_turn_failed') {
+          setSocketSessionActive(false)
+          setMeteredChatConfirmed(false)
+          setSessionId(null)
+          setChatMessages(prev => [...prev, {
+            role: 'assistant',
+            content: browserExpertChatFailureMessage({
+              error,
+              retryable: Boolean(retryable),
+              partialContent,
+            }),
+            timestamp: new Date().toISOString(),
+            error: true,
+          }])
+        }
         toast.error(`Chat error: ${error}`)
+      }),
+      wsClient.onChatCancelled(({ cost_status }) => {
+        const partial = streamingContentRef.current
+        setIsStreaming(false)
+        setIsStopping(false)
+        setStreamingContent('')
+        streamingContentRef.current = ''
+        setActiveTools([])
+        setThoughts([])
+        setSocketSessionActive(false)
+        setMeteredChatConfirmed(false)
+        setSessionId(null)
+        if (partial) {
+          setChatMessages(prev => [...prev, {
+            role: 'assistant',
+            content: `${partial}\n\n*(stopped before completion)*`,
+            timestamp: new Date().toISOString(),
+          }])
+        }
+        if (cost_status === 'reservation_active') {
+          toast.warning('Chat stopped. Cost reconciliation is still pending against the approved ceiling.')
+        } else {
+          toast.info('Chat stopped. Provider work was cancelled where supported and costs were closed safely.')
+        }
       }),
       // Agentic events
       wsClient.onChatThought((thought) => {
@@ -243,7 +298,31 @@ export default function ExpertProfile() {
           }])
         }
         if (result.end_session) {
+          setSocketSessionActive(false)
+          setMeteredChatConfirmed(false)
+          setSessionId(null)
           toast.info('Chat session ended')
+        }
+      }),
+      wsClient.on('ws_status', ({ connected }: { connected: boolean }) => {
+        if (!connected) {
+          const partial = streamingContentRef.current
+          setIsStreaming(false)
+          setIsStopping(false)
+          setStreamingContent('')
+          streamingContentRef.current = ''
+          setActiveTools([])
+          setThoughts([])
+          setSocketSessionActive(false)
+          setMeteredChatConfirmed(false)
+          setSessionId(null)
+          if (partial) {
+            setChatMessages(prev => [...prev, {
+              role: 'assistant',
+              content: `${partial}\n\n*(connection lost before completion)*`,
+              timestamp: new Date().toISOString(),
+            }])
+          }
         }
       }),
       wsClient.onCompactSuggest(({ message_count }) => {
@@ -276,6 +355,19 @@ export default function ExpertProfile() {
     queryFn: () => expertsApi.get(encodedName),
     enabled: !!decodedName,
   })
+
+  const { data: costLimits, isError: isCostLimitsError } = useQuery({
+    queryKey: ['cost', 'limits'],
+    queryFn: costApi.getLimits,
+    enabled: activeTab === 'chat',
+  })
+  const chatMaxBudget = costLimits?.expert_chat_max ?? 0
+  const chatControlsLocked = socketSessionActive || isStreaming
+
+  useEffect(() => {
+    if (chatControlsLocked || chatMaxBudget <= 0) return
+    setChatBudgetInput(current => clampBrowserExpertChatBudgetInput(current, chatMaxBudget))
+  }, [chatControlsLocked, chatMaxBudget])
 
   const { data: gaps, isLoading: isGapsLoading, isError: isGapsError, isFetching: isGapsFetching, refetch: refetchGaps } = useQuery({
     queryKey: ['experts', decodedName, 'gaps'],
@@ -321,6 +413,9 @@ export default function ExpertProfile() {
 
   const loadConversation = useCallback(async (sid: string) => {
     try {
+      wsClient.endChat()
+      setSocketSessionActive(false)
+      setMeteredChatConfirmed(false)
       const data = await expertsApi.getConversation(encodedName, sid)
       setSessionId(data.session_id)
       setChatMessages(
@@ -338,12 +433,17 @@ export default function ExpertProfile() {
   }, [encodedName])
 
   const startNewChat = useCallback(() => {
+    wsClient.endChat()
     setChatMessages([])
     setSessionId(null)
     setChatInput('')
     setIsStreaming(false)
+    setIsStopping(false)
     setStreamingContent('')
+    streamingContentRef.current = ''
     setActiveTools([])
+    setSocketSessionActive(false)
+    setMeteredChatConfirmed(false)
   }, [])
 
   const installSkillMutation = useMutation({
@@ -379,42 +479,70 @@ export default function ExpertProfile() {
 
   // REST fallback mutation (used when WebSocket is disconnected)
   const chatMutation = useMutation({
-    mutationFn: (message: string) => expertsApi.chat(encodedName, message, sessionId ?? undefined),
+    mutationFn: (chatRequest: BrowserExpertChatRequestPayload) => (
+      expertsApi.chat(encodedName, chatRequest, sessionId ?? undefined)
+    ),
     onSuccess: (data) => {
       if (data.session_id) setSessionId(data.session_id)
       setChatMessages(prev => [...prev, data])
+      setMeteredChatConfirmed(false)
     },
     onError: () => {
-      setChatMessages(prev => {
-        const updated = [...prev]
-        if (updated.length > 0) {
-          updated[updated.length - 1] = { ...updated[updated.length - 1], error: true }
-        }
-        return updated
-      })
+      setSessionId(null)
+      setMeteredChatConfirmed(false)
+      setChatMessages(prev => [...prev, {
+        role: 'assistant',
+        content: browserExpertChatFailureMessage({
+          error: 'Expert chat failed. Start a new session and retry.',
+          retryable: true,
+        }),
+        timestamp: new Date().toISOString(),
+        error: true,
+      }])
       toast.error('Failed to get response from expert')
     },
   })
+
+  const prepareChatRequest = useCallback((message: string) => {
+    const result = prepareBrowserExpertChatRequest({
+      message,
+      chatMode,
+      budgetInput: chatBudgetInput,
+      maxBudget: chatMaxBudget,
+      meteredConfirmed: meteredChatConfirmed,
+    })
+    if (!result.ok) {
+      toast.error(result.error)
+      return null
+    }
+    return result.request
+  }, [chatBudgetInput, chatMaxBudget, chatMode, meteredChatConfirmed])
 
   const handleSendMessage = useCallback((e?: React.FormEvent) => {
     e?.preventDefault()
     if (!chatInput.trim() || isStreaming || chatMutation.isPending) return
     const message = chatInput.trim()
-    setChatInput('')
-    setShowSlashMenu(false)
 
     // Detect slash commands
     if (message.startsWith('/')) {
-      // Client-side commands: /clear, /new
-      if (message === '/clear' || message === '/new') {
-        setChatMessages([])
-        setSessionId(null)
+      if (message === '/new') {
+        startNewChat()
         setThoughts([])
-        toast.success(message === '/clear' ? 'Cleared' : 'New conversation')
+        toast.success('New conversation')
+        return
+      }
+      if (message === '/clear' && (!wsClient.connected || !socketSessionActive)) {
+        setChatMessages([])
+        setThoughts([])
+        setChatInput('')
+        setShowSlashMenu(false)
+        toast.success('Cleared')
         return
       }
       // Send command via WebSocket
       if (wsClient.connected) {
+        setChatInput('')
+        setShowSlashMenu(false)
         wsClient.sendCommand(message)
         return
       }
@@ -422,43 +550,50 @@ export default function ExpertProfile() {
       return
     }
 
+    const chatRequest = prepareChatRequest(message)
+    if (!chatRequest) return
+    setChatInput('')
+    setShowSlashMenu(false)
+
     setChatMessages(prev => [...prev, { role: 'user', content: message, timestamp: new Date().toISOString() }])
 
     // Try WebSocket streaming first, fall back to REST
     if (wsClient.connected) {
       setIsStreaming(true)
+      setIsStopping(false)
       setStreamingContent('')
+      streamingContentRef.current = ''
       setActiveTools([])
       setThoughts([])
       userScrolledRef.current = false
-      wsClient.startChat(decodedName, message, sessionId ?? undefined, chatMode)
-      // Safety timeout: if no chat_complete / chat_error event arrives
-      // within 60s the WS event was probably dropped (R3 audit finding).
-      // Clear streaming state so the UI doesn't hang forever.
-      if (streamTimeoutRef.current) clearTimeout(streamTimeoutRef.current)
-      streamTimeoutRef.current = setTimeout(() => {
-        setIsStreaming(false)
-        toast.warning('Chat stream timeout - the response may be lost. Refresh to reload the session.')
-      }, 60_000)
+      wsClient.startChat(decodedName, chatRequest, sessionId ?? undefined)
     } else {
-      chatMutation.mutate(message)
+      chatMutation.mutate(chatRequest)
     }
-  }, [chatInput, isStreaming, chatMutation, decodedName, sessionId, chatMode])
+  }, [
+    chatInput,
+    isStreaming,
+    chatMutation,
+    decodedName,
+    sessionId,
+    prepareChatRequest,
+    socketSessionActive,
+    startNewChat,
+  ])
 
   const handleStopStreaming = useCallback(() => {
-    wsClient.stopChat()
-    // Preserve partial content as a message
-    if (streamingContent) {
-      setChatMessages(prev => [...prev, {
-        role: 'assistant',
-        content: streamingContent + '\n\n*(stopped)*',
-        timestamp: new Date().toISOString(),
-      }])
+    if (isStopping) return
+    if (!wsClient.stopChat()) {
+      setIsStreaming(false)
+      setIsStopping(false)
+      setStreamingContent('')
+      streamingContentRef.current = ''
+      setActiveTools([])
+      toast.error('Cannot stop chat because the WebSocket connection is unavailable.')
+      return
     }
-    setIsStreaming(false)
-    setStreamingContent('')
-    setActiveTools([])
-  }, [streamingContent])
+    setIsStopping(true)
+  }, [isStopping])
 
   const handleKeyDown = useCallback((e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === 'Enter' && !e.shiftKey) {
@@ -471,16 +606,20 @@ export default function ExpertProfile() {
     // Find the preceding user message and re-send
     const userMsg = chatMessages.slice(0, index).reverse().find(m => m.role === 'user')
     if (!userMsg) return
+    const chatRequest = prepareChatRequest(userMsg.content)
+    if (!chatRequest) return
     setChatMessages(prev => prev.slice(0, index))
     if (wsClient.connected) {
       setIsStreaming(true)
+      setIsStopping(false)
       setStreamingContent('')
+      streamingContentRef.current = ''
       setActiveTools([])
-      wsClient.startChat(decodedName, userMsg.content, sessionId ?? undefined, chatMode)
+      wsClient.startChat(decodedName, chatRequest, sessionId ?? undefined)
     } else {
-      chatMutation.mutate(userMsg.content)
+      chatMutation.mutate(chatRequest)
     }
-  }, [chatMessages, decodedName, sessionId, chatMutation, chatMode])
+  }, [chatMessages, decodedName, sessionId, chatMutation, prepareChatRequest])
 
   const handleEdit = useCallback((index: number, content: string) => {
     setChatMessages(prev => prev.slice(0, index))
@@ -493,6 +632,14 @@ export default function ExpertProfile() {
     }
   }, [chatMessages, streamingContent])
 
+  const numericChatBudget = Number(chatBudgetInput)
+  const chatBudgetValid = (
+    meteredChatConfirmed
+    && Number.isFinite(numericChatBudget)
+    && numericChatBudget > 0
+    && chatMaxBudget > 0
+    && numericChatBudget <= chatMaxBudget
+  )
   if (isLoading) return <DetailSkeleton />
 
   if (isError) {
@@ -712,9 +859,11 @@ export default function ExpertProfile() {
                   <div className={cn('flex gap-3 group', msg.role === 'user' && 'justify-end')}>
                     <div className={cn(
                       'max-w-[70%] rounded-lg p-3 text-sm relative',
-                      msg.role === 'user'
-                        ? msg.error ? 'bg-destructive/10 text-foreground border border-destructive/30' : 'bg-primary text-primary-foreground'
-                        : 'bg-secondary text-foreground'
+                      msg.error
+                        ? 'bg-destructive/10 text-foreground border border-destructive/30'
+                        : msg.role === 'user'
+                          ? 'bg-primary text-primary-foreground'
+                          : 'bg-secondary text-foreground'
                     )}>
                       {/* Tool call blocks for completed messages */}
                       {msg.tool_calls && msg.tool_calls.length > 0 && (
@@ -741,7 +890,7 @@ export default function ExpertProfile() {
                         msg.role === 'user' ? (msg.error ? 'text-destructive' : 'text-primary-foreground/60') : 'text-muted-foreground'
                       )}>
                         <span>{new Date(msg.timestamp).toLocaleTimeString()}</span>
-                        {msg.error && <span>Failed to send</span>}
+                        {msg.error && <span>{msg.role === 'assistant' ? 'Response failed' : 'Failed to send'}</span>}
                         {msg.cost != null && msg.cost > 0 && <span>${msg.cost.toFixed(4)}</span>}
                         <MessageActions
                           content={msg.content}
@@ -760,14 +909,18 @@ export default function ExpertProfile() {
                         <button
                           key={i}
                           onClick={() => {
+                            const chatRequest = prepareChatRequest(fu)
+                            if (!chatRequest) return
                             setChatMessages(prev => [...prev, { role: 'user', content: fu, timestamp: new Date().toISOString() }])
                             if (wsClient.connected) {
                               setIsStreaming(true)
+                              setIsStopping(false)
                               setStreamingContent('')
+                              streamingContentRef.current = ''
                               setActiveTools([])
-                              wsClient.startChat(decodedName, fu, sessionId ?? undefined, chatMode)
+                              wsClient.startChat(decodedName, chatRequest, sessionId ?? undefined)
                             } else {
-                              chatMutation.mutate(fu)
+                              chatMutation.mutate(chatRequest)
                             }
                             setChatInput('')
                           }}
@@ -843,8 +996,56 @@ export default function ExpertProfile() {
               </div>
             )}
 
+            <div className="px-4 pt-3 border-t bg-muted/20 space-y-2">
+              <div className="flex flex-wrap items-center gap-3 text-xs">
+                <label className="flex items-center gap-2">
+                  <span className="font-medium text-foreground">Session ceiling</span>
+                  <span className="flex items-center rounded-md border bg-background px-2 py-1">
+                    <span className="text-muted-foreground">$</span>
+                    <input
+                      type="number"
+                      min="0.01"
+                      max={chatMaxBudget || undefined}
+                      step="0.01"
+                      value={chatBudgetInput}
+                      disabled={chatControlsLocked}
+                      onChange={(event) => setChatBudgetInput(event.target.value)}
+                      className="w-20 bg-transparent pl-1 outline-none disabled:cursor-not-allowed"
+                      aria-label="Expert chat session budget"
+                    />
+                  </span>
+                </label>
+                <span className="text-muted-foreground">
+                  {chatMaxBudget > 0
+                    ? `Server maximum: $${chatMaxBudget.toFixed(2)}`
+                    : 'Server budget controls unavailable'}
+                </span>
+                {socketSessionActive && (
+                  <span className="text-muted-foreground">Locked for the active session</span>
+                )}
+              </div>
+              <label className="flex items-start gap-2 text-xs text-muted-foreground">
+                <input
+                  type="checkbox"
+                  checked={meteredChatConfirmed}
+                  disabled={chatControlsLocked}
+                  onChange={(event) => setMeteredChatConfirmed(event.target.checked)}
+                  className="mt-0.5"
+                />
+                <span>
+                  I approve metered API chat up to this session ceiling. Browser chat currently
+                  supports API capacity only; use CLI or MCP for local and plan capacity.
+                </span>
+              </label>
+              {isCostLimitsError && (
+                <p className="text-xs text-destructive">
+                  Cost limits could not be loaded, so metered browser chat is disabled.
+                </p>
+              )}
+            </div>
+
             {/* Input */}
-            <form onSubmit={handleSendMessage} className="p-4 border-t flex gap-2 items-end relative">
+            <form onSubmit={handleSendMessage} className="p-4 pt-3 flex gap-2 items-end relative">
               {/* Mode badge */}
               <span className={cn(
                 'absolute -top-5 left-4 px-2 py-0.5 rounded text-[10px] font-semibold text-white',
@@ -880,15 +1081,23 @@ export default function ExpertProfile() {
                   size="icon"
                   variant="destructive"
                   onClick={handleStopStreaming}
-                  aria-label="Stop streaming"
+                  disabled={isStopping}
+                  aria-label={isStopping ? 'Stopping chat' : 'Stop streaming'}
                 >
-                  <Square className="w-4 h-4" />
+                  {isStopping ? (
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                  ) : (
+                    <Square className="w-4 h-4" />
+                  )}
                 </Button>
               ) : (
                 <Button
                   type="submit"
                   size="icon"
-                  disabled={!chatInput.trim()}
+                  disabled={
+                    !chatInput.trim()
+                    || (!chatInput.trim().startsWith('/') && !chatBudgetValid)
+                  }
                   loading={chatMutation.isPending}
                   aria-label="Send message"
                 >

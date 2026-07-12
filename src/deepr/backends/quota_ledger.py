@@ -23,8 +23,13 @@ from enum import Enum
 from pathlib import Path
 from typing import Any, TypeVar
 
+from filelock import FileLock
+
 from deepr.backends.admission import default_capacity_data_dir
 from deepr.backends.capacity import CostModel
+
+_PATH_LOCKS: dict[Path, threading.Lock] = {}
+_PATH_LOCKS_GUARD = threading.Lock()
 
 
 def _utc_now() -> datetime:
@@ -34,6 +39,13 @@ def _utc_now() -> datetime:
 def quota_ledger_path(path: Path | None = None) -> Path:
     """Resolve the quota ledger path, honoring explicit test/deployment paths."""
     return path or default_capacity_data_dir() / "quota_ledger.jsonl"
+
+
+def _shared_path_lock(path: Path) -> threading.Lock:
+    """Return one process-local lock for every resolved ledger path."""
+    resolved = path.resolve()
+    with _PATH_LOCKS_GUARD:
+        return _PATH_LOCKS.setdefault(resolved, threading.Lock())
 
 
 class QuotaWindowKind(str, Enum):
@@ -50,6 +62,7 @@ class QuotaEventType(str, Enum):
     """What an adapter observed about a quota source."""
 
     WINDOW_OBSERVED = "window_observed"
+    ATTEMPT_OBSERVED = "attempt_observed"
     USAGE_OBSERVED = "usage_observed"
     EXHAUSTED = "exhausted"
     RESET_OBSERVED = "reset_observed"
@@ -176,6 +189,8 @@ class QuotaLedgerEvent:
 def _optional_float(value: object) -> float | None:
     if value is None:
         return None
+    if not isinstance(value, (int, float, str)):
+        raise TypeError("quota numeric field must be an int, float, or string")
     return float(value)
 
 
@@ -239,13 +254,15 @@ class QuotaLedger:
     def __init__(self, ledger_path: Path | None = None):
         self.ledger_path = quota_ledger_path(ledger_path)
         self.ledger_path.parent.mkdir(parents=True, exist_ok=True)
-        self._lock = threading.Lock()
+        self._lock = _shared_path_lock(self.ledger_path)
+        resolved_path = self.ledger_path.resolve()
+        self._file_lock = FileLock(str(resolved_path.with_name(f"{resolved_path.name}.lock")))
 
     def record_event(self, event: QuotaLedgerEvent) -> QuotaLedgerEvent:
         if not event.backend_id.strip():
             raise ValueError("backend_id is required")
 
-        with self._lock:
+        with self._lock, self._file_lock:
             line = json.dumps(event.to_dict(), ensure_ascii=True)
             with self.ledger_path.open("a", encoding="utf-8") as f:
                 f.write(line + "\n")
@@ -263,28 +280,28 @@ class QuotaLedger:
         end_date: datetime | None = None,
     ) -> list[QuotaLedgerEvent]:
         events: list[QuotaLedgerEvent] = []
-        if not self.ledger_path.exists():
-            return events
+        with self._lock, self._file_lock:
+            if not self.ledger_path.exists():
+                return events
+            with self.ledger_path.open(encoding="utf-8") as f:
+                for line in f:
+                    line = line.strip()
+                    if not line:
+                        continue
+                    try:
+                        event = QuotaLedgerEvent.from_dict(json.loads(line))
+                    except (json.JSONDecodeError, KeyError, TypeError, ValueError):
+                        continue
 
-        with self.ledger_path.open(encoding="utf-8") as f:
-            for line in f:
-                line = line.strip()
-                if not line:
-                    continue
-                try:
-                    event = QuotaLedgerEvent.from_dict(json.loads(line))
-                except (json.JSONDecodeError, KeyError, TypeError, ValueError):
-                    continue
-
-                if backend_id and event.backend_id != backend_id:
-                    continue
-                if account_id is not None and event.account_id != account_id:
-                    continue
-                if start_date and event.timestamp < start_date:
-                    continue
-                if end_date and event.timestamp > end_date:
-                    continue
-                events.append(event)
+                    if backend_id and event.backend_id != backend_id:
+                        continue
+                    if account_id is not None and event.account_id != account_id:
+                        continue
+                    if start_date and event.timestamp < start_date:
+                        continue
+                    if end_date and event.timestamp > end_date:
+                        continue
+                    events.append(event)
 
         return events
 

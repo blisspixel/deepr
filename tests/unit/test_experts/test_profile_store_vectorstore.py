@@ -45,6 +45,11 @@ class TestAddDocuments:
         assert result["uploaded"][0]["file_id"] == "file_1"
         assert str(doc) in prof.source_files
         assert prof.total_documents == 1
+        assert prof.knowledge_cutoff_date is not None
+        assert prof.last_knowledge_refresh == prof.knowledge_cutoff_date
+        reloaded = store.load(prof.name)
+        assert reloaded is not None
+        assert reloaded.knowledge_cutoff_date == prof.knowledge_cutoff_date
 
     @pytest.mark.asyncio
     async def test_skips_already_uploaded(self, store, tmp_path):
@@ -56,6 +61,8 @@ class TestAddDocuments:
         result = await store.add_documents_to_vector_store(prof, [str(doc)], _mock_client())
         assert result["skipped"] == [str(doc)]
         assert result["uploaded"] == []
+        assert prof.knowledge_cutoff_date is None
+        assert prof.last_knowledge_refresh is None
 
     @pytest.mark.asyncio
     async def test_records_failure(self, store, tmp_path):
@@ -68,6 +75,8 @@ class TestAddDocuments:
         result = await store.add_documents_to_vector_store(prof, [str(doc)], client)
         assert len(result["failed"]) == 1
         assert "upload boom" in result["failed"][0]["error"]
+        assert prof.knowledge_cutoff_date is None
+        assert prof.last_knowledge_refresh is None
 
 
 class TestRefreshExpertKnowledge:
@@ -100,6 +109,10 @@ class TestRefreshExpertKnowledge:
         result = await store.refresh_expert_knowledge("with-docs", _mock_client())
         assert "1 new documents" in result["message"]
         assert len(result["uploaded"]) == 1
+        refreshed = store.load("with-docs")
+        assert refreshed is not None
+        assert refreshed.knowledge_cutoff_date is not None
+        assert refreshed.last_knowledge_refresh == refreshed.knowledge_cutoff_date
 
     @pytest.mark.asyncio
     async def test_all_docs_already_known(self, store):
@@ -113,6 +126,10 @@ class TestRefreshExpertKnowledge:
 
         result = await store.refresh_expert_knowledge("known-docs", _mock_client())
         assert "already in vector store" in result["message"]
+        unchanged = store.load("known-docs")
+        assert unchanged is not None
+        assert unchanged.knowledge_cutoff_date is None
+        assert unchanged.last_knowledge_refresh is None
 
 
 class TestBulkHelpers:

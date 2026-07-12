@@ -91,19 +91,18 @@ def _isolate_budget_env(monkeypatch):
 
 
 @pytest.fixture(autouse=True)
-def _isolate_experts_root(tmp_path, monkeypatch):
-    """Keep tests out of the user's real experts store (``data/experts/``).
+def _isolate_runtime_data_root(tmp_path, monkeypatch):
+    """Keep tests out of the user's real runtime and expert stores.
 
-    ``experts_root()`` defaults to ``<DEEPR_DATA_DIR>/experts``; without
-    isolation, any test that builds an expert / belief store / memory with no
-    explicit directory writes into the real ``data/experts/`` - observed leaking
-    ``MagicMock``, ``test_expert``, and stray expert directories during suite
-    runs (the same pollute-the-user's-real-data class as the cost-ledger fixture
-    above). Point the data dir at a per-test tmp dir. Tests that exercise
-    ``experts_root`` resolution set ``DEEPR_DATA_DIR`` / ``DEEPR_EXPERTS_PATH``
-    explicitly via monkeypatch, which runs after this and wins.
+    ``DEEPR_DATA_DIR`` roots the local queue and expert store. Without this
+    isolation, no-path CLI and library calls can write into the workspace queue
+    or the user's experts. Point the entire runtime root at a per-test temp
+    directory. Resolution tests may override the variables with ``monkeypatch``
+    after this fixture and their values win.
     """
-    monkeypatch.setenv("DEEPR_DATA_DIR", str(tmp_path / "data"))
+    runtime_root = tmp_path / "data"
+    monkeypatch.setenv("DEEPR_DATA_DIR", str(runtime_root))
+    monkeypatch.setenv("DEEPR_QUEUE_DB_PATH", str(runtime_root / "queue" / "research_queue.db"))
 
 
 @pytest.fixture(autouse=True)

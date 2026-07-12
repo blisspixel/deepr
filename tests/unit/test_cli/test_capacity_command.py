@@ -12,7 +12,14 @@ from datetime import UTC, datetime
 from click.testing import CliRunner
 
 from deepr.backends.capacity import CostModel
-from deepr.backends.quota_ledger import QuotaEventType, QuotaWindowKind, load_quota_events
+from deepr.backends.quota_ledger import (
+    QuotaConfidence,
+    QuotaEventType,
+    QuotaLedger,
+    QuotaLedgerEvent,
+    QuotaWindowKind,
+    load_quota_events,
+)
 from deepr.backends.quota_snapshot import QuotaSnapshot, QuotaWindowSnapshot
 from deepr.cli.commands.capacity import capacity
 
@@ -181,13 +188,68 @@ class TestProbePlan:
         assert events[0].event_type == QuotaEventType.EXHAUSTED
         assert events[0].detail == "probe-plan exhaustion signature"
 
-    def test_metered_backend_requires_ack(self, monkeypatch):
-        # copilot is metered-at-margin: without -y it asks first (declined here).
+    def test_probe_owned_quota_accounting_is_not_duplicated(self, monkeypatch, tmp_path):
+        monkeypatch.setenv("DEEPR_CAPACITY_DATA_DIR", str(tmp_path))
         _clean_env(monkeypatch)
-        _stub_probe(monkeypatch, ok=True, reply="OK")
-        r = CliRunner().invoke(capacity, ["probe-plan", "copilot"], input="n\n")
-        assert r.exit_code == 0
-        assert "Cancelled" in r.output
+
+        async def accounted_probe(adapter, *, model=None, **_):
+            QuotaLedger().record_event(
+                QuotaLedgerEvent(
+                    backend_id=adapter.backend_id,
+                    event_type=QuotaEventType.USAGE_OBSERVED,
+                    cost_model=adapter.cost_model,
+                    window_kind=adapter.window_kind,
+                    units_used=1.0,
+                    unit_name=adapter.unit_name,
+                    remaining_confidence=QuotaConfidence.UNKNOWN,
+                    detail="probe-owned event",
+                )
+            )
+            return {
+                "backend": adapter.backend_id,
+                "ok": True,
+                "reply": "OK",
+                "latency_ms": 1,
+                "error": "",
+                "quota_observation_recorded": True,
+            }
+
+        monkeypatch.setattr("deepr.backends.plan_quota.probe_plan_quota", accounted_probe)
+
+        result = CliRunner().invoke(capacity, ["probe-plan", "codex", "--json"])
+
+        assert result.exit_code == 0
+        events = load_quota_events(tmp_path / "quota_ledger.jsonl")
+        assert len(events) == 1
+        assert events[0].detail == "probe-owned event"
+
+    def test_metered_backend_fails_closed_before_probe_in_human_mode(self, monkeypatch):
+        _clean_env(monkeypatch)
+
+        async def must_not_probe(*args, **kwargs):
+            raise AssertionError("metered adapter probe must not be constructed")
+
+        monkeypatch.setattr("deepr.backends.plan_quota.probe_plan_quota", must_not_probe)
+        r = CliRunner().invoke(capacity, ["probe-plan", "copilot"])
+
+        assert r.exit_code == 2
+        assert "cannot execute through plan-quota paths" in r.output
+        assert "durable reservation" in r.output
+
+    def test_metered_backend_json_and_yes_cannot_bypass_cost_gate(self, monkeypatch):
+        _clean_env(monkeypatch)
+
+        async def must_not_probe(*args, **kwargs):
+            raise AssertionError("-y must not construct a metered adapter probe")
+
+        monkeypatch.setattr("deepr.backends.plan_quota.probe_plan_quota", must_not_probe)
+        r = CliRunner().invoke(capacity, ["probe-plan", "copilot", "--json", "-y"])
+
+        assert r.exit_code == 2
+        payload = json.loads(r.output)
+        assert payload["ok"] is False
+        assert payload["latency_ms"] == 0
+        assert "usage settlement" in payload["error"]
 
 
 class TestProbeFleet:
@@ -243,7 +305,7 @@ class TestProbeFleet:
         assert [result["backend"] for result in payload["results"]] == ["grok", "antigravity"]
         assert all(result["experimental"] for result in payload["results"])
 
-    def test_metered_backend_is_skipped_by_default(self, monkeypatch):
+    def test_explicit_metered_backend_is_blocked_by_default(self, monkeypatch):
         _clean_env(monkeypatch)
         _stub_path(monkeypatch, "copilot")
         _stub_probe(monkeypatch, ok=True, reply="OK")
@@ -252,10 +314,31 @@ class TestProbeFleet:
 
         assert r.exit_code == 1
         payload = json.loads(r.output)
-        assert payload["probed_count"] == 0
-        assert payload["skipped_count"] == 1
-        assert payload["results"][0]["status"] == "skipped"
-        assert "metered-at-margin" in payload["results"][0]["error"]
+        assert payload["probed_count"] == 1
+        assert payload["failed_count"] == 1
+        assert payload["skipped_count"] == 0
+        assert payload["results"][0]["status"] == "failed"
+        assert "metered at the margin" in payload["results"][0]["error"]
+
+    def test_include_metered_and_yes_cannot_construct_fleet_probe(self, monkeypatch):
+        _clean_env(monkeypatch)
+        _stub_path(monkeypatch, "copilot")
+
+        async def must_not_probe(*args, **kwargs):
+            raise AssertionError("compatibility flags must not construct a metered probe")
+
+        monkeypatch.setattr("deepr.backends.plan_quota.probe_plan_quota", must_not_probe)
+        r = CliRunner().invoke(
+            capacity,
+            ["probe-fleet", "--backend", "copilot", "--include-metered", "-y", "--json"],
+        )
+
+        assert r.exit_code == 1
+        payload = json.loads(r.output)
+        assert payload["probed_count"] == 1
+        assert payload["failed_count"] == 1
+        assert payload["results"][0]["latency_ms"] == 0
+        assert "cost estimation" in payload["results"][0]["error"]
 
     def test_failure_exits_nonzero_after_payload(self, monkeypatch):
         _clean_env(monkeypatch)

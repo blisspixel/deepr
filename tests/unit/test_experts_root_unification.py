@@ -16,7 +16,13 @@ from deepr.config import experts_root
 
 _DEEPR_PKG = pathlib.Path(__file__).resolve().parents[2] / "deepr"
 # Functional hardcode patterns (not docstrings/comments, which mention the path).
-_FORBIDDEN = ('Path("data/experts"', '"data/experts")', ': str = "data/experts"')
+_FORBIDDEN = (
+    'Path("data/experts"',
+    '"data/experts")',
+    ': str = "data/experts"',
+    "experts_root() / expert_name",
+    "experts_root() / self.expert_name",
+)
 
 
 class TestNoHardcodedRoot:
@@ -27,7 +33,8 @@ class TestNoHardcodedRoot:
             if any(pat in text for pat in _FORBIDDEN):
                 offenders.append(str(py.relative_to(_DEEPR_PKG.parent)))
         assert not offenders, (
-            f"These modules hardcode the experts root; use deepr.config.experts_root() instead (ADR 0004): {offenders}"
+            "These modules bypass canonical expert path resolution; use "
+            f"deepr.experts.paths.canonical_expert_dir() instead (ADR 0004): {offenders}"
         )
 
 
@@ -57,7 +64,7 @@ class TestResolution:
         assert experts_root() == tmp_path / "custom"
 
     def test_suite_is_isolated_from_real_experts_root(self):
-        # Regression: the autouse _isolate_experts_root fixture (conftest) keeps
+        # Regression: the autouse _isolate_runtime_data_root fixture keeps
         # the suite out of the user's real data/experts/. Tests leaked MagicMock,
         # test_expert, and stray expert directories there before it existed. No
         # env override here - it relies on the fixture being active.
@@ -93,6 +100,57 @@ class TestComponentsHonorRoot:
 
         store = SubscriptionStore("Portable Expert")
         assert str(tmp_path) in str(store.path)
+
+    @pytest.mark.parametrize(
+        ("component", "relative_dir"),
+        [
+            ("thought_stream", "logs"),
+            ("memory", "memory"),
+            ("knowledge_graph", "graph"),
+            ("lazy_graph_rag", "."),
+            ("feedback", "feedback"),
+            ("dspy", "dspy"),
+            ("consolidation", "knowledge"),
+        ],
+    )
+    def test_stateful_expert_components_use_canonical_directory(self, tmp_path, monkeypatch, component, relative_dir):
+        monkeypatch.delenv("DEEPR_EXPERTS_PATH", raising=False)
+        monkeypatch.setenv("DEEPR_DATA_DIR", str(tmp_path))
+
+        if component == "thought_stream":
+            from deepr.experts.thought_stream import ThoughtStream
+
+            resolved = ThoughtStream("Portable Expert", quiet=True).log_path.parent
+        elif component == "memory":
+            from deepr.experts.memory import HierarchicalMemory
+
+            resolved = HierarchicalMemory("Portable Expert").storage_dir
+        elif component == "knowledge_graph":
+            from deepr.experts.lazy_graph_rag import KnowledgeGraph
+
+            resolved = KnowledgeGraph("Portable Expert").storage_dir
+        elif component == "lazy_graph_rag":
+            from deepr.experts.lazy_graph_rag import LazyGraphRAG
+
+            resolved = LazyGraphRAG("Portable Expert").storage_dir
+        elif component == "feedback":
+            from deepr.experts.dspy_pipeline import FeedbackCollector
+
+            resolved = FeedbackCollector("Portable Expert").storage_dir
+        elif component == "dspy":
+            from deepr.experts.dspy_pipeline import DSPyOptimizer
+
+            resolved = DSPyOptimizer("Portable Expert").storage_dir
+        else:
+            from deepr.experts.knowledge_consolidation import KnowledgeConsolidator
+
+            resolved = KnowledgeConsolidator("Portable Expert").storage_dir
+
+        expected = tmp_path / "experts" / "portable_expert"
+        if relative_dir != ".":
+            expected /= relative_dir
+        assert resolved == expected
+        assert not (tmp_path / "experts" / "Portable Expert").exists()
 
 
 if __name__ == "__main__":

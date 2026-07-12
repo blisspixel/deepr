@@ -2,13 +2,20 @@
 
 from __future__ import annotations
 
+import asyncio
+from time import perf_counter
+
+import pytest
+
 from deepr.backends.fresh_context import (
     FreshContext,
     FreshContextConfig,
     FreshSource,
     cached_sources_from_pack,
+    deep_fresh_context_config,
     make_free_deep_context_builder,
     make_free_fresh_context_builder,
+    retrieval_host_key,
     retrieve_deep_fresh_context,
     retrieve_fresh_context,
 )
@@ -34,6 +41,34 @@ class _SearchBackend:
         return True
 
 
+class _DelayedSearchBackend:
+    def __init__(self, name: str):
+        self.name = name
+        self.calls = []
+        self.active = 0
+        self.max_active = 0
+
+    async def search(self, query: str, num_results: int = 10):
+        self.calls.append((query, num_results))
+        self.active += 1
+        self.max_active = max(self.max_active, self.active)
+        try:
+            await asyncio.sleep(0.01)
+            return [
+                SearchResult(
+                    title=query,
+                    url=f"https://{query}.example/page",
+                    snippet=query,
+                    source=self.name,
+                )
+            ]
+        finally:
+            self.active -= 1
+
+    async def health_check(self):
+        return True
+
+
 class _BrowserBackend:
     name = "fake-browser"
 
@@ -49,6 +84,25 @@ class _BrowserBackend:
 
     async def health_check(self):
         return True
+
+
+class _DelayedBrowserBackend(_BrowserBackend):
+    def __init__(self, delay: float = 0.5):
+        super().__init__()
+        self.delay = delay
+        self.active = 0
+        self.max_active = 0
+
+    async def fetch_page(self, url: str, *, validators: PageValidators | None = None):
+        self.calls.append(url)
+        self.validators[url] = validators
+        self.active += 1
+        self.max_active = max(self.max_active, self.active)
+        try:
+            await asyncio.sleep(self.delay)
+            return PageContent(url=url, title=url, text=f"content for {url}")
+        finally:
+            self.active -= 1
 
 
 async def test_retrieve_fresh_context_searches_and_fetches_sources():
@@ -91,6 +145,83 @@ async def test_retrieve_fresh_context_searches_and_fetches_sources():
     assert pack["sources"][0]["excerpt"] == "The relea..."
 
 
+@pytest.mark.parametrize(
+    ("backend_name", "expected_max_active"),
+    [
+        ("builtin:duckduckgo", 1),
+        ("builtin:auto", 1),
+        ("searxng", 4),
+        ("builtin:brave", 4),
+        ("builtin:tavily", 4),
+        ("injected-search", 4),
+    ],
+)
+async def test_search_query_fanout_respects_backend_rate_limit_policy(
+    backend_name: str,
+    expected_max_active: int,
+):
+    queries = ("query-0", "query-1", "query-2", "query-3")
+    search = _DelayedSearchBackend(backend_name)
+
+    context = await retrieve_fresh_context(
+        "rate limit policy",
+        search_backend=search,
+        search_queries=queries,
+        config=FreshContextConfig(max_search_results=1, max_fetches=0),
+    )
+
+    assert search.max_active == expected_max_active
+    assert search.calls == [(query, 1) for query in queries]
+    assert [source.title for source in context.sources] == list(queries)
+
+
+async def test_retrieve_fresh_context_fetches_concurrently_with_a_small_bound():
+    urls = [f"https://source-{index}.example/page" for index in range(5)]
+    results = [
+        SearchResult(title=f"Result {index}", url=url, snippet="", source="fake") for index, url in enumerate(urls)
+    ]
+    browser = _DelayedBrowserBackend()
+
+    started = perf_counter()
+    context = await retrieve_fresh_context(
+        "concurrent retrieval",
+        search_backend=_SearchBackend(results),
+        browser_backend=browser,
+        config=FreshContextConfig(max_search_results=5, max_fetches=5),
+    )
+    elapsed = perf_counter() - started
+
+    assert browser.max_active == 4
+    assert elapsed < 2.0
+    assert browser.calls == urls
+    assert [source.url for source in context.sources] == urls
+
+
+async def test_retrieve_fresh_context_serializes_fetches_to_the_same_host():
+    urls = [f"https://example.com/page-{index}" for index in range(4)]
+    results = [
+        SearchResult(title=f"Result {index}", url=url, snippet="", source="fake") for index, url in enumerate(urls)
+    ]
+    browser = _DelayedBrowserBackend(delay=0.01)
+
+    context = await retrieve_fresh_context(
+        "same host retrieval",
+        search_backend=_SearchBackend(results),
+        browser_backend=browser,
+        config=FreshContextConfig(max_search_results=4, max_fetches=4),
+    )
+
+    assert browser.max_active == 1
+    assert browser.calls == urls
+    assert [source.url for source in context.sources] == urls
+
+
+def test_retrieval_host_key_normalizes_hosts_and_serializes_unsafe_targets():
+    assert retrieval_host_key("https://EXAMPLE.com./a") == retrieval_host_key("http://example.com:8080/b")
+    assert retrieval_host_key("mailto:user@example.com") == retrieval_host_key("not a URL")
+    assert retrieval_host_key("https://example.com") != retrieval_host_key("not a URL")
+
+
 async def test_retrieve_fresh_context_uses_explicit_urls_without_search():
     browser = _BrowserBackend(
         {
@@ -107,6 +238,8 @@ async def test_retrieve_fresh_context_uses_explicit_urls_without_search():
     assert context.search_backend == "none"
     assert context.sources[0].url == "https://example.com/page"
     assert "Current page text" in context.to_prompt_context()
+    assert context.generation_readiness().ready is True
+    assert context.generation_readiness().required_source_count == 1
 
 
 async def test_prompt_context_quarantines_untrusted_source_directives():
@@ -141,6 +274,70 @@ async def test_retrieve_fresh_context_records_search_errors():
     assert context.sources == ()
     assert context.errors == ("search failed for 'q': down",)
     assert "No fresh web sources" in context.to_prompt_context()
+
+
+async def test_generation_readiness_counts_content_addressed_sources_not_every_result():
+    results = [
+        SearchResult(
+            title=f"Result {index}",
+            url=f"https://example.com/{index}",
+            snippet=f"Snippet {index}",
+            source="duck",
+        )
+        for index in range(5)
+    ]
+    search = _SearchBackend(results)
+    browser = _BrowserBackend(
+        {
+            "https://example.com/0": PageContent(
+                url="https://example.com/0", title="First", text="First fetched page."
+            ),
+            "https://example.com/1": PageContent(
+                url="https://example.com/1", title="Second", text="Second fetched page."
+            ),
+        }
+    )
+
+    context = await retrieve_fresh_context(
+        "bounded topic",
+        search_backend=search,
+        browser_backend=browser,
+        config=FreshContextConfig(max_search_results=5, max_fetches=2),
+    )
+    pack = context.to_source_pack()
+
+    assert context.generation_readiness().ready is True
+    assert context.generation_readiness().ready_source_count == 2
+    assert len(context.sources) == 5
+    assert pack["source_count"] == 2
+    assert len(pack["sources"]) == 2
+    assert len(pack["retrieval_candidates"]) == 5
+    assert [candidate["content_addressed"] for candidate in pack["retrieval_candidates"]] == [
+        True,
+        True,
+        False,
+        False,
+        False,
+    ]
+
+
+def test_deep_context_requires_wider_content_addressed_pack():
+    context = FreshContext(
+        query="deep topic",
+        generated_at="2026-07-11T00:00:00Z",
+        mode="deep",
+        prompt_config=deep_fresh_context_config(),
+        sources=(
+            FreshSource(title="One", url="https://example.com/1", content="First page"),
+            FreshSource(title="Two", url="https://example.com/2", content="Second page"),
+        ),
+    )
+
+    readiness = context.generation_readiness()
+
+    assert readiness.ready is False
+    assert readiness.ready_source_count == 2
+    assert readiness.required_source_count == 3
 
 
 def test_fresh_source_excerpt_truncates():

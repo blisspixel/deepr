@@ -17,7 +17,10 @@ _API_KEY_FIELDS = {
 
 def create_job_provider(job: ResearchJob, config: dict[str, Any]) -> DeepResearchProvider:
     """Construct the provider named on a persisted job with its matching key."""
-    persisted_name = str(job.provider or config.get("provider", "openai"))
+    # Legacy rows may have an empty provider. Default those deterministically
+    # to the queue schema's historical OpenAI owner, never to mutable ambient
+    # configuration that could route lifecycle calls through another adapter.
+    persisted_name = str(job.provider or "openai")
     provider_name = "xai" if persisted_name == "grok" else persisted_name
     if provider_name == "azure-foundry":
         return create_provider(

@@ -9,8 +9,8 @@ organizing, not generating: no LLM call, cost $0.
 Byte-stable by design: ordering is deterministic (confidence desc, then
 claim) and the "as of" timestamp derives from the latest belief event, not
 the wall clock - regenerating from an unchanged store produces an identical
-file. A reader sees open conflicts (contradiction flags), not a smoothed
-narrative.
+file. A reader sees recorded contradiction candidates and their verification
+assurance, not a smoothed narrative or a lexical candidate mislabeled as fact.
 """
 
 from __future__ import annotations
@@ -18,7 +18,8 @@ from __future__ import annotations
 from collections import defaultdict
 from datetime import UTC, datetime
 
-from deepr.experts.beliefs import Belief, BeliefStore, Edge
+from deepr.experts.belief_edges import Edge
+from deepr.experts.beliefs import Belief, BeliefStore
 from deepr.experts.perspective import contested as contested_query
 
 # Marker the CLI checks before overwriting: a digest missing this line may
@@ -132,21 +133,26 @@ def build_digest(store: BeliefStore, *, expert_name: str = "") -> str:
         "",
         f"**{len(beliefs)}** beliefs across **{len(by_domain)}** domain(s) - "
         f"**{edge_count}** graph edge(s) ({supports_count} supporting) - "
-        f"**{conflicts['open_count']}** open contradiction(s)",
+        f"**{conflicts['open_count']}** open contradiction candidate(s) "
+        f"({conflicts['model_confirmed_count']} model-confirmed, {conflicts['unverified_count']} unverified)",
         "",
     ]
 
     if conflicts["open_count"]:
-        lines += ["## Open Contradictions", ""]
+        lines += ["## Recorded Contradiction Candidates", ""]
         lines.append(
-            "These conflicts are surfaced deliberately, not smoothed over. "
+            "These candidates are surfaced deliberately, not smoothed over. "
+            "Verification labels describe process assurance, not independent semantic truth. "
             f'Adjudicate with: `deepr expert resolve-conflicts "{name}"`'
         )
         lines.append("")
         for pair in conflicts["pairs"]:
             if pair["status"] != "open":
                 continue
-            lines.append(f"- **A** ({pair['a']['confidence']:.2f}): {pair['a']['claim']}")
+            lines.append(
+                f"- **A** ({pair['a']['confidence']:.2f}, {pair.get('verification', 'unverified')}): "
+                f"{pair['a']['claim']}"
+            )
             lines.append(f"  **B** ({pair['b']['confidence']:.2f}): {pair['b']['claim']}")
         lines.append("")
 

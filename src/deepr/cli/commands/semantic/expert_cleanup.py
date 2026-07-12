@@ -209,3 +209,75 @@ def expert_cleanup(do_apply: bool, yes: bool):
         return
 
     _apply_cleanup(root, plan, yes)
+
+
+def _run_legacy_state_migration(name: str, do_apply: bool, yes: bool) -> None:
+    from deepr.experts.legacy_state_migration import (
+        LegacyStateMigrationError,
+        migrate_legacy_state,
+        plan_legacy_state_migration,
+    )
+
+    try:
+        plan = plan_legacy_state_migration(name)
+    except LegacyStateMigrationError as exc:
+        raise click.ClickException(str(exc)) from exc
+
+    if plan.artifact_count == 0 and not plan.prunable_dirs:
+        print_success(f"No known legacy state found for {name}.")
+        return
+
+    console.print(f"Legacy expert: {plan.legacy_expert_dir}", markup=False)
+    console.print(f"Canonical expert: {plan.canonical_expert_dir}", markup=False)
+    console.print(
+        f"Move {len(plan.moves)} known artifact(s), remove {len(plan.duplicates)} identical duplicate(s), "
+        f"prune {len(plan.prunable_dirs)} projected-empty known directory(s), conflicts {len(plan.conflicts)}.",
+        markup=False,
+    )
+    for conflict in plan.conflicts:
+        console.print(f"Conflict: {conflict.source.name} ({conflict.reason})", markup=False)
+    if plan.conflicts:
+        raise click.ClickException("Resolve the listed conflicts before applying; no state was moved.")
+
+    if not do_apply:
+        console.print("Dry-run. Re-run with --apply to move only this known legacy state.", style="dim")
+        return
+    if not yes and not click.confirm("Apply this targeted legacy-state migration?", default=False):
+        print_warning("Cancelled.")
+        return
+
+    try:
+        result = migrate_legacy_state(name)
+    except LegacyStateMigrationError as exc:
+        raise click.ClickException(str(exc)) from exc
+    print_success(
+        f"Legacy-state migration complete: moved {len(result.moved)}, deduplicated {len(result.deduplicated)}, "
+        f"pruned {len(result.pruned_dirs)} empty directory(s)."
+    )
+
+
+@expert.command(name="migrate-legacy-state")
+@click.argument("name")
+@click.option("--apply", "do_apply", is_flag=True, help="Move the planned state (default is a dry-run).")
+@click.option("-y", "--yes", is_flag=True, help="Skip the confirmation prompt when applying.")
+def migrate_legacy_state_cmd(name: str, do_apply: bool, yes: bool) -> None:
+    """Move one expert's known state out of a legacy display-name path.
+
+    The preview is limited to known runtime artifact names and projected-empty
+    runtime directories for the exact profile identity. Unknown content and
+    other experts are never included.
+
+    EXAMPLES:
+      deepr expert migrate-legacy-state "Harness Expert"
+      deepr expert migrate-legacy-state "Harness Expert" --apply -y
+    """
+    _run_legacy_state_migration(name, do_apply, yes)
+
+
+@expert.command(name="migrate-thought-logs", hidden=True)
+@click.argument("name")
+@click.option("--apply", "do_apply", is_flag=True, help="Move the planned state (default is a dry-run).")
+@click.option("-y", "--yes", is_flag=True, help="Skip the confirmation prompt when applying.")
+def migrate_thought_logs_cmd(name: str, do_apply: bool, yes: bool) -> None:
+    """Compatibility alias for ``migrate-legacy-state``."""
+    _run_legacy_state_migration(name, do_apply, yes)

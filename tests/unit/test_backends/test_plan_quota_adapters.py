@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from datetime import UTC, date, datetime
+
 from deepr.backends.capacity import CostModel
 from deepr.backends.plan_quota.adapters import (
     REGISTRY,
@@ -9,6 +11,7 @@ from deepr.backends.plan_quota.adapters import (
     auto_routable_adapters,
     get_adapter,
     parse_reset_after_seconds,
+    parse_reset_at_utc,
 )
 
 
@@ -27,6 +30,76 @@ class TestResetParser:
 
     def test_unrelated_text_is_none(self):
         assert parse_reset_after_seconds("here is your answer in detail") is None
+
+    def test_absolute_local_clock_becomes_future_utc(self):
+        today = date(2026, 7, 11)
+        now_epoch = datetime(2026, 7, 11, 15, 0, tzinfo=UTC).timestamp()
+
+        def pacific_summer(day, hour, minute):
+            return (datetime(day.year, day.month, day.day, hour + 7, minute, tzinfo=UTC).timestamp(),)
+
+        reset = parse_reset_at_utc(
+            "You've hit your usage limit. Try again at 9:20 AM.",
+            now_epoch=now_epoch,
+            local_date=today,
+            wall_time_resolver=pacific_summer,
+        )
+
+        assert reset == datetime(2026, 7, 11, 16, 20, tzinfo=UTC)
+
+    def test_absolute_clock_rolls_to_next_day_with_new_dst_offset(self):
+        today = date(2026, 10, 31)
+        now_epoch = datetime(2026, 10, 31, 17, 0, tzinfo=UTC).timestamp()
+
+        def pacific_transition(day, hour, minute):
+            offset = 7 if day == today else 8
+            return (datetime(day.year, day.month, day.day, hour + offset, minute, tzinfo=UTC).timestamp(),)
+
+        reset = parse_reset_at_utc(
+            "try again at 9:20 a.m.",
+            now_epoch=now_epoch,
+            local_date=today,
+            wall_time_resolver=pacific_transition,
+        )
+
+        assert reset == datetime(2026, 11, 1, 17, 20, tzinfo=UTC)
+
+    def test_ambiguous_dst_clock_returns_none(self):
+        today = date(2026, 11, 1)
+        now_epoch = datetime(2026, 11, 1, 7, 0, tzinfo=UTC).timestamp()
+
+        def ambiguous(_day, _hour, _minute):
+            return (
+                datetime(2026, 11, 1, 8, 30, tzinfo=UTC).timestamp(),
+                datetime(2026, 11, 1, 9, 30, tzinfo=UTC).timestamp(),
+            )
+
+        assert (
+            parse_reset_at_utc(
+                "try again at 1:30 AM",
+                now_epoch=now_epoch,
+                local_date=today,
+                wall_time_resolver=ambiguous,
+            )
+            is None
+        )
+
+    def test_nonexistent_or_unavailable_local_clock_returns_none(self):
+        assert (
+            parse_reset_at_utc(
+                "try again at 2:30 AM",
+                now_epoch=datetime(2026, 3, 8, 8, 0, tzinfo=UTC).timestamp(),
+                local_date=date(2026, 3, 8),
+                wall_time_resolver=lambda _day, _hour, _minute: (),
+            )
+            is None
+        )
+
+    def test_relative_reset_uses_same_utc_contract(self):
+        now = datetime(2026, 7, 11, 15, 0, tzinfo=UTC)
+        assert parse_reset_at_utc("try again in 45m", now_epoch=now.timestamp()) == datetime(
+            2026, 7, 11, 15, 45, tzinfo=UTC
+        )
 
 
 class TestRegistry:
@@ -133,6 +206,13 @@ class TestParseAnswer:
 class TestExhaustion:
     def test_codex_usage_limit(self):
         assert get_adapter("codex").looks_exhausted("Error: usage_limit_reached, try again")
+
+    def test_codex_current_usage_limit_is_error_channel_only(self):
+        adapter = get_adapter("codex")
+        message = "You've hit your usage limit. Try again at 9:20 AM."
+        assert not adapter.looks_exhausted(message)
+        assert adapter.looks_error_channel_exhausted(message)
+        assert adapter.looks_error_channel_exhausted(message.replace("You've", "You\u2019ve"))
 
     def test_kiro_credits_exhausted(self):
         assert get_adapter("kiro").looks_exhausted("[429]: ... Internal status: credits_exhausted")

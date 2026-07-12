@@ -164,11 +164,16 @@ class TestScopedMCPAuthorization:
         assert decision.allowed
         assert decision.estimated_cost_usd == 0.75
 
-    def test_fixed_cost_tool_uses_key_budget(self):
+    def test_absorb_uses_requested_run_ceiling_for_key_budget(self):
         context = ScopedMCPKeyContext("agent", ResearchMode.UNRESTRICTED, budget_limit_usd=0.04)
 
-        allowed = authorize_scoped_mcp_budget(context, "deepr_expert_absorb", {}, spent_usd=0.0)
-        denied = authorize_scoped_mcp_budget(context, "deepr_expert_absorb", {}, spent_usd=0.02)
+        allowed = authorize_scoped_mcp_budget(
+            context,
+            "deepr_expert_absorb",
+            {"budget": 0.03},
+            spent_usd=0.0,
+        )
+        denied = authorize_scoped_mcp_budget(context, "deepr_expert_absorb", {}, spent_usd=0.0)
 
         assert allowed.allowed
         assert not denied.allowed

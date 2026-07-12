@@ -412,8 +412,10 @@ def eval_continuity(name: str, threshold: float, json_output: bool):
 
     Unlike `eval new/all`, this makes no API calls: it reads the expert's
     belief store and scores deepr's own continuity surface: staleness,
-    abstention, contradiction surfacing, what-changed exactness, and temporal
-    edge qualifier visibility in read and generated-view surfaces.
+    abstention, contradiction surfacing, contradiction verification-provenance
+    coverage, what-changed exactness, and temporal edge qualifier visibility in
+    read and generated-view surfaces. Provenance coverage does not score model
+    accuracy.
     """
     from deepr.experts.beliefs import BeliefStore
     from deepr.experts.continuity_metrics import measure_continuity
@@ -437,6 +439,12 @@ def eval_continuity(name: str, threshold: float, json_output: bool):
         click.echo(json.dumps(report.to_dict(), indent=2))
         return
 
+    _emit_continuity_report(name, report)
+
+
+def _emit_continuity_report(name, report) -> None:
+    """Render the human-readable continuity report."""
+
     overall = report.overall
     click.echo(f"Continuity report for {name}  (methodology v{report.methodology_version})")
     click.echo(f"Overall: {overall:.1%}" if overall is not None else "Overall: n/a (no applicable metrics)")
@@ -453,7 +461,14 @@ def eval_continuity(name: str, threshold: float, json_output: bool):
         if metric.name == "abstention_correctness" and metric.detail.get("over_asserted"):
             click.echo(f"      WARNING: {len(metric.detail['over_asserted'])} ungrounded belief(s) over-asserted")
         if metric.name == "contradiction_surfacing" and metric.detail.get("missed_pairs"):
-            click.echo(f"      WARNING: {len(metric.detail['missed_pairs'])} recorded contradiction(s) not surfaced")
+            click.echo(
+                f"      WARNING: {len(metric.detail['missed_pairs'])} recorded contradiction candidate(s) not surfaced"
+            )
+        if metric.name == "contradiction_verification_coverage" and metric.detail.get("unverified_pairs"):
+            click.echo(
+                f"      WARNING: {len(metric.detail['unverified_pairs'])} contradiction candidate(s) lack "
+                "model-verification provenance"
+            )
         if metric.name == "what_changed_exactness" and metric.detail.get("window_truncated"):
             click.echo("      note: legacy bounded-window store - history truncated, not exact")
 

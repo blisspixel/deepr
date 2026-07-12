@@ -47,12 +47,21 @@ def _make_mock_router(fallback_result=("xai", "grok-4-1-fast-non-reasoning")):
     return router
 
 
+async def _keep_reserved_dispatch(_queue, _job_id, reservation, _upload_result, _formatter):
+    return reservation
+
+
 @pytest.fixture
 def mock_queue():
     """Mock job persistence while preserving isolated reservation behavior."""
     with (
         patch("deepr.cli.commands.run.SQLiteQueue") as mock_cls,
         patch("deepr.cli.commands.run._enqueue_reserved_job", new_callable=AsyncMock),
+        patch(
+            "deepr.cli.commands.run._ensure_reservation",
+            new_callable=AsyncMock,
+            side_effect=_keep_reserved_dispatch,
+        ),
     ):
         queue = MagicMock()
         queue.enqueue = AsyncMock(return_value="research-test123")

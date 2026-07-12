@@ -1,0 +1,2 @@
+include src/deepr/py.typed
+include src/deepr/web/frontend/frontend-dist.zip

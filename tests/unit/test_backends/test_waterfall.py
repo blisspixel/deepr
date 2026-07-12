@@ -174,10 +174,11 @@ class TestExplicitPlanQuota:
         assert choice.backend == BACKEND_API_METERED
         assert "metered at the margin" in choice.reason
 
-    def test_metered_at_margin_plan_requires_explicit_acknowledgement(self):
+    def test_metered_at_margin_plan_cannot_be_enabled_by_legacy_acknowledgement(self):
         choice = choose_plan_quota_backend("copilot", env={}, allow_metered_at_margin=True)
-        assert choice.backend == BACKEND_PLAN_QUOTA
-        assert choice.plan_backend_id == "copilot"
+        assert choice.backend == BACKEND_API_METERED
+        assert choice.plan_backend_id is None
+        assert "durable reservation" in choice.reason
 
 
 class TestPlanQuotaAutoRung:

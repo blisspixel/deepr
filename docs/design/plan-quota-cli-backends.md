@@ -32,11 +32,13 @@ no place as "free capacity". The June-2026 survey:
 | Kiro (`kiro-cli chat`) | yes | yes (monthly credits, overage off by default) | no | ToS prohibits third-party-harness use |
 | Grok Build (`grok -p`) | yes | subscription quota, but gray | no | xAI steers automation to the metered key |
 | Antigravity (`agy -p`) | yes (answer read from transcript, not stdout) | weekly hard-stop | no | active automation ban wave |
-| Copilot (`copilot -p`) | yes | **no** - usage-based since 2026-06-01 | no | metered per token |
+| Copilot (`copilot -p`) | yes | **no** - usage-based since 2026-06-01 | no | visible/read-only; execution blocked until full cost accounting exists |
 
-"Auto-routable" means Deepr's waterfall may *automatically* select it. The rest
-are supported via an explicit `--plan <id>` only, behind the safety gate and a
-printed ToS/billing note - never auto-selected, never marketed as free.
+"Auto-routable" means Deepr's waterfall may *automatically* select it. The
+non-metered remainder is supported via an explicit `--plan <id>` only, behind
+the safety gate and a printed ToS note - never auto-selected, never marketed as
+free. Copilot remains detectable for honest fleet visibility, but it is not an
+execution backend until its metered cost lifecycle is implemented.
 
 ## Two seams, one chosen
 
@@ -78,15 +80,34 @@ quality. Before any subprocess runs (`safety.evaluate_plan_quota_safety`):
    that sanitization in the safety reason, and evaluates the sanitized child
    env as the plan path. (`codex doctor` / `codex login status` can confirm the
    stored mode too, but the child env is the deterministic launch contract.)
-2. **A metered-at-margin CLI requires explicit acknowledgement.** Copilot is
-   `metered_at_margin=True`: it is off by default and, when invoked, the CLI asks
-   before spending. A paid call is never a side effect.
+2. **A metered-at-margin CLI requires complete cost accounting.** Copilot is
+   `metered_at_margin=True`. A confirmation cannot enforce a ceiling or make a
+   `$0` ledger event truthful, so the safety decision rejects it before probe,
+   client, provider, or subprocess construction. It remains blocked until the
+   adapter has a deterministic maximum estimate, durable reservation, reported
+   usage settlement, and canonical cost-ledger writes. Existing backend choices
+   and acknowledgement flags remain accepted for compatibility but cannot
+   override this guard.
 
-Every call also writes the append-only ledgers: a `quota_ledger.jsonl`
-observation (usage, or a terminal `EXHAUSTED` event when the CLI signals a
-depleted plan) and a `$0` `cost_ledger.jsonl` event with the quota units in
-metadata, so `costs show` and anomaly detection see volume even at $0 marginal
-cost. The cost ledger stays the single record of every spend source.
+Every eligible non-metered dispatch also writes the append-only ledgers, whether
+the CLI succeeds, exits nonzero, times out, or returns no answer. The canonical
+`$0` cost event records the bounded outcome plus whether vendor dispatch and
+quota usage were observed. The quota ledger distinguishes known facts: success
+is `USAGE_OBSERVED`, a depletion signature is terminal `EXHAUSTED`, and an
+ambiguous nonzero, timeout, or empty-output result is `ATTEMPT_OBSERVED` with
+usage left unknown. A process that never launched writes no quota observation.
+Probe helpers own this accounting directly, so CLI wrappers do not duplicate a
+successful event. This keeps `costs show`, fleet state, and anomaly detection
+honest without inventing a used quota unit.
+
+Failure diagnostics use a bounded, credential-redacted tail of stderr. This
+preserves the terminal vendor cause after long banners and progress streams,
+while prompt-overlap filtering prevents an echoed research prompt from crossing
+the error boundary. Stdout is never used as a public nonzero-exit diagnostic
+because it may contain model output or source material. Vendor limit wording
+that could occur in ordinary answer text is registered as error-channel-only;
+Codex's current `You've hit your usage limit` phrase is classified only from
+stderr.
 
 ## Auto-routing requires intent and quota evidence
 
@@ -109,7 +130,8 @@ future `reset_at` is skipped. Once the reset passes, the exhaustion no longer
 blocks it, but a fresh trusted remaining-quota observation is still required
 before auto-routing resumes. Metered stays the budget-gated last resort.
 
-The explicit path needs no admission (the operator chose it directly):
+The explicit path needs no admission (the operator chose it directly), but it
+still requires a non-metered adapter that clears the safety gate:
 
 - `deepr expert sync NAME --plan codex` (also `absorb`, topic `learn`, `learn-web`,
   `route-gaps --execute`).
@@ -140,7 +162,8 @@ The explicit path needs no admission (the operator chose it directly):
   it still does not score answer meaning.
 
 `choose_plan_quota_backend` resolves an explicit `--plan` request through the
-same safety gate but without the admission/observed-quota requirement.
+same safety gate but without the admission/observed-quota requirement. Its
+legacy metered-acknowledgement argument cannot override missing cost accounting.
 
 ## Fleet visibility
 
@@ -148,14 +171,20 @@ same safety gate but without the admission/observed-quota requirement.
 plan-quota CLI in one read-only `$0` table: installed (PATH), effective child
 auth mode after metered env vars are removed, raw parent-shell auth mode for
 diagnostics, routability (auto / explicit / metered), and the latest *observed*
-quota state (active / exhausted / quarantined / unobserved) with a reset time
-when one was parsed from the vendor's exhaustion message or from a metadata
-refresh. "unobserved" and a blank reset are deliberate: Deepr reports only what
-it has seen, never a fabricated remaining-quota number. Reset times are recorded
-on `EXHAUSTED` events by `parse_reset_after_seconds`, which extracts a relative
-duration ("Try again in 3h 42m", "Resets in 2h15m30s") - deterministic *form*
-extraction, never a semantic verdict; monthly pools with no countdown stay
-honestly unknown. Codex supports proactive metadata refresh:
+quota state (active / attempt_failed / exhausted / quarantined / unobserved)
+with a reset time when one was parsed from the vendor's exhaustion message or
+from a metadata refresh. `attempt_failed` means dispatch was observed but quota
+use remains unknown. "unobserved" and a blank reset are deliberate: Deepr
+reports only what it has seen, never a fabricated remaining-quota number. Reset
+times are recorded on `EXHAUSTED` events from either a relative duration
+(`Try again in 3h 42m`, `Resets in 2h15m30s`) or a host-local Codex clock
+(`Try again at 9:20 AM`). Absolute clocks use the operating system's local
+timezone and DST rules, roll to tomorrow only when today's unique instant has
+passed, and convert to UTC. Ambiguous fall-back clocks, nonexistent
+spring-forward clocks, and unavailable conversion stay honestly unknown rather
+than guessing an offset. This is deterministic form extraction, never a
+semantic verdict. Monthly pools with no countdown also stay unknown. Codex
+supports proactive metadata refresh:
 `deepr capacity refresh-quota codex` reads local session-log `rate_limits`.
 Claude Code supports
 `deepr capacity refresh-quota claude`, which reads the current user's Claude
@@ -168,11 +197,13 @@ without running a model call. Published as the versioned
 `deepr-plan-fleet-v1` envelope.
 
 `deepr capacity probe-fleet` is the active validation surface: it makes tiny
-parallel `Reply with exactly: OK` calls to selected plan CLIs, skips
-metered-at-margin adapters unless `--include-metered -y` is set, records
-quota-ledger observations, and fails if selected non-skipped backends fail or
-nothing actually ran. It is intentionally separate from auto-routing because
-most CLIs still do not expose trusted remaining quota.
+parallel `Reply with exactly: OK` calls to selected non-metered plan CLIs,
+records quota-ledger observations, and fails if selected backends fail or
+nothing actually ran. Metered-at-margin selections return a failed result
+before probe dispatch. `--include-metered` and `-y` remain parseable for
+backward compatibility but cannot authorize execution. The command is
+intentionally separate from auto-routing because most CLIs still do not expose
+trusted remaining quota.
 
 `deepr capacity validate-fleet` is the defensive operator validation surface:
 it runs the transport probe first, then consult-contract validation only for
@@ -191,7 +222,7 @@ which CLI answered best.
 
 | Concern | Setting |
 |---|---|
-| auth-mode detection, overage/ack gate, exhaustion handling, quota+cost ledger writes, argv construction, tool lockdown (`--deny-tool`/read-only sandbox), scratch cwd | **workflow** (deterministic, gated) |
+| auth-mode detection, metered-adapter cost-lifecycle gate, exhaustion and attempt-outcome accounting, redacted tail diagnostics, quota+cost ledger writes, argv construction, tool lockdown (`--deny-tool`/read-only sandbox), scratch cwd | **workflow** (deterministic, gated) |
 | the research answer and the extracted beliefs | **agent** (model), then through the existing absorb gates: confidence floor, source-trust ceiling (research-derived = tertiary, capped), contradiction + dedup verdicts |
 
 The plan CLI is an answer generator on the cheap-capacity side of the waterfall;

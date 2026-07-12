@@ -299,6 +299,54 @@ class TestExpertLearnCommand:
         result = runner.invoke(cli, ["expert", "learn", "--help"])
         assert "synthesize" in result.output.lower()
 
+    def test_expert_learn_files_persists_partial_success_and_freshness(self, runner, monkeypatch, tmp_path):
+        from pathlib import Path
+
+        from deepr.experts.profile import ExpertProfile, ExpertStore
+
+        profile = ExpertProfile(name="Partial Learn Expert", vector_store_id="vs-partial", domain="testing")
+        ExpertStore().save(profile)
+        first = tmp_path / "first.md"
+        second = tmp_path / "second.md"
+        first.write_text("first", encoding="utf-8")
+        second.write_text("second", encoding="utf-8")
+
+        class FakeProvider:
+            async def upload_document(self, path):
+                if str(path).endswith("second.md"):
+                    raise RuntimeError("second upload failed")
+                return "file-first"
+
+            async def add_file_to_vector_store(self, vector_store_id, file_id):
+                assert vector_store_id == "vs-partial"
+                assert file_id == "file-first"
+
+        monkeypatch.setattr("deepr.providers.create_provider", lambda *args, **kwargs: FakeProvider())
+
+        result = runner.invoke(
+            cli,
+            [
+                "expert",
+                "learn",
+                profile.name,
+                "--files",
+                str(first),
+                "--files",
+                str(second),
+                "--no-synthesize",
+                "-y",
+            ],
+        )
+
+        assert result.exit_code == 0, result.output
+        assert "second upload failed" in result.output
+        updated = ExpertStore().load(profile.name)
+        assert updated is not None
+        assert updated.total_documents == 1
+        assert [Path(path).name for path in updated.source_files] == ["first.md"]
+        assert updated.knowledge_cutoff_date is not None
+        assert updated.last_knowledge_refresh == updated.knowledge_cutoff_date
+
 
 class TestExpertResumeCommand:
     """Test 'expert resume' command for resuming paused learning."""

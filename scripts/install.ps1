@@ -15,6 +15,8 @@ $ErrorActionPreference = "Stop"
 
 $Package = "deepr-research"
 $Cli = "deepr"
+$ReleaseApi = "https://api.github.com/repos/blisspixel/deepr/releases/latest"
+$ReleaseAssetPrefix = "https://github.com/blisspixel/deepr/releases/download/"
 
 function Write-Step($msg) { Write-Host "==> $msg" -ForegroundColor Cyan }
 function Write-Ok($msg)   { Write-Host $msg -ForegroundColor Green }
@@ -47,10 +49,53 @@ if (-not $ver -or ([version]$ver -lt [version]"3.12")) {
     exit 1
 }
 
+# --- Resolve the latest versioned wheel from GitHub Releases ---------------
+try {
+    $headers = @{
+        Accept = "application/vnd.github+json"
+        "User-Agent" = "deepr-installer"
+        "X-GitHub-Api-Version" = "2022-11-28"
+    }
+    $release = Invoke-RestMethod -Uri $ReleaseApi -Headers $headers -TimeoutSec 30
+} catch {
+    Write-Err "Error: could not reach GitHub Releases. No installation changes were made."
+    Write-Err "Check your connection or try again after GitHub is reachable."
+    exit 1
+}
+
+if (-not $release.tag_name) {
+    Write-Err "Error: GitHub returned release metadata without a version tag."
+    Write-Err "No installation changes were made."
+    exit 1
+}
+$releaseTag = [string]$release.tag_name
+$releaseVersion = if ($releaseTag.StartsWith("v")) { $releaseTag.Substring(1) } else { $releaseTag }
+$expectedAsset = "deepr_research-$releaseVersion-py3-none-any.whl"
+
+$asset = @($release.assets | Where-Object {
+    $_.name -eq $expectedAsset -and
+    $_.browser_download_url -is [string] -and
+    $_.browser_download_url.StartsWith($ReleaseAssetPrefix, [System.StringComparison]::Ordinal)
+}) | Select-Object -First 1
+
+if (-not $releaseVersion -or -not $asset) {
+    Write-Err "Error: the latest GitHub release has no supported Deepr wheel asset."
+    Write-Err "No installation changes were made. Try a source install from the release tag."
+    exit 1
+}
+
+$wheelUrl = [string]$asset.browser_download_url
+Write-Step "Resolved $releaseTag from GitHub Releases."
+
 # --- Ensure pipx ------------------------------------------------------------
-if (-not (Get-Command pipx -ErrorAction SilentlyContinue)) {
+& $python -m pipx --version *> $null
+if ($LASTEXITCODE -ne 0) {
     Write-Step "pipx not found. Installing pipx ..."
     & $python -m pip install --user pipx --quiet
+    if ($LASTEXITCODE -ne 0) {
+        Write-Err "Error: pipx installation failed. No Deepr installation changes were made."
+        exit $LASTEXITCODE
+    }
     & $python -m pipx ensurepath
     $env:Path = [System.Environment]::GetEnvironmentVariable("Path", "User") + ";" + [System.Environment]::GetEnvironmentVariable("Path", "Machine")
 }
@@ -67,29 +112,36 @@ function Test-DeeprWorks {
 # --- Install, update, or repair (idempotent + self-healing) -----------------
 $installed = $false
 try {
-    $list = pipx list 2>$null | Out-String
+    $list = & $python -m pipx list 2>$null | Out-String
     if ($list -match [regex]::Escape($Package)) { $installed = $true }
 } catch { }
 
 if ($installed) {
-    Write-Step "$Package already installed. Updating to the latest version ..."
-    try {
-        pipx upgrade $Package
-    } catch {
-        # A stale venv (common after a system Python upgrade) makes upgrade fail.
-        Write-Warn "Update failed; repairing the install ..."
-        try { pipx reinstall $Package } catch { pipx uninstall $Package; pipx install $Package }
-    }
+    Write-Step "$Package already installed. Updating from $releaseTag ..."
 } else {
-    Write-Step "Installing $Package (CLI: $Cli) ..."
-    pipx install $Package
+    Write-Step "Installing $Package from $releaseTag (CLI: $Cli) ..."
+}
+
+& $python -m pipx install --force $wheelUrl
+if ($LASTEXITCODE -ne 0) {
+    Write-Warn "Install failed; repairing the isolated environment ..."
+    & $python -m pipx uninstall $Package
+    & $python -m pipx install $wheelUrl
+    if ($LASTEXITCODE -ne 0) {
+        Write-Err "Error: installation from GitHub release $releaseTag failed."
+        exit $LASTEXITCODE
+    }
 }
 
 # --- Verify it runs; one automatic clean reinstall if not -------------------
 if (-not (Test-DeeprWorks)) {
     Write-Warn "$Cli did not run cleanly; attempting a clean reinstall ..."
-    try { pipx uninstall $Package } catch { }
-    pipx install $Package
+    & $python -m pipx uninstall $Package
+    & $python -m pipx install $wheelUrl
+    if ($LASTEXITCODE -ne 0) {
+        Write-Err "Error: clean installation from GitHub release $releaseTag failed."
+        exit $LASTEXITCODE
+    }
 }
 
 # --- Report version + warn about a shadowing (non-pipx) install -------------
@@ -110,9 +162,10 @@ Write-Ok "==> Done."
 Write-Host ""
 Write-Host "Next steps:" -ForegroundColor Cyan
 if (-not $shownVersion) { Write-Host "  0. Open a NEW terminal (so PATH picks up $Cli)" }
-Write-Host "  1. $Cli doctor"
-Write-Host "  2. Add at least one API key (XAI / Gemini / OpenAI / Anthropic) to your .env"
-Write-Host "  3. $Cli budget set 50"
+Write-Host "  1. $Cli init"
+Write-Host "  2. $Cli doctor"
+Write-Host "  3. Configure capacity: local Ollama, a supported plan CLI, or an API provider"
+Write-Host "  4. For metered APIs, set a ceiling: $Cli budget set 50"
 Write-Host ""
 Write-Host "Quick start:"
 Write-Host "  $Cli research `"your question`" --auto"
@@ -121,5 +174,5 @@ Write-Host "Update later:  re-run this one-liner, or '$Cli upgrade'"
 Write-Host "Uninstall:     re-run this one-liner with -Uninstall"
 Write-Host ""
 Write-Host "Dev / editable from source:"
-Write-Host "  git clone https://github.com/blisspixel/deepr.git; cd deepr/deepr; pipx install -e ."
+Write-Host "  git clone https://github.com/blisspixel/deepr.git; cd deepr; pipx install -e ."
 Write-Host ""

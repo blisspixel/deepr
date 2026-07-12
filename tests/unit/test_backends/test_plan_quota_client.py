@@ -11,11 +11,14 @@ import json
 
 import pytest
 
+from deepr.backends.fresh_context import FreshContext, FreshContextConfig, FreshSource
 from deepr.backends.plan_quota.adapters import get_adapter
 from deepr.backends.plan_quota.cli_runner import CliResult
 from deepr.backends.plan_quota.client import (
     PlanQuotaChatClient,
     PlanQuotaError,
+    PlanQuotaExhausted,
+    _safe_cli_error_summary,
     make_plan_quota_research_fn,
     probe_plan_quota,
 )
@@ -45,6 +48,37 @@ def _runner(
     fake.envs = envs  # type: ignore[attr-defined]
     fake.stdins = stdins  # type: ignore[attr-defined]
     return fake
+
+
+def test_safe_error_summary_redacts_short_prompt_echo_and_bearer_secret():
+    summary = _safe_cli_error_summary(
+        "Prompt: xy7\nAuthorization: Bearer private-token-value\nfatal: login required",
+        prompt="xy7",
+    )
+
+    assert "xy7" not in summary
+    assert "private-token-value" not in summary
+    assert "[REDACTED]" in summary
+    assert "fatal: login required" in summary
+
+
+def test_safe_error_summary_keeps_terminal_cause_before_footer_lines():
+    summary = _safe_cli_error_summary(
+        "\n".join(
+            [
+                "banner",
+                "ERROR: selected model is unavailable",
+                "request id: 123",
+                "elapsed: 4s",
+                "tokens: 0",
+                "session closed",
+            ]
+        )
+    )
+
+    assert "selected model is unavailable" in summary
+    assert "session closed" in summary
+    assert "banner" not in summary
 
 
 class TestResearchFn:
@@ -82,19 +116,24 @@ class TestResearchFn:
 
     async def test_exhaustion_is_reported_and_recorded(self, tmp_path):
         qpath = tmp_path / "q.jsonl"
+        cpath = tmp_path / "c.jsonl"
         # Codex streams status/errors to stderr; a real limit notice lands there,
         # not in the stdout answer body.
         fn = make_plan_quota_research_fn(
             get_adapter("codex"),
             runner=_runner(stderr="Error: usage_limit_reached"),
             quota_ledger_path=qpath,
-            cost_ledger_path=tmp_path / "c.jsonl",
+            cost_ledger_path=cpath,
         )
         result = await fn("q", 1.0)
         assert result["answer"] == ""
         assert result.get("quota_exhausted") is True
         events = QuotaLedger(qpath).get_events()
         assert events[0].event_type == QuotaEventType.EXHAUSTED
+        costs = CostLedger(cpath).get_events()
+        assert len(costs) == 1
+        assert costs[0].metadata["outcome"] == "exhausted"
+        assert costs[0].metadata["quota_units"] is None
 
     async def test_exhaustion_records_reset_time_when_stated(self, tmp_path):
         qpath = tmp_path / "q.jsonl"
@@ -111,47 +150,91 @@ class TestResearchFn:
         assert event.reset_at is not None
 
     async def test_launch_error_is_reported_not_raised(self, tmp_path):
+        qpath, cpath = tmp_path / "q.jsonl", tmp_path / "c.jsonl"
         fn = make_plan_quota_research_fn(
             get_adapter("codex"),
             runner=_runner(launch_error="not found", returncode=None),
-            quota_ledger_path=tmp_path / "q.jsonl",
-            cost_ledger_path=tmp_path / "c.jsonl",
+            quota_ledger_path=qpath,
+            cost_ledger_path=cpath,
         )
         result = await fn("q", 1.0)
         assert result["answer"] == ""
         assert "error" in result
+        assert QuotaLedger(qpath).get_events() == []
+        event = CostLedger(cpath).get_events()[0]
+        assert event.metadata["outcome"] == "launch_error"
+        assert event.metadata["vendor_dispatched"] is False
 
     async def test_timeout_is_reported(self, tmp_path):
+        qpath, cpath = tmp_path / "q.jsonl", tmp_path / "c.jsonl"
         fn = make_plan_quota_research_fn(
             get_adapter("codex"),
             runner=_runner(returncode=None, timed_out=True),
-            quota_ledger_path=tmp_path / "q.jsonl",
-            cost_ledger_path=tmp_path / "c.jsonl",
+            quota_ledger_path=qpath,
+            cost_ledger_path=cpath,
         )
         result = await fn("q", 1.0)
         assert result["answer"] == ""
         assert "timed out" in result["error"]
+        quota = QuotaLedger(qpath).get_events()[0]
+        assert quota.event_type == QuotaEventType.ATTEMPT_OBSERVED
+        assert quota.units_used is None
+        assert quota.metadata["outcome"] == "timeout"
+        assert CostLedger(cpath).get_events()[0].metadata["outcome"] == "timeout"
 
     async def test_nonzero_exit_is_reported(self, tmp_path):
+        qpath, cpath = tmp_path / "q.jsonl", tmp_path / "c.jsonl"
         fn = make_plan_quota_research_fn(
             get_adapter("codex"),
             runner=_runner(stderr="boom", returncode=2),
-            quota_ledger_path=tmp_path / "q.jsonl",
-            cost_ledger_path=tmp_path / "c.jsonl",
+            quota_ledger_path=qpath,
+            cost_ledger_path=cpath,
         )
         result = await fn("q", 1.0)
         assert "error" in result and result["answer"] == ""
+        assert QuotaLedger(qpath).get_events()[0].event_type == QuotaEventType.ATTEMPT_OBSERVED
+        assert CostLedger(cpath).get_events()[0].metadata["outcome"] == "nonzero_exit"
 
-    async def test_empty_output_is_error(self, tmp_path):
+    async def test_nonzero_exit_surfaces_redacted_terminal_cause(self, tmp_path):
+        private_prompt = "private customer request alpha beta gamma 123456789"
+        stderr = "\n".join(
+            [
+                *(f"Codex banner and progress line {i}" for i in range(20)),
+                f"Prompt: {private_prompt}",
+                "fatal: requested model is unavailable; api_key=sk-proj-supersecret123456",
+            ]
+        )
+        fn = make_plan_quota_research_fn(
+            get_adapter("codex"),
+            runner=_runner(stderr=stderr, returncode=1),
+            quota_ledger_path=tmp_path / "q.jsonl",
+            cost_ledger_path=tmp_path / "c.jsonl",
+        )
+
+        result = await fn(private_prompt, 1.0)
+
+        assert "requested model is unavailable" in result["error"]
+        assert "[REDACTED]" in result["error"]
+        assert "Codex banner and progress line 0" not in result["error"]
+        assert private_prompt not in result["error"]
+        assert "supersecret" not in result["error"]
+
+    async def test_empty_output_is_error(self, tmp_path, monkeypatch):
+        from deepr.backends.plan_quota import antigravity_transcript
+
+        monkeypatch.setattr(antigravity_transcript, "recover_answer", lambda brain, since: None)
+        qpath, cpath = tmp_path / "q.jsonl", tmp_path / "c.jsonl"
         fn = make_plan_quota_research_fn(
             get_adapter("antigravity"),
             runner=_runner(stdout="   "),
-            quota_ledger_path=tmp_path / "q.jsonl",
-            cost_ledger_path=tmp_path / "c.jsonl",
+            quota_ledger_path=qpath,
+            cost_ledger_path=cpath,
         )
         result = await fn("q", 1.0)
         assert "error" in result
         assert "no output" in result["error"]
+        assert QuotaLedger(qpath).get_events()[0].event_type == QuotaEventType.ATTEMPT_OBSERVED
+        assert CostLedger(cpath).get_events()[0].metadata["outcome"] == "empty_output"
 
     async def test_context_builder_injected(self, tmp_path):
         runner = _runner(stdout="ans")
@@ -195,6 +278,47 @@ class TestResearchFn:
         assert result["answer"] == "ans"
         assert seen == {"query": "q", "prior_source_pack": prior_pack}
 
+    async def test_under_ready_context_skips_plan_cli_and_preserves_evidence(self, tmp_path):
+        runner = _runner(stdout="must not be used")
+        context = FreshContext(
+            query="search-discovered topic",
+            generated_at="2026-07-11T00:00:00Z",
+            prompt_config=FreshContextConfig(),
+            sources=(
+                FreshSource(
+                    title="Only fetched source",
+                    url="https://example.com/only",
+                    content="One fetched page.",
+                ),
+            ),
+        )
+
+        async def context_builder(query):
+            assert query == "concise topic"
+            return context
+
+        quota_path = tmp_path / "q.jsonl"
+        cost_path = tmp_path / "c.jsonl"
+        fn = make_plan_quota_research_fn(
+            get_adapter("codex"),
+            runner=runner,
+            context_builder=context_builder,
+            quota_ledger_path=quota_path,
+            cost_ledger_path=cost_path,
+        )
+        result = await fn("full answer prompt", 1.0, retrieval_query="concise topic")
+
+        assert runner.calls == []
+        assert not quota_path.exists()
+        assert not cost_path.exists()
+        assert result["backend"] == "plan_quota:codex"
+        assert result["error_code"] == "fresh_context_not_ready"
+        assert result["retryable"] is True
+        assert result["no_metered_fallback"] is True
+        assert result["context_preflight"]["ready_source_count"] == 1
+        assert result["source_pack"]["source_count"] == 1
+        assert "No generation backend was called" in result["error"]
+
     async def test_plan_child_env_drops_metered_api_keys(self, tmp_path):
         runner = _runner(stdout="ans")
         fn = make_plan_quota_research_fn(
@@ -225,6 +349,14 @@ class TestResearchFn:
 
 
 class TestChatShim:
+    def test_metered_at_margin_client_is_rejected_before_setup(self):
+        runner = _runner(stdout="must not run")
+
+        with pytest.raises(PlanQuotaError, match="durable reservation"):
+            PlanQuotaChatClient(get_adapter("copilot"), runner=runner)
+
+        assert runner.calls == []
+
     async def test_create_returns_openai_shape(self, tmp_path):
         client = PlanQuotaChatClient(
             get_adapter("codex"),
@@ -247,6 +379,23 @@ class TestChatShim:
 
         with pytest.raises(PlanQuotaError, match="cost ledger write failed"):
             await client.chat.completions.create(model="x", messages=[{"role": "user", "content": "hi"}])
+
+    async def test_failed_call_preserves_cause_when_attempt_ledger_write_fails(self, tmp_path):
+        blocked_path = tmp_path / "ledger-dir"
+        blocked_path.mkdir()
+        client = PlanQuotaChatClient(
+            get_adapter("codex"),
+            runner=_runner(stderr="banner\nterminal: invalid login", returncode=1),
+            quota_ledger_path=tmp_path / "q.jsonl",
+            cost_ledger_path=blocked_path,
+        )
+
+        with pytest.raises(PlanQuotaError) as exc_info:
+            await client.chat.completions.create(model="x", messages=[{"role": "user", "content": "hi"}])
+
+        message = str(exc_info.value)
+        assert "terminal: invalid login" in message
+        assert "cost ledger write failed" in message
 
     async def test_json_response_format_appends_instruction(self, tmp_path):
         runner = _runner(stdout='{"k": 1}')
@@ -295,10 +444,24 @@ class TestChatShim:
 
 
 class TestProbe:
+    async def test_metered_at_margin_probe_is_rejected_before_runner_dispatch(self, tmp_path):
+        runner = _runner(stdout="must not run")
+        cost_path = tmp_path / "costs.jsonl"
+
+        result = await probe_plan_quota(get_adapter("copilot"), runner=runner, cost_ledger_path=cost_path)
+
+        assert result["ok"] is False
+        assert result["latency_ms"] == 0
+        assert "durable reservation" in result["error"]
+        assert runner.calls == []
+        assert not cost_path.exists()
+
     async def test_ok(self, tmp_path):
+        qpath = tmp_path / "quota.jsonl"
         result = await probe_plan_quota(
             get_adapter("codex"),
             runner=_runner(stdout="OK"),
+            quota_ledger_path=qpath,
             cost_ledger_path=tmp_path / "costs.jsonl",
         )
         assert result["ok"] is True
@@ -309,7 +472,11 @@ class TestProbe:
         assert event["provider"] == "plan_quota:codex"
         assert event["cost_usd"] == 0.0
         assert event["metadata"]["quota_units"] == 1
-        assert event["metadata"]["outcome"] == "ok"
+        assert event["metadata"]["outcome"] == "success"
+        quota = QuotaLedger(qpath).get_events()
+        assert len(quota) == 1
+        assert quota[0].event_type == QuotaEventType.USAGE_OBSERVED
+        assert result["quota_observation_recorded"] is True
 
     async def test_probe_drops_metered_api_keys(self, tmp_path):
         runner = _runner(stdout="OK")
@@ -329,9 +496,11 @@ class TestProbe:
         assert runner.stdins[0] == "Reply with exactly: OK"
 
     async def test_exhausted(self, tmp_path):
+        qpath = tmp_path / "quota.jsonl"
         result = await probe_plan_quota(
             get_adapter("codex"),
             runner=_runner(stdout="usage_limit_reached"),
+            quota_ledger_path=qpath,
             cost_ledger_path=tmp_path / "costs.jsonl",
         )
         assert result["ok"] is False
@@ -339,6 +508,9 @@ class TestProbe:
         event = json.loads((tmp_path / "costs.jsonl").read_text(encoding="utf-8").strip())
         assert event["operation"] == "plan_quota_probe"
         assert event["metadata"]["outcome"] == "exhausted"
+        quota = QuotaLedger(qpath).get_events()
+        assert len(quota) == 1
+        assert quota[0].event_type == QuotaEventType.EXHAUSTED
 
     async def test_probe_fails_closed_when_cost_ledger_cannot_be_written(self, tmp_path):
         blocked_path = tmp_path / "ledger-dir"
@@ -355,14 +527,59 @@ class TestProbe:
         assert "cost ledger write failed" in result["error"]
 
     async def test_launch_failure(self, tmp_path):
-        result = await probe_plan_quota(get_adapter("codex"), runner=_runner(launch_error="nope", returncode=None))
+        qpath, cpath = tmp_path / "quota.jsonl", tmp_path / "costs.jsonl"
+        result = await probe_plan_quota(
+            get_adapter("codex"),
+            runner=_runner(launch_error="nope", returncode=None),
+            quota_ledger_path=qpath,
+            cost_ledger_path=cpath,
+        )
         assert result["ok"] is False
         assert result["error"]
+        assert QuotaLedger(qpath).get_events() == []
+        assert CostLedger(cpath).get_events()[0].metadata["outcome"] == "launch_error"
 
     async def test_timeout(self, tmp_path):
-        result = await probe_plan_quota(get_adapter("codex"), runner=_runner(returncode=None, timed_out=True))
+        qpath, cpath = tmp_path / "quota.jsonl", tmp_path / "costs.jsonl"
+        result = await probe_plan_quota(
+            get_adapter("codex"),
+            runner=_runner(returncode=None, timed_out=True),
+            quota_ledger_path=qpath,
+            cost_ledger_path=cpath,
+        )
         assert result["ok"] is False
         assert "timed out" in result["error"]
+        assert QuotaLedger(qpath).get_events()[0].event_type == QuotaEventType.ATTEMPT_OBSERVED
+        assert CostLedger(cpath).get_events()[0].metadata["outcome"] == "timeout"
+
+    async def test_nonzero_records_attempt_and_terminal_cause(self, tmp_path):
+        qpath, cpath = tmp_path / "quota.jsonl", tmp_path / "costs.jsonl"
+        result = await probe_plan_quota(
+            get_adapter("codex"),
+            runner=_runner(stderr="banner\nterminal: login required", returncode=1),
+            quota_ledger_path=qpath,
+            cost_ledger_path=cpath,
+        )
+
+        assert result["ok"] is False
+        assert "terminal: login required" in result["error"]
+        assert result["outcome"] == "nonzero_exit"
+        assert QuotaLedger(qpath).get_events()[0].event_type == QuotaEventType.ATTEMPT_OBSERVED
+        assert CostLedger(cpath).get_events()[0].metadata["outcome"] == "nonzero_exit"
+
+    async def test_empty_output_records_attempt(self, tmp_path):
+        qpath, cpath = tmp_path / "quota.jsonl", tmp_path / "costs.jsonl"
+        result = await probe_plan_quota(
+            get_adapter("codex"),
+            runner=_runner(stdout=""),
+            quota_ledger_path=qpath,
+            cost_ledger_path=cpath,
+        )
+
+        assert result["ok"] is False
+        assert result["outcome"] == "empty_output"
+        assert QuotaLedger(qpath).get_events()[0].event_type == QuotaEventType.ATTEMPT_OBSERVED
+        assert CostLedger(cpath).get_events()[0].metadata["outcome"] == "empty_output"
 
 
 class TestPromptDelivery:
@@ -416,8 +633,6 @@ class TestExhaustionScoping:
         assert "rate limit" in resp.choices[0].message.content
 
     async def test_failed_run_with_quota_signal_is_exhaustion(self, tmp_path):
-        from deepr.backends.plan_quota.client import PlanQuotaExhausted
-
         client = PlanQuotaChatClient(
             get_adapter("grok"),
             runner=_runner(stdout="rate limit exceeded; quota gone", returncode=1),
@@ -427,11 +642,58 @@ class TestExhaustionScoping:
         with pytest.raises(PlanQuotaExhausted):
             await client.chat.completions.create(model="x", messages=[{"role": "user", "content": "q"}])
 
+    async def test_codex_current_limit_on_stderr_records_exhaustion_and_absolute_reset(self, tmp_path, monkeypatch):
+        from datetime import UTC, datetime
+
+        reset_at = datetime(2026, 7, 11, 16, 20, tzinfo=UTC)
+        seen: list[str] = []
+
+        def parse_reset(text: str):
+            seen.append(text)
+            return reset_at
+
+        monkeypatch.setattr("deepr.backends.plan_quota.client.parse_reset_at_utc", parse_reset)
+        qpath, cpath = tmp_path / "q.jsonl", tmp_path / "c.jsonl"
+        message = "You've hit your usage limit. Try again at 9:20 AM."
+        client = PlanQuotaChatClient(
+            get_adapter("codex"),
+            runner=_runner(stderr=message, returncode=1),
+            quota_ledger_path=qpath,
+            cost_ledger_path=cpath,
+        )
+
+        with pytest.raises(PlanQuotaExhausted, match="reschedule after reset"):
+            await client.chat.completions.create(model="x", messages=[{"role": "user", "content": "q"}])
+
+        assert seen == [message]
+        quota = QuotaLedger(qpath).get_events()
+        assert len(quota) == 1
+        assert quota[0].event_type == QuotaEventType.EXHAUSTED
+        assert quota[0].reset_at == reset_at
+        costs = CostLedger(cpath).get_events()
+        assert len(costs) == 1
+        assert costs[0].metadata["outcome"] == "exhausted"
+
+    async def test_codex_current_limit_phrase_on_failed_stdout_is_not_exhaustion(self, tmp_path):
+        qpath = tmp_path / "q.jsonl"
+        message = "You've hit your usage limit. Try again at 9:20 AM."
+        client = PlanQuotaChatClient(
+            get_adapter("codex"),
+            runner=_runner(stdout=message, stderr="command failed", returncode=1),
+            quota_ledger_path=qpath,
+            cost_ledger_path=tmp_path / "c.jsonl",
+        )
+
+        with pytest.raises(PlanQuotaError) as exc_info:
+            await client.chat.completions.create(model="x", messages=[{"role": "user", "content": "q"}])
+
+        assert not isinstance(exc_info.value, PlanQuotaExhausted)
+        event = QuotaLedger(qpath).get_events()[0]
+        assert event.event_type == QuotaEventType.ATTEMPT_OBSERVED
+
     async def test_stderr_limit_on_successful_run_is_still_exhaustion(self, tmp_path):
         # Codex prints its answer to stdout and a limit notice to stderr; a real
         # limit on stderr is still caught even when the process exited 0.
-        from deepr.backends.plan_quota.client import PlanQuotaExhausted
-
         client = PlanQuotaChatClient(
             get_adapter("codex"),
             runner=_runner(stdout="here is the answer", stderr="usage_limit_reached", returncode=0),

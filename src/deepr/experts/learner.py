@@ -14,6 +14,7 @@ from deepr.core.documents import DocumentManager
 from deepr.core.reports import ReportGenerator
 from deepr.core.research import ResearchOrchestrator
 from deepr.experts.curriculum import CurriculumGenerator, LearningCurriculum, LearningTopic
+from deepr.experts.knowledge_freshness import advance_knowledge_freshness
 from deepr.experts.profile import ExpertProfile, ExpertStore
 from deepr.providers import create_provider
 from deepr.storage import create_storage
@@ -392,15 +393,13 @@ class AutonomousLearner:
         try:
             import uuid
 
+            from deepr.config import queue_db_path
             from deepr.queue import create_queue
             from deepr.queue.base import JobStatus, ResearchJob
 
-            db_path = "queue/research_queue.db"
+            db_path = queue_db_path()
             if isinstance(self.config, dict):
                 db_path = self.config.get("queue_db_path", db_path) or db_path
-            from pathlib import Path
-
-            Path(db_path).parent.mkdir(parents=True, exist_ok=True)
             queue = create_queue("local", db_path=db_path)
 
             local_id = f"learn-{uuid.uuid4().hex[:8]}"
@@ -429,10 +428,11 @@ class AutonomousLearner:
         if not local_id:
             return
         try:
+            from deepr.config import queue_db_path
             from deepr.queue import create_queue
             from deepr.queue.base import JobStatus
 
-            db_path = "queue/research_queue.db"
+            db_path = queue_db_path()
             if isinstance(self.config, dict):
                 db_path = self.config.get("queue_db_path", db_path) or db_path
             queue = create_queue("local", db_path=db_path)
@@ -682,8 +682,9 @@ class AutonomousLearner:
 
         # Update expert metadata
         expert.total_documents += acquired
-        expert.last_knowledge_refresh = datetime.now(UTC)
-        store.save(expert)
+        if acquired:
+            advance_knowledge_freshness(expert, datetime.now(UTC))
+            store.save(expert)
 
         self._log_progress(
             "",
@@ -1108,10 +1109,10 @@ class AutonomousLearner:
 
         # Update expert metadata
         expert.total_documents += uploaded
-        expert.last_knowledge_refresh = datetime.now(UTC)
-
-        store = ExpertStore()
-        store.save(expert)
+        if uploaded:
+            advance_knowledge_freshness(expert, datetime.now(UTC))
+            store = ExpertStore()
+            store.save(expert)
 
         self._log_progress(
             "", "=" * 70, f"Knowledge Integration Complete: {uploaded} documents added", "=" * 70, callback=callback
@@ -1259,10 +1260,8 @@ class AutonomousLearner:
         # Update costs
         expert.total_research_cost += progress.total_cost
 
-        # Update knowledge cutoff to now
-        expert.last_knowledge_refresh = datetime.now(UTC)
-        if not expert.knowledge_cutoff_date:
-            expert.knowledge_cutoff_date = datetime.now(UTC)
+        if progress.completed_topics:
+            advance_knowledge_freshness(expert, progress.completed_at or datetime.now(UTC))
 
         # Save updated profile
         store = ExpertStore()

@@ -25,7 +25,11 @@ from datetime import UTC, datetime
 from typing import TYPE_CHECKING, Any
 
 from deepr.experts.beliefs import BeliefStore
-from deepr.experts.report_absorber import absorber_estimated_cost, absorption_result_cost
+from deepr.experts.report_absorber import (
+    ReportAbsorberCostError,
+    absorber_estimated_cost,
+    absorption_result_cost,
+)
 
 if TYPE_CHECKING:
     from deepr.experts.gap_router import GapRoute
@@ -56,6 +60,7 @@ class GapFillOutcome:
     absorbed: int = 0
     flagged: int = 0
     detail: str = ""
+    knowledge_observed_at: datetime | None = None
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -66,6 +71,7 @@ class GapFillOutcome:
             "absorbed": self.absorbed,
             "flagged": self.flagged,
             "detail": self.detail,
+            "knowledge_observed_at": self.knowledge_observed_at.isoformat() if self.knowledge_observed_at else None,
         }
 
 
@@ -82,6 +88,11 @@ class GapFillResult:
     def filled_count(self) -> int:
         return sum(1 for o in self.outcomes if o.status == "filled")
 
+    @property
+    def knowledge_observed_at(self) -> datetime | None:
+        observations = [outcome.knowledge_observed_at for outcome in self.outcomes if outcome.knowledge_observed_at]
+        return max(observations) if observations else None
+
     def to_dict(self) -> dict[str, Any]:
         return {
             "expert_name": self.expert_name,
@@ -89,6 +100,7 @@ class GapFillResult:
             "outcomes": [o.to_dict() for o in self.outcomes],
             "total_cost": round(self.total_cost, 4),
             "filled_count": self.filled_count,
+            "knowledge_observed_at": (self.knowledge_observed_at.isoformat() if self.knowledge_observed_at else None),
         }
 
 
@@ -210,8 +222,16 @@ class GapFillEngine:
         try:
             absorber = self._get_absorber()
             report_id = f"gapfill:{_slug(route.topic)}:{started_at.strftime('%Y%m%d')}"
-            absorption = await absorber.absorb(report_id, answer, flag_contradictions=True)
+            absorption = await absorber.absorb(
+                report_id,
+                answer,
+                flag_contradictions=True,
+                budget=max(0.0, remaining_after_research),
+            )
             extraction_cost = absorption_result_cost(absorption)
+            from deepr.experts.knowledge_freshness import advance_from_absorption
+
+            knowledge_changed = advance_from_absorption(self.expert, absorption)
             return (
                 GapFillOutcome(
                     route.topic,
@@ -219,9 +239,13 @@ class GapFillEngine:
                     cost=cost + extraction_cost,
                     absorbed=len(absorption.absorbed),
                     flagged=len(absorption.flagged),
+                    knowledge_observed_at=(self.expert.last_knowledge_refresh if knowledge_changed else None),
                 ),
                 cost + extraction_cost,
             )
+        except ReportAbsorberCostError as exc:
+            spent = cost + exc.actual_cost
+            return GapFillOutcome(route.topic, "failed", cost=spent, detail=f"absorb failed: {exc}"), spent
         except Exception as exc:
             return GapFillOutcome(route.topic, "failed", cost=cost, detail=f"absorb failed: {exc}"), cost
 

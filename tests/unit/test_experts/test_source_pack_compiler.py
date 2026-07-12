@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from copy import deepcopy
 from unittest.mock import patch
 
 from deepr.experts.beliefs import Belief, BeliefStore
@@ -1735,3 +1736,177 @@ def test_graph_commit_envelope_blocks_uncertain_deduplication():
     assert envelope["summary"]["status"] == "blocked"
     assert envelope["summary"]["failure_reasons"] == ["deduplication_not_new"]
     assert envelope["operations"] == []
+
+
+def test_graph_commit_envelope_applies_ready_subset_from_mixed_verdicts_atomically(tmp_path):
+    notes = build_source_notes(_source_pack_payload())
+    note = notes["notes"][0]
+    window = note["windows"][0]
+    extraction = build_semantic_claim_extraction(
+        notes,
+        {
+            "claims": [
+                {
+                    "statement": f"Video system claim {index} is supported by the release note.",
+                    "claim_kind": "factual_claim",
+                    "confidence": 0.8,
+                    "source_refs": [{"note_id": note["note_id"], "window_id": window["window_id"]}],
+                }
+                for index in range(7)
+            ]
+        },
+    )
+    candidate_ids = [candidate["candidate_id"] for candidate in extraction["candidates"]]
+    verification = build_claim_verification(
+        extraction,
+        {
+            "verifications": [
+                {
+                    "candidate_id": candidate_id,
+                    "support_verdict": "supported" if index < 4 else "insufficient",
+                    "contradiction_verdict": "none",
+                    "dedup_verdict": "new",
+                    "temporal_scope_verdict": "valid",
+                    "confidence": 0.85,
+                    "rationale": "The source supports this claim." if index < 4 else "Support is insufficient.",
+                }
+                for index, candidate_id in enumerate(candidate_ids)
+            ]
+        },
+    )
+
+    envelope = build_graph_commit_envelope(
+        extraction,
+        verification,
+        expert_name="Video Systems Expert",
+        domain="video games",
+    )
+
+    assert verification["summary"]["status"] == "blocked"
+    assert verification["summary"]["ready_for_commit_envelope_count"] == 4
+    assert verification["summary"]["blocked_decision_count"] == 3
+    assert envelope["summary"]["status"] == "ready_for_commit"
+    assert envelope["summary"]["ready_write_count"] == 4
+    assert envelope["summary"]["blocked_decision_count"] == 3
+    assert envelope["summary"]["global_failure_reasons"] == []
+    assert envelope["summary"]["blocked_decision_failure_reasons"] == [
+        "decision_not_ready_for_commit_envelope",
+        "factual_support_not_verified",
+        "support_not_verified",
+    ]
+    assert {operation["candidate_id"] for operation in envelope["operations"]} == set(candidate_ids[:4])
+    assert {decision["candidate_id"] for decision in envelope["blocked_decisions"]} == set(candidate_ids[4:])
+
+    store = BeliefStore("Video Systems Expert", storage_dir=tmp_path / "beliefs")
+    result = apply_graph_commit_envelope(envelope, store, dry_run=False)
+
+    assert result["summary"]["status"] == "applied"
+    assert result["summary"]["applied_write_count"] == 4
+    assert len(store.beliefs) == 4
+
+
+def test_graph_commit_envelope_global_response_failure_blocks_ready_operations(tmp_path):
+    notes = build_source_notes(_source_pack_payload())
+    note = notes["notes"][0]
+    window = note["windows"][0]
+    extraction = build_semantic_claim_extraction(
+        notes,
+        {
+            "claims": [
+                {
+                    "statement": "The release changed video system behavior.",
+                    "claim_kind": "factual_claim",
+                    "confidence": 0.8,
+                    "source_refs": [{"note_id": note["note_id"], "window_id": window["window_id"]}],
+                }
+            ]
+        },
+    )
+    verification = build_claim_verification(
+        extraction,
+        {
+            "verifications": [
+                {
+                    "candidate_id": extraction["candidates"][0]["candidate_id"],
+                    "support_verdict": "supported",
+                    "contradiction_verdict": "none",
+                    "dedup_verdict": "new",
+                    "temporal_scope_verdict": "valid",
+                }
+            ]
+        },
+    )
+    verification["model"]["response_failure"] = "invalid_json_response"
+
+    envelope = build_graph_commit_envelope(extraction, verification, expert_name="Video Systems Expert")
+    store = BeliefStore("Video Systems Expert", storage_dir=tmp_path / "beliefs")
+    result = apply_graph_commit_envelope(envelope, store, dry_run=False)
+
+    assert envelope["summary"]["status"] == "blocked"
+    assert envelope["summary"]["ready_write_count"] == 1
+    assert envelope["summary"]["global_failure_reasons"] == ["claim_verification_response_failure"]
+    assert result["summary"]["status"] == "blocked"
+    assert "envelope_not_ready_for_commit" in result["summary"]["failure_reasons"]
+    assert store.beliefs == {}
+
+
+def test_graph_commit_envelope_blocks_each_top_level_integrity_failure():
+    notes = build_source_notes(_source_pack_payload())
+    note = notes["notes"][0]
+    window = note["windows"][0]
+    extraction = build_semantic_claim_extraction(
+        notes,
+        {
+            "claims": [
+                {
+                    "statement": "The release changed video system behavior.",
+                    "source_refs": [{"note_id": note["note_id"], "window_id": window["window_id"]}],
+                }
+            ]
+        },
+    )
+    verification = build_claim_verification(
+        extraction,
+        {
+            "verifications": [
+                {
+                    "candidate_id": extraction["candidates"][0]["candidate_id"],
+                    "support_verdict": "supported",
+                    "contradiction_verdict": "none",
+                    "dedup_verdict": "new",
+                    "temporal_scope_verdict": "valid",
+                }
+            ]
+        },
+    )
+    corruptions = [
+        ("unsupported_claim_extraction_schema_version", "extraction", "schema_version", "old"),
+        ("unsupported_claim_extraction_kind", "extraction", "kind", "wrong"),
+        ("invalid_claim_extraction_candidates", "extraction", "candidates", {}),
+        ("invalid_claim_extraction_model_metadata", "extraction", "model", None),
+        ("invalid_claim_extraction_response_failure", "extraction_model", "response_failure", None),
+        ("claim_extraction_response_failure", "extraction_model", "response_failure", "invalid_json_response"),
+        ("unsupported_claim_verification_schema_version", "verification", "schema_version", "old"),
+        ("unsupported_claim_verification_kind", "verification", "kind", "wrong"),
+        ("invalid_claim_verification_decisions", "verification", "decisions", {}),
+        ("invalid_claim_verification_model_metadata", "verification", "model", None),
+        ("invalid_claim_verification_response_failure", "verification_model", "response_failure", None),
+        ("claim_verification_response_failure", "verification_model", "response_failure", "invalid_json_response"),
+    ]
+
+    for expected_reason, target, key, value in corruptions:
+        damaged_extraction = deepcopy(extraction)
+        damaged_verification = deepcopy(verification)
+        if target == "extraction":
+            damaged_extraction[key] = value
+        elif target == "extraction_model":
+            damaged_extraction["model"][key] = value
+        elif target == "verification":
+            damaged_verification[key] = value
+        else:
+            damaged_verification["model"][key] = value
+
+        envelope = build_graph_commit_envelope(damaged_extraction, damaged_verification)
+
+        assert envelope["summary"]["status"] == "blocked"
+        assert expected_reason in envelope["summary"]["global_failure_reasons"]

@@ -55,6 +55,12 @@ def test_consult_tool_registered(server):
     assert "deepr_consult_experts" in names
 
 
+def test_consult_output_schema_exposes_completion_reason():
+    from deepr.mcp.consult_tool import CONSULT_EXPERTS_OUTPUT_SCHEMA
+
+    assert "synthesis_stop_reason" in CONSULT_EXPERTS_OUTPUT_SCHEMA["properties"]
+
+
 @pytest.mark.asyncio
 async def test_consult_returns_versioned_artifact(server, monkeypatch):
     async def fake(question, experts, max_experts, budget, **_kwargs):
@@ -96,6 +102,10 @@ async def test_consult_mcp_writes_trace(server, monkeypatch, consult_trace_path)
     assert out["trace"]["trace_id"] == trace["trace_id"]
     assert trace["input"]["requested_experts"] == ["A"]
     assert trace["capacity"]["synthesis_backend"] == "local"
+    assert trace["output"]["collaboration"] == out["collaboration"]
+    assert trace["output"]["collaboration"]["task"]["consult_trace_id"] == trace["trace_id"]
+    assert trace["output"]["collaboration"]["budget_capacity_contract"]["capacity"] == out["capacity"]
+    assert trace["output"]["collaboration"]["budget_capacity_contract"]["metered_fallback_allowed"] is False
 
 
 @pytest.mark.asyncio
@@ -123,7 +133,9 @@ async def test_consult_local_backend_disables_metered_fallback(server, monkeypat
 
 
 @pytest.mark.asyncio
-async def test_consult_plan_backend_vets_capacity_and_disables_metered_fallback(server, monkeypatch):
+async def test_consult_plan_backend_vets_capacity_and_disables_metered_fallback(
+    server, monkeypatch, consult_trace_path
+):
     from deepr.backends.waterfall import BACKEND_PLAN_QUOTA, BackendChoice
 
     captured: dict[str, object] = {}
@@ -166,6 +178,10 @@ async def test_consult_plan_backend_vets_capacity_and_disables_metered_fallback(
     assert captured["operation"] == "plan_quota_consult_synthesis"
     assert out["capacity"]["synthesis_backend"] == "plan"
     assert out["capacity"]["provider"] == "plan_quota:codex"
+    trace = json.loads(consult_trace_path.read_text(encoding="utf-8").strip())
+    assert trace["output"]["collaboration"] == out["collaboration"]
+    assert trace["output"]["collaboration"]["budget_capacity_contract"]["capacity"] == out["capacity"]
+    assert trace["output"]["collaboration"]["budget_capacity_contract"]["metered_fallback_allowed"] is False
 
 
 @pytest.mark.asyncio

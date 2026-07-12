@@ -103,7 +103,9 @@ def validate():
         else:
             console.print(f"[success]Data directory exists: {data_dir}[/success]")
 
-        queue_db_path = "queue/research_queue.db"
+        from deepr.config import queue_db_path as resolve_queue_db_path
+
+        queue_db_path = resolve_queue_db_path()
         queue_dir = Path(queue_db_path).parent
         if not queue_dir.exists():
             warnings.append(f"Queue directory does not exist: {queue_dir}")

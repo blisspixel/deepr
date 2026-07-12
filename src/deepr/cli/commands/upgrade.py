@@ -1,13 +1,4 @@
-"""Self-update command: `deepr upgrade`.
-
-Modern CLI QOL (cf. claude / codex / grok CLIs): let the tool update itself
-and tell the user when a newer version is available, regardless of how it
-was installed (pipx, pip, or an editable source checkout).
-
-No new dependencies: PyPI is queried via urllib (stdlib), the upgrade runs
-the appropriate packaging tool via subprocess. All network access is
-timeout-bounded and degrades gracefully offline.
-"""
+"""Self-update command backed by versioned GitHub release wheels."""
 
 from __future__ import annotations
 
@@ -16,6 +7,7 @@ import subprocess
 import sys
 import urllib.error
 import urllib.request
+from dataclasses import dataclass
 from importlib import metadata as importlib_metadata
 
 import click
@@ -24,8 +16,18 @@ from deepr import __version__
 from deepr.cli.colors import print_error, print_success
 
 PACKAGE = "deepr-research"
-_PYPI_URL = f"https://pypi.org/pypi/{PACKAGE}/json"
-_PYPI_TIMEOUT = 8  # seconds
+_RELEASE_API_URL = "https://api.github.com/repos/blisspixel/deepr/releases/latest"
+_RELEASE_ASSET_PREFIX = "https://github.com/blisspixel/deepr/releases/download/"
+_RELEASE_TIMEOUT = 8
+
+
+@dataclass(frozen=True, slots=True)
+class ReleaseInfo:
+    """Install-relevant fields from the latest public GitHub release."""
+
+    version: str
+    tag: str
+    wheel_url: str | None
 
 
 def _detect_origin() -> str:
@@ -36,8 +38,12 @@ def _detect_origin() -> str:
     try:
         dist = importlib_metadata.distribution(PACKAGE)
         direct_url = dist.read_text("direct_url.json")
-        if direct_url and '"editable": true' in direct_url.replace(" ", ""):
-            return "editable"
+        if direct_url:
+            direct_metadata = json.loads(direct_url)
+            if isinstance(direct_metadata, dict):
+                directory_info = direct_metadata.get("dir_info")
+                if isinstance(directory_info, dict) and directory_info.get("editable") is True:
+                    return "editable"
     except (importlib_metadata.PackageNotFoundError, OSError, ValueError):
         pass
 
@@ -66,25 +72,80 @@ def _version_tuple(v: str) -> tuple[int, ...]:
     return tuple(parts) or (0,)
 
 
-def _fetch_latest_version() -> str | None:
-    """Return the latest version on PyPI, or None if unavailable/offline."""
+def _release_from_payload(payload: object) -> ReleaseInfo | None:
+    """Validate and reduce a GitHub release response."""
+    if not isinstance(payload, dict):
+        return None
+
+    tag_value = payload.get("tag_name")
+    if not isinstance(tag_value, str) or not tag_value.strip():
+        return None
+    tag = tag_value.strip()
+    version = tag.removeprefix("v")
+    if not version:
+        return None
+    expected_wheel_name = f"deepr_research-{version}-py3-none-any.whl"
+
+    wheel_url: str | None = None
+    assets = payload.get("assets")
+    if isinstance(assets, list):
+        for asset in assets:
+            if not isinstance(asset, dict):
+                continue
+            name = asset.get("name")
+            url = asset.get("browser_download_url")
+            if (
+                isinstance(name, str)
+                and name == expected_wheel_name
+                and isinstance(url, str)
+                and url.startswith(_RELEASE_ASSET_PREFIX)
+            ):
+                wheel_url = url
+                break
+
+    return ReleaseInfo(version=version, tag=tag, wheel_url=wheel_url)
+
+
+def _fetch_latest_release() -> ReleaseInfo | None:
+    """Return the latest GitHub release, or None when unavailable or invalid."""
     try:
-        req = urllib.request.Request(_PYPI_URL, headers={"Accept": "application/json"})
-        with urllib.request.urlopen(req, timeout=_PYPI_TIMEOUT) as resp:
-            data = json.loads(resp.read().decode("utf-8"))
-        version = data.get("info", {}).get("version")
-        return str(version) if version else None
+        request = urllib.request.Request(
+            _RELEASE_API_URL,
+            headers={
+                "Accept": "application/vnd.github+json",
+                "User-Agent": "deepr-upgrade",
+                "X-GitHub-Api-Version": "2022-11-28",
+            },
+        )
+        with urllib.request.urlopen(request, timeout=_RELEASE_TIMEOUT) as response:
+            payload = json.loads(response.read().decode("utf-8"))
+        return _release_from_payload(payload)
     except (urllib.error.URLError, TimeoutError, ValueError, OSError):
         return None
 
 
-def _upgrade_command(origin: str) -> list[str] | None:
+def _upgrade_command(origin: str, wheel_url: str) -> list[str] | None:
     """The argv to upgrade for a given install origin (None = manual steps)."""
     if origin == "pipx":
-        return ["pipx", "upgrade", PACKAGE]
+        return ["pipx", "install", "--force", wheel_url]
     if origin == "pip":
-        return [sys.executable, "-m", "pip", "install", "--upgrade", PACKAGE]
+        return [sys.executable, "-m", "pip", "install", "--upgrade", wheel_url]
     return None  # editable: handled with guidance, never auto-run
+
+
+def _release_for_command(ctx: click.Context, *, check: bool) -> ReleaseInfo | None:
+    """Load release metadata and handle a safe network failure."""
+    release = _fetch_latest_release()
+    if release is not None:
+        return release
+
+    click.echo(
+        "Could not read the latest GitHub release (offline, rate limited, or invalid response).",
+    )
+    if check:
+        return None
+    print_error("No changes were made. Try again when GitHub Releases is reachable.")
+    ctx.exit(1)
 
 
 @click.command()
@@ -100,20 +161,20 @@ def upgrade(ctx: click.Context, check: bool) -> None:
     current = __version__
     click.echo(f"deepr {current}")
 
-    latest = _fetch_latest_version()
-    if latest is None:
-        click.echo(
-            f"Could not reach PyPI to check for updates (offline, or {PACKAGE} is not published yet).",
-        )
-        if check:
-            return
-    elif _version_tuple(latest) <= _version_tuple(current):
-        print_success(f"Already up to date (latest on PyPI is {latest}).")
+    release = _release_for_command(ctx, check=check)
+    if release is None:
         return
-    else:
-        click.echo(f"A newer version is available: {latest}")
+
+    latest = release.version
+    if _version_tuple(latest) <= _version_tuple(current):
+        print_success(f"Already up to date (latest GitHub release is {release.tag}).")
+        return
+
+    click.echo(f"A newer version is available: {release.tag}")
 
     if check:
+        if release.wheel_url is None:
+            click.echo("That release does not include a supported Deepr wheel asset.")
         return
 
     origin = _detect_origin()
@@ -125,7 +186,13 @@ def upgrade(ctx: click.Context, check: bool) -> None:
         click.echo("  pipx install -e .   # or: pip install -e .")
         return
 
-    cmd = _upgrade_command(origin)
+    if release.wheel_url is None:
+        print_error(
+            f"GitHub release {release.tag} has no supported Deepr wheel asset. No changes were made.",
+        )
+        ctx.exit(1)
+
+    cmd = _upgrade_command(origin, release.wheel_url)
     if cmd is None:  # pragma: no cover - defensive; origin is pipx/pip here
         print_error("Could not determine how to upgrade this installation.")
         ctx.exit(1)

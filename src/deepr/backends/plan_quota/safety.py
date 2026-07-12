@@ -10,10 +10,12 @@ vendor CLI as "prepaid plan capacity", two things must hold:
    evaluates that sanitized env so a normal API-capable shell can still run
    explicit plan-quota commands without mutating the user's environment.
 
-2. **The operator accepts the billing shape of a metered-by-nature CLI.** A few
-   supported CLIs (e.g. Copilot, post-2026-06 usage-based) are not free at the
-   margin at all. They are off by default and, when invoked explicitly, require
-   an acknowledgement so a paid call is never a side effect.
+2. **Metered-at-margin CLIs have complete cost accounting before execution.** A
+   few detected CLIs (e.g. Copilot, post-2026-06 usage-based) are not free at
+   the margin. Until an adapter can deterministically estimate and reserve the
+   maximum cost, settle reported usage, and write the canonical cost ledger,
+   Deepr exposes it as read-only capacity metadata but refuses execution. An
+   acknowledgement cannot replace those controls.
 
 The gate returns a typed decision the caller logs/prints before any subprocess
 runs. It does not judge answer quality - that stays calibrated model judgment.
@@ -90,13 +92,10 @@ def evaluate_plan_quota_safety(adapter: PlanQuotaAdapter, *, env: Mapping[str, s
     if adapter.metered_at_margin:
         return SafetyDecision(
             backend_id=adapter.backend_id,
-            safe=True,
+            safe=False,
             auth_mode=mode,
-            requires_ack=True,
-            reason=(
-                f"{adapter.display_name} bills usage per call (not free at the margin); "
-                "explicit confirmation required so a paid run is never a side effect."
-            ),
+            requires_ack=False,
+            reason=metered_plan_execution_block_reason(adapter),
         )
 
     removed_note = f"; removed {removed_var} from child env" if removed_var else ""
@@ -107,6 +106,15 @@ def evaluate_plan_quota_safety(adapter: PlanQuotaAdapter, *, env: Mapping[str, s
         auth_mode=mode,
         requires_ack=False,
         reason=f"{adapter.display_name} in plan mode; prepaid capacity before metered API{removed_note}{note}",
+    )
+
+
+def metered_plan_execution_block_reason(adapter: PlanQuotaAdapter) -> str:
+    """Explain why a metered-at-margin adapter cannot execute yet."""
+    return (
+        f"{adapter.display_name} is metered at the margin and cannot execute through plan-quota paths until "
+        "the adapter supports deterministic cost estimation, durable reservation, usage settlement, and "
+        "canonical cost-ledger writes. Use a non-metered plan backend or an explicitly budgeted API path."
     )
 
 

@@ -24,9 +24,9 @@ from deepr.cli.commands.semantic.experts import expert
 # existing importers/tests keep working.
 from deepr.experts.consult import (
     ConsultBackendError,
-    attach_collaboration_runtime,
     build_consult_payload,
     build_synthesis_backend,
+    record_consult_payload_trace,
     run_consult,
 )
 from deepr.experts.consult_traces import record_consult_trace
@@ -68,6 +68,9 @@ def _render(payload: dict[str, Any]) -> None:
         console.print(f"  {p['response'][:600]}")
     console.print("\n[bold]Synthesis[/bold]")
     console.print(payload["answer"][:1400] or "  [dim](no synthesis)[/dim]")
+    if payload["synthesis_status"] not in {"completed", "skipped_no_valid_perspectives"}:
+        reason = payload.get("synthesis_stop_reason") or payload.get("synthesis_error_type") or "unknown"
+        print_warning(f"Synthesis is incomplete: {payload['synthesis_status']} ({reason}).")
     for label, key in (("Agreements", "agreements"), ("Disagreements", "disagreements")):
         if payload[key]:
             console.print(f"\n[bold]{label}[/bold]")
@@ -186,16 +189,15 @@ def expert_consult(
     payload = build_consult_payload(question, result)
     capacity = _capacity_payload("local" if use_local else "plan" if plan_backend else "api", synthesis_backend)
     payload["capacity"] = capacity
-    payload["trace"] = record_consult_trace(
+    record_consult_payload_trace(
+        payload,
         question=question,
         requested_experts=list(experts),
         max_experts=max_experts,
         budget=budget,
-        payload=payload,
         result=result,
         capacity=capacity,
     )
-    attach_collaboration_runtime(payload, result=result, capacity=capacity, trace=payload["trace"])
     if json_output:
         click.echo(_json.dumps(payload, indent=2))
     else:
@@ -205,3 +207,5 @@ def expert_consult(
         if not json_output:
             print_warning("No experts were consulted - create experts first or name them with -e.")
         sys.exit(2)
+    if payload["synthesis_status"] not in {"completed", "skipped_no_valid_perspectives"}:
+        sys.exit(1)

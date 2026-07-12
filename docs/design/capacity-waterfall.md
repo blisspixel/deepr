@@ -47,6 +47,17 @@ gap-fill, and auto-mode runtime integration. `expert sync-all` and scheduled
 selections for maintenance. Automatic plan routing remains gated until a trusted
 remaining-quota signal exists for the candidate backend.
 
+Scheduled local sync, sync-all, local route-gaps, and the local recall-embedding
+substep of plan-backed compiled sync consume the bounded contention gate in
+[scheduled-local-capacity.md](scheduled-local-capacity.md). Before local model
+dispatch, scheduled work takes one read-only best-effort utilization
+observation. Confirmed contention becomes a durable WAITING outcome with a
+bounded retry time and no plan/API fallback. Unsupported or malformed probes
+remain visibly unknown and non-blocking, and resident Ollama VRAM alone is not
+classified as busy. Wait records retain argument-safe requested-operation argv
+and selected model metadata. Explicit local work without `--scheduled` remains
+the operator override.
+
 ## Problem
 
 Most operators already pay for capacity Deepr never uses: subscription

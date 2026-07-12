@@ -306,11 +306,12 @@ async def import_corpus(
             uploaded_files.append(doc_file.name)
 
     # Wait for indexing
+    indexing_succeeded = False
     if uploaded_files:
-        await provider.wait_for_vector_store(vector_store.id, timeout=300)
+        indexing_succeeded = bool(await provider.wait_for_vector_store(vector_store.id, timeout=300))
 
     # Create expert profile
-    now = datetime.now(UTC)
+    knowledge_observed_at = datetime.now(UTC) if uploaded_files and indexing_succeeded else None
     profile = ExpertProfile(
         name=new_expert_name,
         vector_store_id=vector_store.id,
@@ -318,9 +319,12 @@ async def import_corpus(
         domain=metadata.get("domain") or manifest.domain,
         source_files=uploaded_files,
         total_documents=len(uploaded_files),
-        knowledge_cutoff_date=now,
-        last_knowledge_refresh=now,
-        system_message=get_expert_system_message(knowledge_cutoff_date=now, domain_velocity="medium"),
+        knowledge_cutoff_date=knowledge_observed_at,
+        last_knowledge_refresh=knowledge_observed_at,
+        system_message=get_expert_system_message(
+            knowledge_cutoff_date=knowledge_observed_at,
+            domain_velocity="medium",
+        ),
         provider=metadata.get("provider", "openai"),
     )
 
@@ -411,6 +415,7 @@ async def import_structured_bundle(
         raise ValueError(f"No importable files (MD/JSON/JSONL) found in {bundle_path}")
 
     documents_imported = 0
+    imported_names: list[str] = []
     citations_mapped = 0
     gaps_detected: list[dict[str, str]] = []
 
@@ -438,6 +443,7 @@ async def import_structured_bundle(
 
         dest.write_text(content, encoding="utf-8")
         documents_imported += 1
+        imported_names.append(file_path.name)
 
         # Count citations (links/references in content)
         citations_mapped += content.count("http://") + content.count("https://")
@@ -453,16 +459,18 @@ async def import_structured_bundle(
     profile.total_documents = (profile.total_documents or 0) + documents_imported
     # Preserve order while deduplicating
     existing = profile.source_files or []
-    new_names = [f.name for f in files_to_import]
     seen: set[str] = set()
     deduped: list[str] = []
-    for name in existing + new_names:
+    for name in existing + imported_names:
         if name not in seen:
             seen.add(name)
             deduped.append(name)
     profile.source_files = deduped
-    profile.last_knowledge_refresh = datetime.now(UTC)
-    store.save(profile)
+    if documents_imported:
+        from deepr.experts.knowledge_freshness import advance_knowledge_freshness
+
+        advance_knowledge_freshness(profile, datetime.now(UTC))
+        store.save(profile)
 
     logger.info(
         "Imported %d documents into expert '%s' (%d citations, %d gaps detected)",

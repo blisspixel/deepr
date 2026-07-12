@@ -421,10 +421,21 @@ class _FailingAbsorber:
         raise AssertionError("legacy absorber should not run")
 
 
+class _CostedAbsorber:
+    estimated_cost = 0.03
+
+    def __init__(self):
+        self.received_budgets: list[float] = []
+
+    async def absorb(self, *args, **kwargs):
+        self.received_budgets.append(kwargs["budget"])
+        return SimpleNamespace(absorbed=[object()], flagged=[], estimated_cost=self.estimated_cost)
+
+
 def _engine(tmp_path, sub_store, research_answers: dict[str, dict]):
     """Engine with injected research + a real absorber on a tmp belief store."""
     beliefs = BeliefStore("Sync Test Expert", storage_dir=tmp_path / "beliefs")
-    absorber = ReportAbsorber(_expert(), client=_FakeExtractionClient(), belief_store=beliefs)
+    absorber = ReportAbsorber(_expert(), client=_FakeExtractionClient(), belief_store=beliefs, estimated_cost=0.0)
 
     async def research_fn(query: str, budget: float) -> dict:
         for key, answer in research_answers.items():
@@ -486,6 +497,41 @@ class TestFreshnessQuery:
         assert "transports only" in q
         assert _NO_CHANGES_MARKER in q
 
+    def test_retrieval_query_is_bounded_and_keeps_explicit_urls(self):
+        url = "https://example.com/primary-source"
+        long_focus = "important focus " * 80 + url
+        sub = Subscription(topic="Machine consciousness evaluation", query=long_focus)
+
+        retrieval_query = ExpertSyncEngine.build_retrieval_query(sub)
+
+        assert retrieval_query.startswith("Machine consciousness evaluation Focus:")
+        assert url in retrieval_query
+        assert "Provide a comprehensive" not in retrieval_query
+        assert len(retrieval_query) <= (
+            sync_module.RETRIEVAL_TOPIC_MAX_CHARS + sync_module.RETRIEVAL_FOCUS_MAX_CHARS + len(url) + 32
+        )
+
+    @pytest.mark.asyncio
+    async def test_research_separates_answer_prompt_from_retrieval_route(self, tmp_path):
+        seen = {}
+
+        async def research_fn(query: str, budget: float, *, retrieval_query: str = "") -> dict:
+            seen.update(query=query, retrieval_query=retrieval_query, budget=budget)
+            return {"answer": _NO_CHANGES_MARKER, "cost": 0.0}
+
+        sub = Subscription(topic="Machine consciousness evaluation", query="empirical tests")
+        engine = ExpertSyncEngine(
+            _expert(),
+            research_fn=research_fn,
+            subscription_store=_sub_store(tmp_path, sub),
+        )
+
+        await engine._research(sub, 0.5)
+
+        assert "Provide a comprehensive" in seen["query"]
+        assert seen["retrieval_query"] == "Machine consciousness evaluation Focus: empirical tests"
+        assert seen["retrieval_query"] not in {"", seen["query"]}
+
 
 class TestFreshSourcesUnchanged:
     """The pure change-detection gate fails safe toward 'changed'."""
@@ -531,12 +577,39 @@ class TestSyncEngine:
         outcome = result.outcomes[0]
         assert outcome.status == "synced"
         assert outcome.absorbed == 1
+        assert result.knowledge_observed_at is not None
+        assert engine.expert.knowledge_cutoff_date == result.knowledge_observed_at
+        assert engine.expert.last_knowledge_refresh == result.knowledge_observed_at
         # last_synced persisted
         reloaded = SubscriptionStore("Sync Test Expert", storage_dir=tmp_path / "knowledge")
         assert reloaded.subscriptions[0].last_synced is not None
         # The perspective delta reflects the new belief
         assert result.delta["total_changes"] == 1
         assert "capability Y" in result.delta["added"][0]["claim"]
+
+    @pytest.mark.asyncio
+    async def test_metered_sync_reserves_absorption_budget_and_reports_its_cost(self, tmp_path):
+        store = _sub_store(tmp_path, Subscription(topic="Topic X", budget=0.5))
+        received_budgets: list[float] = []
+
+        async def research_fn(query: str, budget: float) -> dict:
+            received_budgets.append(budget)
+            return {"answer": "Topic X changed.", "cost": 0.2}
+
+        absorber = _CostedAbsorber()
+        engine = ExpertSyncEngine(
+            _expert(),
+            research_fn=research_fn,
+            subscription_store=store,
+            absorber=absorber,
+        )
+
+        result = await engine.sync(budget=0.5)
+
+        assert received_budgets == [pytest.approx(0.47)]
+        assert absorber.received_budgets == [pytest.approx(0.30)]
+        assert result.total_cost == pytest.approx(0.23)
+        assert result.outcomes[0].cost == pytest.approx(0.23)
 
     @pytest.mark.asyncio
     async def test_no_changes_skips_absorb_but_updates_cadence(self, tmp_path):
@@ -548,6 +621,9 @@ class TestSyncEngine:
         assert result.outcomes[0].status == "no_changes"
         assert len(engine.belief_store.beliefs) == 0
         assert store.subscriptions[0].last_synced is not None  # cadence advanced
+        assert result.knowledge_observed_at is None
+        assert getattr(engine.expert, "knowledge_cutoff_date", None) is None
+        assert getattr(engine.expert, "last_knowledge_refresh", None) is None
 
     @pytest.mark.asyncio
     async def test_markdown_wrapped_no_changes_skips_absorb(self, tmp_path):
@@ -603,6 +679,9 @@ class TestSyncEngine:
         assert second.outcomes[0].source_pack_artifact  # still records provenance
         # The gate fired before absorb: belief count is unchanged.
         assert len(engine.belief_store.beliefs) == 1
+        assert second.knowledge_observed_at is not None
+        assert engine.expert.knowledge_cutoff_date == second.knowledge_observed_at
+        assert engine.expert.last_knowledge_refresh == second.knowledge_observed_at
 
     @pytest.mark.asyncio
     async def test_sync_passes_prior_source_pack_to_prior_aware_research_fn(self, tmp_path):
@@ -634,7 +713,7 @@ class TestSyncEngine:
             }
 
         beliefs = BeliefStore("Sync Test Expert", storage_dir=tmp_path / "beliefs")
-        absorber = ReportAbsorber(_expert(), client=_FakeExtractionClient(), belief_store=beliefs)
+        absorber = ReportAbsorber(_expert(), client=_FakeExtractionClient(), belief_store=beliefs, estimated_cost=0.0)
         engine = ExpertSyncEngine(
             _expert(), research_fn=research_fn, subscription_store=store, belief_store=beliefs, absorber=absorber
         )
@@ -671,7 +750,7 @@ class TestSyncEngine:
             }
 
         beliefs = BeliefStore("Sync Test Expert", storage_dir=tmp_path / "beliefs")
-        absorber = ReportAbsorber(_expert(), client=_FakeExtractionClient(), belief_store=beliefs)
+        absorber = ReportAbsorber(_expert(), client=_FakeExtractionClient(), belief_store=beliefs, estimated_cost=0.0)
         engine = ExpertSyncEngine(
             _expert(), research_fn=research_fn, subscription_store=store, belief_store=beliefs, absorber=absorber
         )
@@ -705,6 +784,82 @@ class TestSyncEngine:
         assert result.outcomes[0].source_count == 0
         assert len(engine.belief_store.beliefs) == 0
         assert store.subscriptions[0].last_synced is not None
+        assert result.knowledge_observed_at is None
+        assert getattr(engine.expert, "knowledge_cutoff_date", None) is None
+
+    @pytest.mark.asyncio
+    async def test_under_ready_context_failure_persists_evidence_and_stays_due(self, tmp_path):
+        store = _sub_store(tmp_path, Subscription(topic="Sparse Topic", budget=0.5))
+        source_pack = {
+            "schema_version": "deepr.source_pack.v1",
+            "query": "Sparse Topic",
+            "mode": "fresh",
+            "source_count": 1,
+            "retrieved_source_count": 5,
+            "generation_readiness": {
+                "ready": False,
+                "ready_source_count": 1,
+                "required_source_count": 2,
+                "retryable": True,
+                "no_metered_fallback": True,
+            },
+            "sources": [
+                {
+                    "label": "S1",
+                    "title": "Only fetched page",
+                    "url": "https://example.com/only",
+                    "excerpt": "One replayable page.",
+                    "content_hash": "a" * 64,
+                }
+            ],
+            "retrieval_candidates": [
+                {"url": f"https://example.com/{index}", "content_addressed": index == 0} for index in range(5)
+            ],
+        }
+
+        async def research_fn(query: str, budget: float, *, retrieval_query: str = "") -> dict:
+            return {
+                "answer": "",
+                "cost": 0.0,
+                "error": (
+                    "fresh context not ready: fresh context has 1 content-addressed source(s); "
+                    "2 required before generation. No generation backend was called and no metered fallback was used."
+                ),
+                "error_code": "fresh_context_not_ready",
+                "retryable": True,
+                "no_metered_fallback": True,
+                "fresh_context": {"source_count": 1, "retrieved_source_count": 5, "mode": "fresh"},
+                "source_pack": source_pack,
+            }
+
+        engine = ExpertSyncEngine(
+            _expert(),
+            research_fn=research_fn,
+            subscription_store=store,
+            absorber=_CostedAbsorber(),
+        )
+
+        result = await engine.sync(budget=0.5)
+
+        outcome = result.outcomes[0]
+        assert outcome.status == "failed"
+        assert outcome.error_code == "fresh_context_not_ready"
+        assert outcome.retryable is True
+        assert outcome.no_metered_fallback is True
+        assert "No generation backend was called" in outcome.detail
+        assert outcome.source_pack_artifact.endswith("_sparse-topic.json")
+        assert store.subscriptions[0].last_synced is None
+        persisted_pack = json.loads((tmp_path / "knowledge" / outcome.source_pack_artifact).read_text(encoding="utf-8"))
+        assert "Provide a comprehensive" in persisted_pack["answer_query"]
+        assert persisted_pack["retrieval_query"] == "Sparse Topic"
+        assert persisted_pack["answer_query"] != persisted_pack["retrieval_query"]
+        assert len(persisted_pack["source_pack"]["retrieval_candidates"]) == 5
+        manifest = json.loads(
+            (tmp_path / "knowledge" / outcome.source_pack_manifest_artifact).read_text(encoding="utf-8")
+        )
+        assert manifest["manifest"]["ready_for_generation"] is False
+        assert manifest["manifest"]["ready_for_semantic_compile"] is False
+        assert manifest["source_pack"]["retrieval_query"] == "Sparse Topic"
 
     @pytest.mark.asyncio
     async def test_source_pack_artifact_records_context_used_for_sync(self, tmp_path):
@@ -894,7 +1049,7 @@ class TestSyncEngine:
         research_fn = _topic_x_research_fn(source_pack)
 
         beliefs = BeliefStore("Sync Test Expert", storage_dir=tmp_path / "beliefs")
-        absorber = ReportAbsorber(_expert(), client=_FakeExtractionClient(), belief_store=beliefs)
+        absorber = ReportAbsorber(_expert(), client=_FakeExtractionClient(), belief_store=beliefs, estimated_cost=0.0)
         claim_extractor = _FakeClaimExtractor()
         engine = ExpertSyncEngine(
             _expert(),
@@ -935,7 +1090,7 @@ class TestSyncEngine:
             ),
             check_conflicts=False,
         )
-        absorber = ReportAbsorber(_expert(), client=_FakeExtractionClient(), belief_store=beliefs)
+        absorber = ReportAbsorber(_expert(), client=_FakeExtractionClient(), belief_store=beliefs, estimated_cost=0.0)
         claim_extractor = _FakeClaimExtractor()
         claim_verifier = _FakeClaimVerifier()
         engine = ExpertSyncEngine(
@@ -1026,7 +1181,9 @@ class TestSyncEngine:
             research_fn=_topic_x_research_fn(_topic_x_source_pack()),
             subscription_store=store,
             belief_store=beliefs,
-            absorber=ReportAbsorber(_expert(), client=_FakeExtractionClient(), belief_store=beliefs),
+            absorber=ReportAbsorber(
+                _expert(), client=_FakeExtractionClient(), belief_store=beliefs, estimated_cost=0.0
+            ),
             claim_extractor=_FakeClaimExtractor(),
             claim_verifier=_VectorRecallClaimVerifier(),
         )
@@ -1071,6 +1228,9 @@ class TestSyncEngine:
         assert store.subscriptions[0].last_synced is not None
         assert result.delta["total_changes"] == 1
         assert len(beliefs.beliefs) == 1
+        assert result.knowledge_observed_at is not None
+        assert engine.expert.knowledge_cutoff_date == result.knowledge_observed_at
+        assert engine.expert.last_knowledge_refresh == result.knowledge_observed_at
         belief = next(iter(beliefs.beliefs.values()))
         assert belief.claim == "Topic X gained capability Y in June 2026."
 
@@ -1080,6 +1240,91 @@ class TestSyncEngine:
         assert apply_result["summary"]["status"] == "applied"
         assert apply_result["summary"]["dry_run"] is False
         assert apply_result["summary"]["applied_write_count"] == 1
+
+    @pytest.mark.asyncio
+    async def test_sync_applies_ready_subset_and_reports_blocked_verdicts(self, tmp_path):
+        class _MixedClaimExtractor:
+            async def extract(
+                self,
+                source_notes,
+                source_pack_payload,
+                *,
+                source_note_artifact="",
+                budget_usd=0.0,
+                session_id="semantic_claim_extraction",
+                generated_at="",
+            ):
+                note = source_notes["notes"][0]
+                window = note["windows"][0]
+                return build_semantic_claim_extraction(
+                    source_notes,
+                    {
+                        "claims": [
+                            {
+                                "statement": f"Video system claim {index} is supported by the release note.",
+                                "confidence": 0.8,
+                                "source_refs": [{"note_id": note["note_id"], "window_id": window["window_id"]}],
+                            }
+                            for index in range(7)
+                        ]
+                    },
+                    source_note_artifact=source_note_artifact,
+                    provider="local",
+                    model="qwen",
+                    capacity_source="local",
+                    generated_at=generated_at,
+                )
+
+        class _MixedClaimVerifier:
+            async def verify(self, claim_extraction, source_notes, source_pack_payload, **kwargs):
+                return {
+                    "contract": {
+                        "provider": "local",
+                        "model": "qwen",
+                        "capacity_source": "local",
+                        "cost_usd": 0.0,
+                    },
+                    "verifications": [
+                        {
+                            "candidate_id": candidate["candidate_id"],
+                            "support_verdict": "supported" if index < 4 else "insufficient",
+                            "contradiction_verdict": "none",
+                            "dedup_verdict": "new",
+                            "temporal_scope_verdict": "valid",
+                            "confidence": 0.85,
+                            "rationale": "Supported." if index < 4 else "Support is insufficient.",
+                        }
+                        for index, candidate in enumerate(claim_extraction["candidates"])
+                    ],
+                }
+
+        store = _sub_store(tmp_path, Subscription(topic="Topic X", budget=0.5))
+        beliefs = BeliefStore("Sync Test Expert", storage_dir=tmp_path / "beliefs")
+        engine = ExpertSyncEngine(
+            _expert(),
+            research_fn=_topic_x_research_fn(_topic_x_source_pack()),
+            subscription_store=store,
+            belief_store=beliefs,
+            absorber=_FailingAbsorber(),
+            claim_extractor=_MixedClaimExtractor(),
+            claim_verifier=_MixedClaimVerifier(),
+        )
+
+        result = await engine.sync(budget=1.0, apply_graph_commits=True)
+
+        outcome = result.outcomes[0]
+        assert outcome.status == "synced"
+        assert outcome.absorbed == 4
+        assert outcome.flagged == 0
+        assert outcome.blocked == 3
+        assert outcome.graph_commit_apply_status == "applied"
+        assert "claim verification partial: 4 ready, 3 blocked" in outcome.detail
+        assert len(beliefs.beliefs) == 4
+        graph_path = tmp_path / "knowledge" / outcome.graph_commit_envelope_artifact
+        graph_commit = json.loads(graph_path.read_text(encoding="utf-8"))
+        assert graph_commit["summary"]["status"] == "ready_for_commit"
+        assert graph_commit["summary"]["blocked_decision_count"] == 3
+        assert len(graph_commit["blocked_decisions"]) == 3
 
     @pytest.mark.asyncio
     async def test_sync_apply_compiled_graph_commit_requires_ready_envelope(self, tmp_path):
@@ -1106,6 +1351,8 @@ class TestSyncEngine:
         assert "graph commit apply failed: compiled graph commit envelope required" in outcome.detail
         assert store.subscriptions[0].last_synced is None
         assert beliefs.beliefs == {}
+        assert result.knowledge_observed_at is None
+        assert getattr(engine.expert, "knowledge_cutoff_date", None) is None
 
     @pytest.mark.asyncio
     async def test_sync_apply_result_write_failure_keeps_cadence_due(self, tmp_path, monkeypatch):
@@ -1249,7 +1496,7 @@ class TestSyncEngine:
     async def test_sync_invalid_claim_verifier_output_fails_closed_as_detail(self, tmp_path):
         store = _sub_store(tmp_path, Subscription(topic="Topic X", budget=0.5))
         beliefs = BeliefStore("Sync Test Expert", storage_dir=tmp_path / "beliefs")
-        absorber = ReportAbsorber(_expert(), client=_FakeExtractionClient(), belief_store=beliefs)
+        absorber = ReportAbsorber(_expert(), client=_FakeExtractionClient(), belief_store=beliefs, estimated_cost=0.0)
         engine = ExpertSyncEngine(
             _expert(),
             research_fn=_topic_x_research_fn(_topic_x_source_pack()),
@@ -1273,7 +1520,7 @@ class TestSyncEngine:
     async def test_sync_graph_commit_write_failure_keeps_verification_artifact(self, tmp_path, monkeypatch):
         store = _sub_store(tmp_path, Subscription(topic="Topic X", budget=0.5))
         beliefs = BeliefStore("Sync Test Expert", storage_dir=tmp_path / "beliefs")
-        absorber = ReportAbsorber(_expert(), client=_FakeExtractionClient(), belief_store=beliefs)
+        absorber = ReportAbsorber(_expert(), client=_FakeExtractionClient(), belief_store=beliefs, estimated_cost=0.0)
         original_write = sync_module.atomic_write_json
 
         def fail_graph_commit_write(path, payload):

@@ -187,10 +187,10 @@ def _emit_selection_note(selection_note: str, json_output: bool) -> None:
 def _build_local_absorber(
     *, profile: Any, model: str | None, selection_note: str, grounding: GroundingFlags, json_output: bool
 ) -> AbsorbBackend:
-    from deepr.backends.local import default_local_model, ollama_chat_client
+    from deepr.backends.local import ollama_chat_client, resolve_local_maintenance_model
     from deepr.experts.report_absorber import ReportAbsorber
 
-    local_model = model or default_local_model()
+    local_model = resolve_local_maintenance_model(profile, explicit_model=model)
     if not local_model:
         raise AbsorbBackendError("No local model available. Is Ollama running? Check: deepr capacity --probe")
     local_client = ollama_chat_client()
@@ -224,12 +224,14 @@ def _build_plan_absorber(
     grounding: GroundingFlags,
     json_output: bool,
 ) -> AbsorbBackend:
-    from deepr.backends.plan_quota import PlanQuotaChatClient, get_adapter
+    from deepr.backends.plan_quota import PlanQuotaChatClient, get_adapter, metered_plan_execution_block_reason
     from deepr.experts.report_absorber import ReportAbsorber
 
     plan_adapter = get_adapter(plan_backend_id or "")
     if plan_adapter is None:
         raise AbsorbBackendError(f"unknown plan-quota backend {plan_backend_id!r}")
+    if plan_adapter.metered_at_margin:
+        raise AbsorbBackendError(metered_plan_execution_block_reason(plan_adapter))
     client = PlanQuotaChatClient(plan_adapter, model=plan_model)
     checker, escalator = _grounding_pair(
         grounding,
@@ -249,7 +251,7 @@ def _build_plan_absorber(
         ),
     )
     _emit_selection_note(selection_note, json_output)
-    if plan_adapter.tos_note and not json_output:
+    if plan_adapter.tos_note and plan_adapter.tos_note not in selection_note and not json_output:
         print_warning(plan_adapter.tos_note)
     cost_note = "billed per use" if plan_adapter.metered_at_margin else "$0 at the margin (prepaid plan)"
     return AbsorbBackend(absorber, cost_note)

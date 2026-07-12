@@ -15,6 +15,7 @@ from typing import Any
 
 import click
 
+from deepr.backends.local_capacity import LocalCapacityObservation
 from deepr.cli.colors import console, print_error, print_header, print_success, print_warning
 from deepr.cli.commands.semantic.experts import expert
 from deepr.cli.commands.semantic.grounding_support import PLAN_BACKEND_CHOICES
@@ -93,7 +94,9 @@ def _scheduled_gap_fill_contract() -> dict[str, Any]:
     }
 
 
-def _scheduled_gap_fill_wait_payload(profile_name: str, routes: list[Any], *, budget: float, top_n: int) -> dict:
+def _scheduled_gap_fill_wait_payload(
+    profile_name: str, routes: list[Any], *, budget: float, top_n: int
+) -> dict[str, Any]:
     research_routes = [r for r in routes if r.instrument == "research"]
     est = min(sum(max(r.estimated_cost, 0.05) for r in research_routes), budget)
     payload = {
@@ -153,6 +156,95 @@ def _emit_scheduled_gap_fill_wait(profile_name: str, routes: list[Any], *, budge
             console.print(f"      [dim]{action['command']}[/dim]")
 
 
+def _gap_fill_retry_argv(
+    *,
+    name: str,
+    top_n: int,
+    budget: float,
+    local: bool,
+    api: bool,
+    plan: str | None,
+    plan_model: str | None,
+    jitter: float,
+    yes: bool,
+    json_output: bool,
+) -> list[str]:
+    argv = [
+        "deepr",
+        "expert",
+        "route-gaps",
+        name,
+        "--execute",
+        "--scheduled",
+        "--top",
+        str(top_n),
+        "--budget",
+        f"{budget:g}",
+    ]
+    if local:
+        argv.append("--local")
+    elif api:
+        argv.append("--api")
+    elif plan:
+        argv.extend(["--plan", plan])
+    if plan_model:
+        argv.extend(["--plan-model", plan_model])
+    if jitter > 0:
+        argv.extend(["--jitter", f"{jitter:g}"])
+    if yes:
+        argv.append("--yes")
+    if json_output:
+        argv.append("--json")
+    return argv
+
+
+def _scheduled_local_gap_fill_wait_payload(
+    profile_name: str,
+    routes: list[Any],
+    *,
+    budget: float,
+    top_n: int,
+    observation: LocalCapacityObservation,
+    command_argv: list[str],
+    local_model: str,
+) -> dict[str, Any]:
+    from deepr.experts.scheduled_local_capacity import record_scheduled_local_capacity_wait
+
+    research_routes = [route for route in routes if route.instrument == "research"]
+    estimated_metered = min(sum(max(route.estimated_cost, 0.05) for route in research_routes), budget)
+    wait = record_scheduled_local_capacity_wait(
+        expert_name=profile_name,
+        loop_type="gap_fill",
+        goal=f"Fill routed knowledge gaps for {profile_name}",
+        observation=observation,
+        command_argv=command_argv,
+        budget_limit=budget,
+        capacity_source="local",
+        backend_profile_id=local_model,
+    )
+    payload = {
+        "schema_version": SCHEDULED_GAP_FILL_WAIT_SCHEMA_VERSION,
+        "kind": SCHEDULED_GAP_FILL_WAIT_KIND,
+        "contract": _scheduled_gap_fill_contract(),
+        "status": "waiting_for_capacity",
+        "expert_name": profile_name,
+        "detail": "scheduled local gap fill found meaningful GPU contention and did not dispatch",
+        "scheduled": True,
+        "estimated_metered_cost": round(estimated_metered, 4),
+        "routes": [route.to_dict() for route in routes],
+        "local_capacity": observation.to_dict(),
+        "next_actions": [wait.loop_run.next_action],
+    }
+    payload.update(wait.to_dict())
+    return payload
+
+
+def _emit_scheduled_local_gap_fill_wait(payload: dict[str, Any]) -> None:
+    print_warning("Scheduled local gap fill is waiting because GPU capacity is busy.")
+    console.print(f"[dim]{payload['local_capacity']['detail']}.[/dim]")
+    console.print(f"[dim]Try again at or after {payload['retry_at']}; no fallback was dispatched.[/dim]")
+
+
 def _build_gap_fill_engine(
     profile: Any,
     *,
@@ -173,10 +265,10 @@ def _build_gap_fill_engine(
     from deepr.experts.gap_fill import GapFillEngine
 
     if use_local:
-        from deepr.backends.local import default_local_model, make_local_research_fn, ollama_chat_client
+        from deepr.backends.local import make_local_research_fn, ollama_chat_client, resolve_local_maintenance_model
         from deepr.experts.report_absorber import ReportAbsorber
 
-        local_model = local_model or default_local_model()
+        local_model = resolve_local_maintenance_model(profile, explicit_model=local_model)
         if not local_model:
             print_error("No local model available. Is Ollama running? Check: deepr capacity --probe")
             sys.exit(2)
@@ -218,6 +310,16 @@ def _selected_gap_fill_capacity_source(backend: _GapFillBackend) -> str:
     if backend.use_plan and backend.plan_backend_id:
         return f"plan_quota:{backend.plan_backend_id}"
     return "api_metered"
+
+
+def _selected_local_model_hint(profile: Any, backend: _GapFillBackend) -> str:
+    if backend.local_model:
+        return backend.local_model
+    provider = str(getattr(profile, "provider", "") or "").strip().lower()
+    recorded = str(getattr(profile, "model", "") or "").strip()
+    if provider == "local" and recorded.lower() != "ollama":
+        return recorded
+    return ""
 
 
 def _automatic_gap_fill_spend_decider(profile_name: str, backend: _GapFillBackend, *, api: bool, dry_run: bool):
@@ -432,6 +534,19 @@ def route_gaps(
             print_error(str(exc))
             sys.exit(2)
 
+        retry_command_argv = _gap_fill_retry_argv(
+            name=name,
+            top_n=top_n,
+            budget=budget,
+            local=local,
+            api=api,
+            plan=plan,
+            plan_model=plan_model,
+            jitter=jitter,
+            yes=yes,
+            json_output=json_output,
+        )
+
         research_routes = [r for r in routes if r.instrument == "research"]
         if not routes:
             print_success("No open knowledge gaps to fill.")
@@ -446,6 +561,26 @@ def route_gaps(
                 return
             _emit_scheduled_gap_fill_wait(profile.name, routes, budget=budget, top_n=top_n)
             return
+        resolved_local_model = backend.local_model
+        if scheduled and not dry_run and research_routes and backend.use_local:
+            from deepr.backends.local_capacity import LocalCapacityState, probe_local_gpu_occupancy
+
+            local_capacity = probe_local_gpu_occupancy()
+            if local_capacity.state == LocalCapacityState.BUSY:
+                payload = _scheduled_local_gap_fill_wait_payload(
+                    profile.name,
+                    routes,
+                    budget=budget,
+                    top_n=top_n,
+                    observation=local_capacity,
+                    command_argv=retry_command_argv,
+                    local_model=_selected_local_model_hint(profile, backend),
+                )
+                if json_output:
+                    click.echo(_json.dumps(payload, indent=2))
+                else:
+                    _emit_scheduled_local_gap_fill_wait(payload)
+                return
         if not dry_run and not yes:
             if backend.owned_or_prepaid:
                 where = "the local model at $0" if backend.use_local else f"plan quota ({backend.plan_backend_id})"
@@ -466,7 +601,7 @@ def route_gaps(
             engine, capacity_source = _build_gap_fill_engine(
                 profile,
                 use_local=backend.use_local,
-                local_model=backend.local_model,
+                local_model=resolved_local_model,
                 use_plan=backend.use_plan,
                 plan_backend_id=backend.plan_backend_id,
                 plan_model=backend.plan_model,
@@ -504,7 +639,7 @@ def route_gaps(
                     engine, capacity_source = _build_gap_fill_engine(
                         profile,
                         use_local=backend.use_local,
-                        local_model=backend.local_model,
+                        local_model=resolved_local_model,
                         use_plan=backend.use_plan,
                         plan_backend_id=backend.plan_backend_id,
                         plan_model=backend.plan_model,
@@ -513,6 +648,10 @@ def route_gaps(
                         spend_decision_fn=spend_decision_fn,
                     )
                     result = asyncio.run(engine.execute(routes, budget=budget, top=top_n, dry_run=False))
+                    if getattr(result, "knowledge_observed_at", None) is not None:
+                        from deepr.experts.profile import ExpertStore
+
+                        ExpertStore().save(profile)
                     loop_run = _record_completed_gap_fill_loop(
                         profile.name,
                         result,

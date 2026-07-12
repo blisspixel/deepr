@@ -98,6 +98,12 @@ class TestFleetStatus:
             _row(build_fleet_status(which=_which("codex"), env={}, quota_ledger_path=p), "codex")["status"] == "active"
         )
 
+    def test_failed_attempt_is_not_reported_as_active(self, tmp_path):
+        p = tmp_path / "q.jsonl"
+        _record(p, "codex", QuotaEventType.ATTEMPT_OBSERVED)
+        row = _row(build_fleet_status(which=_which("codex"), env={}, quota_ledger_path=p), "codex")
+        assert row["status"] == "attempt_failed"
+
     def test_latest_event_wins(self, tmp_path):
         p = tmp_path / "q.jsonl"
         _record(p, "codex", QuotaEventType.EXHAUSTED, ts=T0)

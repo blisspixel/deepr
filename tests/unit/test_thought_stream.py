@@ -66,6 +66,22 @@ class TestThoughtType:
 class TestThoughtStreamBasic:
     """Basic tests for ThoughtStream."""
 
+    def test_default_log_dir_uses_canonical_expert_directory(self, tmp_path, monkeypatch):
+        monkeypatch.delenv("DEEPR_EXPERTS_PATH", raising=False)
+        monkeypatch.setenv("DEEPR_DATA_DIR", str(tmp_path))
+
+        stream = ThoughtStream(expert_name="Harness Reliability Expert", quiet=True)
+
+        assert stream.log_path.parent == tmp_path / "experts" / "harness_reliability_expert" / "logs"
+        assert not (tmp_path / "experts" / "Harness Reliability Expert").exists()
+
+    def test_explicit_log_dir_is_preserved(self, tmp_path):
+        explicit = tmp_path / "custom-audit-location"
+
+        stream = ThoughtStream(expert_name="Harness Reliability Expert", quiet=True, log_dir=explicit)
+
+        assert stream.log_path.parent == explicit
+
     def test_create_thought_stream(self):
         """Test creating a thought stream."""
         with tempfile.TemporaryDirectory() as tmpdir:

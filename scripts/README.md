@@ -5,19 +5,24 @@ Utility scripts for installation, environment management, and development workfl
 ## Installation Scripts
 
 ### Linux/macOS Installation
+
 ```bash
 chmod +x scripts/install.sh
 ./scripts/install.sh
 ```
 
-Installs Deepr with `pip install -e .` and provides PATH configuration guidance.
+Resolves the latest supported Deepr wheel from GitHub Releases and installs it
+with pipx. Re-running the script updates the installation. A network failure or
+a release without a wheel stops before the existing installation is changed.
 
 ### Windows Installation
+
 ```batch
 scripts\install.bat
 ```
 
-Installs Deepr on Windows with proper PATH setup.
+The batch wrapper delegates to `install.ps1`, which uses the same GitHub
+Releases and pipx flow as the Linux/macOS installer.
 
 ### Build Script (Windows)
 ```batch
@@ -27,24 +32,28 @@ scripts\build.bat
 Creates a Windows distribution build.
 
 ### Makefile (Development)
+
+Run these commands from the repository root:
+
 ```bash
 # Install in development mode
-make install
+make -f scripts/Makefile install-dev
 
-# Run tests
-make test
+# Run the CI unit-test scope
+make -f scripts/Makefile test
 
 # Clean build artifacts
-make clean
+make -f scripts/Makefile clean
 
-# Format code
-make format
+# Build and validate release packages
+make -f scripts/Makefile build
 
-# Type checking
-make typecheck
+# Future/manual PyPI publication only, after project registration
+make -f scripts/Makefile publish-pypi-manual
 ```
 
-Development automation for Linux/macOS.
+The normal release channel is GitHub Releases. The PyPI target is retained only
+for a future, explicitly authorized manual publication workflow.
 
 ## Local Environment
 

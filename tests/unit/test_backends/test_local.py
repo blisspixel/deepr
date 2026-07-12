@@ -5,9 +5,12 @@ Uses fake AsyncOpenAI-shaped clients so these run with no Ollama and no network.
 
 from __future__ import annotations
 
+from types import SimpleNamespace
+
 import pytest
 
 from deepr.backends import local
+from deepr.backends.fresh_context import FreshContext, FreshContextConfig, FreshSource, deep_fresh_context_config
 
 
 class _FakeMessage:
@@ -103,6 +106,74 @@ class TestResearchFn:
 
         assert result["answer"] == "ok"
         assert seen == {"query": "q", "prior_source_pack": prior_pack}
+
+    async def test_uses_concise_retrieval_query_but_keeps_full_answer_prompt(self):
+        seen = []
+
+        async def context_builder(query):
+            seen.append(query)
+            return "ctx"
+
+        client = _FakeClient(content="ok")
+        fn = local.make_local_research_fn("qwen", client=client, context_builder=context_builder)
+        result = await fn(
+            "Provide a comprehensive answer with detailed synthesis instructions.",
+            1.0,
+            retrieval_query="concise topic Focus: bounded focus",
+        )
+
+        assert result["answer"] == "ok"
+        assert seen == ["concise topic Focus: bounded focus"]
+        prompt = client.chat.completions.calls[0]["messages"][0]["content"]
+        assert "Provide a comprehensive answer with detailed synthesis instructions." in prompt
+        assert "concise topic Focus: bounded focus" not in prompt
+
+    @pytest.mark.parametrize(
+        ("mode", "config", "source_count", "required"),
+        [
+            ("fresh", FreshContextConfig(), 1, 2),
+            ("deep", deep_fresh_context_config(), 2, 3),
+        ],
+    )
+    async def test_under_ready_context_skips_local_model_and_returns_evidence(
+        self,
+        mode,
+        config,
+        source_count,
+        required,
+    ):
+        context = FreshContext(
+            query="search-discovered topic",
+            generated_at="2026-07-11T00:00:00Z",
+            mode=mode,
+            prompt_config=config,
+            sources=tuple(
+                FreshSource(
+                    title=f"Source {index}",
+                    url=f"https://example.com/{index}",
+                    content=f"Fetched page {index}",
+                )
+                for index in range(source_count)
+            ),
+        )
+
+        async def context_builder(_query):
+            return context
+
+        client = _FakeClient(content="must not be used")
+        fn = local.make_local_research_fn("qwen", client=client, context_builder=context_builder)
+        result = await fn("full answer prompt", 1.0)
+
+        assert client.chat.completions.calls == []
+        assert result["answer"] == ""
+        assert result["cost"] == 0.0
+        assert result["error_code"] == "fresh_context_not_ready"
+        assert result["retryable"] is True
+        assert result["no_metered_fallback"] is True
+        assert result["context_preflight"]["required_source_count"] == required
+        assert result["fresh_context"]["retrieved_source_count"] == source_count
+        assert len(result["source_pack"]["sources"]) == source_count
+        assert "No generation backend was called" in result["error"]
 
     async def test_errors_are_reported_not_raised(self):
         fn = local.make_local_research_fn("qwen", client=_FakeClient(error=RuntimeError("boom")))
@@ -218,6 +289,33 @@ class TestDefaultModel:
         monkeypatch.delenv("DEEPR_LOCAL_MODEL", raising=False)
         monkeypatch.setattr(local, "ollama_status", lambda base_url=None: (False, "not reachable"))
         assert local.default_local_model() is None
+
+
+class TestMaintenanceModel:
+    def test_explicit_model_overrides_recorded_profile_model(self, monkeypatch):
+        monkeypatch.setattr(local, "default_local_model", lambda base_url=None: "global-model")
+        profile = SimpleNamespace(provider="local", model="profile-model")
+
+        assert local.resolve_local_maintenance_model(profile, explicit_model="command-model") == "command-model"
+
+    def test_local_profile_model_precedes_global_default(self, monkeypatch):
+        monkeypatch.setattr(local, "default_local_model", lambda base_url=None: "global-model")
+        profile = SimpleNamespace(provider="local", model="profile-model")
+
+        assert local.resolve_local_maintenance_model(profile) == "profile-model"
+
+    @pytest.mark.parametrize(
+        "profile",
+        [
+            SimpleNamespace(provider="openai", model="gpt-5.5"),
+            SimpleNamespace(provider="local", model="ollama"),
+            SimpleNamespace(provider="local", model=""),
+        ],
+    )
+    def test_nonlocal_and_placeholder_profiles_keep_global_default(self, monkeypatch, profile):
+        monkeypatch.setattr(local, "default_local_model", lambda base_url=None: "global-model")
+
+        assert local.resolve_local_maintenance_model(profile) == "global-model"
 
 
 if __name__ == "__main__":

@@ -14,6 +14,7 @@ from typing import Any
 
 from deepr.backends import admission
 from deepr.backends.capacity import BackendKind, CapacitySource, available_local_models, detect_capacity
+from deepr.backends.local_capacity import LocalCapacityObservation, LocalCapacityState
 from deepr.backends.waterfall import choose_maintenance_backend
 
 CAPACITY_NEXT_SCHEMA_VERSION = "deepr-capacity-next-v1"
@@ -80,6 +81,7 @@ def build_capacity_next_payload(
     actions: list[CapacityNextAction],
     *,
     local_probe: dict[str, Any] | None = None,
+    local_capacity: LocalCapacityObservation | None = None,
 ) -> dict[str, Any]:
     """Return the published capacity-next guidance payload.
 
@@ -104,6 +106,8 @@ def build_capacity_next_payload(
     }
     if local_probe is not None:
         payload["local_probe"] = local_probe
+    if local_capacity is not None:
+        payload["local_capacity"] = local_capacity.to_dict()
     return payload
 
 
@@ -118,6 +122,7 @@ def build_capacity_next_actions(
     benchmarks_dir: Path = admission.DEFAULT_BENCHMARKS_DIR,
     quality_floor: float = admission.DEFAULT_LOCAL_EVAL_MIN_SCORE,
     local_probe: dict[str, Any] | None = None,
+    local_capacity: LocalCapacityObservation | None = None,
 ) -> list[CapacityNextAction]:
     """Return ranked next actions for the given capacity task class."""
     if job_context is not None and job_context.task_class != task_class:
@@ -136,6 +141,16 @@ def build_capacity_next_actions(
 
     actions: list[CapacityNextAction] = []
     if choice.is_local:
+        if context.scheduled and local_capacity is not None and local_capacity.state == LocalCapacityState.BUSY:
+            return [
+                CapacityNextAction(
+                    1,
+                    "wait",
+                    "Local GPU capacity is busy",
+                    f"{local_capacity.detail}. Scheduled work will wait and will not fall through to paid capacity.",
+                    "deepr capacity",
+                )
+            ]
         probe_block = _local_probe_block(choice.model, local_probe)
         if probe_block is not None:
             actions.append(probe_block)
@@ -149,7 +164,7 @@ def build_capacity_next_actions(
                 1,
                 "ready",
                 "Automatic local routing is ready",
-                _ready_detail(choice.reason, context),
+                _ready_detail(choice.reason, context, local_capacity=local_capacity),
                 _expert_command(context, local=True),
             )
         )
@@ -185,10 +200,16 @@ def _validate_job_context(context: CapacityJobContext) -> None:
         raise ValueError("context_mode is only supported for sync task-class previews")
 
 
-def _ready_detail(reason: str, context: CapacityJobContext) -> str:
-    if context.context_mode == "none":
-        return reason
-    return f"{reason}; {context.context_label}"
+def _ready_detail(
+    reason: str,
+    context: CapacityJobContext,
+    *,
+    local_capacity: LocalCapacityObservation | None = None,
+) -> str:
+    detail = reason if context.context_mode == "none" else f"{reason}; {context.context_label}"
+    if local_capacity is not None and local_capacity.state == LocalCapacityState.UNKNOWN:
+        detail += "; GPU occupancy is unknown, so only confirmed contention will defer scheduled work"
+    return detail
 
 
 def _local_setup_actions(sources: list[CapacitySource], models: list[str]) -> list[CapacityNextAction]:

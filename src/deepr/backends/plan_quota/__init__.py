@@ -44,6 +44,7 @@ from deepr.backends.plan_quota.safety import (
     SafetyDecision,
     detect_auth_mode,
     evaluate_plan_quota_safety,
+    metered_plan_execution_block_reason,
     plan_quota_child_env,
 )
 
@@ -72,6 +73,7 @@ __all__ = [
     "evaluate_plan_quota_safety",
     "get_adapter",
     "make_plan_quota_research_fn",
+    "metered_plan_execution_block_reason",
     "plan_quota_child_env",
     "probe_plan_quota",
     "supported_quota_probe_backends",
