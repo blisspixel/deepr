@@ -59,6 +59,16 @@ VALID_MODELS = [
 ]
 UUID_PATTERN = re.compile(r"^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$")
 
+# The hosted AWS path does not yet share Deepr's durable estimate, reservation,
+# dispatch-mark, and canonical settlement transaction. Keep the release gate
+# local to the Lambda package so it cannot disappear because an optional Deepr
+# dependency is absent from the deployment bundle.
+AWS_METERED_RESEARCH_EXECUTION_ENABLED = False
+AWS_METERED_RESEARCH_BLOCK_CODE = "aws_metered_research_accounting_unavailable"
+AWS_METERED_RESEARCH_BLOCK_MESSAGE = (
+    "AWS metered research is disabled until durable reservation and canonical settlement are implemented."
+)
+
 
 def get_secrets() -> dict:
     """Retrieve API keys from Secrets Manager (cached)."""
@@ -169,6 +179,20 @@ def lambda_handler(event: dict, context) -> dict:
 
 def submit_job(event: dict) -> dict:
     """Submit a new research job to the queue."""
+    if not AWS_METERED_RESEARCH_EXECUTION_ENABLED:
+        return response(
+            503,
+            {
+                "error": AWS_METERED_RESEARCH_BLOCK_MESSAGE,
+                "error_code": AWS_METERED_RESEARCH_BLOCK_CODE,
+                "status": "blocked",
+                "retryable": False,
+                "provider_work_started": False,
+                "durable_job_written": False,
+                "queue_message_written": False,
+            },
+        )
+
     try:
         body = json.loads(event.get("body", "{}"))
     except json.JSONDecodeError:

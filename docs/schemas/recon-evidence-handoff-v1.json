@@ -1,0 +1,292 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/blisspixel/deepr/docs/schemas/recon-evidence-handoff-v1.json",
+  "title": "Deepr Recon Evidence Handoff v1",
+  "description": "Lossless, domain-scoped Recon evidence handoff. It separates observations from unresolved inferences and cannot authorize organization-level product-use verdicts or belief writes.",
+  "type": "object",
+  "additionalProperties": true,
+  "required": [
+    "schema_version",
+    "kind",
+    "contract",
+    "source_payload",
+    "query_scope",
+    "collection",
+    "observations",
+    "inferences",
+    "unresolved_alternatives",
+    "trace_id",
+    "cost_usd",
+    "duration_ms",
+    "generated_at"
+  ],
+  "properties": {
+    "schema_version": {"const": "deepr-recon-evidence-handoff-v1"},
+    "kind": {"const": "deepr.integration.recon_evidence_handoff"},
+    "contract": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": [
+        "lossless_handoff",
+        "raw_observations_preserved",
+        "observation_inference_separated",
+        "organization_product_use_verdict_allowed",
+        "belief_write_allowed",
+        "semantic_review_required",
+        "breaking_changes_require_new_schema_version"
+      ],
+      "properties": {
+        "lossless_handoff": {"const": true},
+        "raw_observations_preserved": {"const": true},
+        "observation_inference_separated": {"const": true},
+        "organization_product_use_verdict_allowed": {"const": false},
+        "belief_write_allowed": {"const": false},
+        "semantic_review_required": {"const": true},
+        "breaking_changes_require_new_schema_version": {"const": true}
+      }
+    },
+    "source_payload": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": ["media_type", "raw", "content_sha256"],
+      "properties": {
+        "media_type": {"const": "application/json"},
+        "raw": {"type": "object"},
+        "content_sha256": {"type": "string", "pattern": "^[a-f0-9]{64}$"}
+      }
+    },
+    "query_scope": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": [
+        "scope_kind",
+        "queried_domain",
+        "queried_names",
+        "organization_scope_inferred"
+      ],
+      "properties": {
+        "scope_kind": {"const": "domain"},
+        "queried_domain": {"type": "string", "minLength": 1},
+        "queried_names": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {"type": "string", "minLength": 1}
+        },
+        "organization_scope_inferred": {"const": false}
+      }
+    },
+    "collection": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": ["status", "started_at", "completed_at", "opportunities"],
+      "properties": {
+        "status": {"enum": ["complete", "partial", "failed"]},
+        "started_at": {"type": "string", "format": "date-time"},
+        "completed_at": {"type": "string", "format": "date-time"},
+        "opportunities": {
+          "type": "array",
+          "minItems": 1,
+          "items": {"$ref": "#/$defs/collection_opportunity"}
+        }
+      }
+    },
+    "observations": {
+      "type": "array",
+      "items": {"$ref": "#/$defs/observation"}
+    },
+    "inferences": {
+      "type": "array",
+      "items": {"$ref": "#/$defs/inference"}
+    },
+    "unresolved_alternatives": {
+      "type": "array",
+      "items": {"type": "string", "minLength": 1}
+    },
+    "trace_id": {"type": "string", "minLength": 1},
+    "cost_usd": {"const": 0.0},
+    "duration_ms": {"type": "integer", "minimum": 0},
+    "generated_at": {"type": "string", "format": "date-time"}
+  },
+  "$defs": {
+    "collection_opportunity": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": [
+        "opportunity_id",
+        "method",
+        "target",
+        "attempted",
+        "succeeded",
+        "outcome",
+        "result_count",
+        "error"
+      ],
+      "properties": {
+        "opportunity_id": {"type": "string", "minLength": 1},
+        "method": {"type": "string", "minLength": 1},
+        "target": {"type": "string", "minLength": 1},
+        "attempted": {"type": "boolean"},
+        "succeeded": {"type": "boolean"},
+        "outcome": {
+          "enum": [
+            "records_observed",
+            "successful_empty",
+            "partial",
+            "failed",
+            "not_attempted"
+          ]
+        },
+        "result_count": {"type": "integer", "minimum": 0},
+        "error": {"type": ["string", "null"]}
+      },
+      "allOf": [
+        {
+          "if": {"properties": {"succeeded": {"const": true}}, "required": ["succeeded"]},
+          "then": {
+            "properties": {
+              "attempted": {"const": true},
+              "outcome": {"enum": ["records_observed", "successful_empty"]},
+              "error": {"type": "null"}
+            }
+          }
+        },
+        {
+          "if": {"properties": {"attempted": {"const": false}}, "required": ["attempted"]},
+          "then": {
+            "properties": {
+              "succeeded": {"const": false},
+              "outcome": {"const": "not_attempted"},
+              "result_count": {"const": 0}
+            }
+          }
+        }
+      ]
+    },
+    "confidence": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": ["score", "label", "basis", "applies_to"],
+      "properties": {
+        "score": {"type": "number", "minimum": 0.0, "maximum": 1.0},
+        "label": {"enum": ["low", "medium", "high"]},
+        "basis": {"type": "string", "minLength": 1},
+        "applies_to": {"enum": ["observation", "inference"]}
+      }
+    },
+    "freshness": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": ["state", "as_of", "expires_at", "basis"],
+      "properties": {
+        "state": {"enum": ["fresh_at_collection", "stale", "unknown"]},
+        "as_of": {"type": "string", "format": "date-time"},
+        "expires_at": {"type": ["string", "null"], "format": "date-time"},
+        "basis": {"type": "string", "minLength": 1}
+      }
+    },
+    "provenance": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": [
+        "source_type",
+        "collector",
+        "raw_artifact_ref",
+        "content_sha256"
+      ],
+      "properties": {
+        "source_type": {"type": "string", "minLength": 1},
+        "collector": {"type": "string", "minLength": 1},
+        "raw_artifact_ref": {"type": "string", "minLength": 1},
+        "content_sha256": {"type": "string", "pattern": "^[a-f0-9]{64}$"}
+      }
+    },
+    "observation": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": [
+        "observation_id",
+        "collection_opportunity_id",
+        "subject",
+        "predicate",
+        "object",
+        "raw_observation",
+        "provenance",
+        "observed_at",
+        "freshness",
+        "confidence"
+      ],
+      "properties": {
+        "observation_id": {"type": "string", "minLength": 1},
+        "collection_opportunity_id": {"type": "string", "minLength": 1},
+        "subject": {
+          "type": "object",
+          "additionalProperties": true,
+          "required": ["kind", "value"],
+          "properties": {
+            "kind": {"enum": ["queried_domain", "dns_name", "ip_address"]},
+            "value": {"type": "string", "minLength": 1}
+          }
+        },
+        "predicate": {"type": "string", "minLength": 1},
+        "object": {"type": "object"},
+        "raw_observation": {"type": "object"},
+        "provenance": {
+          "type": "array",
+          "minItems": 1,
+          "items": {"$ref": "#/$defs/provenance"}
+        },
+        "observed_at": {"type": "string", "format": "date-time"},
+        "freshness": {"$ref": "#/$defs/freshness"},
+        "confidence": {
+          "allOf": [
+            {"$ref": "#/$defs/confidence"},
+            {"properties": {"applies_to": {"const": "observation"}}}
+          ]
+        }
+      }
+    },
+    "inference": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": [
+        "inference_id",
+        "claim_class",
+        "statement",
+        "basis_observation_ids",
+        "status",
+        "confidence",
+        "unresolved_alternatives",
+        "organization_product_use_verdict",
+        "eligible_for_belief_write"
+      ],
+      "properties": {
+        "inference_id": {"type": "string", "minLength": 1},
+        "claim_class": {
+          "enum": ["infrastructure_indicator", "candidate_explanation"]
+        },
+        "statement": {"type": "string", "minLength": 1},
+        "basis_observation_ids": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {"type": "string", "minLength": 1}
+        },
+        "status": {"const": "unresolved"},
+        "confidence": {
+          "allOf": [
+            {"$ref": "#/$defs/confidence"},
+            {"properties": {"applies_to": {"const": "inference"}}}
+          ]
+        },
+        "unresolved_alternatives": {
+          "type": "array",
+          "minItems": 1,
+          "items": {"type": "string", "minLength": 1}
+        },
+        "organization_product_use_verdict": {"const": false},
+        "eligible_for_belief_write": {"const": false}
+      }
+    }
+  }
+}

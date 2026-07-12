@@ -12,6 +12,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
+from deepr.mcp.consult_tool import CONSULT_EXPERTS_INPUT_SCHEMA, consult_experts_tool
 from deepr.mcp.server import DeeprMCPServer
 
 _RESULT = {
@@ -83,11 +84,14 @@ async def test_consult_returns_versioned_artifact(server, monkeypatch):
 
 @pytest.mark.asyncio
 async def test_consult_mcp_writes_trace(server, monkeypatch, consult_trace_path):
-    monkeypatch.setattr("deepr.backends.local.default_local_model", lambda: "qwen-local")
+    async def resolve_local_model():
+        return "qwen-local"
+
+    monkeypatch.setattr("deepr.backends.local.default_local_model_async", resolve_local_model)
     monkeypatch.setattr("deepr.backends.local.ollama_chat_client", lambda: object())
 
     async def fake(question, experts, max_experts, budget, **_kwargs):
-        return {**_RESULT, "synthesis_status": "completed"}
+        return {**_RESULT, "synthesis_status": "completed", "total_cost": 0.0}
 
     monkeypatch.setattr("deepr.experts.consult.run_consult", fake)
 
@@ -113,7 +117,10 @@ async def test_consult_local_backend_disables_metered_fallback(server, monkeypat
     sentinel_client = object()
     captured: dict[str, object] = {}
 
-    monkeypatch.setattr("deepr.backends.local.default_local_model", lambda: "qwen-local")
+    async def resolve_local_model():
+        return "qwen-local"
+
+    monkeypatch.setattr("deepr.backends.local.default_local_model_async", resolve_local_model)
     monkeypatch.setattr("deepr.backends.local.ollama_chat_client", lambda: sentinel_client)
 
     async def fake(question, experts, max_experts, budget, **kwargs):
@@ -206,7 +213,7 @@ async def test_consult_api_provider_and_model_pass_to_shared_core(server, monkey
     assert captured["budget"] == 1.0
     assert captured["synthesis_provider"] == "anthropic"
     assert captured["synthesis_model"] == "claude-sonnet-4-6"
-    assert captured["allow_live_fallback"] is True
+    assert captured["allow_live_fallback"] is False
     assert out["capacity"]["synthesis_backend"] == "api"
     assert out["capacity"]["provider"] == "anthropic"
     assert out["capacity"]["model"] == "claude-sonnet-4-6"
@@ -231,6 +238,76 @@ async def test_consult_rejects_nonpositive_budget(server):
 
 
 @pytest.mark.asyncio
+@pytest.mark.parametrize("value", [0, 11, True, 1.5])
+async def test_consult_rejects_invalid_expert_limit(server, value):
+    out = await server.consult_experts(question="q", max_experts=value, budget=1.0)
+
+    assert out["error_code"] == "INVALID_EXPERT_LIMIT"
+
+
+@pytest.mark.asyncio
+async def test_consult_rejects_oversized_explicit_roster(server):
+    out = await server.consult_experts(
+        question="q",
+        experts=[f"Expert {index}" for index in range(11)],
+        budget=1.0,
+    )
+
+    assert out["error_code"] == "INVALID_EXPERT_LIMIT"
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("budget", [float("nan"), float("inf"), float("-inf")])
+async def test_consult_rejects_nonfinite_budget(server, budget):
+    out = await server.consult_experts(
+        question="q",
+        synthesis_backend="local",
+        budget=budget,
+    )
+
+    assert out["error_code"] == "INVALID_BUDGET"
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("value", [0, -1, float("nan"), float("inf"), 21_601, True])
+async def test_consult_rejects_invalid_elapsed_limit(server, value):
+    out = await server.consult_experts(
+        question="q",
+        synthesis_backend="local",
+        local_model="fixture-local",
+        budget=0.0,
+        max_elapsed_seconds=value,
+    )
+
+    assert out["error_code"] == "INVALID_ELAPSED_LIMIT"
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("arguments", "error_code"),
+    [
+        ({"question": 1}, "INVALID_QUESTION"),
+        ({"synthesis_backend": 1}, "INVALID_BACKEND"),
+        ({"budget": "1.0"}, "INVALID_BUDGET"),
+        ({"max_elapsed_seconds": []}, "INVALID_ELAPSED_LIMIT"),
+        ({"experts": "Expert A"}, "INVALID_EXPERT_LIMIT"),
+        ({"experts": ["Expert A", 2]}, "INVALID_EXPERT_LIMIT"),
+        ({"provider": 2}, "INVALID_BACKEND"),
+        ({"model": {}}, "INVALID_BACKEND"),
+        ({"synthesis_backend": "plan", "plan": 3}, "INVALID_BACKEND"),
+        ({"synthesis_backend": "local", "local_model": []}, "INVALID_BACKEND"),
+        ({"synthesis_backend": "plan", "plan": "codex", "plan_model": []}, "INVALID_BACKEND"),
+    ],
+)
+async def test_consult_direct_call_rejects_malformed_runtime_types(arguments, error_code):
+    out = await consult_experts_tool(**{"question": "q", **arguments})
+
+    assert out["error_code"] == error_code
+    assert out["category"] == "internal"
+    assert out["retryable"] is False
+
+
+@pytest.mark.asyncio
 async def test_consult_failure_mapped_to_error(server, monkeypatch, consult_trace_path):
     async def boom(*args, **kwargs):
         raise ValueError("council down")
@@ -241,3 +318,112 @@ async def test_consult_failure_mapped_to_error(server, monkeypatch, consult_trac
     trace = json.loads(consult_trace_path.read_text(encoding="utf-8").strip())
     assert trace["status"] == "failed"
     assert trace["failure"]["error_type"] == "ValueError"
+
+
+@pytest.mark.asyncio
+async def test_consult_post_dispatch_elapsed_limit_is_not_retryable_and_exposes_trace_id(server, monkeypatch):
+    from deepr.experts.consult_transaction import ConsultElapsedLimitError
+
+    async def elapsed_after_dispatch(**_kwargs):
+        raise ConsultElapsedLimitError("consult_post_dispatch_elapsed", 1.0, retryable=False)
+
+    monkeypatch.setattr("deepr.mcp.consult_tool.execute_consult_transaction", elapsed_after_dispatch)
+    out = await server.consult_experts(question="q", synthesis_backend="local", budget=0.0)
+
+    assert out["error_code"] == "CONSULT_ELAPSED_LIMIT"
+    assert out["retryable"] is False
+    assert out["trace_id"] == "consult_post_dispatch_elapsed"
+
+
+@pytest.mark.asyncio
+async def test_consult_pre_dispatch_elapsed_limit_honors_retryable_value(server, monkeypatch):
+    from deepr.experts.consult_transaction import ConsultElapsedLimitError
+
+    async def elapsed_before_dispatch(**_kwargs):
+        raise ConsultElapsedLimitError("consult_pre_dispatch_elapsed", 1.0, retryable=True)
+
+    monkeypatch.setattr("deepr.mcp.consult_tool.execute_consult_transaction", elapsed_before_dispatch)
+    out = await server.consult_experts(question="q", synthesis_backend="local", budget=0.0)
+
+    assert out["error_code"] == "CONSULT_ELAPSED_LIMIT"
+    assert out["retryable"] is True
+    assert out["trace_id"] == "consult_pre_dispatch_elapsed"
+
+
+@pytest.mark.asyncio
+async def test_consult_storage_lock_timeout_is_retryable_and_exposes_trace_id(server, monkeypatch):
+    from deepr.experts.consult_transaction import ConsultStorageLockTimeoutError
+
+    async def storage_busy(**_kwargs):
+        raise ConsultStorageLockTimeoutError("consult_storage_busy", r"C:\Users\private\trace.lock")
+
+    monkeypatch.setattr("deepr.mcp.consult_tool.execute_consult_transaction", storage_busy)
+    out = await server.consult_experts(question="q", budget=1.0)
+
+    assert out["error_code"] == "CONSULT_STORAGE_LOCK_TIMEOUT"
+    assert out["retryable"] is True
+    assert out["trace_id"] == "consult_storage_busy"
+    assert "C:\\Users\\private" not in out["message"]
+
+
+@pytest.mark.asyncio
+async def test_consult_post_work_storage_timeout_honors_nonretryable_value(server, monkeypatch):
+    from deepr.experts.consult_transaction import ConsultStorageLockTimeoutError
+
+    async def storage_busy(**_kwargs):
+        raise ConsultStorageLockTimeoutError(
+            "consult_post_work_busy",
+            r"C:\Users\private\trace.lock",
+            retryable=False,
+        )
+
+    monkeypatch.setattr("deepr.mcp.consult_tool.execute_consult_transaction", storage_busy)
+    out = await server.consult_experts(question="q", budget=1.0)
+
+    assert out["error_code"] == "CONSULT_STORAGE_LOCK_TIMEOUT"
+    assert out["retryable"] is False
+    assert out["trace_id"] == "consult_post_work_busy"
+    assert "C:\\Users\\private" not in out["message"]
+
+
+@pytest.mark.asyncio
+async def test_consult_storage_io_error_uses_distinct_path_safe_code(server, monkeypatch):
+    from deepr.experts.consult_transaction import ConsultStorageIOError
+
+    async def storage_failed(**_kwargs):
+        raise ConsultStorageIOError(
+            "consult_storage_io",
+            r"C:\Users\private\trace.jsonl",
+            retryable=False,
+            partial_write_possible=True,
+        )
+
+    monkeypatch.setattr("deepr.mcp.consult_tool.execute_consult_transaction", storage_failed)
+    out = await server.consult_experts(question="q", budget=1.0)
+
+    assert out["error_code"] == "CONSULT_STORAGE_IO_ERROR"
+    assert out["retryable"] is False
+    assert out["trace_id"] == "consult_storage_io"
+    assert "C:\\Users\\private" not in out["message"]
+
+
+def test_consult_elapsed_schema_describes_cancellable_checkpoint_contract():
+    description = CONSULT_EXPERTS_INPUT_SCHEMA["properties"]["max_elapsed_seconds"]["description"]
+
+    assert "Hard wall-clock" not in description
+    assert "cancellable consult work" in description
+    assert "Durable writes are awaited off the event loop" in description
+    assert "lock waits are bounded separately" in description
+
+
+@pytest.mark.asyncio
+async def test_consult_unexpected_runtime_failure_is_structured(server, monkeypatch):
+    async def boom(*_args, **_kwargs):
+        raise RuntimeError("unexpected council failure")
+
+    monkeypatch.setattr("deepr.experts.consult.run_consult", boom)
+    out = await server.consult_experts(question="q", budget=1.0)
+
+    assert out["error_code"] == "CONSULT_FAILED"
+    assert out["trace_id"].startswith("consult_")
+    assert "unexpected council failure" in out["message"]

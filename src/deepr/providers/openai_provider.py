@@ -52,7 +52,12 @@ class OpenAIProvider(DeepResearchProvider):
         if not self.api_key:
             raise ValueError("OpenAI API key is required")
 
-        self.client = AsyncOpenAI(api_key=self.api_key, base_url=base_url, organization=organization)
+        self.client = AsyncOpenAI(
+            api_key=self.api_key,
+            base_url=base_url,
+            organization=organization,
+            max_retries=0,
+        )
 
         # Default model mappings (can be overridden)
         self.model_mappings = model_mappings or {
@@ -72,14 +77,9 @@ class OpenAIProvider(DeepResearchProvider):
 
         from openai import APIConnectionError, APITimeoutError, RateLimitError
 
-        max_retries = 3
+        max_retries = request.max_provider_requests
         retry_delay = 1  # seconds
-        fallback_model = None
         idempotency_key = request.idempotency_key or f"deepr-provider-{uuid4().hex}"
-
-        # Determine fallback model if o3 fails
-        if "o3-deep-research" in request.model:
-            fallback_model = "o4-mini-deep-research"
 
         for attempt in range(max_retries):
             try:
@@ -94,7 +94,7 @@ class OpenAIProvider(DeepResearchProvider):
                         tool_dict["vector_store_ids"] = tool.vector_store_ids
                     elif tool.type == "code_interpreter":
                         # Code interpreter requires container parameter per OpenAI docs
-                        tool_dict["container"] = {"type": "auto"}
+                        tool_dict["container"] = {"type": "auto", "memory_limit": "1g"}
                     # Note: web_search_preview does NOT require a container parameter
                     tools.append(tool_dict)
 
@@ -110,6 +110,8 @@ class OpenAIProvider(DeepResearchProvider):
                     ],
                     "tools": tools if tools else None,
                     "tool_choice": request.tool_choice,
+                    "max_output_tokens": request.max_output_tokens,
+                    "max_tool_calls": request.max_tool_calls if tools else None,
                 }
 
                 # Add reasoning parameters (GPT-5 and o-series models)
@@ -148,6 +150,9 @@ class OpenAIProvider(DeepResearchProvider):
                     payload["temperature"] = request.temperature
 
                 # Submit request
+                from deepr.services.research_bounds import validate_provider_payload_bytes
+
+                validate_provider_payload_bytes(payload, request.max_request_bytes)
                 response = await self.client.responses.create(**payload)
                 return str(response.id)
 
@@ -160,22 +165,6 @@ class OpenAIProvider(DeepResearchProvider):
                     logger.warning("Retrying in %ss...", wait_time)
                     await asyncio.sleep(wait_time)
                     continue
-                elif fallback_model:
-                    # All retries exhausted: try fallback model with fresh retries.
-                    # Build a shallow copy of the request rather than mutating
-                    # the caller's instance - the caller may inspect it after
-                    # the call, retry against a different provider, or persist
-                    # it as a decision record. Silently swapping their chosen
-                    # model on rate-limit also degraded quality (e.g.
-                    # o3-deep-research $11/$44 -> o4-mini-deep-research
-                    # $1.10/$4.40 per MTok) without their knowledge.
-                    import dataclasses as _dc
-
-                    logger.warning("Max retries reached for %s", request.model)
-                    logger.warning("Graceful degradation: Falling back to %s", fallback_model)
-                    fallback_request = _dc.replace(request, model=fallback_model)
-                    fallback_model = None  # Prevent infinite fallback loop
-                    return await self.submit_research(fallback_request)
                 else:
                     # Transient failures that survived every retry: the
                     # envelope (retryable + retry_after) is auto-classified

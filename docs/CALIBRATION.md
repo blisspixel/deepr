@@ -1,7 +1,7 @@
 # Calibration
 
-Extraction model: `gpt-5-mini`  
-Methodology: v1.0  
+Extraction model: `gpt-5-mini`
+Methodology: v1.0
 Measured: 2026-06-13
 
 Does the absorb extraction confidence mean what it says? This report is

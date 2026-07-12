@@ -19,8 +19,10 @@ from deepr.experts.research_cost_gate import (
     restore_research_cost_reservation,
     settle_research_cost,
 )
+from deepr.providers.base import ResearchRequest, ToolConfig
 from deepr.queue.base import JobStatus, ResearchJob, client_job_metadata
 from deepr.services.provider_status import provider_exception_name
+from deepr.services.research_bounds import bounded_research_cost_estimate
 from deepr.services.research_cancellation import cancel_reserved_research
 
 logger = logging.getLogger(__name__)
@@ -146,7 +148,15 @@ class WebResearchCostCoordinator:
             logger.error("Paid submission denied because cost controls are unavailable")
             return None, None, ({"error": "Cost controls unavailable; submission denied"}, 503)
         try:
-            estimate = self._estimator.estimate_cost(prompt, model)
+            estimate = bounded_research_cost_estimate(
+                request=ResearchRequest(
+                    prompt=prompt,
+                    model=model,
+                    system_message="You are a research assistant. Provide comprehensive, citation-backed analysis.",
+                    tools=[ToolConfig(type="web_search_preview")],
+                ),
+                provider="openai",
+            )
         except Exception as exc:
             logger.error("Paid submission denied because cost estimation failed: %s", exc)
             return None, None, ({"error": "Cost estimation unavailable; submission denied"}, 503)

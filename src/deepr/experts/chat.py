@@ -19,6 +19,11 @@ from deepr.experts.chat_backends import (
     complete_expert_chat_turn,
     stream_expert_chat_turn,
 )
+from deepr.experts.chat_capacity import (
+    expert_chat_backend_is_metered,
+    expert_chat_capacity,
+    require_expert_chat_dispatch,
+)
 from deepr.experts.chat_session_ops import (
     cancel_inflight_provider_work as cancel_chat_provider_work,
 )
@@ -36,9 +41,6 @@ from deepr.experts.chat_turns import (
 )
 from deepr.experts.chat_turns import (
     chat_token_cost as _chat_token_cost,
-)
-from deepr.experts.chat_turns import (
-    chat_usage_tokens as _chat_usage_tokens,
 )
 from deepr.experts.commands import MODE_CONFIGS, ChatMode
 from deepr.experts.knowledge_freshness import advance_knowledge_freshness
@@ -413,6 +415,12 @@ Budget remaining: ${budget_remaining:.2f}
         """Resolve and validate the exact provider/model target for one turn."""
         return self._validate_turn_model(self._select_model_for_query(query))
 
+    def require_provider_dispatch_allowed(self, operation: str) -> None:
+        require_expert_chat_dispatch(self.chat_backend, operation)
+
+    def get_chat_capacity(self) -> dict[str, Any]:
+        return expert_chat_capacity(self.chat_backend)
+
     def _estimate_chat_model_cost(self, model_name: str) -> float:
         return estimate_chat_model_cost(model_name)
 
@@ -515,6 +523,7 @@ Budget remaining: ${budget_remaining:.2f}
         Returns:
             List of documents with id, content, and score
         """
+        self.require_provider_dispatch_allowed("expert_chat_knowledge_retrieval")
         try:
             # Determine if we should use graph retrieval
             use_graph = self.lazy_graph_rag.should_use_graph(query)
@@ -717,7 +726,7 @@ Budget remaining: ${budget_remaining:.2f}
 
         try:
             skill_budget = 0.0
-            executor = SkillExecutor(recon_skill, skill_budget)
+            executor = SkillExecutor(recon_skill, skill_budget, allow_metered_tools=False)
 
             # Build minimal context for the wrapper's excellent trigger logic
             from deepr.experts.skills import ResearchContext, ToolInfo
@@ -810,22 +819,8 @@ Budget remaining: ${budget_remaining:.2f}
                 logger.debug("Recon probe cleanup after failure also failed (non-fatal)", exc_info=False)
 
     async def _quick_lookup(self, query: str) -> dict:
-        """Quick web lookup using GPT-5.5 with high reasoning (5-15 sec).
-
-        Uses GPT-5.5 which has better current knowledge and reasoning.
-        For true web search, use standard_research instead.
-
-        Args:
-            query: Research query
-
-        Returns:
-            Dict with answer and sources
-        """
-        # Pre-flight budget check. The previous implementation called the
-        # model first and accounted afterwards; that can blow past a tight
-        # session budget on a single call. Estimate via worst-case upper
-        # bound (4K input + 2K output at gpt-5.2 rates ≈ $0.035) and let
-        # the cost-safety layer veto if there's no room.
+        """Run a quick lookup only on owned capacity."""
+        self.require_provider_dispatch_allowed("expert_chat_quick_lookup")
         estimated_cost = 0.05
         allowed, reason, _ = self.cost_safety.check_operation(
             session_id=self.session_id,
@@ -852,18 +847,7 @@ Budget remaining: ${budget_remaining:.2f}
                 )
             )
 
-            cost = record_named_chat_cost(
-                cost_safety=self.cost_safety,
-                session_id=self.session_id,
-                usage=result.usage,
-                model_name=model_name,
-                operation_type="quick_lookup",
-                fallback_cost=0.01,
-                cost_calculator=_chat_token_cost,
-                provider=self.chat_provider,
-                details=f"Query: {query[:50]}...",
-            )
-            self.cost_accumulated += cost
+            cost = 0.0
 
             return {"answer": result.text, "mode": "quick_lookup_gpt52", "cost": cost}
         except Exception as e:
@@ -878,6 +862,11 @@ Budget remaining: ${budget_remaining:.2f}
         Returns:
             Dict with answer, sources, and cost
         """
+        require_expert_chat_dispatch(
+            self.chat_backend,
+            "expert_chat_standard_research",
+            metered=True,
+        )
         from deepr.providers.registry import get_cost_estimate as _get_cost_estimate
 
         try:
@@ -1017,14 +1006,12 @@ Budget remaining: ${budget_remaining:.2f}
                 return {"error": f"Grok search failed: {e!s}. GPT-5.5 fallback failed: {fallback_error!s}"}
 
     async def _deep_research(self, query: str) -> dict:
-        """Deep research using o4-mini-deep-research ($0.10-0.30, 5-20 min).
-
-        Args:
-            query: Research query
-
-        Returns:
-            Dict with job_id and estimated_cost
-        """
+        """Gate metered deep research before provider dispatch."""
+        require_expert_chat_dispatch(
+            self.chat_backend,
+            "expert_chat_deep_research",
+            metered=True,
+        )
         # Use the registry estimate as the budget reservation. The previous
         # hard-coded $0.20 was ~10x lower than the registry cost ($2.00)
         # for o4-mini-deep-research, so the session/daily budgets were
@@ -1135,6 +1122,7 @@ Budget remaining: ${budget_remaining:.2f}
         Returns:
             True if successful, False otherwise
         """
+        self.require_provider_dispatch_allowed("expert_chat_research_indexing")
         try:
             store = ExpertStore()
             documents_dir = store.get_documents_dir(self.expert.name)
@@ -1222,6 +1210,7 @@ Budget remaining: ${budget_remaining:.2f}
         Returns:
             Dict with synthesis results (new_beliefs, updated_beliefs, gaps_filled)
         """
+        self.require_provider_dispatch_allowed("expert_chat_background_synthesis")
 
         def report_status(status: str):
             if status_callback:
@@ -1326,27 +1315,9 @@ Budget remaining: ${budget_remaining:.2f}
             return {"status": "error", "error": str(e), "new_beliefs": 0, "updated_beliefs": 0, "gaps_filled": 0}
 
     def _account_chat_cost(self, usage: Any, model: Any) -> None:
-        """Accumulate a chat completion's cost AND record it to the canonical
-        ledger + caps (best-effort). Conversational generation previously bumped
-        only the in-session counter, so that spend escaped the ledger and caps."""
-        cost = _chat_token_cost(usage, getattr(model, "model", ""))
-        if cost <= 0:
-            return
-        self.cost_accumulated += cost
-        try:
-            tokens_input, tokens_output = _chat_usage_tokens(usage)
-            self.cost_safety.record_cost(
-                session_id=self.session_id,
-                operation_type="expert_chat",
-                actual_cost=cost,
-                provider=getattr(model, "provider", "unknown"),
-                model=getattr(model, "model", ""),
-                tokens_input=tokens_input,
-                tokens_output=tokens_output,
-                source="experts.chat",
-            )
-        except Exception:
-            logger.debug("Chat cost ledger write failed", exc_info=True)
+        """Reject unreachable metered accounting and keep owned turns at $0."""
+        del usage, model
+        self.require_provider_dispatch_allowed("expert_chat_accounting")
 
     async def send_message(
         self,
@@ -1364,6 +1335,8 @@ Budget remaining: ${budget_remaining:.2f}
         Returns:
             The expert's response
         """
+
+        self.require_provider_dispatch_allowed("expert_chat_turn")
 
         self.last_turn_failed = False
 
@@ -1403,9 +1376,12 @@ Budget remaining: ${budget_remaining:.2f}
                     query=user_message,
                 )
 
-            allowed, reason, estimated_cost = check_chat_generation_budget(
-                self.cost_safety, self.session_id, selected_model
-            )
+            if expert_chat_backend_is_metered(self.chat_backend):
+                allowed, reason, estimated_cost = check_chat_generation_budget(
+                    self.cost_safety, self.session_id, selected_model
+                )
+            else:
+                allowed, reason, estimated_cost = True, "owned capacity", 0.0
             if not allowed:
                 return await self._finish_blocked_chat_turn(op, selected_model, reason, estimated_cost)
 
@@ -1534,7 +1510,11 @@ Budget remaining: ${budget_remaining:.2f}
                         skill_budget = min(skill.budget.default_budget, self.budget - self.cost_accumulated)
                         from deepr.experts.skills import SkillExecutor
 
-                        self.skill_executors[skill.name] = SkillExecutor(skill, skill_budget)
+                        self.skill_executors[skill.name] = SkillExecutor(
+                            skill,
+                            skill_budget,
+                            allow_metered_tools=False,
+                        )
 
             # Autonomous native recon probe (first-class instrument, cost 0).
             # Runs on any query containing a domain when agentic mode is on.
@@ -2003,6 +1983,8 @@ Budget remaining: ${budget_remaining:.2f}
             The complete expert response text.
         """
 
+        self.require_provider_dispatch_allowed("expert_chat_streaming_turn")
+
         self.last_turn_failed = False
 
         def report_status(status: str):
@@ -2037,9 +2019,12 @@ Budget remaining: ${budget_remaining:.2f}
                     query=user_message,
                 )
 
-            allowed, reason, estimated_cost = check_chat_generation_budget(
-                self.cost_safety, self.session_id, selected_model
-            )
+            if expert_chat_backend_is_metered(self.chat_backend):
+                allowed, reason, estimated_cost = check_chat_generation_budget(
+                    self.cost_safety, self.session_id, selected_model
+                )
+            else:
+                allowed, reason, estimated_cost = True, "owned capacity", 0.0
             if not allowed:
                 return await self._finish_blocked_chat_turn(op, selected_model, reason, estimated_cost)
 
@@ -2165,7 +2150,11 @@ Budget remaining: ${budget_remaining:.2f}
                         skill_budget = min(skill.budget.default_budget, self.budget - self.cost_accumulated)
                         from deepr.experts.skills import SkillExecutor
 
-                        self.skill_executors[skill.name] = SkillExecutor(skill, skill_budget)
+                        self.skill_executors[skill.name] = SkillExecutor(
+                            skill,
+                            skill_budget,
+                            allow_metered_tools=False,
+                        )
 
             # Autonomous native recon probe (first-class instrument, cost 0) - streaming path
             if self.agentic and self.chat_backend.supports_tools:
@@ -2275,7 +2264,7 @@ Budget remaining: ${budget_remaining:.2f}
                         reasoning = args.get("reasoning", "No reasoning provided")
                         self.research_count += 1
                         remaining = self.budget - self.cost_accumulated
-                        report_status(f"Deep research (~$0.20) \u2014 budget: ${remaining:.2f} remaining")
+                        report_status(f"Deep research (~$0.20) - budget: ${remaining:.2f} remaining")
                         self.thought_stream.tool_call(
                             tool_name="deep_research",
                             args={"query": query[:100]},
@@ -2476,6 +2465,7 @@ Budget remaining: ${budget_remaining:.2f}
 
         Returns dict with ``original_messages`` and ``summary_length``.
         """
+        self.require_provider_dispatch_allowed("expert_chat_compaction")
         return await compact_chat_conversation(self)
 
     def get_session_summary(self) -> dict:
@@ -2486,6 +2476,7 @@ Budget remaining: ${budget_remaining:.2f}
 
         return {
             "expert_name": self.expert.name,
+            "chat_capacity": self.get_chat_capacity(),
             "messages_exchanged": len([m for m in self.messages if m["role"] == "user"]),
             "cost_accumulated": round(self.cost_accumulated, 4),
             "budget_remaining": round(max(0.0, self.budget - self.cost_accumulated), 4)

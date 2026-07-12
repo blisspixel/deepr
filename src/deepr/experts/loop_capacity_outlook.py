@@ -2,16 +2,16 @@
 
 Reads the durable admission ledger only - no live Ollama or plan-quota probe -
 so a read-only loop-status view can tell an operator whether cheap ($0 local or
-prepaid plan) capacity is *admitted* for each maintenance task class, or whether
-the next run would fall to metered API budget.
+prepaid plan) capacity is *admitted* for each maintenance task class. A command
+without admitted cheap capacity may wait, require explicit metered approval, or
+refuse according to that command's own contract.
 
 "Admitted" is a durable eligibility fact, not a liveness guarantee: a local
 model must still be loaded (confirm with ``deepr capacity --probe``) and plan
-auto-routing also needs an observed quota window. An explicit ``--local``/
-``--plan`` selects that rung directly, though a ``--plan`` request still clears
-the no-surprise-bills safety gate, which can itself fall back to metered. The
-split follows AGENTIC_BALANCE: this is deterministic form (reading recorded
-admission state), never a judgment.
+auto-routing also needs an observed quota window. An explicit ``--local`` or
+``--plan`` selects that rung directly and never falls through to metered API
+capacity. The split follows AGENTIC_BALANCE: this is deterministic form
+(reading recorded admission state), never a judgment.
 """
 
 from __future__ import annotations
@@ -78,9 +78,10 @@ def build_capacity_outlook(*, now: datetime | None = None, admissions_path: Path
             "live probe. 'Admitted' means a rung is eligible for that task class, not that it "
             "is reachable right now: a local model must be loaded (confirm with "
             "`deepr capacity --probe`) and plan auto-routing also needs an observed quota "
-            "window. An explicit --local/--plan selects that rung (a --plan request still "
-            "passes the no-surprise-bills safety gate, which can fall back to metered). No "
-            "admission for a task class means a run of it falls to metered API budget."
+            "window. An explicit --local or --plan selects that rung and never falls through "
+            "to metered API capacity. No admission means only that automatic cheap capacity is "
+            "unavailable; the concrete command may wait, require explicit metered approval, or "
+            "refuse according to its own contract."
         ),
     }
 

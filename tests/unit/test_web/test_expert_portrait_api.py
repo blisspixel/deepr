@@ -16,6 +16,9 @@ from deepr.web import app as web_app
 
 @pytest.fixture
 def client(monkeypatch, tmp_path):
+    from deepr.experts import metered_mutation_gate
+
+    monkeypatch.setattr(metered_mutation_gate, "METERED_EXPERT_MUTATIONS_ENABLED", True)
     web_app.app.config.update(TESTING=True, RATELIMIT_ENABLED=False)
     if web_app.limiter is not None:
         web_app.limiter.enabled = False
@@ -233,6 +236,31 @@ def test_portrait_generation_requires_metered_cost_confirmation(client, monkeypa
         "provider": "openai",
         "estimated_cost_usd": 0.04,
     }
+    assert saved == []
+
+
+def test_confirmed_metered_portrait_fails_closed_before_reservation(client, monkeypatch):
+    import deepr.experts.cost_safety as cost_safety
+    import deepr.experts.portraits as portraits
+    from deepr.experts import metered_mutation_gate
+
+    profile = SimpleNamespace(name="Paid Expert", domain="paid image", description="testing")
+    saved = []
+    _install_fake_store(monkeypatch, profile, saved)
+    monkeypatch.setattr(metered_mutation_gate, "METERED_EXPERT_MUTATIONS_ENABLED", False)
+    monkeypatch.setattr(cost_safety, "get_cost_safety_manager", lambda: pytest.fail("must not reserve"))
+    monkeypatch.setattr(portraits, "portrait_cost", lambda _provider: 0.04)
+    monkeypatch.setattr(portraits, "generate_portrait", pytest.fail)
+
+    resp = client.post(
+        "/api/experts/Paid%20Expert/generate-portrait",
+        json={"provider": "openai", "confirm_metered_cost": True},
+    )
+
+    payload = resp.get_json()
+    assert resp.status_code == 503
+    assert payload["error_code"] == "metered_expert_mutation_accounting_unavailable"
+    assert payload["provider_work_started"] is False
     assert saved == []
 
 

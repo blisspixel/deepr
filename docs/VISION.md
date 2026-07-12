@@ -6,31 +6,28 @@
 
 Transform research from isolated queries into cumulative understanding. Build systems that learn and improve over time.
 
-## Current State (v2.31.0)
+## Current State (v2.36.0)
 
 What works today:
-- Multi-provider deep research (OpenAI, Gemini, Grok, Anthropic, Azure)
-- Gemini Deep Research Agent via Interactions API
-- Multi-phase research with context chaining
-- Domain experts from documents with autonomous learning
-- Agentic expert chat with streaming, 27 slash commands, 4 chat modes, visible reasoning, context compaction, approval flows
-- Expert council (multi-expert consultation with parallel querying and synthesis)
-- Hierarchical task decomposition with parallel subtask execution
-- Expert skills system (7 built-in skills, Python + MCP tool types)
-- Expert portraits (AI-generated SVG)
-- Knowledge synthesis and gap awareness
-- MCP server with 32 tools, persistence, security
-- CLI observability (--explain, --timeline, --full-trace)
-- Auto-fallback on provider failures with circuit breakers
-- Cost dashboard with per-expert tracking
-- Smart query routing (--auto, --batch) with complexity-based model selection
-- Context discovery with semantic search and temporal tracking
-- Web dashboard (12 pages) with real-time progress updates and streaming chat
-- Comprehensive test suite with an enforced coverage gate (see [ROADMAP](../ROADMAP.md) for current counts)
+- Bounded single-job provider research where exact pricing and finite request,
+  output, tool, and payload ceilings are available.
+- Local Ollama and explicit non-metered plan-quota expert maintenance.
+- Persistent expert beliefs, gaps, provenance, temporal state, generated views,
+  and portable handoff artifacts.
+- One-shot local, explicit plan, and separately bounded API expert councils with
+  dissent preservation and proposal-only authority.
+- MCP, A2A, web, CLI, cost-ledger, evaluation, and capacity-control substrates.
+- An enforced no-key test and coverage gate.
+
+Automatic paid fallback, hosted file/vector context, metered multi-call
+campaigns, standalone metered expert chat, and several legacy direct metered
+commands fail closed in v2.36. [Supported Surface](SUPPORTED_SURFACE.md) is the
+current capability contract; the sections below describe direction and existing
+substrate, not permission to use a gated runtime path.
 
 ## Near-Term Vision (v2.9-3.0)
 
-### Visible Thinking (Implemented)
+### Visible Thinking (Implemented substrate; metered chat gated)
 
 Expert reasoning shown in real-time via ThinkingPanel:
 - Planning thoughts, tool calls, evidence found, decisions
@@ -46,7 +43,7 @@ Experts remember across sessions:
 - Conversation history browsable and resumable via Conversations API
 - Learning history tracked permanently
 
-### Context Compaction (Implemented)
+### Context Compaction (Implemented substrate; metered chat gated)
 
 Long sessions stay usable:
 - `/compact` summarizes earlier messages while keeping recent context

@@ -5,14 +5,18 @@ turned an explicit budget=0.0 ("do not spend") into a $10 ceiling, because 0.0
 is falsy. An agent or `--budget 0` caller meaning no spend got a real budget.
 """
 
-import sys
-from types import ModuleType, SimpleNamespace
+import asyncio
+from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock
+
+import pytest
 
 from deepr.experts.chat import ExpertChatSession
 from deepr.experts.chat_backends import ExpertChatResult, ExpertChatStreamChunk
+from deepr.experts.chat_capacity import MeteredExpertChatDisabledError
 from deepr.experts.cost_safety import CostSafetyManager, reset_cost_safety_manager
 from deepr.experts.profile import ExpertProfile
+from deepr.observability.cost_ledger import CostLedger
 
 
 def _session(monkeypatch, budget):
@@ -25,7 +29,7 @@ def _session(monkeypatch, budget):
 class RecordingChatBackend:
     provider = "openai"
     model = "gpt-5.2"
-    metered = True
+    metered = False
     supports_tools = True
     supports_streaming = True
     supports_prompt_cache = True
@@ -103,80 +107,24 @@ def test_session_circuit_breaker_blocks_manager_operations(monkeypatch):
     assert session.get_session_summary()["circuit_breaker_open"] is True
 
 
-async def test_standard_research_reports_blocked_when_session_circuit_is_open(monkeypatch):
+async def test_standard_research_fails_closed_before_any_provider_or_fallback(monkeypatch):
     session = _session(monkeypatch, 1.0)
+    session.chat_backend = RecordingChatBackend("fallback must not dispatch")
 
-    for index in range(5):
-        session.cost_session.record_failure("standard_research", f"failure-{index}")
+    with pytest.raises(MeteredExpertChatDisabledError) as exc_info:
+        await session._standard_research("latest ai news")
 
-    async def fail_if_called(*_args, **_kwargs):
-        raise AssertionError("provider fallback should not run when session circuit is open")
-
-    monkeypatch.setattr(session.client.chat.completions, "create", fail_if_called)
-
-    result = await session._standard_research("latest ai news")
-
-    assert result["status"] == "blocked"
-    assert result["mode"] == "standard_research"
-    assert result["error"].startswith("Research blocked: Session circuit breaker open")
-
-
-async def test_standard_research_records_metered_grok_cost(monkeypatch):
-    session = _session(monkeypatch, 1.0)
-    monkeypatch.setenv("XAI_API_KEY", "xai-test-not-real")
-
-    class FakeChat:
-        def __init__(self):
-            self.messages = []
-
-        def append(self, message):
-            self.messages.append(message)
-
-        def sample(self):
-            return SimpleNamespace(content="fresh answer", citations=["https://example.test/source"])
-
-    class FakeChatFactory:
-        def create(self, *, model, tools):
-            assert model == "grok-4.3"
-            assert len(tools) == 2
-            return FakeChat()
-
-    class FakeClient:
-        def __init__(self, *, api_key, timeout):
-            assert api_key == "xai-test-not-real"
-            assert timeout > 0
-            self.chat = FakeChatFactory()
-
-    xai_sdk = ModuleType("xai_sdk")
-    xai_sdk.Client = FakeClient
-    xai_chat = ModuleType("xai_sdk.chat")
-    xai_chat.system = lambda content: {"role": "system", "content": content}
-    xai_chat.user = lambda content: {"role": "user", "content": content}
-    xai_tools = ModuleType("xai_sdk.tools")
-    xai_tools.web_search = lambda: {"type": "web_search"}
-    xai_tools.x_search = lambda: {"type": "x_search"}
-
-    monkeypatch.setitem(sys.modules, "xai_sdk", xai_sdk)
-    monkeypatch.setitem(sys.modules, "xai_sdk.chat", xai_chat)
-    monkeypatch.setitem(sys.modules, "xai_sdk.tools", xai_tools)
-
-    async def ignore_knowledge_write(*_args, **_kwargs):
-        return None
-
-    session._add_research_to_knowledge_base = ignore_knowledge_write
-
-    result = await session._standard_research("latest ai news")
-
-    assert result["mode"] == "standard_research_grok_agentic"
-    assert result["cost"] == 0.05
-    assert session.cost_accumulated == 0.05
-    assert "https://example.test/source" in result["answer"]
+    assert exc_info.value.operation == "expert_chat_standard_research"
+    assert exc_info.value.provider_work_dispatched is False
+    assert session.chat_backend.requests == []
+    assert session.cost_accumulated == 0.0
 
 
 async def test_successful_research_document_write_advances_both_freshness_fields(monkeypatch):
     from deepr.experts.profile import ExpertStore
 
     session = _session(monkeypatch, 1.0)
+    session.chat_backend = RecordingChatBackend()
     session.client.files.create = AsyncMock(return_value=SimpleNamespace(id="file-1"))
     session.client.vector_stores.files.create = AsyncMock(return_value=None)
 
@@ -213,7 +161,7 @@ async def test_quick_lookup_uses_chat_backend(monkeypatch):
     assert backend.requests[0].reasoning_effort == "low"
 
 
-async def test_standard_research_fallback_uses_chat_backend(monkeypatch):
+async def test_standard_research_does_not_reach_owned_fallback_after_metered_gate(monkeypatch):
     session = _session(monkeypatch, 1.0)
     monkeypatch.delenv("XAI_API_KEY", raising=False)
 
@@ -224,17 +172,13 @@ async def test_standard_research_fallback_uses_chat_backend(monkeypatch):
     backend = RecordingChatBackend("fallback answer")
     session.chat_backend = backend
 
-    result = await session._standard_research("latest ai infrastructure funding")
+    with pytest.raises(MeteredExpertChatDisabledError):
+        await session._standard_research("latest ai infrastructure funding")
 
-    assert result["mode"] == "standard_research_fallback"
-    assert "fallback answer" in result["answer"]
-    assert "Grok web search unavailable" in result["answer"]
-    assert len(backend.requests) == 1
-    assert backend.requests[0].model == "gpt-5.5"
-    assert backend.requests[0].reasoning_effort == "low"
+    assert backend.requests == []
 
 
-async def test_deep_research_reports_blocked_when_session_budget_is_exhausted(monkeypatch):
+async def test_deep_research_fails_closed_before_provider_dispatch(monkeypatch):
     session = _session(monkeypatch, 0.0)
 
     async def fail_if_called(*_args, **_kwargs):
@@ -243,15 +187,14 @@ async def test_deep_research_reports_blocked_when_session_budget_is_exhausted(mo
     monkeypatch.setattr(session.client.responses, "create", fail_if_called)
     monkeypatch.setattr(CostSafetyManager, "ABSOLUTE_MAX_PER_OPERATION", 10.0)
 
-    result = await session._deep_research("design a migration strategy")
+    with pytest.raises(MeteredExpertChatDisabledError) as exc_info:
+        await session._deep_research("design a migration strategy")
 
-    assert result["status"] == "blocked"
-    assert result["mode"] == "deep_research"
-    assert result["session_budget"] == 0.0
-    assert result["error"].startswith("Session budget exceeded: Insufficient budget")
+    assert exc_info.value.operation == "expert_chat_deep_research"
+    assert exc_info.value.provider_work_dispatched is False
 
 
-async def test_first_chat_generation_is_preflight_budget_checked(monkeypatch):
+async def test_metered_chat_generation_is_gated_before_budget_or_provider(monkeypatch):
     session = _session(monkeypatch, 0.0)
     session.should_use_tot = lambda _query: False
 
@@ -260,11 +203,12 @@ async def test_first_chat_generation_is_preflight_budget_checked(monkeypatch):
 
     monkeypatch.setattr(session.client.chat.completions, "create", fail_if_called)
 
-    result = await session.send_message("What should this expert improve next?")
+    with pytest.raises(MeteredExpertChatDisabledError) as exc_info:
+        await session.send_message("What should this expert improve next?")
 
-    assert result.startswith("Chat blocked: Insufficient budget")
-    assert session.reasoning_trace[-1]["step"] == "chat_generation_budget"
-    assert session.reasoning_trace[-1]["allowed"] is False
+    assert exc_info.value.operation == "expert_chat_turn"
+    assert exc_info.value.to_dict()["status"] == "blocked"
+    assert session.reasoning_trace == []
 
 
 async def test_first_chat_generation_uses_chat_backend(monkeypatch):
@@ -321,7 +265,7 @@ async def test_streaming_provider_exception_sets_typed_terminal_failure_state(mo
     assert session.last_turn_failed is True
 
 
-async def test_anthropic_non_agentic_chat_omits_tools_and_records_cost(monkeypatch):
+async def test_owned_no_tool_chat_omits_tools_and_stays_zero_cost(monkeypatch):
     monkeypatch.setenv("ANTHROPIC_API_KEY", "anthropic-test-not-real")
 
     class FakeAsyncAnthropic:
@@ -350,7 +294,7 @@ async def test_anthropic_non_agentic_chat_omits_tools_and_records_cost(monkeypat
     assert backend.requests[0].model == "claude-sonnet-4-6"
     assert backend.requests[0].tools is None
     assert backend.requests[0].tool_choice is None
-    assert session.cost_accumulated > 0
+    assert session.cost_accumulated == 0.0
 
 
 async def test_anthropic_no_tool_chat_handles_complex_question_without_tool_round(monkeypatch):
@@ -398,8 +342,8 @@ async def test_follow_up_generation_uses_chat_backend(monkeypatch):
     monkeypatch.setattr(session.client.chat.completions, "create", fail_if_called)
     backend = RecordingChatBackend('["What evidence matters next?", "How should we validate this?"]')
     session.chat_backend = backend
-    reserve = MagicMock(wraps=session.cost_safety.check_and_reserve)
-    record = MagicMock(wraps=session.cost_safety.record_cost)
+    reserve = MagicMock(side_effect=AssertionError("owned calls must not reserve dollars"))
+    record = MagicMock(side_effect=AssertionError("owned calls must not record dollar spend"))
     monkeypatch.setattr(session.cost_safety, "check_and_reserve", reserve)
     monkeypatch.setattr(session.cost_safety, "record_cost", record)
 
@@ -409,28 +353,24 @@ async def test_follow_up_generation_uses_chat_backend(monkeypatch):
     assert len(backend.requests) == 1
     assert backend.requests[0].model == "gpt-4o-mini"
     assert backend.requests[0].extra == {"temperature": 0.7, "max_tokens": 200}
-    assert reserve.call_args.kwargs["operation_type"] == "expert_chat_follow_ups"
-    assert reserve.call_args.kwargs["estimated_cost"] == 0.01
-    assert record.call_args.kwargs["operation_type"] == "expert_chat_follow_ups"
-    assert record.call_args.kwargs["reservation_id"]
-    assert record.call_args.kwargs["actual_cost"] > 0
-    assert record.call_args.kwargs["source"] == "experts.chat.follow_ups"
-    assert session.cost_accumulated == record.call_args.kwargs["actual_cost"]
+    reserve.assert_not_called()
+    record.assert_not_called()
+    assert session.cost_accumulated == 0.0
 
 
-async def test_follow_up_generation_skips_when_its_bound_does_not_fit(monkeypatch):
+async def test_owned_follow_up_generation_ignores_dollar_budget(monkeypatch):
     session = _session(monkeypatch, 0.005)
     backend = RecordingChatBackend('["This must not dispatch"]')
     session.chat_backend = backend
 
     follow_ups = await session._generate_follow_ups("What changed?", "The backend seam changed.")
 
-    assert follow_ups == []
-    assert backend.requests == []
+    assert follow_ups == ["This must not dispatch"]
+    assert len(backend.requests) == 1
     assert session.cost_accumulated == 0.0
 
 
-async def test_follow_up_provider_failure_settles_reserved_ceiling(monkeypatch):
+async def test_owned_follow_up_provider_failure_records_no_dollar_cost(monkeypatch):
     session = _session(monkeypatch, 1.0)
 
     class FailingBackend(RecordingChatBackend):
@@ -446,11 +386,8 @@ async def test_follow_up_provider_failure_settles_reserved_ceiling(monkeypatch):
 
     assert follow_ups == []
     assert len(session.chat_backend.requests) == 1
-    assert record.call_args.kwargs["actual_cost"] == 0.01
-    assert record.call_args.kwargs["source"] == "experts.chat.follow_ups.failed"
-    assert record.call_args.kwargs["metadata"] == {"actual_cost_reported": False}
-    assert record.call_args.kwargs["reservation_id"]
-    assert session.cost_accumulated == 0.01
+    record.assert_not_called()
+    assert session.cost_accumulated == 0.0
 
 
 async def test_compact_conversation_uses_chat_backend(monkeypatch):
@@ -480,7 +417,7 @@ async def test_compact_conversation_uses_chat_backend(monkeypatch):
     assert "KEY_FACTS: migrated support calls" in session.messages[0]["content"]
 
 
-async def test_streaming_first_chat_generation_is_preflight_budget_checked(monkeypatch):
+async def test_metered_streaming_chat_is_gated_before_budget_or_provider(monkeypatch):
     session = _session(monkeypatch, 0.0)
     session.should_use_tot = lambda _query: False
 
@@ -489,11 +426,11 @@ async def test_streaming_first_chat_generation_is_preflight_budget_checked(monke
 
     monkeypatch.setattr(session.client.chat.completions, "create", fail_if_called)
 
-    result = await session.send_message_streaming("What should this expert improve next?")
+    with pytest.raises(MeteredExpertChatDisabledError) as exc_info:
+        await session.send_message_streaming("What should this expert improve next?")
 
-    assert result.startswith("Chat blocked: Insufficient budget")
-    assert session.reasoning_trace[-1]["step"] == "chat_generation_budget"
-    assert session.reasoning_trace[-1]["allowed"] is False
+    assert exc_info.value.operation == "expert_chat_streaming_turn"
+    assert session.reasoning_trace == []
 
 
 async def test_streaming_first_chat_generation_uses_chat_backend(monkeypatch):
@@ -547,3 +484,60 @@ async def test_streaming_final_response_accounts_stream_usage(monkeypatch):
     assert len(backend.stream_requests) == 1
     assert backend.stream_requests[0].model == session.expert.model
     assert [(u.prompt_tokens, u.completion_tokens) for u in accounted] == [(20, 7), (10, 5)]
+
+
+async def test_concurrent_metered_turns_make_zero_provider_calls_and_zero_ledger_writes(monkeypatch):
+    session = _session(monkeypatch, 1.0)
+    session.should_use_tot = lambda _query: False
+    backend = RecordingChatBackend("first", "second")
+    backend.metered = True
+    session.chat_backend = backend
+    ledger_before = CostLedger().get_events()
+    record = MagicMock(side_effect=AssertionError("metered chat gate must not write a cost event"))
+    monkeypatch.setattr(session.cost_safety, "record_cost", record)
+
+    results = await asyncio.gather(
+        session.send_message("First concurrent $0.60 turn"),
+        session.send_message_streaming("Second concurrent $0.60 turn"),
+        return_exceptions=True,
+    )
+
+    assert all(isinstance(result, MeteredExpertChatDisabledError) for result in results)
+    assert backend.requests == []
+    assert backend.stream_requests == []
+    assert CostLedger().get_events() == ledger_before
+    assert session.cost_accumulated == 0.0
+    assert session.cost_session.total_cost == 0.0
+    record.assert_not_called()
+    assert session.get_chat_capacity() == {
+        "metered": True,
+        "execution_enabled": False,
+        "status": "blocked",
+        "block_code": "metered_expert_chat_accounting_unavailable",
+    }
+
+
+async def test_all_auxiliary_metered_chat_paths_fail_before_dispatch(monkeypatch):
+    session = _session(monkeypatch, 1.0)
+    backend = RecordingChatBackend("must not dispatch")
+    backend.metered = True
+    session.chat_backend = backend
+    session.messages = [{"role": "user", "content": str(index)} for index in range(8)]
+
+    operations = [
+        session._quick_lookup("q"),
+        session._standard_research("q"),
+        session._deep_research("q"),
+        session.compact_conversation(),
+        session._generate_follow_ups("q", "a"),
+        session._trigger_background_synthesis(),
+        session._search_knowledge_base("q"),
+        session._add_research_to_knowledge_base("q", "a", "standard_research"),
+    ]
+    for operation in operations:
+        with pytest.raises(MeteredExpertChatDisabledError):
+            await operation
+
+    assert backend.requests == []
+    assert backend.stream_requests == []
+    assert session.cost_accumulated == 0.0

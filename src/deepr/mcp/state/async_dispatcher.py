@@ -210,6 +210,7 @@ class AsyncTaskDispatcher:
         task: DispatchedTask,
         on_progress: ProgressCallback | None,
         on_success: Callable[[], None] | None = None,
+        fatal_exception_types: tuple[type[Exception], ...] = (),
     ) -> None:
         task.status = DispatchStatus.RUNNING
         task.started_at = _utc_now()
@@ -221,6 +222,8 @@ class AsyncTaskDispatcher:
             self._cancel_task(task)
         except Exception as e:
             self._fail_task(task, e)
+            if isinstance(e, fatal_exception_types):
+                raise
         else:
             task.status = DispatchStatus.COMPLETED
             if on_success:
@@ -241,12 +244,38 @@ class AsyncTaskDispatcher:
             }:
                 self._cancel_task(task, task.error or "Timeout exceeded")
 
+    async def _await_independent_tasks(
+        self,
+        awaitables: list[asyncio.Task[None]],
+        dispatched: dict[str, DispatchedTask],
+        *,
+        timeout: float | None,
+        fatal_exception_types: tuple[type[Exception], ...],
+    ) -> None:
+        try:
+            gathered = asyncio.gather(*awaitables, return_exceptions=not fatal_exception_types)
+            if timeout:
+                await asyncio.wait_for(gathered, timeout=timeout)
+            else:
+                await gathered
+        except TimeoutError:
+            self._timeout_remaining(dispatched)
+        except Exception:
+            for awaitable in awaitables:
+                if not awaitable.done():
+                    awaitable.cancel()
+            await asyncio.gather(*awaitables, return_exceptions=True)
+            for task_id in dispatched:
+                self._active_tasks.pop(task_id, None)
+            raise
+
     async def dispatch(
         self,
         tasks: list[dict[str, Any]],
         on_progress: ProgressCallback | None = None,
         timeout: float | None = None,
         cost_checker: Callable[[str], tuple[bool, str]] | None = None,
+        fatal_exception_types: tuple[type[Exception], ...] = (),
     ) -> DispatchResult:
         """Dispatch independent tasks in parallel.
 
@@ -256,6 +285,7 @@ class AsyncTaskDispatcher:
             timeout: Optional overall timeout in seconds
             cost_checker: Optional guard called before each task starts.
                 Returns (allowed, reason). If not allowed, task is CANCELLED.
+            fatal_exception_types: Exceptions that cancel sibling work and propagate.
 
         Returns:
             DispatchResult with all task results
@@ -285,23 +315,22 @@ class AsyncTaskDispatcher:
                     if not self._check_cost_or_cancel(task, cost_checker):
                         return
 
-                    await self._execute_task_body(task, on_progress)
+                    await self._execute_task_body(
+                        task,
+                        on_progress,
+                        fatal_exception_types=fatal_exception_types,
+                    )
             except asyncio.CancelledError:
                 self._cancel_pending_task(task)
 
         # Run all tasks
-        aws = [run_task(task) for task in dispatched.values()]
-
-        if timeout:
-            try:
-                await asyncio.wait_for(
-                    asyncio.gather(*aws, return_exceptions=True),
-                    timeout=timeout,
-                )
-            except TimeoutError:
-                self._timeout_remaining(dispatched)
-        else:
-            await asyncio.gather(*aws, return_exceptions=True)
+        aws = [asyncio.create_task(run_task(task)) for task in dispatched.values()]
+        await self._await_independent_tasks(
+            aws,
+            dispatched,
+            timeout=timeout,
+            fatal_exception_types=fatal_exception_types,
+        )
 
         # Calculate statistics
         end_time = _utc_now()

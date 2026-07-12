@@ -33,6 +33,16 @@ COMMON_PATCHES = {
 }
 
 
+@pytest.fixture(autouse=True)
+def _enable_legacy_fallback_characterization(monkeypatch):
+    """Exercise the retired fallback algorithm without enabling it in product."""
+    monkeypatch.setattr("deepr.cli.commands.run.METERED_PROVIDER_FALLBACK_ENABLED", True)
+    monkeypatch.setattr(
+        "deepr.services.research_bounds.require_research_storage_accounting",
+        lambda: None,
+    )
+
+
 def _make_output_context(mode=OutputMode.QUIET):
     """Create a quiet output context for tests."""
     return OutputContext(mode=mode)
@@ -160,10 +170,10 @@ class TestFallbackOnRateLimit:
 
             await _run_single(
                 "test query",
-                "o4-mini-deep-research",
+                "gpt-4o-mini",
                 "openai",
-                False,
-                False,
+                True,
+                True,
                 (),
                 None,
                 True,
@@ -175,7 +185,7 @@ class TestFallbackOnRateLimit:
             # Router should have recorded failure for openai
             router.record_result.assert_any_call(
                 "openai",
-                "o4-mini-deep-research",
+                "gpt-4o-mini",
                 success=False,
                 error=pytest.approx(str(ProviderRateLimitError("openai")), abs=100),
             )
@@ -392,8 +402,8 @@ class TestRouterSelection:
                 "test query",
                 "o4-mini-deep-research",
                 "openai",
-                False,
-                False,
+                True,
+                True,
                 (),
                 None,
                 True,

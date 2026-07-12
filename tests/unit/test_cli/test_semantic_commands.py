@@ -12,7 +12,7 @@ These tests verify:
 
 import sys
 from pathlib import Path
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 import pytest
 from click.testing import CliRunner
@@ -299,9 +299,7 @@ class TestExpertLearnCommand:
         result = runner.invoke(cli, ["expert", "learn", "--help"])
         assert "synthesize" in result.output.lower()
 
-    def test_expert_learn_files_persists_partial_success_and_freshness(self, runner, monkeypatch, tmp_path):
-        from pathlib import Path
-
+    def test_expert_learn_files_is_gated_before_provider_construction(self, runner, monkeypatch, tmp_path):
         from deepr.experts.profile import ExpertProfile, ExpertStore
 
         profile = ExpertProfile(name="Partial Learn Expert", vector_store_id="vs-partial", domain="testing")
@@ -311,17 +309,10 @@ class TestExpertLearnCommand:
         first.write_text("first", encoding="utf-8")
         second.write_text("second", encoding="utf-8")
 
-        class FakeProvider:
-            async def upload_document(self, path):
-                if str(path).endswith("second.md"):
-                    raise RuntimeError("second upload failed")
-                return "file-first"
-
-            async def add_file_to_vector_store(self, vector_store_id, file_id):
-                assert vector_store_id == "vs-partial"
-                assert file_id == "file-first"
-
-        monkeypatch.setattr("deepr.providers.create_provider", lambda *args, **kwargs: FakeProvider())
+        monkeypatch.setattr(
+            "deepr.providers.create_provider",
+            lambda *args, **kwargs: (_ for _ in ()).throw(AssertionError("provider must not be constructed")),
+        )
 
         result = runner.invoke(
             cli,
@@ -338,14 +329,14 @@ class TestExpertLearnCommand:
             ],
         )
 
-        assert result.exit_code == 0, result.output
-        assert "second upload failed" in result.output
+        assert result.exit_code == 1
+        assert "temporarily disabled" in result.output
         updated = ExpertStore().load(profile.name)
         assert updated is not None
-        assert updated.total_documents == 1
-        assert [Path(path).name for path in updated.source_files] == ["first.md"]
-        assert updated.knowledge_cutoff_date is not None
-        assert updated.last_knowledge_refresh == updated.knowledge_cutoff_date
+        assert updated.total_documents == 0
+        assert updated.source_files == []
+        assert updated.knowledge_cutoff_date is None
+        assert updated.last_knowledge_refresh is None
 
 
 class TestExpertResumeCommand:
@@ -375,6 +366,20 @@ class TestExpertResumeCommand:
         """Test that --yes option exists."""
         result = runner.invoke(cli, ["expert", "resume", "--help"])
         assert "--yes" in result.output or "-y" in result.output
+
+    def test_expert_resume_fails_closed_before_learner_construction(self, runner):
+        profile = MagicMock(name="Paused Expert")
+        with (
+            patch("deepr.experts.profile.ExpertStore") as mock_store,
+            patch("deepr.experts.learner.AutonomousLearner") as mock_learner,
+        ):
+            mock_store.return_value.load.return_value = profile
+            result = runner.invoke(cli, ["expert", "resume", "Paused Expert", "--yes"])
+
+        assert result.exit_code == 1
+        assert "temporarily disabled" in result.output.lower()
+        assert "--local" in result.output
+        mock_learner.assert_not_called()
 
 
 class TestCompanyResearchMode:

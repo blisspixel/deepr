@@ -432,7 +432,9 @@ def capacity_revoke(model: str, task_class: str):
         click.echo(f"No active admission for '{model}' on '{task_class}'. Nothing to revoke.")
         return
     revoke_admission(model, task_class)
-    click.echo(f"Revoked admission for '{model}' on '{task_class}'. Maintenance falls back to metered API.")
+    click.echo(
+        f"Revoked '{model}' for '{task_class}'. Local preference removed; run `deepr capacity next` before metered work."
+    )
 
 
 @capacity.command(name="fleet")

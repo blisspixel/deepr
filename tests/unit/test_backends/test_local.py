@@ -5,6 +5,7 @@ Uses fake AsyncOpenAI-shaped clients so these run with no Ollama and no network.
 
 from __future__ import annotations
 
+import asyncio
 from types import SimpleNamespace
 
 import pytest
@@ -289,6 +290,58 @@ class TestDefaultModel:
         monkeypatch.delenv("DEEPR_LOCAL_MODEL", raising=False)
         monkeypatch.setattr(local, "ollama_status", lambda base_url=None: (False, "not reachable"))
         assert local.default_local_model() is None
+
+    async def test_async_env_override_avoids_probe(self, monkeypatch):
+        monkeypatch.setenv("DEEPR_LOCAL_MODEL", "my-model:7b")
+
+        assert await local.default_local_model_async() == "my-model:7b"
+
+    async def test_async_probe_returns_first_model(self, monkeypatch):
+        monkeypatch.delenv("DEEPR_LOCAL_MODEL", raising=False)
+
+        class FakeResponse:
+            def raise_for_status(self):
+                return None
+
+            def json(self):
+                return {"models": [{"name": "first:7b"}, {"name": "second:14b"}]}
+
+        class FakeClient:
+            async def __aenter__(self):
+                return self
+
+            async def __aexit__(self, *_args):
+                return None
+
+            async def get(self, url):
+                assert url.endswith("/api/tags")
+                return FakeResponse()
+
+        import httpx
+
+        monkeypatch.setattr(httpx, "AsyncClient", lambda **_kwargs: FakeClient())
+
+        assert await local.default_local_model_async() == "first:7b"
+
+    async def test_async_probe_propagates_cancellation(self, monkeypatch):
+        monkeypatch.delenv("DEEPR_LOCAL_MODEL", raising=False)
+
+        class CancelledClient:
+            async def __aenter__(self):
+                return self
+
+            async def __aexit__(self, *_args):
+                return None
+
+            async def get(self, _url):
+                raise asyncio.CancelledError
+
+        import httpx
+
+        monkeypatch.setattr(httpx, "AsyncClient", lambda **_kwargs: CancelledClient())
+
+        with pytest.raises(asyncio.CancelledError):
+            await local.default_local_model_async()
 
 
 class TestMaintenanceModel:

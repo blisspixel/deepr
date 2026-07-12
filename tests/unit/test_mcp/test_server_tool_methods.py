@@ -316,7 +316,7 @@ class TestAgenticResearch:
         assert out["error_code"] == "BUDGET_EXCEEDED"
 
     @pytest.mark.asyncio
-    async def test_happy_path_starts_workflow(self, mock_server):
+    async def test_agentic_research_is_gated_before_job_or_chat_session(self, mock_server):
         cost_safety = MagicMock()
         cost_safety.check_operation.return_value = (True, "", None)
         cost_safety.get_spending_summary.return_value = {
@@ -326,17 +326,17 @@ class TestAgenticResearch:
         mock_server.store.load.return_value = expert
         mock_server.resource_handler.jobs.get_state.return_value = _state(metadata={})
 
-        session = MagicMock()
-        session.send_message = AsyncMock(return_value="ok answer")
-
         with (
             patch("deepr.experts.cost_safety.get_cost_safety_manager", return_value=cost_safety),
-            patch("deepr.mcp.server.ExpertChatSession", return_value=session),
+            patch(
+                "deepr.mcp.server.ExpertChatSession",
+                side_effect=AssertionError("metered chat session must not be constructed"),
+            ) as session_cls,
         ):
             out = await mock_server.deepr_agentic_research(goal="goal", expert_name="myexpert", budget=2.0)
-        assert out["status"] == "in_progress"
-        assert out["expert_name"] == "myexpert"
-        assert "workflow_id" in out
+        assert out["error_code"] == "metered_expert_chat_accounting_unavailable"
+        session_cls.assert_not_called()
+        mock_server.resource_handler.jobs.create_job.assert_not_awaited()
 
 
 # ---------------------------------------------------------------------- #
@@ -458,37 +458,27 @@ class TestExpertTools:
         assert out["error_code"] == "EXPERT_NOT_FOUND"
 
     @pytest.mark.asyncio
-    async def test_query_expert_happy(self, mock_server):
+    async def test_query_expert_api_is_gated_before_session_construction(self, mock_server):
         expert = MagicMock()
         mock_server.store.load.return_value = expert
-        session = MagicMock()
-        session.send_message = AsyncMock(return_value="answer")
-        session.get_session_summary.return_value = {
-            "cost_accumulated": 0.05,
-            "budget_remaining": 1.0,
-            "research_jobs_triggered": 0,
-        }
-        with patch("deepr.mcp.server.ExpertChatSession", return_value=session) as session_cls:
+        with patch(
+            "deepr.mcp.server.ExpertChatSession",
+            side_effect=AssertionError("metered chat session must not be constructed"),
+        ) as session_cls:
             out = await mock_server.query_expert("e1", "what?", budget=0.25)
-        assert out["answer"] == "answer"
-        assert out["cost"] == 0.05
-        assert session_cls.call_args.kwargs["budget"] == 0.25
-        assert session_cls.call_args.kwargs["agentic"] is False
-        assert session_cls.call_args.kwargs["provider"] == "openai"
-        assert session_cls.call_args.kwargs["model"] is None
+        assert out["error_code"] == "metered_expert_chat_accounting_unavailable"
+        assert out["status"] == "blocked"
+        assert out["provider_work_dispatched"] is False
+        session_cls.assert_not_called()
 
     @pytest.mark.asyncio
-    async def test_query_expert_api_provider_model_passed_to_session(self, mock_server):
+    async def test_query_expert_api_provider_model_still_fails_at_capacity_gate(self, mock_server):
         expert = MagicMock()
         mock_server.store.load.return_value = expert
-        session = MagicMock()
-        session.send_message = AsyncMock(return_value="anthropic answer")
-        session.get_session_summary.return_value = {
-            "cost_accumulated": 0.02,
-            "budget_remaining": 0.98,
-            "research_jobs_triggered": 0,
-        }
-        with patch("deepr.mcp.server.ExpertChatSession", return_value=session) as session_cls:
+        with patch(
+            "deepr.mcp.server.ExpertChatSession",
+            side_effect=AssertionError("metered chat session must not be constructed"),
+        ) as session_cls:
             out = await mock_server.query_expert(
                 "e1",
                 "what?",
@@ -498,12 +488,8 @@ class TestExpertTools:
                 budget=1.0,
             )
 
-        assert out["answer"] == "anthropic answer"
-        assert out["backend"] == "api"
-        assert out["provider"] == "anthropic"
-        assert out["model"] == "claude-sonnet-4-6"
-        assert session_cls.call_args.kwargs["provider"] == "anthropic"
-        assert session_cls.call_args.kwargs["model"] == "claude-sonnet-4-6"
+        assert out["error_code"] == "metered_expert_chat_accounting_unavailable"
+        session_cls.assert_not_called()
 
     @pytest.mark.asyncio
     async def test_query_expert_anthropic_api_rejects_agentic_mode(self, mock_server):
@@ -643,14 +629,16 @@ class TestExpertTools:
         assert out["message"] == "provider and model are only valid when backend='api'"
 
     @pytest.mark.asyncio
-    async def test_query_expert_wraps_errors(self, mock_server):
+    async def test_query_expert_api_gate_precedes_legacy_session_errors(self, mock_server):
         expert = MagicMock()
         mock_server.store.load.return_value = expert
-        session = MagicMock()
-        session.send_message = AsyncMock(side_effect=ValueError("nope"))
-        with patch("deepr.mcp.server.ExpertChatSession", return_value=session):
+        with patch(
+            "deepr.mcp.server.ExpertChatSession",
+            side_effect=AssertionError("legacy session must not be constructed"),
+        ) as session_cls:
             out = await mock_server.query_expert("e1", "q")
-        assert out["error_code"] == "EXPERT_QUERY_FAILED"
+        assert out["error_code"] == "metered_expert_chat_accounting_unavailable"
+        session_cls.assert_not_called()
 
     @pytest.mark.asyncio
     async def test_expert_manifest_not_found(self, mock_server):

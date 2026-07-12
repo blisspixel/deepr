@@ -203,6 +203,9 @@ def mock_provider():
         AsyncMock configured as a DeepResearchProvider
     """
     provider = AsyncMock()
+    # Cost-bound research needs an explicit adapter pricing identity. Production
+    # providers fall back to their concrete class name.
+    provider.provider_name = "openai"
 
     # Configure submit_research to return a job ID
     provider.submit_research = AsyncMock(return_value="job-test-12345")

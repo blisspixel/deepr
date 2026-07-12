@@ -1,0 +1,143 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/blisspixel/deepr/docs/schemas/deliberation-eval-v1.json",
+  "title": "Deepr Deliberation Evaluation v1",
+  "description": "Zero-cost structural evaluation over frozen bounded-deliberation fixtures. Semantic quality remains unreviewed.",
+  "type": "object",
+  "additionalProperties": true,
+  "required": [
+    "schema_version",
+    "kind",
+    "suite_name",
+    "methodology_version",
+    "cost_usd",
+    "semantic_review_status",
+    "contract",
+    "bounds",
+    "fixture",
+    "total_cases",
+    "passed_cases",
+    "failed_cases",
+    "score",
+    "outcomes",
+    "generated_at"
+  ],
+  "properties": {
+    "schema_version": {"const": "deepr-deliberation-eval-v1"},
+    "kind": {"const": "deepr.eval.deliberation"},
+    "suite_name": {"type": "string", "minLength": 1},
+    "methodology_version": {"type": "string", "minLength": 1},
+    "cost_usd": {"const": 0.0},
+    "semantic_review_status": {"const": "unreviewed"},
+    "contract": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": [
+        "execution_mode",
+        "capacity_mode",
+        "provider_calls",
+        "backend_calls",
+        "expert_store_reads",
+        "network_access",
+        "fallback_policy",
+        "live_metered_fallback",
+        "cost_usd",
+        "authority",
+        "accepted",
+        "review_required",
+        "semantic_review_status",
+        "writes_authoritative_state",
+        "writes_beliefs",
+        "writes_graph",
+        "writes_project_state",
+        "writes_roadmap",
+        "writes_routing_state",
+        "dispatches_tools",
+        "report_write_requires_opt_in",
+        "semantic_verdict",
+        "lexical_verdict_allowed"
+      ],
+      "properties": {
+        "execution_mode": {"const": "frozen_fixture"},
+        "capacity_mode": {"const": "local_only"},
+        "provider_calls": {"const": 0},
+        "backend_calls": {"const": 0},
+        "expert_store_reads": {"const": 0},
+        "network_access": {"const": false},
+        "fallback_policy": {"const": "none"},
+        "live_metered_fallback": {"const": false},
+        "cost_usd": {"const": 0.0},
+        "authority": {"const": "proposal_only"},
+        "accepted": {"const": false},
+        "review_required": {"const": true},
+        "semantic_review_status": {"const": "unreviewed"},
+        "writes_authoritative_state": {"const": false},
+        "writes_beliefs": {"const": false},
+        "writes_graph": {"const": false},
+        "writes_project_state": {"const": false},
+        "writes_roadmap": {"const": false},
+        "writes_routing_state": {"const": false},
+        "dispatches_tools": {"const": false},
+        "report_write_requires_opt_in": {"const": true},
+        "semantic_verdict": {"const": false},
+        "lexical_verdict_allowed": {"const": false}
+      }
+    },
+    "bounds": {
+      "type": "object",
+      "required": ["default", "deep"],
+      "properties": {
+        "default": {"$ref": "#/$defs/bound"},
+        "deep": {"$ref": "#/$defs/bound"}
+      },
+      "additionalProperties": false
+    },
+    "fixture": {"type": "object"},
+    "total_cases": {"type": "integer", "minimum": 1},
+    "passed_cases": {"type": "integer", "minimum": 0},
+    "failed_cases": {"type": "integer", "minimum": 0},
+    "score": {"type": "number", "minimum": 0.0, "maximum": 1.0},
+    "outcomes": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": ["case_id", "category", "passed", "failed", "semantic_verdict", "detail"],
+        "properties": {
+          "case_id": {"type": "string", "minLength": 1},
+          "category": {"type": "string", "minLength": 1},
+          "passed": {"type": "boolean"},
+          "failed": {"type": "boolean"},
+          "semantic_verdict": {"const": false},
+          "detail": {"type": "object"}
+        },
+        "additionalProperties": true
+      }
+    },
+    "generated_at": {"type": "string", "format": "date-time"}
+  },
+  "$defs": {
+    "bound": {
+      "type": "object",
+      "required": [
+        "max_participants",
+        "max_rounds",
+        "max_dispatches",
+        "max_tokens_per_turn",
+        "max_total_tokens",
+        "max_context_bytes",
+        "max_elapsed_seconds"
+      ],
+      "properties": {
+        "max_participants": {"type": "integer", "minimum": 1},
+        "max_rounds": {"type": "integer", "minimum": 1},
+        "max_dispatches": {"type": "integer", "minimum": 1},
+        "max_tokens_per_turn": {"type": "integer", "minimum": 1},
+        "max_total_tokens": {"type": "integer", "minimum": 1},
+        "max_context_bytes": {"type": "integer", "minimum": 1},
+        "max_elapsed_seconds": {"type": "integer", "minimum": 1}
+      },
+      "additionalProperties": false
+    }
+  }
+}

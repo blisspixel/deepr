@@ -172,6 +172,9 @@ async def handle_file_uploads(
 
     if not upload_patterns:
         return result
+    from deepr.services.research_bounds import require_research_storage_accounting
+
+    require_research_storage_accounting()
 
     if formatter:
         formatter.progress("Uploading files...")

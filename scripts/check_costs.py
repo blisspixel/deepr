@@ -1,15 +1,27 @@
-import sqlite3
+"""Print a read-only summary of the canonical append-only cost ledger."""
 
-conn = sqlite3.connect(".deepr/queue.db")
-c = conn.cursor()
+from __future__ import annotations
 
-rows = c.execute("SELECT id, status, cost FROM research_queue ORDER BY submitted_at DESC").fetchall()
-print("Recent jobs:")
-for r in rows[:10]:
-    cost_str = f"${r[2]:.4f}" if r[2] else "$0.00"
-    print(f"{r[0][:8]} | {r[1]:12} | {cost_str}")
+from deepr.observability.cost_ledger import CostLedger
 
-total = c.execute("SELECT SUM(cost) FROM research_queue WHERE cost IS NOT NULL").fetchone()[0]
-print(f"\nTotal cost in DB: ${total if total else 0}")
 
-conn.close()
+def main() -> None:
+    """Show recent canonical events and the exact all-time total."""
+    ledger = CostLedger()
+    events = ledger.get_events()
+
+    print(f"Canonical ledger: {ledger.ledger_path}")
+    print("Recent events:")
+    if not events:
+        print("  No cost events recorded.")
+    for event in events[-10:][::-1]:
+        timestamp = event.timestamp.isoformat(timespec="seconds")
+        label = f"{event.operation} [{event.provider}]"
+        print(f"  {timestamp} | {label[:52]:52} | ${event.cost_usd:.6f}")
+
+    total = sum(event.cost_usd for event in events)
+    print(f"\nAll-time canonical total: ${total:.6f}")
+
+
+if __name__ == "__main__":
+    main()

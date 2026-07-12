@@ -248,8 +248,8 @@ class TestExpertMakeCommand:
         assert "--local creates a $0 profile only" in result.output
         assert "expert sync" in result.output
 
-    def test_expert_make_api_profile_cancel_stops_before_provider_setup(self, runner, tmp_path):
-        """The API-backed profile warning must run before provider construction."""
+    def test_expert_make_api_profile_is_gated_before_confirmation_or_provider_setup(self, runner, tmp_path):
+        """API profile setup fails closed before confirmation or provider construction."""
         source = tmp_path / "seed.md"
         source.write_text("# Seed\n\nProfile setup source.", encoding="utf-8")
 
@@ -260,14 +260,14 @@ class TestExpertMakeCommand:
                 input="n\n",
             )
 
-        assert result.exit_code == 0
-        assert "API-backed expert profile setup" in result.output
-        assert "metered API key path" in result.output
-        assert "Cancelled" in result.output
+        assert result.exit_code == 1
+        assert "Metered expert operation 'api_expert_make' is temporarily disabled" in result.output
+        assert 'deepr expert make "API Profile Expert" --local' in result.output
+        assert "API-backed expert profile setup" not in result.output
         create_provider.assert_not_called()
 
-    def test_expert_make_yes_requires_metered_profile_confirmation(self, runner, tmp_path):
-        """Unattended API-backed profile setup needs a distinct acknowledgement."""
+    def test_expert_make_yes_cannot_bypass_typed_metered_gate(self, runner, tmp_path):
+        """Unattended flags cannot bypass the typed fail-closed capacity gate."""
         source = tmp_path / "seed.md"
         source.write_text("# Seed\n\nProfile setup source.", encoding="utf-8")
 
@@ -277,33 +277,20 @@ class TestExpertMakeCommand:
                 ["expert", "make", "API Profile Expert", "--files", str(source), "--yes"],
             )
 
-        assert result.exit_code == 0
-        assert "requires --confirm-metered-profile" in result.output
+        assert result.exit_code == 1
+        assert "Metered expert operation 'api_expert_make' is temporarily disabled" in result.output
+        assert "--confirm-metered-profile" not in result.output
         create_provider.assert_not_called()
 
-    def test_expert_make_confirmed_api_profile_uses_provider_setup(self, runner, tmp_path):
-        """The explicit acknowledgement preserves the API-backed setup path."""
-        from deepr.experts.profile import ExpertStore
-
+    def test_expert_make_confirmed_api_profile_still_blocks_provider_setup(self, runner, tmp_path):
+        """Legacy acknowledgement flags do not re-enable an unsafe provider path."""
         source = tmp_path / "seed.md"
         source.write_text("# Seed\n\nProfile setup source.", encoding="utf-8")
 
-        class FakeProvider:
-            async def upload_document(self, file_path):
-                assert file_path == str(source)
-                return "file_seed"
-
-            async def create_vector_store(self, name, file_ids):
-                assert name == "expert-api-profile-expert"
-                assert file_ids == ["file_seed"]
-                return SimpleNamespace(id="vs_seed")
-
-            async def wait_for_vector_store(self, vector_store_id, timeout=900):
-                assert vector_store_id == "vs_seed"
-                assert timeout == 900
-                return True
-
-        with patch("deepr.providers.create_provider", return_value=FakeProvider()) as create_provider:
+        with patch(
+            "deepr.providers.create_provider",
+            side_effect=AssertionError("provider must not be constructed"),
+        ) as create_provider:
             result = runner.invoke(
                 cli,
                 [
@@ -317,55 +304,43 @@ class TestExpertMakeCommand:
                 ],
             )
 
-        assert result.exit_code == 0, result.output
-        create_provider.assert_called_once()
-        profile = ExpertStore().load("API Profile Expert")
-        assert profile is not None
-        assert profile.provider == "openai"
-        assert profile.vector_store_id == "vs_seed"
-        assert profile.source_files == [str(source)]
+        assert result.exit_code == 1
+        assert "Metered expert operation 'api_expert_make' is temporarily disabled" in result.output
+        assert 'deepr expert make "API Profile Expert" --local' in result.output
+        create_provider.assert_not_called()
 
-    def test_expert_make_empty_learn_profile_stays_incomplete(self, runner, monkeypatch):
-        from deepr.experts.profile import ExpertStore
+    def test_expert_make_learn_is_gated_before_provider_or_curriculum(self, runner):
+        """Autonomous API make cannot construct storage or curriculum services."""
+        with (
+            patch(
+                "deepr.providers.create_provider",
+                side_effect=AssertionError("provider must not be constructed"),
+            ) as create_provider,
+            patch(
+                "deepr.experts.curriculum.CurriculumGenerator.generate_curriculum",
+                side_effect=AssertionError("curriculum must not be generated"),
+            ) as generate_curriculum,
+        ):
+            result = runner.invoke(
+                cli,
+                [
+                    "expert",
+                    "make",
+                    "Empty Learn Expert",
+                    "--learn",
+                    "--budget",
+                    "1",
+                    "--no-discovery",
+                    "--yes",
+                    "--confirm-metered-profile",
+                ],
+            )
 
-        class FakeProvider:
-            async def create_vector_store(self, name, file_ids):
-                assert name == "expert-empty-learn-expert"
-                assert file_ids == []
-                return SimpleNamespace(id="vs-empty")
-
-        async def fail_curriculum(self, **kwargs):
-            raise RuntimeError("curriculum unavailable")
-
-        monkeypatch.setattr("deepr.providers.create_provider", lambda *args, **kwargs: FakeProvider())
-        monkeypatch.setattr(
-            "deepr.experts.curriculum.CurriculumGenerator.generate_curriculum",
-            fail_curriculum,
-        )
-
-        result = runner.invoke(
-            cli,
-            [
-                "expert",
-                "make",
-                "Empty Learn Expert",
-                "--learn",
-                "--budget",
-                "1",
-                "--no-discovery",
-                "--yes",
-                "--confirm-metered-profile",
-            ],
-        )
-
-        assert result.exit_code == 0, result.output
-        profile = ExpertStore().load("Empty Learn Expert")
-        assert profile is not None
-        assert profile.total_documents == 0
-        assert profile.knowledge_cutoff_date is None
-        assert profile.last_knowledge_refresh is None
-        assert profile.get_freshness_status()["status"] == "incomplete"
-        assert "knowledge cutoff: UNKNOWN" in profile.system_message
+        assert result.exit_code == 1
+        assert "Metered expert operation 'api_expert_make' is temporarily disabled" in result.output
+        assert 'deepr expert make "Empty Learn Expert" --local' in result.output
+        create_provider.assert_not_called()
+        generate_curriculum.assert_not_called()
 
 
 class TestExpertListCommand:
@@ -941,6 +916,12 @@ class TestExpertReflectCommand:
     def runner(self):
         return CliRunner()
 
+    @pytest.fixture(autouse=True)
+    def _enable_legacy_metered_path_for_characterization(self, monkeypatch):
+        from deepr.experts import metered_mutation_gate
+
+        monkeypatch.setattr(metered_mutation_gate, "METERED_EXPERT_MUTATIONS_ENABLED", True)
+
     def test_help(self, runner):
         result = runner.invoke(cli, ["expert", "reflect", "--help"])
         assert result.exit_code == 0
@@ -968,6 +949,27 @@ class TestExpertReflectCommand:
             result = runner.invoke(cli, ["expert", "reflect", "AI Expert", "missing"])
             assert result.exit_code == 2
             assert "no report found" in result.output.lower()
+
+    def test_normal_reflection_fails_closed_before_engine(self, runner, monkeypatch):
+        from deepr.experts import metered_mutation_gate
+
+        monkeypatch.setattr(metered_mutation_gate, "METERED_EXPERT_MUTATIONS_ENABLED", False)
+        with (
+            patch("deepr.experts.profile.ExpertStore") as mock_store_class,
+            patch("deepr.services.context_index.ContextIndex") as mock_idx,
+            patch("deepr.experts.reflection.ReflectionEngine") as mock_engine,
+        ):
+            profile = MagicMock(domain="ai", name="AI Expert")
+            mock_store_class.return_value.load.return_value = profile
+            mock_idx.return_value.get_report_by_job_id.return_value = MagicMock(prompt="Will X?")
+            mock_idx.return_value.get_report_content.return_value = "report body"
+
+            result = runner.invoke(cli, ["expert", "reflect", "AI Expert", "job1", "--json"])
+
+        assert result.exit_code == 1
+        assert "temporarily disabled" in result.output.lower()
+        assert "--scheduled" in result.output
+        mock_engine.assert_not_called()
 
     def test_json_output(self, runner):
         from deepr.experts.reflection import ReflectionReport

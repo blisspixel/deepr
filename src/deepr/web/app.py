@@ -1,8 +1,4 @@
-"""
-Flask web interface for Deepr.
-
-Monitor jobs, view results, submit new research, track costs.
-"""
+"""Flask web interface for Deepr monitoring, research, and cost tracking."""
 
 import asyncio
 import hmac
@@ -27,8 +23,7 @@ from flask_socketio import SocketIO
 
 from deepr.config import runtime_data_path
 
-# The shared sync-to-async bridge (Phase Q1.3), aliased to the historical name
-# used throughout this module's request handlers.
+# Shared sync-to-async bridge, retaining the historical local alias.
 from deepr.utils.async_runner import run_async_command as run_async
 from deepr.utils.security import is_loopback_bind_host
 from deepr.web import action_safety
@@ -39,6 +34,7 @@ from deepr.web.expert_chat_rest import (
     run_browser_expert_chat_once,
 )
 from deepr.web.expert_loop_status_api import register_expert_read_apis
+from deepr.web.metered_expert_gate import metered_expert_mutation_block
 from deepr.web.portrait_api import generate_expert_portrait_response
 
 load_dotenv()
@@ -49,12 +45,8 @@ _frontend_dist = Path(__file__).parent / "frontend" / "dist"
 # ---------------------------------------------------------------------------
 # Security configuration
 # ---------------------------------------------------------------------------
-# IMPORTANT: Authentication on /api/* routes is OPTIONAL and deliberately
-# disabled when DEEPR_API_KEY is unset. This is intentional for local-first
-# desktop use. When the dashboard is reachable from a network (non-loopback
-# bind, container port publish, etc.) you MUST set DEEPR_API_KEY to avoid
-# unauthenticated access to job submission, result retrieval, and the
-# demo data wipe endpoints.
+# Authentication is optional for local-first desktop use. When the dashboard
+# is network reachable, DEEPR_API_KEY is required to protect API mutations.
 _API_KEY = os.getenv("DEEPR_API_KEY", "")  # empty = auth disabled (local dev)
 _CORS_ORIGINS = os.getenv("DEEPR_CORS_ORIGINS", "http://localhost:5000").split(",")
 _SOCKETIO_CORS_ORIGINS = _CORS_ORIGINS if os.getenv("DEEPR_CORS_ORIGINS") else None
@@ -2135,6 +2127,11 @@ def fill_expert_gaps(name):
                 402,
             )
 
+        return metered_expert_mutation_block(
+            "api_fill_gaps",
+            safe_alternative=f'deepr expert route-gaps "{decoded_name}" --execute --scheduled',
+        )
+
         store = ExpertStore(str(_experts_dir))
         profile = store.load(decoded_name)
         if not profile:
@@ -2255,16 +2252,12 @@ def _read_markdown_docs_within_root(docs_dir: Path, *, max_chars: int = 2000) ->
 @app.route("/api/experts/<name>/citation-validations", methods=["GET"])
 @(limiter.limit("5 per minute") if limiter else (lambda f: f))
 def get_citation_validations(name):
-    """Get citation validation results for an expert.
+    """Fail closed before the legacy paid citation-validation batch."""
+    return metered_expert_mutation_block(
+        "api_validate_citations",
+        safe_alternative="review stored beliefs and source files locally",
+    )
 
-    Hardened against cost-abuse:
-    - Tight per-route rate limit (5/min) when flask-limiter is installed.
-    - Caps the number of beliefs forwarded to the LLM-backed validator. The
-      validator fans out one paid call per batch of five pairs, so an
-      uncapped GET could be amplified into many provider calls per request.
-    - Caches results per expert with worldview/document mtime invalidation so
-      repeated polling does not re-trigger paid LLM validation calls.
-    """
     try:
         import asyncio
 
@@ -2348,7 +2341,12 @@ def get_citation_validations(name):
 
 @app.route("/api/experts/<name>/discover-gaps", methods=["POST"])
 def discover_expert_gaps(name):
-    """Trigger automated gap discovery for an expert."""
+    """Fail closed before legacy paid embedding and gap-generation calls."""
+    return metered_expert_mutation_block(
+        "api_discover_gaps",
+        safe_alternative=f'deepr expert next "{name}"',
+    )
+
     try:
         import asyncio
 
@@ -3198,26 +3196,26 @@ def load_demo_data():
         "Microsoft announced the first topological qubit operations using Majorana-based hardware, "
         "achieving a two-qubit gate fidelity of 99.2%. While still behind superconducting surface "
         "codes in absolute performance, the inherent noise protection of topological qubits means "
-        "fewer physical qubits per logical qubit\u2014potentially 10-100x fewer at scale. Academic groups "
+        "fewer physical qubits per logical qubit - potentially 10-100x fewer at scale. Academic groups "
         "at Delft and Copenhagen independently verified the Majorana signatures, strengthening "
         "confidence in the approach.\n\n"
         "### Hybrid and Novel Codes\n\n"
         "Several groups explored LDPC (low-density parity-check) codes that promise better encoding "
         "rates than surface codes. Quantinuum demonstrated a [[144,12,12]] bivariate bicycle code "
-        "on trapped-ion hardware, encoding 12 logical qubits with a code distance of 12\u2014a "
+        "on trapped-ion hardware, encoding 12 logical qubits with a code distance of 12 - a "
         "significant step toward more efficient quantum memory. Additionally, bosonic codes using "
         "cat states in superconducting cavities showed error rates compatible with concatenation "
         "into surface codes, offering a promising hybrid path.\n\n"
         "## Implications\n\n"
-        "These results collectively suggest that a 1,000-logical-qubit machine\u2014sufficient for "
-        "meaningful quantum chemistry and optimization\u2014could be achievable within 5-8 years, "
+        "These results collectively suggest that a 1,000-logical-qubit machine - sufficient for "
+        "meaningful quantum chemistry and optimization - could be achievable within 5-8 years, "
         "assuming current scaling trends hold. The primary bottleneck has shifted from physics to "
         "engineering: fabrication yield, cryogenic wiring, and classical decoding throughput.\n\n"
         "## References\n\n"
-        "- [Google Quantum AI \u2013 Willow Results](https://blog.google/technology/research/google-willow-quantum-chip/)\n"
+        "- [Google Quantum AI - Willow Results](https://blog.google/technology/research/google-willow-quantum-chip/)\n"
         "- [Microsoft Topological Qubits](https://news.microsoft.com/source/features/innovation/microsofts-majorana-1-chip/)\n"
         "- [Quantinuum LDPC Demonstration](https://www.quantinuum.com/blog/logical-qubits)\n"
-        "- [Nature \u2013 Surface Code Threshold](https://www.nature.com/articles/s41586-024-08449-y)\n",
+        "- [Nature - Surface Code Threshold](https://www.nature.com/articles/s41586-024-08449-y)\n",
         # 1: Carbon border adjustment
         "# Carbon Border Adjustment Mechanisms: Cross-Regional Economic Impact\n\n"
         "## Executive Summary\n\n"
@@ -3242,8 +3240,8 @@ def load_demo_data():
         "### Developing Nation Impact\n\n"
         "For many developing economies, CBAMs represent a significant trade barrier. Our modeling "
         "shows GDP impacts ranging from -0.3% to -1.2% for carbon-intensive exporters like India, "
-        "Vietnam, and Egypt. However, nations investing in renewable energy infrastructure\u2014"
-        "particularly Morocco, Chile, and Kenya\u2014are positioning themselves as preferred suppliers. "
+        "Vietnam, and Egypt. However, nations investing in renewable energy infrastructure - "
+        "particularly Morocco, Chile, and Kenya - are positioning themselves as preferred suppliers. "
         "The key policy question is whether CBAM revenue should fund climate adaptation in affected "
         "developing countries.\n\n"
         "## Trade Flow Analysis\n\n"
@@ -3253,10 +3251,10 @@ def load_demo_data():
         "fossil-fuel-dependent economies. Carbon leakage risk drops by 30-40% compared to "
         "unilateral carbon pricing without border adjustment.\n\n"
         "## References\n\n"
-        "- [European Commission \u2013 CBAM Overview](https://taxation-customs.ec.europa.eu/carbon-border-adjustment-mechanism_en)\n"
-        "- [World Bank \u2013 Carbon Pricing Dashboard](https://carbonpricingdashboard.worldbank.org/)\n"
-        "- [IMF Working Paper \u2013 Border Carbon Adjustments](https://www.imf.org/en/Publications/WP)\n"
-        "- [UNCTAD \u2013 Trade and Climate Change](https://unctad.org/topic/trade-and-environment)\n",
+        "- [European Commission - CBAM Overview](https://taxation-customs.ec.europa.eu/carbon-border-adjustment-mechanism_en)\n"
+        "- [World Bank - Carbon Pricing Dashboard](https://carbonpricingdashboard.worldbank.org/)\n"
+        "- [IMF Working Paper - Border Carbon Adjustments](https://www.imf.org/en/Publications/WP)\n"
+        "- [UNCTAD - Trade and Climate Change](https://unctad.org/topic/trade-and-environment)\n",
         # 2: React Server Components vs SSR
         "# React Server Components vs Traditional SSR\n\n"
         "## Executive Summary\n\n"
@@ -3286,12 +3284,12 @@ def load_demo_data():
         "1. Start with leaf components that fetch data (tables, lists, detail views)\n"
         "2. Convert layout and navigation components that don't need interactivity\n"
         "3. Keep form components, modals, and stateful widgets as client components\n"
-        "4. Adopt Next.js App Router as the framework layer\u2014it provides the most mature RSC "
+        "4. Adopt Next.js App Router as the framework layer - it provides the most mature RSC "
         "implementation with caching, routing, and streaming support\n\n"
         "## References\n\n"
-        "- [React \u2013 Server Components RFC](https://react.dev/blog/2023/03/22/react-labs-what-we-have-been-working-on-march-2023)\n"
-        "- [Next.js \u2013 App Router Documentation](https://nextjs.org/docs/app)\n"
-        "- [Vercel \u2013 RSC Performance Study](https://vercel.com/blog)\n",
+        "- [React - Server Components RFC](https://react.dev/blog/2023/03/22/react-labs-what-we-have-been-working-on-march-2023)\n"
+        "- [Next.js - App Router Documentation](https://nextjs.org/docs/app)\n"
+        "- [Vercel - RSC Performance Study](https://vercel.com/blog)\n",
         # 3: Autonomous vehicle regulation
         "# Autonomous Vehicle Regulation: Global Status Report (2026)\n\n"
         "## Executive Summary\n\n"
@@ -3306,7 +3304,7 @@ def load_demo_data():
         "state-level variations. The EU's revised Product Liability Directive (2024) applies strict "
         "liability to AI systems including AVs, with a rebuttable presumption of defect when AI "
         "causes harm. China's approach assigns liability to the vehicle operator by default, with "
-        "provisions for manufacturer liability only when defects are proven\u2014creating a more "
+        "provisions for manufacturer liability only when defects are proven - creating a more "
         "conservative framework.\n\n"
         "### Safety Standards\n\n"
         "UNECE WP.29 adopted the Automated Lane Keeping System (ALKS) regulation, now recognized "
@@ -3325,22 +3323,22 @@ def load_demo_data():
         "through UNECE, liability frameworks diverge significantly. Companies operating across "
         "jurisdictions face compliance costs of $5-15 million annually for regulatory adaptation.\n\n"
         "## References\n\n"
-        "- [UNECE \u2013 Automated Driving Regulations](https://unece.org/transport/vehicle-regulations)\n"
-        "- [NHTSA \u2013 AV Safety Framework](https://www.nhtsa.gov/technology-innovation/automated-vehicles-safety)\n"
-        "- [European Commission \u2013 AI Liability Directive](https://commission.europa.eu/legal-notice_en)\n"
-        "- [McKinsey \u2013 AV Insurance Market](https://www.mckinsey.com/industries/automotive-and-assembly)\n"
-        "- [SAE International \u2013 J3016 Automation Levels](https://www.sae.org/standards/content/j3016_202104/)\n",
+        "- [UNECE - Automated Driving Regulations](https://unece.org/transport/vehicle-regulations)\n"
+        "- [NHTSA - AV Safety Framework](https://www.nhtsa.gov/technology-innovation/automated-vehicles-safety)\n"
+        "- [European Commission - AI Liability Directive](https://commission.europa.eu/legal-notice_en)\n"
+        "- [McKinsey - AV Insurance Market](https://www.mckinsey.com/industries/automotive-and-assembly)\n"
+        "- [SAE International - J3016 Automation Levels](https://www.sae.org/standards/content/j3016_202104/)\n",
         # 4: LLM alignment techniques
         "# Large Language Model Alignment Techniques: A Systematic Review\n\n"
         "## Executive Summary\n\n"
         "Aligning large language models with human values and intentions remains one of the most "
-        "critical challenges in AI development. This review compares the major alignment approaches\u2014"
-        "RLHF, DPO, Constitutional AI, and newer methods\u2014evaluating their effectiveness, "
+        "critical challenges in AI development. This review compares the major alignment approaches - "
+        "RLHF, DPO, Constitutional AI, and newer methods - evaluating their effectiveness, "
         "scalability, and limitations based on published research through early 2026.\n\n"
         "## Key Findings\n\n"
         "### RLHF (Reinforcement Learning from Human Feedback)\n\n"
-        "RLHF remains the most widely deployed alignment technique. The standard pipeline\u2014"
-        "supervised fine-tuning, reward model training, and PPO optimization\u2014has been refined "
+        "RLHF remains the most widely deployed alignment technique. The standard pipeline - "
+        "supervised fine-tuning, reward model training, and PPO optimization - has been refined "
         "significantly since its introduction. Key improvements include reward model ensembles to "
         "reduce reward hacking, KL-penalty scheduling for training stability, and process-based "
         "reward models that evaluate reasoning steps rather than final outputs. However, RLHF's "
@@ -3364,10 +3362,10 @@ def load_demo_data():
         "directly modifies model internals to encode safety properties. Early results are promising "
         "but none has yet matched RLHF/DPO at production scale.\n\n"
         "## References\n\n"
-        "- [Ouyang et al. \u2013 Training language models to follow instructions](https://arxiv.org/abs/2203.02155)\n"
-        "- [Rafailov et al. \u2013 Direct Preference Optimization](https://arxiv.org/abs/2305.18290)\n"
-        "- [Bai et al. \u2013 Constitutional AI](https://arxiv.org/abs/2212.08073)\n"
-        "- [Burns et al. \u2013 Representation Engineering](https://arxiv.org/abs/2310.01405)\n",
+        "- [Ouyang et al. - Training language models to follow instructions](https://arxiv.org/abs/2203.02155)\n"
+        "- [Rafailov et al. - Direct Preference Optimization](https://arxiv.org/abs/2305.18290)\n"
+        "- [Bai et al. - Constitutional AI](https://arxiv.org/abs/2212.08073)\n"
+        "- [Burns et al. - Representation Engineering](https://arxiv.org/abs/2310.01405)\n",
         # 5: Semiconductor supply chain
         "# Global Semiconductor Supply Chain Post-CHIPS Act\n\n"
         "## Executive Summary\n\n"
@@ -3387,7 +3385,7 @@ def load_demo_data():
         "Samsung's $17 billion Taylor, Texas fab focuses on advanced nodes (4nm and below), "
         "targeting both consumer electronics and automotive chips. Intel's foundry services "
         "division received the largest CHIPS Act award ($8.5 billion) to support its IDM 2.0 "
-        "strategy, but the company's execution challenges\u2014delays at Intel 18A and yield issues\u2014"
+        "strategy, but the company's execution challenges - delays at Intel 18A and yield issues - "
         "have raised questions about its ability to compete with TSMC. Intel's restructuring in "
         "2025, including the potential IPO of its foundry business, signals the difficulty of the "
         "transition.\n\n"
@@ -3398,8 +3396,8 @@ def load_demo_data():
         "insufficient for true supply chain independence but enough to sustain critical defense "
         "and infrastructure needs during a potential disruption.\n\n"
         "## References\n\n"
-        "- [US Department of Commerce \u2013 CHIPS Act Awards](https://www.commerce.gov/chips)\n"
-        "- [TSMC \u2013 Arizona Expansion](https://pr.tsmc.com/english/news)\n"
+        "- [US Department of Commerce - CHIPS Act Awards](https://www.commerce.gov/chips)\n"
+        "- [TSMC - Arizona Expansion](https://pr.tsmc.com/english/news)\n"
         "- [Semiconductor Industry Association](https://www.semiconductors.org/)\n"
         "- [Intel Foundry Services](https://www.intel.com/content/www/us/en/foundry.html)\n",
         # 6: Rust async runtimes
@@ -3433,7 +3431,7 @@ def load_demo_data():
         "Tokio's work-stealing scheduler excels under load imbalance. smol's lightweight design "
         "wins on memory efficiency and spawn latency.\n\n"
         "### Recommendation\n\n"
-        "For production server applications, Tokio remains the clear choice\u2014its ecosystem, "
+        "For production server applications, Tokio remains the clear choice - its ecosystem, "
         "documentation, and community support are unmatched. For libraries, consider using "
         "runtime-agnostic abstractions (futures crate) to avoid locking users into a specific "
         "runtime. For resource-constrained environments, smol offers the best footprint.\n\n"
@@ -3461,7 +3459,7 @@ def load_demo_data():
         "**Nature-based solutions**: Mangrove restoration, living shorelines, and constructed "
         "wetlands provide flood protection at 2-5x lower cost than hard infrastructure while "
         "delivering co-benefits (carbon sequestration, biodiversity, fisheries). Singapore's "
-        "hybrid approach\u2014combining mangroves with engineered structures\u2014is emerging as a "
+        "hybrid approach - combining mangroves with engineered structures - is emerging as a "
         "best-practice model.\n\n"
         "**Managed retreat**: For areas where protection costs exceed property values, managed "
         "retreat is increasingly recognized as necessary. The US has spent $3.4 billion on buyouts "
@@ -3474,15 +3472,15 @@ def load_demo_data():
         "low-lying communities where retreat may be more economical. Every dollar invested in "
         "adaptation today avoids $4-8 in future damage costs.\n\n"
         "## References\n\n"
-        "- [IPCC AR6 \u2013 Sea Level Rise Projections](https://www.ipcc.ch/report/ar6/wg1/)\n"
-        "- [World Bank \u2013 Coastal Resilience](https://www.worldbank.org/en/topic/climatechange)\n"
-        "- [C40 Cities \u2013 Climate Action Plans](https://www.c40.org/)\n"
-        "- [Nature \u2013 Cost of Coastal Flooding](https://www.nature.com/articles/s41558-020-0895-y)\n"
-        "- [NOAA \u2013 Sea Level Rise Viewer](https://coast.noaa.gov/slr/)\n",
+        "- [IPCC AR6 - Sea Level Rise Projections](https://www.ipcc.ch/report/ar6/wg1/)\n"
+        "- [World Bank - Coastal Resilience](https://www.worldbank.org/en/topic/climatechange)\n"
+        "- [C40 Cities - Climate Action Plans](https://www.c40.org/)\n"
+        "- [Nature - Cost of Coastal Flooding](https://www.nature.com/articles/s41558-020-0895-y)\n"
+        "- [NOAA - Sea Level Rise Viewer](https://coast.noaa.gov/slr/)\n",
         # 8: GenAI and software engineering productivity
         "# Generative AI Impact on Software Engineering Productivity\n\n"
         "## Executive Summary\n\n"
-        "Generative AI coding tools\u2014led by GitHub Copilot, Cursor, and Claude Code\u2014have been "
+        "Generative AI coding tools - led by GitHub Copilot, Cursor, and Claude Code - have been "
         "adopted by an estimated 40% of professional developers as of early 2026. This report "
         "synthesizes empirical studies, large-scale developer surveys, and economic modeling to "
         "quantify the productivity impact and identify where AI assistance is most and least "
@@ -3513,15 +3511,15 @@ def load_demo_data():
         "pipelines and code review practices that catch AI-introduced errors early. Companies "
         "without these safeguards may see negative ROI from AI tool adoption.\n\n"
         "## References\n\n"
-        "- [GitHub \u2013 Copilot Research](https://github.blog/news-insights/research/)\n"
-        "- [Microsoft Research \u2013 Developer Productivity Study](https://www.microsoft.com/en-us/research/)\n"
-        "- [Stack Overflow \u2013 2025 Developer Survey](https://survey.stackoverflow.co/)\n"
-        "- [McKinsey \u2013 The Economic Potential of Generative AI](https://www.mckinsey.com/capabilities/quantumblack)\n",
+        "- [GitHub - Copilot Research](https://github.blog/news-insights/research/)\n"
+        "- [Microsoft Research - Developer Productivity Study](https://www.microsoft.com/en-us/research/)\n"
+        "- [Stack Overflow - 2025 Developer Survey](https://survey.stackoverflow.co/)\n"
+        "- [McKinsey - The Economic Potential of Generative AI](https://www.mckinsey.com/capabilities/quantumblack)\n",
         # 9: Subscription pricing behavioral economics
         "# Behavioral Economics of Subscription Pricing\n\n"
         "## Executive Summary\n\n"
         "Subscription models now underpin over $275 billion in annual consumer spending globally. "
-        "This report examines how behavioral economics principles\u2014particularly nudge theory\u2014are "
+        "This report examines how behavioral economics principles - particularly nudge theory - are "
         "applied in subscription pricing, analyzes churn prediction models, and addresses the "
         "growing ethical concerns around dark patterns in subscription management.\n\n"
         "## Key Findings\n\n"
@@ -3541,7 +3539,7 @@ def load_demo_data():
         "Modern churn models combine behavioral signals (login frequency, feature usage, support "
         "tickets) with payment signals (failed charges, plan downgrades, coupon usage). XGBoost "
         "and transformer-based models achieve 85-92% accuracy in predicting churn 30 days out. "
-        "The most predictive single feature is declining engagement velocity\u2014not absolute usage "
+        "The most predictive single feature is declining engagement velocity - not absolute usage "
         "levels but the rate of change in usage patterns.\n\n"
         "### Ethical Considerations\n\n"
         "The FTC's 2025 enforcement actions against subscription dark patterns have established "
@@ -3551,10 +3549,10 @@ def load_demo_data():
         "to practices like 'roach motel' designs where cancellation is technically possible but "
         "deliberately friction-laden.\n\n"
         "## References\n\n"
-        "- [FTC \u2013 Click-to-Cancel Rule](https://www.ftc.gov/legal-library/browse/rules/negative-option-rule)\n"
-        "- [Thaler & Sunstein \u2013 Nudge: The Final Edition](https://www.penguinrandomhouse.com/books/)\n"
-        "- [Recurly \u2013 State of Subscriptions](https://recurly.com/research/)\n"
-        "- [Harvard Business Review \u2013 Subscription Fatigue](https://hbr.org/)\n"
+        "- [FTC - Click-to-Cancel Rule](https://www.ftc.gov/legal-library/browse/rules/negative-option-rule)\n"
+        "- [Thaler & Sunstein - Nudge: The Final Edition](https://www.penguinrandomhouse.com/books/)\n"
+        "- [Recurly - State of Subscriptions](https://recurly.com/research/)\n"
+        "- [Harvard Business Review - Subscription Fatigue](https://hbr.org/)\n"
         "- [EU Digital Services Act](https://digital-strategy.ec.europa.eu/en/policies/digital-services-act-package)\n",
     ]
 

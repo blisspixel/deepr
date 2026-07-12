@@ -1,0 +1,131 @@
+{
+  "schema_version": "deepr-recon-evidence-handoff-v1",
+  "kind": "deepr.integration.recon_evidence_handoff",
+  "contract": {
+    "lossless_handoff": true,
+    "raw_observations_preserved": true,
+    "observation_inference_separated": true,
+    "organization_product_use_verdict_allowed": false,
+    "belief_write_allowed": false,
+    "semantic_review_required": true,
+    "breaking_changes_require_new_schema_version": true
+  },
+  "source_payload": {
+    "media_type": "application/json",
+    "raw": {
+      "domain": "stripe.com",
+      "provider": "AWS",
+      "confidence": "high",
+      "signals": ["resolved-address network attribution"]
+    },
+    "content_sha256": "ad6d94ed58ee75e67f9d24a0f4422de212b6a66dadcb33c6048aa00f251faf63"
+  },
+  "query_scope": {
+    "scope_kind": "domain",
+    "queried_domain": "stripe.com",
+    "queried_names": ["stripe.com"],
+    "organization_scope_inferred": false
+  },
+  "collection": {
+    "status": "complete",
+    "started_at": "2026-05-07T12:00:00Z",
+    "completed_at": "2026-05-07T12:00:00.010000Z",
+    "opportunities": [
+      {
+        "opportunity_id": "op_dns_resolution_001",
+        "method": "dns_resolution",
+        "target": "stripe.com",
+        "attempted": true,
+        "succeeded": true,
+        "outcome": "records_observed",
+        "result_count": 1,
+        "error": null
+      }
+    ]
+  },
+  "observations": [
+    {
+      "observation_id": "obs_dns_aws_indicator_001",
+      "collection_opportunity_id": "op_dns_resolution_001",
+      "subject": {
+        "kind": "queried_domain",
+        "value": "stripe.com"
+      },
+      "predicate": "dns_resolution_indicator",
+      "object": {
+        "provider_indicator": "AWS",
+        "indicator_basis": "resolved-address network attribution"
+      },
+      "raw_observation": {
+        "query": {
+          "name": "stripe.com",
+          "type": "A"
+        },
+        "answers": [
+          {
+            "name": "stripe.com",
+            "type": "A",
+            "value": "192.0.2.44",
+            "ttl": 60
+          }
+        ],
+        "network_attribution": {
+          "provider_indicator": "AWS",
+          "source": "frozen-test-attribution-map"
+        }
+      },
+      "provenance": [
+        {
+          "source_type": "dns_response",
+          "collector": "frozen_regression_fixture",
+          "raw_artifact_ref": "tests/unit/test_schemas/fixtures/stripe-aws-dns-indicator-v1.json#/observations/0/raw_observation",
+          "content_sha256": "a00d10a6f155b937f021f74aa4a14608fe09400e66870a38fddd06c92ebacc5a"
+        }
+      ],
+      "observed_at": "2026-05-07T12:00:00Z",
+      "freshness": {
+        "state": "fresh_at_collection",
+        "as_of": "2026-05-07T12:00:00Z",
+        "expires_at": "2026-05-07T12:01:00Z",
+        "basis": "DNS TTL in the frozen response"
+      },
+      "confidence": {
+        "score": 0.99,
+        "label": "high",
+        "basis": "The frozen fixture preserves a successful DNS response and its network attribution.",
+        "applies_to": "observation"
+      }
+    }
+  ],
+  "inferences": [
+    {
+      "inference_id": "inf_dns_aws_candidate_001",
+      "claim_class": "candidate_explanation",
+      "statement": "The queried stripe.com DNS name had an AWS-attributed resolution indicator at observation time.",
+      "basis_observation_ids": ["obs_dns_aws_indicator_001"],
+      "status": "unresolved",
+      "confidence": {
+        "score": 0.55,
+        "label": "medium",
+        "basis": "Network attribution supports an infrastructure indicator but does not establish organization-level product use.",
+        "applies_to": "inference"
+      },
+      "unresolved_alternatives": [
+        "The endpoint could be operated by a third party on Stripe's behalf.",
+        "The observation covers one public DNS name rather than the organization's full infrastructure.",
+        "The organization could use multiple providers or change the route after observation."
+      ],
+      "organization_product_use_verdict": false,
+      "eligible_for_belief_write": false
+    }
+  ],
+  "unresolved_alternatives": [
+    "Third-party hosting or proxying can produce the indicator.",
+    "One queried domain cannot establish organization-wide infrastructure use.",
+    "DNS and provider attribution can change after observation."
+  ],
+  "trace_id": "fixture-recon-stripe-aws",
+  "cost_usd": 0.0,
+  "duration_ms": 10,
+  "generated_at": "2026-05-07T12:00:00.010000Z"
+}

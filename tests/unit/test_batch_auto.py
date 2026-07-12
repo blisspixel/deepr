@@ -297,6 +297,16 @@ class TestAutoBatchExecutor:
             assert r.decision.provider is not None
             assert r.decision.model is not None
 
+    @pytest.mark.asyncio
+    async def test_execute_batch_is_gated_without_parent_budget(self, executor, txt_batch_file):
+        result = await executor.execute_batch(file_path=txt_batch_file, dry_run=False)
+
+        assert result.success_count == 0
+        assert result.failure_count == 3
+        assert result.total_cost_actual == 0.0
+        assert result.error is not None
+        assert "research_parent_budget_unavailable" in result.error
+
 
 class TestFormatBatchPreview:
     """Tests for batch preview formatting."""

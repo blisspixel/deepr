@@ -9,8 +9,8 @@ import pytest
 import deepr.backends.local as local_mod
 import deepr.backends.plan_quota as plan_quota_mod
 import deepr.backends.waterfall as waterfall_mod
-import deepr.experts.report_absorber as report_absorber_mod
 import deepr.cli.commands.semantic.expert_absorb_support as absorb_support_mod
+import deepr.experts.report_absorber as report_absorber_mod
 from deepr.cli.commands.semantic.expert_absorb_support import (
     AbsorbBackend,
     AbsorbBackendError,

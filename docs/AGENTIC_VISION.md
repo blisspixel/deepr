@@ -2,6 +2,12 @@
 
 > How Deepr becomes dramatically more agentic while simultaneously being the best research role on any agent team.
 
+> Status: aspirational design. [Supported Surface](SUPPORTED_SURFACE.md) is the
+> current capability contract. In particular, standalone metered chat,
+> automatic paid fallback, hosted file/vector context, and live multi-round
+> execution are gated in v2.36 even where this document describes their design
+> substrate.
+
 ---
 
 ## The Two-Sided Opportunity
@@ -225,7 +231,7 @@ multi-expert council skills, and campaign-oriented A2A tasks.
   "produced_at": "2026-05-07T14:30:00Z",
   "confidence": 0.82,
   "budget_spent": 1.45,
-  
+
   "findings": {
     "summary": "...",
     "key_claims": [
@@ -240,7 +246,7 @@ multi-expert council skills, and campaign-oriented A2A tasks.
     "knowledge_gaps": ["No data on Stripe's inference infrastructure costs"],
     "contradictions": []
   },
-  
+
   "metadata": {
     "sources_consulted": 14,
     "tools_used": ["recon", "primr", "deepr_research"],
@@ -269,7 +275,7 @@ Downstream coding agent about to deploy infrastructure change ->
   Calls Deepr "Cloud Security Expert" as a guardrail:
     "Validate this Terraform plan against known security best practices
      and the target company's compliance requirements"
-  
+
   Expert responds with:
     - PASS/WARN/FAIL assessment
     - Specific concerns with citations

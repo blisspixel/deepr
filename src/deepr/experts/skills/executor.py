@@ -280,9 +280,16 @@ class MCPClientProxy:
 class SkillExecutor:
     """Executes skill tools with budget tracking."""
 
-    def __init__(self, skill: SkillDefinition, budget_remaining: float):
+    def __init__(
+        self,
+        skill: SkillDefinition,
+        budget_remaining: float,
+        *,
+        allow_metered_tools: bool = True,
+    ):
         self._skill = skill
         self._budget_remaining = budget_remaining
+        self._allow_metered_tools = allow_metered_tools
         self._mcp_proxies: dict[str, MCPClientProxy] = {}
         self._tool_map: dict[str, SkillTool] = {t.name: t for t in skill.tools}
         # Serialise budget check + deduction so two parallel ``execute_tool``
@@ -304,6 +311,13 @@ class SkillExecutor:
         # Budget check inside the lock so a parallel caller cannot
         # observe the same ``_budget_remaining`` snapshot.
         estimated_cost = _COST_TIER_ESTIMATES.get(tool.cost_tier, 0.0)
+        if estimated_cost > 0 and not self._allow_metered_tools:
+            return {
+                "error": "METERED_SKILL_TOOL_DISABLED",
+                "status": "blocked",
+                "detail": "Metered skill tools are unavailable inside live expert chat until durable accounting exists.",
+                "cost": 0.0,
+            }
         async with self._lock:
             if estimated_cost > 0 and estimated_cost > self._budget_remaining:
                 return {

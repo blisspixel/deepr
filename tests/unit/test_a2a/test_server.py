@@ -139,6 +139,57 @@ class TestTaskCreation:
         assert body["error"]["error_code"] == "METERED_API_NOT_APPROVED"
         assert body["cost"] == 0.0
 
+    @pytest.mark.parametrize(
+        ("synthesis_status", "error_code", "result_status"),
+        [
+            ("failed", "CONSULT_FAILED", "incomplete"),
+            ("truncated", "CONSULT_INCOMPLETE", "incomplete"),
+        ],
+    )
+    def test_consult_terminal_failure_preserves_artifact_trace_and_cost(
+        self,
+        server: A2AServer,
+        monkeypatch: pytest.MonkeyPatch,
+        synthesis_status: str,
+        error_code: str,
+        result_status: str,
+    ) -> None:
+        fixture = build_offline_consult_fixture(experts=("Contract Expert",))
+        fixture["synthesis_status"] = synthesis_status
+        fixture["synthesis_error_type"] = "OutputLimit" if synthesis_status == "truncated" else "ProviderFailure"
+        fixture["synthesis_stop_reason"] = "length" if synthesis_status == "truncated" else "provider_error"
+        fixture["cost_usd"] = 0.0000125
+
+        async def fake_consult_experts_tool(**_kwargs):
+            return fixture
+
+        monkeypatch.setattr("deepr.a2a.consult_tasks.consult_experts_tool", fake_consult_experts_tool)
+        payload = json.dumps(
+            {
+                "skill": CONSULT_SKILL_NAME,
+                "input": "Preserve a failed consult artifact.",
+                "budget": 1,
+                "metadata": {
+                    "experts": ["Contract Expert"],
+                    "synthesis_backend": "api",
+                    "allow_metered_api": True,
+                },
+            }
+        )
+
+        status, body = asyncio.run(server.handle_request("POST", "/tasks", payload))
+
+        assert status == 201
+        assert body["state"] == "failed"
+        assert body["error"]["error_code"] == error_code
+        assert body["error"]["synthesis_status"] == synthesis_status
+        assert body["result"]["status"] == result_status
+        assert body["result"]["synthesis_status"] == synthesis_status
+        assert body["cost"] == 0.0000125
+        assert body["result"]["cost_usd"] == 0.0000125
+        assert body["trace_id"] == fixture["trace"]["trace_id"]
+        assert body["artifacts"][0]["content"] == fixture
+
 
 class TestTaskRetrieval:
     """Test GET /tasks/{id}."""

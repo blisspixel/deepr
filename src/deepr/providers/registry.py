@@ -212,6 +212,19 @@ MODEL_CAPABILITIES: dict[str, ModelCapability] = {
         output_cost_per_1m=2.00,
         cached_input_cost_per_1m=0.025,
     ),
+    "openai/gpt-4o-mini": ModelCapability(
+        provider="openai",
+        model="gpt-4o-mini",
+        cost_per_query=0.005,
+        latency_ms=1500,
+        context_window=128_000,
+        specializations=["speed", "cost", "general", "synthesis"],
+        strengths=["Fast and inexpensive", "Good for bounded utility calls and synthesis"],
+        weaknesses=["Older and less capable than GPT-5 mini", "Limited for complex reasoning"],
+        input_cost_per_1m=0.15,
+        output_cost_per_1m=0.60,
+        cached_input_cost_per_1m=0.075,
+    ),
     "openai/gpt-4.1": ModelCapability(
         provider="openai",
         model="gpt-4.1",
@@ -333,10 +346,10 @@ MODEL_CAPABILITIES: dict[str, ModelCapability] = {
             "Expensive",
             "Slow (2-5 minutes)",
         ],
-        # $10/$40 standard (batch is 50% off) - verified against the live
-        # OpenAI pricing page 2026-06-11; the previous $11/$44 was wrong
-        input_cost_per_1m=10.0,
-        output_cost_per_1m=40.0,
+        # $5/$20 standard. Source checked 2026-07-12:
+        # https://developers.openai.com/api/docs/pricing
+        input_cost_per_1m=5.0,
+        output_cost_per_1m=20.0,
     ),
     "openai/o4-mini-deep-research": ModelCapability(
         provider="openai",
@@ -352,10 +365,10 @@ MODEL_CAPABILITIES: dict[str, ModelCapability] = {
             "Excellent for strategic decisions",
         ],
         weaknesses=["Expensive ($2 per query)", "Slow (30-60 seconds minimum)", "Overkill for simple queries"],
-        # $2/$8 standard (batch is 50% off) - verified 2026-06-11; the
-        # previous $1.10/$4.40 was the plain o4-mini rate copied by mistake
-        input_cost_per_1m=2.00,
-        output_cost_per_1m=8.00,
+        # $1/$4 standard. Source checked 2026-07-12:
+        # https://developers.openai.com/api/docs/pricing
+        input_cost_per_1m=1.00,
+        output_cost_per_1m=4.00,
     ),
     # xAI Models (Grok)
     # Grok 4.20 - Flagship (March 2026)

@@ -153,8 +153,8 @@ class TestBudgetValidation:
             orchestrator.provider.submit_research.assert_called_once()
 
     @pytest.mark.asyncio
-    async def test_submit_failure_refunds_cost_reservation(self, orchestrator):
-        """A failed provider submit should release the reserved budget."""
+    async def test_submit_failure_conservatively_settles_cost_reservation(self, orchestrator):
+        """A post-mark submit failure must settle the admitted ceiling."""
         orchestrator.provider.submit_research = AsyncMock(side_effect=RuntimeError("provider down"))
 
         with pytest.raises(RuntimeError, match="provider down"):
@@ -164,28 +164,34 @@ class TestBudgetValidation:
             )
 
         assert ResearchReservationStore().active_cost() == 0
-        assert CostLedger().get_events() == []
+        events = CostLedger().get_events()
+        assert len(events) == 1
+        assert events[0].cost_usd > 0
+        assert events[0].metadata["actual_cost_reported"] is False
 
     @pytest.mark.asyncio
-    async def test_document_upload_failure_refunds_durable_reservation(self, orchestrator):
+    async def test_document_storage_is_blocked_before_upload_or_reservation(self, orchestrator):
+        from deepr.services.research_bounds import ResearchRequestBoundsError
+
         orchestrator.document_manager.upload_documents = AsyncMock(side_effect=OSError("upload failed"))
 
-        with pytest.raises(OSError, match="upload failed"):
+        with pytest.raises(ResearchRequestBoundsError) as exc_info:
             await orchestrator.submit_research(
                 prompt="Test research",
                 model="o4-mini-deep-research",
                 documents=["evidence.txt"],
             )
 
+        assert exc_info.value.code == "research_file_storage_unbounded"
         assert ResearchReservationStore().active_cost() == 0
         assert CostLedger().get_events() == []
+        orchestrator.document_manager.upload_documents.assert_not_called()
         orchestrator.provider.submit_research.assert_not_called()
 
     @pytest.mark.asyncio
     async def test_reservation_uses_exact_enhanced_provider_prompt(self, orchestrator):
         from deepr.experts import research_cost_gate
 
-        orchestrator.document_manager.upload_documents = AsyncMock(return_value=[])
         orchestrator.provider.submit_research = AsyncMock(return_value="job-enhanced")
         with patch(
             "deepr.experts.research_cost_gate.reserve_configured_research_cost",
@@ -194,12 +200,11 @@ class TestBudgetValidation:
             result = await orchestrator.submit_research(
                 prompt="Hi",
                 model="o4-mini-deep-research",
-                documents=["evidence.txt"],
             )
 
         request = orchestrator.provider.submit_research.await_args.args[0]
         assert reserve.call_args.kwargs["prompt"] == request.prompt
-        assert request.prompt.startswith("Use ONLY the attached document")
+        assert request.prompt.endswith("Hi")
         tracking = orchestrator._cost_tracking.pop(result)
         refund_research_cost(tracking["reservation"])
 
@@ -338,8 +343,10 @@ class TestVectorStoreManagement:
         )
 
     @pytest.mark.asyncio
-    async def test_vector_store_created_with_documents(self, orchestrator):
-        """Test that vector store is created when documents provided."""
+    async def test_existing_vector_store_is_blocked_before_provider_work(self, orchestrator):
+        """File-search storage stays gated until its full cost is bounded."""
+        from deepr.services.research_bounds import ResearchRequestBoundsError
+
         # Patch at source module since import is inside function
         with patch("deepr.experts.cost_safety.get_cost_safety_manager") as mock_csm:
             mock_manager = MagicMock()
@@ -357,22 +364,13 @@ class TestVectorStoreManagement:
 
             orchestrator.provider.submit_research = AsyncMock(return_value="job-123")
 
-            await orchestrator.submit_research(
-                prompt="Test research",
-                documents=["doc1.pdf", "doc2.pdf"],
-            )
+            with pytest.raises(ResearchRequestBoundsError) as exc_info:
+                await orchestrator.submit_research(prompt="Test research", vector_store_id="vs-test-123")
 
-            # Verify document upload was called
-            orchestrator.document_manager.upload_documents.assert_called_once()
-
-            # Verify vector store was created
-            orchestrator.document_manager.create_vector_store.assert_called_once()
-
-            # Verify vector store is tracked for cleanup
-            assert (
-                "job-123" not in orchestrator.active_vector_stores
-                or orchestrator.active_vector_stores.get("job-123") is not None
-            )
+            assert exc_info.value.code == "research_file_storage_unbounded"
+            orchestrator.document_manager.upload_documents.assert_not_called()
+            orchestrator.document_manager.create_vector_store.assert_not_called()
+            orchestrator.provider.submit_research.assert_not_called()
 
     @pytest.mark.asyncio
     async def test_vector_store_cleanup_on_completion(self, orchestrator):
@@ -633,6 +631,7 @@ class TestPropertyBasedValidation:
         """
         # Create fresh orchestrator for each test
         mock_provider = MagicMock()
+        mock_provider.provider_name = "openai"
         mock_storage = MagicMock()
         mock_document_manager = MagicMock()
         mock_report_generator = MagicMock()

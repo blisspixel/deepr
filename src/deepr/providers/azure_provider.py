@@ -68,6 +68,7 @@ class AzureProvider(DeepResearchProvider):
                 azure_endpoint=self.endpoint,
                 api_version=self.api_version,
                 azure_ad_token_provider=get_token,
+                max_retries=0,
             )
         else:
             # Use API key authentication
@@ -78,7 +79,10 @@ class AzureProvider(DeepResearchProvider):
                 raise ValueError("Azure OpenAI API key is required when not using managed identity")
 
             self.client = AsyncAzureOpenAI(
-                api_key=self.api_key, azure_endpoint=self.endpoint, api_version=self.api_version
+                api_key=self.api_key,
+                azure_endpoint=self.endpoint,
+                api_version=self.api_version,
+                max_retries=0,
             )
 
         # Deployment name mappings (Azure uses deployment names instead of model names)
@@ -93,20 +97,25 @@ class AzureProvider(DeepResearchProvider):
         """Map generic model key to Azure deployment name."""
         return self.deployment_mappings.get(model_key, model_key)
 
+    @staticmethod
+    def _research_tools(request: ResearchRequest) -> list[dict[str, Any]]:
+        tools: list[dict[str, Any]] = []
+        for tool in request.tools:
+            tool_dict: dict[str, Any] = {"type": tool.type}
+            if tool.type == "file_search" and tool.vector_store_ids:
+                tool_dict["vector_store_ids"] = tool.vector_store_ids
+            elif tool.type == "code_interpreter":
+                tool_dict["container"] = tool.container or {"type": "auto", "memory_limit": "1g"}
+            tools.append(tool_dict)
+        return tools
+
     async def submit_research(self, request: ResearchRequest) -> str:
         """Submit research job to Azure OpenAI."""
         # Map model to deployment name
         deployment = self.get_model_name(request.model)
 
         # Convert tools to Azure format (same as OpenAI)
-        tools = []
-        for tool in request.tools:
-            tool_dict: dict[str, Any] = {"type": tool.type}
-            if tool.type == "file_search" and tool.vector_store_ids:
-                tool_dict["vector_store_ids"] = tool.vector_store_ids
-            elif tool.type == "code_interpreter" and tool.container:
-                tool_dict["container"] = tool.container
-            tools.append(tool_dict)
+        tools = self._research_tools(request)
 
         # Build request payload
         payload: dict[str, Any] = {
@@ -124,6 +133,8 @@ class AzureProvider(DeepResearchProvider):
             "metadata": request.metadata,
             "store": request.store,
             "background": request.background,
+            "max_output_tokens": request.max_output_tokens,
+            "max_tool_calls": request.max_tool_calls if tools else None,
         }
 
         # Add webhook if provided
@@ -141,10 +152,13 @@ class AzureProvider(DeepResearchProvider):
         # - Azure throttles aggressively and a single 429 shouldn't fail
         # a whole job. Authentication / invalid-request errors are still
         # raised immediately as ProviderError.
-        max_retries = 3
+        max_retries = request.max_provider_requests
         retry_delay = 1.0
         for attempt in range(max_retries):
             try:
+                from deepr.services.research_bounds import validate_provider_payload_bytes
+
+                validate_provider_payload_bytes(payload, request.max_request_bytes)
                 response = await self.client.responses.create(**payload)
                 return str(response.id)
             except (RateLimitError, APIConnectionError, APITimeoutError) as e:

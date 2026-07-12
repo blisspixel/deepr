@@ -111,15 +111,17 @@ class TestGeminiProvider:
         We should test that the provider handles this correctly.
         """
         mock_response = MagicMock()
-        mock_response.text = "Test response content"
-        mock_response.candidates = [MagicMock()]
+        mock_part = MagicMock(text="Test response content", thought=False)
+        mock_candidate = MagicMock()
+        mock_candidate.content.parts = [mock_part]
+        mock_response.candidates = [mock_candidate]
         mock_response.usage_metadata = MagicMock()
         mock_response.usage_metadata.prompt_token_count = 100
         mock_response.usage_metadata.candidates_token_count = 200
         mock_response.usage_metadata.total_token_count = 300
 
-        with patch.object(provider.client.models, "generate_content") as mock_generate:
-            mock_generate.return_value = mock_response
+        with patch.object(provider.client.models, "generate_content_stream") as mock_generate:
+            mock_generate.return_value = [mock_response]
 
             request = ResearchRequest(
                 prompt="Test prompt",
@@ -133,6 +135,7 @@ class TestGeminiProvider:
             # Gemini provider generates a job ID locally
             assert job_id is not None
             assert len(job_id) > 0
+            mock_generate.assert_called_once()
 
     def test_google_search_grounding(self, provider):
         """Test that Google Search can be enabled for grounding.

@@ -4,8 +4,10 @@ from __future__ import annotations
 
 import os
 
-from deepr.core.costs import CostEstimate, CostEstimator
+from deepr.core.costs import CostEstimate
 from deepr.experts.research_cost_gate import ResearchCostReservation, reserve_research_cost
+from deepr.providers.base import ResearchRequest, ToolConfig
+from deepr.services.research_bounds import bounded_research_cost_estimate
 
 
 def reserve_api_research_cost(
@@ -24,11 +26,13 @@ def reserve_api_research_cost(
     }
     if any(limit <= 0 for limit in limits.values()):
         raise ValueError("research cost limits must be positive")
-    estimate = CostEstimator.estimate_cost(
+    bounded_request = ResearchRequest(
         prompt=prompt,
         model=model,
-        enable_web_search=enable_web_search,
+        system_message="You are a research assistant. Provide comprehensive, citation-backed analysis.",
+        tools=[ToolConfig(type="web_search_preview")] if enable_web_search else [],
     )
+    estimate = bounded_research_cost_estimate(request=bounded_request, provider=provider)
     reservation = reserve_research_cost(
         job_id=job_id,
         provider=provider,

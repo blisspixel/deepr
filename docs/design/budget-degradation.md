@@ -63,8 +63,9 @@ side of AGENTIC_BALANCE (determinism on the side-effect: spend).
 Every denial is **pausable** (defer / use local / wait), never a hard failure,
 and the function never raises. Fail-safe toward *not* spending is the correct
 direction here precisely because the gate sits after the capacity waterfall:
-local/$0 is always still available, so a wrong "deny" costs at most a deferred
-metered refresh (the expert can still update locally or next window), while a
+local or plan capacity may remain available, or the run can persist a typed
+wait until the next capacity window. A wrong "deny" costs at most a deferred
+metered refresh, while a
 wrong "allow" spends real money the operator may not have wanted. This matches
 the money-waste-first posture and the "never disable, degrade gracefully"
 guidance.
@@ -76,17 +77,13 @@ non-positive `est_cost` (a free op) clears the gate.
 
 ## What ships now vs next
 
-- **Now:** the pure policy (`experts/spend_policy.py`), fully unit-tested; the
-  **tier hard-off wired into `expert sync-all`**; and the first per-operation
-  value-gate wiring in automatic metered `expert sync`. Single-expert sync now
-  derives schedule-only benefit factors before metered research dispatch,
-  records each value-gate decision to `spend_decisions.jsonl` under the cost
-  data root, and skips resumably when value is below the tier hurdle. Explicit
-  `--api`, local, dry-run, and prepaid plan paths are unchanged. Automatic
-  metered `deepr expert route-gaps --execute` now applies the same append-only
-  value-decision pattern per research gap before any metered research call;
-  explicit `--api`, local, prepaid plan, scheduled wait, and dry-run paths stay
-  unchanged.
-  `deepr costs spend-decisions` provides read-only `$0` operator readback over
-  the append-only spend-decision log.
-- **Next:** extend the waterfall coverage to remaining metered paths.
+- **Now:** the pure policy (`experts/spend_policy.py`), append-only decision
+  artifacts, and `deepr costs spend-decisions` readback remain available.
+  Local, explicit non-metered plan, scheduled-wait, and dry-run maintenance
+  paths remain available. Automatic metered sync and route-gaps execution plus
+  explicit API expert lifecycle overrides are gated in v2.36 before provider
+  construction. A value score cannot substitute for the missing durable parent
+  transaction.
+- **Next:** migrate each metered maintenance surface to shared reserve,
+  dispatch-mark, exact child settlement, and canonical-ledger accounting before
+  re-enabling this degradation policy on its spend boundary.

@@ -11,8 +11,10 @@ server never has to depend on the CLI layer.
 from __future__ import annotations
 
 import hashlib
+import math
 from collections.abc import Iterable
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Any
 
 CONSULT_SCHEMA_VERSION = "deepr-consult-v1"
@@ -40,7 +42,7 @@ class ConsultSynthesisBackend:
     client: Any | None = None
     model: str | None = None
     provider: str = "openai"
-    allow_live_fallback: bool = True
+    allow_live_fallback: bool = False
     note: str = ""
     tos_note: str = ""
 
@@ -50,7 +52,8 @@ class AnthropicConsultSynthesisClient:
 
     Construction is intentionally side-effect light so CLI and schema tests can
     select the backend without requiring a local API key. The real SDK client is
-    created only when an explicit API consult reaches the paid call path.
+    created only when an explicit API consult reaches the paid call path, with
+    SDK retries disabled. An injected client remains caller-owned.
     """
 
     def __init__(self, *, api_key: str | None = None, client: Any | None = None) -> None:
@@ -64,7 +67,9 @@ class AnthropicConsultSynthesisClient:
             from anthropic import AsyncAnthropic
 
             api_key = self._api_key or os.getenv("ANTHROPIC_API_KEY")
-            kwargs = {"api_key": api_key} if api_key else {}
+            kwargs: dict[str, Any] = {"max_retries": 0}
+            if api_key:
+                kwargs["api_key"] = api_key
             self._client = AsyncAnthropic(**kwargs)
         return self._client
 
@@ -132,7 +137,7 @@ def build_synthesis_backend(
         return ConsultSynthesisBackend(
             model=api_model,
             provider="openai",
-            allow_live_fallback=True,
+            allow_live_fallback=False,
             note=f"API synthesis via OpenAI {api_model}" if api_model else "",
         )
     if provider == "anthropic":
@@ -141,7 +146,7 @@ def build_synthesis_backend(
             client=AnthropicConsultSynthesisClient(),
             model=model,
             provider="anthropic",
-            allow_live_fallback=True,
+            allow_live_fallback=False,
             note=f"API synthesis via Anthropic {model}; prompt-cache controls disabled",
         )
     raise ConsultBackendError("API synthesis provider must be one of: openai, anthropic.")
@@ -155,7 +160,7 @@ def build_consult_payload(question: str, result: dict[str, Any]) -> dict[str, An
     cost. Single-shot and safe to render or machine-parse.
     """
     perspectives = result.get("perspectives", []) or []
-    cost = round(float(result.get("total_cost", 0.0) or 0.0), 4)
+    cost = float(result.get("total_cost", 0.0) or 0.0)
     shaped_perspectives = []
     for p in perspectives:
         shaped = {
@@ -203,8 +208,8 @@ def build_collaboration_contract(
     perspectives = result.get("perspectives", []) or []
     agreements = list(result.get("agreements", []) or [])
     disagreements = list(result.get("disagreements", []) or [])
-    requested_budget = round(float(result.get("requested_budget_usd", 0.0) or 0.0), 4)
-    actual_cost = round(float(result.get("total_cost", 0.0) or 0.0), 4)
+    requested_budget = float(result.get("requested_budget_usd", 0.0) or 0.0)
+    actual_cost = float(result.get("total_cost", 0.0) or 0.0)
     trace_id = str((trace or {}).get("trace_id", "") or result.get("shared_task_trace_id", "") or "")
 
     roster = []
@@ -224,7 +229,7 @@ def build_collaboration_contract(
                 "context_source": source,
                 "context_selection": str(context.get("selection", "") or ""),
                 "beliefs_included": int(context.get("beliefs_included", 0) or 0),
-                "cost_usd": round(float(perspective.get("cost", 0.0) or 0.0), 4),
+                "cost_usd": float(perspective.get("cost", 0.0) or 0.0),
             }
         )
 
@@ -250,7 +255,7 @@ def build_collaboration_contract(
             "requested_budget_usd": requested_budget,
             "actual_cost_usd": actual_cost,
             "capacity": capacity or {},
-            "metered_fallback_allowed": bool((capacity or {}).get("live_metered_fallback", True)),
+            "metered_fallback_allowed": bool((capacity or {}).get("live_metered_fallback", False)),
         },
         "evidence_packet": {
             "perspective_count": len(perspectives),
@@ -302,6 +307,9 @@ def record_consult_payload_trace(
     budget: float,
     result: dict[str, Any],
     capacity: dict[str, Any],
+    trace_id: str | None = None,
+    path: Path | None = None,
+    lock_timeout_seconds: float = 5.0,
 ) -> dict[str, Any]:
     """Enrich and append one consult trace before exposing its public reference.
 
@@ -312,9 +320,10 @@ def record_consult_payload_trace(
     """
     from deepr.experts.consult_traces import new_consult_trace_id, record_consult_trace
 
-    trace_id = new_consult_trace_id()
-    attach_collaboration_runtime(payload, result=result, capacity=capacity, trace={"trace_id": trace_id})
+    shared_trace_id = trace_id or new_consult_trace_id()
+    attach_collaboration_runtime(payload, result=result, capacity=capacity, trace={"trace_id": shared_trace_id})
     trace_ref = record_consult_trace(
+        path=path,
         question=question,
         requested_experts=requested_experts,
         max_experts=max_experts,
@@ -322,7 +331,8 @@ def record_consult_payload_trace(
         payload=payload,
         result=result,
         capacity=capacity,
-        trace_id=trace_id,
+        trace_id=shared_trace_id,
+        lock_timeout_seconds=lock_timeout_seconds,
     )
     payload["trace"] = trace_ref
     return trace_ref
@@ -353,7 +363,27 @@ def resolve_explicit_expert_choices(experts: list[str], profiles: Iterable[Any] 
                 "domain": profile.domain or profile.description or "",
             }
         )
+    validate_consult_roster(chosen)
     return chosen
+
+
+def validate_consult_roster(experts: list[dict[str, str]]) -> None:
+    """Reject oversized rosters and aliases for the same expert identity."""
+    from deepr.experts.paths import expert_slug
+
+    if len(experts) > MAX_CONSULT_EXPERTS:
+        raise ValueError(f"Consult roster cannot exceed {MAX_CONSULT_EXPERTS} experts.")
+
+    seen: dict[str, str] = {}
+    for expert in experts:
+        name = expert["name"]
+        task_id = expert_slug(name)
+        previous = seen.get(task_id)
+        if previous is not None:
+            raise ValueError(
+                f"Duplicate expert roster entry: {name!r} resolves to the same canonical expert as {previous!r}."
+            )
+        seen[task_id] = name
 
 
 async def run_consult(
@@ -365,11 +395,24 @@ async def run_consult(
     synthesis_client: Any | None = None,
     synthesis_model: str | None = None,
     synthesis_provider: str = "openai",
-    allow_live_fallback: bool = True,
+    allow_live_fallback: bool = False,
+    progress_callback: Any = None,
 ) -> dict[str, Any]:
     """Resolve experts (explicit or auto-selected) and run one bounded council."""
     from deepr.experts.constants import UTILITY_MODEL
     from deepr.experts.council import ExpertCouncil
+
+    if isinstance(max_experts, bool) or not isinstance(max_experts, int) or not 1 <= max_experts <= MAX_CONSULT_EXPERTS:
+        raise ValueError(f"max_experts must be between 1 and {MAX_CONSULT_EXPERTS}.")
+    if isinstance(budget, bool) or not isinstance(budget, (int, float)) or not math.isfinite(budget) or budget < 0:
+        raise ValueError("budget must be finite and non-negative.")
+
+    if experts:
+        if len(experts) > MAX_CONSULT_EXPERTS:
+            raise ValueError(f"Consult roster cannot exceed {MAX_CONSULT_EXPERTS} experts.")
+        chosen = resolve_explicit_expert_choices(experts)
+    else:
+        chosen = None
 
     council = ExpertCouncil(
         synthesis_client=synthesis_client,
@@ -377,8 +420,9 @@ async def run_consult(
         synthesis_provider=synthesis_provider,
         allow_live_fallback=allow_live_fallback,
     )
-    if experts:
-        chosen = resolve_explicit_expert_choices(experts)
-    else:
-        chosen = await council.select_experts(question, max_experts=min(max_experts, MAX_CONSULT_EXPERTS))
-    return await council.consult(question, experts=chosen, budget=budget)
+    if chosen is None:
+        chosen = await council.select_experts(question, max_experts=max_experts)
+    consult_kwargs: dict[str, Any] = {"experts": chosen, "budget": budget}
+    if progress_callback is not None:
+        consult_kwargs["progress_callback"] = progress_callback
+    return await council.consult(question, **consult_kwargs)

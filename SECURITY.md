@@ -4,8 +4,8 @@
 
 | Version | Supported |
 |---------|-----------|
-| 2.34.x  | Yes       |
-| < 2.34  | No        |
+| 2.36.x  | Yes       |
+| < 2.36  | No        |
 
 ## Reporting a Vulnerability
 
@@ -33,11 +33,12 @@ Deepr includes:
 - Pre-commit hooks (ruff lint, debug statement detection)
 - Comprehensive automated test suite with an enforced coverage gate (see [ROADMAP](ROADMAP.md) for current counts)
 
-**Scope note:** Deepr orchestrates *hosted* model APIs; it does not train, fine-tune,
-or serve model weights. Its security focus is therefore ingested/untrusted data and
-agentic tool use (prompt injection, tool-abuse, trust boundaries), not model-internals
-attacks (poisoning, weight extraction, etc.), which belong to the model providers. See
-the "AI/agentic security" subsection of [ROADMAP](ROADMAP.md) for the planned hardening
-and the explicit non-goals.
+**Scope note:** Deepr orchestrates bounded hosted model APIs, local Ollama, and
+explicit plan-quota CLI backends. It does not train, fine-tune, or serve model
+weights. Its security focus is ingested and untrusted data plus agentic tool use
+(prompt injection, tool abuse, and trust boundaries), not model-internals attacks
+(poisoning, weight extraction, and similar provider concerns). See the
+"AI/agentic security" subsection of [ROADMAP](ROADMAP.md) for the planned
+hardening and explicit non-goals.
 
 See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for technical details.

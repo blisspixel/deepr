@@ -1,231 +1,58 @@
-# Research Modes Reference
+# Research capacity reference
 
-This document details the research modes available in Deepr and when to use each.
+## Works now in v2.36
 
-## Mode Comparison
+| Capacity | Supported use | Cost posture |
+|----------|---------------|--------------|
+| Local Ollama | Expert setup, sync, absorb, fresh/deep context, local eval, read-only query/consult | `$0` Deepr marginal cost; uses local hardware |
+| Explicit non-metered plan CLI | Selected expert sync, sync-all, gap-fill, absorb, learn, query/consult, and probes | `$0` Deepr ledger event; may consume external quota Deepr cannot prove |
+| Bounded API | One fully priced research request; separately bounded API council synthesis | Metered; reserve the hard maximum before dispatch |
+| Stored state | Expert reads, handoffs, memory cards, loop status, reports | `$0` and no provider dispatch |
 
-| Mode | Model | Cost | Time | Best For |
-|------|-------|------|------|----------|
-| Quick Lookup | Web Search | FREE | <5 sec | Simple facts, definitions |
-| Standard | grok-4-1-fast-non-reasoning | $0.001-0.01 | 30-60 sec | Current info, moderate analysis |
-| Deep Mini | o4-mini-deep-research | $2.00 | 5-10 min | Comprehensive analysis |
-| Deep Full | o3-deep-research | $0.50 | 10-20 min | Critical decisions, novel problems |
-| Agentic | Multi-model orchestration | $1-10 | 15-60 min | Multi-step autonomous research |
+Registry presence alone does not make a provider mode executable. Managed
+Gemini Deep Research, xAI multi-agent research, Azure Foundry agents, hosted
+file/vector context, automatic metered fallback, and multi-call metered runs are
+gated.
 
-## Decision Flowchart
+## Choose a path
 
-```
-START: What does the user need?
-    |
-    v
-Is it a simple factual question?
-    |-- YES --> Quick Lookup (FREE)
-    |-- NO
-        |
-        v
-    Does it need current/recent information?
-        |-- YES --> Standard Research ($0.001-0.01)
-        |-- NO
-            |
-            v
-        Is it comprehensive analysis or a critical decision?
-            |-- YES --> Is budget > $0.50 acceptable?
-            |           |-- YES --> Deep Full ($0.30-0.50)
-            |           |-- NO --> Deep Mini ($0.10-0.30)
-            |-- NO
-                |
-                v
-            Does it require multiple research phases?
-                |-- YES --> Agentic Research ($1-10)
-                |-- NO --> Standard Research
+```text
+Does stored expert state already answer the question?
+  YES -> Inspect or consult through explicit local/plan capacity.
+  NO  -> Is one current cited report enough?
+          YES -> Preview and approve one bounded API research job.
+          NO  -> Decompose with the user and submit separately approved
+                 bounded jobs. Do not start an autonomous campaign.
 ```
 
-## Mode Details
+For scheduled expert maintenance, choose only admitted local capacity or a
+trusted-quota non-metered plan backend. A busy local GPU produces a waiting
+outcome with retry guidance and never falls through to another capacity class.
 
-### Quick Lookup (Web Search)
+## Single-job async pattern
 
-**When to use:**
-- Simple factual questions ("What is the capital of France?")
-- Definitions and basic explanations
-- Quick verification of known facts
-
-**Characteristics:**
-- Instant results
-- No cost
-- Limited depth
-- May not have latest information
-
-**Example queries:**
-- "What is PostgreSQL?"
-- "Define machine learning"
-- "Who founded Tesla?"
-
-### Standard Research (grok-4-1-fast-non-reasoning)
-
-**When to use:**
-- Current events and recent developments
-- Moderate analysis requiring multiple sources
-- Technical documentation lookups
-- Market trends and news
-
-**Characteristics:**
-- Fast turnaround (30-60 seconds)
-- Low cost ($0.001-0.01)
-- Good breadth, moderate depth
-- Includes citations
-
-**Example queries:**
-- "Latest developments in quantum computing 2026"
-- "Compare React vs Vue for enterprise apps"
-- "Current FDA approval process timeline"
-
-### Deep Research Mini (o4-mini-deep-research)
-
-**When to use:**
-- Comprehensive analysis needed
-- Complex technical topics
-- Strategic planning inputs
-- Due diligence research
-
-**Characteristics:**
-- Thorough multi-phase research
-- Plan-Execute-Review cycle
-- 5-10 minute execution
-- Detailed citations and sources
-- Cost: $0.10-0.30
-
-**Example queries:**
-- "Analyze PostgreSQL connection pooling strategies for high-traffic applications"
-- "Compare HIPAA, HITECH, and state privacy laws for telehealth"
-- "Evaluate build vs buy decision for data platform"
-
-### Deep Research Full (o3-deep-research)
-
-**When to use:**
-- Critical business decisions
-- Novel problem-solving
-- Comprehensive market analysis
-- Technical architecture decisions
-
-**Characteristics:**
-- Maximum depth and rigor
-- Extended reasoning chains
-- 10-20 minute execution
-- Highest quality synthesis
-- Cost: $0.30-0.50
-
-**Example queries:**
-- "Strategic analysis: Should we enter the European market?"
-- "Design a fault-tolerant distributed system for financial transactions"
-- "Comprehensive competitive analysis of AI code editors"
-
-### Agentic Research (Multi-model)
-
-**When to use:**
-- Multi-step research goals
-- Autonomous exploration needed
-- Building domain expertise
-- Complex investigations
-
-**Characteristics:**
-- Fully autonomous execution
-- Multiple Plan-Execute-Review cycles
-- Can spawn sub-research tasks
-- 15-60 minute execution
-- Cost: $1-10 depending on scope
-
-**Example queries:**
-- "Build comprehensive knowledge base on Kubernetes networking"
-- "Research and synthesize best practices for MCP server development"
-- "Investigate market opportunity for AI-powered research tools"
-
-## Async Workflow Pattern
-
-For Deep and Agentic research, use the async workflow:
-
-```
-1. Submit research job
-   -> Receive campaign_id and resource URI
-
-2. Subscribe to resource for updates
-   -> deepr://campaigns/{id}
-
-3. Monitor progress via notifications
-   -> Phase updates, task completion, cost tracking
-
-4. Retrieve results when complete
-   -> Formatted report with citations
+```text
+1. Submit deepr_research with explicit provider, model, and budget.
+2. Retain job_id, trace_id, and returned resource URIs.
+3. Subscribe to the returned status URI or call deepr_check_status.
+4. Retrieve the final report with deepr_get_result.
+5. Preserve citations and report actual settled cost.
 ```
 
-### Detailed Async Workflow Example
+The returned resource URI is authoritative. Do not assume every job has a
+multi-phase campaign plan or intermediate belief stream.
 
-```
-Step 1: Submit Job
------------------
-Call: deepr_research(prompt="Analyze PostgreSQL connection pooling strategies")
-Response: {
-  "job_id": "job-abc123",
-  "resource_uri": "deepr://campaigns/job-abc123",
-  "estimated_time": "5-10 minutes",
-  "estimated_cost": "$0.15-0.25"
-}
+## Gated adapters
 
-Step 2: Subscribe to Updates
-----------------------------
-Subscribe to: deepr://campaigns/job-abc123/status
+The following may remain discoverable for compatibility but must return a typed
+block before provider work:
 
-Step 3: Receive Progress Notifications
---------------------------------------
-Notification 1: {
-  "phase": "PLANNING",
-  "message": "Creating research plan",
-  "elapsed": "0:30"
-}
+- `deepr_agentic_research`;
+- metered batch, team, campaign, continuation, or prepared execution;
+- automatic cross-provider retry/fallback;
+- hosted upload, file search, or vector-store research attachment;
+- standalone metered expert chat and metered expert lifecycle mutation.
 
-Notification 2: {
-  "phase": "EXECUTING",
-  "message": "Researching: PgBouncer configuration",
-  "tasks_complete": 1,
-  "tasks_total": 4,
-  "elapsed": "2:15"
-}
-
-Notification 3: {
-  "phase": "SYNTHESIZING",
-  "message": "Combining findings",
-  "cost_so_far": "$0.18",
-  "elapsed": "6:45"
-}
-
-Notification 4: {
-  "phase": "COMPLETE",
-  "message": "Research complete",
-  "final_cost": "$0.21",
-  "elapsed": "7:30"
-}
-
-Step 4: Retrieve Results
-------------------------
-Call: deepr_get_result(job_id="job-abc123")
-Response: {
-  "status": "completed",
-  "markdown_report": "# PostgreSQL Connection Pooling...",
-  "citations": 23,
-  "sources": 12,
-  "cost": "$0.21"
-}
-```
-
-### Resource URIs for Inspection
-
-During async research, inspect these resources:
-
-| Resource | Purpose |
-|----------|---------|
-| `deepr://campaigns/{id}/status` | Current phase and progress |
-| `deepr://campaigns/{id}/plan` | Research plan (tasks, dependencies) |
-| `deepr://campaigns/{id}/beliefs` | Synthesized findings so far |
-
-Prefer resource subscriptions over polling for async monitoring (70% token savings). See `references/mcp_patterns.md` for details.
-
-For cost optimization strategies, see `references/cost_guidance.md`.
+Do not work around these gates with repeated single calls, hidden retries, or a
+larger budget. If the user wants several separate jobs, show and approve each
+bounded envelope independently.

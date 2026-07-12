@@ -260,6 +260,7 @@ def test_provider_validation_redacts_and_fails_unexpected_response(benchmark_mod
 
 
 def test_provider_validation_failure_exits_nonzero(benchmark_module, monkeypatch):
+    monkeypatch.setattr(benchmark_module, "require_metered_expert_mutation", lambda *_args, **_kwargs: None)
     monkeypatch.setattr(benchmark_module, "load_registry", lambda: {})
     monkeypatch.setattr(benchmark_module, "run_validation", lambda *_args, **_kwargs: False)
     monkeypatch.setattr(sys, "argv", [str(_SCRIPT), "--validate", "--budget", "0.01"])
@@ -268,3 +269,43 @@ def test_provider_validation_failure_exits_nonzero(benchmark_module, monkeypatch
         benchmark_module.main()
 
     assert exc_info.value.code == 1
+
+
+def test_direct_live_benchmark_is_blocked_before_preflight(benchmark_module, monkeypatch, capsys):
+    preflight_started = False
+
+    def unexpected_registry_load():
+        nonlocal preflight_started
+        preflight_started = True
+        raise AssertionError("live benchmark gate must run before preflight")
+
+    monkeypatch.setattr(benchmark_module, "load_registry", unexpected_registry_load)
+    monkeypatch.setattr(sys, "argv", [str(_SCRIPT), "--validate", "--budget", "0.01"])
+
+    with pytest.raises(SystemExit) as exc_info:
+        benchmark_module.main()
+
+    assert exc_info.value.code == 2
+    assert preflight_started is False
+    output = capsys.readouterr().out
+    assert "BLOCKED:" in output
+    assert "--dry-run" in output
+
+
+def test_direct_dry_run_skips_network_discovery(benchmark_module, monkeypatch):
+    monkeypatch.setattr(
+        benchmark_module,
+        "load_registry",
+        lambda: {"openai/test": capability(input_cost=1.0, output_cost=1.0)},
+    )
+    monkeypatch.setattr(benchmark_module, "check_api_keys", lambda: {"openai": True})
+    monkeypatch.setattr(
+        benchmark_module, "warn_if_newer_models_available", lambda: pytest.fail("network discovery ran")
+    )
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [str(_SCRIPT), "--dry-run", "--model", "openai/test", "--no-judge"],
+    )
+
+    benchmark_module.main()

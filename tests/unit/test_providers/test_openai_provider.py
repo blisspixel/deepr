@@ -162,7 +162,7 @@ class TestRequestConstruction:
             tools = call_kwargs["tools"]
             assert len(tools) == 1
             assert tools[0]["type"] == "code_interpreter"
-            assert tools[0]["container"] == {"type": "auto"}
+            assert tools[0]["container"] == {"type": "auto", "memory_limit": "1g"}
 
     @pytest.mark.asyncio
     async def test_submit_research_with_file_search_tool(self, provider):

@@ -1,6 +1,6 @@
 # MCP and A2A Interop Checklist
 
-Status: current with Deepr v2.35.0. Last reviewed: 2026-07-11.
+Status: current with Deepr v2.36.0. Last reviewed: 2026-07-12.
 
 Use this checklist when connecting Deepr experts to another agent host through
 MCP or A2A. It is a compact integration review, not the command guide. For
@@ -59,8 +59,31 @@ copy-ready validation commands, use [MCP_AGENT_TEST_GUIDE.md](MCP_AGENT_TEST_GUI
 - Read-only expert tools are `$0`.
 - Use `deepr_consult_experts` with `synthesis_backend="local"` or
   `synthesis_backend="plan"` for no-metered consults.
+- Use `deepr_query_expert` only with explicit local or plan capacity in v2.36.
+  Its API backend and every standalone metered `ExpertChatSession` dispatch
+  fail closed. API council synthesis is a separate bounded surface, and its
+  approval does not enable live metered perspective fallback.
+- Treat nonlocal profile and curriculum creation, provider-backed expert
+  refresh or synthesis, API gap filling, API compiled-claim sync, and paid
+  corpus calibration as gated v2.36 surfaces. An MCP or A2A approval cannot
+  bypass their missing shared parent-run transaction. Local and explicit
+  plan-quota expert paths remain available.
+- Bound cancellable consult setup, generation, and lifecycle checkpoints with
+  `max_elapsed_seconds` (default 600, maximum 21,600). Durable operations are
+  awaited off the event loop, while lock waits are bounded separately. A
+  timeout exposes the shared durable trace id, never falls through to another
+  backend, and is retryable only before provider work could have run.
+- Treat `CONSULT_STORAGE_LOCK_TIMEOUT` as retryable only when its `retryable`
+  field is true. `CONSULT_STORAGE_IO_ERROR` also reports retryability; a
+  possibly partial write is never retryable. Post-work failure is non-retryable
+  until finalization-only resume exists. Errors include the trace id but not the
+  storage path.
 - API synthesis or metered research requires explicit operator intent, a
   positive budget, deterministic estimates, and cost-ledger settlement.
+- Do not claim metered expert-chat live validation for v2.36. Restoration is a
+  P1 requiring durable reserve, dispatch-mark, and settlement for every call,
+  hard output ceilings, parent-budget accounting for auxiliaries, and
+  serialized turns per session.
 - Plan-quota CLIs are explicit capacity unless a trusted remaining-quota probe
   and admission evidence say otherwise. A CLI authenticated by a metered API key
   is not plan capacity.

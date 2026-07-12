@@ -59,6 +59,10 @@ class BrowserTurnAccounting:
     dispatched: bool = False
 
     def begin(self, session: Any, selected_model: Any) -> None:
+        require_dispatch = getattr(session, "require_provider_dispatch_allowed", None)
+        if not callable(require_dispatch):
+            raise RuntimeError("Browser expert-chat session has no capacity gate")
+        require_dispatch("browser_expert_chat_turn")
         self.session = session
         self.starting_cost = float(getattr(session, "cost_accumulated", 0.0) or 0.0)
         remaining = self.approved_budget - self.starting_cost
@@ -610,15 +614,20 @@ def register_socketio_events(
                         "Browser expert-chat failure left its durable reservation active: %s",
                         type(accounting_exc).__name__,
                     )
-                socketio.emit(
-                    "chat_error",
-                    _chat_error_payload(
+                from deepr.experts.chat_capacity import MeteredExpertChatDisabledError
+
+                if isinstance(exc, MeteredExpertChatDisabledError):
+                    payload = {
+                        **_chat_error_payload(str(exc), code=exc.code, retryable=False),
+                        **exc.to_dict(),
+                    }
+                else:
+                    payload = _chat_error_payload(
                         "Expert chat failed. Start a new session and retry.",
                         code="chat_turn_failed",
                         retryable=True,
-                    ),
-                    room=room,
-                )
+                    )
+                socketio.emit("chat_error", payload, room=room)
             finally:
                 _drop_browser_chat_state(sid, state)
 

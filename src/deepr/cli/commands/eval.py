@@ -808,6 +808,18 @@ def eval_calibrate(
         raise click.ClickException("Provide --from <graded.jsonl> ($0) or --corpus <dir> (paid extraction + grading).")
 
     if corpus_dir:
+        from deepr.experts.metered_mutation_gate import (
+            MeteredExpertMutationDisabledError,
+            require_metered_expert_mutation,
+        )
+
+        try:
+            require_metered_expert_mutation(
+                "api_eval_calibrate_corpus",
+                safe_alternative="deepr eval calibrate --from <graded.jsonl>",
+            )
+        except MeteredExpertMutationDisabledError as exc:
+            raise click.ClickException(str(exc)) from exc
         reports = _load_corpus(corpus_dir, sample)
         if not reports:
             raise click.ClickException(f"No .md/.txt reports found in {corpus_dir}.")

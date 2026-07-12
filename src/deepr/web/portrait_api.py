@@ -77,6 +77,21 @@ def generate_expert_portrait_response(
                     "estimated_cost_usd": estimated_cost,
                 }
             ), 402
+        if estimated_cost > 0:
+            from deepr.experts.metered_mutation_gate import (
+                MeteredExpertMutationDisabledError,
+                require_metered_expert_mutation,
+            )
+            from deepr.web.metered_expert_gate import metered_expert_mutation_block
+
+            safe_alternative = "set DEEPR_LOCAL_IMAGE_URL and request provider=local"
+            try:
+                require_metered_expert_mutation("api_expert_portrait", safe_alternative=safe_alternative)
+            except MeteredExpertMutationDisabledError:
+                payload, status = metered_expert_mutation_block(
+                    "api_expert_portrait", safe_alternative=safe_alternative
+                )
+                return jsonify(payload), status
 
         try:
             cost_reservation = reserve_portrait_cost(

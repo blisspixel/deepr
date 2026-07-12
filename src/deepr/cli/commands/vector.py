@@ -8,12 +8,12 @@ from deepr.cli.colors import console, print_error, print_section_header, print_s
 
 @click.group()
 def vector():
-    """Manage knowledge bases (vector stores) for experts and research.
+    """Inspect or clean up provider vector stores.
 
     Alias: 'deepr knowledge'
 
-    Knowledge bases enable semantic search over uploaded documents and can be
-    used for creating domain experts or providing context to research.
+    Creation and paid research attachment are gated in v2.36 until the full
+    upload, indexing, retention, retrieval, and cleanup lifecycle is priced.
     """
     pass
 
@@ -27,13 +27,17 @@ def create(name: str, files: tuple):
     """
     Create a persistent vector store from files.
 
-    Vector stores enable semantic search over uploaded documents.
-    Once created, they can be reused across multiple research jobs.
-
-    Example:
-        deepr vector create --name "company-docs" --files docs/*.pdf
-        deepr research submit "Query about X" --vector-store company-docs --yes
+    This command is gated in v2.36 until hosted storage lifecycle costs share
+    the research reservation. Existing stores remain available for inspection
+    and explicit cleanup.
     """
+    from deepr.services.research_bounds import ResearchRequestBoundsError, require_research_storage_accounting
+
+    try:
+        require_research_storage_accounting()
+    except ResearchRequestBoundsError as exc:
+        raise click.ClickException(str(exc)) from exc
+
     print_section_header(f"Create Vector Store: {name}")
 
     try:

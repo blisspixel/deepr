@@ -76,7 +76,9 @@ async def _run_portrait_batch(store: Any, targets: list[str], *, provider: str |
 @click.option(
     "--style", default=None, help="Override the art style this run (else DEEPR_PORTRAIT_STYLE / house default)"
 )
-@click.option("--provider", type=click.Choice(["openai", "google", "xai"]), default=None, help="Image provider")
+@click.option(
+    "--provider", type=click.Choice(["local", "openai", "google", "xai"]), default=None, help="Image provider"
+)
 @click.option("-y", "--yes", is_flag=True, help="Skip the cost confirmation")
 @click.option(
     "--confirm-metered-cost",
@@ -123,6 +125,19 @@ def expert_portrait(name, all_experts, missing_only, force, style, provider, yes
             f"after reviewing the estimate (~${est:.2f})."
         )
         sys.exit(2)
+    if unit > 0:
+        from deepr.experts.metered_mutation_gate import (
+            MeteredExpertMutationDisabledError,
+            require_metered_expert_mutation,
+        )
+
+        try:
+            require_metered_expert_mutation(
+                "api_expert_portrait",
+                safe_alternative="set DEEPR_LOCAL_IMAGE_URL and rerun with --provider local",
+            )
+        except MeteredExpertMutationDisabledError as exc:
+            raise click.ClickException(str(exc)) from exc
     if not yes and not click.confirm(f"Generate {len(targets)} portrait(s) (~${est:.2f})?", default=False):
         print_warning("Cancelled.")
         return

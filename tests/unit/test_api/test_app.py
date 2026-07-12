@@ -73,6 +73,16 @@ def client(mock_queue, mock_provider, mock_storage):
     # Get the actual module from sys.modules (not the Flask app)
     app_module = sys.modules["deepr.api.app"]
 
+    # Preserve the exact queued snapshot so the shared dispatch contract can
+    # revalidate the request bounds before the mocked provider boundary.
+    queued_jobs = {}
+
+    async def enqueue(job):
+        queued_jobs[job.id] = job
+        return job.id
+
+    mock_queue.enqueue = AsyncMock(side_effect=enqueue)
+
     # Patch the module-level globals
     estimate = MagicMock(min_cost=0.1, max_cost=0.3, expected_cost=0.2)
     reservation = MagicMock()
@@ -80,19 +90,34 @@ def client(mock_queue, mock_provider, mock_storage):
     reservation.manager = MagicMock()
     reservation.metadata.return_value = {}
 
+    def reserve_expected(**kwargs):
+        reservation.job_id = kwargs["job_id"]
+        reservation.model = kwargs["model"]
+        reservation.provider = kwargs["provider"]
+        reservation.estimated_cost = 100.0
+        return estimate, reservation
+
     async def restore_expected(**kwargs):
-        return kwargs.get("queued_job") or MagicMock(), kwargs["expected"]
+        return queued_jobs[kwargs["job_id"]], kwargs["expected"]
+
+    async def submit_expected(**kwargs):
+        return await mock_provider.submit_research(kwargs["request"])
 
     with (
         patch.object(app_module, "queue", mock_queue),
         patch.object(app_module, "provider", mock_provider),
         patch.object(app_module, "storage", mock_storage),
         patch.object(app_module.limiter, "enabled", False),
-        patch.object(app_module, "reserve_api_research_cost", return_value=(estimate, reservation)) as reserve_cost,
+        patch.object(app_module, "reserve_api_research_cost", side_effect=reserve_expected) as reserve_cost,
         patch(
             "deepr.services.research_submission.restore_active_queued_reservation",
             new_callable=AsyncMock,
             side_effect=restore_expected,
+        ),
+        patch(
+            "deepr.services.research_submission.submit_reserved_provider_research",
+            new_callable=AsyncMock,
+            side_effect=submit_expected,
         ),
     ):
         app_module.app.config["TESTING"] = True
@@ -241,13 +266,13 @@ class TestJobSubmission:
         assert b"secret ledger traceback" not in response.data
         client.mock_provider.submit_research.assert_not_awaited()
 
-    def test_submit_job_refunds_reservation_when_provider_submission_fails(self, client):
+    def test_submit_job_does_not_refund_after_provider_boundary_failure(self, client):
         client.mock_provider.submit_research.side_effect = RuntimeError("provider unavailable")
 
         response = client.post("/api/jobs", json={"prompt": "Research quantum computing"})
 
         assert response.status_code == 500
-        client.mock_reservation.manager.refund_reservation.assert_called_once_with("test-reservation")
+        client.mock_reservation.manager.refund_reservation.assert_not_called()
 
 
 # =============================================================================
@@ -720,7 +745,13 @@ class TestAPIResponseStructure:
 
         # Create fresh mocks for each test iteration
         mock_queue = MagicMock()
-        mock_queue.enqueue = AsyncMock(return_value=None)
+        queued_jobs = {}
+
+        async def enqueue(job):
+            queued_jobs[job.id] = job
+            return job.id
+
+        mock_queue.enqueue = AsyncMock(side_effect=enqueue)
         mock_queue.claim_submission = AsyncMock(return_value=True)
         mock_queue.update_status = AsyncMock(return_value=None)
         mock_queue.get_job = AsyncMock(return_value=None)
@@ -734,20 +765,36 @@ class TestAPIResponseStructure:
         app_module = sys.modules["deepr.api.app"]
         estimate = MagicMock(min_cost=0.1, max_cost=0.3, expected_cost=0.2)
         reservation = MagicMock(reservation_id="property-reservation")
+        reservation.manager = MagicMock()
         reservation.metadata.return_value = {}
 
+        def reserve_expected(**kwargs):
+            reservation.job_id = kwargs["job_id"]
+            reservation.model = kwargs["model"]
+            reservation.provider = kwargs["provider"]
+            reservation.estimated_cost = 100.0
+            return estimate, reservation
+
         async def restore_expected(**kwargs):
-            return kwargs.get("queued_job") or MagicMock(), kwargs["expected"]
+            return queued_jobs[kwargs["job_id"]], kwargs["expected"]
+
+        async def submit_expected(**kwargs):
+            return await mock_provider.submit_research(kwargs["request"])
 
         with (
             patch.object(app_module, "queue", mock_queue),
             patch.object(app_module, "provider", mock_provider),
             patch.object(app_module, "storage", mock_storage),
-            patch.object(app_module, "reserve_api_research_cost", return_value=(estimate, reservation)),
+            patch.object(app_module, "reserve_api_research_cost", side_effect=reserve_expected),
             patch(
                 "deepr.services.research_submission.restore_active_queued_reservation",
                 new_callable=AsyncMock,
                 side_effect=restore_expected,
+            ),
+            patch(
+                "deepr.services.research_submission.submit_reserved_provider_research",
+                new_callable=AsyncMock,
+                side_effect=submit_expected,
             ),
         ):
             app_module.app.config["TESTING"] = True

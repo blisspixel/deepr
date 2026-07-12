@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import logging
 import uuid
+from dataclasses import replace
 from datetime import UTC, datetime
 from typing import Any
 
@@ -14,9 +15,12 @@ from deepr.experts.research_cost_gate import (
     ResearchCostReservation,
     refund_research_cost,
     reserve_configured_cost_ceiling,
+    reserve_configured_research_cost,
 )
+from deepr.providers.base import ResearchRequest, ToolConfig
 from deepr.queue.base import JobStatus, ResearchJob
 from deepr.queue.local_queue import SQLiteQueue
+from deepr.services.research_bounds import bounded_research_cost_estimate, request_bound_metadata
 from deepr.services.research_cost_reconciliation import reconcile_research_cost_reservations
 
 logger = logging.getLogger(__name__)
@@ -45,18 +49,57 @@ async def reserve_job_submission(
     provider: str,
     limit: float | None,
     queue_db_path: str | None = None,
+    request: ResearchRequest | None = None,
 ) -> tuple[str, ResearchCostReservation]:
     """Admit one job before any provider-side preparation occurs."""
     job_id = f"research-{uuid.uuid4().hex[:12]}"
     queue = SQLiteQueue(queue_db_path) if queue_db_path else SQLiteQueue()
     await reconcile_research_cost_reservations(queue, default_provider=provider)
-    reservation = reserve_configured_cost_ceiling(
-        job_id=job_id,
-        provider=provider,
-        model=model,
-        max_cost_per_job=limit,
-    )
+    if request is None:
+        reservation = reserve_configured_cost_ceiling(
+            job_id=job_id,
+            provider=provider,
+            model=model,
+            max_cost_per_job=limit,
+        )
+    else:
+        stable_request = replace(request, idempotency_key=f"deepr-research-{job_id}")
+        _, reservation = reserve_configured_research_cost(
+            job_id=job_id,
+            provider=provider,
+            prompt=stable_request.prompt,
+            model=model,
+            enable_web_search=False,
+            max_cost_per_job=limit,
+            request=stable_request,
+        )
     return job_id, reservation
+
+
+def build_bounded_cli_request(
+    *,
+    query: str,
+    model: str,
+    no_web: bool,
+    no_code: bool,
+    document_ids: list[str] | None = None,
+    vector_store_id: str | None = None,
+) -> ResearchRequest:
+    """Build the stable request envelope used for CLI admission and queue metadata."""
+    tools: list[ToolConfig] = []
+    if not no_web:
+        tools.append(ToolConfig(type="web_search_preview"))
+    if not no_code:
+        tools.append(ToolConfig(type="code_interpreter", container={"type": "auto", "memory_limit": "1g"}))
+    if vector_store_id:
+        tools.append(ToolConfig(type="file_search", vector_store_ids=[vector_store_id]))
+    return ResearchRequest(
+        prompt=query,
+        model=model,
+        system_message="You are a research assistant. Provide comprehensive, citation-backed analysis.",
+        tools=tools,
+        document_ids=document_ids or None,
+    )
 
 
 async def enqueue_reserved_job(
@@ -76,6 +119,23 @@ async def enqueue_reserved_job(
     provider_file_ids: list[str] | None = None,
 ) -> tuple[str, ResearchJob]:
     """Persist a job after its durable reservation and preparation succeed."""
+    bounded_request = replace(
+        build_bounded_cli_request(
+            query=query,
+            model=model,
+            no_web=no_web,
+            no_code=no_code,
+            document_ids=document_ids,
+            vector_store_id=vector_store_id,
+        ),
+        idempotency_key=f"deepr-research-{job_id}",
+    )
+    envelope = bounded_research_cost_estimate(request=bounded_request, provider=provider)
+    if reservation.estimated_cost + 1e-12 < envelope.max_cost:
+        raise ValueError(
+            f"Research reservation ${reservation.estimated_cost:.6f} does not cover the "
+            f"${envelope.max_cost:.6f} request envelope"
+        )
     job_metadata: dict[str, Any] = {}
     if vector_store_id:
         job_metadata["vector_store_id"] = vector_store_id
@@ -87,6 +147,7 @@ async def enqueue_reserved_job(
 
     queue = SQLiteQueue(queue_db_path) if queue_db_path else SQLiteQueue()
     job_metadata.update(reservation.metadata())
+    job_metadata.update(request_bound_metadata(bounded_request))
     job = ResearchJob(
         id=job_id,
         prompt=query,

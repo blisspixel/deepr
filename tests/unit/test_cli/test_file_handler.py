@@ -228,9 +228,10 @@ class TestHandleFileUploads:
         assert len(result.uploaded_ids) == 0
 
     @pytest.mark.asyncio
-    async def test_full_workflow_openai(self, tmp_path):
-        """Test full upload workflow for OpenAI."""
+    async def test_full_workflow_openai_is_gated_before_provider(self, tmp_path):
+        """OpenAI storage stays blocked until lifecycle costs are reserved."""
         from deepr.cli.commands.file_handler import handle_file_uploads
+        from deepr.services.research_bounds import ResearchRequestBoundsError
 
         test_file = tmp_path / "test.txt"
         test_file.write_text("content")
@@ -248,16 +249,20 @@ class TestHandleFileUploads:
             mock_upload.return_value = (["file-123"], [])
             mock_vs.return_value = ("vs-123", [])
 
-            result = await handle_file_uploads("openai", (str(test_file),), config={"api_key": "test"})
+            with pytest.raises(ResearchRequestBoundsError) as exc_info:
+                await handle_file_uploads("openai", (str(test_file),), config={"api_key": "test"})
 
-            assert result.success is True
-            assert result.vector_store_id == "vs-123"
-            assert "file-123" in result.uploaded_ids
+            assert exc_info.value.code == "research_file_storage_unbounded"
+            mock_resolve.assert_not_called()
+            mock_create.assert_not_called()
+            mock_upload.assert_not_called()
+            mock_vs.assert_not_called()
 
     @pytest.mark.asyncio
-    async def test_gemini_no_vector_store(self, tmp_path):
-        """Test Gemini doesn't create vector store."""
+    async def test_gemini_upload_is_gated_before_provider(self, tmp_path):
+        """Gemini file storage has the same no-silent-money boundary."""
         from deepr.cli.commands.file_handler import handle_file_uploads
+        from deepr.services.research_bounds import ResearchRequestBoundsError
 
         test_file = tmp_path / "test.txt"
         test_file.write_text("content")
@@ -274,11 +279,13 @@ class TestHandleFileUploads:
             mock_create.return_value = mock_provider
             mock_upload.return_value = (["file-123"], [])
 
-            result = await handle_file_uploads("gemini", (str(test_file),), config={"gemini_api_key": "test"})
+            with pytest.raises(ResearchRequestBoundsError) as exc_info:
+                await handle_file_uploads("gemini", (str(test_file),), config={"gemini_api_key": "test"})
 
-            assert result.success is True
-            assert result.vector_store_id is None
-            # Vector store should not be created for Gemini
+            assert exc_info.value.code == "research_file_storage_unbounded"
+            mock_resolve.assert_not_called()
+            mock_create.assert_not_called()
+            mock_upload.assert_not_called()
             mock_vs.assert_not_called()
 
 

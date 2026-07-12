@@ -138,14 +138,37 @@ Real-time monitoring of research job status and progress.
 python scripts/submit_doc_research_jobs.py
 ```
 
-Batch submission of documentation research jobs.
+Compatibility stub only. It exits before provider construction with
+`research_parent_budget_unavailable`. Use `deepr research ... --dry-run` and
+submit separately approved bounded jobs one at a time. Metered batch execution
+remains gated until one durable parent reservation covers exact child
+settlement.
 
 ### Analyze Documentation Gaps
 ```bash
 python scripts/analyze_doc_gaps.py
 ```
 
-Identifies gaps in documentation coverage.
+The legacy metered analysis path is gated in v2.36 before `.env` loading or
+provider construction. Use a `$0` local consult instead:
+
+```bash
+deepr expert consult "Which documentation gaps matter most?" --local
+```
+
+### Discover Provider Models
+
+```bash
+# Offline registry display
+python scripts/discover_models.py --show-registry
+
+# Read-only live provider model-list discovery
+python scripts/discover_models.py
+```
+
+Provider model-list discovery remains available and does not generate model
+output. `python scripts/discover_models.py --llm` is gated in v2.36 before any
+model call until it uses the shared durable call transaction.
 
 ### Convert Legacy Reports
 ```bash

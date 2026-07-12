@@ -260,7 +260,7 @@ class AzureFoundryProvider(DeepResearchProvider):
 
         input_cost = (input_tokens / 1_000_000) * prices["input"]
         output_cost = (output_tokens / 1_000_000) * prices["output"]
-        return round(input_cost + output_cost, 6)
+        return input_cost + output_cost
 
     # =========================================================================
     # Submit research - dispatches to deep research or regular mode

@@ -80,7 +80,7 @@ class TestOpenAIToolConfiguration:
             assert len(tools) == 1
             assert tools[0]["type"] == "code_interpreter"
             assert "container" in tools[0], "code_interpreter MUST have container parameter"
-            assert tools[0]["container"] == {"type": "auto"}
+            assert tools[0]["container"] == {"type": "auto", "memory_limit": "1g"}
 
     @pytest.mark.asyncio
     async def test_file_search_with_vector_stores(self, provider):
@@ -152,7 +152,7 @@ class TestOpenAIToolConfiguration:
             # code_interpreter: REQUIRES container
             assert tools[1]["type"] == "code_interpreter"
             assert "container" in tools[1]
-            assert tools[1]["container"] == {"type": "auto"}
+            assert tools[1]["container"] == {"type": "auto", "memory_limit": "1g"}
 
             # file_search: REQUIRES vector_store_ids
             assert tools[2]["type"] == "file_search"

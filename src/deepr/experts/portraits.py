@@ -203,6 +203,13 @@ async def generate_portrait(
             "OpenAI-images endpoint, $0), pass provider='openai'/'google'/'xai' for explicit paid "
             "image generation, or set DEEPR_ALLOW_METERED_IMAGE_AUTO=1."
         )
+    if provider != "local":
+        from deepr.experts.metered_mutation_gate import require_metered_expert_mutation
+
+        require_metered_expert_mutation(
+            "api_expert_portrait",
+            safe_alternative="set DEEPR_LOCAL_IMAGE_URL and use provider='local'",
+        )
 
     prompt = _build_prompt(name, domain, description, style=style)
     logger.info("Generating portrait for '%s' via %s", name, provider)
@@ -251,9 +258,17 @@ async def generate_and_save_portrait(
     )
 
     expert_name = str(getattr(profile, "name", "expert"))
+    effective_provider = provider or detect_provider()
+    if effective_provider and effective_provider != "local":
+        from deepr.experts.metered_mutation_gate import require_metered_expert_mutation
+
+        require_metered_expert_mutation(
+            "api_expert_portrait",
+            safe_alternative="set DEEPR_LOCAL_IMAGE_URL and use provider='local'",
+        )
     reservation = reserve_portrait_cost(
         expert_name=expert_name,
-        provider=provider,
+        provider=effective_provider,
         detect_provider=detect_provider,
         portrait_cost=portrait_cost,
     )

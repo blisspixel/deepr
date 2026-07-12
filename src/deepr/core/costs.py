@@ -161,6 +161,16 @@ class CostEstimator:
         max_cost = input_cost + output_cost_max
         expected_cost = input_cost + output_cost_expected
 
+        # Token arithmetic can be unrealistically tiny for short prompts and
+        # does not include provider-side reasoning or tool work. The registry's
+        # per-query estimate is the conservative admission floor. Keeping the
+        # unrounded token estimate still matters for exact settlement.
+        from deepr.providers.registry import get_cost_estimate
+
+        per_query_floor = get_cost_estimate(model, input_tokens=input_tokens)
+        if per_query_floor > max_cost:
+            max_cost = per_query_floor
+
         # Reasoning
         reasoning_parts = [
             f"Estimated {input_tokens:,} input tokens (${input_cost:.4f})",
@@ -174,10 +184,13 @@ class CostEstimator:
         if documents:
             reasoning_parts.append(f"{len(documents)} documents attached")
 
+        if per_query_floor > input_cost + output_cost_max:
+            reasoning_parts.append(f"Registry per-query admission floor: ${per_query_floor:.6f}")
+
         return CostEstimate(
-            min_cost=round(min_cost, 2),
-            max_cost=round(max_cost, 2),
-            expected_cost=round(expected_cost, 2),
+            min_cost=min_cost,
+            max_cost=max_cost,
+            expected_cost=expected_cost,
             model=model,
             reasoning=" | ".join(reasoning_parts),
         )
@@ -210,7 +223,10 @@ class CostEstimator:
         # Reasoning tokens typically billed at output rate
         reasoning_cost = (reasoning_tokens / 1_000_000) * pricing["output"]
 
-        return round(input_cost + output_cost + reasoning_cost, 4)
+        # Machine accounting stays unrounded. Human-facing output may format
+        # this value, but rounding here can turn real micro-costs into $0 and
+        # release a durable reservation without recording provider spend.
+        return input_cost + output_cost + reasoning_cost
 
 
 class CostController:

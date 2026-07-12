@@ -2,6 +2,9 @@
 
 Breaks a query into parallel/sequential subtasks, executes them with
 visible progress, and synthesises results.
+
+The legacy API implementation is execution-gated in v2.36 until every nested
+call shares one durable parent reservation and canonical settlement.
 """
 
 from __future__ import annotations
@@ -17,6 +20,7 @@ from typing import TYPE_CHECKING, Any
 from openai import AsyncOpenAI
 
 from deepr.experts.constants import MAX_PLAN_CONCURRENCY, UTILITY_MODEL
+from deepr.experts.metered_mutation_gate import require_metered_expert_mutation
 
 if TYPE_CHECKING:
     from deepr.experts.chat import ExpertChatSession
@@ -60,6 +64,10 @@ class TaskPlanner:
     MAX_STEPS = 10
 
     def __init__(self, session: ExpertChatSession, agent_identity: Any = None):
+        require_metered_expert_mutation(
+            "api_expert_task_planner",
+            safe_alternative="use a local or explicit plan-quota consultation",
+        )
         self.session = session
         self.agent_identity = agent_identity
         self.client = AsyncOpenAI(api_key=os.getenv("OPENAI_API_KEY"))

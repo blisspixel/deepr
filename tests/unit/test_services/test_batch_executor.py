@@ -6,10 +6,42 @@ import pytest
 
 from deepr.queue.base import JobStatus
 from deepr.services.batch_executor import BatchExecutor
+from deepr.services.research_bounds import ResearchRequestBoundsError
+
+
+@pytest.mark.asyncio
+async def test_programmatic_campaign_fails_closed_without_parent_accounting():
+    """A campaign cannot fan out paid work without one parent reservation."""
+    queue = AsyncMock()
+    provider = AsyncMock()
+    executor = BatchExecutor(
+        queue=queue,
+        provider=provider,
+        storage=AsyncMock(),
+        context_builder=AsyncMock(),
+    )
+
+    with pytest.raises(ResearchRequestBoundsError) as exc_info:
+        await executor.execute_campaign(
+            [{"id": 1, "title": "Task", "prompt": "Research X", "phase": 1}],
+            "campaign-blocked",
+        )
+
+    assert exc_info.value.code == "research_parent_budget_unavailable"
+    queue.enqueue.assert_not_awaited()
+    provider.submit_research.assert_not_awaited()
 
 
 class TestBatchExecutor:
     """Test BatchExecutor campaign orchestration."""
+
+    @pytest.fixture(autouse=True)
+    def allow_internal_campaign_characterization(self, monkeypatch):
+        """Exercise internals while the public parent-budget gate is tested above."""
+        monkeypatch.setattr(
+            "deepr.services.research_bounds.require_research_parent_budget_accounting",
+            lambda _operation: None,
+        )
 
     @pytest.fixture
     def mock_queue(self):
@@ -29,12 +61,21 @@ class TestBatchExecutor:
 
     @pytest.fixture
     def executor(self, mock_queue, mock_provider, mock_storage, mock_context_builder):
-        return BatchExecutor(
-            queue=mock_queue,
-            provider=mock_provider,
-            storage=mock_storage,
-            context_builder=mock_context_builder,
-        )
+        async def restore_expected(**kwargs):
+            queued_job = mock_queue.enqueue.await_args.args[0]
+            return queued_job, kwargs["expected"]
+
+        with patch(
+            "deepr.services.research_submission.restore_active_queued_reservation",
+            new_callable=AsyncMock,
+            side_effect=restore_expected,
+        ):
+            yield BatchExecutor(
+                queue=mock_queue,
+                provider=mock_provider,
+                storage=mock_storage,
+                context_builder=mock_context_builder,
+            )
 
     def test_init_stores_dependencies(self, executor, mock_queue, mock_provider, mock_storage, mock_context_builder):
         """All injected services stored as attributes."""

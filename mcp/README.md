@@ -26,16 +26,23 @@ capable), `medium`/`high` (metered, confirm budget first).
 - A cross-domain question -> `deepr_consult_experts`: it routes to the relevant
   experts (or pass `experts`), fans out up to `max_experts` (<=10), and returns
   one synthesized `deepr-consult-v1` artifact (answer, each expert's perspective
-  with confidence, agreements, dissent, cost). One call, aggregated result.
-- Legacy single-expert chat -> `deepr_query_expert`. This path is
-  metered-capable, does not yet accept local or plan backend selection, and
-  should only be used when the operator approves its budget.
+  with confidence, agreements, dissent, cost). One call, aggregated result. Set
+  `max_elapsed_seconds` when the default 600-second cumulative ceiling for
+  cancellable setup, generation, and lifecycle checkpoints is not appropriate;
+  the accepted range is greater than zero through 21,600. Durable writes are
+  awaited off the event loop, while lock waits are bounded separately.
+- Read-only single-expert query -> `deepr_query_expert` with
+  `backend="local"` or `backend="plan"`. These modes compile stored expert
+  context into one no-tool turn and never fall through to a metered API. In
+  v2.36, `backend="api"` fails closed before provider dispatch with
+  `metered_expert_chat_accounting_unavailable`.
 - "What changed since I last asked?" -> `deepr_what_changed`; a handoff snapshot
   -> `deepr_expert_handoff`; why a claim is held -> `deepr_explain_belief`;
   related memory candidates -> `deepr_semantic_recall`; time-scoped edge
   qualifiers -> `deepr_temporal_edges`. All `$0`, read-only, versioned.
-- A deep autonomous investigation -> `deepr_agentic_research` (Plan-Execute-Review,
-  $1-$10; confirm budget with the human first).
+- A deep autonomous investigation -> decompose it with the user into separately
+  approved bounded jobs. `deepr_agentic_research` is visible for compatibility
+  but execution-blocked in v2.36 before provider work.
 
 **Spend $0 by default.** For cross-expert consults, pass
 `synthesis_backend: "local"` (Ollama) or `"plan"` with `plan: "codex"` (also
@@ -43,13 +50,22 @@ claude/grok) to run synthesis on owned or prepaid capacity. In those modes Deepr
 disables silent metered fallback, so a missing-context answer is an honest "no
 context" rather than a surprise charge. Local and plan consults allow a zero
 budget. API-backed consults require a positive budget. `deepr_query_expert` is
-still the legacy chat path and does not yet accept local, plan, provider, or
-model selection; treat it as metered-capable unless the operator approves it.
+available at `$0` through explicit local or plan read-only capacity. Its API
+backend and every other standalone metered `ExpertChatSession` path are gated
+in v2.36 pending durable per-call reserve, dispatch-mark, and settlement,
+hard output ceilings, parent-budget accounting for auxiliary calls, and
+per-session turn serialization. API council synthesis is separate and remains
+available with explicit approval.
 
 **Errors are structured, not prose.** A failed call returns
 `{error_code, category, retryable, message}` (e.g. `CONSULT_BACKEND_UNAVAILABLE`,
-`INVALID_BUDGET`). Branch on `error_code` and respect `retryable`; do not retry a
-non-retryable error in a loop.
+`INVALID_BUDGET`). An elapsed consult returns `CONSULT_ELAPSED_LIMIT` plus its
+durable `trace_id`; it is retryable only before provider work could have run.
+Bounded journal or trace contention returns `CONSULT_STORAGE_LOCK_TIMEOUT`, and
+other durable I/O failures return `CONSULT_STORAGE_IO_ERROR`, without exposing a
+local path. A possibly partial write and every post-work storage failure are
+non-retryable until finalization-only resume exists. Branch on `error_code` and
+respect `retryable`; do not retry a non-retryable error in a loop.
 
 **Handoff is machine-validated.** Every artifact carries `schema_version` and
 `kind`; JSON-object tool results also return MCP `structuredContent` while
@@ -102,7 +118,14 @@ Copy `mcp/openclaw-config.json` to your OpenClaw MCP configuration:
 }
 ```
 
-The `autoAllow` list includes read-only tools that don't incur costs. Cost-incurring tools (`deepr_research`, `deepr_agentic_research`, `deepr_query_expert`) require approval. For no-cost expert synthesis, use `deepr_consult_experts` with `synthesis_backend="local"` or `synthesis_backend="plan"` and verify `capacity.live_metered_fallback=false`.
+The `autoAllow` list includes read-only tools that do not incur costs.
+`deepr_research` requires approval for one exact bounded request.
+`deepr_agentic_research` is execution-blocked in v2.36 and should not be added
+to an approval list. `deepr_query_expert` is no-metered only when the caller
+explicitly selects local or plan capacity; its API backend is gated. For
+no-cost expert synthesis, use `deepr_consult_experts` with
+`synthesis_backend="local"` or `synthesis_backend="plan"` and verify
+`capacity.live_metered_fallback=false`.
 For no-metered trials, omit provider API keys from the MCP server environment.
 
 For Docker deployment, use `mcp/openclaw-docker-config.json` instead.
@@ -188,18 +211,18 @@ Add to `~/.config/zed/settings.json` under `"language_models"` -> `"mcp"`:
 
 | Tool | Purpose | Cost |
 |------|---------|------|
-| `deepr_research` | Submit deep research job | $0.10-0.50 |
+| `deepr_research` | Submit one bounded research job after approval | Metered, exact envelope |
 | `deepr_check_status` | Check job progress | Free |
 | `deepr_get_result` | Get completed report | Free |
 | `deepr_cancel_job` | Cancel running job | Free |
-| `deepr_agentic_research` | Autonomous multi-step research | $1-10 |
+| `deepr_agentic_research` | Compatibility adapter; fails closed before provider work in v2.36 | Blocked |
 
 ### Expert Tools
 
 | Tool | Purpose | Cost |
 |------|---------|------|
 | `deepr_list_experts` | List domain experts | Free |
-| `deepr_query_expert` | Legacy single-expert chat with a metered-capable backend; use only with operator-approved budget | Low |
+| `deepr_query_expert` | Read-only single-expert query through explicit local or plan capacity; API backend gated in v2.36 | Free |
 | `deepr_consult_experts` | Consult one or more experts and synthesize a versioned `deepr-consult-v1` artifact; supports `synthesis_backend=local|plan` to avoid live metered fallback | Free to low |
 | `deepr_get_expert_info` | Expert details and stats | Free |
 | `deepr_expert_manifest` | Expert manifest (policy + knowledge snapshot) | Free |
@@ -211,7 +234,7 @@ Add to `~/.config/zed/settings.json` under `"language_models"` -> `"mcp"`:
 | `deepr_expert_handoff` | Versioned read-only expert handoff payload for downstream agents | Free |
 | `deepr_route_gaps` | Route an expert's gaps to the best fill instrument (recon/distillr/primr/research) | Free |
 | `deepr_expert_absorb` | Promote a research report into expert beliefs, verification-gated (mutating) | Low |
-| `deepr_reflect` | Self-evaluate a research report (grounding/completeness/calibration/directness) | Low |
+| `deepr_reflect` | Metered evaluation is gated in v2.36; use scheduled CLI reflection on local or plan capacity | Gated |
 | `deepr_what_changed` | Perspective delta since a timestamp (added/revised/contested/archived) | Free |
 | `deepr_contested` | Open contradiction pairs with both sides' claims and provenance | Free |
 | `deepr_explain_belief` | Why the expert believes something (evidence, history, support chains) | Free |

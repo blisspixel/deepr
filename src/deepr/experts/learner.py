@@ -1,8 +1,4 @@
-"""Autonomous learning executor for domain experts.
-
-This module executes learning curricula by autonomously researching topics
-and integrating findings into expert knowledge bases.
-"""
+"""Autonomous learning executor for domain experts."""
 
 import asyncio
 import logging
@@ -15,6 +11,7 @@ from deepr.core.reports import ReportGenerator
 from deepr.core.research import ResearchOrchestrator
 from deepr.experts.curriculum import CurriculumGenerator, LearningCurriculum, LearningTopic
 from deepr.experts.knowledge_freshness import advance_knowledge_freshness
+from deepr.experts.metered_mutation_gate import require_api_autonomous_learning
 from deepr.experts.profile import ExpertProfile, ExpertStore
 from deepr.providers import create_provider
 from deepr.storage import create_storage
@@ -122,6 +119,9 @@ class AutonomousLearner:
         Returns:
             LearningProgress tracking execution
         """
+        if not dry_run:
+            require_api_autonomous_learning(expert.name)
+
         import uuid
 
         from deepr.experts.cost_safety import estimate_curriculum_cost, format_cost_warning

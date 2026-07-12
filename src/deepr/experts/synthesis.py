@@ -9,9 +9,9 @@ The goal is genuine expert behavior:
 - Update beliefs when new evidence arrives
 - Speak from understanding, not search results
 
-Current implementation uses GPT-5 to synthesize documents into structured beliefs
-with confidence levels and evidence chains. Future work: temporal reasoning,
-contradiction detection, belief revision, and richer knowledge graphs.
+The legacy GPT-backed implementation is execution-gated in v2.36 until both
+model calls share one durable parent reservation and canonical settlement.
+Supported local and plan maintenance use the verified belief pipeline instead.
 """
 
 import asyncio
@@ -21,6 +21,8 @@ from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
+
+from deepr.experts.metered_mutation_gate import require_metered_expert_mutation
 
 if TYPE_CHECKING:
     from deepr.core.contracts import Claim, Gap
@@ -211,6 +213,10 @@ class KnowledgeSynthesizer:
         Returns:
             Dict with synthesis results including worldview and reflection
         """
+        require_metered_expert_mutation(
+            "api_knowledge_synthesis",
+            safe_alternative="use expert sync with explicit local or plan-quota capacity",
+        )
         # Read document contents
         doc_contents = []
         for doc in new_documents:
@@ -375,6 +381,10 @@ Be specific, cite evidence, and show genuine intellectual engagement.
         self, reflection_text: str, documents: list[dict], expert_name: str
     ) -> tuple[list[Belief], list[KnowledgeGap]]:
         """Extract structured beliefs and gaps from reflection text."""
+        require_metered_expert_mutation(
+            "api_knowledge_synthesis_extraction",
+            safe_alternative="use expert sync with explicit local or plan-quota capacity",
+        )
 
         # Use GPT-5 to parse the reflection into structured data
         parse_prompt = f"""Extract structured information from this expert's reflection:

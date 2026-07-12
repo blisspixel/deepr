@@ -52,3 +52,44 @@ def test_fill_gaps_requires_metered_confirmation_before_store_or_provider(client
         },
         "safe_alternative": 'deepr expert route-gaps "Budget Expert" --execute --scheduled',
     }
+
+
+def test_confirmed_fill_gaps_still_fails_before_provider_work(client, monkeypatch):
+    import deepr.experts.profile_store as profile_store
+
+    class ExplodingStore:
+        def __init__(self, *_args, **_kwargs):
+            raise AssertionError("disabled metered gap fill must not open the expert store")
+
+    monkeypatch.setattr(profile_store, "ExpertStore", ExplodingStore)
+    resp = client.post(
+        "/api/experts/Budget%20Expert/fill-gaps",
+        json={
+            "allow_metered_api": True,
+            "confirm_metered_cost": True,
+            "deep": True,
+            "budget": 5.0,
+        },
+    )
+
+    assert resp.status_code == 503
+    payload = resp.get_json()
+    assert payload["error_code"] == "metered_expert_mutation_accounting_unavailable"
+    assert payload["provider_work_started"] is False
+    assert payload["retryable"] is False
+
+
+@pytest.mark.parametrize(
+    ("path", "method"),
+    [
+        ("/api/experts/Budget%20Expert/citation-validations", "get"),
+        ("/api/experts/Budget%20Expert/discover-gaps", "post"),
+    ],
+)
+def test_other_metered_expert_web_mutations_fail_closed(client, path, method):
+    response = getattr(client, method)(path)
+
+    assert response.status_code == 503
+    payload = response.get_json()
+    assert payload["error_code"] == "metered_expert_mutation_accounting_unavailable"
+    assert payload["provider_work_started"] is False

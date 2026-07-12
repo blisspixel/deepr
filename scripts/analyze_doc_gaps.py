@@ -1,20 +1,46 @@
-"""
-Analyze existing documentation and identify gaps.
+"""Analyze existing documentation and identify gaps.
 
-Uses GPT-5 to review what docs we have and what we need.
+The legacy metered model path is gated in v2.36 until it uses the shared
+durable call transaction. The gate runs before ``.env`` loading and provider
+client construction.
 """
+
+from __future__ import annotations
 
 import json
 import os
+import sys
 from pathlib import Path
 
-from dotenv import load_dotenv
-from openai import OpenAI
+PROJECT_ROOT = Path(__file__).resolve().parent.parent
+sys.path.insert(0, str(PROJECT_ROOT / "src"))
 
-load_dotenv()
+from deepr.experts.metered_mutation_gate import (
+    MeteredExpertMutationDisabledError,
+    require_metered_expert_mutation,
+)
 
 
-def main():
+def main() -> int:
+    """Refuse unaccounted model analysis before loading credentials."""
+    try:
+        require_metered_expert_mutation(
+            "api_documentation_gap_analysis",
+            safe_alternative=('deepr expert consult "Which documentation gaps matter most?" --local'),
+        )
+    except MeteredExpertMutationDisabledError as exc:
+        print(f"BLOCKED [{exc.code}]: {exc}")
+        return 2
+
+    try:
+        from dotenv import load_dotenv
+
+        load_dotenv(PROJECT_ROOT / ".env")
+    except ImportError:
+        pass
+
+    from openai import OpenAI
+
     client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
     # Scan existing docs
@@ -128,15 +154,15 @@ Return ONLY JSON, no other text."""
             json.dump(analysis, f, indent=2)
 
         print(f"\nOK Analysis saved to {output_file}")
-        return analysis
+        return 0
 
     except Exception as e:
         print(f"Error: {e}")
         import traceback
 
         traceback.print_exc()
-        return None
+        return 1
 
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())

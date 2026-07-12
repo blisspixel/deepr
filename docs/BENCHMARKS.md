@@ -1,12 +1,14 @@
 # Model Benchmarks
 
-Status: historical benchmark guide. Current model names and prices live in
+Status: historical benchmark and dry-run guide. Live provider benchmark
+execution is gated in v2.36. Current model names and prices live in
 `src/deepr/providers/registry.py` and are summarized in [MODELS.md](MODELS.md).
 The measured results below are dated snapshots from the saved benchmark runs
-named in each section, not live provider recommendations. Re-run the benchmark
-with `--fill-gaps` or `--new-models` before using results to change routing.
+named in each section, not live provider recommendations or execution guidance.
 
-Deepr includes a tiered model benchmark system that tests every provider across four distinct use cases. Results drive the auto-mode routing table - the system that picks which model handles each research query.
+The benchmark substrate defines four historical tiers. Saved results can inform
+review, but v2.36 does not run live provider benchmarks or automatically promote
+their output into metered routing.
 
 ## Four Tiers
 
@@ -17,32 +19,25 @@ Deepr includes a tiered model benchmark system that tests every provider across 
 | **Research** | Bounded multi-source reports | 4 orchestrated | 4 (2 task types) | Bounded web-search orchestration | Dry-run ceiling |
 | **Docs** | API doc fetching, SDK guides | 4 | 5 (3 task types) | Bounded web search + chat completions | Dry-run ceiling |
 
-Every run prints a preflight estimate and defaults to a `$1` cap. Use
-`--dry-run` first, then raise `--max-estimated-cost` intentionally if the
-current provider mix is worth the spend.
+Dry-run prints the historical plan and preflight estimate without provider
+calls. A larger cap does not enable live execution in v2.36.
 
 ## Quick Start
 
 ```bash
-# 1. Validate your API keys work
-python scripts/benchmark_models.py --validate
-
-# 2. See what will run and estimated cost
+# See the frozen plan and maximum estimate without provider calls
 python scripts/benchmark_models.py --dry-run --tier all
 
-# 3. Run a low-spend test first (news, no judge)
-python scripts/benchmark_models.py --tier news --quick --no-judge
+# Inspect prompts without provider calls
+python scripts/benchmark_models.py --show-prompts
 
-# 4. Full benchmark with saved results
-python scripts/benchmark_models.py --tier all --save
-
-# 5. Re-run a specific model that failed
-python scripts/benchmark_models.py --tier chat --model gemini/gemini-2.5-pro --save
+# Run provider-free local comparison through the supported CLI
+deepr eval local --model qwen2.5:14b --judge-model qwen2.5:14b --save
 ```
 
 ## Current Benchmark Target Sets
 
-These lists mirror `scripts/benchmark_models.py` as of 2026-07-10 and exclude
+These lists mirror `scripts/benchmark_models.py` as of 2026-07-12 and exclude
 deprecated registry entries. Historical tables below may still mention retired
 or deprecated models because they describe prior saved runs.
 
@@ -104,20 +99,11 @@ Each tier uses a different scoring formula optimized for what matters:
 - **Judge**: Scores comprehensiveness (0.25), accuracy (0.25), synthesis (0.20), structure (0.15), citation integration (0.15)
 - **Citation score**: 35% count (0-20) + 25% domain diversity (0-10) + 25% report length (0-2000 words) + 15% structure (headings present)
 
-By default, benchmark runs use a `$1` preflight and runtime ceiling. Every
-evaluation, judge, and provider-validation call reserves a conservative ceiling
-before submission and settles it to Deepr's append-only cost ledger. Because the
-raw benchmark adapters do not yet expose one normalized usage shape, ledger
-events record the conservative call ceiling rather than claiming exact provider
-billing. Increase the ceiling with `--budget`; `--no-cost-cap` still requires an
-explicit finite `--budget` before paid work can start.
-
-The estimate mirrors each adapter's outbound output-token maximum and adds its
-bounded server-side search allowance. OpenAI search estimates also cover the
-full advertised model context for every permitted tool call. Unknown pricing,
-unknown context limits, and provider paths without a deterministic request-level
-ceiling fail before submission. This deliberately favors an overstated approval
-ceiling over a silent-money path.
+The script retains dry-run estimates and historical checkpoint readers. Its
+live provider, judge, validation, fill-gap, new-model, and resume paths fail
+closed in v2.36 until every call uses the shared durable research transaction.
+Raising `--budget`, `--max-estimated-cost`, or `--no-cost-cap` does not unlock
+them. Unknown pricing and request-level bounds also fail closed.
 
 ## CLI Reference
 
@@ -134,38 +120,27 @@ python scripts/benchmark_models.py [OPTIONS]
 | `--no-judge` | Skip LLM judge, use reference/citation scoring only |
 | `--budget DOLLARS` | Hard runtime ceiling shared by evaluation, judge, and validation calls |
 | `--save` | Save results to `data/benchmarks/` |
-| `--resume` | Resume from checkpoint - skip completed evals |
-| `--compare FILE` | Compare against a previous benchmark run |
-| `--validate` | Test provider APIs (no benchmark) |
+| `--resume` | Gated live path; historical checkpoints remain readable |
+| `--compare FILE` | Gated live path; compares a new run against a previous run |
+| `--validate` | Gated live path; would test provider APIs |
 | `--dry-run` | Show plan + cost estimate without making calls |
 | `--show-prompts` | Display all eval prompts and exit |
+| `--regenerate-rankings` | Rebuild rankings from stored benchmark data at `$0` |
 | `--include-expensive` | Add expensive opt-in models to chat tier |
 | `--fill-gaps` | Load prior results and run only missing model+tier combos |
 | `--new-models` | Alias for `--fill-gaps` (recommended for new model launches) |
 | `--max-estimated-cost DOLLARS` | Preflight threshold and runtime ceiling when `--budget` is absent |
-| `--no-cost-cap` | Disable the default `$1` cap; paid work still requires a finite `--budget` |
+| `--no-cost-cap` | Disable the default estimate cap; does not unlock live execution |
 | `--judge-model MODEL` | Override the judge (default: openai/gpt-4.1-mini) |
 | `--format table\|json` | Output format |
-| `--emit-routing-config` | Write `routing_preferences.json` for auto-mode |
+| `--emit-routing-config` | Gated live path; use `--regenerate-rankings` for stored data |
 | `-v, --verbose` | Debug logging |
 
-## Checkpoint / Resume
+## Historical checkpoints
 
-Every eval result is auto-saved to `data/benchmarks/.checkpoint.json` after completion. If a run crashes (network error, timeout, Ctrl+C):
-
-```bash
-python scripts/benchmark_models.py --tier all --resume --save
-```
-
-This skips already-completed evals and picks up where you left off. The checkpoint is cleared after a successful run.
-
-For research tier jobs that may take 45+ minutes, the timeout is set to 60 minutes. If a job times out, the error message includes the job ID so you can check it manually:
-
-```
-TimeoutError: OpenAI deep research timed out after 3600s.
-Job resp_abc123 may still be running -- check with:
-GET https://api.openai.com/v1/responses/resp_abc123
-```
+Existing `data/benchmarks/.checkpoint.json` files remain readable for forensic
+review. Non-dry resume is not a works-now v2.36 path and must not dispatch or
+replay provider calls.
 
 ## Historical Routing Snapshot
 
@@ -286,11 +261,12 @@ Use this process whenever providers release new models.
 - Do not add a managed agent or grounded model unless its token and tool charges
   have deterministic request-level maxima that the estimator covers.
 
-4. Cost-gated eval (default flow)
+4. Provider-free evidence flow
 - Estimate first: `deepr eval new --dry-run --tier all`
-- Enforce threshold at runtime: `deepr eval new` (default `$1` cap)
-- Increase intentionally when needed: `deepr eval new --max-estimated-cost 3`
-- Add `--no-judge` or `--quick` when cost/latency must be minimal.
+- Run `deepr eval local` or `deepr eval local-context` for current `$0`
+  evidence.
+- Do not run non-dry `deepr eval new` until the v2.36 live benchmark gate is
+  restored through the shared transaction.
 
 5. Promote or rollback
 - If quality improves for target tier(s), keep model in routing candidates.
@@ -305,8 +281,9 @@ Use this process whenever providers release new models.
    - `ORCHESTRATED_RESEARCH_MODELS` for research tier (web-search orchestration)
    - `DOCS_MODELS` for docs tier
 3. If it needs a new API caller, add a `call_*` function and route it in `call_model()`
-4. Validate: `python scripts/benchmark_models.py --validate --tier <tier>`
-5. Benchmark: `python scripts/benchmark_models.py --tier <tier> --model <new_model> --save`
+4. Dry-run: `python scripts/benchmark_models.py --dry-run --tier <tier> --model <new_model>`
+5. Collect provider-free evidence with `deepr eval local` where applicable.
+   Live validation and benchmark dispatch remain gated in v2.36.
 
 ## Output Files
 

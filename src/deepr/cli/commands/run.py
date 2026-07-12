@@ -2,7 +2,6 @@
 
 import asyncio
 import logging
-import os
 import time
 from dataclasses import dataclass
 from pathlib import Path
@@ -37,6 +36,7 @@ from deepr.queue.base import JobStatus
 from deepr.queue.local_queue import SQLiteQueue
 
 MAX_FALLBACK_ATTEMPTS = 3
+METERED_PROVIDER_FALLBACK_ENABLED = False
 
 logger = logging.getLogger(__name__)
 
@@ -254,13 +254,22 @@ def run():
 )
 @click.option("--no-web", is_flag=True, help="Disable web search")
 @click.option("--no-code", is_flag=True, help="Disable code interpreter")
-@click.option("--upload", "-u", multiple=True, help="Upload files for context")
+@click.option(
+    "--upload",
+    "-u",
+    multiple=True,
+    help="Provider file context (gated in v2.36 until storage lifecycle costs are bounded)",
+)
 @click.option("--limit", "-l", type=float, help="Cost limit in dollars")
-@click.option("--yes", "-y", is_flag=True, help="Skip budget confirmation")
+@click.option("--yes", "-y", is_flag=True, help="Run noninteractively; never bypasses a budget gate")
 @click.option("--explain", "--why", is_flag=True, help="Show decision reasoning after completion")
 @click.option("--timeline", is_flag=True, help="Show phase timeline after completion")
 @click.option("--full-trace", is_flag=True, help="Export full trace to data/traces/")
-@click.option("--no-fallback", is_flag=True, help="Disable automatic provider fallback on failure")
+@click.option(
+    "--no-fallback",
+    is_flag=True,
+    help="Compatibility flag; automatic metered provider fallback is disabled in v2.36",
+)
 @output_options
 def focus(
     query: str,
@@ -282,7 +291,6 @@ def focus(
     Examples:
         deepr run focus "Analyze AI code editor market 2025"
         deepr run focus "Latest quantum computing trends" -m o3-deep-research
-        deepr run focus "Company analysis" --upload data.csv --limit 5.00
         deepr run focus "Query" --provider gemini -m gemini-2.5-flash
         deepr run focus "Latest from xAI" --provider grok -m grok-4.3
         deepr run focus "AI trends" --explain --timeline
@@ -356,16 +364,15 @@ async def _run_single(
     user_specified_provider: bool = True,
     user_specified_model: bool = False,
 ):
-    """Execute single research job with automatic provider fallback.
+    """Execute one bounded research job without automatic metered fallback.
 
     Orchestrates the research workflow:
     1. Router-based provider selection (if user didn't specify --provider)
     2. Budget approval
-    3. File uploads (if any)
-    4. Job submission to queue
-    5. Provider API submission with fallback loop
-    6. Result handling
-    7. Trace display (if --explain/--timeline/--full-trace)
+    3. Job submission to queue
+    4. One provider API submission
+    5. Result handling
+    6. Trace display (if --explain/--timeline/--full-trace)
 
     Args:
         query: Research query
@@ -373,14 +380,18 @@ async def _run_single(
         provider: Provider name
         no_web: Disable web search
         no_code: Disable code interpreter
-        upload: Files to upload
+        upload: Provider files, currently gated until storage costs are bounded
         limit: Cost limit
         yes: Skip confirmation
         output_context: Output formatting context (optional for backward compatibility)
         trace_flags: Optional trace visibility flags
-        no_fallback: Disable automatic provider fallback on failure
+        no_fallback: Compatibility flag; automatic metered fallback is disabled
         user_specified_provider: True when user explicitly passed --provider
     """
+    if upload:
+        from deepr.services.research_bounds import require_research_storage_accounting
+
+        require_research_storage_accounting()
     # Import refactored modules
     from deepr.cli.commands.file_handler import handle_file_uploads
     from deepr.cli.commands.provider_factory import (
@@ -470,8 +481,19 @@ async def _run_single(
     )
     op.set_model(model, provider)
 
-    # Estimate cost and show header
-    estimated_cost = estimate_cost(model, enable_web_search=not no_web)
+    # Use the full enforceable request envelope for both the user-facing
+    # estimate and the durable hold. Historical per-query averages are not a
+    # safe admission value for a request that can retry or invoke tools.
+    from deepr.cli.commands.run_submission import build_bounded_cli_request
+    from deepr.services.research_bounds import bounded_research_cost_estimate
+
+    admission_request = build_bounded_cli_request(
+        query=query,
+        model=model,
+        no_web=no_web,
+        no_code=no_code,
+    )
+    estimated_cost = bounded_research_cost_estimate(request=admission_request, provider=provider).max_cost
     _show_research_header(output_context, query, provider, model, estimated_cost, upload)
 
     # Start operation feedback
@@ -497,7 +519,13 @@ async def _run_single(
         config = load_config()
         queue_db_path = str(config.get("queue_db_path") or "queue/research_queue.db")
         live_status.update("Reserving cost ceiling...")
-        job_id, reservation = await _reserve_job_submission(model, provider, limit, queue_db_path)
+        job_id, reservation = await _reserve_job_submission(
+            model,
+            provider,
+            limit,
+            queue_db_path,
+            request=admission_request,
+        )
 
         # Handle file uploads using refactored module
         document_ids = []
@@ -752,17 +780,27 @@ async def _run_single(
             # === Fallback selection ===
 
             # If --no-fallback, stop after first error
-            if no_fallback:
-                await _rollback_prepared_submission(
-                    reservation, upload_result, source="cli.run.no_fallback", formatter=formatter
+            if no_fallback or not METERED_PROVIDER_FALLBACK_ENABLED:
+                from deepr.experts.research_reservation_store import ResearchReservationStore
+
+                reservation_state = await asyncio.to_thread(
+                    ResearchReservationStore().state,
+                    reservation.reservation_id,
                 )
+                if reservation_state == "active":
+                    await _rollback_prepared_submission(
+                        reservation, upload_result, source="cli.run.no_fallback", formatter=formatter
+                    )
                 duration = time.time() - start_time
                 result = OperationResult(
                     success=False,
                     duration_seconds=duration,
-                    cost_usd=0.0,
+                    cost_usd=reservation.estimated_cost if reservation_state == "settled" else 0.0,
                     job_id=job_id,
-                    error=f"Provider {current_provider}/{current_model} failed: {last_error}",
+                    error=(
+                        f"Provider {current_provider}/{current_model} failed: {last_error}. "
+                        "Automatic metered fallback is disabled until each provider attempt owns a separate reservation."
+                    ),
                     error_code="PROVIDER_ERROR",
                 )
                 formatter.complete(result)
@@ -986,7 +1024,14 @@ async def _submit_to_provider(
             idempotency_key=f"deepr-research-{job_id}",
         )
 
-        provider_job_id = await provider_instance.submit_research(request)
+        from deepr.services.research_submission import submit_reserved_provider_research
+
+        provider_job_id = await submit_reserved_provider_research(
+            provider=provider_instance,
+            request=request,
+            reservation=reservation,
+            source="cli.run.provider_submit",
+        )
         if submit_op:
             submit_op.set_attribute("provider_job_id", provider_job_id)
 
@@ -1094,7 +1139,7 @@ def project(
     phases: int,
     yes: bool,
 ):
-    """Run a multi-phase research project with context chaining.
+    """Previewed legacy multi-phase research, gated for metered execution.
 
     The lead model plans the research, then executes multiple phases
     with context chaining between them.
@@ -1115,102 +1160,9 @@ async def _run_campaign(
     yes: bool,
 ):
     """Execute campaign."""
-    click.echo("\n" + "=" * 70)
-    click.echo("  DEEPR - Multi-Phase Campaign")
-    click.echo("=" * 70 + "\n")
+    from deepr.cli.commands.research_safety import require_parent_budget
 
-    # Estimate cost (phases * per-job cost)
-    per_job_cost = estimate_cost(model, enable_web_search=True)
-    estimated_cost = per_job_cost * phases
-
-    click.echo(f"Scenario: {scenario}")
-    click.echo(f"Lead model: {lead}")
-    click.echo(f"Research model: {model}")
-    click.echo(f"Phases: {phases}")
-    click.echo(f"Estimated cost: ${estimated_cost:.2f} ({phases} x ${per_job_cost:.2f})")
-    click.echo()
-
-    # Budget check
-    if not yes and not check_budget_approval(estimated_cost):
-        if not click.confirm(f"Proceed with estimated cost ${estimated_cost:.2f}?"):
-            click.echo("Cancelled.")
-            return
-
-    click.echo("Planning campaign phases...")
-    click.echo(
-        "\nNOTE: This command is deprecated. Please use 'deepr prep plan' and 'deepr prep execute' for better control.\n"
-    )
-
-    # Import prep functionality - use the working implementation
-    from deepr.services.research_planner import ResearchPlanner
-
-    # Generate plan using lead model (planner for planning, model for execution)
-    planner_svc = ResearchPlanner(model=lead)
-    tasks = planner_svc.plan_research(scenario=scenario, max_tasks=phases, context=None)
-
-    # Add task IDs and model info
-    for i, task in enumerate(tasks, 1):
-        task["id"] = i
-        task["model"] = model
-        task["approved"] = True  # Auto-approve for deprecated command
-
-    plan = {"scenario": scenario, "tasks": tasks, "model": model, "metadata": {"planner": lead}}
-
-    click.echo("\nCampaign plan generated:")
-    click.echo(f"  Tasks: {len(plan['tasks'])}")
-    click.echo()
-
-    # Execute campaign
-    click.echo("Executing campaign phases...")
-
-    # Import the async executor instead of the sync wrapper
-    import time
-
-    from deepr.config import load_config
-    from deepr.providers import create_provider
-    from deepr.queue import create_queue
-    from deepr.services.batch_executor import BatchExecutor
-    from deepr.services.context_builder import ContextBuilder
-    from deepr.storage import create_storage
-
-    config = load_config()
-
-    # Determine provider based on model
-    is_deep_research = "deep-research" in model.lower()
-    if is_deep_research:
-        provider_name = os.getenv("DEEPR_DEEP_RESEARCH_PROVIDER", "openai")
-    else:
-        provider_name = os.getenv("DEEPR_DEFAULT_PROVIDER", "xai")
-
-    # Get API key
-    if provider_name == "gemini":
-        api_key = config.get("gemini_api_key")
-    elif provider_name in ["grok", "xai"]:
-        api_key = config.get("xai_api_key")
-        provider_name = "xai"
-    elif provider_name == "azure":
-        api_key = config.get("azure_api_key")
-    else:
-        api_key = config.get("api_key")
-        provider_name = "openai"
-
-    # Initialize services
-    queue = create_queue("local", db_path=str(config.get("queue_db_path") or "queue/research_queue.db"))
-    provider_instance = create_provider(provider_name, api_key=api_key)
-    storage = create_storage(config.get("storage", "local"), base_path=config.get("results_dir", "data/reports"))
-    context_builder = ContextBuilder(api_key=config.get("api_key"))
-
-    executor = BatchExecutor(queue=queue, provider=provider_instance, storage=storage, context_builder=context_builder)
-
-    campaign_id = f"campaign-{int(time.time())}"
-    results = await executor.execute_campaign(tasks, campaign_id)
-
-    if results.get("status") == "pending":
-        click.echo("\nCampaign remains in progress; durable job tracking was retained.")
-    else:
-        click.echo("\nCampaign completed!")
-    click.echo(f"Results: {len(results.get('tasks', {}))} tasks recorded")
-    click.echo("\nFor better control, use: deepr prep plan / deepr prep execute")
+    require_parent_budget("Multi-phase campaign")
 
 
 @run.command()
@@ -1224,7 +1176,7 @@ def team(
     perspectives: int,
     yes: bool,
 ):
-    """Run research with multiple perspectives (dream team).
+    """Previewed legacy multi-perspective research, gated for metered execution.
 
     Uses Six Thinking Hats methodology to analyze the question
     from different angles simultaneously.
@@ -1244,40 +1196,9 @@ async def _run_team(
     yes: bool,
 ):
     """Execute team research."""
-    click.echo("\n" + "=" * 70)
-    click.echo("  DEEPR - Dream Team Research")
-    click.echo("=" * 70 + "\n")
+    from deepr.cli.commands.research_safety import require_parent_budget
 
-    # Estimate cost
-    per_job_cost = estimate_cost(model, enable_web_search=True)
-    estimated_cost = per_job_cost * perspectives
-
-    click.echo(f"Question: {question}")
-    click.echo(f"Model: {model}")
-    click.echo(f"Perspectives: {perspectives}")
-    click.echo(f"Estimated cost: ${estimated_cost:.2f} ({perspectives} x ${per_job_cost:.2f})")
-    click.echo()
-
-    # Budget check
-    if not yes and not check_budget_approval(estimated_cost):
-        if not click.confirm(f"Proceed with estimated cost ${estimated_cost:.2f}?"):
-            click.echo("Cancelled.")
-            return
-
-    click.echo("Assembling research team...")
-
-    # Import team functionality
-    from deepr.cli.commands.team import run_dream_team
-
-    # Determine provider based on model
-    is_deep_research = "deep-research" in model.lower()
-    if is_deep_research:
-        provider = os.getenv("DEEPR_DEEP_RESEARCH_PROVIDER", "openai")
-    else:
-        provider = os.getenv("DEEPR_DEFAULT_PROVIDER", "xai")
-
-    # Execute team research
-    await run_dream_team(question, model, perspectives, provider=provider)
+    require_parent_budget("Dream-team research")
 
 
 @run.command()

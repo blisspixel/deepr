@@ -162,7 +162,7 @@ class TestPreviewAutoMode:
             mock_router_cls.return_value.route.return_value = decision
             result = runner.invoke(
                 cli,
-                ["research", "--auto", "--preview", "What is Python?"],
+                ["research", "--auto", "--preview", "--no-web", "--no-code", "What is Python?"],
             )
 
         assert result.exit_code == 0, result.output
@@ -196,7 +196,7 @@ class TestPreviewAutoMode:
             mock_router_cls.return_value.route.return_value = decision
             result = runner.invoke(
                 cli,
-                ["research", "--auto", "--preview", "Compare two designs"],
+                ["research", "--auto", "--preview", "--no-web", "--no-code", "Compare two designs"],
             )
 
         assert result.exit_code == 0, result.output
@@ -231,3 +231,25 @@ class TestPreviewAutoMode:
         assert payload["executed"] is False
         assert payload["model"] == "o3-deep-research"
         assert payload["provider"] == "openai"
+        assert payload["admission_max_cost"] >= payload["routing_cost_estimate"]
+
+    def test_auto_preview_blocks_unpriced_xai_tools(self, runner: CliRunner) -> None:
+        from deepr.routing.auto_mode import AutoModeDecision
+
+        decision = AutoModeDecision(
+            provider="xai",
+            model="grok-4-1-fast-non-reasoning",
+            complexity="simple",
+            task_type="factual",
+            cost_estimate=0.01,
+            confidence=0.92,
+            reasoning="Cheap factual lookup",
+        )
+
+        with patch("deepr.routing.AutoModeRouter") as mock_router_cls:
+            mock_router_cls.return_value.route.return_value = decision
+            result = runner.invoke(cli, ["research", "--auto", "--preview", "What is Python?"])
+
+        assert result.exit_code == 1
+        assert "research_tool_pricing_unbounded" in result.output
+        assert "no complete provider-enforced cost ceiling" in result.output

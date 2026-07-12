@@ -1,5 +1,7 @@
 """Tests for cost estimation and control (no API calls)."""
 
+import pytest
+
 from deepr.core.costs import CostController, CostEstimator, get_safe_test_prompt
 
 
@@ -124,7 +126,7 @@ class TestCostController:
         """Test per-job cost limit enforcement."""
         controller = CostController(max_cost_per_job=1.0)
 
-        cheap_estimate = CostEstimator.estimate_cost("Short prompt", "o4-mini-deep-research", enable_web_search=False)
+        cheap_estimate = CostEstimator.estimate_cost("Short prompt", "gpt-5-mini", enable_web_search=False)
 
         allowed, reason = controller.check_cost_limit(cheap_estimate)
         assert allowed is True
@@ -355,7 +357,7 @@ class TestCostLedgerIntegrity:
         assert recorded is False
         assert reloaded.get_total_cost() == 1.0
 
-    def test_corrupt_line_logged_not_fatal(self, tmp_path, caplog):
+    def test_corrupt_line_is_readable_but_blocks_accounting_append(self, tmp_path, caplog):
         import logging
 
         from deepr.observability.cost_ledger import CostLedger
@@ -369,14 +371,16 @@ class TestCostLedgerIntegrity:
         with caplog.at_level(logging.ERROR, logger="deepr.observability.cost_ledger"):
             reloaded = CostLedger(ledger_path=path)
         assert any("Corrupted cost ledger line" in r.message for r in caplog.records)
-        # The good record still loads and dedupes
-        _, recorded = reloaded.record_event(operation="a", provider="openai", cost_usd=0.5, idempotency_key="good")
-        assert recorded is False
+        # Read-only history stays available, but accounting cannot append or
+        # replay through a torn line because that could defeat idempotency.
+        assert reloaded.get_total_cost() == 0.5
+        with pytest.raises(RuntimeError, match="malformed event"):
+            reloaded.record_event(operation="a", provider="openai", cost_usd=0.5, idempotency_key="good")
 
-    def test_negative_cost_clamped(self, tmp_path):
+    def test_negative_cost_rejected(self, tmp_path):
         ledger = self._ledger(tmp_path)
-        event, _ = ledger.record_event(operation="weird", provider="openai", cost_usd=-3.0)
-        assert event.cost_usd == 0.0
+        with pytest.raises(ValueError, match="finite non-negative"):
+            ledger.record_event(operation="weird", provider="openai", cost_usd=-3.0)
         assert ledger.get_total_cost() == 0.0
 
     def test_get_events_filters(self, tmp_path):

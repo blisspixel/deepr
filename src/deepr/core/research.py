@@ -52,6 +52,14 @@ MODEL_COST_ESTIMATES.setdefault("deep-research", _DEEP_RESEARCH_AGENT_COST)
 logger = logging.getLogger(__name__)
 
 
+def _provider_identity(provider: DeepResearchProvider) -> str:
+    """Return an adapter-declared pricing identity, or its concrete class name."""
+    declared = getattr(provider, "provider_name", "")
+    if isinstance(declared, str) and declared.strip():
+        return declared.strip()
+    return provider.__class__.__name__
+
+
 class ResearchOrchestrator:
     """
     Orchestrates the complete research workflow.
@@ -213,12 +221,15 @@ class ResearchOrchestrator:
             from ..experts.research_cost_gate import reserve_configured_research_cost
 
             try:
+                provider_identity = _provider_identity(self.provider)
                 estimate, reservation = reserve_configured_research_cost(
                     job_id=job_id,
-                    provider=self.provider.__class__.__name__,
+                    provider=provider_identity,
                     prompt=enhanced_prompt,
                     model=model,
                     enable_web_search=enable_web_search,
+                    enable_code_interpreter=enable_code_interpreter and not cost_sensitive,
+                    enable_file_search=bool(documents or vector_store_id),
                     max_cost_per_job=budget_limit,
                 )
             except ValueError as exc:
@@ -259,28 +270,21 @@ class ResearchOrchestrator:
 
             # Submit to provider
             op.add_event("provider_submit_start", {"model": model})
-            try:
-                response_id = await self.provider.submit_research(request)
-            except Exception as exc:
-                from ..experts.research_cost_gate import refund_research_cost, settle_research_cost
-                from ..services.research_submission import submission_outcome_is_ambiguous
+            from ..services.research_submission import submit_reserved_provider_research
 
-                if submission_outcome_is_ambiguous(exc):
-                    settle_research_cost(
-                        reservation,
-                        actual_cost=None,
-                        source="core.research.submit_research.ambiguous",
-                    )
-                else:
-                    refund_research_cost(reservation)
-                raise
+            response_id = await submit_reserved_provider_research(
+                provider=self.provider,
+                request=request,
+                reservation=reservation,
+                source="core.research.submit_research",
+            )
             op.add_event("provider_submit_complete", {"response_id": response_id})
 
             self._cost_tracking[response_id] = {
                 "session_id": tracking_session_id,
                 "reservation": reservation,
                 "estimated_cost": estimated_cost,
-                "provider": self.provider.__class__.__name__,
+                "provider": provider_identity,
                 "model": model,
                 "prompt_preview": prompt[:50],
             }
@@ -339,7 +343,7 @@ class ResearchOrchestrator:
             enable_code_interpreter=enable_code_interpreter,
         )
         op.set_attribute("tools_enabled", [tool.type for tool in tools])
-        op.set_model(model, self.provider.__class__.__name__)
+        op.set_model(model, _provider_identity(self.provider))
         return ResearchRequest(
             prompt=enhanced_prompt,
             model=model,
@@ -420,7 +424,7 @@ class ResearchOrchestrator:
 
         # Add code interpreter
         if enable_code_interpreter:
-            tools.append(ToolConfig(type="code_interpreter", container={"type": "auto"}))
+            tools.append(ToolConfig(type="code_interpreter", container={"type": "auto", "memory_limit": "1g"}))
 
         return tools
 

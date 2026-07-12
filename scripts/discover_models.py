@@ -6,8 +6,8 @@ current registry. Two discovery modes:
 
 1. API-based: Query provider model listing APIs directly (model names only,
    not pricing - most APIs don't expose pricing).
-2. LLM-based: Ask an LLM with web access (Grok recommended) for latest
-   model info including pricing. Returns structured JSON.
+2. LLM-based: Present in the compatibility interface but gated in v2.36 until
+   each model call uses the shared durable call transaction.
 
 Usage:
     # Compare registry vs live (API mode, all providers)
@@ -16,7 +16,7 @@ Usage:
     # Check one provider
     python scripts/discover_models.py --provider openai
 
-    # Use LLM for discovery (includes pricing)
+    # Gated in v2.36: LLM discovery (would include pricing)
     python scripts/discover_models.py --llm
 
     # Use a specific LLM provider
@@ -43,6 +43,11 @@ from pathlib import Path
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 SRC_ROOT = PROJECT_ROOT / "src"
 sys.path.insert(0, str(SRC_ROOT))
+
+from deepr.experts.metered_mutation_gate import (
+    MeteredExpertMutationDisabledError,
+    require_metered_expert_mutation,
+)
 
 # Load .env so keys configured there (not just exported in the shell) are
 # visible - otherwise discovery silently skips providers like Anthropic/Azure.
@@ -389,8 +394,16 @@ def discover_via_llm(
 ) -> list[DiscoveredModel]:
     """Discover models by asking an LLM with web access.
 
-    Prefers Grok (real-time web access) > OpenAI > Anthropic.
+    This direct Python seam is gated as well as the command entry point so an
+    import cannot bypass v2.36 metered accounting policy.
     """
+    require_metered_expert_mutation(
+        "llm_model_discovery",
+        safe_alternative=(
+            "python scripts/discover_models.py for read-only provider model-list discovery, "
+            "or --show-registry for the offline registry"
+        ),
+    )
     import requests
 
     target_providers = providers or ["openai", "anthropic", "gemini", "xai"]
@@ -946,7 +959,7 @@ Examples:
     parser.add_argument(
         "--llm",
         action="store_true",
-        help="Use LLM-based discovery (asks Grok/GPT to look up latest models)",
+        help="Compatibility option; metered LLM discovery is gated in v2.36",
     )
     parser.add_argument(
         "--llm-provider",
@@ -986,6 +999,19 @@ Examples:
 
     if args.verbose:
         logging.getLogger().setLevel(logging.DEBUG)
+
+    if args.llm:
+        try:
+            require_metered_expert_mutation(
+                "llm_model_discovery",
+                safe_alternative=(
+                    "python scripts/discover_models.py for read-only provider model-list discovery, "
+                    "or --show-registry for the offline registry"
+                ),
+            )
+        except MeteredExpertMutationDisabledError as exc:
+            print(f"BLOCKED [{exc.code}]: {exc}")
+            raise SystemExit(2) from exc
 
     # Load registry
     print("Loading current registry...")

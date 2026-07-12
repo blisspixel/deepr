@@ -1,16 +1,17 @@
-"""
-Research mode classification and cost estimation.
+"""Non-authoritative prompt-shape routing for the bundled Deepr skill.
 
-This module determines the optimal research mode based on query characteristics
-and provides cost/time estimates for informed decision-making.
+Lexical and length signals may suggest how to frame a preview. They never select
+a paid model, estimate a provider envelope, or authorize dispatch. Call Deepr's
+current exact preview for those decisions.
 """
 
 from dataclasses import dataclass
 from enum import Enum
+from math import isfinite
 
 
 class ResearchMode(Enum):
-    """Available research modes with increasing depth and cost."""
+    """Prompt-shape hints with no execution or cost authority."""
 
     QUICK = "quick"
     STANDARD = "standard"
@@ -29,6 +30,8 @@ class CostEstimate:
 
     @property
     def cost_range(self) -> str:
+        if not isfinite(self.max_cost):
+            return "EXACT PREVIEW REQUIRED"
         if self.min_cost == 0 and self.max_cost == 0:
             return "FREE"
         if self.min_cost == self.max_cost:
@@ -37,6 +40,8 @@ class CostEstimate:
 
     @property
     def time_range(self) -> str:
+        if self.min_time_seconds <= 0 or self.max_time_seconds <= 0:
+            return "UNKNOWN"
         if self.max_time_seconds < 60:
             return f"{self.min_time_seconds}-{self.max_time_seconds} sec"
         min_min = self.min_time_seconds // 60
@@ -48,7 +53,7 @@ class CostEstimate:
 
 @dataclass(frozen=True)
 class ResearchDecision:
-    """Complete recommendation for a research query."""
+    """A routing hint that requires an exact preview before execution."""
 
     mode: ResearchMode
     model: str
@@ -57,20 +62,11 @@ class ResearchDecision:
     confidence: float  # 0.0 to 1.0
 
 
-# Cost tables by mode
-MODE_COSTS: dict[ResearchMode, CostEstimate] = {
-    ResearchMode.QUICK: CostEstimate(0, 0, 1, 5),
-    ResearchMode.STANDARD: CostEstimate(0.001, 0.005, 30, 60),
-    ResearchMode.DEEP_FAST: CostEstimate(0.10, 0.30, 300, 600),
-    ResearchMode.DEEP_PREMIUM: CostEstimate(0.50, 0.50, 600, 1200),
-}
+# No static table can safely authorize a current provider request. Infinity
+# keeps every paid-looking hint confirmation-required until exact preview.
+MODE_COSTS: dict[ResearchMode, CostEstimate] = {mode: CostEstimate(0.0, float("inf"), 0, 0) for mode in ResearchMode}
 
-MODE_MODELS: dict[ResearchMode, str] = {
-    ResearchMode.QUICK: "grok-4.3",
-    ResearchMode.STANDARD: "grok-4.3",
-    ResearchMode.DEEP_FAST: "o4-mini",
-    ResearchMode.DEEP_PREMIUM: "o3",
-}
+MODE_MODELS: dict[ResearchMode, str] = {mode: "explicit-model-required" for mode in ResearchMode}
 
 # Query complexity indicators
 DEEP_INDICATORS = frozenset(
@@ -118,19 +114,18 @@ def classify_query(
     max_budget: float | None = None,
 ) -> ResearchDecision:
     """
-    Classify a research query and recommend optimal mode.
+    Return a non-authoritative prompt-shape hint.
 
-    Analyzes query characteristics (length, keywords, complexity) to
-    determine the most appropriate research mode and provides cost/time
-    estimates.
+    Query length and lexical signals only route a future preview. They cannot
+    decide semantic complexity, model suitability, cost, or dispatch.
 
     Args:
         query: The research query text (must be non-empty)
         force_mode: Override automatic classification with specific mode
-        max_budget: Maximum budget constraint in dollars (must be non-negative)
+        max_budget: Validated for form only; exact preview owns budget fit
 
     Returns:
-        ResearchDecision with mode, cost estimate, and rationale
+        ResearchDecision with an unknown cost envelope and explicit-model marker
 
     Raises:
         ValueError: If query is empty or max_budget is negative
@@ -140,7 +135,7 @@ def classify_query(
         >>> decision.mode
         ResearchMode.QUICK
         >>> decision.cost.cost_range
-        'FREE'
+        'EXACT PREVIEW REQUIRED'
     """
     # Validate query
     if not query or not query.strip():
@@ -168,10 +163,6 @@ def classify_query(
     # Select best mode
     best_mode = max(scores, key=scores.get)
     confidence = scores[best_mode]
-
-    # Apply budget constraint
-    if max_budget is not None:
-        best_mode = _apply_budget_constraint(best_mode, max_budget)
 
     rationale = _generate_rationale(query_lower, best_mode, scores)
 
@@ -229,22 +220,9 @@ def _apply_budget_constraint(
     mode: ResearchMode,
     max_budget: float,
 ) -> ResearchMode:
-    """Downgrade mode if it exceeds budget."""
-    mode_order = [
-        ResearchMode.QUICK,
-        ResearchMode.STANDARD,
-        ResearchMode.DEEP_FAST,
-        ResearchMode.DEEP_PREMIUM,
-    ]
-
-    current_idx = mode_order.index(mode)
-
-    for idx in range(current_idx, -1, -1):
-        candidate = mode_order[idx]
-        if MODE_COSTS[candidate].max_cost <= max_budget:
-            return candidate
-
-    return ResearchMode.QUICK
+    """Retain the hint because only exact preview can evaluate budget fit."""
+    del max_budget
+    return mode
 
 
 def _generate_rationale(
@@ -275,6 +253,7 @@ def _generate_rationale(
     if not reasons:
         reasons.append("Default classification based on query characteristics")
 
+    reasons.append("routing hint only; exact provider preview required")
     return "; ".join(reasons)
 
 
@@ -294,10 +273,10 @@ def _build_decision(
 
 
 def estimate_cost(mode: ResearchMode) -> CostEstimate:
-    """Get cost estimate for a specific mode."""
+    """Return an intentionally unknown envelope that cannot authorize spend."""
     return MODE_COSTS[mode]
 
 
 def requires_confirmation(decision: ResearchDecision, threshold: float = 5.0) -> bool:
-    """Check if decision requires user confirmation based on cost."""
+    """Require confirmation until an exact provider preview replaces the hint."""
     return decision.cost.max_cost >= threshold

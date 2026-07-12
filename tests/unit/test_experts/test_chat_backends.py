@@ -7,7 +7,7 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from deepr.experts import chat_api_backends
+from deepr.experts import chat_api_backends, chat_capacity
 from deepr.experts.chat_backends import (
     AnthropicExpertChatBackend,
     ExpertChatRequest,
@@ -19,6 +19,13 @@ from deepr.experts.chat_backends import (
     PlanQuotaExpertChatBackend,
     complete_expert_chat_turn,
 )
+from deepr.experts.chat_capacity import MeteredExpertChatDisabledError
+
+
+@pytest.fixture(autouse=True)
+def _enable_metered_backend_shape_tests(monkeypatch):
+    """Exercise request normalization without enabling production dispatch."""
+    monkeypatch.setattr(chat_capacity, "METERED_EXPERT_CHAT_EXECUTION_ENABLED", True)
 
 
 class RecordingChatBackend:
@@ -38,6 +45,31 @@ class RecordingChatBackend:
 
     def stream(self, request: ExpertChatRequest):
         raise AssertionError("stream should not be called")
+
+
+@pytest.mark.asyncio
+async def test_metered_backend_boundary_fails_before_client_dispatch(monkeypatch):
+    calls = 0
+
+    class FakeCompletions:
+        async def create(self, **_kwargs):
+            nonlocal calls
+            calls += 1
+            raise AssertionError("metered client must not dispatch")
+
+    monkeypatch.setattr(chat_capacity, "METERED_EXPERT_CHAT_EXECUTION_ENABLED", False)
+    backend = OpenAIExpertChatBackend(
+        SimpleNamespace(chat=SimpleNamespace(completions=FakeCompletions())),
+        model="gpt-5.2",
+    )
+    request = ExpertChatRequest(model="gpt-5.2", messages=[{"role": "user", "content": "q"}])
+
+    with pytest.raises(MeteredExpertChatDisabledError):
+        await backend.complete(request)
+    with pytest.raises(MeteredExpertChatDisabledError):
+        _ = [chunk async for chunk in backend.stream(request)]
+
+    assert calls == 0
 
 
 def test_openai_chat_client_disables_hidden_sdk_retries(monkeypatch):

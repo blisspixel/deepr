@@ -7,6 +7,8 @@ from dataclasses import dataclass, field
 from types import SimpleNamespace
 from typing import Any, Protocol
 
+from deepr.experts.chat_capacity import require_expert_chat_dispatch
+
 
 @dataclass(frozen=True)
 class ExpertChatRequest:
@@ -126,6 +128,7 @@ class OpenAIExpertChatBackend:
         self.model = model
 
     async def complete(self, request: ExpertChatRequest) -> ExpertChatResult:
+        require_expert_chat_dispatch(self, "expert_chat_completion")
         params = self._build_params(request)
         response = await self.client.chat.completions.create(**params)
         choice = response.choices[0]
@@ -138,6 +141,7 @@ class OpenAIExpertChatBackend:
         )
 
     async def stream(self, request: ExpertChatRequest) -> AsyncIterator[ExpertChatStreamChunk]:
+        require_expert_chat_dispatch(self, "expert_chat_stream")
         params = self._build_params(request)
         params["stream"] = True
         params["stream_options"] = {"include_usage": True}
@@ -177,6 +181,7 @@ class AnthropicExpertChatBackend:
         self.model: str | None = model
 
     async def complete(self, request: ExpertChatRequest) -> ExpertChatResult:
+        require_expert_chat_dispatch(self, "expert_chat_completion")
         if request.tools:
             raise ExpertChatUnsupportedFeature("anthropic expert-chat backend does not support tools yet")
 
@@ -196,6 +201,7 @@ class AnthropicExpertChatBackend:
         )
 
     async def stream(self, request: ExpertChatRequest) -> AsyncIterator[ExpertChatStreamChunk]:
+        require_expert_chat_dispatch(self, "expert_chat_stream")
         if request.tools:
             raise ExpertChatUnsupportedFeature("anthropic expert-chat backend does not support tools yet")
 

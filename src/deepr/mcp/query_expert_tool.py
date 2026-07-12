@@ -16,6 +16,7 @@ from deepr.experts.chat_backends import (
     LocalOllamaExpertChatBackend,
     PlanQuotaExpertChatBackend,
 )
+from deepr.experts.chat_capacity import MeteredExpertChatDisabledError
 from deepr.experts.handoff import build_expert_handoff
 
 READONLY_QUERY_SCHEMA_VERSION = "deepr-query-expert-readonly-v1"
@@ -31,8 +32,8 @@ QUERY_EXPERT_INPUT_SCHEMA: dict[str, Any] = {
             "enum": ["api", "local", "plan"],
             "default": "api",
             "description": (
-                "api uses the legacy expert chat path; local and plan run one read-only "
-                "compiled-context turn with live metered fallback disabled."
+                "api is blocked before dispatch until durable per-call accounting ships; "
+                "local and plan run one read-only compiled-context turn."
             ),
         },
         "agentic": {
@@ -146,18 +147,12 @@ async def query_expert_tool(
                 category="validation",
             )
 
-        return await _query_legacy_expert_chat(
-            expert=expert,
-            expert_name=expert_name,
-            question=question,
-            budget=budget,
-            agentic=agentic,
-            sessions=sessions,
-            session_factory=session_factory,
-            logger=logger,
-            provider=api_provider,
-            model=model,
-        )
+        capacity_error = MeteredExpertChatDisabledError("mcp_query_expert")
+        return {
+            **_make_error(capacity_error.code, str(capacity_error), category="capacity"),
+            **capacity_error.to_dict(),
+        }
+
     except (OSError, KeyError, ValueError, DeeprError) as exc:
         return _make_error("EXPERT_QUERY_FAILED", str(exc))
 

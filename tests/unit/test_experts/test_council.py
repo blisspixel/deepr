@@ -7,6 +7,8 @@ loop. The live path remains a fallback for experts with no stored beliefs.
 from __future__ import annotations
 
 import asyncio
+import json
+import threading
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, patch
 
@@ -14,6 +16,7 @@ import pytest
 
 from deepr.core.contracts import ExpertOriginalIdea
 from deepr.experts.beliefs import Belief, BeliefStore
+from deepr.experts.consult_lifecycle import ConsultLifecycleLockTimeoutError
 from deepr.experts.council import ExpertCouncil, ExpertPerspective
 from deepr.experts.maker_checker import VERIFIED_ASSURANCES, assurance_short_label
 from deepr.experts.metacognition import MetaCognitionTracker
@@ -133,6 +136,95 @@ async def test_consult_queries_experts_with_bounded_concurrency(monkeypatch):
 
 
 @pytest.mark.asyncio
+async def test_progress_notification_offloads_sync_callback_from_event_loop():
+    event_loop_thread = threading.get_ident()
+    callback_threads: list[int] = []
+
+    def callback(_name, _status):
+        callback_threads.append(threading.get_ident())
+
+    await ExpertCouncil._notify(callback, "Expert", "querying")
+
+    assert callback_threads
+    assert callback_threads[0] != event_loop_thread
+
+
+@pytest.mark.asyncio
+async def test_progress_notification_reraises_lifecycle_errors():
+    def callback(_name, _status):
+        raise ConsultLifecycleLockTimeoutError()
+
+    with pytest.raises(ConsultLifecycleLockTimeoutError):
+        await ExpertCouncil._notify(callback, "Expert", "querying")
+
+
+@pytest.mark.asyncio
+async def test_progress_notification_keeps_ordinary_callback_errors_best_effort():
+    def callback(_name, _status):
+        raise ValueError("display callback failed")
+
+    await ExpertCouncil._notify(callback, "Expert", "querying")
+
+
+@pytest.mark.asyncio
+async def test_lifecycle_progress_failure_cancels_sibling_council_work(monkeypatch):
+    sibling_entered = asyncio.Event()
+    sibling_cancelled = asyncio.Event()
+
+    async def fake_query(self, query, exp, per_expert_budget, progress_callback, agent_identity):
+        del self, query, per_expert_budget, progress_callback, agent_identity
+        if exp["name"] == "Guard Failure":
+            await sibling_entered.wait()
+            raise ConsultLifecycleLockTimeoutError()
+        sibling_entered.set()
+        try:
+            await asyncio.Event().wait()
+        finally:
+            sibling_cancelled.set()
+
+    monkeypatch.setattr(ExpertCouncil, "_query_expert", fake_query)
+    council = ExpertCouncil(synthesis_provider="local", allow_live_fallback=False)
+    experts = [
+        {"name": "Guard Failure", "domain": "validation"},
+        {"name": "Sibling", "domain": "validation"},
+    ]
+
+    with (
+        patch.object(council, "_synthesise", new_callable=AsyncMock) as synth,
+        pytest.raises(ConsultLifecycleLockTimeoutError),
+    ):
+        await council.consult("Validate lifecycle failure propagation.", experts=experts, budget=0.0)
+
+    assert sibling_cancelled.is_set()
+    synth.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "duplicate_name",
+    ["ai agent harnesses", "ai_agent_harnesses"],
+    ids=["case", "slug"],
+)
+async def test_consult_rejects_duplicate_canonical_experts_before_dispatch(duplicate_name):
+    council = ExpertCouncil(synthesis_provider="local", allow_live_fallback=False)
+    experts = [
+        {"name": "AI Agent Harnesses", "domain": "agent harnesses"},
+        {"name": duplicate_name, "domain": "agent harnesses"},
+    ]
+
+    with patch.object(council, "_query_expert") as query_expert:
+        with patch(
+            "deepr.mcp.state.async_dispatcher.AsyncTaskDispatcher",
+            side_effect=AssertionError("duplicate roster reached dispatcher construction"),
+        ) as dispatcher_type:
+            with pytest.raises(ValueError, match="Duplicate expert roster entry"):
+                await council.consult("Validate the harness.", experts=experts, budget=0.0)
+
+    query_expert.assert_not_called()
+    dispatcher_type.assert_not_called()
+
+
+@pytest.mark.asyncio
 async def test_consult_uses_stored_beliefs_before_live_session():
     store = BeliefStore("Grounded Cost Expert")
     belief = Belief(
@@ -167,6 +259,67 @@ async def test_consult_uses_stored_beliefs_before_live_session():
     assert "Stored belief perspective for Grounded Cost Expert." in perspective["response"]
     assert "cache creation tokens" in perspective["response"]
     assert "https://platform.claude.com/docs/en/build-with-claude/prompt-caching" in perspective["response"]
+
+
+def test_stored_perspective_read_does_not_migrate_or_write_expert_storage():
+    from deepr.experts.paths import canonical_expert_dir
+
+    name = "Legacy Read Only Consult Expert"
+    expert_dir = canonical_expert_dir(name)
+    belief_file = expert_dir / "beliefs" / "beliefs.json"
+    belief_file.parent.mkdir(parents=True)
+
+    first = Belief(
+        id="belief-a",
+        claim="Bounded queues prevent unbounded work accumulation.",
+        confidence=0.9,
+        domain="agent reliability",
+        contradictions_with=["belief-b"],
+        decay_rate=0.0,
+    )
+    second = Belief(
+        id="belief-b",
+        claim="Unbounded queues are acceptable for every workload.",
+        confidence=0.4,
+        domain="agent reliability",
+        contradictions_with=["belief-a"],
+        decay_rate=0.0,
+    )
+    belief_file.write_text(
+        json.dumps(
+            {
+                "beliefs": {
+                    first.id: first.to_dict(),
+                    second.id: second.to_dict(),
+                },
+                "changes": [],
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    def snapshot() -> dict[str, bytes | None]:
+        return {
+            path.relative_to(expert_dir).as_posix(): None if path.is_dir() else path.read_bytes()
+            for path in expert_dir.rglob("*")
+        }
+
+    before = snapshot()
+    council = ExpertCouncil(synthesis_provider="local", allow_live_fallback=False)
+
+    with patch.object(BeliefStore, "_save", side_effect=AssertionError("consult read attempted a write")):
+        with patch("deepr.experts.beliefs.BeliefStore", wraps=BeliefStore) as store_type:
+            perspective = council._load_stored_perspective(
+                "How do bounded queues improve agent reliability?",
+                name,
+                "agent reliability",
+            )
+
+    assert perspective is not None
+    assert perspective.context["source"] == "belief_store"
+    store_type.assert_called_once_with(name, read_only=True, read_path=belief_file)
+    assert snapshot() == before
+    assert "edges" not in json.loads(belief_file.read_text(encoding="utf-8"))
 
 
 def test_stored_perspective_discloses_grounding_assurance():
@@ -355,23 +508,21 @@ async def test_consult_uses_high_confidence_fallback_when_query_terms_do_not_mat
 
 
 @pytest.mark.asyncio
-async def test_consult_marks_live_session_fallback_context():
-    class FakeSession:
-        cost_accumulated = 0.003
-
-        async def send_message(self, _message):
-            return "Live answer"
-
-    council = ExpertCouncil()
+async def test_consult_gates_requested_live_session_fallback_before_chat_dispatch():
+    council = ExpertCouncil(allow_live_fallback=True)
     experts = [{"name": "Live Context Expert", "domain": "general"}]
 
     with patch("deepr.experts.chat.start_chat_session", new_callable=AsyncMock) as start:
-        start.return_value = FakeSession()
         with patch.object(council, "_synthesise", new_callable=AsyncMock) as synth:
             synth.return_value = {"text": "Live synthesis", "agreements": [], "disagreements": [], "cost": 0.001}
             result = await council.consult("Question without stored beliefs", experts=experts, budget=1.0)
 
-    assert result["perspectives"][0]["context"] == {"source": "live_session"}
+    start.assert_not_called()
+    assert result["perspectives"][0]["cost"] == 0.0
+    assert result["perspectives"][0]["context"] == {
+        "source": "live_metered_fallback_gated",
+        "live_metered_fallback": False,
+    }
 
 
 @pytest.mark.asyncio
@@ -392,7 +543,10 @@ async def test_consult_blocks_live_session_fallback_when_disabled():
     perspective = result["perspectives"][0]
     assert perspective["confidence"] == 0.0
     assert perspective["cost"] == 0.0
-    assert perspective["context"] == {"source": "no_stored_context"}
+    assert perspective["context"] == {
+        "source": "no_stored_context",
+        "live_metered_fallback": False,
+    }
 
 
 @pytest.mark.asyncio
@@ -662,6 +816,8 @@ Anthropic answer.
     assert captured["max_tokens"] == 800
     assert "temperature" not in captured
     assert "top_p" not in captured
+    assert "cache_control" not in captured
+    assert isinstance(captured["system"], str)
     messages = captured["messages"]
     assert isinstance(messages, list)
     assert messages[0]["role"] == "user"
@@ -736,7 +892,9 @@ async def test_anthropic_synthesis_refusal_fails_closed():
     )
 
     assert result["text"] == "Synthesis unavailable."
-    assert result["cost"] == 0.0
+    assert result["cost"] > 0.0
+    assert result["cost_estimated"] is True
+    assert result["cost_estimate_reason"] == "post_dispatch_failure"
     assert result["synthesis_status"] == "failed"
     assert result["synthesis_error_type"] == "RuntimeError"
 

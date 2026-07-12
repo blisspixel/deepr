@@ -7,6 +7,7 @@ so tests stay pure and $0.
 
 from __future__ import annotations
 
+import asyncio
 import json
 
 import pytest
@@ -111,13 +112,14 @@ def test_consult_writes_replayable_trace(monkeypatch, consult_trace_path):
     assert trace["output"]["collaboration"] == parsed["collaboration"]
     assert trace["output"]["collaboration"]["task"]["consult_trace_id"] == trace["trace_id"]
     assert trace["output"]["collaboration"]["budget_capacity_contract"]["capacity"] == parsed["capacity"]
-    assert trace["output"]["collaboration"]["budget_capacity_contract"]["metered_fallback_allowed"] is True
+    assert trace["output"]["collaboration"]["budget_capacity_contract"]["metered_fallback_allowed"] is False
 
 
 def test_consult_human_render(monkeypatch):
     _patch(monkeypatch, _result())
     result = CliRunner().invoke(expert_consult, ["q", "-y"])
     assert result.exit_code == 0
+    assert "Consult trace: consult_" in result.output
     assert "Synthesis" in result.output
     assert "the synthesized answer" in result.output
     assert "Disagreements" in result.output
@@ -172,7 +174,99 @@ def test_consult_no_experts_exits_2(monkeypatch):
 def test_api_budget_must_be_positive():
     result = CliRunner().invoke(expert_consult, ["q", "--budget", "0", "-y"])
     assert result.exit_code == 2
-    assert "--budget must be positive for API-backed consults" in result.output
+    assert "positive value" in result.output
+
+
+@pytest.mark.parametrize("value", ["0", "11"])
+def test_consult_rejects_invalid_expert_limit(value):
+    result = CliRunner().invoke(expert_consult, ["q", "--max-experts", value, "--json"])
+
+    assert result.exit_code == 2
+    assert "Invalid value for '--max-experts'" in result.output
+
+
+@pytest.mark.parametrize("value", ["nan", "inf", "-inf"])
+def test_consult_rejects_nonfinite_budget(value):
+    result = CliRunner().invoke(expert_consult, ["q", "--budget", value, "--local", "--json"])
+
+    assert result.exit_code == 2
+    assert "--budget must be finite" in result.output
+
+
+@pytest.mark.parametrize("value", ["0", "nan", "inf", "21601"])
+def test_consult_rejects_invalid_elapsed_ceiling(value):
+    result = CliRunner().invoke(
+        expert_consult,
+        ["q", "--local", "--local-model", "fixture-local", "--max-elapsed-seconds", value, "--json"],
+    )
+
+    assert result.exit_code == 2
+    assert "--max-elapsed-seconds must be finite" in result.output
+
+
+def test_consult_elapsed_limit_is_recorded(monkeypatch, consult_trace_path):
+    async def blocked(*_args, **_kwargs):
+        await asyncio.Event().wait()
+
+    monkeypatch.setattr(mod, "run_consult", blocked)
+    result = CliRunner().invoke(
+        expert_consult,
+        [
+            "q",
+            "--local",
+            "--local-model",
+            "fixture-local",
+            "--max-elapsed-seconds",
+            "0.02",
+            "-y",
+        ],
+    )
+
+    assert result.exit_code == 1
+    assert "elapsed-time ceiling" in result.output
+    lifecycle_path = consult_trace_path.parent / "consult_lifecycle_events.jsonl"
+    events = [json.loads(line) for line in lifecycle_path.read_text(encoding="utf-8").splitlines()]
+    assert events[-1]["state"] == "failed"
+    assert events[-1]["reason_code"] == "elapsed_limit"
+
+
+def test_consult_storage_lock_timeout_is_retryable(monkeypatch):
+    from deepr.experts.consult_transaction import ConsultStorageLockTimeoutError
+
+    async def storage_busy(**_kwargs):
+        raise ConsultStorageLockTimeoutError("consult_storage_busy", "trace lock busy")
+
+    monkeypatch.setattr(mod, "execute_consult_transaction", storage_busy)
+    result = CliRunner().invoke(expert_consult, ["q", "-y"])
+
+    assert result.exit_code == 1
+    assert "storage failed; retry safely" in result.output
+
+
+def test_consult_post_work_storage_timeout_is_not_presented_as_retryable(monkeypatch):
+    from deepr.experts.consult_transaction import ConsultStorageLockTimeoutError
+
+    async def storage_busy(**_kwargs):
+        raise ConsultStorageLockTimeoutError("consult_post_work_busy", "trace lock busy", retryable=False)
+
+    monkeypatch.setattr(mod, "execute_consult_transaction", storage_busy)
+    result = CliRunner().invoke(expert_consult, ["q", "-y"])
+
+    assert result.exit_code == 1
+    assert "do not retry the full consultation" in result.output
+    assert "retry safely" not in result.output
+
+
+def test_consult_help_describes_cancellable_checkpoint_ceiling():
+    result = CliRunner().invoke(expert_consult, ["--help"])
+
+    assert result.exit_code == 0
+    assert "Hard wall-clock" not in result.output
+    assert "Cumulative ceiling for cancellable" in result.output
+    assert "Durable writes are" in result.output
+    assert "awaited off the event loop" in result.output
+    assert "lock waits are" in result.output
+    assert "bounded separately" in result.output
 
 
 def test_failure_surfaced_not_silent(monkeypatch, consult_trace_path):
@@ -207,7 +301,10 @@ def test_consult_local_synthesis_passes_client_and_disables_live_fallback(monkey
     sentinel_client = object()
     captured = {}
 
-    monkeypatch.setattr("deepr.backends.local.default_local_model", lambda: "qwen-local")
+    async def resolve_local_model():
+        return "qwen-local"
+
+    monkeypatch.setattr("deepr.backends.local.default_local_model_async", resolve_local_model)
     monkeypatch.setattr("deepr.backends.local.ollama_chat_client", lambda: sentinel_client)
 
     async def fake(question, experts, max_experts, budget, **kwargs):
@@ -295,7 +392,7 @@ def test_consult_anthropic_api_synthesis_passes_provider_and_model(monkeypatch):
     assert captured["budget"] == 1.0
     assert captured["synthesis_provider"] == "anthropic"
     assert captured["synthesis_model"] == "claude-sonnet-4-6"
-    assert captured["allow_live_fallback"] is True
+    assert captured["allow_live_fallback"] is False
     parsed = json.loads(result.output)
     assert parsed["capacity"]["synthesis_backend"] == "api"
     assert parsed["capacity"]["provider"] == "anthropic"

@@ -3,9 +3,14 @@
 
 FOUR TIERS:
   Chat     -- Training data knowledge, reasoning, docs (22 default models)
-  News     -- Web search, freshness, citations (12 models: OpenAI + Grok + Gemini)
-  Research -- Multi-source reports (3 deep research + 9 web-search-augmented models)
-  Docs     -- Technical documentation extraction (10 models, web search + structure)
+  News     -- Web search, freshness, citations (5 bounded models)
+  Research -- Multi-source reports (4 bounded orchestrated models)
+  Docs     -- Technical documentation extraction (4 bounded models)
+
+LIVE EXECUTION:
+  Provider, judge, validation, fill-gap, and resume dispatch is fail-closed in
+  v2.36 until every charge uses the shared durable research transaction.
+  Dry-run, prompt display, and ranking regeneration remain available at $0.
 
 Four phases per tier:
   1. Preflight -- Load registry, check API keys, select models, estimate cost
@@ -15,23 +20,15 @@ Four phases per tier:
 
 COSTS:
   Estimates depend on selected providers, model list, judge, and prompt set.
-  Run with --dry-run before any paid benchmark execution.
+  Dry-run is an estimate only and cannot unlock live execution in v2.36.
 
 CHECKPOINT / RESUME:
-  Every eval result is auto-saved to data/benchmarks/.checkpoint.json.
-  If a run crashes (network, timeout, Ctrl+C), resume with --resume:
-    python scripts/benchmark_models.py --tier all --resume
-  Completed evals are skipped, new ones pick up where you left off.
-  The checkpoint is cleared after a successful run.
+  Historical checkpoints remain readable. Non-dry resume is gated in v2.36.
 
 HOW TO USE:
-  1. Validate:    python scripts/benchmark_models.py --validate
-  2. Dry run:     python scripts/benchmark_models.py --dry-run --tier all
-  3. Quick test:  python scripts/benchmark_models.py --tier news --quick --no-judge
-  4. Full run:    python scripts/benchmark_models.py --tier all --save
-  5. Resume:      python scripts/benchmark_models.py --tier all --resume --save
-  6. Single model: python scripts/benchmark_models.py --model openai/gpt-5 --save
-  7. Compare:     python scripts/benchmark_models.py --compare data/benchmarks/old.json
+  1. Dry run:     python scripts/benchmark_models.py --dry-run --tier all
+  2. Prompts:     python scripts/benchmark_models.py --show-prompts --tier all
+  3. Rankings:    python scripts/benchmark_models.py --regenerate-rankings
 
 SCORING:
   Chat:     0.70 x judge + 0.30 x reference_match
@@ -63,6 +60,10 @@ from deepr.evals.benchmark_budget import (
     BenchmarkBudgetExceeded,
     BenchmarkCostReservation,
     BenchmarkSpendGuard,
+)
+from deepr.experts.metered_mutation_gate import (
+    MeteredExpertMutationDisabledError,
+    require_metered_expert_mutation,
 )
 
 # Load .env for API keys
@@ -2815,19 +2816,12 @@ def main():
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:
-  python scripts/benchmark_models.py --validate                    # Test provider APIs
   python scripts/benchmark_models.py --dry-run --tier all          # Show plan + cost
-  python scripts/benchmark_models.py                               # Chat tier (default)
-  python scripts/benchmark_models.py --tier news --quick --no-judge # Cheapest news test
-  python scripts/benchmark_models.py --tier docs                   # Documentation tier
-  python scripts/benchmark_models.py --tier all --save             # Full run, save results
-  python scripts/benchmark_models.py --tier all --resume --save    # Resume crashed run
-  python scripts/benchmark_models.py --fill-gaps --tier all --save # Only missing model+tier combos
-  python scripts/benchmark_models.py --new-models --save                # default $1 preflight cap
-  python scripts/benchmark_models.py --new-models --max-estimated-cost 3 --save
-  python scripts/benchmark_models.py --tier news --provider gemini # Vendor + tier
   python scripts/benchmark_models.py --show-prompts --tier all     # Display all prompts
-  python scripts/benchmark_models.py --compare data/benchmarks/benchmark_PREV.json
+  python scripts/benchmark_models.py --regenerate-rankings         # Stored data only
+
+Live provider and judge paths fail closed in v2.36. Raising a cost cap does not
+unlock them.
         """,
     )
     parser.add_argument(
@@ -2857,7 +2851,7 @@ Examples:
     parser.add_argument(
         "--no-cost-cap",
         action="store_true",
-        help="Disable default preflight cost cap. Use with care.",
+        help="Disable the default estimate cap; does not unlock live execution",
     )
     parser.add_argument("--judge-model", help="Force a specific judge model (e.g. openai/gpt-4.1-mini)")
     parser.add_argument("--no-judge", action="store_true", help="Skip LLM judge, use reference/citation scoring only")
@@ -2877,7 +2871,9 @@ Examples:
         help="Resume from checkpoint - skip already-completed evals (auto-saved after each eval)",
     )
     parser.add_argument(
-        "--validate", action="store_true", help="Validate provider APIs (chat + news; use --tier research for research)"
+        "--validate",
+        action="store_true",
+        help="Gated in v2.36: validate provider APIs if shared transaction support is restored",
     )
     parser.add_argument("--show-prompts", action="store_true", help="Display eval prompts and exit")
     parser.add_argument(
@@ -2920,6 +2916,18 @@ Examples:
     if args.show_prompts:
         show_prompts(tier=args.tier)
         return
+
+    if not args.dry_run:
+        try:
+            require_metered_expert_mutation(
+                "api_provider_benchmark",
+                safe_alternative=(
+                    "python scripts/benchmark_models.py --dry-run, --show-prompts, or --regenerate-rankings"
+                ),
+            )
+        except MeteredExpertMutationDisabledError as exc:
+            print(f"  BLOCKED: {exc}")
+            sys.exit(2)
 
     # Validate: test provider APIs
     if args.validate:
@@ -2988,7 +2996,7 @@ Examples:
 
     print_preflight(key_status, all_models, est_total)
 
-    if not args.skip_discovery_check:
+    if not args.skip_discovery_check and not args.dry_run:
         warn_if_newer_models_available()
 
     preflight_limits = [limit for limit in (args.max_estimated_cost, args.budget) if limit is not None]

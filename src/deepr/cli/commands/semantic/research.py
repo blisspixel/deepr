@@ -6,6 +6,12 @@ import click
 
 from deepr.cli.async_runner import run_async_command
 from deepr.cli.colors import console, print_error, print_header, print_key_value
+from deepr.cli.commands.research_safety import (
+    bounded_admission_estimate,
+    require_metered_interface,
+    require_parent_budget,
+    require_storage,
+)
 from deepr.cli.commands.run import TraceFlags, _run_campaign, _run_single, _run_team
 from deepr.cli.output import OutputContext, OutputMode, output_options
 
@@ -60,8 +66,17 @@ def detect_research_mode(prompt: str) -> str:
 )
 @click.option("--no-web", is_flag=True, help="Disable web search")
 @click.option("--no-code", is_flag=True, help="Disable code interpreter")
-@click.option("--upload", "-u", multiple=True, help="Upload files for context")
-@click.option("--scrape", "-s", help="Scrape website for primary source research")
+@click.option(
+    "--upload",
+    "-u",
+    multiple=True,
+    help="Provider file context (gated in v2.36 until storage lifecycle costs are bounded)",
+)
+@click.option(
+    "--scrape",
+    "-s",
+    help="Scrape into provider file context (gated in v2.36; company --scrape-only remains available)",
+)
 @click.option(
     "--limit",
     "-l",
@@ -82,7 +97,11 @@ def detect_research_mode(prompt: str) -> str:
 @click.option("--explain", "--why", is_flag=True, help="Show decision reasoning after completion")
 @click.option("--timeline", is_flag=True, help="Show phase timeline after completion")
 @click.option("--full-trace", is_flag=True, help="Export full trace to data/traces/")
-@click.option("--no-fallback", is_flag=True, help="Disable automatic provider fallback on failure")
+@click.option(
+    "--no-fallback",
+    is_flag=True,
+    help="Compatibility flag; automatic metered provider fallback is disabled in v2.36",
+)
 @click.option("--auto", "auto_mode", is_flag=True, help="Smart routing based on query complexity (cost-effective)")
 @click.option("--batch", type=click.Path(exists=True), help="File with queries (one per line, .txt or .json)")
 @click.option(
@@ -128,16 +147,19 @@ def research(
     AUTO MODE (--auto):
         Smart routing based on query complexity. Routes simple queries to
         cheap/fast models and complex queries to deep research models.
-        Enables 20+ queries for $1-2 instead of $20-40.
+        The routing score is not a spend ceiling. Preview reports the hard
+        request envelope used for admission.
 
         deepr research --auto "What is Python?"      # -> current cheapest capable model
-        deepr research --auto "Analyze Tesla"        # -> o3-deep-research ($0.50)
+        deepr research --auto --preview "Analyze Tesla"
 
     BATCH MODE (--auto --batch):
         Process multiple queries from a file with optimal routing per query.
 
-        deepr research --auto --batch queries.txt           # Execute batch
-        deepr research --auto --batch queries.txt --preview # Preview only
+        deepr research --auto --batch queries.txt --preview
+
+        Metered batch execution is gated in v2.36 until every nested call is
+        bound to one durable parent reservation.
 
     PREVIEW MODE (--preview):
         Show the planned model, provider, and estimated cost without
@@ -150,21 +172,15 @@ def research(
     COMPANY RESEARCH MODE:
         deepr research company "<company_name>" "<website>"
 
-        Runs strategic company research with two phases:
-        1. Scrapes company website for fresh content
-        2. Submits deep research job with strategic analysis prompt
-
-        Output: Consultant-grade strategic overview with 10 sections
-        (Executive Summary, Products/Services, USP, Mission/Vision, History,
-        Achievements, Target Audience, Financials, KPIs, SWOT)
+        Use --scrape-only for the shipped local capture path. Provider-backed
+        file handoff is gated in v2.36 until storage lifecycle costs share the
+        research reservation.
 
     GENERAL RESEARCH EXAMPLES:
         deepr research "Analyze AI code editor market 2025"
         deepr research "Document the authentication flow" --mode docs
         deepr research "Latest quantum computing trends" -m o3-deep-research
-        deepr research "Company analysis" --upload data.csv --limit 5.00
-        deepr research "Strategic analysis of Acme Corp" --scrape https://acmecorp.com
-        deepr research "Query" --provider grok -m grok-4.3
+        deepr research "Query" --provider xai -m grok-4.3 --no-web --no-code
     """
     from deepr.cli.validation import validate_budget, validate_prompt, validate_upload_files
 
@@ -187,6 +203,9 @@ def research(
         except click.UsageError as e:
             click.echo(f"Error: {e}", err=True)
             return
+
+    if upload or scrape:
+        require_storage()
 
     # Validate budget/limit if provided - warns for high amounts
     if limit is not None:
@@ -249,6 +268,9 @@ def research(
             click.echo("\nExample:")
             click.echo('  deepr research company "Driscoll Health System" "https://driscollchildrens.org/"')
             return
+
+        if not scrape_only:
+            require_storage()
 
         # Run company research workflow
         from deepr.core.company_research import CompanyResearchOrchestrator
@@ -321,6 +343,7 @@ def research(
             model=model,
             upload=upload,
             no_web=no_web,
+            no_code=no_code,
             output_context=output_context,
         )
         return
@@ -429,7 +452,7 @@ def research(
 )
 @click.option("--lead", default="gpt-5", help="Lead planner model")
 @click.option("--phases", "-p", type=int, default=3, help="Number of learning phases")
-@click.option("--yes", "-y", is_flag=True, help="Skip budget confirmation")
+@click.option("--yes", "-y", is_flag=True, help="Run noninteractively; never bypasses a budget gate")
 def learn(
     topic: str,
     model: str,
@@ -495,7 +518,7 @@ def team(
 @click.option("--model", "-m", help="Model (default: grok-4.3)")
 @click.option("--verbose", "-v", is_flag=True, help="Show detailed reasoning")
 def check(claim: str, sources: str | None, provider: str | None, model: str | None, verbose: bool):
-    """Verify a factual claim quickly.
+    """Verify a factual claim (metered path gated in v2.36).
 
     Uses a cost-effective model to verify facts and return a structured
     verdict with confidence level and supporting evidence.
@@ -513,6 +536,8 @@ def check(claim: str, sources: str | None, provider: str | None, model: str | No
     except click.UsageError as e:
         click.echo(f"Error: {e}", err=True)
         return
+
+    require_metered_interface("Fact verification")
 
     run_async_command(_verify_fact(claim, sources, provider, model, verbose), runner=asyncio.run)
 
@@ -743,6 +768,8 @@ def _run_batch_research(
             console.print(json.dumps(result, indent=2))
         return
 
+    require_parent_budget("Auto-batch research")
+
     # Confirm before executing
     if not yes:
         if not click.confirm(f"Proceed with {len(items)} queries (estimated ${routing.total_cost_estimate:.2f})?"):
@@ -842,6 +869,14 @@ def _run_auto_research(
         prefer_speed=prefer_speed,
     )
 
+    admission = bounded_admission_estimate(
+        query=query,
+        provider=decision.provider,
+        model=decision.model,
+        no_web=no_web,
+        no_code=no_code,
+    )
+
     # Display routing decision.
     # Always print in preview/dry-run mode (so the user can see what would
     # happen without executing). In normal runs, only print under VERBOSE.
@@ -854,7 +889,8 @@ def _run_auto_research(
         console.print(f"  Task Type:  {decision.task_type}")
         console.print(f"  Provider:   {decision.provider}")
         console.print(f"  Model:      {decision.model}")
-        console.print(f"  Est. Cost:  ${decision.cost_estimate:.4f}")
+        console.print(f"  Routing estimate: ${decision.cost_estimate:.4f}")
+        console.print(f"  Admission maximum: ${admission.max_cost:.4f}")
         console.print(f"  Confidence: {decision.confidence:.0%}")
         console.print(f"  [dim]{decision.reasoning}[/dim]")
         if dry_run:
@@ -866,17 +902,18 @@ def _run_auto_research(
         if output_context.mode == OutputMode.JSON:
             import json
 
-            payload = {"preview": True, "executed": False, **decision.to_dict()}
+            payload = {
+                "preview": True,
+                "executed": False,
+                **decision.to_dict(),
+                "routing_cost_estimate": decision.cost_estimate,
+                "admission_max_cost": admission.max_cost,
+                "admission_reasoning": admission.reasoning,
+            }
             # click.echo (not Rich console) so JSON is unescaped + free of
             # ANSI control codes for downstream machine consumers.
             click.echo(json.dumps(payload, indent=2))
         return
-
-    # Confirm if not skipping
-    if not yes and output_context.mode == OutputMode.VERBOSE:
-        if not click.confirm(f"Proceed with {decision.provider}/{decision.model}?", default=True):
-            click.echo("Cancelled.")
-            return
 
     # Execute with routed provider/model
     trace_flags = TraceFlags(explain=explain, timeline=timeline, full_trace=full_trace)
@@ -889,7 +926,7 @@ def _run_auto_research(
             no_code=no_code,
             upload=upload,
             limit=budget,
-            yes=True,  # Already confirmed above
+            yes=yes,
             output_context=output_context,
             trace_flags=trace_flags,
             no_fallback=no_fallback,
@@ -906,6 +943,7 @@ def _print_explicit_preview(
     model: str,
     upload: tuple,
     no_web: bool,
+    no_code: bool,
     output_context: OutputContext,
 ) -> None:
     """Print a preview for an explicit (non-auto) research run.
@@ -917,14 +955,12 @@ def _print_explicit_preview(
     JSON mode emits a structured ``{preview, executed, provider, model,
     cost_estimate}`` document for machine consumers.
     """
-    from deepr.core.costs import CostEstimator
-
-    documents = list(upload) if upload else None
-    estimate = CostEstimator.estimate_cost(
-        prompt=query,
+    estimate = bounded_admission_estimate(
+        query=query,
+        provider=provider,
         model=model,
-        documents=documents,
-        enable_web_search=not no_web,
+        no_web=no_web,
+        no_code=no_code,
     )
 
     if output_context.mode == OutputMode.JSON:
@@ -936,9 +972,9 @@ def _print_explicit_preview(
             "provider": provider,
             "model": model,
             "cost_estimate": {
-                "min": round(estimate.min_cost, 4),
-                "expected": round(estimate.expected_cost, 4),
-                "max": round(estimate.max_cost, 4),
+                "min": round(estimate.min_cost, 6),
+                "expected": round(estimate.expected_cost, 6),
+                "max": round(estimate.max_cost, 6),
             },
             "reasoning": estimate.reasoning,
         }
@@ -953,8 +989,7 @@ def _print_explicit_preview(
     console.print(f"  Provider:   {provider}")
     console.print(f"  Model:      {model}")
     console.print(f"  Web search: {'enabled' if not no_web else 'disabled'}")
-    if documents:
-        console.print(f"  Uploads:    {len(documents)} file(s)")
+    console.print(f"  Code tool:  {'enabled' if not no_code else 'disabled'}")
     console.print(
         f"  Est. cost:  ${estimate.min_cost:.4f} - ${estimate.max_cost:.4f} (expected ${estimate.expected_cost:.4f})"
     )

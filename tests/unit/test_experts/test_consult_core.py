@@ -2,15 +2,50 @@
 
 from __future__ import annotations
 
+from unittest.mock import AsyncMock
+
 import pytest
 
 from deepr.experts.consult import (
+    MAX_CONSULT_EXPERTS,
     AnthropicConsultSynthesisClient,
     ConsultBackendError,
+    build_collaboration_contract,
+    build_consult_payload,
     build_synthesis_backend,
+    resolve_explicit_expert_choices,
     run_consult,
 )
 from deepr.experts.profile import ExpertProfile, ExpertStore
+
+
+def test_consult_machine_contracts_preserve_sub_tenth_cent_costs_exactly():
+    result = {
+        "perspectives": [
+            {
+                "expert_name": "Tiny Cost Expert",
+                "domain": "accounting",
+                "response": "Keep exact costs.",
+                "confidence": 0.8,
+                "cost": 0.000045,
+                "context": {"source": "belief_store"},
+            }
+        ],
+        "synthesis": "Exact.",
+        "agreements": [],
+        "disagreements": [],
+        "requested_budget_usd": 1.0,
+        "total_cost": 0.000045,
+    }
+
+    payload = build_consult_payload("q", result)
+    collaboration = build_collaboration_contract("q", result)
+
+    assert payload["cost_usd"] == 0.000045
+    assert payload["contract"]["cost_usd"] == 0.000045
+    assert payload["collaboration"]["budget_capacity_contract"]["actual_cost_usd"] == 0.000045
+    assert payload["collaboration"]["roster"][0]["cost_usd"] == 0.000045
+    assert collaboration["contract"]["cost_usd"] == 0.000045
 
 
 @pytest.mark.asyncio
@@ -39,6 +74,87 @@ async def test_run_consult_resolves_explicit_expert_slug_to_profile(monkeypatch)
     assert captured["question"] == "What should the loop improve next?"
     assert captured["experts"] == [{"name": "AI Agent Harnesses", "domain": "agent harnesses"}]
     assert captured["budget"] == 1.25
+
+
+def test_resolve_explicit_expert_choices_preserves_roster_order():
+    profiles = [
+        ExpertProfile(name="Alpha Expert", vector_store_id="vs-alpha", domain="alpha"),
+        ExpertProfile(name="Beta Expert", vector_store_id="vs-beta", domain="beta"),
+    ]
+
+    choices = resolve_explicit_expert_choices(["beta_expert", "ALPHA EXPERT"], profiles=profiles)
+
+    assert choices == [
+        {"name": "Beta Expert", "domain": "beta"},
+        {"name": "Alpha Expert", "domain": "alpha"},
+    ]
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "roster",
+    [
+        ["AI Agent Harnesses", "AI Agent Harnesses"],
+        ["AI Agent Harnesses", "ai agent harnesses"],
+        ["AI Agent Harnesses", "ai_agent_harnesses"],
+    ],
+    ids=["exact", "case", "slug"],
+)
+async def test_run_consult_rejects_duplicate_explicit_expert_aliases_before_dispatch(monkeypatch, roster):
+    ExpertStore().save(
+        ExpertProfile(
+            name="AI Agent Harnesses",
+            vector_store_id="vs-test",
+            domain="agent harnesses",
+        )
+    )
+    consult = AsyncMock()
+    monkeypatch.setattr("deepr.experts.council.ExpertCouncil.consult", consult)
+
+    with pytest.raises(ValueError, match="Duplicate expert roster entry"):
+        await run_consult("q", roster, max_experts=3, budget=0.0)
+
+    consult.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_run_consult_rejects_oversized_explicit_roster_before_resolution(monkeypatch):
+    def fail_resolution(_experts):
+        raise AssertionError("explicit roster should be bounded before resolution")
+
+    monkeypatch.setattr("deepr.experts.consult.resolve_explicit_expert_choices", fail_resolution)
+
+    with pytest.raises(ValueError, match=f"cannot exceed {MAX_CONSULT_EXPERTS}"):
+        await run_consult(
+            "q",
+            [f"Expert {index}" for index in range(MAX_CONSULT_EXPERTS + 1)],
+            max_experts=3,
+            budget=0.0,
+        )
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("max_experts", [0, MAX_CONSULT_EXPERTS + 1, True, 1.5])
+async def test_run_consult_rejects_invalid_automatic_fanout_before_council_construction(monkeypatch, max_experts):
+    def fail_council(**_kwargs):
+        raise AssertionError("invalid automatic fanout should fail before council construction")
+
+    monkeypatch.setattr("deepr.experts.council.ExpertCouncil", fail_council)
+
+    with pytest.raises(ValueError, match=f"between 1 and {MAX_CONSULT_EXPERTS}"):
+        await run_consult("q", [], max_experts=max_experts, budget=0.0)
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("budget", [float("nan"), float("inf"), float("-inf"), -0.1, True])
+async def test_run_consult_rejects_invalid_budget_before_council_construction(monkeypatch, budget):
+    def fail_council(**_kwargs):
+        raise AssertionError("invalid budget should fail before council construction")
+
+    monkeypatch.setattr("deepr.experts.council.ExpertCouncil", fail_council)
+
+    with pytest.raises(ValueError, match="finite and non-negative"):
+        await run_consult("q", ["A"], max_experts=3, budget=budget)
 
 
 @pytest.mark.asyncio
@@ -95,7 +211,7 @@ def test_build_synthesis_backend_supports_anthropic_api_provider():
     assert isinstance(backend.client, AnthropicConsultSynthesisClient)
     assert backend.provider == "anthropic"
     assert backend.model == "claude-sonnet-4-6"
-    assert backend.allow_live_fallback is True
+    assert backend.allow_live_fallback is False
 
 
 def test_build_synthesis_backend_defaults_openai_compatibly():
@@ -104,7 +220,7 @@ def test_build_synthesis_backend_defaults_openai_compatibly():
     assert backend.client is None
     assert backend.provider == "openai"
     assert backend.model is None
-    assert backend.allow_live_fallback is True
+    assert backend.allow_live_fallback is False
 
 
 def test_build_synthesis_backend_rejects_api_overrides_for_owned_capacity():

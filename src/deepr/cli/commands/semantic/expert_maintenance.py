@@ -47,6 +47,10 @@ from deepr.cli.commands.semantic.grounding_support import (
     build_grounding_pair,
     validate_grounding_flags,
 )
+from deepr.experts.metered_mutation_gate import (
+    MeteredExpertMutationDisabledError,
+    require_metered_expert_mutation,
+)
 
 __all__ = [
     "SYNC_CAPACITY_GATE_KIND",
@@ -613,6 +617,24 @@ def sync_cmd(
             selection_note = choice.reason
 
     owned_or_prepaid = use_local or use_plan
+    if api and not dry_run:
+        try:
+            require_metered_expert_mutation(
+                "api_expert_sync",
+                safe_alternative=f'deepr expert sync "{name}" --local --scheduled --yes',
+            )
+        except MeteredExpertMutationDisabledError as exc:
+            _emit_backend_setup_error(str(exc), json_output=json_output)
+            sys.exit(2)
+    if compile_claims and not owned_or_prepaid and not dry_run:
+        try:
+            require_metered_expert_mutation(
+                "api_sync_compile_claims",
+                safe_alternative=f'deepr expert sync "{name}" --local --compile-claims --scheduled --yes',
+            )
+        except MeteredExpertMutationDisabledError as exc:
+            _emit_backend_setup_error(str(exc), json_output=json_output)
+            sys.exit(2)
     context_mode = _sync_context_mode(fresh_context=fresh_context, deep_context=deep_context)
     retry_command_argv = _sync_retry_command_argv(
         name=name,

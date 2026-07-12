@@ -46,7 +46,10 @@ class TestReflectTool:
         assert out.get("error_code") == "REPORT_NOT_FOUND"
 
     @pytest.mark.asyncio
-    async def test_returns_report(self, mock_server):
+    async def test_returns_report(self, mock_server, monkeypatch):
+        from deepr.experts import metered_mutation_gate
+
+        monkeypatch.setattr(metered_mutation_gate, "METERED_EXPERT_MUTATIONS_ENABLED", True)
         stub = ReflectionReport(question="q", verdict="accept", overall_score=0.84, dimensions=[], followups=[])
         with (
             patch("deepr.services.context_index.ContextIndex") as mock_idx,
@@ -62,6 +65,21 @@ class TestReflectTool:
 
         assert out["verdict"] == "accept"
         assert out["overall_score"] == 0.84
+
+    @pytest.mark.asyncio
+    async def test_metered_reflection_fails_closed_before_engine(self, mock_server):
+        with (
+            patch("deepr.services.context_index.ContextIndex") as mock_idx,
+            patch("deepr.experts.reflection.ReflectionEngine") as mock_engine,
+        ):
+            mock_idx.return_value.get_report_by_job_id.return_value = MagicMock(prompt="Will X happen?")
+            mock_idx.return_value.get_report_content.return_value = "report body"
+            out = await mock_server.reflect(report_id="job1", depth=1)
+
+        assert out["error_code"] == "metered_expert_mutation_accounting_unavailable"
+        assert out["category"] == "budget"
+        assert out["retryable"] is False
+        mock_engine.assert_not_called()
 
 
 class TestReportIdDispatchValidation:

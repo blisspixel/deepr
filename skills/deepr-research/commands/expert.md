@@ -1,207 +1,67 @@
-# /expert Command
+# /expert command
 
-Create, manage, and interact with domain experts that maintain persistent knowledge with belief formation and gap awareness.
+Inspect, create, maintain, and consult persistent experts through explicit
+works-now capacity.
 
-## Syntax
+## Read-only discovery
 
-```
-/expert <subcommand> [arguments] [options]
-```
-
-## Subcommands
-
-### Discovery
-
-#### `list`
-
-List all available experts with stats and knowledge freshness.
-
-```
+```bash
 deepr expert list
+deepr expert info "Security Analyst"
+deepr expert health-check "Security Analyst"
+deepr expert loop-status "Security Analyst" --json
+deepr expert memory-card "Security Analyst"
 ```
 
-#### `info <name>`
+These surfaces inspect structured expert state. A health or validation pass is
+not a semantic truth certificate.
 
-Show detailed expert information: provider, model, vector store, document count, usage stats.
+## Provider-free creation and maintenance
 
-```
-deepr expert info "AWS Architect"
-```
-
-### Planning
-
-#### `plan <domain>`
-
-Preview a research curriculum without creating an expert. Shows topics, costs, and prompts. Great for previewing before committing to `--learn`.
-
-| Option | Default | Description |
-|--------|---------|-------------|
-| `--budget` | none | Budget limit for the plan |
-| `--topics` | 15 | Total number of topics |
-| `--no-discovery` | false | Skip source discovery (faster, cheaper) |
-| `--json` | false | Output as JSON |
-| `--csv` | false | Output as CSV |
-| `-q, --quiet` | false | Output prompts only, one per line |
-
-```
-deepr expert plan "Kubernetes security" --budget 10
-deepr expert plan "FastAPI" --json
-deepr expert plan "React hooks" -q
+```bash
+deepr expert make "Security Analyst" --local -d "Application security"
+deepr expert sync "Security Analyst" --local --fresh-context -y
+deepr expert sync "Security Analyst" --local --fresh-context --compile-claims -y
 ```
 
-### Creation
+Explicit non-metered plan-quota variants work only on documented commands with
+`--plan <id>` and the no-surprise-bills auth gate. Do not infer plan capacity
+from CLI presence. Copilot is visible/read-only in v2.36.
 
-#### `make <name>`
+Scheduled local work may return a durable `busy`/waiting result with a retry
+time. Preserve that outcome and do not fall through to plan or API capacity.
 
-Create a new expert with a knowledge base from documents and/or autonomous learning.
+## Consultation
 
-| Option | Default | Description |
-|--------|---------|-------------|
-| `-f, --files` | none | Files to include in knowledge base |
-| `-d, --description` | none | Expert domain description |
-| `-p, --provider` | openai | AI provider (openai, azure, gemini) |
-| `--learn` | false | Generate and execute autonomous learning curriculum |
-| `--budget` | none | Budget limit for learning (requires `--learn`) |
-| `--topics` | 15 | Total number of topics |
-| `--docs` | none | Number of documentation topics (~$0.25 each) |
-| `--quick` | none | Number of quick research topics (~$0.25 each) |
-| `--deep` | none | Number of deep research topics (~$2.00 each) |
-| `--no-discovery` | false | Skip source discovery phase |
-| `-y, --yes` | false | Skip confirmation |
+Use `deepr_query_expert` only with:
 
-```
-deepr expert make "Python Expert" -f docs/*.md -d "Python best practices"
-deepr expert make "AI Expert" -f docs/*.md --learn --budget 10
-deepr expert make "Azure Architect" --learn --docs 3 --quick 5 --deep 2
-```
+- `backend="local"`, `agentic=false`, and budget `0`; or
+- `backend="plan"`, an explicit non-metered `plan`, `agentic=false`, and budget
+  `0`.
 
-### Learning
+Use `deepr_consult_experts` for one or several experts. Prefer
+`synthesis_backend="local"` or `"plan"`, keep the roster at 10 or fewer, and
+preserve dissent. API council synthesis is a separate bounded surface and
+requires explicit approval plus a positive budget.
 
-#### `learn <name> [topic]`
+## Derived portability
 
-Add knowledge to an expert by researching a topic, uploading files, or both. Re-synthesizes consciousness after learning.
+Expert handoffs, memory cards, digests, OKF bundles, and skill exports are
+regenerable views over structured state. Do not hand-edit them as authority.
+Import and absorb must pass the verification and explicit apply boundary before
+belief state changes.
 
-| Option | Default | Description |
-|--------|---------|-------------|
-| `-f, --files` | none | Files to upload to knowledge base |
-| `-b, --budget` | $1 | Budget limit for topic research |
-| `--no-synthesize` | false | Skip re-synthesis after learning |
-| `-y, --yes` | false | Skip confirmation |
+## Gated in v2.36
 
-```
-deepr expert learn "AWS Expert" "Latest Lambda features 2026"
-deepr expert learn "Python Expert" --files docs/*.md
-deepr expert learn "AI Expert" "Transformer architectures" -f papers/*.pdf --budget 5
-```
+Do not advertise or retry these as live metered workflows:
 
-#### `resume <name>`
+- generic nonlocal `expert make` or `--learn`;
+- API curriculum planning, resume, refresh, or synthesis;
+- metered `fill-gaps`, route-gaps, reflection, or sync/sync-all;
+- paid portrait generation or API consult-quality judging;
+- standalone metered `expert chat`;
+- `deepr_query_expert backend="api"` or `agentic=true`.
 
-Resume paused learning when autonomous learning hit a spending limit. Loads saved progress and continues with remaining topics.
-
-| Option | Default | Description |
-|--------|---------|-------------|
-| `-b, --budget` | auto | Budget for remaining topics |
-| `-y, --yes` | false | Skip confirmation |
-
-```
-deepr expert resume "AWS Expert"
-deepr expert resume "AWS Expert" --budget 10
-```
-
-#### `fill-gaps <name>`
-
-Proactively research and fill the expert's highest-priority knowledge gaps, then re-synthesize the expert's knowledge. This is the legacy metered path: it now requires explicit `--api`. For the local/plan-first ($0/prepaid) route, prefer `deepr expert route-gaps --execute`.
-
-| Option | Default | Description |
-|--------|---------|-------------|
-| `--api` | required | Explicit acknowledgement of metered API spend (no longer implicit) |
-| `-b, --budget` | $5 | Budget limit for gap filling |
-| `-t, --top` | 3 | Number of top-priority gaps to fill |
-| `-y, --yes` | false | Skip confirmation |
-
-```
-deepr expert fill-gaps "AWS Expert" --api
-deepr expert fill-gaps "Python Expert" --api --top 5 --budget 10
-```
-
-#### `refresh <name>`
-
-Scan expert's documents directory for new files and upload them. Optionally re-synthesize consciousness.
-
-| Option | Default | Description |
-|--------|---------|-------------|
-| `--synthesize` | false | Re-synthesize consciousness after refresh |
-| `-y, --yes` | false | Skip confirmation |
-
-```
-deepr expert refresh "Azure Architect" --synthesize
-```
-
-### Portability
-
-#### `export <name>`
-
-Export an expert's full consciousness (documents, beliefs, worldview) to a portable corpus directory.
-
-| Option | Default | Description |
-|--------|---------|-------------|
-| `-o, --output` | `.` | Output directory |
-| `-y, --yes` | false | Skip confirmation |
-
-```
-deepr expert export "AWS Expert" --output ./exports
-```
-
-#### `import <name>`
-
-Create a new expert from an exported corpus.
-
-| Option | Default | Description |
-|--------|---------|-------------|
-| `-c, --corpus` | required | Path to corpus directory |
-| `-y, --yes` | false | Skip confirmation |
-
-```
-deepr expert import "My AWS Expert" --corpus ./aws-expert
-```
-
-### Interaction
-
-#### `chat <name>`
-
-Start an interactive chat session with an expert. Supports in-session commands: `/quit`, `/status`, `/clear`, `/trace`, `/learn <file>`, `/synthesize`.
-
-| Option | Default | Description |
-|--------|---------|-------------|
-| `-b, --budget` | $5 | Session budget limit |
-| `--no-research` | false | Disable agentic research |
-
-```
-deepr expert chat "AWS Solutions Architect"
-deepr expert chat "Python Expert" --budget 10 --no-research
-```
-
-### Administration
-
-#### `delete <name>`
-
-Delete an expert profile. Knowledge base (vector store) must be deleted separately.
-
-| Option | Default | Description |
-|--------|---------|-------------|
-| `-y, --yes` | false | Skip confirmation |
-
-```
-deepr expert delete "Old Expert" -y
-```
-
-## When to Use Experts vs Fresh Research
-
-| Scenario | Recommendation |
-|----------|---------------|
-| Domain-specific question within expert knowledge | Query the expert |
-| Current events or recent developments | Use `/research` |
-| Topic outside expert domain | Use `/research` |
-| Complex question requiring new research | Use expert `--agentic` mode |
-
-See `references/expert_system.md` for the full expert system architecture, confidence levels, and best practices.
+Use local, explicit non-metered plan, scheduled wait, dry-run, history-only, or
+read-only alternatives where the command documents them. A larger budget does
+not unlock a gated transaction.

@@ -62,6 +62,7 @@ from deepr.core.errors import DeeprError
 from deepr.core.reports import ReportGenerator
 from deepr.core.research import ResearchOrchestrator
 from deepr.experts.chat import ExpertChatSession
+from deepr.experts.consult_transaction import DEFAULT_CONSULT_MAX_ELAPSED_SECONDS
 from deepr.experts.profile import ExpertStore
 from deepr.mcp.consult_tool import CONSULT_EXPERTS_INPUT_SCHEMA, CONSULT_EXPERTS_OUTPUT_SCHEMA, consult_experts_tool
 from deepr.mcp.expert_reads import get_expert_handoff, get_expert_loop_status, get_semantic_recall, get_temporal_edges
@@ -447,6 +448,7 @@ class DeeprMCPServer:
         local_model: str | None = None,
         plan: str | None = None,
         plan_model: str | None = None,
+        max_elapsed_seconds: float = DEFAULT_CONSULT_MAX_ELAPSED_SECONDS,
     ) -> dict[str, Any]:
         """Consult a team of experts as one bounded knowledge transaction.
 
@@ -466,6 +468,7 @@ class DeeprMCPServer:
             local_model=local_model,
             plan=plan,
             plan_model=plan_model,
+            max_elapsed_seconds=max_elapsed_seconds,
         )
 
     # ------------------------------------------------------------------ #
@@ -751,8 +754,9 @@ class DeeprMCPServer:
 
         Loads the report by id, scores it (grounding, completeness, calibration,
         directness), and returns a verdict (accept/revise/re_research) with
-        issues and follow-up queries. Read-only; one small evaluation call.
+        issues and follow-up queries.
         """
+        from deepr.experts import metered_mutation_gate as mutation_gate
         from deepr.experts.reflection import ReflectionEngine, ReflectionError
         from deepr.services.context_index import ContextIndex
 
@@ -762,6 +766,12 @@ class DeeprMCPServer:
             report_text = index.get_report_content(report_id, max_chars=100000)
             if not report_text or not result:
                 return _make_error("REPORT_NOT_FOUND", f"No report found for id '{report_id}'")
+            try:
+                mutation_gate.require_metered_expert_mutation(
+                    "api_expert_reflect", safe_alternative="use scheduled local or plan expert reflection"
+                )
+            except mutation_gate.MeteredExpertMutationDisabledError as error:
+                return _make_error(error.code, str(error), fallback=error.safe_alternative, category=error.category)
             report = await ReflectionEngine().reflect(result.prompt, report_text, depth=depth)
             return report.to_dict()
         except ReflectionError as e:
@@ -1164,6 +1174,15 @@ class DeeprMCPServer:
                         "one with the CLI: deepr expert make <name> <domain>"
                     ),
                 )
+
+            from deepr.experts.chat_capacity import MeteredExpertChatDisabledError
+
+            capacity_error = MeteredExpertChatDisabledError("mcp_agentic_research")
+            return _make_error(
+                capacity_error.code,
+                str(capacity_error),
+                fallback="Use explicit local or non-metered plan expert maintenance workflows.",
+            )
 
             # Track in JobManager
             await self.resource_handler.jobs.create_job(

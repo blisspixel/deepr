@@ -282,6 +282,9 @@ def test_judge_consult_quality_plan_json(monkeypatch):
 
 
 def test_judge_consult_quality_api_json(monkeypatch):
+    from deepr.experts import metered_mutation_gate
+
+    monkeypatch.setattr(metered_mutation_gate, "METERED_EXPERT_MUTATIONS_ENABLED", True)
     profile = _profile()
 
     async def fake_review(profile_arg, trace_id, **kwargs):
@@ -382,7 +385,10 @@ def test_judge_consult_quality_rejects_api_model_without_provider():
     assert "use --api-model with --api-provider" in result.output.lower()
 
 
-def test_judge_consult_quality_rejects_api_without_metered_confirmation():
+def test_judge_consult_quality_rejects_api_without_metered_confirmation(monkeypatch):
+    from deepr.experts import metered_mutation_gate
+
+    monkeypatch.setattr(metered_mutation_gate, "METERED_EXPERT_MUTATIONS_ENABLED", True)
     profile = _profile()
 
     with _patch_store(profile):
@@ -402,6 +408,35 @@ def test_judge_consult_quality_rejects_api_without_metered_confirmation():
 
     assert result.exit_code != 0
     assert "confirm-metered-cost" in result.output.lower()
+
+
+def test_judge_consult_quality_api_fails_closed_before_runner(monkeypatch):
+    from deepr.cli.commands.semantic import expert_consult_quality as command_module
+
+    profile = _profile()
+    run_api = MagicMock(side_effect=AssertionError("API judge runner must not start"))
+    monkeypatch.setattr(command_module, "_run_api_consult_quality_judge", run_api)
+
+    with _patch_store(profile):
+        result = CliRunner().invoke(
+            expert_judge_consult_quality,
+            [
+                profile.name,
+                "consult_cli_quality",
+                "--api-provider",
+                "xai",
+                "--api-model",
+                "grok-4.3",
+                "--budget",
+                "0.50",
+                "--confirm-metered-cost",
+            ],
+        )
+
+    assert result.exit_code == 1
+    assert "temporarily disabled" in result.output.lower()
+    assert "--local-judge-model" in result.output
+    run_api.assert_not_called()
 
 
 def test_judge_consult_quality_registered_in_expert_help():

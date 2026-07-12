@@ -139,14 +139,14 @@ class TestDeprecationTruth:
 
 
 class TestDeepResearchPricing:
-    def test_registry_matches_live_openai_pricing_2026_06_11(self):
+    def test_registry_matches_live_openai_pricing_2026_07_12(self):
         from deepr.providers.registry import get_token_pricing
 
         # Standard (non-batch) rates from the live pricing page
         o3dr = get_token_pricing("o3-deep-research")
-        assert (o3dr["input"], o3dr["output"]) == (10.0, 40.0)
+        assert (o3dr["input"], o3dr["output"]) == (5.0, 20.0)
         o4dr = get_token_pricing("o4-mini-deep-research")
-        assert (o4dr["input"], o4dr["output"]) == (2.0, 8.0)
+        assert (o4dr["input"], o4dr["output"]) == (1.0, 4.0)
 
 
 class TestBudgetGateNotBypassable:

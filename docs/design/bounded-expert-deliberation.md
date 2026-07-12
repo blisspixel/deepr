@@ -1,6 +1,7 @@
 # Bounded expert deliberation
 
-Status: proposed design, 2026-07-11.
+Status: accepted prototype contract, 2026-07-12. Live multi-round surfaces remain
+gated by the acceptance criteria below.
 
 Cross-cuts expert consult, consult traces, local and plan capacity, verified
 expert loops, and the graph-commit boundary. Read
@@ -20,7 +21,7 @@ question, perspective, or test plan together while Deepr preserves independent
 positions, exact lineage, and a hard stop. Conversation can propose learning,
 but it cannot directly become canonical memory.
 
-## Proposed contract
+## Accepted prototype contract
 
 A deliberation is one versioned run with:
 
@@ -31,13 +32,119 @@ A deliberation is one versioned run with:
 - a maximum of three rounds by default and five by explicit override;
 - one durable trace linking every prompt, response, source reference, capacity
   event, cancellation, and verifier result;
-- typed terminal states: completed, waiting_capacity, cancelled,
-  verifier_failed, budget_exhausted, or failed;
+- resumable states: waiting_capacity and interrupted;
+- terminal states: completed, cancelled, verifier_failed, budget_exhausted, or
+  failed;
 - no metered fallback in the local-first pilot.
 
 The host remains the orchestrator. Experts receive bounded questions and return
 structured perspective artifacts. They do not gain tools, spend authority, or
 write authority by participating.
+
+### Artifact contracts
+
+The prototype uses three independently versioned artifact families:
+
+- `deepr-consult-lifecycle-event-v1` is an append-only run journal shared with
+  one-shot consult. It is created before backend construction or dispatch and
+  carries bounded metadata, including maximum, observed, and remaining spend,
+  never answer text or private reasoning.
+- `deepr-deliberation-round-v1` is the future immutable round artifact. It binds
+  every turn to one run, round, participant, frozen snapshot hash, parent turn,
+  prompt hash, response hash, backend, model, and typed completion state.
+- `deepr-deliberation-eval-v1` is the `$0` held-out comparison report. Structural
+  checks are deterministic; semantic dimensions remain unreviewed until a human
+  or calibrated, bias-checked judge records a separate review.
+
+The lifecycle journal does not replace `deepr-consult-trace-v1`. The existing
+trace remains the final one-shot transaction artifact and keeps its current
+completed/failed compatibility contract. Both artifacts use the same
+preallocated `consult_*` trace id.
+
+### State machine and ownership
+
+Every attempt appends `running` before backend construction or provider
+dispatch. A running attempt may append more running heartbeats, enter resumable
+`waiting_capacity` or `interrupted`, or enter exactly one terminal state. Only
+waiting_capacity and interrupted may resume, using the same run id, a new
+attempt id, and the next sequence number. Completed work is idempotent and is
+not dispatched again. No transition is allowed out of a terminal state.
+
+The process that opens an attempt owns its heartbeat, deadline, cancellation,
+and child-process cleanup until it records a resumable or terminal state. A
+stale running attempt is not silently treated as failed. Recovery first records
+interrupted with the observed stale heartbeat and process metadata, then an
+explicit resume may continue it. Heartbeats contain hashes, phase, bounded
+counts, elapsed time, remaining ceilings, and process ownership only.
+
+Preflight may begin with a blank provider or model when local discovery has not
+completed. A heartbeat may enrich each blank once. Source, backend, and fallback
+posture never change, and a resolved provider or model cannot be switched or
+cleared. Admission observations may move between unknown, waiting, unavailable,
+and admitted without pretending that capacity identity changed.
+
+Cancellation is propagated to cancellable awaitable provider work before a
+cancelled event is recorded. The elapsed ceiling includes durable lifecycle
+start time, bounds awaitable setup and generation, and is checked at lifecycle
+boundaries before a typed `elapsed_limit` terminal event is recorded. Built-in
+synchronous backend construction, reporting hooks, lifecycle writes, and final
+trace writes run off the event loop. An active durable call is awaited through
+cancellation, so it cannot become a hidden late writer. A settled metered
+cancellation estimate enters lifecycle progress only after canonical settlement
+and only when it is finite, non-negative, and within the run bound. Critical
+lifecycle callback errors propagate and cancel sibling council work; ordinary
+display callback failures remain best effort.
+Provider-specific cleanup must finish before another attempt can resume.
+Cancellation or timeout never routes to another backend.
+
+Lifecycle and final-trace serialization share a bounded wait across the
+process-local mutex and OS file lock. Every lock acquisition is capped at five
+seconds. After durable attempt start, active lifecycle writes and final-trace
+finalization also use the smaller remaining elapsed allowance. Standalone load
+and resume use the five-second cap outside active-attempt accounting. Contention
+before provider work begins is retryable. Elapsed stops use the same boundary.
+Contention after provider work may have run, any corrupt journal, and any
+possibly partial append are explicitly non-retryable until finalization-only
+resume exists. Lock and I/O errors are typed separately and expose no local path.
+
+### Bounds and idempotency
+
+A turn is one provider dispatch. For a roster of `N` participants, the default
+three-round protocol permits at most `2N + 1` dispatches: `N` independent
+positions, at most `N` cross-examinations, and one skeptic. Explicit deep mode
+permits at most `3N + 2`: the default bound plus at most `N` revisions and one
+synthesis. Deliberation records `dispatch_scope: provider_call`. The current
+one-shot lifecycle separately records a maximum of `N + 1` logical council work
+items with `dispatch_scope: council_work_item`; it does not mislabel internal
+agentic fallback calls as a proven provider-call bound. Those existing API calls
+remain governed by their own per-session spend and ledger gates, while the
+local-first deliberation pilot disables live fallback entirely. The current
+one-shot wrapper enforces logical-work, elapsed-time, and spend ceilings. It
+does not aggregate provider output tokens or context bytes across internal
+council calls, so its lifecycle events omit those optional bounds,
+observations, and remaining counters. Live deliberation remains gated until
+provider-call token and context totals are measured and enforced. Bounds that
+are present are pure functions used before dispatch, not estimates after the
+fact.
+
+Each dispatch key is `(run_id, round, participant, role)`. Resume loads the
+immutable round journal and skips a key whose completed response hash is
+already present. Roster order and canonical participant identity are fixed
+before coroutine construction. Duplicate names, case aliases, and slug aliases
+fail closed. Token, context-byte, elapsed-time, capacity, and spend ceilings
+must all be finite and non-negative. Hitting any ceiling produces a typed stop;
+it never weakens a gate or falls through to metered capacity.
+
+### Frozen state and untrusted content
+
+Each participant snapshot records the canonical expert identity, exact source
+paths, content hashes, and snapshot time. Resume and replay fail closed if any
+snapshot hash changes. Round 1 receives no peer output. Later peer output is
+delimited and treated as untrusted source data, so embedded tool calls, shell
+commands, graph commits, or instructions remain inert text. Deliberation has no
+tool executor and no write path into beliefs, graphs, expert state, routing
+state, roadmap state, or project files. Only trace and evaluation artifact
+roots may change.
 
 ## Round protocol
 
@@ -116,6 +223,15 @@ Run one-shot consult as the baseline. Use human or calibrated-model review for
 meaning; deterministic checks validate only schema, lineage, bounds, writes,
 and side effects.
 
+The held-out rubric separately scores expert-state use, response to peer
+challenge, uncertainty calibration, dissent preservation, unsupported factual
+claims, useful test or gap proposals, and harmful belief reuse. Structural
+completion never implies semantic acceptance. A deliberation result remains
+`review_required: true` and `accepted: false` until the review artifact passes
+published thresholds. Model judging is admitted only after agreement and
+position-order calibration against human labels; provider-family difference is
+recorded assurance metadata, not proof of independence.
+
 ## Rejected alternatives
 
 - Free-form debate until consensus: persuasion is not verification.
@@ -160,10 +276,11 @@ diagnostic with the original typed `truncated` or `failed` status.
 The remaining baseline weakness is not only latency. A post-fix one-expert
 qwen3.6 probe exceeded a five-minute host guard. The host timeout left the
 Windows child process tree alive until its exact command lines and PIDs were
-verified and stopped, while Deepr left no consult trace because trace creation
-currently happens only after `run_consult` returns. The evaluator therefore
-must open a durable running record before generation, emit phase heartbeats,
-preserve a typed interrupted state, and prove cancellation propagation. The
-calling harness owns process-tree termination; Deepr owns durable evidence and
-resumable round state. Multi-round UX should not ship before both sides of that
-contract are tested.
+verified and stopped. That finding is now covered by the one-shot transaction
+wrapper: Deepr preallocates the final trace id and opens the lifecycle journal
+before backend construction or provider dispatch, emits phase heartbeats, and
+records typed cancellation or failure even when final trace construction cannot
+complete. Durable lifecycle and final-trace writes run off the event loop and
+are awaited through cancellation, while the calling harness still owns any
+external process tree it launched. Live multi-round UX remains gated on replay,
+resume, capacity-wait, and provider-call token and context enforcement tests.

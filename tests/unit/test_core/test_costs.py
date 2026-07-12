@@ -3,6 +3,8 @@
 from datetime import UTC, datetime, timedelta
 from unittest.mock import patch
 
+import pytest
+
 from deepr.core.costs import (
     CHEAP_TEST_PROMPTS,
     CostController,
@@ -116,9 +118,8 @@ class TestCostEstimator:
             input_tokens=1_000_000,
             output_tokens=1_000_000,
         )
-        # Registry rates: input 10.00, output 40.00 => 50.00 (live OpenAI
-        # pricing verified 2026-06-11; the earlier $11/$44 was wrong).
-        assert cost == 50.0
+        # Registry rates: input 5.00, output 20.00 => 25.00.
+        assert cost == 25.0
 
     def test_calculate_actual_cost_with_reasoning_tokens(self):
         cost = CostEstimator.calculate_actual_cost(
@@ -127,8 +128,8 @@ class TestCostEstimator:
             output_tokens=0,
             reasoning_tokens=1_000_000,
         )
-        # reasoning at registry output rate: 40.00
-        assert cost == 40.0
+        # Reasoning is charged at the registry output rate: 20.00.
+        assert cost == 20.0
 
     def test_calculate_actual_cost_unknown_model(self):
         cost = CostEstimator.calculate_actual_cost(
@@ -147,10 +148,29 @@ class TestCostEstimator:
         )
         assert cost == 0.0
 
+    def test_actual_embedding_micro_cost_is_not_rounded_to_zero(self):
+        cost = CostEstimator.calculate_actual_cost(
+            model="text-embedding-3-small",
+            input_tokens=10,
+            output_tokens=0,
+        )
+
+        assert cost == pytest.approx(0.0000002)
+
+    def test_small_research_estimate_is_not_rounded_to_zero(self):
+        estimate = CostEstimator.estimate_cost(
+            "What changed?",
+            model="gpt-5.2",
+            enable_web_search=True,
+        )
+
+        assert estimate.max_cost == pytest.approx(0.25)
+        assert 0.0 < estimate.expected_cost < estimate.max_cost
+
     def test_web_search_multiplier_increases_output(self):
         no_search = CostEstimator.estimate_cost("Hi", enable_web_search=False)
         with_search = CostEstimator.estimate_cost("Hi", enable_web_search=True)
-        assert with_search.max_cost > no_search.max_cost
+        assert with_search.expected_cost > no_search.expected_cost
 
 
 class TestCostController:

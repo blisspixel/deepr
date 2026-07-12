@@ -143,6 +143,22 @@
       "compatibility": "additive-within-v1"
     },
     {
+      "name": "consult-lifecycle-event",
+      "schema_version": "deepr-consult-lifecycle-event-v1",
+      "kind": "deepr.expert.consult_lifecycle_event",
+      "path": "consult-lifecycle-event-v1.json",
+      "status": "experimental",
+      "compatibility": "additive-within-v1"
+    },
+    {
+      "name": "deliberation-eval",
+      "schema_version": "deepr-deliberation-eval-v1",
+      "kind": "deepr.eval.deliberation",
+      "path": "deliberation-eval-v1.json",
+      "status": "experimental",
+      "compatibility": "additive-within-v1"
+    },
+    {
       "name": "consult-trace-candidates",
       "schema_version": "deepr-consult-trace-candidates-v1",
       "kind": "deepr.expert.consult_trace_candidates",
@@ -227,6 +243,14 @@
       "schema_version": "deepr-mcp-consult-fleet-validation-v1",
       "kind": "deepr.mcp.consult_fleet_validation",
       "path": "mcp-consult-fleet-validation-v1.json",
+      "status": "experimental",
+      "compatibility": "additive-within-v1"
+    },
+    {
+      "name": "recon-evidence-handoff",
+      "schema_version": "deepr-recon-evidence-handoff-v1",
+      "kind": "deepr.integration.recon_evidence_handoff",
+      "path": "recon-evidence-handoff-v1.json",
       "status": "experimental",
       "compatibility": "additive-within-v1"
     },

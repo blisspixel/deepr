@@ -58,6 +58,18 @@ All three cloud deployments follow the same security-hardened pattern:
 > the AWS worker as a starting point (it uses DynamoDB; rework the
 > queue/state plumbing to Cosmos DB / Firestore for the other clouds).
 
+### AWS v2.36 execution status
+
+The AWS research API and worker are infrastructure previews in v2.36, not an
+executable paid-research surface. Authenticated `POST /jobs` returns HTTP 503
+with `error_code=aws_metered_research_accounting_unavailable` before request
+parsing, job-id allocation, DynamoDB writes, or SQS writes. The worker applies
+the same independent gate before importing or constructing a provider, so an
+old or manually queued message cannot reach paid research. Existing read-only
+job, result, cost, and health endpoints remain available. Restore submission
+only after the hosted path uses one durable estimate, reservation, dispatch
+mark, provider-usage settlement, and canonical cost-ledger transaction.
+
 ## Project Structure
 
 ```
@@ -189,14 +201,18 @@ gcloud auth login
 All three clouds follow the same lifecycle:
 
 1. **Deploy** (`deploy.sh`) - Provisions infrastructure, deploys code, auto-runs validation
-2. **Validate** (`validate.sh`) - Smoke tests: health check, job submit, status check, costs endpoint
+2. **Validate** (`validate.sh`) - Smoke tests the deployment's current supported boundary
 3. **Destroy** (`destroy.sh`) - Tears down all resources with confirmation prompt (use `--yes` to skip)
 
-Validation checks (all clouds):
+AWS v2.36 validation is provider-free:
 - `GET /health` returns 200
-- `POST /jobs` returns a job_id
-- `GET /jobs/{id}` returns 200
+- `POST /jobs` returns 503 with `aws_metered_research_accounting_unavailable`
+- `GET /jobs` returns 200 without creating a job
 - `GET /costs` returns 200
+
+Azure and GCP remain separate infrastructure templates. Their validation
+scripts do not establish the durable metered-accounting contract required to
+describe hosted paid research as a supported v2.36 surface.
 
 Set `API_URL` and `API_KEY` environment variables to point validation at a specific deployment.
 
@@ -279,11 +295,15 @@ Serverless deployments have different cost profiles than local execution:
 | VPC Endpoints | ~$7/endpoint/month (AWS) |
 | NAT Gateway | ~$30/month + data transfer |
 
-**Note:** The actual research costs (OpenAI, Gemini, etc.) remain the same regardless of deployment method. Security features add ~$50-100/month overhead.
+**Note:** AWS v2.36 incurs infrastructure costs but blocks LLM research calls.
+The provider-cost comparison applies only after a deployment implements the
+required durable metered-accounting transaction. Security features add
+approximately $50-100/month overhead.
 
 ## Environment Variables
 
-All deployments require these environment variables:
+The deployment templates currently accept these environment variables. A key
+does not enable the gated AWS v2.36 research path:
 
 ```bash
 # Required: At least one provider
@@ -293,12 +313,12 @@ GOOGLE_API_KEY=...
 # or
 XAI_API_KEY=xai-...
 
-# Optional: Additional providers for fallback
+# Optional: Additional explicit bounded provider configuration.
+# Automatic cross-provider metered fallback is gated in v2.36.
 AZURE_OPENAI_API_KEY=...
 AZURE_OPENAI_ENDPOINT=https://....openai.azure.com
 
-# Optional: Deepr configuration
-DEEPR_DEFAULT_MODEL=o4-mini-deep-research
+# Optional: Deepr budget configuration
 DEEPR_BUDGET_DAILY=50
 DEEPR_BUDGET_MONTHLY=500
 
@@ -331,17 +351,13 @@ API_KEY="your-api-key"
 # Health check (no auth required)
 curl "$API_URL/health"
 
-# Submit a job (using X-Api-Key header)
+# Verify that AWS v2.36 blocks paid submission before writes
 curl -X POST "$API_URL/jobs" \
   -H "Content-Type: application/json" \
   -H "X-Api-Key: $API_KEY" \
   -d '{"prompt": "What are the best practices for PostgreSQL connection pooling?"}'
-
-# Submit a job (using Authorization Bearer header)
-curl -X POST "$API_URL/jobs" \
-  -H "Content-Type: application/json" \
-  -H "Authorization: Bearer $API_KEY" \
-  -d '{"prompt": "What are the best practices for PostgreSQL connection pooling?", "model": "o4-mini-deep-research"}'
+# Expected: HTTP 503 and
+# {"error_code":"aws_metered_research_accounting_unavailable", ...}
 
 # List jobs
 curl "$API_URL/jobs" -H "X-Api-Key: $API_KEY"
@@ -362,33 +378,14 @@ curl "$API_URL/results/{job_id}" -H "X-Api-Key: $API_KEY"
 curl "$API_URL/costs" -H "X-Api-Key: $API_KEY"
 ```
 
-### Request Body (POST /jobs)
+### POST /jobs in v2.36
 
-```json
-{
-  "prompt": "Your research question (required, max 10,000 chars)",
-  "model": "o4-mini-deep-research",
-  "priority": 3,
-  "enable_web_search": true,
-  "metadata": {"project": "example"}
-}
-```
-
-| Field | Type | Required | Default | Description |
-|-------|------|----------|---------|-------------|
-| `prompt` | string | Yes | - | Research question (max 10,000 characters) |
-| `model` | string | No | `o4-mini-deep-research` | Model to use (see valid models below) |
-| `priority` | integer | No | 3 | Priority 1-5 (1 = highest) |
-| `enable_web_search` | boolean | No | true | Enable web search for research |
-| `metadata` | object | No | {} | Custom metadata (max 4KB) |
-
-**Valid Models:**
-- `o4-mini-deep-research` (default, lower cost)
-- `o3-deep-research` (higher quality)
-- `gemini-2.0-flash-thinking-exp`
-- `gemini-2.5-pro-exp-03-25`
-- `grok-3-mini-fast`
-- `grok-3-fast`
+No model identifier is valid for AWS execution in v2.36 because the entire
+metered submission path is gated before body parsing. Do not use the historical
+deployment allowlist as a model catalog. Current model IDs and pricing live in
+[`src/deepr/providers/registry.py`](../src/deepr/providers/registry.py), but a
+registry entry alone never authorizes hosted dispatch. The AWS path must first
+implement the durable accounting contract described above.
 
 ## Customization
 

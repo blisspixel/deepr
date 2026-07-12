@@ -271,6 +271,13 @@ class TestTokenPricingTiers:
         )
         assert cost == pytest.approx(0.0058)
 
+    def test_embedding_pricing_and_micro_cost_stay_exact(self):
+        from deepr.providers.base import UsageStats
+        from deepr.providers.registry import get_token_pricing
+
+        assert get_token_pricing("text-embedding-3-small") == {"input": 0.02, "output": 0.0}
+        assert UsageStats.calculate_cost(10, 0, "text-embedding-3-small") == pytest.approx(0.0000002)
+
     def test_non_tiered_model_unaffected(self):
         from deepr.providers.registry import get_token_pricing
 
