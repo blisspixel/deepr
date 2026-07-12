@@ -9,9 +9,11 @@ from __future__ import annotations
 
 import json
 import uuid
+from collections.abc import Iterable
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from enum import Enum
+from math import isfinite
 from pathlib import Path
 from typing import Any
 
@@ -95,6 +97,24 @@ def loop_runs_path(expert_name: str, path: Path | None = None) -> Path:
 
 def new_loop_run_id() -> str:
     return f"loop_{uuid.uuid4().hex[:12]}"
+
+
+def known_exception_cost(exception: BaseException) -> float:
+    """Return the greatest finite non-negative spend carried by an error chain."""
+    known = 0.0
+    current: BaseException | None = exception
+    seen: set[int] = set()
+    while current is not None and id(current) not in seen:
+        seen.add(id(current))
+        for attribute in ("actual_cost", "total_cost", "budget_spent"):
+            value = getattr(current, attribute, None)
+            if isinstance(value, bool) or not isinstance(value, (int, float)):
+                continue
+            numeric = float(value)
+            if isfinite(numeric) and numeric >= 0.0:
+                known = max(known, numeric)
+        current = current.__cause__ or current.__context__
+    return known
 
 
 def _parse_dt(value: Any) -> datetime | None:
@@ -315,7 +335,7 @@ class ExpertLoopRunStore:
         latest: dict[str, ExpertLoopRun] = {}
         for run in self._iter_snapshots():
             latest[run.run_id] = run
-        runs = latest.values()
+        runs: Iterable[ExpertLoopRun] = latest.values()
         if status is not None:
             runs = [run for run in runs if run.status == status]
         if loop_type is not None:
@@ -344,6 +364,7 @@ class ExpertLoopRunStore:
 
 def record_loop_run(
     *,
+    run_id: str | None = None,
     expert_name: str,
     loop_type: str,
     goal: str,
@@ -354,6 +375,7 @@ def record_loop_run(
     budget_limit: float | None = None,
     budget_spent: float = 0.0,
     capacity_source: str = "",
+    backend_profile_id: str = "",
     accepted_changes: int = 0,
     rejected_changes: int = 0,
     verifier_id: str = "",
@@ -362,9 +384,14 @@ def record_loop_run(
     verifier_score: float | None = None,
     verifier_threshold: float | None = None,
     run_context: dict[str, Any] | None = None,
+    failure_reason: str = "",
+    started_at: datetime | None = None,
+    updated_at: datetime | None = None,
+    finished_at: datetime | None = None,
 ) -> ExpertLoopRun:
+    timestamp = _utc_now()
     run = ExpertLoopRun(
-        run_id=new_loop_run_id(),
+        run_id=run_id or new_loop_run_id(),
         expert_name=expert_name,
         loop_type=loop_type,
         goal=goal,
@@ -375,6 +402,7 @@ def record_loop_run(
         budget_limit=budget_limit,
         budget_spent=budget_spent,
         capacity_source=capacity_source,
+        backend_profile_id=backend_profile_id,
         accepted_changes=accepted_changes,
         rejected_changes=rejected_changes,
         verifier_id=verifier_id,
@@ -383,5 +411,9 @@ def record_loop_run(
         verifier_score=verifier_score,
         verifier_threshold=verifier_threshold,
         run_context=run_context or {},
+        failure_reason=failure_reason,
+        started_at=started_at or timestamp,
+        updated_at=updated_at or timestamp,
+        finished_at=finished_at,
     )
     return ExpertLoopRunStore(expert_name).append(run)

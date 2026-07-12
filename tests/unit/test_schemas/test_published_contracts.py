@@ -1867,6 +1867,8 @@ def test_cost_spend_decisions_schema_validates_runtime_payload():
 
 
 def test_sync_capacity_gate_schema_validates_runtime_payload(monkeypatch):
+    from deepr.backends.local_capacity import LocalCapacityObservation, LocalCapacityState
+
     monkeypatch.setattr(
         "deepr.backends.capacity_actions.build_capacity_next_actions",
         lambda **_: [
@@ -1878,12 +1880,20 @@ def test_sync_capacity_gate_schema_validates_runtime_payload(monkeypatch):
             )
         ],
     )
+    local_capacity = LocalCapacityObservation(
+        state=LocalCapacityState.BUSY,
+        source="nvidia-smi",
+        detail="peak utilization 90%",
+        gpu_utilization_percent=(90.0,),
+    )
     payload = _build_sync_capacity_payload(
         "Platform Expert",
         context_mode="fresh",
         scheduled=True,
         status="waiting_for_capacity",
         detail="local capacity is blocked",
+        local_capacity=local_capacity,
+        command_argv=["deepr", "expert", "sync", "Platform Expert", "--scheduled", "--local"],
     )
     schema = _load_schema("sync-capacity-gate-v1.json")
 
@@ -1891,6 +1901,8 @@ def test_sync_capacity_gate_schema_validates_runtime_payload(monkeypatch):
     assert payload["schema_version"] == SYNC_CAPACITY_GATE_SCHEMA_VERSION
     assert payload["kind"] == SYNC_CAPACITY_GATE_KIND
     assert payload["capacity_next"]["schema_version"] == CAPACITY_NEXT_SCHEMA_VERSION
+    assert payload["capacity_next"]["local_capacity"]["state"] == "busy"
+    assert payload["requested_operation"]["command_argv"][-2:] == ["--scheduled", "--local"]
 
 
 def test_scheduled_gap_fill_wait_schema_validates_runtime_payload():
@@ -1920,6 +1932,48 @@ def test_scheduled_gap_fill_wait_schema_validates_runtime_payload():
     assert payload["kind"] == SCHEDULED_GAP_FILL_WAIT_KIND
     assert payload["scheduled"] is True
     assert payload["loop_run"]["run_id"] == "loop_gap_contract"
+
+
+def test_scheduled_local_gap_fill_wait_schema_validates_runtime_payload(tmp_path, monkeypatch):
+    from deepr.backends.local_capacity import LocalCapacityObservation, LocalCapacityState
+    from deepr.cli.commands.semantic.expert_gap_routes import _scheduled_local_gap_fill_wait_payload
+    from deepr.experts.gap_router import GapRoute
+
+    monkeypatch.setenv("DEEPR_EXPERTS_PATH", str(tmp_path / "experts"))
+    route = GapRoute(
+        topic="local GPU scheduling",
+        instrument="research",
+        available=True,
+        estimated_cost=0.2,
+        rationale="general research",
+        suggestion="deepr research local GPU scheduling",
+        priority=4,
+        ev_cost_ratio=2.0,
+        matched_keywords=[],
+    )
+    observation = LocalCapacityObservation(
+        state=LocalCapacityState.BUSY,
+        source="nvidia-smi",
+        detail="peak utilization 90%",
+        gpu_utilization_percent=(90.0,),
+    )
+    argv = ["deepr", "expert", "route-gaps", "Platform Expert", "--execute", "--scheduled", "--local"]
+
+    payload = _scheduled_local_gap_fill_wait_payload(
+        "Platform Expert",
+        [route],
+        budget=2.0,
+        top_n=5,
+        observation=observation,
+        command_argv=argv,
+        local_model="local-model",
+    )
+    schema = _load_schema("scheduled-gap-fill-wait-v1.json")
+
+    _validate(schema, payload)
+    assert payload["local_capacity"]["state"] == "busy"
+    assert payload["requested_operation"]["command_argv"] == argv
+    assert payload["loop_run"]["backend_profile_id"] == "local-model"
 
 
 def test_scheduled_reflection_wait_schema_validates_runtime_payload():
@@ -2001,18 +2055,15 @@ def test_health_check_action_plan_schema_validates_runtime_payload():
         generated_at=datetime(2026, 6, 20, 12, 0, tzinfo=UTC),
     )
     with patch("deepr.experts.loop_runs.record_loop_run") as mock_record:
-        loop_run = MagicMock()
-        loop_run.to_dict.return_value = {"run_id": "loop_health_contract"}
-        mock_record.return_value = loop_run
-
         payload = scheduled_health_payload(report)
-    schema = _load_schema("health-check-action-plan-v1.json")
+    schema = _load_schema("health-check-action-plan-v2.json")
 
     _validate(schema, payload)
     assert payload["schema_version"] == HEALTH_CHECK_ACTION_PLAN_SCHEMA_VERSION
     assert payload["kind"] == HEALTH_CHECK_ACTION_PLAN_KIND
     assert payload["scheduled_action_plan"]["status"] == "waiting_for_capacity"
-    assert payload["loop_run"]["run_id"] == "loop_health_contract"
+    assert "loop_run" not in payload
+    mock_record.assert_not_called()
 
 
 def test_health_check_archive_confirmation_schema_validates_runtime_payload():

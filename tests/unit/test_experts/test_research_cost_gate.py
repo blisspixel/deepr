@@ -73,6 +73,33 @@ def test_settlement_releases_reservation_and_records_actual_cost() -> None:
     assert events[0].idempotency_key == "job:job-1:completion"
 
 
+def test_conservative_settlement_is_not_labeled_as_reported_actual_cost() -> None:
+    manager = CostSafetyManager()
+    reservation = _reserve(manager, "job-conservative", 0.8)
+
+    settle_research_cost(
+        reservation,
+        actual_cost=0.55,
+        actual_cost_reported=False,
+        settlement_metadata={
+            "settlement_basis": "conservative_unaccounted_ceiling",
+            "known_cost_usd": 0.25,
+            "unaccounted_ceiling_usd": 0.55,
+        },
+        source="test.conservative",
+    )
+
+    event = CostLedger().get_events()[0]
+    assert event.cost_usd == pytest.approx(0.55)
+    assert event.metadata == {
+        "settlement_basis": "conservative_unaccounted_ceiling",
+        "known_cost_usd": 0.25,
+        "unaccounted_ceiling_usd": 0.55,
+        "estimated_cost_usd": 0.8,
+        "actual_cost_reported": False,
+    }
+
+
 def test_refund_releases_reservation_without_ledger_spend() -> None:
     manager = CostSafetyManager()
     reservation = _reserve(manager, "job-refund", 0.8)
@@ -82,6 +109,27 @@ def test_refund_releases_reservation_without_ledger_spend() -> None:
     assert manager._reserved_daily == 0.0
     assert manager.daily_cost == 0.0
     assert CostLedger().get_events() == []
+
+
+def test_active_reservation_check_binds_job_and_reserved_cost() -> None:
+    reservation = _reserve(CostSafetyManager(), "owned-job", 0.8)
+    store = ResearchReservationStore()
+
+    assert store.is_active_for_job(
+        reservation_id=reservation.reservation_id,
+        job_id="owned-job",
+        reserved_cost=0.8,
+    )
+    assert not store.is_active_for_job(
+        reservation_id=reservation.reservation_id,
+        job_id="different-job",
+        reserved_cost=0.8,
+    )
+    assert not store.is_active_for_job(
+        reservation_id=reservation.reservation_id,
+        job_id="owned-job",
+        reserved_cost=0.7,
+    )
 
 
 def test_parallel_reservations_cannot_overcommit_daily_limit() -> None:

@@ -18,6 +18,15 @@ from deepr.queue.base import JobStatus, ResearchJob
 logger = logging.getLogger(__name__)
 
 
+class ResearchDispatchReservationError(RuntimeError):
+    """A queued job cannot prove an active, job-owned cost reservation."""
+
+    def __init__(self, message: str, *, code: str, retryable: bool) -> None:
+        super().__init__(message)
+        self.code = code
+        self.retryable = retryable
+
+
 def _refund_after_dispatch_failure(reservation: ResearchCostReservation, job_id: str) -> None:
     try:
         refund_research_cost(reservation)
@@ -64,6 +73,128 @@ async def _mark_dispatch_failed(queue: Any, job_id: str, error: Exception) -> No
         logger.exception("Could not persist dispatch failure for research job %s", job_id)
 
 
+def _reservation_identity(reservation: ResearchCostReservation) -> tuple[str, str, str, float]:
+    return (
+        reservation.reservation_id,
+        reservation.job_id,
+        reservation.model,
+        reservation.estimated_cost,
+    )
+
+
+async def restore_active_queued_reservation(
+    *,
+    queue: Any,
+    job_id: str,
+    expected: ResearchCostReservation,
+    store: ResearchReservationStore | None = None,
+    queued_job: ResearchJob | None = None,
+) -> tuple[ResearchJob, ResearchCostReservation]:
+    """Restore and verify the exact persisted hold before a provider POST.
+
+    Deterministic metadata or ownership failures are terminal and persisted.
+    A reservation-store read failure is retryable, so the job stays queued and
+    its possible active hold remains intact.
+    """
+    job = queued_job or await queue.get_job(job_id)
+    if job is None:
+        raise ResearchDispatchReservationError(
+            "research queue snapshot missing before provider submission",
+            code="queue_snapshot_missing",
+            retryable=False,
+        )
+    if job.status != JobStatus.QUEUED:
+        raise ResearchDispatchReservationError(
+            "research job is not queued for provider submission",
+            code="queue_state_invalid",
+            retryable=False,
+        )
+
+    from deepr.experts.research_cost_gate import restore_research_cost_reservation
+
+    restored = restore_research_cost_reservation(
+        job_id=job.id,
+        metadata=job.metadata,
+        provider=job.provider,
+        model=job.model,
+        manager=expected.manager,
+    )
+    if restored is None:
+        error = ResearchDispatchReservationError(
+            "research cost reservation metadata missing before provider submission",
+            code="reservation_metadata_missing",
+            retryable=False,
+        )
+        await _mark_dispatch_failed(queue, job.id, error)
+        raise error
+
+    expected_identity = _reservation_identity(expected)
+    restored_identity = _reservation_identity(restored)
+    if (
+        restored_identity != expected_identity
+        or restored.provider != expected.provider
+        or job.provider != restored.provider
+        or job.model != restored.model
+    ):
+        error = ResearchDispatchReservationError(
+            "research cost reservation does not match the queued job",
+            code="reservation_mismatch",
+            retryable=False,
+        )
+        await _mark_dispatch_failed(queue, job.id, error)
+        raise error
+
+    try:
+        is_active = (store or ResearchReservationStore()).is_active_for_job(
+            reservation_id=restored.reservation_id,
+            job_id=job.id,
+            reserved_cost=restored.estimated_cost,
+        )
+    except Exception as exc:
+        raise ResearchDispatchReservationError(
+            "research reservation state is temporarily unavailable; job remains queued",
+            code="reservation_store_unavailable",
+            retryable=True,
+        ) from exc
+    if not is_active:
+        error = ResearchDispatchReservationError(
+            "research cost reservation is missing or closed before provider submission",
+            code="reservation_not_active",
+            retryable=False,
+        )
+        await _mark_dispatch_failed(queue, job.id, error)
+        raise error
+    return job, restored
+
+
+async def _submit_reserved_provider_job(
+    *,
+    queue: Any,
+    provider: Any,
+    request: Any,
+    reservation: ResearchCostReservation,
+    job: ResearchJob,
+) -> str:
+    stable_request = (
+        replace(request, idempotency_key=request.idempotency_key or f"deepr-research-{job.id}")
+        if isinstance(request, ResearchRequest)
+        else request
+    )
+    try:
+        return str(await provider.submit_research(stable_request))
+    except Exception as exc:
+        if submission_outcome_is_ambiguous(exc):
+            _settle_uncertain_dispatch(
+                reservation,
+                request_id=f"deepr-research-{job.id}",
+                source="services.dispatch_reserved_research.ambiguous_submission",
+            )
+        else:
+            _refund_after_dispatch_failure(reservation, job.id)
+        await _mark_dispatch_failed(queue, job.id, exc)
+        raise
+
+
 async def dispatch_reserved_research(
     *,
     queue: Any,
@@ -80,35 +211,31 @@ async def dispatch_reserved_research(
         await _mark_dispatch_failed(queue, job.id, exc)
         raise
 
-    if not ResearchReservationStore().is_active(reservation.reservation_id):
-        error = RuntimeError("research cost reservation closed before provider submission")
+    try:
+        _, reservation = await restore_active_queued_reservation(
+            queue=queue,
+            job_id=job.id,
+            expected=reservation,
+            queued_job=job,
+        )
+    except ResearchDispatchReservationError as error:
+        if error.retryable:
+            raise
         _refund_after_dispatch_failure(reservation, job.id)
-        await _mark_dispatch_failed(queue, job.id, error)
         raise error
 
     if not await queue.claim_submission(job.id):
-        error = RuntimeError("research job was cancelled before provider submission")
+        claim_error = RuntimeError("research job was cancelled before provider submission")
         _refund_after_dispatch_failure(reservation, job.id)
-        raise error
+        raise claim_error
 
-    try:
-        stable_request = (
-            replace(request, idempotency_key=request.idempotency_key or f"deepr-research-{job.id}")
-            if isinstance(request, ResearchRequest)
-            else request
-        )
-        provider_job_id = str(await provider.submit_research(stable_request))
-    except Exception as exc:
-        if submission_outcome_is_ambiguous(exc):
-            _settle_uncertain_dispatch(
-                reservation,
-                request_id=f"deepr-research-{job.id}",
-                source="services.dispatch_reserved_research.ambiguous_submission",
-            )
-        else:
-            _refund_after_dispatch_failure(reservation, job.id)
-        await _mark_dispatch_failed(queue, job.id, exc)
-        raise
+    provider_job_id = await _submit_reserved_provider_job(
+        queue=queue,
+        provider=provider,
+        request=request,
+        reservation=reservation,
+        job=job,
+    )
 
     try:
         updated = await queue.update_status(
@@ -137,4 +264,9 @@ async def dispatch_reserved_research(
     return provider_job_id
 
 
-__all__ = ["dispatch_reserved_research", "submission_outcome_is_ambiguous"]
+__all__ = [
+    "ResearchDispatchReservationError",
+    "dispatch_reserved_research",
+    "restore_active_queued_reservation",
+    "submission_outcome_is_ambiguous",
+]

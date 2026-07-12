@@ -43,11 +43,14 @@ class TestSafetyGate:
         env = {"OPENAI_API_KEY": "sk-xxx", "PATH": "x"}
         assert plan_quota_child_env(get_adapter("codex"), env) == {"PATH": "x"}
 
-    def test_metered_at_margin_backend_requires_ack(self):
+    def test_metered_at_margin_backend_is_blocked_until_cost_accounting_exists(self):
         d = evaluate_plan_quota_safety(get_adapter("copilot"), env={})
-        assert d.safe
-        assert d.requires_ack
-        assert "per call" in d.reason
+        assert not d.safe
+        assert not d.requires_ack
+        assert "cost estimation" in d.reason
+        assert "durable reservation" in d.reason
+        assert "usage settlement" in d.reason
+        assert "cost-ledger" in d.reason
 
     def test_tos_note_surfaced_for_gray_backend(self):
         d = evaluate_plan_quota_safety(get_adapter("kiro"), env={})

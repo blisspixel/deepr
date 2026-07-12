@@ -176,6 +176,56 @@ def test_paid_submit_preserves_explicit_no_key_error(client, monkeypatch):
     coordinator.refund.assert_called_once_with(reservation)
 
 
+def test_paid_submit_keeps_job_queued_when_reservation_store_is_unavailable(client, monkeypatch):
+    from deepr.services.research_submission import ResearchDispatchReservationError
+
+    reservation = MagicMock()
+    reservation.metadata.return_value = {
+        "cost_reservation_id": "reservation-1",
+        "cost_reservation_estimated_usd": 0.3,
+        "cost_reservation_provider": "openai",
+        "cost_reservation_model": "o4-mini-deep-research",
+    }
+    coordinator = MagicMock()
+    coordinator.reserve.return_value = (
+        {"min_cost": 0.1, "max_cost": 0.3, "expected_cost": 0.2},
+        reservation,
+        None,
+    )
+    blocked = ResearchDispatchReservationError(
+        "reservation state is temporarily unavailable",
+        code="reservation_store_unavailable",
+        retryable=True,
+    )
+    monkeypatch.setattr(web_app, "research_costs", coordinator)
+    monkeypatch.setattr(web_app, "_default_openai_provider", MagicMock(return_value=MagicMock()))
+    monkeypatch.setattr(web_app, "dispatch_reserved_research", AsyncMock(side_effect=blocked))
+
+    response = client.post("/api/jobs", json={"prompt": "Research power-grid constraints."})
+
+    assert response.status_code == 503
+    assert response.get_json()["status"] == "queued"
+    assert response.get_json()["retryable"] is True
+    coordinator.refund_job.assert_not_called()
+
+
+def test_paid_submit_rejects_non_openai_model_before_reservation_or_provider(client, monkeypatch):
+    coordinator = MagicMock()
+    provider_factory = MagicMock(side_effect=AssertionError("provider must not be constructed"))
+    monkeypatch.setattr(web_app, "research_costs", coordinator)
+    monkeypatch.setattr(web_app, "_default_openai_provider", provider_factory)
+
+    response = client.post(
+        "/api/jobs",
+        json={"prompt": "Research agent reliability.", "model": "claude-sonnet-5"},
+    )
+
+    assert response.status_code == 400
+    assert response.get_json() == {"error": "Invalid model"}
+    coordinator.reserve.assert_not_called()
+    provider_factory.assert_not_called()
+
+
 @pytest.mark.parametrize(
     "reserved_key",
     [
@@ -268,6 +318,20 @@ def test_batch_submit_does_not_expose_validation_exception(client, monkeypatch):
     assert b"secret batch validation detail" not in response.data
 
 
+def test_batch_submit_rejects_non_openai_model_family(client, monkeypatch):
+    queue = MagicMock(enqueue=AsyncMock(return_value=True))
+    monkeypatch.setattr(web_app, "queue", queue)
+
+    response = client.post(
+        "/api/jobs/batch",
+        json={"jobs": [{"prompt": "Wrong provider family", "model": "gemini/deep-research"}]},
+    )
+
+    assert response.status_code == 400
+    assert response.get_json() == {"error": "Invalid model"}
+    queue.enqueue.assert_not_awaited()
+
+
 def test_batch_submit_reports_enqueue_value_error_as_server_failure(client, monkeypatch):
     queue = MagicMock()
     queue.enqueue = AsyncMock(side_effect=ValueError("secret queue detail"))
@@ -305,8 +369,10 @@ def test_web_job_responses_redact_provider_lifecycle_metadata(client, monkeypatc
     detail = client.get("/api/jobs/job-1")
 
     assert listing.status_code == 200
+    assert listing.get_json()["jobs"][0]["provider"] == "openai"
     assert listing.get_json()["jobs"][0]["metadata"] == {"campaign": "launch"}
     assert detail.status_code == 200
+    assert detail.get_json()["job"]["provider"] == "openai"
     assert detail.get_json()["job"]["metadata"] == {"campaign": "launch"}
 
 
@@ -386,12 +452,129 @@ def test_web_cancel_uses_provider_recorded_on_job(monkeypatch):
     create.assert_called_once_with(job, web_app._cfg)
 
 
+def test_web_poller_uses_provider_recorded_on_non_openai_job(monkeypatch):
+    from deepr.queue.base import JobStatus, ResearchJob
+
+    job = ResearchJob(
+        id="job-gemini",
+        prompt="owned by Gemini",
+        provider="gemini",
+        provider_job_id="gemini-job",
+        status=JobStatus.PROCESSING,
+    )
+    response = SimpleNamespace(status="completed")
+    gemini = MagicMock(get_status=AsyncMock(return_value=response))
+    create = MagicMock(return_value=gemini)
+    completion = MagicMock()
+    openai = MagicMock(side_effect=AssertionError("OpenAI must not own this job"))
+    monkeypatch.setattr(web_app, "create_job_provider", create)
+    monkeypatch.setattr(web_app, "_default_openai_provider", openai)
+    monkeypatch.setattr(web_app, "_handle_completion", completion)
+
+    loop = asyncio.new_event_loop()
+    try:
+        web_app._check_job(loop, job)
+    finally:
+        loop.close()
+
+    create.assert_called_once_with(job, web_app._cfg)
+    gemini.get_status.assert_awaited_once_with("gemini-job")
+    openai.assert_not_called()
+    completion.assert_called_once_with(loop, job, response)
+
+
+def test_web_poller_keeps_unknown_recorded_provider_active_without_fallback(monkeypatch, caplog):
+    from deepr.queue.base import JobStatus, ResearchJob
+
+    job = ResearchJob(
+        id="job-unknown",
+        prompt="provider ownership must remain visible",
+        provider="unknown\nforged",
+        provider_job_id="unknown-job",
+        status=JobStatus.PROCESSING,
+    )
+    create = MagicMock(side_effect=ValueError("unsupported provider secret"))
+    openai = MagicMock(side_effect=AssertionError("must not fall back to OpenAI"))
+    stuck = MagicMock()
+    failure = MagicMock()
+    monkeypatch.setattr(web_app, "create_job_provider", create)
+    monkeypatch.setattr(web_app, "_default_openai_provider", openai)
+    monkeypatch.setattr(web_app, "_check_stuck", stuck)
+    monkeypatch.setattr(web_app, "_handle_failure", failure)
+
+    loop = asyncio.new_event_loop()
+    try:
+        web_app._check_job(loop, job)
+    finally:
+        loop.close()
+
+    create.assert_called_once_with(job, web_app._cfg)
+    openai.assert_not_called()
+    failure.assert_not_called()
+    stuck.assert_called_once_with(loop, job)
+    assert "recorded provider unavailable" in caplog.text
+    assert "forged" not in caplog.text
+    assert "secret" not in caplog.text
+
+
+def test_web_unreserved_terminal_settlement_uses_recorded_provider(monkeypatch):
+    coordinator = WebResearchCostCoordinator(None, None)
+    record = MagicMock()
+    restore = MagicMock(return_value=None)
+    monkeypatch.setattr("deepr.web.research_cost_api.restore_research_cost_reservation", restore)
+    monkeypatch.setattr("deepr.web.research_cost_api.record_unreserved_research_cost", record)
+    job = SimpleNamespace(
+        id="job-gemini",
+        provider="gemini",
+        provider_job_id="gemini-job",
+        model="gemini/deep-research",
+        metadata={},
+    )
+
+    coordinator.settle_job(job, actual_cost=0.25, tokens=123)
+
+    assert restore.call_args.kwargs["provider"] == "gemini"
+    assert record.call_args.kwargs["provider"] == "gemini"
+
+
+def test_web_terminal_cleanup_factory_uses_recorded_provider(monkeypatch):
+    from deepr.queue.base import JobStatus, ResearchJob
+
+    job = ResearchJob(
+        id="job-gemini",
+        prompt="owned cleanup",
+        provider="gemini",
+        provider_job_id="gemini-job",
+        status=JobStatus.PROCESSING,
+    )
+    gemini = MagicMock()
+    create = MagicMock(return_value=gemini)
+    coordinator = MagicMock()
+    queue = MagicMock(
+        update_status=AsyncMock(return_value=True),
+        get_job=AsyncMock(return_value=None),
+    )
+    monkeypatch.setattr(web_app, "create_job_provider", create)
+    monkeypatch.setattr(web_app, "research_costs", coordinator)
+    monkeypatch.setattr(web_app, "queue", queue)
+
+    loop = asyncio.new_event_loop()
+    try:
+        web_app._handle_failure(loop, job, "Provider failed")
+    finally:
+        loop.close()
+
+    provider_factory = coordinator.cleanup_uploads.call_args.kwargs["provider_factory"]
+    assert provider_factory() is gemini
+    create.assert_called_once_with(job, web_app._cfg)
+
+
 def test_web_poller_treats_incomplete_as_content_free_terminal_failure(monkeypatch):
     job = MagicMock(id="job-1", provider_job_id="provider-job-1")
     provider = MagicMock()
     provider.get_status = AsyncMock(return_value=SimpleNamespace(status="incomplete", error="secret\nforged"))
     failure = MagicMock()
-    monkeypatch.setattr(web_app, "_default_openai_provider", MagicMock(return_value=provider))
+    monkeypatch.setattr(web_app, "create_job_provider", MagicMock(return_value=provider))
     monkeypatch.setattr(web_app, "_handle_failure", failure)
     loop = asyncio.new_event_loop()
     try:
@@ -408,7 +591,7 @@ def test_web_poller_persists_provider_cancellation_as_cancelled(monkeypatch):
     job = MagicMock(id="job-1", provider_job_id="provider-job-1")
     provider = MagicMock(get_status=AsyncMock(return_value=SimpleNamespace(status="cancelled")))
     failure = MagicMock()
-    monkeypatch.setattr(web_app, "_default_openai_provider", MagicMock(return_value=provider))
+    monkeypatch.setattr(web_app, "create_job_provider", MagicMock(return_value=provider))
     monkeypatch.setattr(web_app, "_handle_failure", failure)
     loop = asyncio.new_event_loop()
     try:
@@ -428,7 +611,7 @@ def test_web_poller_keeps_unknown_provider_status_active(monkeypatch, caplog):
     job = MagicMock(id="job-1", provider_job_id="provider-job-1", started_at=None)
     provider = MagicMock(get_status=AsyncMock(return_value=SimpleNamespace(status="new\nforged")))
     failure = MagicMock()
-    monkeypatch.setattr(web_app, "_default_openai_provider", MagicMock(return_value=provider))
+    monkeypatch.setattr(web_app, "create_job_provider", MagicMock(return_value=provider))
     monkeypatch.setattr(web_app, "_handle_failure", failure)
     loop = asyncio.new_event_loop()
     try:
@@ -468,7 +651,7 @@ def test_web_poller_logs_exception_type_without_content(monkeypatch, caplog):
     job = MagicMock(id="job-1", provider_job_id="provider-job-1", started_at=None)
     provider = MagicMock()
     provider.get_status = AsyncMock(side_effect=RuntimeError("secret\nforged"))
-    monkeypatch.setattr(web_app, "_default_openai_provider", MagicMock(return_value=provider))
+    monkeypatch.setattr(web_app, "create_job_provider", MagicMock(return_value=provider))
     loop = asyncio.new_event_loop()
     try:
         web_app._check_job(loop, job)
@@ -477,3 +660,28 @@ def test_web_poller_logs_exception_type_without_content(monkeypatch, caplog):
 
     assert "RuntimeError" in caplog.text
     assert "secret" not in caplog.text
+
+
+def test_direct_module_server_allows_werkzeug_only_after_loopback_check(monkeypatch):
+    run = MagicMock()
+    monkeypatch.setattr(web_app.socketio, "run", run)
+
+    web_app._run_loopback_development_server(host="127.0.0.1", port=5071, debug=False)
+
+    run.assert_called_once_with(
+        web_app.app,
+        debug=False,
+        host="127.0.0.1",
+        port=5071,
+        allow_unsafe_werkzeug=True,
+    )
+
+
+def test_direct_module_server_refuses_non_loopback_before_werkzeug(monkeypatch):
+    run = MagicMock()
+    monkeypatch.setattr(web_app.socketio, "run", run)
+
+    with pytest.raises(RuntimeError, match="requires a loopback host"):
+        web_app._run_loopback_development_server(host="0.0.0.0", port=5071, debug=False)
+
+    run.assert_not_called()

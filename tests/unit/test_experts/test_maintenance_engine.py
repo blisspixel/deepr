@@ -246,25 +246,26 @@ def test_metered_compile_claims_is_explicit_opt_in(patch_engine):
     assert engine.claim_verifier.estimated_cost_usd > 0
 
 
-def test_metered_plan_compile_claims_uses_budgeted_estimate(patch_engine, monkeypatch):
+def test_metered_plan_sync_engine_fails_before_client_construction(patch_engine, monkeypatch):
     profile = SimpleNamespace(name="X")
-    adapter = SimpleNamespace(backend_id="copilot", tos_note="", metered_at_margin=True)
-    monkeypatch.setattr("deepr.backends.plan_quota.PlanQuotaChatClient", lambda a, *, model=None: object())
-    monkeypatch.setattr(
-        "deepr.backends.plan_quota.make_plan_quota_research_fn",
-        lambda a, *, model=None, context_builder=None, client=None: object(),
+    adapter = SimpleNamespace(
+        backend_id="copilot",
+        display_name="GitHub Copilot CLI",
+        tos_note="",
+        metered_at_margin=True,
     )
-    monkeypatch.setattr("deepr.experts.report_absorber.ReportAbsorber", lambda *a, **k: object())
+    client_calls = []
 
-    engine, source = build_sync_engine(profile, use_plan=True, plan_adapter=adapter, compile_claims=True)
+    def must_not_build_client(*args, **kwargs):
+        client_calls.append((args, kwargs))
+        raise AssertionError("metered plan client must not be constructed")
 
-    assert source == "plan_quota:copilot"
-    assert engine.claim_extractor is not None
-    assert engine.claim_extractor.allow_metered is True
-    assert engine.claim_extractor.estimated_cost_usd > 0
-    assert engine.claim_verifier is not None
-    assert engine.claim_verifier.allow_metered is True
-    assert engine.claim_verifier.estimated_cost_usd > 0
+    monkeypatch.setattr("deepr.backends.plan_quota.PlanQuotaChatClient", must_not_build_client)
+
+    with pytest.raises(ValueError, match="durable reservation"):
+        build_sync_engine(profile, use_plan=True, plan_adapter=adapter, compile_claims=True)
+
+    assert client_calls == []
 
 
 def test_metered_path_injects_absorber_when_grounding_checker_supplied(patch_engine, monkeypatch):

@@ -112,6 +112,13 @@ model synthesizes. Both modes stay free inside Deepr: explicit URLs are fetched,
 is used only when the optional package is installed. API-key search backends are
 not used.
 
+Search receives the subscription topic plus a bounded focus, while the local or
+plan model retains the full synthesis prompt. Search-discovered fresh packs need
+two content-addressed sources and deep packs need three before generation;
+explicit URL review retains a one-source path. If retrieval is thinner, Deepr
+persists the attempted source pack and returns a retryable no-metered failure
+without calling the model or advancing the subscription cadence.
+
 ### With Autonomous Learning
 ```bash
 deepr expert make "FDA Regulations" \
@@ -273,6 +280,16 @@ deepr expert learn "Azure Architect" "Azure AI Agent Service 2026"
 deepr expert learn "Azure Architect" --files new_docs/*.md
 ```
 
+Topic learning and the explicit `expert learn-web` alias require two fetched,
+content-addressed sources before local or plan synthesis. Supplying a URL keeps
+the one-source review path. Every attempt writes a source pack, manifest,
+source notes, and snapshots below the configured expert root; successful runs
+also write the synthesized report. Sparse retrieval exits retryably before a
+model call and does not advance knowledge freshness. During absorption the
+model selects the supporting source label for each candidate claim, and Deepr
+stores only that durable source-note pointer rather than attaching every search
+result to every belief.
+
 ### Fill Knowledge Gaps
 ```bash
 # Preferred no-surprise path: local or plan-quota first
@@ -291,18 +308,23 @@ deepr expert resume "Azure Architect"
 ### Absorb a Report into Knowledge
 Promote a completed research report into the expert's permanent beliefs instead
 of leaving it a terminal artifact. Verification-gated: report-grounded claims are
-extracted and weak claims dropped. The free word-overlap heuristics only *route*
-- a cheap model verdict concludes, so phrasing-level false contradictions are not
-recorded as contested beliefs and two different facts that merely share words
+extracted and weak claims dropped. The free word-overlap heuristics only *route*.
+An initial model YES receives a fresh-context structured disconfirmation pass;
+only two agreeing judgments can record a model-confirmed contradiction edge, so
+phrasing-level false contradictions are not recorded as contested beliefs and
+two different facts that merely share words
 (e.g. "$10/M" vs "$30/M") are not silently merged. Genuine conflicts are flagged
 contested (the existing belief is never overwritten without approval); the rest
-are integrated (deduped) with the report id as provenance.
+are integrated (deduped) with the report id as provenance. Metered runs apply
+one `--budget` ceiling across extraction and every dynamically routed semantic
+verdict, then report aggregate settled cost. Local and explicit non-metered plan
+capacity remain `$0`.
 ```bash
 # Preview what would be absorbed (writes nothing)
 deepr expert absorb "Azure Architect" <job_id> --dry-run
 
 # Absorb (REPORT_ID is the job id, same one you pass to --context; see deepr search)
-deepr expert absorb "Azure Architect" <job_id> --min-confidence 0.7
+deepr expert absorb "Azure Architect" <job_id> --min-confidence 0.7 --budget 0.10
 ```
 
 ### Reflect on a Report (quality gate)
@@ -318,15 +340,34 @@ deepr expert reflect "Azure Architect" <job_id> --depth 2 --json
 ## Knowledge Maintenance
 
 ### Health Check
-Read-only, cost-$0 audit of an expert's knowledge state: freshness, belief
-contradictions, claims missing source provenance, decayed beliefs, lifecycle
+Read-only, cost-$0 audit of an expert's knowledge state: freshness, recorded
+contradiction candidates plus advisory router hits, claims missing source
+provenance, decayed beliefs, lifecycle
 archive candidates, the open-gap backlog, and documents ingested but never
 synthesized. Prints findings plus a recommended-action menu (each action shows
 its command, estimated cost, and the approval tier that would gate it).
+Audit-only human and scheduled JSON output does not create a loop run or imply
+that a recommended action is executing. Scheduled JSON uses
+`deepr-health-check-action-plan-v2`. Explicit `--archive-stale` is a separate
+mutation path and retains durable confirmation, overlap, and completion records.
 Schedulable for periodic self-maintenance.
 ```bash
 deepr expert health-check "Azure Architect"
 deepr expert health-check "Azure Architect" --json   # structured, for agents
+```
+
+### Reconcile Missing Freshness Metadata
+
+If a legacy or interrupted accepted write left an expert with live beliefs but
+no knowledge cutoff, preview a cost-$0 reconciliation from the append-only
+belief event log. The command accepts only an accepted create, update, or
+revision event for a belief that is still live. `--apply` updates profile
+freshness metadata and regenerates a Deepr-derived system message; it does not
+call a provider, edit beliefs, or replace a custom system message.
+
+```bash
+deepr expert reconcile-freshness "Azure Architect"
+deepr expert reconcile-freshness "Azure Architect" --apply -y
 ```
 
 ### Lifecycle Archival (consolidation pass)
@@ -396,9 +437,11 @@ deepr expert what-changed "Azure Architect" --since 7d
 deepr expert what-changed "Azure Architect" --since 2026-06-01 --json
 ```
 
-### Contested (open conflicts)
-Open contradiction pairs with both sides' claims, confidence, and provenance -
-live conflicts surfaced deliberately, never smoothed into a narrative.
+### Contested (recorded candidates)
+Recorded contradiction candidates with both sides' claims, confidence,
+provenance, and `model_confirmed` or `unverified` assurance are surfaced
+deliberately, never smoothed into a narrative. The assurance label describes
+the verification process, not independent semantic ground truth.
 Resolution stays with `expert resolve-conflicts`.
 ```bash
 deepr expert contested "Azure Architect"
@@ -407,7 +450,8 @@ deepr expert contested "Azure Architect"
 ### Why (introspection)
 Why the expert believes something: evidence roots, the confidence trajectory
 from the append-only event log, supporting/derived-from chains walked over the
-typed belief graph, and any open contradictions. Accepts a belief id or claim
+typed belief graph, and any recorded contradiction candidates with assurance.
+Accepts a belief id or claim
 text (fuzzy matched). Use it to debug trust in a claim instead of taking the
 confidence number on faith.
 ```bash
@@ -571,7 +615,8 @@ deepr expert accept-self-model "Azure Architect" data/self_model_updates/azure-a
 
 ### Digest (browsable derived view)
 Compile the belief store into a browsable Markdown digest: beliefs by domain
-sorted by confidence, open contradictions with both sides, graph stats. $0, no
+sorted by confidence, recorded contradiction candidates with both sides and
+verification assurance, graph stats. $0, no
 LLM call, byte-stable for an unchanged store. The digest is a derived view -
 the belief store stays canonical, and the CLI refuses to overwrite a digest
 that lost its derived-view marker (a hand-edited artifact must never silently

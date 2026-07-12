@@ -174,13 +174,13 @@ class AnthropicExpertChatBackend:
 
     def __init__(self, client: Any, *, model: str) -> None:
         self.client = client
-        self.model = model
+        self.model: str | None = model
 
     async def complete(self, request: ExpertChatRequest) -> ExpertChatResult:
         if request.tools:
             raise ExpertChatUnsupportedFeature("anthropic expert-chat backend does not support tools yet")
 
-        model = request.model if request.model.startswith("claude-") else self.model
+        model = request.model if request.model.startswith("claude-") else self.model or request.model
         params = self._build_params(request, model=model)
         response = await self.client.messages.create(**params)
         text = _anthropic_response_text(response)
@@ -199,7 +199,7 @@ class AnthropicExpertChatBackend:
         if request.tools:
             raise ExpertChatUnsupportedFeature("anthropic expert-chat backend does not support tools yet")
 
-        model = request.model if request.model.startswith("claude-") else self.model
+        model = request.model if request.model.startswith("claude-") else self.model or request.model
         params = self._build_params(request, model=model)
         async with self.client.messages.stream(**params) as stream:
             async for text_delta in stream.text_stream:

@@ -3,7 +3,7 @@
 [![CI](https://github.com/blisspixel/deepr/actions/workflows/ci.yml/badge.svg)](https://github.com/blisspixel/deepr/actions/workflows/ci.yml)
 [![License: Apache 2.0](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](LICENSE)
 [![Python 3.12+](https://img.shields.io/badge/python-3.12+-blue.svg)](https://www.python.org/downloads/)
-[![Version](https://img.shields.io/badge/version-2.34.4-blue)](https://github.com/blisspixel/deepr/releases/tag/v2.34.4)
+[![Version](https://img.shields.io/badge/version-2.35.0-blue)](https://github.com/blisspixel/deepr/releases/tag/v2.35.0)
 
 **Domain experts that remember, not another chat window.**
 
@@ -15,8 +15,9 @@ humans or other agents can reuse later.
 
 - Local Ollama is the true `$0` marginal-cost path for quality-tolerant expert
   setup, absorb, sync, eval, and local-context workflows.
-- Explicit plan-quota CLIs run on prepaid or subscription capacity only after
-  deterministic no-surprise-bills checks.
+- Explicit non-metered plan-quota CLIs run on prepaid or subscription capacity
+  only after deterministic no-surprise-bills checks. Metered-at-margin adapters
+  remain visible but blocked until they have complete cost accounting.
 - Cloud APIs remain the strongest full research path when you provide keys and
   a budget ceiling.
 
@@ -115,6 +116,11 @@ powershell -ExecutionPolicy ByPass -c "irm https://raw.githubusercontent.com/bli
 curl -fsSL https://raw.githubusercontent.com/blisspixel/deepr/main/scripts/install.sh | bash
 ```
 
+These installers resolve the latest versioned wheel from GitHub Releases and
+install it with pipx. If GitHub is unavailable or the release has no supported
+wheel, they stop before changing an existing Deepr installation. Public PyPI
+installation is not currently available.
+
 Open a new terminal after install:
 
 ```bash
@@ -151,7 +157,7 @@ Results are saved under the configured reports root, defaulting to
 |---|---|---|
 | API-backed research | Works with provider keys, preflight estimates, budget ceilings, and append-only cost settlement | [docs/FEATURES.md](docs/FEATURES.md), [docs/MODELS.md](docs/MODELS.md) |
 | Local expert maintenance | Works through Ollama for local expert setup, absorb, sync, fresh/deep local context, eval, and scored admission | [docs/CAPACITY.md](docs/CAPACITY.md) |
-| Explicit plan-quota execution | Works for selected expert sync, sync-all, gap-fill, absorb, learn, consult, and probe commands behind auth-mode and no-surprise-bills checks | [docs/CAPACITY.md](docs/CAPACITY.md), [docs/design/plan-quota-cli-backends.md](docs/design/plan-quota-cli-backends.md) |
+| Explicit plan-quota execution | Works for selected non-metered expert sync, sync-all, gap-fill, absorb, learn, consult, and probe commands behind auth-mode and no-surprise-bills checks | [docs/CAPACITY.md](docs/CAPACITY.md), [docs/design/plan-quota-cli-backends.md](docs/design/plan-quota-cli-backends.md) |
 | Domain experts | Works for expert creation, `$0` next-action guidance, chat, consult, beliefs, gaps, loop status, OKF export/import, self-model reads, monitor proposals, reviewed monitor promotion, and self-model update review and acceptance records | [docs/EXPERTS.md](docs/EXPERTS.md) |
 | MCP | Works for local stdio and experimental HTTP/SSE with scoped keys, budgets, rate limits, audit logs, smoke checks, no-metered consult validation, and registration manifests | [mcp/README.md](mcp/README.md) |
 | Web dashboard | Experimental but usable for reports, experts, costs, model views, loop status, and OpenAI-backed research submission; use CLI workflows for other providers | [docs/FEATURES.md](docs/FEATURES.md) |
@@ -162,15 +168,20 @@ the API, web dashboard, and CLI report a retryable failure instead of claiming
 that the job was cancelled.
 
 Automatic routing to plan-quota CLIs is still conservative. Explicit `--plan`
-is the works-now path for selected expert workflows. Auto-routing to plan
-capacity waits for operator admission and trusted remaining-quota observations.
+is the works-now path for selected non-metered expert workflows. Auto-routing
+to plan capacity waits for operator admission and trusted remaining-quota
+observations. Metered-at-margin Copilot is fleet-visible but fails closed before
+execution until deterministic estimation, reservation, usage settlement, and
+canonical cost-ledger support exist.
 
 `deepr init --data-dir PATH` configures expert, report, and operational
 runtime roots below one folder. That folder can be synced for sequential use
 across devices. Setting `DEEPR_DATA_DIR` manually relocates experts and runtime
-state but does not override the separate report root. Stop Deepr services, use
-one writer at a time, and wait for the sync provider to finish before switching
-devices. Concurrent multi-device mutation is not shipped; the staged
+state, including the local queue at `queue/research_queue.db` below that root,
+but does not override the separate report root. `DEEPR_QUEUE_DB_PATH` is the
+explicit queue override. Stop Deepr services, use one writer at a time, and wait
+for the sync provider to finish before switching devices. Concurrent
+multi-device mutation is not shipped; the staged
 event-journal design is documented in
 [multi-device-expert-continuity.md](docs/design/multi-device-expert-continuity.md).
 

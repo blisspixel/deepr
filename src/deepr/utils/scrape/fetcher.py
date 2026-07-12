@@ -5,6 +5,9 @@ import json
 import logging
 import random
 import time
+from collections.abc import Callable
+from enum import Enum
+from typing import Any
 from urllib.parse import urlencode, urljoin, urlparse
 
 import requests
@@ -15,6 +18,9 @@ from .config import USER_AGENTS, ScrapeConfig
 
 logger = logging.getLogger(__name__)
 MAX_SAFE_REDIRECTS = 5
+RESPONSE_CHUNK_BYTES = 64 * 1024
+MAX_ARCHIVE_METADATA_BYTES = 256 * 1024
+ARCHIVE_SNAPSHOT_HOST = "web.archive.org"
 
 # Check if Playwright is available
 PLAYWRIGHT_AVAILABLE = False
@@ -24,6 +30,16 @@ try:
     PLAYWRIGHT_AVAILABLE = True
 except ImportError:
     pass
+
+
+class FetchFailureCode(str, Enum):
+    """Stable machine-readable fetch failure codes."""
+
+    RESPONSE_TOO_LARGE = "response_too_large"
+
+
+class _ResponseBodyTooLargeError(ValueError):
+    """Raised after a response crosses its configured decoded-byte ceiling."""
 
 
 class FetchResult:
@@ -40,6 +56,7 @@ class FetchResult:
         security_blocked: bool = False,
         status_code: int = 0,
         response_headers: dict[str, str] | None = None,
+        error_code: FetchFailureCode | None = None,
     ):
         self.url = url
         self.content = content  # Clean text content
@@ -50,6 +67,7 @@ class FetchResult:
         self.security_blocked = security_blocked
         self.status_code = status_code
         self.response_headers = response_headers or {}
+        self.error_code = error_code
 
 
 class ContentFetcher:
@@ -63,7 +81,22 @@ class ContentFetcher:
             config: Scraping configuration (uses defaults if None)
         """
         self.config = config or ScrapeConfig.from_env()
-        self.last_request_time = {}
+        self.last_request_time: dict[str, float] = {}
+
+    def _strategy_chain(
+        self,
+        headers: dict[str, str] | None,
+    ) -> list[tuple[str, Callable[[str], FetchResult]]]:
+        strategies: list[tuple[str, Callable[[str], FetchResult]]] = []
+        if self.config.try_http:
+            strategies.append(("HTTP", lambda target: self._fetch_http(target, headers=headers)))
+        if PLAYWRIGHT_AVAILABLE and self.config.try_selenium:
+            strategies.append(("Playwright", self._fetch_playwright))
+        if self.config.try_selenium:
+            strategies.append(("Selenium Headless", self._fetch_selenium_headless))
+        if self.config.try_archive:
+            strategies.append(("Archive.org", self._fetch_archive))
+        return strategies
 
     def fetch(self, url: str, *, headers: dict[str, str] | None = None) -> FetchResult:
         """
@@ -107,24 +140,8 @@ class ContentFetcher:
                 error="Blocked by robots.txt",
             )
 
-        # Try strategies in order - HTTP first for speed and deterministic behavior
-        strategies = []
-
-        # HTTP as fast default for simple sites
-        if self.config.try_http:
-            strategies.append(("HTTP", lambda target: self._fetch_http(target, headers=headers)))
-
-        # Playwright fallback for JS-heavy sites
-        if PLAYWRIGHT_AVAILABLE and self.config.try_selenium:
-            strategies.append(("Playwright", self._fetch_playwright))
-
-        # Selenium as legacy fallback
-        if self.config.try_selenium:
-            strategies.append(("Selenium Headless", self._fetch_selenium_headless))
-
-        # Archive.org as last resort
-        if self.config.try_archive:
-            strategies.append(("Archive.org", self._fetch_archive))
+        # Try strategies in order - HTTP first for speed and deterministic behavior.
+        strategies = self._strategy_chain(headers)
 
         for strategy_name, strategy_func in strategies:
             logger.info(f"Trying strategy: {strategy_name}")
@@ -134,7 +151,10 @@ class ContentFetcher:
                 return result
             if result.security_blocked:
                 return result
-            logger.warning(f"{strategy_name} failed: {result.error}")
+            if result.error_code is FetchFailureCode.RESPONSE_TOO_LARGE:
+                return result
+            if getattr(self.config, "log_strategy_failures", True):
+                logger.warning(f"{strategy_name} failed: {result.error}")
 
         # All strategies failed
         return FetchResult(
@@ -143,7 +163,7 @@ class ContentFetcher:
             error="All fetch strategies failed",
         )
 
-    def _rate_limit(self, url: str):
+    def _rate_limit(self, url: str) -> None:
         """Apply rate limiting per host."""
         host = urlparse(url).netloc
         last_time = self.last_request_time.get(host, 0)
@@ -204,49 +224,45 @@ class ContentFetcher:
                         headers=request_headers,
                         timeout=self.config.timeout,
                         allow_redirects=False,
+                        stream=True,
                     )
                     if not response.is_redirect:
                         break
-                    location = response.headers.get("Location", "")
-                    if not location:
-                        return FetchResult(url=url, success=False, error="Redirect missing Location header")
-                    next_url = urljoin(current_url, location)
                     try:
-                        validate_url(next_url, allow_private=False)
-                    except SSRFError as redirect_error:
-                        logger.warning("SSRF protection blocked redirect target: %s", next_url)
-                        return FetchResult(
-                            url=url,
-                            success=False,
-                            error=f"Redirect target blocked for security reasons: {redirect_error}",
-                            security_blocked=True,
-                        )
-                    if redirect_count >= MAX_SAFE_REDIRECTS:
-                        return FetchResult(url=url, success=False, error="Too many redirects")
-                    current_url = next_url
+                        redirect_target = self._redirect_target(response, current_url, url, redirect_count)
+                    finally:
+                        response.close()
+                    if isinstance(redirect_target, FetchResult):
+                        return redirect_target
+                    current_url = redirect_target
                 else:
                     return FetchResult(url=url, success=False, error="Too many redirects")
 
-                if response.status_code == 304:
+                try:
+                    if response.status_code == 304:
+                        return FetchResult(
+                            url=current_url,
+                            strategy="HTTP",
+                            success=True,
+                            status_code=response.status_code,
+                            response_headers=dict(response.headers),
+                        )
+
+                    response.raise_for_status()
+                    text = self._read_response_text(response, self.config.max_response_bytes)
                     return FetchResult(
                         url=current_url,
+                        html=text,
+                        content=text,  # Will be cleaned by extractor
                         strategy="HTTP",
                         success=True,
                         status_code=response.status_code,
                         response_headers=dict(response.headers),
                     )
-
-                response.raise_for_status()
-
-                return FetchResult(
-                    url=current_url,
-                    html=response.text,
-                    content=response.text,  # Will be cleaned by extractor
-                    strategy="HTTP",
-                    success=True,
-                    status_code=response.status_code,
-                    response_headers=dict(response.headers),
-                )
+                except _ResponseBodyTooLargeError:
+                    return self._response_too_large_result(current_url, response, "HTTP")
+                finally:
+                    response.close()
 
             except requests.exceptions.RequestException as e:
                 logger.debug(f"HTTP attempt {attempt + 1} failed: {e}")
@@ -257,6 +273,187 @@ class ContentFetcher:
             url=url,
             success=False,
             error="HTTP request failed after retries",
+        )
+
+    @staticmethod
+    def _redirect_target(
+        response: requests.Response,
+        current_url: str,
+        original_url: str,
+        redirect_count: int,
+    ) -> str | FetchResult:
+        """Validate and return the next redirect target or a terminal failure."""
+        location = response.headers.get("Location", "")
+        if not location:
+            return FetchResult(url=original_url, success=False, error="Redirect missing Location header")
+        try:
+            next_url = urljoin(current_url, location)
+        except ValueError as redirect_error:
+            return FetchResult(
+                url=original_url,
+                success=False,
+                error=f"Redirect target blocked for security reasons: {redirect_error}",
+                security_blocked=True,
+            )
+        try:
+            validate_url(next_url, allow_private=False)
+        except SSRFError as redirect_error:
+            logger.warning("SSRF protection blocked redirect target: %s", next_url)
+            return FetchResult(
+                url=original_url,
+                success=False,
+                error=f"Redirect target blocked for security reasons: {redirect_error}",
+                security_blocked=True,
+            )
+        if redirect_count >= MAX_SAFE_REDIRECTS:
+            return FetchResult(url=original_url, success=False, error="Too many redirects")
+        return next_url
+
+    @staticmethod
+    def _declared_body_length(response: requests.Response) -> int | None:
+        """Return Content-Length only when it describes decoded body bytes."""
+        if response.headers.get("Transfer-Encoding"):
+            return None
+        content_encoding = response.headers.get("Content-Encoding", "").strip().lower()
+        if content_encoding and content_encoding != "identity":
+            return None
+        raw_length = response.headers.get("Content-Length")
+        if raw_length is None:
+            return None
+        try:
+            declared_length = int(raw_length)
+        except ValueError:
+            return None
+        return declared_length if declared_length >= 0 else None
+
+    @classmethod
+    def _read_response_body(cls, response: requests.Response, limit: int) -> bytearray:
+        """Read at most limit plus one decoded bytes from a streamed response."""
+        declared_length = cls._declared_body_length(response)
+        if declared_length is not None and declared_length > limit:
+            raise _ResponseBodyTooLargeError
+
+        body = bytearray()
+        chunk_size = min(RESPONSE_CHUNK_BYTES, limit + 1)
+        for chunk in response.iter_content(chunk_size=chunk_size):
+            if not chunk:
+                continue
+            remaining = limit + 1 - len(body)
+            body.extend(chunk[:remaining])
+            if len(body) > limit:
+                raise _ResponseBodyTooLargeError
+        return body
+
+    @classmethod
+    def _read_response_text(cls, response: requests.Response, limit: int) -> str:
+        """Read a bounded response and decode it only after the byte check."""
+        body = cls._read_response_body(response, limit)
+        encoding = response.encoding or "utf-8"
+        try:
+            return body.decode(encoding, errors="replace")
+        except LookupError:
+            return body.decode("utf-8", errors="replace")
+
+    def _response_too_large_result(
+        self,
+        url: str,
+        response: requests.Response,
+        strategy: str,
+        limit: int | None = None,
+    ) -> FetchResult:
+        response_limit = self.config.max_response_bytes if limit is None else limit
+        return FetchResult(
+            url=url,
+            strategy=strategy,
+            success=False,
+            error=f"Response body exceeds configured maximum of {response_limit} bytes",
+            error_code=FetchFailureCode.RESPONSE_TOO_LARGE,
+            status_code=response.status_code,
+            response_headers=dict(response.headers),
+        )
+
+    @staticmethod
+    def _validate_archive_snapshot_start(original_url: str, snapshot_url: object) -> str | FetchResult:
+        """Validate an untrusted Wayback snapshot URL before dispatch."""
+        if not isinstance(snapshot_url, str):
+            return FetchResult(
+                url=original_url,
+                strategy="Archive.org",
+                success=False,
+                error="Archive.org snapshot URL is invalid",
+                security_blocked=True,
+            )
+        try:
+            snapshot_host = urlparse(snapshot_url).hostname
+        except ValueError:
+            snapshot_host = None
+        if snapshot_host != ARCHIVE_SNAPSHOT_HOST:
+            return FetchResult(
+                url=original_url,
+                strategy="Archive.org",
+                success=False,
+                error="Archive.org snapshot URL has an unexpected host",
+                security_blocked=True,
+            )
+        try:
+            validate_url(snapshot_url, allow_private=False)
+        except SSRFError as snapshot_error:
+            return FetchResult(
+                url=original_url,
+                strategy="Archive.org",
+                success=False,
+                error=f"Archive.org snapshot URL blocked for security reasons: {snapshot_error}",
+                security_blocked=True,
+            )
+        return snapshot_url
+
+    def _fetch_archive_snapshot(self, original_url: str, snapshot_url: object) -> FetchResult:
+        """Fetch a Wayback snapshot through bounded, SSRF-checked redirects."""
+        validated_start = self._validate_archive_snapshot_start(original_url, snapshot_url)
+        if isinstance(validated_start, FetchResult):
+            return validated_start
+
+        current_url = validated_start
+        for redirect_count in range(MAX_SAFE_REDIRECTS + 1):
+            response = requests.get(
+                current_url,
+                timeout=self.config.timeout,
+                allow_redirects=False,
+                stream=True,
+            )
+            if response.is_redirect:
+                try:
+                    redirect_target = self._redirect_target(response, current_url, original_url, redirect_count)
+                finally:
+                    response.close()
+                if isinstance(redirect_target, FetchResult):
+                    redirect_target.strategy = "Archive.org"
+                    return redirect_target
+                current_url = redirect_target
+                continue
+
+            try:
+                response.raise_for_status()
+                text = self._read_response_text(response, self.config.max_response_bytes)
+                return FetchResult(
+                    url=original_url,
+                    html=text,
+                    content=text,
+                    strategy="Archive.org",
+                    success=True,
+                    status_code=response.status_code,
+                    response_headers=dict(response.headers),
+                )
+            except _ResponseBodyTooLargeError:
+                return self._response_too_large_result(original_url, response, "Archive.org")
+            finally:
+                response.close()
+
+        return FetchResult(
+            url=original_url,
+            strategy="Archive.org",
+            success=False,
+            error="Too many redirects",
         )
 
     def _fetch_playwright(self, url: str) -> FetchResult:
@@ -312,7 +509,7 @@ class ContentFetcher:
                     viewport={"width": 1920, "height": 1080},
                 )
 
-                async def _ssrf_guard(route, request_obj):
+                async def _ssrf_guard(route: Any, request_obj: Any) -> None:
                     """Abort any browser request that targets a private/internal host."""
                     try:
                         target = request_obj.url
@@ -528,24 +725,23 @@ class ContentFetcher:
         try:
             # Try to get latest snapshot
             archive_url = f"https://archive.org/wayback/available?{urlencode({'url': url})}"
-            response = requests.get(archive_url, timeout=10)
-            response.raise_for_status()
-
-            data = response.json()
+            response = requests.get(archive_url, timeout=10, stream=True)
+            try:
+                response.raise_for_status()
+                metadata_text = self._read_response_text(response, MAX_ARCHIVE_METADATA_BYTES)
+                data = json.loads(metadata_text)
+            except _ResponseBodyTooLargeError:
+                return self._response_too_large_result(
+                    url,
+                    response,
+                    "Archive.org",
+                    limit=MAX_ARCHIVE_METADATA_BYTES,
+                )
+            finally:
+                response.close()
             if data.get("archived_snapshots", {}).get("closest"):
                 snapshot_url = data["archived_snapshots"]["closest"]["url"]
-
-                # Fetch the archived page
-                snapshot_response = requests.get(snapshot_url, timeout=self.config.timeout)
-                snapshot_response.raise_for_status()
-
-                return FetchResult(
-                    url=url,
-                    html=snapshot_response.text,
-                    content=snapshot_response.text,
-                    strategy="Archive.org",
-                    success=True,
-                )
+                return self._fetch_archive_snapshot(url, snapshot_url)
 
             return FetchResult(
                 url=url,
@@ -553,7 +749,7 @@ class ContentFetcher:
                 error="No archive.org snapshot available",
             )
 
-        except (requests.RequestException, json.JSONDecodeError, KeyError, ValueError) as e:
+        except (requests.RequestException, json.JSONDecodeError, AttributeError, KeyError, TypeError, ValueError) as e:
             return FetchResult(
                 url=url,
                 success=False,

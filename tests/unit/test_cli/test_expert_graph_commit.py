@@ -58,6 +58,10 @@ def test_apply_graph_commit_json_dry_run_does_not_write(tmp_path):
     assert payload["summary"]["status"] == "dry_run"
     assert payload["summary"]["planned_write_count"] == 1
     assert BeliefStore(profile.name).beliefs == {}
+    unchanged = ExpertStore().load(profile.name)
+    assert unchanged is not None
+    assert unchanged.knowledge_cutoff_date is None
+    assert unchanged.last_knowledge_refresh is None
 
 
 def test_apply_graph_commit_json_apply_requires_yes_in_noninteractive_mode(tmp_path):
@@ -96,6 +100,10 @@ def test_apply_graph_commit_json_apply_writes_with_yes(tmp_path):
     assert payload["summary"]["status"] == "applied"
     assert payload["summary"]["applied_write_count"] == 1
     assert BeliefStore(profile.name).beliefs["b1"].claim == "Release text changed the compiler behavior."
+    updated = ExpertStore().load(profile.name)
+    assert updated is not None
+    assert updated.knowledge_cutoff_date is not None
+    assert updated.last_knowledge_refresh == updated.knowledge_cutoff_date
 
 
 def test_apply_graph_commit_json_apply_promotes_gap_with_yes(tmp_path):
@@ -116,6 +124,10 @@ def test_apply_graph_commit_json_apply_promotes_gap_with_yes(tmp_path):
     assert payload["summary"]["applied_write_count"] == 1
     assert payload["contract"]["writes_expert_state"] is True
     assert topic in MetaCognitionTracker(profile.name).knowledge_gaps
+    unchanged = ExpertStore().load(profile.name)
+    assert unchanged is not None
+    assert unchanged.knowledge_cutoff_date is None
+    assert unchanged.last_knowledge_refresh is None
 
 
 def test_apply_graph_commit_json_apply_promotes_agenda_with_yes(tmp_path):

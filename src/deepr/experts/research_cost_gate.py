@@ -238,14 +238,19 @@ def settle_research_cost(
     tokens: int = 0,
     request_id: str = "",
     source: str,
+    actual_cost_reported: bool | None = None,
+    settlement_metadata: dict[str, Any] | None = None,
 ) -> None:
     """Settle a reservation and append one idempotent canonical ledger event."""
     reported = float(actual_cost) if actual_cost is not None else reservation.estimated_cost
     settled_cost = max(0.0, reported)
-    event_metadata = {
-        "estimated_cost_usd": reservation.estimated_cost,
-        "actual_cost_reported": actual_cost is not None,
-    }
+    event_metadata = dict(settlement_metadata or {})
+    event_metadata.update(
+        {
+            "estimated_cost_usd": reservation.estimated_cost,
+            "actual_cost_reported": actual_cost is not None if actual_cost_reported is None else actual_cost_reported,
+        }
+    )
     idempotency_key = f"job:{reservation.job_id}:completion"
 
     def record() -> None:

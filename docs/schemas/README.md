@@ -64,7 +64,8 @@ All v1 schemas are additive within the same schema version:
 | `deepr-scheduled-gap-fill-wait-v1` | [scheduled-gap-fill-wait-v1.json](scheduled-gap-fill-wait-v1.json) | Read-only scheduled gap-fill wait payload with routed gaps and safe next actions |
 | `deepr-scheduled-reflection-wait-v1` | [scheduled-reflection-wait-v1.json](scheduled-reflection-wait-v1.json) | Read-only scheduled reflection wait payload for evaluator and follow-up capacity gates |
 | `deepr-scheduled-reflection-run-v1` | [scheduled-reflection-run-v1.json](scheduled-reflection-run-v1.json) | Scheduled reflection run on admitted owned/prepaid capacity, with capacity source and follow-up dispatch state |
-| `deepr-health-check-action-plan-v1` | [health-check-action-plan-v1.json](health-check-action-plan-v1.json) | Read-only scheduled health-check action plan with per-action scheduler status |
+| `deepr-health-check-action-plan-v1` | [health-check-action-plan-v1.json](health-check-action-plan-v1.json) | Legacy scheduled health-check action plan retained for compatibility; runtime could attach a loop run despite its read-only declaration |
+| `deepr-health-check-action-plan-v2` | [health-check-action-plan-v2.json](health-check-action-plan-v2.json) | Read-only scheduled health-check action plan without a persisted or pending loop run |
 | `deepr-health-check-archive-confirmation-v1` | [health-check-archive-confirmation-v1.json](health-check-archive-confirmation-v1.json) | Read-only scheduled health-check archive wait payload for reversible stale-belief cleanup or overlap lock contention |
 | `deepr-cli-operation-result-v1` | [cli-operation-result-v1.json](cli-operation-result-v1.json) | Stable `OperationResult` envelope emitted by shared CLI `--json` output helpers |
 

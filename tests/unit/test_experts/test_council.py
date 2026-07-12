@@ -443,8 +443,10 @@ Unified answer.
 
     class FakeCompletions:
         async def create(self, **kwargs):
+            assert "reasoning_effort" not in kwargs
+            assert "extra_body" not in kwargs
             prompt = kwargs["messages"][1]["content"]
-            assert "MATH AND STATISTICS" in prompt
+            assert "Include quantitative analysis only" in prompt
             assert "EXECUTION PLAN" in prompt
             assert "DISAGREEMENTS" in prompt
             return SimpleNamespace(
@@ -479,7 +481,15 @@ Local answer.
     class FakeCompletions:
         async def create(self, **kwargs):
             assert kwargs["model"] == "qwen-local"
-            return SimpleNamespace(choices=[SimpleNamespace(message=SimpleNamespace(content=text))], usage=None)
+            assert kwargs["max_tokens"] == 1200
+            assert kwargs["extra_body"] == {"reasoning_effort": "none"}
+            prompt = kwargs["messages"][1]["content"]
+            assert prompt.index("AGREEMENTS") < prompt.index("SYNTHESIS")
+            assert "only when the supplied evidence supports it" in prompt
+            return SimpleNamespace(
+                choices=[SimpleNamespace(message=SimpleNamespace(content=text), finish_reason="stop")],
+                usage=None,
+            )
 
     fake_client = SimpleNamespace(chat=SimpleNamespace(completions=FakeCompletions()))
 
@@ -496,6 +506,119 @@ Local answer.
     assert result["cost"] == 0.0
     assert result["agreements"] == ["Local agreement"]
     assert result["cost_estimated"] is False
+    assert result["stop_reason"] == "stop"
+    assert result["synthesis_status"] == "completed"
+
+
+@pytest.mark.asyncio
+async def test_plan_synthesis_does_not_receive_local_reasoning_control():
+    class FakeCompletions:
+        async def create(self, **kwargs):
+            assert "reasoning_effort" not in kwargs
+            assert "extra_body" not in kwargs
+            return SimpleNamespace(
+                choices=[
+                    SimpleNamespace(
+                        message=SimpleNamespace(content="### SYNTHESIS:\nPlan answer."),
+                        finish_reason="stop",
+                    )
+                ],
+                usage=None,
+            )
+
+    fake_client = SimpleNamespace(chat=SimpleNamespace(completions=FakeCompletions()))
+    result = await ExpertCouncil(
+        synthesis_client=fake_client,
+        synthesis_model="codex",
+        synthesis_provider="plan_quota:codex",
+    )._synthesise(
+        "q",
+        [ExpertPerspective(expert_name="A", domain="d", response="r")],
+        budget=0.0,
+    )
+
+    assert result["text"] == "### SYNTHESIS:\nPlan answer."
+    assert result["cost"] == 0.0
+    assert result["synthesis_status"] == "completed"
+
+
+@pytest.mark.asyncio
+async def test_openai_shape_output_limit_is_reported_as_truncated():
+    text = """### AGREEMENTS:
+- Shared point
+
+### DISAGREEMENTS:
+- Unresolved dissent
+
+### SYNTHESIS:
+Partial answer
+"""
+
+    class FakeCompletions:
+        async def create(self, **_kwargs):
+            return SimpleNamespace(
+                choices=[SimpleNamespace(message=SimpleNamespace(content=text), finish_reason="length")],
+                usage=None,
+            )
+
+    fake_client = SimpleNamespace(chat=SimpleNamespace(completions=FakeCompletions()))
+    result = await ExpertCouncil(
+        synthesis_client=fake_client,
+        synthesis_model="qwen-local",
+        synthesis_provider="local",
+    )._synthesise(
+        "q",
+        [ExpertPerspective(expert_name="A", domain="d", response="r")],
+        budget=0.0,
+    )
+
+    assert result["agreements"] == ["Shared point"]
+    assert result["disagreements"] == ["Unresolved dissent"]
+    assert result["stop_reason"] == "length"
+    assert result["synthesis_status"] == "truncated"
+    assert result["synthesis_error_type"] == "OutputLimit"
+
+
+@pytest.mark.asyncio
+async def test_local_reasoning_only_output_stays_typed_and_never_becomes_answer():
+    calls = 0
+
+    class FakeCompletions:
+        async def create(self, **kwargs):
+            nonlocal calls
+            calls += 1
+            assert kwargs["extra_body"] == {"reasoning_effort": "none"}
+            return SimpleNamespace(
+                choices=[
+                    SimpleNamespace(
+                        message=SimpleNamespace(content=None, reasoning_content="private chain of thought"),
+                        finish_reason="length",
+                    )
+                ],
+                usage=None,
+            )
+
+    fake_client = SimpleNamespace(chat=SimpleNamespace(completions=FakeCompletions()))
+    result = await ExpertCouncil(
+        synthesis_client=fake_client,
+        synthesis_model="qwen-thinking-local",
+        synthesis_provider="local",
+    )._synthesise(
+        "q",
+        [ExpertPerspective(expert_name="A", domain="d", response="r")],
+        budget=0.0,
+    )
+
+    assert calls == 1
+    assert result["text"] == (
+        "Synthesis incomplete: the model reached its output limit before emitting a visible answer."
+    )
+    assert "private chain of thought" not in result["text"]
+    assert result["agreements"] == []
+    assert result["disagreements"] == []
+    assert result["stop_reason"] == "length"
+    assert result["synthesis_status"] == "truncated"
+    assert result["synthesis_error_type"] == "OutputLimit"
 
 
 @pytest.mark.asyncio
@@ -542,7 +665,7 @@ Anthropic answer.
     messages = captured["messages"]
     assert isinstance(messages, list)
     assert messages[0]["role"] == "user"
-    assert "MATH AND STATISTICS" in messages[0]["content"]
+    assert "Include quantitative analysis only" in messages[0]["content"]
     assert result["agreements"] == ["Anthropic agreement"]
     assert result["tokens_input"] == 1700
     assert result["tokens_output"] == 200

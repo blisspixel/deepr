@@ -56,7 +56,8 @@ class TestDigest:
         store.add_contested_belief(_belief("X is not true", confidence=0.9), [existing])
 
         digest = build_digest(store)
-        assert "## Open Contradictions" in digest
+        assert "## Recorded Contradiction Candidates" in digest
+        assert "0 model-confirmed, 1 unverified" in digest
         assert "X is true" in digest and "X is not true" in digest
         assert "resolve-conflicts" in digest
         assert "[contested x1]" in digest  # flags on the belief lines too

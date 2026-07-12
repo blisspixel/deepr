@@ -15,6 +15,7 @@ from typing import Any
 
 import click
 
+from deepr.backends.local_capacity import LocalCapacityObservation, LocalCapacityState
 from deepr.cli.colors import console, print_error, print_warning
 from deepr.evals.recall_quality import (
     LEXICAL_ROUTE as RECALL_LEXICAL_ROUTE,
@@ -30,6 +31,72 @@ from deepr.experts.recall_preference import belief_index_coverage, validate_pref
 
 SYNC_CAPACITY_GATE_KIND = "deepr.expert.sync_capacity_gate"
 SYNC_CAPACITY_GATE_SCHEMA_VERSION = "deepr-sync-capacity-gate-v1"
+
+
+def _retry_flag(enabled: bool, flag: str) -> list[str]:
+    return [flag] if enabled else []
+
+
+def _retry_option(value: str | None, flag: str) -> list[str]:
+    return [flag, value] if value else []
+
+
+def _retry_backend_argv(*, local: bool, api: bool, plan: str | None) -> list[str]:
+    if local:
+        return ["--local"]
+    if api:
+        return ["--api"]
+    if plan:
+        return ["--plan", plan]
+    return []
+
+
+def _sync_retry_command_argv(
+    *,
+    name: str,
+    budget: float,
+    sync_all: bool,
+    local: bool,
+    api: bool,
+    plan: str | None,
+    plan_model: str | None,
+    check_grounding: bool,
+    compile_claims: bool,
+    stage_compiled_claims: bool,
+    apply_compiled_claims: bool,
+    recall_embedding_model: str | None,
+    recall_preference_report: str | None,
+    checker_plan: str | None,
+    checker_plan_model: str | None,
+    second_checker_plan: str | None,
+    second_checker_plan_model: str | None,
+    fresh_context: bool,
+    deep_context: bool,
+    jitter: float,
+    yes: bool,
+    json_output: bool,
+) -> list[str]:
+    """Rebuild one scheduled sync request as argument-safe argv."""
+    argv = ["deepr", "expert", "sync", name, "--scheduled", "--budget", f"{budget:g}"]
+    argv += _retry_flag(sync_all, "--all")
+    argv += _retry_backend_argv(local=local, api=api, plan=plan)
+    argv += _retry_option(plan_model, "--plan-model")
+    argv += _retry_flag(check_grounding, "--check-grounding")
+    argv += _retry_flag(compile_claims, "--compile-claims")
+    argv += _retry_flag(stage_compiled_claims, "--stage-compiled-claims")
+    argv += _retry_flag(apply_compiled_claims, "--apply-compiled-claims")
+    argv += _retry_option(recall_embedding_model, "--recall-embedding-model")
+    argv += _retry_option(recall_preference_report, "--recall-preference-report")
+    argv += _retry_option(checker_plan, "--checker-plan")
+    argv += _retry_option(checker_plan_model, "--checker-plan-model")
+    argv += _retry_option(second_checker_plan, "--second-checker-plan")
+    argv += _retry_option(second_checker_plan_model, "--second-checker-plan-model")
+    argv += _retry_flag(fresh_context, "--fresh-context")
+    argv += _retry_flag(deep_context, "--deep-context")
+    argv += _retry_option(f"{jitter:g}" if jitter > 0 else None, "--jitter")
+    argv += _retry_flag(yes, "--yes")
+    argv += _retry_flag(json_output, "--json")
+    return argv
 
 
 def _self_model_context(expert_name: str, *, profile: Any | None = None) -> dict[str, Any]:
@@ -116,6 +183,8 @@ def _build_sync_capacity_payload(
     status: str,
     detail: str,
     profile: Any | None = None,
+    local_capacity: LocalCapacityObservation | None = None,
+    command_argv: list[str] | None = None,
 ) -> dict[str, Any]:
     from deepr.backends.admission import TASK_CLASS_SYNC
     from deepr.backends.capacity_actions import (
@@ -130,8 +199,24 @@ def _build_sync_capacity_payload(
         context_mode=context_mode,
         scheduled=scheduled,
     )
-    actions = build_capacity_next_actions(task_class=TASK_CLASS_SYNC, job_context=job_context)
-    payload = {
+    if local_capacity is not None and local_capacity.state == LocalCapacityState.BUSY:
+        from deepr.backends.capacity_actions import CapacityNextAction
+
+        actions = [
+            CapacityNextAction(
+                1,
+                "wait",
+                "Local GPU capacity is busy",
+                "The selected local GPU step is deferred; no plan or metered fallback was dispatched.",
+            )
+        ]
+    else:
+        actions = build_capacity_next_actions(
+            task_class=TASK_CLASS_SYNC,
+            job_context=job_context,
+            local_capacity=local_capacity,
+        )
+    payload: dict[str, Any] = {
         "schema_version": SYNC_CAPACITY_GATE_SCHEMA_VERSION,
         "kind": SYNC_CAPACITY_GATE_KIND,
         "contract": {
@@ -147,8 +232,18 @@ def _build_sync_capacity_payload(
         "status": status,
         "expert_name": expert_name,
         "detail": detail,
-        "capacity_next": build_capacity_next_payload(job_context, actions),
+        "capacity_next": build_capacity_next_payload(
+            job_context,
+            actions,
+            local_capacity=local_capacity,
+        ),
     }
+    if local_capacity is not None:
+        payload["local_capacity"] = local_capacity.to_dict()
+    if command_argv is not None:
+        payload["requested_operation"] = {"command_argv": list(command_argv)}
+        if payload["capacity_next"]["actions"]:
+            payload["capacity_next"]["actions"][0]["command_argv"] = [list(command_argv)]
     self_model = _self_model_context(expert_name, profile=profile)
     if self_model:
         payload["self_model"] = self_model
@@ -171,6 +266,11 @@ def _emit_scheduled_capacity_wait(
     json_output: bool,
     detail: str,
     profile: Any | None = None,
+    local_capacity: LocalCapacityObservation | None = None,
+    budget_limit: float | None = None,
+    command_argv: list[str] | None = None,
+    capacity_source: str = "owned/prepaid",
+    backend_profile_id: str = "",
 ) -> None:
     payload = _build_sync_capacity_payload(
         expert_name,
@@ -179,21 +279,53 @@ def _emit_scheduled_capacity_wait(
         status="waiting_for_capacity",
         detail=detail,
         profile=profile,
+        local_capacity=local_capacity,
+        command_argv=command_argv,
     )
-    from deepr.experts.loop_runs import LoopRunStatus, LoopStopReason, record_loop_run
+    if local_capacity is not None and local_capacity.state == LocalCapacityState.BUSY:
+        from deepr.experts.scheduled_local_capacity import record_scheduled_local_capacity_wait
 
-    loop_run = record_loop_run(
-        expert_name=expert_name,
-        loop_type="sync",
-        goal=f"Sync due subscriptions for {expert_name}",
-        trigger="scheduled",
-        status=LoopRunStatus.WAITING,
-        stop_reason=LoopStopReason.CAPACITY_UNAVAILABLE,
-        next_action=(payload["capacity_next"]["actions"][0] if payload["capacity_next"]["actions"] else {}),
-        run_context=_self_model_run_context(expert_name, profile=profile),
-        capacity_source="owned/prepaid",
-    )
-    payload["loop_run"] = loop_run.to_dict()
+        if command_argv is None:
+            raise ValueError("local-capacity waits require command_argv")
+        wait = record_scheduled_local_capacity_wait(
+            expert_name=expert_name,
+            loop_type="sync",
+            goal=f"Sync due subscriptions for {expert_name}",
+            observation=local_capacity,
+            command_argv=command_argv,
+            budget_limit=budget_limit,
+            base_run_context=_self_model_run_context(expert_name, profile=profile),
+            capacity_source=capacity_source,
+            backend_profile_id=backend_profile_id,
+        )
+        payload.update(wait.to_dict())
+    else:
+        from deepr.experts.loop_runs import LoopRunStatus, LoopStopReason, record_loop_run
+
+        next_action = dict(payload["capacity_next"]["actions"][0]) if payload["capacity_next"]["actions"] else {}
+        run_context = _self_model_run_context(expert_name, profile=profile)
+        if command_argv is not None:
+            requested_operation = {
+                "command_argv": list(command_argv),
+                "capacity_source": capacity_source,
+                "backend_profile_id": backend_profile_id,
+            }
+            next_action["command_argv"] = [list(command_argv)]
+            run_context["requested_operation"] = requested_operation
+            payload["requested_operation"] = requested_operation
+        loop_run = record_loop_run(
+            expert_name=expert_name,
+            loop_type="sync",
+            goal=f"Sync due subscriptions for {expert_name}",
+            trigger="scheduled",
+            status=LoopRunStatus.WAITING,
+            stop_reason=LoopStopReason.CAPACITY_UNAVAILABLE,
+            next_action=next_action,
+            run_context=run_context,
+            capacity_source=capacity_source,
+            backend_profile_id=backend_profile_id,
+        )
+        payload["loop_run"] = loop_run.to_dict()
     if json_output:
         click.echo(json.dumps(payload, indent=2))
         return
@@ -236,8 +368,16 @@ def _record_completed_sync_loop(
     sync_all: bool,
     capacity_source: str,
     profile: Any | None = None,
+    run_id: str | None = None,
+    started_at: datetime | None = None,
+    finished_at: datetime | None = None,
 ) -> Any:
     from deepr.experts.loop_runs import LoopRunStatus, LoopStopReason, record_loop_run
+
+    if profile is not None and getattr(result, "knowledge_observed_at", None) is not None:
+        from deepr.experts.profile import ExpertStore
+
+        ExpertStore().save(profile)
 
     outcomes = list(getattr(result, "outcomes", []) or [])
     failed = [o for o in outcomes if getattr(o, "status", "") == "failed"]
@@ -259,6 +399,7 @@ def _record_completed_sync_loop(
         next_action = {}
 
     return record_loop_run(
+        run_id=run_id,
         expert_name=expert_name,
         loop_type="sync",
         goal=f"Sync {'all' if sync_all else 'due'} subscriptions for {expert_name}",
@@ -272,7 +413,90 @@ def _record_completed_sync_loop(
         capacity_source=capacity_source,
         accepted_changes=accepted,
         rejected_changes=len(failed),
+        started_at=started_at,
+        finished_at=finished_at,
     )
+
+
+def _record_running_sync_loop(
+    expert_name: str,
+    *,
+    run_id: str,
+    started_at: datetime,
+    budget: float,
+    scheduled: bool,
+    sync_all: bool,
+    capacity_source: str,
+    profile: Any | None = None,
+) -> Any:
+    from deepr.experts.loop_runs import LoopRunStatus, record_loop_run
+
+    return record_loop_run(
+        run_id=run_id,
+        expert_name=expert_name,
+        loop_type="sync",
+        goal=f"Sync {'all' if sync_all else 'due'} subscriptions for {expert_name}",
+        trigger="scheduled" if scheduled else "manual",
+        status=LoopRunStatus.RUNNING,
+        stop_reason=None,
+        run_context=_self_model_run_context(expert_name, profile=profile),
+        budget_limit=budget,
+        budget_spent=0.0,
+        capacity_source=capacity_source,
+        started_at=started_at,
+        updated_at=started_at,
+    )
+
+
+def _record_failed_sync_execution(
+    expert_name: str,
+    *,
+    run_id: str,
+    started_at: datetime,
+    finished_at: datetime,
+    budget: float,
+    scheduled: bool,
+    sync_all: bool,
+    capacity_source: str,
+    exception: Exception,
+    profile: Any | None = None,
+    budget_spent: float | None = None,
+) -> Any:
+    from deepr.experts.loop_runs import LoopRunStatus, LoopStopReason, record_loop_run
+
+    known_spent = _known_spent_cost(exception)
+    if budget_spent is not None:
+        known_spent = max(known_spent, budget_spent)
+    return record_loop_run(
+        run_id=run_id,
+        expert_name=expert_name,
+        loop_type="sync",
+        goal=f"Sync {'all' if sync_all else 'due'} subscriptions for {expert_name}",
+        trigger="scheduled" if scheduled else "manual",
+        status=LoopRunStatus.FAILED,
+        stop_reason=LoopStopReason.TOOL_FAILURE,
+        next_action={
+            "status": "inspect",
+            "title": "Inspect interrupted sync execution",
+            "detail": "Sync raised before it could produce a result.",
+            "command": f'deepr expert sync "{expert_name}" --dry-run',
+        },
+        run_context=_self_model_run_context(expert_name, profile=profile),
+        budget_limit=budget,
+        budget_spent=known_spent,
+        capacity_source=capacity_source,
+        failure_reason=f"sync execution failed: {type(exception).__name__}",
+        started_at=started_at,
+        updated_at=finished_at,
+        finished_at=finished_at,
+    )
+
+
+def _known_spent_cost(exception: Exception) -> float:
+    """Return the greatest trustworthy non-negative cost carried by an error chain."""
+    from deepr.experts.loop_runs import known_exception_cost
+
+    return known_exception_cost(exception)
 
 
 def _record_sync_overlap_loop(
@@ -563,7 +787,37 @@ def _run_sync_with_loop_guard(
                 profile=profile,
             )
             return result, loop_run, capacity_source
-        result, capacity_source = run_once()
+        from deepr.experts.loop_runs import new_loop_run_id
+
+        run_id = new_loop_run_id()
+        started_at = datetime.now(UTC)
+        _record_running_sync_loop(
+            name,
+            run_id=run_id,
+            started_at=started_at,
+            budget=budget,
+            scheduled=scheduled,
+            sync_all=sync_all,
+            capacity_source=capacity_source,
+            profile=profile,
+        )
+        try:
+            result, capacity_source = run_once()
+        except Exception as exc:
+            _record_failed_sync_execution(
+                name,
+                run_id=run_id,
+                started_at=started_at,
+                finished_at=datetime.now(UTC),
+                budget=budget,
+                scheduled=scheduled,
+                sync_all=sync_all,
+                capacity_source=capacity_source,
+                exception=exc,
+                profile=profile,
+            )
+            raise
+        finished_at = datetime.now(UTC)
         loop_run = _record_completed_sync_loop(
             name,
             result,
@@ -572,6 +826,9 @@ def _run_sync_with_loop_guard(
             sync_all=sync_all,
             capacity_source=capacity_source,
             profile=profile,
+            run_id=run_id,
+            started_at=started_at,
+            finished_at=finished_at,
         )
         return result, loop_run, capacity_source
 

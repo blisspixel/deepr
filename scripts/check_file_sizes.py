@@ -24,9 +24,9 @@ CEILING = 1000
 # This dict only ever shrinks: when Phase Q3 splits a file below CEILING,
 # remove its entry; if a file shrinks but stays over CEILING, lower its cap.
 GRANDFATHERED: dict[str, int] = {
-    "deepr/web/app.py": 3993,  # +1: security fix (generic error responses, 2026-06-16)
+    "deepr/web/app.py": 3930,  # ratcheted after browser-chat REST extraction, 2026-07-11
     "deepr/cli/commands/semantic/experts.py": 3338,
-    "deepr/experts/chat.py": 2655,  # +22: cost-integrity fix (chat consult writes the ledger + caps, 2026-06-21)
+    "deepr/experts/chat.py": 2628,  # ratcheted after live-session operation extraction, 2026-07-11
     "deepr/experts/lazy_graph_rag.py": 2040,
     "deepr/mcp/server.py": 2000,  # +63: deepr_consult_experts MCP tool (native team consultation, 2026-06-21)
     "deepr/experts/beliefs.py": 1448,  # +7: security fix (path containment, 2026-06-16); +33: source-independence trust floor (2026-06-21)

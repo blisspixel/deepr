@@ -346,6 +346,7 @@ class BatchExecutor:
             id=job_id,
             prompt=prompt,
             model=model,
+            provider=provider_name,
             enable_web_search=True,
             metadata={
                 **metadata,

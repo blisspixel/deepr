@@ -7,6 +7,7 @@ is falsy. An agent or `--budget 0` caller meaning no spend got a real budget.
 
 import sys
 from types import ModuleType, SimpleNamespace
+from unittest.mock import AsyncMock, MagicMock
 
 from deepr.experts.chat import ExpertChatSession
 from deepr.experts.chat_backends import ExpertChatResult, ExpertChatStreamChunk
@@ -172,6 +173,27 @@ async def test_standard_research_records_metered_grok_cost(monkeypatch):
     assert "https://example.test/source" in result["answer"]
 
 
+async def test_successful_research_document_write_advances_both_freshness_fields(monkeypatch):
+    from deepr.experts.profile import ExpertStore
+
+    session = _session(monkeypatch, 1.0)
+    session.client.files.create = AsyncMock(return_value=SimpleNamespace(id="file-1"))
+    session.client.vector_stores.files.create = AsyncMock(return_value=None)
+
+    written = await session._add_research_to_knowledge_base(
+        "What changed in the test domain?",
+        "A verified research answer.",
+        "standard_research",
+    )
+
+    assert written is True
+    assert session.expert.knowledge_cutoff_date is not None
+    assert session.expert.last_knowledge_refresh == session.expert.knowledge_cutoff_date
+    loaded = ExpertStore().load(session.expert.name)
+    assert loaded is not None
+    assert loaded.knowledge_cutoff_date == session.expert.knowledge_cutoff_date
+
+
 async def test_quick_lookup_uses_chat_backend(monkeypatch):
     session = _session(monkeypatch, 1.0)
 
@@ -265,12 +287,47 @@ async def test_first_chat_generation_uses_chat_backend(monkeypatch):
     assert backend.requests[0].messages[0]["role"] == "system"
 
 
+async def test_provider_exception_sets_typed_terminal_failure_state(monkeypatch):
+    session = _session(monkeypatch, 1.0)
+    session.should_use_tot = lambda _query: False
+
+    class FailingBackend(RecordingChatBackend):
+        async def complete(self, request):
+            self.requests.append(request)
+            raise RuntimeError("ambiguous provider failure")
+
+    session.chat_backend = FailingBackend()
+
+    result = await session.send_message("What should this expert improve next?")
+
+    assert result.startswith("Error communicating with expert:")
+    assert session.last_turn_failed is True
+
+
+async def test_streaming_provider_exception_sets_typed_terminal_failure_state(monkeypatch):
+    session = _session(monkeypatch, 1.0)
+    session.should_use_tot = lambda _query: False
+
+    class FailingBackend(RecordingChatBackend):
+        async def complete(self, request):
+            self.requests.append(request)
+            raise RuntimeError("ambiguous provider failure")
+
+    session.chat_backend = FailingBackend()
+
+    result = await session.send_message_streaming("What should this expert improve next?")
+
+    assert result.startswith("Error communicating with expert:")
+    assert session.last_turn_failed is True
+
+
 async def test_anthropic_non_agentic_chat_omits_tools_and_records_cost(monkeypatch):
     monkeypatch.setenv("ANTHROPIC_API_KEY", "anthropic-test-not-real")
 
     class FakeAsyncAnthropic:
-        def __init__(self, *, api_key):
+        def __init__(self, *, api_key, max_retries):
             assert api_key == "anthropic-test-not-real"
+            assert max_retries == 0
 
     monkeypatch.setattr("deepr.experts.chat_api_backends.AsyncAnthropic", FakeAsyncAnthropic)
     reset_cost_safety_manager()
@@ -341,6 +398,10 @@ async def test_follow_up_generation_uses_chat_backend(monkeypatch):
     monkeypatch.setattr(session.client.chat.completions, "create", fail_if_called)
     backend = RecordingChatBackend('["What evidence matters next?", "How should we validate this?"]')
     session.chat_backend = backend
+    reserve = MagicMock(wraps=session.cost_safety.check_and_reserve)
+    record = MagicMock(wraps=session.cost_safety.record_cost)
+    monkeypatch.setattr(session.cost_safety, "check_and_reserve", reserve)
+    monkeypatch.setattr(session.cost_safety, "record_cost", record)
 
     follow_ups = await session._generate_follow_ups("What changed?", "The backend seam changed.")
 
@@ -348,6 +409,48 @@ async def test_follow_up_generation_uses_chat_backend(monkeypatch):
     assert len(backend.requests) == 1
     assert backend.requests[0].model == "gpt-4o-mini"
     assert backend.requests[0].extra == {"temperature": 0.7, "max_tokens": 200}
+    assert reserve.call_args.kwargs["operation_type"] == "expert_chat_follow_ups"
+    assert reserve.call_args.kwargs["estimated_cost"] == 0.01
+    assert record.call_args.kwargs["operation_type"] == "expert_chat_follow_ups"
+    assert record.call_args.kwargs["reservation_id"]
+    assert record.call_args.kwargs["actual_cost"] > 0
+    assert record.call_args.kwargs["source"] == "experts.chat.follow_ups"
+    assert session.cost_accumulated == record.call_args.kwargs["actual_cost"]
+
+
+async def test_follow_up_generation_skips_when_its_bound_does_not_fit(monkeypatch):
+    session = _session(monkeypatch, 0.005)
+    backend = RecordingChatBackend('["This must not dispatch"]')
+    session.chat_backend = backend
+
+    follow_ups = await session._generate_follow_ups("What changed?", "The backend seam changed.")
+
+    assert follow_ups == []
+    assert backend.requests == []
+    assert session.cost_accumulated == 0.0
+
+
+async def test_follow_up_provider_failure_settles_reserved_ceiling(monkeypatch):
+    session = _session(monkeypatch, 1.0)
+
+    class FailingBackend(RecordingChatBackend):
+        async def complete(self, request):
+            self.requests.append(request)
+            raise RuntimeError("ambiguous provider failure")
+
+    session.chat_backend = FailingBackend()
+    record = MagicMock(wraps=session.cost_safety.record_cost)
+    monkeypatch.setattr(session.cost_safety, "record_cost", record)
+
+    follow_ups = await session._generate_follow_ups("What changed?", "The backend seam changed.")
+
+    assert follow_ups == []
+    assert len(session.chat_backend.requests) == 1
+    assert record.call_args.kwargs["actual_cost"] == 0.01
+    assert record.call_args.kwargs["source"] == "experts.chat.follow_ups.failed"
+    assert record.call_args.kwargs["metadata"] == {"actual_cost_reported": False}
+    assert record.call_args.kwargs["reservation_id"]
+    assert session.cost_accumulated == 0.01
 
 
 async def test_compact_conversation_uses_chat_backend(monkeypatch):

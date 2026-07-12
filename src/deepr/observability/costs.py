@@ -830,7 +830,7 @@ class CostDashboard:
                 task_id=ev.task_id,
                 metadata={"source": ev.source, **(ev.metadata or {})},
             )
-            for ev in self.ledger.get_events()
+            for ev in self.ledger.get_attributed_events()
         ]
 
     def rebuild_from_ledger(self) -> int:

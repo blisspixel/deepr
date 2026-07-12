@@ -15,10 +15,16 @@ from deepr.experts.chat_backends import (
 
 DEFAULT_ANTHROPIC_EXPERT_CHAT_MODEL = "claude-sonnet-5"
 
-try:
-    from anthropic import AsyncAnthropic
-except ImportError:  # pragma: no cover - optional extra may be absent
-    AsyncAnthropic = None  # type: ignore[assignment]
+
+def _load_anthropic_client_type() -> Any:
+    try:
+        from anthropic import AsyncAnthropic as client_type
+    except ImportError:  # pragma: no cover - optional extra may be absent
+        return None
+    return client_type
+
+
+AsyncAnthropic: Any = _load_anthropic_client_type()
 
 
 def build_api_expert_chat_backend(
@@ -36,8 +42,8 @@ def build_api_expert_chat_backend(
         api_key = os.getenv("OPENAI_API_KEY")
         if not api_key:
             raise ValueError("OPENAI_API_KEY not set")
-        client = AsyncOpenAI(api_key=api_key)
-        return chat_provider, chat_model, client, OpenAIExpertChatBackend(client)
+        openai_client = AsyncOpenAI(api_key=api_key, max_retries=0)
+        return chat_provider, chat_model, openai_client, OpenAIExpertChatBackend(openai_client)
 
     if chat_provider == "anthropic":
         if agentic:
@@ -47,8 +53,13 @@ def build_api_expert_chat_backend(
         api_key = os.getenv("ANTHROPIC_API_KEY")
         if not api_key:
             raise ValueError("ANTHROPIC_API_KEY not set")
-        client = AsyncAnthropic(api_key=api_key)
-        return chat_provider, chat_model, client, AnthropicExpertChatBackend(client, model=chat_model)
+        anthropic_client = AsyncAnthropic(api_key=api_key, max_retries=0)
+        return (
+            chat_provider,
+            chat_model,
+            anthropic_client,
+            AnthropicExpertChatBackend(anthropic_client, model=chat_model),
+        )
 
     raise ValueError("expert chat provider must be one of: openai, anthropic")
 

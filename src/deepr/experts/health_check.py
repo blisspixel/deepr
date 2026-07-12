@@ -259,12 +259,12 @@ class ExpertHealthChecker:
     def _check_contradictions(
         self, manifest: Any, beliefs: list[Belief]
     ) -> tuple[HealthFinding, RecommendedAction | None]:
-        """Open contradictions: recorded flags first, then fresh heuristic.
+        """Contradiction candidates: recorded flags first, then fresh router.
 
         Two sources, deduplicated by id pair:
         - recorded: contested pairs already flagged at absorb/sync time
-          (contradiction edges in the belief store) - these were detected
-          when the conflicting claim arrived and persist until adjudicated.
+          (contradiction edges in the belief store) - these carry explicit
+          verification assurance and persist until adjudicated.
           Previously the audit ignored them and only re-ran the heuristic,
           so the action menu never showed the absorb-time flags.
         - heuristic: newly detected by the free negation heuristic on this
@@ -282,12 +282,15 @@ class ExpertHealthChecker:
         ]
 
         count = len(recorded_pairs) + len(heuristic_pairs)
+        confirmed_count = sum(1 for pair in recorded_pairs if pair.get("verification") == "model_confirmed")
+        unverified_recorded_count = len(recorded_pairs) - confirmed_count
         if recorded_pairs:
-            severity = "warning"
+            severity = "warning" if confirmed_count else "info"
             summary = (
-                f"{count} candidate contradiction(s), lexical/unverified: {len(recorded_pairs)} recorded "
-                f"(absorb/sync-time flags), {len(heuristic_pairs)} newly detected (heuristic). "
-                "Adjudicate recorded pairs for a model verdict."
+                f"{count} contradiction candidate(s): {len(recorded_pairs)} recorded "
+                f"({confirmed_count} model-confirmed, {unverified_recorded_count} unverified), "
+                f"{len(heuristic_pairs)} newly routed. Verification labels describe process assurance, "
+                "not independent semantic ground truth."
             )
         elif heuristic_pairs:
             severity = "info"
@@ -297,16 +300,20 @@ class ExpertHealthChecker:
             )
         else:
             severity = "ok"
-            summary = "No belief contradictions detected (recorded + heuristic pass)."
+            summary = "No recorded contradiction edges or lexical review candidates."
         detail = {
             "count": count,
-            "verification": "lexical_unverified",
+            "model_confirmed_count": confirmed_count,
+            "unverified_recorded_count": unverified_recorded_count,
+            "semantic_scope": "verification provenance only; semantic correctness requires calibrated review",
             "recorded": [
                 {
                     "a": p["a"]["claim"],
                     "b": p["b"]["claim"],
                     "a_id": p["a"]["belief_id"],
                     "b_id": p["b"]["belief_id"],
+                    "verification": p.get("verification", "unverified"),
+                    "provenance": list(p.get("provenance", [])),
                 }
                 for p in recorded_pairs[:10]
             ],
@@ -318,14 +325,12 @@ class ExpertHealthChecker:
 
         action = None
         if recorded_pairs:
-            # resolve-conflicts runs the paid LLM adjudication; a few cents per recorded pair.
-            cost = round(0.02 * len(recorded_pairs), 2)
             action = RecommendedAction(
                 category="contradictions",
-                description=(f"Adjudicate {len(recorded_pairs)} recorded contradiction(s) and revise beliefs"),
-                command=f"deepr expert resolve-conflicts {shlex.quote(self.profile.name)}",
-                estimated_cost=cost,
-                approval_tier=_approval_tier_for_cost(cost),
+                description=f"Review {len(recorded_pairs)} recorded contradiction candidate(s) and assurance labels",
+                command=f"deepr expert contested {shlex.quote(self.profile.name)}",
+                estimated_cost=0.0,
+                approval_tier=ApprovalTier.AUTO_APPROVE.value,
             )
 
         return HealthFinding("contradictions", severity, summary, detail), action

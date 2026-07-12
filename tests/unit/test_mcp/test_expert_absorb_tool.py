@@ -11,6 +11,7 @@ Exercises:
 from __future__ import annotations
 
 import sys
+from contextlib import contextmanager
 from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -18,7 +19,7 @@ import pytest
 
 sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent))
 
-from deepr.experts.report_absorber import AbsorptionResult
+from deepr.experts.report_absorber import AbsorbedClaim, AbsorptionResult, ReportAbsorberCostError
 from deepr.mcp.search.registry import create_default_registry
 from deepr.mcp.security.tool_allowlist import ResearchMode, ToolAllowlist
 from deepr.mcp.server import DeeprMCPServer
@@ -56,19 +57,40 @@ class TestAllowlist:
         assert allow.require_confirmation("deepr_expert_absorb") is True
 
 
-def _stub_result(dry_run: bool = False) -> AbsorptionResult:
+def _stub_result(dry_run: bool = False, *, accepted: bool = False) -> AbsorptionResult:
     return AbsorptionResult(
         expert_name="Test Expert",
         report_id="rep1",
         dry_run=dry_run,
         total_candidates=1,
-        absorbed=[],
+        absorbed=[AbsorbedClaim("Accepted claim", 0.8, "belief-1", "added")] if accepted else [],
         rejected=[],
         estimated_cost=0.03,
+        actual_cost=0.0125,
+        budget=0.10,
     )
 
 
 class TestAbsorbTool:
+    @pytest.mark.asyncio
+    async def test_overlap_is_retryable_before_store_or_model_construction(self, mock_server):
+        @contextmanager
+        def held_lock(*_args, **_kwargs):
+            yield False
+
+        mock_server.store.load = MagicMock(side_effect=AssertionError("store must not be read"))
+        with (
+            patch("deepr.experts.loop_lock.expert_verb_lock", held_lock),
+            patch("deepr.experts.report_absorber.ReportAbsorber") as mock_absorber,
+        ):
+            result = await mock_server.expert_absorb(expert_name="Busy Expert", report_id="rep1")
+
+        assert result["error_code"] == "ABSORB_OVERLAP_LOCKED"
+        assert result["category"] == "conflict"
+        assert result["retryable"] is True
+        mock_server.store.load.assert_not_called()
+        mock_absorber.assert_not_called()
+
     @pytest.mark.asyncio
     async def test_missing_expert(self, mock_server):
         mock_server.store.load = MagicMock(return_value=None)
@@ -84,8 +106,10 @@ class TestAbsorbTool:
         assert result.get("error_code") == "REPORT_NOT_FOUND"
 
     @pytest.mark.asyncio
-    async def test_dry_run_does_not_save(self, mock_server):
+    async def test_paid_dry_run_saves_cost_but_not_refresh(self, mock_server):
         expert = MagicMock(name="Test Expert")
+        expert.total_research_cost = 0.0
+        expert.last_knowledge_refresh = None
         mock_server.store.load = MagicMock(return_value=expert)
         mock_server.store.save = MagicMock()
         with (
@@ -100,7 +124,9 @@ class TestAbsorbTool:
             result = await mock_server.expert_absorb(expert_name="Test Expert", report_id="rep1", dry_run=True)
 
         assert result["dry_run"] is True
-        mock_server.store.save.assert_not_called()  # dry run never persists
+        assert expert.total_research_cost == 0.0125
+        assert expert.last_knowledge_refresh is None
+        mock_server.store.save.assert_called_once_with(expert)
 
     @pytest.mark.asyncio
     async def test_apply_saves_profile(self, mock_server):
@@ -121,4 +147,51 @@ class TestAbsorbTool:
 
         assert result["report_id"] == "rep1"
         mock_server.store.save.assert_called_once()  # applied -> persisted
-        assert expert.total_research_cost == 0.03
+        assert expert.total_research_cost == 0.0125
+        assert inst.absorb.await_args.kwargs["budget"] == 0.10
+
+    @pytest.mark.asyncio
+    async def test_accepted_write_advances_both_freshness_fields(self, mock_server):
+        expert = MagicMock(name="Test Expert")
+        expert.total_research_cost = 0.0
+        expert.knowledge_cutoff_date = None
+        expert.last_knowledge_refresh = None
+        mock_server.store.load = MagicMock(return_value=expert)
+        mock_server.store.save = MagicMock()
+        accepted = _stub_result(accepted=True)
+        with (
+            patch("deepr.services.context_index.ContextIndex") as mock_idx,
+            patch("deepr.experts.report_absorber.ReportAbsorber") as mock_absorber,
+        ):
+            mock_idx.return_value.get_report_content.return_value = "report body"
+            mock_absorber.return_value.absorb = AsyncMock(return_value=accepted)
+
+            result = await mock_server.expert_absorb(expert_name="Test Expert", report_id="rep1")
+
+        assert result["absorbed_count"] == 1
+        assert expert.knowledge_cutoff_date == accepted.generated_at
+        assert expert.last_knowledge_refresh == accepted.generated_at
+        mock_server.store.save.assert_called_once_with(expert)
+
+    @pytest.mark.asyncio
+    async def test_accounting_failure_is_reported_as_budget_exceeded(self, mock_server):
+        expert = MagicMock(name="Test Expert")
+        expert.total_research_cost = 0.0
+        mock_server.store.load = MagicMock(return_value=expert)
+        with (
+            patch("deepr.services.context_index.ContextIndex") as mock_idx,
+            patch("deepr.experts.report_absorber.ReportAbsorber") as mock_absorber,
+        ):
+            mock_idx.return_value.get_report_content.return_value = "report body"
+            inst = MagicMock()
+            inst.absorb = AsyncMock(
+                side_effect=ReportAbsorberCostError("canonical settlement unavailable", actual_cost=0.004)
+            )
+            mock_absorber.return_value = inst
+
+            result = await mock_server.expert_absorb(expert_name="Test Expert", report_id="rep1")
+
+        assert result["error_code"] == "BUDGET_EXCEEDED"
+        assert "settlement unavailable" in result["message"]
+        assert expert.total_research_cost == 0.004
+        mock_server.store.save.assert_called_once_with(expert)

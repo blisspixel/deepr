@@ -80,6 +80,7 @@ def test_memory_card_write_output_path(tmp_path):
     assert result.exit_code == 0, result.output
     payload = json.loads(result.output)
     assert payload["artifact"]["written_path"] == str(output_path)
+    assert payload["contract"]["writes"] == "derived_view_only"
     assert output_path.exists()
 
 

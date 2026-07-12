@@ -303,9 +303,11 @@ class TestRecommendedActionShellQuoting:
         assert "expert refresh 'Evil" in action.command
 
 
-def _recorded_pair(a_id="belief-aaa", b_id="belief-bbb"):
+def _recorded_pair(a_id="belief-aaa", b_id="belief-bbb", *, verification="unverified"):
     return {
         "status": "open",
+        "verification": verification,
+        "provenance": [f"contradiction_verification:{verification}"],
         "a": {"belief_id": a_id, "claim": "X is true", "confidence": 0.6},
         "b": {"belief_id": b_id, "claim": "X is not true", "confidence": 0.9},
     }
@@ -314,7 +316,7 @@ def _recorded_pair(a_id="belief-aaa", b_id="belief-bbb"):
 class TestRecordedContestedPairs:
     """Absorb/sync-time contradiction flags appear in the audit + action menu."""
 
-    def test_recorded_flags_surface_with_action(self, monkeypatch):
+    def test_recorded_unverified_candidate_is_advisory_with_review_action(self, monkeypatch):
         prof = _profile()
         monkeypatch.setattr(
             "deepr.experts.health_check.ExpertHealthChecker._recorded_contested_pairs",
@@ -322,12 +324,27 @@ class TestRecordedContestedPairs:
         )
         report = _run(monkeypatch, prof)
         finding = _finding(report, "contradictions")
-        assert finding.severity == "warning"
+        assert finding.severity == "info"
         assert "1 recorded" in finding.summary
+        assert "1 unverified" in finding.summary
         assert finding.detail["recorded"][0]["a"] == "X is true"
         action = _action(report, "contradictions")
         assert action is not None
-        assert "1 recorded" in action.description
+        assert "1 recorded contradiction candidate" in action.description
+        assert action.command == "deepr expert contested 'Test Expert'"
+        assert action.estimated_cost == 0.0
+
+    def test_recorded_model_confirmed_candidate_requires_attention(self, monkeypatch):
+        prof = _profile()
+        monkeypatch.setattr(
+            "deepr.experts.health_check.ExpertHealthChecker._recorded_contested_pairs",
+            lambda self: [_recorded_pair(verification="model_confirmed")],
+        )
+
+        finding = _finding(_run(monkeypatch, prof), "contradictions")
+
+        assert finding.severity == "warning"
+        assert finding.detail["model_confirmed_count"] == 1
 
     def test_recorded_and_heuristic_deduplicate_by_id_pair(self, monkeypatch):
         prof = _profile()
@@ -341,10 +358,10 @@ class TestRecordedContestedPairs:
         finding = _finding(report, "contradictions")
         assert finding.detail["count"] == 1  # the heuristic re-detection is deduped
         assert "1 recorded" in finding.summary
-        assert "0 newly detected" in finding.summary
+        assert "0 newly routed" in finding.summary
         action = _action(report, "contradictions")
         assert action is not None
-        assert "1 recorded contradiction" in action.description
+        assert "1 recorded contradiction candidate" in action.description
 
     def test_read_only_audit_does_not_create_store_dirs(self, monkeypatch, tmp_path):
         import os

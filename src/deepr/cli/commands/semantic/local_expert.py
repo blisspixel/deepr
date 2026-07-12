@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import shutil
-from datetime import UTC, datetime
 from pathlib import Path
 
 import click
@@ -29,12 +28,15 @@ def make_local_expert_profile(
         return None
 
     click.echo(f"Creating local expert: {name}...")
-    profile = create_local_expert_profile(
-        name=name,
-        files=files,
-        description=description,
-        local_model=local_model,
-    )
+    try:
+        profile = create_local_expert_profile(
+            name=name,
+            files=files,
+            description=description,
+            local_model=local_model,
+        )
+    except ValueError as exc:
+        raise click.ClickException(str(exc)) from exc
     click.echo(f"\nLocal expert created: {profile.name}")
     click.echo(f"Provider: {profile.provider}")
     click.echo(f"Model: {profile.model}")
@@ -53,8 +55,9 @@ def create_local_expert_profile(
     local_model: str | None,
 ) -> ExpertProfile:
     """Create a provider-free expert profile and copy optional seed documents."""
-    now = datetime.now(UTC)
     store = ExpertStore()
+    if store.load(name) is not None:
+        raise ValueError(f"expert already exists: {name}")
     model = local_model or default_local_model() or "ollama"
 
     profile = ExpertProfile(
@@ -64,9 +67,12 @@ def create_local_expert_profile(
         domain=description or name,
         source_files=[],
         total_documents=0,
-        knowledge_cutoff_date=now,
-        last_knowledge_refresh=now,
-        system_message=get_expert_system_message(knowledge_cutoff_date=now, domain_velocity="medium"),
+        # Profile creation is not learning. Until documents or retrieved
+        # sources have passed the absorb/compiler path, freshness is honestly
+        # incomplete rather than "0 days old fresh".
+        knowledge_cutoff_date=None,
+        last_knowledge_refresh=None,
+        system_message=get_expert_system_message(knowledge_cutoff_date=None, domain_velocity="medium"),
         provider="local",
         model=model,
         monthly_learning_budget=0.0,

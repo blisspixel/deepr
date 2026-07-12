@@ -12,6 +12,7 @@ import type {
   Skill,
   SourceValidation,
 } from '../types'
+import type { BrowserExpertChatRequestPayload } from '../lib/expert-chat-contract'
 
 export const expertsApi = {
   list: async () => {
@@ -26,9 +27,9 @@ export const expertsApi = {
     const response = await apiClient.get<{ expert: Expert }>(`/experts/${name}`)
     return response.data.expert
   },
-  chat: async (name: string, message: string, sessionId?: string) => {
+  chat: async (name: string, chatRequest: BrowserExpertChatRequestPayload, sessionId?: string) => {
     const response = await apiClient.post<{ response: ExpertChat }>(`/experts/${name}/chat`, {
-      message,
+      ...chatRequest,
       ...(sessionId && { session_id: sessionId }),
     })
     return response.data.response

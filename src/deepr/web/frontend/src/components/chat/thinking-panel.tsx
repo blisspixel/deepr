@@ -1,22 +1,36 @@
 import { useState } from 'react'
 import { cn } from '@/lib/utils'
 import type { ThoughtItem } from '@/types'
-import { Brain, ChevronDown, ChevronUp } from 'lucide-react'
+import {
+  BadgeCheck,
+  Brain,
+  ChevronDown,
+  ChevronUp,
+  Circle,
+  CircleX,
+  ClipboardList,
+  FileText,
+  Gauge,
+  Search,
+  Sparkles,
+  Wrench,
+  type LucideIcon,
+} from 'lucide-react'
 
 interface ThinkingPanelProps {
   thoughts: ThoughtItem[]
   isStreaming: boolean
 }
 
-const THOUGHT_ICONS: Record<string, string> = {
-  plan_step: '\u{1F4CB}',
-  tool_call: '\u{1F527}',
-  evidence_found: '\u{1F4C4}',
-  confidence: '\u{2705}',
-  decision: '\u{2705}',
-  search: '\u{1F50D}',
-  synthesis: '\u{2728}',
-  error: '\u{274C}',
+const THOUGHT_ICONS: Record<string, LucideIcon> = {
+  plan_step: ClipboardList,
+  tool_call: Wrench,
+  evidence_found: FileText,
+  confidence: Gauge,
+  decision: BadgeCheck,
+  search: Search,
+  synthesis: Sparkles,
+  error: CircleX,
 }
 
 function confidenceColor(c: number | null): string {
@@ -70,17 +84,20 @@ export function ThinkingPanel({ thoughts, isStreaming }: ThinkingPanelProps) {
       {/* Thought list */}
       {showExpanded && (
         <div className="px-3 pb-2 space-y-1">
-          {thoughts.map((t, i) => (
-            <div key={i} className="flex items-start gap-2 text-xs">
-              <span className="flex-shrink-0 mt-0.5">{THOUGHT_ICONS[t.type] || '\u{25CF}'}</span>
-              <span className="text-muted-foreground flex-1">{t.text}</span>
-              {t.confidence != null && (
-                <span className={cn('tabular-nums text-[10px] flex-shrink-0', confidenceColor(t.confidence))}>
-                  {Math.round(t.confidence * 100)}%
-                </span>
-              )}
-            </div>
-          ))}
+          {thoughts.map((t, i) => {
+            const ThoughtIcon = THOUGHT_ICONS[t.type] || Circle
+            return (
+              <div key={i} className="flex items-start gap-2 text-xs">
+                <ThoughtIcon className="w-3 h-3 flex-shrink-0 mt-0.5" aria-hidden="true" />
+                <span className="text-muted-foreground flex-1">{t.text}</span>
+                {t.confidence != null && (
+                  <span className={cn('tabular-nums text-[10px] flex-shrink-0', confidenceColor(t.confidence))}>
+                    {Math.round(t.confidence * 100)}%
+                  </span>
+                )}
+              </div>
+            )
+          })}
           {isStreaming && (
             <div className="flex items-center gap-2 text-xs text-muted-foreground">
               <span className="w-1.5 h-1.5 rounded-full bg-primary animate-pulse" />

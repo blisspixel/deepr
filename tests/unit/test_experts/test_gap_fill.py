@@ -48,9 +48,11 @@ class _FakeAbsorber:
     def __init__(self, estimated_cost: float = 0.03):
         self.estimated_cost = estimated_cost
         self.calls = 0
+        self.budgets: list[float] = []
 
     async def absorb(self, report_id: str, report_text: str, **kwargs):
         self.calls += 1
+        self.budgets.append(kwargs["budget"])
         return SimpleNamespace(absorbed=[object()], flagged=[], estimated_cost=self.estimated_cost)
 
 
@@ -85,6 +87,9 @@ class TestGapFillEngine:
         assert result.total_cost == pytest.approx(0.05)
         assert len(engine.belief_store.beliefs) == 1
         assert "Topic A" in calls[0]
+        assert result.knowledge_observed_at is not None
+        assert engine.expert.knowledge_cutoff_date == result.knowledge_observed_at
+        assert engine.expert.last_knowledge_refresh == result.knowledge_observed_at
 
     @pytest.mark.asyncio
     async def test_reserves_and_counts_absorption_cost(self, tmp_path):
@@ -101,6 +106,7 @@ class TestGapFillEngine:
 
         assert budgets == [pytest.approx(0.23)]
         assert absorber.calls == 1
+        assert absorber.budgets == [pytest.approx(0.10)]
         assert result.outcomes[0].status == "filled"
         assert result.outcomes[0].cost == pytest.approx(0.27)
         assert result.total_cost == pytest.approx(0.27)
@@ -170,6 +176,9 @@ class TestGapFillEngine:
         assert result.outcomes[0].status == "would_fill"
         assert result.total_cost == 0.0
         assert len(beliefs.beliefs) == 0
+        assert result.knowledge_observed_at is None
+        assert getattr(engine.expert, "knowledge_cutoff_date", None) is None
+        assert getattr(engine.expert, "last_knowledge_refresh", None) is None
 
     @pytest.mark.asyncio
     async def test_research_error_is_per_gap_not_fatal(self, tmp_path):

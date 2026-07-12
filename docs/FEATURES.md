@@ -1037,7 +1037,7 @@ Capacity source status:
 |---|---|---|
 | Local Ollama | Execution works for local expert setup, local sync, deep/fresh local context, local absorb, local eval, local context eval, and scored admission | `$0` marginal cost, quality-gated before automatic routing |
 | OpenAI, Gemini, Grok, Anthropic, Azure APIs | Execution works when configured with API keys and budget ceilings | Full research path, cost ledger writes every spend source |
-| Codex, Claude Code, OpenCode, Antigravity, Grok Build, GitHub Copilot CLI, Kiro, and other plan CLIs | Explicit execution works through `expert sync --plan <id>`, `expert absorb --plan <id>`, topic `expert learn --plan <id>`, and the explicit `expert learn-web --plan <id>` alias behind auth-mode and no-surprise-bills gates; Codex, Claude Code, and Grok have live quota metadata probes | Automatic plan routing still requires trusted remaining-quota observations per backend |
+| Codex, Claude Code, OpenCode, Antigravity, Grok Build, Kiro, and other non-metered plan CLIs | Explicit execution works through `expert sync --plan <id>`, `expert absorb --plan <id>`, topic `expert learn --plan <id>`, and the explicit `expert learn-web --plan <id>` alias behind auth-mode and no-surprise-bills gates; Codex, Claude Code, and Grok have live quota metadata probes | Automatic plan routing still requires trusted remaining-quota observations per backend; metered-at-margin Copilot is visible but execution-blocked until full cost accounting exists |
 | CLI judge for local eval | Explicit opt-in only | `--allow-cli-judge` is required because Deepr cannot prove the vendor CLI's billing source |
 
 Local-model execution runs quality-tolerant steps at $0 against a local Ollama endpoint. Force it with `--local`, force the metered API with `--api`, or admit a local model so maintenance uses it automatically (owned capacity before metered API):
@@ -1070,7 +1070,7 @@ deepr capacity revoke llama3.1 --task-class absorb
 
 After scored admission, `deepr expert sync`/`absorb` (with no backend flag) run on the admitted local model at $0 and print why. Admissions use a 90-day default expiry so they are re-earned as models change, and are machine-local (`DEEPR_CAPACITY_DATA_DIR`) since local capacity differs per machine. Use `deepr eval local --save` as the cheap review step before admitting a model, then `deepr capacity admit --from-eval latest` to turn that reviewed artifact into the admission record.
 
-`deepr capacity next` is the guided path when the safe cheap route is not ready. It ranks the current block reason, local setup commands, latest usable eval-artifact admission, eval refresh, scheduled-job wait guidance, and explicit metered fallback. It can preview a concrete job shape with `--expert`, `--report-id`, `--context-mode none|fresh|deep`, and `--scheduled`. It is read-only, runs no research, and makes no provider API calls. JSON output uses the published `deepr-capacity-next-v1` payload, which scheduled sync waits embed under `capacity_next`. The outer sync wait/block response is published as `deepr-sync-capacity-gate-v1`. `deepr expert sync --scheduled` consumes the same preview automatically for due subscription syncs: when a recurring job would otherwise fall through to metered API, or when fresh/deep context needs local capacity, it exits successfully with a wait payload and next actions instead of spending. `deepr expert route-gaps --execute --scheduled` uses the same scheduler default for gap-fill sweeps by returning pending routes and a wait state instead of starting metered research. `deepr expert reflect --scheduled` waits before constructing the reflection evaluator, so recurring reflection follow-up jobs expose pending evaluation and follow-up work without making a metered call. `deepr expert health-check --scheduled` returns a scheduler action plan that separates metered recommendations, confirmation-gated local writes, and ready local actions. These scheduled JSON payloads include `loop_run` records plus published `schema_version` and `kind` stamps for registry validation.
+`deepr capacity next` is the guided path when the safe cheap route is not ready. It ranks the current block reason, local setup commands, latest usable eval-artifact admission, eval refresh, scheduled-job wait guidance, and explicit metered fallback. It can preview a concrete job shape with `--expert`, `--report-id`, `--context-mode none|fresh|deep`, and `--scheduled`. It is read-only, runs no research, and makes no provider API calls. JSON output uses the published `deepr-capacity-next-v1` payload, which scheduled sync waits embed under `capacity_next`. The outer sync wait/block response is published as `deepr-sync-capacity-gate-v1`. `deepr expert sync --scheduled` consumes the same preview automatically for due subscription syncs: when a recurring job would otherwise fall through to metered API, or when fresh/deep context needs local capacity, it exits successfully with a wait payload and next actions instead of spending. `deepr expert route-gaps --execute --scheduled` uses the same scheduler default for gap-fill sweeps by returning pending routes and a wait state instead of starting metered research. `deepr expert reflect --scheduled` waits before constructing the reflection evaluator, so recurring reflection follow-up jobs expose pending evaluation and follow-up work without making a metered call. `deepr expert health-check --scheduled` returns a read-only scheduler action plan that separates metered recommendations, confirmation-gated local writes, and ready local actions. Sync, gap-fill, reflection, and explicit health archive wait or mutation payloads include durable `loop_run` records where work or a gated mutation exists. Audit-only health action plans use published `deepr-health-check-action-plan-v2` JSON and intentionally carry no `loop_run` or pending execution state.
 
 Local and explicit plan sync backends do not automatically have current web
 context. For sync runs that need freshness, add `--fresh-context`; for broader
@@ -1139,7 +1139,35 @@ local judge, then records the retrieval and citation envelope as JSON under
 context artifacts yet; scheduler rules are the next slice in
 [design/local-fresh-context.md](design/local-fresh-context.md).
 
-Plan-quota adapters now execute expert maintenance and bootstrap by explicit opt-in. `deepr expert sync NAME --plan codex`, `deepr expert absorb NAME REPORT --plan codex`, and topic learning through `deepr expert learn NAME TOPIC --plan codex` run through the plan-quota chat-client seam so synthesis and extraction stay on the chosen CLI instead of silently falling back to metered APIs. `deepr expert learn-web NAME TOPIC --plan codex` remains an explicit live-web alias. The same path supports Claude Code, OpenCode, Kiro, Grok Build, Antigravity, and GitHub Copilot according to their adapter safety settings. `deepr capacity probe-plan <id>` validates auth and one tiny round trip; `deepr capacity refresh-quota codex` reads Codex local session-log `rate_limits` metadata, `deepr capacity refresh-quota claude` reads Claude Code OAuth usage metadata, and `deepr capacity refresh-quota grok` reads Grok billing metadata. These refreshes record conservative quota-ledger events without running a model call. Automatic plan routing stays conservative: selection orders local, plan-quota, and metered backends, then blocks execution on missing or unknown quota, exhaustion, quarantine, overage, reserve-floor breaches, unsupported task classes, missing measured quality, and metered fallback without a budget gate.
+Plan-quota adapters execute expert maintenance and bootstrap by explicit opt-in.
+`deepr expert sync NAME --plan codex`, `deepr expert absorb NAME REPORT --plan
+codex`, and topic learning through `deepr expert learn NAME TOPIC --plan codex`
+run through the plan-quota chat-client seam so synthesis and extraction stay on
+the chosen CLI instead of silently falling back to metered APIs. `deepr expert
+learn-web NAME TOPIC --plan codex` remains an explicit live-web alias. The same
+non-metered path supports Claude Code, OpenCode, Kiro, Grok Build, and
+Antigravity according to their adapter safety settings. GitHub Copilot remains
+fleet-visible but execution-blocked until its metered adapter has deterministic
+estimation, durable reservation, usage settlement, and canonical cost-ledger
+support. `deepr capacity probe-plan <id>` validates auth and one tiny round trip
+for eligible adapters; `deepr capacity refresh-quota codex` reads Codex local
+session-log `rate_limits` metadata, `deepr capacity refresh-quota claude` reads
+Claude Code OAuth usage metadata, and `deepr capacity refresh-quota grok` reads
+Grok billing metadata. These refreshes record conservative quota-ledger events
+without running a model call. Automatic plan routing stays conservative:
+selection orders local, plan-quota, and metered backends, then blocks execution
+on missing or unknown quota, exhaustion, quarantine, overage, reserve-floor
+breaches, unsupported task classes, missing measured quality, and metered
+fallback without a budget gate.
+
+Topic `learn` and `learn-web` share the fresh-context provenance preflight: two
+fetched, content-addressed sources for search discovery or one for an explicit
+URL, before any local or plan model generation. Each attempt persists portable
+source-pack, manifest, source-note, and snapshot artifacts under the configured
+expert root, with a durable report on successful synthesis. Failed fetches
+remain diagnostic candidates instead of being counted as live sources. The
+extraction model selects supporting labels per candidate, while code stores
+only the selected replay pointers and rejects candidates with no valid pointer.
 
 The intended QOL is simple: ask for a job, see the cheapest safe route, and get a
 clear reason if Deepr should wait rather than pay. `deepr capacity next` is

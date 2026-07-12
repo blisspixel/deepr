@@ -267,6 +267,30 @@ class TestBatchExecutor:
         assert submitted_request.model == "o3-deep-research"
 
     @pytest.mark.asyncio
+    async def test_submit_task_persists_selected_provider(self, executor, mock_provider):
+        mock_provider.name = "azure"
+        reservation = MagicMock()
+        reservation.metadata.return_value = {
+            "cost_reservation_id": "reservation-1",
+            "cost_reservation_estimated_usd": 1.0,
+        }
+
+        with (
+            patch(
+                "deepr.experts.research_cost_gate.reserve_configured_research_cost",
+                return_value=(1.0, reservation),
+            ) as reserve,
+            patch(
+                "deepr.services.research_submission.dispatch_reserved_research",
+                new_callable=AsyncMock,
+            ) as dispatch,
+        ):
+            await executor._submit_task("Prompt", 1, "campaign-1", {"phase": 1, "title": "T"})
+
+        assert reserve.call_args.kwargs["provider"] == "azure"
+        assert dispatch.await_args.kwargs["job"].provider == "azure"
+
+    @pytest.mark.asyncio
     @patch("deepr.services.batch_executor.asyncio.sleep", new_callable=AsyncMock)
     async def test_wait_for_completion_failed(self, mock_sleep, executor, mock_queue, mock_storage):
         """Failed job records failure."""

@@ -1404,9 +1404,9 @@ class KnowledgeGraph:
         self._edge_cap_warned = False
 
         if storage_dir is None:
-            from deepr.config import experts_root
+            from deepr.experts.paths import canonical_expert_dir
 
-            storage_dir = experts_root() / expert_name / "graph"
+            storage_dir = canonical_expert_dir(expert_name) / "graph"
         self.storage_dir = storage_dir
         self.storage_dir.mkdir(parents=True, exist_ok=True)
 
@@ -1734,9 +1734,9 @@ class LazyGraphRAG:
         self.sufficiency_threshold = sufficiency_threshold
 
         if storage_dir is None:
-            from deepr.config import experts_root
+            from deepr.experts.paths import canonical_expert_dir
 
-            storage_dir = experts_root() / expert_name
+            storage_dir = canonical_expert_dir(expert_name)
         self.storage_dir = storage_dir
 
         # Initialize components

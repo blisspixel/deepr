@@ -250,6 +250,13 @@ class TestProgrammaticDateInjection:
         assert "2024" not in message
         assert "January 2025" not in message
 
+    def test_unknown_cutoff_is_incomplete_not_fresh(self):
+        message = get_expert_system_message()
+
+        assert "knowledge cutoff: UNKNOWN" in message
+        assert "INCOMPLETE - LEARNING REQUIRED" in message
+        assert "- Status: FRESH" not in message
+
     def test_system_message_calculates_knowledge_age(self):
         """Test that system message correctly calculates knowledge age."""
         now = utc_now()

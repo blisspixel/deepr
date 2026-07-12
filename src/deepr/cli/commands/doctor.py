@@ -269,42 +269,46 @@ async def check_filesystem() -> list[DiagnosticCheck]:
 
 
 async def check_database(config) -> list[DiagnosticCheck]:
-    """Check database connectivity."""
-    checks = []
+    """Check queue connectivity and surface stale lifecycle candidates."""
+    checks: list[DiagnosticCheck] = []
 
     check = DiagnosticCheck("Job Database", "Database")
     try:
-        import sqlite3
+        from deepr.queue.diagnostics import inspect_queue
 
         # Use queue_db_path from config, or default
         db_path = Path(config.get("queue_db_path", "queue/research_queue.db"))
         check.details.append(f"Path: {db_path}")
 
-        if not await asyncio.to_thread(db_path.exists):
-            # First run: the queue DB is created on the first job. Not a problem.
+        diagnostics = await asyncio.to_thread(inspect_queue, db_path)
+        if not diagnostics.initialized:
             check.failure_severity = "info"
             check.message = "Not initialized yet (created on first job)"
         else:
-            # Test connection
-            conn = sqlite3.connect(str(db_path))
-            cursor = conn.cursor()
-            cursor.execute("SELECT COUNT(*) FROM jobs")
-            count = cursor.fetchone()[0]
-            conn.close()
-
             check.passed = True
-            check.message = f"Connected ({count} jobs)"
-            check.details.append(f"Total jobs: {count}")
+            check.message = f"Connected ({diagnostics.total} jobs)"
+            check.details.append(f"Total jobs: {diagnostics.total}")
+
+            lifecycle = DiagnosticCheck("Queue Lifecycle", "Database")
+            stale = diagnostics.stale_queued_candidates
+            if stale:
+                lifecycle.failure_severity = "warning"
+                lifecycle.message = f"{stale} stale queued candidate(s)"
+                lifecycle.details.append("Queued with zero attempts for more than 24 hours; no rows were changed")
+                lifecycle.details.append(
+                    f"Reservation metadata references: {diagnostics.stale_with_reservation_metadata}"
+                )
+                if diagnostics.oldest_stale_submitted_at:
+                    lifecycle.details.append(f"Oldest submitted: {diagnostics.oldest_stale_submitted_at}")
+                lifecycle.details.append("Inspect job and reservation state before cancelling anything")
+            else:
+                lifecycle.passed = True
+                lifecycle.message = "No queued zero-attempt rows older than 24 hours"
+            checks.append(lifecycle)
     except Exception as e:
-        # "no such table" means the file exists but the schema has not been
-        # created yet (also a first-run state), not a failure to fix.
-        if "no such table" in str(e).lower():
-            check.failure_severity = "info"
-            check.message = "Not initialized yet (created on first job)"
-        else:
-            check.message = f"Cannot access: {str(e)[:50]}"
-            check.details.append(str(e))
-    checks.append(check)
+        check.message = f"Cannot access: {str(e)[:50]}"
+        check.details.append(str(e))
+    checks.insert(0, check)
 
     return checks
 

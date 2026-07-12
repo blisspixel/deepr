@@ -90,12 +90,17 @@ check): a cheap, high-recall pre-filter that *routes*, never *concludes*.**
 The deterministic/lexical layer flags candidate pairs to keep the expensive
 model pass bounded (cost + latency); a model makes the verdict on the
 flagged (uncertain) band. The cheap layer's job is recall and cost control,
-not truth. This is the selective-prediction / cascade pattern, and it is
-exactly the two-stage shape `conflict_resolver.detect_contradictions`
-already has (heuristic Stage 1, LLM Stage 2) - the original bug was that the
-absorb and health-check paths called Stage 1 *alone as a verdict* (since
-fixed: absorb requires a model entailment verdict by default, and health-check
-labels heuristic hits advisory/unverified).
+not truth. This is the selective-prediction / cascade pattern. Live dogfood on
+2026-07-11 showed that the implementation did not fully honor it: normal
+`conflict_resolver.detect_contradictions` copied Stage-1 router hits directly
+into its return value, and generic `BeliefStore.add_belief` persisted router
+hits as typed `contradicts` edges. Both paths now fail closed on meaning.
+Normal detection returns only model-selected pairs, generic insertion never
+persists lexical contradiction candidates, and the cost-$0 health path labels
+router hits advisory. Report absorption requires an initial model YES plus a
+second fresh-context structured disconfirmation pass before recording a
+`model_confirmed` edge. Verification provenance is surfaced separately from
+semantic correctness.
 
 **Honesty requirements** that ride along: measure the decomposer (atomicity
 + coverage), calibrate the judge (biases are systematic), and keep read-side
@@ -107,7 +112,7 @@ queries $0 where the verdict is not safety-critical.
 |-------|-------|-------------|
 | Boundary parsing (provider payloads, config, MCP args, extraction JSON shape) | strict Pydantic / dict guards | Deterministic, correct. Keep; continue the parse-don't-validate pass (Phase E). |
 | `init` key/placeholder detection, path safety | string/structural | Deterministic, correct (form, not meaning). |
-| Contradiction detection (`beliefs_contradict`, duplicated `_find_contradictions`) | lexical negation + overlap | Semantic. Keep lexical only as a high-recall Stage-1 *router*; require an entailment/NLI verdict on the flagged band before recording a contradiction. Consolidate the duplicate into one predicate. (belief-lifecycle.md #5) |
+| Contradiction detection (`beliefs_contradict`, `_find_contradictions`, `detect_contradictions`) | lexical router plus model verdict | **Closed 2026-07-11:** `beliefs_contradict` is routing-only; normal detection returns only model-selected pairs; generic belief insertion cannot persist router hits; absorption requires a second fresh-context disconfirmation after an initial YES. Stored edges expose verification provenance, and continuity scores structural surfacing separately from verification coverage. Model confirmation still needs calibration and does not become independent semantic ground truth. |
 | Belief dedup / merge (`_find_similar`, >0.7 overlap) | lexical router + model verdict (absorb path) | **Done on absorb (2026-06-14):** the >0.7 overlap is now a router; in the uncertain band (`<= 0.92`) `ReportAbsorber._verify_same_claim` decides SAME vs DIFFERENT fact, and `add_belief(dedup=False)` adds distinct claims separately instead of merging (no more "$10/M vs $30/M" data loss). Covers chat and sync too - they ingest through `ReportAbsorber.absorb`, not a direct `add_belief`. Remaining is only the low-stakes **shared** belief store (`_find_similar_in_domain` / `import_shared_beliefs`, a no-client cross-expert copy) and calibrating the verdict. |
 | Claim grounding at absorb (report support self-rating) | extraction LLM, report-grounded | Model-based and grounded - correct direction. Strengthen with explicit entailment of claim vs its cited evidence span. |
 | Atomic claim decomposition | extraction LLM prompt | Model-based - correct (finding 3). Tighten the prompt (FActScore/SAFE style). Atomicity is *meaning*, so per AGENTIC_BALANCE.md it is an Agent surface: **do NOT add a standalone lexical/regex atomicity detector, even as "telemetry"** - a word-marker scan for "and/but/;" is exactly the brittle-rule anti-pattern (a 2026-06-14 attempt added one and it was removed). If a cheap atomicity signal is wanted, derive it from the model (have the extractor self-tag each claim's atomicity in the same call, $0 extra) or measure it in the calibration harness; never a separate regex pass on this surface. |
@@ -130,9 +135,12 @@ finding 3: decomposition is the LLM's job. The corrected shape:
    ran: have the extraction LLM self-tag each claim's atomicity in the same
    call ($0 extra), or measure atomicity in the calibration harness against
    ground truth. No separate deterministic detector on this surface.
-3. **The contradiction "screen"** becomes the Stage-2 entailment verdict on
-   the Stage-1-routed band (sentence-level NLI first; retrieval-grounded LLM
-   where NLI is too coarse), calibration-gated and budget-bounded.
+3. **The contradiction "screen"** is model judgment over the Stage-1-routed
+   band, budget-bounded and recorded with provenance. An initial YES receives a
+   fresh-context structured disconfirmation pass with statement order reversed;
+   only two agreeing judgments create a model-confirmed edge. Deterministic code
+   checks response shape only. Calibration remains required before treating the
+   judge as an accuracy guarantee.
 
 The model-based pieces (2 partially, 3 fully) need provider keys and the
 calibration harness; the prompt tightening (1) and the router/consolidation
@@ -142,6 +150,8 @@ framing land at $0 first.
 
 - A lexical/word-overlap result is never a semantic *verdict*; at most a
   high-recall router into a model check.
+- One weak model YES is not sufficient to write an authoritative contradiction
+  edge. Confirmation provenance describes the process used, not truth.
 - Structural checks stay deterministic and parse-don't-validate.
 - Every model judge is calibrated and bias-checked before its verdict is
   trusted (no off-the-shelf LLM-as-judge trust).

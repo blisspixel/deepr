@@ -41,7 +41,9 @@ export const costApi = {
 
   // Get budget limits
   getLimits: async () => {
-    const response = await apiClient.get<{ limits: { per_job: number; daily: number; monthly: number } }>(
+    const response = await apiClient.get<{
+      limits: { per_job: number; daily: number; monthly: number; expert_chat_max: number }
+    }>(
       '/cost/limits'
     )
     return response.data.limits

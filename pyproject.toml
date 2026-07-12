@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "deepr-research"
-version = "2.34.4"
+version = "2.35.0"
 description = "Research automation platform that replicates human research team workflows using AI"
 readme = "README.md"
 license = "Apache-2.0"
@@ -43,12 +43,12 @@ dependencies = [
     # expert. Declared as a direct dependency rather than relying on it being
     # pulled in transitively; Windows-first rules out POSIX flock.
     "filelock>=3.12.0,<4.0.0",
-    # numpy is imported at CLI startup (deepr.experts.embedding_cache, via the
-    # experts package __init__), so it is a core runtime dependency, not an
-    # optional extra. It was previously only in the `docs` extra, which made a
-    # plain `pip install deepr-research` ship a CLI that crashed on every
-    # command; `[full]`/dev installs masked it. A core-install smoke test in CI
-    # guards this class now.
+    # NumPy backs documented expert embedding and semantic-recall surfaces, so
+    # it remains a core runtime dependency. Lazy package exports keep it off the
+    # root help and version cold-start path. It was previously only in the
+    # `docs` extra, which made a plain install crash when those core expert
+    # surfaces loaded; `[full]`/dev installs masked it. A core-install smoke
+    # test in CI guards this class now.
     "numpy>=1.24.0,<3.0.0",
 ]
 
@@ -364,7 +364,13 @@ tests_dir = ["tests/unit/"]
 resolution = "highest"
 
 [tool.setuptools.package-data]
-deepr = ["py.typed"]
+deepr = [
+    "py.typed",
+    "config/*.json",
+    "skills/*/*.yaml",
+    "skills/*/*.md",
+    "templates/*.md",
+]
 
 [tool.setuptools.packages.find]
 where = ["src"]

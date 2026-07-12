@@ -31,6 +31,7 @@ def mock_store(tmp_expert_dir):
     profile.name = "test-expert"
     profile.total_documents = 3
     profile.source_files = ["existing.md"]
+    profile.knowledge_cutoff_date = None
     profile.last_knowledge_refresh = None
 
     store.load.return_value = profile
@@ -89,6 +90,9 @@ class TestImportStructuredBundle:
         assert result["documents_imported"] == 2
         assert len(result["files"]) == 2
         mock_store.save.assert_called_once()
+        profile = mock_store.load.return_value
+        assert profile.knowledge_cutoff_date is not None
+        assert profile.last_knowledge_refresh == profile.knowledge_cutoff_date
 
     @pytest.mark.asyncio
     async def test_import_json_file(self, tmp_path, mock_store):
@@ -150,6 +154,32 @@ class TestImportStructuredBundle:
 
         with pytest.raises(ValueError, match="No importable files"):
             await import_structured_bundle("test-expert", empty_dir, mock_store)
+        profile = mock_store.load.return_value
+        assert profile.knowledge_cutoff_date is None
+        assert profile.last_knowledge_refresh is None
+        mock_store.save.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_unreadable_files_do_not_advance_freshness(self, tmp_path, mock_store, monkeypatch):
+        source = tmp_path / "unreadable.md"
+        source.write_text("content", encoding="utf-8")
+        original_read_text = type(source).read_text
+
+        def fail_selected(path, *args, **kwargs):
+            if path == source:
+                raise OSError("read denied")
+            return original_read_text(path, *args, **kwargs)
+
+        monkeypatch.setattr(type(source), "read_text", fail_selected)
+
+        result = await import_structured_bundle("test-expert", source, mock_store)
+
+        assert result["documents_imported"] == 0
+        profile = mock_store.load.return_value
+        assert profile.knowledge_cutoff_date is None
+        assert profile.last_knowledge_refresh is None
+        assert profile.source_files == ["existing.md"]
+        mock_store.save.assert_not_called()
 
     @pytest.mark.asyncio
     async def test_citation_counting(self, tmp_path, mock_store):

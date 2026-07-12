@@ -1,4 +1,4 @@
-.PHONY: help install install-dev test clean build publish
+.PHONY: help install install-dev test clean build publish-pypi-manual run
 
 help:
 	@echo "Deepr - Research automation platform"
@@ -9,17 +9,17 @@ help:
 	@echo "  make test         - Run tests"
 	@echo "  make clean        - Clean build artifacts"
 	@echo "  make build        - Build distribution packages"
-	@echo "  make publish      - Publish to PyPI (requires credentials)"
+	@echo "  make publish-pypi-manual - Future/manual PyPI publish; requires registration and credentials"
 	@echo "  make run          - Run worker and API"
 
 install:
 	pip install -e .
 
 install-dev:
-	pip install -e ".[dev]"
+	pip install -e ".[dev,full]"
 
 test:
-	pytest tests/ -v
+	pytest tests/unit/ --ignore=tests/data -q
 
 clean:
 	rm -rf build/ dist/ *.egg-info
@@ -28,9 +28,14 @@ clean:
 	find . -type f -name '*.pyo' -delete
 
 build: clean
+	cd src/deepr/web/frontend && npm ci && npm run build
+	python scripts/build_frontend_archive.py
 	python -m build
+	python scripts/check_wheel_frontend.py $$(ls dist/*.whl | head -n 1)
 
-publish: build
+publish-pypi-manual: build
+	@echo "Manual PyPI publication requested; GitHub Releases is the current release channel."
+	python -m twine check dist/*
 	python -m twine upload dist/*
 
 run:

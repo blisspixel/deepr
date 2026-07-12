@@ -538,12 +538,14 @@ class ExpertStore:
                 )
                 profile.source_files.append(str(file_path))
                 profile.total_documents += 1
-                profile.last_knowledge_refresh = datetime.now(UTC)
                 results["uploaded"].append({"path": str(file_path), "file_id": file_obj.id})
             except Exception as e:
                 results["failed"].append({"path": str(file_path), "error": str(e)})
 
         if results["uploaded"]:
+            from deepr.experts.knowledge_freshness import advance_knowledge_freshness
+
+            advance_knowledge_freshness(profile, datetime.now(UTC))
             self.save(profile)
         return results
 

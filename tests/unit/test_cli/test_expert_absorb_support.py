@@ -10,6 +10,7 @@ import deepr.backends.local as local_mod
 import deepr.backends.plan_quota as plan_quota_mod
 import deepr.backends.waterfall as waterfall_mod
 import deepr.experts.report_absorber as report_absorber_mod
+import deepr.cli.commands.semantic.expert_absorb_support as absorb_support_mod
 from deepr.cli.commands.semantic.expert_absorb_support import (
     AbsorbBackend,
     AbsorbBackendError,
@@ -83,9 +84,9 @@ def test_local_backend_without_model_raises_setup_error(monkeypatch):
 def test_local_backend_builds_zero_cost_absorber(monkeypatch):
     _use_fake_absorber(monkeypatch)
     sentinel_client = object()
-    monkeypatch.setattr(local_mod, "default_local_model", lambda: "qwen-local")
+    monkeypatch.setattr(local_mod, "default_local_model", lambda: "qwen-global")
     monkeypatch.setattr(local_mod, "ollama_chat_client", lambda: sentinel_client)
-    profile = SimpleNamespace(name="Expert")
+    profile = SimpleNamespace(name="Expert", provider="local", model="qwen-profile")
 
     backend = build_absorb_backend(
         profile=profile,
@@ -102,7 +103,8 @@ def test_local_backend_builds_zero_cost_absorber(monkeypatch):
         json_output=True,
     )
 
-    assert backend.cost_note == "$0 (local model qwen-local)"
+    assert backend.cost_note == "$0 (local model qwen-profile)"
+    assert backend.absorber.kwargs["model"] == "qwen-profile"
     assert backend.absorber.kwargs["client"] is sentinel_client
     assert backend.absorber.kwargs["estimated_cost"] == 0.0
 
@@ -233,3 +235,40 @@ def test_plan_backend_wires_lazy_second_checker_escalator(monkeypatch):
     # Cost bound: only the maker and first checker clients are built up front;
     # the kiro second checker stays unbuilt until a weak verdict escalates.
     assert built_clients == ["codex", "claude"]
+
+
+def test_plan_backend_does_not_repeat_tos_note_already_in_selection_reason(monkeypatch):
+    _use_fake_absorber(monkeypatch)
+    tos_note = "Antigravity automation requires explicit operator opt-in."
+    adapter = SimpleNamespace(backend_id="antigravity", metered_at_margin=False, tos_note=tos_note)
+    warnings = []
+
+    monkeypatch.setattr(
+        waterfall_mod,
+        "choose_plan_quota_backend",
+        lambda _bid, allow_metered_at_margin=False: SimpleNamespace(
+            is_plan_quota=True,
+            plan_backend_id="antigravity",
+            reason=f"Explicit plan selected. {tos_note}",
+        ),
+    )
+    monkeypatch.setattr(plan_quota_mod, "get_adapter", lambda _bid: adapter)
+    monkeypatch.setattr(plan_quota_mod, "PlanQuotaChatClient", lambda *_args, **_kwargs: object())
+    monkeypatch.setattr(absorb_support_mod, "print_warning", warnings.append)
+
+    build_absorb_backend(
+        profile=SimpleNamespace(name="Expert"),
+        local=False,
+        api=False,
+        plan="antigravity",
+        plan_model=None,
+        model=None,
+        run_grounding_checks=False,
+        checker_plan=None,
+        checker_plan_model=None,
+        second_checker_plan=None,
+        second_checker_plan_model=None,
+        json_output=False,
+    )
+
+    assert warnings == []

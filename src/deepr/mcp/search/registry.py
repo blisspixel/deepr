@@ -907,7 +907,9 @@ def create_default_registry() -> ToolRegistry:
                 "weak ones and any that contradict the expert's existing beliefs, then "
                 "integrates the survivors as beliefs with the report id as provenance "
                 "(deduped against existing beliefs). MUTATES the expert and runs one small "
-                "extraction call (~$0.03); pass dry_run=true to preview without writing. "
+                "extraction call plus only the contradiction or dedup verdicts dynamically "
+                "routed by the report. The budget argument is a hard run ceiling; pass "
+                "dry_run=true to preview without writing. "
                 "Example: deepr_expert_absorb(expert_name='AI Strategy Expert', report_id='<id>', dry_run=true)"
             ),
             input_schema={
@@ -927,6 +929,12 @@ def create_default_registry() -> ToolRegistry:
                         "type": "boolean",
                         "default": False,
                         "description": "Preview extracted/gated claims without writing any beliefs",
+                    },
+                    "budget": {
+                        "type": "number",
+                        "default": 0.10,
+                        "exclusiveMinimum": 0,
+                        "description": ("Hard USD ceiling across extraction and dynamically routed semantic verdicts"),
                     },
                 },
                 "required": ["expert_name", "report_id"],

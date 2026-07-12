@@ -8,11 +8,15 @@ surface, a single instance serves *both* the research answer and the
 verification-gated belief extraction in ``ReportAbsorber``, so ``expert sync
 --plan <id>`` runs end to end on prepaid capacity with no silent metered call.
 
-Every call records one quota observation (append-only ``quota_ledger.jsonl``) and
-one $0 cost-ledger event (so ``costs show`` and anomaly detection still see
-volume even though the marginal dollar cost is zero). An exhaustion signature in
-the CLI output is recorded as a terminal quota event and surfaced as an error so
-the scheduler reschedules instead of silently failing.
+Every eligible non-metered dispatch records one $0 cost-ledger event, including
+nonzero, timeout, and empty-output outcomes, so ``costs show`` and anomaly
+detection see the whole attempt volume. Quota observations distinguish known
+usage, exhaustion, and attempts whose usage remains unknown; a process that
+never launched does not claim quota use. Metered-at-margin adapters fail before
+client setup or subprocess dispatch until they support estimate, reservation,
+usage settlement, and canonical cost-ledger accounting. An exhaustion signature
+in the CLI output is recorded as a terminal quota event and surfaced as an error
+so the scheduler reschedules instead of silently failing.
 
 ``make_plan_quota_research_fn`` wraps the same client as the ``research_fn`` seam
 ``(query, budget) -> {"answer", "cost", ...}`` (report, never raise).
@@ -22,28 +26,56 @@ from __future__ import annotations
 
 import logging
 import os
+import re
 import time
 from collections.abc import Awaitable, Callable
-from datetime import UTC, datetime, timedelta
+from datetime import datetime
 from pathlib import Path
-from typing import Any
+from typing import Any, NoReturn
 
-from deepr.backends.context_building import ContextBuilder, build_context
+from deepr.backends.context_building import (
+    ContextBuilder,
+    build_context,
+    context_evidence_fields,
+    context_generation_readiness,
+    context_not_ready_error,
+)
 from deepr.backends.local import _local_prompt  # shared research-prompt builder
-from deepr.backends.plan_quota.adapters import PlanQuotaAdapter, parse_reset_after_seconds
+from deepr.backends.plan_quota.adapters import PlanQuotaAdapter, parse_reset_at_utc
 from deepr.backends.plan_quota.cli_runner import DEFAULT_TIMEOUT_S, CliResult, run_cli
-from deepr.backends.plan_quota.safety import plan_quota_child_env
+from deepr.backends.plan_quota.safety import evaluate_plan_quota_safety, plan_quota_child_env
 from deepr.backends.quota_ledger import (
     QuotaConfidence,
     QuotaEventType,
     QuotaLedger,
     QuotaLedgerEvent,
 )
+from deepr.utils.security import sanitize_log_message
 
 logger = logging.getLogger(__name__)
 
 ResearchFn = Callable[[str, float], Awaitable[dict[str, Any]]]
 CliRunner = Callable[..., Awaitable[CliResult]]
+
+_ANSI_ESCAPE_RE = re.compile(r"\x1b(?:\[[0-?]*[ -/]*[@-~]|\][^\x07]*(?:\x07|\x1b\\))")
+_CONTROL_CHAR_RE = re.compile(r"[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]")
+_BEARER_SECRET_RE = re.compile(r"(?i)(authorization\s*:\s*(?:bearer|basic)\s+)[^\s\"'<>]+")
+_QUERY_SECRET_RE = re.compile(r"(?i)([?&](?:key|api[_-]?key|access[_-]?token|token|secret)=)[^&\s\"'<>]+")
+_NAMED_SECRET_RE = re.compile(
+    r"(?i)((?:access[_ -]?token|refresh[_ -]?token|client[_ -]?secret|secret)\s*[:=]\s*)[^\s\"'<>]+"
+)
+_TOKEN_SECRET_RE = re.compile(
+    r"(?i)\b(?:(?:sk|xai|ghp|gho|github_pat|glpat)[-_][A-Za-z0-9_-]{8,}|AIza[A-Za-z0-9_-]{8,})\b"
+)
+_URL_CREDENTIAL_RE = re.compile(r"(?i)(https?://)[^/\s:@]+:[^/\s@]+@")
+_JWT_SECRET_RE = re.compile(r"\beyJ[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]*\b")
+_ERROR_HINT_RE = re.compile(
+    r"(?i)(?:^|[\s:])(?:error|fatal|failed|failure|denied|invalid|unauthorized|forbidden|not found|unavailable|timed out)(?:\b|:)"
+)
+_MAX_ERROR_LINES = 3
+_MAX_ERROR_LINE_CHARS = 140
+_MAX_ERROR_CHARS = 600
+_PROMPT_ECHO_WINDOW = 24
 
 
 class PlanQuotaError(RuntimeError):
@@ -101,10 +133,14 @@ class PlanQuotaChatClient:
         cost_ledger_path: Path | None = None,
         operation: str = "plan_quota_research",
     ) -> None:
+        resolved_env = env if env is not None else dict(os.environ)
+        decision = evaluate_plan_quota_safety(adapter, env=resolved_env)
+        if not decision.safe:
+            raise PlanQuotaError(decision.reason)
         self.adapter = adapter
         self.model = model
         self._runner = runner
-        self._env = plan_quota_child_env(adapter, env if env is not None else dict(os.environ))
+        self._env = plan_quota_child_env(adapter, resolved_env)
         self._cwd = cwd
         self._timeout = timeout
         self._account_id = account_id
@@ -134,7 +170,11 @@ class PlanQuotaChatClient:
             )
         finally:
             _cleanup_prompt_file(temp_path)
-        answer = self._interpret(result, answer_override=self._recover_transcript_answer(started_at))
+        answer = self._interpret(
+            result,
+            answer_override=self._recover_transcript_answer(started_at),
+            prompt=prompt,
+        )
         return _Response(answer)
 
     def _recover_transcript_answer(self, started_at: float) -> str | None:
@@ -150,34 +190,68 @@ class PlanQuotaChatClient:
 
         return recover_answer(antigravity_brain_dir(), since=started_at)
 
-    def _interpret(self, result: CliResult, *, answer_override: str | None = None) -> str:
+    def _interpret(
+        self,
+        result: CliResult,
+        *,
+        answer_override: str | None = None,
+        prompt: str = "",
+    ) -> str:
         """Turn a CliResult into an answer or raise a typed error. Records quota.
 
         ``answer_override`` supplies the answer when the CLI does not print it to
         stdout (Antigravity, recovered from its transcript). None means parse
         stdout as usual.
         """
-        # Exhaustion is an error condition, so scope the keyword scan to where a
-        # CLI reports errors. On a SUCCESSFUL run only stderr (the status/progress
-        # stream) can carry a limit notice; the answer on stdout must never be
-        # scanned, or a report that is ABOUT rate limits/quotas/credits (e.g. a
-        # provider-API research topic) would be misread as a depleted plan and the
-        # good answer thrown away. On a FAILED run the answer is not trustworthy,
-        # so scan everything.
-        exhaustion_text = result.stderr if result.ok else f"{result.stdout}\n{result.stderr}"
-        if self.adapter.looks_exhausted(exhaustion_text):
+        # Exhaustion is an error condition. Broad legacy signatures may inspect
+        # all failed output, but vendor phrases that can also occur in ordinary
+        # answer text are registered as error-channel-only and inspect stderr.
+        # Successful stdout is never scanned.
+        exhaustion_text = _exhaustion_output(self.adapter, result)
+        if exhaustion_text is not None:
             reset_at = self._reset_at_from(exhaustion_text)
-            self._record_quota(QuotaEventType.EXHAUSTED, detail="exhaustion signature in CLI output", reset_at=reset_at)
             when = f" (resets ~{reset_at:%H:%M UTC})" if reset_at else ""
-            raise PlanQuotaExhausted(
-                f"{self.adapter.display_name} quota appears exhausted - reschedule after reset{when}"
+            self._fail_attempt(
+                PlanQuotaExhausted,
+                f"{self.adapter.display_name} quota appears exhausted - reschedule after reset{when}",
+                outcome="exhausted",
+                quota_event_type=QuotaEventType.EXHAUSTED,
+                quota_units=None,
+                vendor_dispatched=True,
+                detail="exhaustion signature in CLI output",
+                reset_at=reset_at,
             )
         if result.launch_error:
-            raise PlanQuotaError(f"{self.adapter.exe} failed to launch: {result.launch_error}")
+            self._fail_attempt(
+                PlanQuotaError,
+                f"{self.adapter.exe} failed to launch: {sanitize_log_message(result.launch_error)}",
+                outcome="launch_error",
+                quota_event_type=None,
+                quota_units=None,
+                vendor_dispatched=False,
+                detail="CLI process did not launch; no quota usage observed",
+            )
         if result.timed_out:
-            raise PlanQuotaError(f"{self.adapter.exe} timed out after {self._timeout:.0f}s")
+            self._fail_attempt(
+                PlanQuotaError,
+                f"{self.adapter.exe} timed out after {self._timeout:.0f}s",
+                outcome="timeout",
+                quota_event_type=QuotaEventType.ATTEMPT_OBSERVED,
+                quota_units=None,
+                vendor_dispatched=True,
+                detail="CLI attempt timed out; quota usage is unknown",
+            )
         if not result.ok:
-            raise PlanQuotaError(f"{self.adapter.exe} exited {result.returncode}: {result.stderr.strip()[:200]}")
+            summary = _safe_cli_error_summary(result.stderr, prompt=prompt)
+            self._fail_attempt(
+                PlanQuotaError,
+                f"{self.adapter.exe} exited {result.returncode}: {summary}",
+                outcome="nonzero_exit",
+                quota_event_type=QuotaEventType.ATTEMPT_OBSERVED,
+                quota_units=None,
+                vendor_dispatched=True,
+                detail=f"CLI attempt exited {result.returncode}; quota usage is unknown",
+            )
 
         answer = answer_override if answer_override is not None else self.adapter.parse_answer(result.stdout)
         if not answer:
@@ -186,17 +260,89 @@ class PlanQuotaChatClient:
                 if self.adapter.needs_pty
                 else ""
             )
-            raise PlanQuotaError(f"{self.adapter.exe} returned no output{hint}")
+            self._fail_attempt(
+                PlanQuotaError,
+                f"{self.adapter.exe} returned no output{hint}",
+                outcome="empty_output",
+                quota_event_type=QuotaEventType.ATTEMPT_OBSERVED,
+                quota_units=None,
+                vendor_dispatched=True,
+                detail="CLI exited successfully but returned no answer; quota usage is unknown",
+            )
 
-        self._record_quota(QuotaEventType.USAGE_OBSERVED, detail="one plan-quota call")
-        self._record_cost()
+        self._record_attempt(
+            outcome="success",
+            quota_event_type=QuotaEventType.USAGE_OBSERVED,
+            quota_units=1.0,
+            vendor_dispatched=True,
+            detail="one successful plan-quota call",
+        )
         return answer
 
     def _reset_at_from(self, text: str) -> datetime | None:
-        seconds = parse_reset_after_seconds(text)
-        return datetime.now(UTC) + timedelta(seconds=seconds) if seconds else None
+        return parse_reset_at_utc(text)
 
-    def _record_quota(self, event_type: QuotaEventType, *, detail: str, reset_at: datetime | None = None) -> None:
+    def _fail_attempt(
+        self,
+        error_type: type[PlanQuotaError],
+        message: str,
+        *,
+        outcome: str,
+        quota_event_type: QuotaEventType | None,
+        quota_units: float | None,
+        vendor_dispatched: bool,
+        detail: str,
+        reset_at: datetime | None = None,
+    ) -> NoReturn:
+        """Record a failed attempt, then preserve its primary typed failure."""
+        try:
+            self._record_attempt(
+                outcome=outcome,
+                quota_event_type=quota_event_type,
+                quota_units=quota_units,
+                vendor_dispatched=vendor_dispatched,
+                detail=detail,
+                reset_at=reset_at,
+            )
+        except PlanQuotaError as accounting_error:
+            message = f"{message}; {accounting_error}"
+        raise error_type(message)
+
+    def _record_attempt(
+        self,
+        *,
+        outcome: str,
+        quota_event_type: QuotaEventType | None,
+        quota_units: float | None,
+        vendor_dispatched: bool,
+        detail: str,
+        reset_at: datetime | None = None,
+    ) -> None:
+        if quota_event_type is not None:
+            self._record_quota(
+                quota_event_type,
+                outcome=outcome,
+                quota_units=quota_units,
+                vendor_dispatched=vendor_dispatched,
+                detail=detail,
+                reset_at=reset_at,
+            )
+        self._record_cost(
+            outcome=outcome,
+            quota_units=quota_units,
+            vendor_dispatched=vendor_dispatched,
+        )
+
+    def _record_quota(
+        self,
+        event_type: QuotaEventType,
+        *,
+        outcome: str,
+        quota_units: float | None,
+        vendor_dispatched: bool,
+        detail: str,
+        reset_at: datetime | None = None,
+    ) -> None:
         try:
             QuotaLedger(self._quota_ledger_path).record_event(
                 QuotaLedgerEvent(
@@ -205,7 +351,7 @@ class PlanQuotaChatClient:
                     account_id=self._account_id,
                     cost_model=self.adapter.cost_model,
                     window_kind=self.adapter.window_kind,
-                    units_used=1.0 if event_type == QuotaEventType.USAGE_OBSERVED else None,
+                    units_used=quota_units,
                     unit_name=self.adapter.unit_name,
                     # We can observe usage but not trustworthy remaining quota -
                     # vendors don't expose it. UNKNOWN keeps auto-routing off
@@ -214,12 +360,18 @@ class PlanQuotaChatClient:
                     reset_at=reset_at,
                     overage_enabled=False,
                     detail=detail,
+                    metadata={
+                        "outcome": outcome,
+                        "vendor_dispatched": vendor_dispatched,
+                        "attempted_quota_units": 1 if vendor_dispatched else 0,
+                        "quota_usage_observed": quota_units is not None,
+                    },
                 )
             )
         except Exception as e:  # ledger write is best-effort; never break a run
             logger.warning("plan-quota quota ledger write failed for %s: %s", self.adapter.backend_id, e)
 
-    def _record_cost(self) -> None:
+    def _record_cost(self, *, outcome: str, quota_units: float | None, vendor_dispatched: bool) -> None:
         try:
             from deepr.observability.cost_ledger import CostLedger
 
@@ -232,12 +384,118 @@ class PlanQuotaChatClient:
                 metadata={
                     "backend_id": self.adapter.backend_id,
                     "cost_model": self.adapter.cost_model.value,
-                    "quota_units": 1,
+                    "quota_units": quota_units,
                     "unit_name": self.adapter.unit_name,
+                    "outcome": outcome,
+                    "vendor_dispatched": vendor_dispatched,
+                    "attempted_quota_units": 1 if vendor_dispatched else 0,
+                    "quota_usage_observed": quota_units is not None,
                 },
             )
         except Exception as e:
             raise PlanQuotaError(f"plan-quota cost ledger write failed for {self.adapter.backend_id}: {e}") from e
+
+
+def _exhaustion_output(
+    adapter: PlanQuotaAdapter,
+    result: CliResult,
+    *,
+    allow_success_stdout: bool = False,
+) -> str | None:
+    """Return only the output channel that established exhaustion."""
+    if adapter.looks_error_channel_exhausted(result.stderr):
+        return result.stderr
+    if result.ok:
+        output = f"{result.stdout}\n{result.stderr}" if allow_success_stdout else result.stderr
+        return output if adapter.looks_exhausted(output) else None
+    combined = f"{result.stdout}\n{result.stderr}"
+    return combined if adapter.looks_exhausted(combined) else None
+
+
+def _safe_cli_error_summary(stderr: str, *, prompt: str = "") -> str:
+    """Return a bounded, redacted tail diagnostic without echoing the prompt.
+
+    Agent CLIs commonly print a long banner and progress stream before the
+    actionable terminal error. Returning the head both hides that cause and can
+    expose input echoed by a vendor wrapper. This helper keeps only the final
+    normalized lines, redacts credential shapes, and replaces any line that
+    overlaps a distinctive prompt fragment.
+    """
+    text = _ANSI_ESCAPE_RE.sub("", stderr or "")
+    text = _CONTROL_CHAR_RE.sub(" ", text)
+    text = sanitize_log_message(text)
+    text = _BEARER_SECRET_RE.sub(r"\1[REDACTED]", text)
+    text = _QUERY_SECRET_RE.sub(r"\1[REDACTED]", text)
+    text = _NAMED_SECRET_RE.sub(r"\1[REDACTED]", text)
+    text = _TOKEN_SECRET_RE.sub("[REDACTED]", text)
+    text = _URL_CREDENTIAL_RE.sub(r"\1[REDACTED]@", text)
+    text = _JWT_SECRET_RE.sub("[REDACTED]", text)
+
+    lines: list[str] = []
+    for raw_line in text.splitlines():
+        line = " ".join(raw_line.split())
+        if not line:
+            continue
+        if _line_overlaps_prompt(line, prompt):
+            line = "[prompt content redacted]"
+        lines.append(_bounded_error_line(line))
+
+    if not lines:
+        return "no safe stderr diagnostic; inspect the vendor CLI login and model configuration"
+
+    selected = lines[-_MAX_ERROR_LINES:]
+    terminal_cause = next((line for line in reversed(lines) if _ERROR_HINT_RE.search(line)), None)
+    if terminal_cause is not None and terminal_cause not in selected:
+        selected = [terminal_cause, *selected]
+    summary = " | ".join(selected)
+    if len(summary) > _MAX_ERROR_CHARS:
+        summary = f"...{summary[-(_MAX_ERROR_CHARS - 3) :]}"
+    return summary
+
+
+def _bounded_error_line(line: str) -> str:
+    if len(line) <= _MAX_ERROR_LINE_CHARS:
+        return line
+    head = 50
+    tail = _MAX_ERROR_LINE_CHARS - head - 3
+    return f"{line[:head]}...{line[-tail:]}"
+
+
+def _line_overlaps_prompt(line: str, prompt: str) -> bool:
+    if not prompt:
+        return False
+    if line in prompt:
+        return True
+
+    payload = _prompt_echo_payload(line)
+    if payload and payload in prompt:
+        return True
+    if _contains_prompt_line(line, prompt):
+        return True
+
+    if len(line) < _PROMPT_ECHO_WINDOW:
+        return False
+
+    for start in range(0, len(line) - _PROMPT_ECHO_WINDOW + 1):
+        if line[start : start + _PROMPT_ECHO_WINDOW] in prompt:
+            return True
+    return False
+
+
+def _prompt_echo_payload(line: str) -> str:
+    lowered = line.lower()
+    for prefix in ("prompt:", "input:", "user:", "request:"):
+        if lowered.startswith(prefix):
+            return line[len(prefix) :].strip()
+    return ""
+
+
+def _contains_prompt_line(line: str, prompt: str) -> bool:
+    for prompt_line in prompt.splitlines():
+        normalized = " ".join(prompt_line.split())
+        if len(normalized) >= 4 and normalized in line:
+            return True
+    return False
 
 
 def _flatten_messages(messages: list[dict[str, Any]], *, wants_json: bool) -> str:
@@ -311,9 +569,28 @@ def make_plan_quota_research_fn(
         budget: float,
         *,
         prior_source_pack: dict[str, Any] | None = None,
+        retrieval_query: str | None = None,
     ) -> dict[str, Any]:
         try:
-            context = await build_context(context_builder, query, prior_source_pack=prior_source_pack)
+            context = await build_context(
+                context_builder,
+                retrieval_query or query,
+                prior_source_pack=prior_source_pack,
+            )
+            evidence_fields = context_evidence_fields(context)
+            readiness = context_generation_readiness(context)
+            if readiness is not None and not readiness.ready:
+                return {
+                    "answer": "",
+                    "cost": 0.0,
+                    "backend": f"plan_quota:{adapter.backend_id}",
+                    "error": context_not_ready_error(readiness),
+                    "error_code": "fresh_context_not_ready",
+                    "retryable": readiness.retryable,
+                    "no_metered_fallback": readiness.no_metered_fallback,
+                    "context_preflight": readiness.to_dict(),
+                    **evidence_fields,
+                }
             prompt, metadata = _local_prompt(query, context)
             response = await chat.chat.completions.create(
                 model=model or "",
@@ -321,13 +598,9 @@ def make_plan_quota_research_fn(
             )
             answer = response.choices[0].message.content or ""
             result: dict[str, Any] = {"answer": answer, "cost": 0.0, "backend": f"plan_quota:{adapter.backend_id}"}
-            if metadata is not None:
+            result.update(evidence_fields)
+            if metadata is not None and "fresh_context" not in result:
                 result["fresh_context"] = metadata
-            if context is not None and hasattr(context, "to_source_pack"):
-                # include_content lets the sync persister write content-
-                # addressed raw snapshots; it strips the transient content
-                # field before the pack artifact is written.
-                result["source_pack"] = context.to_source_pack(include_content=True)
             return result
         except PlanQuotaExhausted as e:
             return {"answer": "", "cost": 0.0, "error": str(e), "quota_exhausted": True}
@@ -345,15 +618,26 @@ async def probe_plan_quota(
     env: dict[str, str] | None = None,
     cwd: str | None = None,
     timeout: float = 60.0,
+    quota_ledger_path: Path | None = None,
     cost_ledger_path: Path | None = None,
 ) -> dict[str, Any]:
     """A small round-trip proving the CLI runs and is authenticated. Never raises.
 
-    Marginal cost is $0/prepaid, but it does consume one plan unit, so it is not
-    literally free like the local probe - the caller decides when to run it.
-    Returns ``{ok, backend, reply, latency_ms, error}``.
+    Eligible backends have $0/prepaid marginal cost but consume one plan unit.
+    Metered-at-margin adapters return a typed failure before argv construction
+    or runner dispatch. Returns ``{ok, backend, reply, latency_ms, error}``.
     """
-    run_env = plan_quota_child_env(adapter, env if env is not None else dict(os.environ))
+    resolved_env = env if env is not None else dict(os.environ)
+    decision = evaluate_plan_quota_safety(adapter, env=resolved_env)
+    if not decision.safe:
+        return {
+            "ok": False,
+            "backend": adapter.backend_id,
+            "reply": "",
+            "latency_ms": 0,
+            "error": decision.reason,
+        }
+    run_env = plan_quota_child_env(adapter, resolved_env)
     prompt = "Reply with exactly: OK"
     argv, stdin, temp_path = _build_invocation(adapter, prompt, model)
     started_at = time.time()
@@ -367,43 +651,194 @@ async def probe_plan_quota(
         )
     finally:
         _cleanup_prompt_file(temp_path)
-    if adapter.looks_exhausted(f"{result.stdout}\n{result.stderr}"):
-        ledger_error = _record_probe_cost(adapter, model=model, cost_ledger_path=cost_ledger_path, outcome="exhausted")
-        return {
-            "ok": False,
-            "backend": adapter.backend_id,
-            "reply": "",
-            "latency_ms": result.duration_ms,
-            "error": f"quota exhausted; {ledger_error}" if ledger_error else "quota exhausted",
-        }
-    if not result.ok:
-        err = result.launch_error or (
-            "timed out" if result.timed_out else f"exit {result.returncode}: {result.stderr.strip()[:160]}"
+    exhaustion_text = _exhaustion_output(adapter, result, allow_success_stdout=True)
+    if exhaustion_text is not None:
+        reset_at = _reset_at_from_output(exhaustion_text)
+        return _finish_probe_attempt(
+            adapter,
+            model=model,
+            quota_ledger_path=quota_ledger_path,
+            cost_ledger_path=cost_ledger_path,
+            result=result,
+            ok=False,
+            reply="",
+            error="quota exhausted",
+            outcome="exhausted",
+            quota_event_type=QuotaEventType.EXHAUSTED,
+            quota_units=None,
+            vendor_dispatched=True,
+            detail="probe-plan exhaustion signature",
+            reset_at=reset_at,
         )
-        return {"ok": False, "backend": adapter.backend_id, "reply": "", "latency_ms": result.duration_ms, "error": err}
+    if not result.ok:
+        if result.launch_error:
+            error = sanitize_log_message(result.launch_error)
+            outcome = "launch_error"
+            quota_event_type = None
+            quota_units = None
+            vendor_dispatched = False
+            detail = "probe CLI process did not launch; no quota usage observed"
+        elif result.timed_out:
+            error = f"timed out after {timeout:.0f}s"
+            outcome = "timeout"
+            quota_event_type = QuotaEventType.ATTEMPT_OBSERVED
+            quota_units = None
+            vendor_dispatched = True
+            detail = "probe CLI attempt timed out; quota usage is unknown"
+        else:
+            error = f"exit {result.returncode}: {_safe_cli_error_summary(result.stderr, prompt=prompt)}"
+            outcome = "nonzero_exit"
+            quota_event_type = QuotaEventType.ATTEMPT_OBSERVED
+            quota_units = None
+            vendor_dispatched = True
+            detail = f"probe CLI attempt exited {result.returncode}; quota usage is unknown"
+        return _finish_probe_attempt(
+            adapter,
+            model=model,
+            quota_ledger_path=quota_ledger_path,
+            cost_ledger_path=cost_ledger_path,
+            result=result,
+            ok=False,
+            reply="",
+            error=error,
+            outcome=outcome,
+            quota_event_type=quota_event_type,
+            quota_units=quota_units,
+            vendor_dispatched=vendor_dispatched,
+            detail=detail,
+        )
     if adapter.answer_from_transcript:
         from deepr.backends.plan_quota.antigravity_transcript import antigravity_brain_dir, recover_answer
 
         reply = recover_answer(antigravity_brain_dir(), since=started_at) or ""
     else:
         reply = adapter.parse_answer(result.stdout)
-    if reply:
-        ledger_error = _record_probe_cost(adapter, model=model, cost_ledger_path=cost_ledger_path, outcome="ok")
-        if ledger_error:
-            return {
-                "ok": False,
-                "backend": adapter.backend_id,
-                "reply": reply,
-                "latency_ms": result.duration_ms,
-                "error": ledger_error,
-            }
+    if not reply:
+        return _finish_probe_attempt(
+            adapter,
+            model=model,
+            quota_ledger_path=quota_ledger_path,
+            cost_ledger_path=cost_ledger_path,
+            result=result,
+            ok=False,
+            reply="",
+            error="no output",
+            outcome="empty_output",
+            quota_event_type=QuotaEventType.ATTEMPT_OBSERVED,
+            quota_units=None,
+            vendor_dispatched=True,
+            detail="probe CLI exited successfully but returned no answer; quota usage is unknown",
+        )
+    return _finish_probe_attempt(
+        adapter,
+        model=model,
+        quota_ledger_path=quota_ledger_path,
+        cost_ledger_path=cost_ledger_path,
+        result=result,
+        ok=True,
+        reply=reply,
+        error="",
+        outcome="success",
+        quota_event_type=QuotaEventType.USAGE_OBSERVED,
+        quota_units=1.0,
+        vendor_dispatched=True,
+        detail="probe-plan successful plan call",
+    )
+
+
+def _finish_probe_attempt(
+    adapter: PlanQuotaAdapter,
+    *,
+    model: str | None,
+    quota_ledger_path: Path | None,
+    cost_ledger_path: Path | None,
+    result: CliResult,
+    ok: bool,
+    reply: str,
+    error: str,
+    outcome: str,
+    quota_event_type: QuotaEventType | None,
+    quota_units: float | None,
+    vendor_dispatched: bool,
+    detail: str,
+    reset_at: datetime | None = None,
+) -> dict[str, Any]:
+    quota_recorded = False
+    if quota_event_type is not None:
+        quota_recorded = _record_probe_quota(
+            adapter,
+            quota_ledger_path=quota_ledger_path,
+            outcome=outcome,
+            event_type=quota_event_type,
+            quota_units=quota_units,
+            vendor_dispatched=vendor_dispatched,
+            detail=detail,
+            reset_at=reset_at,
+        )
+    ledger_error = _record_probe_cost(
+        adapter,
+        model=model,
+        cost_ledger_path=cost_ledger_path,
+        outcome=outcome,
+        quota_units=quota_units,
+        vendor_dispatched=vendor_dispatched,
+    )
+    if ledger_error:
+        error = f"{error}; {ledger_error}" if error else ledger_error
+        ok = False
     return {
-        "ok": bool(reply),
+        "ok": ok,
         "backend": adapter.backend_id,
         "reply": reply,
         "latency_ms": result.duration_ms,
-        "error": "" if reply else "no output",
+        "error": error,
+        "outcome": outcome,
+        "vendor_dispatched": vendor_dispatched,
+        "cost_event_recorded": not bool(ledger_error),
+        "quota_observation_recorded": quota_recorded,
     }
+
+
+def _record_probe_quota(
+    adapter: PlanQuotaAdapter,
+    *,
+    quota_ledger_path: Path | None,
+    outcome: str,
+    event_type: QuotaEventType,
+    quota_units: float | None,
+    vendor_dispatched: bool,
+    detail: str,
+    reset_at: datetime | None,
+) -> bool:
+    try:
+        QuotaLedger(quota_ledger_path).record_event(
+            QuotaLedgerEvent(
+                backend_id=adapter.backend_id,
+                event_type=event_type,
+                cost_model=adapter.cost_model,
+                window_kind=adapter.window_kind,
+                units_used=quota_units,
+                unit_name=adapter.unit_name,
+                remaining_confidence=QuotaConfidence.UNKNOWN,
+                reset_at=reset_at,
+                overage_enabled=False,
+                detail=detail,
+                metadata={
+                    "outcome": outcome,
+                    "vendor_dispatched": vendor_dispatched,
+                    "attempted_quota_units": 1 if vendor_dispatched else 0,
+                    "quota_usage_observed": quota_units is not None,
+                },
+            )
+        )
+    except Exception as e:
+        logger.warning("plan-quota probe quota ledger write failed for %s: %s", adapter.backend_id, e)
+        return False
+    return True
+
+
+def _reset_at_from_output(text: str) -> datetime | None:
+    return parse_reset_at_utc(text)
 
 
 def _record_probe_cost(
@@ -412,6 +847,8 @@ def _record_probe_cost(
     model: str | None,
     cost_ledger_path: Path | None,
     outcome: str,
+    quota_units: float | None,
+    vendor_dispatched: bool,
 ) -> str:
     from deepr.observability.cost_ledger import CostLedger
 
@@ -425,9 +862,12 @@ def _record_probe_cost(
             metadata={
                 "backend_id": adapter.backend_id,
                 "cost_model": adapter.cost_model.value,
-                "quota_units": 1,
+                "quota_units": quota_units,
                 "unit_name": adapter.unit_name,
                 "outcome": outcome,
+                "vendor_dispatched": vendor_dispatched,
+                "attempted_quota_units": 1 if vendor_dispatched else 0,
+                "quota_usage_observed": quota_units is not None,
             },
         )
     except Exception as e:

@@ -23,5 +23,6 @@ def make_scrape_response(url: str = "https://example.com", html: str = SCRAPE_HT
     response.status_code = 200
     response.url = url
     response._content = html.encode("utf-8")
+    response._content_consumed = True
     response.encoding = "utf-8"
     return response

@@ -83,7 +83,9 @@
         "ready_edge_count": {"type": "integer", "minimum": 0},
         "skipped_edge_count": {"type": "integer", "minimum": 0},
         "blocked_decision_count": {"type": "integer", "minimum": 0},
-        "failure_reasons": {"type": "array", "items": {"type": "string"}}
+        "failure_reasons": {"type": "array", "items": {"type": "string"}},
+        "global_failure_reasons": {"type": "array", "items": {"type": "string"}},
+        "blocked_decision_failure_reasons": {"type": "array", "items": {"type": "string"}}
       }
     },
     "operations": {

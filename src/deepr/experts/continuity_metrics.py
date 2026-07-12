@@ -13,9 +13,14 @@ state, at $0 (no LLM, no network):
   machinery against silently going stale.
 - **abstention correctness** - ungrounded claims are not asserted with high
   confidence; the source-trust floors (v2.15 #1) hold end-to-end.
-- **contradiction surfacing** - every recorded contradiction is exposed by
-  the contested view; nothing is smoothed into a single coherent narrative
-  (the Rashomon rule, design finding 5).
+- **contradiction surfacing** - every recorded contradiction candidate is
+  exposed by the contested view; nothing is smoothed into a single coherent
+  narrative (the Rashomon rule, design finding 5). This is structural recall,
+  not a score of whether the edge is semantically correct.
+- **contradiction verification coverage** - recorded candidate edges carry
+  explicit model-verification provenance instead of silently inheriting
+  authority from their edge type. This measures process assurance, not model
+  accuracy, and needs no new model call.
 - **what-changed exactness** - the event-log replay reproduces the true
   mutation history with no loss; legacy bounded-window stores report their
   truncation honestly rather than claiming completeness.
@@ -26,12 +31,15 @@ state, at $0 (no LLM, no network):
   stored temporal edge qualifiers as derived content without becoming
   authoritative memory.
 
-Each metric carries its own ground truth derived *independently* of the
-surface it scores (time-based vs confidence-based; recorded edges vs the
-contested reader; the raw event log vs the what_changed buckets), so a high
-score means the surfaces agree with reality, not with themselves. A metric
-with no applicable sample is reported ``not_applicable`` and excluded from
-the overall score - silent zeros would read as failures.
+Each metric carries its comparison truth independently of the surface it
+scores (time-based vs confidence-based; recorded edges vs the contested
+reader; the raw event log vs the what_changed buckets). A high structural
+score means a read surface faithfully reflects stored state. It does not prove
+that a stored semantic edge is correct. Verification coverage separately asks
+whether contradiction edges carry model-verdict provenance, while also making
+clear that provenance is not model accuracy. A metric with no applicable sample
+is reported ``not_applicable`` and excluded from the overall score - silent
+zeros would read as failures.
 
 This is read-side and cost-$0 like the rest of the perspective query
 surface (perspective.py); it never mutates the store.
@@ -44,7 +52,8 @@ from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from typing import Any
 
-from deepr.experts.beliefs import Belief, BeliefStore, Edge
+from deepr.experts.belief_edges import CONTRADICTION_MODEL_CONFIRMED, Edge, contradiction_verification
+from deepr.experts.beliefs import Belief, BeliefStore
 from deepr.experts.digest import build_digest as _build_digest
 from deepr.experts.perspective import contested as _contested
 from deepr.experts.perspective import explain_belief as _explain_belief
@@ -55,7 +64,9 @@ from deepr.experts.perspective import what_changed as _what_changed
 # 1.0: initial four continuity properties.
 # 1.1: add temporal edge qualifier visibility.
 # 1.2: add temporal edge visibility in generated expert digests.
-CONTINUITY_METHODOLOGY_VERSION = "1.2"
+# 1.3: distinguish structural contradiction surfacing from verification
+#      provenance coverage so a false, unverified edge cannot hide behind 1.0.
+CONTINUITY_METHODOLOGY_VERSION = "1.3"
 
 # A belief carrying no source provenance must not read as more than
 # abstention-level confidence - this is the tertiary single-source trust
@@ -236,7 +247,7 @@ def _recorded_contradiction_pairs(store: BeliefStore) -> set[tuple[str, str]]:
 
 
 def _contradiction_surfacing(store: BeliefStore) -> MetricResult:
-    """Does the contested view surface every recorded contradiction?
+    """Does the contested view surface every recorded candidate edge?
 
     Ground truth: contradiction pairs recorded on beliefs/edges. Report: the
     pairs ``contested()`` returns. Recall guards against the smoothing failure
@@ -268,6 +279,46 @@ def _contradiction_surfacing(store: BeliefStore) -> MetricResult:
             "surfaced_pairs": hit,
             "missed_pairs": sorted(recorded - surfaced),
             "open_pairs": open_pairs,
+            "semantic_scope": "structural surfacing only; not contradiction correctness",
+        },
+    )
+
+
+def _contradiction_verification_coverage(store: BeliefStore) -> MetricResult:
+    """Do recorded contradiction candidates carry model-verdict provenance?
+
+    The score is deliberately provenance-only. It cannot prove that a model
+    verdict was correct, but it prevents lexical, migrated, or manual edges from
+    being counted as semantically confirmed merely because they use the typed
+    ``contradicts`` relation.
+    """
+    recorded = _recorded_contradiction_pairs(store)
+    if not recorded:
+        return MetricResult(
+            "contradiction_verification_coverage",
+            None,
+            0,
+            {"reason": "no recorded contradiction candidates"},
+        )
+
+    confirmed: list[tuple[str, str]] = []
+    unverified: list[tuple[str, str]] = []
+    for pair in sorted(recorded):
+        edge = store.edges.get((pair[0], pair[1], "contradicts"))
+        if edge is not None and contradiction_verification(edge) == CONTRADICTION_MODEL_CONFIRMED:
+            confirmed.append(pair)
+        else:
+            unverified.append(pair)
+
+    return MetricResult(
+        "contradiction_verification_coverage",
+        len(confirmed) / len(recorded),
+        len(recorded),
+        {
+            "recorded_pairs": len(recorded),
+            "model_confirmed_pairs": len(confirmed),
+            "unverified_pairs": unverified,
+            "semantic_scope": "verification provenance only; not model accuracy",
         },
     )
 
@@ -459,6 +510,7 @@ def measure_continuity(
         _staleness_honesty(store, staleness_threshold),
         _abstention_correctness(store),
         _contradiction_surfacing(store),
+        _contradiction_verification_coverage(store),
         _what_changed_exactness(store),
         _temporal_edge_qualifier_visibility(store),
         _temporal_edge_digest_visibility(store),

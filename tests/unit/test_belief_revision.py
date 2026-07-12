@@ -213,6 +213,18 @@ class TestBeliefStore:
         assert change is not None
         assert change.change_type == "created"
 
+    def test_add_belief_never_persists_lexical_contradiction_candidate(self, tmp_path):
+        store = BeliefStore(expert_name="test", storage_dir=tmp_path / "beliefs")
+        first = Belief(claim="The system is memory safe by default", confidence=0.8, domain="ai")
+        second = Belief(claim="The system is not memory safe by default", confidence=0.8, domain="ai")
+
+        store.add_belief(first, check_conflicts=True, dedup=False)
+        store.add_belief(second, check_conflicts=True, dedup=False)
+
+        assert store.edges_for(first.id, "contradicts") == []
+        assert first.contradictions_with == []
+        assert second.contradictions_with == []
+
     def test_get_beliefs_by_domain(self, tmp_path):
         """Test getting beliefs by domain."""
         store = BeliefStore(expert_name="test", storage_dir=tmp_path / "beliefs")

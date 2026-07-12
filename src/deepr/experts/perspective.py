@@ -8,10 +8,9 @@ belief store already persists, shipped ahead of the full typed-edge graph.
   revised, contested, or archived - so a host agent (an always-on autopilot,
   a coding agent with ephemeral context) re-syncs with an expert it consulted
   before instead of re-reading everything.
-- ``contested``: open contradiction pairs with both sides' claims, confidence,
-  and provenance, so consumers see live conflicts rather than a smoothed
-  narrative. Consumes the contradiction edges that absorb-time flagging and
-  ``add_belief`` record.
+- ``contested``: open contradiction candidates with both sides' claims,
+  confidence, provenance, and verification assurance, so consumers see live
+  dissent without confusing an unverified router candidate for semantic truth.
 
 A corpus is what was read; a perspective is what is believed. These queries
 expose the *perspective*: not content, but calibrated epistemic state with
@@ -30,8 +29,8 @@ from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from typing import Any
 
-from deepr.experts.belief_edges import EDGE_TYPES
-from deepr.experts.beliefs import Belief, BeliefStore, Edge
+from deepr.experts.belief_edges import EDGE_TYPES, Edge, contradiction_verification
+from deepr.experts.beliefs import Belief, BeliefStore
 from deepr.experts.edge_temporal import parse_iso_temporal
 
 logger = logging.getLogger(__name__)
@@ -97,10 +96,10 @@ def _parse_filter_time(field: str, value: str | datetime | None) -> datetime | N
     if isinstance(value, datetime):
         parsed = value if value.tzinfo else value.replace(tzinfo=UTC)
         return parsed.astimezone(UTC)
-    parsed = parse_iso_temporal(str(value).strip())
-    if parsed is None:
+    parsed_value = parse_iso_temporal(str(value).strip())
+    if parsed_value is None:
         raise ValueError(f"{field} is not ISO 8601: {value!r}")
-    return parsed
+    return parsed_value
 
 
 def _context_matches_temporal_filters(
@@ -497,6 +496,7 @@ def explain_belief(
                         "claim": other.claim if other else "",
                         "confidence": round(other.get_current_confidence(), 3) if other else None,
                         "provenance": list(edge.provenance),
+                        "verification": contradiction_verification(edge),
                         "status": "open" if other is not None else "dangling",
                     }
                     if edge.temporal_contexts:
@@ -527,24 +527,33 @@ def explain_belief(
 
 @dataclass
 class ContestedPair:
-    """One open contradiction between two beliefs, both sides included."""
+    """One recorded contradiction candidate, with verification assurance."""
 
     a: dict[str, Any]
     b: dict[str, Any]
     status: str  # "open" | "dangling" (one side no longer in the store)
+    verification: str = "unverified"
+    provenance: list[str] = field(default_factory=list)
 
     def to_dict(self) -> dict[str, Any]:
-        return {"a": self.a, "b": self.b, "status": self.status}
+        return {
+            "a": self.a,
+            "b": self.b,
+            "status": self.status,
+            "verification": self.verification,
+            "provenance": list(self.provenance),
+        }
 
 
 def contested(store: BeliefStore, *, expert_name: str = "") -> dict[str, Any]:
-    """List open contradiction pairs with both sides' claims and provenance.
+    """List recorded contradiction candidates with assurance and provenance.
 
     Pure read over the ``contradictions_with`` edges. A pair is ``open`` when
     both beliefs are still in the store; ``dangling`` when one side has been
     removed (its id is reported so the stale edge can be cleaned up by
     maintenance). Resolution belongs to ``expert resolve-conflicts`` - this
-    query only makes the conflicts visible.
+    query only makes the candidates visible. ``verification`` describes the
+    recorded process, not an independent semantic correctness verdict.
     """
     pairs: list[ContestedPair] = []
     seen: set[tuple[str, str]] = set()
@@ -557,9 +566,18 @@ def contested(store: BeliefStore, *, expert_name: str = "") -> dict[str, Any]:
             seen.add(key)
 
             other = store.beliefs.get(other_id)
+            edge = store.edges.get((key[0], key[1], "contradicts"))
+            verification = contradiction_verification(edge) if edge is not None else "unverified"
+            provenance = list(edge.provenance) if edge is not None else []
             if other is not None:
                 pairs.append(
-                    ContestedPair(a=_belief_summary(belief, store), b=_belief_summary(other, store), status="open")
+                    ContestedPair(
+                        a=_belief_summary(belief, store),
+                        b=_belief_summary(other, store),
+                        status="open",
+                        verification=verification,
+                        provenance=provenance,
+                    )
                 )
             else:
                 pairs.append(
@@ -567,13 +585,18 @@ def contested(store: BeliefStore, *, expert_name: str = "") -> dict[str, Any]:
                         a=_belief_summary(belief, store),
                         b={"belief_id": other_id, "claim": "", "note": "no longer in store"},
                         status="dangling",
+                        verification=verification,
+                        provenance=provenance,
                     )
                 )
 
+    confirmed_count = sum(1 for pair in pairs if pair.verification == "model_confirmed")
     return {
         "expert_name": expert_name or store.expert_name,
         "contested_count": len(pairs),
         "open_count": sum(1 for p in pairs if p.status == "open"),
+        "model_confirmed_count": confirmed_count,
+        "unverified_count": len(pairs) - confirmed_count,
         "pairs": [p.to_dict() for p in pairs],
         "generated_at": datetime.now(UTC).isoformat(),
     }

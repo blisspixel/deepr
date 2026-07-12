@@ -1,0 +1,114 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/blisspixel/deepr/docs/schemas/health-check-action-plan-v2.json",
+  "title": "Deepr Health Check Action Plan v2",
+  "type": "object",
+  "additionalProperties": true,
+  "required": [
+    "schema_version",
+    "kind",
+    "contract",
+    "scheduled",
+    "expert_name",
+    "domain",
+    "status",
+    "findings",
+    "actions",
+    "generated_at",
+    "scheduled_action_plan"
+  ],
+  "not": {"required": ["loop_run"]},
+  "properties": {
+    "schema_version": {"const": "deepr-health-check-action-plan-v2"},
+    "kind": {"const": "deepr.expert.health_check_action_plan"},
+    "contract": {"$ref": "#/$defs/contract"},
+    "scheduled": {"const": true},
+    "expert_name": {"type": "string", "minLength": 1},
+    "domain": {"type": "string"},
+    "status": {"enum": ["healthy", "needs_attention", "critical"]},
+    "findings": {
+      "type": "array",
+      "items": {"$ref": "#/$defs/finding"}
+    },
+    "actions": {
+      "type": "array",
+      "items": {"$ref": "#/$defs/action"}
+    },
+    "generated_at": {"type": "string", "minLength": 1},
+    "scheduled_action_plan": {"$ref": "#/$defs/scheduled_action_plan"}
+  },
+  "$defs": {
+    "contract": {
+      "type": "object",
+      "required": ["read_only", "cost_usd", "stability", "compatibility"],
+      "properties": {
+        "read_only": {"const": true},
+        "cost_usd": {"const": 0.0},
+        "stability": {"type": "string"},
+        "compatibility": {
+          "type": "object",
+          "required": ["additive_fields", "breaking_changes_require_new_schema_version", "deprecation_policy"],
+          "properties": {
+            "additive_fields": {"const": true},
+            "breaking_changes_require_new_schema_version": {"const": true},
+            "deprecation_policy": {"type": "string"}
+          },
+          "additionalProperties": true
+        }
+      },
+      "additionalProperties": true
+    },
+    "finding": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": ["category", "severity", "summary", "detail"],
+      "properties": {
+        "category": {"type": "string", "minLength": 1},
+        "severity": {"type": "string", "minLength": 1},
+        "summary": {"type": "string", "minLength": 1},
+        "detail": {"type": "object", "additionalProperties": true}
+      }
+    },
+    "action": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": ["category", "description", "command", "estimated_cost", "approval_tier"],
+      "properties": {
+        "category": {"type": "string", "minLength": 1},
+        "description": {"type": "string", "minLength": 1},
+        "command": {"type": "string"},
+        "estimated_cost": {"type": "number", "minimum": 0.0},
+        "approval_tier": {"type": "string", "minLength": 1}
+      }
+    },
+    "scheduled_action": {
+      "allOf": [
+        {"$ref": "#/$defs/action"},
+        {
+          "type": "object",
+          "required": ["scheduler_status", "scheduler_detail"],
+          "properties": {
+            "scheduler_status": {
+              "enum": ["ready", "waiting_for_capacity", "waiting_for_confirmation"]
+            },
+            "scheduler_detail": {"type": "string", "minLength": 1}
+          },
+          "additionalProperties": true
+        }
+      ]
+    },
+    "scheduled_action_plan": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": ["status", "detail", "actions"],
+      "properties": {
+        "status": {"enum": ["no_actions", "ready", "waiting_for_capacity", "waiting_for_confirmation"]},
+        "detail": {"type": "string", "minLength": 1},
+        "actions": {
+          "type": "array",
+          "items": {"$ref": "#/$defs/scheduled_action"}
+        }
+      }
+    }
+  }
+}

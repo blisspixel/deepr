@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import json
 import logging
+import math
 from typing import TYPE_CHECKING, Any
 
 from deepr.experts.commands import (
@@ -241,10 +242,39 @@ async def handle_budget(session: ExpertChatSession, args: str, context: dict) ->
         )
     try:
         new_budget = float(args.strip().lstrip("$"))
-        session.budget = new_budget
-        return CommandResult(output=f"Budget updated to ${new_budget:.2f}")
     except ValueError:
         return CommandResult(output="Usage: /budget [amount]", success=False)
+
+    from deepr.experts.cost_safety import CostSafetyManager
+
+    spent = max(
+        float(session.cost_accumulated),
+        float(getattr(session.cost_session, "total_cost", 0.0)),
+    )
+    if not math.isfinite(new_budget) or new_budget < spent:
+        return CommandResult(
+            output=f"Budget must be finite and at least the ${spent:.4f} already spent.",
+            success=False,
+        )
+    if new_budget > CostSafetyManager.ABSOLUTE_MAX_PER_OPERATION:
+        return CommandResult(
+            output=(
+                "Budget cannot exceed the absolute per-operation ceiling of "
+                f"${CostSafetyManager.ABSOLUTE_MAX_PER_OPERATION:.2f}."
+            ),
+            success=False,
+        )
+
+    approved_budget = context.get("approved_budget")
+    if approved_budget is not None and new_budget > float(approved_budget):
+        return CommandResult(
+            output=f"Budget cannot exceed the browser-approved ceiling of ${float(approved_budget):.2f}.",
+            success=False,
+        )
+
+    session.budget = new_budget
+    session.cost_session.budget_limit = new_budget
+    return CommandResult(output=f"Budget updated to ${new_budget:.2f}")
 
 
 # ---------------------------------------------------------------------------

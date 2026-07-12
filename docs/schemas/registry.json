@@ -391,6 +391,14 @@
       "compatibility": "additive-within-v1"
     },
     {
+      "name": "health-check-action-plan",
+      "schema_version": "deepr-health-check-action-plan-v2",
+      "kind": "deepr.expert.health_check_action_plan",
+      "path": "health-check-action-plan-v2.json",
+      "status": "experimental",
+      "compatibility": "additive-within-v2; v2 removes audit-time loop_run mutation"
+    },
+    {
       "name": "health-check-archive-confirmation",
       "schema_version": "deepr-health-check-archive-confirmation-v1",
       "kind": "deepr.expert.health_check_archive_confirmation",

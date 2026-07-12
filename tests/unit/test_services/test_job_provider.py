@@ -48,3 +48,12 @@ def test_create_job_provider_uses_foundry_configuration_without_api_key() -> Non
         gpt_deployment="chat",
         bing_resource_name="bing",
     )
+
+
+def test_create_job_provider_does_not_infer_empty_job_owner_from_config() -> None:
+    job = ResearchJob(id="job-1", prompt="legacy owner", provider="")
+
+    with patch("deepr.services.job_provider.create_provider", return_value=MagicMock()) as create:
+        create_job_provider(job, {"provider": "gemini", "api_key": "openai-key", "gemini_api_key": "gemini-key"})
+
+    create.assert_called_once_with("openai", api_key="openai-key")

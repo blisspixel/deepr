@@ -278,10 +278,27 @@ class TestContested:
         assert result["expert_name"] == "Named Expert"
         assert result["contested_count"] == 1
         assert result["open_count"] == 1
+        assert result["model_confirmed_count"] == 0
+        assert result["unverified_count"] == 1
         pair = result["pairs"][0]
         claims = {pair["a"]["claim"], pair["b"]["claim"]}
         assert claims == {"X is true", "X is not true"}
         assert pair["status"] == "open"
+        assert pair["verification"] == "unverified"
+        assert "contradiction_verification:lexical_unverified" in pair["provenance"]
+
+    def test_model_confirmation_provenance_is_exposed_without_claiming_accuracy(self, tmp_path):
+        store = _store(tmp_path)
+        existing = _belief("X is true", confidence=0.6)
+        store.add_belief(existing, check_conflicts=False)
+        challenger = _belief("X is not true", confidence=0.9)
+        store.add_contested_belief(challenger, [existing], verification="model_confirmed")
+
+        result = contested(store)
+
+        assert result["model_confirmed_count"] == 1
+        assert result["unverified_count"] == 0
+        assert result["pairs"][0]["verification"] == "model_confirmed"
 
     def test_pair_reported_once_not_twice(self, tmp_path):
         # Edges are bidirectional; the pair must be deduped.

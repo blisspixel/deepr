@@ -435,10 +435,10 @@ def build_expert_memory_card(
                 "Do not treat absence of web support as refutation of a hypothesis or original idea.",
             ],
             "next_commands": [
-                "deepr expert self-model NAME --json",
-                "deepr expert consult NAME --json",
-                "deepr expert why NAME BELIEF_ID",
-                "deepr expert sync NAME --local",
+                f"deepr expert self-model {json.dumps(profile.name)} --json",
+                f'deepr expert consult "QUESTION" --expert {json.dumps(profile.name)} --json',
+                f"deepr expert why {json.dumps(profile.name)} BELIEF_ID",
+                f"deepr expert sync {json.dumps(profile.name)} --local",
             ],
         },
         "update_policy": {
@@ -690,6 +690,7 @@ def write_expert_memory_card(
         focus_limit=focus_limit,
         generated_at=generated_at,
     )
+    payload["contract"] = {**payload["contract"], "writes": "derived_view_only"}
     markdown = render_expert_memory_card(payload)
     path = output_path or memory_card_path(profile.name)
     atomic_write_text(path, markdown, encoding="utf-8")

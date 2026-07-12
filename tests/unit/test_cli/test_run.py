@@ -11,7 +11,7 @@ Tests the research job execution workflow including:
 All tests use mocks to avoid external API calls.
 """
 
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import ANY, AsyncMock, MagicMock, patch
 
 import hypothesis.strategies as st
 import pytest
@@ -19,6 +19,11 @@ from click.testing import CliRunner
 
 # Import Hypothesis for property-based testing
 from hypothesis import given, settings
+
+
+async def _restore_expected_reservation(_queue, _job_id, reservation, _upload_result, _formatter):
+    return reservation
+
 
 from deepr.cli.commands.run import (
     TraceFlags,
@@ -143,6 +148,11 @@ class TestRunSingleAsync:
                     with (
                         patch("deepr.cli.commands.run.SQLiteQueue") as mock_queue_class,
                         patch("deepr.cli.commands.run._enqueue_reserved_job", new_callable=AsyncMock),
+                        patch(
+                            "deepr.cli.commands.run._ensure_reservation",
+                            new_callable=AsyncMock,
+                            side_effect=_restore_expected_reservation,
+                        ),
                     ):
                         mock_queue_instance = MagicMock()
                         mock_queue_instance.enqueue = AsyncMock(return_value="job-123")
@@ -299,6 +309,11 @@ class TestRunSingleAsync:
             patch("deepr.cli.commands.file_handler.handle_file_uploads", side_effect=upload),
             patch("deepr.cli.commands.run._enqueue_reserved_job", new_callable=AsyncMock) as enqueue,
             patch("deepr.cli.commands.run._submit_to_provider", new_callable=AsyncMock),
+            patch(
+                "deepr.cli.commands.run._ensure_reservation",
+                new_callable=AsyncMock,
+                side_effect=_restore_expected_reservation,
+            ),
             patch("deepr.cli.commands.run.SQLiteQueue", return_value=queue),
             patch("deepr.config.load_config", return_value={"queue_db_path": "custom/research.db"}),
         ):
@@ -317,6 +332,115 @@ class TestRunSingleAsync:
         assert events == ["reserve", "upload"]
         assert reserve_args[-1] == "custom/research.db"
         assert enqueue.await_args.kwargs["queue_db_path"] == "custom/research.db"
+
+    @pytest.mark.asyncio
+    async def test_closed_persisted_reservation_blocks_cli_provider_dispatch(self):
+        from deepr.cli.commands.run import _run_single
+        from deepr.cli.output import OutputContext, OutputMode
+        from deepr.services.research_submission import ResearchDispatchReservationError
+
+        reservation = MagicMock()
+        blocked = ResearchDispatchReservationError(
+            "closed reservation",
+            code="reservation_not_active",
+            retryable=False,
+        )
+        queue = MagicMock(claim_submission=AsyncMock(return_value=True))
+        with (
+            patch("deepr.cli.commands.run._check_budget", return_value=True),
+            patch(
+                "deepr.cli.commands.run._reserve_job_submission",
+                new_callable=AsyncMock,
+                return_value=("research-1", reservation),
+            ),
+            patch("deepr.cli.commands.run._enqueue_reserved_job", new_callable=AsyncMock),
+            patch(
+                "deepr.services.research_submission.restore_active_queued_reservation",
+                new_callable=AsyncMock,
+                side_effect=blocked,
+            ),
+            patch("deepr.cli.commands.run._submit_to_provider", new_callable=AsyncMock) as submit,
+            patch(
+                "deepr.cli.commands.run_submission.rollback_prepared_submission",
+                new_callable=AsyncMock,
+            ) as rollback,
+            patch("deepr.cli.commands.run.SQLiteQueue", return_value=queue),
+            patch("deepr.config.load_config", return_value={"queue_db_path": "custom/research.db"}),
+            pytest.raises(ResearchDispatchReservationError) as raised,
+        ):
+            await _run_single(
+                query="Test query",
+                model="o4-mini-deep-research",
+                provider="openai",
+                no_web=False,
+                no_code=False,
+                upload=(),
+                limit=1.0,
+                yes=True,
+                output_context=OutputContext(mode=OutputMode.QUIET),
+            )
+
+        assert raised.value.code == "reservation_not_active"
+        queue.claim_submission.assert_not_awaited()
+        submit.assert_not_awaited()
+        rollback.assert_awaited_once_with(
+            reservation,
+            None,
+            source="cli.run.reservation_not_active",
+            formatter=ANY,
+        )
+
+    @pytest.mark.asyncio
+    async def test_reservation_store_outage_leaves_cli_job_queued_for_retry(self):
+        from deepr.cli.commands.run import _run_single
+        from deepr.cli.output import OutputContext, OutputMode
+        from deepr.services.research_submission import ResearchDispatchReservationError
+
+        reservation = MagicMock()
+        unavailable = ResearchDispatchReservationError(
+            "reservation store unavailable",
+            code="reservation_store_unavailable",
+            retryable=True,
+        )
+        queue = MagicMock(claim_submission=AsyncMock(return_value=True))
+        with (
+            patch("deepr.cli.commands.run._check_budget", return_value=True),
+            patch(
+                "deepr.cli.commands.run._reserve_job_submission",
+                new_callable=AsyncMock,
+                return_value=("research-1", reservation),
+            ),
+            patch("deepr.cli.commands.run._enqueue_reserved_job", new_callable=AsyncMock),
+            patch(
+                "deepr.services.research_submission.restore_active_queued_reservation",
+                new_callable=AsyncMock,
+                side_effect=unavailable,
+            ),
+            patch("deepr.cli.commands.run._submit_to_provider", new_callable=AsyncMock) as submit,
+            patch(
+                "deepr.cli.commands.run_submission.rollback_prepared_submission",
+                new_callable=AsyncMock,
+            ) as rollback,
+            patch("deepr.cli.commands.run.SQLiteQueue", return_value=queue),
+            patch("deepr.config.load_config", return_value={"queue_db_path": "custom/research.db"}),
+            pytest.raises(ResearchDispatchReservationError) as raised,
+        ):
+            await _run_single(
+                query="Test query",
+                model="o4-mini-deep-research",
+                provider="openai",
+                no_web=False,
+                no_code=False,
+                upload=(),
+                limit=1.0,
+                yes=True,
+                output_context=OutputContext(mode=OutputMode.QUIET),
+            )
+
+        assert raised.value.retryable is True
+        queue.claim_submission.assert_not_awaited()
+        submit.assert_not_awaited()
+        rollback.assert_not_awaited()
 
     @pytest.mark.asyncio
     async def test_rejected_cost_admission_creates_no_provider_resources(self):

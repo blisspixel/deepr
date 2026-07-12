@@ -32,6 +32,12 @@ from deepr.config import runtime_data_path
 from deepr.utils.async_runner import run_async_command as run_async
 from deepr.utils.security import is_loopback_bind_host
 from deepr.web import action_safety
+from deepr.web.expert_chat_contract import BrowserChatContractError, parse_browser_expert_chat_request  # noqa: F401
+from deepr.web.expert_chat_rest import (
+    build_browser_expert_chat_response,
+    handle_browser_expert_chat_request,
+    run_browser_expert_chat_once,
+)
 from deepr.web.expert_loop_status_api import register_expert_read_apis
 from deepr.web.portrait_api import generate_expert_portrait_response
 
@@ -55,21 +61,10 @@ _SOCKETIO_CORS_ORIGINS = _CORS_ORIGINS if os.getenv("DEEPR_CORS_ORIGINS") else N
 _MAX_PROMPT_LENGTH = 50_000  # characters
 _MAX_BATCH_SIZE = 50
 _MAX_QUERY_LIMIT = 1000
-_ALLOWED_MODELS = {
+_WEB_OPENAI_RESEARCH_MODELS = {
     "o3-deep-research",
     "o4-mini-deep-research",
-    "gemini/deep-research",
-    "xai/grok-4-20-multi-agent",
-    "xai/grok-4-20-reasoning",
-    "xai/grok-4-20-non-reasoning",
-    "xai/grok-4-3",
     "gpt-5.2",
-    "gemini-2.5-flash",
-    "grok-4",
-    "grok-4-3",
-    "grok-4.3",
-    "claude-sonnet-5",
-    "claude-sonnet-4-5-20250929",
 }
 
 app = Flask(
@@ -272,6 +267,19 @@ except Exception as e:
 
 research_costs = research_cost_api.WebResearchCostCoordinator(cost_controller, cost_estimator)
 
+
+def _web_expert_chat_budget_ceiling() -> float:
+    """Return the configured browser-chat ceiling, or zero when unavailable."""
+    from deepr.experts.cost_safety import CostSafetyManager
+
+    if cost_controller is None:
+        return 0.0
+    configured = cost_controller.max_cost_per_job
+    if isinstance(configured, bool) or not isinstance(configured, (int, float)) or not math.isfinite(configured):
+        return 0.0
+    return max(0.0, min(float(configured), CostSafetyManager.ABSOLUTE_MAX_PER_OPERATION))
+
+
 from deepr.api.websockets.events import (
     emit_job_completed,
     emit_job_created,
@@ -279,7 +287,7 @@ from deepr.api.websockets.events import (
     register_socketio_events,
 )
 
-register_socketio_events(socketio)
+register_socketio_events(socketio, max_chat_budget=_web_expert_chat_budget_ceiling)
 
 # ---------------------------------------------------------------------------
 # Background poller - checks provider status for PROCESSING jobs
@@ -326,8 +334,20 @@ def _check_job(loop, job):
         _check_stuck(loop, job)
         return
 
+    provider_factory = _provider_factory_for_job(job)
     try:
-        response = loop.run_until_complete(_default_openai_provider().get_status(job.provider_job_id))
+        active_provider = provider_factory()
+    except Exception as exc:
+        logger.warning(
+            "Poller: recorded provider unavailable for job %s (%s)",
+            job.id,
+            provider_exception_name(exc),
+        )
+        _check_stuck(loop, job)
+        return
+
+    try:
+        response = loop.run_until_complete(active_provider.get_status(job.provider_job_id))
     except Exception as exc:
         logger.warning(
             "Poller: provider status check failed for job %s (%s)",
@@ -349,6 +369,11 @@ def _check_job(loop, job):
         if provider_status == "unsupported":
             logger.warning("Poller: job %s returned an unsupported provider status", job.id)
         _check_stuck(loop, job)
+
+
+def _provider_factory_for_job(job):
+    """Bind provider construction to the owner persisted on a job."""
+    return partial(create_job_provider, job, _cfg)
 
 
 def _handle_completion(loop, job, response):
@@ -377,7 +402,12 @@ def _handle_completion(loop, job, response):
     cost = response.usage.cost if response.usage else None
     tokens = response.usage.total_tokens if response.usage else None
 
-    research_costs.cleanup_uploads(loop=loop, queue=queue, job=job, provider_factory=_default_openai_provider)
+    research_costs.cleanup_uploads(
+        loop=loop,
+        queue=queue,
+        job=job,
+        provider_factory=_provider_factory_for_job(job),
+    )
     research_costs.finalize_completed_job(loop=loop, queue=queue, job=job, actual_cost=cost, tokens=tokens)
 
     updated_job = loop.run_until_complete(queue.get_job(job.id))
@@ -395,7 +425,12 @@ def _handle_failure(loop, job, error, *, status=JobStatus.FAILED):
     except Exception:
         logger.exception("Poller: failed to close provider cost for failed job %s", job.id)
         return
-    research_costs.cleanup_uploads(loop=loop, queue=queue, job=job, provider_factory=_default_openai_provider)
+    research_costs.cleanup_uploads(
+        loop=loop,
+        queue=queue,
+        job=job,
+        provider_factory=_provider_factory_for_job(job),
+    )
     loop.run_until_complete(queue.update_status(job_id=job.id, status=status, error=str(error)))
     updated_job = loop.run_until_complete(queue.get_job(job.id))
     if updated_job:
@@ -406,7 +441,7 @@ def _handle_failure(loop, job, error, *, status=JobStatus.FAILED):
 
 
 def _cancel_job_with_cost_safety(job) -> bool:
-    provider_factory = partial(create_job_provider, job, _cfg)
+    provider_factory = _provider_factory_for_job(job)
     return run_async(research_costs.cancel_job(queue=queue, job=job, provider_factory=provider_factory))
 
 
@@ -553,6 +588,7 @@ def get_jobs():
                     "id": job.id,
                     "prompt": (job.prompt[:200] if len(job.prompt) > 200 else job.prompt) if job.prompt else "",
                     "model": job.model,
+                    "provider": job.provider,
                     "status": job.status.value,
                     "priority": job.priority,
                     "cost": job.cost or 0,
@@ -610,6 +646,7 @@ def get_job(job_id):
             "id": job.id,
             "prompt": job.prompt,
             "model": job.model,
+            "provider": job.provider,
             "status": job.status.value,
             "priority": job.priority,
             "cost": job.cost or 0,
@@ -661,6 +698,35 @@ def delete_job(job_id):
         return jsonify({"error": "Internal server error"}), 500
 
 
+def _build_submitted_research_job(
+    data,
+    *,
+    job_id: str,
+    prompt: str,
+    model: str,
+    priority: int,
+    enable_web_search,
+    metadata: dict,
+    reservation,
+) -> ResearchJob:
+    mode = data.get("mode")
+    if mode:
+        metadata["mode"] = mode
+    if reservation is not None:
+        metadata.update(reservation.metadata())
+    return ResearchJob(
+        id=job_id,
+        prompt=prompt,
+        model=model,
+        provider="openai",
+        priority=priority,
+        enable_web_search=enable_web_search,
+        status=JobStatus.QUEUED,
+        submitted_at=datetime.now(UTC),
+        metadata=metadata,
+    )
+
+
 @app.route("/api/jobs", methods=["POST"])
 @(limiter.limit("10 per minute") if limiter else (lambda f: f))
 def submit_job():
@@ -680,7 +746,7 @@ def submit_job():
             prompt=prompt,
             model=model,
             max_prompt_length=_MAX_PROMPT_LENGTH,
-            allowed_models=_ALLOWED_MODELS,
+            allowed_models=_WEB_OPENAI_RESEARCH_MODELS,
             metadata=data.get("metadata"),
         )
         if input_denial is not None:
@@ -707,21 +773,15 @@ def submit_job():
             payload, status = provider_denial
             return jsonify(payload), status
 
-        now = datetime.now(UTC)
-        mode = data.get("mode")
-        if mode:
-            metadata["mode"] = mode
-        if reservation is not None:
-            metadata.update(reservation.metadata())
-        job = ResearchJob(
-            id=job_id,
+        job = _build_submitted_research_job(
+            data,
+            job_id=job_id,
             prompt=prompt,
             model=model,
             priority=priority,
             enable_web_search=enable_web_search,
-            status=JobStatus.QUEUED,
-            submitted_at=now,
             metadata=metadata,
+            reservation=reservation,
         )
 
         req = ResearchRequest(
@@ -745,6 +805,9 @@ def submit_job():
             provider_submitted = True
             research_costs.remember(reservation)
         except Exception as exc:
+            retry_payload = research_cost_api.retryable_dispatch_payload(exc, job_id)
+            if retry_payload is not None:
+                return jsonify(retry_payload), 503
             research_costs.refund_job(job)
             reservation = None
             error = "Provider submission failed"
@@ -754,7 +817,6 @@ def submit_job():
                 provider_exception_name(exc),
             )
             run_async(queue.update_status(job_id=job_id, status=JobStatus.FAILED, error=error))
-            # Notify WebSocket clients so the job shows up as failed
             job.status = JobStatus.FAILED
             job.last_error = error
             emit_job_failed(socketio, job, error)
@@ -765,21 +827,20 @@ def submit_job():
                 }
             ), 500
 
-        # Notify connected clients via WebSocket
         job.status = JobStatus.PROCESSING
         job.provider_job_id = provider_job_id
         emit_job_created(socketio, job)
 
-        # Return job data matching frontend expectations
         job_response = {
             "id": job_id,
             "prompt": prompt,
             "model": model,
+            "provider": "openai",
             "status": "processing",
             "priority": priority,
             "cost": 0,
             "tokens_used": 0,
-            "submitted_at": now.isoformat(),
+            "submitted_at": job.submitted_at.isoformat(),
             "provider_job_id": provider_job_id,
         }
 
@@ -808,7 +869,7 @@ def batch_submit():
             data.get("jobs"),
             max_batch_size=_MAX_BATCH_SIZE,
             max_prompt_length=_MAX_PROMPT_LENGTH,
-            allowed_models=_ALLOWED_MODELS,
+            allowed_models=_WEB_OPENAI_RESEARCH_MODELS,
         )
         if denial is not None:
             payload, status = denial
@@ -1047,7 +1108,7 @@ def get_cost_breakdown():
         # spend, not just queue jobs; events without a model roll up
         # under "unknown" so the totals still reconcile with the ledger)
         model_costs = {}
-        for event in CostLedger().get_events(start_date=cutoff):
+        for event in CostLedger().get_attributed_events(start_date=cutoff):
             model = event.model or "unknown"
             if model not in model_costs:
                 model_costs[model] = {"cost": 0, "count": 0, "tokens": 0}
@@ -1184,6 +1245,7 @@ def get_cost_limits():
             "per_job": cost_controller.max_cost_per_job if cost_controller else 10.0,
             "daily": cost_controller.max_daily_cost if cost_controller else 10.0,
             "monthly": cost_controller.max_monthly_cost if cost_controller else 100.0,
+            "expert_chat_max": _web_expert_chat_budget_ceiling(),
         }
         return jsonify({"limits": limits})
 
@@ -1227,6 +1289,7 @@ def update_cost_limits():
             "per_job": cost_controller.max_cost_per_job if cost_controller else 10.0,
             "daily": cost_controller.max_daily_cost if cost_controller else 10.0,
             "monthly": cost_controller.max_monthly_cost if cost_controller else 100.0,
+            "expert_chat_max": _web_expert_chat_budget_ceiling(),
         }
         _save_limits(limits["per_job"], limits["daily"], limits["monthly"])
         return jsonify({"limits": limits, "updated": True})
@@ -1731,87 +1794,19 @@ def serve_portrait(filename):
 @app.route("/api/experts/<name>/chat", methods=["POST"])
 def chat_with_expert(name):
     """Chat with a domain expert."""
-    try:
-        data = request.json
-        if not data or not data.get("message"):
-            return jsonify({"error": "Message required"}), 400
-
-        decoded_name, err = _decode_expert_name(name)
-        if err:
-            return err
-
-        from deepr.experts.chat import start_chat_session
-
-        message = data["message"]
-        session_id = data.get("session_id")
-
-        # Clamp the chat budget against the cost-safety per-op ceiling.
-        # The previous hard-coded 10.0 ignored the manager's daily
-        # spend ceiling, letting every fresh chat session start with a
-        # full $10 budget regardless of how much of the daily limit
-        # had already been consumed.
-        from deepr.experts.cost_safety import CostSafetyManager, get_cost_safety_manager
-
-        _cs = get_cost_safety_manager()
-        _spending = _cs.get_spending_summary()
-        _daily_left = float(_spending.get("daily", {}).get("remaining", CostSafetyManager.ABSOLUTE_MAX_PER_OPERATION))
-        chat_budget = min(10.0, max(0.5, _daily_left))
-
-        # Create or restore session
-        session = run_async(start_chat_session(decoded_name, budget=chat_budget, agentic=True, quiet=True))
-
-        if session_id:
-            _restore_session_messages(session, decoded_name, session_id)
-
-        # Get response
-        response_text = run_async(session.send_message(message))
-
-        # Persist conversation
-        session_id = session.save_conversation(session_id)
-
-        # Summarize tool calls from reasoning trace
-        tool_calls = [
-            {"tool": t["step"], "query": t.get("query", "")[:200]}
-            for t in session.reasoning_trace
-            if t.get("step") in ("search_knowledge_base", "standard_research", "deep_research", "skill_tool_call")
-        ]
-
-        import uuid
-
-        # Extract confidence from uncertainty
-        confidence = 0.9
-        uncertainty_phrases = [
-            "i don't know",
-            "i'm not sure",
-            "i don't have",
-            "no information",
-            "not in my knowledge",
-        ]
-        if response_text and any(p in response_text.lower() for p in uncertainty_phrases):
-            confidence = 0.3
-
-        return jsonify(
-            {
-                "response": {
-                    "id": uuid.uuid4().hex[:12],
-                    "role": "assistant",
-                    "content": response_text,
-                    "timestamp": datetime.now(UTC).isoformat(),
-                    "session_id": session_id,
-                    "cost": round(session.cost_accumulated, 4),
-                    "tool_calls": tool_calls,
-                    "confidence": confidence,
-                }
-            }
-        )
-    except ImportError:
-        return jsonify({"error": "Expert system not available"}), 404
-    except ValueError as e:
-        logger.warning("Chat error for expert %s: %s", name, e)
-        return jsonify({"error": "Expert not found"}), 404
-    except Exception as e:
-        logger.error(f"Error chatting with expert {name}: {e}")
-        return jsonify({"error": "Internal server error"}), 500
+    return handle_browser_expert_chat_request(
+        name=name,
+        data=request.get_json(silent=True),
+        decode_expert_name=_decode_expert_name,
+        max_budget=_web_expert_chat_budget_ceiling(),
+        run_async_command=run_async,
+        parse_request=parse_browser_expert_chat_request,
+        run_chat_once=run_browser_expert_chat_once,
+        build_response=build_browser_expert_chat_response,
+        experts_dir=_experts_dir,
+        jsonify_response=jsonify,
+        route_logger=logger,
+    )
 
 
 @app.route("/api/experts/council", methods=["POST"])
@@ -1848,32 +1843,6 @@ def expert_council():
     except Exception as e:
         logger.error(f"Council error: {e}")
         return jsonify({"error": "Internal server error"}), 500
-
-
-def _restore_session_messages(session, expert_name: str, session_id: str):
-    """Restore conversation messages from a saved session file."""
-    import re
-
-    from deepr.experts.profile import ExpertStore
-
-    # Sanitize session_id to prevent path traversal
-    if not re.match(r"^[\w\-]+$", session_id):
-        logger.warning("Invalid session_id rejected: %s", session_id)
-        return
-
-    store = ExpertStore(str(_experts_dir))
-    conversations_dir = store.get_conversations_dir(expert_name)
-    conversation_file = conversations_dir / f"{session_id}.json"
-
-    if conversation_file.exists():
-        import json as _json
-
-        with open(conversation_file, encoding="utf-8") as f:
-            data = _json.load(f)
-        saved_messages = data.get("messages", [])
-        for msg in saved_messages:
-            if msg.get("role") in ("user", "assistant"):
-                session.messages.append({"role": msg["role"], "content": msg["content"]})
 
 
 @app.route("/api/experts/<name>/conversations", methods=["GET"])
@@ -2423,63 +2392,20 @@ def discover_expert_gaps(name):
 
 @app.route("/api/experts/<name>/resolve-conflicts", methods=["POST"])
 def resolve_expert_conflicts(name):
-    """Trigger conflict resolution for an expert."""
-    try:
-        import asyncio
-
-        from deepr.experts.profile_store import ExpertStore
-        from deepr.experts.synthesis import Worldview
-
-        decoded_name, err = _decode_expert_name(name)
-        if err:
-            return err
-        data = request.get_json() or {}
-        budget = min(data.get("budget", 5.0), 50.0)
-
-        store = ExpertStore(str(_experts_dir))
-        profile = store.load(decoded_name)
-        if not profile:
-            return jsonify({"error": f"Expert not found: {decoded_name}"}), 404
-
-        knowledge_dir = store.get_knowledge_dir(decoded_name)
-        worldview_path = knowledge_dir / "worldview.json"
-        if not worldview_path.exists():
-            return jsonify({"error": "Expert has no worldview yet"}), 400
-
-        worldview = Worldview.load(worldview_path)
-        if not worldview.beliefs:
-            return jsonify({"results": []})
-
-        async def _do_resolve():
-            from deepr.config import AppConfig
-            from deepr.experts.beliefs import Belief as BeliefObj
-            from deepr.experts.conflict_resolver import ConflictResolver
-            from deepr.providers import create_provider
-
-            config = AppConfig.from_env()
-            provider = create_provider("openai", api_key=config.provider.openai_api_key)
-            resolver = ConflictResolver(client=provider.client)
-
-            belief_objects = []
-            for b in worldview.beliefs:
-                belief_objects.append(
-                    BeliefObj(
-                        claim=b.statement,
-                        confidence=b.confidence,
-                        evidence_refs=b.evidence,
-                        domain=b.topic,
-                    )
-                )
-            results = await resolver.resolve_all(belief_objects, budget=budget)
-            return [r.to_dict() for r in results]
-
-        results = asyncio.run(_do_resolve())
-        return jsonify({"results": results})
-    except ImportError:
-        return jsonify({"results": []})
-    except Exception as e:
-        logger.error(f"Error resolving conflicts for expert {name}: {e}")
-        return jsonify({"error": "Internal server error"}), 500
+    """Fail closed until conflict-resolution provider calls are accounted."""
+    return (
+        jsonify(
+            {
+                "error": (
+                    "Conflict resolution is temporarily blocked because this legacy path cannot "
+                    "guarantee reservation and canonical settlement for every provider call."
+                ),
+                "error_code": "METERED_ACCOUNTING_UNAVAILABLE",
+                "read_only_alternative": "deepr expert contested",
+            }
+        ),
+        503,
+    )
 
 
 # =============================================================================
@@ -3948,6 +3874,19 @@ def _auto_load_demo():
 _auto_load_demo()
 
 
+def _run_loopback_development_server(*, host: str, port: int, debug: bool) -> None:
+    """Run Flask-SocketIO's development server after a loopback-only check."""
+    if not is_loopback_bind_host(host):
+        raise RuntimeError("Werkzeug development server requires a loopback host")
+    socketio.run(
+        app,
+        debug=debug,
+        host=host,
+        port=port,
+        allow_unsafe_werkzeug=True,
+    )
+
+
 if __name__ == "__main__":
     import os as _os
     import sys as _sys
@@ -3988,4 +3927,4 @@ if __name__ == "__main__":
         print("=" * 70 + "\n")
         raise SystemExit(2)
     print("=" * 70 + "\n")
-    socketio.run(app, debug=debug, host=host, port=port, allow_unsafe_werkzeug=False)
+    _run_loopback_development_server(host=host, port=port, debug=debug)

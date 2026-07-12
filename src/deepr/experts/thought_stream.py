@@ -235,7 +235,9 @@ class ThoughtStream:
             expert_name: Name of the expert for logging
             verbose: Show detailed thoughts in terminal
             quiet: Hide all thoughts (only final answers)
-            log_dir: Directory for JSONL logs (default: data/experts/{name}/logs)
+            log_dir: Explicit directory for JSONL logs. When omitted, logs use
+                the expert's canonical directory below the configured experts
+                root.
         """
         self.expert_name = expert_name
         self.verbose = verbose
@@ -244,9 +246,9 @@ class ThoughtStream:
 
         # Set up log directory
         if log_dir is None:
-            from deepr.config import experts_root
+            from deepr.experts.paths import canonical_expert_dir
 
-            log_dir = experts_root() / expert_name / "logs"
+            log_dir = canonical_expert_dir(expert_name) / "logs"
         log_dir.mkdir(parents=True, exist_ok=True)
 
         # Create session log file

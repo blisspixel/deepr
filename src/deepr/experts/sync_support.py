@@ -14,10 +14,47 @@ logger = logging.getLogger(__name__)
 
 NO_CHANGES_MARKER = "no significant changes"
 
+# Retrieval receives a concise route, not the full synthesis prompt. These are
+# form and transport bounds only; they do not judge topical meaning.
+RETRIEVAL_TOPIC_MAX_CHARS = 240
+RETRIEVAL_FOCUS_MAX_CHARS = 320
+RETRIEVAL_EXPLICIT_URL_MAX_COUNT = 4
+RETRIEVAL_EXPLICIT_URL_MAX_TOTAL_CHARS = 2048
+_RETRIEVAL_URL_RE = re.compile(r"https?://[^\s<>)\"']+")
+_RETRIEVAL_TRAILING_PUNCTUATION = ".,;:!?"
+
 # Snapshots above this size are skipped (never truncated - truncation would
 # break the re-hash invariant). Fetched pages are usually well under this;
 # the cap only bounds pathological pages so the snapshot store cannot balloon.
 MAX_SNAPSHOT_CHARS = 2_000_000
+
+
+def bounded_retrieval_text(value: str, limit: int) -> str:
+    normalized = " ".join(value.split())
+    if len(normalized) <= limit:
+        return normalized
+    clipped = normalized[: max(0, limit - 3)].rstrip()
+    return f"{clipped}..."
+
+
+def explicit_retrieval_urls(*values: str) -> tuple[str, ...]:
+    urls: list[str] = []
+    seen: set[str] = set()
+    total_chars = 0
+    for value in values:
+        for match in _RETRIEVAL_URL_RE.findall(value):
+            url = match.rstrip(_RETRIEVAL_TRAILING_PUNCTUATION)
+            if not url or url in seen:
+                continue
+            projected = total_chars + len(url)
+            if len(url) > RETRIEVAL_EXPLICIT_URL_MAX_TOTAL_CHARS or projected > RETRIEVAL_EXPLICIT_URL_MAX_TOTAL_CHARS:
+                continue
+            seen.add(url)
+            urls.append(url)
+            total_chars = projected
+            if len(urls) >= RETRIEVAL_EXPLICIT_URL_MAX_COUNT:
+                return tuple(urls)
+    return tuple(urls)
 
 
 def write_source_snapshots(source_pack: dict[str, Any], root: Path) -> None:

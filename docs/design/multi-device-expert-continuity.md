@@ -39,7 +39,7 @@ instead of resolving them.
 
 ## Shipped contract
 
-Current v2.34.4 behavior is intentionally conservative:
+Current v2.35.0 behavior is intentionally conservative:
 
 - experts and reports may be placed in a synced folder for sequential use;
 - only one device may run mutating Deepr commands at a time;

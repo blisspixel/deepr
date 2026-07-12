@@ -570,7 +570,7 @@ class HierarchicalMemory:
 
         Args:
             expert_name: Name of the expert
-            storage_dir: Directory for persistence (default: data/experts/{name}/memory)
+            storage_dir: Persistence directory; defaults to the canonical expert directory.
             working_capacity: Maximum episodes in working memory
         """
         self.expert_name = expert_name
@@ -578,9 +578,9 @@ class HierarchicalMemory:
 
         # Set up storage
         if storage_dir is None:
-            from deepr.config import experts_root
+            from deepr.experts.paths import canonical_expert_dir
 
-            storage_dir = experts_root() / expert_name / "memory"
+            storage_dir = canonical_expert_dir(expert_name) / "memory"
         self.storage_dir = storage_dir
         self.storage_dir.mkdir(parents=True, exist_ok=True)
 
@@ -987,9 +987,9 @@ def _add_reconstruct_method():
         # Load documents if requested
         documents = []
         if include_documents and episode.context_docs:
-            from deepr.config import experts_root
+            from deepr.experts.paths import canonical_expert_dir
 
-            docs_dir = experts_root() / self.expert_name / "documents"
+            docs_dir = canonical_expert_dir(self.expert_name) / "documents"
             for doc_name in episode.context_docs:
                 doc_path = docs_dir / doc_name
                 if doc_path.exists():

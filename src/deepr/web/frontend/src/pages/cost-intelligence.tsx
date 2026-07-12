@@ -31,7 +31,13 @@ export default function CostIntelligence() {
     queryFn: () => costApi.getTrends(days),
   })
 
-  const { data: breakdown } = useQuery({
+  const {
+    data: breakdown,
+    isLoading: isBreakdownLoading,
+    isError: isBreakdownError,
+    isFetching: isBreakdownFetching,
+    refetch: refetchBreakdown,
+  } = useQuery({
     queryKey: ['cost', 'breakdown', timeRange],
     queryFn: () => costApi.getBreakdown(timeRange),
   })
@@ -308,7 +314,23 @@ export default function CostIntelligence() {
       {/* Cost Breakdown Pie Chart */}
       <div className="rounded-lg border bg-card p-5 space-y-4">
         <h2 className="text-sm font-semibold text-foreground uppercase tracking-wider">Spending by Model</h2>
-        {breakdownData.length > 0 ? (
+        {isBreakdownLoading ? (
+          <div className="h-[220px] flex items-center justify-center text-sm text-muted-foreground">
+            Loading model spending...
+          </div>
+        ) : isBreakdownError ? (
+          <div className="h-[220px] flex flex-col gap-3 items-center justify-center text-sm text-muted-foreground">
+            <span>Unable to load model spending from the cost ledger.</span>
+            <button
+              type="button"
+              onClick={() => void refetchBreakdown()}
+              disabled={isBreakdownFetching}
+              className="px-3 py-1.5 bg-primary text-primary-foreground rounded-lg text-xs font-medium hover:bg-primary/90 disabled:opacity-50"
+            >
+              {isBreakdownFetching ? 'Retrying...' : 'Retry'}
+            </button>
+          </div>
+        ) : breakdownData.length > 0 ? (
           <div className="flex flex-col sm:flex-row items-center gap-6">
             <DonutChart data={breakdownData} height={220} innerRadius={60} outerRadius={90} />
             <div className="space-y-2 flex-1 min-w-0">
@@ -323,7 +345,7 @@ export default function CostIntelligence() {
           </div>
         ) : (
           <div className="h-[220px] flex items-center justify-center text-sm text-muted-foreground">
-            No spending data yet
+            No model-attributed ledger events in this time range
           </div>
         )}
       </div>

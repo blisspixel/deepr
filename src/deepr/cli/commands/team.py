@@ -63,7 +63,10 @@ async def run_dream_team(
     from deepr.queue import create_queue
     from deepr.queue.base import JobStatus, ResearchJob
     from deepr.services.research_cost_reconciliation import reconcile_research_cost_reservations
-    from deepr.services.research_submission import dispatch_reserved_research
+    from deepr.services.research_submission import (
+        ResearchDispatchReservationError,
+        dispatch_reserved_research,
+    )
     from deepr.services.team_architect import TeamArchitect
     from deepr.storage import create_storage
 
@@ -278,6 +281,21 @@ Provide your analysis from this perspective."""
                 await queue.update_status(job_id, JobStatus.FAILED, error=error_msg)
                 console.print(f"  [error]Failed: {error_msg}[/error]")
 
+        except ResearchDispatchReservationError as e:
+            if e.retryable:
+                results.append(
+                    {
+                        "job_id": job_id,
+                        "role": member["role"],
+                        "status": "pending",
+                        "content": "",
+                        "cost": 0.0,
+                    }
+                )
+                console.print("  [warning]Reservation check unavailable; queued for retry[/warning]")
+                continue
+            await queue.update_status(job_id, JobStatus.FAILED, error=str(e))
+            console.print(f"  [error]Error: {e}[/error]")
         except Exception as e:
             if provider_job_id and ResearchReservationStore().is_active(reservation.reservation_id):
                 settle_research_cost(

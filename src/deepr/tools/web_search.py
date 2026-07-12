@@ -162,7 +162,7 @@ class WebSearchTool(Tool):
         headers: dict[str, str] = {"Accept": "application/json", "X-Subscription-Token": self.brave_api_key}
         params: dict[str, str | int] = {"q": query, "count": num_results}
 
-        response = requests.get(url, headers=headers, params=params, timeout=10)
+        response = await asyncio.to_thread(requests.get, url, headers=headers, params=params, timeout=10)
         response.raise_for_status()
 
         data = response.json()
@@ -184,7 +184,7 @@ class WebSearchTool(Tool):
         url = "https://api.tavily.com/search"
         payload = {"api_key": self.tavily_api_key, "query": query, "max_results": num_results}
 
-        response = requests.post(url, json=payload, timeout=10)
+        response = await asyncio.to_thread(requests.post, url, json=payload, timeout=10)
         response.raise_for_status()
 
         data = response.json()

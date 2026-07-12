@@ -235,6 +235,33 @@ class CostLedger:
             source=source,
         )
 
+    def get_attributed_events(
+        self,
+        start_date: datetime | None = None,
+        end_date: datetime | None = None,
+        source: str | None = None,
+    ) -> list[CostLedgerEvent]:
+        """Return the validated provider/model attribution derived view.
+
+        Reconciliation is resolved over the complete locked ledger before the
+        requested spend-period filter is applied. This keeps a later append-only
+        correction effective for an earlier charge without moving the charge's
+        timestamp or changing any dollar total.
+        """
+        from deepr.observability.cost_attribution import project_cost_attribution
+
+        def project(events: list[CostLedgerEvent]) -> list[CostLedgerEvent]:
+            attributed = project_cost_attribution(events)
+            return [
+                event
+                for event in attributed
+                if (source is None or event.source == source)
+                and (start_date is None or event.timestamp >= start_date)
+                and (end_date is None or event.timestamp <= end_date)
+            ]
+
+        return self.with_locked_events(project)
+
     def _get_events_unlocked(
         self,
         *,

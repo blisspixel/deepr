@@ -5,7 +5,9 @@ _check_job_status for completed/failed/in_progress/queued (stuck) jobs,
 _handle_completion success + queue-update-failure, _handle_failure persistence.
 """
 
+import asyncio
 import sys
+from collections import Counter
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock, patch
@@ -110,6 +112,57 @@ class TestPollCycle:
         poller._check_job_status = fake
         await poller._poll_cycle()
         assert calls == ["a", "b"]
+
+    @pytest.mark.asyncio
+    async def test_fanout_is_bounded_and_duplicate_job_settles_once(self, poller):
+        jobs = [_job(id=f"j{index}", provider_job_id=f"p{index}") for index in range(10)]
+        jobs.append(_job(id="j0", provider_job_id="duplicate-provider-id"))
+        poller.queue.list_jobs = AsyncMock(return_value=jobs)
+        poller._handle_completion = AsyncMock()
+        active = 0
+        max_active = 0
+        first_batch_ready = asyncio.Event()
+        release = asyncio.Event()
+
+        async def get_status(_provider_job_id):
+            nonlocal active, max_active
+            active += 1
+            max_active = max(max_active, active)
+            if active == 8:
+                first_batch_ready.set()
+            try:
+                await release.wait()
+                return MagicMock(status="completed")
+            finally:
+                active -= 1
+
+        poller.provider.get_status = get_status
+        cycle = asyncio.create_task(poller._poll_cycle())
+        await asyncio.wait_for(first_batch_ready.wait(), timeout=1.0)
+
+        assert max_active == 8
+        release.set()
+        await cycle
+
+        settled_ids = Counter(call.args[0].id for call in poller._handle_completion.await_args_list)
+        assert settled_ids == Counter({f"j{index}": 1 for index in range(10)})
+
+    @pytest.mark.asyncio
+    async def test_cancellation_clears_in_flight_job_guard(self, poller):
+        started = asyncio.Event()
+
+        async def wait_forever(_job):
+            started.set()
+            await asyncio.Event().wait()
+
+        poller._check_job_status = wait_forever
+        task = asyncio.create_task(poller.check_job_status(_job(id="cancelled")))
+        await asyncio.wait_for(started.wait(), timeout=1.0)
+        task.cancel()
+
+        with pytest.raises(asyncio.CancelledError):
+            await task
+        assert poller._in_flight_job_ids == set()
 
 
 class TestCheckJobStatus:

@@ -369,11 +369,29 @@ class TestLoadConfigContract:
         monkeypatch.setenv("OPENAI_API_KEY", "sk-secret-must-not-leak")
         assert load_config()["api_key"] == "***"
 
-    def test_hardcoded_queue_fields(self, monkeypatch):
+    def test_legacy_queue_fields_when_runtime_root_is_unset(self, monkeypatch):
         monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+        monkeypatch.delenv("DEEPR_DATA_DIR", raising=False)
+        monkeypatch.delenv("DEEPR_QUEUE_DB_PATH", raising=False)
         result = load_config()
         assert result["queue"] == "local"
         assert result["queue_db_path"] == "queue/research_queue.db"
+
+    def test_queue_path_follows_runtime_data_root(self, monkeypatch, tmp_path):
+        monkeypatch.setenv("DEEPR_DATA_DIR", str(tmp_path / "portable"))
+        monkeypatch.delenv("DEEPR_QUEUE_DB_PATH", raising=False)
+
+        assert load_config()["queue_db_path"] == str(tmp_path / "portable" / "queue" / "research_queue.db")
+
+    def test_explicit_queue_path_wins(self, monkeypatch, tmp_path):
+        explicit = tmp_path / "operator" / "research.db"
+        monkeypatch.setenv("DEEPR_DATA_DIR", str(tmp_path / "portable"))
+        monkeypatch.setenv("DEEPR_QUEUE_DB_PATH", str(explicit))
+
+        from deepr.core.settings import load_config as settings_load_config
+
+        assert load_config()["queue_db_path"] == str(explicit)
+        assert settings_load_config()["queue_db_path"] == str(explicit)
 
     def test_default_cost_limits_when_env_unset(self, monkeypatch):
         for var in ("DEEPR_MAX_COST_PER_JOB", "DEEPR_MAX_COST_PER_DAY", "DEEPR_MAX_COST_PER_MONTH"):
@@ -452,7 +470,9 @@ class TestLoadConfigSettingsEquivalence:
         if key == "queue":
             return "local"
         if key == "queue_db_path":
-            return "queue/research_queue.db"
+            from deepr.config import queue_db_path
+
+            return queue_db_path()
         if key == "storage":
             return settings.storage.type.value
         if key == "results_dir":

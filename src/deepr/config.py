@@ -49,6 +49,21 @@ def runtime_data_path(*parts: str) -> Path:
     return runtime_data_root().joinpath(*parts)
 
 
+def queue_db_path() -> str:
+    """Resolve the local research queue without breaking legacy installs.
+
+    An explicit queue path has highest priority. A configured runtime data root
+    owns the queue beneath ``queue/research_queue.db``. When neither variable
+    is set, preserve the long-standing checkout-relative queue location.
+    """
+    explicit = os.getenv("DEEPR_QUEUE_DB_PATH")
+    if explicit:
+        return explicit
+    if os.getenv("DEEPR_DATA_DIR"):
+        return str(runtime_data_path("queue", "research_queue.db"))
+    return "queue/research_queue.db"
+
+
 # Load .env: the current directory first (local/dev), then the per-user global
 # ~/.deepr/.env, so a globally-installed CLI finds its config from ANY working
 # directory. load_dotenv does not override already-set vars, so a local .env
@@ -589,7 +604,7 @@ def load_config() -> dict:
         "api_key": "***",  # Redacted: callers needing real keys should use env / provider factory
         "azure_endpoint": config.provider.azure_endpoint,
         "queue": "local",  # Default to local queue
-        "queue_db_path": "queue/research_queue.db",
+        "queue_db_path": queue_db_path(),
         "storage": config.storage.type,
         "results_dir": config.storage.local_path,
         "experts_dir": str(experts_root()),

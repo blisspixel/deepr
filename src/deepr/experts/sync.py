@@ -21,16 +21,27 @@ from __future__ import annotations
 import json
 import logging
 from collections.abc import Awaitable, Callable, Mapping
-from dataclasses import dataclass, field
 from datetime import UTC, datetime, timedelta
-from pathlib import Path
-from typing import TYPE_CHECKING, Any, Protocol
+from typing import TYPE_CHECKING, Any, Protocol, cast
 
-from deepr.backends.context_building import accepts_prior_source_pack
+from deepr.backends.context_building import accepts_keyword_argument, accepts_prior_source_pack
 from deepr.experts.beliefs import BeliefStore
+from deepr.experts.knowledge_freshness import advance_from_absorption, advance_knowledge_freshness
 from deepr.experts.perspective import what_changed
+from deepr.experts.sync_contracts import (
+    DEFAULT_SUBSCRIPTION_BUDGET,
+    ClaimCompilationOutcome,
+    Subscription,
+    SubscriptionStore,
+    SyncOutcome,
+    SyncResult,
+)
 from deepr.experts.sync_support import (
     NO_CHANGES_MARKER,
+    RETRIEVAL_FOCUS_MAX_CHARS,
+    RETRIEVAL_TOPIC_MAX_CHARS,
+    bounded_retrieval_text,
+    explicit_retrieval_urls,
     fresh_context_has_no_sources,
     is_no_changes_answer,
     model_metadata,
@@ -48,10 +59,17 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
-_NO_CHANGES_MARKER = NO_CHANGES_MARKER
+__all__ = [
+    "DEFAULT_SUBSCRIPTION_BUDGET",
+    "ExpertSyncEngine",
+    "Subscription",
+    "SubscriptionStore",
+    "SyncOutcome",
+    "SyncResult",
+    "fresh_sources_unchanged",
+]
 
-# Default per-subscription research budget when none is set.
-DEFAULT_SUBSCRIPTION_BUDGET = 0.50
+_NO_CHANGES_MARKER = NO_CHANGES_MARKER
 
 # Floor below which a sync run refuses to start a subscription (mirrors the
 # learner's refuse-before-spending preflight).
@@ -110,166 +128,6 @@ def fresh_sources_unchanged(prior: dict[str, Any] | None, current: dict[str, Any
     if not prior_hashes:
         return False
     return current_hashes <= prior_hashes
-
-
-@dataclass
-class Subscription:
-    """One topic an expert stays current on."""
-
-    topic: str
-    query: str = ""  # optional extra focus for the freshness prompt
-    cadence_days: float = 7.0
-    budget: float = DEFAULT_SUBSCRIPTION_BUDGET
-    last_synced: datetime | None = None
-    created_at: datetime = field(default_factory=lambda: datetime.now(UTC))
-
-    def is_due(self, now: datetime | None = None) -> bool:
-        if self.last_synced is None:
-            return True
-        now = now or datetime.now(UTC)
-        return now - self.last_synced >= timedelta(days=self.cadence_days)
-
-    def to_dict(self) -> dict[str, Any]:
-        return {
-            "topic": self.topic,
-            "query": self.query,
-            "cadence_days": self.cadence_days,
-            "budget": self.budget,
-            "last_synced": self.last_synced.isoformat() if self.last_synced else None,
-            "created_at": self.created_at.isoformat(),
-        }
-
-    @classmethod
-    def from_dict(cls, data: dict[str, Any]) -> Subscription:
-        return cls(
-            topic=data["topic"],
-            query=data.get("query", ""),
-            cadence_days=float(data.get("cadence_days", 7.0)),
-            budget=float(data.get("budget", DEFAULT_SUBSCRIPTION_BUDGET)),
-            last_synced=datetime.fromisoformat(data["last_synced"]) if data.get("last_synced") else None,
-            created_at=datetime.fromisoformat(data["created_at"]) if data.get("created_at") else datetime.now(UTC),
-        )
-
-
-class SubscriptionStore:
-    """JSON sidecar of an expert's topic subscriptions."""
-
-    def __init__(self, expert_name: str, storage_dir: Path | None = None):
-        self.expert_name = expert_name
-        if storage_dir is None:
-            from deepr.experts.profile import ExpertStore
-
-            storage_dir = ExpertStore().get_knowledge_dir(expert_name)
-        self.path = Path(storage_dir) / "subscriptions.json"
-        self.subscriptions: list[Subscription] = []
-        self._load()
-
-    def _load(self) -> None:
-        if not self.path.exists():
-            return
-        try:
-            data = json.loads(self.path.read_text(encoding="utf-8"))
-            self.subscriptions = [Subscription.from_dict(s) for s in data.get("subscriptions", [])]
-        except (json.JSONDecodeError, OSError, KeyError, ValueError) as exc:
-            logger.error("Could not load subscriptions for %s: %s", self.expert_name, exc)
-
-    def save(self) -> None:
-        self.path.parent.mkdir(parents=True, exist_ok=True)
-        atomic_write_json(self.path, {"subscriptions": [s.to_dict() for s in self.subscriptions]})
-
-    def add(self, subscription: Subscription) -> None:
-        if any(s.topic.lower() == subscription.topic.lower() for s in self.subscriptions):
-            raise ValueError(f"Already subscribed to topic: {subscription.topic}")
-        self.subscriptions.append(subscription)
-        self.save()
-
-    def remove(self, topic: str) -> bool:
-        before = len(self.subscriptions)
-        self.subscriptions = [s for s in self.subscriptions if s.topic.lower() != topic.lower()]
-        if len(self.subscriptions) != before:
-            self.save()
-            return True
-        return False
-
-    def due(self, now: datetime | None = None) -> list[Subscription]:
-        return [s for s in self.subscriptions if s.is_due(now)]
-
-
-@dataclass
-class SyncOutcome:
-    """Result of syncing one subscription."""
-
-    topic: str
-    status: str  # "synced" | "no_changes" | "failed" | "skipped" | "would_sync"
-    cost: float = 0.0
-    absorbed: int = 0
-    flagged: int = 0
-    detail: str = ""
-    source_pack_artifact: str = ""
-    source_pack_manifest_artifact: str = ""
-    source_note_artifact: str = ""
-    claim_extraction_artifact: str = ""
-    claim_verification_artifact: str = ""
-    graph_commit_envelope_artifact: str = ""
-    graph_commit_apply_artifact: str = ""
-    graph_commit_apply_status: str = ""
-    source_count: int = 0
-    context_mode: str = ""
-
-    def to_dict(self) -> dict[str, Any]:
-        return {
-            "topic": self.topic,
-            "status": self.status,
-            "cost": round(self.cost, 4),
-            "absorbed": self.absorbed,
-            "flagged": self.flagged,
-            "detail": self.detail,
-            "source_pack_artifact": self.source_pack_artifact,
-            "source_pack_manifest_artifact": self.source_pack_manifest_artifact,
-            "source_note_artifact": self.source_note_artifact,
-            "claim_extraction_artifact": self.claim_extraction_artifact,
-            "claim_verification_artifact": self.claim_verification_artifact,
-            "graph_commit_envelope_artifact": self.graph_commit_envelope_artifact,
-            "graph_commit_apply_artifact": self.graph_commit_apply_artifact,
-            "graph_commit_apply_status": self.graph_commit_apply_status,
-            "source_count": self.source_count,
-            "context_mode": self.context_mode,
-        }
-
-
-@dataclass
-class ClaimCompilationOutcome:
-    claim_extraction_artifact: str = ""
-    claim_verification_artifact: str = ""
-    graph_commit_envelope_artifact: str = ""
-    graph_commit_envelope: dict[str, Any] | None = None
-    cost: float = 0.0
-    detail: str = ""
-
-
-@dataclass
-class SyncResult:
-    """Result of one sync run: per-topic outcomes plus the perspective delta."""
-
-    expert_name: str
-    started_at: datetime
-    outcomes: list[SyncOutcome] = field(default_factory=list)
-    delta: dict[str, Any] = field(default_factory=dict)
-    total_cost: float = 0.0
-
-    @property
-    def synced_count(self) -> int:
-        return sum(1 for o in self.outcomes if o.status == "synced")
-
-    def to_dict(self) -> dict[str, Any]:
-        return {
-            "expert_name": self.expert_name,
-            "started_at": self.started_at.isoformat(),
-            "outcomes": [o.to_dict() for o in self.outcomes],
-            "delta": self.delta,
-            "total_cost": round(self.total_cost, 4),
-            "synced_count": self.synced_count,
-        }
 
 
 class ExpertSyncEngine:
@@ -372,6 +230,25 @@ class ExpertSyncEngine:
             f"If nothing meaningful changed, reply exactly: '{_NO_CHANGES_MARKER}'."
         )
 
+    @staticmethod
+    def build_retrieval_query(subscription: Subscription) -> str:
+        """Build a concise source-retrieval route for one subscription.
+
+        The full freshness prompt remains the generation query. This route is
+        bounded transport input for search and direct URL extraction only.
+        """
+        topic = bounded_retrieval_text(subscription.topic, RETRIEVAL_TOPIC_MAX_CHARS)
+        focus = bounded_retrieval_text(subscription.query, RETRIEVAL_FOCUS_MAX_CHARS)
+        parts = [topic]
+        if focus:
+            parts.append(f"Focus: {focus}")
+        route = " ".join(part for part in parts if part)
+        explicit_urls = explicit_retrieval_urls(subscription.topic, subscription.query)
+        missing_urls = [url for url in explicit_urls if url not in route]
+        if missing_urls:
+            route = f"{route} Sources: {' '.join(missing_urls)}".strip()
+        return route
+
     # ------------------------------------------------------------------ #
     # Sync
     # ------------------------------------------------------------------ #
@@ -422,6 +299,27 @@ class ExpertSyncEngine:
 
         return result
 
+    def _absorption_budget_preflight(
+        self,
+        subscription: Subscription,
+        budget: float,
+        *,
+        apply_graph_commits: bool,
+    ) -> tuple[float, SyncOutcome | None]:
+        if apply_graph_commits:
+            return 0.0, None
+
+        from deepr.experts.report_absorber import absorber_estimated_cost
+
+        absorption_estimate = absorber_estimated_cost(self._get_absorber())
+        if budget - absorption_estimate >= MIN_PER_TOPIC_BUDGET:
+            return absorption_estimate, None
+        return absorption_estimate, SyncOutcome(
+            subscription.topic,
+            "skipped",
+            detail=(f"run budget leaves less than ${MIN_PER_TOPIC_BUDGET:.2f} for research after reserving absorption"),
+        )
+
     async def _sync_subscription(
         self,
         subscription: Subscription,
@@ -434,17 +332,26 @@ class ExpertSyncEngine:
         if skip := self._pre_research_skip(subscription, budget, dry_run=dry_run):
             return skip, 0.0
 
+        absorption_estimate, budget_skip = self._absorption_budget_preflight(
+            subscription,
+            budget,
+            apply_graph_commits=apply_graph_commits,
+        )
+        if budget_skip is not None:
+            return budget_skip, 0.0
+
         # Read the prior pack before this run writes its own, so the
         # change-detection gate compares against the previous sync.
         prior_pack = self._load_latest_source_pack(subscription)
 
         try:
-            research = await self._research(subscription, budget, prior_source_pack=prior_pack)
+            research = await self._research(
+                subscription,
+                max(0.0, budget - absorption_estimate),
+                prior_source_pack=prior_pack,
+            )
         except Exception as exc:
             return SyncOutcome(subscription.topic, "failed", detail=str(exc)), 0.0
-
-        if "error" in research:
-            return SyncOutcome(subscription.topic, "failed", detail=str(research["error"])), 0.0
 
         cost = float(research.get("cost", 0.0) or 0.0)
         answer = (research.get("answer") or "").strip()
@@ -469,11 +376,27 @@ class ExpertSyncEngine:
                 cost,
             )
 
+        if "error" in research:
+            outcome = SyncOutcome(
+                subscription.topic,
+                "failed",
+                cost=cost,
+                detail=str(research["error"]),
+                error_code=str(research.get("error_code", "") or ""),
+                retryable=bool(research.get("retryable", False)),
+                no_metered_fallback=bool(research.get("no_metered_fallback", False)),
+            )
+            self._attach_source_pack_summary(
+                outcome, source_pack_path, source_pack_manifest_path, source_note_path, source_count, context_mode
+            )
+            return outcome, cost
+
         if fresh_context_has_no_sources(research):
             outcome = self._record_no_changes(
                 subscription,
                 cost,
                 detail="fresh context returned no sources",
+                advance_profile=False,
             )
             self._attach_source_pack_summary(
                 outcome, source_pack_path, source_pack_manifest_path, source_note_path, source_count, context_mode
@@ -492,7 +415,11 @@ class ExpertSyncEngine:
             return outcome, cost
 
         if not answer or is_no_changes_answer(answer):
-            outcome = self._record_no_changes(subscription, cost)
+            outcome = self._record_no_changes(
+                subscription,
+                cost,
+                advance_profile=bool(answer and source_pack_content_hashes(current_pack)),
+            )
             self._attach_source_pack_summary(
                 outcome, source_pack_path, source_pack_manifest_path, source_note_path, source_count, context_mode
             )
@@ -502,7 +429,7 @@ class ExpertSyncEngine:
             subscription,
             source_pack_artifact=source_pack_path,
             source_note_artifact=source_note_path,
-            budget=max(0.0, budget - cost),
+            budget=max(0.0, budget - cost - absorption_estimate),
             started_at=started_at,
         )
         cost += claim_compile.cost
@@ -511,6 +438,7 @@ class ExpertSyncEngine:
             answer,
             claim_compile,
             cost=cost,
+            absorption_budget=max(0.0, budget - cost),
             started_at=started_at,
             apply_graph_commits=apply_graph_commits,
         )
@@ -520,7 +448,12 @@ class ExpertSyncEngine:
         self._attach_claim_compilation_summary(outcome, claim_compile)
         if claim_compile.detail:
             outcome.detail = self._append_detail(outcome.detail, claim_compile.detail)
-        return outcome, cost
+        # Legacy absorption has its own model call after research. The absorber
+        # reports that estimate on the outcome, and its metered provider calls
+        # are independently settled in the canonical ledger. Return the full
+        # outcome cost so the run budget and loop record no longer omit the
+        # shared absorption step.
+        return outcome, outcome.cost
 
     async def _integrate_sync_answer(
         self,
@@ -529,12 +462,19 @@ class ExpertSyncEngine:
         claim_compile: ClaimCompilationOutcome,
         *,
         cost: float,
+        absorption_budget: float,
         started_at: datetime,
         apply_graph_commits: bool,
     ) -> SyncOutcome:
         if apply_graph_commits:
             return self._apply_compiled_graph_commit(subscription, claim_compile, cost=cost, started_at=started_at)
-        return await self._absorb_sync_answer(subscription, answer, cost=cost, started_at=started_at)
+        return await self._absorb_sync_answer(
+            subscription,
+            answer,
+            cost=cost,
+            absorption_budget=absorption_budget,
+            started_at=started_at,
+        )
 
     def _persist_source_pack(
         self,
@@ -602,6 +542,8 @@ class ExpertSyncEngine:
             "expert_name": self.expert.name,
             "topic": subscription.topic,
             "query": self.build_freshness_query(subscription),
+            "answer_query": self.build_freshness_query(subscription),
+            "retrieval_query": str(source_pack.get("query", "") or self.build_retrieval_query(subscription)),
             "started_at": started_at.isoformat(),
             "source_pack": source_pack,
         }
@@ -801,7 +743,12 @@ class ExpertSyncEngine:
         summary = verification.get("summary", {}) or {}
         if summary.get("status") != "ready_for_commit_envelope":
             reasons = ", ".join(summary.get("failure_reasons", []) or []) or "no ready decisions"
-            detail = f"claim verification {summary.get('status', 'blocked')}: {reasons}"
+            ready_count = int(nonnegative_float(summary.get("ready_for_commit_envelope_count", 0)))
+            blocked_count = int(nonnegative_float(summary.get("blocked_decision_count", 0)))
+            if ready_count:
+                detail = f"claim verification partial: {ready_count} ready, {blocked_count} blocked: {reasons}"
+            else:
+                detail = f"claim verification {summary.get('status', 'blocked')}: {reasons}"
         return ClaimCompilationOutcome(
             claim_verification_artifact=verification_artifact,
             graph_commit_envelope_artifact=graph_path.relative_to(root).as_posix(),
@@ -861,6 +808,10 @@ class ExpertSyncEngine:
         status = str(summary.get("status", "blocked") or "blocked")
         applied_writes = int(nonnegative_float(summary.get("applied_write_count", 0)))
         blocked_operations = int(nonnegative_float(summary.get("blocked_operation_count", 0)))
+        envelope_summary = graph_commit.get("summary", {})
+        if not isinstance(envelope_summary, dict):
+            envelope_summary = {}
+        blocked_decisions = int(nonnegative_float(envelope_summary.get("blocked_decision_count", 0)))
         detail = ""
         if status == "blocked":
             reasons = ", ".join(str(item) for item in summary.get("failure_reasons", []) or []) or "blocked"
@@ -871,19 +822,26 @@ class ExpertSyncEngine:
             detail = self._append_detail(detail, "graph commit apply artifact failed")
 
         sync_status = "synced" if status in {"applied", "already_applied"} and apply_artifact is not None else "failed"
+        observed_at = None
         if sync_status == "synced":
-            subscription.last_synced = datetime.now(UTC)
+            observed_at = datetime.now(UTC)
+            subscription.last_synced = observed_at
             self.subscriptions.save()
+            if applied_writes > 0 or status == "already_applied":
+                advance_knowledge_freshness(self.expert, observed_at)
+            else:
+                observed_at = None
 
         return SyncOutcome(
             subscription.topic,
             sync_status,
             cost=cost,
             absorbed=applied_writes,
-            flagged=blocked_operations,
+            blocked=blocked_operations + blocked_decisions,
             detail=detail,
             graph_commit_apply_artifact=apply_artifact or "",
             graph_commit_apply_status=status,
+            knowledge_observed_at=observed_at,
         )
 
     def _write_graph_commit_apply_artifact(
@@ -937,10 +895,20 @@ class ExpertSyncEngine:
         cost: float,
         *,
         detail: str = "",
+        advance_profile: bool = True,
     ) -> SyncOutcome:
-        subscription.last_synced = datetime.now(UTC)
+        observed_at = datetime.now(UTC)
+        subscription.last_synced = observed_at
         self.subscriptions.save()
-        return SyncOutcome(subscription.topic, "no_changes", cost=cost, detail=detail)
+        if advance_profile:
+            advance_knowledge_freshness(self.expert, observed_at)
+        return SyncOutcome(
+            subscription.topic,
+            "no_changes",
+            cost=cost,
+            detail=detail,
+            knowledge_observed_at=observed_at if advance_profile else None,
+        )
 
     async def _absorb_sync_answer(
         self,
@@ -948,23 +916,38 @@ class ExpertSyncEngine:
         answer: str,
         *,
         cost: float,
+        absorption_budget: float,
         started_at: datetime,
     ) -> SyncOutcome:
         try:
+            from deepr.experts.report_absorber import ReportAbsorberCostError, absorption_result_cost
+
             report_id = f"sync:{slug(subscription.topic)}:{started_at.strftime('%Y%m%d')}"
             absorption = await self._get_absorber().absorb(
                 report_id,
                 answer,
                 flag_contradictions=True,
+                budget=absorption_budget,
             )
-            subscription.last_synced = datetime.now(UTC)
+            total_cost = cost + absorption_result_cost(absorption)
+            observed_at = datetime.now(UTC)
+            subscription.last_synced = observed_at
             self.subscriptions.save()
+            knowledge_changed = advance_from_absorption(self.expert, absorption)
             return SyncOutcome(
                 subscription.topic,
                 "synced",
-                cost=cost,
+                cost=total_cost,
                 absorbed=len(absorption.absorbed),
                 flagged=len(absorption.flagged),
+                knowledge_observed_at=(self.expert.last_knowledge_refresh if knowledge_changed else None),
+            )
+        except ReportAbsorberCostError as exc:
+            return SyncOutcome(
+                subscription.topic,
+                "failed",
+                cost=cost + exc.actual_cost,
+                detail=f"absorb failed: {exc}",
             )
         except Exception as exc:
             return SyncOutcome(subscription.topic, "failed", cost=cost, detail=f"absorb failed: {exc}")
@@ -977,7 +960,15 @@ class ExpertSyncEngine:
         prior_source_pack: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
         query = self.build_freshness_query(subscription)
+        retrieval_query = self.build_retrieval_query(subscription)
         fn = self._research_fn or self._default_research
+        call_kwargs: dict[str, Any] = {}
         if prior_source_pack is not None and accepts_prior_source_pack(fn):
-            return await fn(query, budget, prior_source_pack=prior_source_pack)
+            call_kwargs["prior_source_pack"] = prior_source_pack
+        if accepts_keyword_argument(fn, "retrieval_query"):
+            call_kwargs["retrieval_query"] = retrieval_query
+        if call_kwargs:
+            prior_aware_fn = cast(Any, fn)
+            result = await prior_aware_fn(query, budget, **call_kwargs)
+            return cast(dict[str, Any], result)
         return await fn(query, budget)

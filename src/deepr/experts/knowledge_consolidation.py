@@ -156,9 +156,9 @@ class KnowledgeConsolidator:
         self.archive_age_days = archive_age_days
 
         if storage_dir is None:
-            from deepr.config import experts_root
+            from deepr.experts.paths import canonical_expert_dir
 
-            storage_dir = experts_root() / expert_name / "knowledge"
+            storage_dir = canonical_expert_dir(expert_name) / "knowledge"
         self.storage_dir = storage_dir
         self.storage_dir.mkdir(parents=True, exist_ok=True)
 

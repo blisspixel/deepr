@@ -93,7 +93,7 @@ _CLI_BACKENDS: list[tuple[str, str, CostModel, str]] = [
     (
         "Copilot CLI",
         "copilot",
-        CostModel.CREDIT_POOL,
+        CostModel.METERED,
         "GitHub plan, monthly AI credits (metered per token; overflow admin-capped)",
     ),
     ("Cursor CLI", "cursor-agent", CostModel.CREDIT_POOL, "Cursor plan; Auto model free, frontier models metered"),

@@ -220,8 +220,9 @@ strategies."
 - MCP consults can stay off metered APIs by setting
   `synthesis_backend="local"` or `synthesis_backend="plan"`, then checking
   `capacity.live_metered_fallback=false`.
-- Expert loops already persist sync, gap-fill, reflection, and health-check
-  state with typed stop reasons.
+- Expert loops already persist sync, gap-fill, reflection, and explicit
+  health-check archive mutation or wait state with typed stop reasons. Ordinary
+  health audits remain read-only and create no loop run.
 - `deepr expert monitor` emits read-only, review-required metacognitive
   proposals from self-model state, loop-run failures or capacity waits, and
   sanitized consult trace candidates.

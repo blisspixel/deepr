@@ -1099,6 +1099,8 @@ def load_config() -> dict[str, Any]:
     Returns:
         Dictionary with configuration values matching legacy format
     """
+    from deepr.config import queue_db_path
+
     settings = get_settings()
 
     # Legacy dict redacts secrets (callers that need real keys use env or
@@ -1109,7 +1111,7 @@ def load_config() -> dict[str, Any]:
         "api_key": "***",
         "azure_endpoint": settings.providers.get("azure", ProviderSettings("azure")).azure_endpoint,
         "queue": "local",
-        "queue_db_path": "queue/research_queue.db",
+        "queue_db_path": queue_db_path(),
         "storage": settings.storage.type.value,
         "results_dir": settings.storage.local_path,
         "max_cost_per_job": settings.budget.max_cost_per_job,

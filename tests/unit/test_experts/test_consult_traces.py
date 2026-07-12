@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import json
 from datetime import UTC, datetime
+from pathlib import Path
+from unittest.mock import patch
 
 from deepr.experts.consult_traces import (
     CONSULT_QUALITY_EVAL_CASE_KIND,
@@ -14,6 +16,7 @@ from deepr.experts.consult_traces import (
     CONSULT_TRACE_SCHEMA_VERSION,
     RECALL_EVAL_CASE_CANDIDATE_KIND,
     RECALL_EVAL_CASE_CANDIDATE_SCHEMA_VERSION,
+    _trace_path,
     build_consult_trace,
     build_consult_trace_candidates,
     load_consult_traces,
@@ -73,6 +76,22 @@ def test_build_consult_trace_records_replay_context():
         "owned_capacity_no_metered_fallback",
         "synthesis_status",
     }
+
+
+def test_build_consult_trace_records_effective_explicit_roster_size():
+    record = build_consult_trace(
+        question="How should four experts collaborate?",
+        requested_experts=["A", "B", "C", "D"],
+        max_experts=3,
+        budget=0.0,
+        payload={**_payload(), "experts_consulted": ["A", "B", "C", "D"]},
+        result={"perspectives": [{}, {}, {}, {}], "synthesis_status": "completed"},
+        trace_id="consult_abcdef123456",
+    )
+
+    assert record["input"]["selection_mode"] == "explicit"
+    assert record["input"]["requested_max_experts"] == 3
+    assert record["input"]["max_experts"] == 4
 
 
 def test_build_consult_trace_records_selected_order_context_position_metadata():
@@ -194,6 +213,30 @@ def test_build_consult_trace_makes_synthesis_failure_first_class():
 
     assert any(event["name"] == "synthesis_failed" for event in record["events"])
     assert next(check for check in record["checks"] if check["name"] == "synthesis_status")["status"] == "failed"
+    assert record["status"] == "failed"
+
+
+def test_build_consult_trace_marks_output_limit_incomplete():
+    record = build_consult_trace(
+        question="q",
+        requested_experts=["A"],
+        max_experts=1,
+        budget=0.0,
+        payload={**_payload(), "synthesis_status": "truncated", "synthesis_stop_reason": "length"},
+        result={
+            "perspectives": [{}],
+            "synthesis_status": "truncated",
+            "synthesis_error_type": "OutputLimit",
+            "synthesis_stop_reason": "length",
+        },
+        trace_id="consult_abcdef123456",
+        recorded_at=datetime(2026, 7, 11, 12, 0, tzinfo=UTC),
+    )
+
+    assert record["status"] == "failed"
+    event = next(event for event in record["events"] if event["name"] == "synthesis_incomplete")
+    assert event["attributes"]["stop_reason"] == "length"
+    assert next(check for check in record["checks"] if check["name"] == "synthesis_status")["status"] == "failed"
 
 
 def test_record_consult_trace_appends_jsonl_and_returns_public_ref(tmp_path):
@@ -220,6 +263,33 @@ def test_record_consult_trace_appends_jsonl_and_returns_public_ref(tmp_path):
         "recorded": True,
         "checks_ran": [check["name"] for check in data["checks"]],
     }
+
+
+def test_default_trace_path_uses_runtime_data_root(tmp_path, monkeypatch):
+    runtime_root = tmp_path / "runtime"
+    monkeypatch.setenv("DEEPR_DATA_DIR", str(runtime_root))
+    monkeypatch.delenv("DEEPR_CONSULT_TRACE_PATH", raising=False)
+
+    record_consult_trace(
+        question="isolated trace",
+        requested_experts=[],
+        max_experts=3,
+        budget=0.0,
+        trace_id="consult_runtime_root",
+    )
+
+    expected = runtime_root / "consult_traces" / "consult_traces.jsonl"
+    loaded = load_consult_traces()
+    assert expected.exists()
+    assert [record["trace_id"] for record in loaded] == ["consult_runtime_root"]
+
+
+def test_default_trace_path_preserves_per_user_compatibility_without_runtime_override(monkeypatch):
+    monkeypatch.delenv("DEEPR_DATA_DIR", raising=False)
+    monkeypatch.delenv("DEEPR_CONSULT_TRACE_PATH", raising=False)
+
+    with patch("deepr.experts.consult_traces.default_data_dir", return_value=Path("operator-home")):
+        assert _trace_path() == Path("operator-home/consult_traces/consult_traces.jsonl")
 
 
 def test_load_consult_traces_returns_newest_valid_records(tmp_path):

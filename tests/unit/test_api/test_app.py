@@ -79,13 +79,21 @@ def client(mock_queue, mock_provider, mock_storage):
     reservation.reservation_id = "test-reservation"
     reservation.manager = MagicMock()
     reservation.metadata.return_value = {}
+
+    async def restore_expected(**kwargs):
+        return kwargs.get("queued_job") or MagicMock(), kwargs["expected"]
+
     with (
         patch.object(app_module, "queue", mock_queue),
         patch.object(app_module, "provider", mock_provider),
         patch.object(app_module, "storage", mock_storage),
         patch.object(app_module.limiter, "enabled", False),
         patch.object(app_module, "reserve_api_research_cost", return_value=(estimate, reservation)) as reserve_cost,
-        patch("deepr.services.research_submission.ResearchReservationStore.is_active", return_value=True),
+        patch(
+            "deepr.services.research_submission.restore_active_queued_reservation",
+            new_callable=AsyncMock,
+            side_effect=restore_expected,
+        ),
     ):
         app_module.app.config["TESTING"] = True
 
@@ -728,12 +736,19 @@ class TestAPIResponseStructure:
         reservation = MagicMock(reservation_id="property-reservation")
         reservation.metadata.return_value = {}
 
+        async def restore_expected(**kwargs):
+            return kwargs.get("queued_job") or MagicMock(), kwargs["expected"]
+
         with (
             patch.object(app_module, "queue", mock_queue),
             patch.object(app_module, "provider", mock_provider),
             patch.object(app_module, "storage", mock_storage),
             patch.object(app_module, "reserve_api_research_cost", return_value=(estimate, reservation)),
-            patch("deepr.services.research_submission.ResearchReservationStore.is_active", return_value=True),
+            patch(
+                "deepr.services.research_submission.restore_active_queued_reservation",
+                new_callable=AsyncMock,
+                side_effect=restore_expected,
+            ),
         ):
             app_module.app.config["TESTING"] = True
 

@@ -16,7 +16,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
-from deepr.config import default_data_dir
+from deepr.config import default_data_dir, runtime_data_path
 from deepr.core.contracts import Gap
 from deepr.experts import recall_case_candidates as _recall_cases
 from deepr.experts.gap_scorer import score_gap
@@ -53,6 +53,8 @@ def _trace_path(path: Path | None = None) -> Path:
     explicit = os.getenv("DEEPR_CONSULT_TRACE_PATH")
     if explicit:
         return Path(explicit)
+    if os.getenv("DEEPR_DATA_DIR"):
+        return runtime_data_path("consult_traces", "consult_traces.jsonl")
     return default_data_dir() / "consult_traces" / "consult_traces.jsonl"
 
 
@@ -212,7 +214,12 @@ def _events(result: dict[str, Any] | None, failure: dict[str, Any] | None) -> li
         }
     )
     synthesis_status = str((result or {}).get("synthesis_status", "completed"))
-    event_name = "synthesis_failed" if synthesis_status == "failed" else "synthesis_finished"
+    if synthesis_status in {"completed", "skipped_no_valid_perspectives"}:
+        event_name = "synthesis_finished"
+    elif synthesis_status == "failed":
+        event_name = "synthesis_failed"
+    else:
+        event_name = "synthesis_incomplete"
     events.append(
         {
             "name": event_name,
@@ -220,6 +227,7 @@ def _events(result: dict[str, Any] | None, failure: dict[str, Any] | None) -> li
             "attributes": {
                 "status": synthesis_status,
                 "error_type": str((result or {}).get("synthesis_error_type", "")),
+                "stop_reason": str((result or {}).get("synthesis_stop_reason", "")),
             },
         }
     )
@@ -241,8 +249,11 @@ def build_consult_trace(
 ) -> dict[str, Any]:
     """Build a replayable consult trace record without writing it."""
     capacity_record = _capacity_block(capacity)
+    explicit_roster = bool(requested_experts)
+    effective_max_experts = len(requested_experts) if explicit_roster else int(max_experts)
     synthesis_status = str((result or {}).get("synthesis_status", "failed" if failure else "completed"))
-    status = "failed" if failure else "completed"
+    synthesis_ok = synthesis_status in {"completed", "skipped_no_valid_perspectives"}
+    status = "completed" if not failure and synthesis_ok else "failed"
     perspective_contexts = _perspective_contexts(payload)
     checked = _checks(payload=payload, capacity=capacity_record, synthesis_status=synthesis_status, status=status)
     record = {
@@ -256,7 +267,9 @@ def build_consult_trace(
             "question": question,
             "question_hash": _sha256(question),
             "requested_experts": list(requested_experts),
-            "max_experts": int(max_experts),
+            "selection_mode": "explicit" if explicit_roster else "automatic",
+            "requested_max_experts": int(max_experts),
+            "max_experts": effective_max_experts,
             "budget_usd": float(budget),
         },
         "capacity": capacity_record,

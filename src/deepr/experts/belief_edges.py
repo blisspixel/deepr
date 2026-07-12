@@ -18,6 +18,8 @@ def _utc_now() -> datetime:
 # the others are directed src -> dst.
 EDGE_TYPES = ("supports", "contradicts", "enables", "derived_from")
 _SYMMETRIC_EDGE_TYPES = ("contradicts",)
+CONTRADICTION_MODEL_CONFIRMED = "model_confirmed"
+CONTRADICTION_UNVERIFIED = "unverified"
 
 
 @dataclass
@@ -47,7 +49,7 @@ class Edge:
         return belief_id in (self.src_id, self.dst_id)
 
     def to_dict(self) -> dict[str, Any]:
-        out = {
+        out: dict[str, Any] = {
             "src_id": self.src_id,
             "dst_id": self.dst_id,
             "edge_type": self.edge_type,
@@ -74,7 +76,31 @@ class Edge:
         )
 
 
+def contradiction_verification(edge: Edge) -> str:
+    """Return provenance-backed assurance for one contradiction edge.
+
+    This classifies the verification process, not whether the claims truly
+    contradict. Only explicit model-verification provenance is confirmed;
+    migrated, manual, legacy, and lexical-router edges remain unverified.
+    """
+    if edge.edge_type != "contradicts":
+        raise ValueError("contradiction verification requires a contradicts edge")
+    if any(
+        item == "contradiction_verification:model_confirmed" or item.startswith("claim_verification:")
+        for item in edge.provenance
+    ):
+        return CONTRADICTION_MODEL_CONFIRMED
+    return CONTRADICTION_UNVERIFIED
+
+
 normalized_edge_temporal_context = normalize_temporal_context
 
 
-__all__ = ["EDGE_TYPES", "Edge", "normalized_edge_temporal_context"]
+__all__ = [
+    "CONTRADICTION_MODEL_CONFIRMED",
+    "CONTRADICTION_UNVERIFIED",
+    "EDGE_TYPES",
+    "Edge",
+    "contradiction_verification",
+    "normalized_edge_temporal_context",
+]

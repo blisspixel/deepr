@@ -46,9 +46,37 @@
       "type": "object",
       "additionalProperties": true
     },
+    "local_capacity": {
+      "type": "object",
+      "additionalProperties": true,
+      "properties": {
+        "schema_version": {"const": "deepr-local-capacity-observation-v1"},
+        "state": {"enum": ["free", "busy", "unknown"]}
+      }
+    },
+    "capacity_unavailable_reason": {"enum": ["local_gpu_busy"]},
+    "retry_after_seconds": {"type": "integer", "minimum": 1},
+    "retry_at": {"type": "string", "format": "date-time"},
+    "requested_operation": {"$ref": "#/$defs/requested_operation"},
     "self_model": {
       "type": "object",
       "additionalProperties": true
+    }
+  },
+  "$defs": {
+    "requested_operation": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": ["command_argv"],
+      "properties": {
+        "command_argv": {
+          "type": "array",
+          "minItems": 1,
+          "items": {"type": "string", "minLength": 1}
+        },
+        "capacity_source": {"type": "string"},
+        "backend_profile_id": {"type": "string"}
+      }
     }
   }
 }

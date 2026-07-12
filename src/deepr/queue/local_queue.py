@@ -31,13 +31,18 @@ def _safe_json_loads(data: str | None, default: T, context: str = "") -> T:
 class SQLiteQueue(QueueBackend):
     """SQLite-based queue implementation for local development."""
 
-    def __init__(self, db_path: str = "queue/research_queue.db") -> None:
+    def __init__(self, db_path: str | Path | None = None) -> None:
         """
         Initialize SQLite queue.
 
         Args:
-            db_path: Path to SQLite database file
+            db_path: Explicit SQLite database file. When omitted, resolve the
+                environment-aware queue path from ``deepr.config``.
         """
+        if db_path is None:
+            from deepr.config import queue_db_path
+
+            db_path = queue_db_path()
         self.db_path = Path(db_path)
         self.db_path.parent.mkdir(parents=True, exist_ok=True)
         self._cost_dashboard: CostDashboard | None = None

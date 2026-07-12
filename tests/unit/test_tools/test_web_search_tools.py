@@ -6,7 +6,9 @@ so the failover/error paths matter even though they had no unit coverage.
 
 from __future__ import annotations
 
+import asyncio
 import sys
+import threading
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
@@ -58,6 +60,29 @@ class TestWebSearchTool:
         get.assert_called_once()
         called_headers = get.call_args.kwargs["headers"]
         assert called_headers["X-Subscription-Token"] == "bk"
+
+    @pytest.mark.asyncio
+    async def test_brave_request_does_not_block_event_loop(self):
+        tool = WebSearchTool(backend="brave", brave_api_key="bk")
+        request_started = threading.Event()
+        release_request = threading.Event()
+        fake_response = MagicMock()
+        fake_response.json.return_value = {"web": {"results": []}}
+        fake_response.raise_for_status.return_value = None
+
+        def blocking_get(*_args, **_kwargs):
+            request_started.set()
+            assert release_request.wait(timeout=2)
+            return fake_response
+
+        with patch("deepr.tools.web_search.requests.get", side_effect=blocking_get):
+            task = asyncio.create_task(tool.execute(query="hi", num_results=1))
+            while not request_started.is_set():
+                await asyncio.sleep(0.01)
+            release_request.set()
+            result = await asyncio.wait_for(task, timeout=1)
+
+        assert result.success is True
 
     @pytest.mark.asyncio
     async def test_positional_query_contract_calls_brave_api(self):
@@ -342,8 +367,48 @@ class TestBuiltinBrowserBackend:
         assert page.status_code == 200
 
     @pytest.mark.asyncio
+    async def test_fetch_pages_can_enter_scraper_concurrently(self):
+        from deepr.tools.browser_backend import BuiltinBrowserBackend
+
+        state_lock = threading.Lock()
+        both_started = threading.Event()
+        started = 0
+
+        class _FetchResult:
+            success = True
+            html = "<html><body><main>Body text</main></body></html>"
+            content = html
+            error = None
+
+        class _Fetcher:
+            def __init__(self, _config):
+                self.config = _config
+
+            def fetch(self, _url):
+                nonlocal started
+                with state_lock:
+                    started += 1
+                    if started == 2:
+                        both_started.set()
+                assert both_started.wait(timeout=2)
+                return _FetchResult()
+
+        with patch("deepr.utils.scrape.ContentFetcher", _Fetcher):
+            pages = await asyncio.wait_for(
+                asyncio.gather(
+                    BuiltinBrowserBackend().fetch_page("https://example.com/one"),
+                    BuiltinBrowserBackend().fetch_page("https://example.com/two"),
+                ),
+                timeout=3,
+            )
+
+        assert [page.text for page in pages] == ["Body text", "Body text"]
+
+    @pytest.mark.asyncio
     async def test_fetch_page_reports_fetch_failure(self):
         from deepr.tools.browser_backend import BuiltinBrowserBackend
+
+        configs = []
 
         class _FetchResult:
             success = False
@@ -354,6 +419,7 @@ class TestBuiltinBrowserBackend:
         class _Fetcher:
             def __init__(self, _config):
                 self.config = _config
+                configs.append(_config)
 
             def fetch(self, _url):
                 return _FetchResult()
@@ -363,6 +429,34 @@ class TestBuiltinBrowserBackend:
 
         assert page.status_code == 0
         assert page.text == "blocked"
+        assert configs[0].log_strategy_failures is True
+
+    @pytest.mark.asyncio
+    async def test_structured_failure_reporting_suppresses_generic_strategy_warning(self):
+        from deepr.tools.browser_backend import BuiltinBrowserBackend
+
+        configs = []
+
+        class _FetchResult:
+            success = False
+            html = None
+            content = None
+            error = "blocked"
+
+        class _Fetcher:
+            def __init__(self, _config):
+                self.config = _config
+                configs.append(_config)
+
+            def fetch(self, _url):
+                return _FetchResult()
+
+        with patch("deepr.utils.scrape.ContentFetcher", _Fetcher):
+            page = await BuiltinBrowserBackend(structured_failure_reporting=True).fetch_page("https://example.com")
+
+        assert page.status_code == 0
+        assert page.text == "blocked"
+        assert configs[0].log_strategy_failures is False
 
 
 class TestMCPSearchBackend:

@@ -7,21 +7,31 @@ cited context pack that can be prepended to a local-model prompt.
 
 from __future__ import annotations
 
+import asyncio
 import hashlib
 import inspect
+import ipaddress
 import os
 import re
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 from datetime import UTC, datetime
-from typing import Protocol
+from typing import Any, Protocol
+from urllib.parse import urlsplit
 
+from deepr.backends.context_building import ContextGenerationReadiness
 from deepr.tools.browser_backend import BrowserBackend, BuiltinBrowserBackend, PageContent, PageValidators
 from deepr.tools.search_backend import BuiltinSearchBackend, SearchBackend, SearchResult, SearXNGSearchBackend
 from deepr.utils.prompt_security import sanitize_untrusted_content
 
 _URL_RE = re.compile(r"https?://[^\s<>)\"']+")
+_SHA256_RE = re.compile(r"^[a-fA-F0-9]{64}$")
 _TRAILING_PUNCTUATION = ".,;:!?"
+_MAX_CONCURRENT_SEARCHES = 4
+_MAX_CONCURRENT_FETCHES = 4
+_UNSAFE_RETRIEVAL_HOST = "unsafe-target"
+_DNS_LABEL_RE = re.compile(r"^[a-z0-9-]+$")
+_SERIAL_SEARCH_BACKENDS = frozenset({"builtin:auto", "builtin:duckduckgo"})
 
 
 @dataclass(frozen=True)
@@ -33,6 +43,8 @@ class FreshContextConfig:
     max_chars_per_source: int = 1800
     max_total_chars: int = 7000
     max_search_queries: int = 1
+    min_content_addressed_sources: int = 2
+    min_explicit_url_sources: int = 1
 
 
 @dataclass(frozen=True)
@@ -76,6 +88,11 @@ class FreshSource:
             return ""
         return hashlib.sha256(text.encode("utf-8")).hexdigest()
 
+    @property
+    def has_content_addressed_evidence(self) -> bool:
+        """Whether this source has replayable evidence shape for generation."""
+        return bool(self.excerpt(1)) and bool(_SHA256_RE.fullmatch(self.content_hash))
+
 
 @dataclass(frozen=True)
 class CachedSource:
@@ -95,7 +112,7 @@ class CachedSource:
         return PageValidators(etag=self.etag, last_modified=self.last_modified)
 
 
-def cached_sources_from_pack(source_pack: dict[str, object] | None) -> dict[str, CachedSource]:
+def cached_sources_from_pack(source_pack: dict[str, Any] | None) -> dict[str, CachedSource]:
     if not isinstance(source_pack, dict):
         return {}
     cached: dict[str, CachedSource] = {}
@@ -132,10 +149,26 @@ class FreshContext:
 
     @property
     def has_sources(self) -> bool:
-        return any(source.excerpt(1) for source in self.sources)
+        return bool(self._citable_sources())
 
     def _citable_sources(self) -> tuple[FreshSource, ...]:
-        return tuple(source for source in self.sources if source.excerpt(1))
+        return tuple(source for source in self.sources if source.has_content_addressed_evidence)
+
+    def generation_readiness(self) -> ContextGenerationReadiness:
+        """Return the provenance-only preflight for a generation backend."""
+        cfg = self.prompt_config or FreshContextConfig()
+        explicit_url_count = len(_extract_urls(self.query))
+        minimum = cfg.min_explicit_url_sources if explicit_url_count else cfg.min_content_addressed_sources
+        required = max(1, int(minimum))
+        ready_count = len(self._citable_sources())
+        return ContextGenerationReadiness(
+            ready=ready_count >= required,
+            mode=self.mode,
+            ready_source_count=ready_count,
+            required_source_count=required,
+            retrieved_source_count=len(self.sources),
+            explicit_url_count=explicit_url_count,
+        )
 
     def to_prompt_context(self, config: FreshContextConfig | None = None) -> str:
         cfg = config or self.prompt_config or FreshContextConfig()
@@ -182,13 +215,16 @@ class FreshContext:
 
     def to_metadata(self) -> dict[str, object]:
         usable_sources = self._citable_sources()
+        readiness = self.generation_readiness()
         return {
             "generated_at": self.generated_at,
             "mode": self.mode,
             "search_backend": self.search_backend,
             "browser_backend": self.browser_backend,
             "source_count": len(usable_sources),
+            "content_addressed_source_count": len(usable_sources),
             "retrieved_source_count": len(self.sources),
+            "generation_readiness": readiness.to_dict(),
             "search_queries": list(self.search_queries),
             "sources": [
                 {
@@ -219,6 +255,7 @@ class FreshContext:
         cfg = self.prompt_config or FreshContextConfig()
         excerpt_limit = min(max_excerpt_chars, cfg.max_chars_per_source)
         usable_sources = self._citable_sources()
+        readiness = self.generation_readiness()
 
         def _entry(index: int, source: FreshSource) -> dict[str, object]:
             entry: dict[str, object] = {
@@ -239,6 +276,21 @@ class FreshContext:
                 entry["content"] = source.content
             return entry
 
+        def _retrieval_candidate(source: FreshSource) -> dict[str, object]:
+            return {
+                "title": source.title,
+                "url": source.url,
+                "source": source.source,
+                "fetched": source.fetched,
+                "error": source.error,
+                "snippet": source.snippet,
+                "content_hash": source.content_hash,
+                "etag": source.etag,
+                "last_modified": source.last_modified,
+                "not_modified": source.not_modified,
+                "content_addressed": source.has_content_addressed_evidence,
+            }
+
         return {
             "schema_version": "deepr.source_pack.v1",
             "query": self.query,
@@ -248,9 +300,12 @@ class FreshContext:
             "browser_backend": self.browser_backend,
             "search_queries": list(self.search_queries),
             "source_count": len(usable_sources),
+            "content_addressed_source_count": len(usable_sources),
             "retrieved_source_count": len(self.sources),
+            "generation_readiness": readiness.to_dict(),
             "errors": list(self.errors),
             "sources": [_entry(index, source) for index, source in enumerate(usable_sources, start=1)],
+            "retrieval_candidates": [_retrieval_candidate(source) for source in self.sources],
         }
 
 
@@ -269,6 +324,34 @@ def _extract_urls(text: str) -> list[str]:
             seen.add(url)
             urls.append(url)
     return urls
+
+
+def retrieval_host_key(url: str) -> str:
+    """Return a conservative rate-limit key for one retrieval target."""
+    try:
+        parsed = urlsplit(url)
+        if parsed.scheme.lower() not in {"http", "https"} or not parsed.hostname:
+            return _UNSAFE_RETRIEVAL_HOST
+        hostname = parsed.hostname.rstrip(".").lower()
+        if not hostname:
+            return _UNSAFE_RETRIEVAL_HOST
+        try:
+            normalized = str(ipaddress.ip_address(hostname))
+        except ValueError:
+            normalized = hostname.encode("idna").decode("ascii")
+            labels = normalized.split(".")
+            if len(normalized) > 253 or any(
+                not label
+                or len(label) > 63
+                or not _DNS_LABEL_RE.fullmatch(label)
+                or label.startswith("-")
+                or label.endswith("-")
+                for label in labels
+            ):
+                return _UNSAFE_RETRIEVAL_HOST
+        return f"host:{normalized}"
+    except (TypeError, ValueError, UnicodeError):
+        return _UNSAFE_RETRIEVAL_HOST
 
 
 def _default_free_search_backend() -> SearchBackend:
@@ -313,13 +396,23 @@ async def _collect_search_results(
     if search_backend is None:
         return [], []
 
+    async def search_one(search_query: str) -> tuple[list[SearchResult], str]:
+        try:
+            return await search_backend.search(search_query, num_results=max_search_results), ""
+        except Exception as exc:
+            return [], f"search failed for {search_query!r}: {exc}"
+
     results: list[SearchResult] = []
     errors: list[str] = []
-    for search_query in search_queries:
-        try:
-            results.extend(await search_backend.search(search_query, num_results=max_search_results))
-        except Exception as exc:
-            errors.append(f"search failed for {search_query!r}: {exc}")
+    backend_name = str(search_backend.name).strip().lower()
+    concurrency = 1 if backend_name in _SERIAL_SEARCH_BACKENDS else _MAX_CONCURRENT_SEARCHES
+    for offset in range(0, len(search_queries), concurrency):
+        batch = search_queries[offset : offset + concurrency]
+        outcomes = await asyncio.gather(*(search_one(search_query) for search_query in batch))
+        for search_results, error in outcomes:
+            results.extend(search_results)
+            if error:
+                errors.append(error)
     return results, errors
 
 
@@ -400,19 +493,31 @@ async def _build_sources(
     cached_by_url: dict[str, CachedSource],
     max_fetches: int,
 ) -> tuple[FreshSource, ...]:
-    sources: list[FreshSource] = []
-    fetched_count = 0
-    for url in urls:
-        fetch = fetched_count < max_fetches
-        if browser_backend is not None and fetch:
-            fetched_count += 1
+    fetch_count = min(len(urls), max(0, max_fetches)) if browser_backend is not None else 0
+    semaphore = asyncio.Semaphore(_MAX_CONCURRENT_FETCHES)
+    host_locks: dict[str, asyncio.Lock] = {}
+
+    async def fetch_source(url: str) -> FreshSource:
+        host_lock = host_locks.setdefault(retrieval_host_key(url), asyncio.Lock())
+        async with host_lock:
+            async with semaphore:
+                return await _source_from_url(
+                    url,
+                    result_by_url=result_by_url,
+                    browser_backend=browser_backend,
+                    cached_by_url=cached_by_url,
+                    fetch=True,
+                )
+
+    sources = list(await asyncio.gather(*(fetch_source(url) for url in urls[:fetch_count])))
+    for url in urls[fetch_count:]:
         sources.append(
             await _source_from_url(
                 url,
                 result_by_url=result_by_url,
                 browser_backend=browser_backend,
                 cached_by_url=cached_by_url,
-                fetch=fetch,
+                fetch=False,
             )
         )
     return tuple(sources)
@@ -528,6 +633,7 @@ def deep_fresh_context_config() -> FreshContextConfig:
         max_chars_per_source=1600,
         max_total_chars=14000,
         max_search_queries=4,
+        min_content_addressed_sources=3,
     )
 
 

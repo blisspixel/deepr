@@ -25,6 +25,7 @@ from pathlib import Path
 from typing import Any
 
 from deepr.experts.loop_lock import expert_verb_lock
+from deepr.experts.loop_runs import known_exception_cost
 from deepr.experts.sync import MIN_PER_TOPIC_BUDGET, SubscriptionStore, SyncResult
 
 # (expert_name, budget, dry_run) -> (per-expert SyncResult, capacity_source label)
@@ -113,7 +114,7 @@ async def _attempt_sync(name: str, sync_one: SyncOneFn, budget: float, dry_run: 
     try:
         result, capacity_source = await sync_one(name, budget, dry_run)
     except Exception as exc:  # skip-not-fail: one expert never aborts the roster
-        return ExpertSyncSummary(name, "failed", detail=str(exc))
+        return ExpertSyncSummary(name, "failed", cost=known_exception_cost(exc), detail=str(exc))
     return _summarize(name, result, capacity_source)
 
 

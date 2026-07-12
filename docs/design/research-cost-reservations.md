@@ -1,6 +1,6 @@
 # Research cost reservation safety
 
-Date: 2026-07-09
+Date: 2026-07-09, absorber and provider-lifecycle extensions 2026-07-11
 Status: implemented
 
 ## Context
@@ -28,6 +28,47 @@ cross-process lock used by the JSONL cost ledger. This makes the ledger snapshot
 and hold commit one ordered critical section across API, web, and worker
 processes.
 
+Metered `ReportAbsorber` calls use the same durable boundary. Extraction and
+every routed contradiction, dedup, or optional conflict-adjudication verdict
+reserve before dispatch, then settle provider-reported usage into the canonical
+cost ledger. The caller supplies one run ceiling to `absorb`; before every
+dynamic dispatch the absorber requires enough remaining headroom for that
+call's conservative hold. Provider-reported settlement is accumulated across
+the run and returned as `actual_cost`, while missing usage consumes the held
+amount. A budget denial therefore happens before the next provider call, and a
+settlement above the approved run ceiling fails closed. Optional adjudication
+uses an injected, budgeted completion seam and cannot write a contested belief
+when its reservation fails.
+
+The reservation is also enforced in the provider request. Metered absorption
+requires an exact OpenAI registry pricing contract, computes a conservative
+input-token ceiling from UTF-8 bytes plus fixed chat-protocol allowance, and
+derives `max_completion_tokens` from the remaining per-call dollars and model
+output price. The request is refused before client construction when the input
+plus one output token cannot fit, the model is unknown, pricing is nonpositive,
+or the request model differs from the accounted model. Post-settlement checks
+remain defense in depth rather than the first point where an overrun is found.
+
+A nonzero absorber cost estimate means metered capacity and enables this
+boundary; local Ollama and prepaid plan-quota callers must pass
+`estimated_cost=0.0`, which keeps their existing direct `$0` path and reports
+zero actual cost. A metered-at-margin CLI is not a prepaid plan-quota caller: it
+remains execution-blocked until its adapter can estimate, reserve, settle
+usage, and write the canonical cost ledger. The absorber owns this accounting so
+direct CLI absorb, MCP absorb, OKF import, gap fill, calibration, and the
+default API-backed sync absorption path cannot drift into separate partial
+implementations. Direct CLI, MCP, sync, and gap-fill callers pass their approved
+remaining ceiling into the absorber and use settled aggregate cost for run and
+profile totals. Paid dry runs record spend without advancing knowledge
+freshness. Callers must not duplicate ledger writes for absorber model calls.
+
+The older standalone conflict-resolution CLI and web endpoint are blocked
+before store or provider construction. Their budget limited pair count but did
+not cover model-based detection, adjudication, or consensus dispatch. They stay
+blocked until all three stages use this reservation contract, an explicit
+confirmation, bounded provider requests, and aggregate settlement. The `$0`
+contested read view remains available.
+
 Settlement appends the canonical `job:<id>:completion` event before closing the
 durable hold. Queue result persistence uses the same key for the initial cost
 and a distinct correction key only for later positive deltas. If either side
@@ -48,9 +89,40 @@ cost state, then queue state. The modern CLI may route a definitive rejection
 to another provider under the same ceiling, but suppresses fallback when the
 first provider may have accepted work.
 
+Immediately before that queue claim, every queue-backed provider dispatch
+restores reservation identity from the queued metadata and verifies the exact
+reservation ID, job ID, provider, model, and maximum held cost against one
+active job-owned row in `research_reservations.db`. An in-memory reservation is
+not dispatch authority by itself. Missing, closed, malformed, or mismatched
+identity marks the job failed before any provider POST. A transient reservation
+store read failure leaves the job queued and the possible hold intact so a
+later retry can repeat the same check without surprise spend.
+
+The persisted `ResearchJob.provider` is the authority for every later provider
+side effect. Web polling constructs that recorded adapter for status reads and
+threads the same provider ownership into terminal cleanup. Cost-reservation
+restoration and unreserved completion settlement also use the recorded
+provider, not an interface default. An unknown, unsupported, or temporarily
+unconfigurable provider remains active and visible for operator recovery; the
+poller records a safe diagnostic and never probes, cancels, cleans, or falls
+back through a different provider adapter.
+
+The shipped dashboard research submission path is OpenAI-only. Single and
+batch submissions therefore accept only the explicit OpenAI subset of the web
+model allowlist, set `ResearchJob.provider="openai"`, and reject a model from a
+different provider family before reservation or provider construction. Future
+multi-provider web submission requires an explicit provider field plus a
+provider/model compatibility contract; model-name guessing is not routing.
+
 Synchronous OpenAI planning clients set SDK `max_retries=0`. Those calls do not
 carry a supported application idempotency key, so retrying inside the SDK would
 hide multiple paid POST attempts behind one reservation outcome.
+The lazily constructed OpenAI absorber client also sets `max_retries=0` for the
+same reason. A reservation or canonical settlement failure aborts absorption;
+contradiction and dedup's conservative semantic fallback does not swallow a
+money-path failure. A definite provider rejection refunds its hold. An
+ambiguous provider exception settles the held maximum even when a semantic
+verdict later falls back to unverified.
 Campaign context summaries, research review/planning, context-index embeddings,
 and explicit semantic context queries use the same rule. Automatic context
 discovery before research confirmation remains keyword-only and makes no model
@@ -72,6 +144,9 @@ call.
 ## Failure and recovery contract
 
 - A ledger write failure leaves the durable hold active.
+- A transient pre-dispatch reservation read failure leaves the job queued and
+  makes no provider call. Deterministic missing or mismatched identity fails the
+  job and releases only the expected job's hold.
 - A queue completion event with the canonical key repairs a failed settlement.
 - A terminal queue record is reconciled before the next paid submission.
 - An accepted cancellation without reported usage settles the held maximum.

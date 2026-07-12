@@ -1,13 +1,17 @@
 """Contracts for durable synchronous metered-call admission."""
 
 from types import SimpleNamespace
-from unittest.mock import AsyncMock, Mock
+from unittest.mock import AsyncMock, Mock, patch
 
 import pytest
 
 from deepr.experts.research_reservation_store import ResearchReservationStore
 from deepr.observability.cost_ledger import CostLedger
-from deepr.services.metered_call import execute_reserved_async_call, execute_reserved_sync_call
+from deepr.services.metered_call import (
+    MeteredCallAccountingError,
+    execute_reserved_async_call,
+    execute_reserved_sync_call,
+)
 
 
 def test_sync_call_settles_reported_token_cost_and_releases_ceiling() -> None:
@@ -78,3 +82,25 @@ async def test_async_call_settles_once_without_replay() -> None:
     call.assert_awaited_once_with()
     assert ResearchReservationStore().active_cost() == 0
     assert len(CostLedger().get_events()) == 1
+
+
+@pytest.mark.asyncio
+async def test_async_settlement_failure_is_fail_closed_and_keeps_hold() -> None:
+    response = SimpleNamespace(usage=SimpleNamespace(prompt_tokens=20, completion_tokens=10))
+    call = AsyncMock(return_value=response)
+
+    with (
+        patch("deepr.services.metered_call.settle_research_cost", side_effect=OSError("ledger unavailable")),
+        pytest.raises(MeteredCallAccountingError, match="settlement failed"),
+    ):
+        await execute_reserved_async_call(
+            operation_prefix="absorb",
+            provider="openai",
+            model="gpt-5-mini",
+            source="test.async_metered",
+            call=call,
+        )
+
+    call.assert_awaited_once_with()
+    assert ResearchReservationStore().active_cost() == pytest.approx(5.0)
+    assert CostLedger().get_events() == []

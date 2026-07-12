@@ -4,6 +4,8 @@ import os
 
 from deepr import __version__
 
+DEFAULT_MAX_RESPONSE_BYTES = 8 * 1024 * 1024
+
 
 class ScrapeConfig:
     """Configuration for web scraping behavior."""
@@ -20,7 +22,9 @@ class ScrapeConfig:
         try_selenium: bool = True,
         try_pdf: bool = False,
         try_archive: bool = True,
+        log_strategy_failures: bool = True,
         user_agent: str | None = None,
+        max_response_bytes: int = DEFAULT_MAX_RESPONSE_BYTES,
     ):
         """
         Initialize scraping configuration.
@@ -36,7 +40,10 @@ class ScrapeConfig:
             try_selenium: Attempt Selenium rendering (default: True)
             try_pdf: Attempt PDF rendering (expensive, default: False)
             try_archive: Attempt archive.org fallback (default: True)
+            log_strategy_failures: Log generic per-strategy failures. Disable
+                when a caller renders richer structured source diagnostics.
             user_agent: Custom user agent string
+            max_response_bytes: Maximum decompressed response body size in bytes
         """
         self.respect_robots = respect_robots
         self.rate_limit = rate_limit
@@ -48,7 +55,11 @@ class ScrapeConfig:
         self.try_selenium = try_selenium
         self.try_pdf = try_pdf
         self.try_archive = try_archive
+        self.log_strategy_failures = log_strategy_failures
         self.user_agent = user_agent or self._default_user_agent()
+        if max_response_bytes < 1:
+            raise ValueError("max_response_bytes must be positive")
+        self.max_response_bytes = max_response_bytes
 
     @staticmethod
     def _default_user_agent() -> str:
@@ -70,6 +81,10 @@ class ScrapeConfig:
             try_pdf=os.getenv("SCRAPE_TRY_PDF", "false").lower() == "true",
             try_archive=os.getenv("SCRAPE_TRY_ARCHIVE", "true").lower() == "true",
             user_agent=os.getenv("SCRAPE_USER_AGENT"),
+            max_response_bytes=int(
+                os.getenv("SCRAPE_MAX_RESPONSE_BYTES", str(DEFAULT_MAX_RESPONSE_BYTES))
+                or str(DEFAULT_MAX_RESPONSE_BYTES)
+            ),
         )
 
     def as_respectful(self) -> "ScrapeConfig":
@@ -85,7 +100,9 @@ class ScrapeConfig:
             try_selenium=False,  # No aggressive tactics
             try_pdf=False,
             try_archive=False,
+            log_strategy_failures=self.log_strategy_failures,
             user_agent=self.user_agent,
+            max_response_bytes=self.max_response_bytes,
         )
 
     def as_force(self) -> "ScrapeConfig":
@@ -101,7 +118,9 @@ class ScrapeConfig:
             try_selenium=True,
             try_pdf=True,  # Try everything
             try_archive=True,
+            log_strategy_failures=self.log_strategy_failures,
             user_agent=self.user_agent,
+            max_response_bytes=self.max_response_bytes,
         )
 
 

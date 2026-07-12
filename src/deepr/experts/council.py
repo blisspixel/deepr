@@ -46,6 +46,13 @@ _SYNTHESIS_SYSTEM_PROMPT = (
     "confidence; none of these is a guarantee of truth."
 )
 _SYNTHESIS_FALLBACK_COST = 0.001
+_SYNTHESIS_OUTPUT_TOKENS = 800
+_LOCAL_SYNTHESIS_OUTPUT_TOKENS = 1200
+_TRUNCATED_STOP_REASONS = frozenset({"length", "max_tokens"})
+_EMPTY_SYNTHESIS_TEXT = "Synthesis unavailable: the model returned no visible answer."
+_EMPTY_TRUNCATED_SYNTHESIS_TEXT = (
+    "Synthesis incomplete: the model reached its output limit before emitting a visible answer."
+)
 
 
 def _usage_count(usage: Any, *names: str) -> int:
@@ -219,6 +226,14 @@ class ExpertPerspective:
     confidence: float = 0.9
     cost: float = 0.0
     context: dict[str, Any] = field(default_factory=dict)
+
+
+def _render_synthesis_perspectives(perspectives: list[ExpertPerspective]) -> list[str]:
+    return [
+        f"**{perspective.expert_name}** ({perspective.domain}):\n{perspective.response[:1000]}"
+        for perspective in perspectives
+        if perspective.confidence > 0
+    ]
 
 
 @dataclass(frozen=True)
@@ -703,6 +718,7 @@ class ExpertCouncil:
             "disagreements": synthesis.get("disagreements", []),
             "synthesis_status": synthesis.get("synthesis_status", "completed"),
             "synthesis_error_type": synthesis.get("synthesis_error_type", ""),
+            "synthesis_stop_reason": synthesis.get("stop_reason", ""),
             "requested_budget_usd": budget,
             "total_cost": round(total_cost, 4),
         }
@@ -723,30 +739,26 @@ class ExpertCouncil:
                 "synthesis_status": "skipped_no_valid_perspectives",
             }
 
-        parts = []
-        for p in perspectives:
-            if p.confidence > 0:
-                parts.append(f"**{p.expert_name}** ({p.domain}):\n{p.response[:1000]}")
+        parts = _render_synthesis_perspectives(perspectives)
 
         prompt = (
             f"Query: {query}\n\n"
             "Expert perspectives:\n\n" + "---\n".join(parts) + "\n\n"
-            "Provide:\n"
-            "1. SYNTHESIS: A unified answer combining the best insights.\n"
-            "2. MATH AND STATISTICS: Model the relevant quantities, base rates, uncertainty, "
-            "expected value, confidence intervals, sensitivity, or experiment design when applicable. "
-            "State when the available evidence is not numeric enough to support the math.\n"
-            "3. ASSUMPTIONS AND RISKS: Name assumptions, weak evidence, missing data, and what "
-            "would change the council's view.\n"
-            "4. EXECUTION PLAN: Give concrete next actions for the host agent, including what to "
-            "measure, what to verify, and what not to do yet.\n"
-            "5. AGREEMENTS: Points where experts agree (bullet list).\n"
-            "6. DISAGREEMENTS: Points where they diverge (bullet list).\n"
+            "Return these sections in order and keep the complete response under 700 words:\n"
+            "1. AGREEMENTS: Points where experts agree (bullet list).\n"
+            "2. DISAGREEMENTS: Points where they diverge (bullet list). Preserve meaningful dissent.\n"
+            "3. SYNTHESIS: A unified answer combining the best insights without forcing consensus.\n"
+            "4. ASSUMPTIONS AND RISKS: Name weak evidence, missing data, and disconfirming evidence.\n"
+            "5. EXECUTION PLAN: Give concrete next actions, measures, verification, and stop rules.\n"
+            "Include quantitative analysis only when the supplied evidence supports it.\n"
         )
 
         system_prompt = _SYNTHESIS_SYSTEM_PROMPT
         user_prompt = prompt[:6000]
 
+        output_tokens = (
+            _LOCAL_SYNTHESIS_OUTPUT_TOKENS if self._synthesis_provider == "local" else _SYNTHESIS_OUTPUT_TOKENS
+        )
         try:
             if self._synthesis_provider == "anthropic":
                 client = self._synthesis_client
@@ -756,7 +768,7 @@ class ExpertCouncil:
                     client = AnthropicConsultSynthesisClient()
                 result = await client.messages.create(
                     model=self._synthesis_model,
-                    max_tokens=800,
+                    max_tokens=output_tokens,
                     system=system_prompt,
                     messages=[{"role": "user", "content": user_prompt}],
                 )
@@ -779,16 +791,30 @@ class ExpertCouncil:
                 stop_reason = str(getattr(result, "stop_reason", "") or "")
             else:
                 client = self._synthesis_client or AsyncOpenAI(api_key=os.getenv("OPENAI_API_KEY"))
-                result = await client.chat.completions.create(
-                    model=self._synthesis_model,
-                    messages=[
+                completion_params: dict[str, Any] = {
+                    "model": self._synthesis_model,
+                    "messages": [
                         {"role": "system", "content": system_prompt},
                         {"role": "user", "content": user_prompt},
                     ],
-                    temperature=0.3,
-                    max_tokens=800,
+                    "temperature": 0.3,
+                    "max_tokens": output_tokens,
+                }
+                if self._synthesis_provider == "local":
+                    # Ollama enables thinking by default for supported models. Its
+                    # OpenAI-compatible endpoint maps this supported value to a
+                    # no-thinking request, preserving the bounded output allowance
+                    # for the visible council answer. This must never leak into a
+                    # metered or plan-quota provider request.
+                    # The installed OpenAI SDK's typed enum does not yet include
+                    # Ollama's documented "none" value, so use its supported
+                    # extra-body escape hatch to serialize the top-level field.
+                    completion_params["extra_body"] = {"reasoning_effort": "none"}
+                result = await client.chat.completions.create(
+                    **completion_params,
                 )
-                text = result.choices[0].message.content or ""
+                choice = result.choices[0]
+                text = choice.message.content or ""
                 if _owned_synthesis_provider(self._synthesis_provider):
                     cost = 0.0
                     tokens_input = 0
@@ -801,13 +827,17 @@ class ExpertCouncil:
                 cache_creation_input_tokens = 0
                 cache_read_input_tokens = 0
                 provider_request_id = str(getattr(result, "id", "") or "")
-                stop_reason = str(getattr(result, "finish_reason", "") or "")
+                stop_reason = str(getattr(choice, "finish_reason", "") or "")
 
             if _owned_synthesis_provider(self._synthesis_provider):
                 cost = 0.0
                 tokens_input = 0
                 tokens_output = 0
                 cost_estimated = False
+            truncated = stop_reason in _TRUNCATED_STOP_REASONS
+            empty_visible_answer = not text.strip()
+            if empty_visible_answer:
+                text = _EMPTY_TRUNCATED_SYNTHESIS_TEXT if truncated else _EMPTY_SYNTHESIS_TEXT
             agreements, disagreements = parse_synthesis_sections(text)
 
             return {
@@ -822,7 +852,12 @@ class ExpertCouncil:
                 "provider_request_id": provider_request_id,
                 "stop_reason": stop_reason,
                 "cost_estimated": cost_estimated,
-                "synthesis_status": "completed",
+                "synthesis_status": "truncated" if truncated else "failed" if empty_visible_answer else "completed",
+                "synthesis_error_type": "OutputLimit"
+                if truncated
+                else "EmptySynthesis"
+                if empty_visible_answer
+                else "",
             }
         except Exception as e:
             logger.warning("Council synthesis failed: %s", e)

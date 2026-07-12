@@ -177,6 +177,7 @@ def build_consult_payload(question: str, result: dict[str, Any]) -> dict[str, An
         "answer": result.get("synthesis", "") or "",
         "synthesis_status": result.get("synthesis_status", "completed") or "completed",
         "synthesis_error_type": result.get("synthesis_error_type", "") or "",
+        "synthesis_stop_reason": result.get("synthesis_stop_reason", "") or "",
         "experts_consulted": [p.get("expert_name", "") for p in perspectives],
         "perspectives": shaped_perspectives,
         "agreements": list(result.get("agreements", []) or []),
@@ -290,6 +291,41 @@ def attach_collaboration_runtime(
         capacity=capacity,
         trace=trace,
     )
+
+
+def record_consult_payload_trace(
+    payload: dict[str, Any],
+    *,
+    question: str,
+    requested_experts: list[str],
+    max_experts: int,
+    budget: float,
+    result: dict[str, Any],
+    capacity: dict[str, Any],
+) -> dict[str, Any]:
+    """Enrich and append one consult trace before exposing its public reference.
+
+    Trace storage is append-only, so runtime collaboration metadata must be
+    attached before the record is written. Preallocating the trace id keeps the
+    durable collaboration contract and the returned artifact linked to the same
+    transaction without rewriting the stored record.
+    """
+    from deepr.experts.consult_traces import new_consult_trace_id, record_consult_trace
+
+    trace_id = new_consult_trace_id()
+    attach_collaboration_runtime(payload, result=result, capacity=capacity, trace={"trace_id": trace_id})
+    trace_ref = record_consult_trace(
+        question=question,
+        requested_experts=requested_experts,
+        max_experts=max_experts,
+        budget=budget,
+        payload=payload,
+        result=result,
+        capacity=capacity,
+        trace_id=trace_id,
+    )
+    payload["trace"] = trace_ref
+    return trace_ref
 
 
 def resolve_explicit_expert_choices(experts: list[str], profiles: Iterable[Any] | None = None) -> list[dict[str, str]]:

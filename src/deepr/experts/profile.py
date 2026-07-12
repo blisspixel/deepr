@@ -529,6 +529,12 @@ def get_expert_system_message(
 
     velocity_thresholds = {"slow": 180, "medium": 90, "fast": 30}
     threshold = velocity_thresholds.get(domain_velocity, 90)
+    if knowledge_cutoff_date is None:
+        freshness_status = "INCOMPLETE - LEARNING REQUIRED"
+    elif isinstance(days_old, int) and days_old > threshold:
+        freshness_status = "STALE - RESEARCH REQUIRED"
+    else:
+        freshness_status = "FRESH"
 
     worldview_section = ""
     if worldview_summary:
@@ -551,7 +557,7 @@ and the ability to conduct deep research when needed.
 - Your knowledge cutoff: {cutoff_str}
 - Knowledge age: {days_old} days old
 - Domain velocity: {domain_velocity} (refresh threshold: {threshold} days)
-- Status: {"STALE - RESEARCH REQUIRED" if isinstance(days_old, int) and days_old > threshold else "FRESH"}
+- Status: {freshness_status}
 
 CORE PRINCIPLES - Beginner's Mind + Temporal Awareness:
 

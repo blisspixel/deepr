@@ -17,10 +17,12 @@ grok) self-update and tell the user when a newer version exists.
   otherwise it prints help and exits 0 (clig.dev: never start interactive
   elements for a non-interactive caller).
 - Add `deepr upgrade` (with `--check`), which detects the install origin
-  (pipx / pip / editable source) and runs the right update; reads the latest
-  version from the PyPI JSON API; degrades gracefully offline and for
-  editable checkouts. The install one-liners become idempotent (re-run to
-  update) with uninstall support.
+  (pipx / pip / editable source) and runs the right update. It reads the latest
+  GitHub release, accepts only a versioned wheel asset under this repository,
+  and degrades safely when offline or when an asset is missing. Editable
+  checkouts receive manual source-update guidance. The install one-liners are
+  idempotent and support uninstall. PyPI remains a future/manual publication
+  channel until a dedicated publication workflow exists.
 
 ## Alternatives considered
 
@@ -38,4 +40,7 @@ grok) self-update and tell the user when a newer version exists.
 - Scripts and agents that run bare `deepr` get help, not a hung menu.
 - Updating is one command regardless of how deepr was installed; the network
   call is bounded and opt-in.
-- No new dependencies (stdlib `urllib` + `subprocess`).
+- No new runtime dependencies are required (`urllib` + `subprocess`).
+- GitHub Releases is the authoritative binary distribution channel. Upgrade
+  failures leave the current installation unchanged unless a repair is needed
+  after an attempted wheel install.

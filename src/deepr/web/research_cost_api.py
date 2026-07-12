@@ -64,6 +64,20 @@ def validate_web_research_input(
     return None
 
 
+def retryable_dispatch_payload(error: Exception, job_id: str) -> dict[str, Any] | None:
+    """Return a safe queued response for a transient reservation read failure."""
+    from deepr.services.research_submission import ResearchDispatchReservationError
+
+    if not isinstance(error, ResearchDispatchReservationError) or not error.retryable:
+        return None
+    return {
+        "error": str(error),
+        "job_id": job_id,
+        "status": "queued",
+        "retryable": True,
+    }
+
+
 def prepare_web_batch_jobs(
     value: object,
     *,
@@ -87,8 +101,10 @@ def prepare_web_batch_jobs(
     jobs: list[ResearchJob] = []
     for item, metadata in zip(items, metadata_items, strict=True):
         prompt = str(item.get("prompt", "")).strip()
-        model = item.get("model", "o4-mini-deep-research")
-        if not prompt or len(prompt) > max_prompt_length or model not in allowed_models:
+        model = str(item.get("model", "o4-mini-deep-research"))
+        if model not in allowed_models:
+            return None, ({"error": "Invalid model"}, 400)
+        if not prompt or len(prompt) > max_prompt_length:
             continue
         mode = item.get("mode")
         if mode:
@@ -98,6 +114,7 @@ def prepare_web_batch_jobs(
                 id=str(uuid.uuid4()),
                 prompt=prompt,
                 model=model,
+                provider="openai",
                 priority=item.get("priority", 3),
                 enable_web_search=item.get("enable_web_search", True),
                 status=JobStatus.QUEUED,
@@ -215,7 +232,7 @@ class WebResearchCostCoordinator:
         return reservation or restore_research_cost_reservation(
             job_id=str(job.id),
             metadata=getattr(job, "metadata", None),
-            provider="openai",
+            provider=str(getattr(job, "provider", "") or "openai"),
             model=str(getattr(job, "model", "") or ""),
         )
 
@@ -319,7 +336,7 @@ class WebResearchCostCoordinator:
             return
         record_unreserved_research_cost(
             job_id=str(job.id),
-            provider="openai",
+            provider=str(getattr(job, "provider", "") or "openai"),
             model=str(getattr(job, "model", "") or ""),
             actual_cost=float(actual_cost or 0.0),
             tokens=tokens,
@@ -333,5 +350,6 @@ __all__ = [
     "WebProviderNotConfiguredError",
     "WebResearchCostCoordinator",
     "resolve_web_research_provider",
+    "retryable_dispatch_payload",
     "validate_web_research_input",
 ]

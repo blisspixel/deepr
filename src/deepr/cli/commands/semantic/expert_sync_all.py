@@ -16,10 +16,12 @@ import asyncio
 import json as _json
 import sys
 from dataclasses import dataclass
+from datetime import UTC, datetime
 from typing import Any
 
 import click
 
+from deepr.backends.local_capacity import LocalCapacityObservation, LocalCapacityUnavailableReason
 from deepr.cli.colors import console, print_error, print_header, print_success, print_warning
 from deepr.cli.commands.semantic.experts import expert
 from deepr.cli.commands.semantic.grounding_support import PLAN_BACKEND_CHOICES
@@ -38,6 +40,7 @@ _STATUS_MARKERS = {
 class _PassBackend:
     use_local: bool = False
     local_model: str | None = None
+    prefer_profile_model: bool = False
     use_plan: bool = False
     plan_adapter: Any | None = None
     plan_model: str | None = None
@@ -87,7 +90,11 @@ def _resolve_pass_backend(local: bool, api: bool, plan: str | None, plan_model: 
     if local:
         from deepr.backends.local import default_local_model
 
-        return _PassBackend(use_local=True, local_model=default_local_model())
+        return _PassBackend(
+            use_local=True,
+            local_model=default_local_model(),
+            prefer_profile_model=True,
+        )
 
     note = ""
     local_model = None
@@ -115,12 +122,64 @@ def _resolve_pass_backend(local: bool, api: bool, plan: str | None, plan_model: 
     return _PassBackend(note=note)
 
 
+def _pass_capacity_source(backend: _PassBackend) -> str:
+    if backend.use_local:
+        return "local"
+    if backend.use_plan and backend.plan_adapter is not None:
+        return f"plan_quota:{backend.plan_adapter.backend_id}"
+    return "api_metered"
+
+
+def _sync_all_retry_argv(
+    *,
+    budget: float,
+    per_expert_budget: float,
+    include_all: bool,
+    local: bool,
+    api: bool,
+    plan: str | None,
+    plan_model: str | None,
+    yes: bool,
+    json_output: bool,
+) -> list[str]:
+    argv = [
+        "deepr",
+        "expert",
+        "sync-all",
+        "--scheduled",
+        "--budget",
+        f"{budget:g}",
+        "--per-expert-budget",
+        f"{per_expert_budget:g}",
+    ]
+    if include_all:
+        argv.append("--all")
+    if local:
+        argv.append("--local")
+    elif api:
+        argv.append("--api")
+    elif plan:
+        argv.extend(["--plan", plan])
+    if plan_model:
+        argv.extend(["--plan-model", plan_model])
+    if yes:
+        argv.append("--yes")
+    if json_output:
+        argv.append("--json")
+    return argv
+
+
 def _make_sync_one(*, backend: _PassBackend, include_all: bool, scheduled: bool):
     """Per-expert sync closure, kept module-level so its branches do not inflate
     the command's cyclomatic complexity (ruff rolls a nested function into its
     parent). Builds the engine the same way ``expert sync`` does and records the
     per-expert loop run so ``deepr fleet status`` sees the pass."""
     from deepr.cli.commands.semantic.expert_maintenance import _record_completed_sync_loop
+    from deepr.cli.commands.semantic.expert_sync_support import (
+        _record_failed_sync_execution,
+        _record_running_sync_loop,
+    )
+    from deepr.experts.loop_runs import new_loop_run_id
     from deepr.experts.maintenance_engine import build_sync_engine
     from deepr.experts.profile import ExpertStore
 
@@ -128,16 +187,52 @@ def _make_sync_one(*, backend: _PassBackend, include_all: bool, scheduled: bool)
         profile = ExpertStore().load(name)
         if profile is None:
             raise ValueError(f"expert not found: {name}")
-        engine, capacity_source = build_sync_engine(
-            profile,
-            use_local=backend.use_local,
-            local_model=backend.local_model,
-            use_plan=backend.use_plan,
-            plan_adapter=backend.plan_adapter,
-            plan_model=backend.plan_model,
-        )
-        result = await engine.sync(budget=expert_budget, only_due=not include_all, dry_run=dry_run)
+        local_model = backend.local_model
+        if backend.use_local and backend.prefer_profile_model:
+            from deepr.backends.local import resolve_local_maintenance_model
+
+            local_model = resolve_local_maintenance_model(profile)
+        capacity_source = _pass_capacity_source(backend)
+        run_id = new_loop_run_id()
+        started_at = datetime.now(UTC)
         if not dry_run:
+            _record_running_sync_loop(
+                name,
+                run_id=run_id,
+                started_at=started_at,
+                budget=expert_budget,
+                scheduled=scheduled,
+                sync_all=include_all,
+                capacity_source=capacity_source,
+                profile=profile,
+            )
+        try:
+            engine, capacity_source = build_sync_engine(
+                profile,
+                use_local=backend.use_local,
+                local_model=local_model,
+                use_plan=backend.use_plan,
+                plan_adapter=backend.plan_adapter,
+                plan_model=backend.plan_model,
+            )
+            result = await engine.sync(budget=expert_budget, only_due=not include_all, dry_run=dry_run)
+        except Exception as exc:
+            if not dry_run:
+                _record_failed_sync_execution(
+                    name,
+                    run_id=run_id,
+                    started_at=started_at,
+                    finished_at=datetime.now(UTC),
+                    budget=expert_budget,
+                    scheduled=scheduled,
+                    sync_all=include_all,
+                    capacity_source=capacity_source,
+                    exception=exc,
+                    profile=profile,
+                )
+            raise
+        if not dry_run:
+            finished_at = datetime.now(UTC)
             _record_completed_sync_loop(
                 name,
                 result,
@@ -146,6 +241,9 @@ def _make_sync_one(*, backend: _PassBackend, include_all: bool, scheduled: bool)
                 sync_all=include_all,
                 capacity_source=capacity_source,
                 profile=profile,
+                run_id=run_id,
+                started_at=started_at,
+                finished_at=finished_at,
             )
         return result, capacity_source
 
@@ -158,6 +256,87 @@ def _emit_roster_wait(json_output: bool, detail: str) -> None:
         return
     print_warning("Scheduled sync-all is waiting for owned/prepaid capacity (no metered spend).")
     console.print(f"[dim]{detail}. Rerun without --scheduled to use the metered API.[/dim]")
+
+
+def _experts_with_sync_work(expert_names: list[str], *, include_all: bool) -> list[str]:
+    """Return roster members whose selected subscription set is non-empty."""
+    from deepr.experts.sync import SubscriptionStore
+
+    pending: list[str] = []
+    for name in expert_names:
+        subscriptions = SubscriptionStore(name)
+        targets = subscriptions.subscriptions if include_all else subscriptions.due()
+        if targets:
+            pending.append(name)
+    return pending
+
+
+def _local_models_for_wait(expert_names: list[str], backend: _PassBackend) -> dict[str, str]:
+    from deepr.backends.local import resolve_local_maintenance_model
+    from deepr.experts.profile import ExpertStore
+
+    store = ExpertStore()
+    resolved_models: dict[str, str] = {}
+    for expert_name in expert_names:
+        profile = store.load(expert_name)
+        if profile is None:
+            continue
+        resolved = resolve_local_maintenance_model(profile) if backend.prefer_profile_model else backend.local_model
+        if resolved:
+            resolved_models[expert_name] = resolved
+    return resolved_models
+
+
+def _emit_roster_local_busy_wait(
+    expert_names: list[str],
+    *,
+    observation: LocalCapacityObservation,
+    per_expert_budget: float,
+    json_output: bool,
+    command_argv: list[str],
+    local_models: dict[str, str],
+) -> None:
+    """Record one durable busy wait per expert without constructing an engine."""
+    from deepr.experts.scheduled_local_capacity import record_scheduled_local_capacity_wait
+
+    observed_at = datetime.now(UTC)
+    waits = [
+        record_scheduled_local_capacity_wait(
+            expert_name=name,
+            loop_type="sync",
+            goal=f"Sync due subscriptions for {name}",
+            observation=observation,
+            command_argv=command_argv,
+            budget_limit=per_expert_budget,
+            now=observed_at,
+            capacity_source="local",
+            backend_profile_id=local_models.get(name, ""),
+        )
+        for name in expert_names
+    ]
+    earliest = min(waits, key=lambda wait: wait.retry_at)
+    payload = {
+        "kind": "deepr.expert.sync_all",
+        "status": "waiting_for_capacity",
+        "detail": "scheduled roster sync found meaningful local GPU contention",
+        "capacity_unavailable_reason": LocalCapacityUnavailableReason.GPU_BUSY.value,
+        "local_capacity": observation.to_dict(),
+        "retry_after_seconds": earliest.retry_after_seconds,
+        "retry_at": earliest.retry_at.isoformat(),
+        "requested_operation": {
+            "command_argv": list(command_argv),
+            "capacity_source": "local",
+            "backend_profile_id": "",
+            "backend_profile_ids": dict(local_models),
+        },
+        "waiting_experts": [wait.to_dict() for wait in waits],
+    }
+    if json_output:
+        click.echo(_json.dumps(payload, indent=2))
+        return
+    print_warning("Scheduled sync-all is waiting because local GPU capacity is busy.")
+    console.print(f"[dim]{observation.detail}.[/dim]")
+    console.print(f"[dim]Try again at or after {earliest.retry_at.isoformat()}; no fallback was dispatched.[/dim]")
 
 
 def _metered_tier_defers(json_output: bool) -> bool:
@@ -212,6 +391,52 @@ def _confirm_sync_all(*, backend: _PassBackend, budget: float, expert_count: int
     else:
         cost_desc = f"up to ${budget:.2f} metered"
     return click.confirm(f"Sync up to {expert_count} expert(s) {cost_desc}?", default=False)
+
+
+def _sync_all_cancelled(
+    *,
+    dry_run: bool,
+    yes: bool,
+    backend: _PassBackend,
+    budget: float,
+    expert_count: int,
+) -> bool:
+    if dry_run or yes:
+        return False
+    if _confirm_sync_all(backend=backend, budget=budget, expert_count=expert_count):
+        return False
+    print_warning("Cancelled.")
+    return True
+
+
+def _scheduled_local_busy_wait(
+    names: list[str],
+    *,
+    scheduled: bool,
+    dry_run: bool,
+    include_all: bool,
+    backend: _PassBackend,
+    per_expert_budget: float,
+    json_output: bool,
+    command_argv: list[str],
+) -> bool:
+    from deepr.backends.local_capacity import LocalCapacityState, probe_local_gpu_occupancy
+
+    if not scheduled or dry_run or not backend.use_local:
+        return False
+    pending_local_experts = _experts_with_sync_work(names, include_all=include_all)
+    local_capacity = probe_local_gpu_occupancy() if pending_local_experts else None
+    if local_capacity is None or local_capacity.state != LocalCapacityState.BUSY:
+        return False
+    _emit_roster_local_busy_wait(
+        pending_local_experts,
+        observation=local_capacity,
+        per_expert_budget=per_expert_budget,
+        json_output=json_output,
+        command_argv=command_argv,
+        local_models=_local_models_for_wait(pending_local_experts, backend),
+    )
+    return True
 
 
 def _render_library_result(result: Any, json_output: bool) -> None:
@@ -304,12 +529,35 @@ def sync_all_cmd(
         print_error(str(exc))
         sys.exit(2)
 
+    retry_command_argv = _sync_all_retry_argv(
+        budget=budget,
+        per_expert_budget=per_expert_budget,
+        include_all=include_all,
+        local=local,
+        api=api,
+        plan=plan,
+        plan_model=plan_model,
+        yes=yes,
+        json_output=json_output,
+    )
+
     if scheduled and not api and not backend.owned_or_prepaid:
         _emit_roster_wait(json_output, "no owned/prepaid capacity is available")
         return
     if backend.use_local and backend.local_model is None:
         print_error("No local model available. Is Ollama running? Check: deepr capacity --probe")
         sys.exit(2)
+    if _scheduled_local_busy_wait(
+        names,
+        scheduled=scheduled,
+        dry_run=dry_run,
+        include_all=include_all,
+        backend=backend,
+        per_expert_budget=per_expert_budget,
+        json_output=json_output,
+        command_argv=retry_command_argv,
+    ):
+        return
 
     # Graceful degradation: an auto metered pass defers when the monthly pool is
     # drained (a dry run previews freely; an explicit --api overrides the soft
@@ -320,10 +568,14 @@ def sync_all_cmd(
 
     _emit_backend_notes(backend, json_output=json_output)
 
-    if not dry_run and not yes:
-        if not _confirm_sync_all(backend=backend, budget=budget, expert_count=len(names)):
-            print_warning("Cancelled.")
-            return
+    if _sync_all_cancelled(
+        dry_run=dry_run,
+        yes=yes,
+        backend=backend,
+        budget=budget,
+        expert_count=len(names),
+    ):
+        return
 
     sync_one = _make_sync_one(backend=backend, include_all=include_all, scheduled=scheduled)
     result = asyncio.run(

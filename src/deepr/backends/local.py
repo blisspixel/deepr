@@ -24,7 +24,13 @@ from collections.abc import Awaitable, Callable
 from typing import Any
 
 from deepr.backends.capacity import _OLLAMA_DEFAULT_URL, ollama_status
-from deepr.backends.context_building import ContextBuilder, build_context
+from deepr.backends.context_building import (
+    ContextBuilder,
+    build_context,
+    context_evidence_fields,
+    context_generation_readiness,
+    context_not_ready_error,
+)
 
 # research_fn seam contract (deepr/experts/sync.py): (query, budget) -> result.
 ResearchFn = Callable[[str, float], Awaitable[dict[str, Any]]]
@@ -81,6 +87,33 @@ def default_local_model(base_url: str | None = None) -> str | None:
         first = detail.split("model(s): ", 1)[1].split(",", 1)[0].strip().rstrip(".")
         return first or None
     return None
+
+
+def resolve_local_maintenance_model(
+    profile: object | None,
+    *,
+    explicit_model: str | None = None,
+    base_url: str | None = None,
+) -> str | None:
+    """Resolve the Ollama model for one expert maintenance operation.
+
+    An explicit command or admitted-capacity model remains authoritative. When
+    no operation-level model was selected, a local expert's recorded model is
+    the per-expert maintenance preference promised by ``expert make
+    --local --local-model``. Non-local profiles and placeholder local profiles
+    retain the existing process-wide default behavior.
+    """
+    selected = (explicit_model or "").strip()
+    if selected:
+        return selected
+
+    provider = str(getattr(profile, "provider", "") or "").strip().lower()
+    recorded = str(getattr(profile, "model", "") or "").strip()
+    if provider == "local" and recorded and recorded.lower() != "ollama":
+        return recorded
+    if base_url is None:
+        return default_local_model()
+    return default_local_model(base_url)
 
 
 def _local_prompt(query: str, context: Any | None) -> tuple[str, dict[str, Any] | None]:
@@ -162,9 +195,27 @@ def make_local_research_fn(
         budget: float,
         *,
         prior_source_pack: dict[str, Any] | None = None,
+        retrieval_query: str | None = None,
     ) -> dict[str, Any]:
         try:
-            context = await build_context(context_builder, query, prior_source_pack=prior_source_pack)
+            context = await build_context(
+                context_builder,
+                retrieval_query or query,
+                prior_source_pack=prior_source_pack,
+            )
+            evidence_fields = context_evidence_fields(context)
+            readiness = context_generation_readiness(context)
+            if readiness is not None and not readiness.ready:
+                return {
+                    "answer": "",
+                    "cost": 0.0,
+                    "error": context_not_ready_error(readiness),
+                    "error_code": "fresh_context_not_ready",
+                    "retryable": readiness.retryable,
+                    "no_metered_fallback": readiness.no_metered_fallback,
+                    "context_preflight": readiness.to_dict(),
+                    **evidence_fields,
+                }
             prompt, metadata = _local_prompt(query, context)
             response = await chat.chat.completions.create(
                 model=model,
@@ -173,13 +224,9 @@ def make_local_research_fn(
             )
             answer = response.choices[0].message.content or ""
             result: dict[str, Any] = {"answer": answer, "cost": 0.0}
-            if metadata is not None:
+            result.update(evidence_fields)
+            if metadata is not None and "fresh_context" not in result:
                 result["fresh_context"] = metadata
-            if hasattr(context, "to_source_pack"):
-                # include_content lets the sync persister write content-
-                # addressed raw snapshots; it strips the transient content
-                # field before the pack artifact is written.
-                result["source_pack"] = context.to_source_pack(include_content=True)
             return result
         except Exception as e:  # seam contract: report, do not raise
             return {"answer": "", "cost": 0.0, "error": f"local model error: {e}"}

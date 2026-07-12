@@ -188,8 +188,14 @@ concepts, hypotheses, stance, dissent, exploration plans, and learning behavior.
 
 4. Verify before graph writes.
    - Candidate edges route to calibrated model judgment where meaning matters.
-   - One commit envelope writes accepted claims, hypotheses, edges, gaps, and
-     generated-view invalidation together.
+   - One commit envelope selects only verifier-ready claims, hypotheses, edges,
+     gaps, and perspective operations, then validates that selected set before
+     any write. Candidate-level rejection does not veto unrelated ready
+     operations, but a top-level schema, kind, response-shape, or response
+     failure blocks the whole envelope.
+   - Apply remains atomic at the validated-operation boundary: one invalid
+     selected operation blocks every selected operation, while rejected
+     candidates never enter the apply set.
    - Rejected or uncertain candidates remain reviewable artifacts, not canon.
 
 5. Evaluate locally before trusting automation.
