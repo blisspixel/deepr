@@ -39,6 +39,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Frontend archive generation now normalizes generated text assets to LF and
+  pins ZIP creator metadata instead of inheriting platform defaults. Its
+  intermediate entries are stored without zlib-dependent compression, so a
+  Windows-produced release payload rebuilds byte-for-byte on Linux CI while
+  the final wheel and sdist remain compressed.
 - Public installers and `deepr upgrade` now resolve an exact version-matched
   wheel from the latest GitHub release, validate that the asset belongs to the
   Deepr repository, and stop before subprocess changes when release metadata is
