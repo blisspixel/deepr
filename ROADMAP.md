@@ -166,9 +166,13 @@ reliable product, not a four-language architecture diagram.
     tiny per-call ceilings (2026-07-13).
   - [x] Per-session asyncio turn lock serializes ``send_message`` and
     ``send_message_streaming``; cross-process holds stay on the research
-    reservation store (2026-07-13). Gate remains off. Remaining: skill tools,
-    output token ceilings from remaining dollars, final deep research usage
-    settlement, and re-enable criteria above.
+    reservation store (2026-07-13).
+  - [x] Metered chat complete/stream apply an output ``max_tokens`` ceiling from
+    half the call dollar hold when the caller omits an explicit cap
+    (2026-07-13). Skill tools remain ``allow_metered_tools=False`` (no metered
+    skill dispatch). Gate remains off. Remaining: final deep-research polled
+    usage settlement, skill-tool metering if/when allowlisted, parent run
+    budget aggregation across multi-call turns, and re-enable criteria above.
 - [ ] **P1: migrate every gated metered expert lifecycle surface to one shared
   durable per-call and run-budget transaction.** This includes nonlocal
   `expert make` and `--learn`, API curriculum `expert plan`, provider-backed
