@@ -158,9 +158,13 @@ reliable product, not a four-language architecture diagram.
     path (2026-07-13).
   - [x] Grok standard-research sample path wraps durable admission with the
     registry estimate as the hold when the SDK sample lacks token usage
-    (2026-07-13). Gate remains off. Remaining: deep-research job submit/final
-    usage, embeddings, skill tools, parent session hold serialization, output
-    token ceilings from remaining dollars, and re-enable criteria above.
+    (2026-07-13).
+  - [x] Deep-research job submission reserves the registry estimate, marks
+    dispatch before Responses create, and settles the hold when enabled
+    (2026-07-13). Final polled usage reconciliation remains a follow-on.
+    Gate remains off. Remaining: embeddings, skill tools, parent session hold
+    serialization, output token ceilings from remaining dollars, final deep
+    research usage settlement, and re-enable criteria above.
 - [ ] **P1: migrate every gated metered expert lifecycle surface to one shared
   durable per-call and run-budget transaction.** This includes nonlocal
   `expert make` and `--learn`, API curriculum `expert plan`, provider-backed

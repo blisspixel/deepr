@@ -216,6 +216,29 @@ async def test_standard_research_uses_durable_admission_when_enabled(monkeypatch
     assert session.cost_accumulated > 0
 
 
+async def test_deep_research_uses_durable_admission_when_enabled(monkeypatch, tmp_path):
+    from deepr.experts import chat_capacity
+    from deepr.experts.profile import ExpertStore
+    from deepr.experts.research_reservation_store import ResearchReservationStore
+
+    monkeypatch.setattr(chat_capacity, "METERED_EXPERT_CHAT_EXECUTION_ENABLED", True)
+    monkeypatch.setattr(CostSafetyManager, "ABSOLUTE_MAX_PER_OPERATION", 10.0)
+    session = _session(monkeypatch, 5.0)
+    session.chat_backend = SimpleNamespace(metered=True, provider="openai")
+    monkeypatch.setattr(ExpertStore, "save", lambda self, expert: None)
+
+    async def fake_create(**_kwargs):
+        return SimpleNamespace(id="resp_deep_1", usage=None)
+
+    monkeypatch.setattr(session.client.responses, "create", fake_create)
+
+    result = await session._deep_research("design a migration strategy")
+
+    assert result.get("status") != "blocked"
+    assert "error" not in result or result.get("job_id")
+    assert ResearchReservationStore().active_cost() == 0
+
+
 async def test_deep_research_fails_closed_before_provider_dispatch(monkeypatch):
     session = _session(monkeypatch, 0.0)
 
