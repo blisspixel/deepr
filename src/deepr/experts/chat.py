@@ -886,11 +886,15 @@ Budget remaining: ${budget_remaining:.2f}
             return {"error": f"Research blocked: {reason}", "mode": "standard_research", "status": "blocked"}
 
         try:
+            import asyncio as _asyncio_local
             import os
+            from types import SimpleNamespace
 
             from xai_sdk import Client
             from xai_sdk.chat import system, user
             from xai_sdk.tools import web_search, x_search
+
+            from deepr.experts.chat_metered import execute_metered_chat_provider_call
 
             xai_key = os.getenv("XAI_API_KEY")
             if not xai_key:
@@ -916,13 +920,27 @@ Budget remaining: ${budget_remaining:.2f}
             # it directly here would freeze the event loop for 5-15s per
             # call, stalling every concurrent chat session, WebSocket emit,
             # and MCP request handler that shares this loop. Push it to a
-            # worker thread so async behaviour holds.
-            import asyncio as _asyncio_local
+            # worker thread so async behaviour holds. Durable admission wraps
+            # the thread hop: mark before sample, settle the estimated ceiling
+            # when the SDK does not expose token usage on the sample object.
+            async def _sample_for_admission() -> SimpleNamespace:
+                response = await _asyncio_local.to_thread(chat.sample)
+                return SimpleNamespace(
+                    content=getattr(response, "content", ""),
+                    citations=getattr(response, "citations", []),
+                    usage=None,
+                )
 
-            response = await _asyncio_local.to_thread(chat.sample)
+            sample = await execute_metered_chat_provider_call(
+                provider="xai",
+                model="grok-4.3",
+                source="expert_chat.standard_research",
+                max_cost_per_job=estimated_cost,
+                call=_sample_for_admission,
+            )
 
-            answer = response.content
-            citations = getattr(response, "citations", [])
+            answer = str(sample.content or "")
+            citations = sample.citations
             citations_list = list(citations) if citations else []
 
             if citations_list:

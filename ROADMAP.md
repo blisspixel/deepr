@@ -155,10 +155,12 @@ reliable product, not a four-language architecture diagram.
     missing (2026-07-13).
   - [x] Quick lookup, follow-up suggestions, and compact summary complete calls
     pass explicit `max_cost_per_job` ceilings into the same backend admission
-    path (2026-07-13). Gate remains off. Remaining: Grok standard-research and
-    deep-research job submit/final usage, embeddings, skill tools, parent
-    session hold serialization, output token ceilings from remaining dollars,
-    and re-enable criteria above.
+    path (2026-07-13).
+  - [x] Grok standard-research sample path wraps durable admission with the
+    registry estimate as the hold when the SDK sample lacks token usage
+    (2026-07-13). Gate remains off. Remaining: deep-research job submit/final
+    usage, embeddings, skill tools, parent session hold serialization, output
+    token ceilings from remaining dollars, and re-enable criteria above.
 - [ ] **P1: migrate every gated metered expert lifecycle surface to one shared
   durable per-call and run-budget transaction.** This includes nonlocal
   `expert make` and `--learn`, API curriculum `expert plan`, provider-backed
