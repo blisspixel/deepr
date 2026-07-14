@@ -192,14 +192,28 @@ reliable product, not a four-language architecture diagram.
   reads/writes gained shared cross-process serialization. Remaining: NumPy
   semantic-recall batching, bulk projection writes, native async cancellation
   for the compatibility scraper thread, and the versioned benchmark harness.
-- [ ] Bound plan-quota CLI output capture to 8 MiB per stream. Replace the
-  current time-bounded `communicate()` capture with concurrent stdout and
-  stderr draining, kill and reap the process tree on overflow, return a typed
-  `output_limit_exceeded` dispatched outcome, and record unknown quota usage
-  plus the paired `$0` cost event. Preserve bounded timeout and cancellation
-  cleanup on Windows and POSIX, and test multibyte boundaries and one-stream
-  floods. Why: a hard elapsed timeout does not prevent a malfunctioning CLI
-  from exhausting parent memory before the timeout.
+- [x] Bound plan-quota CLI output capture to 8 MiB per stream (2026-07-12).
+  The shared runner now writes stdin while draining stdout and stderr
+  concurrently, counts raw bytes before UTF-8 decoding, kills and reaps the
+  process tree when either stream crosses its ceiling, and returns the typed
+  dispatched outcome `output_limit_exceeded`. Chat and probe callers record
+  unknown quota usage plus one paired `$0` cost event under the same attempt id,
+  never promote bounded partial output, and never retry or switch backend.
+  Hermetic subprocess regressions cover exact and crossed multibyte boundaries,
+  stdout and stderr overflow, a descendant that outlives its direct parent,
+  closed real asyncio transports, fail-closed Windows Job Object ownership and
+  handle-failure reporting without terminal-PID reuse, Linux detached-session
+  subreaper ownership with a parent-only status pipe and fail-closed child
+  enumeration, fail-closed rejection on other POSIX systems without equivalent
+  detached-descendant ownership, end-to-end launch timeout, cancellation with
+  caller-visible late-launch cleanup uncertainty, and per-attempt nonce plus
+  post-baseline Antigravity transcript recovery. Snapshot and recovery scans
+  bound root enumeration, actual bytes read, and line allocation. Regressions
+  also cover typed research propagation, ledger pairing, and retained Windows
+  Job Object cleanup that blocks later dispatch until ownership is resolved.
+  Why: a hard elapsed timeout
+  does not prevent a malfunctioning CLI from exhausting parent memory before
+  the timeout.
 - [ ] Add an allowed-to-fail free-threaded Python 3.14 stress job only after
   file-backed ledgers and expert mutation paths are concurrency-safe. Promote it
   only with repeatable durable-state equivalence and a real CPU-throughput gain.
@@ -1545,14 +1559,16 @@ The routing principle (the **capacity waterfall**): for any job whose quality fl
 
 Why this matters: a $20-300/month plan with quota windows or monthly credit pools is often dramatically cheaper than metered API calls for batch research, and Deepr's queue is exactly the workload shape (non-urgent, schedulable) that can soak up quota that would otherwise expire unused. The cost story is the product: "your existing subscriptions become research capacity." The flagship use case is **background expert maintenance**: scheduled `expert sync`, `health-check`, and gap-fill jobs (Phase 4) are non-urgent by definition - route them to plan-quota/local backends by default and experts stay current at ~$0 marginal cost, draining quota that would otherwise expire.
 
-Platform requirement: every adapter must work on Windows, macOS, and Linux (subprocess invocation, auth-profile discovery, and path handling are per-OS; the vendor CLIs themselves are cross-platform). No adapter ships supporting only the dev machine's OS.
+Platform requirement: adapter discovery, auth-profile inspection, and path handling must work on Windows, macOS, and Linux. Explicit plan execution currently ships only where Deepr can contain detached descendants before vendor code runs: Windows Job Objects and the Linux child-subreaper supervisor. Other POSIX systems fail before launch rather than ship a process-tree escape. macOS execution remains gated until it has an equivalent ownership primitive.
 
-Current truth in the product: local Ollama and API-backed research execute today.
-Plan CLIs are visible or modeled through `deepr capacity`, but they are not Deepr
-execution backends until adapters, live quota probes, and no-surprise-bills
-guards ship. The QOL target is a clear route planner: tell the user whether a
-job should run locally, wait for plan quota, or use a metered API with an
-explicit budget ceiling.
+Current truth in the product: local Ollama, budget-gated API research, and
+explicit `deepr expert sync --plan <id>` plan CLIs execute today through
+deterministic auth-mode, process-ownership, and paired-ledger gates. Capacity
+display remains read-only for automatic plan routing because vendors do not
+expose a trustworthy remaining-quota probe. The QOL target is a clear route
+planner: tell the user whether a job should run locally, use an explicitly
+selected plan, wait for capacity, or use a metered API with an explicit budget
+ceiling.
 
 Vendor reality (verified June 2026 - revalidate before implementation, this churns quarterly):
 
@@ -1660,7 +1676,7 @@ A mock panel (business buyer, indie hacker, enterprise AI architect, research sc
   - [x] Two overlapping explicit absorb runs for the durable-loop expert admitted the exact claim `A minimum viable expert loop requires durable state.` under different belief ids. The second process had loaded its belief snapshot before the first process committed, so within-run semantic dedup could not see the concurrent write. Fixed 2026-07-11 for the observed same-verb race with one non-blocking per-expert guard across CLI and MCP absorb. A colliding command exits `$0` before expert store, backend, or model construction. Dry-run previews use the same guard because a metered preview can settle profile cost even when it writes no beliefs.
   - [ ] Replace verb-specific write guards with one per-expert knowledge-mutation transaction shared by absorb, sync, topic learn, gap-fill, and graph-commit apply. It must reload current state after acquisition and commit idempotently so different write verbs cannot overwrite one another from stale process snapshots.
   - [ ] Interactive local consult, absorb, and sync need phase-level progress with elapsed time, current bounded phase, cancellation state, and a durable trace reference. Busy-before-dispatch waits are now defensive, but a healthy multi-minute local generation still appears silent between dispatch and completion. Live scheduled-sync dogfood on 2026-07-12 made the ambiguity concrete: after 17 silent minutes over two due topics, the host could prove only that `engine.sync` still awaited Ollama under the configured one-hour local-call allowance. Stopping the local service unwound to a durable `$0` `tool_failure`, rejected both topic changes, and left their `last_synced` fields null, but the operator could not distinguish slow healthy generation from a stuck response without external process and socket inspection. Add periodic phase heartbeats plus explicit cancellation before calling this unattended path complete; do not shorten the generous local timeout merely to make slow owned hardware look failed.
-  - [x] Open a durable `running` consult trace before local or plan generation, append heartbeats and terminal state under the same id, and make cancellation ownership explicit. Fixed 2026-07-12 with a separate append-only `deepr-consult-lifecycle-event-v1` journal created before cancellable local discovery or backend dispatch. It records one shared final-trace id, monotonic sequence and elapsed time, process ownership, typed resumable and terminal states, logical-work or provider-call scope, finite dispatch/time/spend ceilings, observed and remaining spend, one-way capacity resolution, and no answer or private reasoning. The generic contract carries optional token and context bounds when a caller measures and enforces them; current one-shot consult omits those fields because it does not aggregate provider totals across internal calls. CLI and MCP share one transaction wrapper; the cumulative ceiling bounds awaitable setup and generation and is checked at lifecycle boundaries without backend fallback. Synchronous durable I/O is checked at the next checkpoint after it returns, while lock waits are bounded separately. Plan CLI cancellation kills the process tree before propagation. The final `deepr-consult-trace-v1` remains backward compatible.
+  - [x] Open a durable `running` consult trace before local or plan generation, append heartbeats and terminal state under the same id, and make cancellation ownership explicit. Fixed 2026-07-12 with a separate append-only `deepr-consult-lifecycle-event-v1` journal created before cancellable local discovery or backend dispatch. It records one shared final-trace id, monotonic sequence and elapsed time, process ownership, typed resumable and terminal states, logical-work or provider-call scope, finite dispatch/time/spend ceilings, observed and remaining spend, one-way capacity resolution, and no answer or private reasoning. The generic contract carries optional token and context bounds when a caller measures and enforces them; current one-shot consult omits those fields because it does not aggregate provider totals across internal calls. CLI and MCP share one transaction wrapper; the cumulative ceiling bounds awaitable setup and generation and is checked at lifecycle boundaries without backend fallback. Synchronous durable I/O is checked at the next checkpoint after it returns, while lock waits are bounded separately. Plan CLI cancellation kills and reaps an established process tree before propagation. A launch still pending after the bounded cleanup grace remains under a tracked owner and attaches explicit unconfirmed-cleanup state to the propagated cancellation. The final `deepr-consult-trace-v1` remains backward compatible.
   - [x] Consult safety audit found that stored perspective loading could run legacy belief-edge migration, canonical roster aliases could collide in the async dispatcher, JSONL traces lacked cross-process serialization, lock waits could freeze the async host indefinitely, cumulative elapsed work could resume past its ceiling, NaN budgets passed comparison-only validation, and truthy non-boolean A2A metadata could masquerade as metered approval. Fixed 2026-07-12 with exact-path read-only belief loading, pre-coroutine roster validation and a ten-expert explicit cap, bounded per-path thread plus OS file locks, one durable typed elapsed stop, path-safe contention that is retryable only before provider work begins, finite numeric validation across CLI, MCP, A2A, shared core, and lifecycle ceilings, and an exact-boolean A2A spend-intent gate.
   - [x] Cancelling a plan-quota consult after entering the CLI runner killed the process tree but bypassed quota and cost accounting. Fixed 2026-07-12 with one durable attempt id per call, exactly one idempotent unknown-usage quota observation after the dispatch boundary, a matching `$0` cost event when canonical cost storage succeeds, no event before dispatch, and unchanged `CancelledError` propagation after cleanup. A canonical cost write failure remains attached to the cancellation with its attempt id while the quota observation stays durable.
   - [x] Metered council synthesis reserved a consult budget without proving the serialized request fit its synthesis slice, inherited SDK retries, and returned `$0` after ambiguous response, parsing, usage, or cancellation failures. Fixed 2026-07-12 with exact provider/model pricing, exact OpenAI cached-token splits when provider usage exposes them, conservative labeling when cache details are absent, a serialized-input plus protocol/output token ceiling before dispatch, zero retries on Deepr-created SDK clients, exact full-budget reservation that cannot bypass the absolute per-operation ceiling, and idempotent conservative settlement that requires a canonical ledger append after the dispatch boundary. Ledger failure blocks ordinary completion or remains attached to cancellation without marking settlement complete. Deepr's Anthropic request sends no cache-control block, including no one-hour cache write; injected clients remain caller-owned. Unknown pricing and unaffordable synthesis fail before client dispatch; local and plan-quota synthesis remain `$0` and unchanged.

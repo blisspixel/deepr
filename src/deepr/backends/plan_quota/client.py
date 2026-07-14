@@ -29,7 +29,6 @@ from __future__ import annotations
 
 import asyncio
 import os
-import time
 from collections.abc import Awaitable, Callable
 from datetime import datetime
 from functools import partial
@@ -47,6 +46,10 @@ from deepr.backends.context_building import (
 from deepr.backends.local import _local_prompt  # shared research-prompt builder
 from deepr.backends.plan_quota import output_safety, prompt_delivery
 from deepr.backends.plan_quota.adapters import PlanQuotaAdapter, parse_reset_at_utc
+from deepr.backends.plan_quota.antigravity_transcript import TranscriptOutputLimitError
+from deepr.backends.plan_quota.attempt_accounting import (
+    DEFAULT_PLAN_ACCOUNTING_LOCK_TIMEOUT_SECONDS as _PLAN_ACCOUNTING_LOCK_TIMEOUT_SECONDS,
+)
 from deepr.backends.plan_quota.attempt_accounting import (
     AttemptAccountingError,
     AttemptAccountingStatus,
@@ -66,8 +69,51 @@ from deepr.backends.plan_quota.dispatch_boundary import (
     dispatch_runner_with_accounting,
     run_sync_through_cancellation,
 )
+from deepr.backends.plan_quota.errors import PlanQuotaError, PlanQuotaExhausted
+from deepr.backends.plan_quota.errors import (
+    plan_quota_accounting_error as _plan_quota_accounting_error,
+)
+from deepr.backends.plan_quota.probe_support import (
+    account_probe_dispatch_error as _account_probe_dispatch_error,
+)
+from deepr.backends.plan_quota.probe_support import (
+    finish_probe_attempt as _finish_probe_attempt,
+)
+from deepr.backends.plan_quota.probe_support import (
+    finish_probe_response as _finish_probe_response,
+)
+from deepr.backends.plan_quota.probe_support import (
+    reset_at_from_output as _reset_at_from_output,
+)
+from deepr.backends.plan_quota.probe_support import (
+    run_probe_finish as _run_probe_finish,
+)
+from deepr.backends.plan_quota.probe_support import (
+    safe_probe_runner_error_result as _safe_probe_runner_error_result,
+)
 from deepr.backends.plan_quota.response import PlanQuotaResponse
 from deepr.backends.plan_quota.safety import evaluate_plan_quota_safety, plan_quota_child_env
+from deepr.backends.plan_quota.transcript_dispatch import (
+    TranscriptLease as _TranscriptLease,
+)
+from deepr.backends.plan_quota.transcript_dispatch import (
+    acquire_transcript_lease as _acquire_transcript_lease,
+)
+from deepr.backends.plan_quota.transcript_dispatch import (
+    correlated_transcript_prompt as _correlated_transcript_prompt,
+)
+from deepr.backends.plan_quota.transcript_dispatch import (
+    release_chat_lease as _release_chat_lease,
+)
+from deepr.backends.plan_quota.transcript_dispatch import (
+    release_probe_lease as _release_probe_lease,
+)
+from deepr.backends.plan_quota.transcript_dispatch import (
+    remaining_operation_timeout as _remaining_operation_timeout,
+)
+from deepr.backends.plan_quota.transcript_dispatch import (
+    transcript_lock_timeout_error as _transcript_lock_timeout_error,
+)
 from deepr.backends.quota_ledger import QuotaEventType
 from deepr.utils.security import sanitize_log_message
 
@@ -79,19 +125,6 @@ _exhaustion_output = output_safety.exhaustion_output
 _flatten_messages = prompt_delivery.flatten_messages
 _safe_cli_error_summary = output_safety.safe_cli_error_summary
 
-# Cancellation must propagate promptly, and capacity probes are themselves
-# bounded diagnostics. Both use short bounded ledger waits; ordinary chat
-# completion accounting keeps the CostLedger/QuotaLedger compatibility default.
-_PLAN_ACCOUNTING_LOCK_TIMEOUT_SECONDS = 0.25
-
-
-class PlanQuotaError(RuntimeError):
-    """A plan-quota CLI call failed (launch, timeout, non-zero, empty output)."""
-
-
-class PlanQuotaExhausted(PlanQuotaError):
-    """The plan-quota CLI reported its quota/credits are exhausted."""
-
 
 def _safe_runner_boundary_error(
     adapter: PlanQuotaAdapter,
@@ -100,19 +133,12 @@ def _safe_runner_boundary_error(
     converted = PlanQuotaError(f"{adapter.exe} {safe_runtime_error(runner_error)}")
     copy_attempt_context(converted, runner_error)
     converted.__dict__["plan_quota_runner_exception"] = runner_error
-    return converted
-
-
-def _plan_quota_accounting_error(
-    error: AttemptAccountingError,
-    *,
-    attempt_id: str,
-) -> PlanQuotaError:
-    converted = PlanQuotaError(str(error))
-    attach_attempt_status(
-        converted,
-        attempt_id=attempt_id,
-        status=error.status,
+    converted.__dict__.update(
+        error_code="runner_error",
+        plan_quota_outcome="runner_error",
+        retryable=False,
+        no_metered_fallback=True,
+        vendor_dispatched=True,
     )
     return converted
 
@@ -183,84 +209,125 @@ class PlanQuotaChatClient:
     async def _run_chat(self, kwargs: dict[str, Any]) -> PlanQuotaResponse:
         messages = kwargs.get("messages") or []
         wants_json = (kwargs.get("response_format") or {}).get("type") == "json_object"
-        prompt = _flatten_messages(messages, wants_json=wants_json)
+        prompt = _correlated_transcript_prompt(
+            self.adapter,
+            _flatten_messages(messages, wants_json=wants_json),
+        )
         # Ignore the caller's model name: Deepr's internal ids (e.g. gpt-5-mini)
         # are meaningless to a vendor CLI, which uses its plan's model or the
         # operator's explicit --plan-model. Passing the wrong --model would fail.
         model = self.model
-
-        argv, stdin, temp_path = _build_invocation(self.adapter, prompt, model)
-        started_at = time.time()
-        attempt_id = f"plan-quota:{self.adapter.backend_id}:{uuid4().hex}"
+        deadline = asyncio.get_running_loop().time() + self._timeout
+        transcript_lease = await _acquire_transcript_lease(self.adapter, deadline=deadline)
+        dispatch_entered = False
+        attempt_id = ""
+        accounted: tuple[str, AttemptAccountingStatus] | None = None
+        primary_error: BaseException | None = None
         try:
+            argv, stdin, temp_path = _build_invocation(self.adapter, prompt, model)
             try:
-                result = await dispatch_runner_with_accounting(
-                    self._runner,
-                    argv,
-                    stdin=stdin,
-                    timeout=self._timeout,
-                    env=self._env,
-                    cwd=self._cwd,
-                    on_cancelled=partial(
-                        self._account_dispatch_error,
-                        attempt_id=attempt_id,
-                        outcome="cancelled",
-                        context="cancellation",
-                    ),
-                    on_error=partial(
-                        self._account_dispatch_error,
-                        attempt_id=attempt_id,
-                        outcome="runner_error",
-                        context="runner error",
-                    ),
-                )
-            except asyncio.CancelledError:
-                raise
-            except Exception as runner_error:
-                raise _safe_runner_boundary_error(
-                    self.adapter,
-                    runner_error,
-                ) from None
+                dispatch_timeout = _remaining_operation_timeout(deadline)
+                if dispatch_timeout <= 0:
+                    raise _transcript_lock_timeout_error()
+                attempt_id = f"plan-quota:{self.adapter.backend_id}:{uuid4().hex}"
+                try:
+                    dispatch_entered = True
+                    result = await dispatch_runner_with_accounting(
+                        self._runner,
+                        argv,
+                        stdin=stdin,
+                        timeout=dispatch_timeout,
+                        env=self._env,
+                        cwd=self._cwd,
+                        on_cancelled=partial(
+                            self._account_dispatch_error,
+                            attempt_id=attempt_id,
+                            outcome="cancelled",
+                            context="cancellation",
+                        ),
+                        on_error=partial(
+                            self._account_dispatch_error,
+                            attempt_id=attempt_id,
+                            outcome="runner_error",
+                            context="runner error",
+                        ),
+                    )
+                except asyncio.CancelledError:
+                    raise
+                except Exception as runner_error:
+                    raise _safe_runner_boundary_error(
+                        self.adapter,
+                        runner_error,
+                    ) from None
+            finally:
+                _cleanup_prompt_file(temp_path)
+            completed_accounting = await run_sync_through_cancellation(
+                partial(
+                    self._complete_chat_attempt,
+                    result,
+                    attempt_id=attempt_id,
+                    prompt=prompt,
+                    transcript_baseline=transcript_lease.baseline if transcript_lease is not None else None,
+                ),
+                propagate_cancellation=True,
+                on_cancelled_result=partial(
+                    _attach_chat_cancellation_result,
+                    attempt_id=attempt_id,
+                ),
+            )
+            accounted = completed_accounting
+            return PlanQuotaResponse(completed_accounting[0])
+        except BaseException as error:
+            primary_error = error
+            raise
         finally:
-            _cleanup_prompt_file(temp_path)
-        accounted = await run_sync_through_cancellation(
-            partial(
-                self._complete_chat_attempt,
-                result,
-                started_at=started_at,
-                attempt_id=attempt_id,
-                prompt=prompt,
-            ),
-            propagate_cancellation=True,
-            on_cancelled_result=partial(
-                _attach_chat_cancellation_result,
-                attempt_id=attempt_id,
-            ),
-        )
-        return PlanQuotaResponse(accounted[0])
+            if transcript_lease is not None:
+                _release_chat_lease(
+                    transcript_lease,
+                    primary_error=primary_error,
+                    vendor_dispatched=dispatch_entered,
+                    attempt_id=attempt_id,
+                    status=accounted[1] if accounted is not None else None,
+                )
 
     def _complete_chat_attempt(
         self,
         result: CliResult,
         *,
-        started_at: float,
         attempt_id: str,
         prompt: str,
+        transcript_baseline: dict[str, tuple[int, int]] | None,
     ) -> tuple[str, AttemptAccountingStatus]:
         """Recover, interpret, and account one completed CLI result off-loop."""
-        try:
-            answer_override = self._recover_transcript_answer(started_at)
-        except Exception as error:
-            self._fail_attempt(
-                PlanQuotaError,
-                f"{self.adapter.exe} transcript recovery failed ({type(error).__name__})",
-                attempt_id=attempt_id,
-                outcome="post_dispatch_error",
-                quota_event_type=QuotaEventType.ATTEMPT_OBSERVED,
-                quota_units=None,
-                vendor_dispatched=True,
-                detail="CLI completed but answer recovery failed; quota usage is unknown",
-            )
+        answer_override = None
+        if result.ok and _exhaustion_output(self.adapter, result) is None:
+            try:
+                answer_override = self._recover_transcript_answer(
+                    transcript_baseline=transcript_baseline,
+                    expected_prompt=prompt,
+                )
+            except TranscriptOutputLimitError:
+                self._fail_attempt(
+                    PlanQuotaError,
+                    f"{self.adapter.exe} transcript output limit exceeded",
+                    attempt_id=attempt_id,
+                    outcome="output_limit_exceeded",
+                    quota_event_type=QuotaEventType.ATTEMPT_OBSERVED,
+                    quota_units=None,
+                    vendor_dispatched=True,
+                    detail="CLI transcript output exceeded the capture limit; quota usage is unknown",
+                )
+            except Exception as error:
+                self._fail_attempt(
+                    PlanQuotaError,
+                    f"{self.adapter.exe} transcript recovery failed ({type(error).__name__})",
+                    attempt_id=attempt_id,
+                    outcome="post_dispatch_error",
+                    quota_event_type=QuotaEventType.ATTEMPT_OBSERVED,
+                    quota_units=None,
+                    vendor_dispatched=True,
+                    detail="CLI completed but answer recovery failed; quota usage is unknown",
+                )
         try:
             accounted = self._interpret(
                 result,
@@ -314,7 +381,12 @@ class PlanQuotaChatClient:
                 context=context,
             )
 
-    def _recover_transcript_answer(self, started_at: float) -> str | None:
+    def _recover_transcript_answer(
+        self,
+        *,
+        transcript_baseline: dict[str, tuple[int, int]] | None,
+        expected_prompt: str,
+    ) -> str | None:
         """Read the answer from the CLI's transcript when it drops stdout.
 
         Antigravity exits 0 with empty stdout under a non-TTY pipe; its reply is
@@ -325,7 +397,11 @@ class PlanQuotaChatClient:
             return None
         from deepr.backends.plan_quota.antigravity_transcript import antigravity_brain_dir, recover_answer
 
-        return recover_answer(antigravity_brain_dir(), since=started_at)
+        return recover_answer(
+            antigravity_brain_dir(),
+            baseline=transcript_baseline or {},
+            expected_prompt=expected_prompt,
+        )
 
     def _interpret(
         self,
@@ -341,6 +417,21 @@ class PlanQuotaChatClient:
         stdout (Antigravity, recovered from its transcript). None means parse
         stdout as usual.
         """
+        if result.launch_error and result.cleanup_error:
+            self._fail_attempt(
+                PlanQuotaError,
+                (
+                    f"{self.adapter.exe} failed to launch and process cleanup was not confirmed: "
+                    f"{sanitize_log_message(result.cleanup_error)}"
+                ),
+                attempt_id=attempt_id,
+                outcome="cleanup_error",
+                quota_event_type=None,
+                quota_units=None,
+                vendor_dispatched=False,
+                detail="CLI ownership setup failed and pre-dispatch cleanup could not be confirmed",
+                primary_cause=result.cleanup_exception,
+            )
         if result.launch_error:
             self._fail_attempt(
                 PlanQuotaError,
@@ -357,11 +448,11 @@ class PlanQuotaChatClient:
                 PlanQuotaError,
                 f"{self.adapter.exe} {result.runtime_error}",
                 attempt_id=attempt_id,
-                outcome="runner_error",
+                outcome=result.runtime_failure_outcome,
                 quota_event_type=QuotaEventType.ATTEMPT_OBSERVED,
                 quota_units=None,
                 vendor_dispatched=True,
-                detail="CLI process failed after launch; quota usage is unknown",
+                detail=result.runtime_failure_detail,
                 primary_cause=result.runtime_exception,
             )
         # Exhaustion is an error condition. Broad legacy signatures may inspect
@@ -477,6 +568,11 @@ class PlanQuotaChatClient:
             attempt_id=attempt_id,
             status=status,
         )
+        primary_error.__dict__["plan_quota_outcome"] = outcome
+        primary_error.__dict__["error_code"] = outcome
+        primary_error.__dict__["retryable"] = error_type is PlanQuotaExhausted
+        primary_error.__dict__["no_metered_fallback"] = True
+        primary_error.__dict__["vendor_dispatched"] = vendor_dispatched
         if accounting_error is not None:
             primary_error.__dict__["plan_quota_accounting_error"] = accounting_error
         if primary_cause is not None:
@@ -516,6 +612,8 @@ class PlanQuotaChatClient:
             raise _plan_quota_accounting_error(
                 error,
                 attempt_id=attempt_id,
+                outcome=outcome,
+                vendor_dispatched=vendor_dispatched,
             ) from error.primary_cause
 
 
@@ -573,12 +671,47 @@ def make_plan_quota_research_fn(
             if metadata is not None and "fresh_context" not in result:
                 result["fresh_context"] = metadata
             return result
-        except PlanQuotaExhausted as e:
-            return {"answer": "", "cost": 0.0, "error": str(e), "quota_exhausted": True}
+        except PlanQuotaError as error:
+            return _plan_quota_research_error_result(adapter, error)
         except Exception as e:  # seam contract: report, do not raise
-            return {"answer": "", "cost": 0.0, "error": f"{adapter.backend_id} backend error: {e}"}
+            return {
+                "answer": "",
+                "cost": 0.0,
+                "error": f"{adapter.backend_id} backend error: {e}",
+                "error_code": "plan_quota_backend_error",
+                "retryable": False,
+                "no_metered_fallback": True,
+            }
 
     return research_fn
+
+
+def _plan_quota_research_error_result(
+    adapter: PlanQuotaAdapter,
+    error: PlanQuotaError,
+) -> dict[str, Any]:
+    """Preserve typed no-fallback and accounting state across the research seam."""
+    outcome = str(getattr(error, "plan_quota_outcome", "plan_quota_error"))
+    result: dict[str, Any] = {
+        "answer": "",
+        "cost": 0.0,
+        "backend": f"plan_quota:{adapter.backend_id}",
+        "error": str(error),
+        "error_code": str(getattr(error, "error_code", outcome)),
+        "outcome": outcome,
+        "retryable": bool(getattr(error, "retryable", False)),
+        "no_metered_fallback": bool(getattr(error, "no_metered_fallback", True)),
+        "vendor_dispatched": bool(getattr(error, "vendor_dispatched", False)),
+        "attempt_id": str(getattr(error, "plan_quota_attempt_id", "")),
+        "quota_observation_recorded": bool(getattr(error, "quota_recorded", False)),
+        "cost_event_recorded": bool(getattr(error, "cost_recorded", False)),
+    }
+    if isinstance(error, PlanQuotaExhausted):
+        result["quota_exhausted"] = True
+    attempt_outcome = error.__dict__.get("plan_quota_attempt_outcome")
+    if attempt_outcome is not None:
+        result["attempt_outcome"] = str(attempt_outcome)
+    return result
 
 
 async def probe_plan_quota(
@@ -619,10 +752,95 @@ async def probe_plan_quota(
             "latency_ms": 0,
             "error": decision.reason,
         }
+    deadline = asyncio.get_running_loop().time() + validated_timeout
+    try:
+        transcript_lease = await _acquire_transcript_lease(adapter, deadline=deadline)
+    except PlanQuotaError as error:
+        return {
+            "ok": False,
+            "backend": adapter.backend_id,
+            "reply": "",
+            "latency_ms": 0,
+            "error": str(error),
+            "outcome": str(getattr(error, "plan_quota_outcome", "transcript_lock_error")),
+            "vendor_dispatched": False,
+            "cost_event_recorded": False,
+            "quota_observation_recorded": False,
+        }
+    probe_result: dict[str, Any] | None = None
+    primary_error: BaseException | None = None
+    try:
+        dispatch_timeout = _remaining_operation_timeout(deadline) if transcript_lease is not None else validated_timeout
+        if dispatch_timeout <= 0:
+            timeout_error = _transcript_lock_timeout_error()
+            probe_result = {
+                "ok": False,
+                "backend": adapter.backend_id,
+                "reply": "",
+                "latency_ms": 0,
+                "error": str(timeout_error),
+                "outcome": "transcript_lock_timeout",
+                "vendor_dispatched": False,
+                "cost_event_recorded": False,
+                "quota_observation_recorded": False,
+            }
+            return probe_result
+        probe_result = await _probe_plan_quota_dispatch(
+            adapter,
+            model=model,
+            runner=runner,
+            resolved_env=resolved_env,
+            cwd=cwd,
+            validated_timeout=dispatch_timeout,
+            deadline=deadline if transcript_lease is not None else None,
+            quota_ledger_path=quota_ledger_path,
+            cost_ledger_path=cost_ledger_path,
+            transcript_lease=transcript_lease,
+        )
+        return probe_result
+    except BaseException as error:
+        primary_error = error
+        raise
+    finally:
+        if transcript_lease is not None:
+            _release_probe_lease(
+                transcript_lease,
+                primary_error=primary_error,
+                probe_result=probe_result,
+            )
+
+
+async def _probe_plan_quota_dispatch(
+    adapter: PlanQuotaAdapter,
+    *,
+    model: str | None,
+    runner: CliRunner,
+    resolved_env: dict[str, str],
+    cwd: str | None,
+    validated_timeout: float,
+    deadline: float | None,
+    quota_ledger_path: Path | None,
+    cost_ledger_path: Path | None,
+    transcript_lease: _TranscriptLease | None,
+) -> dict[str, Any]:
     run_env = plan_quota_child_env(adapter, resolved_env)
-    prompt = "Reply with exactly: OK"
+    prompt = _correlated_transcript_prompt(adapter, "Reply with exactly: OK")
     argv, stdin, temp_path = _build_invocation(adapter, prompt, model)
-    started_at = time.time()
+    dispatch_timeout = _remaining_operation_timeout(deadline) if deadline is not None else validated_timeout
+    if dispatch_timeout <= 0:
+        _cleanup_prompt_file(temp_path)
+        timeout_error = _transcript_lock_timeout_error()
+        return {
+            "ok": False,
+            "backend": adapter.backend_id,
+            "reply": "",
+            "latency_ms": 0,
+            "error": str(timeout_error),
+            "outcome": "transcript_lock_timeout",
+            "vendor_dispatched": False,
+            "cost_event_recorded": False,
+            "quota_observation_recorded": False,
+        }
     attempt_id = f"plan-quota:{adapter.backend_id}:{uuid4().hex}"
     try:
         try:
@@ -630,7 +848,7 @@ async def probe_plan_quota(
                 runner,
                 argv=argv,
                 stdin=stdin,
-                timeout=validated_timeout,
+                timeout=dispatch_timeout,
                 env=run_env,
                 cwd=cwd,
                 on_cancelled=partial(
@@ -673,6 +891,22 @@ async def probe_plan_quota(
         cost_ledger_path=cost_ledger_path,
         result=result,
     )
+    if result.launch_error and result.cleanup_error:
+        return await _run_probe_finish(
+            partial(
+                finish_probe,
+                ok=False,
+                reply="",
+                error=(
+                    f"process launch failed and cleanup was not confirmed: {sanitize_log_message(result.cleanup_error)}"
+                ),
+                outcome="cleanup_error",
+                quota_event_type=None,
+                quota_units=None,
+                vendor_dispatched=False,
+                detail="probe ownership setup failed and pre-dispatch cleanup could not be confirmed",
+            )
+        )
     if result.launch_error:
         return await _run_probe_finish(
             partial(
@@ -694,11 +928,11 @@ async def probe_plan_quota(
                 ok=False,
                 reply="",
                 error=result.runtime_error,
-                outcome="runner_error",
+                outcome=result.runtime_failure_outcome,
                 quota_event_type=QuotaEventType.ATTEMPT_OBSERVED,
                 quota_units=None,
                 vendor_dispatched=True,
-                detail="probe CLI process failed after launch; quota usage is unknown",
+                detail=f"probe {result.runtime_failure_detail}",
             )
         )
     exhaustion_text = _exhaustion_output(adapter, result, allow_success_stdout=True)
@@ -720,7 +954,7 @@ async def probe_plan_quota(
         )
     if not result.ok:
         if result.timed_out:
-            failure_message = f"timed out after {validated_timeout:.0f}s"
+            failure_message = f"timed out after {dispatch_timeout:.0f}s"
             outcome = "timeout"
             quota_event_type = QuotaEventType.ATTEMPT_OBSERVED
             quota_units = None
@@ -751,248 +985,8 @@ async def probe_plan_quota(
             _finish_probe_response,
             adapter,
             result=result,
-            started_at=started_at,
+            expected_prompt=prompt,
+            transcript_baseline=transcript_lease.baseline if transcript_lease is not None else None,
             finish_probe=finish_probe,
         )
     )
-
-
-async def _run_probe_finish(
-    operation: Callable[[], dict[str, Any]],
-) -> dict[str, Any]:
-    return await run_sync_through_cancellation(
-        operation,
-        propagate_cancellation=True,
-        on_cancelled_result=_attach_probe_cancellation_result,
-    )
-
-
-def _attach_probe_cancellation_result(
-    cancellation_error: asyncio.CancelledError,
-    result: dict[str, Any],
-) -> None:
-    attach_attempt_status(
-        cancellation_error,
-        attempt_id=str(result["attempt_id"]),
-        status=AttemptAccountingStatus(
-            quota_recorded=bool(result["quota_observation_recorded"]),
-            cost_recorded=bool(result["cost_event_recorded"]),
-        ),
-    )
-
-
-def _finish_probe_response(
-    adapter: PlanQuotaAdapter,
-    *,
-    result: CliResult,
-    started_at: float,
-    finish_probe: Callable[..., dict[str, Any]],
-) -> dict[str, Any]:
-    reply, recovery_error = _recover_probe_reply(
-        adapter,
-        result=result,
-        started_at=started_at,
-    )
-    if recovery_error:
-        return finish_probe(
-            ok=False,
-            reply="",
-            error=recovery_error,
-            outcome="post_dispatch_error",
-            quota_event_type=QuotaEventType.ATTEMPT_OBSERVED,
-            quota_units=None,
-            vendor_dispatched=True,
-            detail="probe CLI completed but answer recovery failed; quota usage is unknown",
-        )
-    if not reply:
-        return finish_probe(
-            ok=False,
-            reply="",
-            error="no output",
-            outcome="empty_output",
-            quota_event_type=QuotaEventType.ATTEMPT_OBSERVED,
-            quota_units=None,
-            vendor_dispatched=True,
-            detail="probe CLI exited successfully but returned no answer; quota usage is unknown",
-        )
-    return finish_probe(
-        ok=True,
-        reply=reply,
-        error="",
-        outcome="success",
-        quota_event_type=QuotaEventType.USAGE_OBSERVED,
-        quota_units=1.0,
-        vendor_dispatched=True,
-        detail="probe-plan successful plan call",
-    )
-
-
-def _account_probe_dispatch_error(
-    adapter: PlanQuotaAdapter,
-    primary_error: BaseException,
-    *,
-    attempt_id: str,
-    model: str | None,
-    quota_ledger_path: Path | None,
-    cost_ledger_path: Path | None,
-    outcome: str,
-    context: str,
-) -> None:
-    try:
-        status = _record_probe_attempt(
-            adapter,
-            attempt_id=attempt_id,
-            model=model,
-            quota_ledger_path=quota_ledger_path,
-            cost_ledger_path=cost_ledger_path,
-            outcome=outcome,
-            quota_event_type=QuotaEventType.ATTEMPT_OBSERVED,
-            quota_units=None,
-            vendor_dispatched=True,
-            detail=f"probe CLI attempt ended with {context} after entering the dispatch boundary; quota usage is unknown",
-        )
-        attach_attempt_status(
-            primary_error,
-            attempt_id=attempt_id,
-            status=status,
-        )
-    except PlanQuotaError as accounting_error:
-        attach_attempt_accounting_error(
-            primary_error,
-            attempt_id=attempt_id,
-            accounting_error=accounting_error,
-            context=f"probe {context}",
-        )
-
-
-def _safe_probe_runner_error_result(
-    adapter: PlanQuotaAdapter,
-    runner_error: BaseException,
-    *,
-    attempt_id: str,
-) -> dict[str, Any]:
-    return {
-        "ok": False,
-        "backend": adapter.backend_id,
-        "reply": "",
-        "latency_ms": 0,
-        "error": f"{adapter.exe} {safe_runtime_error(runner_error)}",
-        "outcome": "runner_error",
-        "vendor_dispatched": True,
-        "attempt_id": attempt_id,
-        "cost_event_recorded": bool(getattr(runner_error, "cost_recorded", False)),
-        "quota_observation_recorded": bool(getattr(runner_error, "quota_recorded", False)),
-    }
-
-
-def _finish_probe_attempt(
-    adapter: PlanQuotaAdapter,
-    *,
-    attempt_id: str,
-    model: str | None,
-    quota_ledger_path: Path | None,
-    cost_ledger_path: Path | None,
-    result: CliResult,
-    ok: bool,
-    reply: str,
-    error: str,
-    outcome: str,
-    quota_event_type: QuotaEventType | None,
-    quota_units: float | None,
-    vendor_dispatched: bool,
-    detail: str,
-    reset_at: datetime | None = None,
-) -> dict[str, Any]:
-    ledger_error = ""
-    try:
-        status = _record_probe_attempt(
-            adapter,
-            attempt_id=attempt_id,
-            model=model,
-            quota_ledger_path=quota_ledger_path,
-            cost_ledger_path=cost_ledger_path,
-            outcome=outcome,
-            quota_event_type=quota_event_type,
-            quota_units=quota_units,
-            vendor_dispatched=vendor_dispatched,
-            detail=detail,
-            reset_at=reset_at,
-        )
-    except PlanQuotaError as accounting_error:
-        status = AttemptAccountingStatus(
-            quota_recorded=bool(getattr(accounting_error, "quota_recorded", False)),
-            cost_recorded=bool(getattr(accounting_error, "cost_recorded", False)),
-        )
-        ledger_error = str(accounting_error)
-    if ledger_error:
-        error = f"{error}; {ledger_error}" if error else ledger_error
-        ok = False
-    return {
-        "ok": ok,
-        "backend": adapter.backend_id,
-        "reply": reply,
-        "latency_ms": result.duration_ms,
-        "error": error,
-        "outcome": outcome,
-        "vendor_dispatched": vendor_dispatched,
-        "attempt_id": attempt_id,
-        "cost_event_recorded": status.cost_recorded,
-        "quota_observation_recorded": status.quota_recorded,
-    }
-
-
-def _record_probe_attempt(
-    adapter: PlanQuotaAdapter,
-    *,
-    attempt_id: str,
-    model: str | None,
-    quota_ledger_path: Path | None,
-    cost_ledger_path: Path | None,
-    outcome: str,
-    quota_event_type: QuotaEventType | None,
-    quota_units: float | None,
-    vendor_dispatched: bool,
-    detail: str,
-    reset_at: datetime | None = None,
-) -> AttemptAccountingStatus:
-    try:
-        return record_plan_quota_attempt(
-            adapter,
-            attempt_id=attempt_id,
-            operation="plan_quota_probe",
-            model=model,
-            quota_ledger_path=quota_ledger_path,
-            cost_ledger_path=cost_ledger_path,
-            outcome=outcome,
-            quota_event_type=quota_event_type,
-            quota_units=quota_units,
-            vendor_dispatched=vendor_dispatched,
-            detail=detail,
-            reset_at=reset_at,
-            lock_timeout_seconds=_PLAN_ACCOUNTING_LOCK_TIMEOUT_SECONDS,
-        )
-    except AttemptAccountingError as error:
-        raise _plan_quota_accounting_error(
-            error,
-            attempt_id=attempt_id,
-        ) from error.primary_cause
-
-
-def _reset_at_from_output(text: str) -> datetime | None:
-    return parse_reset_at_utc(text)
-
-
-def _recover_probe_reply(
-    adapter: PlanQuotaAdapter,
-    *,
-    result: CliResult,
-    started_at: float,
-) -> tuple[str, str]:
-    try:
-        if adapter.answer_from_transcript:
-            from deepr.backends.plan_quota.antigravity_transcript import antigravity_brain_dir, recover_answer
-
-            return recover_answer(antigravity_brain_dir(), since=started_at) or "", ""
-        return adapter.parse_answer(result.stdout), ""
-    except Exception as error:
-        return "", f"answer recovery failed ({type(error).__name__})"
