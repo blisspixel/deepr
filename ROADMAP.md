@@ -152,9 +152,13 @@ reliable product, not a four-language architecture diagram.
     reach the provider.
   - [x] OpenAI and Anthropic stream turns share `execute_reserved_async_stream`
     with final-usage settlement or conservative ceiling consume when usage is
-    missing (2026-07-13). Gate remains off. Remaining: tool and auxiliary
-    metered calls, parent session hold serialization, output token ceilings
-    from remaining dollars, and re-enable criteria above.
+    missing (2026-07-13).
+  - [x] Quick lookup, follow-up suggestions, and compact summary complete calls
+    pass explicit `max_cost_per_job` ceilings into the same backend admission
+    path (2026-07-13). Gate remains off. Remaining: Grok standard-research and
+    deep-research job submit/final usage, embeddings, skill tools, parent
+    session hold serialization, output token ceilings from remaining dollars,
+    and re-enable criteria above.
 - [ ] **P1: migrate every gated metered expert lifecycle surface to one shared
   durable per-call and run-budget transaction.** This includes nonlocal
   `expert make` and `--learn`, API curriculum `expert plan`, provider-backed
