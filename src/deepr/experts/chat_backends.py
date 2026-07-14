@@ -107,15 +107,21 @@ def stream_expert_chat_turn(
     *,
     selected_model: Any,
     messages: list[Any],
+    max_cost_per_job: float | None = None,
+    extra: dict[str, Any] | None = None,
 ) -> AsyncIterator[ExpertChatStreamChunk]:
     """Build and stream one expert chat turn through the configured backend."""
     if not backend.supports_streaming:
         raise ExpertChatUnsupportedFeature(f"{backend.provider} expert-chat backend does not support streaming")
+    request_extra = dict(extra or {})
+    if max_cost_per_job is not None:
+        request_extra["max_cost_per_job"] = max_cost_per_job
     return backend.stream(
         ExpertChatRequest(
             model=selected_model.model,
             messages=messages,
             reasoning_effort=_chat_reasoning_effort(selected_model),
+            extra=request_extra,
         )
     )
 
@@ -157,20 +163,32 @@ class OpenAIExpertChatBackend:
 
     async def stream(self, request: ExpertChatRequest) -> AsyncIterator[ExpertChatStreamChunk]:
         require_expert_chat_dispatch(self, "expert_chat_stream")
-        # Streaming still fails closed in production via the gate above. Durable
-        # stream settlement is a follow-on slice of the same P1 contract.
-        from deepr.experts.chat_metered import split_accounting_extra
+        from deepr.experts.chat_metered import (
+            execute_metered_chat_provider_stream,
+            split_accounting_extra,
+        )
 
-        provider_extra, _max_cost_per_job = split_accounting_extra(request.extra)
+        provider_extra, max_cost_per_job = split_accounting_extra(request.extra)
         params = self._build_params(request, extra=provider_extra)
         params["stream"] = True
         params["stream_options"] = {"include_usage": True}
-        stream = await self.client.chat.completions.create(**params)
-        async for chunk in stream:
-            usage = getattr(chunk, "usage", None)
-            delta = chunk.choices[0].delta if getattr(chunk, "choices", None) else None
-            text_delta = str(getattr(delta, "content", "") or "") if delta else ""
-            yield ExpertChatStreamChunk(text_delta=text_delta, usage=usage, raw_chunk=chunk)
+
+        async def events() -> AsyncIterator[tuple[ExpertChatStreamChunk, object | None]]:
+            stream = await self.client.chat.completions.create(**params)
+            async for chunk in stream:
+                usage = getattr(chunk, "usage", None)
+                delta = chunk.choices[0].delta if getattr(chunk, "choices", None) else None
+                text_delta = str(getattr(delta, "content", "") or "") if delta else ""
+                yield ExpertChatStreamChunk(text_delta=text_delta, usage=usage, raw_chunk=chunk), usage
+
+        async for item in execute_metered_chat_provider_stream(
+            provider=self.provider,
+            model=request.model,
+            source="expert_chat.stream",
+            max_cost_per_job=max_cost_per_job,
+            events=events,
+        ):
+            yield item
 
     def _build_params(self, request: ExpertChatRequest, *, extra: dict[str, Any] | None = None) -> dict[str, Any]:
         params: dict[str, Any] = {
@@ -234,18 +252,32 @@ class AnthropicExpertChatBackend:
         if request.tools:
             raise ExpertChatUnsupportedFeature("anthropic expert-chat backend does not support tools yet")
 
-        from deepr.experts.chat_metered import split_accounting_extra
+        from deepr.experts.chat_metered import (
+            execute_metered_chat_provider_stream,
+            split_accounting_extra,
+        )
 
         model = request.model if request.model.startswith("claude-") else self.model or request.model
-        provider_extra, _max_cost_per_job = split_accounting_extra(request.extra)
+        provider_extra, max_cost_per_job = split_accounting_extra(request.extra)
         params = self._build_params(request, model=model, extra=provider_extra)
-        async with self.client.messages.stream(**params) as stream:
-            async for text_delta in stream.text_stream:
-                yield ExpertChatStreamChunk(text_delta=str(text_delta), raw_chunk=text_delta)
-            final_message = await stream.get_final_message()
-            usage = getattr(final_message, "usage", None)
-            if usage is not None:
-                yield ExpertChatStreamChunk(usage=usage, raw_chunk=final_message)
+
+        async def events() -> AsyncIterator[tuple[ExpertChatStreamChunk, object | None]]:
+            async with self.client.messages.stream(**params) as stream:
+                async for text_delta in stream.text_stream:
+                    yield ExpertChatStreamChunk(text_delta=str(text_delta), raw_chunk=text_delta), None
+                final_message = await stream.get_final_message()
+                usage = getattr(final_message, "usage", None)
+                if usage is not None:
+                    yield ExpertChatStreamChunk(usage=usage, raw_chunk=final_message), usage
+
+        async for item in execute_metered_chat_provider_stream(
+            provider=self.provider,
+            model=model,
+            source="expert_chat.stream",
+            max_cost_per_job=max_cost_per_job,
+            events=events,
+        ):
+            yield item
 
     def _build_params(
         self,

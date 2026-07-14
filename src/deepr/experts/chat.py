@@ -2347,6 +2347,7 @@ Budget remaining: ${budget_remaining:.2f}
                     self.chat_backend,
                     selected_model=selected_model,
                     messages=conversation_messages,
+                    max_cost_per_job=estimated_cost if estimated_cost > 0 else None,
                 ):
                     if chunk.usage is not None:
                         stream_usage = chunk.usage

@@ -149,9 +149,12 @@ reliable product, not a four-language architecture diagram.
     `execute_reserved_async_call` via `deepr.experts.chat_metered` (2026-07-13).
     `complete_expert_chat_turn` and session chat paths pass
     `max_cost_per_job` from the generation estimate; accounting extras never
-    reach the provider. Gate remains off. Remaining: stream settlement, tool
-    and auxiliary metered calls, parent session hold serialization, output
-    token ceilings from remaining dollars, and re-enable criteria above.
+    reach the provider.
+  - [x] OpenAI and Anthropic stream turns share `execute_reserved_async_stream`
+    with final-usage settlement or conservative ceiling consume when usage is
+    missing (2026-07-13). Gate remains off. Remaining: tool and auxiliary
+    metered calls, parent session hold serialization, output token ceilings
+    from remaining dollars, and re-enable criteria above.
 - [ ] **P1: migrate every gated metered expert lifecycle surface to one shared
   durable per-call and run-budget transaction.** This includes nonlocal
   `expert make` and `--learn`, API curriculum `expert plan`, provider-backed

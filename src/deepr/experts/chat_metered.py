@@ -8,10 +8,10 @@ consume the hold afterward. Owned-capacity backends never enter this module.
 from __future__ import annotations
 
 import math
-from collections.abc import Awaitable, Callable, Mapping
+from collections.abc import AsyncIterator, Awaitable, Callable, Mapping
 from typing import Any, TypeVar
 
-from deepr.services.metered_call import execute_reserved_async_call
+from deepr.services.metered_call import execute_reserved_async_call, execute_reserved_async_stream
 
 T = TypeVar("T")
 
@@ -51,7 +51,27 @@ async def execute_metered_chat_provider_call(
     )
 
 
+def execute_metered_chat_provider_stream(
+    *,
+    provider: str,
+    model: str,
+    source: str,
+    max_cost_per_job: float | None,
+    events: Callable[[], AsyncIterator[tuple[T, object | None]]],
+) -> AsyncIterator[T]:
+    """Stream one metered expert-chat provider call under durable admission."""
+    return execute_reserved_async_stream(
+        operation_prefix="expert-chat",
+        provider=provider,
+        model=model,
+        source=source,
+        events=events,
+        max_cost_per_job=max_cost_per_job,
+    )
+
+
 __all__ = [
     "execute_metered_chat_provider_call",
+    "execute_metered_chat_provider_stream",
     "split_accounting_extra",
 ]
