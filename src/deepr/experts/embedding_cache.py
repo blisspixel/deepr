@@ -140,6 +140,10 @@ class EmbeddingCache:
 
         embed_content = content[:8000]
         estimate = 0.0002
+        from deepr.experts.cost_admission import admit_soft_cost_operation
+
+        # Prefer the caller's cost manager when provided; still fail closed if
+        # soft admission cannot prove budget headroom.
         if cost_safety is not None:
             try:
                 allowed, reason, _ = cost_safety.check_operation(
@@ -151,8 +155,22 @@ class EmbeddingCache:
                 if not allowed:
                     logger.warning("Embedding for %s blocked by cost-safety: %s", filename, reason)
                     return None
-            except Exception:
-                estimate = 0.0
+            except Exception as exc:
+                logger.warning(
+                    "Embedding for %s blocked; cost-safety check failed closed: %s",
+                    filename,
+                    exc,
+                )
+                return None
+        else:
+            _manager, estimate, deny_reason = admit_soft_cost_operation(
+                session_id=f"embed:{self.expert_name}",
+                operation_type="embed_document",
+                estimated_cost=estimate,
+            )
+            if deny_reason is not None:
+                logger.warning("Embedding for %s blocked by cost-safety: %s", filename, deny_reason)
+                return None
         try:
             response = await execute_metered_chat_provider_call(
                 provider="openai",
@@ -194,12 +212,16 @@ class EmbeddingCache:
         if not uncached:
             return 0
 
-        try:
-            from deepr.experts.cost_safety import get_cost_safety_manager
+        from deepr.experts.cost_admission import admit_soft_cost_operation
 
-            cost_safety = get_cost_safety_manager()
-        except Exception:
-            cost_safety = None
+        cost_safety, _est, deny_reason = admit_soft_cost_operation(
+            session_id=f"embed:{self.expert_name}",
+            operation_type="embed_document_batch",
+            estimated_cost=0.0002 * max(1, len(uncached)),
+        )
+        if deny_reason is not None:
+            logger.warning("Document embed batch blocked by cost-safety: %s", deny_reason)
+            return 0
 
         new_embeddings = []
         new_metadata = []
@@ -262,24 +284,17 @@ class EmbeddingCache:
             logger.warning("Query embedding blocked by metered chat gate: %s", blocked)
             return []
 
-        # Cost-safety gate for query embedding.
-        try:
-            from deepr.experts.cost_safety import get_cost_safety_manager
+        # Cost-safety gate for query embedding (fail closed).
+        from deepr.experts.cost_admission import admit_soft_cost_operation
 
-            _cost_safety = get_cost_safety_manager()
-            _est = 0.0001
-            _allowed, _reason, _ = _cost_safety.check_operation(
-                session_id=f"embed_query:{self.expert_name}",
-                operation_type="embed_query",
-                estimated_cost=_est,
-                require_confirmation=False,
-            )
-            if not _allowed:
-                logger.warning("Query embedding blocked by cost-safety: %s", _reason)
-                return []
-        except Exception:
-            _cost_safety = None  # type: ignore[assignment]
-            _est = 0.0
+        _cost_safety, _est, _reason = admit_soft_cost_operation(
+            session_id=f"embed_query:{self.expert_name}",
+            operation_type="embed_query",
+            estimated_cost=0.0001,
+        )
+        if _reason is not None:
+            logger.warning("Query embedding blocked by cost-safety: %s", _reason)
+            return []
 
         # Embed query (single API call) under durable admission.
         try:
