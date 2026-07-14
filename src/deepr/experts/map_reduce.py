@@ -177,23 +177,16 @@ class MapReduceIngester:
 
         # Cost-safety gate. Map-reduce can fan out across many chunks;
         # without this gate a long document blasts the daily budget.
-        try:
-            from deepr.experts.cost_safety import get_cost_safety_manager
+        from deepr.experts.cost_admission import admit_soft_cost_operation
 
-            _cost_safety = get_cost_safety_manager()
-            _est = 0.02
-            _allowed, _reason, _ = _cost_safety.check_operation(
-                session_id="map_reduce",
-                operation_type="map_chunk",
-                estimated_cost=_est,
-                require_confirmation=False,
-            )
-            if not _allowed:
-                logger.warning("Map-reduce chunk blocked by cost-safety: %s", _reason)
-                return {"chunk_index": chunk_index, "facts": [], "doc_name": doc_name, "error": _reason}
-        except Exception:
-            _cost_safety = None  # type: ignore[assignment]
-            _est = 0.0
+        _cost_safety, _est, _reason = admit_soft_cost_operation(
+            session_id="map_reduce",
+            operation_type="map_chunk",
+            estimated_cost=0.02,
+        )
+        if _reason is not None:
+            logger.warning("Map-reduce chunk blocked by cost-safety: %s", _reason)
+            return {"chunk_index": chunk_index, "facts": [], "doc_name": doc_name, "error": _reason}
 
         try:
             client = await self._get_client()
@@ -208,21 +201,19 @@ class MapReduceIngester:
             if text.startswith("```"):
                 text = text.split("\n", 1)[-1].rsplit("```", 1)[0]
             parsed = json.loads(text)
-            if _cost_safety is not None:
-                try:
-                    from deepr.experts.chat import _chat_token_cost as _tc
+            from deepr.experts.chat_turns import chat_token_cost as _tc
+            from deepr.experts.cost_admission import record_soft_cost
 
-                    _actual = _tc(response.usage, self.map_model) if response.usage else _est
-                    _cost_safety.record_cost(
-                        session_id="map_reduce",
-                        operation_type="map_chunk",
-                        actual_cost=float(_actual),
-                        provider="openai",
-                        model=self.map_model,
-                        source="experts.map_reduce.map_chunk",
-                    )
-                except Exception:
-                    pass  # cost recording must never break map phase of map-reduce document processing
+            _actual = _tc(response.usage, self.map_model) if response.usage else _est
+            record_soft_cost(
+                _cost_safety,
+                session_id="map_reduce",
+                operation_type="map_chunk",
+                actual_cost=float(_actual),
+                provider="openai",
+                model=self.map_model,
+                source="experts.map_reduce.map_chunk",
+            )
             return {
                 "chunk_index": chunk_index,
                 "facts": parsed.get("facts", []),
@@ -267,23 +258,16 @@ class MapReduceIngester:
         )
 
         # Cost-safety gate for the (more expensive) reduce model.
-        try:
-            from deepr.experts.cost_safety import get_cost_safety_manager
+        from deepr.experts.cost_admission import admit_soft_cost_operation
 
-            _cost_safety = get_cost_safety_manager()
-            _est = 0.05
-            _allowed, _reason, _ = _cost_safety.check_operation(
-                session_id="map_reduce",
-                operation_type="reduce_document",
-                estimated_cost=_est,
-                require_confirmation=False,
-            )
-            if not _allowed:
-                logger.warning("Map-reduce reduce blocked by cost-safety: %s", _reason)
-                return f"Key facts from {doc_name}:\n{facts_text}"
-        except Exception:
-            _cost_safety = None  # type: ignore[assignment]
-            _est = 0.0
+        _cost_safety, _est, _reason = admit_soft_cost_operation(
+            session_id="map_reduce",
+            operation_type="reduce_document",
+            estimated_cost=0.05,
+        )
+        if _reason is not None:
+            logger.warning("Map-reduce reduce blocked by cost-safety: %s", _reason)
+            return f"Key facts from {doc_name}:\n{facts_text}"
 
         try:
             client = await self._get_client()
@@ -295,21 +279,19 @@ class MapReduceIngester:
                 ],
                 reasoning_effort="low",
             )
-            if _cost_safety is not None:
-                try:
-                    from deepr.experts.chat import _chat_token_cost as _tc
+            from deepr.experts.chat_turns import chat_token_cost as _tc
+            from deepr.experts.cost_admission import record_soft_cost
 
-                    _actual = _tc(response.usage, self.reduce_model) if response.usage else _est
-                    _cost_safety.record_cost(
-                        session_id="map_reduce",
-                        operation_type="reduce_document",
-                        actual_cost=float(_actual),
-                        provider="openai",
-                        model=self.reduce_model,
-                        source="experts.map_reduce.reduce_document",
-                    )
-                except Exception:
-                    pass  # cost recording must never break map phase of map-reduce document processing
+            _actual = _tc(response.usage, self.reduce_model) if response.usage else _est
+            record_soft_cost(
+                _cost_safety,
+                session_id="map_reduce",
+                operation_type="reduce_document",
+                actual_cost=float(_actual),
+                provider="openai",
+                model=self.reduce_model,
+                source="experts.map_reduce.reduce_document",
+            )
             return response.choices[0].message.content or facts_text
         except Exception as e:
             logger.warning("Reduce for %s failed: %s", doc_name, e)
