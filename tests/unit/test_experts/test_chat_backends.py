@@ -569,3 +569,18 @@ def test_split_accounting_extra_rejects_non_positive_ceiling():
         split_accounting_extra({"max_cost_per_job": 0})
     with pytest.raises(ValueError, match="positive finite"):
         split_accounting_extra({"max_cost_per_job": float("nan")})
+
+
+def test_apply_output_token_ceiling_bounds_when_missing_max_tokens():
+    from deepr.experts.chat_metered import apply_output_token_ceiling
+
+    bounded = apply_output_token_ceiling({}, model="gpt-5.2", max_cost_per_job=0.02)
+    assert "max_tokens" in bounded
+    assert 1 <= bounded["max_tokens"] <= 4096
+
+    preserved = apply_output_token_ceiling(
+        {"max_tokens": 123},
+        model="gpt-5.2",
+        max_cost_per_job=0.02,
+    )
+    assert preserved["max_tokens"] == 123

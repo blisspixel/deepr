@@ -141,9 +141,18 @@ class OpenAIExpertChatBackend:
 
     async def complete(self, request: ExpertChatRequest) -> ExpertChatResult:
         require_expert_chat_dispatch(self, "expert_chat_completion")
-        from deepr.experts.chat_metered import execute_metered_chat_provider_call, split_accounting_extra
+        from deepr.experts.chat_metered import (
+            apply_output_token_ceiling,
+            execute_metered_chat_provider_call,
+            split_accounting_extra,
+        )
 
         provider_extra, max_cost_per_job = split_accounting_extra(request.extra)
+        provider_extra = apply_output_token_ceiling(
+            provider_extra,
+            model=request.model,
+            max_cost_per_job=max_cost_per_job,
+        )
         params = self._build_params(request, extra=provider_extra)
         response = await execute_metered_chat_provider_call(
             provider=self.provider,
@@ -164,11 +173,17 @@ class OpenAIExpertChatBackend:
     async def stream(self, request: ExpertChatRequest) -> AsyncIterator[ExpertChatStreamChunk]:
         require_expert_chat_dispatch(self, "expert_chat_stream")
         from deepr.experts.chat_metered import (
+            apply_output_token_ceiling,
             execute_metered_chat_provider_stream,
             split_accounting_extra,
         )
 
         provider_extra, max_cost_per_job = split_accounting_extra(request.extra)
+        provider_extra = apply_output_token_ceiling(
+            provider_extra,
+            model=request.model,
+            max_cost_per_job=max_cost_per_job,
+        )
         params = self._build_params(request, extra=provider_extra)
         params["stream"] = True
         params["stream_options"] = {"include_usage": True}
@@ -223,10 +238,19 @@ class AnthropicExpertChatBackend:
         if request.tools:
             raise ExpertChatUnsupportedFeature("anthropic expert-chat backend does not support tools yet")
 
-        from deepr.experts.chat_metered import execute_metered_chat_provider_call, split_accounting_extra
+        from deepr.experts.chat_metered import (
+            apply_output_token_ceiling,
+            execute_metered_chat_provider_call,
+            split_accounting_extra,
+        )
 
         model = request.model if request.model.startswith("claude-") else self.model or request.model
         provider_extra, max_cost_per_job = split_accounting_extra(request.extra)
+        provider_extra = apply_output_token_ceiling(
+            provider_extra,
+            model=model,
+            max_cost_per_job=max_cost_per_job,
+        )
         params = self._build_params(request, model=model, extra=provider_extra)
         response = await execute_metered_chat_provider_call(
             provider=self.provider,
@@ -253,12 +277,18 @@ class AnthropicExpertChatBackend:
             raise ExpertChatUnsupportedFeature("anthropic expert-chat backend does not support tools yet")
 
         from deepr.experts.chat_metered import (
+            apply_output_token_ceiling,
             execute_metered_chat_provider_stream,
             split_accounting_extra,
         )
 
         model = request.model if request.model.startswith("claude-") else self.model or request.model
         provider_extra, max_cost_per_job = split_accounting_extra(request.extra)
+        provider_extra = apply_output_token_ceiling(
+            provider_extra,
+            model=model,
+            max_cost_per_job=max_cost_per_job,
+        )
         params = self._build_params(request, model=model, extra=provider_extra)
 
         async def events() -> AsyncIterator[tuple[ExpertChatStreamChunk, object | None]]:
