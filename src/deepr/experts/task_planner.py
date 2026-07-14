@@ -92,23 +92,16 @@ class TaskPlanner:
         # Cost-safety gate. A task plan that proceeds spawns N step
         # send_message calls - each itself a research dispatch - so the
         # planner is a high-amplification cost point.
-        try:
-            from deepr.experts.cost_safety import get_cost_safety_manager
+        from deepr.experts.cost_admission import admit_soft_cost_operation, record_soft_cost
 
-            _cost_safety = get_cost_safety_manager()
-            _est = 0.02
-            _allowed, _reason, _ = _cost_safety.check_operation(
-                session_id="task_planner",
-                operation_type="decompose",
-                estimated_cost=_est,
-                require_confirmation=False,
-            )
-            if not _allowed:
-                logger.warning("Task decomposition blocked by cost-safety: %s", _reason)
-                return {"display": f"Plan blocked by cost-safety: {_reason}", "steps": [], "query": query}
-        except Exception:
-            _cost_safety = None  # type: ignore[assignment]
-            _est = 0.0
+        _cost_safety, _est, _reason = admit_soft_cost_operation(
+            session_id="task_planner",
+            operation_type="decompose",
+            estimated_cost=0.02,
+        )
+        if _reason is not None:
+            logger.warning("Task decomposition blocked by cost-safety: %s", _reason)
+            return {"display": f"Plan blocked by cost-safety: {_reason}", "steps": [], "query": query}
 
         try:
             result = await self.client.chat.completions.create(
@@ -123,21 +116,18 @@ class TaskPlanner:
                 temperature=0.3,
                 max_tokens=500,
             )
-            if _cost_safety is not None:
-                try:
-                    from deepr.experts.chat import _chat_token_cost as _tc
+            from deepr.experts.chat_turns import chat_token_cost as _tc
 
-                    _actual = _tc(result.usage, UTILITY_MODEL) if result.usage else _est
-                    _cost_safety.record_cost(
-                        session_id="task_planner",
-                        operation_type="decompose",
-                        actual_cost=float(_actual),
-                        provider="openai",
-                        model=UTILITY_MODEL,
-                        source="experts.task_planner.decompose",
-                    )
-                except Exception:
-                    pass  # status callback failure must never abort plan step execution or tracking
+            _actual = _tc(result.usage, UTILITY_MODEL) if result.usage else _est
+            record_soft_cost(
+                _cost_safety,
+                session_id="task_planner",
+                operation_type="decompose",
+                actual_cost=float(_actual),
+                provider="openai",
+                model=UTILITY_MODEL,
+                source="experts.task_planner.decompose",
+            )
             raw = (result.choices[0].message.content or "").strip()
             # Strip markdown code fences if present
             if raw.startswith("```"):
@@ -313,25 +303,18 @@ class TaskPlanner:
             return "No steps completed successfully."
 
         # Cost-safety gate for plan synthesis.
-        try:
-            from deepr.experts.cost_safety import get_cost_safety_manager
+        from deepr.experts.cost_admission import admit_soft_cost_operation, record_soft_cost
 
-            _cost_safety = get_cost_safety_manager()
-            _est = 0.02
-            _allowed, _reason, _ = _cost_safety.check_operation(
-                session_id="task_planner",
-                operation_type="synthesise",
-                estimated_cost=_est,
-                require_confirmation=False,
-            )
-            if not _allowed:
-                logger.warning("Plan synthesis blocked by cost-safety: %s", _reason)
-                # Return raw concatenation as fallback so the user still
-                # sees per-step results even when the synth call is gated.
-                return "\n\n".join(step_results)
-        except Exception:
-            _cost_safety = None  # type: ignore[assignment]
-            _est = 0.0
+        _cost_safety, _est, _reason = admit_soft_cost_operation(
+            session_id="task_planner",
+            operation_type="synthesise",
+            estimated_cost=0.02,
+        )
+        if _reason is not None:
+            logger.warning("Plan synthesis blocked by cost-safety: %s", _reason)
+            # Return raw concatenation as fallback so the user still
+            # sees per-step results even when the synth call is gated.
+            return "\n\n".join(step_results)
 
         try:
             result = await self.client.chat.completions.create(
@@ -349,21 +332,18 @@ class TaskPlanner:
                 temperature=0.3,
                 max_tokens=600,
             )
-            if _cost_safety is not None:
-                try:
-                    from deepr.experts.chat import _chat_token_cost as _tc
+            from deepr.experts.chat_turns import chat_token_cost as _tc
 
-                    _actual = _tc(result.usage, UTILITY_MODEL) if result.usage else _est
-                    _cost_safety.record_cost(
-                        session_id="task_planner",
-                        operation_type="synthesise",
-                        actual_cost=float(_actual),
-                        provider="openai",
-                        model=UTILITY_MODEL,
-                        source="experts.task_planner.synthesise",
-                    )
-                except Exception:
-                    pass  # cost recording must never break task planner synthesise step
+            _actual = _tc(result.usage, UTILITY_MODEL) if result.usage else _est
+            record_soft_cost(
+                _cost_safety,
+                session_id="task_planner",
+                operation_type="synthesise",
+                actual_cost=float(_actual),
+                provider="openai",
+                model=UTILITY_MODEL,
+                source="experts.task_planner.synthesise",
+            )
             return result.choices[0].message.content or "Synthesis unavailable."
         except Exception as e:
             return f"Synthesis failed: {e}"
