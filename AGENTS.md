@@ -42,3 +42,9 @@ interfaces (`cli/`, `web/`, `mcp/`).
 - **No emojis and no em/en dashes (`-` style only).** Do not use emoji or `-`/`-` in commit messages, tags, PRs, releases, code, or docs; use a plain hyphen `-` where a dash is needed.
 - Live-validation findings get a ROADMAP backlog entry and are checked off with a dated note when fixed.
 - Doc counts (test counts, tool counts) are checked by `scripts/check_docs_consistency.py` in CI - update docs when the numbers move.
+- **Module shape (readability):** god-files and over-split confetti both hurt.
+  Do not extract a file only to clear C901 or the file-size ratchet; extract
+  only a named seam with tests. Prefer a package/section map over hop chains.
+  Rebuild `.agent/codegraph` before structure work; run
+  `python .agent/codegraph/fragmentation_scan.py`. Plan:
+  [docs/design/module-shape-and-readability.md](docs/design/module-shape-and-readability.md).

@@ -39,7 +39,11 @@ The loop, from smallest to largest change:
    rejected. See `docs/decisions/README.md`.
 4. **Build in small, reversible increments.** Prefer additive,
    backward-compatible changes. One feature or fix per commit/PR. Each
-   increment lands green before the next starts.
+   increment lands green before the next starts. Do not extract new files
+   only to clear C901 or the file-size ratchet - that creates confetti that
+   is harder to read than a cohesive module. Named seams with tests only;
+   prefer a short package map when a multi-file family is intentional. See
+   [docs/design/module-shape-and-readability.md](docs/design/module-shape-and-readability.md).
 5. **Verify as you go**, then **ship**, then **validate live** where it
    matters. Live runs have found real bugs every time (see the ROADMAP
    live-validation entries); a passing suite is necessary, not sufficient.

@@ -10,14 +10,20 @@
 
 AI-assisted development is fast but has characteristic failure modes:
 duplication ("five sloppy ways to do one thing"), inconsistent patterns,
-over-large files, shallow abstractions, unenforced complexity, advisory-only
-security, coverage numbers that exclude the hard parts, and a model's lack of
-current-date / recent-change awareness. deepr already mitigates much of this
-(see *Posture*), but an honest audit found specific, fixable gaps. The
-governing principle, borrowed from the roadmap itself: **an unverified
-improvement loop is a degradation loop** - so we make quality
-*un-regressable* before we pay down the backlog, and we *characterize before
-we refactor*.
+over-large files, **over-split confetti** (many tiny files that clear line-count
+ratchets but destroy narrative cohesion), shallow abstractions, unenforced
+complexity, advisory-only security, coverage numbers that exclude the hard
+parts, and a model's lack of current-date / recent-change awareness. deepr
+already mitigates much of this (see *Posture*), but an honest audit found
+specific, fixable gaps. The governing principle, borrowed from the roadmap
+itself: **an unverified improvement loop is a degradation loop** - so we make
+quality *un-regressable* before we pay down the backlog, and we *characterize
+before we refactor*.
+
+The dual god-file / confetti problem and the readability plan live in
+[module-shape-and-readability.md](module-shape-and-readability.md) (codegraph
+refresh 2026-07-14). Phase Q still deprioritizes churn; prefer navigation maps
+before moving code.
 
 ## Posture (what already protects quality)
 
@@ -49,9 +55,13 @@ Recorded so the plan is proportional - this is not a rescue, it is a finish.
 | F5 | Coverage omits the hard parts | omit list excludes `web/*`, all `cli/commands/*`, `chat.py`, `curriculum.py`, `learner.py`, `lazy_graph_rag.py` - the largest, most complex files are unmeasured | Medium |
 | F6 | Duplicate verbs / helpers | ~~top-level `cost` **and** `costs` commands~~ (Q1.2 done 2026-06-14: `cost` deprecated-hidden alias); ~~3 separate `run_async` definitions~~ (Q1.3 done 2026-06-14: one helper in `utils/async_runner.py`) | Low |
 | F7 | Staleness defense | model-registry drift checks exist; no scheduled dependency-drift or standards-review cadence | Low |
+| F8 | Over-split / incomplete extracts | 2026-07-14: 57 tiny (<=80 line) non-init modules; `chat.py` still 2456 lines with only 2 top-level defs after 7 `chat_*` siblings (~1508 lines) extracted for size/C901 - readers still open the god file | Medium |
 
 (F-class context: the reports-root 3-way split and the learner infinite-poll
 hang were the same families - both already fixed this session.)
+
+F8 detail and the dual-mode fix plan:
+[module-shape-and-readability.md](module-shape-and-readability.md).
 
 ## The plan, step by step
 
