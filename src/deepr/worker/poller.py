@@ -58,6 +58,9 @@ class JobPoller:
         self.socketio = socketio
         self.running = False
         self._in_flight_job_ids: set[str] = set()
+        # CostController.record_cost is not idempotent; completion retries must
+        # not re-add the same job's spend to in-process daily/monthly totals.
+        self._cost_controller_recorded_job_ids: set[str] = set()
 
         # Load config
         config = load_config()
@@ -104,8 +107,23 @@ class JobPoller:
 
     async def _poll_cycle(self) -> None:
         """Execute one poll cycle."""
-        # Get all processing jobs
-        jobs = await self.queue.list_jobs(status=JobStatus.PROCESSING, limit=100)
+        # Page through every PROCESSING job. A single limit=100 newest-first
+        # slice starved older jobs once the backlog exceeded one page.
+        page_size = 100
+        jobs: list[ResearchJob] = []
+        page_offset = 0
+        while True:
+            page = await self.queue.list_jobs(
+                status=JobStatus.PROCESSING,
+                limit=page_size,
+                offset=page_offset,
+            )
+            if not page:
+                break
+            jobs.extend(page)
+            if len(page) < page_size:
+                break
+            page_offset += page_size
 
         if not jobs:
             logger.debug("No active jobs to poll")
@@ -266,7 +284,10 @@ class JobPoller:
             # ledger is authoritative regardless of submission-time
             # bookkeeping by the API or batch executor.
             try:
-                self.cost_controller.record_cost(actual_cost=float(cost or 0))
+                job_key = str(job.id)
+                if job_key not in self._cost_controller_recorded_job_ids:
+                    self.cost_controller.record_cost(actual_cost=float(cost or 0))
+                    self._cost_controller_recorded_job_ids.add(job_key)
             except Exception:
                 logger.debug("CostController.record_cost failed for job %s", job.id, exc_info=True)
             try:

@@ -224,29 +224,28 @@ class FindingsStore:
             metadata=metadata,
         )
 
-        # Store in database
-        self._conn.execute(
-            """INSERT OR REPLACE INTO findings
-               (id, job_id, phase, text, confidence, source, finding_type, timestamp, metadata_json)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""",
-            (
-                finding.id,
-                finding.job_id,
-                finding.phase,
-                finding.text,
-                finding.confidence,
-                finding.source,
-                finding.finding_type,
-                finding.timestamp.isoformat(),
-                json.dumps(finding.metadata),
-            ),
-        )
-
-        # Store tokens for search. Guard the in-memory index mutation
-        # with self._lock so two concurrent store_finding calls can't
-        # corrupt _token_index / _doc_lengths.
+        # Guard the full SQLite write + in-memory index mutation. The
+        # shared connection is check_same_thread=False; concurrent
+        # store_finding calls must not interleave statements/commits.
         token_counts = Counter(finding.tokens)
         with self._lock:
+            self._conn.execute(
+                """INSERT OR REPLACE INTO findings
+                   (id, job_id, phase, text, confidence, source, finding_type, timestamp, metadata_json)
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                (
+                    finding.id,
+                    finding.job_id,
+                    finding.phase,
+                    finding.text,
+                    finding.confidence,
+                    finding.source,
+                    finding.finding_type,
+                    finding.timestamp.isoformat(),
+                    json.dumps(finding.metadata),
+                ),
+            )
+
             for token, count in token_counts.items():
                 self._conn.execute(
                     """INSERT OR REPLACE INTO finding_tokens

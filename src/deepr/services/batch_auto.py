@@ -383,11 +383,20 @@ class AutoBatchExecutor:
                     failure_count=len(items),
                     error=f"Batch blocked by cost-safety: {deny_reason}",
                 )
-        except Exception:
-            # Don't block on cost-safety import / runtime errors -
-            # individual ``_execute_single`` calls will still go through
-            # their own per-job cost checks downstream.
-            pass
+        except Exception as exc:
+            # Fail closed: if the batch cost preflight cannot run, do not
+            # dispatch N paid jobs under a blind "check later" assumption.
+            return BatchResult(
+                batch_id=batch_id,
+                started_at=started_at,
+                completed_at=datetime.now(UTC),
+                results=[],
+                total_cost_estimated=float(routing.total_cost_estimate or 0.0),
+                total_cost_actual=0.0,
+                success_count=0,
+                failure_count=len(items),
+                error=f"Batch cost-safety unavailable: {exc}",
+            )
 
         # Execute queries with concurrency limit
         semaphore = asyncio.Semaphore(self._max_concurrent)
@@ -494,11 +503,14 @@ class AutoBatchExecutor:
             if progress_callback:
                 progress_callback(f"Completed: {item.query[:40]}...")
 
+            # _run_single does not return settled cost; use the routing
+            # estimate so batch totals are not silently $0 after paid work.
+            estimated = float(decision.cost_estimate) if decision is not None else 0.0
             return BatchQueryResult(
                 query=item.query,
                 decision=decision,
                 success=True,
-                cost_actual=0.0,  # TODO: extract actual cost from _run_single result
+                cost_actual=estimated,
             )
 
         except Exception as e:

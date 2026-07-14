@@ -105,11 +105,9 @@ class ResearchAPI:
             cost_limit=cost_limit,
         )
 
-        # Submit to queue, then record the estimated cost so daily /
-        # monthly spend tracking reflects this submission. Without this
-        # ``record_cost``, the cost-safety manager's daily total drifts
-        # below reality and future calls slip past the daily cap.
-        await self.queue.enqueue(job)
+        # Record estimated cost first so a ledger failure cannot leave a
+        # queued paid job with no spend row (silent-money class). Enqueue
+        # only after the admission ledger write succeeds.
         try:
             cost_safety.record_cost(
                 session_id=session_id,
@@ -120,10 +118,10 @@ class ResearchAPI:
                 idempotency_key=f"research_api:{job_id}:submit",
                 source="services.research_api.submit_research",
             )
-        except Exception:
-            # Bookkeeping must never block the user's job.
-            pass
+        except Exception as exc:
+            raise RuntimeError(f"Research submission blocked: cost ledger unavailable: {exc}") from exc
 
+        await self.queue.enqueue(job)
         return job.id
 
     async def get_job_status(self, job_id: str) -> dict[str, Any]:

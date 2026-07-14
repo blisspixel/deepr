@@ -301,6 +301,8 @@ async def extract_semantic_claims(
         if not allowed:
             raise ClaimExtractionBlocked(f"claim extraction blocked by cost safety: {reason}")
 
+    # Once the provider call starts, failure may still have spent money.
+    # Settle the full reserved bound instead of refunding (silent-money class).
     try:
         response = await client.chat.completions.create(
             model=model,
@@ -309,7 +311,21 @@ async def extract_semantic_claims(
         )
     except Exception:
         if manager is not None and reservation_id:
-            manager.refund_reservation(reservation_id)
+            manager.record_cost(
+                session_id=session_id,
+                operation_type=CLAIM_EXTRACTION_OPERATION,
+                actual_cost=estimated_cost,
+                provider=provider,
+                model=model,
+                source="semantic_claim_extraction",
+                idempotency_key=f"{prompt.prompt_hash}:conservative_settle",
+                reservation_id=reservation_id,
+                metadata={
+                    "capacity_source": capacity_source,
+                    "source_note_artifact": source_note_artifact,
+                    "conservative_settle": True,
+                },
+            )
         raise
 
     raw = response.choices[0].message.content or ""

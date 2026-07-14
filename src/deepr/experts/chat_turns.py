@@ -115,12 +115,14 @@ def check_chat_generation_budget(
 ) -> tuple[bool, str, float]:
     """Check cost safety before dispatching any metered chat-turn path."""
     estimated_cost = chat_generation_estimate(selected_model)
-    allowed, reason, _needs_confirmation = cost_safety.check_operation(
+    allowed, reason, needs_confirmation = cost_safety.check_operation(
         session_id=session_id,
         operation_type="expert_chat",
         estimated_cost=estimated_cost,
         require_confirmation=False,
     )
+    if needs_confirmation and allowed:
+        return False, reason or "confirmation required for high-cost chat turn", estimated_cost
     return allowed, reason, estimated_cost
 
 

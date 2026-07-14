@@ -68,14 +68,23 @@ def _source_notes(payload: dict | None = None):
 
 
 class _FakeClient:
-    def __init__(self, content: str, *, usage: object | None = None) -> None:
+    def __init__(
+        self,
+        content: str,
+        *,
+        usage: object | None = None,
+        raises: Exception | None = None,
+    ) -> None:
         self.calls: list[dict] = []
         self._content = content
         self._usage = usage
+        self._raises = raises
         self.chat = SimpleNamespace(completions=SimpleNamespace(create=self._create))
 
     async def _create(self, **kwargs):
         self.calls.append(kwargs)
+        if self._raises is not None:
+            raise self._raises
         return SimpleNamespace(
             choices=[SimpleNamespace(message=SimpleNamespace(content=self._content))],
             usage=self._usage,
@@ -233,6 +242,36 @@ async def test_extract_semantic_claims_records_metered_cost_reservation():
     assert manager.recorded["tokens_output"] == 7
     assert manager.recorded["metadata"]["source_window_count"] == 1
     assert manager.refunded == ""
+
+
+@pytest.mark.asyncio
+async def test_extract_semantic_claims_conservatively_settles_when_dispatch_fails():
+    """Provider exceptions after dispatch must not refund the reservation."""
+    notes = _source_notes()
+    manager = _FakeCostSafety()
+    client = _FakeClient("", raises=RuntimeError("backend down"))
+
+    with pytest.raises(RuntimeError, match="backend down"):
+        await extract_semantic_claims(
+            notes,
+            _source_pack_payload(),
+            client=client,
+            model="gpt-5-mini",
+            provider="openai",
+            capacity_source="api_metered",
+            budget_usd=0.05,
+            estimated_cost_usd=0.03,
+            allow_metered=True,
+            cost_safety=manager,
+            session_id="sync:expert:topic",
+            source_note_artifact="sync_artifacts/source_notes/pack.json",
+        )
+
+    assert manager.refunded == ""
+    assert manager.recorded is not None
+    assert manager.recorded["actual_cost"] == 0.03
+    assert manager.recorded["reservation_id"] == "reservation-1"
+    assert manager.recorded["metadata"]["conservative_settle"] is True
 
 
 @pytest.mark.asyncio
