@@ -300,9 +300,11 @@ async def test_post_dispatch_elapsed_imports_settled_child_cancellation_cost(tmp
 @pytest.mark.asyncio
 async def test_transaction_timeout_cancels_async_backend_preflight(tmp_path):
     lifecycle_path = tmp_path / "lifecycle.jsonl"
+    entered = asyncio.Event()
     cancelled = asyncio.Event()
 
     async def blocked_backend():
+        entered.set()
         try:
             await asyncio.Event().wait()
         finally:
@@ -320,14 +322,20 @@ async def test_transaction_timeout_cancels_async_backend_preflight(tmp_path):
             backend_mode="local",
             backend_factory=blocked_backend,
             requested_capacity=_capacity(),
-            max_elapsed_seconds=0.03,
-            heartbeat_interval_seconds=0.005,
+            # Keep enough headroom for slow CI hosts to reach preflight before the
+            # elapsed ceiling fires, while still short enough for a unit test.
+            max_elapsed_seconds=0.2,
+            heartbeat_interval_seconds=0.01,
             lifecycle_path=lifecycle_path,
             trace_path=tmp_path / "traces.jsonl",
             run_consult_fn=forbidden_run,
         )
 
-    assert cancelled.is_set()
+    assert entered.is_set(), "elapsed limit fired before async backend preflight started"
+    try:
+        await asyncio.wait_for(cancelled.wait(), timeout=1.0)
+    except TimeoutError:
+        pytest.fail("async backend preflight was not cancelled after elapsed limit")
     assert raised.value.retryable is True
     events = load_consult_lifecycle_events(path=lifecycle_path)
     assert events[-1]["phase"] == "preflight"
