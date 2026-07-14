@@ -33,7 +33,7 @@ async def generate_follow_ups(session: Any, user_message: str, response: str) ->
                         "content": f"User asked: {user_message[:300]}\n\nExpert replied: {response[:500]}",
                     },
                 ],
-                extra={"temperature": 0.7, "max_tokens": 200},
+                extra={"temperature": 0.7, "max_tokens": 200, "max_cost_per_job": 0.05},
             )
         )
     except asyncio.CancelledError:
@@ -130,7 +130,7 @@ async def compact_conversation(session: Any) -> dict[str, Any]:
                     },
                     {"role": "user", "content": conversation_text[:8000]},
                 ],
-                extra={"temperature": 0.3, "max_tokens": 500},
+                extra={"temperature": 0.3, "max_tokens": 500, "max_cost_per_job": 0.10},
             )
         )
         summary = result.text or "Summary unavailable."
