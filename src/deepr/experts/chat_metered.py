@@ -102,9 +102,38 @@ def execute_metered_chat_provider_stream(
     )
 
 
+def mirror_chat_session_spend(
+    session: Any,
+    *,
+    operation_type: str,
+    actual_cost: float,
+    details: str = "",
+) -> float:
+    """Mirror durable provider spend into the chat CostSession without a second ledger write.
+
+    Durable metered calls settle the canonical ledger under a research_* job id.
+    Chat session remaining-budget UX still needs local session totals. Calling
+    ``cost_safety.record_cost`` again would append a second ledger event and
+    double-count daily/monthly manager totals.
+    """
+    cost = float(actual_cost)
+    if not math.isfinite(cost) or cost < 0:
+        raise ValueError("actual_cost must be finite and non-negative")
+    if cost <= 0:
+        return 0.0
+    cost_session = getattr(session, "cost_session", None)
+    if cost_session is not None:
+        cost_session.record_operation(operation_type, cost, details or None)
+        session.cost_accumulated = float(getattr(cost_session, "total_cost", cost))
+    else:
+        session.cost_accumulated = float(getattr(session, "cost_accumulated", 0.0) or 0.0) + cost
+    return cost
+
+
 __all__ = [
     "apply_output_token_ceiling",
     "execute_metered_chat_provider_call",
     "execute_metered_chat_provider_stream",
+    "mirror_chat_session_spend",
     "split_accounting_extra",
 ]

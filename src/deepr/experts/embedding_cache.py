@@ -7,7 +7,6 @@ The cache stores embeddings locally as numpy arrays, enabling fast cosine
 similarity search without re-embedding documents on every query.
 """
 
-import contextlib
 import hashlib
 import json
 import logging
@@ -152,17 +151,9 @@ class EmbeddingCache:
                 max_cost_per_job=max(float(estimate), 0.0002),
                 call=lambda: client.embeddings.create(model=model, input=embed_content),
             )
+            # Durable admission already wrote the canonical ledger. Do not call
+            # cost_safety.record_cost again (that would double-count spend).
             embedding = np.array(response.data[0].embedding)
-            if cost_safety is not None:
-                with contextlib.suppress(Exception):
-                    cost_safety.record_cost(
-                        session_id=f"embed:{self.expert_name}",
-                        operation_type="embed_document",
-                        actual_cost=float(estimate),
-                        provider="openai",
-                        model=model,
-                        source="experts.embedding_cache.add_documents",
-                    )
             content_hash = self._content_hash(content)
             return embedding, {
                 "hash": content_hash,
@@ -280,19 +271,8 @@ class EmbeddingCache:
                 max_cost_per_job=max(float(_est), 0.0001),
                 call=lambda: client.embeddings.create(model=model, input=query),
             )
+            # Durable admission is the sole ledger write for this embed.
             query_embedding = np.array(response.data[0].embedding)
-            if _cost_safety is not None:
-                try:
-                    _cost_safety.record_cost(
-                        session_id=f"embed_query:{self.expert_name}",
-                        operation_type="embed_query",
-                        actual_cost=float(_est),
-                        provider="openai",
-                        model=model,
-                        source="experts.embedding_cache.search",
-                    )
-                except Exception:
-                    pass  # cost recording must never break embedding cache search operation
         except Exception as e:
             logger.error("Error embedding query: %s", e)
             return []

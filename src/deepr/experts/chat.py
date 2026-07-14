@@ -886,6 +886,12 @@ Budget remaining: ${budget_remaining:.2f}
 
         return await run_deep_research(self, query)
 
+    async def reconcile_deep_research_job(self, job_id: str) -> dict:
+        """Retrieve a submitted deep-research job and record final usage."""
+        from deepr.experts.chat_research_ops import reconcile_deep_research_job
+
+        return await reconcile_deep_research_job(self, job_id)
+
     async def _add_research_to_knowledge_base(self, query: str, answer: str, mode: str) -> bool:
         """Add research findings to the expert's knowledge base.
 
@@ -1090,9 +1096,27 @@ Budget remaining: ${budget_remaining:.2f}
             return {"status": "error", "error": str(e), "new_beliefs": 0, "updated_beliefs": 0, "gaps_filled": 0}
 
     def _account_chat_cost(self, usage: Any, model: Any) -> None:
-        """Reject unreachable metered accounting and keep owned turns at $0."""
-        del usage, model
+        """Mirror durable chat-turn spend into the session without a second ledger write.
+
+        Owned-capacity backends stay at `$0`. Metered backends settle the
+        canonical ledger inside the durable admission wrapper; this only
+        updates CostSession remaining-budget totals.
+        """
+        if not expert_chat_backend_is_metered(self.chat_backend):
+            return
         self.require_provider_dispatch_allowed("expert_chat_accounting")
+        from deepr.experts.chat_metered import mirror_chat_session_spend
+        from deepr.experts.chat_turns import chat_token_cost
+
+        model_name = getattr(model, "model", None) or str(model or "")
+        cost = float(chat_token_cost(usage, model_name)) if usage is not None else 0.0
+        if cost > 0:
+            mirror_chat_session_spend(
+                self,
+                operation_type="expert_chat",
+                actual_cost=cost,
+                details=f"model={model_name}",
+            )
 
     async def send_message(
         self,
