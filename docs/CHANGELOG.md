@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.36.1] - 2026-07-13
+
 ### Changed
 
 - Plan-quota subprocesses now drain stdout and stderr concurrently under an
@@ -35,21 +37,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   Research and probe failures preserve dispatch truth, attempt outcome, attempt
   id, paired-ledger status, and the no-metered-fallback contract, including
   canonical accounting failure after a successful vendor response.
-- Metered expert-chat OpenAI and Anthropic completions and streams now run
-  through shared durable reserve, dispatch-mark, and settlement wrappers when
-  execution is enabled (`execute_reserved_async_call` /
-  `execute_reserved_async_stream`). Streams settle final provider usage or
-  consume the held ceiling conservatively when usage is missing. Quick lookup,
-  follow-up, and compact paths pass explicit per-call ceilings. Grok
-  standard-research samples use the same durable admission with the registry
-  estimate as the hold when the SDK omits usage. Accounting-only request fields
-  such as `max_cost_per_job` are stripped before provider params. Production
+- Metered expert-chat durable admission substrate: OpenAI and Anthropic
+  complete/stream paths use shared reserve, dispatch-mark, and settlement
+  wrappers when execution is enabled; quick lookup, follow-up, and compact
+  paths pass explicit per-call ceilings; Grok standard-research and
+  deep-research job submission use the same admission helper; embedding-cache
+  document and query embeds reserve before provider work; sessions serialize
+  turns with an asyncio lock and pass `min(estimate, session_remaining)` as
+  each call ceiling; missing output caps derive `max_tokens` from half the
+  dollar hold. Accounting-only fields never reach provider params. Production
   remains fail-closed via `METERED_EXPERT_CHAT_EXECUTION_ENABLED = False` until
-  embeddings, skill tools, session-hold, and final deep-research usage
-  contracts clear. Deep-research job submission itself now uses durable
-  admission when execution is enabled. Startup banner unit tests isolate
-  dumb-terminal and `NO_COLOR` host environments so CI and agent shells do not
-  false-fail the suite.
+  final deep-research polled usage settlement, optional metered skill tools,
+  ledger/session double-count audit, and explicit spend-confirmation re-enable
+  criteria clear. Startup banner unit tests isolate dumb-terminal and
+  `NO_COLOR` host environments so CI and agent shells do not false-fail the
+  suite. `ExpertChatSession` research helpers moved to
+  `deepr.experts.chat_research_ops` so the file-size ratchet does not grow.
 
 ## [2.36.0] - 2026-07-12
 
