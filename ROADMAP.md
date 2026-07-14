@@ -169,10 +169,14 @@ reliable product, not a four-language architecture diagram.
     reservation store (2026-07-13).
   - [x] Metered chat complete/stream apply an output ``max_tokens`` ceiling from
     half the call dollar hold when the caller omits an explicit cap
-    (2026-07-13). Skill tools remain ``allow_metered_tools=False`` (no metered
-    skill dispatch). Gate remains off. Remaining: final deep-research polled
-    usage settlement, skill-tool metering if/when allowlisted, parent run
-    budget aggregation across multi-call turns, and re-enable criteria above.
+    (2026-07-13).
+  - [x] Each complete/stream turn passes ``min(estimate, session_remaining)`` as
+    ``max_cost_per_job`` so multi-call tool loops cannot re-reserve more than
+    the remaining session budget (2026-07-13). Skill tools remain
+    ``allow_metered_tools=False``. Gate remains off. Remaining: final
+    deep-research polled usage settlement, skill-tool metering if/when
+    allowlisted, explicit re-enable with spend confirmation, and
+    ledger/session double-count audit.
 - [ ] **P1: migrate every gated metered expert lifecycle surface to one shared
   durable per-call and run-budget transaction.** This includes nonlocal
   `expert make` and `--learn`, API curriculum `expert plan`, provider-backed
