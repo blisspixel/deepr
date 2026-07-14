@@ -28,6 +28,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   mark, and settlement of tier estimates. Soft tool failures settle at ``$0``;
   raised failures consume the hold conservatively. Live expert chat still
   constructs skill executors with ``allow_metered_tools=False``.
+- Embedding-cache document and query embeds refuse provider dispatch unless
+  the same dual metered-chat confirmation gate allows spend, matching chat
+  backends and research helpers.
+- Documented the metered expert-chat re-enable review checklist in
+  ``docs/design/metered-expert-chat-reenable.md``.
 
 ## [2.36.1] - 2026-07-13
 

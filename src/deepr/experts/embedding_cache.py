@@ -126,7 +126,17 @@ class EmbeddingCache:
         cost_safety: Any,
     ) -> tuple[Any, dict[str, Any]] | None:
         """Embed one document under cost and durable admission gates."""
+        from deepr.experts.chat_capacity import (
+            MeteredExpertChatDisabledError,
+            require_expert_chat_dispatch,
+        )
         from deepr.experts.chat_metered import execute_metered_chat_provider_call
+
+        try:
+            require_expert_chat_dispatch(None, "expert_chat_embed_document", metered=True)
+        except MeteredExpertChatDisabledError as blocked:
+            logger.warning("Embedding for %s blocked by metered chat gate: %s", filename, blocked)
+            return None
 
         embed_content = content[:8000]
         estimate = 0.0002
@@ -239,6 +249,17 @@ class EmbeddingCache:
             List of documents with id, content, filename, and score
         """
         if self.embeddings is None or len(self.embeddings) == 0:
+            return []
+
+        from deepr.experts.chat_capacity import (
+            MeteredExpertChatDisabledError,
+            require_expert_chat_dispatch,
+        )
+
+        try:
+            require_expert_chat_dispatch(None, "expert_chat_embed_query", metered=True)
+        except MeteredExpertChatDisabledError as blocked:
+            logger.warning("Query embedding blocked by metered chat gate: %s", blocked)
             return []
 
         # Cost-safety gate for query embedding.
