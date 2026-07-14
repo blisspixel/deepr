@@ -173,7 +173,18 @@ class EmbeddingCache:
                 _est = 0.0
 
             try:
-                response = await client.embeddings.create(model=model, input=embed_content)
+                from deepr.experts.chat_metered import execute_metered_chat_provider_call
+
+                response = await execute_metered_chat_provider_call(
+                    provider="openai",
+                    model=model,
+                    source="experts.embedding_cache.add_documents",
+                    max_cost_per_job=max(float(_est), 0.0002),
+                    call=lambda content=embed_content: client.embeddings.create(
+                        model=model,
+                        input=content,
+                    ),
+                )
                 embedding = np.array(response.data[0].embedding)
                 if _cost_safety is not None:
                     try:
@@ -262,9 +273,17 @@ class EmbeddingCache:
             _cost_safety = None  # type: ignore[assignment]
             _est = 0.0
 
-        # Embed query (single API call)
+        # Embed query (single API call) under durable admission.
         try:
-            response = await client.embeddings.create(model=model, input=query)
+            from deepr.experts.chat_metered import execute_metered_chat_provider_call
+
+            response = await execute_metered_chat_provider_call(
+                provider="openai",
+                model=model,
+                source="experts.embedding_cache.search",
+                max_cost_per_job=max(float(_est), 0.0001),
+                call=lambda: client.embeddings.create(model=model, input=query),
+            )
             query_embedding = np.array(response.data[0].embedding)
             if _cost_safety is not None:
                 try:
