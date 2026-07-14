@@ -162,11 +162,35 @@ class GapDiscoverer:
         Returns:
             (N, D) numpy array of embeddings, or None on failure
         """
+        from deepr.experts.cost_admission import admit_soft_cost_operation
+
+        # Tiny per-batch estimate; fail closed if admission cannot run.
+        est = max(0.0002, 0.00005 * max(1, len(statements)))
+        cost_safety, est_cost, deny_reason = admit_soft_cost_operation(
+            session_id="gap_discovery",
+            operation_type="gap_discovery_embed",
+            estimated_cost=est,
+        )
+        if deny_reason is not None:
+            logger.warning("Gap discovery embeddings blocked by cost-safety: %s", deny_reason)
+            return None
+
         try:
             client = await self._get_client()
             response = await client.embeddings.create(
                 model="text-embedding-3-small",
                 input=statements,
+            )
+            from deepr.experts.cost_admission import record_soft_cost
+
+            record_soft_cost(
+                cost_safety,
+                session_id="gap_discovery",
+                operation_type="gap_discovery_embed",
+                actual_cost=float(est_cost),
+                provider="openai",
+                model="text-embedding-3-small",
+                source="experts.gap_discovery._embed_statements",
             )
             embeddings = [item.embedding for item in response.data]
             return np.array(embeddings)
@@ -206,23 +230,16 @@ class GapDiscoverer:
 
         # Pre-flight cost-safety gate so the gap-discovery pipeline can't
         # silently fan out paid LLM calls without daily-budget enforcement.
-        try:
-            from deepr.experts.cost_safety import get_cost_safety_manager
+        from deepr.experts.cost_admission import admit_soft_cost_operation
 
-            cost_safety = get_cost_safety_manager()
-            est_cost = 0.02
-            allowed, deny_reason, _ = cost_safety.check_operation(
-                session_id="gap_discovery",
-                operation_type="gap_discovery_thin_areas",
-                estimated_cost=est_cost,
-                require_confirmation=False,
-            )
-            if not allowed:
-                logger.warning("Gap discovery (thin areas) blocked by cost-safety: %s", deny_reason)
-                return []
-        except Exception:
-            cost_safety = None  # type: ignore[assignment]
-            est_cost = 0.0
+        cost_safety, est_cost, deny_reason = admit_soft_cost_operation(
+            session_id="gap_discovery",
+            operation_type="gap_discovery_thin_areas",
+            estimated_cost=0.02,
+        )
+        if deny_reason is not None:
+            logger.warning("Gap discovery (thin areas) blocked by cost-safety: %s", deny_reason)
+            return []
 
         try:
             client = await self._get_client()
@@ -238,21 +255,19 @@ class GapDiscoverer:
             if text.startswith("```"):
                 text = text.split("\n", 1)[-1].rsplit("```", 1)[0]
             result = json.loads(text)
-            if cost_safety is not None:
-                try:
-                    from deepr.experts.chat import _chat_token_cost as _tc
+            from deepr.experts.chat_turns import chat_token_cost as _tc
+            from deepr.experts.cost_admission import record_soft_cost
 
-                    actual_cost = _tc(response.usage, "gpt-5.2") if response.usage else est_cost
-                    cost_safety.record_cost(
-                        session_id="gap_discovery",
-                        operation_type="gap_discovery_thin_areas",
-                        actual_cost=float(actual_cost),
-                        provider="openai",
-                        model="gpt-5.2",
-                        source="experts.gap_discovery._generate_gaps_for_thin_areas",
-                    )
-                except Exception:
-                    pass  # cost recording must never break gap discovery step
+            actual_cost = _tc(response.usage, "gpt-5.2") if response.usage else est_cost
+            record_soft_cost(
+                cost_safety,
+                session_id="gap_discovery",
+                operation_type="gap_discovery_thin_areas",
+                actual_cost=float(actual_cost),
+                provider="openai",
+                model="gpt-5.2",
+                source="experts.gap_discovery._generate_gaps_for_thin_areas",
+            )
             return result
         except Exception as e:
             logger.warning("Gap generation failed: %s", e)
@@ -288,6 +303,17 @@ class GapDiscoverer:
             "Output ONLY the JSON. Return [] if coverage is good."
         )
 
+        from deepr.experts.cost_admission import admit_soft_cost_operation
+
+        cost_safety, est_cost, deny_reason = admit_soft_cost_operation(
+            session_id="gap_discovery",
+            operation_type="gap_discovery_domain_coverage",
+            estimated_cost=0.02,
+        )
+        if deny_reason is not None:
+            logger.warning("Gap discovery (domain coverage) blocked by cost-safety: %s", deny_reason)
+            return []
+
         try:
             client = await self._get_client()
             response = await client.chat.completions.create(
@@ -302,6 +328,19 @@ class GapDiscoverer:
             if text.startswith("```"):
                 text = text.split("\n", 1)[-1].rsplit("```", 1)[0]
             gaps = json.loads(text)
+            from deepr.experts.chat_turns import chat_token_cost as _tc
+            from deepr.experts.cost_admission import record_soft_cost
+
+            actual_cost = _tc(response.usage, "gpt-5.2") if response.usage else est_cost
+            record_soft_cost(
+                cost_safety,
+                session_id="gap_discovery",
+                operation_type="gap_discovery_domain_coverage",
+                actual_cost=float(actual_cost),
+                provider="openai",
+                model="gpt-5.2",
+                source="experts.gap_discovery._check_domain_coverage",
+            )
             for gap in gaps:
                 gap["discovery_method"] = "domain_coverage"
             return gaps
