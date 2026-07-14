@@ -45,10 +45,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   estimate as the hold when the SDK omits usage. Accounting-only request fields
   such as `max_cost_per_job` are stripped before provider params. Production
   remains fail-closed via `METERED_EXPERT_CHAT_EXECUTION_ENABLED = False` until
-  deep-research job accounting, embeddings, skill tools, and session-hold
-  contracts clear. Startup banner unit tests isolate dumb-terminal and
-  `NO_COLOR` host environments so CI and agent shells do not false-fail the
-  suite.
+  embeddings, skill tools, session-hold, and final deep-research usage
+  contracts clear. Deep-research job submission itself now uses durable
+  admission when execution is enabled. Startup banner unit tests isolate
+  dumb-terminal and `NO_COLOR` host environments so CI and agent shells do not
+  false-fail the suite.
 
 ## [2.36.0] - 2026-07-12
 

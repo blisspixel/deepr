@@ -1071,11 +1071,20 @@ Budget remaining: ${budget_remaining:.2f}
             }
 
         try:
-            # Deep-research job submission stays on the Responses API path.
-            # Durable per-call admission for job submit + final usage settlement
-            # is a remaining P1 slice (distinct from chat-completion turns).
-            response = await self.client.responses.create(
-                model="o4-mini-deep-research", messages=[{"role": "user", "content": query}]
+            from deepr.experts.chat_metered import execute_metered_chat_provider_call
+
+            # Submit deep research under durable admission. The Responses job
+            # object rarely carries token usage at create time, so settlement
+            # consumes the registry-estimate hold unless usage is present.
+            response = await execute_metered_chat_provider_call(
+                provider="openai",
+                model="o4-mini-deep-research",
+                source="expert_chat.deep_research",
+                max_cost_per_job=estimated_cost,
+                call=lambda: self.client.responses.create(
+                    model="o4-mini-deep-research",
+                    messages=[{"role": "user", "content": query}],
+                ),
             )
 
             job_id = response.id
