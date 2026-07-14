@@ -9,6 +9,7 @@ Instrumented with distributed tracing for observability (4.2 Auto-Generated Meta
 import asyncio
 import json
 import logging
+import math
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
@@ -419,6 +420,23 @@ Budget remaining: ${budget_remaining:.2f}
 
     def require_provider_dispatch_allowed(self, operation: str) -> None:
         require_expert_chat_dispatch(self.chat_backend, operation)
+
+    def _call_cost_ceiling(self, estimated_cost: float) -> float | None:
+        """Cap one provider call by the generation estimate and session remainder."""
+        if estimated_cost <= 0:
+            return None
+        remaining = self.cost_session.get_remaining_budget()
+        if remaining is None:
+            return float(estimated_cost)
+        try:
+            remaining_value = float(remaining)
+        except (TypeError, ValueError):
+            return float(estimated_cost)
+        if not math.isfinite(remaining_value):
+            return float(estimated_cost)
+        if remaining_value <= 0:
+            return None
+        return min(float(estimated_cost), remaining_value)
 
     def get_chat_capacity(self) -> dict[str, Any]:
         return expert_chat_capacity(self.chat_backend)
@@ -1319,7 +1337,7 @@ Budget remaining: ${budget_remaining:.2f}
                 messages=[{"role": "system", "content": self.get_system_message()}, *self.messages],
                 tools=tools if self.chat_backend.supports_tools else None,
                 tool_choice="auto" if self.chat_backend.supports_tools else None,
-                max_cost_per_job=estimated_cost if estimated_cost > 0 else None,
+                max_cost_per_job=self._call_cost_ceiling(estimated_cost),
             )
 
             assistant_message = first_turn.message
@@ -1625,7 +1643,7 @@ Budget remaining: ${budget_remaining:.2f}
                     messages=conversation_messages,
                     tools=tools if self.chat_backend.supports_tools else None,
                     tool_choice="auto" if self.chat_backend.supports_tools else None,
-                    max_cost_per_job=estimated_cost if estimated_cost > 0 else None,
+                    max_cost_per_job=self._call_cost_ceiling(estimated_cost),
                 )
 
                 current_message = next_turn.message
@@ -1970,7 +1988,7 @@ Budget remaining: ${budget_remaining:.2f}
                 messages=[{"role": "system", "content": self.get_system_message()}, *self.messages],
                 tools=tools if self.chat_backend.supports_tools else None,
                 tool_choice="auto" if self.chat_backend.supports_tools else None,
-                max_cost_per_job=estimated_cost if estimated_cost > 0 else None,
+                max_cost_per_job=self._call_cost_ceiling(estimated_cost),
             )
             assistant_message = first_turn.message
 
@@ -2112,7 +2130,7 @@ Budget remaining: ${budget_remaining:.2f}
                     messages=conversation_messages,
                     tools=tools if self.chat_backend.supports_tools else None,
                     tool_choice="auto" if self.chat_backend.supports_tools else None,
-                    max_cost_per_job=estimated_cost if estimated_cost > 0 else None,
+                    max_cost_per_job=self._call_cost_ceiling(estimated_cost),
                 )
                 current_message = next_turn.message
 
@@ -2135,7 +2153,7 @@ Budget remaining: ${budget_remaining:.2f}
                     self.chat_backend,
                     selected_model=selected_model,
                     messages=conversation_messages,
-                    max_cost_per_job=estimated_cost if estimated_cost > 0 else None,
+                    max_cost_per_job=self._call_cost_ceiling(estimated_cost),
                 ):
                     if chunk.usage is not None:
                         stream_usage = chunk.usage
