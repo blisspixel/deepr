@@ -211,9 +211,14 @@ async def test_transaction_resolves_capacity_and_settles_observed_cost(tmp_path)
 async def test_transaction_timeout_cancels_work_and_records_one_terminal_event(tmp_path):
     lifecycle_path = tmp_path / "lifecycle.jsonl"
     trace_path = tmp_path / "traces.jsonl"
+    started = asyncio.Event()
     cancelled = asyncio.Event()
 
+    async def ready_backend():
+        return _backend()
+
     async def blocked(*_args, **_kwargs):
+        started.set()
         try:
             await asyncio.Event().wait()
         finally:
@@ -226,15 +231,16 @@ async def test_transaction_timeout_cancels_work_and_records_one_terminal_event(t
             max_experts=3,
             budget=0.0,
             backend_mode="local",
-            backend_factory=_backend,
+            backend_factory=ready_backend,
             requested_capacity=_capacity(),
-            max_elapsed_seconds=0.1,
+            max_elapsed_seconds=1.0,
             heartbeat_interval_seconds=0.005,
             lifecycle_path=lifecycle_path,
             trace_path=trace_path,
             run_consult_fn=blocked,
         )
 
+    assert started.is_set()
     assert cancelled.is_set()
     assert raised.value.retryable is False
     events = load_consult_lifecycle_events(path=lifecycle_path)

@@ -207,6 +207,36 @@ Long prompts go through safe delivery modes:
 - Grok uses a prompt file.
 - Antigravity recovers the answer from its transcript when stdout is empty.
 
+Every plan subprocess also drains stdout and stderr concurrently under an
+independent 8 MiB raw-byte ceiling for each stream. Crossing either ceiling
+requests bounded process-tree termination and returns `output_limit_exceeded`.
+If termination or reaping cannot be confirmed, a typed cleanup error takes
+precedence. The
+bounded partial output is never used as an answer. Because the vendor may have
+consumed quota before overflow, Deepr records unknown quota usage and one paired
+`$0` canonical cost event under the same attempt id. It never retries or changes
+backend after this dispatched outcome.
+On Windows, Deepr assigns the suspended child to a kill-on-close Job Object
+before it can run. Linux adds a child-subreaper supervisor so even a detached
+session is adopted and terminated. Other POSIX systems fail before launch while
+equivalent detached-descendant ownership is unavailable. Job termination or
+handle-close failure is a typed cleanup error. Handle close is retried within a
+fixed bound, unresolved handles retain a process-global cleanup owner that
+blocks later launches, and Windows termination uses only stable process and Job
+Object handles rather than a reusable PID. Linux supervisor status uses
+a parent-only pipe rather than vendor-controlled output, and failed child
+enumeration or forced supervisor termination fails closed. Cleanup never
+re-buffers output through `communicate()`, and the elapsed timeout includes
+process launch. If launch itself remains pending beyond the cleanup grace period,
+the late process stays under a tracked cleanup owner and the caller receives an
+explicit cleanup error. Antigravity dispatch and transcript recovery are
+serialized across processes and correlated to a unique per-attempt nonce in the
+exact post-baseline user prompt. Snapshot scanning runs off the event loop under
+the same elapsed deadline. Root entries, changed transcripts, actual bytes read,
+decoded answers, and lazy line iteration are bounded to one 8 MiB operation
+ceiling. Transcript lock release failures are typed and cannot replace a primary
+cancellation or accounted failure.
+
 Quota events go to `data/capacity/quota_ledger.jsonl`. Eligible non-metered
 plan calls write the canonical cost ledger as `$0` entries when Deepr itself
 made no metered API call.

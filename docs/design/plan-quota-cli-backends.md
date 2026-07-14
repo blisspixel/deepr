@@ -67,6 +67,61 @@ failure, not an error. Codex and Claude therefore set `stdin_prompt=True` and
 receive the prompt on stdin (`codex exec -` / `claude -p -`). Any plan adapter
 that may receive long or multi-line prompts should do the same.
 
+## Bounded subprocess output
+
+Every plan adapter uses one shared process runner. Each invocation drains stdout
+and stderr concurrently and retains at most 8 MiB from either stream. The
+ceiling is measured on raw bytes before UTF-8 decoding, so multibyte text cannot
+expand or bypass it. Reaching the ceiling is not enough to stop a process;
+crossing it produces the typed dispatched outcome `output_limit_exceeded`,
+requests bounded termination and reaping of the whole process tree, and never
+retries or switches backend. Unconfirmed cleanup takes precedence as a typed
+cleanup failure.
+
+An overflow is ambiguous quota usage. The client and probe paths therefore
+record one `ATTEMPT_OBSERVED` quota event with unknown units and one matching
+`$0` canonical cost event under the same attempt id. A launch that never enters
+the dispatch boundary retains the existing no-quota-observation behavior.
+Captured output remains bounded and is not promoted as an answer after
+overflow.
+
+Process-tree ownership is established before vendor code can run. On Windows,
+the child starts suspended, enters a
+[kill-on-close Job Object](https://learn.microsoft.com/en-us/windows/win32/procthread/job-objects),
+and only then resumes, so a descendant remains owned even when the direct child
+exits first. Cleanup explicitly terminates the Job Object before closing its
+  handle with bounded retries; a failed termination or close becomes a typed
+  cleanup failure instead of promoting an answer under uncertain ownership. A
+  failed close retains the handle in a process-global retry registry, and later
+  launches fail closed until that owner can terminate and close the job. Cleanup
+  uses stable process and Job Object handles rather than PID-based `taskkill`, so
+  an asynchronously reused root PID cannot be targeted. On
+Linux, a child-subreaper supervisor adopts and terminates descendants that
+create a detached session. A parent-only status pipe distinguishes vendor launch,
+runtime, and cleanup outcomes from vendor-controlled stdout and stderr. Child
+enumeration failure and a forced supervisor kill fail closed as cleanup errors.
+  Other POSIX systems fail before process launch because a process group cannot
+  contain a deliberately re-sessioned descendant. Support requires an equivalent
+  pre-execution ownership primitive rather than a documented escape. If Windows
+  ownership setup fails, Deepr terminates the suspended child and reports a launch
+failure before prompt delivery or vendor dispatch. Overflow readers keep
+draining and discarding beyond the retained ceiling until cleanup closes the
+pipes; bounded cleanup waits for process exit without re-entering
+`Process.communicate()` and always closes the subprocess transport if an
+inherited pipe does not reach EOF.
+
+The runner cannot use `Process.communicate()` for this path because the
+[Python asyncio subprocess contract](https://docs.python.org/3/library/asyncio-subprocess.html#asyncio.subprocess.Process.communicate)
+buffers returned data in memory and warns against large or unlimited output.
+Sequential pipe reads are also unsafe because the unread pipe can fill and
+deadlock the child. The accepted implementation writes stdin while draining
+both output streams concurrently, keeps timeout and cancellation ownership,
+  applies one elapsed deadline across subprocess launch and execution, and performs
+  bounded process-tree cleanup on every terminal path. A launch still pending
+  after the bounded grace period remains under a tracked cleanup task, while the
+  timeout or cancellation carries explicit unconfirmed-cleanup state. This is deterministic
+resource and side-effect enforcement, not a judgment about answer quality.
+
 ## The deterministic safety gate (no-surprise-bills)
 
 Money side-effects are gated deterministically; nothing here judges answer
@@ -253,10 +308,21 @@ high-confidence belief.
   exits 0 with empty stdout when piped); the fix is not a flag. It now works
   headless by recovering the answer from antigravity's own transcript
   (`~/.gemini/antigravity-cli/brain/<conv-id>/.system_generated/logs/transcript.jsonl`):
-  each line is a JSON record, and the reply is the last `PLANNER_RESPONSE`
-  record's `content`. `antigravity_transcript.recover_answer` reads the newest
-  transcript touched at or after the run start; the adapter sets
-  `answer_from_transcript=True` and the client uses it instead of stdout.
+  each line is a JSON record, and the reply is the last `PLANNER_RESPONSE` after
+  the current invocation's exact `USER_INPUT`. Every attempt appends a unique
+  nonce to its prompt so another Deepr process or external invocation cannot
+  produce the same correlation identity. Dispatch and recovery hold one
+  cross-process lock. The client accepts only a transcript changed from a
+  pre-dispatch snapshot and, for an existing JSONL file, only an exact prompt
+  appended after its baseline byte offset. Unrelated newer conversations cannot
+  supply the answer. The pre-dispatch snapshot runs off the event loop within the
+  elapsed dispatch deadline. Root-directory enumeration, changed candidates,
+  actual bytes read, decoded answers, and lazy JSONL line iteration are bounded;
+  the whole recovery shares one 8 MiB operation ceiling. Overflow remains
+  `output_limit_exceeded` with unknown quota usage. Lock-release uncertainty is
+  typed without masking the primary outcome. The adapter sets
+  `answer_from_transcript=True` and the client uses this invocation-correlated
+  result instead of stdout.
   Validated end to end 2026-06-25: `probe_plan_quota(antigravity)` returned the
   expected reply in ~5.5s on plan auth. Antigravity stays explicit-only and ToS
   gray-zone (active ban wave) despite working. Grok also runs but stays

@@ -17,7 +17,11 @@ import pytest
 from deepr.backends.fresh_context import FreshContext, FreshContextConfig, FreshSource
 from deepr.backends.plan_quota.adapters import get_adapter
 from deepr.backends.plan_quota.attempt_accounting import AttemptAccountingStatus
-from deepr.backends.plan_quota.cli_runner import CliResult
+from deepr.backends.plan_quota.cli_runner import (
+    CliResult,
+    OutputLimitStream,
+    ProcessCleanupError,
+)
 from deepr.backends.plan_quota.client import (
     PlanQuotaChatClient,
     PlanQuotaError,
@@ -38,6 +42,9 @@ def _runner(
     timed_out: bool = False,
     launch_error: str = "",
     runtime_error: str = "",
+    output_limit_stream: OutputLimitStream | None = None,
+    cleanup_error: str = "",
+    cleanup_exception: BaseException | None = None,
 ):
     calls: list[list[str]] = []
     envs: list[dict[str, str] | None] = []
@@ -54,7 +61,13 @@ def _runner(
             timed_out,
             launch_error,
             5,
-            runtime_error=runtime_error,
+            runtime_error=(
+                runtime_error
+                or (f"output limit exceeded on {output_limit_stream}" if output_limit_stream is not None else "")
+            ),
+            output_limit_stream=output_limit_stream,
+            cleanup_error=cleanup_error,
+            cleanup_exception=cleanup_exception,
         )
 
     fake.calls = calls  # type: ignore[attr-defined]
@@ -182,6 +195,76 @@ class TestResearchFn:
         assert event.metadata["outcome"] == "launch_error"
         assert event.metadata["vendor_dispatched"] is False
 
+    async def test_launch_and_cleanup_failure_reports_cleanup_without_vendor_dispatch(self, tmp_path):
+        cleanup = ProcessCleanupError("fixture ownership cleanup failure")
+        qpath, cpath = tmp_path / "q.jsonl", tmp_path / "c.jsonl"
+        fn = make_plan_quota_research_fn(
+            get_adapter("codex"),
+            runner=_runner(
+                launch_error="ownership setup failed",
+                cleanup_error="runner failed (ProcessCleanupError)",
+                cleanup_exception=cleanup,
+                returncode=None,
+            ),
+            quota_ledger_path=qpath,
+            cost_ledger_path=cpath,
+        )
+
+        result = await fn("q", 1.0)
+
+        assert result["outcome"] == "cleanup_error"
+        assert result["error_code"] == "cleanup_error"
+        assert result["vendor_dispatched"] is False
+        assert result["quota_observation_recorded"] is False
+        assert QuotaLedger(qpath).get_events() == []
+        assert CostLedger(cpath).get_events()[0].metadata["outcome"] == "cleanup_error"
+
+    async def test_successful_dispatch_accounting_failure_preserves_attempt_truth(self, tmp_path):
+        blocked_cost_path = tmp_path / "cost-ledger-dir"
+        blocked_cost_path.mkdir()
+        qpath = tmp_path / "q.jsonl"
+        fn = make_plan_quota_research_fn(
+            get_adapter("codex"),
+            runner=_runner(stdout="answer"),
+            quota_ledger_path=qpath,
+            cost_ledger_path=blocked_cost_path,
+        )
+
+        result = await fn("q", 1.0)
+
+        assert result["answer"] == ""
+        assert result["error_code"] == "plan_quota_accounting_error"
+        assert result["outcome"] == "success_accounting_error"
+        assert result["attempt_outcome"] == "success"
+        assert result["vendor_dispatched"] is True
+        assert result["quota_observation_recorded"] is True
+        assert result["cost_event_recorded"] is False
+        assert result["attempt_id"].startswith("plan-quota:codex:")
+        assert QuotaLedger(qpath).get_events()[0].idempotency_key == result["attempt_id"]
+
+    async def test_unexpected_runner_error_preserves_dispatch_truth_at_research_seam(self, tmp_path):
+        async def broken_runner(argv, **kwargs):
+            raise RuntimeError("fixture runner failure")
+
+        qpath, cpath = tmp_path / "q.jsonl", tmp_path / "c.jsonl"
+        fn = make_plan_quota_research_fn(
+            get_adapter("codex"),
+            runner=broken_runner,
+            quota_ledger_path=qpath,
+            cost_ledger_path=cpath,
+        )
+
+        result = await fn("q", 1.0)
+
+        assert result["error_code"] == "runner_error"
+        assert result["outcome"] == "runner_error"
+        assert result["vendor_dispatched"] is True
+        assert result["quota_observation_recorded"] is True
+        assert result["cost_event_recorded"] is True
+        assert result["attempt_id"].startswith("plan-quota:codex:")
+        assert QuotaLedger(qpath).get_events()[0].metadata["outcome"] == "runner_error"
+        assert CostLedger(cpath).get_events()[0].metadata["outcome"] == "runner_error"
+
     async def test_scratch_failure_is_not_classified_as_vendor_dispatch(self, monkeypatch, tmp_path):
         def fail_scratch():
             raise PermissionError(tmp_path / "private-scratch")
@@ -228,6 +311,41 @@ class TestResearchFn:
         assert len(costs) == 1
         assert costs[0].metadata["outcome"] == "timeout"
         assert costs[0].cost_usd == 0.0
+
+    async def test_output_limit_is_typed_and_accounted_as_unknown_usage(self, tmp_path):
+        qpath, cpath = tmp_path / "q.jsonl", tmp_path / "c.jsonl"
+        fn = make_plan_quota_research_fn(
+            get_adapter("codex"),
+            runner=_runner(
+                stdout="bounded partial output",
+                returncode=-9,
+                output_limit_stream=OutputLimitStream.STDOUT,
+            ),
+            quota_ledger_path=qpath,
+            cost_ledger_path=cpath,
+        )
+
+        result = await fn("q", 1.0)
+
+        assert result["answer"] == ""
+        assert "output limit" in result["error"]
+        assert result["error_code"] == "output_limit_exceeded"
+        assert result["outcome"] == "output_limit_exceeded"
+        assert result["attempt_id"].startswith("plan-quota:codex:")
+        assert result["quota_observation_recorded"] is True
+        assert result["cost_event_recorded"] is True
+        assert result["vendor_dispatched"] is True
+        assert result["retryable"] is False
+        assert result["no_metered_fallback"] is True
+        quota = QuotaLedger(qpath).get_events()
+        costs = CostLedger(cpath).get_events()
+        assert len(quota) == 1
+        assert len(costs) == 1
+        assert quota[0].event_type == QuotaEventType.ATTEMPT_OBSERVED
+        assert quota[0].units_used is None
+        assert quota[0].metadata["outcome"] == "output_limit_exceeded"
+        assert costs[0].metadata["outcome"] == "output_limit_exceeded"
+        assert costs[0].idempotency_key == quota[0].idempotency_key
 
     async def test_runtime_error_is_path_safe_and_accounted_as_dispatched(self, tmp_path):
         qpath, cpath = tmp_path / "q.jsonl", tmp_path / "c.jsonl"
@@ -293,7 +411,7 @@ class TestResearchFn:
     async def test_empty_output_is_error(self, tmp_path, monkeypatch):
         from deepr.backends.plan_quota import antigravity_transcript
 
-        monkeypatch.setattr(antigravity_transcript, "recover_answer", lambda brain, since: None)
+        monkeypatch.setattr(antigravity_transcript, "recover_answer", lambda brain, **kwargs: None)
         qpath, cpath = tmp_path / "q.jsonl", tmp_path / "c.jsonl"
         fn = make_plan_quota_research_fn(
             get_adapter("antigravity"),
@@ -855,7 +973,7 @@ class TestChatShim:
         # agy drops stdout under a pipe; the answer comes from its transcript.
         from deepr.backends.plan_quota import antigravity_transcript
 
-        monkeypatch.setattr(antigravity_transcript, "recover_answer", lambda brain, since: "recovered reply")
+        monkeypatch.setattr(antigravity_transcript, "recover_answer", lambda brain, **kwargs: "recovered reply")
         client = PlanQuotaChatClient(
             get_adapter("antigravity"),
             runner=_runner(stdout=""),
@@ -865,11 +983,222 @@ class TestChatShim:
         resp = await client.chat.completions.create(model="x", messages=[{"role": "user", "content": "hi"}])
         assert resp.choices[0].message.content == "recovered reply"
 
+    async def test_antigravity_identical_prompts_receive_distinct_recovery_identities(self, tmp_path, monkeypatch):
+        from deepr.backends.plan_quota import antigravity_transcript
+
+        expected_prompts = []
+
+        def recover(_brain, **kwargs):
+            expected_prompts.append(kwargs["expected_prompt"])
+            return "recovered reply"
+
+        monkeypatch.setattr(antigravity_transcript, "recover_answer", recover)
+        runner = _runner(stdout="")
+        client = PlanQuotaChatClient(
+            get_adapter("antigravity"),
+            runner=runner,
+            quota_ledger_path=tmp_path / "q.jsonl",
+            cost_ledger_path=tmp_path / "c.jsonl",
+        )
+
+        for _attempt in range(2):
+            await client.chat.completions.create(model="x", messages=[{"role": "user", "content": "same"}])
+
+        dispatched_prompts = [argv[-1] for argv in runner.calls]
+        assert expected_prompts == dispatched_prompts
+        assert expected_prompts[0] != expected_prompts[1]
+        assert all(prompt.startswith("same\n\n[Deepr invocation id: ") for prompt in expected_prompts)
+
+    async def test_antigravity_snapshot_failure_is_typed_before_dispatch(self, tmp_path, monkeypatch):
+        from deepr.backends.plan_quota import antigravity_transcript, transcript_dispatch
+
+        def fail_snapshot(_brain, **kwargs):
+            raise antigravity_transcript.TranscriptSnapshotError(str(tmp_path / "private-brain"))
+
+        monkeypatch.setattr(transcript_dispatch, "transcript_snapshot", fail_snapshot)
+        runner = _runner(stdout="must not run")
+        fn = make_plan_quota_research_fn(
+            get_adapter("antigravity"),
+            runner=runner,
+            quota_ledger_path=tmp_path / "q.jsonl",
+            cost_ledger_path=tmp_path / "c.jsonl",
+        )
+
+        result = await fn("q", 1.0)
+
+        assert result["outcome"] == "transcript_pre_dispatch_error"
+        assert result["error_code"] == "transcript_pre_dispatch_error"
+        assert result["vendor_dispatched"] is False
+        assert str(tmp_path) not in result["error"]
+        assert runner.calls == []
+
+    async def test_antigravity_lock_construction_failure_is_path_safe(self, tmp_path, monkeypatch):
+        from deepr.backends.plan_quota import transcript_dispatch
+
+        def fail_lock():
+            raise PermissionError(tmp_path / "private-lock")
+
+        monkeypatch.setattr(transcript_dispatch, "transcript_recovery_lock", fail_lock)
+        runner = _runner(stdout="must not run")
+        fn = make_plan_quota_research_fn(get_adapter("antigravity"), runner=runner)
+
+        result = await fn("q", 1.0)
+
+        assert result["outcome"] == "transcript_pre_dispatch_error"
+        assert result["vendor_dispatched"] is False
+        assert str(tmp_path) not in result["error"]
+        assert runner.calls == []
+
+    async def test_antigravity_release_failure_preserves_accounted_success(self, tmp_path, monkeypatch):
+        from deepr.backends.plan_quota import antigravity_transcript, transcript_dispatch
+
+        class FailingReleaseLock:
+            def acquire(self, *, timeout):
+                return None
+
+            def release(self):
+                raise PermissionError(tmp_path / "private-lock")
+
+        monkeypatch.setattr(transcript_dispatch, "transcript_recovery_lock", FailingReleaseLock)
+        monkeypatch.setattr(transcript_dispatch, "transcript_snapshot", lambda _brain, **kwargs: {})
+        monkeypatch.setattr(antigravity_transcript, "recover_answer", lambda _brain, **kwargs: "reply")
+        qpath, cpath = tmp_path / "q.jsonl", tmp_path / "c.jsonl"
+        fn = make_plan_quota_research_fn(
+            get_adapter("antigravity"),
+            runner=_runner(stdout=""),
+            quota_ledger_path=qpath,
+            cost_ledger_path=cpath,
+        )
+
+        result = await fn("q", 1.0)
+
+        assert result["outcome"] == "transcript_lock_release_error"
+        assert result["vendor_dispatched"] is True
+        assert result["quota_observation_recorded"] is True
+        assert result["cost_event_recorded"] is True
+        assert result["attempt_id"].startswith("plan-quota:antigravity:")
+        assert str(tmp_path) not in result["error"]
+        assert QuotaLedger(qpath).get_events()[0].metadata["outcome"] == "success"
+        assert CostLedger(cpath).get_events()[0].metadata["outcome"] == "success"
+
+    async def test_antigravity_release_failure_does_not_replace_cancellation(self, tmp_path, monkeypatch):
+        from deepr.backends.plan_quota import transcript_dispatch
+
+        class FailingReleaseLock:
+            def acquire(self, *, timeout):
+                return None
+
+            def release(self):
+                raise PermissionError(tmp_path / "private-lock")
+
+        started = asyncio.Event()
+
+        async def blocking_runner(argv, **kwargs):
+            started.set()
+            await asyncio.Future()
+
+        monkeypatch.setattr(transcript_dispatch, "transcript_recovery_lock", FailingReleaseLock)
+        monkeypatch.setattr(transcript_dispatch, "transcript_snapshot", lambda _brain, **kwargs: {})
+        client = PlanQuotaChatClient(
+            get_adapter("antigravity"),
+            runner=blocking_runner,
+            quota_ledger_path=tmp_path / "q.jsonl",
+            cost_ledger_path=tmp_path / "c.jsonl",
+        )
+        task = asyncio.create_task(
+            client.chat.completions.create(model="x", messages=[{"role": "user", "content": "same"}])
+        )
+        await started.wait()
+
+        task.cancel()
+        with pytest.raises(asyncio.CancelledError) as exc_info:
+            await task
+
+        release_error = exc_info.value.__dict__["plan_quota_transcript_release_error"]
+        assert isinstance(release_error, PlanQuotaError)
+        assert release_error.__dict__["plan_quota_outcome"] == "transcript_lock_release_error"
+        assert str(tmp_path) not in str(release_error)
+
+    async def test_antigravity_dispatch_and_recovery_are_serialized(self, tmp_path, monkeypatch):
+        from deepr.backends.plan_quota import antigravity_transcript
+
+        first_started = asyncio.Event()
+        release_first = asyncio.Event()
+        calls = 0
+        active = 0
+        max_active = 0
+
+        async def runner(argv, **kwargs):
+            nonlocal calls, active, max_active
+            calls += 1
+            active += 1
+            max_active = max(max_active, active)
+            try:
+                if calls == 1:
+                    first_started.set()
+                    await release_first.wait()
+                return CliResult(0, "", "", False, "", 1)
+            finally:
+                active -= 1
+
+        monkeypatch.setattr(antigravity_transcript, "recover_answer", lambda brain, **kwargs: "reply")
+        client = PlanQuotaChatClient(
+            get_adapter("antigravity"),
+            runner=runner,
+            quota_ledger_path=tmp_path / "q.jsonl",
+            cost_ledger_path=tmp_path / "c.jsonl",
+        )
+        first = asyncio.create_task(
+            client.chat.completions.create(model="x", messages=[{"role": "user", "content": "first"}])
+        )
+        await first_started.wait()
+        second = asyncio.create_task(
+            client.chat.completions.create(model="x", messages=[{"role": "user", "content": "second"}])
+        )
+        await asyncio.sleep(0.05)
+
+        assert calls == 1
+        release_first.set()
+        await asyncio.gather(first, second)
+        assert calls == 2
+        assert max_active == 1
+
+    async def test_antigravity_expired_deadline_never_enters_dispatch_boundary(self, tmp_path, monkeypatch):
+        from deepr.backends.plan_quota import client as client_module
+
+        original_build = client_module._build_invocation
+
+        def delayed_build(*args, **kwargs):
+            invocation = original_build(*args, **kwargs)
+            time.sleep(0.02)
+            return invocation
+
+        monkeypatch.setattr(client_module, "_build_invocation", delayed_build)
+        runner = _runner(stdout="must not run")
+        qpath = tmp_path / "q.jsonl"
+        cpath = tmp_path / "c.jsonl"
+        client = PlanQuotaChatClient(
+            get_adapter("antigravity"),
+            runner=runner,
+            timeout=0.01,
+            quota_ledger_path=qpath,
+            cost_ledger_path=cpath,
+        )
+
+        with pytest.raises(PlanQuotaError) as exc_info:
+            await client.chat.completions.create(model="x", messages=[{"role": "user", "content": "hi"}])
+
+        assert exc_info.value.__dict__["vendor_dispatched"] is False
+        assert exc_info.value.__dict__["error_code"] == "transcript_lock_timeout"
+        assert runner.calls == []
+        assert not qpath.exists()
+        assert not cpath.exists()
+
     async def test_antigravity_empty_transcript_is_no_output_error(self, tmp_path, monkeypatch):
         from deepr.backends.plan_quota import antigravity_transcript
         from deepr.backends.plan_quota.client import PlanQuotaError
 
-        monkeypatch.setattr(antigravity_transcript, "recover_answer", lambda brain, since: None)
+        monkeypatch.setattr(antigravity_transcript, "recover_answer", lambda brain, **kwargs: None)
         client = PlanQuotaChatClient(
             get_adapter("antigravity"),
             runner=_runner(stdout=""),
@@ -882,7 +1211,7 @@ class TestChatShim:
     async def test_antigravity_transcript_failure_is_accounted_without_path_leak(self, tmp_path, monkeypatch):
         from deepr.backends.plan_quota import antigravity_transcript
 
-        def fail_recovery(_brain, *, since):
+        def fail_recovery(_brain, **kwargs):
             raise PermissionError(tmp_path / "private-transcript.jsonl")
 
         monkeypatch.setattr(antigravity_transcript, "recover_answer", fail_recovery)
@@ -901,6 +1230,56 @@ class TestChatShim:
         assert str(tmp_path) not in str(exc_info.value)
         assert QuotaLedger(qpath).get_events()[0].metadata["outcome"] == "post_dispatch_error"
         assert CostLedger(cpath).get_events()[0].metadata["outcome"] == "post_dispatch_error"
+
+    async def test_antigravity_transcript_overflow_is_typed_and_accounted(self, tmp_path, monkeypatch):
+        from deepr.backends.plan_quota import antigravity_transcript
+
+        def overflow(_brain, **kwargs):
+            raise antigravity_transcript.TranscriptOutputLimitError("fixture overflow")
+
+        monkeypatch.setattr(antigravity_transcript, "recover_answer", overflow)
+        qpath = tmp_path / "q.jsonl"
+        cpath = tmp_path / "c.jsonl"
+        client = PlanQuotaChatClient(
+            get_adapter("antigravity"),
+            runner=_runner(stdout=""),
+            quota_ledger_path=qpath,
+            cost_ledger_path=cpath,
+        )
+
+        with pytest.raises(PlanQuotaError, match="transcript output limit") as exc_info:
+            await client.chat.completions.create(model="x", messages=[{"role": "user", "content": "hi"}])
+
+        assert exc_info.value.error_code == "output_limit_exceeded"
+        assert QuotaLedger(qpath).get_events()[0].metadata["outcome"] == "output_limit_exceeded"
+        assert CostLedger(cpath).get_events()[0].metadata["outcome"] == "output_limit_exceeded"
+
+    async def test_antigravity_overflow_skips_transcript_recovery_and_preserves_outcome(self, tmp_path, monkeypatch):
+        from deepr.backends.plan_quota import antigravity_transcript
+
+        recovery_calls = 0
+
+        def fail_recovery(_brain, **kwargs):
+            nonlocal recovery_calls
+            recovery_calls += 1
+            raise PermissionError(tmp_path / "private-transcript.jsonl")
+
+        monkeypatch.setattr(antigravity_transcript, "recover_answer", fail_recovery)
+        qpath = tmp_path / "q.jsonl"
+        cpath = tmp_path / "c.jsonl"
+        client = PlanQuotaChatClient(
+            get_adapter("antigravity"),
+            runner=_runner(returncode=-9, output_limit_stream=OutputLimitStream.STDOUT),
+            quota_ledger_path=qpath,
+            cost_ledger_path=cpath,
+        )
+
+        with pytest.raises(PlanQuotaError, match="output limit"):
+            await client.chat.completions.create(model="x", messages=[{"role": "user", "content": "hi"}])
+
+        assert recovery_calls == 0
+        assert QuotaLedger(qpath).get_events()[0].metadata["outcome"] == "output_limit_exceeded"
+        assert CostLedger(cpath).get_events()[0].metadata["outcome"] == "output_limit_exceeded"
 
 
 class TestProbe:
@@ -923,6 +1302,71 @@ class TestProbe:
         assert runner.calls == []
         assert not qpath.exists()
         assert not cpath.exists()
+
+    async def test_antigravity_probe_expired_deadline_is_not_accounted(self, tmp_path, monkeypatch):
+        from deepr.backends.plan_quota import client as client_module
+
+        original_build = client_module._build_invocation
+
+        def delayed_build(*args, **kwargs):
+            invocation = original_build(*args, **kwargs)
+            time.sleep(0.02)
+            return invocation
+
+        monkeypatch.setattr(client_module, "_build_invocation", delayed_build)
+        runner = _runner(stdout="must not run")
+        qpath = tmp_path / "q.jsonl"
+        cpath = tmp_path / "c.jsonl"
+
+        result = await probe_plan_quota(
+            get_adapter("antigravity"),
+            runner=runner,
+            timeout=0.01,
+            quota_ledger_path=qpath,
+            cost_ledger_path=cpath,
+        )
+
+        assert result["outcome"] == "transcript_lock_timeout"
+        assert result["vendor_dispatched"] is False
+        assert runner.calls == []
+        assert not qpath.exists()
+        assert not cpath.exists()
+
+    async def test_probe_timeout_plus_lock_release_failure_stays_an_ordinary_result(self, tmp_path, monkeypatch):
+        from deepr.backends.plan_quota import client as client_module
+        from deepr.backends.plan_quota import transcript_dispatch
+
+        class FailingReleaseLock:
+            def acquire(self, *, timeout):
+                return None
+
+            def release(self):
+                raise PermissionError(tmp_path / "private-lock")
+
+        original_build = client_module._build_invocation
+
+        def delayed_build(*args, **kwargs):
+            invocation = original_build(*args, **kwargs)
+            time.sleep(0.02)
+            return invocation
+
+        monkeypatch.setattr(transcript_dispatch, "transcript_recovery_lock", FailingReleaseLock)
+        monkeypatch.setattr(transcript_dispatch, "transcript_snapshot", lambda _brain, **kwargs: {})
+        monkeypatch.setattr(client_module, "_build_invocation", delayed_build)
+        runner = _runner(stdout="must not run")
+
+        result = await probe_plan_quota(
+            get_adapter("antigravity"),
+            runner=runner,
+            timeout=0.01,
+        )
+
+        assert result["ok"] is False
+        assert result["outcome"] == "transcript_lock_release_error"
+        assert result["attempt_outcome"] == "transcript_lock_timeout"
+        assert result["vendor_dispatched"] is False
+        assert str(tmp_path) not in result["error"]
+        assert runner.calls == []
 
     async def test_metered_at_margin_probe_is_rejected_before_runner_dispatch(self, tmp_path):
         runner = _runner(stdout="must not run")
@@ -959,6 +1403,32 @@ class TestProbe:
         assert result["quota_observation_recorded"] is True
         assert event["idempotency_key"] == result["attempt_id"]
         assert quota[0].idempotency_key == result["attempt_id"]
+
+    async def test_output_limit_is_typed_and_accounted_as_unknown_usage(self, tmp_path):
+        qpath = tmp_path / "quota.jsonl"
+        cpath = tmp_path / "costs.jsonl"
+
+        result = await probe_plan_quota(
+            get_adapter("codex"),
+            runner=_runner(
+                stderr="bounded partial output",
+                returncode=-9,
+                output_limit_stream=OutputLimitStream.STDERR,
+            ),
+            quota_ledger_path=qpath,
+            cost_ledger_path=cpath,
+        )
+
+        assert result["ok"] is False
+        assert result["outcome"] == "output_limit_exceeded"
+        assert "output limit" in result["error"]
+        quota = QuotaLedger(qpath).get_events()
+        costs = CostLedger(cpath).get_events()
+        assert quota[0].event_type == QuotaEventType.ATTEMPT_OBSERVED
+        assert quota[0].units_used is None
+        assert quota[0].metadata["outcome"] == "output_limit_exceeded"
+        assert costs[0].metadata["outcome"] == "output_limit_exceeded"
+        assert result["attempt_id"] == quota[0].idempotency_key == costs[0].idempotency_key
 
     async def test_cancellation_after_probe_dispatch_is_accounted_and_propagates(self, tmp_path):
         runner_started = asyncio.Event()
@@ -1045,7 +1515,7 @@ class TestProbe:
             return AttemptAccountingStatus(quota_recorded=True, cost_recorded=True)
 
         monkeypatch.setattr(
-            "deepr.backends.plan_quota.client.record_plan_quota_attempt",
+            "deepr.backends.plan_quota.probe_support.record_plan_quota_attempt",
             blocking_accounting,
         )
         task = asyncio.create_task(
@@ -1089,6 +1559,29 @@ class TestProbe:
         assert runner.calls[0][-1] == "-"
         assert runner.stdins[0] == "Reply with exactly: OK"
 
+    async def test_antigravity_probe_uses_exact_nonce_prompt_for_recovery(self, tmp_path, monkeypatch):
+        from deepr.backends.plan_quota import antigravity_transcript
+
+        expected_prompts = []
+
+        def recover(_brain, **kwargs):
+            expected_prompts.append(kwargs["expected_prompt"])
+            return "OK"
+
+        monkeypatch.setattr(antigravity_transcript, "recover_answer", recover)
+        runner = _runner(stdout="")
+
+        result = await probe_plan_quota(
+            get_adapter("antigravity"),
+            runner=runner,
+            quota_ledger_path=tmp_path / "q.jsonl",
+            cost_ledger_path=tmp_path / "c.jsonl",
+        )
+
+        assert result["ok"] is True
+        assert expected_prompts == [runner.calls[0][-1]]
+        assert expected_prompts[0].startswith("Reply with exactly: OK\n\n[Deepr invocation id: ")
+
     async def test_exhausted(self, tmp_path):
         qpath = tmp_path / "quota.jsonl"
         result = await probe_plan_quota(
@@ -1106,6 +1599,28 @@ class TestProbe:
         assert len(quota) == 1
         assert quota[0].event_type == QuotaEventType.EXHAUSTED
 
+    async def test_antigravity_probe_transcript_overflow_is_typed(self, tmp_path, monkeypatch):
+        from deepr.backends.plan_quota import antigravity_transcript
+
+        def overflow(_brain, **kwargs):
+            raise antigravity_transcript.TranscriptOutputLimitError("fixture overflow")
+
+        monkeypatch.setattr(antigravity_transcript, "recover_answer", overflow)
+        qpath = tmp_path / "quota.jsonl"
+        cpath = tmp_path / "costs.jsonl"
+
+        result = await probe_plan_quota(
+            get_adapter("antigravity"),
+            runner=_runner(stdout=""),
+            quota_ledger_path=qpath,
+            cost_ledger_path=cpath,
+        )
+
+        assert result["ok"] is False
+        assert result["outcome"] == "output_limit_exceeded"
+        assert QuotaLedger(qpath).get_events()[0].metadata["outcome"] == "output_limit_exceeded"
+        assert CostLedger(cpath).get_events()[0].metadata["outcome"] == "output_limit_exceeded"
+
     async def test_probe_fails_closed_when_cost_ledger_cannot_be_written(self, tmp_path):
         blocked_path = tmp_path / "ledger-dir"
         blocked_path.mkdir()
@@ -1119,6 +1634,11 @@ class TestProbe:
         assert result["ok"] is False
         assert result["reply"] == "OK"
         assert "cost ledger write failed" in result["error"]
+        assert result["error_code"] == "plan_quota_accounting_error"
+        assert result["outcome"] == "success_accounting_error"
+        assert result["attempt_outcome"] == "success"
+        assert result["vendor_dispatched"] is True
+        assert result["no_metered_fallback"] is True
 
     async def test_probe_fails_closed_when_quota_ledger_cannot_be_written(self, tmp_path):
         blocked_path = tmp_path / "quota-ledger-dir"
@@ -1177,7 +1697,7 @@ class TestProbe:
     async def test_probe_transcript_failure_is_accounted_without_path_leak(self, tmp_path, monkeypatch):
         from deepr.backends.plan_quota import antigravity_transcript
 
-        def fail_recovery(_brain, *, since):
+        def fail_recovery(_brain, **kwargs):
             raise PermissionError(tmp_path / "private-transcript.jsonl")
 
         monkeypatch.setattr(antigravity_transcript, "recover_answer", fail_recovery)
@@ -1198,6 +1718,52 @@ class TestProbe:
         assert QuotaLedger(qpath).get_events()[0].metadata["outcome"] == "post_dispatch_error"
         assert CostLedger(cpath).get_events()[0].metadata["outcome"] == "post_dispatch_error"
 
+    async def test_probe_snapshot_failure_is_an_ordinary_typed_result(self, tmp_path, monkeypatch):
+        from deepr.backends.plan_quota import antigravity_transcript, transcript_dispatch
+
+        def fail_snapshot(_brain, **kwargs):
+            raise antigravity_transcript.TranscriptSnapshotError(str(tmp_path / "private-brain"))
+
+        monkeypatch.setattr(transcript_dispatch, "transcript_snapshot", fail_snapshot)
+        runner = _runner(stdout="must not run")
+
+        result = await probe_plan_quota(get_adapter("antigravity"), runner=runner)
+
+        assert result["ok"] is False
+        assert result["outcome"] == "transcript_pre_dispatch_error"
+        assert result["vendor_dispatched"] is False
+        assert str(tmp_path) not in result["error"]
+        assert runner.calls == []
+
+    async def test_probe_release_failure_preserves_attempt_status(self, tmp_path, monkeypatch):
+        from deepr.backends.plan_quota import antigravity_transcript, transcript_dispatch
+
+        class FailingReleaseLock:
+            def acquire(self, *, timeout):
+                return None
+
+            def release(self):
+                raise PermissionError(tmp_path / "private-lock")
+
+        monkeypatch.setattr(transcript_dispatch, "transcript_recovery_lock", FailingReleaseLock)
+        monkeypatch.setattr(transcript_dispatch, "transcript_snapshot", lambda _brain, **kwargs: {})
+        monkeypatch.setattr(antigravity_transcript, "recover_answer", lambda _brain, **kwargs: "OK")
+
+        result = await probe_plan_quota(
+            get_adapter("antigravity"),
+            runner=_runner(stdout=""),
+            quota_ledger_path=tmp_path / "q.jsonl",
+            cost_ledger_path=tmp_path / "c.jsonl",
+        )
+
+        assert result["ok"] is False
+        assert result["outcome"] == "transcript_lock_release_error"
+        assert result["attempt_outcome"] == "success"
+        assert result["vendor_dispatched"] is True
+        assert result["quota_observation_recorded"] is True
+        assert result["cost_event_recorded"] is True
+        assert str(tmp_path) not in result["error"]
+
     async def test_launch_failure(self, tmp_path):
         qpath, cpath = tmp_path / "quota.jsonl", tmp_path / "costs.jsonl"
         result = await probe_plan_quota(
@@ -1214,6 +1780,28 @@ class TestProbe:
         assert result["error"]
         assert QuotaLedger(qpath).get_events() == []
         assert CostLedger(cpath).get_events()[0].metadata["outcome"] == "launch_error"
+
+    async def test_launch_and_cleanup_failure_is_not_misreported_as_dispatch(self, tmp_path):
+        cleanup = ProcessCleanupError("fixture ownership cleanup failure")
+        qpath, cpath = tmp_path / "quota.jsonl", tmp_path / "costs.jsonl"
+
+        result = await probe_plan_quota(
+            get_adapter("codex"),
+            runner=_runner(
+                launch_error="ownership setup failed",
+                cleanup_error="runner failed (ProcessCleanupError)",
+                cleanup_exception=cleanup,
+                returncode=None,
+            ),
+            quota_ledger_path=qpath,
+            cost_ledger_path=cpath,
+        )
+
+        assert result["ok"] is False
+        assert result["outcome"] == "cleanup_error"
+        assert result["vendor_dispatched"] is False
+        assert QuotaLedger(qpath).get_events() == []
+        assert CostLedger(cpath).get_events()[0].metadata["outcome"] == "cleanup_error"
 
     async def test_timeout(self, tmp_path):
         qpath, cpath = tmp_path / "quota.jsonl", tmp_path / "costs.jsonl"
@@ -1378,3 +1966,25 @@ class TestExhaustionScoping:
         )
         with pytest.raises(PlanQuotaExhausted):
             await client.chat.completions.create(model="x", messages=[{"role": "user", "content": "q"}])
+
+    async def test_antigravity_success_exhaustion_precedes_transcript_recovery(self, tmp_path, monkeypatch):
+        from deepr.backends.plan_quota import antigravity_transcript
+
+        def fail_recovery(*args, **kwargs):
+            raise AssertionError("exhaustion must bypass transcript recovery")
+
+        monkeypatch.setattr(antigravity_transcript, "recover_answer", fail_recovery)
+        qpath = tmp_path / "q.jsonl"
+        client = PlanQuotaChatClient(
+            get_adapter("antigravity"),
+            runner=_runner(stderr="quota reached", returncode=0),
+            quota_ledger_path=qpath,
+            cost_ledger_path=tmp_path / "c.jsonl",
+        )
+
+        with pytest.raises(PlanQuotaExhausted):
+            await client.chat.completions.create(model="x", messages=[{"role": "user", "content": "q"}])
+
+        event = QuotaLedger(qpath).get_events()[0]
+        assert event.event_type == QuotaEventType.EXHAUSTED
+        assert event.metadata["outcome"] == "exhausted"

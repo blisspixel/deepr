@@ -7,6 +7,35 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- Plan-quota subprocesses now drain stdout and stderr concurrently under an
+  independent 8 MiB raw-byte ceiling for each stream. Overflow kills and reaps
+  the process tree, returns `output_limit_exceeded`, records unknown quota usage
+  plus one paired `$0` cost event, and never promotes the bounded partial output
+  or falls through to another backend. Timeout and cancellation cleanup remain
+  bounded on Windows and Linux. Windows children enter a kill-on-close Job
+  Object before they resume, Linux children run under a child-subreaper
+  supervisor, and other POSIX platforms fail before launch when equivalent
+  detached-descendant ownership is unavailable. Cleanup never
+  re-buffers output through `communicate()`, closes transports on every terminal
+  cleanup path, applies the elapsed deadline to launch, and surfaces uncertain
+  Job Object cleanup as a typed failure. Windows handle closure has bounded
+  retries; an unresolved handle remains in a durable in-process retry registry
+  that blocks later launches. Cleanup uses stable process and Job Object handles,
+  never a reusable PID. Linux reports launch,
+  runtime, and cleanup status over a parent-only pipe; failed child enumeration
+  and forced supervisor termination fail closed. Antigravity transcript dispatch
+  and recovery are cross-process serialized and correlated with a unique
+  per-attempt prompt nonce appended after the pre-dispatch byte offset. Snapshot
+  work runs off the event loop under the operation deadline; root enumeration,
+  changed candidates, actual bytes read, decoded answers, and line iteration are
+  bounded under one 8 MiB operation ceiling. Lock release, late-launch cleanup,
+  and launch-plus-cleanup uncertainty remain typed without masking cancellation.
+  Research and probe failures preserve dispatch truth, attempt outcome, attempt
+  id, paired-ledger status, and the no-metered-fallback contract, including
+  canonical accounting failure after a successful vendor response.
+
 ## [2.36.0] - 2026-07-12
 
 ### Added
