@@ -5,7 +5,15 @@ from unittest.mock import AsyncMock, MagicMock
 import numpy as np
 import pytest
 
+from deepr.experts import chat_capacity
 from deepr.experts.embedding_cache import EmbeddingCache
+
+
+@pytest.fixture
+def enable_metered_embeds(monkeypatch):
+    """Allow metered embed paths under dual confirmation for shape tests."""
+    monkeypatch.setattr(chat_capacity, "METERED_EXPERT_CHAT_EXECUTION_ENABLED", True)
+    monkeypatch.setenv("DEEPR_ALLOW_METERED_EXPERT_CHAT", "1")
 
 
 class TestEmbeddingCacheBasics:
@@ -161,7 +169,7 @@ class TestEmbeddingCacheSearch:
         assert results == []
 
     @pytest.mark.asyncio
-    async def test_search_returns_sorted_results(self, tmp_path):
+    async def test_search_returns_sorted_results(self, tmp_path, enable_metered_embeds):
         """Test search returns results sorted by similarity."""
         cache = EmbeddingCache("test-expert", cache_dir=tmp_path)
 
@@ -217,7 +225,7 @@ class TestEmbeddingCacheAddDocuments:
         mock_client.embeddings.create.assert_not_called()
 
     @pytest.mark.asyncio
-    async def test_add_documents_embeds_new(self, tmp_path):
+    async def test_add_documents_embeds_new(self, tmp_path, enable_metered_embeds):
         """Test add_documents embeds new documents."""
         cache = EmbeddingCache("test-expert", cache_dir=tmp_path)
 
@@ -237,3 +245,20 @@ class TestEmbeddingCacheAddDocuments:
         assert added == 2
         assert len(cache.index) == 2
         assert cache.embeddings.shape == (2, 1536)
+
+    @pytest.mark.asyncio
+    async def test_add_documents_blocked_when_metered_chat_disabled(self, tmp_path, monkeypatch):
+        """Embedding spend is gated by the same dual confirmation as chat."""
+        monkeypatch.setattr(chat_capacity, "METERED_EXPERT_CHAT_EXECUTION_ENABLED", False)
+        monkeypatch.delenv("DEEPR_ALLOW_METERED_EXPERT_CHAT", raising=False)
+        cache = EmbeddingCache("test-expert", cache_dir=tmp_path)
+        docs = [{"filename": "new.md", "content": "New content"}]
+        mock_client = AsyncMock()
+        mock_client.embeddings.create = AsyncMock(
+            return_value=MagicMock(data=[MagicMock(embedding=[1.0] * 8)])
+        )
+
+        added = await cache.add_documents(docs, mock_client)
+
+        assert added == 0
+        mock_client.embeddings.create.assert_not_called()

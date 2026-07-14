@@ -163,7 +163,9 @@ reliable product, not a four-language architecture diagram.
     dispatch before Responses create, and settles the hold when enabled
     (2026-07-13). Final polled usage reconciliation remains a follow-on.
   - [x] Embedding cache document and query embeds use durable admission with
-    tiny per-call ceilings (2026-07-13).
+    tiny per-call ceilings (2026-07-13). Embed paths also call
+    ``require_expert_chat_dispatch(..., metered=True)`` so dual confirmation
+    blocks spend before the provider SDK (2026-07-14).
   - [x] Per-session asyncio turn lock serializes ``send_message`` and
     ``send_message_streaming``; cross-process holds stay on the research
     reservation store (2026-07-13).
@@ -192,8 +194,8 @@ reliable product, not a four-language architecture diagram.
     conservative settle on raised errors, and canonical ledger writes
     (2026-07-14). Live expert chat still constructs executors with
     ``allow_metered_tools=False``. Gate remains off. Remaining: a deliberate
-    flip of ``METERED_EXPERT_CHAT_EXECUTION_ENABLED`` only after a final
-    re-enable review.
+    flip of ``METERED_EXPERT_CHAT_EXECUTION_ENABLED`` only after the re-enable
+    review in [metered-expert-chat-reenable.md](docs/design/metered-expert-chat-reenable.md).
 - [ ] **P1: migrate every gated metered expert lifecycle surface to one shared
   durable per-call and run-budget transaction.** This includes nonlocal
   `expert make` and `--learn`, API curriculum `expert plan`, provider-backed
