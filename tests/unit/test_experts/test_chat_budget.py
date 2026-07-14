@@ -209,6 +209,7 @@ async def test_standard_research_uses_durable_admission_when_enabled(monkeypatch
     from deepr.experts.research_reservation_store import ResearchReservationStore
 
     monkeypatch.setattr(chat_capacity, "METERED_EXPERT_CHAT_EXECUTION_ENABLED", True)
+    monkeypatch.setenv("DEEPR_ALLOW_METERED_EXPERT_CHAT", "1")
     session = _session(monkeypatch, 1.0)
     session.chat_backend = SimpleNamespace(metered=True, provider="openai")
     monkeypatch.setenv("XAI_API_KEY", "xai-test")
@@ -247,6 +248,7 @@ async def test_deep_research_uses_durable_admission_when_enabled(monkeypatch, tm
     from deepr.experts.research_reservation_store import ResearchReservationStore
 
     monkeypatch.setattr(chat_capacity, "METERED_EXPERT_CHAT_EXECUTION_ENABLED", True)
+    monkeypatch.setenv("DEEPR_ALLOW_METERED_EXPERT_CHAT", "1")
     monkeypatch.setattr(CostSafetyManager, "ABSOLUTE_MAX_PER_OPERATION", 10.0)
     session = _session(monkeypatch, 5.0)
     session.chat_backend = SimpleNamespace(metered=True, provider="openai")
@@ -608,6 +610,7 @@ async def test_concurrent_metered_turns_make_zero_provider_calls_and_zero_ledger
         "execution_enabled": False,
         "status": "blocked",
         "block_code": "metered_expert_chat_accounting_unavailable",
+        "explicit_allow": False,
     }
 
 
