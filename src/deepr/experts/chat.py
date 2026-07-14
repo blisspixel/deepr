@@ -143,6 +143,9 @@ class ExpertChatSession:
         self.cost_session = self.cost_safety.create_session(
             session_id=self.session_id, session_type="chat", budget_limit=self.budget
         )
+        # One in-process turn at a time per session. Cross-process spend holds
+        # remain on ResearchReservationStore for each metered provider call.
+        self._turn_lock = asyncio.Lock()
 
         # ReasoningGraph for complex queries (Tree of Thoughts)
         self.reasoning_graph = ReasoningGraph(
@@ -1365,6 +1368,21 @@ Budget remaining: ${budget_remaining:.2f}
         Returns:
             The expert's response
         """
+        async with self._turn_lock:
+            return await self._send_message_unlocked(
+                user_message,
+                status_callback,
+                selected_model=selected_model,
+            )
+
+    async def _send_message_unlocked(
+        self,
+        user_message: str,
+        status_callback=None,
+        *,
+        selected_model: ModelConfig | None = None,
+    ) -> str:
+        """Turn body for ``send_message``; caller must hold ``_turn_lock``."""
 
         self.require_provider_dispatch_allowed("expert_chat_turn")
 
@@ -2014,6 +2032,23 @@ Budget remaining: ${budget_remaining:.2f}
         Returns:
             The complete expert response text.
         """
+        async with self._turn_lock:
+            return await self._send_message_streaming_unlocked(
+                user_message,
+                token_callback,
+                status_callback,
+                selected_model=selected_model,
+            )
+
+    async def _send_message_streaming_unlocked(
+        self,
+        user_message: str,
+        token_callback=None,
+        status_callback=None,
+        *,
+        selected_model: ModelConfig | None = None,
+    ) -> str:
+        """Streaming turn body; caller must hold ``_turn_lock``."""
 
         self.require_provider_dispatch_allowed("expert_chat_streaming_turn")
 

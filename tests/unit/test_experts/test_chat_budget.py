@@ -107,6 +107,31 @@ def test_session_circuit_breaker_blocks_manager_operations(monkeypatch):
     assert session.get_session_summary()["circuit_breaker_open"] is True
 
 
+async def test_session_turn_lock_serializes_concurrent_sends(monkeypatch):
+    session = _session(monkeypatch, 1.0)
+    session.should_use_tot = lambda _query: False
+    order: list[str] = []
+
+    async def slow_unlocked(user_message: str, status_callback=None, *, selected_model=None):
+        order.append(f"start:{user_message}")
+        await asyncio.sleep(0.05)
+        order.append(f"end:{user_message}")
+        return f"ok:{user_message}"
+
+    monkeypatch.setattr(session, "_send_message_unlocked", slow_unlocked)
+
+    first, second = await asyncio.gather(
+        session.send_message("a"),
+        session.send_message("b"),
+    )
+
+    assert {first, second} == {"ok:a", "ok:b"}
+    assert order in (
+        ["start:a", "end:a", "start:b", "end:b"],
+        ["start:b", "end:b", "start:a", "end:a"],
+    )
+
+
 async def test_standard_research_fails_closed_before_any_provider_or_fallback(monkeypatch):
     session = _session(monkeypatch, 1.0)
     session.chat_backend = RecordingChatBackend("fallback must not dispatch")
