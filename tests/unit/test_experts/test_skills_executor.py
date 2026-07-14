@@ -237,6 +237,36 @@ class TestSkillExecutorExecuteTool:
         assert result["cost"] == 0.0
 
     @pytest.mark.asyncio
+    async def test_concurrent_metered_tools_cannot_overspend_session_budget(self, tmp_path):
+        """Budget hold is taken under lock so two concurrent tools cannot both pass."""
+        tool = _make_mcp_tool(name="paid", cost_tier="medium")  # $0.05
+        skill = _make_skill(tmp_path, tools=[tool])
+        executor = SkillExecutor(skill, budget_remaining=0.08, allow_metered_tools=True)
+
+        started = asyncio.Event()
+        release = asyncio.Event()
+        metered_calls = 0
+
+        async def _slow_metered(*_args, **_kwargs):
+            nonlocal metered_calls
+            metered_calls += 1
+            started.set()
+            await release.wait()
+            return {"result": "ok", "cost": 0.05}
+
+        with patch.object(executor, "_execute_metered_tool", side_effect=_slow_metered):
+            first = asyncio.create_task(executor.execute_tool("paid", {}))
+            await asyncio.wait_for(started.wait(), timeout=2.0)
+            second = await executor.execute_tool("paid", {})
+            release.set()
+            first_result = await asyncio.wait_for(first, timeout=2.0)
+
+        assert first_result.get("result") == "ok"
+        assert second.get("error") == "BUDGET_EXCEEDED"
+        assert metered_calls == 1
+        assert executor._budget_remaining == pytest.approx(0.03)
+
+    @pytest.mark.asyncio
     async def test_free_tool_not_blocked_by_zero_budget(self, tmp_path):
         """Free tools are never blocked by budget checks."""
         skill_dir = _create_python_skill(tmp_path)

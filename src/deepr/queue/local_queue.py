@@ -496,31 +496,52 @@ class SQLiteQueue(QueueBackend):
             provider, model, previous_cost = existing_row
 
             # Stage the ledger event first if there's a non-zero delta.
+            # Fail closed: never commit queue.cost when a required ledger
+            # write did not land - otherwise retries see delta==0 and never
+            # re-append the missing spend row.
             ledger_recorded = False
             if cost is not None and cost > 0:
                 prior = float(previous_cost) if previous_cost is not None else 0.0
                 delta = float(cost) - prior
                 if delta > 0:
-                    try:
-                        dashboard = self._get_cost_dashboard()
-                        idempotency_key = (
-                            f"job:{job_id}:completion" if prior == 0 else f"job:{job_id}:correction:{float(cost):.6f}"
-                        )
-                        dashboard.record(
-                            operation="research_job",
-                            provider=provider or "unknown",
-                            model=model or "",
-                            cost=delta,
-                            tokens_output=int(tokens_used or 0),
-                            task_id=job_id,
-                            metadata={
-                                "source": "queue.update_results",
-                                "idempotency_key": idempotency_key,
-                            },
-                        )
-                        ledger_recorded = True
-                    except Exception as e:
-                        logger.warning("Failed to persist cost event for job %s: %s", job_id, e)
+                    completion_key = f"job:{job_id}:completion"
+                    # Durable settle already wrote the completion key; do not
+                    # attempt a second research_job row under the same key.
+                    if prior == 0:
+                        try:
+                            from deepr.observability.cost_ledger import CostLedger
+
+                            if CostLedger().has_idempotency_key(completion_key):
+                                ledger_recorded = True
+                        except Exception as e:
+                            logger.warning(
+                                "Failed to check cost ledger for job %s: %s",
+                                job_id,
+                                e,
+                            )
+                            return False
+                    if not ledger_recorded:
+                        try:
+                            dashboard = self._get_cost_dashboard()
+                            idempotency_key = (
+                                completion_key if prior == 0 else f"job:{job_id}:correction:{float(cost):.6f}"
+                            )
+                            dashboard.record(
+                                operation="research_job",
+                                provider=provider or "unknown",
+                                model=model or "",
+                                cost=delta,
+                                tokens_output=int(tokens_used or 0),
+                                task_id=job_id,
+                                metadata={
+                                    "source": "queue.update_results",
+                                    "idempotency_key": idempotency_key,
+                                },
+                            )
+                            ledger_recorded = True
+                        except Exception as e:
+                            logger.warning("Failed to persist cost event for job %s: %s", job_id, e)
+                            return False
 
             cursor.execute(
                 """

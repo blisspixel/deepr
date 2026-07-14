@@ -300,6 +300,10 @@ class SkillExecutor:
         # and produce a negative budget. Also guards ``_mcp_proxies``
         # creation against duplicate-spawn races.
         self._lock = asyncio.Lock()
+        # In-flight holds (not yet settled). Concurrent callers subtract these
+        # from remaining without mutating ``_budget_remaining`` so MCP budget
+        # arg clamps still see the true pre-call remaining for this tool.
+        self._held_budget = 0.0
 
     async def execute_tool(self, tool_name: str, arguments: dict) -> dict[str, Any]:
         """Route to Python or MCP execution. Check budget first.
@@ -328,27 +332,42 @@ class SkillExecutor:
                 ),
                 "cost": 0.0,
             }
+        # Reserve the estimate under the lock so concurrent callers cannot
+        # both pass the same remaining-budget snapshot, then execute outside
+        # the lock. Holds live in ``_held_budget`` so clamp logic still sees
+        # pre-call remaining; settle actual only after success.
+        hold = 0.0
         async with self._lock:
-            if estimated_cost > 0 and estimated_cost > self._budget_remaining:
+            available = self._budget_remaining - self._held_budget
+            if estimated_cost > 0 and estimated_cost > available:
                 return {
                     "error": "BUDGET_EXCEEDED",
-                    "detail": f"Tool costs ~${estimated_cost:.2f} but only ${self._budget_remaining:.2f} remains",
+                    "detail": f"Tool costs ~${estimated_cost:.2f} but only ${available:.2f} remains",
                     "cost": 0.0,
                 }
+            if estimated_cost > 0:
+                hold = float(estimated_cost)
+                self._held_budget += hold
 
-        if estimated_cost > 0:
-            result = await self._execute_metered_tool(
-                tool,
-                tool_name,
-                arguments,
-                estimated_cost=estimated_cost,
-            )
-        elif tool.type == "python":
-            result = await self._execute_python(tool, arguments)
-        elif tool.type == "mcp":
-            result = await self._execute_mcp(tool, arguments)
-        else:
-            result = {"error": f"Unknown tool type: {tool.type}", "cost": 0.0}
+        try:
+            if estimated_cost > 0:
+                result = await self._execute_metered_tool(
+                    tool,
+                    tool_name,
+                    arguments,
+                    estimated_cost=estimated_cost,
+                )
+            elif tool.type == "python":
+                result = await self._execute_python(tool, arguments)
+            elif tool.type == "mcp":
+                result = await self._execute_mcp(tool, arguments)
+            else:
+                result = {"error": f"Unknown tool type: {tool.type}", "cost": 0.0}
+        except Exception:
+            if hold:
+                async with self._lock:
+                    self._held_budget = max(0.0, self._held_budget - hold)
+            raise
 
         # Only charge cost for SUCCESSFUL executions. The previous
         # implementation deducted the tier estimate even when the
@@ -356,8 +375,11 @@ class SkillExecutor:
         # for failed paid tool invocations.
         if "error" in result:
             result["cost"] = 0.0
+        actual = float(result.get("cost", 0.0) or 0.0)
         async with self._lock:
-            self._budget_remaining -= float(result.get("cost", 0.0))
+            if hold:
+                self._held_budget = max(0.0, self._held_budget - hold)
+            self._budget_remaining -= actual
         return result
 
     async def _execute_metered_tool(

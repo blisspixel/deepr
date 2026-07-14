@@ -168,8 +168,8 @@ per client IP on top of authentication.
                 },
                 "priority": {
                     "type": "integer",
-                    "description": "Job priority (1-5, lower is higher priority)",
-                    "example": 3,
+                    "description": "Job priority (1-10, higher number is higher priority)",
+                    "example": 5,
                 },
                 "cost": {"type": "number", "description": "Actual cost in USD", "example": 0.50},
                 "tokens_used": {"type": "integer", "description": "Total tokens consumed", "example": 15000},
@@ -627,7 +627,7 @@ def submit_job():
 
     prompt = data.get("prompt")
     model = data.get("model", "o4-mini-deep-research")
-    priority = data.get("priority", 3)
+    priority = data.get("priority", 5)
     enable_web_search = data.get("enable_web_search", True)
 
     if not prompt or not isinstance(prompt, str):
@@ -639,6 +639,8 @@ def submit_job():
         return jsonify({"error": f"Prompt exceeds {_MAX_PROMPT_LENGTH} character limit"}), 400
     if not isinstance(model, str) or model not in _ALLOWED_MODELS:
         return jsonify({"error": "Invalid model"}), 400
+    if not isinstance(priority, int) or isinstance(priority, bool) or not (1 <= priority <= 10):
+        return jsonify({"error": "priority must be an integer from 1 to 10"}), 400
 
     try:
         metadata = client_job_metadata(data.get("metadata"))

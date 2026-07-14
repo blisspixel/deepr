@@ -68,6 +68,17 @@ class TestResearchAPI:
         await api.submit_research("Test prompt")
         mock_queue.enqueue.assert_called_once()
 
+    async def test_submit_fails_closed_when_ledger_unavailable(self, api, mock_queue):
+        """Ledger write failure must block enqueue (no silent-money queue job)."""
+        with patch("deepr.experts.cost_safety.get_cost_safety_manager") as mock_get:
+            manager = MagicMock()
+            manager.check_operation.return_value = (True, "OK", False)
+            manager.record_cost.side_effect = RuntimeError("ledger down")
+            mock_get.return_value = manager
+            with pytest.raises(RuntimeError, match="cost ledger unavailable"):
+                await api.submit_research("Test prompt")
+        mock_queue.enqueue.assert_not_called()
+
     async def test_get_job_status_found(self, api, mock_queue):
         """Returns status dict when job exists."""
         mock_job = MagicMock()

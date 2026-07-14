@@ -415,8 +415,8 @@ def execute(yes: bool):
         # Initialize services
         config = load_config()
         queue = SQLiteQueue(config["queue_db_path"])
-        # Use reports_path or default to data/reports
-        storage_path = config.get("reports_path", "data/reports")
+        # Config-sourced reports root only (DEEPR_REPORTS_PATH / results_dir).
+        storage_path = config["results_dir"]
         storage = LocalStorage(storage_path)
         provider = OpenAIProvider(api_key=config["api_key"])
         context_builder = ContextBuilder(api_key=config["api_key"])
@@ -748,7 +748,7 @@ def continue_research(topics: int, yes: bool):
 
         # Get completed results
         config = load_config()
-        storage_path = config.get("reports_path", "data/reports")
+        storage_path = config["results_dir"]
         storage = LocalStorage(storage_path)
         queue = SQLiteQueue(config["queue_db_path"])
 

@@ -194,14 +194,20 @@ async def run_deep_research(session: Any, query: str) -> dict[str, Any]:
     except Exception:
         estimated_cost = 2.00
 
-    allowed, reason, _needs_confirm = session.cost_safety.check_operation(
+    # Dual metered env confirmation is the explicit spend gate
+    # (require_expert_chat_dispatch above). Soft cost_safety confirmation is
+    # not a second interactive prompt here; still honor needs_confirmation if
+    # a caller ever enables require_confirmation so we never discard it.
+    allowed, reason, needs_confirm = session.cost_safety.check_operation(
         session_id=session.session_id,
         operation_type="deep_research",
         estimated_cost=estimated_cost,
-        require_confirmation=True,
+        require_confirmation=False,
     )
 
-    if not allowed:
+    if not allowed or needs_confirm:
+        if needs_confirm and allowed:
+            reason = reason or "confirmation required for high-cost deep research"
         is_budget_denial = reason.startswith("Insufficient budget:")
         session_denial = is_budget_denial or reason.startswith("Session circuit breaker open:")
         error_prefix = "Session budget exceeded" if is_budget_denial else "Deep research blocked"

@@ -284,6 +284,32 @@ class TestAutoBatchExecutor:
         assert result.failure_count == 0
 
     @pytest.mark.asyncio
+    async def test_execute_batch_fails_closed_when_cost_safety_unavailable(self, executor, txt_batch_file, monkeypatch):
+        """Cost-safety infrastructure failure must not dispatch the batch."""
+        from deepr.services import research_bounds
+
+        monkeypatch.setattr(
+            research_bounds,
+            "require_research_parent_budget_accounting",
+            lambda _label: None,
+        )
+
+        def _boom(*_args, **_kwargs):
+            raise RuntimeError("cost manager broken")
+
+        monkeypatch.setattr(
+            "deepr.experts.cost_safety.get_cost_safety_manager",
+            _boom,
+        )
+
+        result = await executor.execute_batch(file_path=txt_batch_file, dry_run=False)
+
+        assert result.success_count == 0
+        assert result.failure_count == 3
+        assert result.error is not None
+        assert "cost-safety unavailable" in result.error
+
+    @pytest.mark.asyncio
     async def test_execute_batch_dry_run_has_decisions(self, executor, txt_batch_file):
         """Dry run should still have routing decisions."""
         result = await executor.execute_batch(

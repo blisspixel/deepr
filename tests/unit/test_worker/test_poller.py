@@ -81,6 +81,31 @@ class TestJobPoller:
         poller.provider.get_status.assert_called_once_with("pj-1")
 
     @pytest.mark.asyncio
+    async def test_poll_cycle_pages_beyond_first_hundred(self, poller):
+        """Processing backlog larger than one page must not starve older jobs."""
+        page1 = []
+        for i in range(100):
+            job = MagicMock()
+            job.id = f"new-{i}"
+            job.provider_job_id = f"pj-new-{i}"
+            page1.append(job)
+        older = MagicMock()
+        older.id = "old-1"
+        older.provider_job_id = "pj-old-1"
+
+        poller.queue.list_jobs = AsyncMock(side_effect=[page1, [older]])
+        mock_resp = MagicMock()
+        mock_resp.status = "in_progress"
+        poller.provider.get_status.return_value = mock_resp
+
+        await poller._poll_cycle()
+
+        assert poller.queue.list_jobs.await_count == 2
+        poller.queue.list_jobs.assert_any_await(status=JobStatus.PROCESSING, limit=100, offset=0)
+        poller.queue.list_jobs.assert_any_await(status=JobStatus.PROCESSING, limit=100, offset=100)
+        assert poller.provider.get_status.await_count == 101
+
+    @pytest.mark.asyncio
     async def test_check_job_skips_missing_provider_id(self, poller):
         """Jobs without provider_job_id are skipped."""
         mock_job = MagicMock()

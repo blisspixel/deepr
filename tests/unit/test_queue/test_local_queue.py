@@ -240,11 +240,30 @@ class TestSQLiteQueue:
         )
 
         settle_research_cost(reservation, actual_cost=0.2, source="test.poller")
-        await queue.update_results(sample_job.id, {"md": "report.md"}, cost=0.2, tokens_used=100)
+        success = await queue.update_results(sample_job.id, {"md": "report.md"}, cost=0.2, tokens_used=100)
+        assert success is True
 
         events = CostLedger().get_events()
         assert len(events) == 1
         assert events[0].cost_usd == 0.2
+
+        job = await queue.get_job(sample_job.id)
+        assert job.cost == 0.2
+
+    async def test_update_results_fails_closed_when_ledger_write_fails(self, queue, sample_job):
+        """Queue cost must not commit if the ledger write fails."""
+        await queue.enqueue(sample_job)
+
+        mock_dashboard = MagicMock()
+        mock_dashboard.record.side_effect = RuntimeError("ledger down")
+        with patch("deepr.queue.local_queue.CostDashboard", return_value=mock_dashboard):
+            success = await queue.update_results(
+                sample_job.id, report_paths={"md": "a.md"}, cost=2.50, tokens_used=10000
+            )
+
+        assert success is False
+        job = await queue.get_job(sample_job.id)
+        assert job.cost is None or job.cost == 0 or job.cost == 0.0
 
     async def test_list_jobs_filter_by_status(self, queue):
         """Test listing jobs filtered by status."""

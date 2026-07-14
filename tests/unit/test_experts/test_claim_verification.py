@@ -643,7 +643,8 @@ async def test_verify_claims_records_metered_cost_reservation():
 
 
 @pytest.mark.asyncio
-async def test_verify_claims_refunds_reservation_when_dispatch_fails():
+async def test_verify_claims_conservatively_settles_when_dispatch_fails():
+    """Provider exceptions after dispatch must not refund (silent money)."""
     manager = _FakeCostSafety()
     client = _FakeClient("", raises=RuntimeError("backend down"))
 
@@ -662,8 +663,11 @@ async def test_verify_claims_refunds_reservation_when_dispatch_fails():
             cost_safety=manager,
         )
 
-    assert manager.refunded == "reservation-1"
-    assert manager.recorded is None
+    assert manager.refunded == ""
+    assert manager.recorded is not None
+    assert manager.recorded["actual_cost"] == 0.03
+    assert manager.recorded["reservation_id"] == "reservation-1"
+    assert manager.recorded["metadata"]["conservative_settle"] is True
 
 
 @pytest.mark.asyncio
