@@ -19,13 +19,19 @@ from deepr.experts.chat_backends import (
     PlanQuotaExpertChatBackend,
     complete_expert_chat_turn,
 )
-from deepr.experts.chat_capacity import MeteredExpertChatDisabledError
+from deepr.experts.chat_capacity import (
+    METERED_EXPERT_CHAT_BLOCK_CODE,
+    METERED_EXPERT_CHAT_CONFIRM_CODE,
+    MeteredExpertChatDisabledError,
+)
 
 
 @pytest.fixture(autouse=True)
 def _enable_metered_backend_shape_tests(monkeypatch):
     """Exercise request normalization without enabling production dispatch."""
     monkeypatch.setattr(chat_capacity, "METERED_EXPERT_CHAT_EXECUTION_ENABLED", True)
+    # Live metered dispatch requires dual confirmation (flag + env).
+    monkeypatch.setenv("DEEPR_ALLOW_METERED_EXPERT_CHAT", "1")
 
 
 class RecordingChatBackend:
@@ -64,11 +70,40 @@ async def test_metered_backend_boundary_fails_before_client_dispatch(monkeypatch
     )
     request = ExpertChatRequest(model="gpt-5.2", messages=[{"role": "user", "content": "q"}])
 
-    with pytest.raises(MeteredExpertChatDisabledError):
+    with pytest.raises(MeteredExpertChatDisabledError) as blocked:
         await backend.complete(request)
+    assert blocked.value.code == METERED_EXPERT_CHAT_BLOCK_CODE
     with pytest.raises(MeteredExpertChatDisabledError):
         _ = [chunk async for chunk in backend.stream(request)]
 
+    assert calls == 0
+
+
+@pytest.mark.asyncio
+async def test_metered_backend_requires_explicit_env_even_when_flag_enabled(monkeypatch):
+    """Substrate-on without DEEPR_ALLOW_METERED_EXPERT_CHAT still refuses dispatch."""
+    calls = 0
+
+    class FakeCompletions:
+        async def create(self, **_kwargs):
+            nonlocal calls
+            calls += 1
+            raise AssertionError("metered client must not dispatch")
+
+    monkeypatch.setattr(chat_capacity, "METERED_EXPERT_CHAT_EXECUTION_ENABLED", True)
+    monkeypatch.delenv("DEEPR_ALLOW_METERED_EXPERT_CHAT", raising=False)
+    backend = OpenAIExpertChatBackend(
+        SimpleNamespace(chat=SimpleNamespace(completions=FakeCompletions())),
+        model="gpt-5.2",
+    )
+    request = ExpertChatRequest(model="gpt-5.2", messages=[{"role": "user", "content": "q"}])
+
+    with pytest.raises(MeteredExpertChatDisabledError) as blocked:
+        await backend.complete(request)
+    assert blocked.value.code == METERED_EXPERT_CHAT_CONFIRM_CODE
+    with pytest.raises(MeteredExpertChatDisabledError) as streamed:
+        _ = [chunk async for chunk in backend.stream(request)]
+    assert streamed.value.code == METERED_EXPERT_CHAT_CONFIRM_CODE
     assert calls == 0
 
 
