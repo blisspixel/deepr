@@ -260,3 +260,22 @@ class TestEmbeddingCacheAddDocuments:
 
         assert added == 0
         mock_client.embeddings.create.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_add_documents_fails_closed_when_cost_admission_unavailable(
+        self, tmp_path, monkeypatch, enable_metered_embeds
+    ):
+        """Cost bookkeeping failure must not clear the gate and still spend."""
+        monkeypatch.setattr(
+            "deepr.experts.cost_admission.admit_soft_cost_operation",
+            lambda **_kwargs: (None, 0.0002, "cost admission unavailable: test"),
+        )
+        cache = EmbeddingCache("test-expert", cache_dir=tmp_path)
+        docs = [{"filename": "new.md", "content": "New content"}]
+        mock_client = AsyncMock()
+        mock_client.embeddings.create = AsyncMock(return_value=MagicMock(data=[MagicMock(embedding=[1.0] * 8)]))
+
+        added = await cache.add_documents(docs, mock_client)
+
+        assert added == 0
+        mock_client.embeddings.create.assert_not_called()

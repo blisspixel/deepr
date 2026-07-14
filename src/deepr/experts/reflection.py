@@ -196,11 +196,37 @@ class ReflectionEngine:
             '"followups": ["specific re-research query to close a gap", ...]}'
         )
 
+        from deepr.experts.cost_admission import admit_soft_cost_operation, record_soft_cost
+
+        cost_safety, est_cost, deny_reason = admit_soft_cost_operation(
+            session_id="reflection",
+            operation_type="answer_reflection",
+            estimated_cost=0.02,
+        )
+        if deny_reason is not None:
+            raise ReflectionError(f"Reflection blocked by cost-safety: {deny_reason}")
+
         response = await client.chat.completions.create(
             model=self.model,
             messages=[{"role": "system", "content": system}, {"role": "user", "content": user}],
             response_format={"type": "json_object"},
         )
+        try:
+            from deepr.experts.chat_turns import chat_token_cost
+
+            actual = chat_token_cost(response.usage, self.model) if response.usage else est_cost
+            record_soft_cost(
+                cost_safety,
+                session_id="reflection",
+                operation_type="answer_reflection",
+                actual_cost=float(actual),
+                provider="openai",
+                model=self.model,
+                source="experts.reflection._evaluate",
+            )
+        except Exception as exc:
+            logger.warning("Reflection cost recording failed: %s", exc)
+
         raw = response.choices[0].message.content or ""
         try:
             parsed = json.loads(raw)

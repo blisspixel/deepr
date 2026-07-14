@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- Embedding-cache soft cost checks fail closed when cost admission cannot
+  run (no more clearing the gate and still dispatching durable embeds).
+- Answer reflection LLM evaluation admits soft cost before provider work
+  and records spend without bare except-pass.
+
 ## [2.36.2] - 2026-07-14
 
 ### Fixed
