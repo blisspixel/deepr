@@ -145,6 +145,13 @@ reliable product, not a four-language architecture diagram.
   `METERED_EXPERT_CHAT_EXECUTION_ENABLED = False` and failures return
   `metered_expert_chat_accounting_unavailable`; local and explicit plan
   read-only query remains available.
+  - [x] Non-stream OpenAI and Anthropic completion turns share
+    `execute_reserved_async_call` via `deepr.experts.chat_metered` (2026-07-13).
+    `complete_expert_chat_turn` and session chat paths pass
+    `max_cost_per_job` from the generation estimate; accounting extras never
+    reach the provider. Gate remains off. Remaining: stream settlement, tool
+    and auxiliary metered calls, parent session hold serialization, output
+    token ceilings from remaining dollars, and re-enable criteria above.
 - [ ] **P1: migrate every gated metered expert lifecycle surface to one shared
   durable per-call and run-budget transaction.** This includes nonlocal
   `expert make` and `--learn`, API curriculum `expert plan`, provider-backed

@@ -1548,6 +1548,7 @@ Budget remaining: ${budget_remaining:.2f}
                 messages=[{"role": "system", "content": self.get_system_message()}, *self.messages],
                 tools=tools if self.chat_backend.supports_tools else None,
                 tool_choice="auto" if self.chat_backend.supports_tools else None,
+                max_cost_per_job=estimated_cost if estimated_cost > 0 else None,
             )
 
             assistant_message = first_turn.message
@@ -1853,6 +1854,7 @@ Budget remaining: ${budget_remaining:.2f}
                     messages=conversation_messages,
                     tools=tools if self.chat_backend.supports_tools else None,
                     tool_choice="auto" if self.chat_backend.supports_tools else None,
+                    max_cost_per_job=estimated_cost if estimated_cost > 0 else None,
                 )
 
                 current_message = next_turn.message
@@ -2180,6 +2182,7 @@ Budget remaining: ${budget_remaining:.2f}
                 messages=[{"role": "system", "content": self.get_system_message()}, *self.messages],
                 tools=tools if self.chat_backend.supports_tools else None,
                 tool_choice="auto" if self.chat_backend.supports_tools else None,
+                max_cost_per_job=estimated_cost if estimated_cost > 0 else None,
             )
             assistant_message = first_turn.message
 
@@ -2321,6 +2324,7 @@ Budget remaining: ${budget_remaining:.2f}
                     messages=conversation_messages,
                     tools=tools if self.chat_backend.supports_tools else None,
                     tool_choice="auto" if self.chat_backend.supports_tools else None,
+                    max_cost_per_job=estimated_cost if estimated_cost > 0 else None,
                 )
                 current_message = next_turn.message
 

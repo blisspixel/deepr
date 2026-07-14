@@ -35,6 +35,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   Research and probe failures preserve dispatch truth, attempt outcome, attempt
   id, paired-ledger status, and the no-metered-fallback contract, including
   canonical accounting failure after a successful vendor response.
+- Metered expert-chat non-stream completions (OpenAI and Anthropic backends)
+  now run through the shared durable reserve, dispatch-mark, and settlement
+  wrapper when execution is enabled. Accounting-only request fields such as
+  `max_cost_per_job` are stripped before provider params. Production remains
+  fail-closed via `METERED_EXPERT_CHAT_EXECUTION_ENABLED = False` until stream,
+  tool-loop, and auxiliary paths share the same contract. Startup banner unit
+  tests isolate dumb-terminal and `NO_COLOR` host environments so CI and agent
+  shells do not false-fail the suite.
 
 ## [2.36.0] - 2026-07-12
 
