@@ -114,61 +114,74 @@ async def run_standard_research(session: Any, query: str) -> dict[str, Any]:
 
     except Exception as e:
         session.cost_safety.record_failure(session.session_id, "standard_research", str(e))
+        return await _standard_research_gpt_fallback(session, query, primary_error=e)
 
-        try:
-            fallback_estimate = 0.05
-            allowed, reason, _ = session.cost_safety.check_operation(
-                session_id=session.session_id,
-                operation_type="standard_research_fallback",
-                estimated_cost=fallback_estimate,
-                require_confirmation=False,
-            )
-            if not allowed:
-                return {
-                    "error": f"Grok search failed: {e!s}. GPT-5.5 fallback blocked: {reason}",
-                    "mode": "standard_research_fallback",
-                    "status": "blocked",
-                }
-            model_name = session._provider_model_or("gpt-5.5")
-            result = await session.chat_backend.complete(
-                ExpertChatRequest(
-                    model=model_name,
-                    messages=[
-                        {
-                            "role": "system",
-                            "content": "Answer based on your knowledge. Be honest if information might be outdated.",
-                        },
-                        {"role": "user", "content": query},
-                    ],
-                    reasoning_effort=session._provider_reasoning_effort_or_none("low"),
-                )
-            )
 
-            answer = f"{result.text}\n\n[Note: Grok web search unavailable, using GPT-5.5 knowledge instead]"
-
-            # Backend complete already settled the canonical ledger under durable
-            # admission. Mirror into the chat session only - never record_cost again.
-            try:
-                cost = float(chat_token_cost(result.usage, model_name)) if result.usage else 0.01
-            except Exception:
-                cost = 0.01
-            if not math.isfinite(cost) or cost < 0:
-                cost = 0.01
-            mirror_chat_session_spend(
-                session,
-                operation_type="standard_research_fallback",
-                actual_cost=cost,
-                details=f"Fallback for: {query[:50]}...",
-            )
-
+async def _standard_research_gpt_fallback(
+    session: Any,
+    query: str,
+    *,
+    primary_error: BaseException,
+) -> dict[str, Any]:
+    """GPT fallback after Grok failure; mirror session spend only after durable complete."""
+    try:
+        fallback_estimate = 0.05
+        allowed, reason, _ = session.cost_safety.check_operation(
+            session_id=session.session_id,
+            operation_type="standard_research_fallback",
+            estimated_cost=fallback_estimate,
+            require_confirmation=False,
+        )
+        if not allowed:
             return {
-                "answer": answer,
+                "error": f"Grok search failed: {primary_error!s}. GPT-5.5 fallback blocked: {reason}",
                 "mode": "standard_research_fallback",
-                "cost": cost,
-                "budget_remaining": session.cost_session.get_remaining_budget(),
+                "status": "blocked",
             }
-        except Exception as fallback_error:
-            return {"error": f"Grok search failed: {e!s}. GPT-5.5 fallback failed: {fallback_error!s}"}
+        model_name = session._provider_model_or("gpt-5.5")
+        result = await session.chat_backend.complete(
+            ExpertChatRequest(
+                model=model_name,
+                messages=[
+                    {
+                        "role": "system",
+                        "content": (
+                            "Answer based on your knowledge. Be honest if information might be outdated."
+                        ),
+                    },
+                    {"role": "user", "content": query},
+                ],
+                reasoning_effort=session._provider_reasoning_effort_or_none("low"),
+            )
+        )
+
+        answer = f"{result.text}\n\n[Note: Grok web search unavailable, using GPT-5.5 knowledge instead]"
+
+        # Backend complete already settled the canonical ledger under durable
+        # admission. Mirror into the chat session only - never record_cost again.
+        try:
+            cost = float(chat_token_cost(result.usage, model_name)) if result.usage else 0.01
+        except Exception:
+            cost = 0.01
+        if not math.isfinite(cost) or cost < 0:
+            cost = 0.01
+        mirror_chat_session_spend(
+            session,
+            operation_type="standard_research_fallback",
+            actual_cost=cost,
+            details=f"Fallback for: {query[:50]}...",
+        )
+
+        return {
+            "answer": answer,
+            "mode": "standard_research_fallback",
+            "cost": cost,
+            "budget_remaining": session.cost_session.get_remaining_budget(),
+        }
+    except Exception as fallback_error:
+        return {
+            "error": f"Grok search failed: {primary_error!s}. GPT-5.5 fallback failed: {fallback_error!s}"
+        }
 
 
 async def run_deep_research(session: Any, query: str) -> dict[str, Any]:
