@@ -80,11 +80,16 @@ async def complete_expert_chat_turn(
     messages: list[Any],
     tools: list[dict[str, Any]] | None = None,
     tool_choice: str | None = "auto",
+    max_cost_per_job: float | None = None,
+    extra: dict[str, Any] | None = None,
 ) -> ExpertChatResult:
     """Build and complete one expert chat turn through the configured backend."""
     if tools and not backend.supports_tools:
         raise ExpertChatUnsupportedFeature(f"{backend.provider} expert-chat backend does not support tools")
     effective_tool_choice = tool_choice if tools else None
+    request_extra = dict(extra or {})
+    if max_cost_per_job is not None:
+        request_extra["max_cost_per_job"] = max_cost_per_job
     return await backend.complete(
         ExpertChatRequest(
             model=selected_model.model,
@@ -92,6 +97,7 @@ async def complete_expert_chat_turn(
             tools=tools,
             tool_choice=effective_tool_choice,
             reasoning_effort=_chat_reasoning_effort(selected_model),
+            extra=request_extra,
         )
     )
 
@@ -129,8 +135,17 @@ class OpenAIExpertChatBackend:
 
     async def complete(self, request: ExpertChatRequest) -> ExpertChatResult:
         require_expert_chat_dispatch(self, "expert_chat_completion")
-        params = self._build_params(request)
-        response = await self.client.chat.completions.create(**params)
+        from deepr.experts.chat_metered import execute_metered_chat_provider_call, split_accounting_extra
+
+        provider_extra, max_cost_per_job = split_accounting_extra(request.extra)
+        params = self._build_params(request, extra=provider_extra)
+        response = await execute_metered_chat_provider_call(
+            provider=self.provider,
+            model=request.model,
+            source="expert_chat.completion",
+            max_cost_per_job=max_cost_per_job,
+            call=lambda: self.client.chat.completions.create(**params),
+        )
         choice = response.choices[0]
         return ExpertChatResult(
             message=choice.message,
@@ -142,7 +157,12 @@ class OpenAIExpertChatBackend:
 
     async def stream(self, request: ExpertChatRequest) -> AsyncIterator[ExpertChatStreamChunk]:
         require_expert_chat_dispatch(self, "expert_chat_stream")
-        params = self._build_params(request)
+        # Streaming still fails closed in production via the gate above. Durable
+        # stream settlement is a follow-on slice of the same P1 contract.
+        from deepr.experts.chat_metered import split_accounting_extra
+
+        provider_extra, _max_cost_per_job = split_accounting_extra(request.extra)
+        params = self._build_params(request, extra=provider_extra)
         params["stream"] = True
         params["stream_options"] = {"include_usage": True}
         stream = await self.client.chat.completions.create(**params)
@@ -152,7 +172,7 @@ class OpenAIExpertChatBackend:
             text_delta = str(getattr(delta, "content", "") or "") if delta else ""
             yield ExpertChatStreamChunk(text_delta=text_delta, usage=usage, raw_chunk=chunk)
 
-    def _build_params(self, request: ExpertChatRequest) -> dict[str, Any]:
+    def _build_params(self, request: ExpertChatRequest, *, extra: dict[str, Any] | None = None) -> dict[str, Any]:
         params: dict[str, Any] = {
             "model": request.model,
             "messages": request.messages,
@@ -163,7 +183,7 @@ class OpenAIExpertChatBackend:
             params["tool_choice"] = request.tool_choice
         if request.reasoning_effort:
             params["reasoning_effort"] = request.reasoning_effort
-        params.update(request.extra)
+        params.update(request.extra if extra is None else extra)
         return params
 
 
@@ -185,9 +205,18 @@ class AnthropicExpertChatBackend:
         if request.tools:
             raise ExpertChatUnsupportedFeature("anthropic expert-chat backend does not support tools yet")
 
+        from deepr.experts.chat_metered import execute_metered_chat_provider_call, split_accounting_extra
+
         model = request.model if request.model.startswith("claude-") else self.model or request.model
-        params = self._build_params(request, model=model)
-        response = await self.client.messages.create(**params)
+        provider_extra, max_cost_per_job = split_accounting_extra(request.extra)
+        params = self._build_params(request, model=model, extra=provider_extra)
+        response = await execute_metered_chat_provider_call(
+            provider=self.provider,
+            model=model,
+            source="expert_chat.completion",
+            max_cost_per_job=max_cost_per_job,
+            call=lambda: self.client.messages.create(**params),
+        )
         text = _anthropic_response_text(response)
         stop_reason = str(getattr(response, "stop_reason", "") or "")
         if stop_reason == "refusal" and not text:
@@ -205,8 +234,11 @@ class AnthropicExpertChatBackend:
         if request.tools:
             raise ExpertChatUnsupportedFeature("anthropic expert-chat backend does not support tools yet")
 
+        from deepr.experts.chat_metered import split_accounting_extra
+
         model = request.model if request.model.startswith("claude-") else self.model or request.model
-        params = self._build_params(request, model=model)
+        provider_extra, _max_cost_per_job = split_accounting_extra(request.extra)
+        params = self._build_params(request, model=model, extra=provider_extra)
         async with self.client.messages.stream(**params) as stream:
             async for text_delta in stream.text_stream:
                 yield ExpertChatStreamChunk(text_delta=str(text_delta), raw_chunk=text_delta)
@@ -215,13 +247,19 @@ class AnthropicExpertChatBackend:
             if usage is not None:
                 yield ExpertChatStreamChunk(usage=usage, raw_chunk=final_message)
 
-    def _build_params(self, request: ExpertChatRequest, *, model: str) -> dict[str, Any]:
-        extra = dict(request.extra)
-        max_tokens = int(extra.pop("max_tokens", 4096) or 4096)
-        extra.pop("temperature", None)
-        extra.pop("top_p", None)
-        extra.pop("top_k", None)
-        extra.pop("response_format", None)
+    def _build_params(
+        self,
+        request: ExpertChatRequest,
+        *,
+        model: str,
+        extra: dict[str, Any] | None = None,
+    ) -> dict[str, Any]:
+        payload = dict(request.extra if extra is None else extra)
+        max_tokens = int(payload.pop("max_tokens", 4096) or 4096)
+        payload.pop("temperature", None)
+        payload.pop("top_p", None)
+        payload.pop("top_k", None)
+        payload.pop("response_format", None)
 
         system_parts: list[str] = []
         messages: list[dict[str, str]] = []
@@ -244,8 +282,8 @@ class AnthropicExpertChatBackend:
         }
         if system_parts:
             params["system"] = "\n\n".join(part for part in system_parts if part)
-        if "thinking" in extra:
-            params["thinking"] = extra["thinking"]
+        if "thinking" in payload:
+            params["thinking"] = payload["thinking"]
         return params
 
 

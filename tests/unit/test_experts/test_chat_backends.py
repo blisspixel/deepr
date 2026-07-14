@@ -163,7 +163,11 @@ async def test_openai_chat_backend_passes_request_shape_and_normalizes_result():
             captured.update(kwargs)
             message = SimpleNamespace(content="answer", tool_calls=[])
             choice = SimpleNamespace(message=message, finish_reason="stop")
-            return SimpleNamespace(id="chatcmpl_123", choices=[choice], usage=SimpleNamespace(prompt_tokens=7))
+            return SimpleNamespace(
+                id="chatcmpl_123",
+                choices=[choice],
+                usage=SimpleNamespace(prompt_tokens=7, completion_tokens=3),
+            )
 
     client = SimpleNamespace(chat=SimpleNamespace(completions=FakeCompletions()))
     backend = OpenAIExpertChatBackend(client, model="gpt-5.2")
@@ -175,7 +179,7 @@ async def test_openai_chat_backend_passes_request_shape_and_normalizes_result():
             tools=[{"type": "function", "function": {"name": "search"}}],
             tool_choice="auto",
             reasoning_effort="medium",
-            extra={"temperature": 0.7, "max_tokens": 200},
+            extra={"temperature": 0.7, "max_tokens": 200, "max_cost_per_job": 0.5},
         )
     )
 
@@ -185,6 +189,7 @@ async def test_openai_chat_backend_passes_request_shape_and_normalizes_result():
     assert captured["reasoning_effort"] == "medium"
     assert captured["temperature"] == 0.7
     assert captured["max_tokens"] == 200
+    assert "max_cost_per_job" not in captured
     assert result.text == "answer"
     assert result.usage.prompt_tokens == 7
     assert result.provider_request_id == "chatcmpl_123"
@@ -505,3 +510,62 @@ async def test_plan_quota_chat_backend_wraps_cli_client_without_metered_features
         "response_format": {"type": "json_object"},
     }
     assert result.text == "plan answer"
+
+
+@pytest.mark.asyncio
+async def test_openai_complete_uses_durable_metered_admission(monkeypatch):
+    """Metered completion must reserve, mark dispatch, and settle before return."""
+    from deepr.experts.research_reservation_store import ResearchReservationStore
+    from deepr.observability.cost_ledger import CostLedger
+
+    calls = 0
+    seen_marked = False
+
+    class FakeCompletions:
+        async def create(self, **_kwargs):
+            nonlocal calls, seen_marked
+            calls += 1
+            database = ResearchReservationStore().path
+            import sqlite3
+
+            with sqlite3.connect(database) as connection:
+                marked = connection.execute(
+                    "SELECT provider_work_may_have_run FROM research_cost_reservations"
+                ).fetchone()
+            seen_marked = marked == (1,)
+            message = SimpleNamespace(content="ok", tool_calls=[])
+            choice = SimpleNamespace(message=message, finish_reason="stop")
+            return SimpleNamespace(
+                id="cmpl_1",
+                choices=[choice],
+                usage=SimpleNamespace(prompt_tokens=100, completion_tokens=20),
+            )
+
+    backend = OpenAIExpertChatBackend(
+        SimpleNamespace(chat=SimpleNamespace(completions=FakeCompletions())),
+        model="gpt-5.2",
+    )
+    result = await backend.complete(
+        ExpertChatRequest(
+            model="gpt-5.2",
+            messages=[{"role": "user", "content": "q"}],
+            extra={"max_cost_per_job": 1.0},
+        )
+    )
+
+    assert result.text == "ok"
+    assert calls == 1
+    assert seen_marked is True
+    assert ResearchReservationStore().active_cost() == 0
+    events = CostLedger().get_events()
+    assert len(events) >= 1
+    assert events[-1].cost_usd >= 0
+
+
+def test_split_accounting_extra_rejects_non_positive_ceiling():
+    from deepr.experts.chat_metered import split_accounting_extra
+
+    with pytest.raises(ValueError, match="positive finite"):
+        split_accounting_extra({"max_cost_per_job": 0})
+    with pytest.raises(ValueError, match="positive finite"):
+        split_accounting_extra({"max_cost_per_job": float("nan")})
