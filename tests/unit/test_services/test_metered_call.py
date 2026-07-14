@@ -13,6 +13,7 @@ from deepr.observability.cost_ledger import CostLedger, default_cost_data_dir
 from deepr.services.metered_call import (
     MeteredCallAccountingError,
     execute_reserved_async_call,
+    execute_reserved_async_stream,
     execute_reserved_sync_call,
 )
 
@@ -477,3 +478,30 @@ async def test_async_settlement_failure_is_fail_closed_and_keeps_hold() -> None:
     call.assert_awaited_once_with()
     assert ResearchReservationStore().active_cost() == pytest.approx(5.0)
     assert CostLedger().get_events() == []
+
+
+@pytest.mark.asyncio
+async def test_async_stream_settles_final_usage_and_releases_ceiling() -> None:
+    settled: list[float] = []
+
+    async def events():
+        yield "hel", None
+        yield "lo", SimpleNamespace(input_tokens=50, output_tokens=10)
+
+    chunks = [
+        item
+        async for item in execute_reserved_async_stream(
+            operation_prefix="stream",
+            provider="openai",
+            model="gpt-5",
+            source="test.stream",
+            events=events,
+            max_cost_per_job=1.0,
+            on_settled=settled.append,
+        )
+    ]
+
+    assert chunks == ["hel", "lo"]
+    assert ResearchReservationStore().active_cost() == 0
+    assert settled
+    assert settled[0] >= 0
