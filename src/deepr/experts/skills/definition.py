@@ -7,6 +7,7 @@ Parsed representation of a skill.yaml manifest and its companion files
 from __future__ import annotations
 
 import logging
+import math
 import re
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -15,6 +16,46 @@ from typing import Any
 import yaml
 
 logger = logging.getLogger(__name__)
+
+# Fail-closed bounds for community / operator skill manifests.
+_VALID_COST_TIERS = frozenset({"free", "low", "medium", "high"})
+_MAX_TOOL_TIMEOUT_SECONDS = 300
+_MIN_TOOL_TIMEOUT_SECONDS = 1
+_MAX_PER_CALL_USD = 25.0
+_MAX_DEFAULT_BUDGET_USD = 100.0
+
+
+def _bounded_timeout_seconds(raw: Any, *, default: int = 30) -> int:
+    """Clamp tool timeouts so a poisoned manifest cannot hang the event loop forever."""
+    try:
+        value = int(raw)
+    except (TypeError, ValueError):
+        return default
+    if value < _MIN_TOOL_TIMEOUT_SECONDS:
+        return _MIN_TOOL_TIMEOUT_SECONDS
+    if value > _MAX_TOOL_TIMEOUT_SECONDS:
+        return _MAX_TOOL_TIMEOUT_SECONDS
+    return value
+
+
+def _bounded_budget_usd(raw: Any, *, default: float, ceiling: float) -> float:
+    """Parse a non-negative finite USD bound and clamp to a hard ceiling."""
+    try:
+        value = float(raw)
+    except (TypeError, ValueError):
+        return default
+    if not math.isfinite(value) or value < 0:
+        return default
+    return min(value, ceiling)
+
+
+def _normalized_cost_tier(raw: Any) -> str:
+    """Unknown cost tiers fail closed as high, never free."""
+    tier = str(raw or "free").strip().lower()
+    if tier in _VALID_COST_TIERS:
+        return tier
+    logger.warning("Unknown skill cost_tier %r; treating as high", raw)
+    return "high"
 
 
 @dataclass
@@ -105,19 +146,25 @@ class SkillTool:
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> SkillTool:
         """Create from a tool entry in skill.yaml."""
-        server = data.get("server", {})
+        server = data.get("server", {}) if isinstance(data.get("server"), dict) else {}
+        server_args = server.get("args", [])
+        if not isinstance(server_args, list):
+            server_args = []
+        server_env = server.get("env", {})
+        if not isinstance(server_env, dict):
+            server_env = {}
         return cls(
-            name=data["name"],
-            type=data.get("type", "python"),
-            description=data.get("description", ""),
-            parameters=data.get("parameters", {}),
-            cost_tier=data.get("cost_tier", "free"),
-            timeout_seconds=data.get("timeout_seconds", 30),
+            name=str(data["name"]),
+            type=str(data.get("type", "python")),
+            description=str(data.get("description", "")),
+            parameters=data.get("parameters", {}) if isinstance(data.get("parameters"), dict) else {},
+            cost_tier=_normalized_cost_tier(data.get("cost_tier", "free")),
+            timeout_seconds=_bounded_timeout_seconds(data.get("timeout_seconds", 30)),
             module=data.get("module"),
             function=data.get("function"),
             server_command=server.get("command"),
-            server_args=server.get("args", []),
-            server_env=server.get("env", {}),
+            server_args=[str(arg) for arg in server_args],
+            server_env={str(key): str(value) for key, value in server_env.items()},
             remote_tool_name=data.get("remote_tool_name"),
         )
 
@@ -184,11 +231,19 @@ class SkillDefinition:
         # Parse tools
         tools = [SkillTool.from_dict(t) for t in data.get("tools", [])]
 
-        # Parse budget
-        budget_data = data.get("budget", {})
+        # Parse budget (clamp community-supplied ceilings)
+        budget_data = data.get("budget", {}) if isinstance(data.get("budget"), dict) else {}
         budget = SkillBudget(
-            max_per_call=budget_data.get("max_per_call", 1.0),
-            default_budget=budget_data.get("default_budget", 5.0),
+            max_per_call=_bounded_budget_usd(
+                budget_data.get("max_per_call", 1.0),
+                default=1.0,
+                ceiling=_MAX_PER_CALL_USD,
+            ),
+            default_budget=_bounded_budget_usd(
+                budget_data.get("default_budget", 5.0),
+                default=5.0,
+                ceiling=_MAX_DEFAULT_BUDGET_USD,
+            ),
         )
 
         return cls(

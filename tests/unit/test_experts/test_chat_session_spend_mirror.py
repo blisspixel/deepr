@@ -71,3 +71,7 @@ async def test_deep_research_final_usage_is_idempotent_and_charges_delta_only(mo
     events = [e for e in CostLedger().get_events() if e.operation == "deep_research_final_usage"]
     assert len(events) == 1
     assert events[0].idempotency_key == "job:resp_1:final_usage"
+    # Ledger dollar total must be overrun-only (submission already settled the estimate).
+    assert events[0].cost_usd == pytest.approx(first["delta_cost"])
+    assert events[0].cost_usd == pytest.approx(max(0.0, first["actual_cost"] - first["estimated_cost"]))
+    assert session.cost_session.total_cost == pytest.approx(first["delta_cost"])

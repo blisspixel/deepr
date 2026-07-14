@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import logging
-from collections.abc import Callable
 from datetime import UTC, datetime
 from typing import Any
 
@@ -140,34 +139,6 @@ def chat_generation_budget_denial(
         "allowed": False,
         "reason": reason,
     }
-
-
-def record_named_chat_cost(
-    *,
-    cost_safety: Any,
-    session_id: str,
-    usage: Any | None,
-    model_name: str,
-    operation_type: str,
-    fallback_cost: float,
-    cost_calculator: Callable[[Any, str], float],
-    provider: str = "openai",
-    details: str = "",
-) -> float:
-    """Record cost for auxiliary chat calls that keep their own operation name."""
-    cost = cost_calculator(usage, model_name) if usage else fallback_cost
-    tokens_input, tokens_output = chat_usage_tokens(usage)
-    cost_safety.record_cost(
-        session_id=session_id,
-        operation_type=operation_type,
-        actual_cost=cost,
-        provider=provider,
-        model=model_name,
-        tokens_input=tokens_input,
-        tokens_output=tokens_output,
-        details=details,
-    )
-    return cost
 
 
 def record_model_routing(

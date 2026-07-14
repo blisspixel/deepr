@@ -3299,7 +3299,9 @@ def run_skill_cmd(name: str, skill_name: str, tool_name: str, tool_args: str):
         return
 
     async def do_run():
-        executor = SkillExecutor(skill_def, budget_remaining=10.0)
+        # Explicit operator skill-tool invocation: allow metered tools under
+        # durable fixed-cost admission. Live expert chat keeps allow=False.
+        executor = SkillExecutor(skill_def, budget_remaining=10.0, allow_metered_tools=True)
         try:
             result = await executor.execute_tool(tool_name, args)
             return result

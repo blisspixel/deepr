@@ -178,12 +178,13 @@ reliable product, not a four-language architecture diagram.
   - [x] After durable settle, chat/research paths mirror spend into
     ``CostSession`` only via ``mirror_chat_session_spend`` so the canonical
     ledger is not double-written (2026-07-13). Embedding durable paths drop
-    the second ``record_cost`` ledger append.
+    the second ``record_cost`` ledger append. Standard-research GPT fallback
+    also mirrors only (2026-07-14).
   - [x] Deep-research final usage reconciliation
     (``reconcile_deep_research_job``) retrieves terminal Responses jobs,
-    appends idempotent ``job:{id}:final_usage`` ledger observations, and
-    mirrors only positive estimate overruns into the chat session
-    (2026-07-13).
+    appends idempotent ``job:{id}:final_usage`` ledger observations whose
+    ``cost_usd`` is overrun-only (not full actual again), and mirrors only
+    positive estimate overruns into the chat session (2026-07-13/14).
   - [x] Explicit spend confirmation: even when the substrate flag is true,
     live metered dispatch still requires ``DEEPR_ALLOW_METERED_EXPERT_CHAT=1``
     and returns ``metered_expert_chat_confirmation_required`` otherwise

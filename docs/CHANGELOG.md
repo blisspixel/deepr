@@ -14,7 +14,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   budget is updated with ``mirror_chat_session_spend`` only. Deep-research
   jobs can be reconciled after completion via
   ``ExpertChatSession.reconcile_deep_research_job`` with an idempotent
-  ``job:{id}:final_usage`` observation and positive-delta session charge.
+  ``job:{id}:final_usage`` observation that records only unaccounted
+  overrun on the ledger (not full actual again) and mirrors positive
+  delta into the chat session.
+- Standard-research GPT fallback no longer calls ``record_cost`` after
+  durable backend settlement (session mirror only).
+- SkillExecutor defaults ``allow_metered_tools=False`` (fail closed). Paid
+  tools require explicit opt-in; skill manifests clamp timeout and budget
+  ceilings and map unknown ``cost_tier`` values to ``high`` rather than free.
 
 ### Changed
 

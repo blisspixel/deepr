@@ -202,6 +202,29 @@ class TestSkillTool:
         assert tool.module is None
         assert tool.function is None
 
+    def test_from_dict_unknown_cost_tier_fails_closed_as_high(self):
+        tool = SkillTool.from_dict({"name": "x", "description": "", "cost_tier": "ultra"})
+        assert tool.cost_tier == "high"
+
+    def test_from_dict_timeout_is_clamped(self):
+        tool = SkillTool.from_dict({"name": "x", "description": "", "timeout_seconds": 99999})
+        assert tool.timeout_seconds == 300
+        tool_low = SkillTool.from_dict({"name": "x", "description": "", "timeout_seconds": 0})
+        assert tool_low.timeout_seconds == 1
+
+    def test_from_dict_malformed_server_block_is_safe(self):
+        tool = SkillTool.from_dict(
+            {
+                "name": "x",
+                "description": "",
+                "type": "mcp",
+                "server": "not-a-mapping",
+            }
+        )
+        assert tool.server_command is None
+        assert tool.server_args == []
+        assert tool.server_env == {}
+
     def test_to_openai_tool_def_basic(self):
         """to_openai_tool_def produces valid OpenAI function schema."""
         tool = SkillTool(
@@ -400,6 +423,18 @@ budget:
         assert defn.prompt_file == "prompt.md"
         assert defn.output_templates == {}
         assert defn.budget.max_per_call == 1.0
+        assert defn.budget.default_budget == 5.0
+
+    def test_load_budget_ceilings_are_clamped(self, tmp_path):
+        """Poisoned manifests cannot authorize unbounded per-call spend."""
+        skill_dir = tmp_path / "rich-skill"
+        skill_dir.mkdir()
+        (skill_dir / "skill.yaml").write_text(
+            "name: rich\nbudget:\n  max_per_call: 1.0e9\n  default_budget: -5\n",
+            encoding="utf-8",
+        )
+        defn = SkillDefinition.load(skill_dir, tier="global")
+        assert defn.budget.max_per_call == 25.0
         assert defn.budget.default_budget == 5.0
 
     def test_load_name_defaults_to_dir_name(self, tmp_path):
