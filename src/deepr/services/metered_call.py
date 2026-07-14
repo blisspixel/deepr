@@ -446,6 +446,87 @@ async def execute_reserved_async_call(
     return response
 
 
+async def _reserve_and_mark_async(
+    *,
+    job_id: str,
+    provider: str,
+    model: str,
+    max_cost_per_job: float | None,
+) -> ResearchCostReservation:
+    try:
+        reservation = await _reserve_async(
+            job_id=job_id,
+            provider=provider,
+            model=model,
+            max_cost_per_job=max_cost_per_job,
+        )
+    except asyncio.CancelledError:
+        raise
+    except ValueError:
+        raise
+    except Exception as exc:
+        raise MeteredCallAccountingError("Metered call cost reservation failed") from exc
+    try:
+        await _mark_dispatch_async(reservation)
+    except asyncio.CancelledError:
+        raise
+    except BaseException as mark_error:
+        try:
+            await _refund_async(reservation)
+        except asyncio.CancelledError:
+            raise
+        except BaseException as refund_error:
+            raise _accounting_error("Metered call dispatch mark and refund failed", refund_error)
+        raise _accounting_error("Metered call dispatch mark failed", mark_error)
+    return reservation
+
+
+async def _settle_stream_usage_async(
+    reservation: ResearchCostReservation,
+    *,
+    model: str,
+    source: str,
+    final_usage: object | None,
+    on_settled: Callable[[float], None] | None,
+) -> None:
+    if final_usage is None:
+        await asyncio.to_thread(
+            _settle_conservative,
+            reservation,
+            source=source,
+            reason="stream_missing_usage",
+            on_settled=on_settled,
+        )
+        return
+    try:
+        actual_cost, output_tokens = _response_cost(SimpleNamespace(usage=final_usage), model)
+    except BaseException:
+        await asyncio.to_thread(
+            _settle_conservative,
+            reservation,
+            source=source,
+            reason="malformed_or_unpriceable_usage",
+            on_settled=on_settled,
+        )
+        return
+    if actual_cost is None and output_tokens <= 0:
+        await asyncio.to_thread(
+            _settle_conservative,
+            reservation,
+            source=source,
+            reason="stream_missing_usage",
+            on_settled=on_settled,
+        )
+        return
+    await _settle_response_async(
+        reservation,
+        actual_cost=actual_cost,
+        output_tokens=output_tokens,
+        source=source,
+        on_settled=on_settled,
+    )
+
+
 async def execute_reserved_async_stream(
     *,
     operation_prefix: str,
@@ -462,33 +543,12 @@ async def execute_reserved_async_stream(
     for settlement. If the stream ends without usable usage, the held ceiling is
     consumed conservatively after dispatch was marked.
     """
-    job_id = f"{operation_prefix}-{uuid.uuid4().hex}"
-    try:
-        reservation = await _reserve_async(
-            job_id=job_id,
-            provider=provider,
-            model=model,
-            max_cost_per_job=max_cost_per_job,
-        )
-    except asyncio.CancelledError:
-        raise
-    except ValueError:
-        raise
-    except Exception as exc:
-        raise MeteredCallAccountingError("Metered call cost reservation failed") from exc
-
-    try:
-        await _mark_dispatch_async(reservation)
-    except asyncio.CancelledError:
-        raise
-    except BaseException as mark_error:
-        try:
-            await _refund_async(reservation)
-        except asyncio.CancelledError:
-            raise
-        except BaseException as refund_error:
-            raise _accounting_error("Metered call dispatch mark and refund failed", refund_error)
-        raise _accounting_error("Metered call dispatch mark failed", mark_error)
+    reservation = await _reserve_and_mark_async(
+        job_id=f"{operation_prefix}-{uuid.uuid4().hex}",
+        provider=provider,
+        model=model,
+        max_cost_per_job=max_cost_per_job,
+    )
 
     final_usage: object | None = None
     try:
@@ -507,43 +567,11 @@ async def execute_reserved_async_stream(
             operation_error=operation_error,
         )
 
-    if final_usage is None:
-        await asyncio.to_thread(
-            _settle_conservative,
-            reservation,
-            source=source,
-            reason="stream_missing_usage",
-            on_settled=on_settled,
-        )
-        return
-
-    try:
-        actual_cost, output_tokens = _response_cost(SimpleNamespace(usage=final_usage), model)
-    except BaseException:
-        await asyncio.to_thread(
-            _settle_conservative,
-            reservation,
-            source=source,
-            reason="malformed_or_unpriceable_usage",
-            on_settled=on_settled,
-        )
-        return
-
-    if actual_cost is None and output_tokens <= 0:
-        await asyncio.to_thread(
-            _settle_conservative,
-            reservation,
-            source=source,
-            reason="stream_missing_usage",
-            on_settled=on_settled,
-        )
-        return
-
-    await _settle_response_async(
+    await _settle_stream_usage_async(
         reservation,
-        actual_cost=actual_cost,
-        output_tokens=output_tokens,
+        model=model,
         source=source,
+        final_usage=final_usage,
         on_settled=on_settled,
     )
 
