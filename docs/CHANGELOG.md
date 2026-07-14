@@ -23,8 +23,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   tools require explicit opt-in; skill manifests clamp timeout and budget
   ceilings and map unknown ``cost_tier`` values to ``high`` rather than free.
 - Soft cost preflights (citation validation, gap discovery, map-reduce,
-  multi-pass) now fail closed when cost admission cannot run, instead of
-  clearing the gate and dispatching paid work unbudgeted.
+  multi-pass, curriculum, knowledge synthesis, task planner) now fail
+  closed when cost admission cannot run, instead of clearing the gate and
+  dispatching paid work unbudgeted. Bandit S and C901 ratchets tightened.
 
 ### Changed
 
