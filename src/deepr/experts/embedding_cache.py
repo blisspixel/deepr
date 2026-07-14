@@ -7,11 +7,13 @@ The cache stores embeddings locally as numpy arrays, enabling fast cosine
 similarity search without re-embedding documents on every query.
 """
 
+import contextlib
 import hashlib
 import json
 import logging
 from datetime import UTC, datetime
 from pathlib import Path
+from typing import Any
 
 import numpy as np
 
@@ -115,6 +117,65 @@ class EmbeddingCache:
                 uncached.append(doc)
         return uncached
 
+    async def _embed_document(
+        self,
+        *,
+        content: str,
+        filename: str,
+        client: Any,
+        model: str,
+        cost_safety: Any,
+    ) -> tuple[Any, dict[str, Any]] | None:
+        """Embed one document under cost and durable admission gates."""
+        from deepr.experts.chat_metered import execute_metered_chat_provider_call
+
+        embed_content = content[:8000]
+        estimate = 0.0002
+        if cost_safety is not None:
+            try:
+                allowed, reason, _ = cost_safety.check_operation(
+                    session_id=f"embed:{self.expert_name}",
+                    operation_type="embed_document",
+                    estimated_cost=estimate,
+                    require_confirmation=False,
+                )
+                if not allowed:
+                    logger.warning("Embedding for %s blocked by cost-safety: %s", filename, reason)
+                    return None
+            except Exception:
+                estimate = 0.0
+        try:
+            response = await execute_metered_chat_provider_call(
+                provider="openai",
+                model=model,
+                source="experts.embedding_cache.add_documents",
+                max_cost_per_job=max(float(estimate), 0.0002),
+                call=lambda: client.embeddings.create(model=model, input=embed_content),
+            )
+            embedding = np.array(response.data[0].embedding)
+            if cost_safety is not None:
+                with contextlib.suppress(Exception):
+                    cost_safety.record_cost(
+                        session_id=f"embed:{self.expert_name}",
+                        operation_type="embed_document",
+                        actual_cost=float(estimate),
+                        provider="openai",
+                        model=model,
+                        source="experts.embedding_cache.add_documents",
+                    )
+            content_hash = self._content_hash(content)
+            return embedding, {
+                "hash": content_hash,
+                "filename": filename,
+                "content_preview": content[:500],
+                "full_content": content[:2000],
+                "char_count": len(content),
+                "embedded_at": datetime.now(UTC).isoformat(),
+            }
+        except Exception as error:
+            logger.error("Error embedding %s: %s", filename, error)
+            return None
+
     async def add_documents(
         self, documents: list[dict[str, str]], client, model: str = "text-embedding-3-small"
     ) -> int:
@@ -128,115 +189,50 @@ class EmbeddingCache:
         Returns:
             Number of new documents added
         """
-        # Filter to uncached documents
         uncached = self.get_uncached_documents(documents)
-
         if not uncached:
             return 0
 
-        # Cost-safety gate. Embedding a corpus is cheap-per-doc but can
-        # add up over thousands of files; the rate limit also exposes a
-        # real-money path through misconfigured loops. Gate per-document.
         try:
             from deepr.experts.cost_safety import get_cost_safety_manager
 
-            _cost_safety = get_cost_safety_manager()
+            cost_safety = get_cost_safety_manager()
         except Exception:
-            _cost_safety = None  # type: ignore[assignment]
+            cost_safety = None
 
-        # Batch embed new documents (more efficient than one-by-one)
         new_embeddings = []
         new_metadata = []
-
         for doc in uncached:
             content = doc.get("content", "")
             filename = doc.get("filename", "unknown")
-
-            # Truncate content for embedding (model limit)
-            embed_content = content[:8000]
-
-            if _cost_safety is not None:
-                try:
-                    _est = 0.0002  # text-embedding-3-small ~$0.02/M tokens
-                    _allowed, _reason, _ = _cost_safety.check_operation(
-                        session_id=f"embed:{self.expert_name}",
-                        operation_type="embed_document",
-                        estimated_cost=_est,
-                        require_confirmation=False,
-                    )
-                    if not _allowed:
-                        logger.warning("Embedding for %s blocked by cost-safety: %s", filename, _reason)
-                        continue
-                except Exception:
-                    _est = 0.0
-            else:
-                _est = 0.0
-
-            try:
-                from deepr.experts.chat_metered import execute_metered_chat_provider_call
-
-                response = await execute_metered_chat_provider_call(
-                    provider="openai",
-                    model=model,
-                    source="experts.embedding_cache.add_documents",
-                    max_cost_per_job=max(float(_est), 0.0002),
-                    call=lambda content=embed_content: client.embeddings.create(
-                        model=model,
-                        input=content,
-                    ),
-                )
-                embedding = np.array(response.data[0].embedding)
-                if _cost_safety is not None:
-                    try:
-                        _cost_safety.record_cost(
-                            session_id=f"embed:{self.expert_name}",
-                            operation_type="embed_document",
-                            actual_cost=float(_est),
-                            provider="openai",
-                            model=model,
-                            source="experts.embedding_cache.add_documents",
-                        )
-                    except Exception:
-                        pass  # cost recording must never break embedding cache add_documents operation
-
-                content_hash = self._content_hash(content)
-
-                new_embeddings.append(embedding)
-                new_metadata.append(
-                    {
-                        "hash": content_hash,
-                        "filename": filename,
-                        "content_preview": content[:500],  # Store preview for results
-                        "full_content": content[:2000],  # Store more for search results
-                        "char_count": len(content),
-                        "embedded_at": datetime.now(UTC).isoformat(),
-                    }
-                )
-
-            except Exception as e:
-                logger.error("Error embedding %s: %s", filename, e)
+            embedded = await self._embed_document(
+                content=content,
+                filename=filename,
+                client=client,
+                model=model,
+                cost_safety=cost_safety,
+            )
+            if embedded is None:
                 continue
+            embedding, metadata = embedded
+            new_embeddings.append(embedding)
+            new_metadata.append(metadata)
 
         if not new_embeddings:
             return 0
 
-        # Add to cache
         new_embeddings_array = np.array(new_embeddings)
-
         if self.embeddings is None:
             self.embeddings = new_embeddings_array
         else:
             self.embeddings = np.vstack([self.embeddings, new_embeddings_array])
 
-        # Update index
         for meta in new_metadata:
             content_hash = meta["hash"]
             self.index[content_hash] = meta
             self.hash_to_idx[content_hash] = len(self.hash_to_idx)
 
-        # Save to disk
         self._save_cache()
-
         return len(new_embeddings)
 
     async def search(self, query: str, client, top_k: int = 5, model: str = "text-embedding-3-small") -> list[dict]:

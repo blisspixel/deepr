@@ -230,14 +230,18 @@ class TestRunCli:
 
     async def test_overflow_kills_descendant_after_direct_child_exits(self, monkeypatch):
         monkeypatch.setattr(plan_quota_cli_runner, "MAX_CAPTURE_BYTES", 1024)
+        # Keep the direct child alive until the descendant overflows so the
+        # parent pipe still has a writer when the byte ceiling is crossed.
         descendant_code = (
-            "import sys,time; time.sleep(1.0); sys.stdout.buffer.write(b'x' * 2048); sys.stdout.flush(); time.sleep(30)"
+            "import sys,time; time.sleep(0.2); sys.stdout.buffer.write(b'x' * 2048); "
+            "sys.stdout.flush(); time.sleep(30)"
         )
         direct_child_code = (
             "import subprocess,sys; "
             f"p=subprocess.Popen([{sys.executable!r}, '-c', {descendant_code!r}], "
             "stdout=sys.stdout, stderr=sys.stderr); "
-            "sys.stderr.write(f'CHILD_PID={p.pid}\\n'); sys.stderr.flush()"
+            "sys.stderr.write(f'CHILD_PID={p.pid}\\n'); sys.stderr.flush(); "
+            "p.wait()"
         )
         descendant_pid: int | None = None
 
@@ -250,7 +254,8 @@ class TestRunCli:
             assert match is not None
             descendant_pid = int(match.group(1))
             assert result.output_limit_exceeded
-            assert result.returncode == 0
+            # The direct child may exit 0 before kill, or non-zero when the
+            # tree kill lands first; only the overflow outcome is required.
             for _ in range(100):
                 if not _process_exists(descendant_pid):
                     break
@@ -743,9 +748,15 @@ class TestRunCli:
             return plan_quota_cli_runner.CliResult(0, "answer", "", False, "", 1)
 
         async def delayed_release(active_process):
+            # Platform-agnostic release: do not call the real Windows Job API so
+            # Linux CI exercises the same cancellation ordering contract.
             release_started.set()
             await allow_release.wait()
-            return plan_quota_cli_runner._terminate_windows_job(active_process)
+            job = getattr(active_process, "_deepr_windows_kill_job", None)
+            if job is not None:
+                job.close()
+                active_process._deepr_windows_kill_job = None
+            return None
 
         monkeypatch.setattr(plan_quota_cli_runner, "_collect_started_process", collect_result)
         monkeypatch.setattr(plan_quota_cli_runner, "_kill_process_tree", delayed_release)
@@ -1007,6 +1018,7 @@ class TestRunCli:
         finish_launch.set()
         await asyncio.wait_for(cleanup_finished.wait(), timeout=0.2)
 
+    @pytest.mark.skipif(os.name != "nt", reason="Windows Job Object cleanup path")
     async def test_finished_windows_job_close_failure_avoids_pid_reuse_fallback(self, monkeypatch):
         class FailingJob:
             def terminate(self):
@@ -1050,6 +1062,7 @@ class TestRunCli:
         assert calls == []
         assert process._deepr_windows_kill_job is not None
 
+    @pytest.mark.skipif(os.name != "nt", reason="Windows Job Object cleanup path")
     async def test_successful_windows_job_cleanup_with_stale_returncode_avoids_taskkill(self, monkeypatch):
         class SuccessfulJob:
             def terminate(self):
@@ -1092,6 +1105,7 @@ class TestRunCli:
         assert process.kill_calls == 1
         assert process._deepr_windows_kill_job is None
 
+    @pytest.mark.skipif(os.name != "nt", reason="Windows Job Object cleanup path")
     async def test_reentrant_windows_cleanup_never_falls_back_to_owned_pid(self, monkeypatch):
         class SuccessfulJob:
             def terminate(self):
