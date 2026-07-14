@@ -885,6 +885,7 @@ Budget remaining: ${budget_remaining:.2f}
         from deepr.experts.chat_research_ops import run_deep_research
 
         return await run_deep_research(self, query)
+
     async def _add_research_to_knowledge_base(self, query: str, answer: str, mode: str) -> bool:
         """Add research findings to the expert's knowledge base.
 
