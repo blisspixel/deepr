@@ -181,9 +181,14 @@ reliable product, not a four-language architecture diagram.
     (``reconcile_deep_research_job``) retrieves terminal Responses jobs,
     appends idempotent ``job:{id}:final_usage`` ledger observations, and
     mirrors only positive estimate overruns into the chat session
+    (2026-07-13).
+  - [x] Explicit spend confirmation: even when the substrate flag is true,
+    live metered dispatch still requires ``DEEPR_ALLOW_METERED_EXPERT_CHAT=1``
+    and returns ``metered_expert_chat_confirmation_required`` otherwise
     (2026-07-13). Skill tools remain ``allow_metered_tools=False``. Gate
-    remains off. Remaining: skill-tool metering if/when allowlisted, and
-    explicit re-enable with spend confirmation.
+    remains off. Remaining: skill-tool metering if/when allowlisted, and a
+    deliberate flip of ``METERED_EXPERT_CHAT_EXECUTION_ENABLED`` only after
+    a final re-enable review.
 - [ ] **P1: migrate every gated metered expert lifecycle surface to one shared
   durable per-call and run-budget transaction.** This includes nonlocal
   `expert make` and `--learn`, API curriculum `expert plan`, provider-backed

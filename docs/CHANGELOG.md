@@ -16,6 +16,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   ``ExpertChatSession.reconcile_deep_research_job`` with an idempotent
   ``job:{id}:final_usage`` observation and positive-delta session charge.
 
+### Changed
+
+- Live metered expert chat now requires two independent operator signals:
+  the release substrate flag and ``DEEPR_ALLOW_METERED_EXPERT_CHAT=1``.
+  Missing confirmation returns
+  ``metered_expert_chat_confirmation_required`` before provider work.
+  The substrate flag remains false in this release.
+
 ## [2.36.1] - 2026-07-13
 
 ### Changed
