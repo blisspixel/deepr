@@ -844,6 +844,7 @@ Budget remaining: ${budget_remaining:.2f}
                         {"role": "user", "content": query},
                     ],
                     reasoning_effort=self._provider_reasoning_effort_or_none("low"),
+                    extra={"max_cost_per_job": estimated_cost},
                 )
             )
 
@@ -1052,7 +1053,9 @@ Budget remaining: ${budget_remaining:.2f}
             }
 
         try:
-            # Submit deep research job (async, will complete later)
+            # Deep-research job submission stays on the Responses API path.
+            # Durable per-call admission for job submit + final usage settlement
+            # is a remaining P1 slice (distinct from chat-completion turns).
             response = await self.client.responses.create(
                 model="o4-mini-deep-research", messages=[{"role": "user", "content": query}]
             )
