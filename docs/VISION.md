@@ -6,7 +6,7 @@
 
 Transform research from isolated queries into cumulative understanding. Build systems that learn and improve over time.
 
-## Current State (v2.36.1)
+## Current State (v2.36.2)
 
 What works today:
 - Bounded single-job provider research where exact pricing and finite request,

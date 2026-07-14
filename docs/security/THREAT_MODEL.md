@@ -1,6 +1,6 @@
 # Deepr Threat Model
 
-Status: current with Deepr v2.36.1. Last reviewed: 2026-07-13.
+Status: current with Deepr v2.36.2. Last reviewed: 2026-07-14.
 
 This document is the repository-scoped threat model for Deepr. It is intended
 for security reviews, design reviews, and future bug discovery. It should stay
