@@ -13,7 +13,7 @@ from typing import Any
 from deepr.experts.chat_backends import ExpertChatRequest
 from deepr.experts.chat_capacity import require_expert_chat_dispatch
 from deepr.experts.chat_metered import execute_metered_chat_provider_call, mirror_chat_session_spend
-from deepr.experts.chat_turns import chat_token_cost, record_named_chat_cost
+from deepr.experts.chat_turns import chat_token_cost
 from deepr.experts.profile import ExpertStore
 from deepr.observability.cost_ledger import CostLedger
 
@@ -146,18 +146,20 @@ async def run_standard_research(session: Any, query: str) -> dict[str, Any]:
 
             answer = f"{result.text}\n\n[Note: Grok web search unavailable, using GPT-5.5 knowledge instead]"
 
-            cost = record_named_chat_cost(
-                cost_safety=session.cost_safety,
-                session_id=session.session_id,
-                usage=result.usage,
-                model_name=model_name,
+            # Backend complete already settled the canonical ledger under durable
+            # admission. Mirror into the chat session only - never record_cost again.
+            try:
+                cost = float(chat_token_cost(result.usage, model_name)) if result.usage else 0.01
+            except Exception:
+                cost = 0.01
+            if not math.isfinite(cost) or cost < 0:
+                cost = 0.01
+            mirror_chat_session_spend(
+                session,
                 operation_type="standard_research_fallback",
-                fallback_cost=0.01,
-                cost_calculator=chat_token_cost,
-                provider=session.chat_provider,
+                actual_cost=cost,
                 details=f"Fallback for: {query[:50]}...",
             )
-            session.cost_accumulated += cost
 
             return {
                 "answer": answer,
@@ -315,12 +317,15 @@ async def reconcile_deep_research_job(session: Any, job_id: str) -> dict[str, An
     model = "o4-mini-deep-research"
     estimated = float(pending.get("estimated_cost") or 0.0)
     actual, tokens_in, tokens_out = _usage_cost_from_response(response, model, estimated)
+    # Submission already settled the registry estimate on the ledger. This
+    # observation may only append unaccounted overrun (delta), never the full
+    # actual again, or ledger totals double-count deep research spend.
     delta = max(0.0, actual - estimated)
     ledger = CostLedger()
     event, written = ledger.record_event(
         operation="deep_research_final_usage",
         provider="openai",
-        cost_usd=actual,
+        cost_usd=delta,
         model=model,
         tokens_input=tokens_in,
         tokens_output=tokens_out,
@@ -334,6 +339,7 @@ async def reconcile_deep_research_job(session: Any, job_id: str) -> dict[str, An
             "delta_usd": f"{(actual - estimated):.6f}",
             "provider_status": provider_status or "unknown",
             "charged_session_delta_usd": f"{delta:.6f}",
+            "ledger_cost_is_overrun_only": "true",
         },
         require_fsync=True,
     )

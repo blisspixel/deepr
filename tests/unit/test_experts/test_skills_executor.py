@@ -215,7 +215,7 @@ class TestSkillExecutorExecuteTool:
     async def test_unknown_tool_returns_error(self, tmp_path):
         """Requesting a tool not in the skill returns an error dict."""
         skill = _make_skill(tmp_path, tools=[_make_python_tool()])
-        executor = SkillExecutor(skill, budget_remaining=10.0)
+        executor = SkillExecutor(skill, budget_remaining=10.0, allow_metered_tools=True)
 
         result = await executor.execute_tool("nonexistent", {})
 
@@ -227,7 +227,7 @@ class TestSkillExecutorExecuteTool:
         """A tool whose estimated cost exceeds remaining budget is rejected."""
         tool = _make_mcp_tool(name="expensive", cost_tier="high")
         skill = _make_skill(tmp_path, tools=[tool])
-        executor = SkillExecutor(skill, budget_remaining=0.10)
+        executor = SkillExecutor(skill, budget_remaining=0.10, allow_metered_tools=True)
 
         result = await executor.execute_tool("expensive", {})
 
@@ -249,7 +249,7 @@ class TestSkillExecutorExecuteTool:
             tier="built-in",
             tools=[tool],
         )
-        executor = SkillExecutor(skill, budget_remaining=0.0)
+        executor = SkillExecutor(skill, budget_remaining=0.0, allow_metered_tools=True)
 
         result = await executor.execute_tool("add", {"a": 1, "b": 2})
 
@@ -265,7 +265,7 @@ class TestSkillExecutorExecuteTool:
             description="Unknown type tool",
         )
         skill = _make_skill(tmp_path, tools=[tool])
-        executor = SkillExecutor(skill, budget_remaining=10.0)
+        executor = SkillExecutor(skill, budget_remaining=10.0, allow_metered_tools=True)
 
         result = await executor.execute_tool("weird", {})
 
@@ -285,7 +285,7 @@ class TestSkillExecutorExecuteTool:
             tier="built-in",
             tools=[tool],
         )
-        executor = SkillExecutor(skill, budget_remaining=10.0)
+        executor = SkillExecutor(skill, budget_remaining=10.0, allow_metered_tools=True)
 
         result = await executor.execute_tool("add", {"a": 5, "b": 3})
 
@@ -296,7 +296,7 @@ class TestSkillExecutorExecuteTool:
         """MCP tool type routes to _execute_mcp (mocked proxy)."""
         tool = _make_mcp_tool(name="search", cost_tier="low")
         skill = _make_skill(tmp_path, tools=[tool])
-        executor = SkillExecutor(skill, budget_remaining=10.0)
+        executor = SkillExecutor(skill, budget_remaining=10.0, allow_metered_tools=True)
 
         with patch.object(MCPClientProxy, "call_tool", new_callable=AsyncMock) as mock_call:
             mock_call.return_value = {"result": "found it"}
@@ -362,6 +362,29 @@ class TestSkillExecutorExecuteTool:
         assert result["cost"] == 0.0
         mock_call.assert_not_called()
 
+    @pytest.mark.asyncio
+    async def test_default_disallows_metered_tools(self, tmp_path):
+        """SkillExecutor fails closed unless allow_metered_tools is explicit."""
+        tool = _make_mcp_tool(name="search", cost_tier="low")
+        skill = _make_skill(tmp_path, tools=[tool])
+        executor = SkillExecutor(skill, budget_remaining=10.0)
+
+        result = await executor.execute_tool("search", {})
+
+        assert result["error"] == "METERED_SKILL_TOOL_DISABLED"
+        assert result["cost"] == 0.0
+
+    @pytest.mark.asyncio
+    async def test_unknown_cost_tier_is_not_free(self, tmp_path):
+        """Hand-built tools with unknown tiers require metered admission as high."""
+        tool = _make_mcp_tool(name="search", cost_tier="not-a-tier")
+        skill = _make_skill(tmp_path, tools=[tool])
+        executor = SkillExecutor(skill, budget_remaining=10.0, allow_metered_tools=False)
+
+        result = await executor.execute_tool("search", {})
+
+        assert result["error"] == "METERED_SKILL_TOOL_DISABLED"
+
 
 # ---------------------------------------------------------------------------
 # SkillExecutor._execute_python - real module execution
@@ -384,7 +407,7 @@ class TestSkillExecutorPython:
             tier="built-in",
             tools=[tool],
         )
-        executor = SkillExecutor(skill, budget_remaining=10.0)
+        executor = SkillExecutor(skill, budget_remaining=10.0, allow_metered_tools=True)
 
         result = await executor.execute_tool("add", {"a": 10, "b": 20})
 
@@ -404,7 +427,7 @@ class TestSkillExecutorPython:
             tier="built-in",
             tools=[tool],
         )
-        executor = SkillExecutor(skill, budget_remaining=10.0)
+        executor = SkillExecutor(skill, budget_remaining=10.0, allow_metered_tools=True)
 
         result = await executor.execute_tool("async_add", {"a": 7, "b": 3})
 
@@ -424,7 +447,7 @@ class TestSkillExecutorPython:
             tier="built-in",
             tools=[tool],
         )
-        executor = SkillExecutor(skill, budget_remaining=10.0)
+        executor = SkillExecutor(skill, budget_remaining=10.0, allow_metered_tools=True)
 
         result = await executor.execute_tool("broken", {})
 
@@ -442,7 +465,7 @@ class TestSkillExecutorPython:
             function="add",
         )
         skill = _make_skill(tmp_path, tools=[tool])
-        executor = SkillExecutor(skill, budget_remaining=10.0)
+        executor = SkillExecutor(skill, budget_remaining=10.0, allow_metered_tools=True)
 
         result = await executor.execute_tool("nomod", {})
 
@@ -460,7 +483,7 @@ class TestSkillExecutorPython:
             function=None,
         )
         skill = _make_skill(tmp_path, tools=[tool])
-        executor = SkillExecutor(skill, budget_remaining=10.0)
+        executor = SkillExecutor(skill, budget_remaining=10.0, allow_metered_tools=True)
 
         result = await executor.execute_tool("nofunc", {})
 
@@ -480,7 +503,7 @@ class TestSkillExecutorPython:
             tier="built-in",
             tools=[tool],
         )
-        executor = SkillExecutor(skill, budget_remaining=10.0)
+        executor = SkillExecutor(skill, budget_remaining=10.0, allow_metered_tools=True)
 
         result = await executor.execute_tool("add", {})
 
@@ -510,7 +533,7 @@ class TestSkillExecutorPython:
             tools=[tool],
         )
         before = list(sys.path)
-        executor = SkillExecutor(skill, budget_remaining=10.0)
+        executor = SkillExecutor(skill, budget_remaining=10.0, allow_metered_tools=True)
 
         await executor.execute_tool("add", {"a": 1, "b": 1})
 
@@ -535,7 +558,7 @@ class TestSkillExecutorMCP:
             server_command=None,
         )
         skill = _make_skill(tmp_path, tools=[tool])
-        executor = SkillExecutor(skill, budget_remaining=10.0)
+        executor = SkillExecutor(skill, budget_remaining=10.0, allow_metered_tools=True)
 
         result = await executor.execute_tool("noserver", {})
 
@@ -547,7 +570,7 @@ class TestSkillExecutorMCP:
         """MCP execution creates a proxy and calls call_tool on it."""
         tool = _make_mcp_tool(name="search", cost_tier="medium")
         skill = _make_skill(tmp_path, tools=[tool])
-        executor = SkillExecutor(skill, budget_remaining=10.0)
+        executor = SkillExecutor(skill, budget_remaining=10.0, allow_metered_tools=True)
 
         with patch.object(MCPClientProxy, "call_tool", new_callable=AsyncMock) as mock_call:
             mock_call.return_value = {"result": "data"}
@@ -563,7 +586,7 @@ class TestSkillExecutorMCP:
         """Multiple calls to the same MCP server reuse the proxy instance."""
         tool = _make_mcp_tool(name="search", cost_tier="low")
         skill = _make_skill(tmp_path, tools=[tool])
-        executor = SkillExecutor(skill, budget_remaining=10.0)
+        executor = SkillExecutor(skill, budget_remaining=10.0, allow_metered_tools=True)
 
         with patch.object(MCPClientProxy, "call_tool", new_callable=AsyncMock) as mock_call:
             mock_call.return_value = {"result": "r1"}
@@ -581,7 +604,7 @@ class TestSkillExecutorMCP:
         """When remote_tool_name is set, it is used instead of the local name."""
         tool = _make_mcp_tool(name="local_search", remote_tool_name="remote_search", cost_tier="low")
         skill = _make_skill(tmp_path, tools=[tool])
-        executor = SkillExecutor(skill, budget_remaining=10.0)
+        executor = SkillExecutor(skill, budget_remaining=10.0, allow_metered_tools=True)
 
         with patch.object(MCPClientProxy, "call_tool", new_callable=AsyncMock) as mock_call:
             mock_call.return_value = {"result": "ok"}
@@ -595,7 +618,7 @@ class TestSkillExecutorMCP:
         """When remote_tool_name is None, the local tool name is used."""
         tool = _make_mcp_tool(name="search", remote_tool_name=None, cost_tier="low")
         skill = _make_skill(tmp_path, tools=[tool])
-        executor = SkillExecutor(skill, budget_remaining=10.0)
+        executor = SkillExecutor(skill, budget_remaining=10.0, allow_metered_tools=True)
 
         with patch.object(MCPClientProxy, "call_tool", new_callable=AsyncMock) as mock_call:
             mock_call.return_value = {"result": "ok"}
@@ -617,7 +640,7 @@ class TestSkillExecutorBudget:
         """Budget is reduced by the cost returned from tool execution."""
         tool = _make_mcp_tool(name="search", cost_tier="medium")
         skill = _make_skill(tmp_path, tools=[tool])
-        executor = SkillExecutor(skill, budget_remaining=1.0)
+        executor = SkillExecutor(skill, budget_remaining=1.0, allow_metered_tools=True)
 
         with patch.object(MCPClientProxy, "call_tool", new_callable=AsyncMock) as mock_call:
             mock_call.return_value = {"result": "ok"}
@@ -631,7 +654,7 @@ class TestSkillExecutorBudget:
         """Budget accumulates deductions across multiple tool calls."""
         tool = _make_mcp_tool(name="search", cost_tier="low")
         skill = _make_skill(tmp_path, tools=[tool])
-        executor = SkillExecutor(skill, budget_remaining=0.05)
+        executor = SkillExecutor(skill, budget_remaining=0.05, allow_metered_tools=True)
 
         with patch.object(MCPClientProxy, "call_tool", new_callable=AsyncMock) as mock_call:
             mock_call.return_value = {"result": "r1"}
@@ -654,7 +677,7 @@ class TestSkillExecutorBudget:
         """Budget exceeded errors do not deduct cost."""
         tool = _make_mcp_tool(name="costly", cost_tier="high")
         skill = _make_skill(tmp_path, tools=[tool])
-        executor = SkillExecutor(skill, budget_remaining=0.10)
+        executor = SkillExecutor(skill, budget_remaining=0.10, allow_metered_tools=True)
 
         result = await executor.execute_tool("costly", {})
 
@@ -674,7 +697,7 @@ class TestSkillExecutorBudget:
             tier="built-in",
             tools=[tool],
         )
-        executor = SkillExecutor(skill, budget_remaining=5.0)
+        executor = SkillExecutor(skill, budget_remaining=5.0, allow_metered_tools=True)
 
         await executor.execute_tool("add", {"a": 1, "b": 2})
 
@@ -685,7 +708,7 @@ class TestSkillExecutorBudget:
         """Repeated tool calls eventually exhaust the budget."""
         tool = _make_mcp_tool(name="search", cost_tier="low")  # $0.01 each
         skill = _make_skill(tmp_path, tools=[tool])
-        executor = SkillExecutor(skill, budget_remaining=0.025)
+        executor = SkillExecutor(skill, budget_remaining=0.025, allow_metered_tools=True)
 
         results = []
         with patch.object(MCPClientProxy, "call_tool", new_callable=AsyncMock) as mock_call:
@@ -714,7 +737,7 @@ class TestSkillExecutorCleanup:
         """cleanup() calls close() on every MCP proxy and clears the dict."""
         tool = _make_mcp_tool(name="search", cost_tier="low")
         skill = _make_skill(tmp_path, tools=[tool])
-        executor = SkillExecutor(skill, budget_remaining=10.0)
+        executor = SkillExecutor(skill, budget_remaining=10.0, allow_metered_tools=True)
 
         with patch.object(MCPClientProxy, "call_tool", new_callable=AsyncMock) as mock_call:
             mock_call.return_value = {"result": "ok"}
@@ -732,7 +755,7 @@ class TestSkillExecutorCleanup:
     async def test_cleanup_with_no_proxies(self, tmp_path):
         """cleanup() is safe when no proxies exist."""
         skill = _make_skill(tmp_path, tools=[])
-        executor = SkillExecutor(skill, budget_remaining=10.0)
+        executor = SkillExecutor(skill, budget_remaining=10.0, allow_metered_tools=True)
 
         await executor.cleanup()  # should not raise
 
@@ -744,7 +767,7 @@ class TestSkillExecutorCleanup:
         tool_a = _make_mcp_tool(name="tool_a", server_command="node", server_args=["a.js"], cost_tier="low")
         tool_b = _make_mcp_tool(name="tool_b", server_command="python", server_args=["b.py"], cost_tier="low")
         skill = _make_skill(tmp_path, tools=[tool_a, tool_b])
-        executor = SkillExecutor(skill, budget_remaining=10.0)
+        executor = SkillExecutor(skill, budget_remaining=10.0, allow_metered_tools=True)
 
         with patch.object(MCPClientProxy, "call_tool", new_callable=AsyncMock) as mock_call:
             mock_call.return_value = {"result": "ok"}
@@ -833,7 +856,7 @@ class TestSkillExecutorBudgetArgClamp:
     async def test_oversized_budget_clamped_to_max_per_call(self, tmp_path):
         tool = _make_budgeted_mcp_tool()
         skill = _make_skill_with_budget(tmp_path, [tool], max_per_call=2.0)
-        executor = SkillExecutor(skill, budget_remaining=100.0)
+        executor = SkillExecutor(skill, budget_remaining=100.0, allow_metered_tools=True)
 
         with patch.object(MCPClientProxy, "call_tool", new_callable=AsyncMock) as mock_call:
             mock_call.return_value = {"result": "ok"}
@@ -846,7 +869,7 @@ class TestSkillExecutorBudgetArgClamp:
     async def test_missing_budget_is_injected_at_cap(self, tmp_path):
         tool = _make_budgeted_mcp_tool()
         skill = _make_skill_with_budget(tmp_path, [tool], max_per_call=2.0)
-        executor = SkillExecutor(skill, budget_remaining=100.0)
+        executor = SkillExecutor(skill, budget_remaining=100.0, allow_metered_tools=True)
 
         with patch.object(MCPClientProxy, "call_tool", new_callable=AsyncMock) as mock_call:
             mock_call.return_value = {"result": "ok"}
@@ -859,7 +882,7 @@ class TestSkillExecutorBudgetArgClamp:
     async def test_budget_clamped_to_remaining_when_below_cap(self, tmp_path):
         tool = _make_budgeted_mcp_tool()
         skill = _make_skill_with_budget(tmp_path, [tool], max_per_call=5.0)
-        executor = SkillExecutor(skill, budget_remaining=0.75)
+        executor = SkillExecutor(skill, budget_remaining=0.75, allow_metered_tools=True)
 
         with patch.object(MCPClientProxy, "call_tool", new_callable=AsyncMock) as mock_call:
             mock_call.return_value = {"result": "ok"}
@@ -872,7 +895,7 @@ class TestSkillExecutorBudgetArgClamp:
     async def test_smaller_caller_budget_is_respected(self, tmp_path):
         tool = _make_budgeted_mcp_tool()
         skill = _make_skill_with_budget(tmp_path, [tool], max_per_call=5.0)
-        executor = SkillExecutor(skill, budget_remaining=100.0)
+        executor = SkillExecutor(skill, budget_remaining=100.0, allow_metered_tools=True)
 
         with patch.object(MCPClientProxy, "call_tool", new_callable=AsyncMock) as mock_call:
             mock_call.return_value = {"result": "ok"}

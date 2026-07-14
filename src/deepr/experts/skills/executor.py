@@ -285,8 +285,11 @@ class SkillExecutor:
         skill: SkillDefinition,
         budget_remaining: float,
         *,
-        allow_metered_tools: bool = True,
+        allow_metered_tools: bool = False,
     ):
+        # Fail closed: paid tools require an explicit opt-in. Live expert chat
+        # always passes False; deliberate CLI/operator runs may pass True and
+        # then hit durable reserve/mark/settle.
         self._skill = skill
         self._budget_remaining = budget_remaining
         self._allow_metered_tools = allow_metered_tools
@@ -310,7 +313,11 @@ class SkillExecutor:
 
         # Budget check inside the lock so a parallel caller cannot
         # observe the same ``_budget_remaining`` snapshot.
-        estimated_cost = _COST_TIER_ESTIMATES.get(tool.cost_tier, 0.0)
+        # Unknown tiers fail closed as high rather than free (definition also
+        # normalizes on load; this covers hand-built SkillTool instances).
+        estimated_cost = _COST_TIER_ESTIMATES.get(tool.cost_tier)
+        if estimated_cost is None:
+            estimated_cost = 0.0 if tool.cost_tier in {"", "free", None} else _COST_TIER_ESTIMATES["high"]
         if estimated_cost > 0 and not self._allow_metered_tools:
             return {
                 "error": "METERED_SKILL_TOOL_DISABLED",
@@ -376,13 +383,11 @@ class SkillExecutor:
             return {"error": f"Unknown tool type: {tool.type}", "cost": 0.0}
 
         def _cost_from_result(result: dict[str, Any]) -> float:
+            # Soft failures settle $0. Successful paid tools settle the reserved
+            # tier estimate so a result payload cannot under-report spend.
             if "error" in result:
                 return 0.0
-            raw = result.get("cost", estimated_cost)
-            try:
-                return float(raw)
-            except (TypeError, ValueError):
-                return estimated_cost
+            return float(estimated_cost)
 
         try:
             return await execute_reserved_fixed_cost_async_call(
