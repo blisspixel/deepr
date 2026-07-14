@@ -178,6 +178,44 @@ async def test_standard_research_does_not_reach_owned_fallback_after_metered_gat
     assert backend.requests == []
 
 
+async def test_standard_research_uses_durable_admission_when_enabled(monkeypatch):
+    from deepr.experts import chat as chat_module
+    from deepr.experts import chat_capacity
+    from deepr.experts.research_reservation_store import ResearchReservationStore
+
+    monkeypatch.setattr(chat_capacity, "METERED_EXPERT_CHAT_EXECUTION_ENABLED", True)
+    session = _session(monkeypatch, 1.0)
+    session.chat_backend = SimpleNamespace(metered=True, provider="openai")
+    monkeypatch.setenv("XAI_API_KEY", "xai-test")
+
+    class FakeChat:
+        def append(self, _message):
+            return None
+
+        def sample(self):
+            return SimpleNamespace(content="live answer", citations=["https://example.test"])
+
+    class FakeClient:
+        def __init__(self, **_kwargs):
+            self.chat = SimpleNamespace(create=lambda **_kw: FakeChat())
+
+    fake_xai = SimpleNamespace(
+        Client=FakeClient,
+        chat=SimpleNamespace(system=lambda text: text, user=lambda text: text),
+        tools=SimpleNamespace(web_search=lambda: "web", x_search=lambda: "x"),
+    )
+    monkeypatch.setitem(__import__("sys").modules, "xai_sdk", fake_xai)
+    monkeypatch.setitem(__import__("sys").modules, "xai_sdk.chat", fake_xai.chat)
+    monkeypatch.setitem(__import__("sys").modules, "xai_sdk.tools", fake_xai.tools)
+
+    result = await session._standard_research("latest ai infrastructure funding")
+
+    assert result["answer"].startswith("live answer")
+    assert result["mode"] == "standard_research_grok_agentic"
+    assert ResearchReservationStore().active_cost() == 0
+    assert session.cost_accumulated > 0
+
+
 async def test_deep_research_fails_closed_before_provider_dispatch(monkeypatch):
     session = _session(monkeypatch, 0.0)
 

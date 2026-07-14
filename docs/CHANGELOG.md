@@ -39,13 +39,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   through shared durable reserve, dispatch-mark, and settlement wrappers when
   execution is enabled (`execute_reserved_async_call` /
   `execute_reserved_async_stream`). Streams settle final provider usage or
-  consume the held ceiling conservatively when usage is missing.
-  Accounting-only request fields such as `max_cost_per_job` are stripped before
-  provider params. Production remains fail-closed via
-  `METERED_EXPERT_CHAT_EXECUTION_ENABLED = False` until tool-loop, auxiliary,
-  and session-hold contracts clear. Startup banner unit tests isolate
-  dumb-terminal and `NO_COLOR` host environments so CI and agent shells do not
-  false-fail the suite.
+  consume the held ceiling conservatively when usage is missing. Quick lookup,
+  follow-up, and compact paths pass explicit per-call ceilings. Grok
+  standard-research samples use the same durable admission with the registry
+  estimate as the hold when the SDK omits usage. Accounting-only request fields
+  such as `max_cost_per_job` are stripped before provider params. Production
+  remains fail-closed via `METERED_EXPERT_CHAT_EXECUTION_ENABLED = False` until
+  deep-research job accounting, embeddings, skill tools, and session-hold
+  contracts clear. Startup banner unit tests isolate dumb-terminal and
+  `NO_COLOR` host environments so CI and agent shells do not false-fail the
+  suite.
 
 ## [2.36.0] - 2026-07-12
 
