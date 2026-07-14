@@ -254,9 +254,7 @@ class TestEmbeddingCacheAddDocuments:
         cache = EmbeddingCache("test-expert", cache_dir=tmp_path)
         docs = [{"filename": "new.md", "content": "New content"}]
         mock_client = AsyncMock()
-        mock_client.embeddings.create = AsyncMock(
-            return_value=MagicMock(data=[MagicMock(embedding=[1.0] * 8)])
-        )
+        mock_client.embeddings.create = AsyncMock(return_value=MagicMock(data=[MagicMock(embedding=[1.0] * 8)]))
 
         added = await cache.add_documents(docs, mock_client)
 
