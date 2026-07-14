@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- Metered chat research and embedding paths no longer append a second
+  cost-ledger event after durable admission settlement. Session remaining
+  budget is updated with ``mirror_chat_session_spend`` only. Deep-research
+  jobs can be reconciled after completion via
+  ``ExpertChatSession.reconcile_deep_research_job`` with an idempotent
+  ``job:{id}:final_usage`` observation and positive-delta session charge.
+
 ## [2.36.1] - 2026-07-13
 
 ### Changed

@@ -172,11 +172,18 @@ reliable product, not a four-language architecture diagram.
     (2026-07-13).
   - [x] Each complete/stream turn passes ``min(estimate, session_remaining)`` as
     ``max_cost_per_job`` so multi-call tool loops cannot re-reserve more than
-    the remaining session budget (2026-07-13). Skill tools remain
-    ``allow_metered_tools=False``. Gate remains off. Remaining: final
-    deep-research polled usage settlement, skill-tool metering if/when
-    allowlisted, explicit re-enable with spend confirmation, and
-    ledger/session double-count audit.
+    the remaining session budget (2026-07-13).
+  - [x] After durable settle, chat/research paths mirror spend into
+    ``CostSession`` only via ``mirror_chat_session_spend`` so the canonical
+    ledger is not double-written (2026-07-13). Embedding durable paths drop
+    the second ``record_cost`` ledger append.
+  - [x] Deep-research final usage reconciliation
+    (``reconcile_deep_research_job``) retrieves terminal Responses jobs,
+    appends idempotent ``job:{id}:final_usage`` ledger observations, and
+    mirrors only positive estimate overruns into the chat session
+    (2026-07-13). Skill tools remain ``allow_metered_tools=False``. Gate
+    remains off. Remaining: skill-tool metering if/when allowlisted, and
+    explicit re-enable with spend confirmation.
 - [ ] **P1: migrate every gated metered expert lifecycle surface to one shared
   durable per-call and run-budget transaction.** This includes nonlocal
   `expert make` and `--learn`, API curriculum `expert plan`, provider-backed
