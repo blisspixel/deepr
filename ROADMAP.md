@@ -689,6 +689,13 @@ The gate targets below are firm commitments, not a soft "raise it when convenien
 > "tidy" change starts breaking adjacent things, STOP and back out (that is the
 > trap - see the STOP banner). Do not chase coverage %, mutation scores, file-size
 > or complexity caps as goals in themselves.
+>
+> **Dual failure mode (2026-07-14):** god-files *and* over-split confetti both
+> hurt. Ratchets stop files from growing; they must not become a license to
+> extract crumbs just to clear C901. Prefer navigation maps and named seams.
+> Plan: [docs/design/module-shape-and-readability.md](docs/design/module-shape-and-readability.md).
+> Codegraph: rebuild `.agent/codegraph` before structure work; use
+> `fragmentation_scan.py` for metrics.
 
 Full assessment: [docs/design/code-health.md](docs/design/code-health.md).
 
