@@ -305,6 +305,63 @@ class TestSkillExecutorExecuteTool:
         assert result["result"] == "found it"
         assert result["cost"] == _COST_TIER_ESTIMATES["low"]
 
+    @pytest.mark.asyncio
+    async def test_metered_mcp_tool_writes_durable_ledger(self, tmp_path):
+        """Paid skill tools reserve, mark dispatch, and settle the tier cost."""
+        from deepr.observability.cost_ledger import CostLedger
+        from deepr.experts.research_reservation_store import ResearchReservationStore
+
+        tool = _make_mcp_tool(name="search", cost_tier="low")
+        skill = _make_skill(tmp_path, tools=[tool])
+        executor = SkillExecutor(skill, budget_remaining=10.0, allow_metered_tools=True)
+
+        with patch.object(MCPClientProxy, "call_tool", new_callable=AsyncMock) as mock_call:
+            mock_call.return_value = {"result": "found it"}
+            result = await executor.execute_tool("search", {"query": "test"})
+
+        assert result["result"] == "found it"
+        assert result["cost"] == pytest.approx(_COST_TIER_ESTIMATES["low"])
+        assert ResearchReservationStore().active_cost() == 0
+        events = CostLedger().get_events()
+        assert len(events) == 1
+        assert events[0].cost_usd == pytest.approx(_COST_TIER_ESTIMATES["low"])
+        assert events[0].provider == "skill"
+
+    @pytest.mark.asyncio
+    async def test_metered_mcp_tool_soft_failure_settles_zero(self, tmp_path):
+        """Failed MCP results do not charge the skill budget or ledger hold."""
+        from deepr.observability.cost_ledger import CostLedger
+
+        tool = _make_mcp_tool(name="search", cost_tier="medium")
+        skill = _make_skill(tmp_path, tools=[tool])
+        executor = SkillExecutor(skill, budget_remaining=10.0, allow_metered_tools=True)
+
+        with patch.object(MCPClientProxy, "call_tool", new_callable=AsyncMock) as mock_call:
+            mock_call.return_value = {"error": "upstream timeout"}
+            result = await executor.execute_tool("search", {})
+
+        assert result["error"] == "upstream timeout"
+        assert result["cost"] == 0.0
+        assert executor._budget_remaining == pytest.approx(10.0)
+        events = CostLedger().get_events()
+        assert len(events) == 1
+        assert events[0].cost_usd == pytest.approx(0.0)
+
+    @pytest.mark.asyncio
+    async def test_metered_tools_blocked_when_disallowed(self, tmp_path):
+        """Chat paths keep metered skill tools fail-closed without durable spend."""
+        tool = _make_mcp_tool(name="search", cost_tier="low")
+        skill = _make_skill(tmp_path, tools=[tool])
+        executor = SkillExecutor(skill, budget_remaining=10.0, allow_metered_tools=False)
+
+        with patch.object(MCPClientProxy, "call_tool", new_callable=AsyncMock) as mock_call:
+            result = await executor.execute_tool("search", {})
+
+        assert result["error"] == "METERED_SKILL_TOOL_DISABLED"
+        assert result["status"] == "blocked"
+        assert result["cost"] == 0.0
+        mock_call.assert_not_called()
+
 
 # ---------------------------------------------------------------------------
 # SkillExecutor._execute_python - real module execution

@@ -315,7 +315,10 @@ class SkillExecutor:
             return {
                 "error": "METERED_SKILL_TOOL_DISABLED",
                 "status": "blocked",
-                "detail": "Metered skill tools are unavailable inside live expert chat until durable accounting exists.",
+                "detail": (
+                    "Metered skill tools are unavailable inside live expert chat "
+                    "until durable accounting is re-enabled with explicit confirmation."
+                ),
                 "cost": 0.0,
             }
         async with self._lock:
@@ -326,7 +329,14 @@ class SkillExecutor:
                     "cost": 0.0,
                 }
 
-        if tool.type == "python":
+        if estimated_cost > 0:
+            result = await self._execute_metered_tool(
+                tool,
+                tool_name,
+                arguments,
+                estimated_cost=estimated_cost,
+            )
+        elif tool.type == "python":
             result = await self._execute_python(tool, arguments)
         elif tool.type == "mcp":
             result = await self._execute_mcp(tool, arguments)
@@ -342,6 +352,62 @@ class SkillExecutor:
         async with self._lock:
             self._budget_remaining -= float(result.get("cost", 0.0))
         return result
+
+    async def _execute_metered_tool(
+        self,
+        tool: SkillTool,
+        tool_name: str,
+        arguments: dict,
+        *,
+        estimated_cost: float,
+    ) -> dict[str, Any]:
+        """Run a paid skill tool under durable reserve / mark / settle."""
+        from deepr.experts.research_cost_gate import ResearchCostBlocked
+        from deepr.services.metered_call import (
+            MeteredCallAccountingError,
+            execute_reserved_fixed_cost_async_call,
+        )
+
+        async def _run() -> dict[str, Any]:
+            if tool.type == "python":
+                return await self._execute_python(tool, arguments)
+            if tool.type == "mcp":
+                return await self._execute_mcp(tool, arguments)
+            return {"error": f"Unknown tool type: {tool.type}", "cost": 0.0}
+
+        def _cost_from_result(result: dict[str, Any]) -> float:
+            if "error" in result:
+                return 0.0
+            raw = result.get("cost", estimated_cost)
+            try:
+                return float(raw)
+            except (TypeError, ValueError):
+                return estimated_cost
+
+        try:
+            return await execute_reserved_fixed_cost_async_call(
+                operation_prefix="skill-tool",
+                provider="skill",
+                model=f"{self._skill.name}:{tool_name}",
+                source="skill_executor.metered_tool",
+                max_cost_per_job=estimated_cost,
+                call=_run,
+                cost_from_result=_cost_from_result,
+            )
+        except ResearchCostBlocked as exc:
+            return {
+                "error": "COST_RESERVATION_BLOCKED",
+                "status": "blocked",
+                "detail": str(exc),
+                "cost": 0.0,
+            }
+        except MeteredCallAccountingError as exc:
+            return {
+                "error": "METERED_ACCOUNTING_FAILED",
+                "status": "blocked",
+                "detail": str(exc),
+                "cost": 0.0,
+            }
 
     async def _execute_python(self, tool: SkillTool, arguments: dict) -> dict[str, Any]:
         """Import module and call function. Supports sync and async.

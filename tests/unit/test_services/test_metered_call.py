@@ -14,6 +14,7 @@ from deepr.services.metered_call import (
     MeteredCallAccountingError,
     execute_reserved_async_call,
     execute_reserved_async_stream,
+    execute_reserved_fixed_cost_async_call,
     execute_reserved_sync_call,
 )
 
@@ -505,3 +506,79 @@ async def test_async_stream_settles_final_usage_and_releases_ceiling() -> None:
     assert ResearchReservationStore().active_cost() == 0
     assert settled
     assert settled[0] >= 0
+
+
+@pytest.mark.asyncio
+async def test_fixed_cost_call_settles_success_cost_and_releases_ceiling() -> None:
+    settled: list[float] = []
+
+    async def call() -> dict[str, object]:
+        database = default_cost_data_dir() / "research_reservations.db"
+        with sqlite3.connect(database) as connection:
+            marked = connection.execute("SELECT provider_work_may_have_run FROM research_cost_reservations").fetchone()
+        assert marked == (1,)
+        return {"result": "ok", "cost": 0.05}
+
+    result = await execute_reserved_fixed_cost_async_call(
+        operation_prefix="skill-tool",
+        provider="skill",
+        model="recon:lookup",
+        source="test.fixed_cost",
+        max_cost_per_job=0.05,
+        call=call,
+        cost_from_result=lambda value: float(value["cost"]),
+        on_settled=settled.append,
+    )
+
+    assert result == {"result": "ok", "cost": 0.05}
+    assert ResearchReservationStore().active_cost() == 0
+    events = CostLedger().get_events()
+    assert len(events) == 1
+    assert events[0].cost_usd == pytest.approx(0.05)
+    assert settled == [pytest.approx(0.05)]
+
+
+@pytest.mark.asyncio
+async def test_fixed_cost_call_settles_zero_on_soft_failure() -> None:
+    settled: list[float] = []
+
+    result = await execute_reserved_fixed_cost_async_call(
+        operation_prefix="skill-tool",
+        provider="skill",
+        model="recon:lookup",
+        source="test.fixed_cost_soft_fail",
+        max_cost_per_job=0.20,
+        call=AsyncMock(return_value={"error": "timeout", "cost": 0.0}),
+        cost_from_result=lambda value: 0.0 if "error" in value else 0.20,
+        on_settled=settled.append,
+    )
+
+    assert result["error"] == "timeout"
+    assert ResearchReservationStore().active_cost() == 0
+    events = CostLedger().get_events()
+    assert len(events) == 1
+    assert events[0].cost_usd == pytest.approx(0.0)
+    assert settled == [pytest.approx(0.0)]
+
+
+@pytest.mark.asyncio
+async def test_fixed_cost_call_conservatively_settles_raised_failure() -> None:
+    settled: list[float] = []
+
+    with pytest.raises(RuntimeError, match="mcp blew up"):
+        await execute_reserved_fixed_cost_async_call(
+            operation_prefix="skill-tool",
+            provider="skill",
+            model="recon:lookup",
+            source="test.fixed_cost_hard_fail",
+            max_cost_per_job=0.10,
+            call=AsyncMock(side_effect=RuntimeError("mcp blew up")),
+            cost_from_result=lambda _value: 0.10,
+            on_settled=settled.append,
+        )
+
+    assert ResearchReservationStore().active_cost() == 0
+    events = CostLedger().get_events()
+    assert len(events) == 1
+    assert events[0].cost_usd == pytest.approx(0.10)
+    assert settled == [pytest.approx(0.10)]
