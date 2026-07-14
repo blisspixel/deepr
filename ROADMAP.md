@@ -162,9 +162,11 @@ reliable product, not a four-language architecture diagram.
   - [x] Deep-research job submission reserves the registry estimate, marks
     dispatch before Responses create, and settles the hold when enabled
     (2026-07-13). Final polled usage reconciliation remains a follow-on.
-    Gate remains off. Remaining: embeddings, skill tools, parent session hold
-    serialization, output token ceilings from remaining dollars, final deep
-    research usage settlement, and re-enable criteria above.
+  - [x] Embedding cache document and query embeds use durable admission with
+    tiny per-call ceilings (2026-07-13). Gate remains off for chat re-enable.
+    Remaining: skill tools, parent session hold serialization, output token
+    ceilings from remaining dollars, final deep research usage settlement, and
+    re-enable criteria above.
 - [ ] **P1: migrate every gated metered expert lifecycle surface to one shared
   durable per-call and run-budget transaction.** This includes nonlocal
   `expert make` and `--learn`, API curriculum `expert plan`, provider-backed
