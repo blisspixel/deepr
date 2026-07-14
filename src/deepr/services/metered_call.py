@@ -576,9 +576,85 @@ async def execute_reserved_async_stream(
     )
 
 
+async def execute_reserved_fixed_cost_async_call(
+    *,
+    operation_prefix: str,
+    provider: str,
+    model: str,
+    source: str,
+    max_cost_per_job: float,
+    call: Callable[[], Awaitable[T]],
+    cost_from_result: Callable[[T], float],
+    on_settled: Callable[[float], None] | None = None,
+) -> T:
+    """Run one non-token-priced work unit under durable reserve/mark/settle.
+
+    Skill tools and similar side effects have tier or fixed estimates rather
+    than provider token usage. ``cost_from_result`` returns the amount to
+    settle after success (clamped to ``[0, hold]``). Exceptions after dispatch
+    still consume the full hold conservatively.
+    """
+    if isinstance(max_cost_per_job, bool) or not isinstance(max_cost_per_job, (int, float)):
+        raise ValueError("max_cost_per_job must be a positive finite number")
+    ceiling = float(max_cost_per_job)
+    if not math.isfinite(ceiling) or ceiling <= 0:
+        raise ValueError("max_cost_per_job must be a positive finite number")
+
+    reservation = await _reserve_and_mark_async(
+        job_id=f"{operation_prefix}-{uuid.uuid4().hex}",
+        provider=provider,
+        model=model,
+        max_cost_per_job=ceiling,
+    )
+
+    try:
+        result = await call()
+    except BaseException as operation_error:
+        await _settle_after_async_error(
+            reservation,
+            source=source,
+            reason="provider_call_cancelled"
+            if isinstance(operation_error, asyncio.CancelledError)
+            else "provider_call_failed",
+            on_settled=on_settled,
+            operation_error=operation_error,
+        )
+
+    try:
+        raw_cost = float(cost_from_result(result))
+    except BaseException as cost_error:
+        await _settle_after_async_error(
+            reservation,
+            source=source,
+            reason="malformed_or_unpriceable_usage",
+            on_settled=on_settled,
+            operation_error=cost_error,
+        )
+
+    if not math.isfinite(raw_cost) or raw_cost < 0:
+        await _settle_after_async_error(
+            reservation,
+            source=source,
+            reason="malformed_or_unpriceable_usage",
+            on_settled=on_settled,
+            operation_error=ValueError("cost_from_result must return a finite non-negative number"),
+        )
+
+    settled = min(float(reservation.estimated_cost), raw_cost)
+    await _settle_response_async(
+        reservation,
+        actual_cost=settled,
+        output_tokens=0,
+        source=source,
+        on_settled=on_settled,
+    )
+    return result
+
+
 __all__ = [
     "MeteredCallAccountingError",
     "execute_reserved_async_call",
     "execute_reserved_async_stream",
+    "execute_reserved_fixed_cost_async_call",
     "execute_reserved_sync_call",
 ]

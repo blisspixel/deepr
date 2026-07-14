@@ -185,10 +185,15 @@ reliable product, not a four-language architecture diagram.
   - [x] Explicit spend confirmation: even when the substrate flag is true,
     live metered dispatch still requires ``DEEPR_ALLOW_METERED_EXPERT_CHAT=1``
     and returns ``metered_expert_chat_confirmation_required`` otherwise
-    (2026-07-13). Skill tools remain ``allow_metered_tools=False``. Gate
-    remains off. Remaining: skill-tool metering if/when allowlisted, and a
-    deliberate flip of ``METERED_EXPERT_CHAT_EXECUTION_ENABLED`` only after
-    a final re-enable review.
+    (2026-07-13).
+  - [x] Metered skill tools (when ``allow_metered_tools=True``) share
+    ``execute_reserved_fixed_cost_async_call``: tier-cost reserve, dispatch
+    mark, success settle or zero-cost soft-failure settle, full-bound
+    conservative settle on raised errors, and canonical ledger writes
+    (2026-07-14). Live expert chat still constructs executors with
+    ``allow_metered_tools=False``. Gate remains off. Remaining: a deliberate
+    flip of ``METERED_EXPERT_CHAT_EXECUTION_ENABLED`` only after a final
+    re-enable review.
 - [ ] **P1: migrate every gated metered expert lifecycle surface to one shared
   durable per-call and run-budget transaction.** This includes nonlocal
   `expert make` and `--learn`, API curriculum `expert plan`, provider-backed
@@ -278,8 +283,9 @@ reliable product, not a four-language architecture diagram.
 
 **v2.36.1 additions:** plan-quota CLI output streams are hard-capped at 8 MiB
 with process-tree ownership on Windows and Linux; metered expert-chat complete,
-stream, research, and embedding paths share durable reserve/dispatch/settlement
-substrate while live metered chat execution stays gated; session turns serialize
+stream, research, embedding, and allowlisted skill-tool paths share durable
+reserve/dispatch/settlement substrate while live metered chat execution stays
+gated (dual flag + ``DEEPR_ALLOW_METERED_EXPERT_CHAT`` confirmation); session turns serialize
 and each call is capped by remaining session budget. See CHANGELOG.
 
 **v2.36.0 additions:** one-shot CLI, MCP, and A2A consults now allocate a shared

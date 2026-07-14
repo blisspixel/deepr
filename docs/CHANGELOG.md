@@ -23,6 +23,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   Missing confirmation returns
   ``metered_expert_chat_confirmation_required`` before provider work.
   The substrate flag remains false in this release.
+- Metered skill tools (when ``allow_metered_tools=True``) now share
+  ``execute_reserved_fixed_cost_async_call`` for durable reserve, dispatch
+  mark, and settlement of tier estimates. Soft tool failures settle at ``$0``;
+  raised failures consume the hold conservatively. Live expert chat still
+  constructs skill executors with ``allow_metered_tools=False``.
 
 ## [2.36.1] - 2026-07-13
 
@@ -64,9 +69,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   each call ceiling; missing output caps derive `max_tokens` from half the
   dollar hold. Accounting-only fields never reach provider params. Production
   remains fail-closed via `METERED_EXPERT_CHAT_EXECUTION_ENABLED = False` until
-  final deep-research polled usage settlement, optional metered skill tools,
-  ledger/session double-count audit, and explicit spend-confirmation re-enable
-  criteria clear. Startup banner unit tests isolate dumb-terminal and
+  a final re-enable review after durable skill-tool metering and explicit
+  spend-confirmation criteria clear. Startup banner unit tests isolate dumb-terminal and
   `NO_COLOR` host environments so CI and agent shells do not false-fail the
   suite. `ExpertChatSession` research helpers moved to
   `deepr.experts.chat_research_ops` so the file-size ratchet does not grow.
