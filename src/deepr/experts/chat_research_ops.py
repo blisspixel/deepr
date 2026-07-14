@@ -145,9 +145,7 @@ async def _standard_research_gpt_fallback(
                 messages=[
                     {
                         "role": "system",
-                        "content": (
-                            "Answer based on your knowledge. Be honest if information might be outdated."
-                        ),
+                        "content": ("Answer based on your knowledge. Be honest if information might be outdated."),
                     },
                     {"role": "user", "content": query},
                 ],
@@ -179,9 +177,7 @@ async def _standard_research_gpt_fallback(
             "budget_remaining": session.cost_session.get_remaining_budget(),
         }
     except Exception as fallback_error:
-        return {
-            "error": f"Grok search failed: {primary_error!s}. GPT-5.5 fallback failed: {fallback_error!s}"
-        }
+        return {"error": f"Grok search failed: {primary_error!s}. GPT-5.5 fallback failed: {fallback_error!s}"}
 
 
 async def run_deep_research(session: Any, query: str) -> dict[str, Any]:
