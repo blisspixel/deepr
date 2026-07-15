@@ -382,15 +382,16 @@ async def test_lifecycle_start_persistence_consumes_transaction_deadline(tmp_pat
 
 @pytest.mark.asyncio
 async def test_sync_backend_factory_does_not_block_cancellable_deadline(tmp_path):
-    entered = threading.Event()
+    loop = asyncio.get_running_loop()
+    entered = asyncio.Event()
     release = threading.Event()
-    finished = threading.Event()
+    finished = asyncio.Event()
     generation_called = False
 
     def blocked_backend():
-        entered.set()
-        release.wait(timeout=1.0)
-        finished.set()
+        loop.call_soon_threadsafe(entered.set)
+        release.wait(timeout=5.0)
+        loop.call_soon_threadsafe(finished.set)
         return _backend()
 
     async def forbidden_generation(*_args, **_kwargs):
@@ -407,20 +408,29 @@ async def test_sync_backend_factory_does_not_block_cancellable_deadline(tmp_path
             backend_mode="local",
             backend_factory=blocked_backend,
             requested_capacity=_capacity(),
-            max_elapsed_seconds=0.1,
+            # Lifecycle persistence consumes the same total deadline. Leave
+            # enough headroom for a loaded CI host to enter the backend thread,
+            # while the five-second worker wait still outlasts this ceiling.
+            max_elapsed_seconds=0.5,
             heartbeat_interval_seconds=1.0,
             lifecycle_path=tmp_path / "lifecycle.jsonl",
             trace_path=tmp_path / "traces.jsonl",
             run_consult_fn=forbidden_generation,
         )
     )
-    assert await asyncio.to_thread(entered.wait, 1.0)
+    try:
+        await asyncio.wait_for(entered.wait(), timeout=2.0)
+    except TimeoutError:
+        pytest.fail("elapsed limit fired before the sync backend thread started")
     try:
         with pytest.raises(ConsultElapsedLimitError):
             await task
     finally:
         release.set()
-        assert await asyncio.to_thread(finished.wait, 1.0)
+        try:
+            await asyncio.wait_for(finished.wait(), timeout=2.0)
+        except TimeoutError:
+            pytest.fail("sync backend thread did not finish after release")
 
     assert generation_called is False
 
