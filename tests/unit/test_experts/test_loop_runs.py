@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 from dataclasses import replace
 from datetime import UTC, datetime, timedelta
 from unittest.mock import MagicMock, patch
@@ -59,6 +60,62 @@ def test_loop_run_validates_required_fields():
             goal=" ",
             trigger="scheduled",
         )
+
+
+@pytest.mark.parametrize(
+    ("field_name", "value"),
+    [
+        ("schema_version", True),
+        ("iteration_count", True),
+        ("iteration_count", -1),
+        ("max_iterations", 0),
+        ("budget_limit", float("nan")),
+        ("budget_spent", float("inf")),
+        ("accepted_changes", 1.5),
+        ("rejected_changes", True),
+        ("verifier_score", float("nan")),
+        ("verifier_threshold", float("inf")),
+    ],
+)
+def test_loop_run_rejects_malformed_numeric_fields(field_name, value):
+    with pytest.raises(ValueError, match=field_name):
+        replace(_run(), **{field_name: value})
+
+
+@pytest.mark.parametrize(
+    ("field_name", "value"),
+    [
+        ("schema_version", "1"),
+        ("iteration_count", "1"),
+        ("max_iterations", True),
+        ("budget_limit", "2.0"),
+        ("budget_spent", False),
+        ("accepted_changes", "2"),
+        ("rejected_changes", 1.5),
+        ("verifier_score", "0.8"),
+        ("verifier_threshold", float("nan")),
+    ],
+)
+def test_loop_run_from_dict_does_not_coerce_malformed_numeric_fields(field_name, value):
+    payload = _run().to_dict()
+    payload[field_name] = value
+
+    with pytest.raises(ValueError, match=field_name):
+        ExpertLoopRun.from_dict(payload)
+
+
+@pytest.mark.parametrize("field_name", ["started_at", "updated_at", "finished_at"])
+def test_loop_run_rejects_timezone_naive_timestamps(field_name):
+    with pytest.raises(ValueError, match=field_name):
+        replace(_run(), **{field_name: datetime(2026, 7, 15, 12, 0)})
+
+
+def test_loop_run_from_dict_rejects_timezone_naive_timestamp():
+    payload = _run().to_dict()
+    payload["updated_at"] = "2026-07-15T12:00:00"
+
+    with pytest.raises(ValueError, match="updated_at"):
+        ExpertLoopRun.from_dict(payload)
 
 
 def test_terminal_loop_run_requires_typed_stop_reason():
@@ -156,6 +213,26 @@ def test_store_ignores_corrupt_lines(tmp_path):
     path.write_text(path.read_text(encoding="utf-8") + "not json\n", encoding="utf-8")
 
     assert len(store.list_runs()) == 1
+
+
+def test_store_ignores_snapshot_with_non_finite_metrics(tmp_path):
+    path = tmp_path / "loop_runs.jsonl"
+    store = ExpertLoopRunStore("Platform Expert", path=path)
+    original = _run()
+    store.append(original)
+    malformed = original.to_dict()
+    malformed["budget_spent"] = float("nan")
+    path.write_text(path.read_text(encoding="utf-8") + json.dumps(malformed) + "\n", encoding="utf-8")
+
+    assert store.list_runs() == [original]
+
+
+@pytest.mark.parametrize("limit", [True, 0, -1, 1.5])
+def test_store_rejects_non_positive_or_non_integer_limit(tmp_path, limit):
+    store = ExpertLoopRunStore("Platform Expert", path=tmp_path / "loop_runs.jsonl")
+
+    with pytest.raises(ValueError, match="limit"):
+        store.list_runs(limit=limit)
 
 
 def test_record_loop_run_appends_snapshot():

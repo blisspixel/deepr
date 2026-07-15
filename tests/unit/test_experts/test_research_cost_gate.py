@@ -135,6 +135,38 @@ def test_active_reservation_check_binds_job_and_reserved_cost() -> None:
     )
 
 
+@pytest.mark.parametrize("field_name", ["reserved_cost", "max_daily_cost", "max_monthly_cost"])
+@pytest.mark.parametrize("value", [True, -0.01, float("nan"), float("inf"), "1.0"])
+def test_durable_store_rejects_invalid_reservation_money(field_name, value, tmp_path) -> None:
+    store = ResearchReservationStore(tmp_path / "reservations.db")
+    values = {"reserved_cost": 0.5, "max_daily_cost": 1.0, "max_monthly_cost": 5.0}
+    values[field_name] = value
+
+    with pytest.raises(ValueError, match=field_name):
+        store.reserve(reservation_id="reservation", job_id="job", **values)
+
+    assert store.active_reservations() == []
+
+
+@pytest.mark.parametrize("value", [True, -0.01, float("nan"), float("inf"), "1.0"])
+def test_durable_store_rejects_invalid_settlement_before_callback(value, tmp_path) -> None:
+    store = ResearchReservationStore(tmp_path / "reservations.db")
+    store.reserve(
+        reservation_id="reservation",
+        job_id="job",
+        reserved_cost=0.5,
+        max_daily_cost=1.0,
+        max_monthly_cost=5.0,
+    )
+    record = MagicMock()
+
+    with pytest.raises(ValueError, match="actual_cost"):
+        store.settle("reservation", value, record)
+
+    record.assert_not_called()
+    assert store.state("reservation") == "active"
+
+
 def test_parallel_reservations_cannot_overcommit_daily_limit() -> None:
     manager = CostSafetyManager()
     barrier = Barrier(2)

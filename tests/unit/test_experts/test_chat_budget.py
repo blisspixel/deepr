@@ -204,7 +204,6 @@ async def test_standard_research_does_not_reach_owned_fallback_after_metered_gat
 
 
 async def test_standard_research_uses_durable_admission_when_enabled(monkeypatch):
-    from deepr.experts import chat as chat_module
     from deepr.experts import chat_capacity
     from deepr.experts.research_reservation_store import ResearchReservationStore
 

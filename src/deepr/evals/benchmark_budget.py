@@ -44,20 +44,23 @@ class BenchmarkSpendGuard:
         ledger: CostLedger | None = None,
         reservation_store: ResearchReservationStore | None = None,
     ) -> None:
-        if not math.isfinite(budget) or budget <= 0:
+        if isinstance(budget, bool) or not isinstance(budget, (int, float)) or not math.isfinite(budget) or budget <= 0:
             raise BenchmarkBudgetExceeded("Benchmark runtime budget must be finite and greater than zero")
         config = load_config()
         self.budget = float(budget)
         self.run_id = run_id or uuid.uuid4().hex
         self._ledger = ledger or CostLedger()
-        self._store = reservation_store or ResearchReservationStore()
         self._max_daily = float(config.get("max_daily_cost", 25.0))
         self._max_monthly = float(config.get("max_monthly_cost", 200.0))
         self._lock = threading.Lock()
         self._scheduled_cost = 0.0
         self._sequence = 0
-        if not self._ledger.get_health()["writable"]:
+        health = self._ledger.get_health()
+        if not health["writable"]:
             raise BenchmarkBudgetExceeded("Canonical cost ledger is not writable")
+        if not health.get("accounting_ready", False):
+            raise BenchmarkBudgetExceeded("Canonical cost ledger is not accounting-ready")
+        self._store = reservation_store or ResearchReservationStore()
 
     @property
     def scheduled_cost(self) -> float:
@@ -75,7 +78,12 @@ class BenchmarkSpendGuard:
         metadata: dict[str, object] | None = None,
     ) -> BenchmarkCostReservation:
         """Durably reserve one call before it is submitted."""
-        if not math.isfinite(cost_ceiling) or cost_ceiling < 0:
+        if (
+            isinstance(cost_ceiling, bool)
+            or not isinstance(cost_ceiling, (int, float))
+            or not math.isfinite(cost_ceiling)
+            or cost_ceiling < 0
+        ):
             raise BenchmarkBudgetExceeded("Benchmark call ceiling must be finite and non-negative")
         with self._lock:
             projected = self._scheduled_cost + cost_ceiling

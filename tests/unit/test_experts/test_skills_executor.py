@@ -338,8 +338,8 @@ class TestSkillExecutorExecuteTool:
     @pytest.mark.asyncio
     async def test_metered_mcp_tool_writes_durable_ledger(self, tmp_path):
         """Paid skill tools reserve, mark dispatch, and settle the tier cost."""
-        from deepr.observability.cost_ledger import CostLedger
         from deepr.experts.research_reservation_store import ResearchReservationStore
+        from deepr.observability.cost_ledger import CostLedger
 
         tool = _make_mcp_tool(name="search", cost_tier="low")
         skill = _make_skill(tmp_path, tools=[tool])
