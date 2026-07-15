@@ -12,6 +12,7 @@ from __future__ import annotations
 import fnmatch
 import importlib.util
 import subprocess
+import sys
 import tomllib
 from pathlib import Path
 
@@ -65,6 +66,9 @@ class TestRatchetBaselines:
         assert set(ratchets.BASELINES) == {"C901", "S"}
         for rule, baseline in ratchets.BASELINES.items():
             assert isinstance(baseline, int) and baseline >= 0, rule
+
+    def test_ruff_uses_the_active_python_environment(self, ratchets):
+        assert ratchets._ruff_cmd() == [sys.executable, "-m", "ruff"]
 
 
 class TestPackageDiscovery:

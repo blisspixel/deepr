@@ -16,7 +16,6 @@ Design rationale: docs/design/code-health.md
 from __future__ import annotations
 
 import json
-import shutil
 import subprocess
 import sys
 from pathlib import Path
@@ -27,14 +26,12 @@ _REPO_ROOT = Path(__file__).resolve().parent.parent
 # ceilings: the count may fall (then lower the baseline) but never rise.
 BASELINES: dict[str, int] = {
     "C901": 136,  # functions over the mccabe complexity cap (max-complexity 10)
-    "S": 68,  # flake8-bandit security findings
+    "S": 66,  # flake8-bandit security findings
 }
 
 
 def _ruff_cmd() -> list[str]:
-    exe = shutil.which("ruff")
-    if exe:
-        return [exe]
+    """Use the Ruff installed beside the interpreter running this gate."""
     return [sys.executable, "-m", "ruff"]
 
 

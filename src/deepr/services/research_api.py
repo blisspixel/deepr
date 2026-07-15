@@ -43,9 +43,7 @@ class ResearchAPI:
         """
         # Determine model based on mode if not specified
         if not model:
-            if mode == "team":
-                model = "o3-deep-research"
-            elif mode == "project":
+            if mode in {"team", "project"}:
                 model = "o3-deep-research"
             elif mode == "docs":
                 model = "o4-mini-deep-research"

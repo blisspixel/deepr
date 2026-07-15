@@ -45,6 +45,12 @@ class TestResearchAPI:
         enqueued_job = mock_queue.enqueue.call_args[0][0]
         assert enqueued_job.model == "o3-deep-research"
 
+    async def test_submit_project_mode_default_model(self, api, mock_queue):
+        """project mode shares the o3 default with team mode."""
+        await api.submit_research("Test prompt", mode="project")
+        enqueued_job = mock_queue.enqueue.call_args[0][0]
+        assert enqueued_job.model == "o3-deep-research"
+
     async def test_submit_docs_mode_default_model(self, api, mock_queue):
         """docs mode defaults to o4-mini."""
         job_id = await api.submit_research("Test prompt", mode="docs")

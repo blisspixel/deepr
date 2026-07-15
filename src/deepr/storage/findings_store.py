@@ -29,6 +29,7 @@ import json
 import math
 import re
 import sqlite3
+import threading
 from collections import Counter
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
@@ -131,9 +132,7 @@ class FindingsStore:
         # cross-thread access (``check_same_thread=False``); without
         # this lock two concurrent ``store_finding`` calls would race
         # on the dict mutations below.
-        import threading as _threading
-
-        self._lock = _threading.RLock()
+        self._lock = threading.RLock()
 
         # In-memory token index for fast retrieval
         self._token_index: dict[str, dict[str, int]] = {}  # token -> {finding_id: count}
@@ -311,7 +310,7 @@ class FindingsStore:
 
         # Retrieve top findings
         result = []
-        for finding_id, score in scored[:top_k]:
+        for finding_id, _score in scored[:top_k]:
             finding = await self._get_finding(finding_id)
             if finding and finding.confidence >= min_confidence:
                 result.append(finding)
@@ -378,25 +377,31 @@ class FindingsStore:
         Returns:
             Number of findings deleted
         """
-        # Get finding IDs for cleanup
-        rows = self._conn.execute("SELECT id FROM findings WHERE job_id = ?", (job_id,)).fetchall()
+        with self._lock:
+            rows = self._conn.execute("SELECT id FROM findings WHERE job_id = ?", (job_id,)).fetchall()
+            finding_ids = {row[0] for row in rows}
 
-        finding_ids = [row[0] for row in rows]
+            try:
+                self._conn.executemany(
+                    "DELETE FROM finding_tokens WHERE finding_id = ?",
+                    ((finding_id,) for finding_id in finding_ids),
+                )
+                cursor = self._conn.execute("DELETE FROM findings WHERE job_id = ?", (job_id,))
+                self._conn.commit()
+            except Exception:
+                self._conn.rollback()
+                raise
 
-        # Delete tokens
-        for finding_id in finding_ids:
-            self._conn.execute("DELETE FROM finding_tokens WHERE finding_id = ?", (finding_id,))
+            for token in list(self._token_index):
+                token_findings = self._token_index[token]
+                for finding_id in finding_ids:
+                    token_findings.pop(finding_id, None)
+                if not token_findings:
+                    del self._token_index[token]
+            for finding_id in finding_ids:
+                self._doc_lengths.pop(finding_id, None)
 
-            # Clean up in-memory index
-            for token_findings in self._token_index.values():
-                token_findings.pop(finding_id, None)
-            self._doc_lengths.pop(finding_id, None)
-
-        # Delete findings
-        cursor = self._conn.execute("DELETE FROM findings WHERE job_id = ?", (job_id,))
-        self._conn.commit()
-
-        return cursor.rowcount
+            return cursor.rowcount
 
     async def get_stats(self, job_id: str | None = None) -> dict[str, Any]:
         """Get storage statistics.
@@ -523,4 +528,5 @@ class FindingsStore:
 
     def close(self) -> None:
         """Close database connection."""
-        self._conn.close()
+        with self._lock:
+            self._conn.close()

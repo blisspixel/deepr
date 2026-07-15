@@ -224,7 +224,7 @@ def test_retryable_errors_trigger_one_retry(error_code: MCPErrorCode) -> None:
         arguments={"domain": "test.com"},
     )
 
-    asyncio.get_event_loop().run_until_complete(wrapper.execute(suggestion, mock_call))
+    asyncio.run(wrapper.execute(suggestion, mock_call))
 
     assert call_count == 2, f"Expected 2 attempts (initial + 1 retry), got {call_count}"
 
@@ -266,7 +266,7 @@ def test_exhausted_retries_return_error(error_code: MCPErrorCode) -> None:
         arguments={},
     )
 
-    result = asyncio.get_event_loop().run_until_complete(wrapper.execute(suggestion, mock_call))
+    result = asyncio.run(wrapper.execute(suggestion, mock_call))
 
     assert isinstance(result, StructuredError), "Exhausted retries should return StructuredError"
     assert result.code == error_code

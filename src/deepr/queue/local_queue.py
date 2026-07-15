@@ -3,6 +3,7 @@
 import asyncio
 import json
 import logging
+import math
 import sqlite3
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
@@ -26,6 +27,18 @@ def _safe_json_loads(data: str | None, default: T, context: str = "") -> T:
     except json.JSONDecodeError as e:
         logger.warning("Failed to parse JSON%s: %s", f" for {context}" if context else "", e)
         return default
+
+
+def _validate_result_usage(cost: float | None, tokens_used: int | None) -> None:
+    """Reject malformed provider usage before touching the queue or ledger."""
+    if cost is not None and (
+        isinstance(cost, bool) or not isinstance(cost, (int, float)) or not math.isfinite(cost) or cost < 0
+    ):
+        raise ValueError("cost must be a finite, non-negative number or None")
+    if tokens_used is not None and (
+        isinstance(tokens_used, bool) or not isinstance(tokens_used, int) or tokens_used < 0
+    ):
+        raise ValueError("tokens_used must be a non-negative integer or None")
 
 
 class SQLiteQueue(QueueBackend):
@@ -53,6 +66,59 @@ class SQLiteQueue(QueueBackend):
         if self._cost_dashboard is None:
             self._cost_dashboard = CostDashboard()
         return self._cost_dashboard
+
+    def _record_result_cost(
+        self,
+        *,
+        job_id: str,
+        provider: str | None,
+        model: str | None,
+        previous_cost: float | None,
+        cost: float | None,
+        tokens_used: int | None,
+    ) -> bool | None:
+        """Record a positive result-cost delta.
+
+        ``None`` means the ledger could not prove the write and the queue
+        update must fail closed. ``False`` means no write was needed.
+        """
+        if cost is None or cost <= 0:
+            return False
+
+        prior = float(previous_cost) if previous_cost is not None else 0.0
+        delta = float(cost) - prior
+        if delta <= 0:
+            return False
+
+        completion_key = f"job:{job_id}:completion"
+        if prior == 0:
+            try:
+                from deepr.observability.cost_ledger import CostLedger
+
+                if CostLedger().has_idempotency_key(completion_key):
+                    return True
+            except Exception as e:
+                logger.warning("Failed to check cost ledger for job %s: %s", job_id, e)
+                return None
+
+        try:
+            idempotency_key = completion_key if prior == 0 else f"job:{job_id}:correction:{float(cost):.6f}"
+            self._get_cost_dashboard().record(
+                operation="research_job",
+                provider=provider or "unknown",
+                model=model or "",
+                cost=delta,
+                tokens_output=int(tokens_used or 0),
+                task_id=job_id,
+                metadata={
+                    "source": "queue.update_results",
+                    "idempotency_key": idempotency_key,
+                },
+            )
+        except Exception as e:
+            logger.warning("Failed to persist cost event for job %s: %s", job_id, e)
+            return None
+        return True
 
     def _init_db(self) -> None:
         """Initialize database schema."""
@@ -470,6 +536,7 @@ class SQLiteQueue(QueueBackend):
         tokens_used: int | None = None,
     ) -> bool:
         """Update job results."""
+        _validate_result_usage(cost, tokens_used)
         return await asyncio.to_thread(self._update_results_sync, job_id, report_paths, cost, tokens_used)
 
     def _update_results_sync(
@@ -495,53 +562,19 @@ class SQLiteQueue(QueueBackend):
                 return False
             provider, model, previous_cost = existing_row
 
-            # Stage the ledger event first if there's a non-zero delta.
-            # Fail closed: never commit queue.cost when a required ledger
-            # write did not land - otherwise retries see delta==0 and never
-            # re-append the missing spend row.
-            ledger_recorded = False
-            if cost is not None and cost > 0:
-                prior = float(previous_cost) if previous_cost is not None else 0.0
-                delta = float(cost) - prior
-                if delta > 0:
-                    completion_key = f"job:{job_id}:completion"
-                    # Durable settle already wrote the completion key; do not
-                    # attempt a second research_job row under the same key.
-                    if prior == 0:
-                        try:
-                            from deepr.observability.cost_ledger import CostLedger
-
-                            if CostLedger().has_idempotency_key(completion_key):
-                                ledger_recorded = True
-                        except Exception as e:
-                            logger.warning(
-                                "Failed to check cost ledger for job %s: %s",
-                                job_id,
-                                e,
-                            )
-                            return False
-                    if not ledger_recorded:
-                        try:
-                            dashboard = self._get_cost_dashboard()
-                            idempotency_key = (
-                                completion_key if prior == 0 else f"job:{job_id}:correction:{float(cost):.6f}"
-                            )
-                            dashboard.record(
-                                operation="research_job",
-                                provider=provider or "unknown",
-                                model=model or "",
-                                cost=delta,
-                                tokens_output=int(tokens_used or 0),
-                                task_id=job_id,
-                                metadata={
-                                    "source": "queue.update_results",
-                                    "idempotency_key": idempotency_key,
-                                },
-                            )
-                            ledger_recorded = True
-                        except Exception as e:
-                            logger.warning("Failed to persist cost event for job %s: %s", job_id, e)
-                            return False
+            # Stage the ledger event first. If the ledger cannot prove the
+            # write, do not commit queue.cost because a retry would see no
+            # delta and could permanently omit the canonical spend row.
+            ledger_recorded = self._record_result_cost(
+                job_id=job_id,
+                provider=provider,
+                model=model,
+                previous_cost=previous_cost,
+                cost=cost,
+                tokens_used=tokens_used,
+            )
+            if ledger_recorded is None:
+                return False
 
             cursor.execute(
                 """

@@ -88,7 +88,8 @@ def test_property_2_deprecated_model_migration_resolves_to_successor(model: str)
 
     # Must resolve to the designated successor
     if entry.auto_migrate:
-        assert resolved_model == entry.new_model
+        assert entry.new_model is not None
+        assert resolved_model == entry.new_model.split("/", 1)[-1]
     else:
         assert resolved_model == model
 

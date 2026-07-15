@@ -181,6 +181,30 @@ class TestSQLiteQueue:
         assert job.cost == 2.50
         assert job.tokens_used == 10000
 
+    @pytest.mark.parametrize("cost", [-0.01, float("nan"), float("inf"), True])
+    async def test_update_results_rejects_invalid_cost(self, queue, sample_job, cost):
+        """Malformed cost values never reach SQLite or the cost ledger."""
+        await queue.enqueue(sample_job)
+
+        with pytest.raises(ValueError, match="cost must be a finite, non-negative number"):
+            await queue.update_results(sample_job.id, {"md": "report.md"}, cost=cost, tokens_used=100)
+
+        job = await queue.get_job(sample_job.id)
+        assert job is not None
+        assert job.cost is None or job.cost == 0.0
+
+    @pytest.mark.parametrize("tokens_used", [-1, 1.5, True])
+    async def test_update_results_rejects_invalid_token_count(self, queue, sample_job, tokens_used):
+        """Token counts must be integral and non-negative before persistence."""
+        await queue.enqueue(sample_job)
+
+        with pytest.raises(ValueError, match="tokens_used must be a non-negative integer"):
+            await queue.update_results(sample_job.id, {"md": "report.md"}, cost=0.0, tokens_used=tokens_used)
+
+        job = await queue.get_job(sample_job.id)
+        assert job is not None
+        assert job.tokens_used is None or job.tokens_used == 0
+
     async def test_update_results_records_cost_dashboard_once_per_delta(self, queue, sample_job):
         """Cost dashboard records only positive deltas to avoid double counting."""
         await queue.enqueue(sample_job)

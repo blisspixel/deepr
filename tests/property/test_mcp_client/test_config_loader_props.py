@@ -11,6 +11,7 @@ from __future__ import annotations
 import os
 from unittest.mock import patch
 
+import pytest
 from hypothesis import given, settings
 from hypothesis import strategies as st
 
@@ -132,8 +133,8 @@ def test_property_3_env_var_resolution(var_name: str, var_value: str) -> None:
 @given(
     var_name=st.from_regex(r"[A-Z][A-Z0-9_]{0,15}", fullmatch=True),
 )
-def test_property_3_missing_env_var_resolves_empty(var_name: str) -> None:
-    """When a referenced environment variable does not exist, it resolves to empty string.
+def test_property_3_missing_env_var_fails_closed(var_name: str) -> None:
+    """An undefined environment variable is reported instead of erased silently.
 
     **Validates: Requirements 1.3**
     """
@@ -142,9 +143,10 @@ def test_property_3_missing_env_var_resolves_empty(var_name: str) -> None:
     # Ensure the variable is NOT in the environment
     env_copy = {k: v for k, v in os.environ.items() if k != var_name}
     with patch.dict(os.environ, env_copy, clear=True):
-        result = _resolve_env_vars(input_str)
+        with pytest.raises(ValueError, match="undefined environment variable") as exc_info:
+            _resolve_env_vars(input_str)
 
-    assert result == ""
+    assert var_name in str(exc_info.value)
 
 
 # Feature: mcp-client-agent-interop, Property 4: Invalid config produces field-specific errors

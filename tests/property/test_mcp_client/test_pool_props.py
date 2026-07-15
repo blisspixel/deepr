@@ -102,9 +102,7 @@ def test_property_14_broadcast_preserves_order(
                 return_value=MCPToolResult(content=f"ok-{name}", server_name=name, tool_name="search")
             )
 
-    results = asyncio.get_event_loop().run_until_complete(
-        pool.broadcast_tool("search", {"q": "test"}, server_names=server_names)
-    )
+    results = asyncio.run(pool.broadcast_tool("search", {"q": "test"}, server_names=server_names))
 
     # Results length matches input
     assert len(results) == len(server_names)
@@ -158,7 +156,7 @@ def test_property_15_concurrency_limit(
         pool._clients[name]._connected = True
         pool._clients[name].call_tool = _tracked_call
 
-    asyncio.get_event_loop().run_until_complete(pool.broadcast_tool("search", {}, server_names=names))
+    asyncio.run(pool.broadcast_tool("search", {}, server_names=names))
 
     assert peak_concurrent <= max_concurrent
 
