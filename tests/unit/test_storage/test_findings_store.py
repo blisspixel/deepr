@@ -16,7 +16,11 @@ from deepr.storage.findings_store import FindingsStore, StoredFinding
 @pytest.fixture
 def store(tmp_path: Path):
     db_path = tmp_path / "findings.db"
-    return FindingsStore(db_path=db_path)
+    findings = FindingsStore(db_path=db_path)
+    try:
+        yield findings
+    finally:
+        findings.close()
 
 
 class TestStoreAndRetrieve:
@@ -67,6 +71,22 @@ class TestStoreAndRetrieve:
         await store.store_finding(job_id="j", phase=2, text="P2 apples")
         p1 = await store.retrieve_relevant(job_id="j", query="apples", phase=1)
         assert all(f.phase == 1 for f in p1)
+
+    @pytest.mark.asyncio
+    async def test_delete_job_findings_removes_empty_token_buckets(self, store):
+        """Deleting a job keeps the persistent and in-memory indexes aligned."""
+        await store.store_finding(job_id="delete-me", phase=1, text="alpha shared")
+        await store.store_finding(job_id="keep-me", phase=1, text="beta shared")
+
+        assert (await store.get_stats())["unique_tokens"] == 3
+        assert await store.delete_job_findings("delete-me") == 1
+
+        stats = await store.get_stats()
+        assert stats["indexed_documents"] == 1
+        assert stats["unique_tokens"] == 2
+        assert await store.retrieve_relevant(job_id="delete-me", query="alpha") == []
+        remaining = await store.retrieve_relevant(job_id="keep-me", query="shared")
+        assert [finding.text for finding in remaining] == ["beta shared"]
 
 
 class TestTokenizer:
