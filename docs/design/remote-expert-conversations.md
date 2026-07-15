@@ -1,7 +1,8 @@
 # Remote expert conversations
 
-Status: accepted design, 2026-07-15. Implementation is planned. The shipped
-remote MCP consult and query tools remain one-shot.
+Status: accepted design, 2026-07-15. Stages 0 and 1 are implemented. The
+protocol-neutral core is internal, and shipped remote MCP consult and query
+tools remain one-shot pending Stage 2.
 
 Cross-cuts expert consult, consult lifecycle, consult traces, MCP HTTP, scoped
 keys, A2A, capacity, and runtime storage. Read
@@ -586,6 +587,8 @@ this mode. It is not a prerequisite for basic host-to-expert continuation.
 
 ### Stage 0: contract and evaluator
 
+Status: complete on 2026-07-15.
+
 - Publish this design and ADR 0005.
 - Add versioned JSON Schemas for conversation, turn, event, context snapshot,
   and error envelopes.
@@ -598,6 +601,9 @@ Exit: schemas and evaluator fixtures can express every invariant before a live
 model is called.
 
 ### Stage 1: protocol-neutral local core
+
+Status: complete on 2026-07-15. The core does not construct a provider or
+expose a network tool.
 
 - Add a named conversation service and SQLite store under the runtime root.
 - Reuse consult lifecycle and trace seams per turn.

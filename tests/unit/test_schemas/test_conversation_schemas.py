@@ -77,15 +77,27 @@ def test_turn_schema_rejects_unbounded_context_and_enacted_authority() -> None:
     with pytest.raises(ValidationError):
         validator.validate(enacted)
 
+    wrong_status = copy.deepcopy(fixture)
+    wrong_status["artifact"]["semantic_status"] = "input_required"
+    with pytest.raises(ValidationError):
+        validator.validate(wrong_status)
+
+    duplicate_evidence = copy.deepcopy(fixture)
+    duplicate_evidence["artifact"]["evidence"].append(duplicate_evidence["artifact"]["evidence"][0])
+    with pytest.raises(ValidationError):
+        validator.validate(duplicate_evidence)
+
 
 def test_turn_schema_requires_artifact_for_completed_turn() -> None:
     validator = _validator("expert-conversation-turn-v1.json")
     fixture = conversation_contract_fixtures()["turn"]
     fixture["artifact"] = None
-    fixture["artifact_sha256"] = None
 
     with pytest.raises(ValidationError):
         validator.validate(fixture)
+
+    fixture["artifact_available"] = False
+    validator.validate(fixture)
 
 
 def test_turn_schema_hides_deleted_request_content() -> None:

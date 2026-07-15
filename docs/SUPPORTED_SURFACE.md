@@ -192,8 +192,12 @@ must not be described as usable capacity.
   evaluator report cover protocol-neutral identity, optimistic concurrency,
   idempotent replay, typed lifecycle state, bounded frozen context, finite
   retention, content-free audit events, owner isolation, local-only capacity,
-  and proposal-only advice. Its repeated-one-shot comparison is structural;
-  no live multi-turn service or semantic superiority claim is enabled.
+  and proposal-only advice. The protocol-neutral SQLite store and injected
+  executor service are implemented as an internal core with durable leases,
+  conservative ambiguous-attempt accounting, restart recovery, bounded exact
+  replay, finite content retention, and append-only content-free events. Its
+  repeated-one-shot comparison is structural; no MCP multi-turn service or
+  semantic superiority claim is enabled.
 - `deepr expert self-model` emits a read-only `deepr-expert-self-model-v1`
   record with expert capabilities, limits, goals, calibration, learning
   strategy, continuity, blockers, risks, and a bounded current-focus packet.
@@ -433,12 +437,13 @@ must not be described as usable capacity.
   complete.
 - Live hosted-agent registration smoke against a real third-party platform is
   still open.
-- Durable multi-turn expert conversations are planned. MCP query and consult
-  remain one-shot. The accepted design requires an explicit application handle,
-  a durable protocol-neutral store, per-turn ownership and idempotency, bounded
-  context, finite transcript retention, local-only acceptance evaluation, and
-  no automatic expert-memory writes before MCP start/continue/inspect/close
-  tools can ship. See
+- Durable multi-turn expert conversations are not yet a public surface. MCP
+  query and consult remain one-shot. The internal protocol-neutral core now
+  provides explicit application handles, ownership, idempotency, bounded frozen
+  context, finite transcript retention, and no automatic expert-memory writes.
+  MCP start/continue/inspect/close still require the local Ollama adapter,
+  current-scope revalidation, authenticated loopback and LAN acceptance, and the
+  held-out comparison before they can ship. See
   [remote-expert-conversations.md](design/remote-expert-conversations.md).
 - A long-running A2A service is planned only after the current in-memory custom
   substrate is migrated or versioned against A2A 1.0, tasks and contexts survive

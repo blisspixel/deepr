@@ -289,14 +289,17 @@ no-metered capacity posture, dissent preservation, replayable traces, and
 sanitized semantic quality review cases. It does not score answer meaning with
 brittle lexical rules.
 
-`deepr eval conversation` is the `$0`, no-write contract gate for the planned
+`deepr eval conversation` is the `$0`, no-write contract gate for the internal
 durable conversation core. Its twelve frozen checks cover application handles,
 owner isolation, serialized versions, idempotent replay, typed stops, bounded
 frozen context, finite retention, content-free audit events, local-only
 capacity, and proposal-only advice. It publishes a repeated-one-shot structural
 comparison manifest but does not claim that multi-turn answers are semantically
-better. MCP start, continue, inspect, and close tools remain gated until the
-durable local core passes restart, concurrency, deletion, and recovery tests.
+better. The protocol-neutral SQLite core now passes restart, concurrency,
+deletion, recovery, property, schema, and injected-executor tests without a
+model. MCP start, continue, inspect, and close tools remain gated on the Stage 2
+local Ollama adapter, per-request authorization, LAN validation, and held-out
+quality comparison.
 
 `deepr eval deliberation` is the `$0`, frozen-fixture gate for future
 expert-to-expert discussion. Its eleven checks cover bounded round lineage,

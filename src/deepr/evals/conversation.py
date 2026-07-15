@@ -14,25 +14,27 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
+from deepr.experts.conversation.models import (
+    CONVERSATION_KIND,
+    CONVERSATION_SCHEMA_VERSION,
+    DEFAULT_MAX_CONTEXT_BYTES,
+    DEFAULT_RETENTION_DAYS,
+    ERROR_KIND,
+    ERROR_SCHEMA_VERSION,
+    EVENT_KIND,
+    EVENT_SCHEMA_VERSION,
+    HOST_ACTION_BOUNDARY,
+    MAX_RECENT_TURNS,
+    MAX_RETENTION_DAYS,
+    SNAPSHOT_KIND,
+    SNAPSHOT_SCHEMA_VERSION,
+    TURN_KIND,
+    TURN_SCHEMA_VERSION,
+)
+
 CONVERSATION_EVAL_SCHEMA_VERSION = "deepr-conversation-eval-v1"
 CONVERSATION_EVAL_KIND = "deepr.eval.conversation"
 CONVERSATION_EVAL_METHODOLOGY_VERSION = "1.0"
-
-CONVERSATION_SCHEMA_VERSION = "deepr-expert-conversation-v1"
-CONVERSATION_KIND = "deepr.expert.conversation"
-TURN_SCHEMA_VERSION = "deepr-expert-conversation-turn-v1"
-TURN_KIND = "deepr.expert.conversation_turn"
-EVENT_SCHEMA_VERSION = "deepr-expert-conversation-event-v1"
-EVENT_KIND = "deepr.expert.conversation_event"
-SNAPSHOT_SCHEMA_VERSION = "deepr-expert-context-snapshot-v1"
-SNAPSHOT_KIND = "deepr.expert.context_snapshot"
-ERROR_SCHEMA_VERSION = "deepr-expert-conversation-error-v1"
-ERROR_KIND = "deepr.expert.conversation_error"
-
-DEFAULT_RETENTION_DAYS = 30
-MAX_RETENTION_DAYS = 365
-MAX_RECENT_TURNS = 6
-DEFAULT_MAX_CONTEXT_BYTES = 65_536
 
 _FIXED_TIME = "2026-07-15T16:00:00+00:00"
 _FIXED_LATER_TIME = "2026-07-15T16:00:01+00:00"
@@ -46,7 +48,7 @@ _HASH_A = "a" * 64
 _HASH_B = "b" * 64
 _HASH_C = "c" * 64
 _HASH_D = "d" * 64
-_HOST_ACTION_BOUNDARY = "Deepr provides advice only; the host decides and enacts downstream work."
+_HOST_ACTION_BOUNDARY = HOST_ACTION_BOUNDARY
 
 
 def conversation_contract_fixtures() -> dict[str, dict[str, Any]]:
@@ -125,6 +127,7 @@ def conversation_contract_fixtures() -> dict[str, dict[str, Any]]:
         },
         "current_turn_id": None,
         "latest_turn_id": _TURN_ID,
+        "pending_input_request_id": None,
         "created_at": _FIXED_TIME,
         "updated_at": _FIXED_LATER_TIME,
         "host_action_boundary": _HOST_ACTION_BOUNDARY,
@@ -150,6 +153,7 @@ def conversation_contract_fixtures() -> dict[str, dict[str, Any]]:
             "context_bytes": 512,
             "context_sha256": _HASH_C,
         },
+        "artifact_available": True,
         "artifact": {
             "direct_answer": "A replay that dispatches twice invalidates the rollout plan.",
             "experts_consulted": ["reliability_engineering"],
