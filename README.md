@@ -162,7 +162,8 @@ Results are saved under the configured reports root, defaulting to
 | Local expert maintenance | Works through Ollama for local expert setup, absorb, sync, fresh/deep local context, eval, and scored admission | [docs/CAPACITY.md](docs/CAPACITY.md) |
 | Explicit plan-quota execution | Works for selected non-metered expert sync, sync-all, gap-fill, absorb, learn, consult, and probe commands behind auth-mode and no-surprise-bills checks | [docs/CAPACITY.md](docs/CAPACITY.md), [docs/design/plan-quota-cli-backends.md](docs/design/plan-quota-cli-backends.md) |
 | Domain experts | Works for expert creation, `$0` next-action guidance, chat, consult, beliefs, gaps, loop status, OKF export/import, self-model reads, monitor proposals, reviewed monitor promotion, and self-model update review and acceptance records | [docs/EXPERTS.md](docs/EXPERTS.md) |
-| MCP | Works for local stdio and experimental HTTP/SSE with scoped keys, budgets, rate limits, audit logs, smoke checks, no-metered consult validation, and registration manifests | [mcp/README.md](mcp/README.md) |
+| MCP | Works for local stdio and experimental HTTP/SSE with scoped keys, budgets, rate limits, audit logs, smoke checks, no-metered one-shot consult validation, and registration manifests | [mcp/README.md](mcp/README.md) |
+| A2A | Library and validation prototype only: Agent Card, in-memory tasks, consult mapping, and host validation exist, but no long-running serve command or A2A 1.0 conformance claim is shipped | [docs/SUPPORTED_SURFACE.md](docs/SUPPORTED_SURFACE.md) |
 | Web dashboard | Experimental but usable for reports, experts, costs, model views, loop status, and OpenAI-backed research submission; use CLI workflows for other providers | [docs/FEATURES.md](docs/FEATURES.md) |
 
 Job cancellation reports success only after the provider or queue transition,
@@ -356,6 +357,13 @@ call, hard output ceilings, auxiliary calls charged to the parent budget, and
 serialized turns per session. API council synthesis is a separate bounded
 surface and remains available with explicit approval. The host remains the
 orchestrator; Deepr provides the verified knowledge layer.
+
+MCP query and consult are one-shot today. A durable back-and-forth expert
+conversation and a long-running A2A service are planned, not shipped. The
+accepted sequence is a protocol-neutral durable core and `$0` evaluator, MCP
+start/continue/inspect/close tools with authenticated LAN validation, then an
+A2A 1.0 mapping. See
+[remote-expert-conversations.md](docs/design/remote-expert-conversations.md).
 
 ```bash
 deepr mcp serve

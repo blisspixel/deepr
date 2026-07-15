@@ -32,3 +32,5 @@ gate; it is a memory aid.
 | [0001](0001-one-reports-root-from-config.md) | One reports root, sourced from config | Accepted |
 | [0002](0002-agent-error-envelope-on-every-surface.md) | Agent error envelope on every error surface | Accepted |
 | [0003](0003-cli-non-tty-and-self-update.md) | CLI: non-TTY safety and self-update | Accepted |
+| [0004](0004-one-experts-root-and-portable-data-dir.md) | One experts root, and a portable data directory | Accepted |
+| [0005](0005-protocol-neutral-expert-conversation-handles.md) | Protocol-neutral handles for expert conversations | Accepted |

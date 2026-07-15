@@ -1,6 +1,6 @@
 # Supported Surface
 
-Status: v2.36.2 current main, 2026-07-14. This document defines what users and host
+Status: v2.36.2 current main, 2026-07-15. This document defines what users and host
 agents can rely on today, what is experimental, what is planned only, and what
 data remains portable if development stops.
 
@@ -62,17 +62,18 @@ must not be described as usable capacity.
   and `/api/experts/{name}/loop-status` share the `deepr-loop-status-v1` rollup
   contract. MCP handoff and loop-status outputs fail closed if the published
   schema version, kind, or required envelope fields drift before dispatch.
-- A2A task envelopes for create, status, cancel, and result-bearing completed
-  tasks. These use `deepr-a2a-task-v1` and fail closed if schema version, kind,
-  lifecycle state, cost, timestamps, or metadata drift before dispatch. The
-  Agent Card is available at `/.well-known/agent-card.json` with
-  `/.well-known/agent.json` kept as a compatibility alias. It advertises
-  `deepr_consult_experts`; completed consult tasks attach the full
-  `deepr-consult-v1` payload as an A2A task artifact. A2A consult defaults to
-  local no-metered synthesis and requires explicit
-  `allow_metered_api=true` plus a positive budget before API synthesis.
-  Malformed metadata objects, expert rosters, and backend/model selectors return
-  typed validation errors before the MCP consult tool can dispatch.
+- A2A library and validation contracts, not a shipped network service. The
+  `A2AServer` class, generated Agent Card, in-memory task manager, consult-task
+  adapter, and `deepr a2a validate-host` are tested. Within that prototype,
+  `deepr-a2a-task-v1` fails closed if schema version, kind, lifecycle state,
+  cost, timestamps, or metadata drift before dispatch. The generated Agent Card
+  uses `/.well-known/agent-card.json` with `/.well-known/agent.json` as a
+  compatibility alias and advertises `deepr_consult_experts`; completed consult
+  tasks attach the full `deepr-consult-v1` payload. The adapter defaults to
+  local no-metered synthesis and requires explicit `allow_metered_api=true`
+  plus a positive budget before API synthesis. No `deepr a2a serve` command is
+  shipped, task state is not restart-durable, and the custom model is not an
+  A2A 1.0 conformance claim.
 - Scheduled expert maintenance JSON contracts for sync capacity gates, gap-fill
   waits, reflection waits, health-check action plans, and health-check archive
   confirmations. These are experimental but schema-versioned and additive.
@@ -425,6 +426,17 @@ must not be described as usable capacity.
   complete.
 - Live hosted-agent registration smoke against a real third-party platform is
   still open.
+- Durable multi-turn expert conversations are planned. MCP query and consult
+  remain one-shot. The accepted design requires an explicit application handle,
+  a durable protocol-neutral store, per-turn ownership and idempotency, bounded
+  context, finite transcript retention, local-only acceptance evaluation, and
+  no automatic expert-memory writes before MCP start/continue/inspect/close
+  tools can ship. See
+  [remote-expert-conversations.md](design/remote-expert-conversations.md).
+- A long-running A2A service is planned only after the current in-memory custom
+  substrate is migrated or versioned against A2A 1.0, tasks and contexts survive
+  restart, authorization is caller-scoped on every request, and a separate A2A
+  client passes live conformance-oriented validation.
 - OAuth/OIDC, team RBAC, and workspace isolation are planned team features.
 - Hosted-by-Deepr SaaS, SLAs, and enterprise SSO are non-goals for this project
   shape.
