@@ -57,6 +57,12 @@ hard output ceilings, parent-budget accounting for auxiliary calls, and
 per-session turn serialization. API council synthesis is separate and remains
 available with explicit approval.
 
+Query and consult are one-shot today. They do not return a durable conversation
+handle, and repeating a call does not continue model history. Durable
+start/continue/inspect/close tools are planned behind a protocol-neutral store,
+local-only evaluator, and authenticated LAN validation. See
+[remote-expert-conversations.md](../docs/design/remote-expert-conversations.md).
+
 **Errors are structured, not prose.** A failed call returns
 `{error_code, category, retryable, message}` (e.g. `CONSULT_BACKEND_UNAVAILABLE`,
 `INVALID_BUDGET`). An elapsed consult returns `CONSULT_ELAPSED_LIMIT` plus its

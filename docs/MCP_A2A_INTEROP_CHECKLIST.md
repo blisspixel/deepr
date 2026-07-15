@@ -1,6 +1,6 @@
 # MCP and A2A Interop Checklist
 
-Status: current with Deepr v2.36.2. Last reviewed: 2026-07-14.
+Status: current with Deepr v2.36.2. Last reviewed: 2026-07-15.
 
 Use this checklist when connecting Deepr experts to another agent host through
 MCP or A2A. It is a compact integration review, not the command guide. For
@@ -14,6 +14,8 @@ copy-ready validation commands, use [MCP_AGENT_TEST_GUIDE.md](MCP_AGENT_TEST_GUI
   <https://modelcontextprotocol.io/specification/2025-11-25/basic/authorization>
 - MCP security best practices:
   <https://modelcontextprotocol.io/docs/tutorials/security/security_best_practices>
+- MCP `2026-07-28` release candidate, including the stateless core:
+  <https://blog.modelcontextprotocol.io/posts/2026-07-28-release-candidate/>
 - A2A latest specification:
   <https://a2a-protocol.org/latest/specification/>
 - OWASP Agentic AI threats and mitigations:
@@ -26,8 +28,10 @@ copy-ready validation commands, use [MCP_AGENT_TEST_GUIDE.md](MCP_AGENT_TEST_GUI
   tool list.
 - Filter visible tools by scope, mode, budget, and rate policy before giving a
   host broad access.
-- For A2A, fetch the Agent Card at `/.well-known/agent-card.json`. Deepr keeps
-  `/.well-known/agent.json` only as a compatibility alias for older clients.
+- For an A2A 1.0 service, fetch the Agent Card at the standard discovery path
+  and negotiate the advertised binding. Deepr's current A2A package is a
+  library and validation prototype with current and legacy discovery paths, not
+  a shipped listener or A2A 1.0 conformance claim.
 - Keep discovery payloads small. Link or search for detail rather than stuffing
   every guide into the host context.
 
@@ -95,8 +99,9 @@ copy-ready validation commands, use [MCP_AGENT_TEST_GUIDE.md](MCP_AGENT_TEST_GUI
   resources.
 - A2A work should follow a task lifecycle: submit, poll or stream status,
   complete or fail, then attach result artifacts.
-- Deepr A2A consult tasks attach the full `deepr-consult-v1` payload as an A2A
-  task artifact. The host owns orchestration and actions after reading it.
+- Deepr's current A2A adapter attaches the full `deepr-consult-v1` payload to
+  its custom task artifact. The host owns orchestration and actions after
+  reading it. The in-memory task manager is not restart-durable.
 - Result artifacts should preserve trace ids, capacity posture, cost posture,
   roster metadata, agreements, disagreements, and dissent handling.
 
@@ -128,6 +133,12 @@ For a remote endpoint:
 deepr mcp validate-consult http://127.0.0.1:8765/mcp --auth-token "$DEEPR_MCP_KEY" --json
 deepr a2a validate-host http://127.0.0.1:8080 --auth-token "$DEEPR_A2A_TOKEN" --json
 ```
+
+The A2A URL command requires an already-running compatible endpoint supplied by
+an embedding application. Deepr does not ship a long-running A2A serve command
+today. Durable conversation handles, MCP-first continuation, and the later A2A
+1.0 mapping are designed in
+[remote-expert-conversations.md](design/remote-expert-conversations.md).
 
 Expected:
 

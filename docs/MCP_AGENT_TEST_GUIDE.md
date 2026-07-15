@@ -373,10 +373,14 @@ must not fall through to a metered provider.
 
 ## A2A Consult Task Shape
 
-A2A hosts can discover `deepr_consult_experts` in the Agent Card at the current
-path `/.well-known/agent-card.json`. The legacy `/.well-known/agent.json` path
-is still accepted for older clients. Validate the contract before giving it to a
-host:
+This is a Deepr library and validation prototype, not a shipped A2A network
+service or an A2A 1.0 conformance claim. The `A2AServer` class can generate an
+Agent Card at `/.well-known/agent-card.json`, with
+`/.well-known/agent.json` as a compatibility alias, and advertises
+`deepr_consult_experts`. Deepr does not yet ship `deepr a2a serve`.
+
+Validate the library contract or an endpoint supplied by an embedding
+application:
 
 ```powershell
 deepr a2a validate-host --json
@@ -384,7 +388,8 @@ deepr a2a validate-host http://127.0.0.1:8080 --auth-token "$DEEPR_A2A_TOKEN" --
 ```
 
 The first command is an offline `$0` fixture. The second submits a no-metered
-consult task to a running endpoint and emits `deepr-a2a-host-validation-v1`.
+consult task to an already-running compatible endpoint and emits
+`deepr-a2a-host-validation-v1`; it does not start that endpoint.
 
 Submit a task with the consult question as `input`. The no-metered default is
 local synthesis:
@@ -414,3 +419,8 @@ Expected completed task:
 API synthesis over A2A requires both a positive `budget` and
 `metadata.allow_metered_api=true`; otherwise the task fails closed without
 spend.
+
+Before Deepr ships a listener, the custom task and Agent Card model must be
+migrated or versioned against A2A 1.0, task and context state must survive
+restart, and authorization must be caller-scoped. The implementation sequence
+is in [remote-expert-conversations.md](design/remote-expert-conversations.md).
