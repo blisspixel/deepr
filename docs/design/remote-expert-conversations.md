@@ -706,15 +706,20 @@ and attributable before the surface widens.
 
 ## Open implementation decisions
 
-These must be resolved in Stage 0 or Stage 1, before a public tool schema is
-frozen:
+Stage 0 resolved the contract decisions that must precede the local core:
 
-- exact default transcript retention and maximum operator override;
-- whether content deletion is immediate or uses a short recoverable grace
-  period;
-- bounded recent-turn count and context-byte defaults;
-- initial local model admission threshold on supported hardware;
-- whether a fork is in the first public schema or follows start and continue;
-- how OAuth subject continuity works when a scoped key is rotated.
+- transcript retention defaults to 30 days and operator configuration is
+  bounded at 365 days;
+- deletion immediately removes logical content while the append-only audit
+  skeleton retains only ids, lifecycle state, and hashes;
+- context includes at most six exact recent turns within a default 65,536-byte
+  aggregate ceiling;
+- fork is deferred until start, continue, inspect, and close are proven;
+- ownership binds to a stable validated principal identifier such as scoped-key
+  `key_id`, never the bearer secret, so supported secret rotation does not
+  silently transfer authority.
 
-None of these questions changes the accepted protocol-neutral handle decision.
+The initial local model admission threshold remains a Stage 2 hardware and live
+validation decision. OAuth subject and tenant continuity remains a Stage 5
+hosted-authorization decision. Neither changes the accepted protocol-neutral
+handle contract.

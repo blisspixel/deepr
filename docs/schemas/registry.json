@@ -151,6 +151,54 @@
       "compatibility": "additive-within-v1"
     },
     {
+      "name": "expert-conversation",
+      "schema_version": "deepr-expert-conversation-v1",
+      "kind": "deepr.expert.conversation",
+      "path": "expert-conversation-v1.json",
+      "status": "experimental",
+      "compatibility": "additive-within-v1"
+    },
+    {
+      "name": "expert-conversation-turn",
+      "schema_version": "deepr-expert-conversation-turn-v1",
+      "kind": "deepr.expert.conversation_turn",
+      "path": "expert-conversation-turn-v1.json",
+      "status": "experimental",
+      "compatibility": "additive-within-v1"
+    },
+    {
+      "name": "expert-conversation-event",
+      "schema_version": "deepr-expert-conversation-event-v1",
+      "kind": "deepr.expert.conversation_event",
+      "path": "expert-conversation-event-v1.json",
+      "status": "experimental",
+      "compatibility": "additive-within-v1"
+    },
+    {
+      "name": "expert-context-snapshot",
+      "schema_version": "deepr-expert-context-snapshot-v1",
+      "kind": "deepr.expert.context_snapshot",
+      "path": "expert-context-snapshot-v1.json",
+      "status": "experimental",
+      "compatibility": "additive-within-v1"
+    },
+    {
+      "name": "expert-conversation-error",
+      "schema_version": "deepr-expert-conversation-error-v1",
+      "kind": "deepr.expert.conversation_error",
+      "path": "expert-conversation-error-v1.json",
+      "status": "experimental",
+      "compatibility": "additive-within-v1"
+    },
+    {
+      "name": "conversation-eval",
+      "schema_version": "deepr-conversation-eval-v1",
+      "kind": "deepr.eval.conversation",
+      "path": "conversation-eval-v1.json",
+      "status": "experimental",
+      "compatibility": "additive-within-v1"
+    },
+    {
       "name": "deliberation-eval",
       "schema_version": "deepr-deliberation-eval-v1",
       "kind": "deepr.eval.deliberation",

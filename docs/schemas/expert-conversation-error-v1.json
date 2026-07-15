@@ -1,0 +1,88 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://deepr.example/schemas/expert-conversation-error-v1.json",
+  "title": "Deepr Expert Conversation Error",
+  "description": "Typed safe error envelope for protocol adapters. It never includes request content, credentials, or another owner's state.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "kind", "error"],
+  "properties": {
+    "schema_version": {"const": "deepr-expert-conversation-error-v1"},
+    "kind": {"const": "deepr.expert.conversation_error"},
+    "error": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["code", "safe_message", "retryable", "conversation_id", "current_version", "state", "details"],
+      "properties": {
+        "code": {
+          "enum": [
+            "invalid_request",
+            "not_found",
+            "version_conflict",
+            "idempotency_conflict",
+            "conversation_busy",
+            "invalid_state",
+            "ownership_denied",
+            "retention_expired",
+            "content_deleted",
+            "capacity_exhausted",
+            "waiting_capacity",
+            "executor_failed",
+            "storage_failed"
+          ]
+        },
+        "safe_message": {"type": "string", "minLength": 1, "maxLength": 1024},
+        "retryable": {"type": "boolean"},
+        "conversation_id": {
+          "oneOf": [
+            {"type": "null"},
+            {"type": "string", "pattern": "^conv_[A-Za-z0-9_-]{22,64}$"}
+          ]
+        },
+        "current_version": {
+          "oneOf": [
+            {"type": "null"},
+            {"type": "integer", "minimum": 1}
+          ]
+        },
+        "state": {
+          "oneOf": [
+            {"type": "null"},
+            {"enum": ["open", "input_required", "waiting_capacity", "closed", "expired", "cancelled", "failed"]}
+          ]
+        },
+        "details": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["expected_version", "current_version", "field", "retry_after_ms"],
+          "properties": {
+            "expected_version": {
+              "oneOf": [
+                {"type": "null"},
+                {"type": "integer", "minimum": 1}
+              ]
+            },
+            "current_version": {
+              "oneOf": [
+                {"type": "null"},
+                {"type": "integer", "minimum": 1}
+              ]
+            },
+            "field": {
+              "oneOf": [
+                {"type": "null"},
+                {"type": "string", "pattern": "^[A-Za-z][A-Za-z0-9_.]{0,127}$"}
+              ]
+            },
+            "retry_after_ms": {
+              "oneOf": [
+                {"type": "null"},
+                {"type": "integer", "minimum": 0, "maximum": 86400000}
+              ]
+            }
+          }
+        }
+      }
+    }
+  }
+}

@@ -187,6 +187,13 @@ must not be described as usable capacity.
   review as `unreviewed`. Synthesis is reserved for future explicit deep mode.
   No live multi-round CLI, MCP, or A2A surface is shipped; it remains gated on
   measured provider-call token and context enforcement.
+- `deepr eval conversation` emits `deepr-conversation-eval-v1` from twelve
+  built-in frozen-fixture checks at `$0`. The five conversation contracts and
+  evaluator report cover protocol-neutral identity, optimistic concurrency,
+  idempotent replay, typed lifecycle state, bounded frozen context, finite
+  retention, content-free audit events, owner isolation, local-only capacity,
+  and proposal-only advice. Its repeated-one-shot comparison is structural;
+  no live multi-turn service or semantic superiority claim is enabled.
 - `deepr expert self-model` emits a read-only `deepr-expert-self-model-v1`
   record with expert capabilities, limits, goals, calibration, learning
   strategy, continuity, blockers, risks, and a bounded current-focus packet.

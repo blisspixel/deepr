@@ -227,6 +227,7 @@ deepr expert subscribe "AI Policy Expert" "EU AI Act enforcement timeline"
 deepr expert sync "AI Policy Expert" --local --fresh-context -y
 deepr expert consult "What should our agentic harness improve next?" --local
 deepr eval consult --json
+deepr eval conversation --json
 deepr eval deliberation --json
 deepr eval hallucination-risks --json
 deepr expert self-model "AI Policy Expert" --json
@@ -287,6 +288,15 @@ contracts for expert routing, context packets, collaboration metadata,
 no-metered capacity posture, dissent preservation, replayable traces, and
 sanitized semantic quality review cases. It does not score answer meaning with
 brittle lexical rules.
+
+`deepr eval conversation` is the `$0`, no-write contract gate for the planned
+durable conversation core. Its twelve frozen checks cover application handles,
+owner isolation, serialized versions, idempotent replay, typed stops, bounded
+frozen context, finite retention, content-free audit events, local-only
+capacity, and proposal-only advice. It publishes a repeated-one-shot structural
+comparison manifest but does not claim that multi-turn answers are semantically
+better. MCP start, continue, inspect, and close tools remain gated until the
+durable local core passes restart, concurrency, deletion, and recovery tests.
 
 `deepr eval deliberation` is the `$0`, frozen-fixture gate for future
 expert-to-expert discussion. Its eleven checks cover bounded round lineage,

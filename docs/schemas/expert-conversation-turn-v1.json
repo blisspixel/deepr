@@ -1,0 +1,389 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://deepr.example/schemas/expert-conversation-turn-v1.json",
+  "title": "Deepr Expert Conversation Turn",
+  "description": "One durable expert-conversation turn with bounded context, structured advice, capacity, and trace lineage.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "kind",
+    "conversation_id",
+    "turn_id",
+    "ordinal",
+    "state",
+    "attempt_count",
+    "request",
+    "context",
+    "artifact",
+    "artifact_sha256",
+    "stop",
+    "capacity",
+    "trace",
+    "created_at",
+    "updated_at"
+  ],
+  "properties": {
+    "schema_version": {"const": "deepr-expert-conversation-turn-v1"},
+    "kind": {"const": "deepr.expert.conversation_turn"},
+    "conversation_id": {"type": "string", "pattern": "^conv_[A-Za-z0-9_-]{22,64}$"},
+    "turn_id": {"type": "string", "pattern": "^turn_[A-Za-z0-9_-]{16,64}$"},
+    "ordinal": {"type": "integer", "minimum": 1, "maximum": 100},
+    "state": {
+      "enum": [
+        "accepted",
+        "running",
+        "input_required",
+        "waiting_capacity",
+        "completed",
+        "cancelled",
+        "budget_exhausted",
+        "verifier_failed",
+        "interrupted",
+        "failed"
+      ]
+    },
+    "attempt_count": {"type": "integer", "minimum": 1, "maximum": 100},
+    "request": {"$ref": "#/$defs/request"},
+    "context": {"$ref": "#/$defs/context"},
+    "artifact": {
+      "oneOf": [
+        {"type": "null"},
+        {"$ref": "#/$defs/artifact"}
+      ]
+    },
+    "artifact_sha256": {
+      "oneOf": [
+        {"type": "null"},
+        {"type": "string", "pattern": "^[a-f0-9]{64}$"}
+      ]
+    },
+    "stop": {"$ref": "#/$defs/stop"},
+    "capacity": {"$ref": "#/$defs/capacity"},
+    "trace": {"$ref": "#/$defs/trace"},
+    "created_at": {"type": "string", "format": "date-time"},
+    "updated_at": {"type": "string", "format": "date-time"}
+  },
+  "$defs": {
+    "request": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["content_available", "content", "content_sha256", "input_request_id"],
+      "properties": {
+        "content_available": {"type": "boolean"},
+        "content": {
+          "oneOf": [
+            {"type": "null"},
+            {"type": "string", "minLength": 1, "maxLength": 131072}
+          ]
+        },
+        "content_sha256": {"type": "string", "pattern": "^[a-f0-9]{64}$"},
+        "input_request_id": {
+          "oneOf": [
+            {"type": "null"},
+            {"type": "string", "pattern": "^input_[A-Za-z0-9_-]{16,64}$"}
+          ]
+        }
+      },
+      "allOf": [
+        {
+          "if": {"properties": {"content_available": {"const": true}}},
+          "then": {"properties": {"content": {"type": "string", "minLength": 1}}},
+          "else": {"properties": {"content": {"type": "null"}}}
+        }
+      ]
+    },
+    "context": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["snapshot_id", "snapshot_sha256", "recent_turn_ids", "context_bytes", "context_sha256"],
+      "properties": {
+        "snapshot_id": {"type": "string", "pattern": "^snap_[A-Za-z0-9_-]{16,64}$"},
+        "snapshot_sha256": {"type": "string", "pattern": "^[a-f0-9]{64}$"},
+        "recent_turn_ids": {
+          "type": "array",
+          "maxItems": 6,
+          "uniqueItems": true,
+          "items": {"type": "string", "pattern": "^turn_[A-Za-z0-9_-]{16,64}$"}
+        },
+        "context_bytes": {"type": "integer", "minimum": 0, "maximum": 1048576},
+        "context_sha256": {"type": "string", "pattern": "^[a-f0-9]{64}$"}
+      }
+    },
+    "artifact": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "direct_answer",
+        "experts_consulted",
+        "assumptions",
+        "evidence",
+        "uncertainty",
+        "agreements",
+        "dissent",
+        "decision_implications",
+        "change_conditions",
+        "unresolved_gaps",
+        "recommended_next_question",
+        "semantic_status",
+        "host_action_boundary"
+      ],
+      "properties": {
+        "direct_answer": {"type": "string", "minLength": 1, "maxLength": 262144},
+        "experts_consulted": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 10,
+          "uniqueItems": true,
+          "items": {"type": "string", "minLength": 1, "maxLength": 128}
+        },
+        "assumptions": {
+          "type": "array",
+          "maxItems": 100,
+          "items": {"$ref": "#/$defs/assumption"}
+        },
+        "evidence": {
+          "type": "array",
+          "maxItems": 200,
+          "items": {"$ref": "#/$defs/evidence"}
+        },
+        "uncertainty": {"$ref": "#/$defs/uncertainty"},
+        "agreements": {
+          "type": "array",
+          "maxItems": 100,
+          "items": {"type": "string", "minLength": 1, "maxLength": 4096}
+        },
+        "dissent": {
+          "type": "array",
+          "maxItems": 100,
+          "items": {"$ref": "#/$defs/dissent"}
+        },
+        "decision_implications": {
+          "type": "array",
+          "maxItems": 100,
+          "items": {"$ref": "#/$defs/decision_implication"}
+        },
+        "change_conditions": {
+          "type": "array",
+          "maxItems": 100,
+          "items": {"type": "string", "minLength": 1, "maxLength": 4096}
+        },
+        "unresolved_gaps": {
+          "type": "array",
+          "maxItems": 100,
+          "items": {"type": "string", "minLength": 1, "maxLength": 4096}
+        },
+        "recommended_next_question": {
+          "oneOf": [
+            {"type": "null"},
+            {"type": "string", "minLength": 1, "maxLength": 8192}
+          ]
+        },
+        "semantic_status": {"enum": ["answered", "input_required", "evidence_required"]},
+        "host_action_boundary": {"type": "string", "minLength": 1, "maxLength": 512}
+      }
+    },
+    "assumption": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["text", "source"],
+      "properties": {
+        "text": {"type": "string", "minLength": 1, "maxLength": 4096},
+        "source": {"enum": ["host_supplied", "model_proposed"]}
+      }
+    },
+    "evidence": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["evidence_ref", "source_type", "expert_name", "citation"],
+      "properties": {
+        "evidence_ref": {"type": "string", "minLength": 1, "maxLength": 256},
+        "source_type": {"enum": ["expert_state", "prior_turn", "caller_supplied", "external_source"]},
+        "expert_name": {
+          "oneOf": [
+            {"type": "null"},
+            {"type": "string", "minLength": 1, "maxLength": 128}
+          ]
+        },
+        "citation": {
+          "oneOf": [
+            {"type": "null"},
+            {"type": "string", "minLength": 1, "maxLength": 2048}
+          ]
+        }
+      }
+    },
+    "uncertainty": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "value", "rationale"],
+      "properties": {
+        "kind": {"enum": ["qualitative", "probability", "interval", "not_applicable"]},
+        "value": {
+          "oneOf": [
+            {"type": "null"},
+            {"type": "string", "maxLength": 256},
+            {"type": "number", "minimum": 0, "maximum": 1},
+            {
+              "type": "array",
+              "prefixItems": [
+                {"type": "number"},
+                {"type": "number"}
+              ],
+              "minItems": 2,
+              "maxItems": 2
+            }
+          ]
+        },
+        "rationale": {"type": "string", "minLength": 1, "maxLength": 4096}
+      }
+    },
+    "dissent": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["position", "expert_names", "evidence_refs"],
+      "properties": {
+        "position": {"type": "string", "minLength": 1, "maxLength": 8192},
+        "expert_names": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 10,
+          "uniqueItems": true,
+          "items": {"type": "string", "minLength": 1, "maxLength": 128}
+        },
+        "evidence_refs": {
+          "type": "array",
+          "maxItems": 100,
+          "uniqueItems": true,
+          "items": {"type": "string", "minLength": 1, "maxLength": 256}
+        }
+      }
+    },
+    "decision_implication": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["proposal", "authority"],
+      "properties": {
+        "proposal": {"type": "string", "minLength": 1, "maxLength": 8192},
+        "authority": {"const": "proposal_only"}
+      }
+    },
+    "stop": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["reason", "retryable"],
+      "properties": {
+        "reason": {
+          "enum": [
+            "accepted",
+            "running",
+            "completed",
+            "input_required",
+            "waiting_capacity",
+            "interrupted",
+            "cancelled",
+            "budget_exhausted",
+            "verifier_failed",
+            "failed"
+          ]
+        },
+        "retryable": {"type": "boolean"}
+      }
+    },
+    "usage": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["model_calls", "input_tokens", "output_tokens", "elapsed_ms", "cost_usd"],
+      "properties": {
+        "model_calls": {"type": "integer", "minimum": 0},
+        "input_tokens": {"type": "integer", "minimum": 0},
+        "output_tokens": {"type": "integer", "minimum": 0},
+        "elapsed_ms": {"type": "integer", "minimum": 0},
+        "cost_usd": {"type": "number", "minimum": 0, "maximum": 1000000}
+      }
+    },
+    "remaining": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["turns", "model_calls", "input_tokens", "output_tokens", "elapsed_ms", "cost_usd"],
+      "properties": {
+        "turns": {"type": "integer", "minimum": 0},
+        "model_calls": {"type": "integer", "minimum": 0},
+        "input_tokens": {"type": "integer", "minimum": 0},
+        "output_tokens": {"type": "integer", "minimum": 0},
+        "elapsed_ms": {"type": "integer", "minimum": 0},
+        "cost_usd": {"type": "number", "minimum": 0, "maximum": 1000000}
+      }
+    },
+    "capacity": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["turn", "remaining"],
+      "properties": {
+        "turn": {"$ref": "#/$defs/usage"},
+        "remaining": {"$ref": "#/$defs/remaining"}
+      }
+    },
+    "trace": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["attempt_id", "consult_trace_id", "consult_lifecycle_trace_id"],
+      "properties": {
+        "attempt_id": {"type": "string", "pattern": "^attempt_[A-Za-z0-9_-]{16,64}$"},
+        "consult_trace_id": {
+          "oneOf": [
+            {"type": "null"},
+            {"type": "string", "pattern": "^[A-Za-z][A-Za-z0-9:_-]{7,127}$"}
+          ]
+        },
+        "consult_lifecycle_trace_id": {
+          "oneOf": [
+            {"type": "null"},
+            {"type": "string", "pattern": "^[A-Za-z][A-Za-z0-9:_-]{7,127}$"}
+          ]
+        }
+      }
+    }
+  },
+  "allOf": [
+    {
+      "if": {"properties": {"state": {"enum": ["completed", "input_required"]}}},
+      "then": {
+        "properties": {
+          "artifact": {"$ref": "#/$defs/artifact"},
+          "artifact_sha256": {"type": "string", "pattern": "^[a-f0-9]{64}$"}
+        }
+      },
+      "else": {
+        "if": {"properties": {"state": {"enum": ["accepted", "running", "waiting_capacity", "interrupted"]}}},
+        "then": {
+          "properties": {
+            "artifact": {"type": "null"},
+            "artifact_sha256": {"type": "null"}
+          }
+        }
+      }
+    },
+    {
+      "if": {"properties": {"state": {"const": "input_required"}}},
+      "then": {
+        "properties": {
+          "artifact": {"properties": {"semantic_status": {"const": "input_required"}}},
+          "stop": {"properties": {"reason": {"const": "input_required"}, "retryable": {"const": true}}}
+        }
+      }
+    },
+    {
+      "if": {"properties": {"state": {"const": "completed"}}},
+      "then": {"properties": {"stop": {"properties": {"reason": {"const": "completed"}}}}}
+    },
+    {
+      "if": {"properties": {"state": {"const": "waiting_capacity"}}},
+      "then": {
+        "properties": {
+          "stop": {"properties": {"reason": {"const": "waiting_capacity"}, "retryable": {"const": true}}}
+        }
+      }
+    }
+  ]
+}

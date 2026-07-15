@@ -1,0 +1,145 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://deepr.example/schemas/conversation-eval-v1.json",
+  "title": "Deepr Conversation Structural Evaluation",
+  "description": "Zero-cost frozen-fixture evaluation of durable expert-conversation contracts. It makes no semantic quality claim.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "kind",
+    "suite_name",
+    "methodology_version",
+    "cost_usd",
+    "semantic_review_status",
+    "contract",
+    "policy",
+    "fixtures",
+    "comparison_manifest",
+    "total_cases",
+    "passed_cases",
+    "failed_cases",
+    "score",
+    "outcomes",
+    "generated_at"
+  ],
+  "properties": {
+    "schema_version": {"const": "deepr-conversation-eval-v1"},
+    "kind": {"const": "deepr.eval.conversation"},
+    "suite_name": {"const": "durable-expert-conversation-fixture"},
+    "methodology_version": {"type": "string", "pattern": "^[0-9]+\\.[0-9]+$"},
+    "cost_usd": {"const": 0.0},
+    "semantic_review_status": {"const": "unreviewed"},
+    "contract": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "execution_mode",
+        "capacity_mode",
+        "provider_calls",
+        "backend_calls",
+        "expert_store_reads",
+        "network_access",
+        "fallback_policy",
+        "live_metered_fallback",
+        "cost_usd",
+        "writes_runtime_state",
+        "semantic_verdict"
+      ],
+      "properties": {
+        "execution_mode": {"const": "frozen_fixture"},
+        "capacity_mode": {"const": "local_only"},
+        "provider_calls": {"const": 0},
+        "backend_calls": {"const": 0},
+        "expert_store_reads": {"const": 0},
+        "network_access": {"const": false},
+        "fallback_policy": {"const": "none"},
+        "live_metered_fallback": {"const": false},
+        "cost_usd": {"const": 0.0},
+        "writes_runtime_state": {"const": false},
+        "semantic_verdict": {"const": false}
+      }
+    },
+    "policy": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "default_retention_days",
+        "maximum_retention_days",
+        "maximum_recent_turns",
+        "default_max_context_bytes",
+        "content_deletion",
+        "audit_event_retention"
+      ],
+      "properties": {
+        "default_retention_days": {"const": 30},
+        "maximum_retention_days": {"const": 365},
+        "maximum_recent_turns": {"const": 6},
+        "default_max_context_bytes": {"const": 65536},
+        "content_deletion": {"const": "immediate_logical_removal"},
+        "audit_event_retention": {"const": "hashes_and_lifecycle_only"}
+      }
+    },
+    "fixtures": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["conversation", "turn", "event", "context_snapshot", "error"],
+      "properties": {
+        "conversation": {"type": "object"},
+        "turn": {"type": "object"},
+        "event": {"type": "object"},
+        "context_snapshot": {"type": "object"},
+        "error": {"type": "object"}
+      }
+    },
+    "comparison_manifest": {
+      "type": "object",
+      "required": [
+        "manifest_version",
+        "question_id",
+        "question_sha256",
+        "expert_names",
+        "snapshot_id",
+        "snapshot_sha256",
+        "repeated_one_shot",
+        "durable_conversation",
+        "comparison_status",
+        "semantic_quality_review"
+      ],
+      "properties": {
+        "manifest_version": {"const": "deepr-conversation-comparison-v1"},
+        "question_id": {"type": "string", "minLength": 1},
+        "question_sha256": {"type": "string", "pattern": "^[a-f0-9]{64}$"},
+        "expert_names": {"type": "array", "minItems": 1, "items": {"type": "string"}},
+        "snapshot_id": {"type": "string", "pattern": "^snap_[A-Za-z0-9_-]{16,64}$"},
+        "snapshot_sha256": {"type": "string", "pattern": "^[a-f0-9]{64}$"},
+        "repeated_one_shot": {"type": "object"},
+        "durable_conversation": {"type": "object"},
+        "comparison_status": {"const": "structural_only"},
+        "semantic_quality_review": {"const": "unreviewed"}
+      }
+    },
+    "total_cases": {"type": "integer", "minimum": 1},
+    "passed_cases": {"type": "integer", "minimum": 0},
+    "failed_cases": {"type": "integer", "minimum": 0},
+    "score": {"type": "number", "minimum": 0, "maximum": 1},
+    "outcomes": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["case_id", "category", "passed", "failed", "semantic_verdict", "detail"],
+        "properties": {
+          "case_id": {"type": "string", "pattern": "^[a-z][a-z0-9_]{0,127}$"},
+          "category": {"type": "string", "pattern": "^[a-z][a-z0-9_]{0,63}$"},
+          "passed": {"type": "boolean"},
+          "failed": {"type": "boolean"},
+          "semantic_verdict": {"const": false},
+          "detail": {"type": "object"}
+        }
+      }
+    },
+    "generated_at": {"type": "string", "format": "date-time"}
+  }
+}
