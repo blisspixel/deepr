@@ -905,8 +905,12 @@ What exists (current main):
   [remote-expert-conversations.md](docs/design/remote-expert-conversations.md).
   - [x] Architecture decision recorded 2026-07-15 in
     [ADR 0005](docs/decisions/0005-protocol-neutral-expert-conversation-handles.md).
-  - [ ] Add `deepr eval conversation` with frozen structural fixtures and a
-    held-out repeated-one-shot comparison before live tools.
+  - [x] Added `deepr eval conversation` on 2026-07-15 with twelve `$0` frozen
+    structural checks, five versioned conversation contracts, a versioned
+    evaluator report, and a repeated-one-shot structural comparison manifest.
+    Semantic quality remains unreviewed; a held-out repeated-one-shot quality
+    comparison remains the Stage 2 release gate before live tools are called
+    usable.
   - [ ] Add the protocol-neutral SQLite event/projection store, ownership,
     idempotency, optimistic concurrency, restart recovery, retention, deletion,
     frozen context snapshots, and injected fake-executor tests.

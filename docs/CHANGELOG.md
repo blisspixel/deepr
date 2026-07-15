@@ -7,6 +7,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Added `deepr eval conversation`, a `$0` frozen-fixture structural gate for
+  durable expert conversations. Twelve checks cover protocol-neutral identity,
+  optimistic versioning, idempotency, typed lifecycle states, bounded frozen
+  context, finite retention, content-free audit events, structured advice,
+  owner isolation, local-only capacity, and proposal-only authority. The
+  repeated-one-shot comparison is structural and semantic quality remains
+  explicitly unreviewed.
+- Published `deepr-expert-conversation-v1`,
+  `deepr-expert-conversation-turn-v1`,
+  `deepr-expert-conversation-event-v1`,
+  `deepr-expert-context-snapshot-v1`,
+  `deepr-expert-conversation-error-v1`, and
+  `deepr-conversation-eval-v1` contracts before exposing a live conversation
+  tool.
+
 ### Fixed
 
 - Embedding-cache soft cost checks fail closed when cost admission cannot

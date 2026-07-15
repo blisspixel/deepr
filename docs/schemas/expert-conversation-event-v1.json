@@ -1,0 +1,118 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://deepr.example/schemas/expert-conversation-event-v1.json",
+  "title": "Deepr Expert Conversation Event",
+  "description": "Append-only conversation lifecycle audit event. Raw prompts, answers, credentials, and private reasoning are forbidden by shape.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "kind",
+    "event_id",
+    "conversation_id",
+    "sequence",
+    "projection_version",
+    "event_type",
+    "turn_id",
+    "attempt_id",
+    "previous_state",
+    "current_state",
+    "reason_code",
+    "request_sha256",
+    "artifact_sha256",
+    "owner_binding_sha256",
+    "content_retained",
+    "created_at"
+  ],
+  "properties": {
+    "schema_version": {"const": "deepr-expert-conversation-event-v1"},
+    "kind": {"const": "deepr.expert.conversation_event"},
+    "event_id": {"type": "string", "pattern": "^evt_[A-Za-z0-9_-]{16,64}$"},
+    "conversation_id": {"type": "string", "pattern": "^conv_[A-Za-z0-9_-]{22,64}$"},
+    "sequence": {"type": "integer", "minimum": 1},
+    "projection_version": {"type": "integer", "minimum": 1},
+    "event_type": {
+      "enum": [
+        "conversation_started",
+        "turn_accepted",
+        "turn_started",
+        "turn_completed",
+        "turn_input_required",
+        "turn_waiting_capacity",
+        "turn_interrupted",
+        "turn_resumed",
+        "turn_cancelled",
+        "turn_budget_exhausted",
+        "turn_verifier_failed",
+        "turn_failed",
+        "conversation_closed",
+        "conversation_expired",
+        "conversation_cancelled",
+        "conversation_failed",
+        "content_deleted"
+      ]
+    },
+    "turn_id": {
+      "oneOf": [
+        {"type": "null"},
+        {"type": "string", "pattern": "^turn_[A-Za-z0-9_-]{16,64}$"}
+      ]
+    },
+    "attempt_id": {
+      "oneOf": [
+        {"type": "null"},
+        {"type": "string", "pattern": "^attempt_[A-Za-z0-9_-]{16,64}$"}
+      ]
+    },
+    "previous_state": {
+      "oneOf": [
+        {"type": "null"},
+        {"$ref": "#/$defs/conversation_state"}
+      ]
+    },
+    "current_state": {"$ref": "#/$defs/conversation_state"},
+    "reason_code": {
+      "oneOf": [
+        {"type": "null"},
+        {"type": "string", "pattern": "^[a-z][a-z0-9_]{0,63}$"}
+      ]
+    },
+    "request_sha256": {
+      "oneOf": [
+        {"type": "null"},
+        {"type": "string", "pattern": "^[a-f0-9]{64}$"}
+      ]
+    },
+    "artifact_sha256": {
+      "oneOf": [
+        {"type": "null"},
+        {"type": "string", "pattern": "^[a-f0-9]{64}$"}
+      ]
+    },
+    "owner_binding_sha256": {"type": "string", "pattern": "^[a-f0-9]{64}$"},
+    "content_retained": {"type": "boolean"},
+    "created_at": {"type": "string", "format": "date-time"}
+  },
+  "$defs": {
+    "conversation_state": {
+      "enum": ["open", "input_required", "waiting_capacity", "closed", "expired", "cancelled", "failed"]
+    }
+  },
+  "allOf": [
+    {
+      "if": {"properties": {"event_type": {"const": "conversation_started"}}},
+      "then": {
+        "properties": {
+          "previous_state": {"type": "null"},
+          "current_state": {"const": "open"},
+          "turn_id": {"type": "null"},
+          "attempt_id": {"type": "null"}
+        }
+      }
+    },
+    {
+      "if": {"properties": {"event_type": {"const": "content_deleted"}}},
+      "then": {"properties": {"content_retained": {"const": false}}}
+    }
+  ]
+}

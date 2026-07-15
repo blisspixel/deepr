@@ -1,0 +1,86 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://deepr.example/schemas/expert-context-snapshot-v1.json",
+  "title": "Deepr Expert Context Snapshot",
+  "description": "Immutable bounded expert-state snapshot pinned to one durable conversation.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "kind",
+    "snapshot_id",
+    "conversation_id",
+    "created_at",
+    "context_builder_version",
+    "roster_hash",
+    "snapshot_sha256",
+    "total_bytes",
+    "content_available",
+    "content_deleted_at",
+    "expert_snapshots"
+  ],
+  "properties": {
+    "schema_version": {"const": "deepr-expert-context-snapshot-v1"},
+    "kind": {"const": "deepr.expert.context_snapshot"},
+    "snapshot_id": {"type": "string", "pattern": "^snap_[A-Za-z0-9_-]{16,64}$"},
+    "conversation_id": {"type": "string", "pattern": "^conv_[A-Za-z0-9_-]{22,64}$"},
+    "created_at": {"type": "string", "format": "date-time"},
+    "context_builder_version": {"type": "string", "pattern": "^[A-Za-z][A-Za-z0-9._-]{0,63}$"},
+    "roster_hash": {"type": "string", "pattern": "^[a-f0-9]{64}$"},
+    "snapshot_sha256": {"type": "string", "pattern": "^[a-f0-9]{64}$"},
+    "total_bytes": {"type": "integer", "minimum": 0, "maximum": 1048576},
+    "content_available": {"type": "boolean"},
+    "content_deleted_at": {
+      "oneOf": [
+        {"type": "null"},
+        {"type": "string", "format": "date-time"}
+      ]
+    },
+    "expert_snapshots": {
+      "oneOf": [
+        {"type": "null"},
+        {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 10,
+          "items": {"$ref": "#/$defs/expert_snapshot"}
+        }
+      ]
+    }
+  },
+  "$defs": {
+    "expert_snapshot": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["expert_name", "state_sha256", "source_position", "packet_sha256", "packet"],
+      "properties": {
+        "expert_name": {"type": "string", "minLength": 1, "maxLength": 128},
+        "state_sha256": {"type": "string", "pattern": "^[a-f0-9]{64}$"},
+        "source_position": {"type": "string", "minLength": 1, "maxLength": 256},
+        "packet_sha256": {"type": "string", "pattern": "^[a-f0-9]{64}$"},
+        "packet": {
+          "type": "object",
+          "description": "Bounded structured expert packet. Its semantic contents remain untrusted data until model or reviewer judgment.",
+          "maxProperties": 64
+        }
+      }
+    }
+  },
+  "allOf": [
+    {
+      "if": {"properties": {"content_available": {"const": true}}},
+      "then": {
+        "properties": {
+          "content_deleted_at": {"type": "null"},
+          "expert_snapshots": {"type": "array", "minItems": 1}
+        }
+      },
+      "else": {
+        "properties": {
+          "content_deleted_at": {"type": "string", "format": "date-time"},
+          "expert_snapshots": {"type": "null"}
+        }
+      }
+    }
+  ]
+}

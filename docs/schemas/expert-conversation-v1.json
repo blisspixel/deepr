@@ -1,0 +1,171 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://deepr.example/schemas/expert-conversation-v1.json",
+  "title": "Deepr Expert Conversation",
+  "description": "Protocol-neutral durable expert conversation projection. The conversation id is a locator, not a credential.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "kind",
+    "conversation_id",
+    "state",
+    "version",
+    "mode",
+    "expert_names",
+    "context_snapshot_id",
+    "backend",
+    "bounds",
+    "usage",
+    "retention",
+    "current_turn_id",
+    "latest_turn_id",
+    "created_at",
+    "updated_at",
+    "host_action_boundary"
+  ],
+  "properties": {
+    "schema_version": {"const": "deepr-expert-conversation-v1"},
+    "kind": {"const": "deepr.expert.conversation"},
+    "conversation_id": {"type": "string", "pattern": "^conv_[A-Za-z0-9_-]{22,64}$"},
+    "state": {
+      "enum": ["open", "input_required", "waiting_capacity", "closed", "expired", "cancelled", "failed"]
+    },
+    "version": {"type": "integer", "minimum": 1},
+    "mode": {"enum": ["focused", "council", "structured_panel", "deep"]},
+    "expert_names": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 10,
+      "uniqueItems": true,
+      "items": {"type": "string", "minLength": 1, "maxLength": 128}
+    },
+    "context_snapshot_id": {"type": "string", "pattern": "^snap_[A-Za-z0-9_-]{16,64}$"},
+    "backend": {"$ref": "#/$defs/backend"},
+    "bounds": {"$ref": "#/$defs/bounds"},
+    "usage": {"$ref": "#/$defs/usage"},
+    "retention": {"$ref": "#/$defs/retention"},
+    "current_turn_id": {
+      "oneOf": [
+        {"type": "null"},
+        {"type": "string", "pattern": "^turn_[A-Za-z0-9_-]{16,64}$"}
+      ]
+    },
+    "latest_turn_id": {
+      "oneOf": [
+        {"type": "null"},
+        {"type": "string", "pattern": "^turn_[A-Za-z0-9_-]{16,64}$"}
+      ]
+    },
+    "created_at": {"type": "string", "format": "date-time"},
+    "updated_at": {"type": "string", "format": "date-time"},
+    "host_action_boundary": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 512,
+      "description": "States that Deepr supplies advice and does not authorize downstream action."
+    }
+  },
+  "$defs": {
+    "backend": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["capacity_source", "backend_class", "model", "fallback_policy", "live_metered_fallback"],
+      "properties": {
+        "capacity_source": {"enum": ["local_owned", "plan_quota", "metered_api"]},
+        "backend_class": {"enum": ["local", "plan", "api"]},
+        "model": {"type": "string", "minLength": 1, "maxLength": 256},
+        "fallback_policy": {"enum": ["none", "explicit_only"]},
+        "live_metered_fallback": {"type": "boolean"}
+      }
+    },
+    "bounds": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "max_turns",
+        "max_model_calls",
+        "max_input_tokens",
+        "max_output_tokens",
+        "max_context_bytes",
+        "max_elapsed_seconds",
+        "max_cost_usd"
+      ],
+      "properties": {
+        "max_turns": {"type": "integer", "minimum": 1, "maximum": 100},
+        "max_model_calls": {"type": "integer", "minimum": 1, "maximum": 1000},
+        "max_input_tokens": {"type": "integer", "minimum": 1, "maximum": 1000000000},
+        "max_output_tokens": {"type": "integer", "minimum": 1, "maximum": 1000000000},
+        "max_context_bytes": {"type": "integer", "minimum": 1024, "maximum": 1048576},
+        "max_elapsed_seconds": {"type": "integer", "minimum": 1, "maximum": 86400},
+        "max_cost_usd": {"type": "number", "minimum": 0, "maximum": 1000000}
+      }
+    },
+    "usage": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "turns_started",
+        "turns_completed",
+        "model_calls",
+        "input_tokens",
+        "output_tokens",
+        "elapsed_ms",
+        "cost_usd"
+      ],
+      "properties": {
+        "turns_started": {"type": "integer", "minimum": 0},
+        "turns_completed": {"type": "integer", "minimum": 0},
+        "model_calls": {"type": "integer", "minimum": 0},
+        "input_tokens": {"type": "integer", "minimum": 0},
+        "output_tokens": {"type": "integer", "minimum": 0},
+        "elapsed_ms": {"type": "integer", "minimum": 0},
+        "cost_usd": {"type": "number", "minimum": 0, "maximum": 1000000}
+      }
+    },
+    "retention": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["retention_days", "expires_at", "content_deleted", "content_deleted_at"],
+      "properties": {
+        "retention_days": {"type": "integer", "minimum": 1, "maximum": 365},
+        "expires_at": {"type": "string", "format": "date-time"},
+        "content_deleted": {"type": "boolean"},
+        "content_deleted_at": {
+          "oneOf": [
+            {"type": "null"},
+            {"type": "string", "format": "date-time"}
+          ]
+        }
+      },
+      "allOf": [
+        {
+          "if": {"properties": {"content_deleted": {"const": true}}},
+          "then": {"properties": {"content_deleted_at": {"type": "string", "format": "date-time"}}},
+          "else": {"properties": {"content_deleted_at": {"type": "null"}}}
+        }
+      ]
+    }
+  },
+  "allOf": [
+    {
+      "if": {"properties": {"state": {"enum": ["closed", "expired", "cancelled", "failed"]}}},
+      "then": {"properties": {"current_turn_id": {"type": "null"}}}
+    },
+    {
+      "if": {"properties": {"backend": {"properties": {"capacity_source": {"const": "local_owned"}}}}},
+      "then": {
+        "properties": {
+          "backend": {
+            "properties": {
+              "backend_class": {"const": "local"},
+              "fallback_policy": {"const": "none"},
+              "live_metered_fallback": {"const": false}
+            }
+          },
+          "bounds": {"properties": {"max_cost_usd": {"const": 0.0}}}
+        }
+      }
+    }
+  ]
+}
