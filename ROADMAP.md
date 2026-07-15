@@ -105,6 +105,25 @@ inputs, not the expert's mind. The compiler decides what state is eligible for
 the next step; calibrated model judgment decides meaning inside that bounded
 frame.
 
+**Expert-consultation principle:** consultation is an evidence workflow, not an
+agent-count feature. Start with a decision or question precise enough to answer,
+then select experts for distinct relevant state or capability. Preserve
+independent, question-specific positions before synthesis. Ask each expert to
+separate evidence, assumptions, judgment, uncertainty, missing information, and
+what observation would change the answer. Discussion targets ambiguity, unique
+information, and decision-relevant cruxes; it does not force consensus. The host
+owns the decision and any downstream action.
+
+Specialization remains a measured context and authority boundary, not a reason
+to multiply processes. A Deepr expert is durable epistemic state plus bounded
+knowledge verbs. Consultation assembles frozen, compact expert packets behind
+typed task/result, budget, and authority contracts, then returns one proposal
+artifact to the host. Natural language may carry intent inside that envelope,
+but it is not the protocol. Do not give every expert its own process,
+filesystem, tools, or recursive subagents by default. A separate runtime or
+new authority needs a concrete threat boundary or measured quality,
+reliability, or performance evidence.
+
 **Digital-continuity principle:** Deepr does not claim phenomenal
 consciousness. The engineering target is functional continuity: an expert can
 show what it believes, why it changed its mind, what it is uncertain about, what
@@ -423,7 +442,7 @@ The fleet-autopilot track (Phase 4d) is largely closed; the active edge is quali
    - [x] Live-validation closure (2026-07-11): a compiled video-expert sync produced seven verifier decisions, four ready and three insufficient, but the aggregate blocked verification status incorrectly vetoed all four valid operations. Graph envelopes now select only verifier-ready operations, retain every rejected candidate and reason, and permit atomic apply when top-level artifact integrity is sound. Top-level schema, kind, model-response, and selected-operation failures still block the whole apply set. Regression coverage preserves the observed 4-ready/3-blocked shape through sync and apply.
 3. **Temporal knowledge graph completion and memory quality** - first-class temporal edge qualifiers now surface in read-side perspective deltas, belief explanations, expert-memory quality checks, the host-agent `deepr_temporal_edges` filter surface, regenerated expert digests, and `deepr eval continuity` generated-view checks after default compiled sync applies verified graph commits and persists verifier-supplied temporal edge context. Semantic recall now has a first-class local `$0` construction path: `deepr expert refresh-semantic-recall --local-embedding-model` embeds missing or stale belief claims through a local Ollama embedding model on the existing local client seam, and `deepr expert semantic-recall --local-embedding-model` computes the query embedding locally so indexed vector recall works without any caller-side embedding pipeline; both paths are explicit, no-metered-fallback, and stay `candidate_only`. Compiled-sync claim verification can now use that index: `deepr expert sync --compile-claims --recall-embedding-model MODEL` embeds ready claim statements through the local `$0` embedder and routes verifier recall context through indexed belief vectors, degrading to lexical routing instead of blocking the gated verification call when the local embedder fails, and the persisted claim-verification sidecar records the exact recall packets the verifier prompt used so the per-candidate `method` field stays honest on the durable artifact. `deepr eval recall NAME --cases PATH` now provides that `$0` evidence surface: it compares lexical and indexed-vector routing on operator-labeled cases (local or precomputed query embeddings) and reports hit rate, mean reciprocal rank, and per-metric winners as routing evidence only. `deepr eval recall NAME --cases PATH --record-cases` now accumulates those operator-labeled cases in a runtime-local `deepr-recall-eval-case-library-v1` library, `deepr eval recall NAME --query TEXT --relevant-belief-id ID --record-cases` captures one reviewed case without a scratch JSON file, and `deepr eval recall NAME` can rerun against that accumulated set without touching graph state, beliefs, or vectors. Consult traces now preserve selected stored-belief ids and trace mining emits review-required `deepr-recall-eval-case-candidate-v1` drafts when a failed-check, low-context, or middle-context candidate has selected belief context; they are not auto-recorded as labels. Claim-verification decisions now use the same candidate contract for duplicate, contradiction, or temporal-scope memory blocks that had recall context, preserving candidate belief ids for operator review without asserting relevance. Recall eval reports now include a conservative scheduler-preference eligibility block: vector routing is eligible only after enough labeled cases, required vector metric wins, and complete current vectors for the requested model. Claim verification can now consume an explicit recall route preference block and try vector-only recall first while preserving lexical fallback when the preference is absent, ineligible, or produces no vector hits, and `deepr expert sync --compile-claims --recall-embedding-model MODEL --recall-preference-report PATH` validates a local recall eval report for the same expert and model before threading only its scheduler-preference block into the verifier prompt. A `$0` regression now validates that an accumulated recall case library can generate an eligible report before sync accepts only its scheduler-preference block, and sync now revalidates eligible reports for case count, required vector metric wins, an evaluated vector route, no ineligible reasons, and complete current vector coverage instead of trusting a hand-edited `eligible: true` flag. Next: keep default lexical-first routing unless an operator supplies a vetted report, and run live/operator validation on accumulated libraries before considering any scheduler default. Compiler claim verification can carry caller-supplied or store-backed recall context, and sync can run the budget-gated verifier, persist compiler and apply sidecars, and use `--stage-compiled-claims` for no-write envelope staging, but recall stays subordinate to the graph: recall finds candidates; the belief graph and verifier decide. Why: the expert should answer "what changed," "why do you believe it," "what is your current take," "what is contested," "what are you watching," and "what would change your mind," which no chunk store can answer.
    Cycle 103 update (2026-07-09): recall eval reports now carry `deepr-recall-operator-validation-v1`, an additive operator-facing block that says whether an accumulated-library run is ready for explicit sync preference and records that default routing remains lexical-first until an operator supplies a vetted saved report. Cycle 104 update (2026-07-09): `deepr eval recall-libraries` now emits `deepr-recall-library-inventory-v1`, a read-only inventory of accumulated recall libraries that flags invalid files and identifies which experts have enough operator-labeled cases for route-evidence evals before any explicit sync preference report is considered. Cycle 105 update (2026-07-09): `deepr eval recall-libraries --validation-plan --local-embedding-model MODEL` now emits `deepr-recall-library-validation-plan-v1`, a read-only command plan for ready accumulated libraries that does not execute retrieval, write state, or authorize default routing. Cycle 106 update (2026-07-09): `deepr-recall-eval-report-v2` replaces the three-case point-estimate eligibility gate with standard IR metrics, a 30-case operating floor, deterministic 95 percent paired bootstrap intervals, sync-side recomputation, a live model-specific belief/vector state-digest check, and exact top-k, expert-domain, and minimum-score binding for every eligible preference artifact. Default routing remains lexical-first. Design: [semantic-recall-evidence.md](docs/design/semantic-recall-evidence.md).
-4. **Protocol-native expert collaboration over MCP and A2A** - MCP already exposes expert reads, consults, loop status, handoff, belief explanation, scoped keys, budgets, rate limits, audit logs, `structuredContent` JSON-object results, and the `deepr-expert-collaboration-v1` council contract. A consult artifact now includes roster selection, per-expert role, shared consult trace id, budget/capacity contract, evidence packet, dissent handling, and result artifact refs for host agents, with the published `deepr-consult-v1` schema. The target UX is a role-diverse expert council that can ideate, challenge assumptions, map the math and statistics, preserve dissent, and return an agent-usable research and execution plan rather than opaque advice. `deepr mcp validate-consult` now proves the no-metered consult path through an offline fixture, in-process local or plan capacity, or a remote HTTP endpoint, emitting `deepr-mcp-consult-validation-v1` without judging answer meaning. `deepr mcp validate-consult-fleet` emits `deepr-mcp-consult-fleet-validation-v1` for bounded concurrent plan-backend consult validation. The current operating model is one or many experts, one bounded artifact: single-expert advice and expert-council guidance use the same consult contract, with preserved dissent and visible capacity posture. A2A now advertises `deepr_consult_experts` in the Agent Card and maps completed consults onto A2A task artifacts that carry the full `deepr-consult-v1` payload, capacity posture, cost, trace id, roster, and dissent metadata. A2A consult defaults to no-metered local synthesis and requires explicit `allow_metered_api=true` plus a positive budget before API synthesis. Next run live third-party host registration validation and keep LAN-agent smoke tests copyable through `docs/MCP_AGENT_TEST_GUIDE.md`. Deepr remains a role on the team, not the global orchestrator; host agents decide and enact. Why: external agents should be able to ask a durable expert council to collaborate, inspect agreement and dissent, then continue with structured state instead of opaque prose.
+4. **Protocol-native expert collaboration over MCP and A2A** - MCP already exposes expert reads, consults, loop status, handoff, belief explanation, scoped keys, budgets, rate limits, audit logs, `structuredContent` JSON-object results, and the `deepr-expert-collaboration-v1` council contract. A consult artifact now includes roster selection, per-expert role, shared consult trace id, budget/capacity contract, evidence packet, dissent handling, and result artifact refs for host agents, with the published `deepr-consult-v1` schema. The target UX is a role-diverse expert council that can ideate, challenge assumptions, map the math and statistics, preserve dissent, and return an agent-usable research and execution plan rather than opaque advice. `deepr mcp validate-consult` now proves the no-metered consult path through an offline fixture, in-process local or plan capacity, or a remote HTTP endpoint, emitting `deepr-mcp-consult-validation-v1` without judging answer meaning. `deepr mcp validate-consult-fleet` emits `deepr-mcp-consult-fleet-validation-v1` for bounded concurrent plan-backend consult validation. The current operating model is one or many experts, one bounded artifact: single-expert advice and expert-council guidance use the same consult contract, with visible capacity posture. Be exact about what works now: each council member contributes a deterministic, independently selected packet of stored state, not a live question-specific analysis; its displayed confidence summarizes the included stored state, not confidence in the answer; and the synthesizer produces the agreement and disagreement lists. Those fields are useful proposal metadata, not proof that experts independently judged, deliberated, or reached consensus. A2A now advertises `deepr_consult_experts` in the Agent Card and maps completed consults onto A2A task artifacts that carry the full `deepr-consult-v1` payload, capacity posture, cost, trace id, roster, and dissent metadata. A2A consult defaults to no-metered local synthesis and requires explicit `allow_metered_api=true` plus a positive budget before API synthesis. Next run live third-party host registration validation and keep LAN-agent smoke tests copyable through `docs/MCP_AGENT_TEST_GUIDE.md`. Deepr remains a role on the team, not the global orchestrator; host agents decide and enact. Why: external agents should be able to ask a durable expert council to collaborate, inspect agreement and dissent, then continue with structured state instead of opaque prose.
    Track the MCP `2026-07-28` release candidate before widening hosted claims: the May 21, 2026 official RC announces a stateless protocol core, removed `initialize` and `Mcp-Session-Id` assumptions, required `Mcp-Method` and `Mcp-Name` HTTP routing headers, `server/discover`, first-class extensions, Tasks as an extension, deprecations for roots/sampling/logging, and full JSON Schema 2020-12 for tool schemas. Treat it as a migration watch item until the final July 28, 2026 spec lands; then update Deepr's MCP transport compatibility checklist, HTTP smoke tests, hosted endpoint docs, schema validation assumptions, and conformance expectations in one focused protocol cycle.
    Add the expert-chat capacity backend contract before widening chat claims:
    consult synthesis can use local and explicit plan capacity today, API
@@ -451,7 +470,28 @@ The fleet-autopilot track (Phase 4d) is largely closed; the active edge is quali
    [expert-chat-capacity-backends.md](docs/design/expert-chat-capacity-backends.md):
    broaden backend parity behind no-fallback, tool-policy, provider-streaming,
    and budget-ledger gates.
-5. **Level 5 consult trace and semantic quality flywheel** - stored-belief perspectives, ledgered synthesis, `$0` consult evals, explicit local/plan synthesis, MCP-owned-capacity consult arguments, replayable `deepr-consult-trace-v1` records, sanitized trace-candidate review, semantic review packets, and scored review artifacts are in place. Human review, local Ollama judging, explicit plan-quota judging, trend reports, and judge-calibration reports work without metered fallback. The premium `--api-provider` judge implementation is execution-gated in v2.36 until it uses the shared durable reserve, dispatch-mark, exact settlement, and canonical-ledger transaction. Untrusted model judges cannot steer prompt-regression selection when the optional calibration gate is enabled. Next broaden human-anchored review-pair coverage before trusting any semantic label as a measured product metric. Keep the trace contract disciplined: deterministic code owns schema, source refs, budgets, and review routing; calibrated model or human judgment owns meaning. Why: consult is Deepr's primary team-of-experts surface, and self-improvement only works when failures become durable test cases instead of one-off anecdotes. See [level-5-6-expert-maturity.md](docs/design/level-5-6-expert-maturity.md).
+5. **Level 5 consult trace and semantic quality flywheel** - stored-belief
+   perspectives, ledgered synthesis, `$0` consult evals, explicit local/plan
+   synthesis, MCP-owned-capacity consult arguments, replayable
+   `deepr-consult-trace-v1` records, sanitized trace-candidate review, semantic
+   review packets, and scored review artifacts are in place. Human review,
+   local Ollama judging, explicit plan-quota judging, trend reports, and
+   judge-calibration reports work without metered fallback. The premium
+   `--api-provider` judge implementation is execution-gated in v2.36 until it
+   uses the shared durable reserve, dispatch-mark, exact settlement, and
+   canonical-ledger transaction. Untrusted model judges cannot steer
+   prompt-regression selection when the optional calibration gate is enabled.
+   Next broaden human-anchored review-pair coverage before trusting any semantic
+   label as a measured product metric. Once that held-out review set is
+   sufficient, the next read-only evidence slice is the Phase 4c structured
+   consultation comparison inside the existing `deepr eval consult` surface;
+   measuring it does not authorize live deliberation or a named crew. Keep the
+   trace contract disciplined: deterministic code owns schema,
+   source refs, budgets, and review routing; calibrated model or human judgment
+   owns meaning. Why: consult is Deepr's primary team-of-experts surface, and
+   self-improvement only works when failures become durable test cases instead
+   of one-off anecdotes. See
+   [level-5-6-expert-maturity.md](docs/design/level-5-6-expert-maturity.md).
 6. **Expert self-model and metacognitive monitor** - first-class read-only `deepr-expert-self-model-v1` records are in place for capabilities, limits, current goals, calibration, learning strategy, continuity summary, blocked capabilities, unresolved risks, and a bounded current-focus packet. Consult perspective context now carries the self-model focus packet when an expert profile is available, and sync learning loop records plus sync capacity gates now carry the same compact packet as read-only run context. `deepr expert monitor` now emits a read-only `deepr-metacognitive-monitor-v1` artifact that turns self-model risks, failed loop runs, capacity blocks, and consult trace candidates into review-required proposals without applying them. `deepr expert promote-monitor` previews by default and applies only with `--apply`, promoting one reviewed gap/eval proposal into a metacognition gap and/or local eval-case artifact. `deepr expert propose-self-model` now previews or writes a verifier-gated `deepr-expert-self-model-update-v1` review record for self-model-related monitor proposals, and `deepr expert accept-self-model` writes a separate `deepr-expert-self-model-update-acceptance-v1` artifact only when outcome evidence and policy gates are explicit. Accepted records are attached to sync loop-run context as read-only guidance; they do not mutate the derived self-model or grant authority. Next connect accepted records to concrete learning-policy effects only when measured before/after outcomes exist. Why: Level 5/6 in Deepr means the expert can inspect and improve its learning process while deterministic workflow code still owns spend, writes, schemas, rollout, and review gates.
    The consciousness-adjacent part should stay named as digital continuity: `deepr expert memory-card` now provides the first grounded identity envelope for a durable expert, joining self-model focus, belief events, current goals, calibration, gaps, contradictions, and update policy in `EXPERT.md`. Next attach accepted self-model records and loop-history deltas to the same working-state packet for learning transactions.
 7. **Replayable evidence before wider escalation** - make source-pack evidence content-addressed and re-verifiable: raw snapshot reference, URL, timestamp, content hash, extractor model id/version, prompt version, and memoized claim+source+window verification results. Memoized verification now ships: compiled-sync claim verification replays a prior decision only when the full rendered judgment packet (statement, policy, evidence excerpts, recall context), prompt version, provider, and model are byte-identical, recorded in the per-expert `deepr-verification-memo-v1` append-only cache; full replays skip the model call at `$0`, partial hits dispatch only fresh candidates (accepting that cross-candidate edges between fresh and replayed claims are not judged in that pass), punted `unverified` decisions are never memoized, and the persisted sidecar records replayed vs fresh candidates with the recall context each replayed decision was originally judged against. Content-addressed raw snapshots now ship too: context-bearing sync persists each fetched source's full text once under `sync_artifacts/snapshots/<content_hash>.txt` with a `snapshot_ref` on the pack entry, so evidence re-verification is a re-hash of the snapshot file. `deepr expert validate-export` now provides the local validator for three exported derived views (handoff payloads, OKF bundles, SKILL.md exports), checking required provenance, schema version, trust metadata, and artifact-class markers at `$0` with a non-zero exit for pipeline gating. The evidence core of this item is in place: source packs carry content hashes and raw snapshots, extraction and verification carry prompt/schema versions, verification decisions memoize on byte-identical inputs, and the three main export classes validate before shipping. Remaining: validator coverage for report exports, corpus exports, and host-specific views; surface `snapshot_ref` in source-pack manifests; and wire validate-export into the OKF/skill export commands as an automatic post-write check. Treat exported skills, handoff packs, reports, and host-specific views as generated artifacts over canonical expert state, with local validators for required provenance, version, trust metadata, and artifact class. Why: bounded maker-checker escalation needs stable evidence roots or it can re-check stale synthesis, drift derived views, and create cost storms.
@@ -469,7 +509,15 @@ The fleet-autopilot track (Phase 4d) is largely closed; the active edge is quali
 20. **Harness-grade run control plane** - persist a run-start capability snapshot and an exact prepared-approval artifact binding argv, cwd, model, auth mode, budget, writes, inputs, expert snapshot, and schema hashes. Join routing, capacity, policy, trace, and verification in one control-plane evidence record. Why: current Hermes, OpenClaw, Pi, and OpenHands patterns show that reproducibility and authority must be explicit before adding more surfaces. Design: [agent-harness-lessons-2026.md](docs/design/agent-harness-lessons-2026.md).
 21. **Steering, fork lineage, and verified skill candidates** - distinguish steer-after-safe-boundary from follow-up-after-completion, restore queued input on abort, and fork from checkpoints with inherited budget and parent trace. Promote learned skills only through isolated replay, held-out improvement, negative-transfer checks, and reviewed activation. Why: responsive long-running agents and learning skills are valuable, but neither may bypass the evidence and authority boundaries. Design: [agent-harness-lessons-2026.md](docs/design/agent-harness-lessons-2026.md).
 
-After those are stable, resume the larger tracks in this order: Phase 5 hosted/ops hardening, Phase 4c expert crews, then Phase 4b autonomous campaigns.
+The Phase 4c `$0` read-only structured-consultation evidence gate is a child of
+item 5 and may run as soon as its human-anchored consult review set is
+sufficient. It does not wait for live multi-round deliberation, a named crew,
+or Phase 5. After the remaining prerequisites are stable, complete the relevant
+Phase 5 hosted/ops and capability-boundary work. Admit named-crew packaging only
+if reviewed traces show a repeated roster and task class with measured operator
+value. Leave Phase 4b autonomous campaigns last. Market momentum alone does not
+reorder this sequence; wider consultation and campaign autonomy must earn their
+place through held-out quality, context, cost, latency, and failure evidence.
 
 ### Stable (Production-Ready)
 
@@ -921,15 +969,13 @@ Goal: continuously validate routing quality/cost claims with measurable feedback
 
 Goal: make experts genuinely agentic - self-correcting, strategically autonomous, graph-structured memory.
 
-**Status.** The first two knowledge-loop increments shipped in **v2.12**:
-`deepr expert health-check` (read-side, cost-$0 audit) and `deepr expert absorb`
-(verification-gated output-to-knowledge loop) - both as CLI commands and MCP
-tools, reusing the same free contradiction heuristic. **Next up:**
-
-1. **Per-expert SKILL.md export** (Phase 4 skills, below) - the distribution play; the generic packager exists, the expert-scoped export does not.
-2. **Dynamic tool selection via gap analysis** (below) - map infrastructure gaps -> recon, academic gaps -> distillr, strategic gaps -> primr. All three target instruments now exist, so the gap-to-tool engine has somewhere to route.
-
-Reflection loop and graph memory are the larger, higher-risk items and come after.
+**Status.** The knowledge-loop foundation now includes health checks, verified
+absorb, sync, reflection, graph-commit apply, temporal perspective reads,
+per-expert SKILL.md export, durable loop state, and bounded one-shot councils.
+The active quality and verification work is sequenced in
+[Next Order Of Operations](#next-order-of-operations). Dynamic gap-to-tool
+selection remains advisory where its current lexical router has not been
+confirmed by model judgment.
 
 **Multi-backend ensemble learning (the per-expert "wiki refresh" loop).** Today
 `expert learn`/`sync` runs one capacity source per refresh. The next increment is
@@ -991,35 +1037,18 @@ defeats trust ceilings. Sharpest honest positioning that came out of it:
 **"experts, not memories"** - keep "epistemic," drop "operating system" (an
 over-reach for a solo project; Letta/MemOS already own the "OS" label).
 
-- [ ] Verified expert-loop substrate:
-  - [ ] Add a loop admission contract: no surface graduates from advisory to
-        autonomous until the task repeats, the verifier is automated, the
-        budget/capacity envelope is explicit, and the loop can inspect the
-        tools, logs, and state needed to diagnose failures.
-  - [ ] Define an `ExpertLoopRun` record for sync, gap-fill, reflection
-        follow-ups, health-check actions, and future campaigns: goal, expert,
-        triggering surface, budget/capacity source, verifier result, stop
-        reason, trace id, resumable queue/job ids, acceptance rate, accepted vs
-        rejected knowledge changes, and cost per accepted knowledge change.
-  - [~] Add `deepr expert loop-status NAME` (plus MCP read tool) showing last
-        run, due subscriptions, open gaps, stale/contested beliefs, verifier
-        failures, next action, and whether the next run can use local/plan
-        capacity or requires metered budget. Shipped: the CLI + `deepr_expert_loop_status`
-        MCP tool over the `deepr-loop-status-v1` rollup (last run, failures,
-        next action, acceptance rate, cost-per-accepted-change, verifier
-        failures) plus a non-probing `next_run_outlook` (admitted $0 local /
-        prepaid-plan capacity per task class, else metered) and
-        `due_subscriptions` (count + topics due to sync). Remaining: fold in
-        open-gap and contested-belief counts (available from
-        `dashboard_telemetry`; deferred to avoid coupling the rollup to manifest
-        and belief-store loads on every status read).
-  - [ ] Make loop completion evidence-based: a run is complete only when its
-        verifier passes, no due work remains under the current budget/capacity
-        contract, or a stop condition is recorded. Never trust a model's
-        self-declared "done" as the terminal state.
-  - [ ] Persist compact handoff artifacts between loop iterations so long runs
-        survive context resets and process restarts without re-reading every
-        report or source.
+- [x] Verified expert-loop control substrate (shipped v2.17): loop admission,
+      schema-versioned `ExpertLoopRun` records, typed stop reasons,
+      evidence-based completion, acceptance and cost-per-accepted-change
+      metrics, and CLI/MCP/web loop-status rollups are in place. See
+      [verified-expert-loops.md](docs/design/verified-expert-loops.md) and the
+      v2.17 release record below.
+- [ ] Populate compact resumable iteration packets for future multi-iteration
+      loops: bind the existing `state_artifact_path`, `input_refs`,
+      `output_refs`, and `knowledge_change_refs` fields to bounded artifacts so
+      resume does not require rebuilding context from every source. This is not
+      required for current one-shot and independently idempotent maintenance
+      verbs.
 
 - [~] Reflection loop (self-correction before delivery):
   - [x] Post-research quality evaluation (v2.13): `ReflectionEngine` scores grounding, completeness, calibration, directness; CLI `deepr expert reflect` + `deepr_reflect` MCP tool. The model scores per dimension; the verdict (accept/revise/re_research) is computed deterministically from thresholds.
@@ -1185,30 +1214,154 @@ over-reach for a solo project; Letta/MemOS already own the "OS" label).
       description and a grounded Gotchas section, and in the deepr-research
       exemplar.
 
-### Phase 4c: Expert Crews (composable, exportable expert teams)
+### Phase 4c: Structured Expert Consultation (crews only after evidence)
 
-Goal: let a *named, persistent* set of experts be consulted and shipped as one
-composable role - the team-level analogue of a single expert. This is
-composition of parts that already exist (`council.py` for bounded multi-expert
-consultation, `dspy_pipeline.py` for trace-based optimization, the per-expert
-SKILL.md export, `report_absorber`/`metacognition` for the learning loop), not
-new infrastructure. Sequenced so the static, auditable core lands first and the
-self-improvement lands last, gated.
+Goal: turn durable expert state into better advice on hard problems. Improve the
+existing one-shot consultation before adding new agent runtimes. A named crew is
+only packaging for a consultation pattern that has already proved useful and
+repeated; a roster is not itself intelligence.
 
-Naming: do **not** reuse `deepr team` - that already means ephemeral,
-multi-persona research teams for a single question (`team analyze`). Use a
-distinct surface (`deepr crew ...`, or an `expert crew` sub-namespace).
+**Current baseline.** The shipped council independently selects a bounded packet
+of stored beliefs and perspective state from each expert, then sends those
+packets to one synthesizer. This is a useful, low-call, read-only consultation
+surface with provenance, contested markers, grounding assurance, traces, and
+dissent fields. It is not yet structured expert elicitation. Experts do not
+produce question-specific initial judgments, see one another's evidence, revise
+privately, or receive outcome-based calibration. Perspective `confidence` is
+currently the mean confidence of selected stored state, not confidence in the
+answer. `agreements` and `disagreements` are synthesizer output, not independent
+votes. The bounded-deliberation design and `$0` structural evaluator exist, but
+live multi-round consultation remains gated.
 
-Design constraint (preserves the non-goal): a crew is itself **one composable
-role** that exposes a single handoff surface; internally it is a *bounded
-council*, not Deepr orchestrating other vendors' agents. Deepr still does not
-own the outer workflow.
+**Research-backed operating model.** Formal expert elicitation frames the
+question first, elicits independent positions, uses facilitated discussion to
+resolve ambiguity and expose unique evidence, permits private revision when the
+task warrants it, and reports the range of views without treating consensus as
+truth. Good analytic advice distinguishes evidence, assumptions, judgments,
+likelihood, confidence in the evidentiary basis, alternatives, and indicators
+that would change the conclusion. The protocol must fit the task: diagnosis
+benefits from competing hypotheses and discriminating tests; a resolvable
+forecast can use private probability estimates and scoring; an open design
+decision needs options, criteria, tradeoffs, and reversible tests. Do not force
+all three through one generic debate template. Consultation complements
+evidence gathering; it does not replace research or observation that can
+feasibly resolve a decision-relevant gap. Sources:
+[IDEA protocol](https://besjournals.onlinelibrary.wiley.com/doi/10.1111/2041-210X.12857),
+[NRC expert-elicitation guidance](https://www.nrc.gov/reading-rm/doc-collections/nuregs/staff/sr2255/index),
+[ICD 203 analytic standards](https://www.dni.gov/files/documents/ICD/ICD-203.pdf),
+and the original
+[hidden-information study](https://doi.org/10.1037/0022-3514.48.6.1467).
 
-- [ ] Crew manifest + persistence: a named crew = a set of expert names + a lead/synthesizer role + a delegation note, stored alongside profiles. Reuses `council.py` for execution.
-- [ ] `crew run "<question>"` - bounded council consultation across the crew's experts with budget contract, approvals, and trace IDs (no unbounded fan-out).
-- [ ] `crew export` -> TEAM.md (a SKILL.md superset: `roles[]`, delegation note, the existing per-expert tool surface) so a crew installs into an agentskills.io host as one skill. Reuses `skills/packager` + the per-expert exporter.
-- [ ] (later, experimental, gated) Trace-fed self-improvement: feed crew-run traces into the existing `dspy_pipeline` + absorb/reflection loop to propose a manifest delta (role add/drop, delegation tweak); every proposal passes `expert validate` + human approval before it is applied. No silent reconfiguration.
-- [ ] (optional interop) Export to LangGraph / CrewAI configs; NemoClaw-sandbox-friendly run mode. Nice-to-haves, not core.
+The AI evidence reinforces restraint. Multi-agent systems can help on genuinely
+parallel, breadth-first tasks, but coordination overhead and error propagation
+can make sequential or tool-heavy work worse. A recent preprint also reports
+that more samples can amplify a shared misconception when there is no external
+verifier. Therefore every extra participant or round must answer a measured
+need; consensus, persona diversity, or a smaller per-member context is not a
+quality or efficiency result. Sources:
+[Google agent-system scaling study](https://research.google/blog/towards-a-science-of-scaling-agent-systems-when-and-why-agent-systems-work/),
+[Anthropic multi-agent research system](https://www.anthropic.com/engineering/multi-agent-research-system),
+and
+[recent Consensus is Not Verification preprint](https://arxiv.org/abs/2603.06612).
+
+**Entry gate.** Before changing the public consult contract, write a design note
+and extend the existing `deepr eval consult` surface with a read-only protocol
+comparison over frozen expert snapshots and human-anchored held-out cases. Do
+not invent `eval composition` or a crew command first. Compare:
+
+1. one predeclared relevant expert;
+2. the current stored-packet council;
+3. a structured independent-position consultation; and
+4. one union-context synthesizer with the same eligible expert state.
+
+Hold backend/model and total context/output ceilings constant in the primary
+comparison. Aggregate every participant and synthesis call when reporting
+context bytes, input/output tokens, call count, latency, capacity, and ledgered
+cost. Human or calibrated, bias-checked review scores question framing, expert
+relevance, unique evidence retained, separation of evidence and assumptions,
+uncertainty, alternative and crux coverage, dissent preservation, useful next
+tests, and unsupported claims. If structured consultation does not improve the
+predeclared quality threshold without an unacceptable resource or failure
+regression, stop. Only then may a secondary comparison test smaller models.
+
+- [ ] **Consult brief contract:** add a versioned, read-only
+      `deepr-consult-brief-v1` input artifact containing the decision or desired
+      output, precise question, scope, time horizon, known evidence refs,
+      constraints, important unknowns, success criteria, and proposed expert
+      coverage. A caller may supply it directly or explicitly ask a local/plan
+      model to draft it; no hidden metered framing call. Deterministic code owns
+      shape, bounds, provenance, and authority. A human or model owns the
+      semantic framing and may say that the question is not ready for consult.
+      Keep the current raw-question path for backward compatibility.
+- [ ] **Question-specific perspective contract:** prototype
+      `deepr-expert-perspective-v2` over frozen state. Each expert independently
+      returns a position, estimate, or explicit abstention; the claims and
+      source refs used; key assumptions; important missing information;
+      question-specific uncertainty; a plausible alternative; a disconfirming
+      observation or discriminating test; decision implications; and one useful
+      follow-up question. Preserve stored-belief confidence separately from the
+      expert's disclosed judgment confidence. For forecasts, store event
+      likelihood or an interval separately from confidence in the evidence.
+      Request concise rationale, not private chain-of-thought. The prototype has
+      no tools, writes, or peer context in the first pass.
+- [ ] **Evidence-linked synthesis contract:** prototype a versioned synthesis
+      artifact inside the eval harness before changing `deepr-consult-v1`.
+      Preserve each participant's stated position and abstention separately
+      from synthesizer interpretations. Trace material synthesized claims to
+      participant claim ids and source refs; distinguish shared conclusions
+      from shared evidence; surface unique evidence, assumptions, unresolved
+      alternatives, minority positions, and the next discriminating test. The
+      synthesizer may abstain or recommend research. It does not vote, grant
+      itself authority, or describe inferred agreement as independently
+      attested consensus. Promote the shape only through the design note,
+      held-out comparison, and additive compatibility policy.
+- [ ] **Held-out protocol comparison:** add the four arms and resource
+      accounting above to `deepr eval consult`, save a versioned report, and
+      attach semantic review artifacts to the existing consult-quality and
+      judge-calibration spine. Structural completion remains distinct from
+      semantic acceptance. Live local or explicit plan trials remain opt-in;
+      metered trials use the shared durable reserve and settlement path.
+- [ ] **Selection evidence before smarter routing:** keep keyword overlap as an
+      inspectable high-recall candidate router, never an authority verdict. Add
+      selection rationale and missing-discipline coverage to the consultation
+      plan through human or model judgment. Build a descriptive per-expert,
+      per-task-class contribution report only from human-anchored reviews and,
+      where outcomes resolve, proper outcome scores. Do not weight or auto-route
+      by profile prestige, self-confidence, or a few review cases. Performance
+      may influence routing only after an adequate sample and held-out benefit.
+- [ ] **Task-shaped protocols, one observed need at a time:** start with the
+      structured one-shot contract. Add a `competing_hypotheses` mode only if
+      reviewed diagnosis or causal cases show a repeated failure that it fixes;
+      compare alternatives by supporting and disconfirming evidence and name
+      the next discriminating observation. Add quantitative elicitation only
+      for questions with well-defined quantities or resolvable events, using
+      private estimates, intervals, declared aggregation, and later scoring.
+      Model or human judgment selects a mode; no lexical task classifier may
+      conclude which protocol applies.
+- [ ] **Targeted crux follow-up, not general debate:** after structured one-shot
+      consultation passes, reuse
+      [bounded-expert-deliberation.md](docs/design/bounded-expert-deliberation.md)
+      for at most one focused clarification round on an unresolved,
+      decision-relevant proposition, assumption, or evidence gap, followed by
+      optional private revision. Route questions to the expert with relevant
+      state, preserve the original position, and stop on the declared bounds or
+      when no new evidence/test is produced. No vote and no consensus target.
+- [ ] **Consultation outcome loop:** for forecasts and other decisions with a
+      later observable result, append the outcome, score the prior judgment,
+      and report calibration by expert and task class. For open-ended advice,
+      use reviewed decision usefulness and downstream verification results, not
+      synthetic agreement, as the feedback signal. This is descriptive until
+      held-out evidence justifies a routing or prompt change.
+
+**Named-crew gate.** Do not schedule a generic crew runtime. Reconsider a
+versioned crew manifest only when reviewed traces show that the same bounded
+roster recurs for one task class and provides non-inferior quality plus measured
+operator value over auto-routing and a single expert. The first accepted crew
+would be a read-only manifest and derived host-skill export over the existing
+consult surface, not member processes, filesystems, tools, recursive agents, or
+persistent chat. Tool authority, self-reconfiguration, and multi-expert
+campaigns remain separate later gates. Build a host-format adapter only for a
+real consumer.
 
 ### Phase 4b: Autonomous Research Campaigns
 
@@ -1216,6 +1369,12 @@ Goal: experts that run extended research investigations autonomously within
 budget, evidence, and checkpoint bounds. Campaigns are not the first loop
 surface; they build on `ExpertLoopRun`, loop-status, capacity routing, and
 portable handoff artifacts after those are reliable on sync/gap-fill/reflection.
+Multi-expert campaigns additionally wait for an accepted Phase 4c structured
+consultation comparison, versioned participant task/result contracts, and
+enforced member authority scopes. If named-crew packaging has not independently
+passed its repeated-roster gate, a campaign uses an explicit run roster rather
+than inventing one. A working one-shot council alone is not admission evidence
+for a long-running team loop.
 
 Design constraint (durability without an engine): a campaign is a multi-phase
 generalization of `ExpertLoopRun` (append-only JSONL with `fsync`,
@@ -1580,14 +1739,20 @@ Goal: production posture for multi-user and autonomous deployments.
         `deepr mcp smoke-http URL` performs `$0` health, initialize,
         tools/list, and free tool-search checks against a local or TLS-proxied
         HTTP MCP endpoint.
-  - [~] Deploy recipe:
+  - [x] Deploy recipe:
         [deploy/mcp-http.md](deploy/mcp-http.md) documents the loopback service
-        plus Caddy/nginx TLS reverse-proxy shape. Remaining: container and
-        cloud-template variants so a user can stand up "my experts, reachable
-        by my cloud agents" in one command.
+        plus Caddy/nginx TLS reverse-proxy shape. Container, Azure Container
+        Apps, AWS ECS Fargate, GCP Cloud Run, and Cloudflare Worker ingress
+        variants now preserve the scoped-key, persistent-data, HTTPS, audit,
+        and concurrency contracts. Live third-party host registration remains
+        the separate reach-validation gap.
   - Rationale: cloud-hosted always-on agents (Autopilots, Workspace Agents, Managed Agents, AgentCore) cannot reach a stdio server on a laptop; a reachable endpoint is the price of admission to every host platform, and it is transport + auth around tools that already exist.
 - [ ] Team features (auth, workspaces, RBAC, audit log)
-- [ ] Permission boundaries (`--allow-write`, tool allowlists, budget policy enforcement)
+- [ ] Permission boundaries (`--allow-write`, tool allowlists, budget policy
+      enforcement): publish machine-readable tool/read/write/egress scopes and
+      enforce them before dispatch. This is an admission gate for any future
+      consultation participant that can do more than read frozen expert state
+      and return a proposal.
 - [ ] Server-owned provider-resource registry: persist provider file and vector
       ownership independently of public job metadata, then authorize cleanup
       against that registry. The 2026-07-10 boundary fix rejects and redacts
@@ -1598,7 +1763,11 @@ Goal: production posture for multi-user and autonomous deployments.
 - [ ] Job lifecycle diagnostics: add worker heartbeat and per-job operator
       timelines, and make the standalone CLI poller provider-aware before it can
       claim terminal state for every backend.
-- [ ] Execution isolation (sandboxed parsing, resource limits, egress controls)
+- [ ] Execution isolation for code, parsing, and side-effecting tool jobs
+      (sandboxed parsing, resource limits, egress controls). Isolate the risky
+      execution boundary, not every read-only expert by default; a process or
+      container per expert requires a concrete threat boundary or measured
+      reliability/performance evidence.
 - [ ] Cryptographic verification and execution-proof audit trail (stretch)
 
 #### AI/agentic security (scoped to Deepr's real surface)
@@ -1606,7 +1775,13 @@ Goal: production posture for multi-user and autonomous deployments.
 Deepr is an orchestration layer over hosted model APIs - it does not train, fine-tune, or serve model weights - so its security work targets *ingested data* and *agentic tool use*, not the model internals. The threats that actually apply:
 
 - [x] **Indirect prompt-injection defense for ingested/tool content.** Web search results, scraped pages, uploaded docs, prior campaign reports, team findings, company-intelligence snippets, and first-party MCP tool output (recon/distillr/primr) are untrusted input that flows into prompts and into expert beliefs. `PromptSanitizer` now has an untrusted-content wrapper, fresh retrieval prompt context is delimited and sanitized before local-model use, report absorption wraps untrusted report text before the extraction model sees it, first-party tool findings sanitize embedded directives before entering expert prompt context, doc review wraps local document previews, campaign context summarization wraps prior report content, research review wraps completed results, and team synthesis wraps company intelligence plus team-member findings. Belief absorption still goes through the existing extraction, confidence, contradiction, dedup, and trust-floor gates, so this remains a workflow boundary rather than a meaning verdict. Red-team metrics continue under the separate agentic red-team suite item.
-- [ ] **Agentic trust boundaries.** Formalize the existing approval tiers (AUTO_APPROVE/NOTIFY/CONFIRM) + per-MCP-server tool allowlists, rate limits, and egress controls (overlaps Phase 2 elicitation sandboxing); capability-scope what each tool/expert may do, and never auto-approve a paid or write-capable tool.
+- [ ] **Agentic trust boundaries.** Formalize the existing approval tiers
+      (AUTO_APPROVE/NOTIFY/CONFIRM), per-MCP-server tool allowlists, rate limits,
+      and egress controls (overlaps Phase 2 elicitation sandboxing);
+      capability-scope what each tool, expert, or consultation role may do,
+      surface that contract in machine-readable handoffs, and never auto-approve
+      a paid or write-capable tool. Natural-language role descriptions cannot
+      grant authority.
 - [x] **Output/handoff validation.** Validate MCP/A2A outputs against the published handoff schemas (above) before downstream agents consume them - a compromised expert must not emit malformed/unsafe artifacts. MCP handoff and loop-status reads now fail closed on published-envelope drift and sanitize derived string fields at the host-facing read boundary; A2A task/result envelopes publish `deepr-a2a-task-v1` and fail closed on schema, state, cost, timestamp, or metadata drift.
 - [x] **Public-bind guard hardening.** A2A, MCP HTTP, the Flask API, and the web
   dashboard now share bind-host loopback classification, and empty or unset host
@@ -1711,7 +1886,11 @@ A mock panel (business buyer, indie hacker, enterprise AI architect, research sc
   - [ ] Published deprecation window for CLI flags/commands (kubectl model: GA elements live >= 2 releases after a warning naming the replacement) - formalizes the existing hidden-but-functional convention.
 - [ ] Self-improving routing via expert feedback loops (experts detect poor routing in their own gaps -> trigger micro-evals -> propose routing-table updates)
 - [ ] Azure Foundry durable agent orchestration + HITL (long-running experts that survive restarts, wait for human approval via SignalR/Durable Functions)
-- [ ] Expert watch (extension): broaden `deepr expert sync` (Phase 4) beyond first-party tools to arbitrary configured MCP or REST endpoints on schedule
+- [ ] Expert watch (extension): broaden `deepr expert sync` (Phase 4) to
+      operator-configured, read-only MCP or REST evidence sources with
+      per-expert source policy, credential scope, egress allowlist, versioned
+      observation handoffs, and the existing verified absorb path. This is
+      knowledge integration, not permission to enact business workflows.
 - [x] Web-grounded local research (`research_web_local` + topic `deepr expert learn`, with `learn-web` as an explicit alias): a local model searches the live web (free DuckDuckGo) + scrapes pages + synthesizes a cited report, absorbed at $0. Fixes the "local research answers from stale parametric knowledge" gap so experts reflect the latest, not the training cutoff.
 - [ ] Model-freshness loop: periodically discover each provider's current models + pricing (provider model-list APIs) and update the model registry + cost tables, instead of hardcoding IDs like `gpt-5.2` and cost numbers that rot. A `--dry-run` diff + opt-in apply; surfaces "your default model is N versions behind." The 2026-07-01 docs pass refreshed `docs/MODELS.md`, fixed offline registry display, moved the Gemini Flash-Lite alias off a shut-down preview ID, and hid deprecated migration entries from benchmark-derived routing, routing fallbacks, and web benchmark target counts; the periodic discovery, pricing verification, and opt-in apply flow remain planned.
 - [ ] Local fleet daemon / tray app with quiet-hours: run background enrichment (topic learn, sync, gap-fill on local models) only in configurable windows (e.g. 18:00-05:00) or when the GPU is idle, so unattended $0 maintenance never contends with the user's foreground GPU work. Pairs with capacity admission + loop runs already in place.
@@ -1719,7 +1898,12 @@ A mock panel (business buyer, indie hacker, enterprise AI architect, research sc
 - [ ] Local model support beyond the Phase 6 `local-ollama` backend (DGX Spark, Jetson Orin Nano Super, multi-GPU); the core local backend + budget-exhausted offload now lives in Phase 6's capacity waterfall
 - [x] Edge deployment of the hosted MCP endpoint (Cloudflare Worker ingress recipe shipped 2026-06-19; the core hosted endpoint itself is now a Phase 5 item)
 - [ ] Skill marketplace and meta-skills
-- [ ] Multi-agent swarm support beyond bounded subagent orchestration
+- [x] **CUT: generic multi-agent swarm support beyond bounded consultation.** It
+      violates the outer-orchestrator boundary, multiplies correlated errors and
+      authority surfaces, and has no accepted verifier or cost case. Revisit a
+      narrowly named pattern only when the Phase 4c held-out evidence identifies
+      a repeated task that structured consultation cannot handle within its
+      existing contracts and authority bounds.
 - [ ] `deepr ui` Textual dashboard
 - [ ] README demo GIF
 - [ ] Code quality carry-over:
@@ -2070,8 +2254,10 @@ consumers who will exercise all three. Design:
    `docs/schemas/registry.json` now publish the adjacent loop, OKF mapping,
    hosted remote-audit, hosted registration, A2A task/result, A2A host
    validation, and scheduler contracts with additive compatibility policy.
-3. Expert Crews (Phase 4c) + autonomous research campaigns (Phase 4b) -
-   the multi-expert deliverables, now consumable remotely
+3. Phase 4c `$0` structured-consultation comparison; only then consider a
+   read-only named-crew manifest when the repeated-roster and predeclared
+   non-regression gates pass. Autonomous research campaigns (Phase 4b) remain
+   last - the multi-expert deliverables, consumable remotely
 4. Ops analytics: cost-vs-quality frontier, routing-drift and anomaly
    alerts (flying blind ends before 3.0)
 
