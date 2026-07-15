@@ -304,6 +304,7 @@ class TestHandleCompletion:
             await poller._handle_completion(_job(), resp)
         poller.storage.save_report.assert_awaited_once()
         poller.queue.update_status.assert_awaited()
+        assert "j1" not in poller._cost_controller_recorded_job_ids
 
     @pytest.mark.asyncio
     async def test_queue_update_failure_retains_processing_for_retry(self, poller):
@@ -316,6 +317,7 @@ class TestHandleCompletion:
         with patch("deepr.experts.cost_safety.get_cost_safety_manager"):
             await poller._handle_completion(_job(), resp)
         poller._handle_failure.assert_not_awaited()
+        assert "j1" in poller._cost_controller_recorded_job_ids
 
     @pytest.mark.asyncio
     async def test_status_update_failure_retains_processing_for_retry(self, poller):
@@ -329,22 +331,27 @@ class TestHandleCompletion:
         with patch("deepr.experts.cost_safety.get_cost_safety_manager"):
             await poller._handle_completion(_job(), resp)
         poller._handle_failure.assert_not_awaited()
+        assert "j1" in poller._cost_controller_recorded_job_ids
 
 
 class TestHandleFailure:
     @pytest.mark.asyncio
     async def test_persists_failed_status(self, poller):
         poller.queue.update_status = AsyncMock(return_value=True)
+        poller._cost_controller_recorded_job_ids.add("j1")
         await poller._handle_failure(_job(), "broke")
         poller.queue.update_status.assert_awaited_once()
         kwargs = poller.queue.update_status.await_args.kwargs
         assert kwargs["error"] == "broke"
+        assert "j1" not in poller._cost_controller_recorded_job_ids
 
     @pytest.mark.asyncio
     async def test_persistence_failure_swallowed(self, poller):
         poller.queue.update_status = AsyncMock(return_value=False)
+        poller._cost_controller_recorded_job_ids.add("j1")
         # Must not raise even if queue persist fails.
         await poller._handle_failure(_job(), "broke")
+        assert "j1" in poller._cost_controller_recorded_job_ids
 
     @pytest.mark.asyncio
     async def test_internal_exception_swallowed(self, poller):

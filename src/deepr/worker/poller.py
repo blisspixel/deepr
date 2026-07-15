@@ -2,7 +2,7 @@
 
 import asyncio
 import logging
-from datetime import UTC
+from datetime import UTC, datetime
 from typing import Any
 
 from ..config import load_config
@@ -29,6 +29,18 @@ from ..storage.base import StorageBackend
 
 logger = logging.getLogger(__name__)
 _MAX_CONCURRENT_POLLS = 8
+
+
+def _response_content(response: ResearchResponse) -> str:
+    """Collect text blocks from a completed provider response."""
+    chunks: list[str] = []
+    for block in response.output or []:
+        if block.get("type") != "message":
+            continue
+        for item in block.get("content", []):
+            if text := item.get("text", ""):
+                chunks.append(text)
+    return "\n".join(chunks) + ("\n" if chunks else "")
 
 
 class JobPoller:
@@ -165,8 +177,6 @@ class JobPoller:
 
     async def _check_job_status(self, job: ResearchJob) -> None:
         """Check status of a single job."""
-        from datetime import datetime
-
         try:
             if not job.provider_job_id:
                 logger.warning(f"Job {job.id} has no provider_job_id, skipping")
@@ -197,41 +207,7 @@ class JobPoller:
 
             # Check for stuck jobs in "queued" status
             elif provider_status == "queued":
-                # Calculate time in queue
-                if job.submitted_at:
-                    submitted = job.submitted_at
-                    if not submitted.tzinfo:
-                        submitted = submitted.replace(tzinfo=UTC)
-                    now = datetime.now(UTC)
-                    queue_time_minutes = (now - submitted).total_seconds() / 60
-
-                    # If queued for more than 10 minutes, consider it stuck
-                    if queue_time_minutes > 10:
-                        logger.warning(
-                            f"Job {job.id} stuck in queue for {queue_time_minutes:.1f} minutes. "
-                            f"Cancelling and marking as failed."
-                        )
-
-                        # Try to cancel at provider
-                        try:
-                            cancelled = bool(await self.provider.cancel_job(job.provider_job_id))
-                            if cancelled:
-                                logger.info(f"Cancelled stuck job {job.id} at provider")
-                            else:
-                                logger.warning("Provider did not confirm cancellation for stuck job %s", job.id)
-                        except Exception:
-                            cancelled = False
-                            logger.warning("Could not cancel job %s at provider", job.id)
-
-                        if cancelled:
-                            await self._handle_failure(
-                                job,
-                                f"Job stuck in provider queue for {queue_time_minutes:.1f} minutes - auto-cancelled",
-                            )
-                        else:
-                            logger.warning("Retaining stuck job %s for later polling", job.id)
-                    else:
-                        logger.debug(f"Job {job.id} queued for {queue_time_minutes:.1f} minutes")
+                await self._handle_queued_job(job)
 
         except Exception as exc:
             logger.warning(
@@ -241,6 +217,98 @@ class JobPoller:
             )
             # Don't mark as failed yet, might be temporary network issue
 
+    async def _handle_queued_job(self, job: ResearchJob) -> None:
+        """Cancel a provider job only after it has remained queued too long."""
+        provider_job_id = job.provider_job_id
+        if not job.submitted_at or not provider_job_id:
+            return
+
+        submitted = job.submitted_at
+        if not submitted.tzinfo:
+            submitted = submitted.replace(tzinfo=UTC)
+        queue_time_minutes = (datetime.now(UTC) - submitted).total_seconds() / 60
+        if queue_time_minutes <= 10:
+            logger.debug("Job %s queued for %.1f minutes", job.id, queue_time_minutes)
+            return
+
+        logger.warning(
+            "Job %s stuck in queue for %.1f minutes. Cancelling and marking as failed.",
+            job.id,
+            queue_time_minutes,
+        )
+        try:
+            cancelled = bool(await self.provider.cancel_job(provider_job_id))
+        except Exception:
+            cancelled = False
+            logger.warning("Could not cancel job %s at provider", job.id)
+
+        if not cancelled:
+            logger.warning("Provider did not confirm cancellation for stuck job %s", job.id)
+            logger.warning("Retaining stuck job %s for later polling", job.id)
+            return
+
+        logger.info("Cancelled stuck job %s at provider", job.id)
+        await self._handle_failure(
+            job,
+            f"Job stuck in provider queue for {queue_time_minutes:.1f} minutes - auto-cancelled",
+        )
+
+    def _record_completion_cost(
+        self,
+        job: ResearchJob,
+        *,
+        cost: float | None,
+        tokens: int,
+    ) -> ResearchCostReservation | None:
+        """Update both cost observers while retaining retry-safe reservation state."""
+        try:
+            job_key = str(job.id)
+            if job_key not in self._cost_controller_recorded_job_ids:
+                self.cost_controller.record_cost(actual_cost=float(cost or 0))
+                self._cost_controller_recorded_job_ids.add(job_key)
+        except Exception:
+            logger.debug("CostController.record_cost failed for job %s", job.id, exc_info=True)
+
+        reservation: ResearchCostReservation | None = None
+        try:
+            reservation = restore_research_cost_reservation(
+                job_id=job.id,
+                metadata=job.metadata,
+                provider=getattr(job, "provider", "") or "",
+                model=job.model,
+            )
+            if reservation is not None:
+                settle_research_cost(
+                    reservation,
+                    actual_cost=cost,
+                    tokens=tokens,
+                    request_id=job.provider_job_id or "",
+                    source="worker.poller._handle_completion",
+                )
+            else:
+                record_unreserved_research_cost(
+                    job_id=job.id,
+                    provider=getattr(job, "provider", "") or "",
+                    model=job.model,
+                    actual_cost=float(cost or 0),
+                    tokens=tokens,
+                    request_id=job.provider_job_id or "",
+                    source="worker.poller._handle_completion",
+                )
+        except Exception:
+            logger.debug("cost_safety.record_cost failed for job %s", job.id, exc_info=True)
+        return reservation
+
+    async def _cleanup_completed_job(self, job: ResearchJob) -> None:
+        """Remove provider uploads and clear their durable cleanup metadata."""
+        from ..cli.commands.run_submission import cleanup_persisted_uploads
+
+        if not await cleanup_persisted_uploads(self.provider, job):
+            raise RuntimeError(f"Provider upload cleanup incomplete for completed job {job.id}")
+        has_cleanup_metadata = bool(job.metadata.get("provider_file_ids") or job.metadata.get("vector_store_id"))
+        if has_cleanup_metadata and not await self.queue.clear_cleanup_metadata(job.id):
+            raise RuntimeError(f"Provider cleanup state missing for completed job {job.id}")
+
     async def _handle_completion(self, job: ResearchJob, response: ResearchResponse) -> None:
         """Handle job completion."""
         from ..queue.base import JobStatus
@@ -248,15 +316,7 @@ class JobPoller:
         try:
             logger.info(f"Job {job.id} completed, saving results")
 
-            # Extract content from response
-            content = ""
-            if response.output:
-                for block in response.output:
-                    if block.get("type") == "message":
-                        for item in block.get("content", []):
-                            text = item.get("text", "")
-                            if text:
-                                content += text + "\n"
+            content = _response_content(response)
 
             # Save to storage
             await self.storage.save_report(
@@ -275,48 +335,7 @@ class JobPoller:
             # Extract cost and tokens
             cost = response.usage.cost if response.usage else None
             tokens = response.usage.total_tokens if response.usage else 0
-            reservation: ResearchCostReservation | None = None
-
-            # Settle the cost against CostController and the cost-safety
-            # ledger. The CostController instance was previously created
-            # but never consulted, so daily/monthly spend was never
-            # observed by the poller path. Recording here ensures the
-            # ledger is authoritative regardless of submission-time
-            # bookkeeping by the API or batch executor.
-            try:
-                job_key = str(job.id)
-                if job_key not in self._cost_controller_recorded_job_ids:
-                    self.cost_controller.record_cost(actual_cost=float(cost or 0))
-                    self._cost_controller_recorded_job_ids.add(job_key)
-            except Exception:
-                logger.debug("CostController.record_cost failed for job %s", job.id, exc_info=True)
-            try:
-                reservation = restore_research_cost_reservation(
-                    job_id=job.id,
-                    metadata=job.metadata,
-                    provider=getattr(job, "provider", "") or "",
-                    model=job.model,
-                )
-                if reservation is not None:
-                    settle_research_cost(
-                        reservation,
-                        actual_cost=cost,
-                        tokens=tokens,
-                        request_id=job.provider_job_id or "",
-                        source="worker.poller._handle_completion",
-                    )
-                else:
-                    record_unreserved_research_cost(
-                        job_id=job.id,
-                        provider=getattr(job, "provider", "") or "",
-                        model=job.model,
-                        actual_cost=float(cost or 0),
-                        tokens=tokens,
-                        request_id=job.provider_job_id or "",
-                        source="worker.poller._handle_completion",
-                    )
-            except Exception:
-                logger.debug("cost_safety.record_cost failed for job %s", job.id, exc_info=True)
+            reservation = self._record_completion_cost(job, cost=cost, tokens=tokens)
 
             # Update queue with results
             results_updated = await self.queue.update_results(
@@ -327,18 +346,16 @@ class JobPoller:
             if not reconcile_research_cost_from_ledger(reservation, job_id=job.id):
                 raise RuntimeError(f"Canonical cost settlement missing for completed job {job.id}")
 
-            from ..cli.commands.run_submission import cleanup_persisted_uploads
-
-            if not await cleanup_persisted_uploads(self.provider, job):
-                raise RuntimeError(f"Provider upload cleanup incomplete for completed job {job.id}")
-            has_cleanup_metadata = bool(job.metadata.get("provider_file_ids") or job.metadata.get("vector_store_id"))
-            if has_cleanup_metadata and not await self.queue.clear_cleanup_metadata(job.id):
-                raise RuntimeError(f"Provider cleanup state missing for completed job {job.id}")
+            await self._cleanup_completed_job(job)
 
             # Mark as completed
             status_updated = await self.queue.update_status(job.id, JobStatus.COMPLETED)
             if not status_updated:
                 raise RuntimeError(f"Queue update_status(COMPLETED) failed for job {job.id}")
+            # The job is no longer eligible for completion retries. Release the
+            # in-process dedup key so a long-running poller does not retain one
+            # string for every job it has ever completed.
+            self._cost_controller_recorded_job_ids.discard(str(job.id))
 
             logger.info("Job %s completed successfully (cost: $%.4f)", job.id, cost or 0.0)
 
@@ -391,6 +408,8 @@ class JobPoller:
             status_updated = await self.queue.update_status(job_id=job.id, status=status, error=error)
             if not status_updated:
                 logger.error("Failed to persist %s status for job %s", status.value.upper(), job.id)
+                return
+            self._cost_controller_recorded_job_ids.discard(str(job.id))
 
         except Exception:
             logger.exception("Error handling failure for job %s", job.id)

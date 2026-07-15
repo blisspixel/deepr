@@ -10,10 +10,11 @@ from __future__ import annotations
 import asyncio
 from typing import Any
 
+import pytest
 from hypothesis import given, settings
 from hypothesis import strategies as st
 
-from deepr.mcp.provider.sampling import SamplingHandler, SamplingRequest
+from deepr.mcp.provider.sampling import SamplingFallbackDisabledError, SamplingHandler, SamplingRequest
 
 # --- Mock implementations ---
 
@@ -78,7 +79,7 @@ def test_sampling_trace_logging(prompt: str, max_tokens: int) -> None:
     )
 
     request = SamplingRequest(prompt=prompt, max_tokens=max_tokens)
-    asyncio.get_event_loop().run_until_complete(handler.sample(request))
+    asyncio.run(handler.sample(request))
 
     # Verify trace entry was recorded
     assert len(trace_log.entries) == 1
@@ -93,8 +94,8 @@ def test_sampling_trace_logging(prompt: str, max_tokens: int) -> None:
 
 @settings(max_examples=100)
 @given(prompt=prompt_st)
-def test_sampling_fallback_trace_logging(prompt: str) -> None:
-    """Sampling with fallback also records trace entries.
+def test_sampling_fallback_fails_closed(prompt: str) -> None:
+    """Configured metered fallback never dispatches without durable accounting.
 
     **Validates: Requirements 11.4**
     """
@@ -108,12 +109,7 @@ def test_sampling_fallback_trace_logging(prompt: str) -> None:
     )
 
     request = SamplingRequest(prompt=prompt)
-    response = asyncio.get_event_loop().run_until_complete(handler.sample(request))
+    with pytest.raises(SamplingFallbackDisabledError, match="durable reservation"):
+        asyncio.run(handler.sample(request))
 
-    assert response.used_fallback is True
-    assert len(trace_log.entries) == 1
-
-    data = trace_log.entries[0]["data"]
-    assert data["prompt_length"] == len(prompt)
-    assert data["response_length"] == len("fallback text")
-    assert data["used_fallback"] is True
+    assert trace_log.entries == []

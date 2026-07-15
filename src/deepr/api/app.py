@@ -17,8 +17,7 @@ from flask_cors import CORS
 from deepr.api.middleware.errors import register_error_handlers
 from deepr.api.middleware.rate_limiter import create_limiter, limit_job_status, limit_job_submit, limit_listing
 
-# The shared sync-to-async bridge (Phase Q1.3), aliased to the historical name
-# used throughout this module's request handlers.
+# Shared sync-to-async bridge, aliased to the historical request-handler name.
 from deepr.utils.async_runner import run_async_command as run_async
 from deepr.utils.security import is_loopback_bind_host
 
@@ -27,8 +26,7 @@ load_dotenv()
 logger = logging.getLogger(__name__)
 
 app = Flask(__name__)
-# 1 MB request body limit prevents oversized prompts/payloads from tying up
-# workers before they reach the per-route guards below.
+# Limit request bodies to 1 MB before they reach the per-route guards.
 app.config["MAX_CONTENT_LENGTH"] = 1 * 1024 * 1024
 
 # CORS: use env var in production, default to localhost dev servers
