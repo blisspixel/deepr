@@ -406,6 +406,7 @@ class TestCostsDoctor:
         mock_ledger.get_health.return_value = {
             "path": "data/costs/cost_ledger.jsonl",
             "writable": True,
+            "accounting_ready": True,
             "event_count": 1,
         }
         mock_ledger.get_total_cost.return_value = 1.0
@@ -429,6 +430,7 @@ class TestCostsDoctor:
         mock_ledger.get_health.return_value = {
             "path": "data/costs/cost_ledger.jsonl",
             "writable": True,
+            "accounting_ready": True,
             "event_count": 1,
         }
         mock_ledger.get_total_cost.return_value = 2.0
@@ -442,3 +444,27 @@ class TestCostsDoctor:
         assert result.exit_code == 0
         assert "FAIL" in result.output
         assert "drift=$" in result.output
+
+    def test_costs_doctor_detects_ledger_that_is_not_accounting_ready(self, runner):
+        mock_dash = MagicMock(spec=CostDashboard)
+        mock_dash.storage_path = Path("data/costs/cost_log.json")
+        mock_dash.entries = []
+        mock_ledger = MagicMock()
+        mock_ledger.get_health.return_value = {
+            "path": "data/costs/cost_ledger.jsonl",
+            "writable": True,
+            "accounting_ready": False,
+            "error": "CostLedgerReadError: malformed event",
+        }
+        mock_ledger.get_total_cost.return_value = 0.0
+
+        with (
+            patch("deepr.cli.commands.costs.CostDashboard", return_value=mock_dash),
+            patch("deepr.cli.commands.costs.CostLedger", return_value=mock_ledger),
+        ):
+            result = runner.invoke(cli, ["costs", "doctor"])
+
+        assert result.exit_code == 0
+        assert "Ledger accounting ready" in result.output
+        assert "malformed event" in result.output
+        assert "FAIL" in result.output

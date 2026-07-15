@@ -31,6 +31,15 @@ class ActiveResearchReservation:
     created_at: datetime
 
 
+def _validated_money(value: object, *, field_name: str) -> float:
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        raise ValueError(f"{field_name} must be a finite non-negative number")
+    numeric = float(value)
+    if not isfinite(numeric) or numeric < 0:
+        raise ValueError(f"{field_name} must be a finite non-negative number")
+    return numeric
+
+
 class ResearchReservationStore:
     """Serialize research reservations across API, web, and worker processes."""
 
@@ -91,6 +100,9 @@ class ResearchReservationStore:
         max_monthly_cost: float,
     ) -> None:
         """Atomically hold cost after checking fresh ledger and active holds."""
+        reserved_cost = _validated_money(reserved_cost, field_name="reserved_cost")
+        max_daily_cost = _validated_money(max_daily_cost, field_name="max_daily_cost")
+        max_monthly_cost = _validated_money(max_monthly_cost, field_name="max_monthly_cost")
         now = datetime.now(UTC)
         ledger = CostLedger()
         with closing(self._connect()) as connection, connection:
@@ -211,6 +223,7 @@ class ResearchReservationStore:
 
     def settle(self, reservation_id: str, actual_cost: float, record: Callable[[], None]) -> str:
         """Write the ledger event and close its hold under one process lock."""
+        actual_cost = _validated_money(actual_cost, field_name="actual_cost")
         with closing(self._connect()) as connection, connection:
             connection.execute("BEGIN IMMEDIATE")
             row = connection.execute(

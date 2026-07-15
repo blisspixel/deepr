@@ -6,7 +6,9 @@ with ExpertProfile and that delegation works correctly.
 Requirements: 5.1, 5.2, 5.3 - Composed manager integration
 """
 
-from datetime import UTC
+from datetime import UTC, datetime
+
+import pytest
 
 from deepr.experts import ActivityTracker, BudgetManager, ExpertProfile
 
@@ -174,6 +176,37 @@ class TestBudgetManagerStandalone:
         assert manager.monthly_spending == 3.0
         assert manager.total_spending == 3.0
         assert len(manager.refresh_history) == 1
+
+    @pytest.mark.parametrize("value", [True, -0.01, float("nan"), float("inf"), "1.0"])
+    @pytest.mark.parametrize("field_name", ["monthly_budget", "monthly_spending", "total_spending"])
+    def test_budget_manager_rejects_invalid_persisted_money(self, field_name, value):
+        with pytest.raises(ValueError, match=field_name):
+            BudgetManager(**{field_name: value})
+
+    @pytest.mark.parametrize("value", [True, -0.01, float("nan"), float("inf"), "1.0"])
+    def test_budget_manager_rejects_invalid_spend_without_mutating(self, value):
+        manager = BudgetManager()
+
+        with pytest.raises(ValueError, match="amount"):
+            manager.can_spend(value)
+        with pytest.raises(ValueError, match="amount"):
+            manager.record_spending(value, "test")
+
+        assert manager.monthly_spending == 0.0
+        assert manager.total_spending == 0.0
+        assert manager.refresh_history == []
+
+    def test_budget_manager_normalizes_legacy_naive_reset_date_to_utc(self):
+        reset_date = datetime(2099, 1, 1)
+
+        manager = BudgetManager(reset_date=reset_date)
+
+        assert manager.reset_date == reset_date.replace(tzinfo=UTC)
+        assert manager.check_and_reset_if_needed() is False
+
+    def test_budget_manager_rejects_invalid_reset_date(self):
+        with pytest.raises(ValueError, match="reset_date"):
+            BudgetManager(reset_date=object())
 
     def test_budget_manager_serialization(self):
         """Should serialize and deserialize correctly."""

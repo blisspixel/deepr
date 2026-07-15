@@ -190,6 +190,12 @@ class TestCostController:
         assert ctrl.max_daily_cost == 50.0
         assert ctrl.max_monthly_cost == 500.0
 
+    @pytest.mark.parametrize("value", [True, -0.01, float("nan"), float("inf"), "1.0"])
+    @pytest.mark.parametrize("field_name", ["max_cost_per_job", "max_daily_cost", "max_monthly_cost"])
+    def test_init_rejects_invalid_limits(self, field_name, value):
+        with pytest.raises(ValueError, match=field_name):
+            CostController(**{field_name: value})
+
     def test_check_cost_limit_allowed(self):
         ctrl = CostController()
         est = CostEstimate(min_cost=0.01, max_cost=1.0, expected_cost=0.5, model="m", reasoning="r")
@@ -220,6 +226,40 @@ class TestCostController:
         assert allowed is False
         assert "monthly limit" in reason.lower()
 
+    @pytest.mark.parametrize("field_name", ["min_cost", "max_cost", "expected_cost"])
+    @pytest.mark.parametrize("value", [True, -0.01, float("nan"), float("inf"), "1.0"])
+    def test_check_cost_limit_rejects_invalid_estimate_money(self, field_name, value):
+        ctrl = CostController()
+        values = {"min_cost": 0.1, "max_cost": 1.0, "expected_cost": 0.5}
+        values[field_name] = value
+        estimate = CostEstimate(**values, model="m", reasoning="r")
+
+        with pytest.raises(ValueError, match=f"estimate.{field_name}"):
+            ctrl.check_cost_limit(estimate)
+
+    def test_check_cost_limit_rejects_inconsistent_estimate_range(self):
+        ctrl = CostController()
+        estimate = CostEstimate(min_cost=1.0, max_cost=2.0, expected_cost=0.5, model="m", reasoning="r")
+
+        with pytest.raises(ValueError, match="min_cost <= expected_cost <= max_cost"):
+            ctrl.check_cost_limit(estimate)
+
+    def test_check_cost_limit_resets_stale_daily_spending_before_admission(self):
+        ctrl = CostController(max_daily_cost=1.0)
+        ctrl.daily_spending = 1.0
+        estimate = CostEstimate(min_cost=0.1, max_cost=0.5, expected_cost=0.25, model="m", reasoning="r")
+        now = datetime(2026, 7, 15, 12, 0, tzinfo=UTC)
+        ctrl.last_reset = now - timedelta(days=1)
+
+        with patch("deepr.core.costs.datetime") as mock_dt:
+            mock_dt.now.return_value = now
+            mock_dt.side_effect = lambda *args, **kwargs: datetime(*args, **kwargs)
+            allowed, reason = ctrl.check_cost_limit(estimate)
+
+        assert allowed is True
+        assert reason is None
+        assert ctrl.daily_spending == 0.0
+
     def test_record_cost(self):
         ctrl = CostController()
         ctrl.record_cost(5.0)
@@ -228,6 +268,16 @@ class TestCostController:
         ctrl.record_cost(3.0)
         assert ctrl.daily_spending == 8.0
         assert ctrl.monthly_spending == 8.0
+
+    @pytest.mark.parametrize("value", [True, -0.01, float("nan"), float("inf"), "1.0"])
+    def test_record_cost_rejects_invalid_money_without_mutating(self, value):
+        ctrl = CostController()
+
+        with pytest.raises(ValueError, match="actual_cost"):
+            ctrl.record_cost(value)
+
+        assert ctrl.daily_spending == 0.0
+        assert ctrl.monthly_spending == 0.0
 
     def test_reset_if_needed_daily(self):
         ctrl = CostController()

@@ -570,6 +570,13 @@ def costs_doctor(drift_threshold: float, rebuild: bool):
     # Ledger storage sanity
     health = ledger.get_health()
     checks.append(("Ledger writable", bool(health.get("writable")), str(health.get("path", ledger_path))))
+    checks.append(
+        (
+            "Ledger accounting ready",
+            bool(health.get("accounting_ready")),
+            str(health.get("error") or health.get("path", ledger_path)),
+        )
+    )
 
     # Reconciliation drift check (dashboard is legacy mirror, ledger is canonical append-only)
     dashboard_total = sum(e.cost for e in dashboard.entries)

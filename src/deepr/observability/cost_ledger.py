@@ -485,11 +485,30 @@ class CostLedger:
         except OSError as e:
             error = str(e)
 
-        events = self.get_events()
+        accounting_ready = False
+        events: list[CostLedgerEvent] = []
+        if writable:
+            try:
+                events = self.with_locked_accounting_events(list)
+                accounting_ready = True
+            except (
+                CostLedgerDurabilityError,
+                CostLedgerIdempotencyConflict,
+                CostLedgerLockTimeout,
+                CostLedgerReadError,
+                OSError,
+            ) as exc:
+                error = error or f"{type(exc).__name__}: {exc}"
+        if not accounting_ready:
+            try:
+                events = self.get_events()
+            except (CostLedgerLockTimeout, OSError) as exc:
+                error = error or f"{type(exc).__name__}: {exc}"
         return {
             "path": str(self.ledger_path),
             "exists": self.ledger_path.exists(),
             "writable": writable,
+            "accounting_ready": accounting_ready,
             "event_count": len(events),
             "total_cost_usd": sum(e.cost_usd for e in events),
             "latest_timestamp": events[-1].timestamp.isoformat() if events else None,
@@ -550,7 +569,10 @@ def _validated_timestamp(value: object) -> datetime:
         return _utc_now()
     if not isinstance(value, str):
         raise ValueError("timestamp must be an ISO-8601 string")
-    return datetime.fromisoformat(value)
+    timestamp = datetime.fromisoformat(value)
+    if timestamp.tzinfo is None or timestamp.utcoffset() is None:
+        raise ValueError("timestamp must include a UTC offset")
+    return timestamp
 
 
 def _reject_json_constant(value: str) -> None:
