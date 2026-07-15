@@ -15,6 +15,7 @@
     "attempt_count",
     "request",
     "context",
+    "artifact_available",
     "artifact",
     "artifact_sha256",
     "stop",
@@ -46,6 +47,7 @@
     "attempt_count": {"type": "integer", "minimum": 1, "maximum": 100},
     "request": {"$ref": "#/$defs/request"},
     "context": {"$ref": "#/$defs/context"},
+    "artifact_available": {"type": "boolean"},
     "artifact": {
       "oneOf": [
         {"type": "null"},
@@ -145,6 +147,7 @@
         "evidence": {
           "type": "array",
           "maxItems": 200,
+          "uniqueItems": true,
           "items": {"$ref": "#/$defs/evidence"}
         },
         "uncertainty": {"$ref": "#/$defs/uncertainty"},
@@ -347,7 +350,7 @@
   },
   "allOf": [
     {
-      "if": {"properties": {"state": {"enum": ["completed", "input_required"]}}},
+      "if": {"properties": {"artifact_available": {"const": true}}},
       "then": {
         "properties": {
           "artifact": {"$ref": "#/$defs/artifact"},
@@ -355,12 +358,20 @@
         }
       },
       "else": {
-        "if": {"properties": {"state": {"enum": ["accepted", "running", "waiting_capacity", "interrupted"]}}},
-        "then": {
-          "properties": {
-            "artifact": {"type": "null"},
-            "artifact_sha256": {"type": "null"}
-          }
+        "properties": {"artifact": {"type": "null"}}
+      }
+    },
+    {
+      "if": {"properties": {"state": {"enum": ["completed", "input_required"]}}},
+      "then": {"properties": {"artifact_sha256": {"type": "string", "pattern": "^[a-f0-9]{64}$"}}}
+    },
+    {
+      "if": {"properties": {"state": {"enum": ["accepted", "running", "waiting_capacity", "interrupted"]}}},
+      "then": {
+        "properties": {
+          "artifact_available": {"const": false},
+          "artifact": {"type": "null"},
+          "artifact_sha256": {"type": "null"}
         }
       }
     },
@@ -375,7 +386,14 @@
     },
     {
       "if": {"properties": {"state": {"const": "completed"}}},
-      "then": {"properties": {"stop": {"properties": {"reason": {"const": "completed"}}}}}
+      "then": {
+        "properties": {
+          "artifact": {
+            "properties": {"semantic_status": {"enum": ["answered", "evidence_required"]}}
+          },
+          "stop": {"properties": {"reason": {"const": "completed"}}}
+        }
+      }
     },
     {
       "if": {"properties": {"state": {"const": "waiting_capacity"}}},

@@ -23,6 +23,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `deepr-expert-conversation-error-v1`, and
   `deepr-conversation-eval-v1` contracts before exposing a live conversation
   tool.
+- Added the internal protocol-neutral expert-conversation core under the runtime
+  root. It provides a WAL-backed SQLite event and projection store, opaque
+  owner-bound handles, idempotent append-before-dispatch reservations,
+  optimistic versions, one active turn, expiring attempt leases, exact replay,
+  bounded frozen context, proposal-only answer validation, finite retention,
+  logical content deletion with retained hashes, projection verification and
+  rebuild, and an injected async executor boundary. Ambiguous expired attempts
+  consume conservative call capacity, late results cannot win after lease
+  expiry, and actual overrun usage remains visible. The core does not expose a
+  live MCP multi-turn tool or construct a model provider yet.
 
 ### Fixed
 

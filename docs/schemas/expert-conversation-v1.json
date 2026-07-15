@@ -20,6 +20,7 @@
     "retention",
     "current_turn_id",
     "latest_turn_id",
+    "pending_input_request_id",
     "created_at",
     "updated_at",
     "host_action_boundary"
@@ -55,6 +56,12 @@
       "oneOf": [
         {"type": "null"},
         {"type": "string", "pattern": "^turn_[A-Za-z0-9_-]{16,64}$"}
+      ]
+    },
+    "pending_input_request_id": {
+      "oneOf": [
+        {"type": "null"},
+        {"type": "string", "pattern": "^input_[A-Za-z0-9_-]{16,64}$"}
       ]
     },
     "created_at": {"type": "string", "format": "date-time"},
@@ -150,7 +157,21 @@
   "allOf": [
     {
       "if": {"properties": {"state": {"enum": ["closed", "expired", "cancelled", "failed"]}}},
-      "then": {"properties": {"current_turn_id": {"type": "null"}}}
+      "then": {
+        "properties": {
+          "current_turn_id": {"type": "null"},
+          "pending_input_request_id": {"type": "null"}
+        }
+      }
+    },
+    {
+      "if": {"properties": {"state": {"const": "input_required"}}},
+      "then": {
+        "properties": {
+          "pending_input_request_id": {"type": "string", "pattern": "^input_[A-Za-z0-9_-]{16,64}$"}
+        }
+      },
+      "else": {"properties": {"pending_input_request_id": {"type": "null"}}}
     },
     {
       "if": {"properties": {"backend": {"properties": {"capacity_source": {"const": "local_owned"}}}}},
