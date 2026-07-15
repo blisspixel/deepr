@@ -260,6 +260,12 @@ def load_consult_lifecycle_events(*, trace_id: str | None = None, path: Path | N
     if trace_id is not None:
         _validate_trace_id(trace_id)
     target = _journal_path(path)
+    try:
+        exists = target.exists()
+    except (OSError, RuntimeError) as exc:
+        raise ConsultLifecycleStorageError("journal lookup", partial_write_possible=False) from exc
+    if not exists:
+        return []
     ensure_journal_parent(target)
     with _bounded_journal_lock(target, _DEFAULT_LOCK_TIMEOUT_SECONDS):
         events = _read_events_unlocked(target)
@@ -732,9 +738,11 @@ class ConsultLifecycle:
             if latest_state not in RESUMABLE_STATES:
                 raise ConsultLifecycleTransitionError(f"Lifecycle {trace_id} cannot resume from {latest_state.value}")
             normalized_bounds = _normalize_bounds(first["bounds"])
-            normalized_progress = _normalize_progress(progress or latest["progress"], normalized_bounds)
+            progress_value = latest["progress"] if progress is None else progress
+            normalized_progress = _normalize_progress(progress_value, normalized_bounds)
             cls._require_monotonic_progress(latest["progress"], normalized_progress)
-            normalized_capacity = _normalize_capacity(capacity or latest["capacity"])
+            capacity_value = latest["capacity"] if capacity is None else capacity
+            normalized_capacity = _normalize_capacity(capacity_value)
             latest_capacity = _normalize_capacity(_as_mapping(latest["capacity"], "latest capacity"))
             try:
                 _validate_capacity_transition(latest_capacity, normalized_capacity)
@@ -815,12 +823,14 @@ class ConsultLifecycle:
                 raise ConsultLifecycleTransitionError("Heartbeat events must remain running")
             if event_type is LifecycleEventType.STATE_TRANSITION and state is LifecycleState.RUNNING:
                 raise ConsultLifecycleTransitionError("Use heartbeat for a running event")
-            normalized_progress = _normalize_progress(progress or latest["progress"], self.bounds)
+            progress_value = latest["progress"] if progress is None else progress
+            normalized_progress = _normalize_progress(progress_value, self.bounds)
             self._require_monotonic_progress(latest["progress"], normalized_progress)
             cost_stopped = Decimal(str(normalized_progress["cost_usd_observed"])) > Decimal(
                 str(self.bounds["max_cost_usd"])
             )
-            normalized_capacity = _normalize_capacity(capacity or latest["capacity"])
+            capacity_value = latest["capacity"] if capacity is None else capacity
+            normalized_capacity = _normalize_capacity(capacity_value)
             latest_capacity = _normalize_capacity(_as_mapping(latest["capacity"], "latest capacity"))
             try:
                 _validate_capacity_transition(latest_capacity, normalized_capacity)

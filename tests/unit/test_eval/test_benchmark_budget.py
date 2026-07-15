@@ -76,6 +76,25 @@ def test_refund_releases_unsubmitted_call_without_ledger_event(isolated_costs):
 
 
 def test_invalid_or_unbounded_runtime_budget_is_rejected(isolated_costs):
-    for budget in (0, -1, float("inf"), float("nan")):
+    for budget in (True, 0, -1, float("inf"), float("nan")):
         with pytest.raises(BenchmarkBudgetExceeded, match="finite and greater than zero"):
             BenchmarkSpendGuard(budget)
+
+
+def test_guard_rejects_invalid_call_ceiling(isolated_costs):
+    guard = BenchmarkSpendGuard(1.0)
+
+    with pytest.raises(BenchmarkBudgetExceeded, match="finite and non-negative"):
+        guard.reserve(provider="openai", model="openai/test", cost_ceiling=True, operation="benchmark")
+
+
+def test_guard_blocks_writable_but_corrupt_canonical_ledger(isolated_costs):
+    path = isolated_costs / "costs" / "cost_ledger.jsonl"
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text("{}\n", encoding="utf-8")
+    ledger = CostLedger(ledger_path=path)
+
+    with pytest.raises(BenchmarkBudgetExceeded, match="not accounting-ready"):
+        BenchmarkSpendGuard(1.0, ledger=ledger)
+
+    assert not (path.parent / "research_reservations.db").exists()

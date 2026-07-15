@@ -4,9 +4,19 @@ import logging
 import threading
 from dataclasses import dataclass
 from datetime import UTC, datetime
+from math import isfinite
 from typing import Any
 
 logger = logging.getLogger(__name__)
+
+
+def _validated_money(value: object, *, field_name: str) -> float:
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        raise ValueError(f"{field_name} must be a finite non-negative number")
+    numeric = float(value)
+    if not isfinite(numeric) or numeric < 0:
+        raise ValueError(f"{field_name} must be a finite non-negative number")
+    return numeric
 
 
 @dataclass
@@ -250,9 +260,9 @@ class CostController:
             max_daily_cost: Maximum daily spending
             max_monthly_cost: Maximum monthly spending
         """
-        self.max_cost_per_job = max_cost_per_job
-        self.max_daily_cost = max_daily_cost
-        self.max_monthly_cost = max_monthly_cost
+        self.max_cost_per_job = _validated_money(max_cost_per_job, field_name="max_cost_per_job")
+        self.max_daily_cost = _validated_money(max_daily_cost, field_name="max_daily_cost")
+        self.max_monthly_cost = _validated_money(max_monthly_cost, field_name="max_monthly_cost")
 
         self._lock = threading.Lock()
         self.daily_spending = 0.0
@@ -269,26 +279,33 @@ class CostController:
         Returns:
             (allowed, reason) - reason is None if allowed
         """
+        min_cost = _validated_money(estimate.min_cost, field_name="estimate.min_cost")
+        max_cost = _validated_money(estimate.max_cost, field_name="estimate.max_cost")
+        expected_cost = _validated_money(estimate.expected_cost, field_name="estimate.expected_cost")
+        if not min_cost <= expected_cost <= max_cost:
+            raise ValueError("cost estimate must satisfy min_cost <= expected_cost <= max_cost")
+        self.reset_if_needed()
+
         # Check per-job limit
-        if estimate.max_cost > self.max_cost_per_job:
+        if max_cost > self.max_cost_per_job:
             return False, (
-                f"Job may cost ${estimate.max_cost:.2f}, exceeds limit of "
+                f"Job may cost ${max_cost:.2f}, exceeds limit of "
                 f"${self.max_cost_per_job:.2f}. Use --cost-sensitive or reduce scope."
             )
 
         # Check daily limit
-        if self.daily_spending + estimate.expected_cost > self.max_daily_cost:
+        if self.daily_spending + expected_cost > self.max_daily_cost:
             return False, (
                 f"Daily spending (${self.daily_spending:.2f}) + estimated cost "
-                f"(${estimate.expected_cost:.2f}) exceeds daily limit of "
+                f"(${expected_cost:.2f}) exceeds daily limit of "
                 f"${self.max_daily_cost:.2f}"
             )
 
         # Check monthly limit
-        if self.monthly_spending + estimate.expected_cost > self.max_monthly_cost:
+        if self.monthly_spending + expected_cost > self.max_monthly_cost:
             return False, (
                 f"Monthly spending (${self.monthly_spending:.2f}) + estimated cost "
-                f"(${estimate.expected_cost:.2f}) exceeds monthly limit of "
+                f"(${expected_cost:.2f}) exceeds monthly limit of "
                 f"${self.max_monthly_cost:.2f}"
             )
 
@@ -301,6 +318,7 @@ class CostController:
         recorded just after midnight (UTC) goes into the new day's
         bucket, not yesterday's.
         """
+        actual_cost = _validated_money(actual_cost, field_name="actual_cost")
         self.reset_if_needed()
         with self._lock:
             self.daily_spending += actual_cost

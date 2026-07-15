@@ -9,7 +9,17 @@ Requirements: 5.2 - Extract monthly budget tracking logic
 
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
+from math import isfinite
 from typing import Any
+
+
+def _validated_money(value: object, *, field_name: str) -> float:
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        raise ValueError(f"{field_name} must be a finite non-negative number")
+    numeric = float(value)
+    if not isfinite(numeric) or numeric < 0:
+        raise ValueError(f"{field_name} must be a finite non-negative number")
+    return numeric
 
 
 @dataclass
@@ -38,8 +48,18 @@ class BudgetManager:
 
     def __post_init__(self):
         """Initialize reset date if not set."""
+        self.monthly_budget = _validated_money(self.monthly_budget, field_name="monthly_budget")
+        self.monthly_spending = _validated_money(self.monthly_spending, field_name="monthly_spending")
+        self.total_spending = _validated_money(self.total_spending, field_name="total_spending")
         if isinstance(self.reset_date, str):
             self.reset_date = datetime.fromisoformat(self.reset_date)
+        if self.reset_date is not None and not isinstance(self.reset_date, datetime):
+            raise ValueError("reset_date must be an ISO-8601 datetime")
+        if self.reset_date is not None and (self.reset_date.tzinfo is None or self.reset_date.utcoffset() is None):
+            # Earlier profile versions could persist this UTC month boundary
+            # without an offset. Preserve those profiles without allowing a
+            # naive/aware comparison to crash budget admission.
+            self.reset_date = self.reset_date.replace(tzinfo=UTC)
         if self.reset_date is None:
             self._initialize_reset_date()
 
@@ -104,6 +124,7 @@ class BudgetManager:
         Returns:
             Tuple of (can_spend, reason_message)
         """
+        amount = _validated_money(amount, field_name="amount")
         self.check_and_reset_if_needed()
 
         if amount <= 0:
@@ -127,6 +148,7 @@ class BudgetManager:
             operation: Type of operation (refresh, research, etc.)
             details: Optional details about the operation
         """
+        amount = _validated_money(amount, field_name="amount")
         self.check_and_reset_if_needed()
 
         self.monthly_spending += amount

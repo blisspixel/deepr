@@ -117,10 +117,14 @@ def known_exception_cost(exception: BaseException) -> float:
     return known
 
 
-def _parse_dt(value: Any) -> datetime | None:
-    if not value:
+def _parse_dt(value: Any, *, field_name: str) -> datetime | None:
+    if value is None:
         return None
-    return datetime.fromisoformat(str(value))
+    if not isinstance(value, str):
+        raise ValueError(f"{field_name} must be an ISO-8601 datetime string")
+    parsed = datetime.fromisoformat(value)
+    _validate_aware_datetime(parsed, field_name=field_name)
+    return parsed
 
 
 def _dt_to_str(value: datetime | None) -> str | None:
@@ -135,6 +139,33 @@ def _string_list(value: Any) -> list[str]:
 
 def _dict_or_empty(value: Any) -> dict[str, Any]:
     return value if isinstance(value, dict) else {}
+
+
+def _validate_nonnegative_int(value: object, *, field_name: str, positive: bool = False) -> None:
+    minimum = 1 if positive else 0
+    if isinstance(value, bool) or not isinstance(value, int) or value < minimum:
+        requirement = "positive" if positive else "non-negative"
+        raise ValueError(f"{field_name} must be a {requirement} integer")
+
+
+def _validate_finite_number(
+    value: object,
+    *,
+    field_name: str,
+    nonnegative: bool,
+) -> None:
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        requirement = "finite non-negative number" if nonnegative else "finite number"
+        raise ValueError(f"{field_name} must be a {requirement}")
+    numeric = float(value)
+    if not isfinite(numeric) or (nonnegative and numeric < 0):
+        requirement = "finite non-negative number" if nonnegative else "finite number"
+        raise ValueError(f"{field_name} must be a {requirement}")
+
+
+def _validate_aware_datetime(value: object, *, field_name: str) -> None:
+    if not isinstance(value, datetime) or value.tzinfo is None or value.utcoffset() is None:
+        raise ValueError(f"{field_name} must include a UTC offset")
 
 
 @dataclass(frozen=True)
@@ -192,9 +223,12 @@ class ExpertLoopRun:
     def __post_init__(self) -> None:
         self._validate_identity_fields()
         self._validate_numeric_fields()
+        self._validate_timestamps()
         self._validate_stop_reason()
 
     def _validate_identity_fields(self) -> None:
+        if isinstance(self.schema_version, bool) or not isinstance(self.schema_version, int):
+            raise ValueError("schema_version must be an integer")
         if self.schema_version != LOOP_RUN_SCHEMA_VERSION:
             raise ValueError(f"unsupported loop-run schema version: {self.schema_version}")
         for field_name in ("run_id", "expert_name", "loop_type", "goal", "trigger"):
@@ -202,16 +236,24 @@ class ExpertLoopRun:
                 raise ValueError(f"{field_name} is required")
 
     def _validate_numeric_fields(self) -> None:
-        if self.iteration_count < 0:
-            raise ValueError("iteration_count must be non-negative")
-        if self.max_iterations is not None and self.max_iterations < 1:
-            raise ValueError("max_iterations must be positive when set")
-        if self.budget_limit is not None and self.budget_limit < 0:
-            raise ValueError("budget_limit must be non-negative when set")
-        if self.budget_spent < 0:
-            raise ValueError("budget_spent must be non-negative")
-        if self.accepted_changes < 0 or self.rejected_changes < 0:
-            raise ValueError("change counts must be non-negative")
+        _validate_nonnegative_int(self.iteration_count, field_name="iteration_count")
+        if self.max_iterations is not None:
+            _validate_nonnegative_int(self.max_iterations, field_name="max_iterations", positive=True)
+        if self.budget_limit is not None:
+            _validate_finite_number(self.budget_limit, field_name="budget_limit", nonnegative=True)
+        _validate_finite_number(self.budget_spent, field_name="budget_spent", nonnegative=True)
+        _validate_nonnegative_int(self.accepted_changes, field_name="accepted_changes")
+        _validate_nonnegative_int(self.rejected_changes, field_name="rejected_changes")
+        if self.verifier_score is not None:
+            _validate_finite_number(self.verifier_score, field_name="verifier_score", nonnegative=False)
+        if self.verifier_threshold is not None:
+            _validate_finite_number(self.verifier_threshold, field_name="verifier_threshold", nonnegative=False)
+
+    def _validate_timestamps(self) -> None:
+        _validate_aware_datetime(self.started_at, field_name="started_at")
+        _validate_aware_datetime(self.updated_at, field_name="updated_at")
+        if self.finished_at is not None:
+            _validate_aware_datetime(self.finished_at, field_name="finished_at")
 
     def _validate_stop_reason(self) -> None:
         if self.is_terminal and self.stop_reason is None:
@@ -269,21 +311,21 @@ class ExpertLoopRun:
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> ExpertLoopRun:
         return cls(
-            schema_version=int(data.get("schema_version", LOOP_RUN_SCHEMA_VERSION)),
+            schema_version=data.get("schema_version", LOOP_RUN_SCHEMA_VERSION),
             run_id=str(data["run_id"]),
             expert_name=str(data["expert_name"]),
             loop_type=str(data["loop_type"]),
             goal=str(data["goal"]),
             trigger=str(data["trigger"]),
             status=LoopRunStatus(str(data.get("status", LoopRunStatus.PENDING.value))),
-            started_at=_parse_dt(data.get("started_at")) or _utc_now(),
-            updated_at=_parse_dt(data.get("updated_at")) or _utc_now(),
-            finished_at=_parse_dt(data.get("finished_at")),
-            iteration_count=int(data.get("iteration_count", 0) or 0),
-            max_iterations=int(data["max_iterations"]) if data.get("max_iterations") is not None else None,
+            started_at=_parse_dt(data.get("started_at"), field_name="started_at") or _utc_now(),
+            updated_at=_parse_dt(data.get("updated_at"), field_name="updated_at") or _utc_now(),
+            finished_at=_parse_dt(data.get("finished_at"), field_name="finished_at"),
+            iteration_count=data.get("iteration_count", 0),
+            max_iterations=data.get("max_iterations"),
             state_artifact_path=str(data.get("state_artifact_path", "")),
-            budget_limit=float(data["budget_limit"]) if data.get("budget_limit") is not None else None,
-            budget_spent=float(data.get("budget_spent", 0.0) or 0.0),
+            budget_limit=data.get("budget_limit"),
+            budget_spent=data.get("budget_spent", 0.0),
             capacity_source=str(data.get("capacity_source", "")),
             backend_profile_id=str(data.get("backend_profile_id", "")),
             trace_id=str(data.get("trace_id", "")),
@@ -296,13 +338,11 @@ class ExpertLoopRun:
             verifier_id=str(data.get("verifier_id", "")),
             verifier_version=str(data.get("verifier_version", "")),
             verifier_outcome=str(data.get("verifier_outcome", "")),
-            verifier_score=float(data["verifier_score"]) if data.get("verifier_score") is not None else None,
-            verifier_threshold=float(data["verifier_threshold"])
-            if data.get("verifier_threshold") is not None
-            else None,
+            verifier_score=data.get("verifier_score"),
+            verifier_threshold=data.get("verifier_threshold"),
             verifier_evidence_refs=_string_list(data.get("verifier_evidence_refs")),
-            accepted_changes=int(data.get("accepted_changes", 0) or 0),
-            rejected_changes=int(data.get("rejected_changes", 0) or 0),
+            accepted_changes=data.get("accepted_changes", 0),
+            rejected_changes=data.get("rejected_changes", 0),
             stop_reason=LoopStopReason(str(data["stop_reason"])) if data.get("stop_reason") else None,
             failure_reason=str(data.get("failure_reason", "")),
             next_action=_dict_or_empty(data.get("next_action")),
@@ -330,8 +370,7 @@ class ExpertLoopRunStore:
         loop_type: str | None = None,
         limit: int = 20,
     ) -> list[ExpertLoopRun]:
-        if limit < 1:
-            raise ValueError("limit must be positive")
+        _validate_nonnegative_int(limit, field_name="limit", positive=True)
         latest: dict[str, ExpertLoopRun] = {}
         for run in self._iter_snapshots():
             latest[run.run_id] = run

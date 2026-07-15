@@ -233,8 +233,7 @@ class TestRunCli:
         # Keep the direct child alive until the descendant overflows so the
         # parent pipe still has a writer when the byte ceiling is crossed.
         descendant_code = (
-            "import sys,time; time.sleep(0.2); sys.stdout.buffer.write(b'x' * 2048); "
-            "sys.stdout.flush(); time.sleep(30)"
+            "import sys,time; time.sleep(0.2); sys.stdout.buffer.write(b'x' * 2048); sys.stdout.flush(); time.sleep(30)"
         )
         direct_child_code = (
             "import subprocess,sys; "

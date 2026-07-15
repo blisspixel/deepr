@@ -12,6 +12,7 @@ import pytest
 from deepr.observability.cost_ledger import (
     CostLedger,
     CostLedgerDurabilityError,
+    CostLedgerEvent,
     CostLedgerIdempotencyConflict,
     CostLedgerLockTimeout,
     CostLedgerReadError,
@@ -303,8 +304,34 @@ def test_health_reports_file_and_counts(tmp_path: Path):
 
     assert health["exists"] is True
     assert health["writable"] is True
+    assert health["accounting_ready"] is True
     assert health["event_count"] == 1
     assert health["total_cost_usd"] == 0.5
+
+
+def test_health_reports_writable_corrupt_ledger_as_not_accounting_ready(tmp_path: Path):
+    path = tmp_path / "cost_ledger.jsonl"
+    path.write_text("{}\n", encoding="utf-8")
+    ledger = CostLedger(ledger_path=path)
+
+    health = ledger.get_health()
+
+    assert health["writable"] is True
+    assert health["accounting_ready"] is False
+    assert health["event_count"] == 0
+    assert "malformed event" in health["error"]
+
+
+def test_cost_ledger_event_requires_timezone_aware_timestamp():
+    with pytest.raises(ValueError, match="UTC offset"):
+        CostLedgerEvent.from_dict(
+            {
+                "timestamp": "2026-07-15T12:00:00",
+                "operation": "research",
+                "provider": "openai",
+                "cost_usd": 0.1,
+            }
+        )
 
 
 def _record_live_attribution_shape(ledger: CostLedger) -> None:

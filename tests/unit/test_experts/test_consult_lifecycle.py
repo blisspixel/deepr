@@ -96,6 +96,13 @@ def _assert_no_content_fields(value: Any) -> None:
             _assert_no_content_fields(child)
 
 
+def test_loading_missing_journal_is_read_only(tmp_path: Path) -> None:
+    path = tmp_path / "missing" / "consult_lifecycle_events.jsonl"
+
+    assert load_consult_lifecycle_events(path=path) == []
+    assert not path.parent.exists()
+
+
 def test_start_heartbeat_and_finish_append_bounded_events(tmp_path: Path) -> None:
     path = tmp_path / "consult_lifecycle_events.jsonl"
     lifecycle = _start(path)
@@ -257,6 +264,22 @@ def test_bounds_progress_and_capacity_identity_fail_closed(tmp_path: Path) -> No
         lifecycle.transition("failed", phase="synthesis", reason_code="Provider failed: secret")
     with pytest.raises(ConsultLifecycleTransitionError, match="finish requires"):
         lifecycle.finish("interrupted", reason_code="host_interrupted")
+
+
+def test_explicit_empty_progress_and_capacity_are_rejected(tmp_path: Path) -> None:
+    path = tmp_path / "empty_fields.jsonl"
+    lifecycle = _start(path)
+
+    with pytest.raises(ValueError, match="progress must contain exactly"):
+        lifecycle.heartbeat(phase="perspectives", progress={})
+    with pytest.raises(ValueError, match="capacity must contain exactly"):
+        lifecycle.heartbeat(phase="perspectives", capacity={})
+
+    lifecycle.transition("waiting_capacity", phase="preflight", reason_code="local_capacity_busy")
+    with pytest.raises(ValueError, match="progress must contain exactly"):
+        ConsultLifecycle.resume(trace_id=lifecycle.trace_id, path=path, progress={})
+    with pytest.raises(ValueError, match="capacity must contain exactly"):
+        ConsultLifecycle.resume(trace_id=lifecycle.trace_id, path=path, capacity={})
 
 
 @pytest.mark.parametrize("value", [-1.0, float("inf"), float("nan")])
