@@ -473,7 +473,12 @@ class ConversationStartRequest:
             "operation": "start",
             "message": self.message,
             "decision_brief": self.decision_brief,
-            "expert_snapshots": [snapshot.to_dict() for snapshot in self.expert_snapshots],
+            # Snapshot packets are server-compiled state, not caller input. A
+            # duplicate delivery must replay the first recorded conversation
+            # even if an expert changed between attempts. The canonical roster
+            # remains part of the request identity so a reused key cannot
+            # silently target different experts.
+            "expert_names": [snapshot.expert_name for snapshot in self.expert_snapshots],
             "backend": self.backend.to_dict(),
             "bounds": self.bounds.to_dict(),
             "mode": self.mode.value,
@@ -680,6 +685,7 @@ class ConversationExecutionContext:
     attempt_id: str
     mode: ConsultationMode
     expert_names: tuple[str, ...]
+    backend: BackendSelection
     message: str
     decision_brief: str | None
     context_snapshot: dict[str, Any]

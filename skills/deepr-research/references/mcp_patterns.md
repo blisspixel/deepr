@@ -2,7 +2,7 @@
 
 ## Dynamic discovery
 
-Deepr exposes 32 tools while allowing hosts to load only the schemas they need.
+Deepr exposes 36 tools while allowing hosts to load only the schemas they need.
 Call `deepr_tool_search` with an action description, inspect the returned schema,
 then invoke the named tool. Do not guess parameters from an older skill copy.
 

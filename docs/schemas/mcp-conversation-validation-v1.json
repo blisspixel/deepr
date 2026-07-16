@@ -1,0 +1,83 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/blisspixel/deepr/docs/schemas/mcp-conversation-validation-v1.json",
+  "title": "Deepr MCP Conversation Validation v1",
+  "description": "Secret-free acceptance report for a local-only durable expert conversation over authenticated MCP.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "kind",
+    "mode",
+    "endpoint",
+    "ok",
+    "cost_usd",
+    "capacity_source",
+    "fallback_policy",
+    "live_metered_fallback",
+    "conversation_id",
+    "expert_names",
+    "local_model",
+    "checks",
+    "error",
+    "generated_at"
+  ],
+  "properties": {
+    "schema_version": {"const": "deepr-mcp-conversation-validation-v1"},
+    "kind": {"const": "deepr.mcp.conversation_validation"},
+    "mode": {"enum": ["http", "managed_loopback"]},
+    "endpoint": {"type": "string", "minLength": 1, "maxLength": 2048},
+    "ok": {"type": "boolean"},
+    "cost_usd": {"const": 0.0},
+    "capacity_source": {"const": "local_owned"},
+    "fallback_policy": {"const": "none"},
+    "live_metered_fallback": {"const": false},
+    "conversation_id": {
+      "oneOf": [
+        {"type": "string", "pattern": "^conv_[A-Za-z0-9_-]{22,64}$"},
+        {"type": "null"}
+      ]
+    },
+    "expert_names": {
+      "type": "array",
+      "maxItems": 10,
+      "uniqueItems": true,
+      "items": {"type": "string", "minLength": 1, "maxLength": 128}
+    },
+    "local_model": {
+      "oneOf": [
+        {"type": "string", "minLength": 1, "maxLength": 256},
+        {"type": "null"}
+      ]
+    },
+    "checks": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["name", "status", "detail"],
+        "properties": {
+          "name": {"type": "string", "minLength": 1, "maxLength": 128},
+          "status": {"enum": ["passed", "failed"]},
+          "detail": {"type": "string", "minLength": 1, "maxLength": 2048}
+        }
+      }
+    },
+    "error": {
+      "oneOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["error_code", "message"],
+          "properties": {
+            "error_code": {"type": "string", "minLength": 1, "maxLength": 128},
+            "message": {"type": "string", "minLength": 1, "maxLength": 2048}
+          }
+        },
+        {"type": "null"}
+      ]
+    },
+    "generated_at": {"type": "string", "format": "date-time"}
+  }
+}

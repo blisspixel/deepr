@@ -25,7 +25,7 @@ AUDIT_KIND = "deepr.mcp.remote_audit"
 _HASH_ALGORITHM = "pbkdf2_sha256"
 _HASH_ITERATIONS = 210_000
 _EXPERT_ARG_NAMES = ("expert_name", "name", "experts")
-_ALLOWLIST_INJECTED_EXPERT_TOOLS = frozenset({"deepr_consult_experts"})
+_ALLOWLIST_INJECTED_EXPERT_TOOLS = frozenset({"deepr_consult_experts", "deepr_start_expert_conversation"})
 _BUDGET_ARGUMENT_TOOLS = frozenset(
     {
         "deepr_agentic_research",
@@ -36,9 +36,13 @@ _BUDGET_ARGUMENT_TOOLS = frozenset(
     }
 )
 _FIXED_TOOL_COST_ESTIMATES_USD = {
+    "deepr_close_expert_conversation": 0.0,
+    "deepr_continue_expert_conversation": 0.0,
     "deepr_expert_absorb": 0.10,
     "deepr_expert_validate": 0.02,
+    "deepr_get_expert_conversation": 0.0,
     "deepr_reflect": 0.02,
+    "deepr_start_expert_conversation": 0.0,
 }
 
 

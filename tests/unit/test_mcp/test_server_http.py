@@ -52,6 +52,21 @@ async def test_http_message_handler_routes_legacy_methods():
 
 
 @pytest.mark.asyncio
+async def test_http_message_handler_redacts_unexpected_exception_text():
+    handler = _make_http_message_handler(MagicMock())
+
+    with patch(
+        "deepr.mcp.http_server._dispatch_mcp_method",
+        new=AsyncMock(side_effect=RuntimeError("private-path-and-token")),
+    ):
+        response = await handler(HttpMessage(id="1", method="initialize", params={}))
+
+    assert response is not None
+    assert response.error == {"code": -32603, "message": "Internal error"}
+    assert "private-path-and-token" not in str(response.to_dict())
+
+
+@pytest.mark.asyncio
 async def test_run_http_server_starts_and_stops_transport():
     stop_event = asyncio.Event()
     created: list[MagicMock] = []

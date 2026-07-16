@@ -36,6 +36,12 @@ capable), `medium`/`high` (metered, confirm budget first).
   context into one no-tool turn and never fall through to a metered API. In
   v2.36, `backend="api"` fails closed before provider dispatch with
   `metered_expert_chat_accounting_unavailable`.
+- Multi-turn follow-ups against frozen expert state ->
+  `deepr_start_expert_conversation` then `deepr_continue_expert_conversation`
+  with the opaque `conversation_id`, `expected_version`, and a unique
+  `idempotency_key`. Local Ollama only, `$0`, no expert-memory writes. Close
+  with `deepr_close_expert_conversation`. Prefer one-shot consult when a single
+  answer is enough.
 - "What changed since I last asked?" -> `deepr_what_changed`; a handoff snapshot
   -> `deepr_expert_handoff`; why a claim is held -> `deepr_explain_belief`;
   related memory candidates -> `deepr_semantic_recall`; time-scoped edge
@@ -502,6 +508,6 @@ StdioServer (JSON-RPC transport)
 
 ---
 
-**Tools:** 32 (3 system + 5 research + 18 expert + 4 task management + 2 skills)
+**Tools:** 36 (3 system + 5 research + 22 expert + 4 task management + 2 skills)
 **Resources:** 10 URI schemes across 4 resource types
 **Prompts:** 3 templates

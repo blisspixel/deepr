@@ -55,7 +55,7 @@ deepr expert sync "Platform Team Expert" --local --fresh-context --compile-claim
 
 Multi-provider support includes OpenAI, Gemini, Grok, Anthropic, Azure, local
 Ollama, and explicit plan-quota CLIs. Reports and expert state are local
-artifacts you own. Deepr also exposes 32 MCP tools for agent hosts.
+artifacts you own. Deepr also exposes 36 MCP tools for agent hosts.
 
 <p align="center">
   <img src="assets/dashboard.png" width="49%" alt="Dashboard - cost trends, job stats, activity feed" />

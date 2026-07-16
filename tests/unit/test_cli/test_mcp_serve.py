@@ -187,6 +187,106 @@ def test_mcp_validate_consult_requires_explicit_plan():
     assert "--plan is required" in result.output
 
 
+def test_mcp_validate_conversation_managed_outputs_json():
+    from deepr.mcp.conversation_validation import (
+        MCPConversationValidationCheck,
+        MCPConversationValidationReport,
+    )
+
+    report = MCPConversationValidationReport(
+        mode="managed_loopback",
+        endpoint="http://127.0.0.1:18888/mcp",
+        checks=(MCPConversationValidationCheck("restart_recovery", "passed", "recovered"),),
+    )
+
+    def fake_validate(**kwargs):
+        assert kwargs["expert"] == "AI Agent Harnesses"
+        assert kwargs["local_model"] == "qwen-test"
+        return "conversation-coro"
+
+    with (
+        patch(
+            "deepr.mcp.conversation_validation_managed.run_managed_loopback_conversation_validation",
+            new=fake_validate,
+        ),
+        patch(
+            "deepr.cli.commands.mcp_conversation_validation.run_async_command",
+            return_value=report,
+        ) as run_async,
+    ):
+        result = CliRunner().invoke(
+            mcp,
+            [
+                "validate-conversation",
+                "--expert",
+                "AI Agent Harnesses",
+                "--local-model",
+                "qwen-test",
+                "--json",
+            ],
+        )
+
+    assert result.exit_code == 0, result.output
+    payload = json.loads(result.output)
+    assert payload["schema_version"] == "deepr-mcp-conversation-validation-v1"
+    assert payload["mode"] == "managed_loopback"
+    assert payload["ok"] is True
+    run_async.assert_called_once_with("conversation-coro")
+
+
+def test_mcp_validate_conversation_remote_requires_authentication():
+    result = CliRunner().invoke(
+        mcp,
+        ["validate-conversation", "http://127.0.0.1:8765/mcp"],
+        env={"MCP_AUTH_TOKEN": "", "DEEPR_MCP_AUTH_TOKEN": ""},
+    )
+
+    assert result.exit_code != 0
+    assert "requires --auth-token" in result.output
+
+
+def test_mcp_validate_conversation_remote_uses_http_runner():
+    from deepr.mcp.conversation_validation import (
+        MCPConversationValidationCheck,
+        MCPConversationValidationReport,
+    )
+
+    report = MCPConversationValidationReport(
+        mode="http",
+        endpoint="http://192.0.2.10:8765/mcp",
+        checks=(MCPConversationValidationCheck("x", "passed", "ok"),),
+    )
+
+    def fake_validate(url, **kwargs):
+        assert url == "http://192.0.2.10:8765/mcp"
+        assert kwargs["auth_token"] == "secret"
+        assert kwargs["expert"] == "Model Context Protocol"
+        return "conversation-coro"
+
+    with (
+        patch("deepr.mcp.conversation_validation.run_http_conversation_validation", new=fake_validate),
+        patch(
+            "deepr.cli.commands.mcp_conversation_validation.run_async_command",
+            return_value=report,
+        ),
+    ):
+        result = CliRunner().invoke(
+            mcp,
+            [
+                "validate-conversation",
+                "http://192.0.2.10:8765/mcp",
+                "--auth-token",
+                "secret",
+                "--expert",
+                "Model Context Protocol",
+            ],
+        )
+
+    assert result.exit_code == 0, result.output
+    assert "MCP conversation validation: http://192.0.2.10:8765/mcp" in result.output
+    assert "Capacity: local owned, $0, no fallback" in result.output
+
+
 def test_mcp_validate_consult_fleet_outputs_json(monkeypatch):
     from deepr.mcp.consult_validation import MCPConsultValidationCheck, MCPConsultValidationReport
 

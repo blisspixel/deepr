@@ -62,11 +62,19 @@ def coverage_gate() -> int:
 
 
 def mcp_tool_count() -> int:
-    """Number of registered MCP tools (entries in server.py tool_dispatch)."""
-    text = (REPO_ROOT / "src" / "deepr" / "mcp" / "server.py").read_text(encoding="utf-8")
-    keys = set(re.findall(r'"(deepr_\w+)":\s*lambda', text))
+    """Number of registered MCP tools (dispatch keys across server and adapters)."""
+    keys: set[str] = set()
+    # Conversation tools live in expert_conversation.conversation_tool_dispatch
+    # and are merged into server tool_dispatch via **spread, so count both files.
+    for rel in (
+        "src/deepr/mcp/server.py",
+        "src/deepr/mcp/expert_conversation.py",
+    ):
+        path = REPO_ROOT / rel
+        if path.is_file():
+            keys.update(re.findall(r'"(deepr_\w+)":\s*lambda', path.read_text(encoding="utf-8")))
     if not keys:
-        raise RuntimeError("could not find tool_dispatch entries in server.py")
+        raise RuntimeError("could not find tool_dispatch entries in MCP sources")
     return len(keys)
 
 
