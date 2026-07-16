@@ -9,6 +9,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Added Stage 2 durable expert conversation MCP tools:
+  `deepr_start_expert_conversation`, `deepr_continue_expert_conversation`,
+  `deepr_get_expert_conversation`, and `deepr_close_expert_conversation`.
+  Conversations use opaque application handles (not MCP transport sessions),
+  optimistic versions, idempotency keys, frozen expert snapshots, local Ollama
+  only at `$0`, no metered fallback, and no expert-memory writes. Scoped HTTP
+  keys bind ownership and expert allowlists. MCP tool count is now 36.
+- Added `deepr mcp validate-conversation` for managed loopback or authenticated
+  remote HTTP acceptance of the multi-turn conversation path, emitting
+  `deepr-mcp-conversation-validation-v1` without judging answer meaning.
+- Published `deepr-expert-conversation-operation-v1` and
+  `deepr-mcp-conversation-validation-v1` schemas.
+- Added a local Ollama conversation executor and snapshot compiler for proposal-
+  only turns with bounded evidence catalogs.
 - Added `deepr eval conversation`, a `$0` frozen-fixture structural gate for
   durable expert conversations. Twelve checks cover protocol-neutral identity,
   optimistic versioning, idempotency, typed lifecycle states, bounded frozen
@@ -29,10 +43,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   optimistic versions, one active turn, expiring attempt leases, exact replay,
   bounded frozen context, proposal-only answer validation, finite retention,
   logical content deletion with retained hashes, projection verification and
-  rebuild, and an injected async executor boundary. Ambiguous expired attempts
-  consume conservative call capacity, late results cannot win after lease
-  expiry, and actual overrun usage remains visible. The core does not expose a
-  live MCP multi-turn tool or construct a model provider yet.
+  rebuild, and an injected async executor boundary.
 
 ### Fixed
 

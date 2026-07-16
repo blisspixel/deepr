@@ -364,6 +364,7 @@ class ExpertConversationStore:
             attempt_id=attempt_id,
             mode=ConsultationMode(str(row["mode"])),
             expert_names=tuple(self._loads(str(row["expert_names_json"]))),
+            backend=self._backend(row),
             message=message,
             decision_brief=bounded.decision_brief,
             context_snapshot=bounded.snapshot,

@@ -1,0 +1,31 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://deepr.example/schemas/expert-conversation-operation-v1.json",
+  "title": "Deepr Expert Conversation Operation",
+  "description": "Versioned public wrapper for a successful expert-conversation start, continue, get, or close operation.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "kind",
+    "operation",
+    "conversation",
+    "turn",
+    "replayed",
+    "dispatch_status"
+  ],
+  "properties": {
+    "schema_version": {"const": "deepr-expert-conversation-operation-v1"},
+    "kind": {"const": "deepr.expert.conversation_operation"},
+    "operation": {"enum": ["start", "continue", "get", "close"]},
+    "conversation": {"type": "object"},
+    "turn": {
+      "oneOf": [
+        {"type": "object"},
+        {"type": "null"}
+      ]
+    },
+    "replayed": {"type": "boolean"},
+    "dispatch_status": {"type": "string", "minLength": 1, "maxLength": 128}
+  }
+}

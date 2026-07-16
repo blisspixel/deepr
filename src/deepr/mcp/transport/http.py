@@ -13,6 +13,7 @@ Use Cases:
 
 import asyncio
 import hmac
+import ipaddress
 import json
 import logging
 import os
@@ -25,6 +26,11 @@ from typing import Any
 import aiohttp
 from aiohttp import web
 
+from deepr.mcp.request_context import (
+    MCPRequestIdentity,
+    bind_mcp_request_identity,
+    reset_mcp_request_identity,
+)
 from deepr.mcp.security.scoped_keys import (
     RemoteMCPAuditLog,
     ScopedMCPAuthzDecision,
@@ -54,6 +60,18 @@ TOOL_RESPONSE_COST_FIELDS = {
 def _is_loopback_host(host: str) -> bool:
     """Return True if host is a loopback address ('localhost', 127.0.0.0/8, ::1)."""
     return is_loopback_bind_host(host)
+
+
+def _request_peer_is_loopback(request: "web.Request", *, bind_host: str) -> bool:
+    """Classify the direct peer without trusting forwarding headers."""
+    remote = request.remote
+    if not remote:
+        return _is_loopback_host(bind_host)
+    candidate = str(remote).split("%", 1)[0]
+    try:
+        return ipaddress.ip_address(candidate).is_loopback
+    except ValueError:
+        return candidate.lower() == "localhost"
 
 
 def _extract_bearer(request: "web.Request") -> str | None:
@@ -306,6 +324,27 @@ class StreamingHttpTransport:
             return None, self._unauthorized_response()
         return None, None
 
+    def _request_identity(
+        self,
+        request: "web.Request",
+        scoped_context: ScopedMCPKeyContext | None,
+    ) -> MCPRequestIdentity:
+        """Derive handler authority only from the authenticated transport."""
+        peer_is_loopback = _request_peer_is_loopback(request, bind_host=self._host)
+        if scoped_context is not None:
+            return MCPRequestIdentity.http_scoped_key(
+                key_id=scoped_context.key_id,
+                expert_allowlist=scoped_context.expert_allowlist,
+                peer_is_loopback=peer_is_loopback,
+            )
+        provided = _extract_bearer(request)
+        if self._auth_token and self._shared_token_matches(provided):
+            return MCPRequestIdentity.http_shared_token(
+                configured_token=self._auth_token,
+                peer_is_loopback=peer_is_loopback,
+            )
+        return MCPRequestIdentity.http_unauthenticated(peer_is_loopback=peer_is_loopback)
+
     def _check_auth(self, request: "web.Request") -> web.Response | None:
         """Return an unauthorized response if auth fails, else None.
 
@@ -448,6 +487,34 @@ class StreamingHttpTransport:
                 return payload if isinstance(payload, dict) else None
         return response.result
 
+    def _tool_response_error_code(self, response: HttpMessage | None) -> str:
+        """Return a safe structured error code from a tools/call response."""
+        if response is None:
+            return ""
+        if response.error:
+            data = response.error.get("data")
+            return str(data.get("error_code") or "") if isinstance(data, dict) else ""
+        if not isinstance(response.result, dict) or response.result.get("isError") is not True:
+            return ""
+        content = response.result.get("content")
+        if not isinstance(content, list) or not content:
+            return "TOOL_ERROR"
+        first = content[0]
+        if not isinstance(first, dict) or not isinstance(first.get("text"), str):
+            return "TOOL_ERROR"
+        try:
+            payload = json.loads(first["text"])
+        except json.JSONDecodeError:
+            return "TOOL_ERROR"
+        if not isinstance(payload, dict):
+            return "TOOL_ERROR"
+        if isinstance(payload.get("error_code"), str):
+            return str(payload["error_code"])
+        error = payload.get("error")
+        if isinstance(error, dict) and isinstance(error.get("code"), str):
+            return str(error["code"])
+        return "TOOL_ERROR"
+
     def _read_payload_cost(self, payload: dict[str, Any], field: str) -> float | None:
         value = payload.get(field)
         if value is None or isinstance(value, bool):
@@ -567,12 +634,8 @@ class StreamingHttpTransport:
         tool_name, arguments = self._tool_call_parts(message)
         if not tool_name:
             return
-        outcome = "error" if error_code or (response and response.error) else "success"
-        resolved_error = error_code
-        if response and response.error and not resolved_error:
-            data = response.error.get("data")
-            if isinstance(data, dict):
-                resolved_error = str(data.get("error_code") or "")
+        resolved_error = error_code or self._tool_response_error_code(response)
+        outcome = "error" if resolved_error or (response and response.error) else "success"
         self._audit_log.record_tool_call(
             context,
             tool=tool_name,
@@ -605,7 +668,11 @@ class StreamingHttpTransport:
                     return scoped_response
 
             if self._handler:
-                response = await self._handler(message)
+                identity_token = bind_mcp_request_identity(self._request_identity(request, auth_context))
+                try:
+                    response = await self._handler(message)
+                finally:
+                    reset_mcp_request_identity(identity_token)
                 self._record_remote_call(auth_context, message, response)
 
                 if response:

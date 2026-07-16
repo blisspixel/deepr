@@ -11,6 +11,11 @@ import pytest
 from jsonschema import Draft202012Validator, ValidationError
 
 from deepr.evals.conversation import conversation_contract_fixtures, run_conversation_eval
+from deepr.mcp.conversation_validation import (
+    MCPConversationValidationCheck,
+    MCPConversationValidationReport,
+)
+from deepr.mcp.expert_conversation import OPERATION_KIND, OPERATION_SCHEMA_VERSION
 
 SCHEMA_DIR = Path(__file__).resolve().parents[3] / "docs" / "schemas"
 
@@ -36,6 +41,34 @@ def test_published_conversation_contract_fixture_validates(fixture_name: str, sc
 
 def test_published_conversation_eval_report_validates() -> None:
     _validator("conversation-eval-v1.json").validate(run_conversation_eval().to_dict())
+
+
+def test_published_conversation_operation_wrapper_validates() -> None:
+    fixtures = conversation_contract_fixtures()
+    operation = {
+        "schema_version": OPERATION_SCHEMA_VERSION,
+        "kind": OPERATION_KIND,
+        "operation": "start",
+        "conversation": fixtures["conversation"],
+        "turn": fixtures["turn"],
+        "replayed": False,
+        "dispatch_status": "completed",
+    }
+
+    _validator("expert-conversation-operation-v1.json").validate(operation)
+
+
+def test_published_mcp_conversation_validation_report_validates() -> None:
+    report = MCPConversationValidationReport(
+        mode="managed_loopback",
+        endpoint="http://127.0.0.1:8765/mcp",
+        conversation_id="conv_AAAAAAAAAAAAAAAAAAAAAA",
+        expert_names=("reliability_engineering",),
+        local_model="fixture-local-model",
+        checks=(MCPConversationValidationCheck("restart_recovery", "passed", "recovered exactly"),),
+    )
+
+    _validator("mcp-conversation-validation-v1.json").validate(report.to_dict())
 
 
 def test_conversation_schema_rejects_terminal_active_turn_and_local_spend() -> None:

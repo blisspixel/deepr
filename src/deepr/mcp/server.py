@@ -220,6 +220,7 @@ class DeeprMCPServer:
         # Expert-related components
         self.store = ExpertStore()
         self.sessions: dict[str, ExpertChatSession] = {}
+        self._expert_conversation_tools = None  # lazy durable conversation MCP adapter
 
         # Research-related components
         self.config = load_config()
@@ -1394,6 +1395,9 @@ def _register_new_tools(registry: ToolRegistry) -> None:
         )
     )
 
+    from deepr.mcp.expert_conversation import register_conversation_tools
+
+    register_conversation_tools(registry)
     registry.register(
         ToolSchema(
             name="deepr_list_skills",
@@ -1661,6 +1665,8 @@ async def _handle_tools_call(server: DeeprMCPServer, params: dict[str, Any]) -> 
         arguments = {k: v for k, v in arguments.items() if k != "_approved"}
 
     # Security: Sign the instruction for audit trail
+    from deepr.mcp.expert_conversation import conversation_tool_dispatch
+
     instruction = {"tool": name, "arguments": arguments}
     signed = server.instruction_signer.sign(instruction)
     logger.debug("Signed instruction for tool '%s': nonce=%s", name, signed.nonce)
@@ -1685,6 +1691,7 @@ async def _handle_tools_call(server: DeeprMCPServer, params: dict[str, Any]) -> 
         "deepr_list_experts": lambda args: server.list_experts(),
         "deepr_query_expert": lambda args: server.query_expert(**args),
         "deepr_consult_experts": lambda args: server.consult_experts(**args),
+        **conversation_tool_dispatch(server),
         "deepr_get_expert_info": lambda args: server.get_expert_info(
             expert_name=args.get("expert_name", ""),
         ),
@@ -1806,12 +1813,12 @@ async def _handle_tools_call(server: DeeprMCPServer, params: dict[str, Any]) -> 
         )
 
         text = json.dumps(result, default=str)
-        is_error = isinstance(result, dict) and "error_code" in result
-
+        is_error = isinstance(result, dict) and (
+            "error_code" in result or result.get("kind") == "deepr.expert.conversation_error"
+        )
         response: dict[str, Any] = {
             "content": [{"type": "text", "text": text}],
             "isError": is_error,
-            # Include verification metadata for audit trail
             "_verification": {
                 "output_id": verified_output.id,
                 "content_hash": verified_output.content_hash,
@@ -1821,12 +1828,10 @@ async def _handle_tools_call(server: DeeprMCPServer, params: dict[str, Any]) -> 
         if isinstance(result, dict):
             response["structuredContent"] = result
         return response
-    except Exception as e:
-        logger.exception(f"Tool {name} failed")
-        return {
-            "content": [{"type": "text", "text": json.dumps(_make_error("TOOL_EXECUTION_FAILED", str(e)))}],
-            "isError": True,
-        }
+    except Exception:
+        logger.exception("Tool %s failed", name)
+        safe = json.dumps(_make_error("TOOL_EXECUTION_FAILED", "Tool execution failed safely."))
+        return {"content": [{"type": "text", "text": safe}], "isError": True}
 
 
 async def _handle_resources_list(server: DeeprMCPServer, params: dict[str, Any]) -> dict[str, Any]:

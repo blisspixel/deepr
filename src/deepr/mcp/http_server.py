@@ -66,13 +66,13 @@ def _make_http_message_handler(
                 id=message.id,
                 error={"code": -32601, "message": f"Method not found: {message.method}"},
             )
-        except Exception as exc:
+        except Exception:
             logger.exception("MCP HTTP method %s failed", message.method)
             if message.id is None:
                 return None
             return HttpMessage(
                 id=message.id,
-                error={"code": -32603, "message": "Internal error", "data": {"error": str(exc)}},
+                error={"code": -32603, "message": "Internal error"},
             )
         if message.id is None:
             return None

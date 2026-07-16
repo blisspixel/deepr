@@ -7,6 +7,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
+from deepr.mcp.request_context import current_mcp_request_identity
 from deepr.mcp.security.scoped_keys import RemoteMCPAuditLog, ScopedMCPKeyStore
 from deepr.mcp.security.tool_allowlist import ResearchMode
 from deepr.mcp.transport.http import HttpMessage, StreamingHttpTransport
@@ -17,6 +18,7 @@ def _request(body: dict, token: str):
     req.headers = {"Authorization": f"Bearer {token}"}
     req.read = AsyncMock(return_value=json.dumps(body).encode("utf-8"))
     req.query = {}
+    req.remote = "127.0.0.1"
     return req
 
 
@@ -59,6 +61,11 @@ class TestStreamingHttpScopedKeys:
         async def handler(message: HttpMessage):
             assert isinstance(message.params, dict)
             assert message.params["_scoped_key"]["key_id"] == "agent"
+            identity = current_mcp_request_identity()
+            assert identity is not None
+            assert identity.authentication == "scoped_key"
+            assert identity.scoped_key_id == "agent"
+            assert identity.peer_is_loopback is True
             return HttpMessage(id=message.id, result={"ok": True})
 
         transport.on_message(handler)
@@ -81,6 +88,7 @@ class TestStreamingHttpScopedKeys:
         assert event.tool == "deepr_status"
         assert event.outcome == "success"
         assert event.trace_id == "trace-1"
+        assert current_mcp_request_identity() is None
 
     @pytest.mark.asyncio
     async def test_scoped_key_blocks_outside_expert_before_handler(self, tmp_path):
@@ -279,6 +287,51 @@ class TestStreamingHttpScopedKeys:
         assert event.outcome == "success"
         assert event.cost_usd == 0.12
         assert audit.total_cost_for_key("agent") == 0.12
+
+    @pytest.mark.asyncio
+    async def test_scoped_key_audit_records_structured_tool_error(self, tmp_path):
+        store = ScopedMCPKeyStore(tmp_path / "keys.json")
+        secret, _record = store.create_key(
+            "agent", mode=ResearchMode.UNRESTRICTED, secret="secret"
+        )
+        audit = RemoteMCPAuditLog(tmp_path / "audit.jsonl")
+        transport = StreamingHttpTransport(scoped_key_store=store, audit_log=audit)
+
+        async def handler(message: HttpMessage):
+            payload = {
+                "schema_version": "deepr-expert-conversation-error-v1",
+                "kind": "deepr.expert.conversation_error",
+                "error": {"code": "version_conflict", "safe_message": "Fetch current state."},
+            }
+            return HttpMessage(
+                id=message.id,
+                result={
+                    "content": [{"type": "text", "text": json.dumps(payload)}],
+                    "isError": True,
+                },
+            )
+
+        transport.on_message(handler)
+        response = await transport._handle_post(
+            _request(
+                {
+                    "jsonrpc": "2.0",
+                    "id": "1",
+                    "method": "tools/call",
+                    "params": {
+                        "name": "deepr_get_expert_conversation",
+                        "arguments": {"conversation_id": "conv_missing"},
+                    },
+                },
+                secret,
+            )
+        )
+
+        assert response.status == 200
+        event = audit.read_recent()[-1]
+        assert event.outcome == "error"
+        assert event.error_code == "version_conflict"
+        assert event.cost_usd is None
 
     @pytest.mark.asyncio
     async def test_scoped_key_blocks_over_rate_limit_before_handler(self, tmp_path):

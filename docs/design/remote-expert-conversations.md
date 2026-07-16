@@ -1,8 +1,11 @@
 # Remote expert conversations
 
-Status: accepted design, 2026-07-15. Stages 0 and 1 are implemented. The
-protocol-neutral core is internal, and shipped remote MCP consult and query
-tools remain one-shot pending Stage 2.
+Status: accepted design, 2026-07-15. Stages 0, 1, and 2 are implemented for the
+local Ollama path. Protocol-neutral core, four MCP tools
+(`deepr_start|continue|get|close_expert_conversation`), local executor, frozen
+snapshots, scoped-key ownership, and `deepr mcp validate-conversation` (managed
+loopback or authenticated HTTP) ship. One-shot consult and query remain the
+simple default; multi-turn conversation is an explicit opt-in handle.
 
 Cross-cuts expert consult, consult lifecycle, consult traces, MCP HTTP, scoped
 keys, A2A, capacity, and runtime storage. Read

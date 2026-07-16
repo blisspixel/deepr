@@ -9,8 +9,11 @@ Package map:
 - ``store`` and ``transitions``: event, projection, content, idempotency,
   recovery, and post-execution lease state.
 - ``service``: injected-executor orchestration with no protocol assumptions.
+- ``snapshots``: bounded immutable packets compiled from canonical expert state.
+- ``local_executor``: verified local Ollama turns with no tools or fallback.
 """
 
+from deepr.experts.conversation.local_executor import LocalOllamaConversationExecutor
 from deepr.experts.conversation.models import (
     BackendSelection,
     ConversationBounds,
@@ -39,6 +42,7 @@ __all__ = [
     "ExpertConversationStore",
     "ExpertConversationTurnExecutor",
     "ExpertSnapshotInput",
+    "LocalOllamaConversationExecutor",
     "TurnExecutionResult",
     "TurnState",
     "TurnUsage",

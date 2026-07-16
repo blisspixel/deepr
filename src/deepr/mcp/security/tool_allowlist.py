@@ -312,6 +312,34 @@ class ToolAllowlist:
             blocked_in={ResearchMode.READ_ONLY},
             metadata={REMOTE_METERED_SPEND_METADATA_KEY: True},
         ),
+        "deepr_start_expert_conversation": ToolConfig(
+            name="deepr_start_expert_conversation",
+            category=ToolCategory.SENSITIVE,
+            description="Start a local-only durable expert conversation",
+            requires_confirmation_in={ResearchMode.STANDARD, ResearchMode.EXTENDED},
+            blocked_in={ResearchMode.READ_ONLY},
+        ),
+        "deepr_continue_expert_conversation": ToolConfig(
+            name="deepr_continue_expert_conversation",
+            category=ToolCategory.SENSITIVE,
+            description="Continue a local-only durable expert conversation",
+            requires_confirmation_in={ResearchMode.STANDARD, ResearchMode.EXTENDED},
+            blocked_in={ResearchMode.READ_ONLY},
+        ),
+        "deepr_get_expert_conversation": ToolConfig(
+            name="deepr_get_expert_conversation",
+            category=ToolCategory.SENSITIVE,
+            description="Inspect an owned durable expert conversation",
+            requires_confirmation_in={ResearchMode.STANDARD, ResearchMode.EXTENDED},
+            blocked_in={ResearchMode.READ_ONLY},
+        ),
+        "deepr_close_expert_conversation": ToolConfig(
+            name="deepr_close_expert_conversation",
+            category=ToolCategory.SENSITIVE,
+            description="Close or purge an owned durable expert conversation",
+            requires_confirmation_in={ResearchMode.STANDARD, ResearchMode.EXTENDED},
+            blocked_in={ResearchMode.READ_ONLY},
+        ),
         # Cost-incurring writes: paid provider calls and state changes.
         "deepr_research": ToolConfig(
             name="deepr_research",
