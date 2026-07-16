@@ -100,6 +100,28 @@ Expected: `schema_version="deepr-mcp-consult-validation-v1"`,
 If local or plan capacity is unavailable, the validation should fail with a
 structured backend error rather than falling through to a metered API.
 
+### Durable multi-turn conversations (optional)
+
+One-shot consult remains the default. Use durable conversations only when the
+host needs follow-ups against the same frozen expert snapshot. Capacity is local
+Ollama only (`$0`, no metered fallback, no expert-memory writes).
+
+```powershell
+# Managed loopback: starts a temporary loopback HTTP MCP, runs start/continue/
+# get/close, restarts once for recovery, and tears down. Requires a local model.
+deepr mcp validate-conversation --json
+
+# Authenticated remote HTTP (same key you hand to the LAN agent)
+deepr mcp validate-conversation http://127.0.0.1:8765/mcp --auth-token "$DEEPR_MCP_KEY" --expert "AI Agent Harnesses" --json
+```
+
+Expected: `schema_version="deepr-mcp-conversation-validation-v1"`, `ok=true`,
+`capacity_source="local_owned"`, `cost_usd=0.0`, `live_metered_fallback=false`,
+and no failed checks. Semantic answer quality is not scored. Host agents should
+pass the opaque `conversation_id`, `expected_version`, and a unique
+`idempotency_key` on every continue call; transport session ids are not
+credentials.
+
 ## Start The Server
 
 Use stdio for local agent tests:
