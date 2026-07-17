@@ -78,10 +78,16 @@ def test_build_payload_shape():
     assert "context" not in p["perspectives"][1]
     assert p["agreements"] == ["both agree X"]
     assert p["cost_usd"] == 0.0123
+    assert p["contract"]["consultation_mode"] == "one_shot_stored_context_synthesis"
+    assert p["contract"]["expert_generation_calls"] == 0
+    assert p["contract"]["experts_exchange_turns"] is False
+    assert p["contract"]["writes_graph"] is False
     assert p["collaboration"]["schema_version"] == "deepr-expert-collaboration-v1"
     assert p["collaboration"]["roster"][0]["role"] == "domain_perspective"
     assert p["collaboration"]["dissent_handling"]["dissent_preserved"] is True
     assert p["collaboration"]["budget_capacity_contract"]["requested_budget_usd"] == 1.5
+    assert p["collaboration"]["interaction"]["peer_turns"] == 0
+    assert p["collaboration"]["learning_boundary"]["discussion_is_evidence"] is False
 
 
 def test_consult_json_emits_versioned_artifact(monkeypatch):
@@ -95,6 +101,8 @@ def test_consult_json_emits_versioned_artifact(monkeypatch):
     assert parsed["trace"]["schema_version"] == "deepr-consult-trace-v1"
     assert parsed["collaboration"]["task"]["consult_trace_id"] == parsed["trace"]["trace_id"]
     assert parsed["collaboration"]["budget_capacity_contract"]["capacity"]["synthesis_backend"] == "api"
+    assert parsed["collaboration"]["budget_capacity_contract"]["total_spend_ceiling_usd"] == 1.5
+    assert parsed["collaboration"]["budget_capacity_contract"]["metered_synthesis_ceiling_usd"] == 0.15
 
 
 def test_consult_writes_replayable_trace(monkeypatch, consult_trace_path):
@@ -123,6 +131,22 @@ def test_consult_human_render(monkeypatch):
     assert "Synthesis" in result.output
     assert "the synthesized answer" in result.output
     assert "Disagreements" in result.output
+    assert "one-shot stored-context council; experts do not exchange turns" in result.output
+    assert "Knowledge writes: none" in result.output
+
+
+def test_consult_output_path_explicitly_writes_full_artifact(monkeypatch, tmp_path):
+    _patch(monkeypatch, _result())
+    output = tmp_path / "council.json"
+
+    result = CliRunner().invoke(expert_consult, ["q", "--output", str(output), "-y"])
+
+    assert result.exit_code == 0, result.output
+    saved = json.loads(output.read_text(encoding="utf-8"))
+    assert saved["schema_version"] == "deepr-consult-v1"
+    assert saved["trace"]["trace_id"].startswith("consult_")
+    assert saved["contract"]["writes_expert_state"] is False
+    assert f"Wrote consult artifact: {output}" in result.output
 
 
 def test_consult_truncated_synthesis_emits_artifact_and_exits_nonzero(monkeypatch, consult_trace_path):

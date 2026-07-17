@@ -282,11 +282,11 @@ class HTTPConversationProbe:
         response = await self._send("tools/list", {"_fullList": True})
         result = response.result
         tools = result.get("tools") if isinstance(result, dict) else None
-        names = {
-            str(tool.get("name"))
-            for tool in tools
-            if isinstance(tool, dict) and isinstance(tool.get("name"), str)
-        } if isinstance(tools, list) else set()
+        names = (
+            {str(tool.get("name")) for tool in tools if isinstance(tool, dict) and isinstance(tool.get("name"), str)}
+            if isinstance(tools, list)
+            else set()
+        )
         missing = sorted(set(CONVERSATION_TOOL_NAMES) - names)
         _require(not missing, "TOOLS_NOT_REGISTERED", f"conversation tools missing from tools/list: {missing}")
         self.checks.append(

@@ -83,6 +83,7 @@ def build_expert_next_actions(
     *,
     loop_runs: Iterable[ExpertLoopRun] = (),
     max_actions: int = 3,
+    has_attested_blueprint: bool,
 ) -> dict[str, Any]:
     """Build deterministic, read-only guidance from current expert evidence."""
     if max_actions < 1:
@@ -102,6 +103,26 @@ def build_expert_next_actions(
     )
 
     actions: list[dict[str, Any]] = []
+    if not has_attested_blueprint:
+        actions.append(
+            _action(
+                "define_expert_purpose",
+                priority=1,
+                title="Define the expert's purpose and acceptance cases",
+                reason="No operator-attested blueprint states which decisions this expert exists to improve.",
+                command_argv=[
+                    [
+                        "deepr",
+                        "expert",
+                        "blueprint",
+                        name,
+                        "--template",
+                        "--output",
+                        "expert-blueprint.json",
+                    ]
+                ],
+            )
+        )
     if manifest.claim_count == 0:
         actions.append(
             _action(
@@ -256,6 +277,7 @@ def build_expert_next_actions(
             "avg_confidence": round(float(manifest.avg_confidence), 3),
             "freshness_status": freshness_status,
             "active_contradiction_claim_count": active_contradictions,
+            "operator_attested_blueprint": has_attested_blueprint,
             "learning_loops": learning,
         },
         "next_actions": ordered_actions,

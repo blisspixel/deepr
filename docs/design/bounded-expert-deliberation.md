@@ -21,6 +21,43 @@ question, perspective, or test plan together while Deepr preserves independent
 positions, exact lineage, and a hard stop. Conversation can propose learning,
 but it cannot directly become canonical memory.
 
+### Shipped baseline and current evidence
+
+The shipped `deepr expert consult` surface is intentionally smaller than this
+design. It independently selects a bounded packet of stored state for each
+named expert, makes zero expert-generation calls, permits zero peer turns, and
+runs at most one synthesis call. It never writes expert state, beliefs, or graph
+state. The resulting agreement and disagreement fields are synthesis output,
+not records of separate agents reaching consensus.
+
+Evidence current on 2026-07-16 supports preserving that distinction:
+
+- [Demystifying Multi-Agent Debate](https://aclanthology.org/2026.findings-acl.1694/)
+  finds that vanilla homogeneous debate can underperform simpler aggregation.
+  Diverse initial positions and calibrated confidence are more useful than
+  adding unconstrained rounds.
+- [Free-MAD](https://aclanthology.org/2026.findings-acl.1600/) reports that a
+  consensus-free, single-round design can reduce token cost and conformity
+  failure while preserving the debate trajectory for scoring.
+- [When Identity Skews Debate](https://aclanthology.org/2026.acl-long.650/)
+  finds both peer sycophancy and self-bias, and reports improved trustworthiness
+  when response identity markers are removed. A Deepr pilot therefore needs
+  blinded peer-content evaluation with internal lineage preserved separately.
+- [CascadeDebate](https://aclanthology.org/2026.acl-industry.93/) supports
+  selective deliberation at uncertainty boundaries instead of invoking a full
+  panel for every case. Its reported benchmark gains are evidence for
+  evaluating escalation, not a guarantee that Deepr will reproduce them.
+- The June 2026 [DYNA](https://arxiv.org/abs/2606.15778) preprint evaluates an
+  external temporal graph as updatable episodic memory on three temporal recall
+  tasks. It motivates explicit temporal state and evaluation, not promoting
+  conversation into graph truth or assuming broad generalization.
+- The official
+  [MCP 2026-07-28 release candidate](https://blog.modelcontextprotocol.io/posts/2026-07-28-release-candidate/)
+  moves durable work toward a stateless core plus extensions and Tasks. Final
+  [SEP-2577](https://modelcontextprotocol.io/seps/2577-deprecate-roots-sampling-and-logging)
+  deprecates core sampling. Deepr should therefore keep deliberation in a host
+  workflow instead of depending on server-initiated sampling for recursion.
+
 ## Accepted prototype contract
 
 A deliberation is one versioned run with:
@@ -30,6 +67,10 @@ A deliberation is one versioned run with:
 - a selected local or explicit non-metered plan backend;
 - a total turn, token, elapsed-time, and capacity ceiling;
 - a maximum of three rounds by default and five by explicit override;
+- an explicit escalation policy, with later rounds skipped unless an
+  operator-approved or calibrated semantic signal requests them;
+- an identity-disclosure policy that preserves canonical lineage internally
+  while allowing blinded peer-content evaluation;
 - one durable trace linking every prompt, response, source reference, capacity
   event, cancellation, and verifier result;
 - resumable states: waiting_capacity and interrupted;
@@ -111,21 +152,25 @@ resume exists. Lock and I/O errors are typed separately and expose no local path
 
 A turn is one provider dispatch. For a roster of `N` participants, the default
 three-round protocol permits at most `2N + 1` dispatches: `N` independent
-positions, at most `N` cross-examinations, and one skeptic. Explicit deep mode
-permits at most `3N + 2`: the default bound plus at most `N` revisions and one
-synthesis. Deliberation records `dispatch_scope: provider_call`. The current
-one-shot lifecycle separately records a maximum of `N + 1` logical council work
-items with `dispatch_scope: council_work_item`; it does not mislabel internal
-agentic fallback calls as a proven provider-call bound. Those existing API calls
-remain governed by their own per-session spend and ledger gates, while the
-local-first deliberation pilot disables live fallback entirely. The current
-one-shot wrapper enforces logical-work, elapsed-time, and spend ceilings. It
-does not aggregate provider output tokens or context bytes across internal
-council calls, so its lifecycle events omit those optional bounds,
-observations, and remaining counters. Live deliberation remains gated until
-provider-call token and context totals are measured and enforced. Bounds that
-are present are pure functions used before dispatch, not estimates after the
-fact.
+positions, at most `N` cross-examinations, and one skeptic. For three experts,
+that is seven calls. Explicit deep mode permits at most `3N + 2`: the default
+bound plus at most `N` revisions and one synthesis. Deliberation records
+`dispatch_scope: provider_call`. These are ceilings, not targets. A run may stop
+after the independent positions or any later round. Deterministic code may
+enforce a supplied escalation decision but may not infer semantic disagreement
+or uncertainty from word overlap.
+
+The current one-shot lifecycle separately records a maximum of `N + 1` logical
+council work items with `dispatch_scope: council_work_item` for compatibility,
+but its machine-readable consult contract states the actual call shape: zero
+expert-generation calls and at most one synthesis call. In API mode only that
+final synthesis is metered. The one-shot wrapper enforces logical-work,
+elapsed-time, and spend ceilings, but its lifecycle does not yet carry aggregate
+provider output-token or context-byte bounds. The local-first deliberation pilot
+disables live fallback entirely. Live deliberation remains gated until every
+provider call and the parent run measure and enforce token and context totals.
+Bounds that are present are pure functions used before dispatch, not estimates
+after the fact.
 
 Each dispatch key is `(run_id, round, participant, role)`. Resume loads the
 immutable round journal and skips a key whose completed response hash is
@@ -146,6 +191,13 @@ tool executor and no write path into beliefs, graphs, expert state, routing
 state, roadmap state, or project files. Only trace and evaluation artifact
 roots may change.
 
+Canonical participant identity remains in the private run lineage. When a
+round does not need domain routing, peer packets expose stable per-run aliases
+instead of model, vendor, or speaker identity. The trace records the alias map,
+disclosure policy, and which rounds were blinded. Blinding is an experimental
+bias control, not proof of independence, and it must never erase provenance
+needed for replay or audit.
+
 ## Round protocol
 
 ### Round 1: independent positions
@@ -160,6 +212,8 @@ different expert. This prevents early anchoring.
 The deterministic coordinator routes at most one question to each expert. A
 question must name the proposition or assumption it challenges. The responder
 can agree, dissent, abstain, or request evidence. No vote is taken.
+Cross-examination runs only when the recorded escalation policy admits it; no
+round exists merely to consume the remaining call allowance.
 
 ### Round 3: evidence-seeking skeptic
 
@@ -207,6 +261,13 @@ Metered API deliberation is deferred until every possible call has a
 request-level upper bound, durable reservation, canonical settlement, and a
 session-wide ceiling.
 
+For a metered three-expert run, one caller ceiling must cover all seven possible
+dispatches. A `$10` request means one parent reservation and at most `$10` total,
+not seven independent `$10` allowances. The lower configured per-job, daily, or
+monthly limit still wins. Plan-quota execution remains `$0` in Deepr's cost
+ledger, so it additionally needs a call-count and elapsed-time ceiling because
+Deepr cannot prove the vendor's remaining quota or billing mode.
+
 ## Verification and acceptance
 
 The prototype stays a manual local lab until a held-out set demonstrates:
@@ -231,6 +292,13 @@ completion never implies semantic acceptance. A deliberation result remains
 published thresholds. Model judging is admitted only after agreement and
 position-order calibration against human labels; provider-family difference is
 recorded assurance metadata, not proof of independence.
+
+The comparison must also counterbalance disclosed identity, response order, and
+participant order; report calls used, tokens used, and quality per call; and
+compare forced full-panel execution with selective escalation. A result that
+improves average quality while worsening minority-position preservation,
+identity bias, false support, or cost per accepted case does not justify the
+runtime.
 
 ## Rejected alternatives
 

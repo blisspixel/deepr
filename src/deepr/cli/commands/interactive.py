@@ -499,7 +499,7 @@ def _chat_with_expert():
     expert_name = click.prompt(click.style("Expert name", fg="cyan"))
     console.print()
     console.print(f"[dim]Starting chat with '{expert_name}'...[/dim]")
-    console.print(f'[dim]Run: deepr expert chat "{expert_name}"[/dim]')
+    console.print(f'[dim]Run: deepr expert consult "your question" -e "{expert_name}" --local[/dim]')
 
 
 def _create_expert():
@@ -623,7 +623,7 @@ def _help_menu(ctx: click.Context | None = None):
         ("deepr research <query>", "Submit research query"),
         ("deepr learn <topic>", "Multi-phase learning"),
         ("deepr team <question>", "Multi-perspective analysis"),
-        ("deepr expert chat <name>", "Chat with domain expert"),
+        ('deepr expert consult "question" -e <name> --local', "Consult stored expert state at $0"),
         ("deepr jobs list", "View job queue"),
         ("deepr costs show", "View spending"),
         ("deepr doctor", "Verify setup"),

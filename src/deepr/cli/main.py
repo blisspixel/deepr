@@ -117,6 +117,7 @@ _COMMAND_SPECS: dict[str, _LazyCommandSpec] = {
         load_after=(
             "deepr.cli.commands.eval_conversation",
             "deepr.cli.commands.eval_deliberation",
+            "deepr.cli.commands.eval_expert_value",
             "deepr.cli.commands.eval_grounding_correctness",
             "deepr.cli.commands.eval_judge_calibration",
             "deepr.cli.commands.eval_recall",
@@ -321,7 +322,8 @@ def cli():
     \b
     Most workflows need three commands:
       deepr research "your question" --budget 2    Run research (budget is a ceiling, not a price)
-      deepr expert chat "Expert Name"              Consult a persistent domain expert
+      deepr expert consult "question" -e "Expert Name" --local
+                                                    Consult stored expert state at $0
       deepr costs show                             See exactly what you have spent
 
     \b

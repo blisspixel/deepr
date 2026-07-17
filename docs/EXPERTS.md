@@ -13,6 +13,17 @@ into canonical beliefs, concepts, hypotheses, stance, original ideas,
 provenance refs, temporal graph edges, contradiction signals, gap backlogs, freshness watchlists, and
 regenerated digest, memory-card, or handoff views.
 
+Every serious expert should start with an explicitly unreviewed blueprint draft
+that names its proposed mission, non-goals, real decision use cases, source
+policy, update cadence, and held-out acceptance cases. A zero-call preflight
+validates structure and packages the draft for review without claiming semantic
+quality or authority. Only an operator-attested applied blueprint becomes
+canonical evaluation intent. Later, operator-attested outcome records capture
+whether an expert-supported decision succeeded, failed, was mixed, or remains
+unresolved. Deepr does not verify reviewer identity or claim human authorship.
+Neither canonical artifact authorizes spend, provider dispatch, belief changes,
+routing changes, or external actions.
+
 `deepr expert memory-card NAME` previews a generated `EXPERT.md` orientation
 view. Add `--write` to atomically write it under the expert directory. The card
 is a `$0`, read-only derived view over profile, manifest, belief events,
@@ -46,17 +57,28 @@ find where the expert needs to update its understanding.
 ## Quick Start
 
 ```bash
-# Create a local expert from documents
+# Generate and edit an explicitly unreviewed purpose draft.
+deepr expert blueprint "Azure Architect" --template --output expert-blueprint.json
+# Perform every available deterministic pre-review check and save the result.
+deepr expert blueprint "Azure Architect" --from-file expert-blueprint.json --output expert-blueprint-preflight.json
+# Apply only after actual review, recording an operator attestation.
+deepr expert blueprint "Azure Architect" --from-file expert-blueprint.json --apply --attested-by operator
+
+# Create a local expert from documents.
 deepr expert make "Azure Architect" --local --files docs/*.md
 
 # Create a local-only expert profile with no provider API calls
 deepr expert make "UI Experience Expert" --local -d "UI/UX for agentic research tools"
 
-# Consult stored expert knowledge on local capacity
-deepr expert consult "How should we review this architecture?" --experts "Azure Architect" --local
+# Consult stored expert knowledge on local capacity.
+deepr expert consult "How should we review this architecture?" --expert "Azure Architect" --local
 
-# Or use an explicit plan-quota CLI for synthesis
-deepr expert consult "What evidence is missing?" --experts "Azure Architect" --plan codex
+# Or use an explicit plan-quota CLI for synthesis.
+deepr expert consult "What evidence is missing?" --expert "Azure Architect" --plan codex
+
+# Record the later observed decision result without changing expert knowledge.
+deepr expert record-outcome "Azure Architect" --decision-id migration-2026 --summary "Choose the migration architecture" --result mixed --observation "Availability improved, but recovery time missed its target." --attested-by operator
+deepr expert outcomes "Azure Architect"
 
 # Regenerate the expert's derived memory card for humans and host agents
 deepr expert memory-card "Azure Architect" --write
@@ -72,7 +94,8 @@ deepr expert next "Azure Architect"
 deepr expert next "Azure Architect" --limit 5 --json
 ```
 
-The command reads the current claim count, freshness, open gaps,
+The command reads operator-attested-blueprint presence, the current claim count,
+freshness, open gaps,
 contradictions, and durable loop outcomes, then returns a short list of
 argument arrays. It costs `$0`, runs no recommended command, and changes no
 state. The capacity check precedes scheduled compiled sync so the navigator
@@ -82,6 +105,29 @@ navigation stages only. They are not semantic maturity scores and cannot prove
 that an expert's perspective is accurate or improved.
 
 ## Creating Experts
+
+### Define Purpose And Acceptance First
+
+```bash
+deepr expert blueprint "Expert Name" --template --output expert-blueprint.json
+# Edit every blank required field, then create a non-authoritative preflight.
+deepr expert blueprint "Expert Name" --from-file expert-blueprint.json --output expert-blueprint-preflight.json
+# Apply only after actual review.
+deepr expert blueprint "Expert Name" --from-file expert-blueprint.json --apply --attested-by operator
+```
+
+Templates are intentionally incomplete so a generic domain label cannot become
+false precision. A completed draft uses `deepr-expert-blueprint-draft-v1`, not
+the canonical blueprint schema. Preflight strictly validates, normalizes,
+hashes, summarizes, and adds review questions without writing canonical state.
+Its status is `structurally_valid_unreviewed`; it explicitly denies human-review
+claims, semantic assessment, and scope authority. Apply appends a complete
+operator-attested revision under the canonical expert directory and reapplying
+identical content is idempotent. The canonical record says
+`identity_verified: false` and `human_authorship_claimed: false`. A draft and
+preflight can be prepared before the expert profile exists.
+See [expert-purpose-and-value-loop.md](design/expert-purpose-and-value-loop.md)
+for the contract and longitudinal evaluation plan.
 
 ### Basic Creation
 ```bash
@@ -115,6 +161,65 @@ After creation, `deepr expert next NAME` is the shortest path through the
 available controls. An empty local profile receives a subscription plus local
 fresh-context compiled-sync plan; a stale or failed expert receives repair
 actions before new unattended work.
+
+### Record Decision Outcomes
+
+```bash
+deepr expert record-outcome "Expert Name" \
+  --decision-id stable-decision-id \
+  --summary "What was decided" \
+  --result succeeded \
+  --observation "What happened after the decision" \
+  --attested-by operator \
+  --trace-id optional-consult-trace \
+  --evidence-ref optional-outcome-evidence
+deepr expert outcomes "Expert Name" --json
+```
+
+Outcome observations are operator attestations, not deterministic conclusions
+from text or proof of reviewer identity. Corrections append a new record with
+`--supersedes`; earlier observations remain intact. The summary reports counts
+and evidence linkage only. It does not infer semantic quality, update
+confidence, learn a lesson, or change routing.
+
+### Evaluate Longitudinal Expert Value
+
+```bash
+deepr eval expert-value "Expert Name" --template --output expert-value-review.json
+# Run every case under the four frozen arms, add blinded operator semantic
+# attestations, attest the protocol, then verify hashes and aggregate.
+deepr eval expert-value "Expert Name" --from-file expert-value-review.json --output expert-value-report.json
+deepr eval expert-value "Expert Name" --from-file expert-value-review.json --artifact-root ./eval-artifacts --output expert-value-verified.json
+deepr eval expert-value "Expert Name" --from-file expert-value-review.json --json
+```
+
+The template binds to the exact latest blueprint revision and is intentionally
+invalid until every source world, arm policy, trial artifact, measurement,
+operator semantic attestation, and protocol attestation is complete. Both
+attestation objects record `identity_verified: false` and
+`human_authorship_claimed: false`; Deepr does not convert them into a
+human-review claim. The four arms are `fresh_research`, `static_history`,
+`compiled_expert`, and `maintained_expert`. Each blueprint acceptance case must
+appear once under every arm, using a linear sequence of at least two hashed
+source worlds that include supportive evidence, distractors, and noise.
+
+The evaluator reports correctness, source relevance, factual support,
+uncertainty calibration, false support, invalidated-belief reuse, abstention,
+retention, forward and negative transfer, update latency, reviewer effort,
+construction and maintenance cost, per-consultation cost, observed outcome
+links, pairwise deltas, reproducible 95 percent paired-bootstrap intervals, and
+cost-only break-even estimates. Failed updates remain in the completion
+denominator without a fabricated latency, and stale-memory rates exclude cases
+with no operator-attested invalidation. It does not run an arm, infer a semantic
+label, emit a superiority flag, rank arms, assess statistical sufficiency,
+claim causal attribution, or change a default. Operator-attested mode does not
+open referenced files or verify attester identity. `--artifact-root` is the
+explicit independent mode: it
+recomputes every declared SHA-256 digest within one root and rejects absolute
+paths, traversal, root or symlink escape, missing files, conflicting
+declarations, and mismatches before writing a report. Both modes cost `$0` and
+make no model, provider, or network calls; external arm execution can consume
+recorded local, plan, or paid capacity.
 
 Use `--fresh-context` when a local sync needs current web grounding. Use
 `--deep-context` when the topic needs broader source coverage before the local
@@ -175,8 +280,8 @@ session budget, and serialized turns per session.
 
 ### Available Read-Only Paths
 ```bash
-deepr expert consult "How should we handle tenant isolation?" --experts "Azure Architect" --local
-deepr expert consult "Which assumptions need evidence?" --experts "Azure Architect" --plan codex
+deepr expert consult "How should we handle tenant isolation?" --expert "Azure Architect" --local
+deepr expert consult "Which assumptions need evidence?" --expert "Azure Architect" --plan codex
 ```
 
 MCP hosts can also call `deepr_query_expert` with explicit `backend=local` or
@@ -935,24 +1040,34 @@ the shared durable parent-run budget transaction.
 
 ### Expert Council
 
-Consult multiple experts on cross-domain questions. The system selects relevant experts (or you specify them), queries each in parallel, and synthesizes the perspectives into agreements, disagreements, and a unified recommendation.
+Consult multiple experts on cross-domain questions. The system selects relevant
+experts, or uses the explicit roster, independently selects a bounded packet of
+stored state from each, and runs one synthesis over those packets. The result
+contains agreements, disagreements, assumptions, risks, and a unified proposal.
+Council members do not run model-generated turns and do not see one another's
+output.
 
 ```bash
-# Local bounded consult
-deepr expert consult "Build vs buy?" --experts "Tech Architect,Business Strategist" --local
+# Local bounded consult with an explicit saved artifact
+deepr expert consult "Build vs buy?" --expert "Tech Architect" --expert "Business Strategist" --local --budget 0 --output ./build-vs-buy.json -y
 
 # Explicit plan-quota bounded consult
-deepr expert consult "Which assumption is weakest?" --experts "Tech Architect,Business Strategist" --plan codex
+deepr expert consult "Which assumption is weakest?" --expert "Tech Architect" --expert "Business Strategist" --plan codex
 ```
 
-Budget is split evenly among consulted experts with a 10% reserve for synthesis,
-reserved upfront against the global cost-safety manager so a parallel fan-out
-cannot over-commit the daily cap. Auto-selection fans out to up to 10 experts
-(default 3; pass `--max-experts`), with a relevance floor so a wide fan-out drops
-zero-overlap experts instead of padding the council; naming experts explicitly is
-capped at the same ten experts. Exact, case, and slug aliases for one canonical
-expert are rejected before coroutine creation. Parallelism is bounded so a
-10-expert fan-out runs in waves, not all at once.
+Current expert perspectives are stored-state reads and make zero model calls.
+API mode can make at most one metered call for final synthesis. The complete
+requested transaction ceiling is reserved upfront, and synthesis has a fixed
+10 percent sub-ceiling. Therefore `--budget 10` cannot spend more than `$10`
+and the synthesis call cannot spend more than `$1`. Local and eligible explicit
+plan synthesis record `$0` in Deepr. Plan CLIs can still consume external quota,
+credits, or vendor-side metered credentials that Deepr cannot distinguish.
+
+Auto-selection includes up to 10 experts, default 3, with a relevance floor;
+explicit rosters use the same cap. Exact, case, and slug aliases for one
+canonical expert are rejected before work starts. The returned contract states
+`expert_generation_calls: 0`, `experts_exchange_turns: false`, and no belief or
+graph write authority.
 
 #### Consulting on owned or prepaid capacity ($0)
 
@@ -966,10 +1081,10 @@ deepr expert consult "How do we keep expert knowledge current and cheap?" --plan
 deepr expert consult "Cost vs quality tradeoff?" --local --max-experts 8 --max-elapsed-seconds 600
 ```
 
-`--plan <id>` (codex, claude, ...) and `--local` run synthesis on prepaid or local
+`--plan <id>` (codex, claude, ...) and `--local` run synthesis on explicit plan or local
 capacity and disable live metered fallback, so a consult never silently bills an
-API key. Over MCP this is `synthesis_backend: "plan" | "local"`. This is also how
-Deepr consults its own experts about its own work (the self-consultation loop).
+API key. Over MCP this is `synthesis_backend: "plan" | "local"`. When Deepr asks
+its own experts, this is a one-shot self-consult, not a recursive loop.
 Every CLI and MCP consult writes a local `deepr-consult-trace-v1` record for the
 improvement loop: question, requested experts, selected context metadata, capacity
 posture, checks run, output artifact, and first-class synthesis failure events.
@@ -1025,6 +1140,14 @@ deepr expert self-model "AI Strategy Expert" --json
 The review output is `deepr-consult-trace-candidates-v1`: sanitized gap and eval
 candidates for failed or low-context consults. It does not expose the local trace
 file path or dump raw trace payloads into the host artifact.
+
+A successful consult does not automatically become a gap, subscription, claim,
+or graph edge. Save the full artifact with `--output`, review its unknowns, and
+add source-seeking subscriptions explicitly. Never absorb council prose as
+factual evidence. See
+[Three Expert Council And Learning Workflow](THREE_EXPERT_COUNCIL.md) for a
+copyable Temporal Knowledge Graphs, Digital Consciousness, and Model Context
+Protocol setup with a strict `$10` cap.
 
 Before adding live expert-to-expert rounds, run:
 

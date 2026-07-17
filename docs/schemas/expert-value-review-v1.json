@@ -1,0 +1,305 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/blisspixel/deepr/docs/schemas/expert-value-review-v1.json",
+  "title": "Deepr Expert Value Review v1",
+  "description": "Completed operator-attested workbook for the frozen four-arm longitudinal expert-value protocol. Semantic and protocol attestations explicitly deny verified identity and human-authorship claims. Runtime validation also enforces exact blueprint binding, a linear source-world chain, complete case-arm coverage, and role-specific fields.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "kind",
+    "methodology_version",
+    "rubric_version",
+    "review_set_id",
+    "expert_name",
+    "blueprint_revision",
+    "blueprint_content_hash",
+    "source_worlds",
+    "cases",
+    "arm_configurations",
+    "trials",
+    "protocol_attestation"
+  ],
+  "properties": {
+    "schema_version": {"const": "deepr-expert-value-review-v1"},
+    "kind": {"const": "deepr.eval.expert_value_review"},
+    "methodology_version": {"const": "1.0"},
+    "rubric_version": {"const": "expert-value-rubric-v1"},
+    "review_set_id": {"$ref": "#/$defs/id"},
+    "expert_name": {"type": "string", "minLength": 1, "maxLength": 120},
+    "blueprint_revision": {"type": "integer", "minimum": 1},
+    "blueprint_content_hash": {"$ref": "#/$defs/hash"},
+    "source_worlds": {
+      "type": "array",
+      "minItems": 2,
+      "maxItems": 50,
+      "items": {"$ref": "#/$defs/source_world"}
+    },
+    "cases": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 500,
+      "items": {"$ref": "#/$defs/case"}
+    },
+    "arm_configurations": {
+      "type": "array",
+      "minItems": 4,
+      "maxItems": 4,
+      "items": {"$ref": "#/$defs/arm_configuration"}
+    },
+    "trials": {
+      "type": "array",
+      "minItems": 4,
+      "maxItems": 2000,
+      "items": {"$ref": "#/$defs/trial"}
+    },
+    "protocol_attestation": {"$ref": "#/$defs/protocol_attestation"}
+  },
+  "$defs": {
+    "arm": {
+      "enum": ["fresh_research", "static_history", "compiled_expert", "maintained_expert"]
+    },
+    "role": {
+      "enum": ["initial", "retention", "update", "forward_transfer", "hard_negative"]
+    },
+    "id": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,159}$"
+    },
+    "hash": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "ref": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 4000
+    },
+    "timestamp": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "nonnegative_measurement": {
+      "type": "number",
+      "minimum": 0.0,
+      "maximum": 1000000000.0
+    },
+    "source_world": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "source_world_id",
+        "as_of",
+        "predecessor_source_world_id",
+        "manifest_ref",
+        "manifest_sha256",
+        "supporting_source_count",
+        "distractor_source_count",
+        "noise_source_count",
+        "introduced_claim_refs",
+        "invalidated_claim_refs"
+      ],
+      "properties": {
+        "source_world_id": {"$ref": "#/$defs/id"},
+        "as_of": {"$ref": "#/$defs/timestamp"},
+        "predecessor_source_world_id": {
+          "anyOf": [{"$ref": "#/$defs/id"}, {"type": "null"}]
+        },
+        "manifest_ref": {"$ref": "#/$defs/ref"},
+        "manifest_sha256": {"$ref": "#/$defs/hash"},
+        "supporting_source_count": {"type": "integer", "minimum": 1, "maximum": 1000000},
+        "distractor_source_count": {"type": "integer", "minimum": 1, "maximum": 1000000},
+        "noise_source_count": {"type": "integer", "minimum": 1, "maximum": 1000000},
+        "introduced_claim_refs": {
+          "type": "array",
+          "maxItems": 200,
+          "uniqueItems": true,
+          "items": {"$ref": "#/$defs/ref"}
+        },
+        "invalidated_claim_refs": {
+          "type": "array",
+          "maxItems": 200,
+          "uniqueItems": true,
+          "items": {"$ref": "#/$defs/ref"}
+        }
+      }
+    },
+    "observed_outcome": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["deployed_arm", "outcome_id", "outcome_record_ref", "outcome_record_sha256", "result"],
+      "properties": {
+        "deployed_arm": {"$ref": "#/$defs/arm"},
+        "outcome_id": {"$ref": "#/$defs/id"},
+        "outcome_record_ref": {"$ref": "#/$defs/ref"},
+        "outcome_record_sha256": {"$ref": "#/$defs/hash"},
+        "result": {"enum": ["succeeded", "mixed", "failed", "unresolved"]}
+      }
+    },
+    "case": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "acceptance_case_id",
+        "source_world_id",
+        "evaluation_role",
+        "expected_abstention",
+        "observed_outcome"
+      ],
+      "properties": {
+        "acceptance_case_id": {"$ref": "#/$defs/id"},
+        "source_world_id": {"$ref": "#/$defs/id"},
+        "evaluation_role": {"$ref": "#/$defs/role"},
+        "expected_abstention": {"type": "boolean"},
+        "observed_outcome": {
+          "anyOf": [{"$ref": "#/$defs/observed_outcome"}, {"type": "null"}]
+        }
+      }
+    },
+    "arm_configuration": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "arm",
+        "run_policy_ref",
+        "run_policy_sha256",
+        "construction_cost_usd",
+        "maintenance_cost_usd",
+        "construction_reviewer_minutes",
+        "maintenance_reviewer_minutes"
+      ],
+      "properties": {
+        "arm": {"$ref": "#/$defs/arm"},
+        "run_policy_ref": {"$ref": "#/$defs/ref"},
+        "run_policy_sha256": {"$ref": "#/$defs/hash"},
+        "construction_cost_usd": {"$ref": "#/$defs/nonnegative_measurement"},
+        "maintenance_cost_usd": {"$ref": "#/$defs/nonnegative_measurement"},
+        "construction_reviewer_minutes": {"type": "number", "minimum": 0.0, "maximum": 100000000.0},
+        "maintenance_reviewer_minutes": {"type": "number", "minimum": 0.0, "maximum": 100000000.0}
+      }
+    },
+    "measurements": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "retrieval_cost_usd",
+        "generation_cost_usd",
+        "other_execution_cost_usd",
+        "response_latency_seconds",
+        "reviewer_minutes",
+        "update_completed",
+        "update_latency_hours"
+      ],
+      "properties": {
+        "retrieval_cost_usd": {"$ref": "#/$defs/nonnegative_measurement"},
+        "generation_cost_usd": {"$ref": "#/$defs/nonnegative_measurement"},
+        "other_execution_cost_usd": {"$ref": "#/$defs/nonnegative_measurement"},
+        "response_latency_seconds": {"type": "number", "minimum": 0.0, "maximum": 100000000.0},
+        "reviewer_minutes": {"type": "number", "minimum": 0.0, "maximum": 100000000.0},
+        "update_completed": {"type": ["boolean", "null"]},
+        "update_latency_hours": {
+          "anyOf": [
+            {"type": "number", "minimum": 0.0, "maximum": 100000000.0},
+            {"type": "null"}
+          ]
+        }
+      }
+    },
+    "operator_semantic_attestation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "attested_by",
+        "attested_at",
+        "identity_verified",
+        "human_authorship_claimed",
+        "correctness",
+        "source_relevance",
+        "factual_support",
+        "uncertainty_calibration",
+        "abstained",
+        "false_support_observed",
+        "invalidated_belief_reused",
+        "negative_transfer_observed",
+        "retained_correctness",
+        "forward_transfer_observed",
+        "rationale"
+      ],
+      "properties": {
+        "attested_by": {"type": "string", "minLength": 1, "maxLength": 200},
+        "attested_at": {"$ref": "#/$defs/timestamp"},
+        "identity_verified": {"const": false},
+        "human_authorship_claimed": {"const": false},
+        "correctness": {"type": "integer", "minimum": 0, "maximum": 4},
+        "source_relevance": {"type": "integer", "minimum": 0, "maximum": 4},
+        "factual_support": {"type": "integer", "minimum": 0, "maximum": 4},
+        "uncertainty_calibration": {"type": "integer", "minimum": 0, "maximum": 4},
+        "abstained": {"type": "boolean"},
+        "false_support_observed": {"type": "boolean"},
+        "invalidated_belief_reused": {"type": ["boolean", "null"]},
+        "negative_transfer_observed": {"type": ["boolean", "null"]},
+        "retained_correctness": {"type": ["boolean", "null"]},
+        "forward_transfer_observed": {"type": ["boolean", "null"]},
+        "rationale": {"type": "string", "minLength": 1, "maxLength": 8000}
+      }
+    },
+    "trial": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "acceptance_case_id",
+        "arm",
+        "executed_at",
+        "run_artifact_ref",
+        "run_artifact_sha256",
+        "answer_artifact_ref",
+        "answer_artifact_sha256",
+        "measurements",
+        "semantic_attestation"
+      ],
+      "properties": {
+        "acceptance_case_id": {"$ref": "#/$defs/id"},
+        "arm": {"$ref": "#/$defs/arm"},
+        "executed_at": {"$ref": "#/$defs/timestamp"},
+        "run_artifact_ref": {"$ref": "#/$defs/ref"},
+        "run_artifact_sha256": {"$ref": "#/$defs/hash"},
+        "answer_artifact_ref": {"$ref": "#/$defs/ref"},
+        "answer_artifact_sha256": {"$ref": "#/$defs/hash"},
+        "measurements": {"$ref": "#/$defs/measurements"},
+        "semantic_attestation": {"$ref": "#/$defs/operator_semantic_attestation"}
+      }
+    },
+    "protocol_attestation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "attested_by",
+        "attested_at",
+        "identity_verified",
+        "human_authorship_claimed",
+        "review_blinding",
+        "review_order_randomized",
+        "review_assignment_ref",
+        "review_assignment_sha256",
+        "same_cases_confirmed",
+        "source_worlds_frozen",
+        "arm_isolation_confirmed",
+        "artifact_hashes_verified"
+      ],
+      "properties": {
+        "attested_by": {"type": "string", "minLength": 1, "maxLength": 200},
+        "attested_at": {"$ref": "#/$defs/timestamp"},
+        "identity_verified": {"const": false},
+        "human_authorship_claimed": {"const": false},
+        "review_blinding": {"enum": ["blinded", "not_blinded"]},
+        "review_order_randomized": {"type": "boolean"},
+        "review_assignment_ref": {"$ref": "#/$defs/ref"},
+        "review_assignment_sha256": {"$ref": "#/$defs/hash"},
+        "same_cases_confirmed": {"const": true},
+        "source_worlds_frozen": {"const": true},
+        "arm_isolation_confirmed": {"const": true},
+        "artifact_hashes_verified": {"const": true}
+      }
+    }
+  }
+}

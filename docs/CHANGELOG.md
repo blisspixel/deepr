@@ -9,6 +9,61 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Added `deepr expert blueprint` with an intentionally incomplete `$0` template,
+  an explicitly unreviewed `deepr-expert-blueprint-draft-v1` contract, and a
+  zero-call `deepr-expert-blueprint-preflight-v1` artifact. Preflight performs
+  strict parsing, normalization, hashing, structural summaries, and review
+  question packaging while denying semantic assessment, human-review claims,
+  canonical writes, and scope authority. Preflight output cannot overwrite the
+  draft. Apply records an operator attestation
+  in append-only canonical history with reviewer identity unverified and no
+  claim of human authorship. Canonical scope still cannot authorize spend,
+  knowledge writes, routing, or external actions.
+- Added `deepr expert record-outcome` and `deepr expert outcomes` for immutable
+  operator-attested observations about later expert-supported decision results.
+  Reviewer identity is not independently verified and human authorship is not
+  claimed.
+  Records may link consult traces, beliefs, sources, and outcome evidence, but
+  never trigger automatic learning or infer expert quality. Corrections append
+  a new record that references the superseded observation.
+- Added `deepr eval expert-value` for a `$0`, zero-call longitudinal evaluation
+  workflow. It emits an intentionally incomplete workbook bound to one exact
+  operator-attested blueprint, then validates completed operator semantic and
+  protocol attestations over at least two hashed source worlds and a complete
+  fresh-research, static-history, compiled-expert, and maintained-expert trial
+  matrix. Both attestations explicitly deny verified identity and human
+  authorship. Reports preserve quality
+  dimensions, false support, stale-memory reuse, transfer, cost, effort, and
+  outcome links separately, with descriptive deltas, reproducible 95 percent
+  paired-bootstrap intervals, and cost-only break-even estimates but no
+  aggregate score, superiority flag, winner, causal claim, or default change.
+- Added explicit `--artifact-root` verification to `deepr eval expert-value`.
+  It root-confines relative local references, streams and recomputes every
+  declared SHA-256 digest, rejects unsafe or changing paths and mismatches, and
+  writes no report until every binding passes. Report output cannot overwrite
+  the workbook or enter the evidence root. The default remains clearly labeled
+  operator-attested mode, does not verify reviewer identity, and does not open
+  referenced files.
+- Added three strict, explicitly unreviewed blueprint drafts for Temporal Knowledge Graphs,
+  Digital Consciousness, and Model Context Protocol, plus a copyable council and
+  verified-learning guide with hard `$10` environment caps, exact local, plan,
+  and API posture, and corrections for commands that are not part of Deepr.
+- `deepr expert consult` now exposes its actual one-shot execution contract:
+  zero expert-generation calls, zero peer turns, at most one synthesis call,
+  no belief or graph writes, the API synthesis budget fraction, and the total
+  transaction ceiling. `--output FILE` explicitly saves the complete consult
+  artifact, while ordinary human output states the same interaction and
+  learning boundaries.
+- Replaced stale first-run `expert chat` hints with the shipped local
+  `expert consult` path. Metered expert chat remains gated in v2.36.
+- Published `deepr-expert-blueprint-draft-v1`,
+  `deepr-expert-blueprint-preflight-v1`, `deepr-expert-blueprint-v1`,
+  `deepr-expert-outcome-v1`, and
+  `deepr-expert-outcome-summary-v1`, plus
+  `deepr-expert-value-review-v1` and `deepr-expert-value-report-v1` for the
+  longitudinal value-loop design that compares fresh research, static memory,
+  compiled experts, and maintained experts on the same time-sliced held-out
+  cases.
 - Added Stage 2 durable expert conversation MCP tools:
   `deepr_start_expert_conversation`, `deepr_continue_expert_conversation`,
   `deepr_get_expert_conversation`, and `deepr_close_expert_conversation`.

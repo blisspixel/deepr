@@ -562,7 +562,7 @@ def test_expert_next_schema_validates_runtime_payload():
         domain=profile.domain,
         claims=[Claim.create("Structural evidence should guide the next action.", profile.domain, 0.82)],
     )
-    payload = build_expert_next_actions(profile, manifest)
+    payload = build_expert_next_actions(profile, manifest, has_attested_blueprint=True)
     schema = _load_schema("expert-next-v1.json")
 
     _validate(schema, payload)

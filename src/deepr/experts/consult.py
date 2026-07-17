@@ -17,6 +17,8 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
+from deepr.experts.constants import SYNTHESIS_BUDGET_FRACTION
+
 CONSULT_SCHEMA_VERSION = "deepr-consult-v1"
 CONSULT_KIND = "deepr.expert.consult"
 COLLABORATION_SCHEMA_VERSION = "deepr-expert-collaboration-v1"
@@ -177,7 +179,18 @@ def build_consult_payload(question: str, result: dict[str, Any]) -> dict[str, An
     return {
         "schema_version": CONSULT_SCHEMA_VERSION,
         "kind": CONSULT_KIND,
-        "contract": {"stability": "experimental", "cost_usd": cost},
+        "contract": {
+            "stability": "experimental",
+            "cost_usd": cost,
+            "consultation_mode": "one_shot_stored_context_synthesis",
+            "expert_generation_calls": 0,
+            "maximum_synthesis_calls": 1,
+            "experts_exchange_turns": False,
+            "proposal_only": True,
+            "writes_expert_state": False,
+            "writes_beliefs": False,
+            "writes_graph": False,
+        },
         "question": question,
         "answer": result.get("synthesis", "") or "",
         "synthesis_status": result.get("synthesis_status", "completed") or "completed",
@@ -211,6 +224,8 @@ def build_collaboration_contract(
     requested_budget = float(result.get("requested_budget_usd", 0.0) or 0.0)
     actual_cost = float(result.get("total_cost", 0.0) or 0.0)
     trace_id = str((trace or {}).get("trace_id", "") or result.get("shared_task_trace_id", "") or "")
+    capacity_block = capacity or {}
+    metered_synthesis = capacity_block.get("synthesis_backend") == "api"
 
     roster = []
     context_sources: dict[str, int] = {}
@@ -253,9 +268,25 @@ def build_collaboration_contract(
         "roster": roster,
         "budget_capacity_contract": {
             "requested_budget_usd": requested_budget,
+            "total_spend_ceiling_usd": requested_budget,
             "actual_cost_usd": actual_cost,
-            "capacity": capacity or {},
-            "metered_fallback_allowed": bool((capacity or {}).get("live_metered_fallback", False)),
+            "capacity": capacity_block,
+            "metered_fallback_allowed": bool(capacity_block.get("live_metered_fallback", False)),
+            "metered_perspective_calls_enabled": False,
+            "maximum_metered_perspective_calls": 0,
+            "maximum_synthesis_calls": 1,
+            "synthesis_budget_fraction": SYNTHESIS_BUDGET_FRACTION,
+            "metered_synthesis_ceiling_usd": round(
+                requested_budget * SYNTHESIS_BUDGET_FRACTION if metered_synthesis else 0.0,
+                6,
+            ),
+        },
+        "interaction": {
+            "mode": "one_shot_stored_context_synthesis",
+            "expert_generation_calls": 0,
+            "peer_turns": 0,
+            "maximum_synthesis_calls": 1,
+            "experts_exchange_turns": False,
         },
         "evidence_packet": {
             "perspective_count": len(perspectives),
@@ -270,6 +301,14 @@ def build_collaboration_contract(
             "disagreements_field": "disagreements",
             "dissent_preserved": True,
             "synthesis_is_not_truth_adjudication": True,
+        },
+        "learning_boundary": {
+            "proposal_only": True,
+            "discussion_is_evidence": False,
+            "writes_expert_state": False,
+            "writes_beliefs": False,
+            "writes_graph": False,
+            "verification_required_before_graph_commit": True,
         },
         "result_artifact": {
             "schema_version": CONSULT_SCHEMA_VERSION,

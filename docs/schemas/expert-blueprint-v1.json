@@ -1,0 +1,160 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/blisspixel/deepr/docs/schemas/expert-blueprint-v1.json",
+  "title": "Deepr Expert Blueprint v1",
+  "description": "One immutable purpose and acceptance contract accepted through an operator attestation. The contract does not claim human authorship or verified reviewer identity.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "kind",
+    "expert_name",
+    "mission",
+    "non_goals",
+    "decision_use_cases",
+    "source_policy",
+    "volatility",
+    "update_cadence_days",
+    "initial_questions",
+    "acceptance_cases",
+    "revision",
+    "content_hash",
+    "created_at",
+    "updated_at",
+    "attestation",
+    "contract"
+  ],
+  "properties": {
+    "schema_version": {"const": "deepr-expert-blueprint-v1"},
+    "kind": {"const": "deepr.expert.blueprint"},
+    "expert_name": {"type": "string", "minLength": 1, "maxLength": 120},
+    "mission": {"type": "string", "minLength": 1, "maxLength": 4000},
+    "non_goals": {
+      "type": "array",
+      "maxItems": 50,
+      "uniqueItems": true,
+      "items": {"type": "string", "minLength": 1, "maxLength": 2000}
+    },
+    "decision_use_cases": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 50,
+      "items": {"$ref": "#/$defs/decision_use_case"}
+    },
+    "source_policy": {"$ref": "#/$defs/source_policy"},
+    "volatility": {"enum": ["slow", "medium", "fast"]},
+    "update_cadence_days": {"type": "integer", "minimum": 1, "maximum": 3650},
+    "initial_questions": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 50,
+      "uniqueItems": true,
+      "items": {"type": "string", "minLength": 1, "maxLength": 2000}
+    },
+    "acceptance_cases": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 100,
+      "items": {"$ref": "#/$defs/acceptance_case"}
+    },
+    "revision": {"type": "integer", "minimum": 1},
+    "content_hash": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "created_at": {"type": "string", "format": "date-time"},
+    "updated_at": {"type": "string", "format": "date-time"},
+    "attestation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["status", "attested_by", "attested_at", "claim", "identity_verified"],
+      "properties": {
+        "status": {"const": "operator_attested"},
+        "attested_by": {"type": "string", "minLength": 1, "maxLength": 200},
+        "attested_at": {"type": "string", "format": "date-time"},
+        "claim": {"const": "scope_and_acceptance_review_completed"},
+        "identity_verified": {"const": false}
+      }
+    },
+    "contract": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "operator_attested_for_scope",
+        "human_authorship_claimed",
+        "reviewer_identity_verified",
+        "authoritative_for_scope",
+        "may_authorize_spend",
+        "may_authorize_knowledge_writes",
+        "may_authorize_external_actions",
+        "semantic_maturity_verdict"
+      ],
+      "properties": {
+        "operator_attested_for_scope": {"const": true},
+        "human_authorship_claimed": {"const": false},
+        "reviewer_identity_verified": {"const": false},
+        "authoritative_for_scope": {"const": true},
+        "may_authorize_spend": {"const": false},
+        "may_authorize_knowledge_writes": {"const": false},
+        "may_authorize_external_actions": {"const": false},
+        "semantic_maturity_verdict": {"const": false}
+      }
+    }
+  },
+  "$defs": {
+    "identifier": {
+      "type": "string",
+      "pattern": "^[a-z0-9][a-z0-9._-]{0,79}$"
+    },
+    "criteria": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 20,
+      "uniqueItems": true,
+      "items": {"type": "string", "minLength": 1, "maxLength": 2000}
+    },
+    "decision_use_case": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "question", "success_criteria"],
+      "properties": {
+        "id": {"$ref": "#/$defs/identifier"},
+        "question": {"type": "string", "minLength": 1, "maxLength": 4000},
+        "success_criteria": {"$ref": "#/$defs/criteria"}
+      }
+    },
+    "acceptance_case": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "question", "success_criteria", "failure_conditions"],
+      "properties": {
+        "id": {"$ref": "#/$defs/identifier"},
+        "question": {"type": "string", "minLength": 1, "maxLength": 4000},
+        "success_criteria": {"$ref": "#/$defs/criteria"},
+        "failure_conditions": {
+          "type": "array",
+          "maxItems": 20,
+          "uniqueItems": true,
+          "items": {"type": "string", "minLength": 1, "maxLength": 2000}
+        }
+      }
+    },
+    "source_policy": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["primary_sources_required", "preferred_source_types", "excluded_sources"],
+      "properties": {
+        "primary_sources_required": {"type": "boolean"},
+        "preferred_source_types": {
+          "type": "array",
+          "maxItems": 30,
+          "uniqueItems": true,
+          "items": {"type": "string", "minLength": 1, "maxLength": 2000}
+        },
+        "excluded_sources": {
+          "type": "array",
+          "maxItems": 50,
+          "uniqueItems": true,
+          "items": {"type": "string", "minLength": 1, "maxLength": 2000}
+        }
+      }
+    }
+  }
+}

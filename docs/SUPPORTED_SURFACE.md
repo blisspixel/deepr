@@ -1,6 +1,6 @@
 # Supported Surface
 
-Status: v2.36.2 current main, 2026-07-15. This document defines what users and host
+Status: v2.36.2 current main, 2026-07-16. This document defines what users and host
 agents can rely on today, what is experimental, what is planned only, and what
 data remains portable if development stops.
 
@@ -36,6 +36,24 @@ must not be described as usable capacity.
 - Local report storage under the configured reports root.
 - Local expert creation, expert import/export, profile storage, and bounded
   local or explicit plan consult/query surfaces.
+- Unreviewed blueprint drafts, zero-call structural preflight, and
+  operator-attested expert blueprints and decision outcomes. Drafts and
+  preflight artifacts are non-authoritative. Applied revisions and outcome
+  observations are local append-only records with published v1 schemas. Deepr
+  does not verify reviewer identity or claim human authorship. These artifacts
+  make purpose and later results inspectable but never authorize spend,
+  knowledge writes, routing changes, or external actions.
+- `deepr eval expert-value` template generation and review aggregation. The
+  evaluator binds a complete four-arm matrix to the exact operator-attested
+  blueprint and frozen source-world hashes, reports separate quality, risk,
+  transfer, effort, cost, and outcome-link measures, makes no external calls,
+  and selects no winner. Trial semantic and protocol assertions are operator
+  attestations with unverified identity and no human-authorship claim.
+  Operator-attested mode does not open referenced files. Explicit
+  `--artifact-root` mode recomputes every declared local SHA-256 digest under a
+  root-confined path policy with no network access. It does not execute the four
+  arms; those runs use separately governed capacity and may incur the costs
+  recorded by the review.
 - Relocatable data through coordinated roots written by `deepr init --data-dir`.
   `DEEPR_DATA_DIR` covers expert, queue, trace, benchmark, observability, and
   selected MCP state; reports use `DEEPR_REPORTS_PATH`. Synced-folder portability supports
@@ -136,8 +154,15 @@ must not be described as usable capacity.
   is a separate bounded surface. Its approval covers final synthesis only;
   live metered perspective fallback remains gated when a selected expert has no
   stored context.
-  Passing several experts gives a bounded council with preserved dissent. CLI
-  and MCP consults append local
+  Passing several experts gives a bounded one-shot council with preserved
+  dissent. Each expert contributes a deterministic stored-state selection, not
+  a model-generated turn, and experts do not exchange messages. One synthesis
+  call produces the proposal. The generated contract exposes zero expert
+  generation calls, zero peer turns, at most one synthesis call, and no belief
+  or graph write authority. API mode reserves the complete transaction ceiling
+  while its only metered synthesis call has a 10 percent sub-ceiling. CLI
+  `--output` explicitly saves the full artifact; no separate full artifact path
+  is written by default. CLI and MCP consults append local
   `deepr-consult-trace-v1` records with selected context metadata, checks run,
   capacity posture, and synthesis failure events. Before cancellable local
   discovery or backend dispatch they open a separate append-only
@@ -161,7 +186,9 @@ must not be described as usable capacity.
   `deepr-consult-trace-candidates-v1` gap/eval candidates with embedded
   `deepr-consult-quality-eval-case-v1` semantic review packets. The review
   packets are `$0`, read-only, non-verdict artifacts for human or calibrated
-  model judging; they cannot commit beliefs. `deepr mcp validate-consult`
+  model judging; they cannot commit beliefs. Successful council output is not
+  automatically converted into a gap or graph candidate and must not be
+  absorbed as factual evidence. `deepr mcp validate-consult`
   emits `deepr-mcp-consult-validation-v1` reports for offline fixtures,
   in-process local or plan validation, and HTTP endpoint validation.
   `deepr capacity validate-fleet` emits `deepr-plan-fleet-validation-v1` as the

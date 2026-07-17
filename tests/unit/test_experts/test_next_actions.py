@@ -45,7 +45,11 @@ def _run(
 def test_empty_expert_gets_capacity_aware_foundation_plan_without_semantic_verdict():
     manifest = ExpertManifest(expert_name="Agent Harness Expert", domain="agent harnesses")
 
-    payload = build_expert_next_actions(_profile(knowledge_cutoff_date=None), manifest)
+    payload = build_expert_next_actions(
+        _profile(knowledge_cutoff_date=None),
+        manifest,
+        has_attested_blueprint=True,
+    )
 
     assert payload["schema_version"] == EXPERT_NEXT_SCHEMA_VERSION
     assert payload["kind"] == EXPERT_NEXT_KIND
@@ -82,6 +86,29 @@ def test_empty_expert_gets_capacity_aware_foundation_plan_without_semantic_verdi
     assert "--scheduled" in command_argv[2]
 
 
+def test_missing_blueprint_is_the_first_foundation_action():
+    manifest = ExpertManifest(expert_name="Agent Harness Expert", domain="agent harnesses")
+
+    payload = build_expert_next_actions(
+        _profile(knowledge_cutoff_date=None),
+        manifest,
+        has_attested_blueprint=False,
+    )
+
+    action = payload["next_actions"][0]
+    assert action["id"] == "define_expert_purpose"
+    assert action["command_argv"][0] == [
+        "deepr",
+        "expert",
+        "blueprint",
+        "Agent Harness Expert",
+        "--template",
+        "--output",
+        "expert-blueprint.json",
+    ]
+    assert payload["evidence"]["operator_attested_blueprint"] is False
+
+
 def test_failed_loop_and_stale_state_prioritize_recovery_before_gap_fill():
     profile = _profile(knowledge_cutoff_date=datetime(2020, 1, 1, tzinfo=UTC))
     manifest = ExpertManifest(
@@ -91,7 +118,12 @@ def test_failed_loop_and_stale_state_prioritize_recovery_before_gap_fill():
         gaps=[Gap.create("review failure clusters", questions=["Which failures repeat?"])],
     )
 
-    payload = build_expert_next_actions(profile, manifest, loop_runs=[_run(status="failed")])
+    payload = build_expert_next_actions(
+        profile,
+        manifest,
+        loop_runs=[_run(status="failed")],
+        has_attested_blueprint=True,
+    )
 
     assert payload["stage"] == "recovery"
     assert [item["id"] for item in payload["next_actions"][:2]] == [
@@ -115,7 +147,12 @@ def test_verified_learning_run_moves_healthy_expert_to_maintenance():
         verifier_outcome="passed",
     )
 
-    payload = build_expert_next_actions(profile, manifest, loop_runs=[run])
+    payload = build_expert_next_actions(
+        profile,
+        manifest,
+        loop_runs=[run],
+        has_attested_blueprint=True,
+    )
 
     assert payload["stage"] == "maintenance"
     assert payload["evidence"]["learning_loops"]["verified_improvement_count"] == 1
@@ -140,7 +177,12 @@ def test_recovered_historical_failure_does_not_keep_blocking_new_work():
     )
     historical_failure = _run(status="failed")
 
-    payload = build_expert_next_actions(profile, manifest, loop_runs=[latest_success, historical_failure])
+    payload = build_expert_next_actions(
+        profile,
+        manifest,
+        loop_runs=[latest_success, historical_failure],
+        has_attested_blueprint=True,
+    )
 
     assert payload["stage"] == "maintenance"
     assert payload["evidence"]["learning_loops"]["failed_count"] == 1
@@ -153,6 +195,7 @@ def test_action_limit_must_be_positive():
             _profile(),
             ExpertManifest(expert_name="Agent Harness Expert", domain="agent harnesses"),
             max_actions=0,
+            has_attested_blueprint=True,
         )
 
 
@@ -160,7 +203,7 @@ def test_machine_action_argv_preserves_names_without_shell_reparsing():
     profile = _profile(name='$(Write-Output PWN) & `whoami` "Safety"', knowledge_cutoff_date=None)
     manifest = ExpertManifest(expert_name=profile.name, domain=profile.domain)
 
-    payload = build_expert_next_actions(profile, manifest)
+    payload = build_expert_next_actions(profile, manifest, has_attested_blueprint=True)
 
     action = payload["next_actions"][0]
     assert "commands" not in action

@@ -44,6 +44,7 @@ Ship `deepr expert next NAME` as a `$0`, read-only navigator.
 The command emits `deepr-expert-next-v1` and uses only structural evidence:
 
 - canonical claim count;
+- presence of an operator-attested expert blueprint;
 - open gap count;
 - freshness state;
 - active contradiction count;
@@ -65,13 +66,15 @@ Stages are navigation labels, not maturity scores. The payload states
 
 The command returns at most three ordered actions by default:
 
-1. establish a compiled knowledge foundation;
-2. inspect failed or waiting loops;
-3. refresh stale sources;
-4. route high-value gaps;
-5. inspect contradictions;
-6. establish continuity and monitor evidence;
-7. refresh the derived memory card when no repair action is due.
+1. define the expert purpose and held-out acceptance cases when no reviewed
+   blueprint exists;
+2. establish a compiled knowledge foundation;
+3. inspect failed or waiting loops;
+4. refresh stale sources;
+5. route high-value gaps;
+6. inspect contradictions;
+7. establish continuity and monitor evidence;
+8. refresh the derived memory card when no repair action is due.
 
 Every action includes canonical argv arrays, a reason, and a stable id. The
 human view renders the arrays as JSON instead of inventing a supposedly
@@ -91,6 +94,8 @@ evaluation with before and after evidence.
 ## Verification
 
 - Empty experts receive a capacity check followed by a scheduled compiled-learning path.
+- Experts without an operator-attested blueprint receive a purpose-definition action
+  before knowledge accumulation.
 - Failed or waiting loops outrank new work.
 - A verifier-passed accepted change is required before the navigator describes
   the expert as being in maintenance.
