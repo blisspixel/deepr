@@ -1,0 +1,20 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/blisspixel/deepr/docs/schemas/investigation-charter-v1.json",
+  "title": "Deepr Investigation Charter v1",
+  "type": "object",
+  "additionalProperties": true,
+  "required": ["schema_version", "kind", "expert_name", "research_focus", "retrieval_query", "subquestions", "stop_criteria", "form_warnings", "generated_at", "content_sha256"],
+  "properties": {
+    "schema_version": {"const": "deepr-investigation-charter-v1"},
+    "kind": {"const": "deepr.expert.investigation_charter"},
+    "expert_name": {"type": "string", "minLength": 1},
+    "research_focus": {"type": "string", "minLength": 1},
+    "retrieval_query": {"type": "string", "minLength": 1},
+    "subquestions": {"type": "array", "maxItems": 6, "items": {"type": "string"}},
+    "stop_criteria": {"type": "array", "maxItems": 4, "items": {"type": "string"}},
+    "form_warnings": {"type": "array", "items": {"type": "string"}},
+    "generated_at": {"type": "string", "format": "date-time"},
+    "content_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"}
+  }
+}

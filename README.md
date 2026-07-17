@@ -53,7 +53,13 @@ deepr expert consult "What should this agentic harness improve next?" --expert "
 
 # A council reads one stored-state packet per expert and runs one synthesis.
 # It is one-shot: experts do not exchange turns or write one another's knowledge.
+# Use exact names from `deepr expert list`; the linked guide creates this example roster.
 deepr expert consult "Which cross-domain assumption should we test?" --expert "Temporal Knowledge Graphs" --expert "Digital Consciousness" --expert "Model Context Protocol" --local --budget 0 --output three-expert-council.json -y
+
+# An experimental investigation does the deeper job: independent research,
+# one bounded blinded exchange, checking, synthesis, and optional relevance-gated staged learning.
+deepr expert investigate plan "How should persistent experts improve Deepr?" --expert "Temporal Knowledge Graphs" --expert "Digital Consciousness" --expert "Model Context Protocol" --local-model qwen2.5:14b --protocol discuss --learning stage --budget-usd 0 --out investigation-plan.json
+deepr expert investigate run investigation-plan.json -y
 
 # Record what happened later. This never changes beliefs or routing automatically.
 deepr expert record-outcome "Platform Team Expert" --decision-id harness-2026-07 --summary "Choose the next harness improvement" --result mixed --observation "Recovery improved, but reviewer time did not." --attested-by operator
@@ -194,6 +200,7 @@ Results are saved under the configured reports root, defaulting to
 | Local expert maintenance | Works through Ollama for local expert setup, absorb, sync, fresh/deep local context, eval, and scored admission | [docs/CAPACITY.md](docs/CAPACITY.md) |
 | Explicit plan-quota execution | Works for selected non-metered expert sync, sync-all, gap-fill, absorb, learn, consult, and probe commands behind auth-mode and no-surprise-bills checks | [docs/CAPACITY.md](docs/CAPACITY.md), [docs/design/plan-quota-cli-backends.md](docs/design/plan-quota-cli-backends.md) |
 | Domain experts | Works for unreviewed blueprint drafts, zero-call structural preflight, operator-attested purpose contracts and outcome observations, local creation and maintenance, consult, beliefs, gaps, loop status, `$0` next-action guidance, OKF export/import, self-model reads, monitor proposals, reviewed monitor promotion, and self-model update review and acceptance records | [docs/EXPERTS.md](docs/EXPERTS.md) |
+| Multi-expert investigations | Experimental local CLI works at `$0` provider cost for immutable preview, independent free-web research, one bounded blinded exchange, checking, synthesis, pause/resume/cancel, and source-only, target-domain-relevance-gated staged learning. Semantic quality is still unreviewed; plan-quota and API execution are not shipped. | [docs/THREE_EXPERT_COUNCIL.md](docs/THREE_EXPERT_COUNCIL.md), [docs/design/evidence-first-expert-investigations.md](docs/design/evidence-first-expert-investigations.md) |
 | MCP | Works for local stdio and experimental HTTP/SSE with scoped keys, budgets, rate limits, audit logs, smoke checks, no-metered one-shot consult validation, and registration manifests | [mcp/README.md](mcp/README.md) |
 | A2A | Library and validation prototype only: Agent Card, in-memory tasks, consult mapping, and host validation exist, but no long-running serve command or A2A 1.0 conformance claim is shipped | [docs/SUPPORTED_SURFACE.md](docs/SUPPORTED_SURFACE.md) |
 | Web dashboard | Experimental but usable for reports, experts, costs, model views, loop status, and OpenAI-backed research submission; use CLI workflows for other providers | [docs/FEATURES.md](docs/FEATURES.md) |
@@ -268,6 +275,7 @@ deepr expert outcomes "AI Policy Expert" --json
 deepr eval consult --json
 deepr eval conversation --json
 deepr eval deliberation --json
+deepr eval investigation --json
 deepr eval hallucination-risks --json
 deepr expert self-model "AI Policy Expert" --json
 deepr expert next "AI Policy Expert"
@@ -444,17 +452,24 @@ orchestrator; Deepr provides the verified knowledge layer.
 MCP query and council consult are one-shot today. Four owner-bound MCP tools now
 support a durable `$0` local conversation with one frozen expert snapshot:
 start, continue, inspect, and close. That is not a multi-expert deliberation.
-Live expert-to-expert rounds and a long-running A2A service remain gated on
-held-out quality, aggregate token and context enforcement, replay, resume, and
-A2A conformance. See
+Generic or remote expert-to-expert chat and a long-running A2A service remain
+gated on held-out quality, aggregate token and context enforcement, replay,
+resume, and A2A conformance. See
 [remote-expert-conversations.md](docs/design/remote-expert-conversations.md).
 
-A deeper evidence-first investigation that accepts a topic plus inline text,
-URLs, files, and folders is planned but not shipped. The accepted plan freezes
-each expert, performs independent research first, allows at most one targeted
-cross-examination round, checks and synthesizes with preserved dissent, and
-stages only source-verified learning. One parent envelope covers the entire
-roster, so a `$10` limit means `$10` total. See
+An experimental local evidence-first investigation accepts a topic plus inline
+text, URLs, files, and folders. It freezes each expert, performs independent
+research first, allows at most one targeted cross-examination round, checks and
+synthesizes with preserved dissent, and stages only source-verified,
+target-domain-relevant learning. A separate verifier model judges material
+domain relevance; deterministic code requires a positive verdict without
+using word overlap to decide meaning.
+Each staged compiler is form-bounded to the first five model-prioritized claims
+per expert before separate verification, so one verbose expert cannot consume
+the rest of the parent envelope.
+One parent envelope covers the entire roster. The current implementation
+requires exact `$0` local capacity with no fallback; a future API `$10` limit
+means `$10` total, not per expert. Semantic quality remains unreviewed. See
 [evidence-first-expert-investigations.md](docs/design/evidence-first-expert-investigations.md).
 
 ```bash
@@ -597,7 +612,7 @@ See [docs/SUPPORTED_SURFACE.md](docs/SUPPORTED_SURFACE.md) for the contract.
 | [Features](docs/FEATURES.md) | Full command reference |
 | [Capacity](docs/CAPACITY.md) | Local, plan-quota, metered API, scheduler, and no-surprise-bills behavior |
 | [Experts](docs/EXPERTS.md) | Domain expert system |
-| [Three Expert Council](docs/THREE_EXPERT_COUNCIL.md) | Three reviewed experts, one-shot council, verified graph learning, and a strict `$10` cap |
+| [Three Expert Council](docs/THREE_EXPERT_COUNCIL.md) | Three persistent experts, one-shot council, bounded local investigation, relevance-gated graph proposals, and strict cost ceilings |
 | [Models](docs/MODELS.md) | Provider comparison and model selection |
 | [Architecture](docs/ARCHITECTURE.md) | Technical architecture, security, budget protection |
 | [Security Threat Model](docs/security/THREAT_MODEL.md) | Trust boundaries, attacker stories, mitigations, and severity calibration |

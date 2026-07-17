@@ -119,6 +119,7 @@ _COMMAND_SPECS: dict[str, _LazyCommandSpec] = {
             "deepr.cli.commands.eval_deliberation",
             "deepr.cli.commands.eval_expert_value",
             "deepr.cli.commands.eval_grounding_correctness",
+            "deepr.cli.commands.eval_investigation",
             "deepr.cli.commands.eval_judge_calibration",
             "deepr.cli.commands.eval_recall",
         ),
@@ -127,6 +128,7 @@ _COMMAND_SPECS: dict[str, _LazyCommandSpec] = {
         "deepr.cli.commands.semantic",
         "expert",
         "Create and interact with domain experts.",
+        load_after=("deepr.cli.commands.semantic.expert_investigate",),
     ),
     "fleet": _LazyCommandSpec(
         "deepr.cli.commands.fleet",

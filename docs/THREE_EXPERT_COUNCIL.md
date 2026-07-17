@@ -1,6 +1,8 @@
 # Three Expert Council And Learning Workflow
 
-Status: works-now guide, verified against the CLI on 2026-07-16.
+Status: works-now guide, verified against the CLI on 2026-07-17. The one-shot
+consult is stable. The deeper local investigation surface is experimental and
+has not passed its semantic-quality promotion gate.
 
 This guide builds three durable experts:
 
@@ -19,13 +21,14 @@ API synthesis is bounded by one explicit transaction ceiling.
 |---|---|
 | Consult one expert | Reads a bounded packet of stored beliefs and runs one synthesis call |
 | Consult several experts | Reads one independently selected stored-state packet per expert, then runs one synthesis call |
-| Experts exchange turns | Not shipped |
+| Experts research and exchange a bounded round | Experimental through local-only `expert investigate`; one blinded targeted exchange, with optional private revision |
 | Successful consult automatically creates gaps | Not shipped |
 | Consult changes beliefs or graph state | Never |
+| Investigation changes beliefs or graph state | Never automatically; `--learning stage` creates separate source-only commit envelopes that still require explicit apply |
 | Local synthesis | Works with Ollama at `$0` provider cost |
 | Explicit plan synthesis | Works for eligible plan CLIs with no metered API fallback; external quota or billing cannot be proven by Deepr |
 | API synthesis | Works as one priced, reserved, and settled call |
-| Multi-round deliberation | Structural evaluator only; no live runtime surface |
+| Investigation capacity | Local Ollama only, exact `$0`, no fallback; plan-quota and metered API investigation execution are planned, not shipped |
 
 `deepr expert consult` is a one-shot stored-context council. The expert names
 identify durable knowledge states, not separate model agents. Each perspective
@@ -41,6 +44,143 @@ The returned `deepr-consult-v1` artifact now makes this explicit:
 - `writes_beliefs` and `writes_graph` are `false`;
 - the budget block separates the total transaction ceiling from the smaller
   metered synthesis ceiling.
+
+## Choose Consult Or Investigate
+
+Use `deepr expert consult` when the experts already contain the relevant
+knowledge and you want one quick synthesis. It makes no expert-generation
+calls, permits no peer turns, and performs no learning.
+
+Use `deepr expert investigate` when the question needs fresh research and a
+real, bounded exchange. The experimental local runtime:
+
+1. freezes each named expert's current state;
+2. gives every expert an independent research charter and source pack;
+3. records an independent position from every expert;
+4. routes one blinded, targeted challenge to each expert in `discuss` or
+   `deep` mode;
+5. optionally lets each expert revise privately in `deep` mode;
+6. runs a separately pinned checker and synthesizer;
+7. optionally compiles separate source-backed learning envelopes after the
+   answer.
+
+This is not an open chat room or an autonomous recursive loop. It has a fixed
+roster, fixed phases, exact call and retrieval ceilings, one parent time and
+disk envelope, durable checkpoints, and no fallback. Agreement is never used
+as evidence.
+
+### Plan A `$0` Investigation
+
+The three expert profiles in this guide must already exist. Pick exact Ollama
+models that fit the machine. The review model may be the same model, but a
+stronger local checker, synthesizer, and staged claim verifier can be pinned
+separately.
+
+On a first setup, complete Sections 1 and 2 below before running this command.
+Run `deepr expert list` and use the exact stored names. The examples use the
+three names created in Section 2. If an existing profile already covers one of
+these roles under a different name, substitute that exact name consistently
+instead of creating a near-duplicate expert. Roster resolution fails before
+network or model work when a name does not exist or is ambiguous.
+
+```powershell
+deepr expert investigate plan `
+  "How should Deepr combine temporal expert memory, uncertainty about digital consciousness, and MCP authority boundaries without turning model agreement into graph truth?" `
+  --expert "Temporal Knowledge Graphs" `
+  --expert "Digital Consciousness" `
+  --expert "Model Context Protocol" `
+  --text "Treat July 16, 2026 as the research cutoff." `
+  --url "https://modelcontextprotocol.io/specification/2025-11-25" `
+  --file ".\ROADMAP.md" `
+  --folder ".\docs\design" `
+  --input-root "." `
+  --local-model "qwen2.5:14b" `
+  --review-model "qwen3-coder:30b" `
+  --context-window-tokens 32768 `
+  --review-context-window-tokens 32768 `
+  --protocol deep `
+  --learning stage `
+  --budget-usd 0 `
+  --max-elapsed-seconds 7200 `
+  --out ".\investigation-plan.json"
+```
+
+Planning performs zero model calls and zero network requests. It expands and
+hashes root-confined file inputs, records URL requests without fetching them,
+freezes expert snapshots, and prints the exact worst-case calls, searches,
+pages, tokens, time, disk, data-egress classes, and cost. It does not prove that
+the selected Ollama models are installed or fast enough. Inspect the plan
+before execution.
+
+The context values are real per-request native Ollama limits, not descriptive
+metadata. Larger is not automatically better. Use the smallest value that
+fits the source material and leaves both selected models on the intended
+hardware. The runtime refuses a prompt before dispatch when the prompt plus
+maximum output cannot fit the hash-bound context.
+
+### Run, Observe, And Control It
+
+```powershell
+deepr expert investigate run .\investigation-plan.json -y
+
+# In another terminal, use the run id printed by plan or run.
+deepr expert investigate status <run-id>
+deepr expert investigate inspect <run-id>
+deepr expert investigate pause <run-id>
+deepr expert investigate resume <run-id>
+deepr expert investigate cancel <run-id>
+```
+
+`run` requires confirmation because it starts local model calls and public web
+retrieval. Pause and cancellation take effect before the next dispatch. Resume
+hash-checks completed artifacts and skips finished phases. Every phase and
+reservation is recorded below the configured reports root. Raw model reasoning
+is not requested or retained.
+
+The first release supports only `--capacity local --budget-usd 0`. A nonzero
+budget, plan-quota investigation, or API investigation fails before execution.
+The desired `$10` API form is one total ceiling across every expert, checker,
+synthesizer, retry, and learning call, not `$10` per expert. That form remains
+gated until every child call shares canonical reservation and settlement.
+
+### Understand The Result And Learning Labels
+
+`inspect` shows the answer, every expert's contribution or typed absence,
+disagreement, minority positions, uncertainty, next tests, the independent
+check, usage, and staged learning. A completed run still says
+`Semantic quality: unreviewed`. A local review model is a model-generated check,
+not a human review and not proof that the answer is excellent.
+
+With `--learning stage`, each expert receives its own compiler and verifier pass
+over that expert's retrieved source pack. Peer messages, consensus, synthesis
+prose, and private revisions cannot become factual evidence. One expert may
+receive ready writes while another produces a no-op or blocked result. This is
+the truthful meaning of "they all learn": every expert gets an independent
+chance to compile relevant evidence, but Deepr never forces a graph mutation.
+The model orders its candidates by usefulness. Deterministic form enforcement
+retains at most the first five per expert, records raw and dropped counts, and
+passes only that bounded set to the separate verifier. Extraction receives the
+target expert domain. The verifier model must independently judge each claim
+materially relevant to that domain, and deterministic code admits only a
+positive verdict. Word overlap never decides relevance. If relevance, support,
+deduplication, or temporal validity remains uncertain, the valid outcome is no
+write.
+
+Staging writes no expert state. Only an entry with a positive
+`ready_write_count` prints an `apply-graph-commit --dry-run` command. Inspect the
+envelope, run that preview, and then remove `--dry-run` with explicit
+confirmation only if the proposal should become canonical expert knowledge.
+Blocked and no-op entries never print an apply command.
+
+Run the `$0` structural contract evaluator separately:
+
+```powershell
+deepr eval investigation --json
+```
+
+It checks boundaries and artifact form, not answer meaning. Promotion still
+requires held-out comparisons against a strongest single expert, the one-shot
+consult, independent research, and the bounded discussion arm.
 
 ## Set A Hard Dollar Ceiling
 
@@ -277,14 +417,22 @@ verified expert state, which can reveal better questions. The verification and
 held-out evaluation steps are what distinguish this from recursive
 self-confirmation.
 
-## What Comes Next
+## What Remains Gated
 
-Live expert-to-expert deliberation should graduate only after the existing
-acceptance gates pass. For three experts, the accepted default protocol permits
-at most seven provider dispatches: three independent positions, at most three
-targeted challenges, and one evidence-seeking skeptic. A future paid runtime
-must reserve one parent ceiling, meter every dispatch, enforce aggregate token
-and context limits, support replay and resume, and keep all output proposal-only.
+The experimental local investigation now provides independent research, one
+targeted blinded exchange, optional private revision, checking, synthesis, and
+staged learning under a hash-bound `$0` envelope. That is still not a generic
+multi-agent chat runtime, a quality claim, or permission to run indefinitely.
+The structural evaluator and three live pilots do not establish superiority.
+One pilot exposed cross-domain negative transfer before any write was applied;
+the follow-up relevance-gated pilot safely produced zero writes when
+deduplication remained uncertain.
+
+Plan-quota investigation remains explicit-only future work. A paid runtime must
+reserve one parent ceiling, meter every dispatch, enforce aggregate token and
+context limits, support replay and resume, and keep all output proposal-only.
+Its requested `$10` must be the maximum for the whole run, not a per-expert or
+per-phase allowance. Automatic learning apply remains a separate later gate.
 
 This direction matches current evidence:
 

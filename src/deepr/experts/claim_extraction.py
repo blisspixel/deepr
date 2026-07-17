@@ -200,8 +200,14 @@ def build_claim_extraction_prompt(
     *,
     max_windows: int = DEFAULT_MAX_SOURCE_WINDOWS,
     max_chars_per_window: int = DEFAULT_MAX_CHARS_PER_WINDOW,
+    max_claims: int | None = None,
+    target_domain: str | None = None,
 ) -> ClaimExtractionPrompt:
     """Build bounded messages for source-note semantic claim extraction."""
+    if max_claims is not None and (
+        isinstance(max_claims, bool) or not isinstance(max_claims, int) or not 1 <= max_claims <= 100
+    ):
+        raise ClaimExtractionBlocked("max_claims must be an integer from 1 to 100")
     windows = _source_windows(
         source_notes,
         source_pack_payload,
@@ -235,6 +241,22 @@ def build_claim_extraction_prompt(
             )
         )
 
+    claim_limit = (
+        f"- Return at most {max_claims} claims, ordered from highest to lowest priority. "
+        "The runtime retains only the first claims when enforcing this form limit.\n"
+        if max_claims is not None
+        else ""
+    )
+    target_domain_text = str(target_domain or "").strip()
+    target_domain_block = ""
+    target_domain_rule = ""
+    if target_domain_text:
+        sanitized_domain = sanitize_untrusted_content(target_domain_text, source_label="target expert domain")
+        target_domain_block = f"TARGET_EXPERT_DOMAIN\n{sanitized_domain.delimited}\n\n"
+        target_domain_rule = (
+            "- Include only claims materially relevant to the target expert domain. "
+            "Do not copy general facts merely because they appear in a shared source.\n"
+        )
     user = (
         "Return a JSON object with exactly this shape:\n"
         '{"claims":[{"statement":str,"claim_kind":str,"confidence":number,'
@@ -248,7 +270,11 @@ def build_claim_extraction_prompt(
         "- Cite every claim with source_refs that use the exact note_id and window_id values above.\n"
         "- quote should be a short supporting excerpt from the cited window.\n"
         "- Use confidence for source support, not global truth.\n"
-        '- If no useful verifier-pending claims exist, return {"claims":[]}.\n\n' + "\n\n".join(blocks)
+        + target_domain_rule
+        + claim_limit
+        + '- If no useful verifier-pending claims exist, return {"claims":[]}.\n\n'
+        + target_domain_block
+        + "\n\n".join(blocks)
     )
     messages = [{"role": "system", "content": system}, {"role": "user", "content": user}]
     return ClaimExtractionPrompt(

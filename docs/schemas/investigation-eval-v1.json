@@ -1,0 +1,122 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/blisspixel/deepr/docs/schemas/investigation-eval-v1.json",
+  "title": "Deepr Investigation Evaluation v1",
+  "description": "Zero-cost structural evaluation for evidence-first expert investigations. Semantic quality remains explicitly unreviewed.",
+  "type": "object",
+  "additionalProperties": true,
+  "required": [
+    "schema_version",
+    "kind",
+    "suite_name",
+    "methodology_version",
+    "research_cutoff",
+    "cost_usd",
+    "semantic_review_status",
+    "quality_claim",
+    "contract",
+    "comparison_arms",
+    "metrics_to_collect_live",
+    "total_cases",
+    "passed_cases",
+    "failed_cases",
+    "score",
+    "outcomes",
+    "generated_at"
+  ],
+  "properties": {
+    "schema_version": {"const": "deepr-investigation-eval-v1"},
+    "kind": {"const": "deepr.eval.investigation"},
+    "suite_name": {"type": "string", "minLength": 1},
+    "methodology_version": {"type": "string", "minLength": 1},
+    "research_cutoff": {"type": "string", "format": "date"},
+    "cost_usd": {"const": 0.0},
+    "semantic_review_status": {"const": "unreviewed"},
+    "quality_claim": {"const": false},
+    "contract": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": [
+        "execution_mode",
+        "provider_calls",
+        "network_access",
+        "expert_store_reads",
+        "writes_expert_state",
+        "writes_graph",
+        "report_write_requires_opt_in",
+        "semantic_verdict"
+      ],
+      "properties": {
+        "execution_mode": {"const": "frozen_fixture"},
+        "provider_calls": {"const": 0},
+        "network_access": {"const": false},
+        "expert_store_reads": {"const": 0},
+        "writes_expert_state": {"const": false},
+        "writes_graph": {"const": false},
+        "report_write_requires_opt_in": {"const": true},
+        "semantic_verdict": {"const": false}
+      }
+    },
+    "comparison_arms": {
+      "type": "array",
+      "minItems": 6,
+      "maxItems": 6,
+      "items": {
+        "type": "object",
+        "additionalProperties": true,
+        "required": [
+          "arm_id",
+          "description",
+          "expert_count",
+          "maximum_generation_calls",
+          "discussion_rounds",
+          "learning_mode",
+          "execution_status",
+          "cost_usd",
+          "semantic_quality_measured"
+        ],
+        "properties": {
+          "arm_id": {"type": "string", "minLength": 1},
+          "description": {"type": "string", "minLength": 1},
+          "expert_count": {"type": "integer", "minimum": 0},
+          "maximum_generation_calls": {"type": "integer", "minimum": 0},
+          "discussion_rounds": {"type": "integer", "minimum": 0, "maximum": 1},
+          "learning_mode": {"enum": ["off", "stage"]},
+          "execution_status": {
+            "enum": ["frozen_shape_only", "disabled_without_explicit_paid_eval"]
+          },
+          "cost_usd": {"const": 0.0},
+          "semantic_quality_measured": {"const": false}
+        }
+      }
+    },
+    "metrics_to_collect_live": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": {"type": "string", "minLength": 1}
+    },
+    "total_cases": {"type": "integer", "minimum": 1},
+    "passed_cases": {"type": "integer", "minimum": 0},
+    "failed_cases": {"type": "integer", "minimum": 0},
+    "score": {"type": "number", "minimum": 0.0, "maximum": 1.0},
+    "outcomes": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": true,
+        "required": ["case_id", "category", "passed", "failed", "semantic_verdict", "detail"],
+        "properties": {
+          "case_id": {"type": "string", "minLength": 1},
+          "category": {"type": "string", "minLength": 1},
+          "passed": {"type": "boolean"},
+          "failed": {"type": "boolean"},
+          "semantic_verdict": {"const": false},
+          "detail": {"type": "object"}
+        }
+      }
+    },
+    "generated_at": {"type": "string", "format": "date-time"}
+  }
+}

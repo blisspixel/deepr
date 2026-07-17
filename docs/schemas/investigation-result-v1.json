@@ -1,0 +1,61 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/blisspixel/deepr/docs/schemas/investigation-result-v1.json",
+  "title": "Deepr Investigation Result v1",
+  "type": "object",
+  "additionalProperties": true,
+  "required": ["schema_version", "kind", "question", "answer", "expert_contributions", "claims", "agreements", "disagreements", "minority_positions", "uncertainties", "open_gaps", "next_tests", "semantic_review_status", "quality_claim", "synthesis_audit", "generated_at", "content_sha256"],
+  "properties": {
+    "schema_version": {"const": "deepr-investigation-result-v1"},
+    "kind": {"const": "deepr.expert.investigation_result"},
+    "question": {"type": "string", "minLength": 1},
+    "answer": {"type": "string", "minLength": 1},
+    "expert_contributions": {
+      "type": "array",
+      "maxItems": 5,
+      "items": {
+        "type": "object",
+        "required": ["expert_name", "status", "contribution", "reason", "source_refs", "invalid_source_refs"],
+        "properties": {
+          "expert_name": {"type": "string", "minLength": 1},
+          "status": {"enum": ["retained", "qualified", "rejected", "abstained", "missing"]},
+          "contribution": {"type": "string"},
+          "reason": {"type": "string"},
+          "source_refs": {"type": "array", "items": {"type": "string"}},
+          "invalid_source_refs": {"type": "array", "items": {"type": "string"}}
+        },
+        "additionalProperties": true
+      }
+    },
+    "claims": {"type": "array", "maxItems": 12, "items": {"type": "object"}},
+    "agreements": {"type": "array", "items": {"type": "string"}},
+    "disagreements": {"type": "array", "items": {"type": "string"}},
+    "minority_positions": {"type": "array", "items": {"type": "string"}},
+    "uncertainties": {"type": "array", "items": {"type": "string"}},
+    "open_gaps": {"type": "array", "items": {"type": "string"}},
+    "next_tests": {"type": "array", "items": {"type": "string"}},
+    "semantic_review_status": {"const": "unreviewed"},
+    "quality_claim": {"const": false},
+    "synthesis_audit": {
+      "type": "object",
+      "required": ["expected_experts", "reported_experts", "missing_experts", "duplicate_experts"],
+      "properties": {
+        "expected_experts": {"type": "array", "items": {"type": "string"}},
+        "reported_experts": {"type": "array", "items": {"type": "string"}},
+        "missing_experts": {"type": "array", "items": {"type": "string"}},
+        "duplicate_experts": {"type": "array", "items": {"type": "string"}}
+      },
+      "additionalProperties": false
+    },
+    "contract": {
+      "type": "object",
+      "properties": {
+        "writes_expert_state": {"const": false},
+        "human_reviewed": {"const": false}
+      },
+      "additionalProperties": true
+    },
+    "generated_at": {"type": "string", "format": "date-time"},
+    "content_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"}
+  }
+}

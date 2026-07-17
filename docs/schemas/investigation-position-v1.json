@@ -1,0 +1,38 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/blisspixel/deepr/docs/schemas/investigation-position-v1.json",
+  "title": "Deepr Investigation Position v1",
+  "type": "object",
+  "additionalProperties": true,
+  "required": ["schema_version", "kind", "phase", "expert_name", "answer", "abstained", "claims", "assumptions", "unknowns", "form_warnings", "generated_at", "content_sha256"],
+  "properties": {
+    "schema_version": {"const": "deepr-investigation-position-v1"},
+    "kind": {"const": "deepr.expert.investigation_position"},
+    "phase": {"enum": ["position", "revision"]},
+    "expert_name": {"type": "string", "minLength": 1},
+    "answer": {"type": "string", "minLength": 1},
+    "abstained": {"type": "boolean"},
+    "claims": {"type": "array", "maxItems": 8, "items": {"$ref": "#/$defs/claim"}},
+    "assumptions": {"type": "array", "items": {"type": "string"}},
+    "unknowns": {"type": "array", "items": {"type": "string"}},
+    "form_warnings": {"type": "array", "items": {"type": "string"}},
+    "generated_at": {"type": "string", "format": "date-time"},
+    "content_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"}
+  },
+  "$defs": {
+    "claim": {
+      "type": "object",
+      "required": ["claim_id", "text", "basis", "source_refs", "invalid_source_refs", "lineage_status", "confidence"],
+      "properties": {
+        "claim_id": {"type": "string", "minLength": 1},
+        "text": {"type": "string", "minLength": 1},
+        "basis": {"enum": ["external_source", "caller_input", "expert_snapshot", "inference", "mixed"]},
+        "source_refs": {"type": "array", "items": {"type": "string"}},
+        "invalid_source_refs": {"type": "array", "items": {"type": "string"}},
+        "lineage_status": {"enum": ["recorded", "missing_valid_source_ref", "basis_reference_class_mismatch"]},
+        "confidence": {"type": "number", "minimum": 0, "maximum": 1}
+      },
+      "additionalProperties": true
+    }
+  }
+}

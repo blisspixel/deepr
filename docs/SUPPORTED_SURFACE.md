@@ -162,7 +162,23 @@ must not be described as usable capacity.
   or graph write authority. API mode reserves the complete transaction ceiling
   while its only metered synthesis call has a 10 percent sub-ceiling. CLI
   `--output` explicitly saves the full artifact; no separate full artifact path
-  is written by default. CLI and MCP consults append local
+  is written by default.
+  Experimental CLI `deepr expert investigate` is a distinct local-only
+  surface. It performs independent free-web research, records one position per
+  explicit expert, permits one blinded targeted challenge in `discuss` or
+  `deep` mode, optionally revises privately, then checks and synthesizes. Its
+  hash-bound plan owns aggregate call, search, page, prompt, output, context,
+  elapsed, disk, and `$0` cost ceilings. It supports durable status, inspect,
+  pause, resume, and cancel operations with no provider fallback.
+  Optional `--learning stage` builds separate source-only verified graph commit
+  envelopes after synthesis. Each compiler retains at most five ordered
+  candidates before separate verification. Extraction receives the target
+  expert domain, and deterministic code requires a positive material relevance
+  verdict from the verifier model before commit compilation. It never writes
+  expert state automatically and never treats peer or synthesis text as
+  evidence. Completed results remain semantically unreviewed. Plan-quota, API,
+  MCP, A2A, and automatic-apply investigation surfaces are not shipped.
+  CLI and MCP consults append local
   `deepr-consult-trace-v1` records with selected context metadata, checks run,
   capacity posture, and synthesis failure events. Before cancellable local
   discovery or backend dispatch they open a separate append-only
@@ -211,9 +227,9 @@ must not be described as usable capacity.
   preservation, typed stops, provider-call ceilings, proposal-only authority,
   the default evidence-seeking skeptic, inert adversarial text, and the no-write
   and no-fallback boundaries. It makes no semantic verdict and reports semantic
-  review as `unreviewed`. Synthesis is reserved for future explicit deep mode.
-  No live multi-round CLI, MCP, or A2A surface is shipped; it remains gated on
-  measured provider-call token and context enforcement.
+  review as `unreviewed`. This evaluator does not enable a generic deliberation
+  runtime. The separate experimental local CLI investigation has its own
+  bounded contract; remote multi-expert CLI, MCP, and A2A chat remains gated.
 - `deepr eval conversation` emits `deepr-conversation-eval-v1` from twelve
   built-in frozen-fixture checks at `$0`. The five conversation contracts and
   evaluator report cover protocol-neutral identity, optimistic concurrency,

@@ -54,7 +54,9 @@
         "claim_extraction_schema_version": {"type": "string"},
         "claim_extraction_kind": {"type": "string"},
         "candidate_count": {"type": "integer", "minimum": 0},
-        "ready_candidate_count": {"type": "integer", "minimum": 0}
+        "ready_candidate_count": {"type": "integer", "minimum": 0},
+        "required_domain": {"type": "string"},
+        "domain_relevance_required": {"type": "boolean"}
       }
     },
     "prompt": {
@@ -138,7 +140,10 @@
               "support": {"enum": ["supported", "refuted", "insufficient", "not_applicable", "unverified"]},
               "contradiction": {"enum": ["none", "possible", "contradiction", "unverified"]},
               "deduplication": {"enum": ["new", "same_as_existing", "uncertain", "unverified"]},
-              "temporal_scope": {"enum": ["valid", "unclear", "outdated", "not_applicable"]}
+              "temporal_scope": {"enum": ["valid", "unclear", "outdated", "not_applicable"]},
+              "domain_relevance": {
+                "enum": ["relevant", "peripheral", "irrelevant", "uncertain", "not_evaluated"]
+              }
             }
           },
           "model_judgment": {"type": "object", "additionalProperties": true},

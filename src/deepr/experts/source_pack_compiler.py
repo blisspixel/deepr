@@ -54,6 +54,7 @@ _SUPPORT_VERDICTS = {"supported", "refuted", "insufficient", "not_applicable", "
 _CONTRADICTION_VERDICTS = {"none", "possible", "contradiction", "unverified"}
 _DEDUP_VERDICTS = {"new", "same_as_existing", "uncertain", "unverified"}
 _TEMPORAL_VERDICTS = {"valid", "unclear", "outdated", "not_applicable"}
+_DOMAIN_RELEVANCE_VERDICTS = {"relevant", "peripheral", "irrelevant", "uncertain", "not_evaluated"}
 _EDGE_TYPES = set(EDGE_TYPES)
 
 
@@ -352,6 +353,11 @@ def _verification_verdicts(item: dict[str, Any]) -> dict[str, str]:
         "contradiction": _enum_value(item.get("contradiction_verdict"), _CONTRADICTION_VERDICTS, default="unverified"),
         "deduplication": _enum_value(item.get("dedup_verdict"), _DEDUP_VERDICTS, default="unverified"),
         "temporal_scope": _enum_value(item.get("temporal_scope_verdict"), _TEMPORAL_VERDICTS, default="unclear"),
+        "domain_relevance": _enum_value(
+            item.get("domain_relevance_verdict"),
+            _DOMAIN_RELEVANCE_VERDICTS,
+            default="not_evaluated",
+        ),
     }
 
 
@@ -360,6 +366,7 @@ def _verification_model_judgment(item: dict[str, Any]) -> dict[str, Any]:
         "confidence": _float_0_1(item.get("confidence")),
         "rationale": _string_field(item, "rationale"),
         "support_summary": _string_field(item, "support_summary"),
+        "domain_relevance_rationale": _string_field(item, "domain_relevance_rationale"),
         "origin": _string_field(item, "origin"),
         "uncertainty": _string_field(item, "uncertainty"),
         "expected_observations": _string_list_field(item, "expected_observations"),
@@ -396,6 +403,8 @@ def _policy_verification_failures(
     policy: dict[str, Any],
     verdicts: dict[str, str],
     model_judgment: dict[str, Any],
+    *,
+    required_domain: str,
 ) -> list[str]:
     failure_reasons: list[str] = []
     if policy.get("requires_external_support") and verdicts["support"] != "supported":
@@ -410,6 +419,14 @@ def _policy_verification_failures(
         failure_reasons.append("duplicate_existing_belief")
     if verdicts["temporal_scope"] == "outdated":
         failure_reasons.append("temporal_scope_rejected")
+    if required_domain and verdicts["domain_relevance"] != "relevant":
+        failure_reasons.append("domain_relevance_not_verified")
+    if (
+        required_domain
+        and verdicts["domain_relevance"] == "relevant"
+        and not model_judgment["domain_relevance_rationale"]
+    ):
+        failure_reasons.append("missing_domain_relevance_rationale")
     return failure_reasons + _idea_policy_failures(policy, model_judgment)
 
 
@@ -455,6 +472,7 @@ def _verification_decision(
     *,
     candidates_by_id: dict[str, dict[str, Any]],
     recall_candidates_by_candidate_id: Mapping[str, Iterable[Any]],
+    required_domain: str,
 ) -> dict[str, Any]:
     candidate_id = str(item.get("candidate_id", "") or "").strip()
     candidate = candidates_by_id.get(candidate_id)
@@ -468,7 +486,14 @@ def _verification_decision(
         edge_types=_EDGE_TYPES,
     )
     failure_reasons = _candidate_verification_failures(candidate_id, candidate)
-    failure_reasons.extend(_policy_verification_failures(policy, verdicts, model_judgment))
+    failure_reasons.extend(
+        _policy_verification_failures(
+            policy,
+            verdicts,
+            model_judgment,
+            required_domain=required_domain,
+        )
+    )
     failure_reasons = sorted(set(failure_reasons))
     ready = bool(candidate is not None and not failure_reasons)
     recall_context = _recall.build_recall_context(recall_candidates_by_candidate_id.get(candidate_id, []))
@@ -664,6 +689,7 @@ def build_semantic_claim_extraction(
     prompt_text: str = "",
     prompt_hash: str = "",
     generated_at: str = "",
+    max_candidates: int | None = None,
 ) -> dict[str, Any]:
     """Compile model claim output into a verifier-gated candidate envelope.
 
@@ -673,12 +699,16 @@ def build_semantic_claim_extraction(
     contradiction, deduplication, novelty, and temporal interpretation remain
     downstream model-verifier work.
     """
+    if max_candidates is not None and (
+        isinstance(max_candidates, bool) or not isinstance(max_candidates, int) or not 1 <= max_candidates <= 100
+    ):
+        raise ValueError("max_candidates must be an integer from 1 to 100")
     parsed, raw_response_hash, response_failure = _response_from_model_output(model_output)
     response_failure = response_failure or _claim_response_shape_failure(parsed)
     notes, windows_by_note = _note_index(source_notes)
-    candidates = [
-        _claim_candidate(item, notes=notes, windows_by_note=windows_by_note) for item in _raw_claim_items(parsed)
-    ]
+    raw_claim_items = _raw_claim_items(parsed)
+    retained_claim_items = raw_claim_items[:max_candidates] if max_candidates is not None else raw_claim_items
+    candidates = [_claim_candidate(item, notes=notes, windows_by_note=windows_by_note) for item in retained_claim_items]
     ready_count = sum(1 for candidate in candidates if candidate["readiness"]["ready_for_verification"])
     invalid_ref_count = sum(candidate["readiness"]["invalid_source_ref_count"] for candidate in candidates)
     failure_reasons = sorted(
@@ -733,7 +763,11 @@ def build_semantic_claim_extraction(
         },
         "summary": {
             "status": status,
+            "raw_candidate_count": len(raw_claim_items),
             "parsed_candidate_count": len(candidates),
+            "candidate_limit": max_candidates,
+            "candidate_limit_applied": max_candidates is not None and len(raw_claim_items) > max_candidates,
+            "dropped_candidate_count": len(raw_claim_items) - len(candidates),
             "ready_for_verification_count": ready_count,
             "blocked_candidate_count": len(candidates) - ready_count,
             "invalid_source_ref_count": invalid_ref_count,
@@ -773,6 +807,7 @@ def build_claim_verification(
     recall_query_embeddings_by_candidate_id: Mapping[str, Sequence[float]] | None = None,
     recall_embedding_model: str | None = None,
     recall_route_preference: Mapping[str, Any] | None = None,
+    required_domain: str = "",
 ) -> dict[str, Any]:
     """Compile verifier output into graph-commit readiness decisions.
 
@@ -799,6 +834,7 @@ def build_claim_verification(
             item,
             candidates_by_id=candidates_by_id,
             recall_candidates_by_candidate_id=recall_candidates_by_candidate_id,
+            required_domain=required_domain.strip(),
         )
         for item in _raw_verification_items(parsed)
     ]
@@ -836,6 +872,8 @@ def build_claim_verification(
             "ready_candidate_count": _int_or_zero(
                 (claim_extraction.get("summary", {}) or {}).get("ready_for_verification_count")
             ),
+            "required_domain": required_domain.strip(),
+            "domain_relevance_required": bool(required_domain.strip()),
         },
         "prompt": {
             "prompt_version": prompt_version,

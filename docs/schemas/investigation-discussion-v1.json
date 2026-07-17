@@ -1,0 +1,22 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/blisspixel/deepr/docs/schemas/investigation-discussion-v1.json",
+  "title": "Deepr Investigation Discussion v1",
+  "type": "object",
+  "additionalProperties": true,
+  "required": ["schema_version", "kind", "expert_name", "selected_peer_alias", "crux", "response", "stance", "source_refs", "new_evidence", "unresolved", "generated_at", "content_sha256"],
+  "properties": {
+    "schema_version": {"const": "deepr-investigation-discussion-v1"},
+    "kind": {"const": "deepr.expert.investigation_discussion"},
+    "expert_name": {"type": "string", "minLength": 1},
+    "selected_peer_alias": {"type": "string"},
+    "crux": {"type": "string"},
+    "response": {"type": "string"},
+    "stance": {"enum": ["retain", "revise", "narrow", "withdraw", "abstain"]},
+    "source_refs": {"type": "array", "items": {"type": "string"}},
+    "new_evidence": {"type": "boolean"},
+    "unresolved": {"type": "array", "items": {"type": "string"}},
+    "generated_at": {"type": "string", "format": "date-time"},
+    "content_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"}
+  }
+}
