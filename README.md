@@ -365,9 +365,10 @@ capacity, and proposal-only advice. It publishes a repeated-one-shot structural
 comparison manifest but does not claim that multi-turn answers are semantically
 better. The protocol-neutral SQLite core now passes restart, concurrency,
 deletion, recovery, property, schema, and injected-executor tests without a
-model. MCP start, continue, inspect, and close tools remain gated on the Stage 2
-local Ollama adapter, per-request authorization, LAN validation, and held-out
-quality comparison.
+model. MCP start, continue, inspect, and close now ship for the explicit local
+Ollama path with per-request authorization and loopback or authenticated HTTP
+validation. A held-out comparison remains required before claiming that this
+multi-turn path is semantically better than repeated one-shot queries.
 
 `deepr eval deliberation` is the `$0`, frozen-fixture gate for future
 expert-to-expert discussion. Its eleven checks cover bounded round lineage,
@@ -447,6 +448,14 @@ Live expert-to-expert rounds and a long-running A2A service remain gated on
 held-out quality, aggregate token and context enforcement, replay, resume, and
 A2A conformance. See
 [remote-expert-conversations.md](docs/design/remote-expert-conversations.md).
+
+A deeper evidence-first investigation that accepts a topic plus inline text,
+URLs, files, and folders is planned but not shipped. The accepted plan freezes
+each expert, performs independent research first, allows at most one targeted
+cross-examination round, checks and synthesizes with preserved dissent, and
+stages only source-verified learning. One parent envelope covers the entire
+roster, so a `$10` limit means `$10` total. See
+[evidence-first-expert-investigations.md](docs/design/evidence-first-expert-investigations.md).
 
 ```bash
 deepr mcp serve

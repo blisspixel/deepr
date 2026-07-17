@@ -1015,8 +1015,9 @@ What exists (current main):
   "For the consuming agent" guide and a LAN-access recipe validated end to end
   (LAN-IP endpoint + token passes; without the token every real call is
   Unauthorized).
-- [ ] Durable expert conversations over MCP first, then A2A: consult and query
-  are one-shot today. The accepted design uses a server-generated opaque
+- [ ] Durable expert conversations over MCP first, then A2A: the local Ollama
+  MCP path now ships as an explicit opt-in; consult and query remain the simple
+  one-shot defaults. The accepted design uses a server-generated opaque
   application handle, one serialized and idempotent turn at a time, frozen
   expert snapshots, bounded recent context, a derived decision ledger, finite
   transcript retention, nested capacity ceilings, and typed stops. It never
@@ -1029,18 +1030,17 @@ What exists (current main):
     structural checks, five versioned conversation contracts, a versioned
     evaluator report, and a repeated-one-shot structural comparison manifest.
     Semantic quality remains unreviewed; a held-out repeated-one-shot quality
-    comparison remains the Stage 2 release gate before live tools are called
-    usable.
+    comparison remains the gate before claiming that multi-turn conversation
+    is better than the simpler one-shot path.
   - [x] Added the protocol-neutral SQLite event/projection store on 2026-07-15,
     with ownership,
     idempotency, optimistic concurrency, restart recovery, retention, deletion,
     frozen context snapshots, bounded exact replay, conservative ambiguous-call
     accounting, late-result rejection, projection repair, and injected
-    fake-executor and property tests. This is an internal core, not a live MCP
-    multi-turn surface.
-  - [ ] Add MCP start, continue, inspect, and close tools for local Ollama only,
-    plus authenticated loopback and LAN `validate-conversation` coverage. No
-    metered fallback.
+    fake-executor and property tests.
+  - [x] Added MCP start, continue, inspect, and close tools for local Ollama only
+    on 2026-07-16, plus managed loopback and authenticated HTTP
+    `validate-conversation` coverage. No metered fallback.
   - [ ] Add explicit plan-quota capacity only after it inherits the same parent
     ceilings and existing auth-mode and process-ownership gates.
   - [ ] Map the shared core to A2A `contextId` only after the A2A 1.0 and durable
@@ -1055,11 +1055,12 @@ What exists (current main):
   advertises `deepr_consult_experts` and the adapter attaches the complete
   council artifact. This is not a shipped A2A network service or A2A 1.0
   conformance claim.
-- [ ] Deep fan-out ("heavy") mode: optionally let each fanned-out expert run its
-  own bounded agentic loop (gap check -> cheapest-capacity research -> verified
-  absorb) before contributing, then judge and synthesize - the Grok-Heavy
-  pattern. Admitted only where verification is automated and budget/capacity is
-  explicit (the loop-admission gates), defaulting to owned/prepaid capacity.
+- [ ] Evidence-first investigation ("heavy") mode: let each selected expert
+  research independently before one bounded, blinded crux exchange, checker,
+  and synthesis. Verified learning happens after the answer and never absorbs
+  dialogue as evidence. The detailed input, capacity, call-count, durability,
+  evaluation, and rollout contract is tracked in Phase 4c and
+  [evidence-first-expert-investigations.md](docs/design/evidence-first-expert-investigations.md).
 - [ ] Self-consultation loop (dogfooding flywheel): Deepr's own maintenance
   consults its own roster. A code, doc, or roadmap change consults the relevant
   experts (e.g. model_context_protocol, plan-quota_capacity,
@@ -1070,11 +1071,12 @@ What exists (current main):
   itself. Self-consultation informs; it never auto-merges, and spend stays on
   owned/prepaid capacity by default.
 
-Honesty: off-box MCP consultation is experimental until live third-party host
-registration is validated. The durable protocol-neutral conversation core is
-internal; MCP multi-turn consultation and an A2A network service are not
-shipped. Deep fan-out must clear the loop-admission gates before it ever
-auto-routes.
+Honesty: local Ollama multi-turn consultation ships through explicit MCP
+conversation handles. Off-box MCP consultation remains experimental until live
+third-party host registration is validated, and an A2A network service is not
+shipped. Evidence-first investigation must clear its held-out quality,
+durability, memory-safety, and parent-envelope gates before live multi-expert
+research or learning is described as shipped.
 
 ### Phase 2b: First-Party Tool Integrations
 
@@ -1514,6 +1516,56 @@ regression, stop. Only then may a secondary comparison test smaller models.
       use reviewed decision usefulness and downstream verification results, not
       synthetic agreement, as the feedback signal. This is descriptive until
       held-out evidence justifies a routing or prompt change.
+
+**Evidence-first expert investigation.** The accepted direction for a deeper
+surface is a durable investigation, not a general chat or peer-to-peer swarm.
+The caller supplies a question or topic, an explicit roster, optional inline
+text, URLs, files, and folders, and one total capacity envelope. Experts freeze
+their state and research independently before at most one blinded, targeted
+crux exchange. A separate checker and synthesizer preserve source lineage,
+uncertainty, and dissent. Optional learning happens afterward through the
+existing source-pack verifier and graph commit boundary. Research current
+through 2026-07-16, the exact call formula, `$0` and `$10` semantics, contracts,
+threat model, evaluation arms, and delivery order are in
+[evidence-first-expert-investigations.md](docs/design/evidence-first-expert-investigations.md).
+
+- [x] **Research and design contract:** on 2026-07-17, documented the current
+      multi-agent and deep-research evidence, input bundle, one parent envelope,
+      bounded protocol, truthful learning labels, durability model, threat
+      model, and staged release gates. This is a design completion, not a
+      shipped execution claim.
+- [ ] **Stage 0, `$0` contracts and comparison evaluator:** add frozen brief,
+      input-bundle, plan, charter, position, crux, check, synthesis, and learning
+      manifest contracts to the existing consult/deliberation eval spine.
+      Compare one expert, stored-packet consult, independent research,
+      targeted discussion, and later-learning arms under matched resources.
+- [ ] **Stage 1, zero-call input preview:** manifest and hash inline text, URLs,
+      files, and root-confined folder expansions; report typed exclusions and
+      exact generation/search/page/byte/token/time/dollar ceilings. Preview does
+      not fetch URLs or invoke models unless separately requested.
+- [ ] **Stage 2, local read-only investigation:** compose frozen expert
+      snapshots, free-only retrieval, source packs, local generation, an
+      independent checker, and evidence-linked synthesis. No discussion,
+      metered fallback, or knowledge writes.
+- [ ] **Stage 3, local bounded discussion:** add stable blinded peer aliases,
+      one targeted cross-examination round, optional private revision only after
+      measured need, and durable pause/resume/cancel/replay with exact parent
+      ceilings.
+- [ ] **Stage 4, staged per-expert learning:** reuse claim extraction,
+      independent verification, and graph commit envelopes. Dialogue is never
+      factual evidence; partial per-expert outcomes resume idempotently;
+      automatic verifier acceptance is never labeled human-reviewed.
+- [ ] **Stage 5, explicit plan-quota capacity:** bind the exact plan id and
+      process attempts to one parent call/token/context/time envelope. Keep
+      execution explicit-only and state that Deepr cannot prove vendor quota or
+      billing treatment.
+- [ ] **Stage 6, metered API and automatic-apply gates:** reserve and settle
+      every child call beneath one total ceiling, including a `$10` maximum.
+      Consider verifier-only automatic apply separately, only after held-out
+      longitudinal benefit, memory-poisoning, and negative-transfer gates pass.
+- [ ] **Stage 7, remote surfaces:** expose the stable investigation lifecycle
+      over scoped MCP and later A2A only after the CLI and local acceptance gates
+      pass. Remote conversation handles do not become investigation authority.
 
 **Named-crew gate.** Do not schedule a generic crew runtime. Reconsider a
 versioned crew manifest only when reviewed traces show that the same bounded
