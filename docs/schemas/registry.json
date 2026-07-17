@@ -39,6 +39,62 @@
       "compatibility": "additive-within-v1"
     },
     {
+      "name": "expert-blueprint-draft",
+      "schema_version": "deepr-expert-blueprint-draft-v1",
+      "kind": "deepr.expert.blueprint_draft",
+      "path": "expert-blueprint-draft-v1.json",
+      "status": "experimental",
+      "compatibility": "additive-within-v1"
+    },
+    {
+      "name": "expert-blueprint-preflight",
+      "schema_version": "deepr-expert-blueprint-preflight-v1",
+      "kind": "deepr.expert.blueprint_preflight",
+      "path": "expert-blueprint-preflight-v1.json",
+      "status": "experimental",
+      "compatibility": "additive-within-v1"
+    },
+    {
+      "name": "expert-blueprint",
+      "schema_version": "deepr-expert-blueprint-v1",
+      "kind": "deepr.expert.blueprint",
+      "path": "expert-blueprint-v1.json",
+      "status": "experimental",
+      "compatibility": "additive-within-v1"
+    },
+    {
+      "name": "expert-outcome",
+      "schema_version": "deepr-expert-outcome-v1",
+      "kind": "deepr.expert.outcome",
+      "path": "expert-outcome-v1.json",
+      "status": "experimental",
+      "compatibility": "additive-within-v1"
+    },
+    {
+      "name": "expert-outcome-summary",
+      "schema_version": "deepr-expert-outcome-summary-v1",
+      "kind": "deepr.expert.outcome_summary",
+      "path": "expert-outcome-summary-v1.json",
+      "status": "experimental",
+      "compatibility": "additive-within-v1"
+    },
+    {
+      "name": "expert-value-review",
+      "schema_version": "deepr-expert-value-review-v1",
+      "kind": "deepr.eval.expert_value_review",
+      "path": "expert-value-review-v1.json",
+      "status": "experimental",
+      "compatibility": "additive-within-v1"
+    },
+    {
+      "name": "expert-value-report",
+      "schema_version": "deepr-expert-value-report-v1",
+      "kind": "deepr.eval.expert_value_report",
+      "path": "expert-value-report-v1.json",
+      "status": "experimental",
+      "compatibility": "additive-within-v1"
+    },
+    {
       "name": "expert-mutation-audit",
       "schema_version": "deepr-expert-mutation-audit-v1",
       "kind": "deepr.expert.mutation_audit",

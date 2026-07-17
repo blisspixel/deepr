@@ -44,6 +44,10 @@ def test_consult_machine_contracts_preserve_sub_tenth_cent_costs_exactly():
     assert payload["cost_usd"] == 0.000045
     assert payload["contract"]["cost_usd"] == 0.000045
     assert payload["collaboration"]["budget_capacity_contract"]["actual_cost_usd"] == 0.000045
+    assert payload["contract"]["expert_generation_calls"] == 0
+    assert payload["contract"]["experts_exchange_turns"] is False
+    assert payload["collaboration"]["interaction"]["peer_turns"] == 0
+    assert payload["collaboration"]["learning_boundary"]["writes_graph"] is False
     assert payload["collaboration"]["roster"][0]["cost_usd"] == 0.000045
     assert collaboration["contract"]["cost_usd"] == 0.000045
 

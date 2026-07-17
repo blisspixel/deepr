@@ -149,7 +149,7 @@ deepr expert subscribe "Kubernetes Expert" "Kubernetes networking and managed se
 deepr expert sync "Kubernetes Expert" --local --fresh-context -y
 
 # 3. Consult stored state locally
-deepr expert consult "Should we self-host Kubernetes or use EKS/GKE?" --experts "Kubernetes Expert" --local
+deepr expert consult "Should we self-host Kubernetes or use EKS/GKE?" --expert "Kubernetes Expert" --local
 ```
 
 ### Total Cost
@@ -213,7 +213,7 @@ deepr expert make "Supply Chain Management" \
 ## Local Expert Consultation
 
 ```bash
-deepr expert consult "How should we handle OneLake security for multi-tenant SaaS?" --experts "Azure Fabric Expert" --local
+deepr expert consult "How should we handle OneLake security for multi-tenant SaaS?" --expert "Azure Fabric Expert" --local
 ```
 
 ### Example Conversation
@@ -280,7 +280,7 @@ job without hosted file context.
 
 ```bash
 deepr expert make "Roadmap Expert" --local --files "C:\Documents\q4-roadmap.pdf"
-deepr expert consult "Compare the roadmap with stored evidence" --experts "Roadmap Expert" --local
+deepr expert consult "Compare the roadmap with stored evidence" --expert "Roadmap Expert" --local
 ```
 
 ---

@@ -81,6 +81,7 @@ def _render_next_actions(payload: dict[str, Any]) -> None:
 @click.option("--json", "json_output", is_flag=True, help="Emit machine-readable JSON.")
 def expert_next(name: str, limit: int, json_output: bool) -> None:
     """Show the highest-value next actions for an expert at $0."""
+    from deepr.experts.blueprint import BlueprintStorageError, ExpertBlueprintStore
     from deepr.experts.loop_runs import ExpertLoopRunStore
     from deepr.utils.security import PathTraversalError
 
@@ -100,17 +101,21 @@ def expert_next(name: str, limit: int, json_output: bool) -> None:
 
     try:
         loop_runs = ExpertLoopRunStore(profile.name).list_runs(limit=20)
+        has_attested_blueprint = ExpertBlueprintStore().load_latest(profile.name) is not None
         payload = build_expert_next_actions(
             profile,
             profile.get_manifest(read_only=True, expert_dir=expert_dir),
             loop_runs=loop_runs,
             max_actions=limit,
+            has_attested_blueprint=has_attested_blueprint,
         )
     except ValueError as exc:
         raise click.BadParameter(str(exc), param_hint="--limit") from exc
     except PathTraversalError:
         print_error("Expert storage failed safety validation")
         raise click.Abort() from None
+    except BlueprintStorageError as exc:
+        raise click.ClickException(f"Could not load the expert blueprint: {exc}") from exc
     if json_output:
         click.echo(json.dumps(payload, indent=2, default=str))
         return

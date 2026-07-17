@@ -2,6 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://github.com/blisspixel/deepr/docs/schemas/consult-v1.json",
   "title": "Deepr Consult Artifact v1",
+  "description": "One-shot synthesis over independently selected stored expert-state packets. Current producers make zero expert-generation calls, allow no peer turns, perform at most one synthesis call, and write no expert, belief, or graph state.",
   "type": "object",
   "additionalProperties": true,
   "required": [
@@ -28,7 +29,15 @@
       "required": ["stability", "cost_usd"],
       "properties": {
         "stability": {"type": "string"},
-        "cost_usd": {"type": "number", "minimum": 0}
+        "cost_usd": {"type": "number", "minimum": 0},
+        "consultation_mode": {"const": "one_shot_stored_context_synthesis"},
+        "expert_generation_calls": {"const": 0},
+        "maximum_synthesis_calls": {"const": 1},
+        "experts_exchange_turns": {"const": false},
+        "proposal_only": {"const": true},
+        "writes_expert_state": {"const": false},
+        "writes_beliefs": {"const": false},
+        "writes_graph": {"const": false}
       }
     },
     "question": {"type": "string"},
@@ -141,9 +150,26 @@
           ],
           "properties": {
             "requested_budget_usd": {"type": "number", "minimum": 0},
+            "total_spend_ceiling_usd": {"type": "number", "minimum": 0},
             "actual_cost_usd": {"type": "number", "minimum": 0},
             "capacity": {"type": "object"},
-            "metered_fallback_allowed": {"type": "boolean"}
+            "metered_fallback_allowed": {"type": "boolean"},
+            "metered_perspective_calls_enabled": {"const": false},
+            "maximum_metered_perspective_calls": {"const": 0},
+            "maximum_synthesis_calls": {"const": 1},
+            "synthesis_budget_fraction": {"const": 0.1},
+            "metered_synthesis_ceiling_usd": {"type": "number", "minimum": 0}
+          }
+        },
+        "interaction": {
+          "type": "object",
+          "additionalProperties": true,
+          "properties": {
+            "mode": {"const": "one_shot_stored_context_synthesis"},
+            "expert_generation_calls": {"const": 0},
+            "peer_turns": {"const": 0},
+            "maximum_synthesis_calls": {"const": 1},
+            "experts_exchange_turns": {"const": false}
           }
         },
         "evidence_packet": {"type": "object"},
@@ -161,6 +187,18 @@
             "disagreements_field": {"const": "disagreements"},
             "dissent_preserved": {"const": true},
             "synthesis_is_not_truth_adjudication": {"const": true}
+          }
+        },
+        "learning_boundary": {
+          "type": "object",
+          "additionalProperties": true,
+          "properties": {
+            "proposal_only": {"const": true},
+            "discussion_is_evidence": {"const": false},
+            "writes_expert_state": {"const": false},
+            "writes_beliefs": {"const": false},
+            "writes_graph": {"const": false},
+            "verification_required_before_graph_commit": {"const": true}
           }
         },
         "result_artifact": {

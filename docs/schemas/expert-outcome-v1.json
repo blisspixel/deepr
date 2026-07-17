@@ -1,0 +1,94 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/blisspixel/deepr/docs/schemas/expert-outcome-v1.json",
+  "title": "Deepr Expert Outcome v1",
+  "description": "One immutable operator-attested observation about an expert-supported decision. Reviewer identity and human authorship are not independently verified.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "kind",
+    "outcome_id",
+    "content_hash",
+    "recorded_at",
+    "attested_at",
+    "expert_name",
+    "decision_id",
+    "decision_summary",
+    "result",
+    "observation",
+    "observed_at",
+    "attested_by",
+    "consult_trace_id",
+    "belief_ids",
+    "source_refs",
+    "evidence_refs",
+    "supersedes_outcome_id",
+    "contract"
+  ],
+  "properties": {
+    "schema_version": {"const": "deepr-expert-outcome-v1"},
+    "kind": {"const": "deepr.expert.outcome"},
+    "outcome_id": {"$ref": "#/$defs/identifier"},
+    "content_hash": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "recorded_at": {"type": "string", "format": "date-time"},
+    "attested_at": {"type": "string", "format": "date-time"},
+    "expert_name": {"type": "string", "minLength": 1, "maxLength": 120},
+    "decision_id": {"$ref": "#/$defs/identifier"},
+    "decision_summary": {"type": "string", "minLength": 1, "maxLength": 4000},
+    "result": {"enum": ["succeeded", "mixed", "failed", "unresolved"]},
+    "observation": {"type": "string", "minLength": 1, "maxLength": 8000},
+    "observed_at": {"type": "string", "format": "date-time"},
+    "attested_by": {"type": "string", "minLength": 1, "maxLength": 200},
+    "consult_trace_id": {"oneOf": [{"$ref": "#/$defs/identifier"}, {"type": "null"}]},
+    "belief_ids": {
+      "type": "array",
+      "maxItems": 100,
+      "uniqueItems": true,
+      "items": {"$ref": "#/$defs/identifier"}
+    },
+    "source_refs": {"$ref": "#/$defs/references"},
+    "evidence_refs": {"$ref": "#/$defs/references"},
+    "supersedes_outcome_id": {"oneOf": [{"$ref": "#/$defs/identifier"}, {"type": "null"}]},
+    "contract": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "operator_attested",
+        "human_authorship_claimed",
+        "reviewer_identity_verified",
+        "append_only",
+        "cost_usd",
+        "model_calls",
+        "automatic_learning",
+        "may_change_beliefs",
+        "may_change_routing",
+        "semantic_success_inferred"
+      ],
+      "properties": {
+        "operator_attested": {"const": true},
+        "human_authorship_claimed": {"const": false},
+        "reviewer_identity_verified": {"const": false},
+        "append_only": {"const": true},
+        "cost_usd": {"const": 0.0},
+        "model_calls": {"const": 0},
+        "automatic_learning": {"const": false},
+        "may_change_beliefs": {"const": false},
+        "may_change_routing": {"const": false},
+        "semantic_success_inferred": {"const": false}
+      }
+    }
+  },
+  "$defs": {
+    "identifier": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,119}$"
+    },
+    "references": {
+      "type": "array",
+      "maxItems": 100,
+      "uniqueItems": true,
+      "items": {"type": "string", "minLength": 1, "maxLength": 2000}
+    }
+  }
+}

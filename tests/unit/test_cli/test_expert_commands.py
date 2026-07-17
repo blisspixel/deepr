@@ -401,7 +401,7 @@ class TestExpertListCommand:
             assert "5" in output  # Documents count
             assert "10" in output  # Conversations count
             assert "incomplete - no verified knowledge yet" in output
-            assert 'deepr expert chat "<name>"' in output
+            assert 'deepr expert consult "your question" --expert "<name>" --local' in output
 
 
 class TestExpertInfoCommand:

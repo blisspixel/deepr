@@ -69,7 +69,7 @@ def verbs():
     table.add_column("Command", style="green")
     table.add_column("Description")
     table.add_row('deepr expert make "name"', "Create domain expert")
-    table.add_row('deepr expert chat "name"', "Chat with expert")
+    table.add_row('deepr expert consult "question" -e "name" --local', "Consult stored expert state at $0")
     table.add_row('deepr expert learn "name" "topic"', "Add knowledge to expert")
     table.add_row("deepr expert list", "List all experts")
     table.add_row('deepr expert info "name"', "Show expert details")

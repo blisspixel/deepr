@@ -43,7 +43,8 @@ def expert(ctx, list_flag):
       deepr expert list              List all experts
       deepr expert make "Name"       Create a new expert
       deepr expert info "Name"       Show expert details
-      deepr chat expert "Name"       Chat with an expert
+      deepr expert consult "question" -e "Name" --local
+                                      Consult stored expert state at $0
 
     EXAMPLES:
       # List all experts
@@ -56,8 +57,8 @@ def expert(ctx, list_flag):
       # Get expert details
       deepr expert info "Python Expert"
 
-      # Chat with expert
-      deepr chat expert "Python Expert" --message "What are decorators?"
+      # Consult stored expert state
+      deepr expert consult "What are decorators?" -e "Python Expert" --local
     """
     # If --list flag is used, invoke list command
     if list_flag:
@@ -626,7 +627,7 @@ def list_experts():
         console.print()
 
     console.print("Usage:")
-    console.print('  deepr expert chat "<name>"')
+    console.print('  deepr expert consult "your question" --expert "<name>" --local')
 
 
 @expert.command(name="info")
@@ -2546,7 +2547,7 @@ def fill_gaps(
         console.print(f"Gaps failed: {result['failed']}")
     console.print(f"Total cost: ${result['total_cost']:.4f}")
     console.print("\nExpert consciousness has been updated.")
-    console.print(f'Chat with: deepr expert chat "{name}"')
+    console.print(f'Consult with: deepr expert consult "your question" --expert "{name}" --local')
 
 
 @expert.command(name="validate-citations")
@@ -3319,6 +3320,7 @@ def run_skill_cmd(name: str, skill_name: str, tool_name: str, tool_args: str):
 # Maintenance commands (absorb, sync) live in a sibling module so this file
 # stays under the size ceiling; importing it registers them on the `expert`
 # group (Phase Q3 decomposition).
+from deepr.cli.commands.semantic import expert_blueprint as _expert_blueprint  # noqa: F401
 from deepr.cli.commands.semantic import expert_cleanup as _expert_cleanup  # noqa: F401
 from deepr.cli.commands.semantic import expert_consult as _expert_consult  # noqa: F401
 from deepr.cli.commands.semantic import expert_consult_quality as _expert_consult_quality  # noqa: F401
@@ -3330,6 +3332,7 @@ from deepr.cli.commands.semantic import expert_loop_status as _expert_loop_statu
 from deepr.cli.commands.semantic import expert_maintenance as _expert_maintenance  # noqa: F401
 from deepr.cli.commands.semantic import expert_memory_card as _expert_memory_card  # noqa: F401
 from deepr.cli.commands.semantic import expert_okf as _expert_okf  # noqa: F401
+from deepr.cli.commands.semantic import expert_outcomes as _expert_outcomes  # noqa: F401
 from deepr.cli.commands.semantic import expert_portrait as _expert_portrait  # noqa: F401
 from deepr.cli.commands.semantic import expert_self_model as _expert_self_model  # noqa: F401
 from deepr.cli.commands.semantic import expert_validate_export as _expert_validate_export  # noqa: F401

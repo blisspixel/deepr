@@ -351,6 +351,24 @@ View disabled providers with `deepr providers status`.
 
 Create and interact with domain experts that can answer questions from uploaded documents.
 
+### Define Expert Purpose
+
+```bash
+deepr expert blueprint "Azure Architect" --template --output expert-blueprint.json
+# Edit the mission, non-goals, decision use cases, source policy, and held-out cases.
+deepr expert blueprint "Azure Architect" --from-file expert-blueprint.json --output expert-blueprint-preflight.json
+# Only after actual review, record an operator attestation.
+deepr expert blueprint "Azure Architect" --from-file expert-blueprint.json --apply --attested-by operator
+```
+
+Drafts and preflight artifacts are explicitly unreviewed, non-authoritative,
+and separate from canonical blueprints. Preflight performs strict validation,
+normalization, hashing, structural summaries, and a review checklist at `$0`.
+An applied blueprint records an operator attestation but does not claim human
+authorship or independently verified reviewer identity. It makes the expert's
+intended decisions testable but cannot authorize spend, knowledge writes,
+routing changes, or external actions.
+
 ### Create Expert
 
 ```bash
@@ -392,12 +410,55 @@ deepr expert delete "Azure Architect" --yes
 ### Consult an Expert
 
 ```bash
-deepr expert consult "What should we verify next?" --experts "Azure Architect" --local
-deepr expert consult "Which assumption is weakest?" --experts "Azure Architect" --plan codex
+deepr expert consult "What should we verify next?" --expert "Azure Architect" --local
+deepr expert consult "Which assumption is weakest?" --expert "Azure Architect" --plan codex
 ```
 
 Standalone metered expert chat is gated in v2.36. Local and explicit plan MCP
 query and bounded consult surfaces remain available.
+
+### Record Decision Outcomes
+
+```bash
+deepr expert record-outcome "Azure Architect" --decision-id migration-2026 --summary "Choose the migration architecture" --result mixed --observation "Availability improved, but recovery time missed its target." --attested-by operator
+deepr expert outcomes "Azure Architect" --json
+```
+
+Outcome records are immutable operator-attested observations with optional
+trace, belief, source, and evidence links. Reviewer identity and human
+authorship are not independently verified. Corrections append and supersede an
+earlier observation. No outcome automatically changes expert knowledge or policy.
+
+### Evaluate Expert Value Over Time
+
+```bash
+deepr eval expert-value "Azure Architect" --template --output expert-value-review.json
+# Complete the four-arm runs and operator semantic and protocol attestations outside the evaluator.
+deepr eval expert-value "Azure Architect" --from-file expert-value-review.json --output expert-value-report.json
+deepr eval expert-value "Azure Architect" --from-file expert-value-review.json --artifact-root ./eval-artifacts --output expert-value-verified.json
+```
+
+The latest operator-attested blueprint freezes the acceptance-case set. The
+incomplete template requires at least two ordered, hashed source worlds and one
+operator semantic attestation per acceptance case for `fresh_research`,
+`static_history`, `compiled_expert`, and `maintained_expert`. Run and answer
+artifacts are bound by reference and SHA-256 digest. The attestation supplies
+separate 0-4 scores for correctness, source relevance, factual support, and
+uncertainty calibration, plus explicit false-support, stale-belief, abstention,
+retention, transfer, and outcome labels. Every semantic and protocol
+attestation records `identity_verified: false` and
+`human_authorship_claimed: false`.
+
+Aggregation is local deterministic arithmetic with no model or provider calls.
+Operator-attested mode does not open referenced artifacts or verify attester
+identity. `--artifact-root`
+explicitly recomputes all declared SHA-256 digests inside one root without
+network access and fails closed on unsafe paths or mismatches. Reports keep
+risk, quality, cost, and reviewer effort separate, include reproducible
+paired-bootstrap intervals and cost-only break-even estimates, and explicitly
+emit no superiority flag, select no winner, assess no statistical sufficiency,
+make no causal claim, and change no default. Arm execution is separate and may
+consume the costs recorded in the workbook.
 
 ### Gated Agentic Chat Design
 
@@ -442,12 +503,17 @@ The system also auto-suggests compaction after 30+ messages.
 /council "How will AI regulation affect our cloud architecture?"
 deepr expert consult "How should this agentic harness improve next?" --local
 deepr expert consult "What changed in plan-quota capacity?" --plan grok --json
+deepr expert consult "Which cross-domain assumption should we test?" --expert "Temporal Knowledge Graphs" --expert "Digital Consciousness" --expert "Model Context Protocol" --local --budget 0 --output ./three-expert-council.json -y
 ```
 
-Selects relevant experts, queries each in parallel, synthesizes agreements and disagreements.
-The CLI form emits a versioned `deepr-consult-v1` artifact with `--json`.
+Selects one bounded stored-state packet per relevant expert, then runs one
+synthesis over those packets. Council members do not generate independent
+turns or see one another's output. The CLI form emits a versioned
+`deepr-consult-v1` artifact with `--json`, or saves the full artifact only when
+`--output` is explicit.
 Explicitly approved API council synthesis uses its separate bounded cost
-contract. `--local` and `--plan <id>` use owned or explicit plan-quota synthesis
+contract. The requested ceiling is reserved upfront; only final synthesis is
+metered and it receives a 10 percent sub-ceiling. `--local` and `--plan <id>` use owned or explicit plan-quota synthesis
 and disable live metered expert fallback when stored belief context is missing.
 The MCP result also exposes `structuredContent` for JSON-object clients while
 retaining text JSON for older clients.
@@ -459,6 +525,11 @@ low-context consults. Candidate payloads include
 `deepr-consult-quality-eval-case-v1` semantic review packets with rubric
 dimensions for a human or calibrated model judge. They are `$0`, read-only,
 non-verdict artifacts and cannot commit beliefs.
+A successful consult is not automatically a gap or graph candidate, and
+discussion prose must not be absorbed as factual evidence. Review its unknowns,
+create source-seeking subscriptions, and send only verified source-derived
+claims through graph commit. See
+[Three Expert Council And Learning Workflow](THREE_EXPERT_COUNCIL.md).
 `deepr expert review-consult-quality NAME TRACE_ID` records reviewed rubric
 scores as a `deepr-consult-quality-review-v1` artifact. Preview is the default;
 `--apply` writes the review artifact, and `--target gap`, `--target eval`, or
@@ -1476,7 +1547,7 @@ deepr make --help
 ```bash
 # Create expert from documents
 deepr expert make "Domain Expert" --local --files docs/*.md
-deepr expert consult "What should we verify?" --experts "Domain Expert" --local
+deepr expert consult "What should we verify?" --expert "Domain Expert" --local
 
 # Batch operations
 deepr jobs list --status completed
@@ -1532,7 +1603,7 @@ budget; metered auto-batch execution remains gated.
 ```bash
 # Build expert from knowledge base
 deepr expert make "KB Expert" --local --files knowledge_base/*.md
-deepr expert consult "Summarize current gaps" --experts "KB Expert" --local
+deepr expert consult "Summarize current gaps" --expert "KB Expert" --local
 ```
 
 ## Troubleshooting

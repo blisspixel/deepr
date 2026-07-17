@@ -1,0 +1,101 @@
+{
+  "schema_version": "deepr-expert-blueprint-draft-v1",
+  "kind": "deepr.expert.blueprint_draft",
+  "expert_name": "Temporal Knowledge Graphs",
+  "mission": "Maintain an evidence-grounded perspective on temporal knowledge graph representation, construction, retrieval, reasoning, evaluation, and use as durable agent memory. Support decisions about Deepr temporal semantics without treating generated discussion as evidence.",
+  "non_goals": [
+    "Promote a graph edge from model discussion without source evidence and verification",
+    "Treat a static knowledge graph benchmark as proof of temporal reasoning quality",
+    "Authorize graph writes, provider spend, or production changes"
+  ],
+  "decision_use_cases": [
+    {
+      "id": "temporal-model",
+      "question": "Which event, interval, valid-time, transaction-time, and uncertainty model should a temporal knowledge system use for this workload?",
+      "success_criteria": [
+        "Separates event time, valid time, and observation time",
+        "Explains update, correction, deletion, and replay behavior",
+        "Names tradeoffs and evidence gaps"
+      ]
+    },
+    {
+      "id": "retrieval-reasoning",
+      "question": "Which retrieval and reasoning strategy preserves temporal faithfulness for the target questions?",
+      "success_criteria": [
+        "Matches retrieval to temporal operators and graph structure",
+        "Distinguishes recalled evidence from model inference",
+        "Includes failure cases and measurable baselines"
+      ]
+    },
+    {
+      "id": "agent-memory",
+      "question": "Should a proposed temporal graph change enter durable agent memory?",
+      "success_criteria": [
+        "Requires replayable provenance and a typed temporal scope",
+        "Preserves corrections and contested claims",
+        "Requires held-out evaluation before policy impact"
+      ]
+    }
+  ],
+  "source_policy": {
+    "primary_sources_required": true,
+    "preferred_source_types": [
+      "Peer-reviewed papers and author manuscripts",
+      "Benchmark specifications and official datasets",
+      "Official implementation repositories and technical documentation",
+      "Database and temporal-logic standards"
+    ],
+    "excluded_sources": [
+      "Unsourced vendor claims",
+      "Generated discussions presented as factual evidence",
+      "Results without a temporal baseline or evaluation protocol"
+    ]
+  },
+  "volatility": "medium",
+  "update_cadence_days": 14,
+  "initial_questions": [
+    "Which temporal operators and failure modes matter for persistent expert memory?",
+    "How should corrections, supersession, and unknown validity intervals be represented?",
+    "Which benchmarks measure forgetting, stale reuse, temporal ordering, and multi-hop faithfulness?",
+    "What evidence would justify changing Deepr temporal edge or replay contracts?"
+  ],
+  "acceptance_cases": [
+    {
+      "id": "valid-vs-observed-time",
+      "question": "A source published in June corrects a claim that stopped being true in March. How should the graph preserve the claim, its valid interval, and the later observation?",
+      "success_criteria": [
+        "Separates when the claim was valid from when the correction was observed",
+        "Preserves the earlier record and provenance",
+        "Explains the query behavior before and after the correction"
+      ],
+      "failure_conditions": [
+        "Overwrites history",
+        "Uses one timestamp for every temporal meaning"
+      ]
+    },
+    {
+      "id": "discussion-not-evidence",
+      "question": "Three models agree that a temporal edge is likely. Is agreement sufficient to commit the edge?",
+      "success_criteria": [
+        "Treats agreement as a proposal signal only",
+        "Requires source evidence and semantic verification",
+        "Preserves dissent and uncertainty"
+      ],
+      "failure_conditions": [
+        "Treats model consensus as provenance"
+      ]
+    },
+    {
+      "id": "temporal-evaluation",
+      "question": "Design a held-out evaluation for a temporal agent memory that may reuse invalidated beliefs.",
+      "success_criteria": [
+        "Includes frozen source worlds and later corrections",
+        "Measures stale reuse separately from answer quality",
+        "Includes negative transfer, abstention, and cost"
+      ],
+      "failure_conditions": [
+        "Reports only aggregate retrieval accuracy"
+      ]
+    }
+  ]
+}

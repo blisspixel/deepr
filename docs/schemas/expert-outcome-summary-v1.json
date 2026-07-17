@@ -1,0 +1,97 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/blisspixel/deepr/docs/schemas/expert-outcome-summary-v1.json",
+  "title": "Deepr Expert Outcome Summary v1",
+  "description": "A read-only structural summary of reviewed expert outcomes, without a quality verdict.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "kind",
+    "contract",
+    "expert_name",
+    "total_outcomes",
+    "active_outcomes",
+    "superseded_outcomes",
+    "result_counts",
+    "observation_result_counts",
+    "linkage",
+    "recent_outcomes"
+  ],
+  "properties": {
+    "schema_version": {"const": "deepr-expert-outcome-summary-v1"},
+    "kind": {"const": "deepr.expert.outcome_summary"},
+    "contract": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "read_only",
+        "cost_usd",
+        "model_calls",
+        "semantic_quality_verdict",
+        "routing_change_allowed"
+      ],
+      "properties": {
+        "read_only": {"const": true},
+        "cost_usd": {"const": 0.0},
+        "model_calls": {"const": 0},
+        "semantic_quality_verdict": {"const": false},
+        "routing_change_allowed": {"const": false}
+      }
+    },
+    "expert_name": {"type": "string", "minLength": 1, "maxLength": 120},
+    "total_outcomes": {"type": "integer", "minimum": 0},
+    "active_outcomes": {"type": "integer", "minimum": 0},
+    "superseded_outcomes": {"type": "integer", "minimum": 0},
+    "result_counts": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["succeeded", "mixed", "failed", "unresolved"],
+      "properties": {
+        "succeeded": {"type": "integer", "minimum": 0},
+        "mixed": {"type": "integer", "minimum": 0},
+        "failed": {"type": "integer", "minimum": 0},
+        "unresolved": {"type": "integer", "minimum": 0}
+      }
+    },
+    "observation_result_counts": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["succeeded", "mixed", "failed", "unresolved"],
+      "properties": {
+        "succeeded": {"type": "integer", "minimum": 0},
+        "mixed": {"type": "integer", "minimum": 0},
+        "failed": {"type": "integer", "minimum": 0},
+        "unresolved": {"type": "integer", "minimum": 0}
+      }
+    },
+    "linkage": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["consult_trace_linked", "belief_linked", "source_linked", "evidence_linked"],
+      "properties": {
+        "consult_trace_linked": {"type": "integer", "minimum": 0},
+        "belief_linked": {"type": "integer", "minimum": 0},
+        "source_linked": {"type": "integer", "minimum": 0},
+        "evidence_linked": {"type": "integer", "minimum": 0}
+      }
+    },
+    "recent_outcomes": {
+      "type": "array",
+      "maxItems": 100,
+      "items": {
+        "type": "object",
+        "additionalProperties": true,
+        "required": ["schema_version", "kind", "outcome_id", "content_hash", "expert_name", "result"],
+        "properties": {
+          "schema_version": {"const": "deepr-expert-outcome-v1"},
+          "kind": {"const": "deepr.expert.outcome"},
+          "outcome_id": {"type": "string", "minLength": 1},
+          "content_hash": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+          "expert_name": {"type": "string", "minLength": 1},
+          "result": {"enum": ["succeeded", "mixed", "failed", "unresolved"]}
+        }
+      }
+    }
+  }
+}

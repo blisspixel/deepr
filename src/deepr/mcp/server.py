@@ -220,7 +220,7 @@ class DeeprMCPServer:
         # Expert-related components
         self.store = ExpertStore()
         self.sessions: dict[str, ExpertChatSession] = {}
-        self._expert_conversation_tools = None  # lazy durable conversation MCP adapter
+        self._expert_conversation_tools: Any | None = None  # lazy durable conversation MCP adapter
 
         # Research-related components
         self.config = load_config()

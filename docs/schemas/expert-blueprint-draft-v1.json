@@ -1,0 +1,114 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/blisspixel/deepr/docs/schemas/expert-blueprint-draft-v1.json",
+  "title": "Deepr Expert Blueprint Draft v1",
+  "description": "A structurally valid but explicitly unreviewed and non-authoritative blueprint draft. It carries no operator attestation and cannot authorize scope, spend, writes, routing, or external action.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "kind",
+    "expert_name",
+    "mission",
+    "non_goals",
+    "decision_use_cases",
+    "source_policy",
+    "volatility",
+    "update_cadence_days",
+    "initial_questions",
+    "acceptance_cases"
+  ],
+  "properties": {
+    "schema_version": {"const": "deepr-expert-blueprint-draft-v1"},
+    "kind": {"const": "deepr.expert.blueprint_draft"},
+    "expert_name": {"type": "string", "minLength": 1, "maxLength": 120},
+    "mission": {"type": "string", "minLength": 1, "maxLength": 4000},
+    "non_goals": {
+      "type": "array",
+      "maxItems": 50,
+      "uniqueItems": true,
+      "items": {"type": "string", "minLength": 1, "maxLength": 2000}
+    },
+    "decision_use_cases": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 50,
+      "items": {"$ref": "#/$defs/decision_use_case"}
+    },
+    "source_policy": {"$ref": "#/$defs/source_policy"},
+    "volatility": {"enum": ["slow", "medium", "fast"]},
+    "update_cadence_days": {"type": "integer", "minimum": 1, "maximum": 3650},
+    "initial_questions": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 50,
+      "uniqueItems": true,
+      "items": {"type": "string", "minLength": 1, "maxLength": 2000}
+    },
+    "acceptance_cases": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 100,
+      "items": {"$ref": "#/$defs/acceptance_case"}
+    }
+  },
+  "$defs": {
+    "identifier": {
+      "type": "string",
+      "pattern": "^[a-z0-9][a-z0-9._-]{0,79}$"
+    },
+    "criteria": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 20,
+      "uniqueItems": true,
+      "items": {"type": "string", "minLength": 1, "maxLength": 2000}
+    },
+    "decision_use_case": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "question", "success_criteria"],
+      "properties": {
+        "id": {"$ref": "#/$defs/identifier"},
+        "question": {"type": "string", "minLength": 1, "maxLength": 4000},
+        "success_criteria": {"$ref": "#/$defs/criteria"}
+      }
+    },
+    "acceptance_case": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "question", "success_criteria", "failure_conditions"],
+      "properties": {
+        "id": {"$ref": "#/$defs/identifier"},
+        "question": {"type": "string", "minLength": 1, "maxLength": 4000},
+        "success_criteria": {"$ref": "#/$defs/criteria"},
+        "failure_conditions": {
+          "type": "array",
+          "maxItems": 20,
+          "uniqueItems": true,
+          "items": {"type": "string", "minLength": 1, "maxLength": 2000}
+        }
+      }
+    },
+    "source_policy": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["primary_sources_required", "preferred_source_types", "excluded_sources"],
+      "properties": {
+        "primary_sources_required": {"type": "boolean"},
+        "preferred_source_types": {
+          "type": "array",
+          "maxItems": 30,
+          "uniqueItems": true,
+          "items": {"type": "string", "minLength": 1, "maxLength": 2000}
+        },
+        "excluded_sources": {
+          "type": "array",
+          "maxItems": 50,
+          "uniqueItems": true,
+          "items": {"type": "string", "minLength": 1, "maxLength": 2000}
+        }
+      }
+    }
+  }
+}

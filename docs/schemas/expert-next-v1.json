@@ -40,6 +40,7 @@
         "avg_confidence": {"type": "number", "minimum": 0, "maximum": 1},
         "freshness_status": {"type": "string"},
         "active_contradiction_claim_count": {"type": "integer", "minimum": 0},
+        "operator_attested_blueprint": {"type": "boolean"},
         "learning_loops": {
           "type": "object",
           "additionalProperties": true,

@@ -35,12 +35,14 @@
 |----------|-------------|
 | [Models](docs/MODELS.md) | Provider comparison, costs, model selection |
 | [Experts](docs/EXPERTS.md) | Creating and using domain experts |
+| [Three Expert Council](docs/THREE_EXPERT_COUNCIL.md) | Temporal Knowledge Graphs, Digital Consciousness, and MCP experts under a hard `$10` ceiling |
 | [Integrations](docs/INTEGRATIONS.md) | First-party tool integrations (recon, distillr, primr) |
 | [Agentic Vision](docs/AGENTIC_VISION.md) | Agentic architecture, A2A, reflection, campaigns |
 | [Agentic Balance](docs/plans/AGENTIC_BALANCE.md) | **Read before adding a rule or making something agentic** - what deepr hardcodes vs lets the model decide |
 | [Remote Expert Conversations](docs/design/remote-expert-conversations.md) | Protocol-neutral durable follow-up over MCP first, A2A after 1.0 conformance, with structured consulting and evaluation gates |
 | [Level 5/6 Expert Maturity](docs/design/level-5-6-expert-maturity.md) | Concrete gates for bounded self-improving experts, self-models, metacognitive monitoring, and the expert-fleet control plane |
 | [Expert Next Actions](docs/design/expert-next-actions.md) | `$0` structural guidance from current expert evidence to the next safe command |
+| [Expert Purpose And Value Loop](docs/design/expert-purpose-and-value-loop.md) | Reviewed purpose, held-out acceptance cases, human outcome observations, and the longitudinal proof plan |
 | [Multi-Device Expert Continuity](docs/design/multi-device-expert-continuity.md) | Sequential portability contract and staged device-partitioned event design |
 | [Expert Event Memory V2](docs/design/expert-event-memory-v2.md) | Proposed bitemporal event authority, replay, forgetting, and replica convergence |
 | [Historically Grounded Perspectives](docs/design/historically-grounded-perspectives.md) | Sourced great-mind lenses without impersonation or invented memory |
@@ -77,7 +79,10 @@ graph edges, hypotheses, stance, gaps, contradictions, and exploration agendas,
 then hand that evolving perspective to humans or agents through bounded
 interfaces. The Level 5/6 path is the careful version of this idea: self-models,
 metacognitive monitors, current-focus packets, and reflective continuity, all
-under spend, security, provenance, and verification gates.
+under spend, security, provenance, and verification gates. Research is the
+input, verified and operator-accepted current expert state is the reusable product, and better
+repeated decisions are the outcome. Graph size, report count, and apparent
+self-confidence are not substitutes for held-out and downstream evidence.
 
 **Expertise principle:** an expert is not a fact book. Facts need grounding, but
 expertise also includes conceptual models, judgment, taste, tradeoff awareness,
@@ -114,6 +119,11 @@ separate evidence, assumptions, judgment, uncertainty, missing information, and
 what observation would change the answer. Discussion targets ambiguity, unique
 information, and decision-relevant cruxes; it does not force consensus. The host
 owns the decision and any downstream action.
+
+The shipped one-shot consult is a smaller baseline: it independently selects
+stored-state packets, makes no expert-generation calls, permits no peer turns,
+and runs at most one synthesis. Question-specific independent positions belong
+to the gated multi-round design, not the current council claim.
 
 Specialization remains a measured context and authority boundary, not a reason
 to multiply processes. A Deepr expert is durable epistemic state plus bounded
@@ -435,15 +445,113 @@ reservation, usage settlement, and canonical cost-ledger support exist.
 
 **v2.31.0 additions:** the grounding stamp finally reaches the step that writes an answer. Council consults now *disclose* each selected belief's grounding assurance into the synthesis packet - an inline `cross-vendor verified` / weaker `same-vendor verified` label next to the existing confidence and contested markers, a `beliefs_verified` count in the perspective `context` for programmatic hosts (carried verbatim into `deepr-consult-v1`, so MCP/A2A hosts see it), and a synthesis prompt that now defines those labels so the model can read them. Per AGENTIC_BALANCE this is disclosure, not a gate: deterministic code surfaces the label; the synthesis model owns how much to weigh it. Lexical-overlap selection order is unchanged and an unverified belief is never dropped or penalized - the naive alternative (moving grounding into the read-time trust ceiling) was rejected as brittle, since it would let one model verdict retroactively and permanently gate a belief. Grounding assurance was already recorded on beliefs and surfaced in handoff/recall/memory-card summaries; this closes the last gap by carrying it into synthesis. The "which levels count as verified" semantics now live once on `CheckAssurance` (`VERIFIED_ASSURANCES` / `ASSURANCE_LEVELS`), shared by the council packet and the handoff summary.
 
+**Purpose, outcome, and value-evaluation foundation (2026-07-16):** `deepr expert blueprint`
+now creates explicit `deepr-expert-blueprint-draft-v1` files and zero-call
+`deepr-expert-blueprint-preflight-v1` artifacts before any authority exists.
+Preflight validates form, normalizes and hashes the draft, summarizes structural
+coverage, and supplies review questions while explicitly denying semantic
+assessment, human-review claims, canonical writes, and scope authority. Apply
+records an operator attestation in append-only `deepr-expert-blueprint-v1`
+history; reviewer identity remains unverified and human authorship is not
+claimed. `deepr expert record-outcome` and `deepr expert outcomes` add the same
+honest operator-attestation boundary for later decision observations, with
+optional consult, belief, source, and outcome-evidence links.
+`deepr eval expert-value NAME --template` now emits an intentionally incomplete,
+blueprint-bound four-arm workbook, and `--from-file` validates completed
+operator semantic and protocol attestations over hashed source worlds and run
+artifacts before reporting separate quality, stale-memory, false-support,
+transfer, cost, effort, and
+cost-only break-even measures. The evaluator itself costs `$0`, makes no model,
+provider, or network calls, writes only to an explicit output path, adds
+reproducible 95 percent paired-bootstrap intervals without superiority flags,
+selects no winner, and changes no default. Default operator-attested mode does not
+open referenced files. Explicit `--artifact-root` mode independently
+root-confines and recomputes every declared local SHA-256 binding before a
+report can be written. External arm execution can still consume the capacity
+and cost recorded in the workbook. This closes the measurement path needed for
+longitudinal proof; it is not itself proof that an expert improved.
+
 ### Next Order Of Operations
 
-The fleet-autopilot track (Phase 4d) is largely closed; the active edge is quality of expert understanding, not more document chat. This order is dependency-based, not calendar-based:
+The fleet-autopilot track (Phase 4d) is largely closed. The active edge is
+measured improvement in decisions over time, not more document chat or a larger
+memory surface. This order is dependency-based, not calendar-based:
 
 1. **Graph commit apply path for compiled expert memory** - finish the write boundary after the shipped compiler envelopes. Already done: `deepr-source-pack-manifest-v1`, `deepr-source-note-v1`, explicit `deepr expert sync --compile-claims`, `deepr-semantic-claim-extraction-v1`, `deepr-claim-verification-v1`, verifier-supplied typed candidate edges in claim verification, compiler-side `candidate_only` recall context on claim-verification decisions, `deepr-graph-commit-envelope-v1` as an apply-gated no-write envelope for verified factual decisions and candidate-to-candidate typed edges, `deepr-graph-commit-envelope-v2` with verifier-gated `promote_gap` operations, `deepr-graph-commit-envelope-v3` with verifier-gated `promote_exploration_agenda` operations, `deepr-graph-commit-envelope-v4` with verifier-gated `promote_hypothesis` operations, `deepr-graph-commit-envelope-v5` with verifier-gated `promote_concept` operations, `deepr-graph-commit-envelope-v6` with verifier-gated `promote_stance` operations, `deepr-graph-commit-envelope-v7` with verifier-gated `promote_original_idea` operations, `deepr-graph-commit-envelope-v8` with structured temporal qualifiers on verifier-supplied typed edge operations, explicit `deepr expert apply-graph-commit` for idempotent factual belief, typed-edge, temporal edge qualifier, gap-promotion, exploration-agenda, hypothesis, concept, stance, and original-idea writes, `deepr-graph-commit-apply-v1` apply results, local `candidate_only` recall, generated `deepr-expert-memory-card-v1` / `EXPERT.md` views, store-backed `candidate_only` recall routing for ready claim-verification candidates, optional sync-side verifier plus staged graph-commit sidecar artifacts for replayable review, concrete budget-gated `SemanticClaimVerifier` wiring for local, explicit plan-quota, and metered API `expert sync --compile-claims`, sync-side graph-commit apply for compiled claims with compatibility `--apply-compiled-claims`, sync apply regression coverage for verified gap, exploration-agenda, hypothesis, concept, stance, and original-idea promotions through an injected metacognition tracker, sync-level replay coverage proving tracker-state already-applied results still report `synced` without duplicate state writes, fail-closed cadence behavior when the apply result sidecar cannot be written, default compiled sync migration away from legacy absorb with `--stage-compiled-claims` as the explicit no-write staging path, and first-class temporal edge qualifier persistence through claim verification, graph-commit envelopes, and idempotent apply. Original ideas now surface in memory cards, handoff payloads, consult context, and read-only recall as labeled perspective state, never as verified external facts. Temporal edge qualifiers now surface in read-side perspective deltas, belief explanations, the continuity memory-quality metric, the `deepr_temporal_edges` MCP filter surface, and generated expert digests. It must preserve the agentic boundary: deterministic code owns schema, spend, provenance, idempotency, locks, and writes; calibrated model judgment owns support, contradiction, deduplication, temporal scope, edge type, temporal edge meaning, gap quality, agenda quality, hypothesis quality, concept quality, stance quality, and original-idea quality. Why: graph mutation is the point where bad meaning becomes durable, so it needs one narrow, replayable, auditable commit point.
    - [x] Live-validation closure (2026-07-11): a compiled video-expert sync produced seven verifier decisions, four ready and three insufficient, but the aggregate blocked verification status incorrectly vetoed all four valid operations. Graph envelopes now select only verifier-ready operations, retain every rejected candidate and reason, and permit atomic apply when top-level artifact integrity is sound. Top-level schema, kind, model-response, and selected-operation failures still block the whole apply set. Regression coverage preserves the observed 4-ready/3-blocked shape through sync and apply.
+2. **Longitudinal expert value proof** - prove that a compiled, maintained
+   expert improves repeated decisions compared with fresh frontier research and
+   simpler memory baselines. Shipped foundations include purpose and outcome
+   contracts, `deepr-expert-value-review-v1`,
+   `deepr-expert-value-report-v1`, and `deepr eval expert-value`. The evaluator
+   binds the exact current blueprint, requires at least two linearly chained
+   frozen source worlds and the same acceptance cases across all four arms, and
+   keeps correctness, source relevance, factual support, false support,
+   invalidated-belief reuse, abstention, update behavior, transfer, reviewer
+   effort, cost, and outcome links separate. Pairwise deltas use reproducible 95
+   percent paired-bootstrap intervals, and a failed update stays in the
+   completion denominator without a fabricated latency. Default
+   operator-attested mode does not open artifact references. Semantic and
+   protocol attestations record unverified identity and no human-authorship
+   claim. Explicit
+   `--artifact-root` mode root-confines local references and independently
+   recomputes every bound SHA-256 digest before reporting. Neither mode runs
+   arms, inspects answer text, infers semantic labels, ranks arms, assesses
+   statistical sufficiency, attributes outcomes causally, or changes a default.
+   Next run one flagship expert with blinded, randomized semantic review and
+   explicit operator attestation, then
+   publish the completed workbook, artifacts, and report before using any result
+   to propose a default, prompt, retrieval, or learning-policy change. No
+   aggregate score may hide false support, stale-memory reuse, or negative
+   transfer. Design:
+   [expert-purpose-and-value-loop.md](docs/design/expert-purpose-and-value-loop.md).
+   Why: the differentiator is not that Deepr remembers more; it is that
+   operator-accepted, current, reusable state measurably helps over time.
 3. **Temporal knowledge graph completion and memory quality** - first-class temporal edge qualifiers now surface in read-side perspective deltas, belief explanations, expert-memory quality checks, the host-agent `deepr_temporal_edges` filter surface, regenerated expert digests, and `deepr eval continuity` generated-view checks after default compiled sync applies verified graph commits and persists verifier-supplied temporal edge context. Semantic recall now has a first-class local `$0` construction path: `deepr expert refresh-semantic-recall --local-embedding-model` embeds missing or stale belief claims through a local Ollama embedding model on the existing local client seam, and `deepr expert semantic-recall --local-embedding-model` computes the query embedding locally so indexed vector recall works without any caller-side embedding pipeline; both paths are explicit, no-metered-fallback, and stay `candidate_only`. Compiled-sync claim verification can now use that index: `deepr expert sync --compile-claims --recall-embedding-model MODEL` embeds ready claim statements through the local `$0` embedder and routes verifier recall context through indexed belief vectors, degrading to lexical routing instead of blocking the gated verification call when the local embedder fails, and the persisted claim-verification sidecar records the exact recall packets the verifier prompt used so the per-candidate `method` field stays honest on the durable artifact. `deepr eval recall NAME --cases PATH` now provides that `$0` evidence surface: it compares lexical and indexed-vector routing on operator-labeled cases (local or precomputed query embeddings) and reports hit rate, mean reciprocal rank, and per-metric winners as routing evidence only. `deepr eval recall NAME --cases PATH --record-cases` now accumulates those operator-labeled cases in a runtime-local `deepr-recall-eval-case-library-v1` library, `deepr eval recall NAME --query TEXT --relevant-belief-id ID --record-cases` captures one reviewed case without a scratch JSON file, and `deepr eval recall NAME` can rerun against that accumulated set without touching graph state, beliefs, or vectors. Consult traces now preserve selected stored-belief ids and trace mining emits review-required `deepr-recall-eval-case-candidate-v1` drafts when a failed-check, low-context, or middle-context candidate has selected belief context; they are not auto-recorded as labels. Claim-verification decisions now use the same candidate contract for duplicate, contradiction, or temporal-scope memory blocks that had recall context, preserving candidate belief ids for operator review without asserting relevance. Recall eval reports now include a conservative scheduler-preference eligibility block: vector routing is eligible only after enough labeled cases, required vector metric wins, and complete current vectors for the requested model. Claim verification can now consume an explicit recall route preference block and try vector-only recall first while preserving lexical fallback when the preference is absent, ineligible, or produces no vector hits, and `deepr expert sync --compile-claims --recall-embedding-model MODEL --recall-preference-report PATH` validates a local recall eval report for the same expert and model before threading only its scheduler-preference block into the verifier prompt. A `$0` regression now validates that an accumulated recall case library can generate an eligible report before sync accepts only its scheduler-preference block, and sync now revalidates eligible reports for case count, required vector metric wins, an evaluated vector route, no ineligible reasons, and complete current vector coverage instead of trusting a hand-edited `eligible: true` flag. Next: keep default lexical-first routing unless an operator supplies a vetted report, and run live/operator validation on accumulated libraries before considering any scheduler default. Compiler claim verification can carry caller-supplied or store-backed recall context, and sync can run the budget-gated verifier, persist compiler and apply sidecars, and use `--stage-compiled-claims` for no-write envelope staging, but recall stays subordinate to the graph: recall finds candidates; the belief graph and verifier decide. Why: the expert should answer "what changed," "why do you believe it," "what is your current take," "what is contested," "what are you watching," and "what would change your mind," which no chunk store can answer.
    Cycle 103 update (2026-07-09): recall eval reports now carry `deepr-recall-operator-validation-v1`, an additive operator-facing block that says whether an accumulated-library run is ready for explicit sync preference and records that default routing remains lexical-first until an operator supplies a vetted saved report. Cycle 104 update (2026-07-09): `deepr eval recall-libraries` now emits `deepr-recall-library-inventory-v1`, a read-only inventory of accumulated recall libraries that flags invalid files and identifies which experts have enough operator-labeled cases for route-evidence evals before any explicit sync preference report is considered. Cycle 105 update (2026-07-09): `deepr eval recall-libraries --validation-plan --local-embedding-model MODEL` now emits `deepr-recall-library-validation-plan-v1`, a read-only command plan for ready accumulated libraries that does not execute retrieval, write state, or authorize default routing. Cycle 106 update (2026-07-09): `deepr-recall-eval-report-v2` replaces the three-case point-estimate eligibility gate with standard IR metrics, a 30-case operating floor, deterministic 95 percent paired bootstrap intervals, sync-side recomputation, a live model-specific belief/vector state-digest check, and exact top-k, expert-domain, and minimum-score binding for every eligible preference artifact. Default routing remains lexical-first. Design: [semantic-recall-evidence.md](docs/design/semantic-recall-evidence.md).
-4. **Protocol-native expert collaboration over MCP and A2A** - design: [remote-expert-conversations.md](docs/design/remote-expert-conversations.md) and [ADR 0005](docs/decisions/0005-protocol-neutral-expert-conversation-handles.md). MCP already exposes expert reads, consults, loop status, handoff, belief explanation, scoped keys, budgets, rate limits, audit logs, `structuredContent` JSON-object results, and the `deepr-expert-collaboration-v1` council contract. A consult artifact now includes roster selection, per-expert role, shared consult trace id, budget/capacity contract, evidence packet, dissent handling, and result artifact refs for host agents, with the published `deepr-consult-v1` schema. The target UX is a role-diverse expert council that can ideate, challenge assumptions, map the math and statistics, preserve dissent, and return an agent-usable research and execution plan rather than opaque advice. `deepr mcp validate-consult` now proves the no-metered consult path through an offline fixture, in-process local or plan capacity, or a remote HTTP endpoint, emitting `deepr-mcp-consult-validation-v1` without judging answer meaning. `deepr mcp validate-consult-fleet` emits `deepr-mcp-consult-fleet-validation-v1` for bounded concurrent plan-backend consult validation. The current operating model is one or many experts, one bounded artifact: single-expert advice and expert-council guidance use the same consult contract, with visible capacity posture. Be exact about what works now: each council member contributes a deterministic, independently selected packet of stored state, not a live question-specific analysis; its displayed confidence summarizes the included stored state, not confidence in the answer; and the synthesizer produces the agreement and disagreement lists. Those fields are useful proposal metadata, not proof that experts independently judged, deliberated, or reached consensus. The A2A library advertises `deepr_consult_experts` in its generated Agent Card and maps completed consults onto Deepr task artifacts, but no shipped command serves that contract long-running and the data model still needs A2A 1.0 conformance work. The `$0` evaluator and protocol-neutral durable local core are complete.
+4. **Protocol-native expert collaboration over MCP and A2A** - design:
+   [remote-expert-conversations.md](docs/design/remote-expert-conversations.md),
+   [bounded-expert-deliberation.md](docs/design/bounded-expert-deliberation.md),
+   and [ADR 0005](docs/decisions/0005-protocol-neutral-expert-conversation-handles.md).
+   MCP already exposes expert reads, consults, loop status, handoff, belief
+   explanation, scoped keys, budgets, rate limits, audit logs,
+   `structuredContent` JSON-object results, and the
+   `deepr-expert-collaboration-v1` council contract. The current operating model
+   is one or many experts and one bounded proposal artifact. Each member
+   contributes an independently selected stored-state packet, not a live
+   question-specific generation. There are zero peer turns and at most one
+   synthesis call. The synthesizer produces agreement and disagreement lists,
+   and consult never writes expert state, beliefs, or graph state. The generated
+   contract now exposes those facts, the total spend ceiling, the 10 percent API
+   synthesis slice, and zero metered perspective calls. CLI `--output FILE`
+   explicitly saves the full artifact. These fields are proposal metadata, not
+   proof that experts independently judged, deliberated, or reached consensus.
+   The copyable
+   [Three Expert Council guide](docs/THREE_EXPERT_COUNCIL.md) applies operator-attested
+   Temporal Knowledge Graphs, Digital Consciousness, and MCP blueprints, sets
+   hard per-job, daily, and monthly `$10` caps, and routes discussion into
+   source-seeking research rather than absorbing it as evidence.
+
+   July 2026 evidence adds three requirements to any future live runtime:
+   consensus-free early stopping, blinded peer-content evaluation with private
+   canonical lineage, and selective escalation rather than mandatory full-panel
+   execution. Measure identity and order bias, minority-position preservation,
+   quality per call, and false support before widening the shipped one-shot
+   contract.
+
+   `deepr mcp validate-consult` proves the no-metered one-shot path through an
+   offline fixture, in-process local or plan capacity, or a remote HTTP endpoint
+   without judging answer meaning. `deepr mcp validate-consult-fleet` performs
+   bounded plan-backend validation. The A2A library advertises
+   `deepr_consult_experts` and maps completed consults onto Deepr task artifacts,
+   but no shipped command serves that contract long-running and the data model
+   still needs A2A 1.0 conformance work. The `$0` structural evaluator and
+   protocol-neutral durable single-expert local conversation core are complete.
+   Live multi-expert rounds remain gated. The accepted three-expert default
+   would permit at most seven provider dispatches under one parent ceiling. A
+   metered `$10` run must reserve and settle against one `$10` total, never one
+   allowance per turn, and must enforce aggregate tokens, context, elapsed time,
+   replay, cancellation, and proposal-only graph authority before shipping.
    - [x] Stage 2 MCP surface (2026-07-15): four free local-only tools
      `deepr_start_expert_conversation`, `deepr_continue_expert_conversation`,
      `deepr_get_expert_conversation`, and `deepr_close_expert_conversation`;
@@ -516,8 +624,6 @@ The fleet-autopilot track (Phase 4d) is largely closed; the active edge is quali
 11. **Provider prompt-cache cost model** - actual usage accounting now settles cached OpenAI/Azure/xAI input, Anthropic cache-write and cache-read buckets, Gemini large-context input/output tiers, and provider-reported completion costs after reservation. Next add explicit provider cache controls only after estimator coverage includes TTL, cache keys, and pre-warm behavior. Do not add automatic pre-warming, keep-warm loops, or 1-hour cache TTLs unless the user opts in under an explicit budget ceiling. Why: Deepr repeats stable expert/system/source context, so caching can reduce spend, but cache writes, longer TTLs, and pre-warm calls can increase spend if enabled blindly.
 12. **Local-vs-frontier A/B for compiled experts** - build or refresh the same expert from the same source pack through local and frontier capacity, then compare grounding, calibration, concept coverage, perspective quality, temporal-edge quality, contradiction detection, gap quality, exploration agenda quality, wiki usefulness, and cost. Why: automatic routing should promote `$0` local models only when they meet a measured expert-quality floor, not because they are cheap.
 13. **Fleet cost, concurrency, and release hygiene** - local, explicit non-metered plan, scheduled-wait, and dry-run gap-routing paths remain available. Metered `route-gaps --execute`, legacy `expert fill-gaps`, and the web fill-gaps endpoint are execution-gated in v2.36 until they share the durable parent reservation and exact settlement transaction. Local and plan fresh-context sync persists HTTP validators and reuses `304 Not Modified` cached hashes for the existing no-change proof. Reflection follow-up execution holds the per-expert `reflect` overlap guard before constructing gap-fill execution, so a colliding run records `overlap_locked` and exits without starting duplicate follow-up research. Next wrap remaining scheduled mutating library surfaces in the per-(expert, verb) overlap guard, keep `main` as the single source of truth, publish the matching GitHub release after CI passes, and close stale branches only after their intended updates are present on `main`. Why: refresh loops must stay cheap and idempotent, and users and downstream agents need package version, README badge, changelog, tag, and default branch to agree before they trust any handoff contract.
-15. **Expert blueprint and acceptance set** - make expert creation start with a small reviewable charter: mission, non-goals, decision use cases, source policy, volatility, update cadence, initial questions, and a held-out acceptance set. Generate a preview before any research and keep semantic choices human-reviewed. Why: a curriculum says what to read, while a blueprint says what the expert is for and how improvement will be measured.
-16. **Forgetting-aware expert quality eval** - extend the Level 5 flywheel beyond accumulation and recall. A before/after expert eval must measure retained correctness on prior cases, use of invalidated beliefs, forward transfer to new cases, negative transfer on hard cases, and perspective stability under changed retrieval context. Keep results descriptive until enough human-anchored cases exist. Why: 2026 memory benchmarks show that more stored experience can increase harmful reuse and forgetting; Deepr should prove learning improved the expert rather than merely making it larger.
 17. **ExpertEventV2 shadow authority and replay** - define bitemporal event, identity, causal-parent, deletion, and migration invariants in an ADR; add replica identity, canonical hashing, shadow dual-write, and exact deterministic replay before changing authority. Current snapshots remain authoritative until replay equality is proven. Why: device sync, selective forgetting, and trustworthy self-improvement all fail if state cannot be reconstructed from one versioned history. Design: [expert-event-memory-v2.md](docs/design/expert-event-memory-v2.md).
 18. **Device-partitioned expert continuity** - after deterministic event replay, add read-only sync health, immutable per-device journals, idempotent union, quarantine, tombstones, and explicit conflict artifacts before claiming concurrent edits. Separate machine-bound operational state from the concurrent expert event exchange. Never let storage convergence decide semantic belief, stance, hypothesis, or policy conflicts. Why: generic cloud sync preserves conflicting files but cannot merge an evolving expert's meaning. Design: [multi-device-expert-continuity.md](docs/design/multi-device-expert-continuity.md).
 19. **Historically grounded perspective lenses** - define `deepr-historical-perspective-v1` with persistent AI disclosure, institutional-source provenance, historical cutoff, contested interpretations, temporal bridge labels, non-impersonation, and a Why this perspective inspector. Pilot Leonardo and Beethoven only after the held-out acceptance harness exists. No identity claims, invented memories, fabricated quotations, voice cloning, or canonical writes from fictional dramatization. Why: great-mind perspectives can make expert consultation memorable and useful only when historical record, interpretation, and modern synthesis remain visibly distinct. Design: [historically-grounded-perspectives.md](docs/design/historically-grounded-perspectives.md).
@@ -1182,7 +1288,12 @@ over-reach for a solo project; Letta/MemOS already own the "OS" label).
     monitor was tried and removed 2026-06-14). If a cheap atomicity signal is
     ever wanted it must be model-derived or live in the calibration harness, never
     a standalone lexical pass (see AGENTIC_BALANCE.md and the STOP banner).
-  - [ ] Outcome attribution (later): the second When-to-Forget counter (did the answer that used this belief succeed?) waits on an outcome signal - reflection verdicts or host-agent feedback as task-success proxy
+   - [~] Outcome evidence foundation (2026-07-16): append-only
+     operator-attested decision outcomes now provide the missing observation signal and can link
+     consult traces and beliefs. They do not establish causal attribution. The
+     longitudinal evaluator reports outcome links descriptively and emits
+     `causal_attribution: false`; belief-level credit assignment and any
+     When-to-Forget policy remain gated on prospective held-out evidence.
   - [x] **Source-independence check before the trust-floor bump** (dogfood-sourced, 2026-06-21): the tertiary ceiling rose 0.60 -> 0.80 on `len(set(evidence_refs)) >= 2`, which counted the absorb-stored `report:<id>` pointer **and the free-text quote excerpts** as separate "sources" - so a single-source belief inflated to 0.80 (every dogfood expert flagged this class as Deepr's #1 risk; live beliefs showed it). Fixed with `Belief._independent_source_count`: counts distinct source *identifiers* only - URLs collapsed to host (a syndicated origin counts once), namespaced ids by value - and skips free-text excerpts (any ref with whitespace). Kept **deterministic** by design: a trust floor is the prompt-injection backstop, so a model verdict (which could be injected to claim independence) must never set it - this is determinism-on-form per AGENTIC_BALANCE, and it fails safe toward 0.60. Existing designed semantics preserved (two distinct report runs still corroborate to 0.80); regression-tested (quotes don't count, same-host URLs are one source, distinct hosts corroborate).
   - [ ] **Content-addressed, replayable evidence** (dogfood-sourced): sync already writes `sync_artifacts/source_packs/*.json`; strengthen it to content-addressed evidence (raw snapshot + URL + timestamp + content hash, extraction model id/version + prompt) so any absorbed claim is deterministically re-verifiable and an LLM synthesis can never be mistaken for primary evidence. Pairs with the cross-vendor maker-checker; memoize verification results (claim+source+window) so the autopilot can't trigger re-check storms down the cost waterfall.
 - [~] Output-to-knowledge feedback loop (the compounding flywheel: every verified output can strengthen the expert):

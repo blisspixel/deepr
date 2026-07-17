@@ -11,6 +11,7 @@ from typing import Any
 
 import pytest
 
+from deepr.mcp.expert_conversation import conversation_tool_dispatch
 from deepr.mcp.search.registry import create_default_registry
 from deepr.mcp.security.scoped_keys import (
     ScopedMCPKeyContext,
@@ -41,7 +42,10 @@ def _dispatch_tool_names() -> set[str]:
             continue
         if not isinstance(node.value, ast.Dict):
             continue
-        return {key.value for key in node.value.keys if isinstance(key, ast.Constant) and isinstance(key.value, str)}
+        static_names = {
+            key.value for key in node.value.keys if isinstance(key, ast.Constant) and isinstance(key.value, str)
+        }
+        return static_names | set(conversation_tool_dispatch(SimpleNamespace()))
 
     raise AssertionError("could not find tool_dispatch mapping in _handle_tools_call")
 

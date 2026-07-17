@@ -1,0 +1,538 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/blisspixel/deepr/docs/schemas/expert-value-report-v1.json",
+  "title": "Deepr Expert Value Report v1",
+  "description": "Zero-call descriptive aggregation of a completed operator-attested four-arm longitudinal expert-value workbook, including reproducible paired-bootstrap intervals and explicit operator-attested or root-confined local artifact verification status. Attester identities are not independently verified and human authorship is not claimed. It contains no winner, semantic verdict, causal attribution, or default change.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "kind",
+    "methodology_version",
+    "rubric_version",
+    "rubric",
+    "generated_at",
+    "review_input_sha256",
+    "review_set_id",
+    "expert",
+    "protocol",
+    "arm_results",
+    "comparisons",
+    "break_even_estimates",
+    "artifact_verification",
+    "observed_outcomes",
+    "contract"
+  ],
+  "properties": {
+    "schema_version": {"const": "deepr-expert-value-report-v1"},
+    "kind": {"const": "deepr.eval.expert_value_report"},
+    "methodology_version": {"const": "1.0"},
+    "rubric_version": {"const": "expert-value-rubric-v1"},
+    "rubric": {"$ref": "#/$defs/rubric"},
+    "generated_at": {"type": "string", "format": "date-time"},
+    "review_input_sha256": {"$ref": "#/$defs/hash"},
+    "review_set_id": {"$ref": "#/$defs/id"},
+    "expert": {"$ref": "#/$defs/expert"},
+    "protocol": {"$ref": "#/$defs/protocol"},
+    "arm_results": {
+      "type": "array",
+      "minItems": 4,
+      "maxItems": 4,
+      "items": {"$ref": "#/$defs/arm_result"}
+    },
+    "comparisons": {
+      "type": "array",
+      "minItems": 3,
+      "maxItems": 3,
+      "items": {"$ref": "#/$defs/comparison"}
+    },
+    "break_even_estimates": {
+      "type": "array",
+      "minItems": 3,
+      "maxItems": 3,
+      "items": {"$ref": "#/$defs/break_even"}
+    },
+    "artifact_verification": {"$ref": "#/$defs/artifact_verification"},
+    "observed_outcomes": {"$ref": "#/$defs/observed_outcomes"},
+    "contract": {"$ref": "#/$defs/contract"}
+  },
+  "$defs": {
+    "arm": {
+      "enum": ["fresh_research", "static_history", "compiled_expert", "maintained_expert"]
+    },
+    "role": {
+      "enum": ["initial", "retention", "update", "forward_transfer", "hard_negative"]
+    },
+    "id": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,159}$"
+    },
+    "hash": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "bootstrap_seed": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{16}$"
+    },
+    "nullable_number": {
+      "type": ["number", "null"]
+    },
+    "rubric": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["correctness", "source_relevance", "factual_support", "uncertainty_calibration"],
+      "properties": {
+        "correctness": {"$ref": "#/$defs/rubric_anchors"},
+        "source_relevance": {"$ref": "#/$defs/rubric_anchors"},
+        "factual_support": {"$ref": "#/$defs/rubric_anchors"},
+        "uncertainty_calibration": {"$ref": "#/$defs/rubric_anchors"}
+      }
+    },
+    "rubric_anchors": {
+      "type": "array",
+      "minItems": 5,
+      "maxItems": 5,
+      "items": {"type": "string", "minLength": 1}
+    },
+    "expert": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "blueprint_revision", "blueprint_content_hash"],
+      "properties": {
+        "name": {"type": "string", "minLength": 1, "maxLength": 120},
+        "blueprint_revision": {"type": "integer", "minimum": 1},
+        "blueprint_content_hash": {"$ref": "#/$defs/hash"}
+      }
+    },
+    "role_counts": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["initial", "retention", "update", "forward_transfer", "hard_negative"],
+      "properties": {
+        "initial": {"type": "integer", "minimum": 0},
+        "retention": {"type": "integer", "minimum": 0},
+        "update": {"type": "integer", "minimum": 0},
+        "forward_transfer": {"type": "integer", "minimum": 0},
+        "hard_negative": {"type": "integer", "minimum": 0}
+      }
+    },
+    "protocol": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "arms",
+        "source_world_count",
+        "source_world_start",
+        "source_world_end",
+        "acceptance_case_count",
+        "attested_trial_count",
+        "evaluation_role_case_counts",
+        "missing_evaluation_roles",
+        "four_arm_matrix_complete",
+        "review_blinding",
+        "review_order_randomized",
+        "review_assignment_ref",
+        "review_assignment_sha256",
+        "protocol_attested_by",
+        "protocol_attested_at",
+        "statistical_sufficiency_assessed"
+      ],
+      "properties": {
+        "arms": {
+          "const": ["fresh_research", "static_history", "compiled_expert", "maintained_expert"]
+        },
+        "source_world_count": {"type": "integer", "minimum": 2},
+        "source_world_start": {"type": "string", "format": "date-time"},
+        "source_world_end": {"type": "string", "format": "date-time"},
+        "acceptance_case_count": {"type": "integer", "minimum": 1},
+        "attested_trial_count": {"type": "integer", "minimum": 4},
+        "evaluation_role_case_counts": {"$ref": "#/$defs/role_counts"},
+        "missing_evaluation_roles": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {"$ref": "#/$defs/role"}
+        },
+        "four_arm_matrix_complete": {"const": true},
+        "review_blinding": {"enum": ["blinded", "not_blinded"]},
+        "review_order_randomized": {"type": "boolean"},
+        "review_assignment_ref": {"type": "string", "minLength": 1, "maxLength": 4000},
+        "review_assignment_sha256": {"$ref": "#/$defs/hash"},
+        "protocol_attested_by": {"type": "string", "minLength": 1, "maxLength": 200},
+        "protocol_attested_at": {"type": "string", "format": "date-time"},
+        "statistical_sufficiency_assessed": {"const": false}
+      }
+    },
+    "dimension_summary": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["attested_trials", "mean_score"],
+      "properties": {
+        "attested_trials": {"type": "integer", "minimum": 1},
+        "mean_score": {"type": ["number", "null"], "minimum": 0.0, "maximum": 4.0}
+      }
+    },
+    "binary_summary": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["eligible_trials", "observed_trials", "rate"],
+      "properties": {
+        "eligible_trials": {"type": "integer", "minimum": 0},
+        "observed_trials": {"type": "integer", "minimum": 0},
+        "rate": {"type": ["number", "null"], "minimum": 0.0, "maximum": 1.0}
+      }
+    },
+    "dimensions": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["correctness", "source_relevance", "factual_support", "uncertainty_calibration"],
+      "properties": {
+        "correctness": {"$ref": "#/$defs/dimension_summary"},
+        "source_relevance": {"$ref": "#/$defs/dimension_summary"},
+        "factual_support": {"$ref": "#/$defs/dimension_summary"},
+        "uncertainty_calibration": {"$ref": "#/$defs/dimension_summary"}
+      }
+    },
+    "update_latency": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "eligible_trials",
+        "completed_trials",
+        "completion_rate",
+        "mean_completed",
+        "maximum_completed"
+      ],
+      "properties": {
+        "eligible_trials": {"type": "integer", "minimum": 0},
+        "completed_trials": {"type": "integer", "minimum": 0},
+        "completion_rate": {"type": ["number", "null"], "minimum": 0.0, "maximum": 1.0},
+        "mean_completed": {"$ref": "#/$defs/nullable_number"},
+        "maximum_completed": {"$ref": "#/$defs/nullable_number"}
+      }
+    },
+    "response_latency": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["trial_count", "mean"],
+      "properties": {
+        "trial_count": {"type": "integer", "minimum": 1},
+        "mean": {"$ref": "#/$defs/nullable_number"}
+      }
+    },
+    "costs": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "construction",
+        "maintenance",
+        "retrieval",
+        "generation",
+        "other_execution",
+        "fixed_total",
+        "marginal_total",
+        "mean_marginal_per_consultation",
+        "total_observed"
+      ],
+      "properties": {
+        "construction": {"type": "number", "minimum": 0.0},
+        "maintenance": {"type": "number", "minimum": 0.0},
+        "retrieval": {"type": "number", "minimum": 0.0},
+        "generation": {"type": "number", "minimum": 0.0},
+        "other_execution": {"type": "number", "minimum": 0.0},
+        "fixed_total": {"type": "number", "minimum": 0.0},
+        "marginal_total": {"type": "number", "minimum": 0.0},
+        "mean_marginal_per_consultation": {"$ref": "#/$defs/nullable_number"},
+        "total_observed": {"type": "number", "minimum": 0.0}
+      }
+    },
+    "effort": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["construction", "maintenance", "trial_review", "total"],
+      "properties": {
+        "construction": {"type": "number", "minimum": 0.0},
+        "maintenance": {"type": "number", "minimum": 0.0},
+        "trial_review": {"type": "number", "minimum": 0.0},
+        "total": {"type": "number", "minimum": 0.0}
+      }
+    },
+    "arm_result": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "arm",
+        "trial_count",
+        "dimensions",
+        "false_support",
+        "invalidated_belief_reuse",
+        "negative_transfer",
+        "expected_abstention_match",
+        "retained_correctness",
+        "forward_transfer",
+        "update_latency_hours",
+        "response_latency_seconds",
+        "costs_usd",
+        "reviewer_effort_minutes"
+      ],
+      "properties": {
+        "arm": {"$ref": "#/$defs/arm"},
+        "trial_count": {"type": "integer", "minimum": 1},
+        "dimensions": {"$ref": "#/$defs/dimensions"},
+        "false_support": {"$ref": "#/$defs/binary_summary"},
+        "invalidated_belief_reuse": {"$ref": "#/$defs/binary_summary"},
+        "negative_transfer": {"$ref": "#/$defs/binary_summary"},
+        "expected_abstention_match": {"$ref": "#/$defs/binary_summary"},
+        "retained_correctness": {"$ref": "#/$defs/binary_summary"},
+        "forward_transfer": {"$ref": "#/$defs/binary_summary"},
+        "update_latency_hours": {"$ref": "#/$defs/update_latency"},
+        "response_latency_seconds": {"$ref": "#/$defs/response_latency"},
+        "costs_usd": {"$ref": "#/$defs/costs"},
+        "reviewer_effort_minutes": {"$ref": "#/$defs/effort"}
+      }
+    },
+    "deltas": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "mean_correctness",
+        "mean_source_relevance",
+        "mean_factual_support",
+        "false_support_rate",
+        "invalidated_belief_reuse_rate",
+        "negative_transfer_rate",
+        "mean_marginal_cost_usd",
+        "reviewer_effort_minutes"
+      ],
+      "properties": {
+        "mean_correctness": {"$ref": "#/$defs/nullable_number"},
+        "mean_source_relevance": {"$ref": "#/$defs/nullable_number"},
+        "mean_factual_support": {"$ref": "#/$defs/nullable_number"},
+        "false_support_rate": {"$ref": "#/$defs/nullable_number"},
+        "invalidated_belief_reuse_rate": {"$ref": "#/$defs/nullable_number"},
+        "negative_transfer_rate": {"$ref": "#/$defs/nullable_number"},
+        "mean_marginal_cost_usd": {"$ref": "#/$defs/nullable_number"},
+        "reviewer_effort_minutes": {"$ref": "#/$defs/nullable_number"}
+      }
+    },
+    "comparison": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["target_arm", "comparator_arm", "paired_bootstrap", "deltas"],
+      "properties": {
+        "target_arm": {"const": "maintained_expert"},
+        "comparator_arm": {"enum": ["fresh_research", "static_history", "compiled_expert"]},
+        "paired_bootstrap": {"$ref": "#/$defs/paired_bootstrap"},
+        "deltas": {"$ref": "#/$defs/deltas"}
+      }
+    },
+    "confidence_interval": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["lower", "upper"],
+      "properties": {
+        "lower": {"type": "number"},
+        "upper": {"type": "number"}
+      }
+    },
+    "bootstrap_metric": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["case_count", "mean_difference", "confidence_interval", "seed"],
+      "properties": {
+        "case_count": {"type": "integer", "minimum": 1},
+        "mean_difference": {"type": "number"},
+        "confidence_interval": {"$ref": "#/$defs/confidence_interval"},
+        "seed": {"$ref": "#/$defs/bootstrap_seed"}
+      }
+    },
+    "bootstrap_metrics": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "correctness",
+        "source_relevance",
+        "factual_support",
+        "uncertainty_calibration",
+        "false_support_observed"
+      ],
+      "properties": {
+        "correctness": {"$ref": "#/$defs/bootstrap_metric"},
+        "source_relevance": {"$ref": "#/$defs/bootstrap_metric"},
+        "factual_support": {"$ref": "#/$defs/bootstrap_metric"},
+        "uncertainty_calibration": {"$ref": "#/$defs/bootstrap_metric"},
+        "false_support_observed": {"$ref": "#/$defs/bootstrap_metric"},
+        "invalidated_belief_reused": {"$ref": "#/$defs/bootstrap_metric"},
+        "negative_transfer_observed": {"$ref": "#/$defs/bootstrap_metric"},
+        "retained_correctness": {"$ref": "#/$defs/bootstrap_metric"},
+        "forward_transfer_observed": {"$ref": "#/$defs/bootstrap_metric"},
+        "update_completed": {"$ref": "#/$defs/bootstrap_metric"}
+      }
+    },
+    "paired_bootstrap": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["method", "rng", "resamples", "confidence_level", "metrics"],
+      "properties": {
+        "method": {"const": "paired_percentile_bootstrap"},
+        "rng": {"const": "numpy.PCG64"},
+        "resamples": {"const": 9999},
+        "confidence_level": {"const": 0.95},
+        "metrics": {"$ref": "#/$defs/bootstrap_metrics"}
+      }
+    },
+    "break_even": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "target_arm",
+        "comparator_arm",
+        "status",
+        "fixed_cost_delta_usd",
+        "marginal_savings_usd_per_consultation",
+        "break_even_consultations",
+        "cost_only",
+        "quality_considered"
+      ],
+      "properties": {
+        "target_arm": {"const": "maintained_expert"},
+        "comparator_arm": {"enum": ["fresh_research", "static_history", "compiled_expert"]},
+        "status": {
+          "enum": [
+            "target_not_more_expensive_at_zero_consultations",
+            "estimable",
+            "not_recoverable_on_reported_marginal_costs"
+          ]
+        },
+        "fixed_cost_delta_usd": {"type": "number"},
+        "marginal_savings_usd_per_consultation": {"type": "number"},
+        "break_even_consultations": {"type": ["integer", "null"], "minimum": 0},
+        "cost_only": {"const": true},
+        "quality_considered": {"const": false}
+      }
+    },
+    "arm_counts": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["fresh_research", "static_history", "compiled_expert", "maintained_expert"],
+      "properties": {
+        "fresh_research": {"type": "integer", "minimum": 0},
+        "static_history": {"type": "integer", "minimum": 0},
+        "compiled_expert": {"type": "integer", "minimum": 0},
+        "maintained_expert": {"type": "integer", "minimum": 0}
+      }
+    },
+    "result_counts": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["succeeded", "mixed", "failed", "unresolved"],
+      "properties": {
+        "succeeded": {"type": "integer", "minimum": 0},
+        "mixed": {"type": "integer", "minimum": 0},
+        "failed": {"type": "integer", "minimum": 0},
+        "unresolved": {"type": "integer", "minimum": 0}
+      }
+    },
+    "artifact_verification": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "mode",
+        "digest_algorithm",
+        "reference_count",
+        "declared_unique_reference_count",
+        "verified_reference_count",
+        "verified_file_count",
+        "protocol_attested",
+        "independently_verified",
+        "all_matched",
+        "root_confined",
+        "network_access"
+      ],
+      "properties": {
+        "mode": {"enum": ["operator_attested", "local_filesystem_sha256"]},
+        "digest_algorithm": {"const": "sha256"},
+        "reference_count": {"type": "integer", "minimum": 1},
+        "declared_unique_reference_count": {"type": "integer", "minimum": 1},
+        "verified_reference_count": {"type": "integer", "minimum": 0},
+        "verified_file_count": {"type": "integer", "minimum": 0},
+        "protocol_attested": {"const": true},
+        "independently_verified": {"type": "boolean"},
+        "all_matched": {"type": ["boolean", "null"]},
+        "root_confined": {"type": ["boolean", "null"]},
+        "network_access": {"const": false}
+      },
+      "allOf": [
+        {
+          "if": {"properties": {"mode": {"const": "operator_attested"}}},
+          "then": {
+            "properties": {
+              "verified_reference_count": {"const": 0},
+              "verified_file_count": {"const": 0},
+              "independently_verified": {"const": false},
+              "all_matched": {"const": null},
+              "root_confined": {"const": null}
+            }
+          }
+        },
+        {
+          "if": {"properties": {"mode": {"const": "local_filesystem_sha256"}}},
+          "then": {
+            "properties": {
+              "independently_verified": {"const": true},
+              "all_matched": {"const": true},
+              "root_confined": {"const": true}
+            }
+          }
+        }
+      ]
+    },
+    "observed_outcomes": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["linked_case_count", "deployed_arm_counts", "result_counts", "causal_attribution"],
+      "properties": {
+        "linked_case_count": {"type": "integer", "minimum": 0},
+        "deployed_arm_counts": {"$ref": "#/$defs/arm_counts"},
+        "result_counts": {"$ref": "#/$defs/result_counts"},
+        "causal_attribution": {"const": false}
+      }
+    },
+    "contract": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "input_semantic_review",
+        "reviewer_identity_verified",
+        "evaluator_model_calls",
+        "evaluator_provider_calls",
+        "evaluator_network_access",
+        "evaluator_cost_usd",
+        "artifact_references_opened",
+        "writes_authoritative_state",
+        "changes_defaults",
+        "winner_selected",
+        "causal_attribution",
+        "semantic_verdict",
+        "lexical_verdict_allowed",
+        "report_write_requires_explicit_path"
+      ],
+      "properties": {
+        "input_semantic_review": {"const": "operator_attested"},
+        "reviewer_identity_verified": {"const": false},
+        "evaluator_model_calls": {"const": 0},
+        "evaluator_provider_calls": {"const": 0},
+        "evaluator_network_access": {"const": false},
+        "evaluator_cost_usd": {"const": 0.0},
+        "artifact_references_opened": {"type": "boolean"},
+        "writes_authoritative_state": {"const": false},
+        "changes_defaults": {"const": false},
+        "winner_selected": {"const": false},
+        "causal_attribution": {"const": false},
+        "semantic_verdict": {"const": false},
+        "lexical_verdict_allowed": {"const": false},
+        "report_write_requires_explicit_path": {"const": true}
+      }
+    }
+  }
+}

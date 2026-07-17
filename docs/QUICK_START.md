@@ -123,18 +123,49 @@ call belongs to one durable parent reservation.
 ### Create a Domain Expert
 
 ```bash
+deepr expert blueprint "Web Dev Expert" --template --output expert-blueprint.json
+# Edit the mission, decision use cases, source policy, and acceptance cases.
+deepr expert blueprint "Web Dev Expert" --from-file expert-blueprint.json --output expert-blueprint-preflight.json
+# Apply only after actual review; the resulting operator identity is not verified.
+deepr expert blueprint "Web Dev Expert" --from-file expert-blueprint.json --apply --attested-by operator
 deepr expert make "Web Dev Expert" --local --files "./docs/*.md"
 ```
 
-Copy your documents into a local expert profile without a provider call.
+The template and preflight are explicitly unreviewed and non-authoritative.
+Preflight performs strict structural validation, normalization, hashing, and a
+review checklist at `$0`. After an operator attests that review occurred, copy
+your documents into a local expert profile without a provider call.
 
 ### Consult an Expert
 
 ```bash
-deepr expert consult "What should I verify next?" --experts "Web Dev Expert" --local
+deepr expert consult "What should I verify next?" --expert "Web Dev Expert" --local
 ```
 
-This is a bounded local consult over stored expert state.
+This is a one-shot bounded consult over stored expert state followed by one
+synthesis call. With several `--expert` options, Deepr selects one stored-state
+packet per expert, but the experts do not exchange turns and the consult does
+not write beliefs or graph state. Use `--output FILE` to save the complete
+artifact explicitly. See [Three Expert Council And Learning Workflow](THREE_EXPERT_COUNCIL.md)
+for a three-domain example and strict `$10` cap.
+
+### Prepare A Longitudinal Value Review
+
+```bash
+deepr eval expert-value "Web Dev Expert" --template --output expert-value-review.json
+# After all four arms and the operator semantic and protocol attestations:
+deepr eval expert-value "Web Dev Expert" --from-file expert-value-review.json --output expert-value-report.json
+deepr eval expert-value "Web Dev Expert" --from-file expert-value-review.json --artifact-root ./eval-artifacts --output expert-value-verified.json
+```
+
+Template generation and aggregation cost `$0` and make no model or provider
+calls. Semantic and protocol attestations explicitly deny verified identity and
+human-authorship claims. Operator-attested aggregation does not open referenced
+files or verify the attester identity;
+`--artifact-root` recomputes every declared SHA-256 digest inside that root
+without network access. The evaluator does not run the arms, inspect answer
+text, select a winner, or change a default. Arm execution is a separate
+capacity decision.
 
 ### Add Local Fresh Context
 
@@ -190,7 +221,10 @@ deepr doctor
 | Metered batch, campaign, team, and agentic research | No dispatch | Gated in v2.36 |
 | Standalone metered expert chat and unsafe lifecycle paths | No dispatch | Gated in v2.36 |
 
-Always set a budget: `deepr budget set <amount>`
+`deepr budget set <amount>` controls monthly approval behavior. For an
+authoritative hard cap, set `DEEPR_MAX_COST_PER_JOB`,
+`DEEPR_MAX_COST_PER_DAY`, and `DEEPR_MAX_COST_PER_MONTH`; use
+`DEEPR_COST_TRACKING_STRICT=1` so a required ledger write fails closed.
 
 ---
 
@@ -248,7 +282,7 @@ deepr expert make "Python Async Expert" --local --files "data/reports/*/*.md"
 deepr expert next "Python Async Expert"
 
 # 6. Consult the expert on local capacity
-deepr expert consult "Which asyncio pitfalls matter most?" --experts "Python Async Expert" --local
+deepr expert consult "Which asyncio pitfalls matter most?" --expert "Python Async Expert" --local
 ```
 
 ---

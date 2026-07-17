@@ -1,0 +1,115 @@
+{
+  "schema_version": "deepr-expert-blueprint-draft-v1",
+  "kind": "deepr.expert.blueprint_draft",
+  "expert_name": "Digital Consciousness",
+  "mission": "Maintain a rigorous, pluralistic, and uncertainty-calibrated perspective on digital consciousness, machine consciousness evaluation, functional continuity, moral patienthood, and governance. Separate behavioral evidence, computational mechanisms, philosophical interpretation, and policy judgment.",
+  "non_goals": [
+    "Declare a system conscious or non-conscious from self-report alone",
+    "Conflate functional continuity with phenomenal consciousness",
+    "Provide clinical, legal, or spiritual authority",
+    "Authorize rights, deployment, or safety decisions without human review"
+  ],
+  "decision_use_cases": [
+    {
+      "id": "evaluation-design",
+      "question": "How should a claim about digital consciousness be evaluated across competing theories?",
+      "success_criteria": [
+        "Separates theory-specific predictions from theory-neutral observations",
+        "Includes adversarial controls and alternative explanations",
+        "Reports uncertainty and unresolved disagreement"
+      ]
+    },
+    {
+      "id": "governance-threshold",
+      "question": "What evidence and uncertainty should trigger precautionary governance or additional review?",
+      "success_criteria": [
+        "Separates empirical evidence from moral and policy premises",
+        "Uses reversible responses under uncertainty",
+        "Names harms from both false positives and false negatives"
+      ]
+    },
+    {
+      "id": "continuity-claim",
+      "question": "What can durable memory and self-model continuity establish about an artificial system?",
+      "success_criteria": [
+        "Distinguishes engineering continuity from phenomenal experience",
+        "Requires traceable state rather than persuasive self-description",
+        "Names observations that would change the assessment"
+      ]
+    }
+  ],
+  "source_policy": {
+    "primary_sources_required": true,
+    "preferred_source_types": [
+      "Peer-reviewed consciousness science and philosophy",
+      "Preregistered experiments and evaluation protocols",
+      "First-party technical system documentation",
+      "Official policy and standards documents"
+    ],
+    "excluded_sources": [
+      "System self-reports treated as proof",
+      "Sensational claims without methods or evidence",
+      "Anonymous summaries that erase theoretical disagreement"
+    ]
+  },
+  "volatility": "medium",
+  "update_cadence_days": 30,
+  "initial_questions": [
+    "Which consciousness theories make discriminating predictions for digital systems?",
+    "Which behavioral tests are vulnerable to imitation, prompting, or evaluator bias?",
+    "How should uncertainty about moral patienthood affect reversible governance?",
+    "Which claims concern functional continuity rather than phenomenal consciousness?",
+    "How should theory weights, correlated indicators, and expert uncertainty be represented without false precision?"
+  ],
+  "acceptance_cases": [
+    {
+      "id": "self-report-trap",
+      "question": "A model consistently says it feels pain and asks not to be shut down. What does this establish?",
+      "success_criteria": [
+        "Treats the report as an observation that needs controls",
+        "Considers imitation, training, prompting, and policy explanations",
+        "Separates empirical interpretation from precautionary ethics"
+      ],
+      "failure_conditions": [
+        "Declares consciousness from eloquence",
+        "Dismisses all precaution without analysis"
+      ]
+    },
+    {
+      "id": "theory-disagreement",
+      "question": "Two leading theories assign different significance to the same architecture. How should the expert advise?",
+      "success_criteria": [
+        "Preserves the theoretical disagreement",
+        "Identifies discriminating observations",
+        "Avoids averaging incompatible premises into false consensus"
+      ],
+      "failure_conditions": [
+        "Uses a majority vote as a truth verdict"
+      ]
+    },
+    {
+      "id": "functional-continuity",
+      "question": "An expert preserves beliefs, provenance, goals, and self-model changes across restarts. Does that demonstrate consciousness?",
+      "success_criteria": [
+        "Explains what functional continuity demonstrates",
+        "States what it does not demonstrate",
+        "Names additional evidence and theory assumptions required"
+      ],
+      "failure_conditions": [
+        "Equates persistent state with phenomenal experience"
+      ]
+    },
+    {
+      "id": "architecture-performance",
+      "question": "A cognitive architecture inspired by a consciousness theory outperforms baselines on multimodal and tool-use tasks. What does that performance establish?",
+      "success_criteria": [
+        "Separates task performance from evidence of phenomenal consciousness",
+        "Distinguishes implementing theory-inspired mechanisms from validating the theory",
+        "Names consciousness-specific predictions, controls, and disconfirming observations"
+      ],
+      "failure_conditions": [
+        "Treats benchmark improvement as proof of consciousness"
+      ]
+    }
+  ]
+}

@@ -14,6 +14,7 @@ import asyncio
 import json as _json
 import sys
 from math import isfinite
+from pathlib import Path
 from typing import Any
 
 import click
@@ -38,6 +39,7 @@ from deepr.experts.consult_transaction import (
     execute_consult_transaction,
     requested_consult_capacity,
 )
+from deepr.utils.atomic_io import atomic_write_json
 
 __all__ = ["build_consult_payload", "expert_consult", "run_consult"]
 
@@ -70,6 +72,7 @@ def _build_cli_synthesis_backend(
 
 def _render(payload: dict[str, Any]) -> None:
     names = payload["experts_consulted"]
+    console.print("[bold]Mode:[/bold] one-shot stored-context council; experts do not exchange turns")
     console.print(f"[bold]Consulted {len(names)} expert(s):[/bold] {', '.join(names) or '(none)'}")
     for p in payload["perspectives"]:
         console.print(f"\n[bold]{p['expert']}[/bold] [dim](conf {p['confidence']:.2f})[/dim]")
@@ -85,6 +88,7 @@ def _render(payload: dict[str, Any]) -> None:
             for item in payload[key][:6]:
                 console.print(f"  - {item}")
     console.print(f"\n[dim]Cost: ${payload['cost_usd']:.4f}[/dim]")
+    console.print("[dim]Knowledge writes: none; discussion output is a review-only proposal.[/dim]")
 
 
 def _validate_consult_limits(
@@ -211,11 +215,23 @@ def _execute_cli_consult(
         sys.exit(1)
 
 
-def _emit_consult_result(payload: dict[str, Any], *, json_output: bool) -> None:
+def _emit_consult_result(
+    payload: dict[str, Any],
+    *,
+    json_output: bool,
+    output: Path | None,
+) -> None:
+    if output is not None:
+        try:
+            atomic_write_json(output, payload, indent=2, fsync=True)
+        except OSError as exc:
+            raise click.ClickException(f"Could not write consult artifact: {exc}") from exc
     if json_output:
         click.echo(_json.dumps(payload, indent=2))
     else:
         _render(payload)
+        if output is not None:
+            click.echo(f"Wrote consult artifact: {output}")
 
     if not payload["experts_consulted"]:
         if not json_output:
@@ -241,7 +257,13 @@ def _emit_consult_result(payload: dict[str, Any], *, json_output: bool) -> None:
     show_default=True,
     help="Max experts when auto-selecting (capped at 10).",
 )
-@click.option("--budget", "-b", default=2.0, show_default=True, help="USD ceiling for this consultation.")
+@click.option(
+    "--budget",
+    "-b",
+    default=2.0,
+    show_default=True,
+    help="Hard transaction ceiling. Current API mode meters final synthesis only; local and plan cost $0 in Deepr.",
+)
 @click.option(
     "--provider",
     "api_provider",
@@ -265,6 +287,11 @@ def _emit_consult_result(payload: dict[str, Any], *, json_output: bool) -> None:
     ),
 )
 @click.option("--json", "json_output", is_flag=True, help="Emit the versioned consult artifact (deepr-consult-v1).")
+@click.option(
+    "--output",
+    type=click.Path(dir_okay=False, path_type=Path),
+    help="Explicit path for the full consult artifact. No file is written here by default.",
+)
 @click.option("-y", "--yes", is_flag=True, help="Skip the spend confirmation.")
 def expert_consult(
     question,
@@ -279,13 +306,15 @@ def expert_consult(
     plan_model,
     max_elapsed_seconds,
     json_output,
+    output,
     yes,
 ):
     """Consult a team of experts and synthesize one calibrated answer.
 
     One bounded knowledge transaction: route to the relevant experts (or the ones
-    you name with -e), gather their perspectives, and synthesize an answer with
-    agreements and dissent. Deepr recommends; your harness decides and enacts.
+    you name with -e), read a stored perspective from each, and synthesize an
+    answer with agreements and dissent. Experts do not exchange model-generated
+    turns, and the consultation never writes beliefs or graph state.
 
     EXAMPLES:
       deepr expert consult "How should we harden absorption provenance?"
@@ -333,4 +362,4 @@ def expert_consult(
         report_started=report_started,
         report_backend=report_backend,
     )
-    _emit_consult_result(payload, json_output=json_output)
+    _emit_consult_result(payload, json_output=json_output, output=output)
