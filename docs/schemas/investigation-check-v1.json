@@ -1,0 +1,32 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/blisspixel/deepr/docs/schemas/investigation-check-v1.json",
+  "title": "Deepr Investigation Check v1",
+  "type": "object",
+  "additionalProperties": true,
+  "required": ["schema_version", "kind", "independence", "assessments", "shared_misconceptions", "unsupported_consensus", "minority_evidence_preserved", "strongest_expert_diluted", "problem_drift", "unresolved", "overall", "generated_at", "content_sha256"],
+  "properties": {
+    "schema_version": {"const": "deepr-investigation-check-v1"},
+    "kind": {"const": "deepr.expert.investigation_check"},
+    "independence": {"type": "string", "minLength": 1},
+    "assessments": {
+      "type": "array",
+      "maxItems": 40,
+      "items": {
+        "type": "object",
+        "required": ["expert_name", "claim_id", "status", "reason", "source_refs"],
+        "properties": {"status": {"enum": ["sufficient", "insufficient", "conflicting", "not_checked"]}},
+        "additionalProperties": true
+      }
+    },
+    "shared_misconceptions": {"type": "array", "items": {"type": "string"}},
+    "unsupported_consensus": {"type": "array", "items": {"type": "string"}},
+    "minority_evidence_preserved": {"type": "boolean"},
+    "strongest_expert_diluted": {"type": "boolean"},
+    "problem_drift": {"type": "array", "items": {"type": "string"}},
+    "unresolved": {"type": "array", "items": {"type": "string"}},
+    "overall": {"type": "string"},
+    "generated_at": {"type": "string", "format": "date-time"},
+    "content_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"}
+  }
+}

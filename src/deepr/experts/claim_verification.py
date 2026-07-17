@@ -10,7 +10,7 @@ from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from typing import Any
 
-from deepr.experts.beliefs import EDGE_TYPES
+from deepr.experts.belief_edges import EDGE_TYPES
 from deepr.experts.report_absorber import ESTIMATED_EXTRACTION_COST
 from deepr.experts.semantic_model_gate import (
     coerce_nonnegative_float,
@@ -343,14 +343,20 @@ def _candidate_packets(
     return packets, recall_candidates
 
 
-def _verification_shape(edge_types: list[str]) -> str:
+def _verification_shape(edge_types: list[str], *, require_domain_relevance: bool) -> str:
+    domain_relevance = (
+        '"domain_relevance_verdict":"relevant|peripheral|irrelevant|uncertain","domain_relevance_rationale":str,'
+        if require_domain_relevance
+        else ""
+    )
     return (
         '{"verifications":[{"candidate_id":str,'
         '"support_verdict":"supported|refuted|insufficient|not_applicable|unverified",'
         '"contradiction_verdict":"none|possible|contradiction|unverified",'
         '"dedup_verdict":"new|same_as_existing|uncertain|unverified",'
         '"temporal_scope_verdict":"valid|unclear|outdated|not_applicable",'
-        '"confidence":number,"rationale":str,"support_summary":str,'
+        + domain_relevance
+        + '"confidence":number,"rationale":str,"support_summary":str,'
         '"origin":str,"uncertainty":str,'
         '"expected_observations":[str],"disconfirming_signals":[str],'
         '"edge_decisions":[{"target_candidate_id":str,"edge_type":"'
@@ -375,6 +381,8 @@ def build_claim_verification_prompt(
     recall_query_embeddings_by_candidate_id: Mapping[str, Sequence[float]] | None = None,
     recall_embedding_model: str | None = None,
     recall_route_preference: Mapping[str, Any] | None = None,
+    target_domain: str | None = None,
+    require_domain_relevance: bool = False,
 ) -> ClaimVerificationPrompt:
     """Build bounded messages for claim verification."""
     packets, recall_candidates_by_candidate_id = _candidate_packets(
@@ -394,6 +402,9 @@ def build_claim_verification_prompt(
     )
     if not packets:
         raise ClaimVerificationBlocked("no ready claim candidates for verification")
+    target_domain_text = str(target_domain or "").strip()
+    if require_domain_relevance and not target_domain_text:
+        raise ClaimVerificationBlocked("target domain is required for domain-relevance verification")
 
     edge_types = sorted(str(edge) for edge in EDGE_TYPES)
     system = (
@@ -405,7 +416,7 @@ def build_claim_verification_prompt(
     )
     user = (
         "Verify each candidate packet below. Return a JSON object with exactly this shape:\n"
-        f"{_verification_shape(edge_types)}\n\n"
+        f"{_verification_shape(edge_types, require_domain_relevance=require_domain_relevance)}\n\n"
         "Rules:\n"
         "- Use only the provided candidate_id values.\n"
         "- support_verdict is about the cited source windows, not global truth.\n"
@@ -413,13 +424,27 @@ def build_claim_verification_prompt(
         "- Use same_as_existing only when recall_context shows the same claim; otherwise use new or uncertain.\n"
         "- Use contradiction only when recall_context or evidence directly conflicts with the candidate.\n"
         "- Use edge_decisions only for relationships among candidates in this prompt.\n"
-        "- For temporal edge_decisions, use temporal.valid_from, valid_until, and observed_at only when you can "
+        + (
+            "- domain_relevance_verdict must judge material usefulness to the target expert domain. "
+            "A general fact from a shared source is peripheral or irrelevant unless it directly informs "
+            "that domain or an explicit cross-domain integration. Use uncertain when the fit is ambiguous.\n"
+            if require_domain_relevance
+            else ""
+        )
+        + "- For temporal edge_decisions, use temporal.valid_from, valid_until, and observed_at only when you can "
         "express them as ISO 8601 dates or datetimes; otherwise leave those fields empty and explain scope in "
         "temporal.temporal_scope.\n"
         "- For hypotheses, concepts, stances, agendas, gaps, and original ideas, include origin, rationale, "
         "uncertainty, expected_observations, and disconfirming_signals when the state_policy asks for them.\n"
         "- Do not write beliefs or claim graph mutation happened.\n\n"
-        "CANDIDATE_PACKETS\n"
+        + (
+            "TARGET_EXPERT_DOMAIN\n"
+            + sanitize_untrusted_content(target_domain_text, source_label="target expert domain").delimited
+            + "\n\n"
+            if require_domain_relevance
+            else ""
+        )
+        + "CANDIDATE_PACKETS\n"
         f"{stable_json({'candidates': packets})}"
     )
     messages = [{"role": "system", "content": system}, {"role": "user", "content": user}]

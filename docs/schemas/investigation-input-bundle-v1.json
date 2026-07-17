@@ -1,0 +1,33 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/blisspixel/deepr/docs/schemas/investigation-input-bundle-v1.json",
+  "title": "Deepr Investigation Input Bundle v1",
+  "type": "object",
+  "additionalProperties": true,
+  "required": ["schema_version", "kind", "root", "created_at", "limits", "items", "exclusions", "summary", "bundle_sha256"],
+  "properties": {
+    "schema_version": {"const": "deepr-investigation-input-bundle-v1"},
+    "kind": {"const": "deepr.expert.investigation_input_bundle"},
+    "root": {"type": "string", "minLength": 1},
+    "created_at": {"type": "string", "format": "date-time"},
+    "limits": {"type": "object"},
+    "items": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["input_id", "input_type", "source_class", "content_sha256", "extraction_status"],
+        "properties": {
+          "input_id": {"type": "string", "pattern": "^input-[0-9]{4}$"},
+          "input_type": {"enum": ["inline_text", "url", "file"]},
+          "source_class": {"type": "string", "minLength": 1},
+          "content_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+          "extraction_status": {"enum": ["ready", "pending_fetch"]}
+        },
+        "additionalProperties": true
+      }
+    },
+    "exclusions": {"type": "array", "items": {"type": "object"}},
+    "summary": {"type": "object"},
+    "bundle_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"}
+  }
+}

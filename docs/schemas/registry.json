@@ -535,6 +535,86 @@
       "compatibility": "additive-within-v1"
     },
     {
+      "name": "investigation-input-bundle",
+      "schema_version": "deepr-investigation-input-bundle-v1",
+      "kind": "deepr.expert.investigation_input_bundle",
+      "path": "investigation-input-bundle-v1.json",
+      "status": "experimental",
+      "compatibility": "additive-within-v1"
+    },
+    {
+      "name": "investigation-plan",
+      "schema_version": "deepr-investigation-plan-v1",
+      "kind": "deepr.expert.investigation_plan",
+      "path": "investigation-plan-v1.json",
+      "status": "experimental",
+      "compatibility": "additive-within-v1"
+    },
+    {
+      "name": "investigation-charter",
+      "schema_version": "deepr-investigation-charter-v1",
+      "kind": "deepr.expert.investigation_charter",
+      "path": "investigation-charter-v1.json",
+      "status": "experimental",
+      "compatibility": "additive-within-v1"
+    },
+    {
+      "name": "investigation-position",
+      "schema_version": "deepr-investigation-position-v1",
+      "kind": "deepr.expert.investigation_position",
+      "path": "investigation-position-v1.json",
+      "status": "experimental",
+      "compatibility": "additive-within-v1"
+    },
+    {
+      "name": "investigation-discussion",
+      "schema_version": "deepr-investigation-discussion-v1",
+      "kind": "deepr.expert.investigation_discussion",
+      "path": "investigation-discussion-v1.json",
+      "status": "experimental",
+      "compatibility": "additive-within-v1"
+    },
+    {
+      "name": "investigation-check",
+      "schema_version": "deepr-investigation-check-v1",
+      "kind": "deepr.expert.investigation_check",
+      "path": "investigation-check-v1.json",
+      "status": "experimental",
+      "compatibility": "additive-within-v1"
+    },
+    {
+      "name": "investigation-result",
+      "schema_version": "deepr-investigation-result-v1",
+      "kind": "deepr.expert.investigation_result",
+      "path": "investigation-result-v1.json",
+      "status": "experimental",
+      "compatibility": "additive-within-v1"
+    },
+    {
+      "name": "investigation-learning-manifest",
+      "schema_version": "deepr-investigation-learning-manifest-v1",
+      "kind": "deepr.expert.investigation_learning_manifest",
+      "path": "investigation-learning-manifest-v1.json",
+      "status": "experimental",
+      "compatibility": "additive-within-v1"
+    },
+    {
+      "name": "investigation-event",
+      "schema_version": "deepr-investigation-event-v1",
+      "kind": "deepr.expert.investigation_event",
+      "path": "investigation-event-v1.json",
+      "status": "experimental",
+      "compatibility": "additive-within-v1"
+    },
+    {
+      "name": "investigation-eval",
+      "schema_version": "deepr-investigation-eval-v1",
+      "kind": "deepr.eval.investigation",
+      "path": "investigation-eval-v1.json",
+      "status": "experimental",
+      "compatibility": "additive-within-v1"
+    },
+    {
       "name": "cli-operation-result",
       "schema_version": "deepr-cli-operation-result-v1",
       "kind": "deepr.cli.operation_result",

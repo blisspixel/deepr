@@ -530,6 +530,40 @@ discussion prose must not be absorbed as factual evidence. Review its unknowns,
 create source-seeking subscriptions, and send only verified source-derived
 claims through graph commit. See
 [Three Expert Council And Learning Workflow](THREE_EXPERT_COUNCIL.md).
+
+**Experimental Expert Investigation** performs the deeper local-only workflow:
+
+```powershell
+deepr expert investigate plan "What should Deepr improve next?" `
+  --expert "Temporal Knowledge Graphs" `
+  --expert "Digital Consciousness" `
+  --expert "Model Context Protocol" `
+  --local-model "qwen2.5:14b" `
+  --protocol discuss `
+  --learning stage `
+  --budget-usd 0 `
+  --out .\investigation-plan.json
+deepr expert investigate run .\investigation-plan.json -y
+deepr expert investigate inspect <run-id>
+```
+
+The zero-call, zero-network plan freezes inputs and expert snapshots and shows
+one exact parent envelope. Runtime uses native Ollama at `$0`, retrieves a
+separate source pack for each expert, preserves independent positions, routes
+one blinded targeted challenge, checks, and synthesizes. `deep` adds one
+private revision per expert. `--learning stage` runs source-only claim
+extraction and verification separately for each expert but writes no graph
+state. Each compiler retains at most the first five model-prioritized
+candidates before verification and records any dropped overflow. A blocked or
+no-op envelope is a valid outcome. Extraction receives the target expert
+domain, and a separate verifier model must return a positive material relevance
+verdict before commit compilation. Deterministic code enforces that verdict
+without deciding relevance from word overlap. Dialogue and consensus are never
+evidence. The local checker is not human review, and every result
+remains semantically unreviewed pending held-out comparison. Plan-quota and API
+investigation capacity are planned, not shipped. Use
+`deepr eval investigation --json` for the structural contract check.
+
 `deepr expert review-consult-quality NAME TRACE_ID` records reviewed rubric
 scores as a `deepr-consult-quality-review-v1` artifact. Preview is the default;
 `--apply` writes the review artifact, and `--target gap`, `--target eval`, or

@@ -1,0 +1,91 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/blisspixel/deepr/docs/schemas/investigation-plan-v1.json",
+  "title": "Deepr Expert Investigation Plan v1",
+  "type": "object",
+  "additionalProperties": true,
+  "required": ["schema_version", "kind", "run_id", "created_at", "question", "experts", "protocol", "learning", "input_bundle", "capacity", "retrieval", "bounds", "learning_contract", "plan_sha256"],
+  "properties": {
+    "schema_version": {"const": "deepr-investigation-plan-v1"},
+    "kind": {"const": "deepr.expert.investigation_plan"},
+    "run_id": {"type": "string", "pattern": "^inv_[a-z0-9_]{4,80}$"},
+    "created_at": {"type": "string", "format": "date-time"},
+    "question": {"type": "string", "minLength": 1},
+    "experts": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 5,
+      "items": {
+        "type": "object",
+        "required": ["name", "snapshot_sha256", "snapshot", "readiness"],
+        "properties": {
+          "name": {"type": "string", "minLength": 1},
+          "snapshot_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+          "snapshot": {"type": "object"},
+          "readiness": {"type": "object"}
+        },
+        "additionalProperties": true
+      }
+    },
+    "protocol": {"enum": ["independent", "discuss", "deep"]},
+    "learning": {"enum": ["off", "stage"]},
+    "input_bundle": {"type": "object"},
+    "capacity": {
+      "type": "object",
+      "required": ["class", "model", "fallback"],
+      "properties": {
+        "class": {"const": "local"},
+        "model": {"type": "string", "minLength": 1},
+        "review_model": {"type": "string", "minLength": 1},
+        "context_window_tokens": {"type": "integer", "minimum": 8192, "maximum": 1048576},
+        "review_context_window_tokens": {"type": "integer", "minimum": 8192, "maximum": 1048576},
+        "fallback": {"const": "none"}
+      },
+      "additionalProperties": true
+    },
+    "retrieval": {
+      "type": "object",
+      "required": ["max_queries_per_expert", "max_pages_per_expert"],
+      "properties": {
+        "max_queries_per_expert": {"type": "integer", "minimum": 0},
+        "max_pages_per_expert": {"type": "integer", "minimum": 0}
+      },
+      "additionalProperties": true
+    },
+    "bounds": {
+      "type": "object",
+      "required": ["max_generation_calls", "max_search_queries", "max_page_fetches", "max_input_tokens", "max_output_tokens", "max_prompt_bytes_per_call", "max_output_tokens_per_call", "max_elapsed_seconds", "max_disk_bytes", "max_concurrency", "budget_usd"],
+      "properties": {
+        "max_generation_calls": {"type": "integer", "minimum": 1},
+        "max_search_queries": {"type": "integer", "minimum": 0},
+        "max_page_fetches": {"type": "integer", "minimum": 0},
+        "max_input_tokens": {"type": "integer", "minimum": 1},
+        "max_output_tokens": {"type": "integer", "minimum": 1},
+        "max_prompt_bytes_per_call": {"type": "integer", "minimum": 1024},
+        "max_output_tokens_per_call": {"type": "integer", "minimum": 128},
+        "max_elapsed_seconds": {"type": "number", "exclusiveMinimum": 0},
+        "max_disk_bytes": {"type": "integer", "minimum": 1},
+        "max_concurrency": {"type": "integer", "minimum": 1, "maximum": 5},
+        "budget_usd": {"const": 0.0}
+      },
+      "additionalProperties": true
+    },
+    "learning_contract": {
+      "type": "object",
+      "required": ["mode", "source_pack_evidence_only", "dialogue_is_evidence", "domain_relevance_required", "domain_relevance_judgment", "writes_expert_state", "writes_beliefs", "writes_graph", "human_reviewed"],
+      "properties": {
+        "mode": {"enum": ["off", "stage"]},
+        "source_pack_evidence_only": {"const": true},
+        "dialogue_is_evidence": {"const": false},
+        "domain_relevance_required": {"type": "boolean"},
+        "domain_relevance_judgment": {"enum": ["not_applicable", "independent_verifier_model"]},
+        "writes_expert_state": {"const": false},
+        "writes_beliefs": {"const": false},
+        "writes_graph": {"const": false},
+        "human_reviewed": {"const": false}
+      },
+      "additionalProperties": true
+    },
+    "plan_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"}
+  }
+}

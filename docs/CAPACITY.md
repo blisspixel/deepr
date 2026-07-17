@@ -30,12 +30,22 @@ profile creation through `deepr expert make --local` stays provider-free.
 
 | Source | Works now | Guardrail |
 |---|---|---|
-| Local Ollama | `expert make --local`, `expert absorb --local`, `expert sync --local`, `expert sync --local --fresh-context`, `expert sync --local --deep-context`, `eval local`, `eval local-context`, and scored admission | No provider API key required; automatic routing requires measured local quality evidence |
+| Local Ollama | `expert make --local`, `expert absorb --local`, `expert sync --local`, `expert sync --local --fresh-context`, `expert sync --local --deep-context`, experimental `expert investigate`, `eval local`, `eval local-context`, and scored admission | No provider API key required; investigation pins native per-request context, requires exact `$0`, and has no fallback; automatic routing requires measured local quality evidence |
 | Provider APIs | Direct single-job research and separately bounded council synthesis for supported finite provider/model/tool envelopes | Explicit premium paths with preflight maximums, reservations, and append-only settlement; no automatic paid fallback, hosted storage, standalone metered chat, or unsafe lifecycle dispatch |
 | Plan-quota CLIs | Explicit `expert sync --plan <id>`, `expert sync-all --plan <id>`, `expert route-gaps --execute --plan <id>`, `expert absorb --plan <id>`, `expert learn --plan <id>`, `expert learn-web --plan <id>`, `expert consult --plan <id>`, and `capacity probe-plan <id>` for non-metered adapters | Metered API-key env vars are stripped from child processes, auth mode is checked, metered-at-margin adapters fail before probe or client construction until full cost accounting exists, and automatic routing waits for trusted remaining-quota evidence |
 | CLI judges | Explicit local eval judging with `--allow-cli-judge`; consult-quality judging through explicit local Ollama or `--plan <id>` | Opt-in only because Deepr cannot prove whether a vendor CLI uses quota, credits, or metered credentials; plan consult-quality judges record `$0` Deepr cost metadata and consume subscription quota; API consult-quality judging is gated in v2.36 |
 
 Expert consult synthesis already supports local and explicit plan capacity.
+Experimental `expert investigate` is narrower: it accepts only local Ollama
+plans with `--budget-usd 0`, pins the exact expert and review models plus native
+context windows, and refuses plan-quota or API execution before dispatch. Its
+one parent envelope includes every roster generation, checker, synthesizer,
+learning, retrieval, token, time, disk, and cost allowance. A plan preview does
+not contact Ollama, so model installation and hardware fit are execution-time
+facts. Plan-quota investigation remains a later explicit-only stage, and the
+future API form must enforce one total `$10` maximum across all children rather
+than treating the budget as per expert.
+
 MCP `deepr_query_expert backend=local|plan` now runs one read-only
 compiled-context turn through owned-capacity chat backends with live metered
 fallback disabled. MCP `deepr_query_expert backend=api` and every standalone

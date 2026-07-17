@@ -1159,10 +1159,59 @@ This emits `deepr-deliberation-eval-v1` from eleven frozen-fixture structural
 checks at `$0`. The report validates bounds, lineage, independent first
 positions, targeted challenges, the default evidence-seeking skeptic, dissent
 preservation, typed stops, inert untrusted text, and proposal-only authority.
-Only future explicit deep mode reserves a synthesis dispatch. The report marks
-semantic quality `unreviewed` and does not enable live multi-round execution;
-that surface remains gated on measured provider-call token and context
-enforcement.
+The report marks semantic quality `unreviewed` and does not enable the generic
+deliberation design. The separate experimental investigation runtime below has
+its own exact provider-call, token, context, and lifecycle contract.
+
+### Experimental Evidence-First Investigations
+
+`deepr expert investigate` is the local-only, bounded surface for a question
+that needs actual fresh research and one expert-to-expert exchange. It differs
+from `expert consult`: consult selects stored packets and makes no expert
+generation calls, while investigate freezes expert snapshots, retrieves
+separate source packs, records independent positions, routes one blinded
+targeted challenge, checks the result, and synthesizes all named contributions.
+
+```powershell
+deepr expert investigate plan "What should Deepr improve next?" `
+  --expert "Temporal Knowledge Graphs" `
+  --expert "Digital Consciousness" `
+  --expert "Model Context Protocol" `
+  --local-model "qwen2.5:14b" `
+  --review-model "qwen3-coder:30b" `
+  --protocol discuss `
+  --learning stage `
+  --budget-usd 0 `
+  --out .\investigation-plan.json
+deepr expert investigate run .\investigation-plan.json -y
+deepr expert investigate status <run-id>
+deepr expert investigate inspect <run-id>
+```
+
+The plan preview makes zero model calls and zero network requests. The first
+runtime supports native Ollama only, exact `$0` provider cost, and no fallback.
+It owns one aggregate call, search, page, token, context, elapsed, disk, and
+cost envelope across the entire roster. Pause, resume, and cancel operate on
+durable phase artifacts.
+
+`--learning stage` does not mean every expert is forced to mutate. Each expert
+gets a separate compiler and verifier attempt over retrieved source evidence;
+the result may be ready, blocked, or a no-op. Conversation, agreement, checker
+prose, and synthesis are never evidence. No expert state is written until a
+positive graph commit envelope is separately previewed and explicitly applied.
+Extraction receives the target expert domain, and a separate verifier model
+must judge a candidate materially relevant before deterministic code can admit
+it. Word overlap never decides relevance.
+The model orders candidates by usefulness. Deterministic form enforcement then
+retains at most the first five per expert and records raw and dropped counts
+before the separate verifier runs.
+
+Both the answer and local model check remain semantically `unreviewed`. Do not
+describe either as human-reviewed. Run `deepr eval investigation --json` for
+the `$0` structural gate, then use held-out semantic comparison before making a
+quality claim. See
+[Three Expert Council And Learning Workflow](THREE_EXPERT_COUNCIL.md) for the
+complete input, context, control, and staged-apply workflow.
 
 ## Limitations
 
@@ -1172,6 +1221,9 @@ enforcement.
   turns cannot launch research.
 - Deliberation and consult traces are derived proposal artifacts, not authority
   to spend, call tools, or write beliefs.
+- Experimental investigation artifacts have the same proposal-only boundary.
+  Local completion and automatic verification do not establish answer quality
+  or human review.
 
 ## See Also
 

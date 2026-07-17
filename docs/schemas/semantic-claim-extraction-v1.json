@@ -107,7 +107,11 @@
       ],
       "properties": {
         "status": {"enum": ["ready_for_verification", "blocked", "empty"]},
+        "raw_candidate_count": {"type": "integer", "minimum": 0},
         "parsed_candidate_count": {"type": "integer", "minimum": 0},
+        "candidate_limit": {"type": ["integer", "null"], "minimum": 1},
+        "candidate_limit_applied": {"type": "boolean"},
+        "dropped_candidate_count": {"type": "integer", "minimum": 0},
         "ready_for_verification_count": {"type": "integer", "minimum": 0},
         "blocked_candidate_count": {"type": "integer", "minimum": 0},
         "invalid_source_ref_count": {"type": "integer", "minimum": 0},

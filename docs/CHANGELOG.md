@@ -48,6 +48,38 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   Digital Consciousness, and Model Context Protocol, plus a copyable council and
   verified-learning guide with hard `$10` environment caps, exact local, plan,
   and API posture, and corrections for commands that are not part of Deepr.
+- Added experimental `deepr expert investigate` local execution for bounded
+  evidence-first multi-expert research. Zero-call planning accepts inline text,
+  URLs, files, and root-confined folders, freezes exact expert snapshots, and
+  hash-binds aggregate generation, retrieval, prompt, output, context, elapsed,
+  disk, egress, and `$0` cost ceilings. Execution uses native Ollama with pinned
+  per-request context and JSON output, no provider fallback, durable phase
+  artifacts, optimistic state versions, and status, inspect, pause, resume, and
+  cancel controls.
+- Added independent research charters, per-expert free-web source packs,
+  independent positions, one blinded targeted challenge round, optional private
+  revision in `deep` mode, a separately pinned model checker and claim verifier,
+  and synthesis that requires one contribution record for every named expert.
+  Deterministic checks
+  guard artifact form, basis/reference classes, bounds, side effects, and
+  lineage disclosure without deciding semantic meaning. Completed answers stay
+  explicitly unreviewed.
+- Added optional `--learning stage` after investigation synthesis. Each expert's
+  retrieved source pack independently enters the existing source-note claim
+  extraction, verification, and graph commit envelope path. Dialogue,
+  agreement, private revisions, checker prose, and synthesis cannot become
+  factual evidence. Learning never auto-applies, never writes expert state, and
+  never labels automatic verification as human review. Blocked and no-op
+  outcomes are first-class results. Each compiler orders candidates by model
+  judgment, while deterministic form enforcement retains at most five per
+  expert and records overflow before verification. Extraction receives the
+  target expert domain, and the separate verifier must return a positive
+  material relevance verdict before commit compilation. No lexical rule
+  concludes domain relevance.
+- Added `deepr eval investigation`, a `$0`, zero-call, zero-network six-arm
+  structural evaluator with ten contract checks and no semantic quality claim.
+  Published the investigation input, plan, charter, position, discussion,
+  check, result, learning-manifest, event, and eval v1 schemas.
 - `deepr expert consult` now exposes its actual one-shot execution contract:
   zero expert-generation calls, zero peer turns, at most one synthesis call,
   no belief or graph writes, the API synthesis budget fraction, and the total
@@ -102,6 +134,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Fixed investigation input-token settlement found during implementation
+  audit. Runtime reserved an estimate before dispatch and recorded larger
+  measured Ollama input usage afterward, but did not stop when that measured
+  count crossed the aggregate ceiling. Measured input and output are now
+  settled before artifact acceptance, and a measured aggregate or pinned
+  context overrun ends the run as `budget_exhausted`.
+- Fixed cross-domain negative transfer found by semantic audit of a local
+  three-expert staged-learning run. Structurally valid source-only envelopes for
+  the Temporal Knowledge Graphs and Digital Consciousness experts contained
+  generic MCP facts. None were applied. Investigation charters now treat
+  requested URLs as relevance candidates instead of mechanically propagating
+  all of them, claim extraction receives the target expert domain, and the
+  independent verifier must return a positive material relevance verdict before
+  deterministic commit compilation. A follow-up `$0` run produced zero ready
+  writes when deduplication remained uncertain, preserving fail-closed behavior.
+- Fixed investigation staged-learning response amplification found in local
+  validation. A compiler that ignored its five-claim prompt could expand the
+  verifier until it hit the local prediction ceiling. The compiler envelope now
+  preserves the original response hash, records raw and dropped counts, and
+  retains only the first five model-prioritized candidates. Local runtime token
+  settlement now uses Ollama's measured completion count when present and falls
+  back to byte estimation only when usage is unavailable.
 - Embedding-cache soft cost checks fail closed when cost admission cannot
   run (no more clearing the gate and still dispatching durable embeds).
 - Answer reflection LLM evaluation admits soft cost before provider work

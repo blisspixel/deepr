@@ -1055,11 +1055,13 @@ What exists (current main):
   advertises `deepr_consult_experts` and the adapter attaches the complete
   council artifact. This is not a shipped A2A network service or A2A 1.0
   conformance claim.
-- [ ] Evidence-first investigation ("heavy") mode: let each selected expert
-  research independently before one bounded, blinded crux exchange, checker,
-  and synthesis. Verified learning happens after the answer and never absorbs
-  dialogue as evidence. The detailed input, capacity, call-count, durability,
-  evaluation, and rollout contract is tracked in Phase 4c and
+- [ ] Evidence-first investigation ("heavy") mode: an experimental local-only
+  CLI now lets each selected expert research independently before one bounded,
+  blinded crux exchange, checker, and synthesis. Source-only verified learning
+  is staged after the answer and never absorbs dialogue as evidence. Promotion
+  remains gated on held-out semantic quality and later plan/API accounting. The
+  detailed input, capacity, call-count, durability, evaluation, and rollout
+  contract is tracked in Phase 4c and
   [evidence-first-expert-investigations.md](docs/design/evidence-first-expert-investigations.md).
 - [ ] Self-consultation loop (dogfooding flywheel): Deepr's own maintenance
   consults its own roster. A code, doc, or roadmap change consults the relevant
@@ -1074,9 +1076,9 @@ What exists (current main):
 Honesty: local Ollama multi-turn consultation ships through explicit MCP
 conversation handles. Off-box MCP consultation remains experimental until live
 third-party host registration is validated, and an A2A network service is not
-shipped. Evidence-first investigation must clear its held-out quality,
-durability, memory-safety, and parent-envelope gates before live multi-expert
-research or learning is described as shipped.
+shipped. Evidence-first investigation is an experimental local CLI with `$0`
+provider cost, no fallback, and staged-only learning. It must still clear
+held-out semantic quality before it becomes a promoted quality claim or default.
 
 ### Phase 2b: First-Party Tool Integrations
 
@@ -1532,29 +1534,39 @@ threat model, evaluation arms, and delivery order are in
 - [x] **Research and design contract:** on 2026-07-17, documented the current
       multi-agent and deep-research evidence, input bundle, one parent envelope,
       bounded protocol, truthful learning labels, durability model, threat
-      model, and staged release gates. This is a design completion, not a
-      shipped execution claim.
-- [ ] **Stage 0, `$0` contracts and comparison evaluator:** add frozen brief,
-      input-bundle, plan, charter, position, crux, check, synthesis, and learning
-      manifest contracts to the existing consult/deliberation eval spine.
-      Compare one expert, stored-packet consult, independent research,
-      targeted discussion, and later-learning arms under matched resources.
-- [ ] **Stage 1, zero-call input preview:** manifest and hash inline text, URLs,
-      files, and root-confined folder expansions; report typed exclusions and
-      exact generation/search/page/byte/token/time/dollar ceilings. Preview does
-      not fetch URLs or invoke models unless separately requested.
-- [ ] **Stage 2, local read-only investigation:** compose frozen expert
-      snapshots, free-only retrieval, source packs, local generation, an
-      independent checker, and evidence-linked synthesis. No discussion,
-      metered fallback, or knowledge writes.
-- [ ] **Stage 3, local bounded discussion:** add stable blinded peer aliases,
-      one targeted cross-examination round, optional private revision only after
-      measured need, and durable pause/resume/cancel/replay with exact parent
-      ceilings.
-- [ ] **Stage 4, staged per-expert learning:** reuse claim extraction,
-      independent verification, and graph commit envelopes. Dialogue is never
-      factual evidence; partial per-expert outcomes resume idempotently;
-      automatic verifier acceptance is never labeled human-reviewed.
+      model, and staged release gates. The experimental implementation status
+      is tracked separately below.
+- [x] **Stage 0, `$0` contracts and comparison evaluator:** added frozen
+      input-bundle, plan, charter, position, discussion, check, result, learning,
+      event, and eval contracts plus a six-arm, ten-check structural evaluator
+      on 2026-07-17. Meaning remains explicitly unreviewed.
+      The evaluator compares the declared shapes for one expert, stored-packet
+      consult, independent research, targeted discussion, staged learning, and
+      a future external baseline without making model or network calls.
+- [x] **Stage 1, zero-call input preview:** implemented on 2026-07-17 with
+      inline text, URL, file, and root-confined folder manifests, typed
+      exclusions, stable hashes, and exact call, retrieval, byte, token, time,
+      disk, egress, and dollar ceilings. Preview performs no URL fetch, model
+      call, provider process start, expert write, or model-readiness probe.
+- [x] **Stage 2, local read-only investigation:** implemented experimentally on
+      2026-07-17 with frozen expert snapshots, free-only retrieval, immutable
+      source packs, native Ollama generation, an independently pinned checker,
+      and evidence-linked synthesis. The runtime has no metered or plan fallback
+      and no knowledge-write authority.
+- [x] **Stage 3, local bounded discussion:** implemented experimentally on
+      2026-07-17 with stable blinded peer aliases, one targeted challenge per
+      expert, optional private revision in `deep` mode, durable phase artifacts,
+      exact parent ceilings, and pause/resume/cancel controls.
+- [x] **Stage 4, staged per-expert learning:** implemented experimentally on
+      2026-07-17 by reusing source-note claim extraction, independent
+      verification, and graph commit envelopes. Claim extraction is told the
+      target expert domain, and the independent verifier must return a positive
+      material-domain-relevance verdict before deterministic code can admit a
+      commit. No lexical rule decides relevance. Each compiler is bounded to
+      the first five model-prioritized candidates before verification. Dialogue
+      and synthesis cannot enter the learning source pack; partial outcomes
+      resume idempotently; no proposal is auto-applied or labeled
+      human-reviewed.
 - [ ] **Stage 5, explicit plan-quota capacity:** bind the exact plan id and
       process attempts to one parent call/token/context/time envelope. Keep
       execution explicit-only and state that Deepr cannot prove vendor quota or
@@ -1566,6 +1578,79 @@ threat model, evaluation arms, and delivery order are in
 - [ ] **Stage 7, remote surfaces:** expose the stable investigation lifecycle
       over scoped MCP and later A2A only after the CLI and local acceptance gates
       pass. Remote conversation handles do not become investigation authority.
+
+- [x] **Live-validation finding, retrieval accounting:** the first local pilot
+      counted every fresh-context candidate as a fetched page and could exhaust
+      the hash-bound page envelope before generation. Fixed 2026-07-17 by binding
+      the builder to per-expert query/page limits before network work and
+      counting only fetched, not-modified, and error outcomes as actual fetches.
+- [x] **Live-validation finding, local context and output form:** inherited
+      Ollama model definitions could allocate a 262K context, force large CPU
+      offload, and return malformed structured output. Fixed 2026-07-17 with a
+      native `/api/chat` investigation backend that pins `num_ctx` per request,
+      enforces JSON output, caps prediction, and rejects prompts that cannot fit
+      the hash-bound prompt-plus-output context before dispatch.
+- [x] **Implementation-audit finding, measured input-token settlement:** the
+      runtime reserved a conservative byte-derived input estimate before local
+      dispatch and recorded a larger measured Ollama count afterward, but did
+      not stop when measured aggregate input exceeded the plan ceiling. Fixed
+      2026-07-17 by settling measured input and output before artifact
+      acceptance and ending the run as `budget_exhausted` when measured
+      aggregate usage or prompt-plus-output usage exceeds the hash-bound limit.
+- [x] **Live-validation finding, verifier model routing:** a staged claim
+      verification call stayed on the domain model even when the plan pinned a
+      separate review model, producing poor independence and impractical local
+      latency. Fixed 2026-07-17 by routing checker, synthesis, and source-claim
+      verification through the exact review model and review context recorded
+      in the immutable plan, while claim compilation stays with the domain
+      model.
+- [x] **Live-validation finding, checker evidence and roster preservation:** an
+      early pilot gave the checker source identifiers without excerpts and let
+      synthesis omit a named expert or misclassify caller evidence. Fixed
+      2026-07-17 by passing bounded caller and retrieved-evidence excerpts,
+      requiring exactly one contribution record per expected expert, and
+      validating basis/reference classes without making semantic verdicts.
+- [x] **Live-validation finding, learning response amplification:** one local
+      compiler ignored the requested five-claim limit and returned twelve
+      candidates. The expanded verifier response reached Ollama's prediction
+      ceiling, while a byte-based fallback overcount incorrectly reported that
+      the measured token limit was exceeded. Fixed 2026-07-17 by retaining only
+      the first five model-prioritized candidates as a deterministic form
+      bound, recording raw/retained/dropped counts, and using Ollama's measured
+      completion tokens when available with byte estimation only as fallback.
+- [x] **Live-validation finding, structurally complete staged-learning path:** a fresh
+      three-expert independent run completed on 2026-07-17 with fourteen local
+      model calls, twelve searches, twenty-four fetched pages, `$0.00` provider
+      cost, and no expert-state writes. All three source-only verifier passes
+      produced five-write commit envelopes. The existing apply command accepted
+      all fifteen operations in dry-run mode with zero applied writes, zero
+      blocked operations, and no failures. None were applied. A later content
+      audit found that the Temporal Knowledge Graphs and Digital Consciousness
+      envelopes contained generic MCP facts, proving that source-only structure
+      was insufficient to prevent negative transfer.
+- [x] **Live-validation finding, cross-domain negative transfer:** the runtime
+      mechanically appended every requested URL to every expert's retrieval
+      query, while extraction and verification had no explicit target-domain
+      relevance decision. Fixed 2026-07-17 by making requested URLs optional
+      charter evidence, passing each expert domain into claim extraction, and
+      requiring an independent verifier model to return a positive material
+      relevance verdict before commit compilation. Deterministic code enforces
+      that verdict without using lexical overlap as a conclusion. A fresh
+      three-expert run completed with fourteen local model calls, twelve
+      searches, twenty-four fetched pages, `$0.00` provider cost, zero human
+      reviews, and zero expert-state writes. The verifier marked all fifteen
+      retained candidates domain-relevant, but every envelope then failed
+      closed because deduplication remained `uncertain`. Zero writes were ready
+      or applied. This validates safe refusal, not semantic quality.
+- [ ] **Semantic promotion gate:** the 2026-07-17 three-expert local pilot
+      completed research, blinded discussion, private revision, independent
+      checking, and synthesis at `$0`; later independent pilots exercised all
+      three staged-learning paths, exposed negative transfer, and demonstrated
+      fail-closed no-op behavior. All final artifacts remained `unreviewed`,
+      and the runs exposed source-coverage, lineage, and verifier uncertainty
+      warnings. Complete the held-out matched-resource comparison and
+      later-learning transfer test before claiming that investigation is better
+      than the strongest simpler arm.
 
 **Named-crew gate.** Do not schedule a generic crew runtime. Reconsider a
 versioned crew manifest only when reviewed traces show that the same bounded

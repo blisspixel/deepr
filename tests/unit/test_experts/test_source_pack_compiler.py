@@ -207,6 +207,138 @@ def test_semantic_claim_extraction_records_prompt_and_verifier_gates():
     assert candidate["verifier_gate"]["writes_graph"] is False
 
 
+def test_semantic_claim_extraction_enforces_ordered_candidate_limit() -> None:
+    notes = build_source_notes(_source_pack_payload())
+    note = notes["notes"][0]
+    window = note["windows"][0]
+    claims = [
+        {
+            "statement": f"Priority claim {index}.",
+            "claim_kind": "factual_claim",
+            "confidence": 0.8,
+            "atomicity": "atomic",
+            "temporal_scope": "current",
+            "support_summary": "Direct source support.",
+            "source_refs": [
+                {
+                    "note_id": note["note_id"],
+                    "window_id": window["window_id"],
+                    "quote": "Release text",
+                }
+            ],
+        }
+        for index in range(12)
+    ]
+
+    extraction = build_semantic_claim_extraction(notes, {"claims": claims}, max_candidates=5)
+
+    assert extraction["summary"]["raw_candidate_count"] == 12
+    assert extraction["summary"]["parsed_candidate_count"] == 5
+    assert extraction["summary"]["candidate_limit"] == 5
+    assert extraction["summary"]["candidate_limit_applied"] is True
+    assert extraction["summary"]["dropped_candidate_count"] == 7
+    assert [candidate["statement"] for candidate in extraction["candidates"]] == [
+        f"Priority claim {index}." for index in range(5)
+    ]
+
+
+def test_claim_verification_blocks_claim_irrelevant_to_required_domain() -> None:
+    notes = build_source_notes(_source_pack_payload())
+    note = notes["notes"][0]
+    window = note["windows"][0]
+    extraction = build_semantic_claim_extraction(
+        notes,
+        {
+            "claims": [
+                {
+                    "statement": "MCP is an open protocol.",
+                    "claim_kind": "factual_claim",
+                    "confidence": 0.9,
+                    "source_refs": [
+                        {
+                            "note_id": note["note_id"],
+                            "window_id": window["window_id"],
+                            "quote": "Release text",
+                        }
+                    ],
+                }
+            ]
+        },
+    )
+    candidate_id = extraction["candidates"][0]["candidate_id"]
+
+    verification = build_claim_verification(
+        extraction,
+        {
+            "verifications": [
+                {
+                    "candidate_id": candidate_id,
+                    "support_verdict": "supported",
+                    "contradiction_verdict": "none",
+                    "dedup_verdict": "new",
+                    "temporal_scope_verdict": "valid",
+                    "domain_relevance_verdict": "irrelevant",
+                    "domain_relevance_rationale": "The claim does not inform temporal knowledge graphs.",
+                    "confidence": 0.9,
+                }
+            ]
+        },
+        required_domain="temporal knowledge graphs",
+    )
+
+    assert verification["summary"]["ready_for_commit_envelope_count"] == 0
+    assert verification["summary"]["failure_reasons"] == ["domain_relevance_not_verified"]
+    assert verification["decisions"][0]["verdicts"]["domain_relevance"] == "irrelevant"
+    assert verification["decisions"][0]["readiness"]["ready_for_commit_envelope"] is False
+
+
+def test_claim_verification_requires_rationale_for_positive_domain_relevance() -> None:
+    notes = build_source_notes(_source_pack_payload())
+    note = notes["notes"][0]
+    window = note["windows"][0]
+    extraction = build_semantic_claim_extraction(
+        notes,
+        {
+            "claims": [
+                {
+                    "statement": "Temporal validity changes how a graph answers historical queries.",
+                    "claim_kind": "factual_claim",
+                    "confidence": 0.9,
+                    "source_refs": [
+                        {
+                            "note_id": note["note_id"],
+                            "window_id": window["window_id"],
+                            "quote": "Release text",
+                        }
+                    ],
+                }
+            ]
+        },
+    )
+    candidate_id = extraction["candidates"][0]["candidate_id"]
+
+    verification = build_claim_verification(
+        extraction,
+        {
+            "verifications": [
+                {
+                    "candidate_id": candidate_id,
+                    "support_verdict": "supported",
+                    "contradiction_verdict": "none",
+                    "dedup_verdict": "new",
+                    "temporal_scope_verdict": "valid",
+                    "domain_relevance_verdict": "relevant",
+                    "confidence": 0.9,
+                }
+            ]
+        },
+        required_domain="temporal knowledge graphs",
+    )
+
+    assert verification["summary"]["ready_for_commit_envelope_count"] == 0
+    assert verification["summary"]["failure_reasons"] == ["missing_domain_relevance_rationale"]
+
+
 def test_semantic_claim_extraction_blocks_invalid_source_refs():
     notes = build_source_notes(_source_pack_payload())
     output = {

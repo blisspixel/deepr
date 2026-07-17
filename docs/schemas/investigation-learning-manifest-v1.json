@@ -1,0 +1,49 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/blisspixel/deepr/docs/schemas/investigation-learning-manifest-v1.json",
+  "title": "Deepr Investigation Learning Manifest v1",
+  "type": "object",
+  "additionalProperties": true,
+  "required": ["schema_version", "kind", "run_id", "entries", "summary", "contract", "generated_at"],
+  "properties": {
+    "schema_version": {"const": "deepr-investigation-learning-manifest-v1"},
+    "kind": {"const": "deepr.expert.investigation_learning_manifest"},
+    "run_id": {"type": "string", "minLength": 1},
+    "entries": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["expert_name", "status", "automatic_verifier_accepted", "human_reviewed", "writes_expert_state"],
+        "properties": {
+          "expert_name": {"type": "string", "minLength": 1},
+          "automatic_verifier_accepted": {"type": "boolean"},
+          "human_reviewed": {"const": false},
+          "writes_expert_state": {"const": false}
+        },
+        "additionalProperties": true
+      }
+    },
+    "summary": {
+      "type": "object",
+      "required": ["expert_count", "ready_write_count", "automatic_verifier_accepted_count", "human_reviewed_count", "expert_state_write_count"],
+      "properties": {
+        "human_reviewed_count": {"const": 0},
+        "expert_state_write_count": {"const": 0}
+      },
+      "additionalProperties": true
+    },
+    "contract": {
+      "type": "object",
+      "required": ["source_pack_evidence_only", "domain_relevance_required", "dialogue_is_evidence", "writes_expert_state", "human_reviewed", "apply_requires_explicit_command"],
+      "properties": {
+        "source_pack_evidence_only": {"const": true},
+        "domain_relevance_required": {"const": true},
+        "dialogue_is_evidence": {"const": false},
+        "writes_expert_state": {"const": false},
+        "human_reviewed": {"const": false},
+        "apply_requires_explicit_command": {"const": true}
+      }
+    },
+    "generated_at": {"type": "string", "format": "date-time"}
+  }
+}

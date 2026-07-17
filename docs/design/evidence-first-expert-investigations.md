@@ -1,8 +1,10 @@
 # Evidence-first expert investigations
 
-Status: accepted implementation plan, 2026-07-17. Research cutoff: 2026-07-16.
-Nothing in this document is a shipped CLI or an authorization to make paid
-calls.
+Status: accepted design with an experimental local implementation, 2026-07-17.
+Research cutoff: 2026-07-16. Stages 0 through 4 are implemented for explicit
+local Ollama execution at `$0` provider cost. Semantic quality is still
+unreviewed, and plan-quota, metered API, remote, and automatic-apply stages are
+not shipped. Nothing in this document authorizes paid calls.
 
 Cross-cuts expert consult, durable conversations, local fresh context,
 plan-quota capacity, source packs, claim verification, graph commits, campaign
@@ -25,8 +27,9 @@ checker and synthesizer preserve support, uncertainty, and dissent. Only
 source-backed claims that pass the existing independent verification and graph
 commit boundary may be proposed as learning for an expert.
 
-The initial product shape is provisionally `deepr expert investigate`. The name
-is not a compatibility promise until the `$0` eval and local pilot pass.
+The experimental product shape is `deepr expert investigate`. Its artifact
+contracts are versioned, but the CLI is not a promoted quality claim until the
+held-out semantic gate passes.
 
 This is similar to the useful part of heavy multi-agent research systems:
 parallel search, specialization, cross-checking, and synthesis. Deepr's testable
@@ -78,10 +81,11 @@ The plan command is a zero-call preview by default. It may hash local inputs and
 inspect capacity, but it does not fetch URLs, invoke a model, spend quota, or
 write expert knowledge. Any networked preview is a separately named opt-in.
 
-## Product truth today
+## Product truth and implemented boundary
 
-Deepr already has most of the safety and evidence primitives, but not this
-composed workflow:
+At design acceptance, Deepr already had most of the safety and evidence
+primitives. The experimental local implementation now composes them within the
+following boundary:
 
 - `deepr expert consult` selects stored packets from experts, performs zero
   expert-generation calls, allows zero peer turns, and uses at most one
@@ -97,13 +101,14 @@ composed workflow:
   no-surprise-bills gates. Deepr cannot observe a vendor's trustworthy remaining
   subscription quota or prove that a vendor will never charge the account.
 - The cost ledger, durable reservation, claim extraction, claim verification,
-  and graph commit envelopes exist. A parent ceiling that composes all calls in
-  one multi-expert investigation still needs to be implemented and tested.
+  and graph commit envelopes exist. The local investigation now composes every
+  generation, retrieval, token, context, time, disk, and cost allowance under
+  one durable `$0` parent envelope. Plan and API composition remain gated.
 - `deepr eval deliberation` currently validates frozen structural fixtures. It
   does not establish that live multi-round discussion improves answers.
 
-The implementation should compose these primitives. It should not create a
-second belief store, a second cost system, or a hidden agent runtime.
+The implementation composes these primitives without creating a second belief
+store, a second cost system, or a hidden agent runtime.
 
 ## Research basis through 2026-07-16
 
@@ -294,7 +299,7 @@ adjustments after cancellation or exhaustion.
 - Is not a billing guarantee. Deepr cannot prove whether the vendor used
   subscription quota, credits, or extra usage.
 - Cannot auto-route among plan CLIs until trustworthy remaining-quota evidence
-  exists. A run may use only the plan ids in its signed plan artifact.
+  exists. A run may use only the plan ids in its hash-bound plan artifact.
 
 `api`
 
@@ -306,7 +311,7 @@ adjustments after cancellation or exhaustion.
 
 `hybrid` is deferred until each single-class path passes. The intended `$0`
 quality path is then an explicit per-phase map, for example local research with
-`plan:codex` checking and `plan:grok` synthesis. The signed plan must name every
+`plan:codex` checking and `plan:grok` synthesis. The hash-bound plan must name every
 backend and its phase, and the preview must show separate quota ceilings. A
 local or plan failure stops or waits; it does not fall through to another
 backend. This is explicit composition, not auto-routing and not a billing
@@ -370,6 +375,10 @@ selected capacity, calculate all ceilings, and emit a stable plan hash. Show
 the exact phases, calls, queries, pages, context, elapsed time, learning mode,
 and potential spend. Execution requires explicit confirmation or a separately
 provided non-interactive confirmation flag.
+
+The SHA-256 self-hash detects content changes and binds run artifacts to one
+plan. It is not a digital signature, caller authentication, or authorization
+proof.
 
 ### Phase 1: freeze state
 
@@ -476,7 +485,10 @@ Learning is a separate post-answer phase. `off`, `stage`, and eventually
 - `stage` is the initial default. Each expert receives only domain-relevant
   source packs and the run's gap or hypothesis proposals. Existing claim
   extraction and independent verification produce graph commit envelopes, but
-  nothing is applied.
+  nothing is applied. Extraction receives the target expert domain and a
+  separate verifier model must judge each candidate materially relevant to
+  that domain. Deterministic code requires a positive verdict but does not use
+  lexical overlap to decide meaning.
 - `verified-auto` may later apply only operations that pass the existing
   source-backed verifier and graph commit contract. It must be explicitly
   selected and is gated on memory-poisoning, negative-transfer, and held-out
@@ -653,39 +665,46 @@ larger.
 
 ### Stage 0: contract and `$0` evaluator
 
-- Add frozen contracts and fixture validation to the existing consult and
-  deliberation eval spine.
-- Add the six comparison arms as artifact shapes, without live calls.
-- Add adversarial file, prompt-injection, identity-bias, drift, and partial
-  learning fixtures.
+- Implemented 2026-07-17: frozen public contracts, schema validation, and a
+  six-arm, ten-check `$0` structural evaluator with no model or network calls.
+- The evaluator verifies protocol and authority boundaries only. It records
+  semantic quality as unreviewed.
 
 ### Stage 1: input bundle and exact preview
 
-- Implement inline text, URL, file, and folder manifests with hashing,
-  confinement, bounds, exclusions, and retention policy.
-- Emit the immutable run plan and complete call/tool/cost formula.
-- Make preview zero-call and zero-network by default.
+- Implemented 2026-07-17: inline text, URL, file, and folder manifests with
+  hashing, root confinement, exclusions, and byte limits.
+- The immutable plan exposes the complete call, retrieval, token, context,
+  elapsed, disk, egress, and cost envelope.
+- Preview is zero-call and zero-network and does not claim model readiness.
 
 ### Stage 2: local independent research
 
-- Compose frozen expert snapshots, free-only retrieval, source packs, and local
-  generation.
-- Ship read-only independent positions, checker, and synthesis.
-- Keep discussion and learning disabled.
+- Implemented experimentally 2026-07-17: frozen snapshots, free-only retrieval,
+  immutable source packs, native Ollama generation, independent positions,
+  checker, and evidence-linked synthesis.
+- The local backend pins the hash-bound context and JSON response form on every
+  request. It has no plan or metered fallback and no expert-write authority.
 
 ### Stage 3: local bounded discussion
 
-- Add blinded crux packets and one targeted cross-examination round.
-- Add optional private revision only after the simpler arm passes.
-- Validate pause, resume, cancellation, replay, and exact ceilings locally.
+- Implemented experimentally 2026-07-17: blinded crux packets, one targeted
+  challenge per expert, optional private revision in `deep` mode, pause,
+  resume, cancellation, durable replay, and exact parent ceilings.
 
 ### Stage 4: staged learning
 
-- Compile per-expert source packs into existing claim verification and graph
+- Implemented experimentally 2026-07-17: each expert's immutable source pack
+  flows through existing claim extraction, independent verification, and graph
   commit envelopes.
-- Default to staging, with explicit apply per expert.
-- Prove that dialogue cannot enter factual memory and that partial failures
-  resume idempotently.
+- The compiler prompt orders claims by priority, and deterministic form
+  enforcement retains at most the first five candidates per expert while
+  recording raw, retained, and dropped counts. This bounds verifier expansion
+  without making a semantic selection in code.
+- Learning is off by default or explicitly staged. It never auto-applies, never
+  labels automatic verification as human review, and never uses dialogue or
+  synthesis as factual evidence.
+- Partial per-expert results are durable and idempotent on resume.
 
 ### Stage 5: explicit plan-quota execution
 
@@ -708,6 +727,41 @@ larger.
   caller ownership and per-key ceilings.
 - Map to A2A only after its durable service and protocol gates pass.
 
+## Local implementation validation
+
+Three complementary three-expert pilots ran on 2026-07-17 with no paid capacity.
+The discussion pilot completed independent research, one blinded exchange,
+checking, and synthesis with fourteen model calls, twelve searches, and
+twenty-four page fetches. Its uncapped compiler responses safely produced no
+learning writes, exposing the need for the explicit staged-candidate limit.
+
+After that fix, a fresh independent pilot completed the full fourteen-call
+compiler and verifier formula. Each expert produced five source-only verified
+operations, for fifteen staged operations total. All three envelopes passed the
+existing graph apply command in dry-run mode with zero applied writes, zero
+blocked operations, and no failures. The run manifest recorded `$0.00`
+provider cost, zero human reviews, and zero expert-state writes.
+
+None were applied. A subsequent content audit found generic MCP facts in the
+Temporal Knowledge Graphs and Digital Consciousness envelopes. That was
+negative transfer despite structurally valid source lineage.
+
+The fix removed mechanical propagation of every requested URL into every
+retrieval query, made target-domain relevance explicit in extraction, and
+required an independent verifier model to return a positive relevance verdict
+before commit compilation. A third run completed with fourteen model calls,
+twelve searches, twenty-four page fetches, and `$0.00` provider cost. The
+verifier marked all fifteen retained candidates domain-relevant, but all three
+commit envelopes failed closed because semantic deduplication remained
+`uncertain`. The result was zero ready writes, zero applied writes, zero human
+reviews, and zero expert-state writes.
+
+These pilots validate local execution, durability, accounting, evidence
+separation, negative-transfer protection, safe refusal, and write boundaries.
+They do not validate semantic superiority or prove that the verifier's
+relevance judgments are correct. The resulting answers remain unreviewed, and
+the held-out comparison and later transfer criteria below remain open.
+
 ## Acceptance criteria
 
 The local pilot is usable only when all of the following hold:
@@ -723,12 +777,16 @@ The local pilot is usable only when all of the following hold:
 - original positions and dissent survive challenge and synthesis;
 - raw conversation cannot authorize tools, spend, or memory writes;
 - learning proposals use the existing source-pack verifier and graph commit
-  envelope, with truthful review labels;
+  envelope, require a positive independent target-domain relevance verdict,
+  and preserve truthful review labels;
 - held-out results show non-inferior quality and a measured benefit over the
   strongest simpler arm for at least one admitted task class;
 - lint, strict type gates, code-health ratchets, unit tests, branch coverage,
   and CI all pass.
 
-Until those gates pass, the honest path is to combine existing commands
-manually: local or explicit-plan expert research, read-only consult, source-pack
+Until all gates pass, `expert investigate` remains an experimental local tool.
+Its completed answers stay labeled unreviewed, learning stays staged, and no
+result may change routing, policy, roadmap state, or expert knowledge without a
+separate authorized operation. The stable alternative remains local or
+explicit-plan expert research, one-shot read-only consult, source-pack
 inspection, and separately staged verified learning.
