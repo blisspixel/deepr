@@ -127,13 +127,14 @@ def test_portrait_generation_settles_reserved_cost(client, monkeypatch):
     assert records[0]["provider"] == "openai"
 
 
-def test_portrait_generation_refunds_and_returns_generic_error_on_provider_failure(client, monkeypatch):
+def test_portrait_generation_settles_and_returns_generic_error_on_provider_failure(client, monkeypatch):
     import deepr.experts.cost_safety as cost_safety
     import deepr.experts.portraits as portraits
 
     profile = SimpleNamespace(name="Budget Expert", domain="cost control", description="testing")
     saved = []
     refunds = []
+    records = []
     _install_fake_store(monkeypatch, profile, saved)
 
     class FakeCostSafety:
@@ -144,8 +145,9 @@ def test_portrait_generation_refunds_and_returns_generic_error_on_provider_failu
             refunds.append(reservation_id)
             return True
 
-        def record_cost(self, **_kwargs):
-            raise AssertionError("failed generation must not record cost")
+        def record_cost(self, **kwargs):
+            records.append(kwargs)
+            return True
 
     async def fail_generate_portrait(**_kwargs):
         raise RuntimeError("provider detail that must not reach the response")
@@ -161,7 +163,11 @@ def test_portrait_generation_refunds_and_returns_generic_error_on_provider_failu
 
     assert resp.status_code == 500
     assert resp.get_json() == {"error": "Portrait generation failed"}
-    assert refunds == ["reservation-1"]
+    assert refunds == []
+    assert records[0]["reservation_id"] == "reservation-1"
+    assert records[0]["actual_cost"] == 0.04
+    assert records[0]["metadata"]["outcome"] == "failed"
+    assert records[0]["metadata"]["settlement_reason"] == "provider_dispatch_or_completion_uncertain"
     assert saved == []
 
 

@@ -24,7 +24,13 @@ from deepr.mcp.client.trace_stitcher import TraceStitcher
 
 
 def _make_profile(name: str, enabled: bool = True) -> MCPClientProfile:
-    return MCPClientProfile(name=name, command="echo", args=["test"], enabled=enabled)
+    return MCPClientProfile(
+        name=name,
+        command="echo",
+        args=["test"],
+        enabled=enabled,
+        free_tools=["lookup", "search", "t"],
+    )
 
 
 class TestDisabledProfileExclusion:
@@ -73,6 +79,7 @@ class TestBudgetIntegration:
                 name="expensive-server",
                 command="echo",
                 budget_limit=2.0,
+                free_tools=["tool"],
             )
         )
         pool._clients["expensive-server"]._connected = True
@@ -110,6 +117,30 @@ class TestBudgetIntegration:
 
         assert isinstance(result, MCPToolResult)
         assert result.ok
+
+    @pytest.mark.asyncio
+    async def test_unclassified_tool_is_refused_before_dispatch_even_with_estimate(self):
+        mock_manager = MagicMock()
+        mock_ledger = MagicMock()
+        propagator = BudgetPropagator(budget_manager=mock_manager, cost_ledger=mock_ledger)
+        pool = MCPClientPool(budget_propagator=propagator)
+        pool.register(MCPClientProfile(name="paid-server", command="echo", budget_limit=5.0))
+        call = AsyncMock(side_effect=AssertionError("unclassified remote tool must not run"))
+        pool._clients["paid-server"].call_tool = call
+
+        result = await pool.call_tool(
+            "paid-server",
+            "research_company",
+            {},
+            estimated_cost=1.0,
+            session_remaining=10.0,
+        )
+
+        assert isinstance(result, StructuredError)
+        assert result.code == MCPErrorCode.COST_ACCOUNTING_UNAVAILABLE
+        assert "not proven free" in result.message
+        call.assert_not_awaited()
+        mock_ledger.record_event.assert_not_called()
 
 
 class TestTraceInjection:

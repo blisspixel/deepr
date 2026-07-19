@@ -14,6 +14,7 @@ from hypothesis import strategies as st
 # Add deepr to path
 sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent))
 
+from deepr.mcp.request_context import MCPRequestIdentity
 from deepr.mcp.state.job_manager import JobPhase
 from deepr.mcp.state.resource_handler import (
     MCPResourceHandler,
@@ -168,6 +169,50 @@ class TestMCPResourceHandler:
         assert all("experts" in uri for uri in expert_uris)
 
     @pytest.mark.asyncio
+    async def test_scoped_identity_filters_and_rechecks_owned_resources(self, handler, tmp_path):
+        owner = MCPRequestIdentity.http_scoped_key(
+            key_id="owner",
+            expert_allowlist=("alpha",),
+            peer_is_loopback=True,
+        )
+        other = MCPRequestIdentity.http_scoped_key(
+            key_id="other",
+            expert_allowlist=("beta",),
+            peer_is_loopback=True,
+        )
+        await handler.jobs.create_job(job_id="owned", goal="Owned", owner_id=owner.owner_id)
+        await handler.jobs.create_job(job_id="other", goal="Other", owner_id=other.owner_id)
+        await handler.jobs.create_job(job_id="legacy", goal="Legacy")
+        handler.experts.register_expert("alpha", "Alpha", "Domain", "Desc")
+        handler.experts.register_expert("beta", "Beta", "Domain", "Desc")
+        for job_id in ("owned", "other"):
+            job_dir = tmp_path / "reports" / job_id
+            job_dir.mkdir(parents=True)
+            (job_dir / "final_report.md").write_text(f"{job_id} report", encoding="utf-8")
+            (job_dir / "search_trace.json").write_text('{"query": "secret"}', encoding="utf-8")
+
+        scoped = handler.list_resources(identity=owner)
+
+        assert "deepr://campaigns/owned/status" in scoped
+        assert "deepr://reports/owned/final.md" in scoped
+        assert "deepr://logs/owned/search_trace.json" in scoped
+        assert "deepr://experts/alpha/beliefs" in scoped
+        assert all("/other/" not in uri and "/legacy/" not in uri and "/beta/" not in uri for uri in scoped)
+        assert handler.read_resource("deepr://campaigns/owned/plan", identity=owner).success
+        assert handler.read_resource("deepr://reports/owned/final.md", identity=owner).success
+        assert handler.read_resource("deepr://experts/alpha/beliefs", identity=owner).success
+        assert not handler.read_resource("deepr://campaigns/other/plan", identity=owner).success
+        assert not handler.read_resource("deepr://reports/other/final.md", identity=owner).success
+        assert not handler.read_resource("deepr://logs/other/search_trace.json", identity=owner).success
+        assert not handler.read_resource("deepr://experts/beta/beliefs", identity=owner).success
+        assert not handler.read_resource("deepr://campaigns/legacy/status", identity=owner).success
+
+        local = handler.list_resources()
+        assert "deepr://campaigns/other/status" in local
+        assert "deepr://campaigns/legacy/status" in local
+        assert "deepr://experts/beta/beliefs" in local
+
+    @pytest.mark.asyncio
     async def test_handle_subscribe(self, handler):
         """Should handle subscribe request."""
 
@@ -202,6 +247,47 @@ class TestMCPResourceHandler:
         unsub_result = await handler.handle_unsubscribe(sub_result["subscription_id"])
 
         assert unsub_result["success"] is True
+
+    @pytest.mark.asyncio
+    async def test_scoped_subscription_requires_resource_and_subscription_ownership(self, handler):
+        owner = MCPRequestIdentity.http_scoped_key(
+            key_id="owner",
+            expert_allowlist=(),
+            peer_is_loopback=True,
+        )
+        other = MCPRequestIdentity.http_scoped_key(
+            key_id="other",
+            expert_allowlist=(),
+            peer_is_loopback=True,
+        )
+        await handler.jobs.create_job(job_id="owned", goal="Owned", owner_id=owner.owner_id)
+
+        async def callback(data):
+            pass
+
+        denied = await handler.handle_subscribe(
+            "deepr://campaigns/owned/status",
+            callback,
+            identity=other,
+        )
+        assert "error" in denied
+
+        subscribed = await handler.handle_subscribe(
+            "deepr://campaigns/owned/status",
+            callback,
+            identity=owner,
+        )
+        attacker_unsubscribe = await handler.handle_unsubscribe(
+            subscribed["subscription_id"],
+            identity=other,
+        )
+        owner_unsubscribe = await handler.handle_unsubscribe(
+            subscribed["subscription_id"],
+            identity=owner,
+        )
+
+        assert attacker_unsubscribe["success"] is False
+        assert owner_unsubscribe["success"] is True
 
     def test_get_resource_uri_for_job(self, handler):
         """Should return all URIs for a job."""
@@ -354,6 +440,34 @@ class TestPersistenceIntegration:
         state = h2.jobs.get_state("survive_restart")
         assert state is not None
         assert state.phase == JobPhase.COMPLETED
+
+    @pytest.mark.asyncio
+    async def test_scoped_job_owner_survives_persistence_restore(self, tmp_path):
+        db_path = tmp_path / "owned_jobs.db"
+        reports_base = tmp_path / "reports"
+        owner = MCPRequestIdentity.http_scoped_key(
+            key_id="owner",
+            expert_allowlist=(),
+            peer_is_loopback=True,
+        )
+        other = MCPRequestIdentity.http_scoped_key(
+            key_id="other",
+            expert_allowlist=(),
+            peer_is_loopback=True,
+        )
+        h1 = MCPResourceHandler(reports_base=reports_base, db_path=db_path)
+        await h1.jobs.create_job(job_id="owned", goal="Owned", owner_id=owner.owner_id)
+        h1.persist_job("owned")
+        assert h1.persistence is not None
+        h1.persistence.close()
+
+        h2 = MCPResourceHandler(reports_base=reports_base, db_path=db_path)
+        restored = h2.jobs.get_state("owned")
+
+        assert restored is not None
+        assert restored.owner_id == owner.owner_id
+        assert h2.read_resource("deepr://campaigns/owned/status", identity=owner).success
+        assert not h2.read_resource("deepr://campaigns/owned/status", identity=other).success
 
     @pytest.mark.asyncio
     async def test_incomplete_jobs_marked_failed_on_restart(self, tmp_path):

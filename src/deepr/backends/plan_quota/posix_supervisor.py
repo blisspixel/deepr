@@ -15,11 +15,13 @@ import signal
 import subprocess
 import sys
 import time
+from collections import deque
 from pathlib import Path
 
 _PR_SET_CHILD_SUBREAPER = 36
 _CLEANUP_DEADLINE_S = 0.75
 _EMPTY_OBSERVATIONS_REQUIRED = 2
+_MAX_DESCENDANTS_PER_PASS = 4096
 _LINUX_SIGKILL = 9
 _POSIX_WNOHANG = 1
 LAUNCH_ERROR_STATUS = "launch_error"
@@ -64,16 +66,39 @@ def _become_subreaper() -> None:
         raise OSError(error_number, "PR_SET_CHILD_SUBREAPER failed")
 
 
-def _direct_child_pids() -> tuple[int, ...]:
-    children_path = Path(f"/proc/{os.getpid()}/task/{os.getpid()}/children")
+def _direct_child_pids(pid: int | None = None) -> tuple[int, ...]:
+    resolved_pid = os.getpid() if pid is None else pid
+    children_path = Path(f"/proc/{resolved_pid}/task/{resolved_pid}/children")
     try:
         text = children_path.read_text(encoding="ascii").strip()
+    except FileNotFoundError:
+        if pid is not None:
+            return ()
+        raise _ChildEnumerationError("Linux child ownership enumeration failed") from None
     except OSError as error:
         raise _ChildEnumerationError("Linux child ownership enumeration failed") from error
     values = text.split()
     if any(not value.isdecimal() for value in values):
         raise _ChildEnumerationError("Linux child ownership enumeration was malformed")
     return tuple(int(value) for value in values)
+
+
+def _descendant_pids() -> tuple[int, ...]:
+    """Enumerate a bounded complete descendant batch, deepest processes first."""
+    pending = deque(_direct_child_pids())
+    seen: set[int] = set()
+    ordered: list[int] = []
+    while pending and len(ordered) < _MAX_DESCENDANTS_PER_PASS:
+        pid = pending.popleft()
+        if pid in seen:
+            continue
+        seen.add(pid)
+        ordered.append(pid)
+        remaining_capacity = _MAX_DESCENDANTS_PER_PASS - len(ordered) - len(pending)
+        if remaining_capacity > 0:
+            pending.extend(_direct_child_pids(pid)[:remaining_capacity])
+    ordered.reverse()
+    return tuple(ordered)
 
 
 def _reap_exited_children() -> None:
@@ -91,14 +116,14 @@ def _terminate_owned_children() -> bool:
     empty_observations = 0
     try:
         while time.monotonic() < deadline:
-            pids = set(_direct_child_pids())
+            pids = _descendant_pids()
             for pid in pids:
                 try:
                     os.kill(pid, _LINUX_SIGKILL)
                 except ProcessLookupError:
                     continue
             _reap_exited_children()
-            remaining = _direct_child_pids()
+            remaining = _descendant_pids()
             if remaining:
                 empty_observations = 0
             else:
@@ -106,7 +131,7 @@ def _terminate_owned_children() -> bool:
                 if empty_observations >= _EMPTY_OBSERVATIONS_REQUIRED:
                     return True
             time.sleep(0.01)
-        return not _direct_child_pids()
+        return not _descendant_pids()
     except _ChildEnumerationError:
         return False
 

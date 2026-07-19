@@ -87,37 +87,67 @@ class SQLiteQueue(QueueBackend):
 
         prior = float(previous_cost) if previous_cost is not None else 0.0
         delta = float(cost) - prior
-        if delta <= 0:
-            return False
-
         completion_key = f"job:{job_id}:completion"
-        if prior == 0:
-            try:
-                from deepr.observability.cost_ledger import CostLedger
+        try:
+            from deepr.observability.cost_ledger import CostLedger
 
-                if CostLedger().has_idempotency_key(completion_key):
-                    return True
-            except Exception as e:
-                logger.warning("Failed to check cost ledger for job %s: %s", job_id, e)
+            completion_recorded = CostLedger().has_idempotency_key(completion_key)
+        except Exception as e:
+            logger.warning("Failed to check cost ledger for job %s: %s", job_id, e)
+            return None
+
+        if completion_recorded:
+            if prior == 0:
+                return True
+            if delta == 0:
+                return False
+            if delta < 0:
+                logger.warning("Refusing to reduce queue cost without an append-only correction for job %s", job_id)
                 return None
+            amount = delta
+            idempotency_key = f"job:{job_id}:correction:{float(cost):.6f}"
+        else:
+            # The mutable queue row may have survived an earlier failed append.
+            # Reconstruct the full completion event instead of treating a zero
+            # delta as proof that no canonical write is needed.
+            amount = float(cost)
+            idempotency_key = completion_key
 
         try:
-            idempotency_key = completion_key if prior == 0 else f"job:{job_id}:correction:{float(cost):.6f}"
+            metadata = {
+                "source": "queue.update_results",
+                "idempotency_key": idempotency_key,
+            }
+            event, _ = CostLedger().record_event(
+                operation="research_job",
+                provider=provider or "unknown",
+                model=model or "",
+                cost_usd=amount,
+                tokens_output=int(tokens_used or 0),
+                task_id=job_id,
+                source="queue.update_results",
+                metadata=metadata,
+                idempotency_key=idempotency_key,
+                require_fsync=True,
+            )
+            if event.idempotency_key != idempotency_key or event.cost_usd != amount:
+                logger.warning("Canonical cost receipt did not match queue update for job %s", job_id)
+                return None
+        except Exception as e:
+            logger.warning("Failed to persist cost event for job %s: %s", job_id, e)
+            return None
+        try:
             self._get_cost_dashboard().record(
                 operation="research_job",
                 provider=provider or "unknown",
                 model=model or "",
-                cost=delta,
+                cost=amount,
                 tokens_output=int(tokens_used or 0),
                 task_id=job_id,
-                metadata={
-                    "source": "queue.update_results",
-                    "idempotency_key": idempotency_key,
-                },
+                metadata=metadata,
             )
         except Exception as e:
-            logger.warning("Failed to persist cost event for job %s: %s", job_id, e)
-            return None
+            logger.warning("Failed to update legacy cost dashboard for job %s: %s", job_id, e)
         return True
 
     def _init_db(self) -> None:

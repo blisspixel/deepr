@@ -41,6 +41,7 @@ class JobState:
         started_at: When job started
         updated_at: Last state update time
         error: Error message if failed
+        owner_id: Server-derived scoped owner, when created by a scoped key
         metadata: Additional job-specific data
     """
 
@@ -53,6 +54,7 @@ class JobState:
     started_at: datetime = field(default_factory=datetime.now)
     updated_at: datetime = field(default_factory=datetime.now)
     error: str | None = None
+    owner_id: str | None = None
     metadata: dict[str, Any] = field(default_factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
@@ -253,6 +255,7 @@ class JobManager:
         model: str = "o4-mini",
         estimated_cost: float = 0.0,
         estimated_time: str = "unknown",
+        owner_id: str | None = None,
     ) -> JobState:
         """
         Create and register a new job.
@@ -263,12 +266,18 @@ class JobManager:
             model: Model to use
             estimated_cost: Estimated cost in dollars
             estimated_time: Human-readable time estimate
+            owner_id: Server-derived scoped owner, or None for operator-owned jobs
 
         Returns:
             Initial JobState
         """
         async with self._lock:
-            state = JobState(job_id=job_id, phase=JobPhase.QUEUED, estimated_remaining=estimated_time)
+            state = JobState(
+                job_id=job_id,
+                phase=JobPhase.QUEUED,
+                estimated_remaining=estimated_time,
+                owner_id=owner_id,
+            )
             self._jobs[job_id] = state
 
             plan = JobPlan(

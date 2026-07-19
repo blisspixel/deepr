@@ -3,19 +3,18 @@
 
 set -e
 
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+. "$SCRIPT_DIR/../shared/load-env.sh"
+load_env_file "${DEEPR_ENV_FILE:-$SCRIPT_DIR/.env}"
+
 # Configuration
 STACK_NAME="${DEEPR_STACK_NAME:-deepr-prod}"
 REGION="${AWS_REGION:-us-east-1}"
 ENVIRONMENT="${DEEPR_ENVIRONMENT:-prod}"
 
-# Load environment variables
-if [ -f .env ]; then
-    export $(grep -v '^#' .env | xargs)
-fi
-
 # Validate required variables
-if [ -z "$OPENAI_API_KEY" ] && [ -z "$GEMINI_API_KEY" ] && [ -z "$XAI_API_KEY" ]; then
-    echo "Error: At least one provider API key is required (OPENAI_API_KEY, GEMINI_API_KEY, or XAI_API_KEY)"
+if [ -z "$DEEPR_AWS_PROVIDER_SECRET_ARN" ]; then
+    echo "Error: DEEPR_AWS_PROVIDER_SECRET_ARN is required"
     exit 1
 fi
 
@@ -23,6 +22,7 @@ echo "Deploying Deepr to AWS..."
 echo "  Stack Name: $STACK_NAME"
 echo "  Region: $REGION"
 echo "  Environment: $ENVIRONMENT"
+cd "$SCRIPT_DIR"
 
 # Build
 echo "Building SAM application..."
@@ -37,11 +37,9 @@ sam deploy \
     --capabilities CAPABILITY_IAM CAPABILITY_AUTO_EXPAND \
     --parameter-overrides \
         Environment="$ENVIRONMENT" \
-        OpenAIApiKey="${OPENAI_API_KEY:-}" \
-        GoogleApiKey="${GOOGLE_API_KEY:-}" \
-        XaiApiKey="${XAI_API_KEY:-}" \
-        DailyBudget="${DEEPR_BUDGET_DAILY:-50}" \
-        MonthlyBudget="${DEEPR_BUDGET_MONTHLY:-500}" \
+        ProviderSecretArn="$DEEPR_AWS_PROVIDER_SECRET_ARN" \
+        DailyBudget="${DEEPR_BUDGET_DAILY:-10}" \
+        MonthlyBudget="${DEEPR_BUDGET_MONTHLY:-10}" \
     --no-confirm-changeset
 
 # Get outputs
@@ -57,7 +55,6 @@ echo "  API URL: $API_URL"
 echo ""
 
 # Run validation
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 if [ -f "$SCRIPT_DIR/validate.sh" ]; then
     echo "Running validation..."
     API_URL="$API_URL" bash "$SCRIPT_DIR/validate.sh"

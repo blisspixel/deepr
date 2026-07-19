@@ -32,9 +32,11 @@ _EVENT_STATUS = {
 
 
 def _routability(adapter: PlanQuotaAdapter) -> str:
-    """How Deepr may use this backend: auto-routed, explicit-only, or metered."""
+    """How Deepr may use this backend: auto, explicit, metered, or blocked."""
     if adapter.metered_at_margin:
         return "metered"
+    if adapter.execution_block_reason or not adapter.stored_plan_auth_verified:
+        return "blocked"
     return "auto" if adapter.enabled_by_default else "explicit"
 
 

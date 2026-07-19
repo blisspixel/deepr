@@ -2,6 +2,14 @@
 
 Deploy Deepr to Google Cloud Platform using Terraform.
 
+## v2.36 status
+
+This template is an infrastructure preview. Authenticated `POST /jobs` returns
+HTTP 503 with `gcp_metered_research_accounting_unavailable` before payload
+parsing, Firestore writes, Pub/Sub writes, or provider work. Health and read-only
+inspection remain available. Supplying a provider-secret reference does not
+enable dispatch. GCP resources can still incur infrastructure charges.
+
 ## Architecture
 
 ```
@@ -31,14 +39,24 @@ Deploy Deepr to Google Cloud Platform using Terraform.
 gcloud auth login
 gcloud auth application-default login
 
-# 2. Copy and edit environment file
-cp .env.example .env
-# Edit .env with your API keys and project ID
+# 2. Pre-create the provider secret. Prefer stdin or a protected file so the key
+# value does not enter shell history.
+gcloud secrets create deepr-prod-openai-key --replication-policy=automatic
+gcloud secrets versions add deepr-prod-openai-key --data-file=-
 
-# 3. Deploy
+# 3. Copy and edit environment file. Store the secret ID, never the key value.
+cp .env.example .env
+# Set GCP_PROJECT_ID and DEEPR_GCP_OPENAI_SECRET_ID.
+
+# 4. Deploy
 chmod +x deploy.sh
 ./deploy.sh
 ```
+
+Terraform receives only the pre-created secret ID. Provider key values do not
+enter Terraform variables, plan output, or state. The script loads `.env`
+before resolving configuration and uses a mode-0600 temporary JSON variables
+file that is removed on exit.
 
 ## Manual Deployment
 
@@ -57,10 +75,13 @@ cd functions && zip -r function-source.zip main.py requirements.txt && cd ..
 
 # Initialize and apply Terraform
 terraform init
-terraform apply \
-  -var="project_id=your-project-id" \
-  -var="openai_api_key=sk-..."
+terraform apply -var-file=deployment.tfvars.json
 ```
+
+The variables file should contain `project_id`, `region`, `environment`,
+`openai_secret_id`, and budget numbers only. It must never contain a provider
+key value. Protect and remove it after apply, or use `deploy.sh` to manage an
+ephemeral file automatically.
 
 ## Build Worker Container
 
@@ -88,10 +109,12 @@ gcloud run services update deepr-prod-worker \
 # Get the API URL from Terraform output
 API_URL=$(terraform output -raw api_url)
 
-# Submit a job
+# Verify the fail-closed hosted submission boundary.
 curl -X POST "$API_URL/jobs" \
   -H "Content-Type: application/json" \
   -d '{"prompt": "What are the best practices for PostgreSQL connection pooling?"}'
+# Expected: HTTP 503 with
+# error_code=gcp_metered_research_accounting_unavailable
 
 # Check job status
 curl "$API_URL/jobs/{job_id}"
@@ -109,11 +132,9 @@ curl "$API_URL/results/{job_id}"
 | project_id | - | Required: GCP project ID |
 | region | us-central1 | GCP region |
 | environment | prod | Deployment environment |
-| openai_api_key | - | Required: OpenAI API key |
-| google_api_key | - | Optional: Google API key |
-| xai_api_key | - | Optional: xAI API key |
-| daily_budget | 50 | Daily spending limit (USD) |
-| monthly_budget | 500 | Monthly spending limit (USD) |
+| openai_secret_id | - | Required ID of a pre-created Secret Manager secret; provider key values never enter Terraform state |
+| daily_budget | 10 | Daily provider spending limit, effective only after hosted metered execution is deliberately enabled |
+| monthly_budget | 10 | Monthly provider spending limit, effective only after hosted metered execution is deliberately enabled |
 
 ### Scaling
 
@@ -156,6 +177,10 @@ Estimated monthly costs (varies by usage):
 | Cloud Storage | $1-10 |
 | Secret Manager | $1-5 |
 | **Total infrastructure** | **$30-140** |
+
+Provider research is execution-gated, but deploying the infrastructure can
+still incur the charges above. The provider budget fields do not cap GCP
+resource charges. Configure Cloud Billing budgets separately.
 
 ## Cleanup
 

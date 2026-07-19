@@ -33,7 +33,16 @@ export const jobsApi = {
 
   // Submit multiple jobs
   batchSubmit: async (jobs: JobSubmitRequest[]) => {
-    const response = await apiClient.post('/jobs/batch', { jobs })
+    const meteredConsent = jobs.length > 0
+      && jobs.every((job) => job.allow_metered_api === true && job.confirm_metered_cost === true)
+    if (!meteredConsent) {
+      throw new Error('Batch research requires explicit metered API cost approval.')
+    }
+    const response = await apiClient.post('/jobs/batch', {
+      jobs,
+      allow_metered_api: true,
+      confirm_metered_cost: true,
+    })
     return response.data
   },
 

@@ -166,6 +166,7 @@ class TestConfigLoaderLoad:
                 enabled: true
                 timeout: 30
                 budget_limit: 0
+                free_tools: [domain_lookup]
                 auto_approve: [domain_lookup]
                 require_approval: [delta]
                 progress: false
@@ -185,6 +186,7 @@ class TestConfigLoaderLoad:
         assert p.enabled is True
         assert p.timeout == 30.0
         assert p.budget_limit == 0.0
+        assert p.free_tools == ["domain_lookup"]
         assert p.auto_approve == ["domain_lookup"]
         assert p.require_approval == ["delta"]
         assert p.progress is False
@@ -259,6 +261,8 @@ class TestDistillrFirstParty:
         assert "find_insights" in profile.auto_approve  # free read-side corpus search
         assert "list_topic_summary" in profile.auto_approve  # free topic orientation
         assert "okf_validate" in profile.auto_approve  # read-only structural check
+        assert set(profile.free_tools) == set(profile.auto_approve)
+        assert "ask" not in profile.free_tools
         assert "papers" in profile.require_approval
         assert "ask" in profile.require_approval  # corpus synthesis, not free by contract
         assert "find_insights_summary" in profile.require_approval
@@ -321,6 +325,8 @@ class TestPrimrFirstParty:
         assert profile.progress is True
         # Only free read-side tools auto-approve; everything that spends needs approval.
         assert {"estimate_run", "check_jobs", "doctor"} <= set(profile.auto_approve)
+        assert set(profile.free_tools) == set(profile.auto_approve)
+        assert "research_company" not in profile.free_tools
         assert "research_company" in profile.require_approval
         assert "delegate_to_agent" in profile.require_approval  # paid handoff, never auto
 

@@ -14,6 +14,7 @@ import click
 
 from deepr.cli.colors import console, print_error, print_header, print_list_item, print_warning
 from deepr.cli.commands.semantic.experts import expert
+from deepr.cli.validation import confirm_interactively
 
 
 def _emit_retrieval_failures(research: dict[str, Any], *, json_output: bool, source_pack_artifact: str) -> None:
@@ -157,7 +158,10 @@ def run_learn_web_pipeline(
     print_header(title)
     console.print(f"  Topic: {topic}")
     console.print(f"  {run_label}")
-    if not yes and not click.confirm("\nSearch the live web and absorb findings?", default=True):
+    if not yes and not confirm_interactively(
+        "\nSearch the live web and absorb findings?",
+        default=True,
+    ):
         print_warning("Cancelled.")
         sys.exit(0)
 

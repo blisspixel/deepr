@@ -55,6 +55,11 @@ from typing import TYPE_CHECKING, Any
 from deepr.experts.beliefs import Belief, BeliefStore
 from deepr.experts.conflict_resolver import ConflictResolver
 from deepr.experts.maker_checker import CheckVerdict
+from deepr.experts.report_absorber_commit import (
+    ReportAbsorberCommitError,
+    StagedAbsorption,
+    commit_staged_absorptions,
+)
 from deepr.experts.report_absorber_contracts import (
     INSUFFICIENT_GROUNDING_FLOOR,
     AbsorbedClaim,
@@ -103,6 +108,7 @@ __all__ = [
     "InsufficientGroundingClaim",
     "RejectedClaim",
     "ReportAbsorber",
+    "ReportAbsorberCommitError",
     "ReportAbsorberCostError",
     "ReportAbsorberError",
     "absorber_estimated_cost",
@@ -183,6 +189,8 @@ def _candidate_claim_from_item(
     try:
         confidence = float(item.get("confidence", 0.0))
     except (TypeError, ValueError):
+        confidence = 0.0
+    if not isfinite(confidence):
         confidence = 0.0
     return CandidateClaim(
         statement=statement,
@@ -454,6 +462,7 @@ class ReportAbsorber:
         flagged: list[FlaggedContradiction] = []
         insufficient: list[InsufficientGroundingClaim] = []
         grounding_flagged: list[GroundingFlag] = []
+        staged: list[StagedAbsorption] = []
         contradictions_refuted = 0
         merges_blocked = 0
 
@@ -529,9 +538,22 @@ class ReportAbsorber:
                     continue
                 flagged.append(
                     await self._flag_contradiction(
-                        belief, conflict, dry_run=dry_run, adjudicate=adjudicate, verification=verification
+                        belief,
+                        conflict,
+                        dry_run=dry_run,
+                        adjudicate=adjudicate,
+                        verification=verification,
+                        persist=False,
                     )
                 )
+                if not dry_run:
+                    staged.append(
+                        StagedAbsorption(
+                            belief=belief,
+                            conflict=conflict,
+                            verification=verification,
+                        )
+                    )
                 existing.append(belief)
                 continue
 
@@ -545,7 +567,7 @@ class ReportAbsorber:
             # so later review still has the information needed to decide.
             merge_blocked = contradiction_unverified
             if verify_dedup and not merge_blocked:
-                merge_blocked = await self._merge_would_lose_data(belief)
+                merge_blocked = await self._merge_would_lose_data(belief, existing)
             if merge_blocked:
                 merges_blocked += 1
 
@@ -556,22 +578,20 @@ class ReportAbsorber:
 
             # Cross-vendor grounding check (a no-op unless a checker is injected):
             # support stamps the assurance on the belief; a refutation is flagged.
-            await self._check_grounding(belief, cand, grounding_flagged)
+            if not await self._check_grounding(belief, cand, grounding_flagged):
+                rejected.append(
+                    RejectedClaim(
+                        cand.statement,
+                        "grounding_refuted",
+                        "an independent grounding checker refuted the factual claim",
+                    )
+                )
+                continue
+            staged.append(StagedAbsorption(belief=belief, merge_blocked=merge_blocked))
+            existing.append(belief)
 
-            # Generic insertion may add advisory support edges, but never a
-            # lexical contradiction edge. Confirmed conflicts took the contested
-            # branch above, so normal integration is safe here.
-            pre_ids = set(self.belief_store.beliefs)
-            stored, _change = self.belief_store.add_belief(
-                belief,
-                check_conflicts=True,
-                dedup=not merge_blocked,
-                change_reason=f"absorbed_report:{report_id}",
-                edge_provenance=f"report:{report_id}",
-            )
-            outcome = "merged" if stored.id in pre_ids else "added"
-            absorbed.append(AbsorbedClaim(stored.claim, stored.confidence, stored.id, outcome))
-            existing.append(stored)
+        if not dry_run:
+            absorbed.extend(commit_staged_absorptions(self.belief_store, staged, report_id=report_id))
 
         return AbsorptionResult(
             expert_name=self.expert.name,
@@ -590,7 +610,7 @@ class ReportAbsorber:
             grounding_flagged=grounding_flagged,
         )
 
-    async def _check_grounding(self, belief: Belief, cand: Any, flagged: list[GroundingFlag]) -> None:
+    async def _check_grounding(self, belief: Belief, cand: Any, flagged: list[GroundingFlag]) -> bool:
         """Cross-vendor grounding check on a claim about to be absorbed.
 
         A no-op unless a checker is injected. A support verdict stamps the
@@ -610,7 +630,7 @@ class ReportAbsorber:
 
         checker = self._grounding_checker
         if checker is None:
-            return
+            return True
         evidence = "\n".join(_normalize_evidence_items(cand.evidence))
         verdict = await checker(belief.claim, evidence)
         escalator = self._grounding_escalator
@@ -623,6 +643,8 @@ class ReportAbsorber:
             belief.grounding_assurance = verdict.assurance.value
         elif verdict.refuted:
             flagged.append(GroundingFlag(belief.claim, verdict.checker_vendor, verdict.reason))
+            return False
+        return True
 
     async def _resolve_contradiction(
         self, belief: Belief, existing: list[Belief], verify_contradictions: bool
@@ -740,7 +762,7 @@ class ReportAbsorber:
             return None
         return True
 
-    async def _merge_would_lose_data(self, candidate: Belief) -> bool:
+    async def _merge_would_lose_data(self, candidate: Belief, existing: list[Belief]) -> bool:
         """True if the lexical dedup router would merge the candidate into an
         existing belief the model says states a DIFFERENT fact.
 
@@ -750,13 +772,26 @@ class ReportAbsorber:
         unverifiable verdict does not block the merge - the conservative default
         is the existing behavior.
         """
-        match = self.belief_store.find_similar_with_score(candidate)
+        match = self._find_similar_router_match(candidate, existing)
         if match is None:
             return False
         similar, score = match
         if score > _DEDUP_VERIFY_CEILING:
             return False  # near-identical - clearly the same claim, merge as before
         return await self._verify_same_claim(candidate, similar) is False
+
+    @staticmethod
+    def _find_similar_router_match(candidate: Belief, existing: list[Belief]) -> tuple[Belief, float] | None:
+        """Route same-domain lexical neighbors, including uncommitted candidates."""
+        candidate_words = set(candidate.claim.lower().split())
+        for other in existing:
+            if other.domain != candidate.domain:
+                continue
+            other_words = set(other.claim.lower().split())
+            score = len(candidate_words & other_words) / max(len(candidate_words), len(other_words), 1)
+            if score > 0.7:
+                return other, score
+        return None
 
     async def _verify_same_claim(self, candidate: Belief, existing: Belief) -> bool | None:
         """Model verdict: do these two claims assert the SAME fact?
@@ -798,6 +833,7 @@ class ReportAbsorber:
         dry_run: bool,
         adjudicate: bool,
         verification: str = "lexical_unverified",
+        persist: bool = True,
     ) -> FlaggedContradiction:
         """Record a contradicting candidate as a contested belief (the signal).
 
@@ -852,7 +888,8 @@ class ReportAbsorber:
                     logger.warning("Conflict adjudication failed for %s: %s", belief.id, exc)
                     flag.resolution = "adjudication_failed"
                     flag.resolution_explanation = str(exc)
-            self.belief_store.add_contested_belief(belief, [conflict], verification=verification)
+            if persist:
+                self.belief_store.add_contested_belief(belief, [conflict], verification=verification)
 
         return flag
 

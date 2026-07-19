@@ -207,32 +207,30 @@ class TestSQLiteQueue:
 
     async def test_update_results_records_cost_dashboard_once_per_delta(self, queue, sample_job):
         """Cost dashboard records only positive deltas to avoid double counting."""
+        from deepr.observability.costs import CostDashboard
+
         await queue.enqueue(sample_job)
 
-        mock_dashboard = MagicMock()
-        with patch("deepr.queue.local_queue.CostDashboard", return_value=mock_dashboard):
-            # First write records full cost
-            success = await queue.update_results(
-                sample_job.id, report_paths={"md": "a.md"}, cost=2.50, tokens_used=10000
-            )
-            assert success is True
+        dashboard = CostDashboard()
+        dashboard.record = MagicMock(wraps=dashboard.record)
+        queue._cost_dashboard = dashboard
 
-            # Same cost update should not record again
-            success = await queue.update_results(
-                sample_job.id, report_paths={"md": "b.md"}, cost=2.50, tokens_used=10000
-            )
-            assert success is True
+        # First write records full cost
+        success = await queue.update_results(sample_job.id, report_paths={"md": "a.md"}, cost=2.50, tokens_used=10000)
+        assert success is True
 
-            # Higher updated cost records only delta
-            success = await queue.update_results(
-                sample_job.id, report_paths={"md": "c.md"}, cost=3.00, tokens_used=12000
-            )
-            assert success is True
+        # Same cost update should not record again
+        success = await queue.update_results(sample_job.id, report_paths={"md": "b.md"}, cost=2.50, tokens_used=10000)
+        assert success is True
 
-        assert mock_dashboard.record.call_count == 2
+        # Higher updated cost records only delta
+        success = await queue.update_results(sample_job.id, report_paths={"md": "c.md"}, cost=3.00, tokens_used=12000)
+        assert success is True
 
-        first = mock_dashboard.record.call_args_list[0].kwargs
-        second = mock_dashboard.record.call_args_list[1].kwargs
+        assert dashboard.record.call_count == 2
+
+        first = dashboard.record.call_args_list[0].kwargs
+        second = dashboard.record.call_args_list[1].kwargs
 
         assert first["operation"] == "research_job"
         assert first["provider"] == sample_job.provider
@@ -278,9 +276,10 @@ class TestSQLiteQueue:
         """Queue cost must not commit if the ledger write fails."""
         await queue.enqueue(sample_job)
 
-        mock_dashboard = MagicMock()
-        mock_dashboard.record.side_effect = RuntimeError("ledger down")
-        with patch("deepr.queue.local_queue.CostDashboard", return_value=mock_dashboard):
+        with patch(
+            "deepr.observability.cost_ledger.CostLedger.record_event",
+            side_effect=RuntimeError("ledger down"),
+        ):
             success = await queue.update_results(
                 sample_job.id, report_paths={"md": "a.md"}, cost=2.50, tokens_used=10000
             )
@@ -288,6 +287,55 @@ class TestSQLiteQueue:
         assert success is False
         job = await queue.get_job(sample_job.id)
         assert job.cost is None or job.cost == 0 or job.cost == 0.0
+
+    async def test_update_results_propagates_real_dashboard_ledger_failure(self, queue, sample_job, tmp_path):
+        """A suppressed compatibility write cannot authorize the queue commit."""
+        from deepr.observability.costs import CostDashboard
+
+        await queue.enqueue(sample_job)
+        dashboard = CostDashboard(tmp_path / "legacy-costs.json")
+        queue._cost_dashboard = dashboard
+
+        with patch(
+            "deepr.observability.cost_ledger.CostLedger.record_event",
+            side_effect=OSError("ledger down"),
+        ):
+            success = await queue.update_results(
+                sample_job.id,
+                report_paths={"md": "a.md"},
+                cost=0.75,
+                tokens_used=1200,
+            )
+
+        assert success is False
+        job = await queue.get_job(sample_job.id)
+        assert job is not None
+        assert job.cost is None
+        assert job.report_paths == {}
+
+    async def test_update_results_reconstructs_missing_completion_from_stale_queue_cost(self, queue, sample_job):
+        """Retry checks the canonical key even when the mutable cost delta is zero."""
+        import sqlite3
+
+        await queue.enqueue(sample_job)
+        with sqlite3.connect(queue.db_path) as connection:
+            connection.execute(
+                "UPDATE research_queue SET cost = ?, tokens_used = ? WHERE id = ?",
+                (0.75, 1200, sample_job.id),
+            )
+
+        success = await queue.update_results(
+            sample_job.id,
+            report_paths={"md": "a.md"},
+            cost=0.75,
+            tokens_used=1200,
+        )
+
+        assert success is True
+        events = CostLedger().get_events()
+        assert len(events) == 1
+        assert events[0].idempotency_key == f"job:{sample_job.id}:completion"
+        assert events[0].cost_usd == pytest.approx(0.75)
 
     async def test_list_jobs_filter_by_status(self, queue):
         """Test listing jobs filtered by status."""

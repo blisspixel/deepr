@@ -61,6 +61,7 @@ export default function ResearchStudio() {
   const [model, setModel] = useState(initialDraft.draft?.model || DEFAULT_MODEL)
   const [priority, setPriority] = useState(initialDraft.draft?.priority || 1)
   const [enableWebSearch, setEnableWebSearch] = useState(initialDraft.draft?.enableWebSearch ?? true)
+  const [confirmMeteredCost, setConfirmMeteredCost] = useState(false)
   const [showConfig, setShowConfig] = useState(false)
   const [isDragging, setIsDragging] = useState(false)
   const [uploadedFiles, setUploadedFiles] = useState<File[]>([])
@@ -123,6 +124,10 @@ export default function ResearchStudio() {
     const timer = setTimeout(() => setDebouncedPrompt(prompt), 500)
     return () => clearTimeout(timer)
   }, [prompt])
+
+  useEffect(() => {
+    setConfirmMeteredCost(false)
+  }, [enableWebSearch, model, prompt])
 
   // Cost estimate
   const {
@@ -232,6 +237,7 @@ export default function ResearchStudio() {
     )
     setPriority(1)
     setEnableWebSearch(true)
+    setConfirmMeteredCost(false)
     setUploadedFiles([])
     setUploadedFileContents([])
     setDraftStatus('idle')
@@ -250,7 +256,7 @@ export default function ResearchStudio() {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
-    if (!prompt.trim()) return
+    if (!prompt.trim() || !confirmMeteredCost || debouncedPrompt !== prompt || !costEstimate?.allowed) return
 
     let fullPrompt = prompt
     if (uploadedFileContents.length > 0) {
@@ -262,6 +268,8 @@ export default function ResearchStudio() {
 
     submitMutation.mutate({
       prompt: fullPrompt,
+      allow_metered_api: true,
+      confirm_metered_cost: true,
       model,
       priority,
       enable_web_search: enableWebSearch,
@@ -280,6 +288,7 @@ export default function ResearchStudio() {
     && !isConfigLoading
     && !isConfigError
     && isAllowed
+    && confirmMeteredCost
     && !submitMutation.isPending
 
   return (
@@ -597,6 +606,20 @@ export default function ResearchStudio() {
                   {costEstimate.reason}
                 </span>
               )}
+
+              <label className="flex min-h-11 items-center gap-2 text-xs text-foreground">
+                <input
+                  type="checkbox"
+                  checked={confirmMeteredCost}
+                  onChange={(event) => setConfirmMeteredCost(event.target.checked)}
+                  disabled={!hasCurrentEstimate || !costEstimate?.allowed}
+                  className="h-4 w-4 rounded border-input"
+                />
+                <span>
+                  Approve metered OpenAI API use up to the displayed maximum
+                  {costEstimate ? ` (${formatCurrency(costEstimate.estimate.max_cost)})` : ''}.
+                </span>
+              </label>
             </div>
 
             <div className="flex items-center gap-2 self-end sm:self-auto">

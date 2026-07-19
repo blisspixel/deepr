@@ -203,6 +203,21 @@ class TestMCPClientProxyClose:
         mock_proc.terminate.assert_not_called()
 
 
+class TestMCPClientProxyCalls:
+    @pytest.mark.asyncio
+    async def test_call_timeout_propagates_ambiguous_dispatched_failure(self):
+        proxy = MCPClientProxy(command="echo", args=[], env={})
+        proxy._ensure_started = AsyncMock(return_value=MagicMock())
+
+        async def never_responds(*_args, **_kwargs):
+            await asyncio.Event().wait()
+
+        proxy._send_jsonrpc = never_responds
+
+        with pytest.raises(TimeoutError, match="timed out"):
+            await proxy.call_tool("research", {}, timeout=0.001)
+
+
 # ---------------------------------------------------------------------------
 # SkillExecutor.execute_tool - routing and error cases
 # ---------------------------------------------------------------------------
@@ -250,6 +265,7 @@ class TestSkillExecutorExecuteTool:
         async def _slow_metered(*_args, **_kwargs):
             nonlocal metered_calls
             metered_calls += 1
+            _kwargs["on_settled"](0.05)
             started.set()
             await release.wait()
             return {"result": "ok", "cost": 0.05}
@@ -933,3 +949,59 @@ class TestSkillExecutorBudgetArgClamp:
 
         sent_args = mock_call.call_args.args[1]
         assert sent_args["budget"] == pytest.approx(0.5)
+
+    @pytest.mark.asyncio
+    async def test_forwarded_budget_is_the_durable_reservation_and_settlement(self, tmp_path):
+        from deepr.observability.cost_ledger import CostLedger
+
+        tool = _make_budgeted_mcp_tool()
+        skill = _make_skill_with_budget(tmp_path, [tool], max_per_call=2.0)
+        executor = SkillExecutor(skill, budget_remaining=10.0, allow_metered_tools=True)
+
+        with patch.object(MCPClientProxy, "call_tool", new_callable=AsyncMock) as mock_call:
+            mock_call.return_value = {"result": "ok"}
+            result = await executor.execute_tool("ingest", {"query": "x"})
+
+        assert result["cost"] == pytest.approx(2.0)
+        assert executor._budget_remaining == pytest.approx(8.0)
+        event = CostLedger().get_events()[0]
+        assert event.cost_usd == pytest.approx(2.0)
+        assert event.metadata["estimated_cost_usd"] == pytest.approx(2.0)
+
+    @pytest.mark.asyncio
+    async def test_reported_actual_cost_settles_below_authorized_ceiling(self, tmp_path):
+        from deepr.observability.cost_ledger import CostLedger
+
+        tool = _make_budgeted_mcp_tool()
+        skill = _make_skill_with_budget(tmp_path, [tool], max_per_call=2.0)
+        executor = SkillExecutor(skill, budget_remaining=10.0, allow_metered_tools=True)
+
+        with patch.object(MCPClientProxy, "call_tool", new_callable=AsyncMock) as mock_call:
+            mock_call.return_value = {"result": "ok", "cost": 1.25}
+            result = await executor.execute_tool("ingest", {"query": "x"})
+
+        assert result["cost"] == pytest.approx(1.25)
+        assert executor._budget_remaining == pytest.approx(8.75)
+        assert CostLedger().get_events()[0].cost_usd == pytest.approx(1.25)
+
+    @pytest.mark.asyncio
+    async def test_timeout_settles_authorized_ceiling_and_charges_session(self, tmp_path):
+        from deepr.observability.cost_ledger import CostLedger
+
+        tool = _make_budgeted_mcp_tool()
+        skill = _make_skill_with_budget(tmp_path, [tool], max_per_call=2.0)
+        executor = SkillExecutor(skill, budget_remaining=10.0, allow_metered_tools=True)
+
+        with patch.object(
+            MCPClientProxy,
+            "call_tool",
+            new_callable=AsyncMock,
+            side_effect=TimeoutError("remote result unknown"),
+        ):
+            with pytest.raises(TimeoutError, match="unknown"):
+                await executor.execute_tool("ingest", {"query": "x"})
+
+        assert executor._budget_remaining == pytest.approx(8.0)
+        event = CostLedger().get_events()[0]
+        assert event.cost_usd == pytest.approx(2.0)
+        assert event.metadata["actual_cost_reported"] is False

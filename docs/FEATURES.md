@@ -411,11 +411,13 @@ deepr expert delete "Azure Architect" --yes
 
 ```bash
 deepr expert consult "What should we verify next?" --expert "Azure Architect" --local
-deepr expert consult "Which assumption is weakest?" --expert "Azure Architect" --plan codex
+deepr expert consult "Which assumption is weakest?" --expert "Azure Architect" --plan claude
 ```
 
-Standalone metered expert chat is gated in v2.36. Local and explicit plan MCP
-query and bounded consult surfaces remain available.
+Standalone metered expert chat is gated in v2.36. Local and safety-eligible
+explicit plan MCP query and bounded consult surfaces remain available. Claude
+Code is the current executable plan example; see `deepr capacity` for typed
+adapter decisions.
 
 ### Record Decision Outcomes
 
@@ -502,7 +504,7 @@ The system also auto-suggests compaction after 30+ messages.
 ```bash
 /council "How will AI regulation affect our cloud architecture?"
 deepr expert consult "How should this agentic harness improve next?" --local
-deepr expert consult "What changed in plan-quota capacity?" --plan grok --json
+deepr expert consult "What changed in plan-quota capacity?" --plan claude --json
 deepr expert consult "Which cross-domain assumption should we test?" --expert "Temporal Knowledge Graphs" --expert "Digital Consciousness" --expert "Model Context Protocol" --local --budget 0 --output ./three-expert-council.json -y
 ```
 
@@ -583,7 +585,7 @@ deepr expert review-consult-quality "Azure Architect" consult_abc123 \
   --target eval \
   --apply
 deepr expert judge-consult-quality "Azure Architect" consult_abc123 --local-judge-model qwen2.5 --json
-deepr expert judge-consult-quality "Azure Architect" consult_abc123 --plan codex --plan-model gpt-5-mini --json
+deepr expert judge-consult-quality "Azure Architect" consult_abc123 --plan claude --json
 ```
 The judge command stores only validated review fields plus judge metadata. Local
 judges cost `$0`; plan judges consume subscription quota and record `$0` Deepr
@@ -648,7 +650,7 @@ Generates a step-by-step plan, runs independent steps in parallel, shows live pr
 ```bash
 # Add knowledge via topic research
 deepr expert learn "Azure Architect" "Azure AI Agent Service 2026" --local
-deepr expert learn "Azure Architect" "Azure AI Agent Service 2026" --plan codex
+deepr expert learn "Azure Architect" "Azure AI Agent Service 2026" --plan claude
 
 # Fill knowledge gaps proactively (ranked by EV/cost ratio)
 deepr expert route-gaps "Azure Architect" --execute --scheduled --top 3
@@ -1165,19 +1167,22 @@ context artifacts yet; scheduler rules are the next slice in
 [design/local-fresh-context.md](design/local-fresh-context.md).
 
 Plan-quota adapters execute expert maintenance and bootstrap by explicit opt-in.
-`deepr expert sync NAME --plan codex`, `deepr expert absorb NAME REPORT --plan
-codex`, and topic learning through `deepr expert learn NAME TOPIC --plan codex`
+`deepr expert sync NAME --plan claude`, `deepr expert absorb NAME REPORT --plan
+claude`, and topic learning through `deepr expert learn NAME TOPIC --plan claude`
 run through the plan-quota chat-client seam so synthesis and extraction stay on
 the chosen CLI instead of silently falling back to metered APIs. `deepr expert
-learn-web NAME TOPIC --plan codex` remains an explicit live-web alias. The same
-non-metered path supports Claude Code, OpenCode, Kiro, Grok Build, and
-Antigravity according to their adapter safety settings. GitHub Copilot remains
-fleet-visible but execution-blocked until its metered adapter has deterministic
+learn-web NAME TOPIC --plan claude` remains an explicit live-web alias. The same
+non-metered path currently supports Claude Code after a live provider proof
+that paid extra usage is disabled. The call uses safe mode, empty tool and MCP
+surfaces, no persistence, the included `sonnet` alias, and no API credential. Codex,
+OpenCode, Kiro, Grok Build, Antigravity, and GitHub Copilot remain fleet-visible
+but execution-blocked until their adapters have proven tool and billing
+confinement or, for metered capacity, deterministic
 estimation, durable reservation, usage settlement, and canonical cost-ledger
 support. `deepr capacity probe-plan <id>` validates auth and one tiny round trip
 for eligible adapters; `deepr capacity refresh-quota codex` reads Codex local
 session-log `rate_limits` metadata, `deepr capacity refresh-quota claude` reads
-Claude Code OAuth usage metadata, and `deepr capacity refresh-quota grok` reads
+Claude Code OAuth usage plus its paid-extra-usage state, and `deepr capacity refresh-quota grok` reads
 Grok billing metadata. These refreshes record conservative quota-ledger events
 without running a model call. Automatic plan routing stays conservative:
 selection orders local, plan-quota, and metered backends, then blocks execution

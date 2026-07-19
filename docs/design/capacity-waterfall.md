@@ -2,7 +2,7 @@
 
 Target: v2.16 foundation, with plan-quota adapters carried forward. Status:
 local capacity, scheduled guidance, and loop-facing capacity gates are shipped
-in v2.17.0; vendor surfaces were researched June 2026 and must be re-verified
+in v2.17.0; vendor surfaces were re-verified through 2026-07-16 and must be re-verified
 at adapter implementation because this market moves monthly.
 
 Current implementation: `CostModel`/`BackendKind` types and read-only
@@ -38,14 +38,19 @@ blocked. Those scheduled payloads carry published schema identifiers for
 downstream validation. Codex, Claude Code, and
 Grok now have metadata-only quota refresh paths: `deepr capacity refresh-quota
 codex` reads local session-log `rate_limits`, `deepr capacity refresh-quota
-claude` reads Claude Code OAuth usage metadata, and `deepr capacity
+claude` reads Claude Code OAuth usage plus paid-extra-usage metadata, and `deepr capacity
 refresh-quota grok` reads Grok billing metadata. They record binding-window
 ledger events at `$0` without model calls. Still open: Antigravity
 window/credit probes, remaining scheduled dispatch beyond sync-all and
 gap-fill, and auto-mode runtime integration. `expert sync-all` and scheduled
 `route-gaps --execute` now consume existing admitted, quota-observed plan
 selections for maintenance. Automatic plan routing remains gated until a trusted
-remaining-quota signal exists for the candidate backend.
+remaining-quota signal exists for the candidate backend. Claude is the only
+current safety-eligible execution adapter. Each actual Claude dispatch repeats
+a live proof that paid extra usage is disabled, pins the included `sonnet`
+alias, and runs in safe mode with empty tool and MCP surfaces, no persistence,
+and no API credential. Codex, OpenCode, Kiro, Grok,
+Antigravity, and Copilot remain visible but execution-blocked.
 
 Scheduled local sync, sync-all, local route-gaps, and the local recall-embedding
 substep of plan-backed compiled sync consume the bounded contention gate in
@@ -61,7 +66,7 @@ the operator override.
 ## Historical Problem Statement
 
 Most operators already pay for capacity Deepr never uses: subscription
-plans with included quota (Claude Max credit pool, ChatGPT Plus / Codex
+plans with included quota (Claude subscription windows, ChatGPT Plus / Codex
 5-hour windows, Antigravity weekly compute, Kiro monthly credits) and
 owned hardware (RTX-class GPUs running Ollama). Earlier Deepr paths routed too
 much work to metered APIs. The inversion: metered API should be the *explicit last
@@ -121,19 +126,18 @@ There are three distinct states, and docs must keep them separate:
 
 ### Vendor surfaces (verified 2026-06-18; re-verify before building - this churns monthly)
 
-`local-ollama` (genuine $0) ships first and is the only automatic non-metered
-execution rung today. Among prepaid rungs, GitHub Copilot CLI has the cleanest
-programmatic surface, Antigravity is the Google consumer replacement for Gemini
-CLI, Claude Code and Codex expose plan/window limits, and Grok Build is a useful
-candidate surface for users with SuperGrok or X Premium Plus. Every first-party
-CLI adapter below must prove it can hard-stop before paid overage or it stays
-read-only.
+`local-ollama` is genuine `$0` owned capacity. Claude Code is the only current
+plan adapter eligible for execution, and only with the per-call live
+paid-overage proof described above. The remaining surfaces stay research
+candidates or read-only inventory. Every first-party CLI adapter below must
+prove it can hard-stop before paid overage and disable ambient native tools or
+it stays read-only.
 
 | Surface | Headless invocation | Cost model | Default exhaustion | Build priority |
 |---|---|---|---|---|
 | `local-ollama` | HTTP `/v1` | owned_hardware ($0) | n/a | 1 (shipped) |
-| Claude Code | `claude -p --output-format json` | credit_pool (separate monthly $, API rates, from 2026-06-15) | hard-stop; overflow opt-in, keep OFF | high |
-| GitHub Copilot CLI | `copilot -p --allow-all-tools` (`GH_TOKEN`) | credit_pool (monthly) -> admin-capped metered overage | hard-stop, admin-toggle | high |
+| Claude Code | `claude --safe-mode --tools "" --no-session-persistence --disable-slash-commands --strict-mcp-config --mcp-config '{"mcpServers":{}}' --model sonnet -p -` | subscription rolling window; optional paid extra usage | live provider proof that extra usage is off before every call | shipped, gated |
+| GitHub Copilot CLI | `copilot -p` | metered at the margin | blocked until complete metered accounting exists | visible/read-only |
 | Cursor CLI | `cursor-agent -p --output-format json` | credit_pool = plan price; **Auto model is free** | quota | high (Auto = free capacity) |
 | Codex CLI | `codex exec --json` or equivalent local/cloud task invocation | shared plan window; API-key mode is metered | window exhausted; extra credits/API can bill | medium |
 | Kimi Code | `kimi -p` | rolling_window (5h, ~$19/mo) | hard-stop | medium |
@@ -141,7 +145,7 @@ read-only.
 | Qwen Code | `qwen` headless + plan key | Coding Plan sub / metered | quota | low (free OAuth tier died 2026-04-15) |
 | Kiro | `kiro-cli chat --no-interactive` (`KIRO_API_KEY`) | credit_pool (monthly) + **uncapped** overage $0.04/cr | overage OFF by default; if ON, silent month-end bill | medium (mandatory reserve floor) |
 | Grok Build | CLI beta for signed-in SuperGrok and X Premium Plus users | consumer plan surface first; API-key mode is metered | beta/opaque, must probe | medium |
-| Antigravity (`agy`) | Antigravity CLI programmatic/background workflows | Google AI Pro/Ultra or Google Cloud project capacity | quota opaque, must probe | high |
+| Antigravity (`agy`) | Antigravity CLI programmatic/background workflows | Google AI Pro/Ultra or Google Cloud project capacity | blocked: native tools and transcript side effects are not confined | visible/read-only |
 
 Dropped from the plan since the first draft: **Gemini CLI** (retired for
 consumers on 2026-06-18, enterprise/API-key paths remain); **Amazon Q Developer CLI**
@@ -160,17 +164,18 @@ hard-coded.
 A per-backend ledger (same append-only pattern as the cost ledger)
 records: window opens/closes, units consumed (vendor-reported where
 available, estimated otherwise), and a *conservative* remaining estimate.
-Invariants: when remaining-confidence is low, treat the window as
-exhausted; a `plan_quota` backend whose vendor bills overage (Kiro) gets a
-hard reserve floor (default 10%) that the waterfall never dips into.
+Invariants: when remaining-confidence is low, treat the window as exhausted.
+A `plan_quota` backend whose paid-overage state is enabled or unknown cannot
+dispatch. Intent or a zero-dollar budget cannot override this boundary.
 
 The ledger substrate exists as
 `data/capacity/quota_ledger.jsonl` (or `DEEPR_CAPACITY_DATA_DIR`) with typed
 events for usage, window sightings, exhaustion, overage state, reset
 observations, and quarantine. `deepr capacity` reads and summarizes the latest
-local observation per backend/account without invoking vendor CLIs. Remaining
-work is adapter-side probes that populate the ledger and scheduler decisions
-that consume it.
+local observation per backend/account without invoking vendor CLIs. Metadata
+refreshes exist for Codex, Claude, and Grok. Claude's refresh also preserves its
+explicit paid-extra-usage state; the execution path performs a fresh check of
+that same state before every model call.
 
 The live-probe shape now has a pure substrate before any provider code lands:
 `QuotaSnapshot` and `QuotaWindowSnapshot` normalize provider windows, compute
@@ -243,8 +248,9 @@ lifecycle fallback.
    billing (vendor-side changes) aborts the call and quarantines itself.
 3. Waterfall decisions are logged with the same trace IDs as research
    jobs: "why did this run on X" is always answerable.
-4. Kiro-class overage: hard-stop at reserve floor; overage requires an
-   explicit per-run `--allow-overage`.
+4. Plan overage never executes through `plan_quota`. Intent cannot convert an
+   unaccounted plan call into a paid call; paid work uses a separately estimated,
+   reserved, and settled API path.
 
 ## Order of operations
 
@@ -278,9 +284,9 @@ scheduler work remains.
    Codex, Claude Code, plus Grok have metadata quota probes. `expert sync-all`
    and scheduled `route-gaps --execute` now dispatch through admitted,
    quota-observed plan backends when the waterfall selects one. Remaining plan
-   work is Antigravity remaining-quota probes, reset-aware scheduler dispatch
-   beyond sync-all and gap-fill, and auto-mode integration without surprise
-   spend.
+   work is reset-aware scheduler dispatch beyond sync-all and gap-fill, and
+   auto-mode integration without surprise spend. Unsafe adapters remain blocked
+   until their tool, auth, and billing contracts can be proven.
 14. Multi-account pools (N accounts of one vendor as one pooled backend) - last,
    it multiplies an already-working mechanism.
 

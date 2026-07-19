@@ -1,6 +1,6 @@
 # Supported Surface
 
-Status: v2.36.2 current main, 2026-07-16. This document defines what users and host
+Status: v2.37.0 current main, 2026-07-18. This document defines what users and host
 agents can rely on today, what is experimental, what is planned only, and what
 data remains portable if development stops.
 
@@ -88,8 +88,9 @@ must not be described as usable capacity.
   uses `/.well-known/agent-card.json` with `/.well-known/agent.json` as a
   compatibility alias and advertises `deepr_consult_experts`; completed consult
   tasks attach the full `deepr-consult-v1` payload. The adapter defaults to
-  local no-metered synthesis and requires explicit `allow_metered_api=true`
-  plus a positive budget before API synthesis. No `deepr a2a serve` command is
+  local no-metered synthesis and requires exact `allow_metered_api=true`, exact
+  `confirm_metered_cost=true`, and a positive budget before API synthesis. A
+  budget alone is not consent. No `deepr a2a serve` command is
   shipped, task state is not restart-durable, and the custom model is not an
   A2A 1.0 conformance claim.
 - Scheduled expert maintenance JSON contracts for sync capacity gates, gap-fill
@@ -372,11 +373,18 @@ must not be described as usable capacity.
   `deepr expert learn --plan <id>`, the explicit
   `deepr expert learn-web --plan <id>` alias, and
   `deepr capacity probe-plan <id>` run through deterministic auth-mode and
-  no-surprise-bills guards. Codex, Claude Code, and OpenCode are eligible for
-  operator admission; Kiro, Grok Build, and Antigravity remain explicit-only.
-  GitHub Copilot is visible/read-only, and plan-quota execution is blocked until
-  deterministic estimation, reservation, usage settlement, and canonical
-  cost-ledger support exist.
+  no-surprise-bills guards. Claude Code is currently executable and can become
+  auto-routable only after a trusted quota observation. Every dispatch also
+  requires a fresh provider response proving paid extra usage is disabled, uses
+  safe mode with empty tool and MCP surfaces and no persistence, pins the
+  included `sonnet` alias, and uses no API credential. Codex, OpenCode, Kiro,
+  Grok Build, and Antigravity
+  are visible/read-only because
+  Deepr cannot yet prove their native-tool confinement, stored provider
+  provenance, prepaid overage posture, or transcript side-effect confinement.
+  GitHub Copilot is visible/read-only
+  because it is metered at the margin and lacks deterministic estimation,
+  reservation, usage settlement, and canonical cost-ledger support.
 - Quota metadata refresh:
   `deepr capacity refresh-quota codex` reads local Codex session `rate_limits`
   metadata, and `deepr capacity refresh-quota claude` reads Claude Code OAuth
@@ -472,10 +480,12 @@ must not be described as usable capacity.
 - Automatic routing to plan-quota CLIs remains gated until Deepr has trusted
   live remaining-quota signals for the candidate backend. `expert sync-all` and
   scheduled `route-gaps --execute` consume admitted, quota-observed plan
-  selections from that gate, but Codex and Claude remain the clean
-  auto-routable candidates; Grok, Antigravity, and other sources remain planned
-  or explicit-only. Explicit `--plan` is still the works-now path and automatic
-  plan dispatch must stay conservative.
+  selections from that gate. Claude is the only current safety-eligible
+  auto-routable candidate and every Claude dispatch also requires a fresh
+  provider observation proving paid extra usage is disabled. Codex, OpenCode,
+  Kiro, Grok, Antigravity, and Copilot are execution-blocked. Explicit `--plan`
+  selects an adapter but never bypasses auth, tool, side-effect, live-overage,
+  marginal-cost, or process-safety gates.
 - Multi-account capacity pools are planned after a single-account mechanism is
   complete.
 - Live hosted-agent registration smoke against a real third-party platform is

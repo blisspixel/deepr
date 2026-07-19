@@ -8,8 +8,10 @@ from deepr.backends.plan_quota.adapters import get_adapter
 from deepr.backends.plan_quota.attempt_accounting import (
     DEFAULT_PLAN_ACCOUNTING_LOCK_TIMEOUT_SECONDS,
     AttemptAccountingError,
+    AttemptAccountingRefusedError,
     record_plan_quota_attempt,
 )
+from deepr.backends.plan_quota.safety import AuthMode
 from deepr.backends.quota_ledger import (
     QuotaEventType,
     QuotaLedger,
@@ -20,7 +22,7 @@ from deepr.observability.cost_ledger import CostLedger
 
 def _record(tmp_path, **overrides):
     arguments = {
-        "attempt_id": "plan-quota:codex:fixture",
+        "attempt_id": "plan-quota:claude:fixture",
         "operation": "plan_quota_research",
         "model": None,
         "quota_ledger_path": tmp_path / "quota.jsonl",
@@ -30,9 +32,10 @@ def _record(tmp_path, **overrides):
         "quota_units": 1.0,
         "vendor_dispatched": True,
         "detail": "fixture",
+        "auth_mode": AuthMode.PLAN,
     }
     arguments.update(overrides)
-    return record_plan_quota_attempt(get_adapter("codex"), **arguments)
+    return record_plan_quota_attempt(get_adapter("claude"), **arguments)
 
 
 def test_paired_accounting_requires_fsync_and_bounded_locks(monkeypatch, tmp_path):
@@ -86,4 +89,33 @@ def test_quota_durability_failure_preserves_paired_cost_partial_status(
     costs = CostLedger(tmp_path / "cost.jsonl").get_events()
     assert len(costs) == 1
     assert costs[0].cost_usd == 0.0
-    assert costs[0].idempotency_key == "plan-quota:codex:fixture"
+    assert costs[0].idempotency_key == "plan-quota:claude:fixture"
+
+
+@pytest.mark.parametrize(
+    ("backend_id", "auth_mode"),
+    [
+        ("opencode", AuthMode.UNKNOWN),
+        ("codex", AuthMode.PLAN),
+        ("claude", AuthMode.METERED),
+    ],
+)
+def test_zero_cost_accounting_refuses_unproven_or_disabled_dispatches(tmp_path, backend_id, auth_mode):
+    with pytest.raises(AttemptAccountingRefusedError, match="zero-cost accounting refused"):
+        record_plan_quota_attempt(
+            get_adapter(backend_id),
+            attempt_id=f"plan-quota:{backend_id}:refused",
+            operation="plan_quota_probe",
+            model=None,
+            quota_ledger_path=tmp_path / "quota.jsonl",
+            cost_ledger_path=tmp_path / "cost.jsonl",
+            outcome="success",
+            quota_event_type=QuotaEventType.USAGE_OBSERVED,
+            quota_units=1.0,
+            vendor_dispatched=True,
+            detail="must not be recorded",
+            auth_mode=auth_mode,
+        )
+
+    assert not (tmp_path / "quota.jsonl").exists()
+    assert not (tmp_path / "cost.jsonl").exists()

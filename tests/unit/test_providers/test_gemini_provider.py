@@ -1,6 +1,8 @@
 """Tests for Gemini provider implementation."""
 
+import asyncio
 import os
+import threading
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import httpx
@@ -418,6 +420,32 @@ class TestDeepResearchSubmission:
 
         provider.client.models.generate_content_stream.assert_called_once()
         assert provider.jobs[job_id]["status"] == "failed"
+
+    async def test_regular_stream_does_not_block_event_loop(self, provider):
+        entered = threading.Event()
+        released = threading.Event()
+        chunk = MagicMock(candidates=[])
+
+        def blocking_stream(**_kwargs):
+            entered.set()
+            if not released.wait(0.5):
+                raise RuntimeError("event loop was blocked by synchronous SDK work")
+            return [chunk]
+
+        provider.client.models.generate_content_stream.side_effect = blocking_stream
+        request = ResearchRequest(
+            prompt="Simple question",
+            model="gemini-2.5-flash",
+            system_message="",
+            tools=[],
+        )
+        task = asyncio.create_task(provider.submit_research(request))
+        assert await asyncio.to_thread(entered.wait, 0.5)
+        released.set()
+
+        job_id = await task
+
+        assert provider.jobs[job_id]["status"] == "completed"
 
 
 @pytest.mark.asyncio

@@ -77,6 +77,7 @@ class Subscription:
         callback: Async function to call on updates (must be awaitable)
         created_at: When subscription was created
         wildcard: If True, matches all subresources under base URI
+        owner_id: Scoped owner allowed to remove the subscription
 
     Note:
         The callback must be an async function that accepts a dict parameter.
@@ -88,6 +89,7 @@ class Subscription:
     callback: Callable[[dict[str, Any]], Awaitable[None]]
     created_at: datetime = field(default_factory=datetime.now)
     wildcard: bool = False
+    owner_id: str | None = None
 
     def __post_init__(self) -> None:
         """Validate subscription fields after initialization."""
@@ -131,7 +133,12 @@ class SubscriptionManager:
         self._lock = asyncio.Lock()
 
     async def subscribe(
-        self, uri: str, callback: Callable[[dict[str, Any]], Awaitable[None]], wildcard: bool = False
+        self,
+        uri: str,
+        callback: Callable[[dict[str, Any]], Awaitable[None]],
+        wildcard: bool = False,
+        *,
+        owner_id: str | None = None,
     ) -> str:
         """
         Subscribe to a resource URI.
@@ -158,7 +165,11 @@ class SubscriptionManager:
 
         async with self._lock:
             subscription = Subscription(
-                id=sub_id, uri=uri.rstrip("/*") if wildcard else uri, callback=callback, wildcard=wildcard
+                id=sub_id,
+                uri=uri.rstrip("/*") if wildcard else uri,
+                callback=callback,
+                wildcard=wildcard,
+                owner_id=owner_id,
             )
 
             self._subscriptions[sub_id] = subscription
@@ -171,7 +182,7 @@ class SubscriptionManager:
 
         return sub_id
 
-    async def unsubscribe(self, subscription_id: str) -> bool:
+    async def unsubscribe(self, subscription_id: str, *, owner_id: str | None = None) -> bool:
         """
         Remove a subscription.
 
@@ -186,6 +197,8 @@ class SubscriptionManager:
                 return False
 
             sub = self._subscriptions[subscription_id]
+            if owner_id is not None and sub.owner_id != owner_id:
+                return False
 
             # Remove from index
             if sub.uri in self._uri_index:

@@ -4,15 +4,21 @@ from __future__ import annotations
 
 import asyncio
 import json
+import os
 import sys
 from pathlib import Path
 from typing import Any
 
 import click
 
+from deepr.backends.capacity import _OLLAMA_DEFAULT_URL
 from deepr.cli.colors import print_info, print_success, print_warning
 from deepr.cli.commands.semantic.experts import expert
 from deepr.experts.investigation.executor import InvestigationExecutor
+from deepr.experts.investigation.learning_apply import (
+    InvestigationLearningApplyError,
+    apply_investigation_learning,
+)
 from deepr.experts.investigation.models import (
     DEFAULT_LOCAL_CONTEXT_WINDOW_TOKENS,
     MAX_LOCAL_CONTEXT_WINDOW_TOKENS,
@@ -23,7 +29,10 @@ from deepr.experts.investigation.models import (
     remaining_capacity,
     validate_plan,
 )
-from deepr.experts.investigation.ollama_backend import NativeOllamaInvestigationBackend
+from deepr.experts.investigation.ollama_backend import (
+    NativeOllamaInvestigationBackend,
+    validate_owned_local_ollama_url,
+)
 from deepr.experts.investigation.planner import build_investigation_plan
 from deepr.experts.investigation.store import (
     InvestigationBusyError,
@@ -88,7 +97,10 @@ def _render_plan(plan: dict[str, Any]) -> None:
     click.echo(f"Plan hash: {summary['plan_sha256']}")
     click.echo(f"Protocol: {summary['protocol']}")
     if summary["learning"] == "stage":
-        click.echo("Learning: stage (source-only, domain-relevance-gated proposals; no expert-state writes)")
+        click.echo(
+            "Learning: stage (source-verified factual proposals plus non-factual perspective proposals; "
+            "no expert-state writes)"
+        )
     else:
         click.echo("Learning: off")
     click.echo(f"Expert model: {summary['capacity']['model']}")
@@ -195,9 +207,12 @@ def _render_learning(payload: dict[str, Any], learning: dict[str, Any]) -> None:
     click.echo("\nStaged learning")
     summary = learning.get("summary", {})
     click.echo(f"Experts with verifier-ready writes: {summary.get('automatic_verifier_accepted_count', 0)}")
-    click.echo(f"Total verifier-ready writes: {summary.get('ready_write_count', 0)}")
+    click.echo(f"Factual verifier-ready writes: {summary.get('ready_write_count', 0)}")
+    click.echo(f"Perspective form-check-ready writes: {summary.get('perspective_ready_write_count', 0)}")
+    click.echo(f"Total staged writes: {summary.get('total_staged_write_count', 0)}")
     click.echo("Target-domain relevance required: yes")
-    click.echo("Human reviewed: 0")
+    click.echo("Human review recorded: no")
+    click.echo("Perspective truth or novelty verified: no")
     click.echo("Expert-state writes: 0")
     for entry in learning.get("entries", []):
         click.echo(
@@ -215,6 +230,16 @@ def _render_learning(payload: dict[str, Any], learning: dict[str, Any]) -> None:
             )
         elif envelope:
             click.echo("    No applicable graph writes passed the automatic verifier.")
+        perspective_envelope = entry.get("perspective_graph_commit_envelope_artifact")
+        perspective_ready = int(entry.get("perspective_ready_write_count", 0) or 0)
+        if perspective_envelope and perspective_ready > 0:
+            full_path = Path(payload["status"]["run_dir"]) / str(perspective_envelope)
+            click.echo(
+                "    Preview perspective apply: deepr expert apply-graph-commit "
+                f"{json.dumps(entry.get('expert_name'))} {json.dumps(str(full_path))} --dry-run --json"
+            )
+        elif perspective_envelope:
+            click.echo("    No non-factual perspective proposal passed the model form and testability check.")
 
 
 def _render_inspection(payload: dict[str, Any]) -> None:
@@ -250,6 +275,22 @@ def _render_inspection(payload: dict[str, Any]) -> None:
     learning = payload.get("learning_manifest")
     if isinstance(learning, dict):
         _render_learning(payload, learning)
+
+
+def _render_learning_apply(payload: dict[str, Any]) -> None:
+    summary = payload.get("summary", {})
+    click.echo(f"Status: {summary.get('status', 'unknown')}")
+    click.echo(f"Experts: {summary.get('expert_count', 0)}")
+    click.echo(f"Envelopes: {summary.get('envelope_count', 0)}")
+    click.echo(f"Planned writes: {summary.get('planned_write_count', 0)}")
+    click.echo(f"Applied writes: {summary.get('applied_write_count', 0)}")
+    click.echo(f"Already applied: {summary.get('already_applied_count', 0)}")
+    failures = summary.get("failure_reasons", []) or []
+    if failures:
+        click.echo("Failure reasons: " + ", ".join(str(reason) for reason in failures))
+    for item in payload.get("results", []) or []:
+        result_summary = item.get("result", {}).get("summary", {})
+        click.echo(f"  - {item.get('expert_name')} {item.get('channel')}: {result_summary.get('status', 'unknown')}")
 
 
 def _confirmed(plan: dict[str, Any], yes: bool) -> bool:
@@ -357,6 +398,10 @@ def investigate_plan(
     if capacity != "local" or budget_usd != 0.0:
         raise click.UsageError("V1 investigation plans support local capacity with --budget-usd 0 only.")
     try:
+        validate_owned_local_ollama_url(os.getenv("OLLAMA_HOST") or _OLLAMA_DEFAULT_URL)
+    except ValueError as exc:
+        raise click.UsageError(str(exc)) from exc
+    try:
         plan = build_investigation_plan(
             question=question,
             expert_names=experts,
@@ -415,6 +460,75 @@ def investigate_run(plan_path: Path, yes: bool, json_output: bool) -> None:
         if state["state"] == "completed":
             print_success("Investigation completed with $0 provider spend and no expert-state writes.")
     _exit_for_state(str(state["state"]))
+
+
+@expert_investigate.command(name="apply-learning")
+@click.argument("run_id")
+@click.option("--expert", "experts", multiple=True, help="Apply only to this planned expert, repeatable.")
+@click.option("--facts/--no-facts", default=True, show_default=True, help="Include source-verified factual proposals.")
+@click.option(
+    "--perspectives/--no-perspectives",
+    default=True,
+    show_default=True,
+    help="Include model-assessed non-factual perspective proposals.",
+)
+@click.option("--dry-run", is_flag=True, help="Validate every envelope without writing expert state.")
+@click.option("--yes", "-y", is_flag=True, help="Apply without an interactive confirmation prompt.")
+@click.option("--json", "json_output", is_flag=True)
+def investigate_apply_learning(
+    run_id: str,
+    experts: tuple[str, ...],
+    facts: bool,
+    perspectives: bool,
+    dry_run: bool,
+    yes: bool,
+    json_output: bool,
+) -> None:
+    """Preview or explicitly apply staged learning for all selected experts."""
+    try:
+        preview = apply_investigation_learning(
+            run_id,
+            dry_run=True,
+            expert_names=experts,
+            facts=facts,
+            perspectives=perspectives,
+        )
+    except (InvestigationLearningApplyError, InvestigationNotFoundError, InvestigationStorageError) as exc:
+        raise click.ClickException(str(exc)) from exc
+    if preview.get("summary", {}).get("status") == "blocked":
+        if json_output:
+            _emit_json(preview)
+        else:
+            _render_learning_apply(preview)
+        raise click.exceptions.Exit(2)
+    if dry_run:
+        result = preview
+    else:
+        planned = int(preview.get("summary", {}).get("planned_write_count", 0) or 0)
+        confirmed = yes
+        if planned > 0 and not yes:
+            confirmed = sys.stdin.isatty() and click.confirm(
+                f"Apply {planned} staged learning write(s) across the selected experts?",
+                default=False,
+            )
+        if not confirmed and planned > 0:
+            raise click.UsageError("Learning apply requires interactive confirmation or --yes.")
+        try:
+            result = apply_investigation_learning(
+                run_id,
+                dry_run=False,
+                expert_names=experts,
+                facts=facts,
+                perspectives=perspectives,
+            )
+        except (InvestigationLearningApplyError, InvestigationNotFoundError, InvestigationStorageError) as exc:
+            raise click.ClickException(str(exc)) from exc
+    if json_output:
+        _emit_json(result)
+    else:
+        _render_learning_apply(result)
+    if result.get("summary", {}).get("status") == "blocked":
+        raise click.exceptions.Exit(2)
 
 
 @expert_investigate.command(name="status")

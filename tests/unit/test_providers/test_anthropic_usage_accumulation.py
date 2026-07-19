@@ -9,6 +9,8 @@ ledger while still being billed by Anthropic.
 
 from __future__ import annotations
 
+import asyncio
+import threading
 from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
@@ -101,6 +103,35 @@ class TestAnthropicUsageAccumulation:
         assert stored.usage.cache_read_input_tokens == 2000
         assert stored.usage.total_tokens == 4500
         assert stored.usage.cost == pytest.approx(0.02475)
+
+    @pytest.mark.asyncio
+    async def test_sync_sdk_call_does_not_block_event_loop(self, provider):
+        from deepr.providers.base import ResearchRequest
+
+        entered = threading.Event()
+        released = threading.Event()
+        response = SimpleNamespace(
+            content=[SimpleNamespace(type="text", text="answer")],
+            usage=SimpleNamespace(input_tokens=1, output_tokens=1),
+        )
+
+        def blocking_create(**_kwargs):
+            entered.set()
+            if not released.wait(0.5):
+                raise RuntimeError("event loop was blocked by synchronous SDK work")
+            return response
+
+        provider.client.messages = MagicMock()
+        provider.client.messages.create = blocking_create
+        task = asyncio.create_task(
+            provider.submit_research(ResearchRequest(prompt="question", model="claude-opus-4-5", system_message=""))
+        )
+        assert await asyncio.to_thread(entered.wait, 0.5)
+        released.set()
+
+        job_id = await task
+
+        assert provider._jobs[job_id].status == "completed"
 
     @pytest.mark.asyncio
     async def test_get_status_returns_stored_data(self, provider):

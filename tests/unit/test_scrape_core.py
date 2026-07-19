@@ -8,7 +8,7 @@ import os
 import sys
 
 import pytest
-from requests import Response
+from requests import Request, Response
 from requests.exceptions import ChunkedEncodingError
 
 # Add parent directory to path
@@ -23,7 +23,7 @@ from deepr.utils.scrape import (
     PageDeduplicator,
     ScrapeConfig,
 )
-from deepr.utils.scrape.fetcher import MAX_ARCHIVE_METADATA_BYTES
+from deepr.utils.scrape.fetcher import MAX_ARCHIVE_METADATA_BYTES, _PinnedAddressAdapter
 from deepr.utils.security import SSRFError
 from tests.unit.scrape_helpers import make_scrape_response
 
@@ -198,7 +198,7 @@ def test_http_fetcher(monkeypatch):
         timeout=10,
     )
     fetcher = ContentFetcher(config)
-    monkeypatch.setattr("deepr.utils.scrape.fetcher.requests.get", lambda *args, **kwargs: make_scrape_response())
+    monkeypatch.setattr("deepr.utils.scrape.fetcher._pinned_get", lambda *args, **kwargs: make_scrape_response())
 
     result = fetcher.fetch("https://example.com")
 
@@ -209,6 +209,43 @@ def test_http_fetcher(monkeypatch):
     print(f"  [OK] Got {len(result.html)} chars of HTML")
 
     print("[PASS] ContentFetcher fetch\n")
+
+
+def test_pinned_https_adapter_connects_to_authorized_ip_with_original_tls_name():
+    adapter = _PinnedAddressAdapter(
+        address="93.184.216.34",
+        hostname="example.com",
+        port=443,
+        scheme="https",
+    )
+    request = Request("GET", "https://example.com/path").prepare()
+
+    pool = adapter.get_connection_with_tls_context(request, True)
+
+    assert pool.host == "93.184.216.34"
+    assert pool.port == 443
+    assert pool.assert_hostname == "example.com"
+    assert pool.conn_kw["server_hostname"] == "example.com"
+
+
+def test_browser_fetch_strategies_are_not_executable(monkeypatch):
+    config = ScrapeConfig(
+        try_http=False,
+        try_selenium=True,
+        try_archive=False,
+        rate_limit=0,
+    )
+    fetcher = ContentFetcher(config)
+    monkeypatch.setattr("deepr.utils.scrape.fetcher.validate_url", lambda target, **_kwargs: target)
+
+    assert fetcher._strategy_chain(None) == []
+    blocked = fetcher._fetch_selenium_headless("https://example.com")
+    result = fetcher.fetch("https://example.com")
+
+    assert blocked.security_blocked is True
+    assert "peer-bound SSRF" in (blocked.error or "")
+    assert result.success is False
+    assert result.error == "All fetch strategies failed"
 
 
 @pytest.mark.parametrize(
@@ -267,7 +304,7 @@ def test_http_fetcher_sends_conditional_headers_and_returns_304(monkeypatch):
         response.headers["Last-Modified"] = "Wed, 01 Jul 2026 00:00:00 GMT"
         return response
 
-    monkeypatch.setattr("deepr.utils.scrape.fetcher.requests.get", fake_get)
+    monkeypatch.setattr("deepr.utils.scrape.fetcher._pinned_get", fake_get)
 
     result = fetcher.fetch(
         "https://example.com",
@@ -330,7 +367,7 @@ def test_http_fetcher_rejects_trustworthy_oversized_content_length(monkeypatch):
         calls.append((url, kwargs))
         return response
 
-    monkeypatch.setattr("deepr.utils.scrape.fetcher.requests.get", fake_get)
+    monkeypatch.setattr("deepr.utils.scrape.fetcher._pinned_get", fake_get)
 
     result = fetcher.fetch("https://example.com/large")
 
@@ -364,7 +401,7 @@ def test_http_fetcher_stops_encoded_or_chunked_body_after_limit_plus_one(monkeyp
         [b"12345678", b"90", AssertionError("stream must stop after limit plus one")],
         headers=response_headers,
     )
-    monkeypatch.setattr("deepr.utils.scrape.fetcher.requests.get", lambda *_args, **_kwargs: response)
+    monkeypatch.setattr("deepr.utils.scrape.fetcher._pinned_get", lambda *_args, **_kwargs: response)
     monkeypatch.setattr(
         fetcher,
         "_fetch_selenium_headless",
@@ -397,7 +434,7 @@ def test_http_fetcher_retries_stream_read_failures(monkeypatch):
         _StreamingResponse([ChunkedEncodingError("truncated")]),
         _StreamingResponse([b"okay"]),
     ]
-    monkeypatch.setattr("deepr.utils.scrape.fetcher.requests.get", lambda *_args, **_kwargs: responses.pop(0))
+    monkeypatch.setattr("deepr.utils.scrape.fetcher._pinned_get", lambda *_args, **_kwargs: responses.pop(0))
     monkeypatch.setattr("deepr.utils.scrape.fetcher.time.sleep", lambda _seconds: None)
 
     result = fetcher.fetch("https://example.com/retry")
@@ -428,7 +465,7 @@ def test_archive_snapshot_body_uses_response_ceiling(monkeypatch):
         calls.append((url, kwargs))
         return responses.pop(0)
 
-    monkeypatch.setattr("deepr.utils.scrape.fetcher.requests.get", fake_get)
+    monkeypatch.setattr("deepr.utils.scrape.fetcher._pinned_get", fake_get)
     monkeypatch.setattr("deepr.utils.scrape.fetcher.validate_url", lambda target, **_kwargs: target)
 
     result = fetcher._fetch_archive("https://example.com")
@@ -449,7 +486,7 @@ def test_archive_metadata_has_independent_small_response_ceiling(monkeypatch):
         [AssertionError("metadata body must not be read")],
         headers={"Content-Length": str(MAX_ARCHIVE_METADATA_BYTES + 1)},
     )
-    monkeypatch.setattr("deepr.utils.scrape.fetcher.requests.get", lambda *_args, **_kwargs: metadata)
+    monkeypatch.setattr("deepr.utils.scrape.fetcher._pinned_get", lambda *_args, **_kwargs: metadata)
 
     result = fetcher._fetch_archive("https://example.com")
 
@@ -471,7 +508,7 @@ def test_archive_rejects_untrusted_snapshot_host_before_dispatch(monkeypatch):
             raise AssertionError("untrusted snapshot host must not be dispatched")
         return metadata
 
-    monkeypatch.setattr("deepr.utils.scrape.fetcher.requests.get", fake_get)
+    monkeypatch.setattr("deepr.utils.scrape.fetcher._pinned_get", fake_get)
 
     result = fetcher._fetch_archive("https://example.com")
 
@@ -504,7 +541,7 @@ def test_archive_blocks_private_redirect_before_follow(monkeypatch):
             raise SSRFError(f"URL is not safe to fetch: {target}")
         return target
 
-    monkeypatch.setattr("deepr.utils.scrape.fetcher.requests.get", fake_get)
+    monkeypatch.setattr("deepr.utils.scrape.fetcher._pinned_get", fake_get)
     monkeypatch.setattr("deepr.utils.scrape.fetcher.validate_url", fake_validate)
 
     result = fetcher._fetch_archive("https://example.com")
@@ -542,7 +579,7 @@ def test_http_fetcher_blocks_private_redirect_before_follow(monkeypatch):
         response.headers["Location"] = "http://127.0.0.1/admin"
         return response
 
-    monkeypatch.setattr("deepr.utils.scrape.fetcher.requests.get", fake_get)
+    monkeypatch.setattr("deepr.utils.scrape.fetcher._pinned_get", fake_get)
     monkeypatch.setattr(
         fetcher,
         "_fetch_selenium_headless",

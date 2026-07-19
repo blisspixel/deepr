@@ -175,6 +175,7 @@ def chat_accounting(monkeypatch):
 def _clean_browser_chat_states(monkeypatch, chat_accounting):
     monkeypatch.delenv("DEEPR_API_KEY", raising=False)
     monkeypatch.setattr(web_app, "_API_KEY", "")
+    monkeypatch.setattr(web_app, "_ALLOW_UNAUTHENTICATED_LOOPBACK", True)
     web_app.app.config.update(TESTING=True, RATELIMIT_ENABLED=False)
     events._shutdown_browser_chat_states_for_tests()
     yield
@@ -182,13 +183,74 @@ def _clean_browser_chat_states(monkeypatch, chat_accounting):
 
 
 @pytest.fixture
-def socket_client():
-    client = web_app.socketio.test_client(web_app.app)
+def socket_client(_clean_browser_chat_states, monkeypatch):
+    monkeypatch.setattr(web_app, "_API_KEY", "test-socket-key")
+    monkeypatch.setattr(web_app, "_ALLOW_UNAUTHENTICATED_LOOPBACK", False)
+    client = web_app.socketio.test_client(
+        web_app.app,
+        auth={"token": "test-socket-key"},
+    )
     assert isinstance(client, SocketIOTestClient)
     client.get_received()
     yield client
     if client.is_connected():
         client.disconnect()
+
+
+def test_socket_fails_closed_when_dashboard_auth_is_not_configured(monkeypatch) -> None:
+    monkeypatch.setattr(web_app, "_API_KEY", "")
+    monkeypatch.setattr(web_app, "_ALLOW_UNAUTHENTICATED_LOOPBACK", False)
+
+    client = web_app.socketio.test_client(web_app.app)
+
+    assert client.is_connected() is False
+
+
+def test_socket_accepts_matching_dashboard_auth_token(monkeypatch) -> None:
+    monkeypatch.setattr(web_app, "_API_KEY", "socket-secret")
+    monkeypatch.setattr(web_app, "_ALLOW_UNAUTHENTICATED_LOOPBACK", False)
+
+    rejected = web_app.socketio.test_client(web_app.app, auth={"token": "wrong"})
+    accepted = web_app.socketio.test_client(
+        web_app.app,
+        auth={"token": "socket-secret"},
+    )
+
+    assert rejected.is_connected() is False
+    assert accepted.is_connected() is True
+    accepted.disconnect()
+
+
+def test_browser_chat_worker_ceiling_is_atomic() -> None:
+    first = events._get_or_create_browser_chat_state(
+        sid="first",
+        expert_name="Budget Expert",
+        approved_budget=0.5,
+        conversation_id=None,
+        max_workers=1,
+    )
+    second = events._get_or_create_browser_chat_state(
+        sid="second",
+        expert_name="Budget Expert",
+        approved_budget=0.5,
+        conversation_id=None,
+        max_workers=1,
+    )
+
+    assert first is not None
+    assert second is None
+    assert events._get_browser_chat_state("first") is first
+    assert events._get_browser_chat_state("second") is None
+
+
+def test_socket_rejects_unsafe_subscription_room(socket_client) -> None:
+    socket_client.emit(
+        "subscribe_jobs",
+        {"scope": "job", "job_id": "../jobs\nadmin"},
+    )
+
+    error = _wait_for_event(socket_client, "subscription_error")
+    assert error == {"error": "invalid job_id"}
 
 
 def test_contract_rejects_non_api_backends_and_invalid_modes() -> None:

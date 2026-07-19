@@ -17,7 +17,12 @@ from deepr.a2a.task_manager import TaskManager
 
 
 def _server(auth_token: str | None = None) -> A2AServer:
-    return A2AServer(AgentCardGenerator(name="deepr-test"), TaskManager(), auth_token=auth_token)
+    return A2AServer(
+        AgentCardGenerator(name="deepr-test"),
+        TaskManager(),
+        auth_token=auth_token,
+        allow_unauthenticated_loopback=auth_token is None,
+    )
 
 
 def _create_body(skill: str = "Tech Expert", text: str = "analyze") -> str:

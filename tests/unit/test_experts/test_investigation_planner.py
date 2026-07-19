@@ -125,12 +125,21 @@ def test_plan_is_zero_call_complete_and_hash_bound(tmp_path: Path, snapshot_comp
     }
     assert plan["learning_contract"]["human_reviewed"] is False
     assert plan["learning_contract"]["source_pack_evidence_only"] is True
+    assert plan["learning_contract"]["factual_belief_source_pack_evidence_only"] is True
     assert plan["learning_contract"]["dialogue_is_evidence"] is False
+    assert plan["learning_contract"]["perspective_proposals_from_expert_positions"] is True
+    assert plan["learning_contract"]["perspective_proposals_are_factual_beliefs"] is False
+    assert plan["learning_contract"]["perspective_truth_or_novelty_verified"] is False
     assert plan["learning_contract"]["domain_relevance_required"] is True
     assert plan["learning_contract"]["domain_relevance_judgment"] == "independent_verifier_model"
     assert plan["experts"][0]["readiness"]["blueprint_status"] == "present"
     assert plan["experts"][1]["readiness"]["blueprint_status"] == "absent"
     assert plan["data_egress"][1]["file_or_snapshot_content_sent"] is False
+    assert (
+        plan["retrieval"]["query_policy"]
+        == "question_plus_frozen_expert_domain_search_with_requested_urls_as_direct_fetches"
+    )
+    assert plan["retrieval"]["model_charter_queries_execute"] is False
 
 
 def test_plan_requires_explicit_model_for_mixed_roster(tmp_path: Path, snapshot_compiler: None) -> None:

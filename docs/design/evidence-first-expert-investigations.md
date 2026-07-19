@@ -1,6 +1,6 @@
 # Evidence-first expert investigations
 
-Status: accepted design with an experimental local implementation, 2026-07-17.
+Status: accepted design with an experimental local implementation, 2026-07-18.
 Research cutoff: 2026-07-16. Stages 0 through 4 are implemented for explicit
 local Ollama execution at `$0` provider cost. Semantic quality is still
 unreviewed, and plan-quota, metered API, remote, and automatic-apply stages are
@@ -23,9 +23,11 @@ inline text, URLs, files, and folders, plus one total capacity envelope. Each
 expert first receives a frozen view of its own durable knowledge and researches
 independently. A central coordinator then routes a small number of
 evidence-linked cruxes through one blinded cross-examination round. A separate
-checker and synthesizer preserve support, uncertainty, and dissent. Only
-source-backed claims that pass the existing independent verification and graph
-commit boundary may be proposed as learning for an expert.
+checker and synthesizer preserve support, uncertainty, and dissent. Factual
+learning requires replayable source evidence plus independent verification.
+Non-factual hypotheses, concepts, stances, and original ideas use a separate
+perspective lane that preserves uncertainty and testability without pretending
+that web support can prove truth or novelty.
 
 The experimental product shape is `deepr expert investigate`. Its artifact
 contracts are versioned, but the CLI is not a promoted quality claim until the
@@ -35,8 +37,9 @@ This is similar to the useful part of heavy multi-agent research systems:
 parallel search, specialization, cross-checking, and synthesis. Deepr's testable
 hypothesis is that durable domain experts, temporal provenance, explicit source
 packs, replayable run state, and verified per-expert learning can outperform an
-ephemeral panel on repeated domain work. That is a hypothesis to evaluate, not
-a shipped quality claim.
+ephemeral panel on repeated domain work. Durable expert perspective may also
+preserve useful conjecture that is not yet fact-checkable. Both are hypotheses
+to evaluate, not shipped quality claims.
 
 ## The user experience
 
@@ -75,6 +78,9 @@ deepr expert investigate plan `
 deepr expert investigate run .\investigation-plan.json -y
 deepr expert investigate status <run-id>
 deepr expert investigate inspect <run-id>
+deepr expert investigate apply-learning <run-id> --dry-run --json
+# Explicit apply records operator confirmation, not human review.
+deepr expert investigate apply-learning <run-id> -y --json
 ```
 
 The plan command is a zero-call preview by default. It may hash local inputs and
@@ -143,6 +149,13 @@ The strongest current evidence favors centralized, selective collaboration:
   [When Identity Skews Debate](https://aclanthology.org/2026.acl-long.650/),
   [CascadeDebate](https://aclanthology.org/2026.acl-industry.93/), and
   [Problem Drift](https://aclanthology.org/2026.findings-eacl.268/).
+- A July 2, 2026 preprint reports that deliberately combining shared and
+  disjoint evidence reduces correlated errors in multi-agent forecasting. A
+  separate 2026 study finds that broadcasting every available message can add
+  noise and redundancy. These results support distinct evidence lenses and
+  targeted peer packets, not general transcript sharing. Sources:
+  [Diverse Evidence, Better Forecasts](https://arxiv.org/abs/2607.01661) and
+  [Hear Both Sides](https://arxiv.org/abs/2603.20640).
 - Recent evaluations warn that a group can compromise away its strongest
   expert, coordination overhead can erase information gains, and consensus can
   repeat a shared misconception rather than verify it. Sources:
@@ -157,6 +170,14 @@ The strongest current evidence favors centralized, selective collaboration:
   make later agents more exploitable. This reinforces the rule that a transcript
   is never evidence and learning must pass a source-backed verifier. Source:
   [MPBench](https://arxiv.org/abs/2606.04329).
+- Scientific-ideation and novelty-judging studies add a different warning:
+  models can converge instead of proposing null hypotheses, while model judges
+  can create a novelty mirage. The workflow must deliberately ask for a null
+  hypothesis and preserve testable minority ideas, but no checker may certify
+  originality or novelty. Sources:
+  [Contemporary AI lacks the imagination to diverge or negate in science](https://arxiv.org/abs/2606.08251)
+  and
+  [On the Limits of LLM-as-Judge for Scientific Novelty Assessment](https://arxiv.org/abs/2606.12071).
 
 These findings rule out an unconstrained peer-to-peer chat as the default. They
 support parallel independent research, a central durable coordinator, blinded
@@ -392,17 +413,23 @@ state as if it had been present at the start.
 Each expert receives the same brief and input bundle plus its own snapshot. It
 proposes a concise, domain-specific research charter: subquestions, intended
 queries, relevant supplied inputs, likely overlap, and stop criteria. A central
-coordinator may semantically reduce overlap and fill missing discipline
-coverage. Deterministic code validates bounds and source modes, but does not use
-word overlap to decide whether two charters mean the same thing.
+coordinator may later semantically reduce overlap and fill missing discipline
+coverage. In the current implementation, charter queries are recorded proposals
+only. They never acquire network authority. Deterministic code validates bounds
+and source modes, but does not use word overlap to decide whether two charters
+mean the same thing.
 
 ### Phase 3: bounded parallel evidence gathering
 
-Execute admitted charters independently, in parallel only up to the parent
-concurrency limit. Retrieval produces replayable source packs before an expert
-position is generated. Each expert may stop early for sufficient evidence,
-missing evidence, duplicated evidence, or a needed caller clarification. Those
-are model judgments recorded as proposals; hard limits and lifecycle stops are
+Retrieve independently, in parallel only up to the parent concurrency limit.
+The current query policy is exactly the caller's question plus each frozen
+expert domain. Caller-requested URLs remain direct retrieval targets but are
+removed from discovery query text. This creates distinct, hash-bound
+evidence lenses without allowing model-generated text to widen network scope.
+Retrieval produces replayable source packs before an expert position is
+generated. Each expert may propose stopping for sufficient evidence, missing
+evidence, duplicated evidence, or a needed caller clarification. Those are
+model judgments recorded as proposals; hard limits and lifecycle stops are
 workflow decisions.
 
 ### Phase 4: independent positions
@@ -416,7 +443,10 @@ Each expert returns a versioned perspective containing:
 - question-specific confidence and its basis;
 - important unknowns and unresolved contradictions;
 - strongest alternative or minority interpretation;
-- one disconfirming observation or discriminating test;
+- an explicit null hypothesis;
+- one or more disconfirming observations or discriminating tests;
+- separately typed perspective candidates with rationale, uncertainty,
+  assumptions, implications, expected observations, and disconfirming signals;
 - decision implications and proposed cruxes.
 
 Stored-belief confidence remains separate from confidence in this answer.
@@ -476,43 +506,51 @@ The final synthesis reports:
 The synthesis cannot turn repeated assertions into evidence or infer consensus
 from silence. It may conclude that the available evidence is insufficient.
 
-### Phase 10: verified learning proposals
+### Phase 10: staged factual and perspective learning
 
 Learning is a separate post-answer phase. `off`, `stage`, and eventually
 `verified-auto` are distinct policies:
 
 - `off` creates no learning artifacts.
-- `stage` is the initial default. Each expert receives only domain-relevant
-  source packs and the run's gap or hypothesis proposals. Existing claim
-  extraction and independent verification produce graph commit envelopes, but
-  nothing is applied. Extraction receives the target expert domain and a
-  separate verifier model must judge each candidate materially relevant to
-  that domain. Deterministic code requires a positive verdict but does not use
-  lexical overlap to decide meaning.
+- `stage` produces two separate envelopes per expert when candidates exist.
+  The factual envelope receives only that expert's source pack. Existing claim
+  extraction and independent verification require replayable support and a
+  positive target-domain relevance verdict. The perspective envelope receives
+  only that expert's final position plus the independent check. A hypothesis,
+  concept, stance, or original idea is eligible only after a model assesses its
+  form, internal coherence, and testability as `well_formed`. That assessment
+  is not truth, importance, originality, novelty, or human review. Deterministic
+  code enforces typed separation, finite ranges, provenance, and explicit apply,
+  but does not use lexical overlap to decide meaning.
 - `verified-auto` may later apply only operations that pass the existing
   source-backed verifier and graph commit contract. It must be explicitly
   selected and is gated on memory-poisoning, negative-transfer, and held-out
   longitudinal evaluation.
 
 Raw dialogue, panel agreement, checker prose, and the final report are not
-factual evidence. They may originate a gap, hypothesis, stance, concept, or
-research agenda with explicit provenance, but factual belief writes must point
-to replayable source-pack evidence.
+factual evidence. The final expert position may originate a hypothesis, stance,
+concept, or original idea with explicit investigation provenance, but factual
+belief writes must point to replayable source-pack evidence. A perspective's
+source refs mean inspiration or context only. Absence of external support is
+not refutation.
 
 All experts do not need to learn the same thing. A valid result can update one
-expert, stage different changes for each, or produce no verified changes. A
+expert, stage different changes for each, or produce no admissible changes. A
 run-level learning manifest records every candidate, rejection, no-op, partial
 failure, and per-expert commit id. Applying one expert's verified envelope does
 not silently make another expert's failed write appear atomic. Resume is
 idempotent per expert and operation.
 
-Automatic verifier acceptance is labeled `automatic_verifier_accepted`, never
-`human_reviewed`. A real reviewer attestation remains a separate provenance
-event.
+Factual verifier readiness is labeled `automatic_verifier_accepted`.
+Perspective readiness is labeled `model_assessed_well_formed`. Neither is
+`human_reviewed`. Explicit `apply-learning` first preflights every selected
+envelope, then locks all selected experts and applies idempotently only after
+operator confirmation. The apply record still says `human_reviewed: false`.
+A real reviewer attestation remains a separate provenance event.
 
 ### What each expert can learn
 
-The same investigation can produce different verified changes for different
+The same investigation can produce different admitted changes for different
 experts:
 
 - factual or time-scoped claims with source provenance;
@@ -697,6 +735,15 @@ larger.
 - Implemented experimentally 2026-07-17: each expert's immutable source pack
   flows through existing claim extraction, independent verification, and graph
   commit envelopes.
+- Extended 2026-07-18: each final expert position can also produce a separate
+  non-factual perspective envelope for hypotheses, concepts, stances, and
+  original ideas. The checker assesses only form, internal coherence, and
+  testability. Truth, importance, originality, novelty, and human review remain
+  explicitly false.
+- Extended 2026-07-18: `expert investigate apply-learning` hash-verifies and
+  preflights every selected envelope before acquiring an explicit confirmation
+  and applying all selected experts idempotently. Perspective-only writes do
+  not advance factual knowledge freshness.
 - The compiler prompt orders claims by priority, and deterministic form
   enforcement retains at most the first five candidates per expert while
   recording raw, retained, and dropped counts. This bounds verifier expansion
@@ -755,6 +802,54 @@ verifier marked all fifteen retained candidates domain-relevant, but all three
 commit envelopes failed closed because semantic deduplication remained
 `uncertain`. The result was zero ready writes, zero applied writes, zero human
 reviews, and zero expert-state writes.
+
+Two 2026-07-18 deep pilots then exercised the full discussion and perspective
+path with `qwen3.6:27b`. The first failed on its first position because Ollama
+returned 4,096 tokens of separate hidden reasoning and empty public content.
+Deepr stopped before learning, spent `$0.00`, and wrote no expert state. Native
+investigation requests now send `think: false` and continue to reject an empty
+structured answer rather than reinterpreting a reasoning trace.
+
+The next pilot completed three charters, three source packs, three positions,
+one challenge round, and two private revisions. Its third revision exceeded the
+correct 114,688-byte input allowance derived from the pinned 32K context and
+4,096-token output reservation. It stopped as `budget_exhausted` after eleven
+model calls, twelve searches, twenty-four page fetches, `$0.00` provider cost,
+and zero expert-state writes. Protocol construction now applies explicit
+component and total packet ceilings. Revisions see only bounded caller evidence
+and their own rendered source evidence, while peer discussion remains a
+proposal rather than evidence. A worst-shape regression proves revision,
+checker, and synthesis prompts fit the same per-call ceiling.
+
+A corrected deep run, `inv_877003f4f3b442a0b7f09d08d4250b20`, then
+completed the full protocol on local owned capacity. It used 20 local model
+calls, 12 searches, 24 page fetches, 256,931 input tokens, 29,431 output
+tokens, 990,882 prompt bytes, and 2,415.828 seconds. Provider spend was
+`$0.00`, and the run made zero expert-state writes. The result preserved
+dissent and proposed useful tests around theory-indexed confidence,
+bitemporal invalidation, blinded crux routing, and MCP authority injection.
+Its semantic quality remains explicitly unreviewed.
+
+Staged learning produced three provenance-bound no-op envelopes and three
+ready envelopes containing six candidate operations. Bulk `apply-learning`
+dry-run now reports all six ready operations alongside the three no-ops, with
+zero applied writes. None were applied. Content audit rejected the full set:
+one factual candidate correctly retained the MCP release-candidate qualifier,
+one generic factual statement omitted its claimed MCP relationship, two
+perspectives were redundant or generic, and one perspective upgraded a future
+release candidate into a completed protocol transition. This demonstrates
+useful staging and refusal boundaries, not trustworthy automatic learning.
+
+The audit produced three concrete follow-ups. Domain-relevance verification
+now instructs the model to judge the exact candidate statement instead of
+borrowing relevance from its source title, excerpt, query, support summary, or
+rationale. Synthesis now explicitly preserves draft, proposal,
+release-candidate, planned, final, and shipped maturity. Bulk apply recognizes
+only a provenance-verified producer `blocked` or `empty` envelope with no
+operations as a no-op; an unexpectedly empty ready envelope or any additional
+schema, target, provenance, or operation failure still aborts the complete
+transaction. Search-source quality and the semantic reliability of these
+model judgments remain held-out evaluation gates.
 
 These pilots validate local execution, durability, accounting, evidence
 separation, negative-transfer protection, safe refusal, and write boundaries.

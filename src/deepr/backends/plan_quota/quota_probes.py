@@ -13,7 +13,7 @@ import struct
 from collections.abc import Iterable
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 import httpx
 
@@ -381,7 +381,7 @@ def _last_rate_limits(path: Path) -> dict[str, Any] | None:
 def _find_key(value: object, key: str) -> object | None:
     if isinstance(value, dict):
         if key in value:
-            return value[key]
+            return cast(object, value[key])
         for child in value.values():
             found = _find_key(child, key)
             if found is not None:
@@ -416,17 +416,30 @@ def _claude_snapshot_from_usage(data: dict[str, Any], stamp: datetime, *, plan: 
     windows = tuple(_claude_windows(data))
     response_plan = _string_or_none(data.get("subscription_type") or data.get("subscriptionType"))
     effective_plan = response_plan or plan
+    overage_enabled = _claude_overage_enabled(data)
+    overage_error = "" if overage_enabled is not None else "Claude usage response did not prove extra usage state"
     return QuotaSnapshot(
         backend_id=CLAUDE_QUOTA_BACKEND_ID,
         display_name=CLAUDE_QUOTA_DISPLAY_NAME,
         account_id=effective_plan or "default",
         plan=effective_plan,
         cost_model=CostModel.ROLLING_WINDOW,
-        ok=True,
+        ok=overage_enabled is not None,
+        error=overage_error,
         windows=windows,
         as_of=stamp,
+        overage_enabled=overage_enabled,
         metadata={"source": "claude_oauth_usage"},
     )
+
+
+def _claude_overage_enabled(data: dict[str, Any]) -> bool | None:
+    """Return only the provider's explicit paid-extra-usage state."""
+    extra_usage = data.get("extra_usage")
+    if not isinstance(extra_usage, dict):
+        return None
+    enabled = extra_usage.get("is_enabled")
+    return enabled if isinstance(enabled, bool) else None
 
 
 def _codex_windows(rate_limits: dict[str, Any]) -> Iterable[QuotaWindowSnapshot]:

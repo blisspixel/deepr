@@ -24,7 +24,7 @@ async def reconcile_research_cost_reservations(queue: Any, *, default_provider: 
         age = datetime.now(UTC) - record.created_at
         if job is None and age < timedelta(minutes=15):
             continue
-        if job is not None and job.status == JobStatus.QUEUED:
+        if job is not None and job.status == JobStatus.QUEUED and not record.provider_work_may_have_run:
             if age < timedelta(minutes=15) or not await queue.cancel_job(job.id):
                 continue
             reservation = ResearchCostReservation(
@@ -63,6 +63,7 @@ async def reconcile_research_cost_reservations(queue: Any, *, default_provider: 
             or job.status in {JobStatus.COMPLETED, JobStatus.FAILED}
             or provider_job_id
             or unresolved_submission
+            or record.provider_work_may_have_run
         ):
             settle_research_cost(
                 reservation,

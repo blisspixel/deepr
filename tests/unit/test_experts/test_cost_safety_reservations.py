@@ -14,6 +14,7 @@ import time
 
 import pytest
 
+from deepr.experts.cost_circuit_breaker import CostCircuitBreaker
 from deepr.experts.cost_safety import CostSafetyManager
 
 
@@ -103,6 +104,28 @@ class TestReservationFlow:
         manager.record_cost(session_id="s1", operation_type="r", actual_cost=0.0, reservation_id=a_id)
         c_allowed, _, _, _ = manager.check_and_reserve(session_id="s2", operation_type="r", estimated_cost=2.0)
         assert c_allowed is True
+
+    def test_circuit_breaker_counts_in_flight_reservations(self):
+        breaker = CostCircuitBreaker(
+            cost_threshold=1.0,
+            event_threshold=2,
+            max_single_cost=1.0,
+            window_seconds=300.0,
+            cooldown_seconds=60.0,
+        )
+        manager = CostSafetyManager(circuit_breaker=breaker)
+        manager.max_daily = 10.0
+        manager.max_monthly = 10.0
+
+        first = manager.check_and_reserve(session_id="s1", operation_type="r", estimated_cost=0.5)
+        second = manager.check_and_reserve(session_id="s2", operation_type="r", estimated_cost=0.5)
+        third = manager.check_and_reserve(session_id="s3", operation_type="r", estimated_cost=0.5)
+
+        assert first[0] is True
+        assert second[0] is True
+        assert third[0] is False
+        assert "threshold" in third[1].lower()
+        assert manager._reserved_daily == pytest.approx(1.0)
 
 
 class TestMonthlyReservationSymmetry:

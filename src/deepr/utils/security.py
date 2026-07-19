@@ -147,11 +147,10 @@ def is_blocked_ip(ip: ipaddress.IPv4Address | ipaddress.IPv6Address, allow_priva
 
     Handles both IPv4 and IPv6 addresses.
     """
-    if ip.is_reserved or ip.is_multicast:
+    if ip.is_reserved or ip.is_multicast or ip.is_unspecified:
         return True
-    if not allow_private:
-        if ip.is_private or ip.is_loopback or ip.is_link_local:
-            return True
+    if not allow_private and not ip.is_global:
+        return True
     return False
 
 
@@ -214,8 +213,14 @@ def is_safe_url(url: str, allow_private: bool = False) -> bool:
         if parsed.scheme not in ["http", "https"]:
             return False
 
-        # Check for hostname
+        # Check for hostname and reject credential-bearing authority forms.
         if not parsed.hostname:
+            return False
+        if parsed.username is not None or parsed.password is not None:
+            return False
+        try:
+            _ = parsed.port
+        except ValueError:
             return False
 
         # Resolve hostname to all IPs (IPv4 + IPv6) and check each
@@ -236,6 +241,37 @@ def is_safe_url(url: str, allow_private: bool = False) -> bool:
 
     except Exception:
         return False
+
+
+def resolve_safe_url_ips(url: str, allow_private: bool = False) -> tuple[str, ...]:
+    """Resolve a safe HTTP(S) URL to the exact addresses authorized for one fetch.
+
+    Callers that perform network I/O must connect through one of the returned
+    addresses instead of resolving the hostname again. This turns validation
+    into a connection binding rather than a DNS-rebinding-prone precheck.
+    """
+    parsed = urlparse(url)
+    if parsed.scheme not in {"http", "https"} or not parsed.hostname:
+        raise SSRFError(f"URL is not safe to fetch: {url}")
+    if parsed.username is not None or parsed.password is not None:
+        raise SSRFError(f"URL is not safe to fetch: {url}")
+    try:
+        _ = parsed.port
+    except ValueError as exc:
+        raise SSRFError(f"URL is not safe to fetch: {url}") from exc
+
+    addresses: list[ipaddress.IPv4Address | ipaddress.IPv6Address] = []
+    for raw_address in resolve_all_ips(parsed.hostname):
+        try:
+            address = ipaddress.ip_address(raw_address)
+        except ValueError as exc:
+            raise SSRFError(f"URL is not safe to fetch: {url}") from exc
+        if is_blocked_ip(address, allow_private=allow_private):
+            raise SSRFError(f"URL is not safe to fetch: {url}")
+        addresses.append(address)
+    if not addresses:
+        raise SSRFError(f"URL is not safe to fetch: {url}")
+    return tuple(str(address) for address in sorted(set(addresses), key=lambda value: (value.version, int(value))))
 
 
 def validate_url(url: str, allow_private: bool = False) -> str:

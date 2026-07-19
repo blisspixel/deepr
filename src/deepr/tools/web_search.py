@@ -1,11 +1,8 @@
 """Web search tool implementation."""
 
 import asyncio
-import os
 from collections.abc import Awaitable, Callable
 from typing import Any, TypeVar, cast
-
-import requests
 
 from .base import Tool, ToolResult
 
@@ -76,11 +73,9 @@ class WebSearchTool(Tool):
     """
     Web search tool using multiple backends.
 
-    Supports:
-    - Brave Search API (recommended)
-    - DuckDuckGo (free, no API key)
-    - Tavily (alternative)
-    - MCP servers (if available)
+    The public tool executes only the unmetered DuckDuckGo adapter. Brave and
+    Tavily remain named compatibility values but fail closed until their price,
+    reservation, and canonical settlement contracts are implemented.
     """
 
     def __init__(
@@ -98,8 +93,10 @@ class WebSearchTool(Tool):
             tavily_api_key: Tavily API key (or TAVILY_API_KEY env)
         """
         self.backend = backend
-        self.brave_api_key = brave_api_key or os.getenv("BRAVE_API_KEY")
-        self.tavily_api_key = tavily_api_key or os.getenv("TAVILY_API_KEY")
+        # Do not retain ambient metered credentials in the free-search tool.
+        # The arguments remain accepted so older configuration fails at execute
+        # time with an actionable safety message instead of during construction.
+        del brave_api_key, tavily_api_key
 
     @property
     def name(self) -> str:
@@ -131,75 +128,23 @@ class WebSearchTool(Tool):
         query, num_results, parse_error = _parse_web_search_execute_args(args, kwargs)
         if parse_error is not None:
             return ToolResult(success=False, data=None, error=parse_error)
+        if num_results < 1 or num_results > 20:
+            return ToolResult(success=False, data=None, error="Web search num_results must be between 1 and 20.")
 
-        # Try backends in order
-        backends = ["brave", "tavily", "duckduckgo"] if self.backend == "auto" else [self.backend]
-
-        for backend in backends:
-            try:
-                if backend == "brave" and self.brave_api_key:
-                    return await self._search_brave(query, num_results)
-                elif backend == "tavily" and self.tavily_api_key:
-                    return await self._search_tavily(query, num_results)
-                elif backend == "duckduckgo":
-                    return await self._search_duckduckgo(query, num_results)
-            except Exception:  # Intentional backend failover in multi-provider web search; one failing provider does not kill the tool call.
-                # Try next backend
-                continue
-
-        return ToolResult(
-            success=False,
-            data=None,
-            error="No working web search backend available. Set BRAVE_API_KEY or TAVILY_API_KEY.",
-        )
-
-    async def _search_brave(self, query: str, num_results: int) -> ToolResult:
-        """Search using Brave Search API."""
-        if not self.brave_api_key:
-            return ToolResult(success=False, data=None, error="Brave Search requires BRAVE_API_KEY.")
-
-        url = "https://api.search.brave.com/res/v1/web/search"
-        headers: dict[str, str] = {"Accept": "application/json", "X-Subscription-Token": self.brave_api_key}
-        params: dict[str, str | int] = {"q": query, "count": num_results}
-
-        response = await asyncio.to_thread(requests.get, url, headers=headers, params=params, timeout=10)
-        response.raise_for_status()
-
-        data = response.json()
-        results = []
-
-        for item in data.get("web", {}).get("results", [])[:num_results]:
-            results.append(
-                {
-                    "title": item.get("title"),
-                    "url": item.get("url"),
-                    "snippet": item.get("description"),
-                }
+        normalized_backend = str(self.backend).strip().lower()
+        if normalized_backend in {"brave", "tavily"}:
+            return ToolResult(
+                success=False,
+                data=None,
+                error=(
+                    f"{normalized_backend.title()} search is disabled until Deepr can price, reserve, "
+                    "and settle every request. Use duckduckgo or a configured SearXNG backend."
+                ),
             )
+        if normalized_backend not in {"auto", "duckduckgo"}:
+            return ToolResult(success=False, data=None, error=f"Unsupported web search backend: {self.backend}")
 
-        return ToolResult(success=True, data=results, metadata={"backend": "brave", "query": query})
-
-    async def _search_tavily(self, query: str, num_results: int) -> ToolResult:
-        """Search using Tavily API."""
-        url = "https://api.tavily.com/search"
-        payload = {"api_key": self.tavily_api_key, "query": query, "max_results": num_results}
-
-        response = await asyncio.to_thread(requests.post, url, json=payload, timeout=10)
-        response.raise_for_status()
-
-        data = response.json()
-        results = []
-
-        for item in data.get("results", [])[:num_results]:
-            results.append(
-                {
-                    "title": item.get("title"),
-                    "url": item.get("url"),
-                    "snippet": item.get("content"),
-                }
-            )
-
-        return ToolResult(success=True, data=results, metadata={"backend": "tavily", "query": query})
+        return await self._search_duckduckgo(query, num_results)
 
     async def _search_duckduckgo(self, query: str, num_results: int) -> ToolResult:
         """Search using DuckDuckGo (free, no API key).

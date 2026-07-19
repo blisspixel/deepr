@@ -1,6 +1,6 @@
 # Three Expert Council And Learning Workflow
 
-Status: works-now guide, verified against the CLI on 2026-07-17. The one-shot
+Status: works-now guide, verified against the CLI on 2026-07-18. The one-shot
 consult is stable. The deeper local investigation surface is experimental and
 has not passed its semantic-quality promotion gate.
 
@@ -10,10 +10,12 @@ This guide builds three durable experts:
 - Digital Consciousness
 - Model Context Protocol
 
-It then runs a bounded council, turns operator-selected unknowns into
-source-seeking maintenance, and admits only verified results into each expert's
-graph. The default path uses local Ollama and costs `$0` in Deepr. An optional
-API synthesis is bounded by one explicit transaction ceiling.
+It then runs a bounded council, turns unknowns into research, and stages two
+different kinds of learning for each expert. Factual claims need replayable
+source evidence and independent verification. Hypotheses, concepts, stances,
+and original ideas remain non-factual perspective state with uncertainty and
+disconfirming tests. The default path uses local Ollama and costs `$0` in Deepr.
+An optional API synthesis is bounded by one explicit transaction ceiling.
 
 ## What Works Now
 
@@ -24,7 +26,7 @@ API synthesis is bounded by one explicit transaction ceiling.
 | Experts research and exchange a bounded round | Experimental through local-only `expert investigate`; one blinded targeted exchange, with optional private revision |
 | Successful consult automatically creates gaps | Not shipped |
 | Consult changes beliefs or graph state | Never |
-| Investigation changes beliefs or graph state | Never automatically; `--learning stage` creates separate source-only commit envelopes that still require explicit apply |
+| Investigation changes beliefs or graph state | Never automatically; `--learning stage` creates separate factual and non-factual perspective envelopes that still require explicit apply |
 | Local synthesis | Works with Ollama at `$0` provider cost |
 | Explicit plan synthesis | Works for eligible plan CLIs with no metered API fallback; external quota or billing cannot be proven by Deepr |
 | API synthesis | Works as one priced, reserved, and settled call |
@@ -55,14 +57,31 @@ Use `deepr expert investigate` when the question needs fresh research and a
 real, bounded exchange. The experimental local runtime:
 
 1. freezes each named expert's current state;
-2. gives every expert an independent research charter and source pack;
+2. retrieves the shared question through a distinct, hash-bound lens made from
+   each expert's frozen domain, with requested URLs fetched directly instead
+   of copied into discovery queries;
 3. records an independent position from every expert;
 4. routes one blinded, targeted challenge to each expert in `discuss` or
    `deep` mode;
 5. optionally lets each expert revise privately in `deep` mode;
 6. runs a separately pinned checker and synthesizer;
-7. optionally compiles separate source-backed learning envelopes after the
-   answer.
+7. optionally stages separate factual and perspective learning envelopes after
+   the answer.
+
+Protocol modes are exact, not marketing labels:
+
+- `independent` performs research, independent positions, checking, and
+  synthesis with no peer exchange.
+- `discuss` adds one blinded targeted challenge per expert, with no private
+  revision turn.
+- `deep` adds the same bounded challenge plus one private revision per expert.
+
+Model-generated charter queries are saved as proposals, but they do not gain
+network authority. Retrieval stays reproducible and bounded by the caller's
+question and each frozen expert domain. Caller-requested URLs are fetched
+directly but omitted from discovery query text. Distinct lenses
+reduce identical-evidence herding without letting a model silently widen the
+research scope.
 
 This is not an open chat room or an autonomous recursive loop. It has a fixed
 roster, fixed phases, exact call and retrieval ceilings, one parent time and
@@ -151,26 +170,58 @@ check, usage, and staged learning. A completed run still says
 `Semantic quality: unreviewed`. A local review model is a model-generated check,
 not a human review and not proof that the answer is excellent.
 
-With `--learning stage`, each expert receives its own compiler and verifier pass
-over that expert's retrieved source pack. Peer messages, consensus, synthesis
-prose, and private revisions cannot become factual evidence. One expert may
-receive ready writes while another produces a no-op or blocked result. This is
-the truthful meaning of "they all learn": every expert gets an independent
-chance to compile relevant evidence, but Deepr never forces a graph mutation.
-The model orders its candidates by usefulness. Deterministic form enforcement
-retains at most the first five per expert, records raw and dropped counts, and
-passes only that bounded set to the separate verifier. Extraction receives the
-target expert domain. The verifier model must independently judge each claim
-materially relevant to that domain, and deterministic code admits only a
-positive verdict. Word overlap never decides relevance. If relevance, support,
-deduplication, or temporal validity remains uncertain, the valid outcome is no
-write.
+With `--learning stage`, every expert gets two independent chances to learn:
 
-Staging writes no expert state. Only an entry with a positive
-`ready_write_count` prints an `apply-graph-commit --dry-run` command. Inspect the
-envelope, run that preview, and then remove `--dry-run` with explicit
-confirmation only if the proposal should become canonical expert knowledge.
-Blocked and no-op entries never print an apply command.
+1. The factual lane compiles only that expert's retrieved source pack. Peer
+   messages, consensus, synthesis prose, and private revisions cannot become
+   factual evidence. The model orders candidates by usefulness. Deterministic
+   form enforcement retains at most five per expert before a separate verifier
+   judges source support, target-domain relevance, deduplication, and temporal
+   validity. Domain relevance is judged from the exact candidate statement,
+   not borrowed from a source title, excerpt, query, or rationale. Word overlap
+   never decides meaning. Uncertainty produces no write.
+2. The perspective lane starts from that expert's final position. It can stage
+   a hypothesis or theory, concept, stance, or original idea only when the
+   checker marks its form, internal coherence, and testability `well_formed`.
+   Each candidate retains rationale, uncertainty, assumptions, implications,
+   expected observations, and disconfirming signals. A cited source is
+   inspiration or context, never proof of truth or novelty. The checker cannot
+   certify truth, importance, originality, or novelty, and absence of web
+   support is not refutation.
+
+One expert may receive ready writes while another produces a no-op or blocked
+result. This is the truthful meaning of "they all learn": each expert gets its
+own bounded research and proposal path, but Deepr never forces a mutation.
+Staging writes no expert state.
+
+Preview every selected expert and both channels as one preflight transaction:
+
+```powershell
+deepr expert investigate apply-learning <run-id> --dry-run --json
+```
+
+You may narrow the preview or apply:
+
+```powershell
+deepr expert investigate apply-learning <run-id> --expert "Temporal Knowledge Graphs" --facts --no-perspectives --dry-run --json
+deepr expert investigate apply-learning <run-id> --no-facts --perspectives --dry-run --json
+```
+
+Only after the preflight succeeds, explicitly admit all selected writes:
+
+```powershell
+deepr expert investigate apply-learning <run-id> -y --json
+```
+
+The command hash-verifies the completed run and producer-owned artifact index,
+preflights every selected envelope before any write, locks all selected experts,
+and applies idempotently. Its record says `operator_confirmed_apply: true` and
+`human_reviewed: false`. Applying a perspective does not make it factual, does
+not verify truth or novelty, and does not advance factual knowledge freshness.
+Blocked and no-op entries remain visible. A provenance-verified producer
+`blocked` or `empty` envelope with no operations is a no-op and does not hide
+ready lanes. An unexpectedly empty ready envelope or any other validation
+failure blocks the complete selected transaction.
 
 Run the `$0` structural contract evaluator separately:
 
@@ -201,6 +252,13 @@ ledger spend in the same periods, so the available amount can be less than
 `$10`. Unsafe legacy metered expert paths remain disabled rather than escaping
 the cap.
 
+A budget is never spend permission. Remote and API request bodies must also
+carry the exact booleans `allow_metered_api=true` and
+`confirm_metered_cost=true`. CLI paid execution requires an interactive
+confirmation, or the command's explicit noninteractive cost-confirmation flag.
+Missing consent, finite pricing, reservation, or ledger settlement fails closed
+before provider construction.
+
 This is a current-period ceiling, not a lifetime wallet. The daily and monthly
 windows reset. Deepr does not yet ship a reusable parent budget spanning an
 arbitrary list of shell commands. Keep a paid council to one transaction with
@@ -212,9 +270,11 @@ way to prepare experts without consuming that allowance.
 the hard environment caps above. A command-level `--budget` is also a ceiling
 for that one command, not a shared budget across an arbitrary shell script.
 
-For the strongest no-bill posture, use explicit `--local --budget 0`. An
-explicit `--plan` path records `$0` in Deepr but can consume subscription quota,
-credits, or vendor-side metered credentials that Deepr cannot distinguish.
+For the strongest no-bill posture, use explicit `--local --budget 0`. A
+safety-eligible `--plan` path records `$0` in Deepr but consumes subscription
+quota or credits, and Deepr cannot prove the vendor's final billing treatment.
+An explicit plan selection never bypasses the auth, native-tool, or marginal-
+cost gate.
 
 The current API council meters only final synthesis. It reserves the complete
 requested transaction ceiling, while the synthesis request is limited to 10
@@ -327,8 +387,26 @@ This costs `$0` in Deepr and writes the full returned artifact only because
 An explicit plan alternative is:
 
 ```powershell
-deepr expert consult "Which cross-domain assumption should we test next?" --expert "Temporal Knowledge Graphs" --expert "Digital Consciousness" --expert "Model Context Protocol" --plan codex --budget 0 --output .\three-expert-council-plan.json -y
+# Use a dedicated plan-only shell. Deepr refuses while this API credential is set.
+Remove-Item Env:ANTHROPIC_API_KEY -ErrorAction SilentlyContinue
+deepr expert consult "Which cross-domain assumption should we test next?" --expert "Temporal Knowledge Graphs" --expert "Digital Consciousness" --expert "Model Context Protocol" --plan claude --budget 0 --output .\three-expert-council-plan.json -y
 ```
+
+Claude Code is the current safety-eligible plan adapter. Before every call,
+Deepr reads provider usage metadata and requires an explicit `extra usage off`
+signal. It then uses safe mode, empty tool and MCP surfaces, no persistence, the
+included `sonnet` alias, and no API credential. If any control is unavailable,
+the consult stops before dispatch. Codex, OpenCode, Kiro, Grok, Antigravity,
+and Copilot remain visible in `deepr capacity` but fail before dispatch because
+Deepr cannot prove their tool confinement, provider/auth provenance, overage
+posture, transcript side effects, or complete metered accounting.
+
+Removing the environment variable in this dedicated shell does not delete the
+stored Claude subscription login. If `ANTHROPIC_API_KEY` is present, Deepr
+refuses before vendor dispatch rather than silently stripping it and guessing
+which credential the CLI will use. `deepr capacity refresh-quota claude --json`
+is a metadata-only `$0` check; `deepr capacity probe-plan claude --json` consumes
+one subscription request only after the same live overage proof.
 
 An optional metered synthesis, still under the global and transaction caps, is:
 
@@ -401,7 +479,7 @@ select a winner or change a default.
 | Pasted instruction | Current reality |
 |---|---|
 | `capacity admit --local` | Invalid. Admit a tested local model with `capacity admit MODEL --task-class sync`, preferably from a saved eval. |
-| `capacity admit --plan codex` | Invalid. `capacity admit-plan codex` records intent only; auto-routing still needs trusted quota headroom. |
+| `capacity admit --plan codex` | Invalid. `capacity admit-plan` records intent only, never overrides the adapter safety gate, and Codex execution is currently blocked. |
 | `DEEPR_PREFERRED_CAPACITY=local,plan` | Not a Deepr setting. Use explicit `--local`, explicit `--plan`, or the admitted waterfall where supported. |
 | `health-check --local` | Invalid. Health check is already a `$0` read-only command. |
 | `reflect NAME --local` | Invalid. Reflection requires a report id and uses the scheduled capacity path where supported. |
@@ -413,9 +491,9 @@ select a winner or change a default.
 | Run the meta-expert on itself for recursion | Not a verified improvement loop. It can amplify synthetic errors without held-out evidence. |
 
 The useful idea is controlled compounding: better evidence can produce better
-verified expert state, which can reveal better questions. The verification and
-held-out evaluation steps are what distinguish this from recursive
-self-confirmation.
+factual state, while disciplined conjecture can produce better hypotheses and
+research questions. Keeping those lanes distinct, then measuring later decision
+value, is what separates improvement from recursive self-confirmation.
 
 ## What Remains Gated
 
@@ -423,22 +501,36 @@ The experimental local investigation now provides independent research, one
 targeted blinded exchange, optional private revision, checking, synthesis, and
 staged learning under a hash-bound `$0` envelope. That is still not a generic
 multi-agent chat runtime, a quality claim, or permission to run indefinitely.
-The structural evaluator and three live pilots do not establish superiority.
+The structural evaluator and live pilots do not establish superiority.
 One pilot exposed cross-domain negative transfer before any write was applied;
 the follow-up relevance-gated pilot safely produced zero writes when
-deduplication remained uncertain.
+deduplication remained uncertain. A corrected deep pilot completed all 20 local
+calls at `$0.00` and staged six candidate writes, but content audit rejected all
+six because they were redundant, generic, or semantically overclaimed. None
+were applied. The same run found low-relevance general-web sources in one
+expert pack. Safe staging worked; answer and learning quality remain unproven.
 
 Plan-quota investigation remains explicit-only future work. A paid runtime must
 reserve one parent ceiling, meter every dispatch, enforce aggregate token and
 context limits, support replay and resume, and keep all output proposal-only.
 Its requested `$10` must be the maximum for the whole run, not a per-expert or
-per-phase allowance. Automatic learning apply remains a separate later gate.
+per-phase allowance. Explicit bulk apply works now. Automatic learning apply
+remains a separate later gate.
 
 This direction matches current evidence:
 
+- [Diverse Evidence, Better Forecasts](https://arxiv.org/abs/2607.01661) is a
+  July 2, 2026 preprint reporting that shared plus disjoint evidence reduces
+  correlated errors and improves multi-agent forecasts over identical evidence.
+  It supports expert-specific evidence lenses, but its reported gains are not
+  yet a general result for every research task.
 - [Demystifying Multi-Agent Debate](https://aclanthology.org/2026.findings-acl.1694/)
   reports that vanilla homogeneous debate can underperform simpler voting, while
   diverse initial positions and calibrated confidence are the useful levers.
+- [Hear Both Sides](https://arxiv.org/abs/2603.20640) studies diversity-aware
+  message retention and reports that broadcasting every message can add noise
+  and redundancy. That supports targeted peer packets instead of transcript
+  flooding.
 - [Free-MAD](https://aclanthology.org/2026.findings-acl.1600/) reports a
   consensus-free single-round design with lower communication overhead and
   less conformity pressure. That supports ceilings and early stops, not a
@@ -454,6 +546,10 @@ This direction matches current evidence:
   an external temporal graph as updatable episodic memory across three temporal
   recall tasks. It supports evaluating temporal structure, not treating model
   conversation as graph truth or assuming broad generalization from one study.
+- [Graph-based Agent Memory](https://arxiv.org/abs/2602.05665) separates
+  knowledge from experience, structured from unstructured memory, and the
+  extraction, storage, retrieval, and evolution lifecycle. Deepr should measure
+  retrieval and later-use quality across that lifecycle, not reward graph size.
 - The 2026
   [Digital Consciousness Model](https://arxiv.org/abs/2601.17060) is an early
   probabilistic, multi-theory evidence framework. Its authors describe it as a
@@ -465,6 +561,15 @@ This direction matches current evidence:
   evaluated on ordinary capability benchmarks. Better task performance does
   not by itself establish phenomenal consciousness, so the blueprint tests
   that distinction explicitly.
+- [Contemporary AI lacks the imagination to diverge or negate in science](https://arxiv.org/abs/2606.08251)
+  reports convergence in scientific ideation and no spontaneous null
+  hypotheses in its tested model classes. Deepr therefore asks for an explicit
+  null hypothesis and preserves testable minority proposals instead of making
+  consensus the objective.
+- [On the Limits of LLM-as-Judge for Scientific Novelty Assessment](https://arxiv.org/abs/2606.12071)
+  reports a systematic novelty mirage and weakens any case for automatic
+  novelty certification. Deepr's checker is limited to form, internal
+  coherence, and testability; `novelty_verified` remains false.
 - The official [MCP 2026-07-28 release candidate](https://blog.modelcontextprotocol.io/posts/2026-07-28-release-candidate/)
   moves toward a stateless core and extension-based durable Tasks. As of
   2026-07-16 it is a release candidate, not the final specification.

@@ -929,7 +929,7 @@ def _record_probe_plan_observation(adapter, result: dict[str, object]) -> None:
             units_used=1.0 if event_type == QuotaEventType.USAGE_OBSERVED else None,
             unit_name=adapter.unit_name,
             remaining_confidence=QuotaConfidence.UNKNOWN,
-            overage_enabled=False,
+            overage_enabled=None,
             detail=detail,
         )
     )

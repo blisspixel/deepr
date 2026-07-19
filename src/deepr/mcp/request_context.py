@@ -102,3 +102,19 @@ def reset_mcp_request_identity(token: Token[MCPRequestIdentity | None]) -> None:
 def current_mcp_request_identity() -> MCPRequestIdentity | None:
     """Return the transport-bound identity, or ``None`` for direct/stdio calls."""
     return _CURRENT_IDENTITY.get()
+
+
+def current_scoped_mcp_owner_id() -> str | None:
+    """Return the server-derived owner only for a scoped-key request."""
+    identity = current_mcp_request_identity()
+    if identity is None or identity.authentication != "scoped_key":
+        return None
+    return identity.owner_id
+
+
+def current_mcp_request_can_access_owner(owner_id: str | None) -> bool:
+    """Require exact object ownership for scoped keys and preserve operator authority."""
+    identity = current_mcp_request_identity()
+    if identity is None or identity.authentication != "scoped_key":
+        return True
+    return owner_id is not None and identity.owner_id == owner_id

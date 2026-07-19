@@ -10,6 +10,7 @@ from __future__ import annotations
 import asyncio
 import json
 from contextlib import contextmanager
+from dataclasses import replace
 from datetime import UTC, datetime
 from types import SimpleNamespace
 
@@ -17,6 +18,7 @@ import pytest
 from click.testing import CliRunner
 
 from deepr.backends.capacity_actions import CAPACITY_NEXT_KIND, CAPACITY_NEXT_SCHEMA_VERSION, CapacityNextAction
+from deepr.backends.plan_quota.adapters import REGISTRY
 from deepr.cli.commands.semantic.expert_maintenance import (
     SYNC_CAPACITY_GATE_KIND,
     SYNC_CAPACITY_GATE_SCHEMA_VERSION,
@@ -32,6 +34,15 @@ from deepr.evals.recall_quality import (
     write_recall_eval_report,
 )
 from deepr.experts.beliefs import Belief, BeliefStore
+
+
+def _enable_plan_adapter_for_wiring_test(monkeypatch, backend_id: str) -> None:
+    """Bypass only registry admission so internal multi-vendor wiring is testable."""
+    monkeypatch.setitem(
+        REGISTRY,
+        backend_id,
+        replace(REGISTRY[backend_id], execution_block_reason=""),
+    )
 
 
 def _build_eligible_recall_report(tmp_path, *, name: str, embedding_model: str):
@@ -179,7 +190,87 @@ class TestBackendFlagGuard:
         r = CliRunner().invoke(expert, ["sync", "Whoever", "--jitter", "-1"])
 
         assert r.exit_code == 2
-        assert "--jitter must be non-negative" in r.output
+        assert "--jitter must be a finite non-negative number" in r.output
+
+    @pytest.mark.parametrize(
+        ("option", "value", "message"),
+        [
+            ("--budget", "nan", "--budget must be a finite non-negative number"),
+            ("--budget", "inf", "--budget must be a finite non-negative number"),
+            ("--jitter", "nan", "--jitter must be a finite non-negative number"),
+            ("--jitter", "inf", "--jitter must be a finite non-negative number"),
+        ],
+    )
+    def test_sync_rejects_non_finite_numbers_before_store_work(self, monkeypatch, option, value, message):
+        class ExplodingExpertStore:
+            def __init__(self):
+                raise AssertionError("invalid numeric input must be rejected before loading experts")
+
+        monkeypatch.setattr("deepr.experts.profile.ExpertStore", ExplodingExpertStore)
+
+        result = CliRunner().invoke(expert, ["sync", "Whoever", option, value])
+
+        assert result.exit_code == 2
+        assert message in result.output
+
+    def test_sync_does_not_accept_confirmation_from_piped_stdin(self, monkeypatch):
+        profile = SimpleNamespace(name="Piped Expert")
+
+        class FakeExpertStore:
+            def load(self, name):
+                return profile
+
+        class FakeSubscriptionStore:
+            subscriptions = [SimpleNamespace(topic="topic", budget=1.0)]
+
+            def __init__(self, name):
+                pass
+
+            def due(self):
+                return list(self.subscriptions)
+
+        monkeypatch.setattr("deepr.experts.profile.ExpertStore", FakeExpertStore)
+        monkeypatch.setattr("deepr.experts.sync.SubscriptionStore", FakeSubscriptionStore)
+        monkeypatch.setattr("deepr.backends.local.resolve_local_maintenance_model", lambda *args, **kwargs: "local")
+        monkeypatch.setattr(
+            "deepr.experts.maintenance_engine.build_sync_engine",
+            lambda *args, **kwargs: (_ for _ in ()).throw(AssertionError("sync must not start")),
+        )
+
+        result = CliRunner().invoke(expert, ["sync", "Piped Expert", "--local"], input="y\n")
+
+        assert result.exit_code == 2
+        assert "Interactive confirmation requires a terminal" in result.output
+
+    def test_absorb_does_not_accept_confirmation_from_piped_stdin(self, monkeypatch, tmp_path):
+        doc = tmp_path / "evidence.md"
+        doc.write_text("Evidence", encoding="utf-8")
+        profile = SimpleNamespace(name="Piped Expert")
+
+        class FakeExpertStore:
+            def load(self, name):
+                return profile
+
+        class FakeAbsorber:
+            estimated_cost = 0.0
+
+            async def absorb(self, *args, **kwargs):
+                raise AssertionError("absorption must not start")
+
+        monkeypatch.setattr("deepr.experts.profile.ExpertStore", FakeExpertStore)
+        monkeypatch.setattr(
+            "deepr.cli.commands.semantic.expert_maintenance.build_absorb_backend",
+            lambda **kwargs: SimpleNamespace(absorber=FakeAbsorber(), cost_note="$0 local"),
+        )
+
+        result = CliRunner().invoke(
+            expert,
+            ["absorb", "Piped Expert", "--file", str(doc), "--local"],
+            input="y\n",
+        )
+
+        assert result.exit_code == 2
+        assert "Interactive confirmation requires a terminal" in result.output
 
     def test_absorb_rejects_local_and_api_together(self):
         r = CliRunner().invoke(expert, ["absorb", "Whoever", "job123", "--local", "--api"])
@@ -781,6 +872,7 @@ class TestBackendFlagGuard:
     def test_sync_wires_bounded_second_checker_escalator(self, monkeypatch):
         from deepr.experts.grounding_escalation import GroundingEscalator
 
+        _enable_plan_adapter_for_wiring_test(monkeypatch, "antigravity")
         captured = {}
         profile = SimpleNamespace(name="UI Experience Expert")
         client = object()
@@ -826,7 +918,15 @@ class TestBackendFlagGuard:
             async def sync(self, **kwargs):
                 return FakeSyncResult()
 
-        for var in ("OPENAI_API_KEY", "CODEX_API_KEY", "CODEX_ACCESS_TOKEN", "ANTHROPIC_API_KEY", "XAI_API_KEY"):
+        for var in (
+            "OPENAI_API_KEY",
+            "CODEX_API_KEY",
+            "CODEX_ACCESS_TOKEN",
+            "ANTHROPIC_API_KEY",
+            "XAI_API_KEY",
+            "GEMINI_API_KEY",
+            "ANTIGRAVITY_API_KEY",
+        ):
             monkeypatch.delenv(var, raising=False)
         monkeypatch.setattr("deepr.experts.profile.ExpertStore", FakeExpertStore)
         monkeypatch.setattr("deepr.experts.sync.SubscriptionStore", FakeSubscriptionStore)
@@ -847,7 +947,7 @@ class TestBackendFlagGuard:
             lambda **kwargs: SimpleNamespace(to_dict=lambda: {"run_id": "loop_sync"}),
         )
 
-        # kiro is a distinct third vendor from the local maker and codex first
+        # Antigravity is a distinct third vendor from the local maker and Claude
         # checker, so the escalation reaches for a genuinely independent opinion.
         r = CliRunner().invoke(
             expert,
@@ -857,9 +957,9 @@ class TestBackendFlagGuard:
                 "--local",
                 "--check-grounding",
                 "--checker-plan",
-                "codex",
+                "claude",
                 "--second-checker-plan",
-                "kiro",
+                "antigravity",
                 "-y",
                 "--json",
             ],
@@ -870,7 +970,7 @@ class TestBackendFlagGuard:
         escalator = captured["grounding_escalator"]
         assert isinstance(escalator, GroundingEscalator)
         assert escalator.maker_vendor == "local"
-        assert escalator.available_vendors == ("kiro",)
+        assert escalator.available_vendors == ("antigravity",)
 
     def test_sync_compile_claims_applies_compiled_graph_commit_by_default(self, monkeypatch, tmp_path):
         from deepr.experts import metered_mutation_gate
@@ -1587,13 +1687,44 @@ class TestPlanQuotaSync:
         monkeypatch.setattr("deepr.experts.sync.ExpertSyncEngine", FakeSyncEngine)
         return profile
 
-    def test_plan_codex_runs_on_prepaid_and_records_source(self, monkeypatch):
+    def test_plan_sync_refuses_execution_blocked_grounding_checker(self, monkeypatch):
+        captured = {}
+        client_calls = []
+        self._fakes(monkeypatch, captured)
+        for var in ("ANTHROPIC_API_KEY", "GEMINI_API_KEY", "ANTIGRAVITY_API_KEY"):
+            monkeypatch.delenv(var, raising=False)
+
+        def must_not_build_client(*args, **kwargs):
+            client_calls.append((args, kwargs))
+            raise AssertionError("blocked checker must fail before client construction")
+
+        monkeypatch.setattr("deepr.backends.plan_quota.PlanQuotaChatClient", must_not_build_client)
+
+        result = CliRunner().invoke(
+            expert,
+            [
+                "sync",
+                "Plan Expert",
+                "--plan",
+                "claude",
+                "--check-grounding",
+                "--checker-plan",
+                "antigravity",
+                "-y",
+                "--json",
+            ],
+        )
+
+        assert result.exit_code == 2, result.output
+        assert "Antigravity CLI (Google plan) execution is disabled" in result.output
+        assert client_calls == []
+
+    def test_plan_claude_runs_on_prepaid_and_records_source(self, monkeypatch):
         captured = {}
         research_fn = object()
         chat_client = object()
         self._fakes(monkeypatch, captured)
-        for var in ("OPENAI_API_KEY", "CODEX_API_KEY", "CODEX_ACCESS_TOKEN"):
-            monkeypatch.delenv(var, raising=False)
+        monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
 
         class FakeReportAbsorber:
             def __init__(self, loaded_profile, *, model, client, estimated_cost=0.0):
@@ -1614,19 +1745,20 @@ class TestPlanQuotaSync:
 
         monkeypatch.setattr("deepr.experts.loop_runs.record_loop_run", fake_record_loop_run)
 
-        r = CliRunner().invoke(expert, ["sync", "Plan Expert", "--plan", "codex", "-y", "--json"])
+        r = CliRunner().invoke(expert, ["sync", "Plan Expert", "--plan", "claude", "-y", "--json"])
 
         assert r.exit_code == 0, r.output
         assert captured["research_fn"] is research_fn
         assert captured["absorber_client"] is chat_client
-        assert captured["loop_run_kwargs"]["capacity_source"] == "plan_quota:codex"
+        assert captured["loop_run_kwargs"]["capacity_source"] == "plan_quota:claude"
 
     def test_plan_sync_can_inject_cross_plan_grounding_checker(self, monkeypatch):
+        _enable_plan_adapter_for_wiring_test(monkeypatch, "antigravity")
         captured = {}
         research_fn = object()
         clients = []
         self._fakes(monkeypatch, captured)
-        for var in ("OPENAI_API_KEY", "CODEX_API_KEY", "CODEX_ACCESS_TOKEN", "ANTHROPIC_API_KEY"):
+        for var in ("ANTHROPIC_API_KEY", "GEMINI_API_KEY", "ANTIGRAVITY_API_KEY"):
             monkeypatch.delenv(var, raising=False)
 
         class FakeReportAbsorber:
@@ -1656,17 +1788,17 @@ class TestPlanQuotaSync:
                 "sync",
                 "Plan Expert",
                 "--plan",
-                "codex",
+                "claude",
                 "--check-grounding",
                 "--checker-plan",
-                "claude",
+                "antigravity",
                 "-y",
                 "--json",
             ],
         )
 
         assert r.exit_code == 0, r.output
-        assert clients == ["claude", "codex"]
+        assert clients == ["antigravity", "claude"]
         assert callable(captured["grounding_checker"])
         assert captured["absorber_estimated_cost"] == 0.0
 
@@ -1677,14 +1809,13 @@ class TestPlanQuotaSync:
         research_fn = object()
         chat_client = object()
         self._fakes(monkeypatch, captured)
-        for var in ("OPENAI_API_KEY", "CODEX_API_KEY", "CODEX_ACCESS_TOKEN"):
-            monkeypatch.delenv(var, raising=False)
+        monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
 
         class PlanChoice:
             is_local = False
             is_plan_quota = True
-            plan_backend_id = "codex"
-            reason = "plan-quota backend 'codex' (operator-admitted)"
+            plan_backend_id = "claude"
+            reason = "plan-quota backend 'claude' (operator-admitted)"
 
         monkeypatch.setattr("deepr.backends.waterfall.choose_maintenance_backend", lambda _task: PlanChoice())
 
@@ -1711,40 +1842,25 @@ class TestPlanQuotaSync:
         assert r.exit_code == 0, r.output
         assert captured["research_fn"] is research_fn
         assert captured["absorber_client"] is chat_client
-        assert captured["loop_run_kwargs"]["capacity_source"] == "plan_quota:codex"
+        assert captured["loop_run_kwargs"]["capacity_source"] == "plan_quota:claude"
 
-    def test_plan_sanitizes_api_key_env_before_running(self, monkeypatch):
+    def test_plan_refuses_api_key_env_before_running(self, monkeypatch):
         captured = {}
-        research_fn = object()
-        chat_client = object()
         self._fakes(monkeypatch, captured)
-        monkeypatch.setenv("OPENAI_API_KEY", "sk-should-block")
+        monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-should-block")
+        client_calls = []
 
-        class FakeReportAbsorber:
-            def __init__(self, loaded_profile, *, model, client, estimated_cost=0.0):
-                captured["absorber_client"] = client
-                captured["absorber_estimated_cost"] = estimated_cost
+        def must_not_build_client(*args, **kwargs):
+            client_calls.append((args, kwargs))
+            raise AssertionError("API-key plan client must not be constructed")
 
-        monkeypatch.setattr("deepr.experts.report_absorber.ReportAbsorber", FakeReportAbsorber)
-        monkeypatch.setattr("deepr.backends.plan_quota.PlanQuotaChatClient", lambda adapter, *, model=None: chat_client)
-        monkeypatch.setattr(
-            "deepr.backends.plan_quota.make_plan_quota_research_fn",
-            lambda adapter, *, model=None, context_builder=None, client=None: research_fn,
-        )
-        monkeypatch.setattr(
-            "deepr.experts.loop_runs.record_loop_run",
-            lambda **kwargs: (
-                captured.update(loop_run_kwargs=kwargs) or SimpleNamespace(to_dict=lambda: {"run_id": "x"})
-            ),
-        )
+        monkeypatch.setattr("deepr.backends.plan_quota.PlanQuotaChatClient", must_not_build_client)
 
-        r = CliRunner().invoke(expert, ["sync", "Plan Expert", "--plan", "codex", "-y", "--json"])
+        r = CliRunner().invoke(expert, ["sync", "Plan Expert", "--plan", "claude", "-y", "--json"])
 
-        assert r.exit_code == 0, r.output
-        assert captured["research_fn"] is research_fn
-        assert captured["absorber_client"] is chat_client
-        assert captured["absorber_estimated_cost"] == 0.0
-        assert captured["loop_run_kwargs"]["capacity_source"] == "plan_quota:codex"
+        assert r.exit_code == 2, r.output
+        assert "ANTHROPIC_API_KEY" in json.loads(r.output)["error"]
+        assert client_calls == []
 
     @pytest.mark.parametrize("json_output", [False, True])
     def test_metered_plan_sync_fails_before_client_construction_even_with_yes(self, monkeypatch, json_output):
@@ -1805,7 +1921,7 @@ class TestPlanQuotaSync:
         assert "canonical cost-ledger" in message
         assert client_calls == []
 
-    def test_absorb_plan_codex_uses_plan_chat_client(self, monkeypatch):
+    def test_absorb_plan_claude_uses_plan_chat_client(self, monkeypatch):
         captured = {}
         profile = SimpleNamespace(name="Plan Expert", total_research_cost=0.0, last_knowledge_refresh=None)
         sentinel_client = object()
@@ -1837,8 +1953,7 @@ class TestPlanQuotaSync:
             async def absorb(self, *a, **k):
                 return FakeResult()
 
-        for var in ("OPENAI_API_KEY", "CODEX_API_KEY", "CODEX_ACCESS_TOKEN"):
-            monkeypatch.delenv(var, raising=False)
+        monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
         monkeypatch.setattr("deepr.experts.profile.ExpertStore", FakeExpertStore)
         monkeypatch.setattr("deepr.services.context_index.ContextIndex", FakeIndex)
         monkeypatch.setattr("deepr.experts.report_absorber.ReportAbsorber", FakeReportAbsorber)
@@ -1846,12 +1961,13 @@ class TestPlanQuotaSync:
             "deepr.backends.plan_quota.PlanQuotaChatClient", lambda adapter, *, model=None: sentinel_client
         )
 
-        r = CliRunner().invoke(expert, ["absorb", "Plan Expert", "job1", "--plan", "codex", "-y", "--json"])
+        r = CliRunner().invoke(expert, ["absorb", "Plan Expert", "job1", "--plan", "claude", "-y", "--json"])
 
         assert r.exit_code == 0, r.output
         assert captured["client"] is sentinel_client
 
     def test_absorb_plan_can_inject_cross_plan_grounding_checker(self, monkeypatch):
+        _enable_plan_adapter_for_wiring_test(monkeypatch, "antigravity")
         captured = {}
         clients = []
         profile = SimpleNamespace(name="Plan Expert", total_research_cost=0.0, last_knowledge_refresh=None)
@@ -1883,7 +1999,7 @@ class TestPlanQuotaSync:
             async def absorb(self, *a, **k):
                 return FakeResult()
 
-        for var in ("OPENAI_API_KEY", "CODEX_API_KEY", "CODEX_ACCESS_TOKEN", "ANTHROPIC_API_KEY"):
+        for var in ("ANTHROPIC_API_KEY", "GEMINI_API_KEY", "ANTIGRAVITY_API_KEY"):
             monkeypatch.delenv(var, raising=False)
         monkeypatch.setattr("deepr.experts.profile.ExpertStore", FakeExpertStore)
         monkeypatch.setattr("deepr.services.context_index.ContextIndex", FakeIndex)
@@ -1902,23 +2018,25 @@ class TestPlanQuotaSync:
                 "Plan Expert",
                 "job1",
                 "--plan",
-                "codex",
+                "claude",
                 "--check-grounding",
                 "--checker-plan",
-                "claude",
+                "antigravity",
                 "-y",
                 "--json",
             ],
         )
 
         assert r.exit_code == 0, r.output
-        assert clients == ["codex", "claude"]
+        assert clients == ["claude", "antigravity"]
         assert callable(captured["grounding_checker"])
         assert captured["estimated_cost"] == 0.0
 
     def test_absorb_wires_bounded_second_checker_escalator_lazily(self, monkeypatch):
         from deepr.experts.grounding_escalation import GroundingEscalator
 
+        _enable_plan_adapter_for_wiring_test(monkeypatch, "antigravity")
+        _enable_plan_adapter_for_wiring_test(monkeypatch, "kiro")
         captured = {}
         clients = []
         profile = SimpleNamespace(name="Plan Expert", total_research_cost=0.0, last_knowledge_refresh=None)
@@ -1960,7 +2078,12 @@ class TestPlanQuotaSync:
                 # client must not have been built during absorption.
                 return FakeResult()
 
-        for var in ("OPENAI_API_KEY", "CODEX_API_KEY", "CODEX_ACCESS_TOKEN", "ANTHROPIC_API_KEY"):
+        for var in (
+            "ANTHROPIC_API_KEY",
+            "GEMINI_API_KEY",
+            "ANTIGRAVITY_API_KEY",
+            "KIRO_API_KEY",
+        ):
             monkeypatch.delenv(var, raising=False)
         monkeypatch.setattr("deepr.experts.profile.ExpertStore", FakeExpertStore)
         monkeypatch.setattr("deepr.services.context_index.ContextIndex", FakeIndex)
@@ -1972,8 +2095,8 @@ class TestPlanQuotaSync:
 
         monkeypatch.setattr("deepr.backends.plan_quota.PlanQuotaChatClient", fake_plan_client)
 
-        # kiro is a genuine third vendor (distinct from the codex maker and the
-        # claude first checker) that resolves as plan-quota with no env setup.
+        # This registry override isolates lazy three-vendor escalator wiring.
+        # Production Kiro execution remains blocked and is tested separately.
         r = CliRunner().invoke(
             expert,
             [
@@ -1981,10 +2104,10 @@ class TestPlanQuotaSync:
                 "Plan Expert",
                 "job1",
                 "--plan",
-                "codex",
+                "claude",
                 "--check-grounding",
                 "--checker-plan",
-                "claude",
+                "antigravity",
                 "--second-checker-plan",
                 "kiro",
                 "-y",
@@ -1995,57 +2118,38 @@ class TestPlanQuotaSync:
         assert r.exit_code == 0, r.output
         escalator = captured["grounding_escalator"]
         assert isinstance(escalator, GroundingEscalator)
-        assert escalator.maker_vendor == "codex"
+        assert escalator.maker_vendor == "claude"
         assert escalator.available_vendors == ("kiro",)
         # Cost bound: only the maker and first checker clients are built up front.
         # The kiro second checker stays unbuilt because no verdict was weak.
-        assert clients == ["codex", "claude"]
+        assert clients == ["claude", "antigravity"]
 
-    def test_absorb_plan_sanitizes_api_key_env_before_running(self, monkeypatch):
-        captured = {}
+    def test_absorb_plan_refuses_api_key_env_before_running(self, monkeypatch):
         profile = SimpleNamespace(name="Plan Expert", total_research_cost=0.0, last_knowledge_refresh=None)
-        sentinel_client = object()
+        client_calls = []
 
         class FakeExpertStore:
             def load(self, name):
                 return profile
 
-            def save(self, p):
-                captured["saved"] = p
-
         class FakeIndex:
             def get_report_content(self, report_id, max_chars=0):
                 return "report text"
 
-        class FakeResult:
-            dry_run = False
-            estimated_cost = 0.0
+        def must_not_build_client(*args, **kwargs):
+            client_calls.append((args, kwargs))
+            raise AssertionError("API-key plan client must not be constructed")
 
-            def to_dict(self):
-                return {"absorbed": []}
-
-        class FakeReportAbsorber:
-            def __init__(self, loaded_profile, *, model, client=None, estimated_cost=0.0):
-                captured["client"] = client
-                captured["estimated_cost"] = estimated_cost
-
-            async def absorb(self, *a, **k):
-                return FakeResult()
-
-        monkeypatch.setenv("OPENAI_API_KEY", "sk-should-block")
+        monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-should-block")
         monkeypatch.setattr("deepr.experts.profile.ExpertStore", FakeExpertStore)
         monkeypatch.setattr("deepr.services.context_index.ContextIndex", FakeIndex)
-        monkeypatch.setattr("deepr.experts.report_absorber.ReportAbsorber", FakeReportAbsorber)
-        monkeypatch.setattr(
-            "deepr.backends.plan_quota.PlanQuotaChatClient", lambda adapter, *, model=None: sentinel_client
-        )
+        monkeypatch.setattr("deepr.backends.plan_quota.PlanQuotaChatClient", must_not_build_client)
 
-        r = CliRunner().invoke(expert, ["absorb", "Plan Expert", "job1", "--plan", "codex", "-y", "--json"])
+        r = CliRunner().invoke(expert, ["absorb", "Plan Expert", "job1", "--plan", "claude", "-y", "--json"])
 
-        assert r.exit_code == 0, r.output
-        assert captured["client"] is sentinel_client
-        assert captured["estimated_cost"] == 0.0
-        assert captured["estimated_cost"] == 0.0
+        assert r.exit_code == 2, r.output
+        assert "ANTHROPIC_API_KEY" in json.loads(r.output)["error"]
+        assert client_calls == []
 
 
 class TestAbsorbFromFile:
@@ -2159,6 +2263,33 @@ class TestLearnWeb:
         assert "learn-web" in expert.commands
         opts = {p.name for p in expert.commands["learn-web"].params}
         assert {"name", "topic", "model", "plan", "plan_model", "num_results", "max_pages", "dry_run"} <= opts
+
+    def test_learn_web_does_not_accept_confirmation_from_piped_stdin(self, monkeypatch, tmp_path):
+        profile = SimpleNamespace(name="Piped Expert", model="local")
+
+        class FakeExpertStore:
+            def load(self, name):
+                return profile
+
+            def find_existing_dir(self, name):
+                return tmp_path
+
+        async def exploding_research(*args, **kwargs):
+            raise AssertionError("web research must not start")
+
+        monkeypatch.setattr("deepr.experts.profile.ExpertStore", FakeExpertStore)
+        monkeypatch.setattr("deepr.backends.local.resolve_local_maintenance_model", lambda *args, **kwargs: "local")
+        monkeypatch.setattr("deepr.backends.local.ollama_chat_client", lambda: object())
+        monkeypatch.setattr("deepr.experts.local_research.research_web_local", exploding_research)
+
+        result = CliRunner().invoke(
+            expert,
+            ["learn-web", "Piped Expert", "topic"],
+            input="y\n",
+        )
+
+        assert result.exit_code == 2
+        assert "Interactive confirmation requires a terminal" in result.output
 
     def test_learn_web_runs_research_then_absorbs_local(self, monkeypatch, tmp_path):
         captured = {}
@@ -2386,8 +2517,7 @@ class TestLearnWeb:
             captured["plan_operation"] = kwargs.get("operation")
             return sentinel_client
 
-        for var in ("OPENAI_API_KEY", "CODEX_API_KEY", "CODEX_ACCESS_TOKEN"):
-            monkeypatch.delenv(var, raising=False)
+        monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
         monkeypatch.setattr("deepr.experts.profile.ExpertStore", FakeExpertStore)
         monkeypatch.setattr("deepr.experts.local_research.research_web_local", fake_research)
         monkeypatch.setattr("deepr.experts.learn_web_artifacts.persist_learn_web_artifacts", lambda **kwargs: artifacts)
@@ -2395,16 +2525,16 @@ class TestLearnWeb:
         monkeypatch.setattr("deepr.backends.plan_quota.PlanQuotaChatClient", fake_plan_client)
 
         r = CliRunner().invoke(
-            expert, ["learn-web", "Release Expert", "release reliability 2026", "--plan", "codex", "-y"]
+            expert, ["learn-web", "Release Expert", "release reliability 2026", "--plan", "claude", "-y"]
         )
 
         assert r.exit_code == 0, r.output
-        assert captured["plan_backend"] == "codex"
+        assert captured["plan_backend"] == "claude"
         assert captured["plan_model"] is None
         assert captured["plan_operation"] == "plan_quota_learn_web"
-        assert captured["research"]["model"] == "codex"
+        assert captured["research"]["model"] == "claude"
         assert captured["research"]["client"] is sentinel_client
-        assert captured["absorb_model"] == "codex"
+        assert captured["absorb_model"] == "claude"
         assert captured["absorb_client"] is sentinel_client
         assert captured["absorb_estimated_cost"] == 0.0
         assert captured["report_id"] == "learn_web_artifacts/reports/plan.json"

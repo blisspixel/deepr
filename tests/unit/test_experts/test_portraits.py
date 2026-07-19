@@ -213,17 +213,19 @@ class TestPortraitCostGate:
         assert records[0]["provider"] == "xai"
 
     @pytest.mark.asyncio
-    async def test_generate_and_save_refunds_on_provider_failure(self, monkeypatch):
+    async def test_generate_and_save_conservatively_settles_provider_failure(self, monkeypatch):
         profile = SimpleNamespace(name="Budget Expert", domain="cost", description="test")
         store = MagicMock()
         refunds = []
+        records = []
 
         class FakeCostSafety:
             def check_and_reserve(self, **_kwargs):
                 return True, "OK", False, "reservation-1"
 
-            def record_cost(self, **_kwargs):
-                raise AssertionError("failed portrait must not record cost")
+            def record_cost(self, **kwargs):
+                records.append(kwargs)
+                return True
 
             def refund_reservation(self, reservation_id):
                 refunds.append(reservation_id)
@@ -239,7 +241,11 @@ class TestPortraitCostGate:
         with pytest.raises(RuntimeError, match="provider failed"):
             await P.generate_and_save_portrait(profile, store, provider="openai")
 
-        assert refunds == ["reservation-1"]
+        assert refunds == []
+        assert records[0]["reservation_id"] == "reservation-1"
+        assert records[0]["actual_cost"] == PORTRAIT_COST_ESTIMATE_USD
+        assert records[0]["metadata"]["outcome"] == "failed"
+        assert records[0]["metadata"]["settlement_reason"] == "provider_dispatch_or_completion_uncertain"
         store.save.assert_not_called()
 
 

@@ -1,7 +1,6 @@
 """Socket.IO event handlers."""
 
 import asyncio
-import hmac
 import inspect
 import logging
 import os
@@ -23,6 +22,12 @@ from deepr.experts.research_cost_gate import (
     reserve_configured_cost_ceiling,
     settle_research_cost,
 )
+from deepr.security.http_auth import (
+    SharedSecretDecision,
+    check_shared_secret,
+    env_flag,
+    presented_http_secret,
+)
 from deepr.web.expert_chat_contract import (
     BrowserChatContractError,
     parse_browser_expert_chat_request,
@@ -32,6 +37,7 @@ from deepr.web.expert_chat_contract import (
 logger = logging.getLogger(__name__)
 
 _Handler = TypeVar("_Handler", bound=Callable[..., Any])
+_MAX_BROWSER_CHAT_WORKERS = 32
 
 
 class _SocketIOEmitter(Protocol):
@@ -297,6 +303,36 @@ def _get_browser_chat_state(sid: str) -> _BrowserChatState | None:
         return _active_sessions.get(sid)
 
 
+def _valid_subscription_job_id(value: Any) -> bool:
+    return isinstance(value, str) and 1 <= len(value) <= 128 and all(char.isalnum() or char in "-_.:" for char in value)
+
+
+def _get_or_create_browser_chat_state(
+    *,
+    sid: str,
+    expert_name: str,
+    approved_budget: float,
+    conversation_id: str | None,
+    max_workers: int,
+) -> _BrowserChatState | None:
+    """Atomically enforce the process-wide browser worker ceiling."""
+    if isinstance(max_workers, bool) or not isinstance(max_workers, int) or max_workers <= 0:
+        raise ValueError("max browser chat workers must be a positive integer")
+    with _active_sessions_lock:
+        state = _active_sessions.get(sid)
+        if state is not None:
+            return state
+        if len(_active_sessions) >= max_workers:
+            return None
+        state = _BrowserChatState(
+            expert_name=expert_name,
+            approved_budget=approved_budget,
+            conversation_id=conversation_id,
+        )
+        _active_sessions[sid] = state
+        return state
+
+
 def _drop_browser_chat_state(
     sid: str,
     state: _BrowserChatState | None = None,
@@ -336,27 +372,34 @@ def register_socketio_events(
     socketio: _SocketIOEmitter,
     *,
     max_chat_budget: Callable[[], float] | None = None,
+    api_key: Callable[[], str] | None = None,
+    allow_unauthenticated_loopback: Callable[[], bool] | None = None,
+    max_chat_workers: Callable[[], int] | None = None,
 ) -> None:
     """Register Socket.IO event handlers."""
 
     chat_budget_ceiling = max_chat_budget or (lambda: CostSafetyManager.ABSOLUTE_MAX_PER_OPERATION)
+    configured_api_key = api_key or (lambda: os.getenv("DEEPR_API_KEY", "").strip())
+    unsafe_loopback_allowed = allow_unauthenticated_loopback or (
+        lambda: env_flag("DEEPR_WEB_ALLOW_UNAUTHENTICATED_LOOPBACK")
+    )
+    worker_ceiling = max_chat_workers or (lambda: _MAX_BROWSER_CHAT_WORKERS)
 
     @socketio.on("connect")
     def handle_connect(auth: Any = None) -> bool | None:
-        """Handle client connection (with auth when DEEPR_API_KEY is set)."""
-        api_key = os.getenv("DEEPR_API_KEY", "")
-        if api_key:
-            # Check socketio auth object (preferred), then headers as fallback
-            token = ""
-            if isinstance(auth, dict):
-                token = auth.get("token", "")
-            if not token:
-                auth_header = flask_request.headers.get("Authorization", "")
-                if auth_header.startswith("Bearer "):
-                    token = auth_header[7:]
-            if not token or not hmac.compare_digest(token, api_key):
-                logger.warning("WebSocket auth rejected")
-                return False  # reject connection
+        """Handle a client connection under the dashboard auth contract."""
+        token = str(auth.get("token", "")) if isinstance(auth, dict) else ""
+        if not token:
+            token = presented_http_secret(flask_request.headers.get("Authorization", ""))
+        decision = check_shared_secret(
+            configured_secret=configured_api_key(),
+            presented_secret=token,
+            allow_unauthenticated_loopback=unsafe_loopback_allowed(),
+            remote_addr=flask_request.remote_addr,
+        )
+        if decision is not SharedSecretDecision.ALLOW:
+            logger.warning("WebSocket auth rejected: %s", decision.value)
+            return False
         logger.info("Client connected")
         emit("connected", {"message": "Connected to Deepr API"})
         return None
@@ -377,6 +420,9 @@ def register_socketio_events(
         - All jobs: {"scope": "all"}
         - Specific job: {"scope": "job", "job_id": "123"}
         """
+        if not isinstance(data, dict):
+            emit("subscription_error", {"error": "subscription must be an object"})
+            return
         scope = data.get("scope", "all")
 
         if scope == "all":
@@ -386,14 +432,19 @@ def register_socketio_events(
 
         elif scope == "job":
             job_id = data.get("job_id")
-            if job_id:
+            if _valid_subscription_job_id(job_id):
                 join_room(f"job_{job_id}")
                 emit("subscribed", {"scope": "job", "job_id": job_id})
                 logger.info(f"Client subscribed to job {job_id}")
+            else:
+                emit("subscription_error", {"error": "invalid job_id"})
 
     @socketio.on("unsubscribe_jobs")
     def handle_unsubscribe_jobs(data: Any) -> None:
         """Unsubscribe from job updates."""
+        if not isinstance(data, dict):
+            emit("subscription_error", {"error": "subscription must be an object"})
+            return
         scope = data.get("scope", "all")
 
         if scope == "all":
@@ -402,9 +453,11 @@ def register_socketio_events(
 
         elif scope == "job":
             job_id = data.get("job_id")
-            if job_id:
+            if _valid_subscription_job_id(job_id):
                 leave_room(f"job_{job_id}")
                 emit("unsubscribed", {"scope": "job", "job_id": job_id})
+            else:
+                emit("subscription_error", {"error": "invalid job_id"})
 
     @socketio.on("chat_start")
     def handle_chat_start(data: Any) -> None:
@@ -452,15 +505,24 @@ def register_socketio_events(
             socketio.emit("chat_error", exc.to_dict(), room=room)
             return
 
-        with _active_sessions_lock:
-            state = _active_sessions.get(sid)
-            if state is None:
-                state = _BrowserChatState(
-                    expert_name=expert_name,
-                    approved_budget=parsed.budget,
-                    conversation_id=parsed.session_id,
-                )
-                _active_sessions[sid] = state
+        state = _get_or_create_browser_chat_state(
+            sid=sid,
+            expert_name=expert_name,
+            approved_budget=parsed.budget,
+            conversation_id=parsed.session_id,
+            max_workers=worker_ceiling(),
+        )
+        if state is None:
+            socketio.emit(
+                "chat_error",
+                _chat_error_payload(
+                    "Browser chat worker capacity is full.",
+                    code="chat_worker_capacity",
+                    retryable=True,
+                ),
+                room=room,
+            )
+            return
 
         if (
             state.expert_name != expert_name

@@ -4,11 +4,20 @@ import asyncio
 import logging
 import re
 from datetime import datetime
+from typing import Any
 
 from ..config import load_config
 from ..core.costs import CostController
+from ..experts.research_cost_gate import (
+    reconcile_research_cost_from_ledger,
+    record_unreserved_research_cost,
+    refund_research_cost,
+    restore_research_cost_reservation,
+    settle_research_cost,
+)
 from ..providers import create_provider
 from ..queue import create_queue
+from ..services.provider_status import classify_provider_status, terminal_provider_error
 from ..storage import create_storage
 
 logger = logging.getLogger(__name__)
@@ -58,8 +67,8 @@ class JobPoller:
     def __init__(
         self,
         poll_interval: int = 30,
-        socketio=None,
-    ):
+        socketio: Any = None,
+    ) -> None:
         """
         Initialize job poller.
 
@@ -91,7 +100,7 @@ class JobPoller:
             max_monthly_cost=float(config.get("max_monthly_cost", 200.0)),
         )
 
-    async def start(self):
+    async def start(self) -> None:
         """Start the polling worker.
 
         Uses exponential backoff (capped at 5 minutes) when a poll cycle
@@ -117,11 +126,11 @@ class JobPoller:
 
         logger.info("Job poller stopped")
 
-    async def stop(self):
+    async def stop(self) -> None:
         """Stop the polling worker."""
         self.running = False
 
-    async def _poll_cycle(self):
+    async def _poll_cycle(self) -> None:
         """Execute one poll cycle."""
         from ..queue.base import JobStatus
 
@@ -140,7 +149,7 @@ class JobPoller:
             except Exception as e:
                 logger.error(f"Error checking job {job.id}: {e}")
 
-    async def _check_job_status(self, job):
+    async def _check_job_status(self, job: Any) -> None:
         """Check status of a single job."""
         try:
             if not job.provider_job_id:
@@ -150,41 +159,32 @@ class JobPoller:
             # Get status from provider
             response = await self.provider.get_status(job.provider_job_id)
 
-            logger.debug(f"Job {job.id} provider status: {response.status}")
+            provider_status = classify_provider_status(response.status)
+            logger.debug("Job %s provider status class: %s", job.id, provider_status)
 
             # Handle completion
-            if response.status == "completed":
+            if provider_status == "completed":
                 await self._handle_completion(job, response)
 
-            # Handle failure
-            elif response.status == "failed":
-                error = response.error or "Job failed"
+            elif terminal_error := terminal_provider_error(provider_status):
+                error = response.error or terminal_error
                 await self._handle_failure(job, error)
 
-            # Cancelled/expired are terminal too - without this, the poller
-            # kept hammering the provider forever for jobs that would
-            # never transition. Mark FAILED so the queue row exits
-            # PROCESSING and the user sees a stable terminal state.
-            elif response.status in ("cancelled", "canceled", "expired"):
-                reason = response.error or f"Job {response.status}"
-                logger.info("Job %s reached terminal state %s; marking failed", job.id, response.status)
-                await self._handle_failure(job, reason)
-
-            elif response.status == "in_progress":
+            elif provider_status == "in_progress":
                 logger.debug(f"Job {job.id} still in progress")
 
-            elif response.status == "queued":
+            elif provider_status == "queued":
                 # Still pending at the provider; nothing to do.
                 logger.debug("Job %s still queued at provider", job.id)
 
             else:
-                logger.debug("Job %s has unhandled provider status %r", job.id, response.status)
+                logger.warning("Job %s returned an unsupported provider status", job.id)
 
         except Exception as e:
             logger.error(f"Error checking job {job.id}: {e}")
             # Don't mark as failed yet, might be temporary network issue
 
-    async def _handle_completion(self, job, response):
+    async def _handle_completion(self, job: Any, response: Any) -> None:
         """Handle job completion."""
         from ..queue.base import JobStatus
 
@@ -227,12 +227,41 @@ class JobPoller:
             logger.error(f"Error handling completion for job {job.id}: {e}")
             await self._handle_failure(job, str(e))
 
-    async def _handle_failure(self, job, error: str):
+    async def _handle_failure(self, job: Any, error: str) -> None:
         """Handle job failure."""
         from ..queue.base import JobStatus
 
         try:
             logger.error(f"Job {job.id} failed: {error}")
+
+            reservation = restore_research_cost_reservation(
+                job_id=str(job.id),
+                metadata=getattr(job, "metadata", {}),
+                provider=str(getattr(job, "provider", "") or ""),
+                model=str(getattr(job, "model", "") or ""),
+            )
+            provider_job_id = getattr(job, "provider_job_id", "")
+            provider_job_id = provider_job_id if isinstance(provider_job_id, str) else ""
+            if reservation is not None and provider_job_id:
+                settle_research_cost(
+                    reservation,
+                    actual_cost=None,
+                    request_id=provider_job_id,
+                    source="research_agent.poller._handle_failure",
+                )
+            elif provider_job_id:
+                record_unreserved_research_cost(
+                    job_id=str(job.id),
+                    provider=str(getattr(job, "provider", "") or ""),
+                    model=str(getattr(job, "model", "") or ""),
+                    actual_cost=None,
+                    request_id=provider_job_id,
+                    source="research_agent.poller._handle_failure",
+                )
+            else:
+                refund_research_cost(reservation)
+            if provider_job_id and not reconcile_research_cost_from_ledger(reservation, job_id=str(job.id)):
+                raise RuntimeError(f"Canonical cost settlement missing for terminal job {job.id}")
 
             # Update queue with failure status
             await self.queue.update_status(job_id=job.id, status=JobStatus.FAILED, error=error)
@@ -241,7 +270,7 @@ class JobPoller:
             logger.error(f"Error handling failure for job {job.id}: {e}")
 
 
-async def run_poller(poll_interval: int = 30):
+async def run_poller(poll_interval: int = 30) -> None:
     """
     Run the job poller.
 

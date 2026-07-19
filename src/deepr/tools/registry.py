@@ -21,7 +21,8 @@ class ToolRegistry:
 
         Args:
             web_search: Include web search tool
-            backend: Web search backend ("brave", "tavily", "duckduckgo", "auto")
+            backend: Web search backend. "auto" and "duckduckgo" use the
+                unmetered path; named metered adapters fail closed.
 
         Returns:
             List of configured tools

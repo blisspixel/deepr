@@ -13,6 +13,7 @@ from deepr.backends.plan_quota.antigravity_transcript import TranscriptOutputLim
 from deepr.backends.plan_quota.attempt_accounting import (
     DEFAULT_PLAN_ACCOUNTING_LOCK_TIMEOUT_SECONDS,
     AttemptAccountingError,
+    AttemptAccountingRefusedError,
     AttemptAccountingStatus,
     record_plan_quota_attempt,
 )
@@ -23,6 +24,8 @@ from deepr.backends.plan_quota.dispatch_boundary import (
     run_sync_through_cancellation,
 )
 from deepr.backends.plan_quota.errors import PlanQuotaError, plan_quota_accounting_error
+from deepr.backends.plan_quota.output_safety import safe_cli_success_output
+from deepr.backends.plan_quota.safety import AuthMode
 from deepr.backends.quota_ledger import QuotaEventType
 
 
@@ -108,6 +111,7 @@ def account_probe_dispatch_error(
     *,
     attempt_id: str,
     model: str | None,
+    auth_mode: AuthMode,
     quota_ledger_path: Path | None,
     cost_ledger_path: Path | None,
     outcome: str,
@@ -119,6 +123,7 @@ def account_probe_dispatch_error(
             adapter,
             attempt_id=attempt_id,
             model=model,
+            auth_mode=auth_mode,
             quota_ledger_path=quota_ledger_path,
             cost_ledger_path=cost_ledger_path,
             outcome=outcome,
@@ -163,6 +168,7 @@ def finish_probe_attempt(
     *,
     attempt_id: str,
     model: str | None,
+    auth_mode: AuthMode,
     quota_ledger_path: Path | None,
     cost_ledger_path: Path | None,
     result: CliResult,
@@ -185,6 +191,7 @@ def finish_probe_attempt(
             adapter,
             attempt_id=attempt_id,
             model=model,
+            auth_mode=auth_mode,
             quota_ledger_path=quota_ledger_path,
             cost_ledger_path=cost_ledger_path,
             outcome=outcome,
@@ -229,6 +236,7 @@ def _record_probe_attempt(
     *,
     attempt_id: str,
     model: str | None,
+    auth_mode: AuthMode,
     quota_ledger_path: Path | None,
     cost_ledger_path: Path | None,
     outcome: str,
@@ -251,9 +259,12 @@ def _record_probe_attempt(
             quota_units=quota_units,
             vendor_dispatched=vendor_dispatched,
             detail=detail,
+            auth_mode=auth_mode,
             reset_at=reset_at,
             lock_timeout_seconds=DEFAULT_PLAN_ACCOUNTING_LOCK_TIMEOUT_SECONDS,
         )
+    except AttemptAccountingRefusedError as error:
+        raise PlanQuotaError(str(error)) from error
     except AttemptAccountingError as error:
         raise plan_quota_accounting_error(
             error,
@@ -279,17 +290,16 @@ def _recover_probe_reply(
         if adapter.answer_from_transcript:
             from deepr.backends.plan_quota.antigravity_transcript import antigravity_brain_dir, recover_answer
 
-            return (
+            reply = (
                 recover_answer(
                     antigravity_brain_dir(),
                     baseline=transcript_baseline or {},
                     expected_prompt=expected_prompt,
                 )
-                or "",
-                "",
-                "",
+                or ""
             )
-        return adapter.parse_answer(result.stdout), "", ""
+            return safe_cli_success_output(reply), "", ""
+        return safe_cli_success_output(adapter.parse_answer(result.stdout)), "", ""
     except TranscriptOutputLimitError:
         return "", "transcript output limit exceeded", "output_limit_exceeded"
     except Exception as error:

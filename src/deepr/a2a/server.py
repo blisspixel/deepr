@@ -9,7 +9,6 @@ Feature: mcp-client-agent-interop
 from __future__ import annotations
 
 import asyncio
-import hmac
 import json
 import logging
 import os
@@ -26,9 +25,11 @@ from deepr.a2a.output_contracts import (
 )
 from deepr.a2a.task_manager import (
     InvalidTransitionError,
+    TaskCapacityError,
     TaskManager,
     TaskNotFoundError,
 )
+from deepr.security.http_auth import SharedSecretDecision, check_shared_secret, env_flag, presented_http_secret
 from deepr.utils.security import is_loopback_bind_host
 
 logger = logging.getLogger(__name__)
@@ -62,17 +63,22 @@ class A2AServer:
         card_generator: AgentCardGenerator,
         task_manager: TaskManager,
         auth_token: str | None = None,
+        *,
+        allow_unauthenticated_loopback: bool | None = None,
     ) -> None:
         self._card_generator = card_generator
         self._task_manager = task_manager
         self._server: asyncio.Server | None = None
         self._running = False
         self._progress_queues: dict[str, list[asyncio.Queue[dict[str, Any]]]] = {}
-        # Bearer token required for state-changing endpoints. Reads
-        # ``DEEPR_A2A_TOKEN`` when not provided explicitly. Agent-card
-        # discovery (``GET /.well-known/agent.json``) and task-status GETs
-        # remain public so peers can introspect skills without auth.
+        # Agent-card discovery remains public. Every task operation requires
+        # a bearer token unless the operator explicitly opts into the unsafe
+        # loopback compatibility mode.
         self._auth_token = auth_token if auth_token is not None else os.getenv("DEEPR_A2A_TOKEN", "")
+        if allow_unauthenticated_loopback is None:
+            allow_unauthenticated_loopback = env_flag("DEEPR_A2A_ALLOW_UNAUTHENTICATED_LOOPBACK")
+        self._allow_unauthenticated_loopback = allow_unauthenticated_loopback
+        self._active_runs: dict[str, asyncio.Task[Any]] = {}
 
     async def start(self, host: str = "localhost", port: int = 8080) -> None:
         """Start the A2A HTTP server."""
@@ -88,11 +94,11 @@ class A2AServer:
         # public-bind refusal entirely. Empty/None hosts must be treated
         # as public binds.
         loopback = is_loopback_bind_host(host)
-        allow_public = os.getenv("DEEPR_A2A_ALLOW_PUBLIC", "").lower() in ("1", "true", "yes")
-        if not loopback and not self._auth_token and not allow_public:
+        if not self._auth_token and (not loopback or not self._allow_unauthenticated_loopback):
             raise RuntimeError(
-                "A2A server refusing to bind non-loopback host without DEEPR_A2A_TOKEN. "
-                f"Set DEEPR_A2A_TOKEN, use host='localhost', or set DEEPR_A2A_ALLOW_PUBLIC=1 "
+                "A2A task endpoints require DEEPR_A2A_TOKEN. "
+                "For an explicitly accepted loopback-only compatibility mode, "
+                "set DEEPR_A2A_ALLOW_UNAUTHENTICATED_LOOPBACK=1 "
                 f"(host={host!r})."
             )
 
@@ -102,12 +108,18 @@ class A2AServer:
             "A2A server started on %s:%d (auth=%s)",
             host,
             port,
-            "required" if self._auth_token else "disabled (loopback-only)",
+            "required" if self._auth_token else "unsafe loopback compatibility",
         )
 
     async def stop(self) -> None:
         """Gracefully stop the server."""
         self._running = False
+        active_runs = list(self._active_runs.values())
+        for run in active_runs:
+            run.cancel()
+        if active_runs:
+            await asyncio.gather(*active_runs, return_exceptions=True)
+        self._active_runs.clear()
         if self._server:
             self._server.close()
             await self._server.wait_closed()
@@ -136,19 +148,31 @@ class A2AServer:
         if method == "GET" and path in {A2A_AGENT_CARD_PATH, A2A_LEGACY_AGENT_CARD_PATH}:
             return self._handle_agent_card()
 
-        # Auth gate for everything else when a token is configured.
-        if self._auth_token:
-            provided = ""
-            if auth_header.startswith("Bearer "):
-                provided = auth_header[7:].strip()
-            ok = False
-            if provided:
-                try:
-                    ok = hmac.compare_digest(provided, self._auth_token)
-                except TypeError:
-                    ok = False
-            if not ok:
-                return 401, {"error": "Unauthorized"}
+        auth_error = self._task_auth_error(auth_header)
+        if auth_error is not None:
+            return auth_error
+
+        return await self._route_task_request(method, path, body)
+
+    def _task_auth_error(self, auth_header: str) -> tuple[int, dict[str, Any]] | None:
+        """Return a task-endpoint auth error, or None for an admitted caller."""
+        if not self._auth_token:
+            if self._allow_unauthenticated_loopback:
+                return None
+            return 503, {
+                "error": "A2A authentication is not configured",
+                "error_code": "AUTH_NOT_CONFIGURED",
+            }
+        decision = check_shared_secret(
+            configured_secret=self._auth_token,
+            presented_secret=presented_http_secret(auth_header).strip(),
+            allow_unauthenticated_loopback=False,
+            remote_addr=None,
+        )
+        return None if decision is SharedSecretDecision.ALLOW else (401, {"error": "Unauthorized"})
+
+    async def _route_task_request(self, method: str, path: str, body: str) -> tuple[int, dict[str, Any]]:
+        """Route an authenticated task request."""
 
         if method == "POST" and path == "/tasks":
             return await self._handle_create_task(body)
@@ -191,29 +215,44 @@ class A2AServer:
             metadata=data.get("metadata", {}),
         )
 
-        task = self._task_manager.create_task(request, budget=request.budget)
+        try:
+            task = self._task_manager.create_task(request, budget=request.budget)
+        except TaskCapacityError as exc:
+            return exc.status_code, {
+                "error": str(exc),
+                "error_code": "TASK_CAPACITY_EXCEEDED",
+            }
         if is_consult_skill(request.skill):
-            task = self._task_manager.transition(task.id, TaskState.WORKING)
-            outcome = await run_consult_task(request)
-            if outcome.ok:
-                task = self._task_manager.transition(
-                    task.id,
-                    TaskState.COMPLETED,
-                    result=outcome.result,
-                    cost=outcome.cost,
-                    trace_id=outcome.trace_id,
-                    artifacts=outcome.artifacts or [],
-                )
-            else:
-                task = self._task_manager.transition(
-                    task.id,
-                    TaskState.FAILED,
-                    result=outcome.result,
-                    error=outcome.error,
-                    cost=outcome.cost,
-                    trace_id=outcome.trace_id,
-                    artifacts=outcome.artifacts or [],
-                )
+            return await self._execute_consult_task(request, task)
+        return self._task_response(201, task)
+
+    async def _execute_consult_task(self, request: TaskRequest, task: Task) -> tuple[int, dict[str, Any]]:
+        """Run one cancellable consult and commit its terminal task state."""
+        task = self._task_manager.transition(task.id, TaskState.WORKING)
+        run = asyncio.create_task(run_consult_task(request))
+        self._active_runs[task.id] = run
+        try:
+            outcome = await run
+        except asyncio.CancelledError:
+            cancelled = self._task_manager.get_task(task.id)
+            if cancelled is not None and cancelled.state != TaskState.CANCELLED:
+                cancelled = self._task_manager.transition(task.id, TaskState.CANCELLED)
+            if cancelled is None:
+                return 404, {"error": f"Task not found: {task.id}"}
+            return self._task_response(200, cancelled)
+        finally:
+            if self._active_runs.get(task.id) is run:
+                self._active_runs.pop(task.id, None)
+        terminal_state = TaskState.COMPLETED if outcome.ok else TaskState.FAILED
+        task = self._task_manager.transition(
+            task.id,
+            terminal_state,
+            result=outcome.result,
+            error=None if outcome.ok else outcome.error,
+            cost=outcome.cost,
+            trace_id=outcome.trace_id,
+            artifacts=outcome.artifacts or [],
+        )
         return self._task_response(201, task)
 
     def _handle_get_task(self, task_id: str) -> tuple[int, dict[str, Any]]:
@@ -226,6 +265,9 @@ class A2AServer:
     def _handle_cancel_task(self, task_id: str) -> tuple[int, dict[str, Any]]:
         """POST /tasks/{id}/cancel"""
         try:
+            active_run = self._active_runs.get(task_id)
+            if active_run is not None and not active_run.done():
+                active_run.cancel()
             task = self._task_manager.transition(task_id, TaskState.CANCELLED)
             return self._task_response(200, task)
         except TaskNotFoundError:
@@ -257,6 +299,70 @@ class A2AServer:
         for queue in queues:
             queue.put_nowait(progress)
 
+    @staticmethod
+    async def _read_request_target(reader: asyncio.StreamReader) -> tuple[str, str] | None:
+        try:
+            request_line = await asyncio.wait_for(reader.readline(), timeout=10.0)
+        except TimeoutError:
+            return None
+        if not request_line:
+            return None
+        parts = request_line.decode(errors="replace").strip().split(" ")
+        if len(parts) < 2:
+            return None
+        return parts[0], parts[1]
+
+    async def _read_headers(
+        self,
+        reader: asyncio.StreamReader,
+        writer: asyncio.StreamWriter,
+    ) -> tuple[int, str] | None:
+        """Read the bounded headers used by the minimal A2A transport."""
+        content_length = 0
+        auth_header = ""
+        while True:
+            try:
+                line = await asyncio.wait_for(reader.readline(), timeout=10.0)
+            except TimeoutError:
+                return None
+            if line in (b"\r\n", b"\n", b""):
+                return content_length, auth_header
+            raw = line.decode(errors="replace").strip()
+            header_lower = raw.lower()
+            if header_lower.startswith("content-length:"):
+                try:
+                    content_length = int(header_lower.split(":", 1)[1].strip())
+                except ValueError:
+                    await self._send_simple(writer, 400, {"error": "Invalid Content-Length"})
+                    return None
+                if content_length < 0 or content_length > _MAX_REQUEST_BODY_BYTES:
+                    await self._send_simple(
+                        writer,
+                        413,
+                        {"error": f"Request body exceeds {_MAX_REQUEST_BODY_BYTES} bytes"},
+                    )
+                    return None
+            elif header_lower.startswith("authorization:"):
+                auth_header = raw.split(":", 1)[1].strip()
+
+    @staticmethod
+    async def _read_body(reader: asyncio.StreamReader, content_length: int) -> str | None:
+        if content_length <= 0:
+            return ""
+        try:
+            body_bytes = await asyncio.wait_for(reader.readexactly(content_length), timeout=30.0)
+        except (TimeoutError, asyncio.IncompleteReadError):
+            return None
+        return body_bytes.decode(errors="replace")
+
+    @staticmethod
+    async def _close_writer(writer: asyncio.StreamWriter) -> None:
+        try:
+            writer.close()
+            await writer.wait_closed()
+        except Exception:
+            pass
+
     async def _handle_connection(
         self,
         reader: asyncio.StreamReader,
@@ -264,68 +370,24 @@ class A2AServer:
     ) -> None:
         """Handle a raw TCP connection (minimal HTTP parsing)."""
         try:
-            # First-line read with a timeout so slowloris peers can't pin
-            # the loop forever sending headers one byte at a time.
-            try:
-                request_line = await asyncio.wait_for(reader.readline(), timeout=10.0)
-            except TimeoutError:
+            target = await self._read_request_target(reader)
+            if target is None:
                 return
-            if not request_line:
+            headers = await self._read_headers(reader, writer)
+            if headers is None:
                 return
-
-            parts = request_line.decode().strip().split(" ")
-            if len(parts) < 2:
+            content_length, auth_header = headers
+            body = await self._read_body(reader, content_length)
+            if body is None:
                 return
-
-            method, path = parts[0], parts[1]
-
-            # Read headers
-            content_length = 0
-            auth_header = ""
-            while True:
-                try:
-                    line = await asyncio.wait_for(reader.readline(), timeout=10.0)
-                except TimeoutError:
-                    return
-                if line in (b"\r\n", b"\n", b""):
-                    break
-                raw = line.decode(errors="replace").strip()
-                header_lower = raw.lower()
-                if header_lower.startswith("content-length:"):
-                    try:
-                        content_length = int(header_lower.split(":", 1)[1].strip())
-                    except ValueError:
-                        # Bad header - refuse to read a body, return 400.
-                        await self._send_simple(writer, 400, {"error": "Invalid Content-Length"})
-                        return
-                    if content_length < 0 or content_length > _MAX_REQUEST_BODY_BYTES:
-                        await self._send_simple(
-                            writer, 413, {"error": f"Request body exceeds {_MAX_REQUEST_BODY_BYTES} bytes"}
-                        )
-                        return
-                elif header_lower.startswith("authorization:"):
-                    auth_header = raw.split(":", 1)[1].strip()
-
-            # Read body
-            body = ""
-            if content_length > 0:
-                try:
-                    body_bytes = await asyncio.wait_for(reader.readexactly(content_length), timeout=30.0)
-                except (TimeoutError, asyncio.IncompleteReadError):
-                    return
-                body = body_bytes.decode(errors="replace")
-
+            method, path = target
             status, response = await self.handle_request(method, path, body, auth_header=auth_header)
             await self._send_simple(writer, status, response)
         except Exception:
             logger.exception("Error handling A2A connection")
             # Intent: one bad A2A connection or request must not crash the server process; log and let the connection close in finally.
         finally:
-            try:
-                writer.close()
-                await writer.wait_closed()
-            except Exception:
-                pass  # intentional: best-effort close of A2A writer during error path; connection may already be gone
+            await self._close_writer(writer)
 
     @staticmethod
     async def _send_simple(writer: asyncio.StreamWriter, status: int, body: dict[str, Any]) -> None:

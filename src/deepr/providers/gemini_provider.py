@@ -333,7 +333,7 @@ class GeminiProvider(DeepResearchProvider):
             # Interactions creation has no documented idempotency token. Do not
             # retry an ambiguous POST at this layer; the caller conservatively
             # settles its maximum reservation when the outcome is unknown.
-            interaction = self.client.interactions.create(**create_kwargs)
+            interaction = await asyncio.to_thread(self._create_interaction, create_kwargs)
         except GenaiAPIError as exc:
             if file_store_name:
                 await self._cleanup_file_search_store(file_store_name)
@@ -353,6 +353,10 @@ class GeminiProvider(DeepResearchProvider):
         }
         logger.info("Gemini deep research started: %s", interaction_id)
         return str(interaction_id)
+
+    def _create_interaction(self, create_kwargs: dict[str, Any]) -> Any:
+        """Call the synchronous overloaded Interactions create method."""
+        return self.client.interactions.create(**create_kwargs)
 
     async def _submit_regular_research(self, request: ResearchRequest) -> str:
         """Submit regular (non-deep-research) job using generate_content."""
@@ -413,7 +417,7 @@ class GeminiProvider(DeepResearchProvider):
 
             if request.document_ids:
                 for doc_id in request.document_ids:
-                    file_obj = self.client.files.get(name=doc_id)
+                    file_obj = await asyncio.to_thread(self.client.files.get, name=doc_id)
                     contents.insert(0, file_obj)
 
             config = types.GenerateContentConfig(**config_params) if config_params else None
@@ -426,36 +430,12 @@ class GeminiProvider(DeepResearchProvider):
                 request.max_request_bytes,
             )
 
-            response_parts = []
-            thought_parts = []
-            # Per-chunk usage from the Gemini SDK. The previous
-            # implementation discarded these and substituted a
-            # len(text) // 4 estimate, which dramatically under-counts
-            # prompts (no system instructions, no embedded media) and
-            # drops thinking tokens entirely - for gemini-2.5-pro
-            # (mandatory thinking) that's often 10x the visible output.
-            last_usage: Any = None
-
-            if config:
-                response_stream = self.client.models.generate_content_stream(
-                    model=model, contents=contents, config=config
-                )
-            else:
-                response_stream = self.client.models.generate_content_stream(model=model, contents=contents)
-
-            for chunk in response_stream:
-                if hasattr(chunk, "candidates") and chunk.candidates:
-                    candidate = chunk.candidates[0]
-                    if hasattr(candidate, "content") and candidate.content:
-                        for part in candidate.content.parts or []:
-                            if hasattr(part, "text") and part.text:
-                                if hasattr(part, "thought") and part.thought:
-                                    thought_parts.append(part.text)
-                                else:
-                                    response_parts.append(part.text)
-                chunk_usage = getattr(chunk, "usage_metadata", None)
-                if chunk_usage is not None:
-                    last_usage = chunk_usage
+            response_parts, thought_parts, last_usage = await asyncio.to_thread(
+                self._consume_regular_stream,
+                model=model,
+                contents=contents,
+                config=config,
+            )
 
             full_response = "".join(response_parts)
             thoughts_summary = "".join(thought_parts) if thought_parts else None
@@ -494,6 +474,33 @@ class GeminiProvider(DeepResearchProvider):
         except Exception as exc:
             job_data.update({"status": "failed", "error": str(exc), "completed_at": datetime.now(UTC)})
 
+    def _consume_regular_stream(
+        self,
+        *,
+        model: str,
+        contents: list[Any],
+        config: Any,
+    ) -> tuple[list[str], list[str], Any]:
+        """Create and consume one synchronous Gemini stream off the event loop."""
+        kwargs: dict[str, Any] = {"model": model, "contents": contents}
+        if config is not None:
+            kwargs["config"] = config
+        response_parts: list[str] = []
+        thought_parts: list[str] = []
+        last_usage: Any = None
+        for chunk in self.client.models.generate_content_stream(**kwargs):
+            if hasattr(chunk, "candidates") and chunk.candidates:
+                candidate = chunk.candidates[0]
+                if hasattr(candidate, "content") and candidate.content:
+                    for part in candidate.content.parts or []:
+                        if hasattr(part, "text") and part.text:
+                            target = thought_parts if getattr(part, "thought", False) else response_parts
+                            target.append(part.text)
+            chunk_usage = getattr(chunk, "usage_metadata", None)
+            if chunk_usage is not None:
+                last_usage = chunk_usage
+        return response_parts, thought_parts, last_usage
+
     # =========================================================================
     # Get status - handles both deep research and regular jobs
     # =========================================================================
@@ -519,7 +526,7 @@ class GeminiProvider(DeepResearchProvider):
             return self._build_deep_research_response(interaction_id, job_data)
 
         try:
-            interaction = self.client.interactions.get(interaction_id)
+            interaction = await asyncio.to_thread(self.client.interactions.get, interaction_id)
 
             if interaction.status == "completed":
                 # Extract content from outputs
@@ -873,7 +880,11 @@ class GeminiProvider(DeepResearchProvider):
             elif not mime_type:
                 mime_type = "text/plain"
 
-            file_obj = self.client.files.upload(file=path, config={"mime_type": mime_type})
+            file_obj = await asyncio.to_thread(
+                self.client.files.upload,
+                file=path,
+                config={"mime_type": mime_type},
+            )
 
             return str(file_obj.name)
 
@@ -883,7 +894,7 @@ class GeminiProvider(DeepResearchProvider):
     async def delete_document(self, file_id: str) -> bool:
         """Delete an uploaded Gemini file."""
         try:
-            self.client.files.delete(name=file_id)
+            await asyncio.to_thread(self.client.files.delete, name=file_id)
             return True
         except GenaiAPIError as e:
             raise ProviderError(message=f"Failed to delete document: {e!s}", provider="gemini", original_error=e) from e
@@ -924,7 +935,7 @@ class GeminiProvider(DeepResearchProvider):
 
         try:
             for file_id in vs_data["file_ids"]:
-                self.client.files.get(name=file_id)
+                await asyncio.to_thread(self.client.files.get, name=file_id)
             return True
         except GenaiAPIError:
             return False

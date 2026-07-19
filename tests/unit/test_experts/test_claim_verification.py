@@ -13,6 +13,7 @@ from deepr.experts.claim_verification import (
     CLAIM_VERIFICATION_PROMPT_REF,
     ClaimVerificationBlocked,
     SemanticClaimVerifier,
+    build_claim_verification_prompt,
     verify_claims,
 )
 from deepr.experts.source_pack_compiler import build_semantic_claim_extraction, build_source_notes
@@ -145,6 +146,22 @@ class TestSourceWindowExcerpt:
 
     def test_max_chars_still_caps(self):
         assert self._excerpt({"char_start": 0, "char_end": 10}, max_chars=3) == "012"
+
+
+def test_domain_relevance_judges_the_candidate_statement_not_surrounding_context() -> None:
+    payload = _source_pack_payload()
+    prompt = build_claim_verification_prompt(
+        _claim_extraction(payload),
+        _source_notes(payload),
+        payload,
+        target_domain="Model Context Protocol",
+        require_domain_relevance=True,
+    )
+
+    user_prompt = prompt.messages[-1]["content"]
+    assert "exact candidate statement itself" in user_prompt
+    assert "Do not borrow domain relevance" in user_prompt
+    assert "only the surrounding packet mentions the target domain" in user_prompt
 
 
 @pytest.mark.asyncio

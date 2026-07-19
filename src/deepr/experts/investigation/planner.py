@@ -208,7 +208,7 @@ def _egress_manifest(has_urls: bool) -> list[dict[str, Any]]:
         {
             "destination": "free_web_retrieval",
             "network_boundary": "public_internet",
-            "data_classes": ["question_derived_search_queries", "requested_urls"],
+            "data_classes": ["question", "frozen_expert_domain", "requested_urls"],
             "provider_egress": True,
             "enabled": True,
             "requested_urls_present": has_urls,
@@ -328,6 +328,9 @@ def build_investigation_plan(
             "mode": "free_only_deep_context",
             "network_access_during_plan": False,
             "network_access_during_run": True,
+            "query_policy": "question_plus_frozen_expert_domain_search_with_requested_urls_as_direct_fetches",
+            "evidence_distribution": "shared_question_with_distinct_hash_bound_domain_lenses",
+            "model_charter_queries_execute": False,
             "cross_expert_url_deduplication": False,
             "content_snapshot_deduplication": True,
             "max_queries_per_expert": 4,
@@ -344,7 +347,11 @@ def build_investigation_plan(
         "learning_contract": {
             "mode": learning_mode.value,
             "source_pack_evidence_only": True,
+            "factual_belief_source_pack_evidence_only": True,
             "dialogue_is_evidence": False,
+            "perspective_proposals_from_expert_positions": learning_mode is LearningMode.STAGE,
+            "perspective_proposals_are_factual_beliefs": False,
+            "perspective_truth_or_novelty_verified": False,
             "domain_relevance_required": learning_mode is LearningMode.STAGE,
             "domain_relevance_judgment": (
                 "independent_verifier_model" if learning_mode is LearningMode.STAGE else "not_applicable"
@@ -352,7 +359,11 @@ def build_investigation_plan(
             "writes_expert_state": False,
             "writes_beliefs": False,
             "writes_graph": False,
-            "output": "verified_graph_commit_envelopes_staged_only" if learning_mode is LearningMode.STAGE else "none",
+            "output": (
+                "verified_factual_and_model_assessed_perspective_graph_commit_envelopes_staged_only"
+                if learning_mode is LearningMode.STAGE
+                else "none"
+            ),
             "review_label": "automatic_verifier_accepted" if learning_mode is LearningMode.STAGE else "not_applicable",
             "human_reviewed": False,
         },

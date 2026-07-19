@@ -1463,13 +1463,75 @@ class TestRunCli:
         assert result.ok
         assert result.stdout == "fresh context"
 
-    def test_executable_is_resolved_with_pathext(self, monkeypatch):
+    def test_windows_batch_executable_is_refused_after_pathext_resolution(self, monkeypatch):
+        monkeypatch.setattr("deepr.backends.plan_quota.process_launch._WINDOWS", True)
         monkeypatch.setattr(
             "deepr.backends.plan_quota.process_launch.shutil.which",
             lambda exe: "C:/bin/codex.cmd" if exe == "codex" else None,
         )
 
-        assert _clean_argv(["codex", "exec"]) == ["C:/bin/codex.cmd", "exec"]
+        with pytest.raises(RuntimeError, match="batch command shims"):
+            _clean_argv(["codex", "exec"])
+
+    def test_windows_claude_shim_resolves_confined_native_package_binary(self, monkeypatch, tmp_path):
+        shim = tmp_path / "claude.cmd"
+        shim.write_text("untrusted shell shim", encoding="utf-8")
+        native = tmp_path / "node_modules" / "@anthropic-ai" / "claude-code" / "bin" / "claude.exe"
+        native.parent.mkdir(parents=True)
+        native.write_bytes(b"native")
+        monkeypatch.setattr("deepr.backends.plan_quota.process_launch._WINDOWS", True)
+        monkeypatch.setattr(
+            "deepr.backends.plan_quota.process_launch.shutil.which",
+            lambda exe: str(shim) if exe == "claude" else None,
+        )
+
+        cleaned = _clean_argv(["claude", "--safe-mode"])
+
+        assert cleaned == [str(native.resolve()), "--safe-mode"]
+
+    def test_windows_claude_shim_without_native_binary_is_refused(self, monkeypatch, tmp_path):
+        shim = tmp_path / "claude.cmd"
+        shim.write_text("untrusted shell shim", encoding="utf-8")
+        monkeypatch.setattr("deepr.backends.plan_quota.process_launch._WINDOWS", True)
+        monkeypatch.setattr(
+            "deepr.backends.plan_quota.process_launch.shutil.which",
+            lambda exe: str(shim) if exe == "claude" else None,
+        )
+
+        with pytest.raises(RuntimeError, match="no confined native package executable"):
+            _clean_argv(["claude", "--safe-mode"])
+
+    async def test_windows_batch_prompt_is_refused_before_process_creation(self, monkeypatch):
+        launch_calls = []
+
+        async def create_process(*args, **kwargs):
+            launch_calls.append(args)
+            raise AssertionError("batch shim must not launch")
+
+        monkeypatch.setattr("deepr.backends.plan_quota.process_launch._WINDOWS", True)
+        monkeypatch.setattr(
+            "deepr.backends.plan_quota.process_launch.shutil.which",
+            lambda exe: "C:/bin/opencode.cmd" if exe == "opencode" else None,
+        )
+        monkeypatch.setattr(
+            "deepr.backends.plan_quota.cli_runner.asyncio.create_subprocess_exec",
+            create_process,
+        )
+
+        result = await run_cli(["opencode", "run", "safe & whoami"])
+
+        assert result.returncode is None
+        assert isinstance(result.launch_exception, RuntimeError)
+        assert "RuntimeError" in result.launch_error
+        assert launch_calls == []
+
+    def test_windows_native_executable_is_resolved_with_pathext(self, monkeypatch):
+        monkeypatch.setattr(
+            "deepr.backends.plan_quota.process_launch.shutil.which",
+            lambda exe: "C:/bin/codex.exe" if exe == "codex" else None,
+        )
+
+        assert _clean_argv(["codex", "exec"]) == ["C:/bin/codex.exe", "exec"]
 
     def test_non_linux_posix_launch_fails_closed_without_tree_ownership(self, monkeypatch):
         from deepr.backends.plan_quota import process_launch

@@ -1,28 +1,9 @@
-"""Driving a plan-quota CLI as a Deepr chat backend.
+"""Async chat-compatible client for verified plan-quota CLI execution.
 
-``PlanQuotaChatClient`` adapts a vendor CLI to the *minimal* async chat surface
-Deepr's seams already use - ``client.chat.completions.create(model=, messages=)``
-returning an object with ``.choices[0].message.content`` - exactly like
-``ollama_chat_client`` does for a local model. Because it satisfies that one
-surface, a single instance serves *both* the research answer and the
-verification-gated belief extraction in ``ReportAbsorber``, so ``expert sync
---plan <id>`` runs end to end on prepaid capacity with no silent metered call.
-
-Every eligible non-metered dispatch records one $0 cost-ledger event when
-canonical storage succeeds, including nonzero, timeout, cancellation, and
-empty-output outcomes, so ``costs show`` and anomaly detection see the whole
-attempt volume. A canonical write failure fails closed on ordinary results and
-remains attached to cancellation with the attempt id. Quota observations
-distinguish known usage, exhaustion, and attempts whose usage remains unknown;
-a process that never launched does not claim quota use. Metered-at-margin
-adapters fail before client setup or subprocess dispatch until they support
-estimate, reservation, usage settlement, and canonical cost-ledger accounting.
-An exhaustion signature in the CLI output is recorded as a terminal quota event
-and surfaced as an error so the scheduler reschedules instead of silently
-failing.
-
-``make_plan_quota_research_fn`` wraps the same client as the ``research_fn`` seam
-``(query, budget) -> {"answer", "cost", ...}`` (report, never raise).
+The client owns prompt delivery, bounded process dispatch, response recovery,
+typed exhaustion, and paired quota plus zero-cost accounting. Safety decisions
+run before dispatch, and every entered vendor attempt remains visible even when
+the runner, response parser, or canonical ledger fails.
 """
 
 from __future__ import annotations
@@ -36,22 +17,16 @@ from pathlib import Path
 from typing import Any, NoReturn
 from uuid import uuid4
 
-from deepr.backends.context_building import (
-    ContextBuilder,
-    build_context,
-    context_evidence_fields,
-    context_generation_readiness,
-    context_not_ready_error,
-)
-from deepr.backends.local import _local_prompt  # shared research-prompt builder
+from deepr.backends.context_building import ContextBuilder
 from deepr.backends.plan_quota import output_safety, prompt_delivery
-from deepr.backends.plan_quota.adapters import PlanQuotaAdapter, parse_reset_at_utc
+from deepr.backends.plan_quota.adapters import PlanQuotaAdapter, parse_reset_at_utc, validate_model_identifier
 from deepr.backends.plan_quota.antigravity_transcript import TranscriptOutputLimitError
 from deepr.backends.plan_quota.attempt_accounting import (
     DEFAULT_PLAN_ACCOUNTING_LOCK_TIMEOUT_SECONDS as _PLAN_ACCOUNTING_LOCK_TIMEOUT_SECONDS,
 )
 from deepr.backends.plan_quota.attempt_accounting import (
     AttemptAccountingError,
+    AttemptAccountingRefusedError,
     AttemptAccountingStatus,
     record_plan_quota_attempt,
 )
@@ -73,6 +48,11 @@ from deepr.backends.plan_quota.errors import PlanQuotaError, PlanQuotaExhausted
 from deepr.backends.plan_quota.errors import (
     plan_quota_accounting_error as _plan_quota_accounting_error,
 )
+from deepr.backends.plan_quota.overage_guard import (
+    PlanQuotaOverageGuardError,
+    QuotaSnapshotCollector,
+    require_paid_overage_disabled,
+)
 from deepr.backends.plan_quota.probe_support import (
     account_probe_dispatch_error as _account_probe_dispatch_error,
 )
@@ -92,7 +72,11 @@ from deepr.backends.plan_quota.probe_support import (
     safe_probe_runner_error_result as _safe_probe_runner_error_result,
 )
 from deepr.backends.plan_quota.response import PlanQuotaResponse
-from deepr.backends.plan_quota.safety import evaluate_plan_quota_safety, plan_quota_child_env
+from deepr.backends.plan_quota.safety import (
+    AuthMode,
+    evaluate_plan_quota_safety,
+    plan_quota_child_env,
+)
 from deepr.backends.plan_quota.transcript_dispatch import (
     TranscriptLease as _TranscriptLease,
 )
@@ -124,6 +108,7 @@ _cleanup_prompt_file = prompt_delivery.cleanup_prompt_file
 _exhaustion_output = output_safety.exhaustion_output
 _flatten_messages = prompt_delivery.flatten_messages
 _safe_cli_error_summary = output_safety.safe_cli_error_summary
+_safe_cli_success_output = output_safety.safe_cli_success_output
 
 
 def _safe_runner_boundary_error(
@@ -139,6 +124,18 @@ def _safe_runner_boundary_error(
         retryable=False,
         no_metered_fallback=True,
         vendor_dispatched=True,
+    )
+    return converted
+
+
+def _paid_overage_guard_error(error: PlanQuotaOverageGuardError) -> PlanQuotaError:
+    converted = PlanQuotaError(str(error))
+    converted.__dict__.update(
+        error_code="plan_quota_overage_guard",
+        plan_quota_outcome="overage_guard_refused",
+        retryable=False,
+        no_metered_fallback=True,
+        vendor_dispatched=False,
     )
     return converted
 
@@ -185,6 +182,7 @@ class PlanQuotaChatClient:
         quota_ledger_path: Path | None = None,
         cost_ledger_path: Path | None = None,
         operation: str = "plan_quota_research",
+        quota_snapshot_collector: QuotaSnapshotCollector | None = None,
     ) -> None:
         try:
             validated_timeout = validate_timeout(timeout)
@@ -196,7 +194,9 @@ class PlanQuotaChatClient:
             raise PlanQuotaError(decision.reason)
         self.adapter = adapter
         self.model = model
+        self._auth_mode = decision.auth_mode
         self._runner = runner
+        self._source_env = resolved_env
         self._env = plan_quota_child_env(adapter, resolved_env)
         self._cwd = cwd
         self._timeout = validated_timeout
@@ -204,9 +204,19 @@ class PlanQuotaChatClient:
         self._quota_ledger_path = quota_ledger_path
         self._cost_ledger_path = cost_ledger_path
         self._operation = operation
+        self._quota_snapshot_collector = quota_snapshot_collector
         self.chat = _Chat(self)
 
     async def _run_chat(self, kwargs: dict[str, Any]) -> PlanQuotaResponse:
+        try:
+            await require_paid_overage_disabled(
+                self.adapter,
+                env=self._source_env,
+                quota_ledger_path=self._quota_ledger_path,
+                collector=self._quota_snapshot_collector,
+            )
+        except PlanQuotaOverageGuardError as error:
+            raise _paid_overage_guard_error(error) from None
         messages = kwargs.get("messages") or []
         wants_json = (kwargs.get("response_format") or {}).get("type") == "json_object"
         prompt = _correlated_transcript_prompt(
@@ -486,7 +496,7 @@ class PlanQuotaChatClient:
                 detail="CLI attempt timed out; quota usage is unknown",
             )
         if not result.ok:
-            summary = _safe_cli_error_summary(result.stderr, prompt=prompt)
+            summary = _safe_cli_error_summary(f"{result.stdout}\n{result.stderr}", prompt=prompt)
             self._fail_attempt(
                 PlanQuotaError,
                 f"{self.adapter.exe} exited {result.returncode}: {summary}",
@@ -499,6 +509,7 @@ class PlanQuotaChatClient:
             )
 
         answer = answer_override if answer_override is not None else self.adapter.parse_answer(result.stdout)
+        answer = _safe_cli_success_output(answer)
         if not answer:
             hint = (
                 " (agy drops stdout under a non-TTY pipe; transcript recovery found no answer)"
@@ -605,9 +616,12 @@ class PlanQuotaChatClient:
                 quota_units=quota_units,
                 vendor_dispatched=vendor_dispatched,
                 detail=detail,
+                auth_mode=self._auth_mode,
                 reset_at=reset_at,
                 lock_timeout_seconds=lock_timeout_seconds,
             )
+        except AttemptAccountingRefusedError as error:
+            raise PlanQuotaError(str(error)) from error
         except AttemptAccountingError as error:
             raise _plan_quota_accounting_error(
                 error,
@@ -625,93 +639,16 @@ def make_plan_quota_research_fn(
     client: PlanQuotaChatClient | None = None,
     **client_kwargs: Any,
 ) -> ResearchFn:
-    """Build a ``research_fn`` that answers via a plan-quota CLI at $0 marginal.
+    """Build the research seam around this module's verified chat client."""
+    from deepr.backends.plan_quota.research import make_plan_quota_research_fn as build
 
-    Satisfies the sync/gap-fill seam ``(query, budget) -> {"answer", "cost"}``.
-    ``cost`` is always 0.0 (prepaid plan capacity); ``budget`` is ignored. Errors
-    are returned in the result, never raised, per the seam contract.
-    """
     chat = client if client is not None else PlanQuotaChatClient(adapter, model=model, **client_kwargs)
-
-    async def research_fn(
-        query: str,
-        budget: float,
-        *,
-        prior_source_pack: dict[str, Any] | None = None,
-        retrieval_query: str | None = None,
-    ) -> dict[str, Any]:
-        try:
-            context = await build_context(
-                context_builder,
-                retrieval_query or query,
-                prior_source_pack=prior_source_pack,
-            )
-            evidence_fields = context_evidence_fields(context)
-            readiness = context_generation_readiness(context)
-            if readiness is not None and not readiness.ready:
-                return {
-                    "answer": "",
-                    "cost": 0.0,
-                    "backend": f"plan_quota:{adapter.backend_id}",
-                    "error": context_not_ready_error(readiness),
-                    "error_code": "fresh_context_not_ready",
-                    "retryable": readiness.retryable,
-                    "no_metered_fallback": readiness.no_metered_fallback,
-                    "context_preflight": readiness.to_dict(),
-                    **evidence_fields,
-                }
-            prompt, metadata = _local_prompt(query, context)
-            response = await chat.chat.completions.create(
-                model=model or "",
-                messages=[{"role": "user", "content": prompt}],
-            )
-            answer = response.choices[0].message.content or ""
-            result: dict[str, Any] = {"answer": answer, "cost": 0.0, "backend": f"plan_quota:{adapter.backend_id}"}
-            result.update(evidence_fields)
-            if metadata is not None and "fresh_context" not in result:
-                result["fresh_context"] = metadata
-            return result
-        except PlanQuotaError as error:
-            return _plan_quota_research_error_result(adapter, error)
-        except Exception as e:  # seam contract: report, do not raise
-            return {
-                "answer": "",
-                "cost": 0.0,
-                "error": f"{adapter.backend_id} backend error: {e}",
-                "error_code": "plan_quota_backend_error",
-                "retryable": False,
-                "no_metered_fallback": True,
-            }
-
-    return research_fn
-
-
-def _plan_quota_research_error_result(
-    adapter: PlanQuotaAdapter,
-    error: PlanQuotaError,
-) -> dict[str, Any]:
-    """Preserve typed no-fallback and accounting state across the research seam."""
-    outcome = str(getattr(error, "plan_quota_outcome", "plan_quota_error"))
-    result: dict[str, Any] = {
-        "answer": "",
-        "cost": 0.0,
-        "backend": f"plan_quota:{adapter.backend_id}",
-        "error": str(error),
-        "error_code": str(getattr(error, "error_code", outcome)),
-        "outcome": outcome,
-        "retryable": bool(getattr(error, "retryable", False)),
-        "no_metered_fallback": bool(getattr(error, "no_metered_fallback", True)),
-        "vendor_dispatched": bool(getattr(error, "vendor_dispatched", False)),
-        "attempt_id": str(getattr(error, "plan_quota_attempt_id", "")),
-        "quota_observation_recorded": bool(getattr(error, "quota_recorded", False)),
-        "cost_event_recorded": bool(getattr(error, "cost_recorded", False)),
-    }
-    if isinstance(error, PlanQuotaExhausted):
-        result["quota_exhausted"] = True
-    attempt_outcome = error.__dict__.get("plan_quota_attempt_outcome")
-    if attempt_outcome is not None:
-        result["attempt_outcome"] = str(attempt_outcome)
-    return result
+    return build(
+        adapter,
+        completion_create=chat.chat.completions.create,
+        model=model,
+        context_builder=context_builder,
+    )
 
 
 async def probe_plan_quota(
@@ -724,6 +661,7 @@ async def probe_plan_quota(
     timeout: float = 60.0,
     quota_ledger_path: Path | None = None,
     cost_ledger_path: Path | None = None,
+    quota_snapshot_collector: QuotaSnapshotCollector | None = None,
 ) -> dict[str, Any]:
     """A small round-trip proving the CLI runs and is authenticated.
 
@@ -742,6 +680,16 @@ async def probe_plan_quota(
             "latency_ms": 0,
             "error": str(validation_error),
         }
+    try:
+        validated_model = validate_model_identifier(model) if model else None
+    except ValueError as validation_error:
+        return {
+            "ok": False,
+            "backend": adapter.backend_id,
+            "reply": "",
+            "latency_ms": 0,
+            "error": str(validation_error),
+        }
     resolved_env = env if env is not None else dict(os.environ)
     decision = evaluate_plan_quota_safety(adapter, env=resolved_env)
     if not decision.safe:
@@ -751,6 +699,25 @@ async def probe_plan_quota(
             "reply": "",
             "latency_ms": 0,
             "error": decision.reason,
+        }
+    try:
+        await require_paid_overage_disabled(
+            adapter,
+            env=resolved_env,
+            quota_ledger_path=quota_ledger_path,
+            collector=quota_snapshot_collector,
+        )
+    except PlanQuotaOverageGuardError as error:
+        return {
+            "ok": False,
+            "backend": adapter.backend_id,
+            "reply": "",
+            "latency_ms": 0,
+            "error": str(error),
+            "outcome": "overage_guard_refused",
+            "vendor_dispatched": False,
+            "cost_event_recorded": False,
+            "quota_observation_recorded": error.observation_recorded,
         }
     deadline = asyncio.get_running_loop().time() + validated_timeout
     try:
@@ -787,7 +754,8 @@ async def probe_plan_quota(
             return probe_result
         probe_result = await _probe_plan_quota_dispatch(
             adapter,
-            model=model,
+            model=validated_model,
+            auth_mode=decision.auth_mode,
             runner=runner,
             resolved_env=resolved_env,
             cwd=cwd,
@@ -814,6 +782,7 @@ async def _probe_plan_quota_dispatch(
     adapter: PlanQuotaAdapter,
     *,
     model: str | None,
+    auth_mode: AuthMode,
     runner: CliRunner,
     resolved_env: dict[str, str],
     cwd: str | None,
@@ -856,6 +825,7 @@ async def _probe_plan_quota_dispatch(
                     adapter,
                     attempt_id=attempt_id,
                     model=model,
+                    auth_mode=auth_mode,
                     quota_ledger_path=quota_ledger_path,
                     cost_ledger_path=cost_ledger_path,
                     outcome="cancelled",
@@ -866,6 +836,7 @@ async def _probe_plan_quota_dispatch(
                     adapter,
                     attempt_id=attempt_id,
                     model=model,
+                    auth_mode=auth_mode,
                     quota_ledger_path=quota_ledger_path,
                     cost_ledger_path=cost_ledger_path,
                     outcome="runner_error",
@@ -887,6 +858,7 @@ async def _probe_plan_quota_dispatch(
         adapter,
         attempt_id=attempt_id,
         model=model,
+        auth_mode=auth_mode,
         quota_ledger_path=quota_ledger_path,
         cost_ledger_path=cost_ledger_path,
         result=result,
@@ -961,7 +933,8 @@ async def _probe_plan_quota_dispatch(
             vendor_dispatched = True
             detail = "probe CLI attempt timed out; quota usage is unknown"
         else:
-            failure_message = f"exit {result.returncode}: {_safe_cli_error_summary(result.stderr, prompt=prompt)}"
+            diagnostic = _safe_cli_error_summary(f"{result.stdout}\n{result.stderr}", prompt=prompt)
+            failure_message = f"exit {result.returncode}: {diagnostic}"
             outcome = "nonzero_exit"
             quota_event_type = QuotaEventType.ATTEMPT_OBSERVED
             quota_units = None

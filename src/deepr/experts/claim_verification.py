@@ -32,7 +32,7 @@ from deepr.utils.prompt_security import sanitize_untrusted_content
 
 logger = logging.getLogger(__name__)
 
-CLAIM_VERIFICATION_PROMPT_REF = "deepr://prompts/claim-verification/v1"
+CLAIM_VERIFICATION_PROMPT_REF = "deepr://prompts/claim-verification/v2"
 CLAIM_VERIFICATION_OPERATION = "semantic_claim_verification"
 ESTIMATED_VERIFICATION_COST = ESTIMATED_EXTRACTION_COST
 DEFAULT_MAX_CANDIDATES = 20
@@ -427,7 +427,11 @@ def build_claim_verification_prompt(
         + (
             "- domain_relevance_verdict must judge material usefulness to the target expert domain. "
             "A general fact from a shared source is peripheral or irrelevant unless it directly informs "
-            "that domain or an explicit cross-domain integration. Use uncertain when the fit is ambiguous.\n"
+            "that domain or an explicit cross-domain integration. Judge the semantic content of the exact "
+            "candidate statement itself. Do not borrow domain relevance from the source title, excerpt, query, "
+            "support summary, or rationale when the candidate statement omits that relationship. If only the "
+            "surrounding packet mentions the target domain, classify the statement as peripheral or irrelevant. "
+            "Use uncertain when the statement's fit is genuinely ambiguous.\n"
             if require_domain_relevance
             else ""
         )

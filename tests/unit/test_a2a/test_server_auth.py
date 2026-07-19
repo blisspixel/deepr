@@ -29,6 +29,18 @@ def server_no_auth():
     return A2AServer(card_generator=card, task_manager=TaskManager(), auth_token=None)
 
 
+@pytest.fixture
+def server_unsafe_loopback():
+    card = MagicMock()
+    card.to_dict.return_value = {"name": "test-agent"}
+    return A2AServer(
+        card_generator=card,
+        task_manager=TaskManager(),
+        auth_token=None,
+        allow_unauthenticated_loopback=True,
+    )
+
+
 @pytest.mark.asyncio
 async def test_agent_card_is_public(server):
     status, body = await server.handle_request("GET", "/.well-known/agent.json", "")
@@ -83,14 +95,37 @@ async def test_create_task_with_non_ascii_token(server):
 
 
 @pytest.mark.asyncio
-async def test_no_token_configured_allows_all(server_no_auth):
-    """When no token is configured (loopback-only dev mode) the gate is open."""
+async def test_no_token_configured_fails_closed(server_no_auth):
     status, _body = await server_no_auth.handle_request(
         "POST",
         "/tasks",
         '{"skill":"deepr_research","input":"hello"}',
     )
+    assert status == 503
+
+
+@pytest.mark.asyncio
+async def test_explicit_unsafe_loopback_mode_allows_compatibility(server_unsafe_loopback):
+    status, _body = await server_unsafe_loopback.handle_request(
+        "POST",
+        "/tasks",
+        '{"skill":"deepr_research","input":"hello"}',
+    )
     assert status == 201
+
+
+def test_start_refuses_loopback_without_token():
+    import asyncio
+
+    card = MagicMock()
+    card.to_dict.return_value = {"name": "test-agent"}
+    server = A2AServer(card_generator=card, task_manager=TaskManager(), auth_token=None)
+
+    async def _try_start():
+        await server.start("127.0.0.1", 0)
+
+    with pytest.raises(RuntimeError, match="DEEPR_A2A_TOKEN"):
+        asyncio.run(_try_start())
 
 
 def test_start_refuses_non_loopback_without_token():

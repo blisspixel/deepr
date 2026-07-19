@@ -2,6 +2,14 @@
 
 Deploy Deepr to Azure using Bicep templates.
 
+## v2.36 status
+
+This template is an infrastructure preview. Authenticated `POST /jobs` returns
+HTTP 503 with `azure_metered_research_accounting_unavailable` before payload
+parsing, Cosmos writes, queue writes, or provider work. Health and read-only
+inspection remain available. Supplying provider credentials does not enable
+dispatch. Azure resources can still incur infrastructure charges.
+
 ## Architecture
 
 ```
@@ -32,12 +40,16 @@ az login
 
 # 2. Copy and edit environment file
 cp .env.example .env
-# Edit .env with your API keys
+# Add the required template credential and keep the file untracked.
 
 # 3. Deploy
 chmod +x deploy.sh
 ./deploy.sh
 ```
+
+The script loads `deploy/azure/.env` before resolving configuration, writes
+secure Bicep parameters to a mode-0600 temporary file, passes the file by
+reference, and removes it on exit. Secret values do not appear in process argv.
 
 ## Manual Deployment
 
@@ -45,14 +57,14 @@ chmod +x deploy.sh
 # Create resource group
 az group create --name deepr-rg --location eastus
 
-# Deploy infrastructure
+# Create a protected parameters file. Do not put key values on the command line.
+umask 077
+# Populate parameters.json using the shape produced by deploy.sh, then run:
 az deployment group create \
   --resource-group deepr-rg \
   --template-file main.bicep \
-  --parameters \
-    openaiApiKey="sk-..." \
-    googleApiKey="" \
-    xaiApiKey=""
+  --parameters @parameters.json
+rm -f parameters.json
 ```
 
 ## Deploy Function App Code
@@ -70,10 +82,12 @@ func azure functionapp publish deepr-prod-api
 # Get the function app URL from deployment output
 FUNCTION_URL="https://deepr-prod-api.azurewebsites.net"
 
-# Submit a job
+# Verify the fail-closed hosted submission boundary.
 curl -X POST "$FUNCTION_URL/api/jobs" \
   -H "Content-Type: application/json" \
   -d '{"prompt": "What are the best practices for PostgreSQL connection pooling?"}'
+# Expected: HTTP 503 with
+# error_code=azure_metered_research_accounting_unavailable
 
 # Check job status
 curl "$FUNCTION_URL/api/jobs/{job_id}"
@@ -90,11 +104,11 @@ curl "$FUNCTION_URL/api/results/{job_id}"
 |-----------|---------|-------------|
 | environment | prod | Deployment environment |
 | location | (resource group) | Azure region |
-| openaiApiKey | - | Required: OpenAI API key |
-| googleApiKey | - | Optional: Google API key |
-| xaiApiKey | - | Optional: xAI API key |
-| dailyBudget | 50 | Daily spending limit (USD) |
-| monthlyBudget | 500 | Monthly spending limit (USD) |
+| openaiApiKey | - | Required secure parameter; cannot enable hosted dispatch in v2.36 |
+| googleApiKey | - | Optional secure parameter; does not enable automatic fallback |
+| xaiApiKey | - | Optional secure parameter; does not enable automatic fallback |
+| dailyBudget | 10 | Daily provider spending limit, effective only after hosted metered execution is deliberately enabled |
+| monthlyBudget | 10 | Monthly provider spending limit, effective only after hosted metered execution is deliberately enabled |
 
 ### Scaling
 
@@ -146,6 +160,10 @@ Estimated monthly costs (varies by usage):
 | Key Vault | $1-5 |
 | Log Analytics | $5-20 |
 | **Total infrastructure** | **$35-160** |
+
+Provider research is execution-gated, but deploying the infrastructure can
+still incur the charges above. The provider budget fields do not cap Azure
+resource charges. Configure Azure Cost Management budgets separately.
 
 ## Cleanup
 

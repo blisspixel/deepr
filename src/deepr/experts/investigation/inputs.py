@@ -5,11 +5,15 @@ from __future__ import annotations
 import ipaddress
 import mimetypes
 import os
+import stat
 from collections.abc import Iterable, Sequence
 from dataclasses import dataclass
+from io import BytesIO
 from pathlib import Path
 from typing import Any
 from urllib.parse import SplitResult, urlsplit, urlunsplit
+from xml.etree import ElementTree
+from zipfile import BadZipFile, ZipFile
 
 from deepr.experts.investigation.models import (
     INPUT_BUNDLE_KIND,
@@ -27,6 +31,10 @@ DEFAULT_MAX_TOTAL_BYTES = 32 * 1024 * 1024
 DEFAULT_MAX_INLINE_BYTES = 256 * 1024
 DEFAULT_MAX_EXTRACTED_BYTES = 512 * 1024
 MAX_SCAN_ENTRIES = 4096
+MAX_DOCX_ARCHIVE_ENTRIES = 1024
+MAX_DOCX_EXPANDED_BYTES = 16 * 1024 * 1024
+MAX_DOCX_XML_BYTES = 8 * 1024 * 1024
+MAX_DOCX_EXPANSION_RATIO = 100
 
 _TEXT_EXTENSIONS = frozenset(
     {
@@ -257,7 +265,13 @@ def _folder_candidates(folder: Path, *, root: Path, origin: str) -> tuple[list[P
     return candidates, exclusions
 
 
-def _file_item(path: Path, *, root: Path, origin: str) -> tuple[dict[str, Any] | None, dict[str, str] | None]:
+def _file_descriptor(
+    path: Path,
+    *,
+    root: Path,
+    origin: str,
+) -> tuple[dict[str, Any] | None, dict[str, str] | None]:
+    """Inspect an input file without reading its contents."""
     display = _relative_display(path, root)
     relative = Path(display)
     if path.is_symlink():
@@ -272,11 +286,11 @@ def _file_item(path: Path, *, root: Path, origin: str) -> tuple[dict[str, Any] |
     if not supported:
         return None, _exclusion(display, "unsupported_type", origin=origin, detail="no admitted text extractor")
     try:
-        raw = path.read_bytes()
+        metadata = path.stat(follow_symlinks=False)
     except OSError as exc:
         return None, _exclusion(display, "unreadable", origin=origin, detail=type(exc).__name__)
-    if extractor == "utf8-text-v1" and b"\x00" in raw[:8192]:
-        return None, _exclusion(display, "binary_content", origin=origin, detail="NUL bytes found in text input")
+    if not stat.S_ISREG(metadata.st_mode):
+        return None, _exclusion(display, "not_regular_file", origin=origin, detail="input is not a regular file")
     return (
         {
             "input_type": "file",
@@ -284,13 +298,49 @@ def _file_item(path: Path, *, root: Path, origin: str) -> tuple[dict[str, Any] |
             "display_path": display,
             "origin": origin,
             "media_type": media_type,
-            "byte_size": len(raw),
-            "content_sha256": sha256_bytes(raw),
+            "byte_size": metadata.st_size,
             "extraction_status": "ready",
             "extractor": extractor,
         },
         None,
     )
+
+
+def _read_bounded_regular_file(path: Path, *, expected_size: int) -> bytes:
+    """Read exactly one pre-admitted regular file without following a swapped link."""
+    if expected_size < 0:
+        raise InvestigationContractError(f"input file has an invalid size: {path.name}")
+    flags = os.O_RDONLY | getattr(os, "O_BINARY", 0) | getattr(os, "O_NOFOLLOW", 0)
+    try:
+        before = path.stat(follow_symlinks=False)
+        descriptor = os.open(path, flags)
+    except OSError as exc:
+        raise InvestigationContractError(f"input file is unavailable: {path.name}") from exc
+    try:
+        opened = os.fstat(descriptor)
+        before_identity = (before.st_dev, before.st_ino)
+        opened_identity = (opened.st_dev, opened.st_ino)
+        if (
+            not stat.S_ISREG(before.st_mode)
+            or not stat.S_ISREG(opened.st_mode)
+            or before_identity != opened_identity
+            or opened.st_size != expected_size
+        ):
+            raise InvestigationContractError(f"input file changed before reading: {path.name}")
+        chunks: list[bytes] = []
+        remaining = expected_size + 1
+        while remaining > 0:
+            chunk = os.read(descriptor, min(64 * 1024, remaining))
+            if not chunk:
+                break
+            chunks.append(chunk)
+            remaining -= len(chunk)
+        raw = b"".join(chunks)
+        if len(raw) != expected_size:
+            raise InvestigationContractError(f"input file changed while reading: {path.name}")
+        return raw
+    finally:
+        os.close(descriptor)
 
 
 def _resolve_input_root(input_root: str | Path) -> Path:
@@ -426,7 +476,7 @@ def _compile_file_items(
         if not _inside_root(resolved, root) or resolved in seen_paths:
             continue
         seen_paths.add(resolved)
-        item, exclusion = _file_item(resolved, root=root, origin=origin)
+        item, exclusion = _file_descriptor(resolved, root=root, origin=origin)
         if exclusion is not None:
             exclusions.append(exclusion)
             continue
@@ -442,6 +492,29 @@ def _compile_file_items(
         if limit_exclusion is not None:
             exclusions.append(limit_exclusion)
             continue
+        try:
+            raw = _read_bounded_regular_file(resolved, expected_size=int(item["byte_size"]))
+        except InvestigationContractError as exc:
+            exclusions.append(
+                _exclusion(
+                    str(item["display_path"]),
+                    "changed_during_read",
+                    origin=origin,
+                    detail=str(exc),
+                )
+            )
+            continue
+        if item["extractor"] == "utf8-text-v1" and b"\x00" in raw[:8192]:
+            exclusions.append(
+                _exclusion(
+                    str(item["display_path"]),
+                    "binary_content",
+                    origin=origin,
+                    detail="NUL bytes found in text input",
+                )
+            )
+            continue
+        item["content_sha256"] = sha256_bytes(raw)
         items.append(item)
         total_bytes += int(item["byte_size"])
         included_files += 1
@@ -505,22 +578,84 @@ def _decode_text(raw: bytes, *, display_path: str) -> str:
         raise InvestigationContractError(f"text input is not UTF-8: {display_path}") from exc
 
 
-def _extract_docx(path: Path) -> str:
+def _read_zip_member_bounded(archive: ZipFile, name: str, *, maximum: int) -> bytes:
     try:
-        from docx import Document
-    except ImportError as exc:
-        raise InvestigationContractError("DOCX extraction requires the docs extra") from exc
+        with archive.open(name) as member:
+            chunks: list[bytes] = []
+            remaining = maximum + 1
+            while remaining > 0:
+                chunk = member.read(min(64 * 1024, remaining))
+                if not chunk:
+                    break
+                chunks.append(chunk)
+                remaining -= len(chunk)
+    except (BadZipFile, KeyError, RuntimeError, OSError) as exc:
+        raise InvestigationContractError("DOCX document XML is unavailable") from exc
+    raw = b"".join(chunks)
+    if len(raw) > maximum:
+        raise InvestigationContractError("DOCX document XML exceeds the expansion limit")
+    return raw
+
+
+def _validate_docx_archive(entries: list[Any]) -> None:
+    """Validate DOCX container bounds before reading document XML."""
+    if len(entries) > MAX_DOCX_ARCHIVE_ENTRIES:
+        raise InvestigationContractError("DOCX archive contains too many entries")
+    expanded = sum(entry.file_size for entry in entries)
+    compressed = sum(entry.compress_size for entry in entries)
+    if expanded > MAX_DOCX_EXPANDED_BYTES:
+        raise InvestigationContractError("DOCX archive exceeds the expanded-byte limit")
+    if expanded and (compressed <= 0 or expanded > compressed * MAX_DOCX_EXPANSION_RATIO):
+        raise InvestigationContractError("DOCX archive exceeds the expansion-ratio limit")
+    if any(entry.flag_bits & 0x1 for entry in entries):
+        raise InvestigationContractError("Encrypted DOCX entries are not supported")
+
+
+def _parse_docx_xml(document_xml: bytes, *, display_path: str) -> Any:
+    """Parse bounded DOCX XML while refusing entity-bearing declarations."""
+    lowered = document_xml.lower()
+    if b"<!doctype" in lowered or b"<!entity" in lowered:
+        raise InvestigationContractError("DOCX document XML declarations are not supported")
     try:
-        document = Document(str(path))
-    except (OSError, ValueError) as exc:
-        raise InvestigationContractError(f"DOCX extraction failed: {path.name}") from exc
-    paragraphs = [paragraph.text for paragraph in document.paragraphs if paragraph.text.strip()]
-    for table in document.tables:
-        for row in table.rows:
-            value = " | ".join(cell.text.strip() for cell in row.cells)
-            if value.strip(" |"):
-                paragraphs.append(value)
-    return "\n".join(paragraphs)
+        return ElementTree.fromstring(document_xml)
+    except ElementTree.ParseError as exc:
+        raise InvestigationContractError(f"DOCX document XML is invalid: {display_path}") from exc
+
+
+def _bounded_docx_text(root: Any, *, max_text_bytes: int) -> str:
+    """Extract text nodes under one aggregate UTF-8 byte ceiling."""
+    parts: list[str] = []
+    used = 0
+    for element in root.iter():
+        if not element.tag.endswith("}t") or not element.text:
+            continue
+        value = element.text.strip()
+        if not value:
+            continue
+        prefix = " " if parts else ""
+        encoded = (prefix + value).encode("utf-8")
+        available = max_text_bytes - used
+        if available <= 0:
+            break
+        excerpt = encoded[:available].decode("utf-8", errors="ignore")
+        if excerpt:
+            parts.append(excerpt)
+            used += len(excerpt.encode("utf-8"))
+    return "".join(parts)
+
+
+def _extract_docx(raw: bytes, *, display_path: str, max_text_bytes: int) -> str:
+    """Extract DOCX text through bounded ZIP and XML envelopes."""
+    try:
+        archive = ZipFile(BytesIO(raw))
+    except (BadZipFile, OSError) as exc:
+        raise InvestigationContractError(f"DOCX extraction failed: {display_path}") from exc
+    with archive:
+        entries = archive.infolist()
+        _validate_docx_archive(entries)
+        xml_limit = min(MAX_DOCX_XML_BYTES, max(256 * 1024, max_text_bytes * 16))
+        document_xml = _read_zip_member_bounded(archive, "word/document.xml", maximum=xml_limit)
+    return _bounded_docx_text(_parse_docx_xml(document_xml, display_path=display_path), max_text_bytes=max_text_bytes)
 
 
 def materialize_input_context(bundle: dict[str, Any]) -> list[dict[str, str]]:
@@ -543,11 +678,19 @@ def materialize_input_context(bundle: dict[str, Any]) -> list[dict[str, str]]:
             path, confirmed_display = _resolve_candidate(display_path, root=root)
             if confirmed_display != display_path or not path.is_file():
                 raise InvestigationContractError(f"frozen input path changed: {display_path}")
-            raw = path.read_bytes()
+            expected_size = int(item["byte_size"])
+            try:
+                raw = _read_bounded_regular_file(path, expected_size=expected_size)
+            except InvestigationContractError as exc:
+                raise InvestigationContractError(f"frozen input content changed: {display_path}") from exc
             if sha256_bytes(raw) != item["content_sha256"]:
                 raise InvestigationContractError(f"frozen input content changed: {display_path}")
             extractor = item["extractor"]
-            text = _decode_text(raw, display_path=display_path) if extractor == "utf8-text-v1" else _extract_docx(path)
+            text = (
+                _decode_text(raw, display_path=display_path)
+                if extractor == "utf8-text-v1"
+                else _extract_docx(raw, display_path=display_path, max_text_bytes=remaining)
+            )
             label = display_path
             source_class = "caller_supplied_file"
         encoded = text.encode("utf-8")

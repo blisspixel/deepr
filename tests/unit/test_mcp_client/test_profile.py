@@ -10,6 +10,7 @@ class TestMCPClientProfile:
         assert p.timeout == 30.0
         assert p.max_retries == 3
         assert p.budget_limit == 0.0
+        assert p.free_tools == []
         assert p.circuit_breaker_threshold == 5
 
     def test_to_dict(self):
@@ -49,8 +50,10 @@ class TestMCPClientProfile:
             command="python",
             timeout=45.0,
             budget_limit=5.0,
+            free_tools=["health"],
         )
         restored = MCPClientProfile.from_dict(original.to_dict())
         assert restored.name == original.name
         assert restored.timeout == original.timeout
         assert restored.budget_limit == original.budget_limit
+        assert restored.free_tools == ["health"]

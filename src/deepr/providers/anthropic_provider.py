@@ -19,6 +19,7 @@ Comparison to OpenAI:
 - Anthropic: Submit prompt with tools -> manage multi-turn workflow ourselves
 """
 
+import asyncio
 import json
 import logging
 import os
@@ -240,8 +241,9 @@ class AnthropicProvider(DeepResearchProvider):
                 from deepr.services.research_bounds import validate_provider_payload_bytes
 
                 validate_provider_payload_bytes(request_kwargs, request.max_request_bytes)
-                response = self.client.messages.create(  # type: ignore[call-overload]  # plain dicts for thinking/messages/tools; SDK wants typed params
-                    **request_kwargs
+                response = await asyncio.to_thread(
+                    self.client.messages.create,  # type: ignore[arg-type]  # SDK types reject validated plain dictionaries
+                    **request_kwargs,
                 )
 
                 # Safety classifiers (claude-fable-5) can decline with a

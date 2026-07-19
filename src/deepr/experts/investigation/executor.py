@@ -30,6 +30,7 @@ from deepr.experts.investigation.models import (
     utc_now,
     validate_plan,
 )
+from deepr.experts.investigation.perspective_learning import build_perspective_graph_commit_envelope
 from deepr.experts.investigation.protocol import (
     charter_prompt,
     checker_prompt,
@@ -65,8 +66,12 @@ def _input_refs(plan: dict[str, Any]) -> set[str]:
     }
 
 
-def _retrieval_query(plan: dict[str, Any], charter: dict[str, Any]) -> str:
-    parts = [str(charter.get("retrieval_query", "") or ""), str(plan["question"])]
+def _retrieval_query(plan: dict[str, Any], expert: dict[str, Any]) -> str:
+    """Build a diverse query only from hash-bound operator-visible material."""
+    approved_urls = requested_urls(plan["input_bundle"])
+    domain = str(expert.get("domain", "") or "").strip()
+    lens = f"Research lens: {domain}" if domain else ""
+    parts = [str(plan["question"]), lens, *approved_urls]
     normalized = "\n".join(part.strip() for part in parts if part.strip())
     return normalized[:4096]
 
@@ -195,6 +200,8 @@ def _peer_packets(
                 "assumptions": position.get("assumptions", []),
                 "unknowns": position.get("unknowns", []),
                 "strongest_alternative": position.get("strongest_alternative", ""),
+                "null_hypothesis": position.get("null_hypothesis", ""),
+                "perspective_candidates": position.get("perspective_candidates", []),
                 "proposed_cruxes": position.get("proposed_cruxes", []),
             }
         )
@@ -285,7 +292,7 @@ class InvestigationExecutor:
             input_context,
             positions,
             discussions,
-            all_refs,
+            caller_refs,
             protocol,
         )
         position_list = [final_positions[str(expert["name"])] for expert in experts]
@@ -313,6 +320,8 @@ class InvestigationExecutor:
             experts,
             expert_keys,
             source_packs,
+            final_positions,
+            check,
             learning,
         )
         return self._finish_result(
@@ -386,7 +395,7 @@ class InvestigationExecutor:
         runtime: InvestigationRuntime,
         experts: list[dict[str, Any]],
         expert_keys: dict[str, str],
-        charters: dict[str, dict[str, Any]],
+        _charters: dict[str, dict[str, Any]],
         context_builder: ContextBuilder,
     ) -> dict[str, dict[str, Any]]:
         plan = runtime.plan
@@ -398,7 +407,7 @@ class InvestigationExecutor:
             logical_key = f"source-pack:{expert_key}"
             source_pack = runtime.artifact(logical_key)
             if source_pack is None:
-                query = _retrieval_query(plan, charters[expert_name])
+                query = _retrieval_query(plan, expert)
                 reservation = runtime.reserve_retrieval(
                     expert_key,
                     search_queries=int(plan["retrieval"]["max_queries_per_expert"]),
@@ -558,7 +567,7 @@ class InvestigationExecutor:
         input_context: str,
         positions: dict[str, dict[str, Any]],
         discussions: dict[str, dict[str, Any]],
-        all_refs: set[str],
+        caller_refs: set[str],
         protocol: ProtocolMode,
     ) -> dict[str, dict[str, Any]]:
         final_positions = dict(positions)
@@ -571,7 +580,8 @@ class InvestigationExecutor:
             logical_key = f"revision:{expert_key}"
             revision = runtime.artifact(logical_key)
             if revision is None:
-                source_context, _own_refs = render_source_pack(source_packs[expert_key], prefix=f"E{index:02d}")
+                source_context, own_refs = render_source_pack(source_packs[expert_key], prefix=f"E{index:02d}")
+                allowed_refs = caller_refs | own_refs
                 raw = await runtime.complete(
                     position_prompt(
                         question=str(runtime.plan["question"]),
@@ -579,7 +589,7 @@ class InvestigationExecutor:
                         charter=charters[expert_name],
                         input_context=input_context,
                         source_context=source_context,
-                        allowed_refs=all_refs,
+                        allowed_refs=allowed_refs,
                         operation="revision",
                         prior_position=positions[expert_name],
                         discussion=discussions[expert_name],
@@ -588,7 +598,7 @@ class InvestigationExecutor:
                 revision = compile_position(
                     raw,
                     expert_name=expert_name,
-                    allowed_refs=all_refs,
+                    allowed_refs=allowed_refs,
                     phase="revision",
                 )
                 runtime.put_artifact(
@@ -643,6 +653,12 @@ class InvestigationExecutor:
                 for claim in position.get("claims", [])
                 if isinstance(claim, dict)
             },
+            perspective_candidates={
+                (str(position["expert_name"]), str(candidate["candidate_id"]))
+                for position in positions
+                for candidate in position.get("perspective_candidates", [])
+                if isinstance(candidate, dict)
+            },
         )
         runtime.put_artifact("check", phase=Phase.CHECK, key="independent-check", payload=check)
         return check
@@ -690,6 +706,8 @@ class InvestigationExecutor:
         experts: list[dict[str, Any]],
         expert_keys: dict[str, str],
         source_packs: dict[str, dict[str, Any]],
+        positions: dict[str, dict[str, Any]],
+        check: dict[str, Any],
         learning: LearningMode,
     ) -> dict[str, Any] | None:
         if learning is not LearningMode.STAGE:
@@ -700,15 +718,53 @@ class InvestigationExecutor:
             return manifest
         entries: list[dict[str, Any]] = []
         for expert in experts:
-            expert_key = expert_keys[str(expert["name"])]
-            entries.append(
-                await stage_expert_learning(
-                    runtime,
-                    expert=expert,
-                    expert_key=expert_key,
-                    source_pack=source_packs[expert_key],
-                )
+            expert_name = str(expert["name"])
+            expert_key = expert_keys[expert_name]
+            entry = await stage_expert_learning(
+                runtime,
+                expert=expert,
+                expert_key=expert_key,
+                source_pack=source_packs[expert_key],
             )
+            perspective_key = f"learning:perspective-envelope:{expert_key}"
+            perspective_envelope = runtime.artifact(perspective_key)
+            position_key = f"revision:{expert_key}"
+            if runtime.artifact(position_key) is None:
+                position_key = f"position:{expert_key}"
+            position_reference = runtime.artifact_reference(position_key) or {}
+            check_reference = runtime.artifact_reference("check") or {}
+            if perspective_envelope is None:
+                perspective_envelope = build_perspective_graph_commit_envelope(
+                    run_id=runtime.run_id,
+                    expert_name=expert_name,
+                    domain=str(expert.get("domain", "") or ""),
+                    position=positions[expert_name],
+                    check=check,
+                    position_artifact=str(position_reference.get("path", "") or ""),
+                    check_artifact=str(check_reference.get("path", "") or ""),
+                )
+                runtime.put_artifact(
+                    perspective_key,
+                    phase=Phase.LEARNING,
+                    key=f"perspective-graph-commit-envelope-{expert_key}",
+                    payload=perspective_envelope,
+                )
+            perspective_ready = int((perspective_envelope.get("summary", {}) or {}).get("ready_write_count", 0) or 0)
+            entry.update(
+                {
+                    "perspective_status": str(
+                        (perspective_envelope.get("summary", {}) or {}).get("status", "empty") or "empty"
+                    ),
+                    "perspective_ready_write_count": perspective_ready,
+                    "perspective_graph_commit_envelope_artifact": str(
+                        (runtime.artifact_reference(perspective_key) or {}).get("path", "") or ""
+                    ),
+                    "perspective_truth_verified": False,
+                    "perspective_novelty_verified": False,
+                    "perspective_human_reviewed": False,
+                }
+            )
+            entries.append(entry)
         manifest = {
             "schema_version": LEARNING_MANIFEST_SCHEMA_VERSION,
             "kind": LEARNING_MANIFEST_KIND,
@@ -722,11 +778,23 @@ class InvestigationExecutor:
                 ),
                 "human_reviewed_count": 0,
                 "expert_state_write_count": 0,
+                "perspective_ready_write_count": sum(
+                    int(entry.get("perspective_ready_write_count", 0) or 0) for entry in entries
+                ),
+                "total_staged_write_count": sum(
+                    int(entry.get("ready_write_count", 0) or 0)
+                    + int(entry.get("perspective_ready_write_count", 0) or 0)
+                    for entry in entries
+                ),
             },
             "contract": {
                 "source_pack_evidence_only": True,
+                "factual_belief_source_pack_evidence_only": True,
                 "domain_relevance_required": True,
                 "dialogue_is_evidence": False,
+                "perspective_proposals_from_expert_positions": True,
+                "perspective_proposals_are_factual_beliefs": False,
+                "perspective_truth_or_novelty_verified": False,
                 "writes_expert_state": False,
                 "human_reviewed": False,
                 "apply_requires_explicit_command": True,

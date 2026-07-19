@@ -7,6 +7,7 @@ from datetime import datetime
 from pathlib import Path
 
 from deepr.backends.plan_quota.adapters import PlanQuotaAdapter
+from deepr.backends.plan_quota.safety import AuthMode
 from deepr.backends.quota_ledger import (
     QuotaConfidence,
     QuotaEventType,
@@ -42,6 +43,10 @@ class AttemptAccountingError(RuntimeError):
         self.primary_cause = _root_cause(failures[-1][1])
 
 
+class AttemptAccountingRefusedError(RuntimeError):
+    """A dispatch is not eligible for canonical zero-cost accounting."""
+
+
 def _root_cause(error: BaseException) -> BaseException:
     current = error
     seen: set[int] = set()
@@ -65,6 +70,7 @@ def record_plan_quota_attempt(
     quota_units: float | None,
     vendor_dispatched: bool,
     detail: str,
+    auth_mode: AuthMode,
     reset_at: datetime | None = None,
     lock_timeout_seconds: float | None = None,
 ) -> AttemptAccountingStatus:
@@ -74,6 +80,7 @@ def record_plan_quota_attempt(
     key makes exact replay safe, while either storage failure remains visible to
     the caller instead of masquerading as complete accounting.
     """
+    _assert_zero_cost_accounting_allowed(adapter, auth_mode)
     metadata = {
         "attempt_id": attempt_id,
         "backend_id": adapter.backend_id,
@@ -84,6 +91,8 @@ def record_plan_quota_attempt(
         "vendor_dispatched": vendor_dispatched,
         "attempted_quota_units": 1 if vendor_dispatched else 0,
         "quota_usage_observed": quota_units is not None,
+        "auth_mode": auth_mode.value,
+        "stored_plan_auth_verified": adapter.stored_plan_auth_verified,
     }
     quota_recorded = False
     cost_recorded = False
@@ -108,7 +117,9 @@ def record_plan_quota_attempt(
                     unit_name=adapter.unit_name,
                     remaining_confidence=QuotaConfidence.UNKNOWN,
                     reset_at=reset_at,
-                    overage_enabled=False,
+                    # A model attempt cannot observe the account's paid-overage
+                    # setting. Only a provider metadata probe may populate it.
+                    overage_enabled=None,
                     detail=detail,
                     idempotency_key=attempt_id,
                     metadata={
@@ -155,3 +166,22 @@ def record_plan_quota_attempt(
             failures=tuple(failures),
         ) from failures[-1][1]
     return status
+
+
+def _assert_zero_cost_accounting_allowed(adapter: PlanQuotaAdapter, auth_mode: AuthMode) -> None:
+    if auth_mode is not AuthMode.PLAN:
+        raise AttemptAccountingRefusedError(
+            f"zero-cost accounting refused for {adapter.backend_id}: auth mode is {auth_mode.value}"
+        )
+    if not adapter.stored_plan_auth_verified:
+        raise AttemptAccountingRefusedError(
+            f"zero-cost accounting refused for {adapter.backend_id}: stored auth provenance is unverified"
+        )
+    if adapter.metered_at_margin:
+        raise AttemptAccountingRefusedError(
+            f"zero-cost accounting refused for {adapter.backend_id}: adapter is metered at the margin"
+        )
+    if adapter.execution_block_reason:
+        raise AttemptAccountingRefusedError(
+            f"zero-cost accounting refused for {adapter.backend_id}: execution is disabled"
+        )

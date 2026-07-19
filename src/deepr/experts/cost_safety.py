@@ -504,7 +504,11 @@ class CostSafetyManager:
                 )
 
             # Circuit breaker
-            allowed, reason = self._circuit_breaker.allow_request(estimated_cost)
+            allowed, reason = self._circuit_breaker.allow_request(
+                estimated_cost,
+                reserved_cost=self._reserved_daily,
+                reserved_events=len(self._reservations),
+            )
             if not allowed:
                 return False, reason or "circuit breaker tripped", False, ""
 
@@ -633,9 +637,15 @@ class CostSafetyManager:
             return
         if durable:
             try:
-                self._get_reservation_store().refund(reservation_id)
+                store = self._get_reservation_store()
+                refunded = store.refund(
+                    reservation_id,
+                    provider_work_did_not_run=provider_work_did_not_run,
+                )
             except Exception as error:
                 raise DurableCostReservationError("durable reservation refund failed") from error
+            if not refunded and store.is_active(reservation_id):
+                return
         with self._budget_lock:
             held = self._reservations.pop(reservation_id, 0.0)
             self._reservation_started.pop(reservation_id, None)

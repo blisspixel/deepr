@@ -85,7 +85,7 @@ def test_termination_signal_kills_owned_primary_before_exit(monkeypatch):
 def test_cleanup_kills_only_currently_owned_children(monkeypatch):
     observations = iter(((9, 10), (20,), (20,), (), (), ()))
     killed = []
-    monkeypatch.setattr(posix_supervisor, "_direct_child_pids", lambda: next(observations))
+    monkeypatch.setattr(posix_supervisor, "_descendant_pids", lambda: next(observations))
     monkeypatch.setattr(posix_supervisor, "_reap_exited_children", lambda: None)
     monkeypatch.setattr(posix_supervisor.os, "kill", lambda pid, signum: killed.append((pid, signum)))
     monkeypatch.setattr(posix_supervisor.time, "sleep", lambda _seconds: None)
@@ -99,9 +99,35 @@ def test_child_enumeration_failure_fails_cleanup_closed(monkeypatch):
     def fail_enumeration():
         raise posix_supervisor._ChildEnumerationError("fixture enumeration failure")
 
-    monkeypatch.setattr(posix_supervisor, "_direct_child_pids", fail_enumeration)
+    monkeypatch.setattr(posix_supervisor, "_descendant_pids", fail_enumeration)
 
     assert posix_supervisor._terminate_owned_children() is False
+
+
+def test_cleanup_enumerates_and_kills_a_deep_descendant_tree(monkeypatch):
+    root_pid = 5000
+    descendants = tuple(range(5001, 5101))
+    live = set(descendants)
+    killed = []
+
+    def children(pid=None):
+        current = root_pid if pid is None else pid
+        child = current + 1
+        return (child,) if child in live else ()
+
+    def kill(pid, signum):
+        killed.append((pid, signum))
+        live.discard(pid)
+
+    monkeypatch.setattr(posix_supervisor.os, "getpid", lambda: root_pid)
+    monkeypatch.setattr(posix_supervisor, "_direct_child_pids", children)
+    monkeypatch.setattr(posix_supervisor, "_reap_exited_children", lambda: None)
+    monkeypatch.setattr(posix_supervisor.os, "kill", kill)
+    monkeypatch.setattr(posix_supervisor.time, "sleep", lambda _seconds: None)
+    monkeypatch.setattr(posix_supervisor.time, "monotonic", lambda: 0.0)
+
+    assert posix_supervisor._terminate_owned_children() is True
+    assert {pid for pid, signum in killed if signum == 9} == set(descendants)
 
 
 def test_vendor_launch_failure_emits_control_status(monkeypatch):

@@ -50,6 +50,7 @@ class TestMCPClientPool:
             command="echo",
             args=["test"],
             timeout=5.0,
+            free_tools=["search", "test", "tool"],
         )
 
     def test_register_and_contains(self):

@@ -20,6 +20,15 @@ import hypothesis.strategies as st
 import pytest
 from hypothesis import given, settings
 
+
+def _paid_request(**values):
+    return {
+        "allow_metered_api": True,
+        "confirm_metered_cost": True,
+        **values,
+    }
+
+
 # =============================================================================
 # Test Fixtures
 # =============================================================================
@@ -108,6 +117,7 @@ def client(mock_queue, mock_provider, mock_storage):
         patch.object(app_module, "provider", mock_provider),
         patch.object(app_module, "storage", mock_storage),
         patch.object(app_module.limiter, "enabled", False),
+        patch.object(app_module, "_allow_unauthenticated_loopback", True),
         patch.object(app_module, "reserve_api_research_cost", side_effect=reserve_expected) as reserve_cost,
         patch(
             "deepr.services.research_submission.restore_active_queued_reservation",
@@ -137,13 +147,80 @@ def client(mock_queue, mock_provider, mock_storage):
 # =============================================================================
 
 
+class TestAuthentication:
+    """Sensitive API routes require caller authentication by default."""
+
+    def test_missing_auth_configuration_fails_closed(self, client):
+        import sys
+
+        app_module = sys.modules["deepr.api.app"]
+        with (
+            patch.object(app_module, "_api_token", ""),
+            patch.object(app_module, "_allow_unauthenticated_loopback", False),
+        ):
+            response = client.get("/api/jobs")
+
+        assert response.status_code == 503
+        assert response.get_json()["error_code"] == "AUTH_NOT_CONFIGURED"
+        client.mock_queue.list_jobs.assert_not_awaited()
+
+    def test_configured_token_is_required_on_loopback(self, client):
+        import sys
+
+        app_module = sys.modules["deepr.api.app"]
+        with patch.object(app_module, "_api_token", "secret-token"):
+            missing = client.get("/api/jobs")
+            wrong = client.get(
+                "/api/jobs",
+                headers={"Authorization": "Bearer wrong"},
+            )
+            allowed = client.get(
+                "/api/jobs",
+                headers={"Authorization": "Bearer secret-token"},
+            )
+
+        assert missing.status_code == 401
+        assert wrong.status_code == 401
+        assert allowed.status_code == 200
+
+    def test_unsafe_loopback_opt_in_does_not_allow_remote_peer(self, client):
+        import sys
+
+        app_module = sys.modules["deepr.api.app"]
+        with (
+            patch.object(app_module, "_api_token", ""),
+            patch.object(app_module, "_allow_unauthenticated_loopback", True),
+        ):
+            response = client.get(
+                "/api/jobs",
+                environ_base={"REMOTE_ADDR": "203.0.113.5"},
+            )
+
+        assert response.status_code == 503
+        client.mock_queue.list_jobs.assert_not_awaited()
+
+
 class TestJobSubmission:
     """Test POST /api/jobs endpoint."""
+
+    def test_submit_job_requires_explicit_metered_consent(self, client):
+        response = client.post(
+            "/api/jobs",
+            json={"prompt": "Research quantum computing"},
+            content_type="application/json",
+        )
+
+        assert response.status_code == 403
+        assert "budget is only a ceiling" in response.get_json()["error"]
+        client.mock_reserve_cost.assert_not_called()
+        client.mock_provider.submit_research.assert_not_awaited()
 
     def test_submit_job_with_valid_prompt(self, client):
         """Test that POST /api/jobs creates job with valid prompt."""
         response = client.post(
-            "/api/jobs", json={"prompt": "Research quantum computing"}, content_type="application/json"
+            "/api/jobs",
+            json=_paid_request(prompt="Research quantum computing"),
+            content_type="application/json",
         )
 
         assert response.status_code == 200
@@ -175,7 +252,9 @@ class TestJobSubmission:
     def test_submit_job_with_custom_model(self, client):
         """Test that POST /api/jobs accepts custom model."""
         response = client.post(
-            "/api/jobs", json={"prompt": "Research AI", "model": "o3-deep-research"}, content_type="application/json"
+            "/api/jobs",
+            json=_paid_request(prompt="Research AI", model="o3-deep-research"),
+            content_type="application/json",
         )
 
         assert response.status_code == 200
@@ -185,14 +264,18 @@ class TestJobSubmission:
     def test_submit_job_with_priority(self, client):
         """Test that POST /api/jobs accepts priority."""
         response = client.post(
-            "/api/jobs", json={"prompt": "Research AI", "priority": 1}, content_type="application/json"
+            "/api/jobs",
+            json=_paid_request(prompt="Research AI", priority=1),
+            content_type="application/json",
         )
         assert response.status_code == 200
 
     def test_submit_job_with_web_search_disabled(self, client):
         """Test that POST /api/jobs accepts enable_web_search flag."""
         response = client.post(
-            "/api/jobs", json={"prompt": "Research AI", "enable_web_search": False}, content_type="application/json"
+            "/api/jobs",
+            json=_paid_request(prompt="Research AI", enable_web_search=False),
+            content_type="application/json",
         )
         assert response.status_code == 200
 
@@ -234,7 +317,9 @@ class TestJobSubmission:
     def test_submit_job_returns_estimated_cost(self, client):
         """Test that POST /api/jobs returns estimated cost."""
         response = client.post(
-            "/api/jobs", json={"prompt": "Research quantum computing"}, content_type="application/json"
+            "/api/jobs",
+            json=_paid_request(prompt="Research quantum computing"),
+            content_type="application/json",
         )
 
         assert response.status_code == 200
@@ -249,7 +334,7 @@ class TestJobSubmission:
     def test_submit_job_fails_closed_when_cost_reservation_is_unavailable(self, client):
         client.mock_reserve_cost.side_effect = RuntimeError("ledger unavailable")
 
-        response = client.post("/api/jobs", json={"prompt": "Research quantum computing"})
+        response = client.post("/api/jobs", json=_paid_request(prompt="Research quantum computing"))
 
         assert response.status_code == 503
         client.mock_provider.submit_research.assert_not_awaited()
@@ -259,7 +344,7 @@ class TestJobSubmission:
 
         client.mock_reserve_cost.side_effect = ResearchCostBlocked("secret ledger traceback")
 
-        response = client.post("/api/jobs", json={"prompt": "Research quantum computing"})
+        response = client.post("/api/jobs", json=_paid_request(prompt="Research quantum computing"))
 
         assert response.status_code == 429
         assert response.get_json() == {"error": "Research cost limit exceeded"}
@@ -269,7 +354,7 @@ class TestJobSubmission:
     def test_submit_job_does_not_refund_after_provider_boundary_failure(self, client):
         client.mock_provider.submit_research.side_effect = RuntimeError("provider unavailable")
 
-        response = client.post("/api/jobs", json={"prompt": "Research quantum computing"})
+        response = client.post("/api/jobs", json=_paid_request(prompt="Research quantum computing"))
 
         assert response.status_code == 500
         client.mock_reservation.manager.refund_reservation.assert_not_called()
@@ -420,6 +505,22 @@ class TestJobListing:
         client.mock_queue.list_jobs = AsyncMock(return_value=[])
         response = client.get("/api/jobs?limit=10&offset=5")
         assert response.status_code == 200
+
+    @pytest.mark.parametrize(
+        "query",
+        [
+            "limit=0",
+            "limit=-1",
+            "limit=1001",
+            "offset=-1",
+            "offset=1000001",
+        ],
+    )
+    def test_list_jobs_rejects_unbounded_pagination(self, client, query):
+        response = client.get(f"/api/jobs?{query}")
+
+        assert response.status_code == 400
+        client.mock_queue.list_jobs.assert_not_awaited()
 
 
 # =============================================================================
@@ -785,6 +886,7 @@ class TestAPIResponseStructure:
             patch.object(app_module, "queue", mock_queue),
             patch.object(app_module, "provider", mock_provider),
             patch.object(app_module, "storage", mock_storage),
+            patch.object(app_module, "_allow_unauthenticated_loopback", True),
             patch.object(app_module, "reserve_api_research_cost", side_effect=reserve_expected),
             patch(
                 "deepr.services.research_submission.restore_active_queued_reservation",
@@ -805,7 +907,9 @@ class TestAPIResponseStructure:
             try:
                 with app_module.app.test_client() as client:
                     response = client.post(
-                        "/api/jobs", json={"prompt": prompt.strip()}, content_type="application/json"
+                        "/api/jobs",
+                        json=_paid_request(prompt=prompt.strip()),
+                        content_type="application/json",
                     )
 
                     # Should succeed for any non-empty prompt
@@ -870,6 +974,7 @@ class TestAPIResponseStructure:
             patch.object(app_module, "queue", mock_queue),
             patch.object(app_module, "provider", mock_provider),
             patch.object(app_module, "storage", mock_storage),
+            patch.object(app_module, "_allow_unauthenticated_loopback", True),
         ):
             app_module.app.config["TESTING"] = True
 
@@ -919,6 +1024,7 @@ class TestAPIResponseStructure:
             patch.object(app_module, "queue", mock_queue),
             patch.object(app_module, "provider", mock_provider),
             patch.object(app_module, "storage", mock_storage),
+            patch.object(app_module, "_allow_unauthenticated_loopback", True),
         ):
             app_module.app.config["TESTING"] = True
 

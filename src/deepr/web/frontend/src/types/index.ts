@@ -97,6 +97,8 @@ export interface SystemStatus {
 
 export interface JobSubmitRequest {
   prompt: string
+  allow_metered_api: boolean
+  confirm_metered_cost: boolean
   model?: string
   mode?: string
   priority?: number

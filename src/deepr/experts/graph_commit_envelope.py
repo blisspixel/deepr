@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import math
 from datetime import UTC, datetime
 from typing import Any
 
@@ -89,6 +90,8 @@ def _confidence(candidate: dict[str, Any], decision: dict[str, Any]) -> float:
         parsed = float(str(value))
     except (TypeError, ValueError):
         parsed = 0.0
+    if not math.isfinite(parsed):
+        return 0.0
     return max(0.0, min(1.0, parsed))
 
 
@@ -96,6 +99,8 @@ def _float_nonnegative(value: Any, *, default: float = 0.0) -> float:
     try:
         parsed = float(value)
     except (TypeError, ValueError):
+        return default
+    if not math.isfinite(parsed):
         return default
     return max(0.0, parsed)
 

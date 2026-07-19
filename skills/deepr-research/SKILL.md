@@ -6,7 +6,7 @@ description: |
   analysis, a research cost preview, a domain expert or expert council, or
   inspection of durable beliefs, gaps, confidence, and provenance.
 metadata:
-  version: "2.36.2"
+  version: "2.37.0"
 ---
 
 # Deepr research

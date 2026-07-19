@@ -343,7 +343,7 @@ class MetaCognitionTracker:
         evidence_refs: list[str],
         source: str = "metacognitive_monitor",
     ) -> tuple[KnowledgeGap, bool]:
-        """Persist a reviewed gap candidate without duplicating existing gaps."""
+        """Persist an explicitly admitted gap candidate without duplicates."""
         existing = self.knowledge_gaps.get(gap.topic)
         if existing is not None:
             return existing, False
@@ -380,7 +380,7 @@ class MetaCognitionTracker:
         evidence_refs: list[str],
         source: str = "metacognitive_monitor",
     ) -> tuple["ExplorationAgenda", bool]:
-        """Persist a reviewed exploration agenda without duplicating titles."""
+        """Persist an explicitly admitted agenda without duplicate titles."""
         existing = self.exploration_agendas.get(agenda.title)
         if existing is not None:
             return existing, False
@@ -408,7 +408,7 @@ class MetaCognitionTracker:
         evidence_refs: list[str],
         source: str = "metacognitive_monitor",
     ) -> tuple["ExpertHypothesis", bool]:
-        """Persist a reviewed hypothesis without duplicating titles."""
+        """Persist an explicitly admitted hypothesis without duplicate titles."""
         existing = self.hypotheses.get(hypothesis.title)
         if existing is not None:
             return existing, False
@@ -436,7 +436,7 @@ class MetaCognitionTracker:
         evidence_refs: list[str],
         source: str = "metacognitive_monitor",
     ) -> tuple["ExpertConcept", bool]:
-        """Persist a reviewed concept without duplicating names."""
+        """Persist an explicitly admitted concept without duplicate names."""
         existing = self.concepts.get(concept.name)
         if existing is not None:
             return existing, False
@@ -464,7 +464,7 @@ class MetaCognitionTracker:
         evidence_refs: list[str],
         source: str = "metacognitive_monitor",
     ) -> tuple["ExpertStance", bool]:
-        """Persist a reviewed stance without duplicating titles."""
+        """Persist an explicitly admitted stance without duplicate titles."""
         existing = self.stances.get(stance.title)
         if existing is not None:
             return existing, False
@@ -492,7 +492,7 @@ class MetaCognitionTracker:
         evidence_refs: list[str],
         source: str = "metacognitive_monitor",
     ) -> tuple["ExpertOriginalIdea", bool]:
-        """Persist a reviewed original idea without duplicating titles."""
+        """Persist an explicitly admitted original idea without duplicate titles."""
         existing = self.original_ideas.get(original_idea.title)
         if existing is not None:
             return existing, False

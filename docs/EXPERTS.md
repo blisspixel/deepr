@@ -74,7 +74,7 @@ deepr expert make "UI Experience Expert" --local -d "UI/UX for agentic research 
 deepr expert consult "How should we review this architecture?" --expert "Azure Architect" --local
 
 # Or use an explicit plan-quota CLI for synthesis.
-deepr expert consult "What evidence is missing?" --expert "Azure Architect" --plan codex
+deepr expert consult "What evidence is missing?" --expert "Azure Architect" --plan claude
 
 # Record the later observed decision result without changing expert knowledge.
 deepr expert record-outcome "Azure Architect" --decision-id migration-2026 --summary "Choose the migration architecture" --result mixed --observation "Availability improved, but recovery time missed its target." --attested-by operator
@@ -86,6 +86,10 @@ deepr expert memory-card "Azure Architect" --write
 # Ask Deepr for the highest-value next actions from current structural evidence
 deepr expert next "Azure Architect"
 ```
+
+Claude Code is the current safety-eligible plan adapter. `deepr capacity`
+lists other detected CLIs with their pre-dispatch refusal or explicit-only
+status. A zero-dollar budget does not override those decisions.
 
 ## What Should This Expert Do Next?
 
@@ -281,7 +285,7 @@ session budget, and serialized turns per session.
 ### Available Read-Only Paths
 ```bash
 deepr expert consult "How should we handle tenant isolation?" --expert "Azure Architect" --local
-deepr expert consult "Which assumptions need evidence?" --expert "Azure Architect" --plan codex
+deepr expert consult "Which assumptions need evidence?" --expert "Azure Architect" --plan claude
 ```
 
 MCP hosts can also call `deepr_query_expert` with explicit `backend=local` or
@@ -708,6 +712,12 @@ the shared durable transaction. Plan judges consume subscription quota, record
 stores only validated review fields and calibrated judge metadata, not the raw
 judge response or raw trace answer.
 
+For Claude plan judging, `--plan-model` currently accepts only `sonnet`. Every
+call first records live provider metadata proving paid extra usage is disabled,
+then runs in safe mode with empty tool and MCP surfaces, no persistence, and no
+API credential.
+Failure to prove any part of that posture stops before model dispatch.
+
 ### Propose Self-Model Updates (review record)
 Preview or write a verifier-gated self-model update review record for a
 self-model-related monitor proposal. The command costs `$0`, never calls a
@@ -1052,7 +1062,7 @@ output.
 deepr expert consult "Build vs buy?" --expert "Tech Architect" --expert "Business Strategist" --local --budget 0 --output ./build-vs-buy.json -y
 
 # Explicit plan-quota bounded consult
-deepr expert consult "Which assumption is weakest?" --expert "Tech Architect" --expert "Business Strategist" --plan codex
+deepr expert consult "Which assumption is weakest?" --expert "Tech Architect" --expert "Business Strategist" --plan claude
 ```
 
 Current expert perspectives are stored-state reads and make zero model calls.

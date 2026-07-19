@@ -1,6 +1,6 @@
 # Deepr Threat Model
 
-Status: current with Deepr v2.36.2. Last reviewed: 2026-07-14.
+Status: current with Deepr v2.37.0. Last reviewed: 2026-07-18.
 
 This document is the repository-scoped threat model for Deepr. It is intended
 for security reviews, design reviews, and future bug discovery. It should stay
@@ -215,8 +215,10 @@ Existing controls:
   records remote calls.
 - `src/deepr/mcp/consult_validation.py` validates consult artifacts for schema,
   trace linkage, capacity posture, forbidden secrets, and no-metered fallback.
-- `src/deepr/a2a/consult_tasks.py` requires `allow_metered_api=true` plus a
-  positive budget before API-backed A2A consult synthesis.
+- `src/deepr/a2a/consult_tasks.py` requires exact
+  `allow_metered_api=true`, exact `confirm_metered_cost=true`, and a positive
+  budget before API-backed A2A consult synthesis. The budget remains a ceiling,
+  never consent.
 - `src/deepr/a2a/output_contracts.py` validates published A2A envelope shape
   before host-facing output.
 
@@ -275,10 +277,14 @@ Relevant attacker stories:
 
 - A prompt or compromised host induces repeated premium API calls.
 - A plan CLI authenticated by an API key is mistaken for subscription capacity.
+- Untrusted research content induces a coding CLI to read local files or invoke
+  native shell tools outside Deepr's intended answer-only capability.
 - A provider returns missing usage data and Deepr settles a metered call as
   `$0`.
 - A cache pre-warm or image-generation path causes silent recurring cost.
 - A metered-at-margin CLI is auto-routed as if it were free quota.
+- A subscription CLI has paid extra usage enabled, so a request that appears
+  to consume only included quota becomes a billed call.
 
 Existing controls:
 
@@ -288,7 +294,14 @@ Existing controls:
 - `src/deepr/observability/cost_ledger.py` writes append-only cost events under
   the runtime data root.
 - `src/deepr/backends/plan_quota/safety.py` and plan-quota adapters enforce
-  auth-mode and no-surprise-bills decisions before explicit plan launches.
+  auth-mode, stored-provider provenance, native-tool posture, marginal-cost,
+  and no-surprise-bills decisions before explicit plan launches. Claude is the
+  only current auto-routable adapter. Its client repeats a live metadata check
+  before every model call, durably records the provider's paid-extra-usage
+  state, and refuses unknown or enabled overage. It also runs in safe mode with
+  empty tool and MCP surfaces, no session persistence, no slash commands, the
+  included `sonnet` alias, and no API credential. Every other detected adapter fails
+  before process construction.
 - `src/deepr/backends/plan_quota/client.py` records `$0` Deepr cost events and
   quota observations for plan CLI calls and probes.
 - Registry pricing and provider-specific usage settlement account for cached
@@ -441,8 +454,8 @@ cross into downstream agent action without contract validation.
 Examples:
 
 - A READ_ONLY scoped MCP key can call a sensitive, write, or execute tool.
-- A remote A2A consult can select API synthesis without explicit
-  `allow_metered_api=true` and a positive budget.
+- A remote A2A consult can select API synthesis without both explicit consent
+  booleans and a positive finite budget.
 - Provider usage settlement records a real metered call as `$0` because of
   missing registry pricing or missing usage buckets.
 - An MCP/A2A output validation gap allows malformed consult artifacts with

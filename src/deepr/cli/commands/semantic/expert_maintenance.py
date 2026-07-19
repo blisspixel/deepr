@@ -12,6 +12,7 @@ from __future__ import annotations
 import asyncio
 import functools
 import json
+import math
 import sys
 from typing import Any
 
@@ -47,6 +48,7 @@ from deepr.cli.commands.semantic.grounding_support import (
     build_grounding_pair,
     validate_grounding_flags,
 )
+from deepr.cli.validation import confirm_interactively
 from deepr.experts.metered_mutation_gate import (
     MeteredExpertMutationDisabledError,
     require_metered_expert_mutation,
@@ -196,6 +198,12 @@ def absorb_report(
       deepr expert absorb "MCP Expert" --file docs/design/mcp.md --local -y
     """
 
+    if not math.isfinite(budget) or budget <= 0.0:
+        print_error("--budget must be a finite number greater than zero.")
+        sys.exit(2)
+    if not math.isfinite(min_confidence) or not 0.0 <= min_confidence <= 1.0:
+        print_error("--min-confidence must be a finite number from 0 to 1.")
+        sys.exit(2)
     if sum(bool(x) for x in (local, api, plan)) > 1:
         print_error("Use only one of --local, --api, or --plan.")
         sys.exit(2)
@@ -288,7 +296,7 @@ def absorb_report(
     if not yes:
         intent = "preview (writes nothing)" if dry_run else f"absorb into '{name}'"
         check_note = " + grounding checks" if run_grounding_checks else ""
-        if not click.confirm(f"Run extraction{check_note} ({cost_note}) and {intent}?", default=False):
+        if not confirm_interactively(f"Run extraction{check_note} ({cost_note}) and {intent}?", default=False):
             print_warning("Cancelled.")
             sys.exit(0)
 
@@ -531,6 +539,12 @@ def sync_cmd(
       deepr expert sync "AI Policy Expert" --scheduled --fresh-context -y
     """
 
+    if not math.isfinite(budget) or budget < 0.0:
+        print_error("--budget must be a finite non-negative number.")
+        sys.exit(2)
+    if not math.isfinite(jitter) or jitter < 0.0:
+        print_error("--jitter must be a finite non-negative number.")
+        sys.exit(2)
     if sum(bool(x) for x in (local, api, plan)) > 1:
         print_error("Use only one of --local, --api, or --plan.")
         sys.exit(2)
@@ -563,9 +577,6 @@ def sync_cmd(
         sys.exit(2)
     if deep_context and api:
         print_error("--deep-context is only supported for local or plan sync.")
-        sys.exit(2)
-    if jitter < 0:
-        print_error("--jitter must be non-negative.")
         sys.exit(2)
     apply_compiled_graph_commits = compile_claims and not stage_compiled_claims
 
@@ -824,7 +835,7 @@ def sync_cmd(
                 est += len(targets) * ESTIMATED_EXTRACTION_COST
                 est += len(targets) * ESTIMATED_VERIFICATION_COST
             prompt = f"Sync {len(targets)} topic(s){check_note}, estimated up to ${min(est, budget):.2f}?"
-        if not click.confirm(prompt, default=False):
+        if not confirm_interactively(prompt, default=False):
             print_warning("Cancelled.")
             return
 
