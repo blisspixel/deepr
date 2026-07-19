@@ -253,7 +253,6 @@ async def generate_and_save_portrait(
     """
     from deepr.experts.portrait_cost_gate import (
         record_portrait_cost,
-        refund_portrait_cost,
         reserve_portrait_cost,
     )
 
@@ -290,13 +289,25 @@ async def generate_and_save_portrait(
             output_dir=output_dir,
         )
     except Exception:
-        refund_portrait_cost(reservation)
+        # Once generate_portrait starts, a remote provider may have accepted
+        # and billed the request even if generation, decoding, or file writing
+        # later fails. Settle the full reserved estimate conservatively.
+        record_portrait_cost(
+            expert_name=expert_name,
+            reservation=reservation,
+            source="experts.portraits",
+            metadata={
+                "outcome": "failed",
+                "settlement_reason": "provider_dispatch_or_completion_uncertain",
+            },
+        )
         raise
 
     record_portrait_cost(
         expert_name=expert_name,
         reservation=reservation,
         source="experts.portraits",
+        metadata={"outcome": "completed"},
     )
     profile.portrait_url = portrait_url  # type: ignore[attr-defined]
     store.save(profile)  # type: ignore[attr-defined]

@@ -16,10 +16,10 @@ vendor-specific lives here as data plus a small ``argv`` builder per CLI:
 Honesty rules baked in (AGENTIC_BALANCE.md, the ROADMAP STOP banner):
 ``enabled_by_default`` is False for any CLI that is metered per use (Copilot),
 ToS gray-zone for headless/subscription use (Antigravity, Grok subscription), or
-whose vendor prohibits third-party-harness use (Kiro). Non-metered experimental
-adapters still run via an explicit ``--plan <id>`` behind the safety gate and a
-printed note, but Deepr never auto-routes to them. Metered-at-margin adapters
-remain visible and execution-blocked until complete cost accounting exists.
+whose vendor prohibits third-party-harness use (Kiro). Explicit-only adapters
+still pass the same auth and native-tool gate; unprovable modes remain visible
+but execution-blocked. Metered-at-margin adapters remain visible and blocked
+until complete cost accounting exists.
 Uncertain June-2026 surfaces (Antigravity's non-TTY stdout drop, Grok's
 undocumented exhaustion string) are flagged ``experimental`` and should be
 re-verified on the target machine - vendor CLIs churn quarterly.
@@ -41,6 +41,7 @@ from deepr.backends.quota_ledger import QuotaWindowKind
 _ANSI_RE = re.compile(r"\x1b\[[0-9;?]*[A-Za-z]")
 # A fenced ```...``` block the model wrapped its answer/JSON in.
 _FENCE_RE = re.compile(r"^```[a-zA-Z0-9]*\n(.*)\n```$", re.DOTALL)
+_MODEL_IDENTIFIER_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._:/@+-]{0,199}$")
 
 # Reset hints vendors print on exhaustion, e.g. relative "Try again in 3h 42m"
 # or host-local "Try again at 9:20 AM" clocks. This is deterministic form
@@ -213,11 +214,15 @@ class PlanQuotaAdapter:
     stdin_prompt: bool = False
     prompt_is_file: bool = False
     answer_from_transcript: bool = False
+    stored_plan_auth_verified: bool = True
+    requires_live_overage_check: bool = False
+    execution_block_reason: str = ""
     tos_note: str = ""
     value_note: str = ""
 
     def build_argv(self, prompt: str, model: str | None = None) -> list[str]:
-        return self.argv_builder(prompt, model)
+        validated_model = validate_model_identifier(model) if model is not None else None
+        return self.argv_builder(prompt, validated_model)
 
     def looks_exhausted(self, text: str) -> bool:
         low = _normalized_signal_text(text)
@@ -244,8 +249,17 @@ class PlanQuotaAdapter:
 
 def _append_model(args: list[str], model_flag: str | None, model: str | None) -> list[str]:
     if model_flag and model:
-        return [*args, model_flag, model]
+        return [*args, model_flag, validate_model_identifier(model)]
     return args
+
+
+def validate_model_identifier(model: str) -> str:
+    """Return a bounded model identifier that is safe as one argv value."""
+    if not isinstance(model, str) or not _MODEL_IDENTIFIER_RE.fullmatch(model):
+        raise ValueError(
+            "plan model must be 1-200 characters using only letters, digits, '.', '_', ':', '/', '@', '+', or '-'"
+        )
+    return model
 
 
 # --- per-CLI argv builders (prompt + optional model -> argv) ----------------
@@ -254,7 +268,8 @@ def _append_model(args: list[str], model_flag: str | None, model: str | None) ->
 
 def _codex_argv(prompt: str, model: str | None) -> list[str]:
     # `codex exec` is the non-interactive subcommand; stdout = final message,
-    # stderr = progress. read-only sandbox + never-approve = a safe text answer.
+    # stderr = progress. Its read-only sandbox still permits native shell reads,
+    # so the registry blocks execution until those tools can be disabled.
     args = [
         "codex",
         "exec",
@@ -268,12 +283,36 @@ def _codex_argv(prompt: str, model: str | None) -> list[str]:
 
 
 def _claude_argv(prompt: str, model: str | None) -> list[str]:
-    # `claude -p` is print/non-interactive. No tools are granted, so it answers
-    # as text. Plan window again post the 2026-06-15 reversal. The prompt is fed
-    # over stdin (prompt == "-"): a multi-line prompt passed as a command-line arg
-    # to claude.cmd is mangled by cmd.exe on Windows, so claude silently sees an
-    # empty task. `claude -p -` reads the real prompt from stdin instead.
-    args = _append_model(["claude"], "--model", model)
+    # Current Claude Code exposes explicit safe and zero-tool modes. Safe mode
+    # suppresses project/user hooks, skills, plugins, MCP discovery, memory, and
+    # CLAUDE.md loading while preserving stored subscription authentication.
+    # Strict empty MCP configuration, session persistence, and slash-command
+    # controls keep an untrusted synthesis prompt away from ambient side effects.
+    # Older CLIs that do not recognize these flags fail closed before inference.
+    #
+    # The prompt is fed over stdin (prompt == "-"): a multi-line prompt passed
+    # as a command-line arg to claude.cmd is mangled by cmd.exe on Windows, so
+    # claude silently sees an empty task. `claude -p -` reads the real prompt
+    # from stdin instead.
+    resolved_model = model or "sonnet"
+    if resolved_model != "sonnet":
+        raise ValueError(
+            "Claude plan-quota execution currently permits only the included 'sonnet' alias; "
+            "other model and extended-context billing classes are not proven non-metered"
+        )
+    args = [
+        "claude",
+        "--safe-mode",
+        "--tools",
+        "",
+        "--no-session-persistence",
+        "--disable-slash-commands",
+        "--strict-mcp-config",
+        "--mcp-config",
+        '{"mcpServers":{}}',
+        "--model",
+        resolved_model,
+    ]
     return [*args, "-p", prompt]
 
 
@@ -285,20 +324,19 @@ def _opencode_argv(prompt: str, model: str | None) -> list[str]:
 
 
 def _kiro_argv(prompt: str, model: str | None) -> list[str]:
-    # `kiro-cli chat --no-interactive` prints to stdout and exits. read,grep
-    # tools only - a research answer must not write or run shell.
+    # `kiro-cli chat --no-interactive` prints to stdout and exits. Its read and
+    # grep tools are not confined to an explicit allowlist, so execution blocks.
     args = ["kiro-cli", "chat", "--no-interactive", "--trust-tools=read,grep"]
     return [*_append_model(args, "--model", model), prompt]
 
 
 def _grok_argv(prompt_path: str, model: str | None) -> list[str]:
-    # Grok Build. --no-auto-update/--no-alt-screen for scripts; --always-approve
-    # so a headless run never hangs on a tool-approval prompt. The prompt is read
+    # Grok Build. --no-auto-update/--no-alt-screen for scripts. The prompt is read
     # from a file (prompt_is_file): a long research/synthesis prompt passed as
     # `-p <arg>` exceeds the Windows command-line length limit (WinError 206), so
     # `--prompt-file <path>` is the only headless-safe delivery. The client writes
     # the prompt to the temp file at prompt_path.
-    args = ["grok", "--no-auto-update", "--no-alt-screen", "--always-approve"]
+    args = ["grok", "--no-auto-update", "--no-alt-screen"]
     args = _append_model(args, "--model", model)
     return [*args, "--prompt-file", prompt_path]
 
@@ -333,9 +371,13 @@ _ADAPTERS: tuple[PlanQuotaAdapter, ...] = (
         metered_env_vars=("OPENAI_API_KEY", "CODEX_API_KEY", "CODEX_ACCESS_TOKEN"),
         exhaustion_signals=("usage_limit_reached", "5-hour message limit", "weekly limit", "429"),
         error_channel_exhaustion_signals=("you've hit your usage limit",),
-        enabled_by_default=True,
+        enabled_by_default=False,
         stdin_prompt=True,
-        value_note="flat ChatGPT plan, 5h rolling windows: $0 at the margin for batched research",
+        execution_block_reason=(
+            "Codex native read and shell tools cannot be disabled or confined to an explicit read allowlist "
+            "for untrusted plan-quota prompts"
+        ),
+        value_note="visible/read-only; execution blocked until native tools have an explicit read allowlist",
     ),
     PlanQuotaAdapter(
         backend_id="claude",
@@ -349,7 +391,8 @@ _ADAPTERS: tuple[PlanQuotaAdapter, ...] = (
         exhaustion_signals=("usage limit", "rate limit", "plan limit", "429"),
         enabled_by_default=True,
         stdin_prompt=True,
-        value_note="Pro/Max plan window (headless billing reverted 2026-06-15): $0 at the margin",
+        requires_live_overage_check=True,
+        value_note=("Pro/Max plan window; each dispatch requires a live proof that paid extra usage is disabled"),
     ),
     PlanQuotaAdapter(
         backend_id="opencode",
@@ -372,7 +415,12 @@ _ADAPTERS: tuple[PlanQuotaAdapter, ...] = (
         ),
         exhaustion_signals=("rate limit", "quota", "insufficient credit", "429"),
         enabled_by_default=False,
-        value_note="routes to an OAuth/subscription provider or a local model for $0/prepaid runs",
+        stored_plan_auth_verified=False,
+        execution_block_reason=(
+            "OpenCode provider identity, stored credential type, and native tool permissions cannot be proven "
+            "non-metered and read-confined before dispatch"
+        ),
+        value_note="visible/read-only; stored provider and credential provenance are not verifiable before dispatch",
         tos_note="explicit-only until Deepr can verify the routed provider is OAuth/subscription or local",
     ),
     PlanQuotaAdapter(
@@ -383,14 +431,18 @@ _ADAPTERS: tuple[PlanQuotaAdapter, ...] = (
         window_kind=QuotaWindowKind.MONTHLY_CREDIT_POOL,
         unit_name="credit",
         argv_builder=_kiro_argv,
-        metered_env_vars=(),
+        metered_env_vars=("KIRO_API_KEY",),
         exhaustion_signals=("credits_exhausted", "429"),
         enabled_by_default=False,
+        execution_block_reason=(
+            "Kiro native read tools cannot be confined to an explicit read allowlist, and prepaid auth plus "
+            "overage state cannot be proven before dispatch"
+        ),
         tos_note=(
             "Kiro's terms permit CI/CD automation but PROHIBIT third-party-harness use; "
             "review the AUP before driving it from Deepr. Overage is off by default."
         ),
-        value_note="monthly credits, overage off by default (hard cap)",
+        value_note="visible/read-only; tool confinement and non-metered overage state are not verifiable",
     ),
     PlanQuotaAdapter(
         backend_id="grok",
@@ -407,11 +459,15 @@ _ADAPTERS: tuple[PlanQuotaAdapter, ...] = (
         enabled_by_default=False,
         experimental=True,
         prompt_is_file=True,
+        execution_block_reason=(
+            "Grok native tool permissions cannot be disabled or confined to an explicit capability allowlist "
+            "for untrusted plan-quota prompts"
+        ),
         tos_note=(
             "subscription (SuperGrok/X Premium+) headless use is ToS gray-zone; xAI steers "
             "automation to the metered API key. Verify the exhaustion signature on your build."
         ),
-        value_note="SuperGrok/X Premium+ subscription quota (gray-zone for headless use)",
+        value_note="visible/read-only; native tool permissions cannot be safely disabled for untrusted prompts",
     ),
     PlanQuotaAdapter(
         backend_id="antigravity",
@@ -427,6 +483,10 @@ _ADAPTERS: tuple[PlanQuotaAdapter, ...] = (
         experimental=True,
         needs_pty=True,
         answer_from_transcript=True,
+        execution_block_reason=(
+            "Antigravity native tool permissions and transcript side effects cannot be disabled or confined "
+            "for untrusted plan-quota prompts"
+        ),
         tos_note=(
             "automated/headless use is ToS gray-zone amid an active account-ban wave; "
             "the CLI also drops stdout under a non-TTY pipe (June 2026), so the answer is "
@@ -467,4 +527,11 @@ def all_adapters() -> tuple[PlanQuotaAdapter, ...]:
 
 def auto_routable_adapters() -> tuple[PlanQuotaAdapter, ...]:
     """Adapters Deepr may auto-route to (genuinely $0-at-margin, ToS-clean)."""
-    return tuple(a for a in _ADAPTERS if a.enabled_by_default)
+    return tuple(
+        adapter
+        for adapter in _ADAPTERS
+        if adapter.enabled_by_default
+        and adapter.stored_plan_auth_verified
+        and not adapter.execution_block_reason
+        and not adapter.metered_at_margin
+    )

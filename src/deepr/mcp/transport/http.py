@@ -19,18 +19,22 @@ import logging
 import os
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
-from datetime import UTC, datetime, timedelta
+from datetime import datetime
 from pathlib import Path
 from typing import Any
 
 import aiohttp
 from aiohttp import web
 
+from deepr.mcp.protocol_compat import HttpMessage as HttpMessage
+from deepr.mcp.protocol_compat import canonical_legacy_tool_call
 from deepr.mcp.request_context import (
     MCPRequestIdentity,
     bind_mcp_request_identity,
     reset_mcp_request_identity,
 )
+from deepr.mcp.security.scoped_admission import ScopedMCPAdmission, ScopedMCPAdmissionStore
+from deepr.mcp.security.scoped_audit import scoped_mcp_response_cost_usd, scoped_mcp_response_error_code
 from deepr.mcp.security.scoped_keys import (
     RemoteMCPAuditLog,
     ScopedMCPAuthzDecision,
@@ -38,10 +42,7 @@ from deepr.mcp.security.scoped_keys import (
     ScopedMCPKeyContext,
     ScopedMCPKeyStore,
     ScopedMCPRateLimitDecision,
-    authorize_scoped_mcp_budget,
-    authorize_scoped_mcp_rate_limit,
     authorize_scoped_mcp_tool_call,
-    constrain_scoped_mcp_budget_arguments,
     constrain_scoped_mcp_expert_arguments,
 )
 from deepr.utils.security import is_loopback_bind_host
@@ -50,11 +51,14 @@ logger = logging.getLogger(__name__)
 
 DEFAULT_MAX_CONCURRENT_REQUESTS = 32
 CONCURRENCY_RETRY_AFTER_SECONDS = 1
-TOOL_RESPONSE_COST_FIELDS = {
-    "deepr_get_result": "cost_final",
-    "deepr_query_expert": "cost",
-    "deepr_expert_absorb": "estimated_cost",
-}
+_SCOPED_RESOURCE_METHODS = frozenset(
+    {
+        "resources/list",
+        "resources/read",
+        "resources/subscribe",
+        "resources/unsubscribe",
+    }
+)
 
 
 def _is_loopback_host(host: str) -> bool:
@@ -100,52 +104,6 @@ def _max_concurrent_requests_from_env() -> int:
         logger.warning("Invalid DEEPR_MCP_HTTP_MAX_CONCURRENCY=%r; using %d", raw, DEFAULT_MAX_CONCURRENT_REQUESTS)
         return DEFAULT_MAX_CONCURRENT_REQUESTS
     return max(value, 1)
-
-
-@dataclass
-class HttpMessage:
-    """A JSON-RPC message for HTTP transport."""
-
-    jsonrpc: str = "2.0"
-    id: str | None = None
-    method: str | None = None
-    params: dict[str, Any] | None = None
-    result: Any | None = None
-    error: dict[str, Any] | None = None
-
-    def is_request(self) -> bool:
-        return self.method is not None and self.id is not None
-
-    def is_notification(self) -> bool:
-        return self.method is not None and self.id is None
-
-    def is_response(self) -> bool:
-        return self.result is not None or self.error is not None
-
-    def to_dict(self) -> dict[str, Any]:
-        d: dict[str, Any] = {"jsonrpc": self.jsonrpc}
-        if self.id is not None:
-            d["id"] = self.id
-        if self.method is not None:
-            d["method"] = self.method
-        if self.params is not None:
-            d["params"] = self.params
-        if self.result is not None:
-            d["result"] = self.result
-        if self.error is not None:
-            d["error"] = self.error
-        return d
-
-    @classmethod
-    def from_dict(cls, data: dict[str, Any]) -> "HttpMessage":
-        return cls(
-            jsonrpc=data.get("jsonrpc", "2.0"),
-            id=data.get("id"),
-            method=data.get("method"),
-            params=data.get("params"),
-            result=data.get("result"),
-            error=data.get("error"),
-        )
 
 
 @dataclass
@@ -221,6 +179,11 @@ class StreamingHttpTransport:
         self._scoped_key_store = scoped_key_store or _scoped_key_store_from_env()
         self._audit_log = (
             audit_log if audit_log is not None else RemoteMCPAuditLog() if self._scoped_key_store else None
+        )
+        self._admission_store = (
+            ScopedMCPAdmissionStore(self._audit_log)
+            if self._scoped_key_store is not None and self._audit_log is not None
+            else None
         )
         self._handler: Callable[[HttpMessage], Awaitable[HttpMessage | None]] | None = None
         self._app: web.Application | None = None
@@ -362,6 +325,24 @@ class StreamingHttpTransport:
         arguments = message.params.get("arguments", {})
         return tool_name, dict(arguments) if isinstance(arguments, dict) else {}
 
+    def _canonicalize_legacy_method(self, message: HttpMessage) -> None:
+        canonical = canonical_legacy_tool_call(message.method, message.params)
+        if canonical is None:
+            return
+        tool_name, arguments = canonical
+        message.method = "tools/call"
+        message.params = {"name": tool_name, "arguments": arguments}
+
+    def _scoped_operation_parts(self, message: HttpMessage) -> tuple[str, dict[str, Any], str | None]:
+        tool_name, arguments = self._tool_call_parts(message)
+        if tool_name:
+            return tool_name, arguments, tool_name
+        if message.method in _SCOPED_RESOURCE_METHODS:
+            raw_params = message.params if isinstance(message.params, dict) else {}
+            params = {key: value for key, value in raw_params.items() if key != "_scoped_key"}
+            return str(message.method), params, None
+        return "", {}, None
+
     def _scoped_denial_message(self, message: HttpMessage, decision: ScopedMCPAuthzDecision) -> HttpMessage:
         return HttpMessage(
             id=message.id,
@@ -445,111 +426,6 @@ class StreamingHttpTransport:
             content_type="application/json",
         )
 
-    def _scoped_rate_limit_decision(self, context: ScopedMCPKeyContext) -> ScopedMCPRateLimitDecision:
-        if not self._audit_log:
-            return authorize_scoped_mcp_rate_limit(context, 0)
-        now = datetime.now(UTC)
-        window_seconds = 60
-        calls_in_window = self._audit_log.count_for_key_since(
-            context.key_id,
-            now - timedelta(seconds=window_seconds),
-        )
-        retry_after = self._audit_log.retry_after_seconds_for_key(
-            context.key_id,
-            now=now,
-            window_seconds=window_seconds,
-        )
-        return authorize_scoped_mcp_rate_limit(
-            context,
-            calls_in_window,
-            window_seconds=window_seconds,
-            retry_after_seconds=retry_after or None,
-        )
-
-    def _scoped_key_spent(self, context: ScopedMCPKeyContext) -> float:
-        if not self._audit_log:
-            return 0.0
-        return self._audit_log.total_cost_for_key(context.key_id)
-
-    def _payload_from_tool_response(self, response: HttpMessage | None) -> dict[str, Any] | None:
-        if not response or response.error or not isinstance(response.result, dict):
-            return None
-        if response.result.get("isError") is True:
-            return None
-        content = response.result.get("content")
-        if isinstance(content, list) and content:
-            first = content[0]
-            if isinstance(first, dict) and isinstance(first.get("text"), str):
-                try:
-                    payload = json.loads(first["text"])
-                except json.JSONDecodeError:
-                    return None
-                return payload if isinstance(payload, dict) else None
-        return response.result
-
-    def _tool_response_error_code(self, response: HttpMessage | None) -> str:
-        """Return a safe structured error code from a tools/call response."""
-        if response is None:
-            return ""
-        if response.error:
-            data = response.error.get("data")
-            return str(data.get("error_code") or "") if isinstance(data, dict) else ""
-        if not isinstance(response.result, dict) or response.result.get("isError") is not True:
-            return ""
-        content = response.result.get("content")
-        if not isinstance(content, list) or not content:
-            return "TOOL_ERROR"
-        first = content[0]
-        if not isinstance(first, dict) or not isinstance(first.get("text"), str):
-            return "TOOL_ERROR"
-        try:
-            payload = json.loads(first["text"])
-        except json.JSONDecodeError:
-            return "TOOL_ERROR"
-        if not isinstance(payload, dict):
-            return "TOOL_ERROR"
-        if isinstance(payload.get("error_code"), str):
-            return str(payload["error_code"])
-        error = payload.get("error")
-        if isinstance(error, dict) and isinstance(error.get("code"), str):
-            return str(error["code"])
-        return "TOOL_ERROR"
-
-    def _read_payload_cost(self, payload: dict[str, Any], field: str) -> float | None:
-        value = payload.get(field)
-        if value is None or isinstance(value, bool):
-            return None
-        try:
-            resolved = float(value)
-        except (TypeError, ValueError):
-            return None
-        return max(resolved, 0.0)
-
-    def _reflect_response_cost_usd(self, arguments: dict[str, Any]) -> float:
-        try:
-            depth = int(arguments.get("depth", 1) or 1)
-        except (TypeError, ValueError):
-            depth = 1
-        return 0.02 if depth > 0 else 0.0
-
-    def _response_cost_usd(
-        self,
-        tool_name: str,
-        arguments: dict[str, Any],
-        response: HttpMessage | None,
-    ) -> float | None:
-        payload = self._payload_from_tool_response(response)
-        if not payload or "error_code" in payload:
-            return None
-
-        if cost_field := TOOL_RESPONSE_COST_FIELDS.get(tool_name):
-            return self._read_payload_cost(payload, cost_field)
-        if tool_name == "deepr_expert_validate":
-            return 0.02
-        if tool_name == "deepr_reflect":
-            return self._reflect_response_cost_usd(arguments)
-        return None
-
     def _message_web_response(self, message: HttpMessage) -> web.Response:
         response_data = json.dumps(message.to_dict())
         self._stats.bytes_sent += len(response_data)
@@ -574,8 +450,8 @@ class StreamingHttpTransport:
         self,
         context: ScopedMCPKeyContext,
         message: HttpMessage,
+        decision: ScopedMCPRateLimitDecision,
     ) -> web.Response | None:
-        decision = self._scoped_rate_limit_decision(context)
         if decision.allowed:
             return None
         denied = self._scoped_rate_limit_denial_message(message, decision)
@@ -586,40 +462,85 @@ class StreamingHttpTransport:
         self,
         context: ScopedMCPKeyContext,
         message: HttpMessage,
-        tool_name: str,
-        arguments: dict[str, Any],
-    ) -> tuple[dict[str, Any], web.Response | None]:
-        spent_usd = self._scoped_key_spent(context)
-        constrained = constrain_scoped_mcp_budget_arguments(context, tool_name, arguments, spent_usd)
-        decision = authorize_scoped_mcp_budget(context, tool_name, constrained, spent_usd)
+        decision: ScopedMCPBudgetDecision,
+    ) -> web.Response | None:
         if decision.allowed:
-            return constrained, None
+            return None
         denied = self._scoped_budget_denial_message(message, decision)
         self._record_remote_call(context, message, denied, error_code=decision.error_code)
-        return constrained, self._message_web_response(denied)
+        return self._message_web_response(denied)
 
-    def _apply_scoped_key_context(
+    def _scoped_tool_authorization_response(
         self,
         context: ScopedMCPKeyContext,
         message: HttpMessage,
     ) -> web.Response | None:
         tool_name, arguments = self._tool_call_parts(message)
-        if tool_name:
-            arguments = constrain_scoped_mcp_expert_arguments(context, tool_name, arguments)
-            denied = self._scoped_authorization_response(context, message, tool_name, arguments)
+        if not tool_name:
+            return None
+        arguments = constrain_scoped_mcp_expert_arguments(context, tool_name, arguments)
+        if isinstance(message.params, dict):
+            message.params = {**message.params, "arguments": arguments}
+        return self._scoped_authorization_response(context, message, tool_name, arguments)
+
+    def _apply_scoped_key_context(
+        self,
+        context: ScopedMCPKeyContext,
+        message: HttpMessage,
+    ) -> tuple[ScopedMCPAdmission | None, web.Response | None]:
+        denied = self._scoped_tool_authorization_response(context, message)
+        if denied is not None:
+            return None, denied
+
+        operation, operation_arguments, resolved_tool = self._scoped_operation_parts(message)
+        admission = None
+        if operation:
+            if self._admission_store is None:
+                raise RuntimeError("Scoped MCP admission store is unavailable")
+            result = self._admission_store.reserve(
+                context,
+                operation=operation,
+                arguments=operation_arguments,
+                tool_name=resolved_tool,
+            )
+            denied = self._scoped_rate_limit_response(context, message, result.rate_decision)
             if denied is not None:
-                return denied
-            denied = self._scoped_rate_limit_response(context, message)
-            if denied is not None:
-                return denied
-            arguments, denied = self._scoped_budget_response(context, message, tool_name, arguments)
-            if denied is not None:
-                return denied
-            if isinstance(message.params, dict):
-                message.params = {**message.params, "arguments": arguments}
+                return None, denied
+            if resolved_tool is not None and isinstance(message.params, dict):
+                message.params = {**message.params, "arguments": result.arguments}
+            if result.budget_decision is not None:
+                denied = self._scoped_budget_response(context, message, result.budget_decision)
+                if denied is not None:
+                    return None, denied
+            admission = result.admission
         if isinstance(message.params, dict):
             message.params = {**message.params, "_scoped_key": context.to_dict()}
-        return None
+        return admission, None
+
+    def _append_remote_call(
+        self,
+        context: ScopedMCPKeyContext,
+        message: HttpMessage,
+        response: HttpMessage | None,
+        *,
+        error_code: str,
+        cost_usd: float | None,
+    ) -> None:
+        if not self._audit_log:
+            return
+        operation, arguments, _tool_name = self._scoped_operation_parts(message)
+        if not operation:
+            return
+        resolved_error = error_code or scoped_mcp_response_error_code(response)
+        outcome = "error" if resolved_error or (response and response.error) else "success"
+        self._audit_log.record_tool_call(
+            context,
+            tool=operation,
+            arguments=arguments,
+            outcome=outcome,
+            error_code=resolved_error,
+            cost_usd=cost_usd,
+        )
 
     def _record_remote_call(
         self,
@@ -631,19 +552,94 @@ class StreamingHttpTransport:
     ) -> None:
         if not context or not self._audit_log:
             return
-        tool_name, arguments = self._tool_call_parts(message)
-        if not tool_name:
+        operation, arguments, tool_name = self._scoped_operation_parts(message)
+        if not operation:
             return
-        resolved_error = error_code or self._tool_response_error_code(response)
-        outcome = "error" if resolved_error or (response and response.error) else "success"
-        self._audit_log.record_tool_call(
-            context,
-            tool=tool_name,
-            arguments=arguments,
-            outcome=outcome,
-            error_code=resolved_error,
-            cost_usd=self._response_cost_usd(tool_name, arguments, response),
-        )
+        cost_usd = scoped_mcp_response_cost_usd(tool_name, arguments, response) if tool_name else None
+
+        def _record() -> None:
+            self._append_remote_call(
+                context,
+                message,
+                response,
+                error_code=error_code,
+                cost_usd=cost_usd,
+            )
+
+        if self._admission_store is not None:
+            self._admission_store.record_audit(context.key_id, _record)
+        else:
+            _record()
+
+    def _settle_remote_call(
+        self,
+        context: ScopedMCPKeyContext,
+        message: HttpMessage,
+        response: HttpMessage | None,
+        admission: ScopedMCPAdmission,
+        *,
+        error_code: str = "",
+    ) -> None:
+        if self._admission_store is None:
+            raise RuntimeError("Scoped MCP admission store is unavailable")
+        _operation, arguments, tool_name = self._scoped_operation_parts(message)
+        actual_cost = scoped_mcp_response_cost_usd(tool_name, arguments, response) if tool_name else None
+
+        def _record(charge: float | None) -> None:
+            self._append_remote_call(
+                context,
+                message,
+                response,
+                error_code=error_code,
+                cost_usd=charge,
+            )
+
+        if not self._admission_store.settle(
+            admission,
+            actual_cost_usd=actual_cost,
+            recorder=_record,
+        ):
+            raise RuntimeError("Scoped MCP admission reservation is missing")
+
+    async def _dispatch_message(
+        self,
+        request: web.Request,
+        context: ScopedMCPKeyContext | None,
+        message: HttpMessage,
+        admission: ScopedMCPAdmission | None,
+    ) -> HttpMessage | None:
+        if self._handler is None:
+            if context is not None and admission is not None:
+                self._settle_remote_call(
+                    context,
+                    message,
+                    None,
+                    admission,
+                    error_code="MCP_HANDLER_UNAVAILABLE",
+                )
+            return None
+
+        identity_token = bind_mcp_request_identity(self._request_identity(request, context))
+        try:
+            try:
+                response = await self._handler(message)
+            except BaseException:
+                if context is not None and admission is not None:
+                    self._settle_remote_call(
+                        context,
+                        message,
+                        None,
+                        admission,
+                        error_code="MCP_HANDLER_FAILED",
+                    )
+                raise
+        finally:
+            reset_mcp_request_identity(identity_token)
+        if context is not None and admission is not None:
+            self._settle_remote_call(context, message, response, admission)
+        else:
+            self._record_remote_call(context, message, response)
+        return response
 
     async def _handle_post(self, request: web.Request) -> web.Response:
         """Handle incoming POST requests (JSON-RPC messages)."""
@@ -661,22 +657,17 @@ class StreamingHttpTransport:
 
             data = json.loads(body.decode("utf-8"))
             message = HttpMessage.from_dict(data)
+            self._canonicalize_legacy_method(message)
 
+            admission = None
             if auth_context:
-                scoped_response = self._apply_scoped_key_context(auth_context, message)
+                admission, scoped_response = self._apply_scoped_key_context(auth_context, message)
                 if scoped_response is not None:
                     return scoped_response
 
-            if self._handler:
-                identity_token = bind_mcp_request_identity(self._request_identity(request, auth_context))
-                try:
-                    response = await self._handler(message)
-                finally:
-                    reset_mcp_request_identity(identity_token)
-                self._record_remote_call(auth_context, message, response)
-
-                if response:
-                    return self._message_web_response(response)
+            response = await self._dispatch_message(request, auth_context, message, admission)
+            if response:
+                return self._message_web_response(response)
 
             # No response needed (notification)
             return web.Response(status=204)
@@ -975,3 +966,11 @@ class HttpClient:
 
 # Convenience alias
 HttpTransport = StreamingHttpTransport
+
+__all__ = [
+    "HttpClient",
+    "HttpMessage",
+    "HttpTransport",
+    "HttpTransportStats",
+    "StreamingHttpTransport",
+]

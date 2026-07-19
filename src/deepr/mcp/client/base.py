@@ -24,6 +24,22 @@ logger = logging.getLogger(__name__)
 
 # MCP protocol version
 MCP_PROTOCOL_VERSION = "2024-11-05"
+_MCP_CHILD_ENV_ALLOWLIST = frozenset(
+    {
+        "HOME",
+        "LANG",
+        "LC_ALL",
+        "LC_CTYPE",
+        "PATH",
+        "PATHEXT",
+        "SYSTEMROOT",
+        "TEMP",
+        "TMP",
+        "TMPDIR",
+        "USERPROFILE",
+        "WINDIR",
+    }
+)
 
 
 class MCPClientError(Exception):
@@ -133,7 +149,8 @@ class MCPClient:
         self.name = name
         self.command = command
         self.args = args or []
-        self.env = {**os.environ, **self._resolve_env(env or {})}
+        runtime_env = {key: value for key, value in os.environ.items() if key.upper() in _MCP_CHILD_ENV_ALLOWLIST}
+        self.env = {**runtime_env, **self._resolve_env(env or {})}
         self.timeout = timeout
         self.max_retries = max_retries
         self.retry_delay = retry_delay

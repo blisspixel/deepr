@@ -55,12 +55,17 @@ class TestFleetStatus:
         assert _row(rows, "codex")["installed"] is True
         assert _row(rows, "claude")["installed"] is False
 
-    def test_auth_mode_is_effective_child_mode_when_key_present(self, tmp_path):
+    def test_auth_mode_truthfully_reports_metered_key_when_present(self, tmp_path):
         rows = build_fleet_status(
             which=_which("codex"), env={"OPENAI_API_KEY": "sk-x"}, quota_ledger_path=tmp_path / "q.jsonl"
         )
-        assert _row(rows, "codex")["auth_mode"] == "plan"
+        assert _row(rows, "codex")["auth_mode"] == "metered"
         assert _row(rows, "codex")["raw_auth_mode"] == "metered"
+
+    def test_auth_mode_reports_unverified_stored_provider_as_unknown(self, tmp_path):
+        rows = build_fleet_status(which=_which("opencode"), env={}, quota_ledger_path=tmp_path / "q.jsonl")
+        assert _row(rows, "opencode")["auth_mode"] == "unknown"
+        assert _row(rows, "opencode")["raw_auth_mode"] == "unknown"
 
     def test_auth_mode_plan_when_clean(self, tmp_path):
         rows = build_fleet_status(which=_which("codex"), env={}, quota_ledger_path=tmp_path / "q.jsonl")
@@ -74,8 +79,11 @@ class TestFleetStatus:
 
     def test_routability_classes(self, tmp_path):
         rows = build_fleet_status(which=_which(), env={}, quota_ledger_path=tmp_path / "q.jsonl")
-        assert _row(rows, "codex")["routable"] == "auto"
-        assert _row(rows, "kiro")["routable"] == "explicit"
+        assert _row(rows, "claude")["routable"] == "auto"
+        assert _row(rows, "antigravity")["routable"] == "blocked"
+        assert _row(rows, "codex")["routable"] == "blocked"
+        assert _row(rows, "opencode")["routable"] == "blocked"
+        assert _row(rows, "kiro")["routable"] == "blocked"
         assert _row(rows, "copilot")["routable"] == "metered"
 
     def test_unobserved_by_default(self, tmp_path):

@@ -64,7 +64,7 @@ def _mark_provider_dispatch(reservation: ResearchCostReservation) -> None:
 
 
 def _refund_before_dispatch(reservation: ResearchCostReservation) -> None:
-    refund_research_cost(reservation)
+    refund_research_cost(reservation, provider_work_did_not_run=True)
 
 
 def _settle_conservative(
@@ -589,10 +589,9 @@ async def execute_reserved_fixed_cost_async_call(
 ) -> T:
     """Run one non-token-priced work unit under durable reserve/mark/settle.
 
-    Skill tools and similar side effects have tier or fixed estimates rather
-    than provider token usage. ``cost_from_result`` returns the amount to
-    settle after success (clamped to ``[0, hold]``). Exceptions after dispatch
-    still consume the full hold conservatively.
+    Skill tools and similar side effects have explicit maximum envelopes.
+    ``cost_from_result`` returns the amount to settle after success. Exceptions
+    or usage above the authorized envelope consume the full hold conservatively.
     """
     if isinstance(max_cost_per_job, bool) or not isinstance(max_cost_per_job, (int, float)):
         raise ValueError("max_cost_per_job must be a positive finite number")
@@ -640,7 +639,16 @@ async def execute_reserved_fixed_cost_async_call(
             operation_error=ValueError("cost_from_result must return a finite non-negative number"),
         )
 
-    settled = min(float(reservation.estimated_cost), raw_cost)
+    if raw_cost > reservation.estimated_cost:
+        await _settle_after_async_error(
+            reservation,
+            source=source,
+            reason="reported_cost_exceeds_reserved_ceiling",
+            on_settled=on_settled,
+            operation_error=ValueError("reported cost exceeds reserved ceiling"),
+        )
+
+    settled = raw_cost
     await _settle_response_async(
         reservation,
         actual_cost=settled,

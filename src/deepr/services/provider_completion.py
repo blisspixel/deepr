@@ -1,6 +1,6 @@
 """Shared durable finalization for provider-completed research jobs."""
 
-from typing import Any
+from typing import Any, cast
 
 from deepr.experts.research_cost_gate import (
     reconcile_research_cost_from_ledger,
@@ -8,6 +8,7 @@ from deepr.experts.research_cost_gate import (
     restore_research_cost_reservation,
     settle_research_cost,
 )
+from deepr.providers.base import UsageStats
 from deepr.queue.base import JobStatus, ResearchJob
 
 
@@ -20,6 +21,30 @@ def _response_content(response: Any) -> str:
             if item.get("type") in {"output_text", "text"} and item.get("text"):
                 content += str(item["text"]) + "\n"
     return content
+
+
+def authoritative_completion_usage(job: ResearchJob, response: Any) -> tuple[float | None, int]:
+    """Resolve completion usage against the job's canonical pricing model."""
+    usage = getattr(response, "usage", None)
+    if usage is None:
+        return None, 0
+    tokens = max(0, int(getattr(usage, "total_tokens", 0) or 0))
+    if str(job.provider).lower() != "azure":
+        return getattr(usage, "cost", None), tokens
+
+    input_tokens = max(0, int(getattr(usage, "input_tokens", 0) or 0))
+    output_tokens = max(0, int(getattr(usage, "output_tokens", 0) or 0))
+    if input_tokens + output_tokens <= 0:
+        return None, tokens
+    metadata = job.metadata if isinstance(job.metadata, dict) else {}
+    canonical_model = str(metadata.get("cost_reservation_model") or job.model)
+    cost = UsageStats.calculate_cost_with_cached_input(
+        input_tokens,
+        output_tokens,
+        canonical_model,
+        cached_input_tokens=max(0, int(getattr(usage, "cached_input_tokens", 0) or 0)),
+    )
+    return cost, tokens
 
 
 async def finalize_provider_completion(
@@ -44,9 +69,7 @@ async def finalize_provider_completion(
             "provider_job_id": job.provider_job_id,
         },
     )
-    usage = response.usage
-    cost = usage.cost if usage else None
-    tokens = usage.total_tokens if usage else 0
+    cost, tokens = authoritative_completion_usage(job, response)
     reservation = restore_research_cost_reservation(
         job_id=job.id,
         metadata=job.metadata,
@@ -62,11 +85,11 @@ async def finalize_provider_completion(
             source=source,
         )
     else:
-        record_unreserved_research_cost(
+        cost = record_unreserved_research_cost(
             job_id=job.id,
             provider=job.provider,
             model=job.model,
-            actual_cost=float(cost or 0),
+            actual_cost=cost,
             tokens=tokens,
             request_id=str(job.provider_job_id or ""),
             source=source,
@@ -93,7 +116,7 @@ async def finalize_provider_completion(
     updated = await queue.get_job(job.id)
     if updated is None:
         raise RuntimeError("completed job disappeared from the queue")
-    return updated
+    return cast(ResearchJob, updated)
 
 
-__all__ = ["finalize_provider_completion"]
+__all__ = ["authoritative_completion_usage", "finalize_provider_completion"]

@@ -20,6 +20,11 @@ import pytest
 
 sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent))
 
+from deepr.mcp.request_context import (
+    MCPRequestIdentity,
+    bind_mcp_request_identity,
+    reset_mcp_request_identity,
+)
 from deepr.mcp.server import DeeprMCPServer
 from deepr.mcp.state.job_manager import JobPhase
 from deepr.providers.base import ResearchResponse, UsageStats
@@ -37,6 +42,14 @@ def _provider_response(status: str = "completed", cost: float = 0.0, metadata: d
         usage=UsageStats(cost=cost),
         metadata=metadata or {},
     )
+
+
+def _lifecycle_owner(*, settled_cost: float = 0.0, cancel_confirmed: bool = True) -> MagicMock:
+    owner = MagicMock()
+    owner.settle_completion_cost.return_value = settled_cost
+    owner.cancel_job = AsyncMock(return_value=cancel_confirmed)
+    owner.release_terminal_job = AsyncMock()
+    return owner
 
 
 @pytest.fixture
@@ -64,13 +77,14 @@ def mock_server():
         yield server
 
 
-def _state(phase=JobPhase.EXECUTING, cost=0.5, progress=0.3, metadata=None):
+def _state(phase=JobPhase.EXECUTING, cost=0.5, progress=0.3, metadata=None, owner_id=None):
     s = MagicMock()
     s.phase = phase
     s.cost_so_far = cost
     s.progress = progress
     s.started_at = datetime(2026, 5, 17, 12, 0, 0)
     s.metadata = metadata or {}
+    s.owner_id = owner_id
     return s
 
 
@@ -140,6 +154,11 @@ class TestDeeprResearch:
         orchestrator = MagicMock()
         orchestrator.submit_research = AsyncMock(return_value="job_abc")
         mock_server.resource_handler.jobs.get_state.return_value = _state(metadata={})
+        identity = MCPRequestIdentity.http_scoped_key(
+            key_id="owner",
+            expert_allowlist=(),
+            peer_is_loopback=True,
+        )
         with (
             patch("deepr.experts.cost_safety.get_cost_safety_manager", return_value=cost_safety),
             patch.object(mock_server, "_get_api_key", return_value="k"),
@@ -149,11 +168,17 @@ class TestDeeprResearch:
             patch("deepr.mcp.server.ReportGenerator"),
             patch("deepr.mcp.server.ResearchOrchestrator", return_value=orchestrator),
         ):
-            out = await mock_server.deepr_research(prompt="p", model="o4-mini")
+            token = bind_mcp_request_identity(identity)
+            try:
+                out = await mock_server.deepr_research(prompt="p", model="o4-mini")
+            finally:
+                reset_mcp_request_identity(token)
         assert out["job_id"] == "job_abc"
         assert out["status"] == "submitted"
         assert "trace_id" in out
         assert out["daily_remaining"] == 99.0
+        assert mock_server.resource_handler.jobs.create_job.await_args.kwargs["owner_id"] == identity.owner_id
+        assert mock_server.active_jobs["job_abc"]["orchestrator"] is orchestrator
 
     @pytest.mark.asyncio
     async def test_unexpected_exception_mapped_to_internal_error(self, mock_server):
@@ -192,6 +217,41 @@ class TestCheckStatus:
         out = await mock_server.deepr_check_status("j1")
         assert out["status"] == "in_progress"
         assert out["cost_so_far"] == 0.25
+
+    @pytest.mark.asyncio
+    async def test_scoped_key_cannot_poll_another_owners_job(self, mock_server):
+        victim = MCPRequestIdentity.http_scoped_key(
+            key_id="victim",
+            expert_allowlist=(),
+            peer_is_loopback=True,
+        )
+        attacker = MCPRequestIdentity.http_scoped_key(
+            key_id="attacker",
+            expert_allowlist=(),
+            peer_is_loopback=True,
+        )
+        mock_server.resource_handler.jobs.get_state.return_value = _state(owner_id=victim.owner_id)
+        provider = MagicMock()
+        provider.get_status = AsyncMock(return_value=_provider_response(status="completed"))
+        mock_server.active_jobs["victim-job"] = {"provider_instance": provider}
+
+        token = bind_mcp_request_identity(attacker)
+        try:
+            out = await mock_server.deepr_check_status("victim-job")
+        finally:
+            reset_mcp_request_identity(token)
+
+        assert out["error_code"] == "JOB_NOT_FOUND"
+        provider.get_status.assert_not_awaited()
+
+        token = bind_mcp_request_identity(victim)
+        try:
+            own_out = await mock_server.deepr_check_status("victim-job")
+        finally:
+            reset_mcp_request_identity(token)
+
+        assert own_out["status"] == "completed"
+        provider.get_status.assert_awaited_once_with("victim-job")
 
     @pytest.mark.asyncio
     async def test_provider_exception_falls_back_to_state(self, mock_server):
@@ -233,7 +293,10 @@ class TestGetResult:
     async def test_in_progress(self, mock_server):
         prov = MagicMock()
         prov.get_status = AsyncMock(return_value=_provider_response(status="in_progress"))
-        mock_server.active_jobs["j1"] = {"provider_instance": prov}
+        mock_server.active_jobs["j1"] = {
+            "provider_instance": prov,
+            "orchestrator": _lifecycle_owner(),
+        }
         out = await mock_server.deepr_get_result("j1")
         assert out["status"] == "in_progress"
         assert "Job not yet complete" in out["message"]
@@ -244,7 +307,8 @@ class TestGetResult:
         prov.get_status = AsyncMock(
             return_value=_provider_response(status="completed", cost=0.42, metadata={"x": 1, "sources": ["a", "b"]})
         )
-        mock_server.active_jobs["j1"] = {"provider_instance": prov}
+        lifecycle = _lifecycle_owner(settled_cost=0.42)
+        mock_server.active_jobs["j1"] = {"provider_instance": prov, "orchestrator": lifecycle}
         # Report text comes from ReportGenerator.extract_text_from_response(response).
         with patch("deepr.mcp.server.ReportGenerator") as rg:
             rg.return_value.extract_text_from_response.return_value = "short report"
@@ -253,6 +317,8 @@ class TestGetResult:
         assert out["markdown_report"] == "short report"
         assert out["cost_final"] == 0.42
         assert out["sources"] == ["a", "b"]
+        lifecycle.settle_completion_cost.assert_called_once()
+        lifecycle.release_terminal_job.assert_awaited_once_with("j1")
         assert "j1" not in mock_server.active_jobs  # cleaned up
 
     @pytest.mark.asyncio
@@ -260,7 +326,8 @@ class TestGetResult:
         prov = MagicMock()
         prov.get_status = AsyncMock(return_value=_provider_response(status="completed", cost=1.5))
         big_report = "A" * 200 + "\n## Section\n" + "B" * 200_000
-        mock_server.active_jobs["j2"] = {"provider_instance": prov}
+        lifecycle = _lifecycle_owner(settled_cost=1.5)
+        mock_server.active_jobs["j2"] = {"provider_instance": prov, "orchestrator": lifecycle}
         with (
             patch.dict(os.environ, {"DEEPR_MAX_INLINE_CHARS": "1000"}),
             patch("deepr.mcp.server.ReportGenerator") as rg,
@@ -276,9 +343,67 @@ class TestGetResult:
     async def test_exception_wrapped(self, mock_server):
         prov = MagicMock()
         prov.get_status = AsyncMock(side_effect=RuntimeError("boom"))
-        mock_server.active_jobs["j1"] = {"provider_instance": prov}
+        mock_server.active_jobs["j1"] = {
+            "provider_instance": prov,
+            "orchestrator": _lifecycle_owner(),
+        }
         out = await mock_server.deepr_get_result("j1")
         assert out["error_code"] == "RESULT_FETCH_FAILED"
+
+    @pytest.mark.asyncio
+    async def test_missing_lifecycle_owner_does_not_finalize(self, mock_server):
+        prov = MagicMock()
+        prov.get_status = AsyncMock()
+        mock_server.active_jobs["j1"] = {"provider_instance": prov}
+
+        out = await mock_server.deepr_get_result("j1")
+
+        assert out["error_code"] == "PROVIDER_LIFECYCLE_LOST"
+        prov.get_status.assert_not_awaited()
+        mock_server.resource_handler.jobs.update_phase.assert_not_awaited()
+        assert "j1" in mock_server.active_jobs
+
+    @pytest.mark.asyncio
+    async def test_settlement_failure_retains_job_for_retry(self, mock_server):
+        prov = MagicMock()
+        prov.get_status = AsyncMock(return_value=_provider_response(status="completed", cost=0.42))
+        lifecycle = _lifecycle_owner()
+        lifecycle.settle_completion_cost.side_effect = OSError("ledger unavailable")
+        mock_server.active_jobs["j1"] = {"provider_instance": prov, "orchestrator": lifecycle}
+
+        out = await mock_server.deepr_get_result("j1")
+
+        assert out["error_code"] == "RESULT_FETCH_FAILED"
+        mock_server.resource_handler.jobs.update_phase.assert_not_awaited()
+        lifecycle.release_terminal_job.assert_not_awaited()
+        assert "j1" in mock_server.active_jobs
+
+    @pytest.mark.asyncio
+    async def test_scoped_key_cannot_retrieve_another_owners_result(self, mock_server):
+        victim = MCPRequestIdentity.http_scoped_key(
+            key_id="victim",
+            expert_allowlist=(),
+            peer_is_loopback=True,
+        )
+        attacker = MCPRequestIdentity.http_scoped_key(
+            key_id="attacker",
+            expert_allowlist=(),
+            peer_is_loopback=True,
+        )
+        mock_server.resource_handler.jobs.get_state.return_value = _state(owner_id=victim.owner_id)
+        provider = MagicMock()
+        provider.get_status = AsyncMock(return_value=_provider_response(status="completed"))
+        mock_server.active_jobs["victim-job"] = {"provider_instance": provider}
+
+        token = bind_mcp_request_identity(attacker)
+        try:
+            out = await mock_server.deepr_get_result("victim-job")
+        finally:
+            reset_mcp_request_identity(token)
+
+        assert out["error_code"] == "JOB_NOT_FOUND"
+        provider.get_status.assert_not_awaited()
+        assert "victim-job" in mock_server.active_jobs
 
 
 # ---------------------------------------------------------------------- #
@@ -361,10 +486,83 @@ class TestCancelJob:
     @pytest.mark.asyncio
     async def test_cancel_running(self, mock_server):
         mock_server.resource_handler.jobs.get_state.return_value = _state(phase=JobPhase.EXECUTING)
-        mock_server.active_jobs["job"] = {"provider_instance": MagicMock()}
+        lifecycle = _lifecycle_owner()
+        mock_server.active_jobs["job"] = {
+            "provider_instance": MagicMock(),
+            "orchestrator": lifecycle,
+        }
         out = await mock_server.deepr_cancel_job("job")
         assert out["status"] == "cancelled"
+        lifecycle.cancel_job.assert_awaited_once_with("job", retain_tracking=True)
+        lifecycle.release_terminal_job.assert_awaited_once_with("job")
         assert "job" not in mock_server.active_jobs
+
+    @pytest.mark.asyncio
+    async def test_missing_lifecycle_owner_does_not_cancel_locally(self, mock_server):
+        mock_server.resource_handler.jobs.get_state.return_value = _state(phase=JobPhase.EXECUTING)
+        mock_server.active_jobs["job"] = {"provider_instance": MagicMock()}
+
+        out = await mock_server.deepr_cancel_job("job")
+
+        assert out["error_code"] == "CANCELLATION_UNAVAILABLE"
+        mock_server.resource_handler.jobs.update_phase.assert_not_awaited()
+        assert "job" in mock_server.active_jobs
+
+    @pytest.mark.asyncio
+    async def test_unconfirmed_provider_cancel_keeps_job_running(self, mock_server):
+        mock_server.resource_handler.jobs.get_state.return_value = _state(phase=JobPhase.EXECUTING)
+        lifecycle = _lifecycle_owner(cancel_confirmed=False)
+        mock_server.active_jobs["job"] = {"provider_instance": MagicMock(), "orchestrator": lifecycle}
+
+        out = await mock_server.deepr_cancel_job("job")
+
+        assert out["error_code"] == "CANCELLATION_NOT_CONFIRMED"
+        mock_server.resource_handler.jobs.update_phase.assert_not_awaited()
+        lifecycle.release_terminal_job.assert_not_awaited()
+        assert "job" in mock_server.active_jobs
+
+    @pytest.mark.asyncio
+    async def test_cancellation_settlement_failure_keeps_job_running(self, mock_server):
+        mock_server.resource_handler.jobs.get_state.return_value = _state(phase=JobPhase.EXECUTING)
+        lifecycle = _lifecycle_owner()
+        lifecycle.cancel_job.side_effect = OSError("ledger unavailable")
+        mock_server.active_jobs["job"] = {"provider_instance": MagicMock(), "orchestrator": lifecycle}
+
+        out = await mock_server.deepr_cancel_job("job")
+
+        assert out["error_code"] == "CANCELLATION_FAILED"
+        mock_server.resource_handler.jobs.update_phase.assert_not_awaited()
+        lifecycle.release_terminal_job.assert_not_awaited()
+        assert "job" in mock_server.active_jobs
+
+    @pytest.mark.asyncio
+    async def test_scoped_key_cannot_cancel_another_owners_job(self, mock_server):
+        victim = MCPRequestIdentity.http_scoped_key(
+            key_id="victim",
+            expert_allowlist=(),
+            peer_is_loopback=True,
+        )
+        attacker = MCPRequestIdentity.http_scoped_key(
+            key_id="attacker",
+            expert_allowlist=(),
+            peer_is_loopback=True,
+        )
+        mock_server.resource_handler.jobs.get_state.return_value = _state(
+            phase=JobPhase.EXECUTING,
+            owner_id=victim.owner_id,
+        )
+        mock_server.active_jobs["victim-job"] = {"provider_instance": MagicMock()}
+
+        token = bind_mcp_request_identity(attacker)
+        try:
+            out = await mock_server.deepr_cancel_job("victim-job")
+        finally:
+            reset_mcp_request_identity(token)
+
+        assert out["error_code"] == "JOB_NOT_FOUND"
+        mock_server.resource_handler.jobs.update_phase.assert_not_awaited()
+        mock_server.resource_handler.persist_job.assert_not_called()
+        assert "victim-job" in mock_server.active_jobs
 
 
 # ---------------------------------------------------------------------- #

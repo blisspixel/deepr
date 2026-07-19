@@ -35,7 +35,7 @@ def _fake_which(*present):
     return lambda exe: f"/usr/bin/{exe}" if exe in found else None
 
 
-def _record_exhausted(path, backend_id="codex", *, reset_at=None):
+def _record_exhausted(path, backend_id="claude", *, reset_at=None):
     QuotaLedger(path).record_event(
         QuotaLedgerEvent(
             backend_id=backend_id,
@@ -49,7 +49,7 @@ def _record_exhausted(path, backend_id="codex", *, reset_at=None):
     )
 
 
-def _record_quota_available(path, backend_id="codex", *, remaining=10.0):
+def _record_quota_available(path, backend_id="claude", *, remaining=10.0):
     QuotaLedger(path).record_event(
         QuotaLedgerEvent(
             backend_id=backend_id,
@@ -63,7 +63,7 @@ def _record_quota_available(path, backend_id="codex", *, remaining=10.0):
     )
 
 
-def _admit_plan(path, backend="codex", task_class="sync"):
+def _admit_plan(path, backend="claude", task_class="sync"):
     record_admission(f"plan:{backend}", task_class, now=T0, path=path)
 
 
@@ -152,17 +152,22 @@ class TestChoose:
 
 class TestExplicitPlanQuota:
     def test_clean_env_resolves_to_plan(self):
-        choice = choose_plan_quota_backend("codex", env={})
+        choice = choose_plan_quota_backend("claude", env={})
         assert choice.backend == BACKEND_PLAN_QUOTA
         assert choice.is_plan_quota
-        assert choice.plan_backend_id == "codex"
+        assert choice.plan_backend_id == "claude"
 
-    def test_api_key_present_uses_sanitized_plan_child_env(self):
-        choice = choose_plan_quota_backend("codex", env={"OPENAI_API_KEY": "sk-x"})
-        assert choice.backend == BACKEND_PLAN_QUOTA
-        assert choice.is_plan_quota
-        assert choice.plan_backend_id == "codex"
-        assert "removed OPENAI_API_KEY from child env" in choice.reason
+    def test_api_key_present_is_refused(self):
+        choice = choose_plan_quota_backend("claude", env={"ANTHROPIC_API_KEY": "sk-x"})
+        assert choice.backend == BACKEND_API_METERED
+        assert choice.plan_backend_id is None
+        assert "ANTHROPIC_API_KEY" in choice.reason
+
+    def test_native_tool_backend_is_refused(self):
+        choice = choose_plan_quota_backend("codex", env={})
+        assert choice.backend == BACKEND_API_METERED
+        assert choice.plan_backend_id is None
+        assert "native read and shell tools" in choice.reason
 
     def test_unknown_backend_falls_to_metered(self):
         choice = choose_plan_quota_backend("bogus", env={})
@@ -200,7 +205,7 @@ class TestPlanQuotaAutoRung:
 
     def test_not_admitted_stays_metered(self, tmp_path):
         # The honest default: installed + plan auth but no admission -> metered.
-        choice = self._auto(which=_fake_which("codex"), path=tmp_path, admit=False)
+        choice = self._auto(which=_fake_which("claude"), path=tmp_path, admit=False)
         assert choice.backend == BACKEND_API_METERED
 
     def test_not_installed_falls_to_metered(self, tmp_path):
@@ -208,55 +213,58 @@ class TestPlanQuotaAutoRung:
         assert choice.backend == BACKEND_API_METERED
 
     def test_admitted_and_installed_without_quota_stays_metered(self, tmp_path):
-        choice = self._auto(which=_fake_which("codex"), path=tmp_path)
+        choice = self._auto(which=_fake_which("claude"), path=tmp_path)
         assert choice.backend == BACKEND_API_METERED
 
     def test_admitted_installed_and_quota_observed_auto_routes(self, tmp_path):
-        _record_quota_available(tmp_path / "quota.jsonl", "codex")
-        choice = self._auto(which=_fake_which("codex"), path=tmp_path)
+        _record_quota_available(tmp_path / "quota.jsonl", "claude")
+        choice = self._auto(which=_fake_which("claude"), path=tmp_path)
         assert choice.backend == BACKEND_PLAN_QUOTA
-        assert choice.plan_backend_id == "codex"
+        assert choice.plan_backend_id == "claude"
         assert "operator-admitted, quota-observed" in choice.reason
 
     def test_gap_fill_task_class_uses_matching_plan_admission(self, tmp_path):
         adm = tmp_path / "adm.jsonl"
         _admit_plan(adm, task_class="gap_fill")
-        _record_quota_available(tmp_path / "quota.jsonl", "codex")
+        _record_quota_available(tmp_path / "quota.jsonl", "claude")
         choice = choose_maintenance_backend(
             "gap_fill",
             now=T0,
             available_models_fn=lambda: [],
             admissions_path=adm,
-            which=_fake_which("codex"),
+            which=_fake_which("claude"),
             plan_env={},
             quota_ledger_path=tmp_path / "quota.jsonl",
         )
         assert choice.backend == BACKEND_PLAN_QUOTA
-        assert choice.plan_backend_id == "codex"
+        assert choice.plan_backend_id == "claude"
 
     def test_exhausted_future_reset_stays_metered(self, tmp_path):
-        _record_exhausted(tmp_path / "quota.jsonl", "codex", reset_at=datetime(2026, 6, 13, 3, tzinfo=UTC))
-        choice = self._auto(which=_fake_which("codex"), path=tmp_path)
+        _record_exhausted(tmp_path / "quota.jsonl", "claude", reset_at=datetime(2026, 6, 13, 3, tzinfo=UTC))
+        choice = self._auto(which=_fake_which("claude"), path=tmp_path)
         assert choice.backend == BACKEND_API_METERED
 
     def test_exhausted_with_unknown_reset_stays_metered(self, tmp_path):
-        _record_exhausted(tmp_path / "quota.jsonl", "codex", reset_at=None)
-        choice = self._auto(which=_fake_which("codex"), path=tmp_path)
+        _record_exhausted(tmp_path / "quota.jsonl", "claude", reset_at=None)
+        choice = self._auto(which=_fake_which("claude"), path=tmp_path)
         assert choice.backend == BACKEND_API_METERED
 
     def test_exhausted_past_reset_re_routes(self, tmp_path):
         # Once the observed reset has passed, the backend still needs a fresh
         # trusted quota observation before auto-routing.
-        _record_exhausted(tmp_path / "quota.jsonl", "codex", reset_at=datetime(2026, 6, 12, 23, tzinfo=UTC))
-        _record_quota_available(tmp_path / "quota.jsonl", "codex")
-        choice = self._auto(which=_fake_which("codex"), path=tmp_path)
+        _record_exhausted(tmp_path / "quota.jsonl", "claude", reset_at=datetime(2026, 6, 12, 23, tzinfo=UTC))
+        _record_quota_available(tmp_path / "quota.jsonl", "claude")
+        choice = self._auto(which=_fake_which("claude"), path=tmp_path)
         assert choice.backend == BACKEND_PLAN_QUOTA
 
-    def test_api_key_env_is_sanitized_even_when_admitted(self, tmp_path):
-        _record_quota_available(tmp_path / "quota.jsonl", "codex")
-        choice = self._auto(which=_fake_which("codex"), path=tmp_path, plan_env={"OPENAI_API_KEY": "sk-x"})
-        assert choice.backend == BACKEND_PLAN_QUOTA
-        assert choice.plan_backend_id == "codex"
+    def test_api_key_env_is_refused_even_when_admitted(self, tmp_path):
+        _record_quota_available(tmp_path / "quota.jsonl", "claude")
+        choice = self._auto(
+            which=_fake_which("claude"),
+            path=tmp_path,
+            plan_env={"ANTHROPIC_API_KEY": "sk-x"},
+        )
+        assert choice.backend == BACKEND_API_METERED
 
     def test_metered_at_margin_cli_not_auto_routed(self, tmp_path):
         # copilot is metered-per-use, so it is not auto-routable even if a stray

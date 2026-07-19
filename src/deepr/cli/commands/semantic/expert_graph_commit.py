@@ -19,6 +19,7 @@ from deepr.experts.graph_commit_apply import (
     GRAPH_COMMIT_APPLY_SCHEMA_VERSION,
     apply_graph_commit_envelope,
 )
+from deepr.experts.graph_commit_provenance import verify_graph_commit_provenance
 from deepr.experts.loop_lock import expert_verb_lock
 from deepr.experts.metacognition import MetaCognitionTracker
 from deepr.experts.profile import ExpertStore
@@ -127,6 +128,40 @@ def _emit_human_result(result: dict[str, Any]) -> None:
         click.echo("Failure reasons: " + ", ".join(str(item) for item in failures))
 
 
+def _provenance_blocked_result(profile: Any, envelope_path: Path, payload: dict[str, Any]) -> dict[str, Any] | None:
+    expert_root = ExpertStore().find_existing_dir(profile.name)
+    if expert_root is None:
+        raise click.ClickException(f"Expert storage directory not found: {profile.name}")
+    provenance = verify_graph_commit_provenance(
+        expert_root,
+        envelope_path=envelope_path,
+        envelope=payload,
+        expected_expert=profile.name,
+    )
+    if provenance.valid:
+        return None
+    result = apply_graph_commit_envelope(
+        payload,
+        BeliefStore(profile.name),
+        gap_tracker=MetaCognitionTracker(profile.name),
+        dry_run=True,
+    )
+    for reason in provenance.failure_reasons or ("untrusted_graph_commit_provenance",):
+        result = _blocked_result(result, reason)
+    return result
+
+
+def _enforce_provenance(profile: Any, envelope_path: Path, payload: dict[str, Any], *, json_output: bool) -> None:
+    failure = _provenance_blocked_result(profile, envelope_path, payload)
+    if failure is None:
+        return
+    if json_output:
+        click.echo(json.dumps(failure, indent=2))
+    else:
+        _emit_human_result(failure)
+    raise click.exceptions.Exit(2)
+
+
 @expert.command(name="apply-graph-commit")
 @click.argument("name")
 @click.argument("envelope", type=click.Path(exists=True, dir_okay=False, path_type=Path))
@@ -137,6 +172,7 @@ def expert_apply_graph_commit(name: str, envelope: Path, dry_run: bool, yes: boo
     """Apply a verified graph commit envelope to an expert belief graph."""
     profile = _load_profile_or_exit(name)
     payload = _load_json_file(envelope)
+    _enforce_provenance(profile, envelope, payload, json_output=json_output)
 
     with expert_verb_lock(profile.name, "graph-commit-apply") as acquired:
         if not acquired:

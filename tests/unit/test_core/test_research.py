@@ -23,7 +23,7 @@ from deepr.core.research import (
     MODEL_COST_ESTIMATES,
     ResearchOrchestrator,
 )
-from deepr.experts.research_cost_gate import refund_research_cost
+from deepr.experts.research_cost_gate import ResearchCostReservation, settle_research_cost
 from deepr.experts.research_reservation_store import ResearchReservationStore
 from deepr.observability.cost_ledger import CostLedger
 
@@ -206,7 +206,11 @@ class TestBudgetValidation:
         assert reserve.call_args.kwargs["prompt"] == request.prompt
         assert request.prompt.endswith("Hi")
         tracking = orchestrator._cost_tracking.pop(result)
-        refund_research_cost(tracking["reservation"])
+        settle_research_cost(
+            tracking["reservation"],
+            actual_cost=0.0,
+            source="test.research.fake_provider_cleanup",
+        )
 
     @pytest.mark.asyncio
     async def test_completion_settles_reserved_cost_with_actual_usage(self, orchestrator):
@@ -446,6 +450,8 @@ class TestErrorHandling:
         # Mock empty text extraction
         orchestrator.report_generator.extract_text_from_response = MagicMock(return_value="")
 
+        orchestrator._cost_tracking["job-123"] = {}
+        orchestrator._settle_research_cost = MagicMock()
         with pytest.raises(ValueError) as exc_info:
             await orchestrator.process_completion("job-123")
 
@@ -460,12 +466,139 @@ class TestErrorHandling:
         # Mock successful cancellation
         orchestrator.provider.cancel_job = AsyncMock(return_value=True)
         orchestrator.provider.delete_vector_store = AsyncMock()
+        orchestrator._cost_tracking["job-123"] = {
+            "reservation": ResearchCostReservation(
+                job_id="job-123",
+                provider="openai",
+                model="o3-deep-research",
+                estimated_cost=0.5,
+                reservation_id="reservation-123",
+                manager=MagicMock(),
+            )
+        }
 
-        result = await orchestrator.cancel_job("job-123")
+        with patch("deepr.experts.research_cost_gate.settle_research_cost"):
+            result = await orchestrator.cancel_job("job-123")
 
         assert result is True
         orchestrator.provider.delete_vector_store.assert_called_once_with("vs-test-123")
         assert "job-123" not in orchestrator.active_vector_stores
+
+    @pytest.mark.asyncio
+    async def test_cancel_can_retain_settled_lifecycle_until_external_commit(self, orchestrator):
+        orchestrator.active_vector_stores["internal-job"] = "vs-test-123"
+        orchestrator.provider.cancel_job = AsyncMock(return_value=True)
+        orchestrator.provider.delete_vector_store = AsyncMock()
+        orchestrator._cost_tracking["provider-job"] = {
+            "internal_job_id": "internal-job",
+            "reservation": ResearchCostReservation(
+                job_id="internal-job",
+                provider="openai",
+                model="o3-deep-research",
+                estimated_cost=0.5,
+                reservation_id="reservation-123",
+                manager=MagicMock(),
+            ),
+        }
+
+        with patch("deepr.experts.research_cost_gate.settle_research_cost"):
+            assert await orchestrator.cancel_job("provider-job", retain_tracking=True) is True
+
+        assert "provider-job" in orchestrator._cost_tracking
+        orchestrator.provider.delete_vector_store.assert_not_awaited()
+
+        await orchestrator.release_terminal_job("provider-job")
+
+        orchestrator.provider.delete_vector_store.assert_awaited_once_with("vs-test-123")
+        assert "provider-job" not in orchestrator._cost_tracking
+
+    def test_completion_uses_estimate_when_provider_cost_is_not_finite(self, orchestrator):
+        reservation = ResearchCostReservation(
+            job_id="internal-job",
+            provider="openai",
+            model="o3-deep-research",
+            estimated_cost=0.5,
+            reservation_id="reservation-123",
+            manager=MagicMock(),
+        )
+        orchestrator._cost_tracking["provider-job"] = {
+            "reservation": reservation,
+            "estimated_cost": 0.5,
+        }
+        response = MagicMock(status="completed", usage=MagicMock(cost=float("nan"), output_tokens=10))
+
+        with patch("deepr.experts.research_cost_gate.settle_research_cost") as settle:
+            settled = orchestrator.settle_completion_cost(
+                "provider-job",
+                response,
+                source="test",
+            )
+
+        assert settled == 0.5
+        assert settle.call_args.kwargs["actual_cost"] == 0.5
+
+    @pytest.mark.asyncio
+    async def test_completion_retries_settlement_before_releasing_tracking(self, orchestrator):
+        response = MagicMock(status="completed", metadata={}, usage=MagicMock(cost=0.42, output_tokens=100))
+        orchestrator.provider.get_status = AsyncMock(return_value=response)
+        orchestrator.report_generator.extract_text_from_response.return_value = "answer"
+        orchestrator.report_generator.generate_reports = AsyncMock(return_value={"md": b"answer"})
+        orchestrator.storage.get_content_type.return_value = "text/markdown"
+        orchestrator.storage.save_report = AsyncMock()
+        orchestrator._cost_tracking["provider-job"] = {
+            "reservation": ResearchCostReservation(
+                job_id="internal-job",
+                provider="openai",
+                model="o3-deep-research",
+                estimated_cost=0.5,
+                reservation_id="reservation",
+                manager=MagicMock(),
+            ),
+            "estimated_cost": 0.5,
+        }
+
+        with patch(
+            "deepr.experts.research_cost_gate.settle_research_cost",
+            side_effect=[OSError("ledger unavailable"), None],
+        ) as settle:
+            with pytest.raises(OSError, match="ledger unavailable"):
+                await orchestrator.process_completion("provider-job")
+            assert "provider-job" in orchestrator._cost_tracking
+            orchestrator.storage.save_report.assert_not_awaited()
+
+            await orchestrator.process_completion("provider-job")
+
+        assert settle.call_count == 2
+        orchestrator.storage.save_report.assert_awaited_once()
+        assert "provider-job" not in orchestrator._cost_tracking
+
+    @pytest.mark.asyncio
+    async def test_cancel_retry_reuses_confirmed_provider_result_until_settled(self, orchestrator):
+        orchestrator.provider.cancel_job = AsyncMock(return_value=True)
+        orchestrator._cost_tracking["provider-job"] = {
+            "reservation": ResearchCostReservation(
+                job_id="internal-job",
+                provider="openai",
+                model="o3-deep-research",
+                estimated_cost=0.5,
+                reservation_id="reservation",
+                manager=MagicMock(),
+            )
+        }
+
+        with patch(
+            "deepr.experts.research_cost_gate.settle_research_cost",
+            side_effect=[OSError("ledger unavailable"), None],
+        ) as settle:
+            with pytest.raises(OSError, match="ledger unavailable"):
+                await orchestrator.cancel_job("provider-job")
+            assert orchestrator._cost_tracking["provider-job"]["cancellation_confirmed"] is True
+
+            assert await orchestrator.cancel_job("provider-job") is True
+
+        orchestrator.provider.cancel_job.assert_awaited_once_with("provider-job")
+        assert settle.call_count == 2
+        assert "provider-job" not in orchestrator._cost_tracking
 
 
 class TestModelCostEstimates:
@@ -654,7 +787,11 @@ class TestPropertyBasedValidation:
             result = asyncio.run(orchestrator.submit_research(prompt=prompt, model="o4-mini-deep-research"))
             assert result == "job-123"
             tracking = orchestrator._cost_tracking.pop(result)
-            refund_research_cost(tracking["reservation"])
+            settle_research_cost(
+                tracking["reservation"],
+                actual_cost=0.0,
+                source="test.research.fake_provider_cleanup",
+            )
 
     @pytest.mark.property
     @given(st.text(min_size=1, max_size=300).filter(lambda x: x.strip()))

@@ -20,6 +20,7 @@ from __future__ import annotations
 
 import json
 import logging
+import math
 from collections.abc import Awaitable, Callable, Mapping
 from datetime import UTC, datetime, timedelta
 from typing import TYPE_CHECKING, Any, Protocol, cast
@@ -115,11 +116,9 @@ def fresh_sources_unchanged(prior: dict[str, Any] | None, current: dict[str, Any
     Deterministic and form-only: it compares SHA-256 hashes of fetched source
     content, never their meaning. It fails safe toward "changed" - returning
     ``False`` whenever it cannot prove no-change (no prior pack, no hashable
-    current content, or any hash the prior run did not already have) - so a real
-    update is never skipped; the worst case is one wasted, already-gated
-    extraction. The model-side "no significant changes" reply is the second
-    backstop for semantic no-ops the hash cannot see. See
-    docs/design/change-detection-gate.md.
+    current content, or any hash the prior run did not already have). A model
+    may route a semantic no-op, but its assertion alone never advances
+    freshness. See docs/design/change-detection-gate.md.
     """
     current_hashes = source_pack_content_hashes(current)
     if not current_hashes:
@@ -270,6 +269,11 @@ class ExpertSyncEngine:
             apply_graph_commits: Apply compiled graph commit envelopes instead
                 of calling the legacy absorber. Requires injected claim services.
         """
+        if isinstance(budget, bool) or not isinstance(budget, (int, float)) or not math.isfinite(float(budget)):
+            raise ValueError("budget must be a finite non-negative number")
+        budget = float(budget)
+        if budget < 0.0:
+            raise ValueError("budget must be a finite non-negative number")
         started_at = datetime.now(UTC)
         result = SyncResult(expert_name=self.expert.name, started_at=started_at)
 
@@ -279,13 +283,28 @@ class ExpertSyncEngine:
 
         remaining = budget
         for sub in targets:
+            if (
+                isinstance(sub.budget, bool)
+                or not isinstance(sub.budget, (int, float))
+                or not math.isfinite(float(sub.budget))
+                or float(sub.budget) < 0.0
+            ):
+                raise ValueError(f"subscription budget for {sub.topic!r} must be a finite non-negative number")
+            allocation = min(float(sub.budget), remaining)
             outcome, spent = await self._sync_subscription(
                 sub,
-                budget=min(sub.budget, remaining),
+                budget=allocation,
                 started_at=started_at,
                 dry_run=dry_run,
                 apply_graph_commits=apply_graph_commits,
             )
+            if isinstance(spent, bool) or not isinstance(spent, (int, float)) or not math.isfinite(float(spent)):
+                raise RuntimeError(f"sync returned invalid spend for {sub.topic!r}")
+            spent = float(spent)
+            if spent < 0.0:
+                raise RuntimeError(f"sync returned invalid spend for {sub.topic!r}")
+            if spent > allocation + 1e-9:
+                raise RuntimeError(f"sync spend exceeded the allocated ceiling for {sub.topic!r}")
             remaining -= spent
             result.total_cost += spent
             result.outcomes.append(outcome)
@@ -353,7 +372,14 @@ class ExpertSyncEngine:
         except Exception as exc:
             return SyncOutcome(subscription.topic, "failed", detail=str(exc)), 0.0
 
-        cost = float(research.get("cost", 0.0) or 0.0)
+        try:
+            cost = float(research.get("cost", 0.0) or 0.0)
+        except (TypeError, ValueError) as exc:
+            raise RuntimeError(f"research returned invalid spend for {subscription.topic!r}") from exc
+        if not math.isfinite(cost) or cost < 0.0:
+            raise RuntimeError(f"research returned invalid spend for {subscription.topic!r}")
+        if cost > budget + 1e-9:
+            raise RuntimeError(f"research spend exceeded the allocated ceiling for {subscription.topic!r}")
         answer = (research.get("answer") or "").strip()
         current_pack = source_pack_from_research(research)
         source_pack_path, source_pack_manifest_path, source_note_path, source_count, context_mode = (
@@ -415,11 +441,7 @@ class ExpertSyncEngine:
             return outcome, cost
 
         if not answer or is_no_changes_answer(answer):
-            outcome = self._record_no_changes(
-                subscription,
-                cost,
-                advance_profile=bool(answer and source_pack_content_hashes(current_pack)),
-            )
+            outcome = self._unverified_no_changes(subscription, cost, answer_present=bool(answer))
             self._attach_source_pack_summary(
                 outcome, source_pack_path, source_pack_manifest_path, source_note_path, source_count, context_mode
             )
@@ -454,6 +476,19 @@ class ExpertSyncEngine:
         # outcome cost so the run budget and loop record no longer omit the
         # shared absorption step.
         return outcome, outcome.cost
+
+    @staticmethod
+    def _unverified_no_changes(subscription: Subscription, cost: float, *, answer_present: bool) -> SyncOutcome:
+        """Keep a subscription due when only model output claims no change."""
+        cause = "model reported no significant changes" if answer_present else "research returned an empty answer"
+        return SyncOutcome(
+            subscription.topic,
+            "failed",
+            cost=cost,
+            detail=f"{cause}, but source fingerprints did not independently verify it; freshness was not advanced",
+            error_code="unverified_no_changes",
+            retryable=True,
+        )
 
     async def _integrate_sync_answer(
         self,
@@ -726,17 +761,22 @@ class ExpertSyncEngine:
             domain=str(getattr(self.expert, "domain", "") or ""),
             generated_at=started_at.isoformat(),
         )
-        graph_dir = root / "sync_artifacts" / "graph_commit_envelopes"
-        graph_dir.mkdir(parents=True, exist_ok=True)
-        graph_path = graph_dir / f"{timestamp}_{slug(subscription.topic)}.json"
         try:
-            atomic_write_json(graph_path, graph_commit)
-        except OSError as exc:
-            logger.error("Could not write graph commit envelope for %s: %s", subscription.topic, exc)
+            from deepr.experts.graph_commit_provenance import persist_sync_graph_commit_envelope
+
+            graph_artifact = persist_sync_graph_commit_envelope(
+                root,
+                envelope_artifact=f"sync_artifacts/graph_commit_envelopes/{timestamp}_{slug(subscription.topic)}.json",
+                envelope=graph_commit,
+                claim_extraction=claim_extraction,
+                claim_verification=verification,
+            )
+        except Exception as exc:
+            logger.error("Could not persist graph commit provenance for %s: %s", subscription.topic, exc)
             return ClaimCompilationOutcome(
                 claim_verification_artifact=verification_artifact,
                 cost=verification_cost,
-                detail=f"graph commit envelope artifact failed: {exc}",
+                detail=f"graph commit provenance persistence failed: {exc}",
             )
 
         detail = ""
@@ -751,7 +791,7 @@ class ExpertSyncEngine:
                 detail = f"claim verification {summary.get('status', 'blocked')}: {reasons}"
         return ClaimCompilationOutcome(
             claim_verification_artifact=verification_artifact,
-            graph_commit_envelope_artifact=graph_path.relative_to(root).as_posix(),
+            graph_commit_envelope_artifact=graph_artifact,
             graph_commit_envelope=graph_commit,
             cost=verification_cost,
             detail=detail,
@@ -765,83 +805,18 @@ class ExpertSyncEngine:
         cost: float,
         started_at: datetime,
     ) -> SyncOutcome:
-        graph_commit = claim_compile.graph_commit_envelope
-        if not claim_compile.graph_commit_envelope_artifact or not isinstance(graph_commit, dict):
-            return SyncOutcome(
-                subscription.topic,
-                "failed",
-                cost=cost,
-                detail="graph commit apply failed: compiled graph commit envelope required",
-                graph_commit_apply_status="blocked",
-            )
+        from deepr.experts.sync_graph_commit import apply_compiled_sync_graph_commit
 
-        try:
-            from deepr.experts.graph_commit_apply import apply_graph_commit_envelope
-            from deepr.experts.loop_lock import expert_verb_lock
-
-            with expert_verb_lock(self.expert.name, "graph-commit-apply") as acquired:
-                if not acquired:
-                    return SyncOutcome(
-                        subscription.topic,
-                        "failed",
-                        cost=cost,
-                        detail="graph commit apply failed: another graph commit apply is already running",
-                        graph_commit_apply_status="blocked",
-                    )
-                apply_result = apply_graph_commit_envelope(
-                    graph_commit,
-                    self.belief_store,
-                    gap_tracker=self._get_metacognition_tracker(),
-                    dry_run=False,
-                    generated_at=started_at.isoformat(),
-                )
-        except Exception as exc:
-            return SyncOutcome(
-                subscription.topic,
-                "failed",
-                cost=cost,
-                detail=f"graph commit apply failed: {exc}",
-                graph_commit_apply_status="blocked",
-            )
-
-        summary = apply_result.get("summary", {}) if isinstance(apply_result.get("summary"), dict) else {}
-        status = str(summary.get("status", "blocked") or "blocked")
-        applied_writes = int(nonnegative_float(summary.get("applied_write_count", 0)))
-        blocked_operations = int(nonnegative_float(summary.get("blocked_operation_count", 0)))
-        envelope_summary = graph_commit.get("summary", {})
-        if not isinstance(envelope_summary, dict):
-            envelope_summary = {}
-        blocked_decisions = int(nonnegative_float(envelope_summary.get("blocked_decision_count", 0)))
-        detail = ""
-        if status == "blocked":
-            reasons = ", ".join(str(item) for item in summary.get("failure_reasons", []) or []) or "blocked"
-            detail = f"graph commit apply blocked: {reasons}"
-
-        apply_artifact = self._write_graph_commit_apply_artifact(subscription, apply_result, started_at)
-        if apply_artifact is None:
-            detail = self._append_detail(detail, "graph commit apply artifact failed")
-
-        sync_status = "synced" if status in {"applied", "already_applied"} and apply_artifact is not None else "failed"
-        observed_at = None
-        if sync_status == "synced":
-            observed_at = datetime.now(UTC)
-            subscription.last_synced = observed_at
-            self.subscriptions.save()
-            if applied_writes > 0 or status == "already_applied":
-                advance_knowledge_freshness(self.expert, observed_at)
-            else:
-                observed_at = None
-
-        return SyncOutcome(
-            subscription.topic,
-            sync_status,
+        return apply_compiled_sync_graph_commit(
+            expert=self.expert,
+            subscriptions=self.subscriptions,
+            belief_store=self.belief_store,
+            tracker_factory=self._get_metacognition_tracker,
+            write_apply_artifact=self._write_graph_commit_apply_artifact,
+            subscription=subscription,
+            claim_compile=claim_compile,
             cost=cost,
-            absorbed=applied_writes,
-            blocked=blocked_operations + blocked_decisions,
-            detail=detail,
-            graph_commit_apply_artifact=apply_artifact or "",
-            graph_commit_apply_status=status,
-            knowledge_observed_at=observed_at,
+            started_at=started_at,
         )
 
     def _write_graph_commit_apply_artifact(

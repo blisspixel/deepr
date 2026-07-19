@@ -81,20 +81,49 @@ async function readBoundedBody(request) {
   }
 
   const contentLength = request.headers.get("Content-Length");
-  if (contentLength !== null && Number(contentLength) > MAX_BODY_BYTES) {
-    return {
-      error: jsonError(413, "REQUEST_TOO_LARGE", "MCP request body exceeds 1 MiB."),
-    };
+  if (contentLength !== null) {
+    const declaredLength = Number(contentLength);
+    if (!Number.isSafeInteger(declaredLength) || declaredLength < 0) {
+      return {
+        error: jsonError(400, "CONTENT_LENGTH_INVALID", "Content-Length must be a non-negative integer."),
+      };
+    }
+    if (declaredLength > MAX_BODY_BYTES) {
+      return {
+        error: jsonError(413, "REQUEST_TOO_LARGE", "MCP request body exceeds 1 MiB."),
+      };
+    }
   }
 
-  const body = await request.arrayBuffer();
-  if (body.byteLength > MAX_BODY_BYTES) {
-    return {
-      error: jsonError(413, "REQUEST_TOO_LARGE", "MCP request body exceeds 1 MiB."),
-    };
+  if (request.body === null) {
+    return { value: new ArrayBuffer(0) };
   }
 
-  return { value: body };
+  const reader = request.body.getReader();
+  const chunks = [];
+  let totalBytes = 0;
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) {
+      break;
+    }
+    totalBytes += value.byteLength;
+    if (totalBytes > MAX_BODY_BYTES) {
+      await reader.cancel("request body limit exceeded");
+      return {
+        error: jsonError(413, "REQUEST_TOO_LARGE", "MCP request body exceeds 1 MiB."),
+      };
+    }
+    chunks.push(value);
+  }
+
+  const body = new Uint8Array(totalBytes);
+  let offset = 0;
+  for (const chunk of chunks) {
+    body.set(chunk, offset);
+    offset += chunk.byteLength;
+  }
+  return { value: body.buffer };
 }
 
 function buildTargetUrl(originUrl, requestUrl) {

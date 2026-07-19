@@ -61,6 +61,7 @@ def _claude_usage_payload() -> dict[str, object]:
         "five_hour": {"utilization": 25.0, "resets_at": "2026-06-25T17:00:00Z"},
         "seven_day": {"utilization": 80.0, "resets_at": "2026-06-30T00:00:00Z"},
         "seven_day_opus": {"utilization": 5.0, "resets_at": "2026-06-30T00:00:00Z"},
+        "extra_usage": {"is_enabled": False, "monthly_limit": None},
     }
 
 
@@ -193,6 +194,7 @@ class TestClaudeQuotaProbe:
         assert snapshot.backend_id == "claude"
         assert snapshot.account_id == "max_20x"
         assert snapshot.plan == "max_20x"
+        assert snapshot.overage_enabled is False
         assert snapshot.metadata == {"source": "claude_oauth_usage"}
         assert seen["url"] == "https://api.anthropic.com/api/oauth/usage"
         assert seen["auth"] == "Bearer sk-ant-oat01-test"
@@ -239,11 +241,43 @@ class TestClaudeQuotaProbe:
         snapshot = collect_claude_quota_snapshot(
             config_dir=tmp_path,
             now=T0,
-            http_get=lambda *_, **__: _FakeResponse(200, {"five_hour": {}}),
+            http_get=lambda *_, **__: _FakeResponse(
+                200,
+                {"five_hour": {}, "extra_usage": {"is_enabled": False}},
+            ),
         )
 
         assert snapshot.ok
         assert snapshot.windows == ()
+
+    def test_paid_extra_usage_is_reported_for_dispatch_gates(self, tmp_path):
+        _write_claude_credentials(tmp_path)
+        payload = _claude_usage_payload()
+        payload["extra_usage"] = {"is_enabled": True, "monthly_limit": 1000}
+
+        snapshot = collect_claude_quota_snapshot(
+            config_dir=tmp_path,
+            now=T0,
+            http_get=lambda *_, **__: _FakeResponse(200, payload),
+        )
+
+        assert snapshot.ok
+        assert snapshot.overage_enabled is True
+
+    def test_missing_extra_usage_state_fails_closed(self, tmp_path):
+        _write_claude_credentials(tmp_path)
+        payload = _claude_usage_payload()
+        del payload["extra_usage"]
+
+        snapshot = collect_claude_quota_snapshot(
+            config_dir=tmp_path,
+            now=T0,
+            http_get=lambda *_, **__: _FakeResponse(200, payload),
+        )
+
+        assert not snapshot.ok
+        assert snapshot.overage_enabled is None
+        assert "did not prove extra usage state" in snapshot.error
 
 
 class TestGrokQuotaProbe:

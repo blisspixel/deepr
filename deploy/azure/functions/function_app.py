@@ -35,6 +35,11 @@ COSMOS_DATABASE = os.environ.get("COSMOS_DATABASE", "deepr")
 DAILY_BUDGET = float(os.environ.get("DEEPR_BUDGET_DAILY", 50))
 MONTHLY_BUDGET = float(os.environ.get("DEEPR_BUDGET_MONTHLY", 500))
 
+# This deployment shard does not yet share Deepr's durable estimate,
+# reservation, dispatch-mark, and canonical settlement transaction.
+AZURE_METERED_RESEARCH_EXECUTION_ENABLED = False
+AZURE_METERED_RESEARCH_BLOCK_CODE = "azure_metered_research_accounting_unavailable"
+
 # Initialize Azure clients with managed identity
 credential = DefaultAzureCredential()
 
@@ -169,6 +174,20 @@ def submit_job(req: func.HttpRequest) -> func.HttpResponse:
     if not validate_api_key(req):
         logger.warning(f"Unauthorized access attempt from {req.headers.get('X-Forwarded-For', 'unknown')}")
         return response(401, {"error": "Unauthorized"})
+
+    if not AZURE_METERED_RESEARCH_EXECUTION_ENABLED:
+        return response(
+            503,
+            {
+                "error": "Azure metered research is disabled until durable reservation and settlement are implemented.",
+                "error_code": AZURE_METERED_RESEARCH_BLOCK_CODE,
+                "status": "blocked",
+                "retryable": False,
+                "provider_work_started": False,
+                "durable_job_written": False,
+                "queue_message_written": False,
+            },
+        )
 
     try:
         body = req.get_json()

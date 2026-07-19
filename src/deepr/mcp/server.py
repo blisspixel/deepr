@@ -51,7 +51,6 @@ import time
 import uuid
 from collections.abc import Awaitable, Callable
 from contextlib import suppress
-from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
 from typing import Any
@@ -66,7 +65,14 @@ from deepr.experts.consult_transaction import DEFAULT_CONSULT_MAX_ELAPSED_SECOND
 from deepr.experts.profile import ExpertStore
 from deepr.mcp.consult_tool import CONSULT_EXPERTS_INPUT_SCHEMA, CONSULT_EXPERTS_OUTPUT_SCHEMA, consult_experts_tool
 from deepr.mcp.expert_reads import get_expert_handoff, get_expert_loop_status, get_semantic_recall, get_temporal_edges
+from deepr.mcp.protocol_compat import LEGACY_METHOD_MAP
 from deepr.mcp.query_expert_tool import query_expert_tool
+from deepr.mcp.request_context import (
+    current_mcp_request_can_access_owner,
+    current_mcp_request_identity,
+    current_scoped_mcp_owner_id,
+)
+from deepr.mcp.research_result_view import build_research_result_view
 from deepr.mcp.search.gateway import GatewayTool
 from deepr.mcp.search.registry import ToolRegistry, ToolSchema, create_default_registry
 from deepr.mcp.security import SSRFProtector
@@ -77,6 +83,8 @@ from deepr.mcp.state.async_dispatcher import AsyncTaskDispatcher
 from deepr.mcp.state.job_manager import JobPhase
 from deepr.mcp.state.resource_handler import get_resource_handler
 from deepr.mcp.state.task_durability import TaskDurabilityManager
+from deepr.mcp.tool_errors import ToolError
+from deepr.mcp.tool_errors import make_tool_error as _make_error
 from deepr.mcp.transport.stdio import StdioServer
 from deepr.providers import create_provider
 from deepr.storage import create_storage
@@ -126,86 +134,6 @@ from deepr import __version__ as SERVER_VERSION
 _server_start_time: float = 0.0
 
 
-@dataclass
-class ToolError:
-    """Structured error response returned by tools instead of raising exceptions.
-
-    Agents can parse these fields to decide on retry/fallback strategies.
-    """
-
-    error_code: str
-    message: str
-    retry_hint: str | None = None
-    fallback_suggestion: str | None = None
-    # Agent-classification envelope (RFC 9457 / agent-error pattern): a
-    # category to branch on and a retryable flag to drive backoff, without
-    # parsing the message. Always emitted so consumers can rely on them.
-    category: str = "internal"
-    retryable: bool = False
-    retry_after: int | None = None
-
-    def to_dict(self) -> dict[str, Any]:
-        d: dict[str, Any] = {
-            "error_code": self.error_code,
-            "category": self.category,
-            "retryable": self.retryable,
-            "message": self.message,
-        }
-        if self.retry_after is not None:
-            d["retry_after"] = self.retry_after
-        if self.retry_hint:
-            d["retry_hint"] = self.retry_hint
-        if self.fallback_suggestion:
-            d["fallback_suggestion"] = self.fallback_suggestion
-        return d
-
-    @classmethod
-    def from_exception(cls, error_code: str, exc: Exception, message: str | None = None) -> "ToolError":
-        """Build a ToolError carrying classification read off a Deepr exception.
-
-        Reads category / retryable / retry_after from any exception that
-        exposes them (DeeprError, provider ProviderError); falls back to the
-        generic internal/non-retryable defaults otherwise.
-        """
-        category = getattr(exc, "category", "internal")
-        retryable = bool(getattr(exc, "retryable", False))
-        retry_after = getattr(exc, "retry_after", None)
-        if not isinstance(retry_after, int):
-            details = getattr(exc, "details", None)
-            retry_after = details.get("retry_after") if isinstance(details, dict) else None
-            if not isinstance(retry_after, int):
-                retry_after = None
-        return cls(
-            error_code=error_code,
-            message=message if message is not None else str(getattr(exc, "message", exc)),
-            category=category if isinstance(category, str) else "internal",
-            retryable=retryable,
-            retry_after=retry_after,
-        )
-
-
-def _make_error(
-    code: str,
-    message: str,
-    retry_hint: str | None = None,
-    fallback: str | None = None,
-    *,
-    category: str = "internal",
-    retryable: bool = False,
-    retry_after: int | None = None,
-) -> dict[str, Any]:
-    """Convenience for returning a structured error dict from a tool."""
-    return ToolError(
-        error_code=code,
-        message=message,
-        retry_hint=retry_hint,
-        fallback_suggestion=fallback,
-        category=category,
-        retryable=retryable,
-        retry_after=retry_after,
-    ).to_dict()
-
-
 class DeeprMCPServer:
     """MCP server for Deepr research and experts.
 
@@ -224,7 +152,7 @@ class DeeprMCPServer:
 
         # Research-related components
         self.config = load_config()
-        self.active_jobs: dict[str, dict[str, Any]] = {}  # Provider instance cache
+        self.active_jobs: dict[str, dict[str, Any]] = {}  # Provider and lifecycle-owner cache
 
         # MCP infrastructure
         self.resource_handler = get_resource_handler()
@@ -323,19 +251,65 @@ class DeeprMCPServer:
     async def deepr_cancel_job(self, job_id: str) -> dict[str, Any]:
         """Cancel a running research job."""
         state = self.resource_handler.jobs.get_state(job_id)
-        if not state:
+        if not state or not current_mcp_request_can_access_owner(state.owner_id):
             return _make_error("JOB_NOT_FOUND", f"Job '{job_id}' not found")
 
         terminal = {JobPhase.COMPLETED, JobPhase.FAILED, JobPhase.CANCELLED}
         if state.phase in terminal:
+            job_cache = self.active_jobs.get(job_id)
+            orchestrator = job_cache.get("orchestrator") if job_cache else None
+            if state.phase is JobPhase.CANCELLED and orchestrator is not None:
+                try:
+                    await orchestrator.release_terminal_job(job_id)
+                except Exception as exc:
+                    return ToolError.from_exception(
+                        "CANCELLATION_FAILED",
+                        exc,
+                        "Cancellation is recorded, but lifecycle cleanup did not finish; retry is safe.",
+                    ).to_dict()
+                self.active_jobs.pop(job_id, None)
+                return {
+                    "job_id": job_id,
+                    "status": "cancelled",
+                    "message": f"Job '{job_id}' cancellation is finalized.",
+                }
             return _make_error(
                 "JOB_ALREADY_TERMINAL",
                 f"Job '{job_id}' already in terminal state: {state.phase.value}",
             )
 
-        await self.resource_handler.jobs.update_phase(job_id, JobPhase.CANCELLED)
-        self.resource_handler.persist_job(job_id)
-        # Clean up provider cache
+        job_cache = self.active_jobs.get(job_id)
+        if not job_cache:
+            return _make_error(
+                "CANCELLATION_UNAVAILABLE",
+                "The live provider lifecycle for this job is unavailable; local state was not changed.",
+            )
+        orchestrator = job_cache.get("orchestrator")
+        if orchestrator is None:
+            return _make_error(
+                "CANCELLATION_UNAVAILABLE",
+                "The reservation owner for this job is unavailable; local state was not changed.",
+            )
+
+        try:
+            confirmed = await orchestrator.cancel_job(job_id, retain_tracking=True)
+            if not confirmed:
+                return _make_error(
+                    "CANCELLATION_NOT_CONFIRMED",
+                    "The provider did not confirm cancellation; local state was not changed.",
+                    retry_hint="Retry cancellation after checking provider status.",
+                    retryable=True,
+                )
+            await self.resource_handler.jobs.update_phase(job_id, JobPhase.CANCELLED)
+            self.resource_handler.persist_job(job_id)
+            await orchestrator.release_terminal_job(job_id)
+        except Exception as exc:
+            return ToolError.from_exception(
+                "CANCELLATION_FAILED",
+                exc,
+                "Provider cancellation or canonical cost settlement failed; lifecycle state was retained for retry.",
+            ).to_dict()
+
         self.active_jobs.pop(job_id, None)
 
         return {
@@ -896,6 +870,7 @@ class DeeprMCPServer:
                 model=model,
                 estimated_cost=cost_estimate,
                 estimated_time=estimated_time,
+                owner_id=current_scoped_mcp_owner_id(),
             )
             # Store trace_id in job metadata for end-to-end tracking
             state = self.resource_handler.jobs.get_state(job_id)
@@ -909,6 +884,7 @@ class DeeprMCPServer:
             # Cache provider instance for status checks
             self.active_jobs[job_id] = {
                 "provider_instance": provider_instance,
+                "orchestrator": orchestrator,
                 "submitted_at": datetime.now().isoformat(),
             }
 
@@ -956,6 +932,8 @@ class DeeprMCPServer:
             state = self.resource_handler.jobs.get_state(job_id)
 
             if job_id not in self.active_jobs and not state:
+                return _make_error("JOB_NOT_FOUND", f"Job '{job_id}' not found")
+            if not current_mcp_request_can_access_owner(state.owner_id if state else None):
                 return _make_error("JOB_NOT_FOUND", f"Job '{job_id}' not found")
 
             job_cache = self.active_jobs.get(job_id, {})
@@ -1022,6 +1000,9 @@ class DeeprMCPServer:
     async def deepr_get_result(self, job_id: str) -> dict[str, Any]:
         """Get the results of a completed research job."""
         try:
+            state = self.resource_handler.jobs.get_state(job_id)
+            if not current_mcp_request_can_access_owner(state.owner_id if state else None):
+                return _make_error("JOB_NOT_FOUND", f"Job '{job_id}' not found")
             job_cache = self.active_jobs.get(job_id)
             if not job_cache:
                 return _make_error("JOB_NOT_FOUND", f"Job '{job_id}' not found")
@@ -1029,6 +1010,12 @@ class DeeprMCPServer:
             provider_instance = job_cache.get("provider_instance")
             if not provider_instance:
                 return _make_error("PROVIDER_LOST", "Provider instance no longer available")
+            orchestrator = job_cache.get("orchestrator")
+            if orchestrator is None:
+                return _make_error(
+                    "PROVIDER_LIFECYCLE_LOST",
+                    "The reservation owner is unavailable, so Deepr will not finalize this job without settlement.",
+                )
 
             # Providers expose get_status(job_id) -> ResearchResponse (an
             # object whose `output` already carries the completed report); there
@@ -1042,7 +1029,20 @@ class DeeprMCPServer:
                     "message": f"Job not yet complete. Current status: {response.status}",
                 }
 
-            cost_final = response.usage.cost if response.usage else 0.0
+            cost_final = orchestrator.settle_completion_cost(
+                job_id,
+                response,
+                source="mcp.deepr_get_result",
+            )
+
+            report = ReportGenerator().extract_text_from_response(response)
+            metadata = response.metadata or {}
+            result = build_research_result_view(
+                job_id=job_id,
+                report=report,
+                cost_final=cost_final,
+                metadata=metadata,
+            )
 
             # Update JobManager to completed
             await self.resource_handler.jobs.update_phase(
@@ -1052,65 +1052,9 @@ class DeeprMCPServer:
                 cost_so_far=cost_final,
             )
             self.resource_handler.persist_job(job_id)
-
-            # Clean up
+            await orchestrator.release_terminal_job(job_id)
             self.active_jobs.pop(job_id, None)
-
-            report = ReportGenerator().extract_text_from_response(response)
-            metadata = response.metadata or {}
-            sources = metadata.get("sources", [])
-
-            # Lazy loading: if report is large, return summary + resource URI
-            # so agents can fetch the full report on demand
-            try:
-                max_inline = int(os.environ.get("DEEPR_MAX_INLINE_CHARS", "8000"))
-            except (ValueError, TypeError):
-                max_inline = 8000
-            if len(report) > max_inline:
-                # Build a truncated summary with key sections
-                summary_text = report[:2000]
-                if "\n## " in report[2000:]:
-                    # Try to include at least the next section header
-                    next_section = report.find("\n## ", 2000)
-                    if next_section > 0 and next_section < 3000:
-                        summary_text = report[:next_section]
-
-                from deepr.mcp.artifacts import inject_artifact_ids
-
-                return inject_artifact_ids(
-                    {
-                        "job_id": job_id,
-                        "status": "completed",
-                        "summary": summary_text + "\n\n... (truncated)",
-                        "full_report_uri": f"deepr://reports/{job_id}/final.md",
-                        "report_length": len(report),
-                        "cost_final": cost_final,
-                        "metadata": metadata,
-                        "sources_count": len(sources),
-                        "hint": (
-                            "Report truncated for context efficiency. "
-                            "Use resources/read with the full_report_uri to get the complete report."
-                        ),
-                    },
-                    job_id=job_id,
-                    report_id=f"deepr://reports/{job_id}/final.md",
-                )
-
-            from deepr.mcp.artifacts import inject_artifact_ids as _inject
-
-            return _inject(
-                {
-                    "job_id": job_id,
-                    "status": "completed",
-                    "markdown_report": report,
-                    "cost_final": cost_final,
-                    "metadata": metadata,
-                    "sources": sources,
-                    "resource_uri": f"deepr://reports/{job_id}/final.md",
-                },
-                job_id=job_id,
-                report_id=f"deepr://reports/{job_id}/final.md",
-            )
+            return result
 
         except Exception as e:
             return _make_error("RESULT_FETCH_FAILED", str(e))
@@ -1192,6 +1136,7 @@ class DeeprMCPServer:
                 model=model,
                 estimated_cost=max_agentic_budget,
                 estimated_time="varies",
+                owner_id=current_scoped_mcp_owner_id(),
             )
             await self.resource_handler.jobs.update_phase(workflow_id, JobPhase.EXECUTING)
             # Store trace_id in job metadata
@@ -1836,7 +1781,7 @@ async def _handle_tools_call(server: DeeprMCPServer, params: dict[str, Any]) -> 
 
 async def _handle_resources_list(server: DeeprMCPServer, params: dict[str, Any]) -> dict[str, Any]:
     """Handle resources/list."""
-    uris = server.resource_handler.list_resources()
+    uris = server.resource_handler.list_resources(identity=current_mcp_request_identity())
     resources = [{"uri": uri, "name": uri.split("/")[-1], "mimeType": "application/json"} for uri in uris]
     return {"resources": resources}
 
@@ -1844,7 +1789,7 @@ async def _handle_resources_list(server: DeeprMCPServer, params: dict[str, Any])
 async def _handle_resources_read(server: DeeprMCPServer, params: dict[str, Any]) -> dict[str, Any]:
     """Handle resources/read."""
     uri = params.get("uri", "")
-    response = server.resource_handler.read_resource(uri)
+    response = server.resource_handler.read_resource(uri, identity=current_mcp_request_identity())
 
     if response.success:
         return {
@@ -1877,14 +1822,16 @@ async def _handle_resources_subscribe(server: DeeprMCPServer, params: dict[str, 
         # The transport layer handles this
         return None
 
-    result = await server.resource_handler.handle_subscribe(uri, _notification_callback)
+    result = await server.resource_handler.handle_subscribe(
+        uri, _notification_callback, identity=current_mcp_request_identity()
+    )
     return result
 
 
 async def _handle_resources_unsubscribe(server: DeeprMCPServer, params: dict[str, Any]) -> dict[str, Any]:
     """Handle resources/unsubscribe."""
     sub_id = params.get("subscription_id", "")
-    result = await server.resource_handler.handle_unsubscribe(sub_id)
+    result = await server.resource_handler.handle_unsubscribe(sub_id, identity=current_mcp_request_identity())
     return result
 
 
@@ -1902,22 +1849,7 @@ async def _handle_prompts_get(server: DeeprMCPServer, params: dict[str, Any]) ->
 
 
 # Backward-compatible method names (old raw dispatch)
-_LEGACY_METHOD_MAP = {
-    "list_experts": "deepr_list_experts",
-    "get_expert_info": "deepr_get_expert_info",
-    "query_expert": "deepr_query_expert",
-    "expert_manifest": "deepr_expert_manifest",
-    "expert_validate": "deepr_expert_validate",
-    "rank_gaps": "deepr_rank_gaps",
-    "expert_health_check": "deepr_expert_health_check",
-    "route_gaps": "deepr_route_gaps",
-    "expert_absorb": "deepr_expert_absorb",
-    "reflect": "deepr_reflect",
-    "what_changed": "deepr_what_changed",
-    "contested": "deepr_contested",
-    "explain_belief": "deepr_explain_belief",
-    "temporal_edges": "deepr_temporal_edges",
-}
+_LEGACY_METHOD_MAP = LEGACY_METHOD_MAP
 
 
 # ------------------------------------------------------------------ #

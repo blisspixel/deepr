@@ -14,6 +14,14 @@ import deepr.web.app as web_app
 from deepr.web.research_cost_api import WebResearchCostCoordinator
 
 
+def _paid_request(**values):
+    return {
+        "allow_metered_api": True,
+        "confirm_metered_cost": True,
+        **values,
+    }
+
+
 @pytest.fixture
 def client(monkeypatch):
     web_app.app.config.update(TESTING=True, RATELIMIT_ENABLED=False)
@@ -69,12 +77,40 @@ def test_testing_mode_does_not_start_background_poller(monkeypatch):
     assert started == []
 
 
+def test_paid_submit_requires_explicit_metered_consent_before_reservation(client, monkeypatch):
+    coordinator = MagicMock()
+    provider_factory = MagicMock(side_effect=AssertionError("provider must not be constructed"))
+    monkeypatch.setattr(web_app, "research_costs", coordinator)
+    monkeypatch.setattr(web_app, "_default_openai_provider", provider_factory)
+
+    response = client.post("/api/jobs", json={"prompt": "Research power-grid constraints."})
+
+    assert response.status_code == 403
+    assert "budget is only a ceiling" in response.get_json()["error"]
+    coordinator.reserve.assert_not_called()
+    provider_factory.assert_not_called()
+
+
+def test_batch_submit_requires_explicit_metered_consent_before_enqueue(client, monkeypatch):
+    queue = MagicMock(enqueue=AsyncMock(return_value=True))
+    monkeypatch.setattr(web_app, "queue", queue)
+
+    response = client.post(
+        "/api/jobs/batch",
+        json={"jobs": [{"prompt": "Research power-grid constraints."}]},
+    )
+
+    assert response.status_code == 403
+    assert "budget is only a ceiling" in response.get_json()["error"]
+    queue.enqueue.assert_not_awaited()
+
+
 def test_paid_submit_fails_closed_when_cost_controls_are_unavailable(client, monkeypatch):
     provider_factory = MagicMock()
     monkeypatch.setattr(web_app, "research_costs", WebResearchCostCoordinator(None, None))
     monkeypatch.setattr(web_app, "_default_openai_provider", provider_factory)
 
-    response = client.post("/api/jobs", json={"prompt": "Research power-grid constraints."})
+    response = client.post("/api/jobs", json=_paid_request(prompt="Research power-grid constraints."))
 
     assert response.status_code == 503
     assert response.get_json()["error"] == "Cost controls unavailable; submission denied"
@@ -90,7 +126,7 @@ def test_paid_submit_fails_closed_when_cost_estimation_raises(client, monkeypatc
     monkeypatch.setattr(web_app, "research_costs", WebResearchCostCoordinator(MagicMock(), MagicMock()))
     monkeypatch.setattr(web_app, "_default_openai_provider", provider_factory)
 
-    response = client.post("/api/jobs", json={"prompt": "Research power-grid constraints."})
+    response = client.post("/api/jobs", json=_paid_request(prompt="Research power-grid constraints."))
 
     assert response.status_code == 503
     assert response.get_json()["error"] == "Cost estimation unavailable; submission denied"
@@ -107,7 +143,7 @@ def test_paid_submit_fails_closed_when_cost_limit_check_raises(client, monkeypat
     monkeypatch.setattr(web_app, "research_costs", WebResearchCostCoordinator(controller, estimator))
     monkeypatch.setattr(web_app, "_default_openai_provider", provider_factory)
 
-    response = client.post("/api/jobs", json={"prompt": "Research power-grid constraints."})
+    response = client.post("/api/jobs", json=_paid_request(prompt="Research power-grid constraints."))
 
     assert response.status_code == 503
     assert response.get_json()["error"] == "Cost limit check unavailable; submission denied"
@@ -131,7 +167,7 @@ def test_paid_submit_does_not_expose_cost_reservation_exception(client, monkeypa
         MagicMock(side_effect=ResearchCostBlocked("secret ledger traceback")),
     )
 
-    response = client.post("/api/jobs", json={"prompt": "Research power-grid constraints."})
+    response = client.post("/api/jobs", json=_paid_request(prompt="Research power-grid constraints."))
 
     assert response.status_code == 429
     assert response.get_json()["error"] == "Research cost limit exceeded"
@@ -151,7 +187,7 @@ def test_paid_submit_does_not_expose_provider_configuration_exception(client, mo
     monkeypatch.setattr(web_app, "research_costs", coordinator)
     monkeypatch.setattr(web_app, "_default_openai_provider", provider_factory)
 
-    response = client.post("/api/jobs", json={"prompt": "Research power-grid constraints."})
+    response = client.post("/api/jobs", json=_paid_request(prompt="Research power-grid constraints."))
 
     assert response.status_code == 503
     assert response.get_json() == {"error": "Research provider is unavailable"}
@@ -171,7 +207,7 @@ def test_paid_submit_preserves_explicit_no_key_error(client, monkeypatch):
     monkeypatch.setattr(web_app, "provider", None)
     monkeypatch.delenv("OPENAI_API_KEY", raising=False)
 
-    response = client.post("/api/jobs", json={"prompt": "Research power-grid constraints."})
+    response = client.post("/api/jobs", json=_paid_request(prompt="Research power-grid constraints."))
 
     assert response.status_code == 503
     assert response.get_json() == {"error": web_app.research_cost_api.OPENAI_NOT_CONFIGURED}
@@ -203,7 +239,7 @@ def test_paid_submit_keeps_job_queued_when_reservation_store_is_unavailable(clie
     monkeypatch.setattr(web_app, "_default_openai_provider", MagicMock(return_value=MagicMock()))
     monkeypatch.setattr(web_app, "dispatch_reserved_research", AsyncMock(side_effect=blocked))
 
-    response = client.post("/api/jobs", json={"prompt": "Research power-grid constraints."})
+    response = client.post("/api/jobs", json=_paid_request(prompt="Research power-grid constraints."))
 
     assert response.status_code == 503
     assert response.get_json()["status"] == "queued"
@@ -341,7 +377,7 @@ def test_batch_submit_reports_enqueue_value_error_as_server_failure(client, monk
 
     response = client.post(
         "/api/jobs/batch",
-        json={"jobs": [{"prompt": "Safe item"}]},
+        json=_paid_request(jobs=[{"prompt": "Safe item"}]),
     )
 
     assert response.status_code == 500

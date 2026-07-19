@@ -582,3 +582,23 @@ async def test_fixed_cost_call_conservatively_settles_raised_failure() -> None:
     assert len(events) == 1
     assert events[0].cost_usd == pytest.approx(0.10)
     assert settled == [pytest.approx(0.10)]
+
+
+@pytest.mark.asyncio
+async def test_fixed_cost_call_rejects_report_above_reserved_ceiling() -> None:
+    settled: list[float] = []
+
+    with pytest.raises(ValueError, match="exceeds reserved ceiling"):
+        await execute_reserved_fixed_cost_async_call(
+            operation_prefix="skill-tool",
+            provider="skill",
+            model="recon:lookup",
+            source="test.fixed_cost_overrun",
+            max_cost_per_job=0.10,
+            call=AsyncMock(return_value={"result": "ok", "cost": 0.50}),
+            cost_from_result=lambda value: float(value["cost"]),
+            on_settled=settled.append,
+        )
+
+    assert CostLedger().get_events()[0].cost_usd == pytest.approx(0.10)
+    assert settled == [pytest.approx(0.10)]

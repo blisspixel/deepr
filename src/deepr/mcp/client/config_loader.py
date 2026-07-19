@@ -71,6 +71,10 @@ RECON_PROFILE_TEMPLATE: dict[str, Any] = {
     ],
     "progress": False,
 }
+RECON_PROFILE_TEMPLATE["free_tools"] = [
+    *RECON_PROFILE_TEMPLATE["auto_approve"],
+    *RECON_PROFILE_TEMPLATE["require_approval"],
+]
 
 # Default distillr profile template for the native first-party integration.
 # Distillr (distillr package) is a source-ingestion engine: it turns YouTube,
@@ -130,6 +134,7 @@ DISTILLR_PROFILE_TEMPLATE: dict[str, Any] = {
     ],
     "progress": True,
 }
+DISTILLR_PROFILE_TEMPLATE["free_tools"] = list(DISTILLR_PROFILE_TEMPLATE["auto_approve"])
 
 # Default primr profile template for the native first-party integration.
 # Primr (primr package) is a strategic company-intelligence engine: adaptive
@@ -178,6 +183,7 @@ PRIMR_PROFILE_TEMPLATE: dict[str, Any] = {
     ],
     "progress": True,
 }
+PRIMR_PROFILE_TEMPLATE["free_tools"] = list(PRIMR_PROFILE_TEMPLATE["auto_approve"])
 
 
 def _resolve_env_vars(value: str) -> str:
@@ -413,6 +419,12 @@ class ConfigLoader:
 
             if not entry.get("command"):
                 errors.append(f"{prefix}.command: required field is missing or empty")
+
+            free_tools = entry.get("free_tools", [])
+            if not isinstance(free_tools, list) or any(
+                not isinstance(tool, str) or not tool.strip() for tool in free_tools
+            ):
+                errors.append(f"{prefix}.free_tools: must be a list of non-empty tool names")
 
             # Transport validation
             transport = entry.get("transport", "stdio")

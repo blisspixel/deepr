@@ -1,5 +1,7 @@
 """CLI input validation utilities."""
 
+import math
+import sys
 from pathlib import Path
 
 import click
@@ -35,6 +37,21 @@ ALLOWED_DOCUMENT_EXTENSIONS = [
 
 # Maximum file size (100MB default)
 MAX_FILE_SIZE_MB = 100
+
+
+def confirm_interactively(prompt: str, *, default: bool = False, authorization_flag: str = "--yes") -> bool:
+    """Request approval only from an attached interactive terminal.
+
+    Confirmation text read from a pipe is data, not an interactive user
+    decision. Non-interactive callers must use the command's explicit,
+    auditable authorization flag instead.
+    """
+    if not sys.stdin.isatty():
+        raise click.UsageError(
+            f"Interactive confirmation requires a terminal. Pass {authorization_flag} "
+            "only after reviewing the preview and cost ceiling."
+        )
+    return click.confirm(prompt, default=default)
 
 
 def validate_upload_files(
@@ -167,6 +184,8 @@ def validate_budget(
         click.UsageError: If budget is below minimum
         click.Abort: If user declines confirmation for high budget
     """
+    if not math.isfinite(budget):
+        raise click.UsageError("Budget must be a finite number")
     if budget < min_budget:
         raise click.UsageError(f"Budget cannot be less than ${min_budget:.2f}")
 
@@ -178,7 +197,7 @@ def validate_budget(
     if budget > confirm_threshold:
         click.echo(f"\n[WARN] High budget: ${budget:.2f}")
         click.echo(f"This is above the typical limit of ${confirm_threshold:.2f}")
-        if not click.confirm("Are you sure you want to proceed?", default=False):
+        if not confirm_interactively("Are you sure you want to proceed?", default=False):
             raise click.Abort()
 
     return budget
@@ -206,7 +225,7 @@ def confirm_high_cost_operation(estimated_cost: float, threshold: float = 5.0, s
     click.echo(f"Estimated cost: ${estimated_cost:.2f}")
     click.echo()
 
-    if not click.confirm("Do you want to proceed?", default=False):
+    if not confirm_interactively("Do you want to proceed?", default=False):
         raise click.Abort()
 
     return True

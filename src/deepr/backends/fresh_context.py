@@ -363,7 +363,7 @@ def _default_free_search_backend() -> SearchBackend:
 
 def _deep_search_queries(query: str, max_queries: int) -> tuple[str, ...]:
     """Generate bounded search routes for deep local context."""
-    base = " ".join(query.split())
+    base = " ".join(_URL_RE.sub(" ", query).split())
     if not base or max_queries <= 0:
         return ()
 
@@ -416,23 +416,49 @@ async def _collect_search_results(
     return results, errors
 
 
-def _retrieval_urls(query: str, search_results: list[SearchResult]) -> tuple[list[str], dict[str, SearchResult]]:
+def _is_retrievable_url_form(value: str) -> bool:
+    """Accept only bounded absolute HTTP(S) candidates before fetch admission."""
+    if not value or len(value) > 8192 or any(ord(char) < 32 for char in value):
+        return False
+    try:
+        parsed = urlsplit(value)
+        if parsed.scheme.lower() not in {"http", "https"} or not parsed.hostname:
+            return False
+        if parsed.username is not None or parsed.password is not None:
+            return False
+        _ = parsed.port
+    except (TypeError, ValueError):
+        return False
+    return retrieval_host_key(value) != _UNSAFE_RETRIEVAL_HOST
+
+
+def _retrieval_urls(
+    query: str,
+    search_results: list[SearchResult],
+) -> tuple[list[str], dict[str, SearchResult], int]:
     urls: list[str] = []
     seen_urls: set[str] = set()
     result_by_url: dict[str, SearchResult] = {}
+    rejected_count = 0
 
     for url in _extract_urls(query):
+        if not _is_retrievable_url_form(url):
+            rejected_count += 1
+            continue
         seen_urls.add(url)
         urls.append(url)
 
     for result in search_results:
         if not result.url or result.url in seen_urls:
             continue
+        if not _is_retrievable_url_form(result.url):
+            rejected_count += 1
+            continue
         seen_urls.add(result.url)
         urls.append(result.url)
         result_by_url[result.url] = result
 
-    return urls, result_by_url
+    return urls, result_by_url, rejected_count
 
 
 async def _source_from_url(
@@ -596,13 +622,15 @@ async def retrieve_fresh_context(
     free-only DuckDuckGo path plus direct page fetches.
     """
     cfg = config or FreshContextConfig()
-    active_search_queries = search_queries or (query,)
+    active_search_queries = (query,) if search_queries is None else search_queries
     search_results, errors = await _collect_search_results(
         search_backend,
         active_search_queries,
         max_search_results=cfg.max_search_results,
     )
-    urls, result_by_url = _retrieval_urls(query, search_results)
+    urls, result_by_url, rejected_url_count = _retrieval_urls(query, search_results)
+    if rejected_url_count:
+        errors.append(f"ignored {rejected_url_count} candidate URL(s) without a retrievable absolute HTTP(S) form")
     cached_by_url = cached_sources_from_pack(prior_source_pack)
     sources = await _build_sources(
         urls,

@@ -55,7 +55,8 @@ class JobPersistence:
                 error TEXT,
                 started_at TEXT NOT NULL,
                 updated_at TEXT NOT NULL,
-                metadata_json TEXT NOT NULL DEFAULT '{}'
+                metadata_json TEXT NOT NULL DEFAULT '{}',
+                owner_id TEXT
             );
 
             CREATE TABLE IF NOT EXISTS job_plans (
@@ -74,6 +75,9 @@ class JobPersistence:
                 confidence REAL NOT NULL DEFAULT 0.0
             );
         """)
+        columns = {str(row[1]) for row in self._conn.execute("PRAGMA table_info(jobs)").fetchall()}
+        if "owner_id" not in columns:
+            self._conn.execute("ALTER TABLE jobs ADD COLUMN owner_id TEXT")
         self._conn.commit()
 
     # ------------------------------------------------------------------ #
@@ -93,8 +97,9 @@ class JobPersistence:
         with self._conn:
             self._conn.execute(
                 """INSERT OR REPLACE INTO jobs
-                   (job_id, phase, progress, cost_so_far, estimated_remaining, error, started_at, updated_at, metadata_json)
-                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                   (job_id, phase, progress, cost_so_far, estimated_remaining, error,
+                    started_at, updated_at, metadata_json, owner_id)
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
                 (
                     state.job_id,
                     state.phase.value,
@@ -105,6 +110,7 @@ class JobPersistence:
                     state.started_at.isoformat(),
                     now,
                     json.dumps(state.metadata, default=str),
+                    state.owner_id,
                 ),
             )
 
@@ -196,7 +202,18 @@ class JobPersistence:
     @staticmethod
     def _row_to_state(row: tuple[Any, ...]) -> JobState:
         """Convert a database row to a JobState."""
-        (job_id, phase, progress, cost_so_far, estimated_remaining, error, started_at, updated_at, metadata_json) = row
+        (
+            job_id,
+            phase,
+            progress,
+            cost_so_far,
+            estimated_remaining,
+            error,
+            started_at,
+            updated_at,
+            metadata_json,
+            owner_id,
+        ) = row
         return JobState(
             job_id=job_id,
             phase=JobPhase(phase),
@@ -206,6 +223,7 @@ class JobPersistence:
             error=error,
             started_at=datetime.fromisoformat(started_at),
             updated_at=datetime.fromisoformat(updated_at),
+            owner_id=owner_id,
             metadata=json.loads(metadata_json) if metadata_json else {},
         )
 

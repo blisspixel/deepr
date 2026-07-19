@@ -1,6 +1,6 @@
 # Plan-quota CLI backends
 
-Status: design + first implementation, 2026-06-20. Implements the ROADMAP
+Status: implemented safety boundary, updated 2026-07-18. Implements the ROADMAP
 Phase 6 "CLI provider adapters" rung of the capacity waterfall
 ([capacity-waterfall.md](capacity-waterfall.md)). Governs how Deepr drives a
 vendor's own coding/agent CLI as a research backend without producing a surprise
@@ -26,19 +26,40 @@ no place as "free capacity". The June-2026 survey:
 
 | CLI | Headless cmd | $0 at margin on a flat plan? | Auto-routable | Why |
 |---|---|---|---|---|
-| Codex (`codex exec`) | yes | yes, within 5h/weekly window | **yes** | flat ChatGPT plan |
-| Claude Code (`claude -p`) | yes | yes (Jun-15 credit-pool change was paused) | **yes** | plan rolling window |
-| OpenCode (`opencode run`) | yes | yes if routed to an OAuth/local provider | **yes** | BYO-provider, MIT |
-| Kiro (`kiro-cli chat`) | yes | yes (monthly credits, overage off by default) | no | ToS prohibits third-party-harness use |
-| Grok Build (`grok -p`) | yes | subscription quota, but gray | no | xAI steers automation to the metered key |
-| Antigravity (`agy -p`) | yes (answer read from transcript, not stdout) | weekly hard-stop | no | active automation ban wave |
-| Copilot (`copilot -p`) | yes | **no** - usage-based since 2026-06-01 | no | visible/read-only; execution blocked until full cost accounting exists |
+| Codex (`codex exec`) | yes | yes, within 5h/weekly window | no, blocked | Native read and shell tools cannot be disabled or narrowly confined for an untrusted prompt. |
+| Claude Code (`claude -p`) | yes | yes only while paid extra usage is explicitly off | **yes** | Each dispatch proves the provider-reported overage switch is off, then uses safe mode with empty tool and MCP surfaces, no persistence, the included `sonnet` alias, and no API credential. |
+| OpenCode (`opencode run`) | yes | only if routed to an OAuth/local provider | no, blocked | Provider identity, stored credential type, marginal cost, and native tools cannot be proven before dispatch. |
+| Kiro (`kiro-cli chat`) | yes | only with prepaid auth and overage off | no, blocked | Read tools are not narrowly confined and prepaid overage posture is unproven. |
+| Grok Build (`grok -p`) | yes | subscription quota, but gray | no, blocked | Native tool permissions cannot be disabled or confined for an untrusted prompt. |
+| Antigravity (`agy -p`) | yes (answer read from transcript, not stdout) | weekly hard-stop | no, blocked | Native tool permissions and transcript side effects cannot be disabled or confined for an untrusted prompt. Headless policy risk also remains. |
+| Copilot (`copilot -p`) | yes | **no** - usage-based since 2026-06-01 | no, blocked | Complete metered estimate, reserve, settle, and ledger support is absent. |
 
-"Auto-routable" means Deepr's waterfall may *automatically* select it. The
-non-metered remainder is supported via an explicit `--plan <id>` only, behind
-the safety gate and a printed ToS note - never auto-selected, never marketed as
-free. Copilot remains detectable for honest fleet visibility, but it is not an
-execution backend until its metered cost lifecycle is implemented.
+"Auto-routable" means Deepr's waterfall may *automatically* select it after
+admission and a trusted remaining-quota observation. An explicit `--plan <id>`
+selects an adapter but never bypasses the safety decision. Claude is the only
+current auto-routable adapter. Every actual Claude dispatch repeats the live
+paid-overage check immediately before process construction. Every other adapter
+remains detectable for honest fleet visibility but fails before process
+construction.
+
+Claude's execution argv is deliberately narrower than ordinary Claude Code:
+
+```text
+claude --safe-mode --tools "" --no-session-persistence --disable-slash-commands --strict-mcp-config --mcp-config '{"mcpServers":{}}' --model sonnet -p -
+```
+
+The prompt is delivered on stdin. `--safe-mode` suppresses ambient hooks,
+skills, plugins, memory, and project instructions while preserving stored plan
+authentication. `--tools ""` removes built-in tools, and strict empty MCP
+configuration prevents ambient servers. The live metadata observation is
+durably written before the model call; an unavailable response, an unknown
+field, enabled extra usage, or a ledger failure stops the call. Claude Code
+2.1.206 refuses a zero `--max-budget-usd`, and a positive value would authorize
+a dollar amount, so Deepr does not present that flag as a zero-bill control.
+
+This posture supersedes earlier live transport validation in this document. A
+CLI successfully returning text proves transport compatibility, not safe
+execution for untrusted research prompts and not vendor billing treatment.
 
 ## Two seams, one chosen
 
@@ -59,12 +80,12 @@ like `ollama_chat_client`. One client instance serves synthesis and the
 multi-expert **consult** synthesis seam (`ExpertCouncil`), so an external agent
 can run a whole fan-out consult on prepaid capacity.
 
-**Prompt delivery is over stdin, not argv.** A multi-line prompt (a synthesis
+**Prompt delivery is over stdin, not argv where the adapter supports it.** A multi-line prompt (a synthesis
 prompt with several experts' perspectives, a long report) passed as a
 command-line argument to a `.cmd` shim is mangled by `cmd.exe` on Windows: the
 child sees an empty task and answers conversationally at $0 - a silent quality
-failure, not an error. Codex and Claude therefore set `stdin_prompt=True` and
-receive the prompt on stdin (`codex exec -` / `claude -p -`). Any plan adapter
+failure, not an error. Codex and Claude declare `stdin_prompt=True`; only Claude
+currently passes the complete execution gate. Any future plan adapter
 that may receive long or multi-line prompts should do the same.
 
 ## Bounded subprocess output
@@ -171,11 +192,12 @@ quota, so Deepr never auto-routes on a guess. An explicit, dated admission is
 still useful, but it records operator intent only. It does not replace the
 remaining-quota gate:
 
-- `deepr capacity admit-plan codex --task-class sync` (also `absorb` and
+- `deepr capacity admit-plan claude --task-class sync` (also `absorb` and
   `gap_fill`; paired with `revoke-plan`) records a plan admission in the shared
   admission store, namespaced `plan:<id>` so the local rung never mistakes it
-  for an Ollama model. Only the genuinely free-at-margin, ToS-clean backends
-  (codex/claude/opencode) can be admitted.
+  for an Ollama model. Only a genuinely free-at-margin, ToS-clean adapter that
+  also clears the native-tool and auth-provenance gate can be admitted. Claude
+  is the only current candidate.
 
 The waterfall's plan-quota rung (`choose_maintenance_backend` ->
 `_choose_plan_quota`) auto-selects a CLI only when it is installed, in plan auth
@@ -189,9 +211,9 @@ budget-gated last resort; v2.36 stops rather than falling through to it.
 The explicit path needs no admission (the operator chose it directly), but it
 still requires a non-metered adapter that clears the safety gate:
 
-- `deepr expert sync NAME --plan codex` (also `absorb`, topic `learn`, `learn-web`,
+- `deepr expert sync NAME --plan claude` (also `absorb`, topic `learn`, `learn-web`,
   `route-gaps --execute`).
-- `deepr expert sync-all --plan codex` - run a whole roster pass through one
+- `deepr expert sync-all --plan claude` - run a whole roster pass through one
   non-metered plan backend. The automatic `sync-all --scheduled` path consumes
   a plan backend only when `choose_maintenance_backend` returns an admitted,
   quota-observed plan choice; it does not infer quota from CLI presence.
@@ -199,19 +221,20 @@ still requires a non-metered adapter that clears the safety gate:
   uses the `gap_fill` task class and consumes an admitted, quota-observed plan
   choice from the same selector before it runs. Otherwise it waits instead of
   spending on metered research.
-- `deepr capacity probe-plan codex` - validate auth + one round-trip.
-- `deepr capacity probe-fleet --backend codex --backend claude` - validate
+- `deepr capacity probe-plan claude` - validate auth + one round-trip.
+- `deepr capacity probe-fleet --backend codex --backend claude` - inspect
   several selected backends concurrently, record the same usage/exhaustion
-  observations as `probe-plan`, and emit a versioned
+  observations for adapters that dispatch, preserve pre-dispatch refusals for
+  blocked adapters, and emit a versioned
   `deepr-plan-fleet-probe-v1` payload. This is validation fan-out, not
   auto-routing permission.
-- `deepr capacity validate-fleet --backend codex --backend claude` - run the
+- `deepr capacity validate-fleet --backend claude` - run the
   transport probe and no-metered consult contract as one operator health check,
   emit `deepr-plan-fleet-validation-v1`, and fail selected backends that are
   skipped, missing, exhausted, timed out, or return failed synthesis status.
   This is still validation fan-out, not auto-routing permission or semantic
   answer scoring.
-- `deepr mcp validate-consult-fleet --plan codex --plan claude` - run the
+- `deepr mcp validate-consult-fleet --plan claude` - run the
   no-metered consult contract through selected plan CLIs concurrently and emit
   `deepr-mcp-consult-fleet-validation-v1`. This proves consult envelope,
   capacity, trace, cost, and collaboration metadata across multiple backends;
@@ -296,12 +319,12 @@ high-confidence belief.
 - `deepr capacity` detection ids are exe-based (`kiro-cli`, `agy`) while
   execution ids are canonical (`kiro`, `antigravity`); the capacity quota display
   for those two does not yet join to execution-recorded usage. Cosmetic.
-- Prompt delivery is now per-adapter: `prompt_is_file` (Grok `--prompt-file`),
+- Prompt delivery is declared per adapter: `prompt_is_file` (Grok `--prompt-file`),
   `stdin_prompt` (Codex `codex exec -`, Claude `claude -p -`), or a plain argv
   (short-prompt CLIs). `client._build_invocation` resolves the mode, writes a
   temp file for file-mode and removes it after the run, and both `_run_chat` and
-  the probe share it. Validated headless on a Windows build 2026-06-25: Codex,
-  Claude, and Grok all run end to end with long research/synthesis prompts (Grok
+  the probe share it. Transport-only validation on a Windows build 2026-06-25
+  showed Codex, Claude, and Grok returning long research/synthesis prompts (Grok
   previously failed with WinError 206 - the prompt exceeded the command-line
   length limit - until it was moved to `--prompt-file`).
 - Antigravity drops stdout under a non-TTY pipe (confirmed v1.0.12: `agy -p`
@@ -325,9 +348,10 @@ high-confidence belief.
   result instead of stdout.
   Validated end to end 2026-06-25: `probe_plan_quota(antigravity)` returned the
   expected reply in ~5.5s on plan auth. Antigravity stays explicit-only and ToS
-  gray-zone (active ban wave) despite working. Grok also runs but stays
-  explicit-only and gray-zone. A ConPTY wrapper remains a possible alternative if
+  gray-zone (active ban wave) despite working. Grok transport was previously
+  validated, but current execution is blocked and its policy remains gray. A ConPTY wrapper remains a possible alternative if
   the transcript path ever changes.
-- OpenCode is BYO-provider: today the safety gate treats it as plan-clean, but a
-  per-run check of the resolved provider's `auth.json` `type` (oauth vs api)
-  would make "don't bill a metered provider" enforcement exact.
+- OpenCode is BYO-provider and now fails closed as `unknown` before dispatch. A
+  future adapter needs a trustworthy per-run provider identity, stored
+  credential classification, marginal-cost proof, and native-tool confinement
+  before execution can return.

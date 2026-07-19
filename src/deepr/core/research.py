@@ -15,6 +15,7 @@ Instrumented with distributed tracing for observability (4.2 Auto-Generated Meta
 import json
 import logging
 import uuid
+from math import isfinite
 from pathlib import Path
 from typing import Any
 
@@ -281,6 +282,7 @@ class ResearchOrchestrator:
             op.add_event("provider_submit_complete", {"response_id": response_id})
 
             self._cost_tracking[response_id] = {
+                "internal_job_id": job_id,
                 "session_id": tracking_session_id,
                 "reservation": reservation,
                 "estimated_cost": estimated_cost,
@@ -355,19 +357,33 @@ class ResearchOrchestrator:
             idempotency_key=f"deepr-research-{job_id}",
         )
 
-    def _settle_research_cost(self, job_id: str, response: Any, op: Any) -> None:
+    def _settle_research_cost(
+        self,
+        job_id: str,
+        response: Any,
+        op: Any,
+        *,
+        source: str,
+    ) -> float:
         """Settle reserved research cost using provider-reported usage."""
-        tracking = self._cost_tracking.pop(job_id, None)
-        if not tracking:
-            return
+        tracking = self._cost_tracking.get(job_id)
+        if tracking is None:
+            raise RuntimeError(f"Completion accounting state is unavailable for job {job_id}")
 
         from ..experts.research_cost_gate import ResearchCostReservation, settle_research_cost
 
         usage = getattr(response, "usage", None)
         estimated_cost = float(tracking.get("estimated_cost", 0.0) or 0.0)
+        if not isfinite(estimated_cost) or estimated_cost < 0:
+            raise RuntimeError(f"Completion cost estimate is invalid for job {job_id}")
         raw_actual_cost = getattr(usage, "cost", None) if usage is not None else None
-        if isinstance(raw_actual_cost, (int, float)):
-            actual_cost = max(float(raw_actual_cost), 0.0)
+        if (
+            not isinstance(raw_actual_cost, bool)
+            and isinstance(raw_actual_cost, (int, float))
+            and isfinite(float(raw_actual_cost))
+            and float(raw_actual_cost) >= 0
+        ):
+            actual_cost = float(raw_actual_cost)
             cost_source = "provider_usage"
         else:
             actual_cost = estimated_cost
@@ -376,13 +392,13 @@ class ResearchOrchestrator:
         tokens_output = getattr(usage, "output_tokens", 0) if usage is not None else 0
         reservation = tracking.get("reservation")
         if not isinstance(reservation, ResearchCostReservation):
-            return
+            raise RuntimeError(f"Completion reservation is invalid for job {job_id}")
         settle_research_cost(
             reservation,
             actual_cost=actual_cost,
             tokens=tokens_output if isinstance(tokens_output, int) else 0,
             request_id=job_id,
-            source="research_orchestrator.process_completion",
+            source=source,
         )
         op.add_event(
             "cost_settled",
@@ -393,6 +409,47 @@ class ResearchOrchestrator:
             },
         )
         op.set_cost(actual_cost)
+        return actual_cost
+
+    def _settle_completion_with_operation(
+        self,
+        job_id: str,
+        response: Any,
+        op: Any,
+        *,
+        source: str,
+    ) -> float:
+        """Settle once while retaining lifecycle state for durable callers."""
+        tracking = self._cost_tracking.get(job_id)
+        if tracking is None:
+            raise RuntimeError(f"Completion accounting state is unavailable for job {job_id}")
+        if tracking.get("completion_settled") is True:
+            settled_cost = tracking.get("settled_cost")
+            if (
+                isinstance(settled_cost, bool)
+                or not isinstance(settled_cost, (int, float))
+                or not isfinite(float(settled_cost))
+                or float(settled_cost) < 0
+            ):
+                raise RuntimeError(f"Completion settlement state is invalid for job {job_id}")
+            return float(settled_cost)
+        settled_cost = self._settle_research_cost(job_id, response, op, source=source)
+        tracking["settled_cost"] = settled_cost
+        tracking["completion_settled"] = True
+        return settled_cost
+
+    def settle_completion_cost(
+        self,
+        job_id: str,
+        response: Any,
+        *,
+        source: str,
+    ) -> float:
+        """Canonically settle a completed provider response without releasing it."""
+        if getattr(response, "status", None) != "completed":
+            raise ValueError(f"Job {job_id} is not completed")
+        with self._emitter.operation("research_cost_settlement", attributes={"job_id": job_id}) as op:
+            return self._settle_completion_with_operation(job_id, response, op, source=source)
 
     def _enhance_prompt(self, prompt: str, has_documents: bool) -> str:
         """Enhance prompt with citation instructions."""
@@ -459,7 +516,12 @@ class ResearchOrchestrator:
                 raise ValueError(f"Job {job_id} is not completed (status: {response.status})")
 
             op.add_event("fetch_status_complete", {"status": response.status})
-            self._settle_research_cost(job_id, response, op)
+            self._settle_completion_with_operation(
+                job_id,
+                response,
+                op,
+                source="research_orchestrator.process_completion",
+            )
 
             # Extract text from response
             raw_text = self.report_generator.extract_text_from_response(response)
@@ -525,25 +587,7 @@ class ResearchOrchestrator:
             op.add_event("reports_saved", {"formats": saved_formats})
             op.set_attribute("formats_saved", saved_formats)
 
-            # Clean up vector store if exists
-            vector_store_id = self.active_vector_stores.get(job_id)
-            if vector_store_id:
-                op.add_event("vector_store_cleanup_start", {"vector_store_id": vector_store_id})
-            await self._cleanup_vector_store(job_id)
-            if vector_store_id:
-                op.add_event("vector_store_cleanup_complete")
-
-            # Drop the temporal tracker so long-running orchestrators
-            # don't accumulate one entry per completed job for the
-            # lifetime of the process. Has to happen here (not in
-            # _cleanup_vector_store) because a job may have a tracker
-            # without ever having created a vector store. Also clear
-            # the emitter's per-job tracker entry so it doesn't leak.
-            self._temporal_trackers.pop(job_id, None)
-            try:
-                self._emitter.clear_temporal_tracker(job_id)
-            except AttributeError:
-                pass
+            await self.release_terminal_job(job_id)
 
     async def _cleanup_vector_store(self, job_id: str) -> None:
         """Clean up vector store for a job."""
@@ -558,7 +602,25 @@ class ResearchOrchestrator:
                     "ORPHANED vector store %s for job %s - manual cleanup required: %s", vector_store_id, job_id, e
                 )
 
-    async def cancel_job(self, job_id: str) -> bool:
+    async def release_terminal_job(self, job_id: str) -> None:
+        """Release resources only after a caller durably records terminal state."""
+        tracking = self._cost_tracking.get(job_id)
+        if tracking is None:
+            raise RuntimeError(f"Lifecycle state is unavailable for job {job_id}")
+        if tracking.get("completion_settled") is not True and tracking.get("cancellation_settled") is not True:
+            raise RuntimeError(f"Canonical cost settlement is incomplete for job {job_id}")
+        internal_job_id = tracking.get("internal_job_id")
+        if not isinstance(internal_job_id, str) or not internal_job_id:
+            internal_job_id = str(getattr(tracking.get("reservation"), "job_id", job_id))
+        await self._cleanup_vector_store(internal_job_id)
+        self._temporal_trackers.pop(internal_job_id, None)
+        try:
+            self._emitter.clear_temporal_tracker(internal_job_id)
+        except AttributeError:
+            pass
+        self._cost_tracking.pop(job_id, None)
+
+    async def cancel_job(self, job_id: str, *, retain_tracking: bool = False) -> bool:
         """
         Cancel a running job.
 
@@ -569,33 +631,31 @@ class ResearchOrchestrator:
             True if cancellation was successful
         """
         with self._emitter.operation("research_cancel", attributes={"job_id": job_id}) as op:
-            success = await self.provider.cancel_job(job_id)
+            tracking = self._cost_tracking.get(job_id)
+            if tracking is None:
+                raise RuntimeError(f"Cancellation accounting state is unavailable for job {job_id}")
+
+            cancellation_confirmed = bool(tracking.get("cancellation_confirmed", False))
+            success = cancellation_confirmed or await self.provider.cancel_job(job_id)
             op.set_attribute("cancel_success", success)
 
             if success:
                 op.add_event("job_cancelled")
-                tracking = self._cost_tracking.pop(job_id, None)
-                if tracking:
-                    from ..experts.research_cost_gate import ResearchCostReservation, settle_research_cost
+                tracking["cancellation_confirmed"] = True
+                from ..experts.research_cost_gate import ResearchCostReservation, settle_research_cost
 
-                    reservation = tracking.get("reservation")
-                    if isinstance(reservation, ResearchCostReservation):
-                        settle_research_cost(
-                            reservation,
-                            actual_cost=None,
-                            request_id=job_id,
-                            source="research_orchestrator.cancel_job",
-                        )
-                await self._cleanup_vector_store(job_id)
-                # Drop the temporal tracker so long-running orchestrators
-                # don't leak one entry per cancelled job. The
-                # _temporal_trackers dict was previously add-only. Also
-                # clear the emitter's per-job tracker entry.
-                self._temporal_trackers.pop(job_id, None)
-                try:
-                    self._emitter.clear_temporal_tracker(job_id)
-                except AttributeError:
-                    pass
+                reservation = tracking.get("reservation")
+                if not isinstance(reservation, ResearchCostReservation):
+                    raise RuntimeError(f"Cancellation reservation is invalid for job {job_id}")
+                settle_research_cost(
+                    reservation,
+                    actual_cost=None,
+                    request_id=job_id,
+                    source="research_orchestrator.cancel_job",
+                )
+                tracking["cancellation_settled"] = True
+                if not retain_tracking:
+                    await self.release_terminal_job(job_id)
             else:
                 op.add_event("cancel_failed")
 

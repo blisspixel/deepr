@@ -185,7 +185,7 @@ def test_http_fetching(monkeypatch):
         timeout=10,
     )
     fetcher = ContentFetcher(config)
-    monkeypatch.setattr("deepr.utils.scrape.fetcher.requests.get", lambda *args, **kwargs: make_scrape_response())
+    monkeypatch.setattr("deepr.utils.scrape.fetcher._pinned_get", lambda *args, **kwargs: make_scrape_response())
 
     result = fetcher.fetch("https://example.com")
 
@@ -235,7 +235,7 @@ def test_end_to_end_scrape(monkeypatch):
         try_selenium=False,
         timeout=15,
     )
-    monkeypatch.setattr("deepr.utils.scrape.fetcher.requests.get", lambda *args, **kwargs: make_scrape_response())
+    monkeypatch.setattr("deepr.utils.scrape.fetcher._pinned_get", lambda *args, **kwargs: make_scrape_response())
 
     results = scrape_website(
         url="https://example.com",

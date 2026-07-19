@@ -242,6 +242,43 @@ async def test_retrieve_fresh_context_uses_explicit_urls_without_search():
     assert context.generation_readiness().required_source_count == 1
 
 
+async def test_relative_search_links_do_not_consume_fetch_slots():
+    relative = SearchResult(
+        title="Search telemetry",
+        url="/clev?event=click",
+        snippet="not a result page",
+        source="search",
+    )
+    valid = SearchResult(
+        title="Primary result",
+        url="https://example.com/primary",
+        snippet="usable evidence",
+        source="search",
+    )
+    browser = _BrowserBackend(
+        {
+            valid.url: PageContent(
+                url=valid.url,
+                title=valid.title,
+                text="Primary evidence text.",
+            )
+        }
+    )
+
+    context = await retrieve_fresh_context(
+        "bounded topic",
+        search_backend=_SearchBackend([relative, valid]),
+        browser_backend=browser,
+        config=FreshContextConfig(max_search_results=2, max_fetches=1),
+    )
+
+    assert browser.calls == [valid.url]
+    assert [source.url for source in context.sources] == [valid.url]
+    assert context.errors == (
+        "ignored 1 candidate URL(s) without a retrievable absolute HTTP(S) form",
+    )
+
+
 async def test_prompt_context_quarantines_untrusted_source_directives():
     browser = _BrowserBackend(
         {
@@ -557,6 +594,55 @@ async def test_retrieve_deep_fresh_context_runs_bounded_multi_query_search_and_d
     assert metadata["mode"] == "deep"
     assert metadata["source_count"] == 2
     assert len(metadata["search_queries"]) == 3
+
+
+async def test_deep_search_excludes_explicit_urls_but_still_fetches_them():
+    explicit_url = "https://evidence.example/paper"
+    search = _SearchBackend(
+        [SearchResult(title="Domain result", url="https://domain.example/result", snippet="Result", source="s")]
+    )
+    browser = _BrowserBackend(
+        {
+            explicit_url: PageContent(url=explicit_url, title="Paper", text="Explicit paper text."),
+            "https://domain.example/result": PageContent(
+                url="https://domain.example/result",
+                title="Domain result",
+                text="Domain result text.",
+            ),
+        }
+    )
+
+    context = await retrieve_deep_fresh_context(
+        f"temporal graph memory {explicit_url}",
+        search_backend=search,
+        browser_backend=browser,
+        config=FreshContextConfig(max_search_results=1, max_fetches=2, max_search_queries=2),
+    )
+
+    assert len(search.calls) == 2
+    assert all(explicit_url not in query for query, _limit in search.calls)
+    assert search.calls[0][0] == "temporal graph memory"
+    assert browser.calls == [explicit_url, "https://domain.example/result"]
+    assert [source.url for source in context.sources] == browser.calls
+
+
+async def test_deep_explicit_url_only_does_not_issue_a_search_query():
+    explicit_url = "https://evidence.example/paper"
+    search = _SearchBackend()
+    browser = _BrowserBackend(
+        {explicit_url: PageContent(url=explicit_url, title="Paper", text="Explicit paper text.")}
+    )
+
+    context = await retrieve_deep_fresh_context(
+        explicit_url,
+        search_backend=search,
+        browser_backend=browser,
+        config=FreshContextConfig(max_search_results=1, max_fetches=1, max_search_queries=2),
+    )
+
+    assert search.calls == []
+    assert browser.calls == [explicit_url]
+    assert context.search_queries == ()
 
 
 async def test_make_free_deep_builder_uses_injected_backends():

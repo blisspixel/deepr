@@ -211,13 +211,23 @@ def reserve_research_cost(
     )
 
 
-def refund_research_cost(reservation: ResearchCostReservation | None) -> None:
+def refund_research_cost(
+    reservation: ResearchCostReservation | None,
+    *,
+    provider_work_did_not_run: bool = False,
+) -> None:
     """Release an in-flight reservation without recording provider spend."""
     if reservation is not None:
-        try:
-            ResearchReservationStore().refund(reservation.reservation_id)
-        finally:
-            reservation.manager.refund_reservation(reservation.reservation_id)
+        store = ResearchReservationStore()
+        refunded = store.refund(
+            reservation.reservation_id,
+            provider_work_did_not_run=provider_work_did_not_run,
+        )
+        if refunded or not store.is_active(reservation.reservation_id):
+            reservation.manager.refund_reservation(
+                reservation.reservation_id,
+                provider_work_did_not_run=provider_work_did_not_run,
+            )
 
 
 def mark_research_provider_work(reservation: ResearchCostReservation) -> None:
@@ -327,25 +337,43 @@ def record_unreserved_research_cost(
     job_id: str,
     provider: str,
     model: str,
-    actual_cost: float,
+    actual_cost: float | None,
     tokens: int = 0,
     request_id: str = "",
     source: str,
     manager: CostSafetyManager | None = None,
-) -> None:
-    """Record completion for a legacy job that predates reservation metadata."""
+) -> float:
+    """Record a legacy completion, using a ceiling when usage is missing."""
+    missing_usage = actual_cost is None or (actual_cost == 0 and tokens <= 0)
+    if missing_usage:
+        from deepr.config import load_config
+
+        configured_ceiling = float(load_config().get("max_cost_per_job", 5.0))
+        if not isfinite(configured_ceiling) or configured_ceiling <= 0:
+            raise ValueError("max_cost_per_job must be finite and positive")
+        settled_cost = min(configured_ceiling, CostSafetyManager.ABSOLUTE_MAX_PER_OPERATION)
+    else:
+        if actual_cost is None:  # pragma: no cover - guarded by missing_usage
+            raise ValueError("actual_cost is required when usage is reported")
+        settled_cost = float(actual_cost)
     (manager or get_cost_safety_manager()).record_cost(
         session_id=f"research_{job_id}",
         operation_type="research_completion",
-        actual_cost=max(0.0, float(actual_cost)),
+        actual_cost=settled_cost,
         provider=provider,
         model=model,
         tokens_output=max(0, int(tokens)),
         request_id=request_id,
         idempotency_key=f"job:{job_id}:completion",
         source=source,
-        metadata={"legacy_unreserved_job": True},
+        metadata={
+            "legacy_unreserved_job": True,
+            "actual_cost_reported": not missing_usage,
+            "settlement_basis": "configured_ceiling" if missing_usage else "provider_reported_cost",
+        },
+        require_ledger=True,
     )
+    return settled_cost
 
 
 __all__ = [

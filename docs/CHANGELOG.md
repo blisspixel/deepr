@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.37.0] - 2026-07-18
+
 ### Added
 
 - Added `deepr expert blueprint` with an intentionally incomplete `$0` template,
@@ -76,6 +78,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   target expert domain, and the separate verifier must return a positive
   material relevance verdict before commit compilation. No lexical rule
   concludes domain relevance.
+- Investigation positions now preserve a required null hypothesis plus typed
+  hypotheses, concepts, stances, and original ideas in a non-factual
+  perspective lane. Candidates retain rationale, uncertainty, assumptions,
+  implications, expected observations, and disconfirming signals. The checker
+  can assess only form, internal coherence, and testability; truth, importance,
+  originality, novelty, and human review remain explicitly false. Source refs
+  are inspiration or context, never proof. A separate perspective graph-commit
+  envelope can admit well-formed proposals without creating factual beliefs or
+  requiring online corroboration.
+- Added `deepr expert investigate apply-learning RUN_ID` for one explicit,
+  idempotent preflight and apply across selected experts and both learning
+  lanes. It requires a completed producer-owned investigation, hash-verifies
+  every indexed envelope, preflights all selected writes before any mutation,
+  locks all selected experts, and supports expert, fact, perspective, dry-run,
+  confirmation, and JSON controls. Apply records operator confirmation, never
+  human review. Perspective-only changes do not advance factual freshness.
+- Investigation retrieval now gives every expert a distinct, reproducible
+  evidence lens using the caller's question plus that expert's frozen domain.
+  Requested URLs remain direct fetch targets but are omitted from discovery
+  query text. Model-generated charter queries remain visible proposals and
+  cannot authorize network access. Peer packets retain null hypotheses and
+  perspective candidates, and synthesis is instructed to preserve testable
+  minority hypotheses instead of treating consensus as truth.
 - Added `deepr eval investigation`, a `$0`, zero-call, zero-network six-arm
   structural evaluator with ten contract checks and no semantic quality claim.
   Published the investigation input, plan, charter, position, discussion,
@@ -134,6 +159,66 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Investigation bulk learning now treats only a provenance-verified producer
+  `blocked` or `empty` envelope with no operations as an explicit no-op. Mixed
+  dry-runs continue across ready lanes and report no-op counts. Unexpectedly
+  empty ready envelopes and every additional schema, target, provenance, or
+  operation failure still block the complete transaction before mutation. A
+  live three-expert dry-run exposed six ready operations and three no-op
+  envelopes with zero writes.
+- Claim-verification prompt v2 now requires target-domain relevance to be
+  judged from the exact candidate statement. Relevance can no longer be
+  borrowed from the surrounding source title, excerpt, query, support summary,
+  or rationale when the statement omits the relationship. This remains model
+  judgment, not a lexical verdict.
+- Investigation synthesis now explicitly preserves evidence maturity and
+  temporal qualifiers. Drafts, proposals, release candidates, announcements,
+  and scheduled future changes cannot silently become final or shipped
+  capabilities in the requested answer.
+- Deep investigation prompts now have explicit component and total packet
+  ceilings for frozen snapshots, caller inputs, source excerpts, prior
+  positions, peer discussion, checking, and synthesis. A `$0` three-expert
+  pilot completed research, all positions, one challenge round, and two
+  revisions before the third revision correctly failed the 32K-context
+  per-call byte gate. It wrote no expert state. Revisions now receive only the
+  expert's own rendered source evidence plus caller evidence, so peer dialogue
+  cannot silently become evidence. Worst-shape protocol regressions prove every
+  prompt fits the pinned 114,688-byte input allowance.
+- Windows plan execution now bypasses the Claude npm package's shell shim and
+  launches its confined packaged `claude.exe` directly. Other batch shims, a
+  missing native binary, or a package path that resolves outside the package
+  root still fail before process creation.
+- Plan CLI nonzero diagnostics now inspect bounded, secret-redacted stdout and
+  stderr. Claude can report authentication failures on stdout; the former
+  stderr-only path returned an unactionable empty diagnostic even though the
+  failure was available. Prompt echoes remain suppressed.
+- Native Ollama investigation requests now explicitly disable separate model
+  thinking output. A live deep pilot exhausted its 4,096-token prediction
+  allowance in hidden reasoning and returned empty public content. Deepr still
+  refuses to reinterpret a reasoning trace as a validated JSON artifact.
+- Free retrieval now removes relative click-tracking links and other
+  non-retrievable URL forms before allocating bounded fetch slots. Rejections
+  are counted without reflecting attacker-controlled URLs into diagnostics.
+- Deep-context search routes no longer include explicit evidence URLs in the
+  search text. The URLs remain direct retrieval targets, while URL-only deep
+  requests avoid an unnecessary discovery query.
+- Perspective-only investigation apply no longer advances the expert's factual
+  knowledge-freshness timestamp. Bulk apply also reports an explicit empty
+  result when no envelopes are selected or ready.
+- Graph commit parsing now rejects NaN and infinity across belief,
+  hypothesis, concept, stance, original-idea confidence, gap cost, and expected
+  value fields. Envelope normalization no longer lets non-finite numbers enter
+  persisted expert state.
+- A2A API consult now requires both exact metered-capacity consent and a
+  separate exact cost confirmation in addition to a positive finite budget. A
+  budget can no longer double as permission to spend on that remote surface.
+- AWS, Azure, and GCP deployment scripts now load `.env` before resolving cloud
+  configuration. Default provider budget examples and templates use `$10`
+  daily and monthly ceilings. GCP provider keys moved out of Terraform
+  variables and state into a pre-created Secret Manager reference; AWS uses a
+  pre-created Secrets Manager ARN; Azure retains secure Bicep parameters in a
+  protected ephemeral file. All three hosted job-submit paths remain disabled
+  before durable or provider side effects until canonical accounting exists.
 - Fixed investigation input-token settlement found during implementation
   audit. Runtime reserved an estimate before dispatch and recorded larger
   measured Ollama input usage afterward, but did not stop when that measured
@@ -160,6 +245,75 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   run (no more clearing the gate and still dispatching durable embeds).
 - Answer reflection LLM evaluation admits soft cost before provider work
   and records spend without bare except-pass.
+
+### Security
+
+- Claude plan execution now obtains a fresh provider observation immediately
+  before every dispatch and durably records it before process launch. Paid
+  extra usage must be explicitly disabled; missing, malformed, enabled, or
+  unwritable overage state fails closed. The adapter pins Sonnet and invokes
+  Claude in safe mode with empty tool and MCP surfaces, disabled session
+  persistence and slash commands, and no API credential. Unsupported model selection is
+  refused. Attempt accounting and legacy injected-probe compatibility no longer
+  fabricate an overage-disabled value; only provider metadata may populate it.
+  Live validation found that Claude Code 2.1.206 rejects
+  `--max-budget-usd 0` before inference because the flag accepts only positive
+  values. Deepr removed the invalid flag instead of substituting spend
+  permission; the fresh provider-side extra-usage-off proof remains the
+  no-bill boundary.
+- Live plan validation also found that `--bare` intentionally suppresses stored
+  OAuth and keychain authentication. It was replaced with `--safe-mode`, which
+  preserves plan authentication while disabling customizations, plus an
+  explicit empty tool set, strict empty MCP configuration, disabled slash
+  commands, and disabled session persistence. The corrected Claude probe
+  returned exactly `OK` with paired quota and `$0` cost events.
+- Antigravity plan execution is now blocked before vendor launch. Its native
+  tools and transcript side effects cannot currently be confined for untrusted
+  research prompts, so explicit selection no longer overrides that missing
+  safety property. It remains visible for diagnostics only.
+- Remote MCP access now preserves immutable caller identity through admission,
+  object creation, reads, subscriptions, cancellation, and resource access.
+  Scoped keys enforce owner, expert, tool, rate, and budget limits at the
+  sensitive boundary instead of trusting caller-supplied identifiers. Anonymous
+  compatibility mode cannot inherit operator credentials or paid authority.
+- REST, web, WebSocket, council, A2A, and deployment entry points now fail
+  closed on missing authentication or explicit metered consent as appropriate.
+  WebSocket connections authenticate before session work and have a bounded
+  worker cap. Cloudflare ingress rejects request bodies above 1 MiB.
+- Every reviewed metered path now reserves before dispatch, marks dispatch,
+  settles provider usage or a conservative bound, and writes the canonical
+  append-only ledger idempotently. Non-finite budgets and costs fail closed;
+  queue, poller, cancellation, portrait, embedding, and provider-usage edge
+  cases no longer create silent-money or double-ledger paths.
+- Plan-quota child execution now strips known metered credential variables,
+  verifies auth posture, restricts native tools and argv, bounds stdout and
+  stderr independently, binds transcript recovery to an attempt nonce, and
+  owns descendant cleanup through Windows Job Objects or Linux subreaping.
+  Unsupported process-ownership platforms fail closed. Claude Code is the only
+  current safety-eligible adapter and still requires fresh overage-disabled
+  proof on every dispatch. Codex, OpenCode, Kiro, Grok, Antigravity, and Copilot
+  are fleet-visible but execution-blocked for native-tool, side-effect,
+  auth-provenance, overage, policy, or metered-accounting reasons. Explicit
+  `--plan` never overrides that decision.
+- Outbound MCP children receive a minimal allowlisted environment. Only curated
+  free tools can execute until a tool has an enforceable maximum-cost contract;
+  paid or unclassified outbound tools are refused. Ollama is restricted to
+  loopback, browser-backed search tools without complete accounting remain
+  disabled, and local approvals require a real interactive TTY.
+- URL fetching now pins the validated network address through connection,
+  revalidates redirects, caps decompressed and extracted bytes, and keeps
+  browser engines disabled where equivalent SSRF controls are unavailable.
+  Investigation file and artifact reads are root-confined, hash-verified, and
+  bounded, including DOCX expansion.
+- Expert graph commits now require producer-owned provenance. Sync envelopes
+  bind exact extraction and verification artifacts; investigation envelopes
+  bind the completed run, artifact index, roster, position, checker, and target
+  expert. Caller-selected JSON, self-declared verifier labels, peer dialogue,
+  and synthesis text cannot authorize factual writes.
+- Report absorption, sync, and investigation learning now preserve independent
+  source identity, reject provenance laundering and grounding-refuted factual
+  claims, and keep model-only no-change output from advancing freshness. Failed
+  portraits and partial work no longer overstate success.
 
 ## [2.36.2] - 2026-07-14
 

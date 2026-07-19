@@ -87,6 +87,10 @@ class TestSchema:
         fk = db._conn.execute("PRAGMA foreign_keys").fetchone()[0]
         assert fk == 1
 
+    def test_jobs_schema_includes_scoped_owner(self, db):
+        columns = {row[1] for row in db._conn.execute("PRAGMA table_info(jobs)").fetchall()}
+        assert "owner_id" in columns
+
     def test_idempotent_creation(self, tmp_path):
         """Creating persistence twice on same DB should not fail."""
         db1 = JobPersistence(db_path=tmp_path / "test.db")
@@ -167,6 +171,14 @@ class TestSaveLoad:
         loaded, _, _ = db.load_job("meta_test")
         assert loaded.metadata["model"] == "o4-mini"
         assert loaded.metadata["tags"] == ["urgent", "customer"]
+
+    def test_scoped_owner_roundtrip(self, db):
+        state = JobState(job_id="owned", owner_id="mcp:key:owner-hash")
+        db.save_job(state)
+
+        loaded, _, _ = db.load_job("owned")
+
+        assert loaded.owner_id == "mcp:key:owner-hash"
 
 
 # ------------------------------------------------------------------ #

@@ -18,11 +18,10 @@ from deepr.backends.plan_quota.adapters import (
 )
 from deepr.backends.plan_quota.client import (
     PlanQuotaChatClient,
-    PlanQuotaError,
-    PlanQuotaExhausted,
     make_plan_quota_research_fn,
     probe_plan_quota,
 )
+from deepr.backends.plan_quota.errors import PlanQuotaError, PlanQuotaExhausted
 from deepr.backends.plan_quota.fleet import (
     FLEET_KIND,
     FLEET_SCHEMA_VERSION,

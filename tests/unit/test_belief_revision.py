@@ -317,16 +317,87 @@ class TestConflictResolution:
         )
 
         # Add initial belief
-        belief1 = Belief(claim="Python version is 3.11", confidence=0.7, domain="python")
+        belief1 = Belief(claim="Python version is 3.11", confidence=0.7, domain="python", trust_class="secondary")
         store.add_belief(belief1)
 
         # Add conflicting belief with higher confidence
-        belief2 = Belief(claim="Python version is 3.12", confidence=0.9, domain="python")
+        belief2 = Belief(claim="Python version is 3.12", confidence=0.9, domain="python", trust_class="secondary")
         _added, change = store.add_belief(belief2)
 
         # Higher confidence should win
         assert change is not None
         assert change.change_type == "revised"
+
+    def test_raw_tertiary_confidence_cannot_overwrite_stronger_primary_provenance(self, tmp_path):
+        store = BeliefStore(
+            expert_name="test",
+            storage_dir=tmp_path / "beliefs",
+            conflict_resolution=ConflictResolution.HIGHER_CONFIDENCE,
+        )
+        existing = Belief(
+            claim="Python version is 3.11",
+            confidence=0.70,
+            domain="python",
+            evidence_refs=["official:python"],
+            source_type="operator_document",
+            trust_class="primary",
+            grounding_assurance="cross_vendor",
+        )
+        store.add_belief(existing)
+        candidate = Belief(
+            claim="Python version is 3.12",
+            confidence=0.99,
+            domain="python",
+            evidence_refs=["report:one-blog"],
+            source_type="absorbed_report",
+            trust_class="tertiary",
+        )
+
+        retained, change = store.add_belief(candidate)
+
+        assert change is None
+        assert retained.claim == "Python version is 3.11"
+        assert retained.trust_class == "primary"
+        assert retained.source_type == "operator_document"
+        assert retained.grounding_assurance == "cross_vendor"
+        assert math.isclose(retained.get_current_confidence(), 0.70)
+
+    def test_stronger_replacement_adopts_candidate_provenance_atomically(self, tmp_path):
+        store = BeliefStore(
+            expert_name="test",
+            storage_dir=tmp_path / "beliefs",
+            conflict_resolution=ConflictResolution.HIGHER_CONFIDENCE,
+        )
+        existing = Belief(
+            claim="Python version is 3.11",
+            confidence=0.55,
+            domain="python",
+            evidence_refs=["report:old"],
+            source_type="absorbed_report",
+            trust_class="tertiary",
+        )
+        store.add_belief(existing)
+        candidate = Belief(
+            claim="Python version is 3.12",
+            confidence=0.90,
+            domain="python",
+            evidence_refs=["official:python"],
+            source_type="operator_document",
+            trust_class="primary",
+            grounding_assurance="cross_vendor",
+        )
+
+        replaced, change = store.add_belief(candidate)
+
+        assert change is not None
+        assert replaced.id == existing.id
+        assert replaced.claim == candidate.claim
+        assert replaced.confidence == candidate.confidence
+        assert replaced.evidence_refs == candidate.evidence_refs
+        assert replaced.source_type == candidate.source_type
+        assert replaced.trust_class == candidate.trust_class
+        assert replaced.grounding_assurance == candidate.grounding_assurance
+        assert replaced.history[-1]["provenance_replaced"] is True
 
     def test_newer_wins(self, tmp_path):
         """Test NEWER_WINS resolution strategy."""

@@ -36,6 +36,14 @@ class TaskNotFoundError(Exception):
         super().__init__(f"Task not found: {task_id}")
 
 
+class TaskCapacityError(Exception):
+    """Raised when accepting another active task would exceed a hard cap."""
+
+    def __init__(self, message: str, *, status_code: int) -> None:
+        self.status_code = status_code
+        super().__init__(message)
+
+
 class TaskManager:
     """Manage A2A task lifecycle with state machine enforcement.
 
@@ -54,7 +62,14 @@ class TaskManager:
         task = manager.transition(task.id, TaskState.COMPLETED, result={"data": "..."})
     """
 
-    def __init__(self, max_terminal_tasks: int = 10_000) -> None:
+    def __init__(
+        self,
+        max_terminal_tasks: int = 10_000,
+        *,
+        max_active_tasks: int = 1_000,
+        max_active_input_bytes: int = 16 * 1024 * 1024,
+        max_task_input_bytes: int = 64 * 1024,
+    ) -> None:
         # OrderedDict so we can evict oldest terminal tasks first.
         # Without bounded eviction, a long-running A2A server leaks one
         # Task per request - even after the consumer has read the
@@ -62,7 +77,18 @@ class TaskManager:
         from collections import OrderedDict
 
         self._tasks: OrderedDict[str, Task] = OrderedDict()
+        for name, value in (
+            ("max_terminal_tasks", max_terminal_tasks),
+            ("max_active_tasks", max_active_tasks),
+            ("max_active_input_bytes", max_active_input_bytes),
+            ("max_task_input_bytes", max_task_input_bytes),
+        ):
+            if isinstance(value, bool) or not isinstance(value, int) or value <= 0:
+                raise ValueError(f"{name} must be a positive integer")
         self._max_terminal_tasks = max_terminal_tasks
+        self._max_active_tasks = max_active_tasks
+        self._max_active_input_bytes = max_active_input_bytes
+        self._max_task_input_bytes = max_task_input_bytes
 
     def create_task(
         self,
@@ -78,6 +104,16 @@ class TaskManager:
         Returns:
             The created Task with a unique ID.
         """
+        input_bytes = len(request.input.encode("utf-8"))
+        if input_bytes > self._max_task_input_bytes:
+            raise TaskCapacityError("task input exceeds the per-task byte limit", status_code=413)
+        active_tasks = [task for task in self._tasks.values() if task.state in {TaskState.SUBMITTED, TaskState.WORKING}]
+        if len(active_tasks) >= self._max_active_tasks:
+            raise TaskCapacityError("active task limit reached", status_code=429)
+        active_input_bytes = sum(len(task.input.encode("utf-8")) for task in active_tasks)
+        if active_input_bytes + input_bytes > self._max_active_input_bytes:
+            raise TaskCapacityError("active task input byte limit reached", status_code=429)
+
         task_id = uuid.uuid4().hex[:12]
         now = datetime.now(UTC)
 

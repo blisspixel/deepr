@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import json
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -89,6 +90,105 @@ class TestStreamingHttpScopedKeys:
         assert event.outcome == "success"
         assert event.trace_id == "trace-1"
         assert current_mcp_request_identity() is None
+
+    @pytest.mark.asyncio
+    async def test_legacy_method_uses_canonical_scoped_authorization(self, tmp_path):
+        store = ScopedMCPKeyStore(tmp_path / "keys.json")
+        secret, _record = store.create_key(
+            "agent",
+            mode=ResearchMode.UNRESTRICTED,
+            expert_allowlist=["alpha"],
+            secret="secret",
+        )
+        audit = RemoteMCPAuditLog(tmp_path / "audit.jsonl")
+        transport = StreamingHttpTransport(scoped_key_store=store, audit_log=audit)
+        handler = AsyncMock(return_value=HttpMessage(id="1", result={"ok": True}))
+        transport.on_message(handler)
+
+        response = await transport._handle_post(
+            _request(
+                {
+                    "jsonrpc": "2.0",
+                    "id": "1",
+                    "method": "get_expert_info",
+                    "params": {"expert_name": "beta"},
+                },
+                secret,
+            )
+        )
+
+        payload = json.loads(response.text)
+        assert payload["error"]["data"]["error_code"] == "EXPERT_SCOPE_DENIED"
+        handler.assert_not_awaited()
+        event = audit.read_recent()[-1]
+        assert event.tool == "deepr_get_expert_info"
+        assert event.error_code == "EXPERT_SCOPE_DENIED"
+
+    @pytest.mark.asyncio
+    async def test_allowed_legacy_method_dispatches_and_audits_canonical_tool(self, tmp_path):
+        store = ScopedMCPKeyStore(tmp_path / "keys.json")
+        secret, _record = store.create_key(
+            "agent",
+            mode=ResearchMode.UNRESTRICTED,
+            expert_allowlist=["alpha"],
+            secret="secret",
+        )
+        audit = RemoteMCPAuditLog(tmp_path / "audit.jsonl")
+        transport = StreamingHttpTransport(scoped_key_store=store, audit_log=audit)
+
+        async def handler(message: HttpMessage):
+            assert message.method == "tools/call"
+            assert message.params is not None
+            assert message.params["name"] == "deepr_get_expert_info"
+            assert message.params["arguments"] == {"expert_name": "alpha"}
+            return HttpMessage(id=message.id, result={"ok": True})
+
+        transport.on_message(handler)
+        response = await transport._handle_post(
+            _request(
+                {
+                    "jsonrpc": "2.0",
+                    "id": "1",
+                    "method": "get_expert_info",
+                    "params": {"expert_name": "alpha"},
+                },
+                secret,
+            )
+        )
+
+        assert json.loads(response.text)["result"] == {"ok": True}
+        assert audit.read_recent()[-1].tool == "deepr_get_expert_info"
+
+    @pytest.mark.asyncio
+    async def test_legacy_method_without_params_is_canonicalized_before_rate_limit(self, tmp_path):
+        store = ScopedMCPKeyStore(tmp_path / "keys.json")
+        secret, _record = store.create_key(
+            "agent",
+            mode=ResearchMode.UNRESTRICTED,
+            rate_limit_per_minute=1,
+            secret="secret",
+        )
+        audit = RemoteMCPAuditLog(tmp_path / "audit.jsonl")
+        transport = StreamingHttpTransport(scoped_key_store=store, audit_log=audit)
+
+        async def handler(message: HttpMessage):
+            assert message.method == "tools/call"
+            assert message.params is not None
+            assert message.params["name"] == "deepr_list_experts"
+            assert message.params["arguments"] == {}
+            return HttpMessage(id=message.id, result={"experts": []})
+
+        transport.on_message(handler)
+        body = {"jsonrpc": "2.0", "method": "list_experts"}
+        first = await transport._handle_post(_request({**body, "id": "1"}, secret))
+        second = await transport._handle_post(_request({**body, "id": "2"}, secret))
+
+        assert json.loads(first.text)["result"] == {"experts": []}
+        assert json.loads(second.text)["error"]["data"]["error_code"] == "KEY_RATE_LIMIT_EXCEEDED"
+        assert [event.tool for event in audit.read_recent()] == [
+            "deepr_list_experts",
+            "deepr_list_experts",
+        ]
 
     @pytest.mark.asyncio
     async def test_scoped_key_blocks_outside_expert_before_handler(self, tmp_path):
@@ -291,9 +391,7 @@ class TestStreamingHttpScopedKeys:
     @pytest.mark.asyncio
     async def test_scoped_key_audit_records_structured_tool_error(self, tmp_path):
         store = ScopedMCPKeyStore(tmp_path / "keys.json")
-        secret, _record = store.create_key(
-            "agent", mode=ResearchMode.UNRESTRICTED, secret="secret"
-        )
+        secret, _record = store.create_key("agent", mode=ResearchMode.UNRESTRICTED, secret="secret")
         audit = RemoteMCPAuditLog(tmp_path / "audit.jsonl")
         transport = StreamingHttpTransport(scoped_key_store=store, audit_log=audit)
 
@@ -378,6 +476,175 @@ class TestStreamingHttpScopedKeys:
         assert payload["error"]["data"]["calls_in_window"] == 1
         assert handler.await_count == 1
         assert audit.read_recent()[-1].error_code == "KEY_RATE_LIMIT_EXCEEDED"
+
+    @pytest.mark.asyncio
+    async def test_concurrent_transports_reserve_budget_before_dispatch(self, tmp_path):
+        store = ScopedMCPKeyStore(tmp_path / "keys.json")
+        secret, _record = store.create_key(
+            "agent",
+            mode=ResearchMode.UNRESTRICTED,
+            budget_limit_usd=0.02,
+            secret="secret",
+        )
+        audit = RemoteMCPAuditLog(tmp_path / "audit.jsonl")
+        first_transport = StreamingHttpTransport(scoped_key_store=store, audit_log=audit)
+        second_transport = StreamingHttpTransport(scoped_key_store=store, audit_log=audit)
+        entered = asyncio.Event()
+        release = asyncio.Event()
+
+        async def held_handler(message: HttpMessage):
+            entered.set()
+            await release.wait()
+            return HttpMessage(id=message.id, result={"verdict": "supported"})
+
+        first_transport.on_message(held_handler)
+        second_handler = AsyncMock(return_value=HttpMessage(id="2", result={"verdict": "supported"}))
+        second_transport.on_message(second_handler)
+        body = {
+            "jsonrpc": "2.0",
+            "method": "tools/call",
+            "params": {
+                "name": "deepr_expert_validate",
+                "arguments": {"expert_name": "alpha", "claim": "claim", "_approved": True},
+            },
+        }
+
+        first_task = asyncio.create_task(first_transport._handle_post(_request({**body, "id": "1"}, secret)))
+        await entered.wait()
+        second = await second_transport._handle_post(_request({**body, "id": "2"}, secret))
+
+        assert json.loads(second.text)["error"]["data"]["error_code"] == "KEY_BUDGET_EXCEEDED"
+        second_handler.assert_not_awaited()
+        release.set()
+        first = await first_task
+        assert json.loads(first.text)["result"] == {"verdict": "supported"}
+        assert audit.total_cost_for_key("agent") == 0.02
+
+    @pytest.mark.asyncio
+    async def test_concurrent_transports_reserve_rate_slot_before_dispatch(self, tmp_path):
+        store = ScopedMCPKeyStore(tmp_path / "keys.json")
+        secret, _record = store.create_key(
+            "agent",
+            mode=ResearchMode.UNRESTRICTED,
+            rate_limit_per_minute=1,
+            secret="secret",
+        )
+        audit = RemoteMCPAuditLog(tmp_path / "audit.jsonl")
+        first_transport = StreamingHttpTransport(scoped_key_store=store, audit_log=audit)
+        second_transport = StreamingHttpTransport(scoped_key_store=store, audit_log=audit)
+        entered = asyncio.Event()
+        release = asyncio.Event()
+
+        async def held_handler(message: HttpMessage):
+            entered.set()
+            await release.wait()
+            return HttpMessage(id=message.id, result={"ok": True})
+
+        first_transport.on_message(held_handler)
+        second_handler = AsyncMock(return_value=HttpMessage(id="2", result={"ok": True}))
+        second_transport.on_message(second_handler)
+        body = {
+            "jsonrpc": "2.0",
+            "method": "tools/call",
+            "params": {"name": "deepr_status", "arguments": {}},
+        }
+
+        first_task = asyncio.create_task(first_transport._handle_post(_request({**body, "id": "1"}, secret)))
+        await entered.wait()
+        second = await second_transport._handle_post(_request({**body, "id": "2"}, secret))
+
+        assert json.loads(second.text)["error"]["data"]["error_code"] == "KEY_RATE_LIMIT_EXCEEDED"
+        second_handler.assert_not_awaited()
+        release.set()
+        first = await first_task
+        assert json.loads(first.text)["result"] == {"ok": True}
+
+    @pytest.mark.asyncio
+    async def test_resource_methods_consume_rate_and_write_method_audit(self, tmp_path):
+        store = ScopedMCPKeyStore(tmp_path / "keys.json")
+        secret, _record = store.create_key(
+            "agent",
+            mode=ResearchMode.READ_ONLY,
+            rate_limit_per_minute=1,
+            secret="secret",
+        )
+        audit = RemoteMCPAuditLog(tmp_path / "audit.jsonl")
+        transport = StreamingHttpTransport(scoped_key_store=store, audit_log=audit)
+        handler = AsyncMock(return_value=HttpMessage(id="1", result={"resources": []}))
+        transport.on_message(handler)
+
+        first = await transport._handle_post(
+            _request(
+                {"jsonrpc": "2.0", "id": "1", "method": "resources/list"},
+                secret,
+            )
+        )
+        second = await transport._handle_post(
+            _request(
+                {
+                    "jsonrpc": "2.0",
+                    "id": "2",
+                    "method": "resources/read",
+                    "params": {"uri": "deepr://experts/alpha/beliefs"},
+                },
+                secret,
+            )
+        )
+
+        assert json.loads(first.text)["result"] == {"resources": []}
+        assert json.loads(second.text)["error"]["data"]["error_code"] == "KEY_RATE_LIMIT_EXCEEDED"
+        assert handler.await_count == 1
+        events = audit.read_recent()
+        assert [event.tool for event in events] == ["resources/list", "resources/read"]
+
+    @pytest.mark.asyncio
+    async def test_scoped_notification_settles_admission_once(self, tmp_path):
+        store = ScopedMCPKeyStore(tmp_path / "keys.json")
+        secret, _record = store.create_key("agent", secret="secret")
+        audit = RemoteMCPAuditLog(tmp_path / "audit.jsonl")
+        transport = StreamingHttpTransport(scoped_key_store=store, audit_log=audit)
+        transport.on_message(AsyncMock(return_value=None))
+
+        response = await transport._handle_post(
+            _request(
+                {"jsonrpc": "2.0", "method": "resources/list", "params": {}},
+                secret,
+            )
+        )
+
+        assert response.status == 204
+        assert [event.tool for event in audit.read_recent()] == ["resources/list"]
+
+    @pytest.mark.asyncio
+    async def test_handler_failure_conservatively_settles_budget_hold(self, tmp_path):
+        store = ScopedMCPKeyStore(tmp_path / "keys.json")
+        secret, _record = store.create_key(
+            "agent",
+            mode=ResearchMode.UNRESTRICTED,
+            budget_limit_usd=0.02,
+            secret="secret",
+        )
+        audit = RemoteMCPAuditLog(tmp_path / "audit.jsonl")
+        transport = StreamingHttpTransport(scoped_key_store=store, audit_log=audit)
+        handler = AsyncMock(side_effect=RuntimeError("handler failed after dispatch"))
+        transport.on_message(handler)
+        body = {
+            "jsonrpc": "2.0",
+            "method": "tools/call",
+            "params": {
+                "name": "deepr_expert_validate",
+                "arguments": {"expert_name": "alpha", "claim": "claim", "_approved": True},
+            },
+        }
+
+        first = await transport._handle_post(_request({**body, "id": "1"}, secret))
+        second = await transport._handle_post(_request({**body, "id": "2"}, secret))
+
+        assert first.status == 500
+        assert json.loads(second.text)["error"]["data"]["error_code"] == "KEY_BUDGET_EXCEEDED"
+        assert handler.await_count == 1
+        assert audit.total_cost_for_key("agent") == 0.02
+        assert audit.read_recent()[0].error_code == "MCP_HANDLER_FAILED"
 
     @pytest.mark.asyncio
     async def test_public_bind_with_active_scoped_key_succeeds_without_shared_token(self, tmp_path):

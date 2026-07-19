@@ -23,14 +23,29 @@ def test_a2a_boolean_budget_is_not_coerced_to_one_dollar() -> None:
 
 @pytest.mark.parametrize("approval", ["false", "true", "0", 1, [], {}])
 def test_a2a_metered_approval_requires_exact_boolean_true(approval: object) -> None:
-    error = _validate_capacity_request("api", 1.0, {"allow_metered_api": approval})
+    error = _validate_capacity_request(
+        "api",
+        1.0,
+        {"allow_metered_api": approval, "confirm_metered_cost": True},
+    )
 
     assert error is not None
     assert error["error_code"] == "METERED_API_NOT_APPROVED"
 
 
 def test_a2a_metered_approval_accepts_exact_boolean_true() -> None:
-    assert _validate_capacity_request("api", 1.0, {"allow_metered_api": True}) is None
+    metadata = {"allow_metered_api": True, "confirm_metered_cost": True}
+    assert _validate_capacity_request("api", 1.0, metadata) is None
+
+
+@pytest.mark.parametrize("confirmation", [None, False, "true", 1, [], {}])
+def test_a2a_metered_cost_confirmation_requires_exact_boolean_true(confirmation: object) -> None:
+    metadata = {"allow_metered_api": True, "confirm_metered_cost": confirmation}
+
+    error = _validate_capacity_request("api", 1.0, metadata)
+
+    assert error is not None
+    assert error["error_code"] == "METERED_API_NOT_APPROVED"
 
 
 @pytest.mark.parametrize("max_experts", [float("inf"), float("-inf"), float("nan"), True, 0, 11, 1.5, "3"])

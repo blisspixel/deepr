@@ -42,35 +42,20 @@ variable "environment" {
   }
 }
 
-variable "openai_api_key" {
-  description = "OpenAI API Key"
+variable "openai_secret_id" {
+  description = "ID of a pre-created Secret Manager secret containing the OpenAI API key"
   type        = string
-  sensitive   = true
 
   validation {
-    condition     = length(var.openai_api_key) > 0
-    error_message = "OpenAI API key is required."
+    condition     = length(var.openai_secret_id) > 0
+    error_message = "A pre-created OpenAI Secret Manager secret ID is required."
   }
-}
-
-variable "google_api_key" {
-  description = "Google API Key for Gemini (optional)"
-  type        = string
-  default     = ""
-  sensitive   = true
-}
-
-variable "xai_api_key" {
-  description = "xAI API Key for Grok (optional)"
-  type        = string
-  default     = ""
-  sensitive   = true
 }
 
 variable "daily_budget" {
   description = "Daily spending limit in USD"
   type        = number
-  default     = 50
+  default     = 10
 
   validation {
     condition     = var.daily_budget >= 1 && var.daily_budget <= 10000
@@ -81,7 +66,7 @@ variable "daily_budget" {
 variable "monthly_budget" {
   description = "Monthly spending limit in USD"
   type        = number
-  default     = 500
+  default     = 10
 
   validation {
     condition     = var.monthly_budget >= 1 && var.monthly_budget <= 100000
@@ -245,7 +230,7 @@ resource "google_kms_key_ring" "deepr" {
 resource "google_kms_crypto_key" "deepr" {
   name            = "${local.prefix}-key"
   key_ring        = google_kms_key_ring.deepr.id
-  rotation_period = "7776000s"  # 90 days
+  rotation_period = "7776000s" # 90 days
 
   lifecycle {
     prevent_destroy = true
@@ -253,78 +238,8 @@ resource "google_kms_crypto_key" "deepr" {
 }
 
 # ============================================================================
-# Secret Manager with KMS Encryption
+# Secret Manager
 # ============================================================================
-resource "google_secret_manager_secret" "openai_key" {
-  secret_id = "${local.prefix}-openai-key"
-
-  replication {
-    user_managed {
-      replicas {
-        location = var.region
-        customer_managed_encryption {
-          kms_key_name = google_kms_crypto_key.deepr.id
-        }
-      }
-    }
-  }
-
-  depends_on = [google_project_service.apis]
-}
-
-resource "google_secret_manager_secret_version" "openai_key" {
-  secret      = google_secret_manager_secret.openai_key.id
-  secret_data = var.openai_api_key
-}
-
-resource "google_secret_manager_secret" "google_key" {
-  count     = var.google_api_key != "" ? 1 : 0
-  secret_id = "${local.prefix}-google-key"
-
-  replication {
-    user_managed {
-      replicas {
-        location = var.region
-        customer_managed_encryption {
-          kms_key_name = google_kms_crypto_key.deepr.id
-        }
-      }
-    }
-  }
-
-  depends_on = [google_project_service.apis]
-}
-
-resource "google_secret_manager_secret_version" "google_key" {
-  count       = var.google_api_key != "" ? 1 : 0
-  secret      = google_secret_manager_secret.google_key[0].id
-  secret_data = var.google_api_key
-}
-
-resource "google_secret_manager_secret" "xai_key" {
-  count     = var.xai_api_key != "" ? 1 : 0
-  secret_id = "${local.prefix}-xai-key"
-
-  replication {
-    user_managed {
-      replicas {
-        location = var.region
-        customer_managed_encryption {
-          kms_key_name = google_kms_crypto_key.deepr.id
-        }
-      }
-    }
-  }
-
-  depends_on = [google_project_service.apis]
-}
-
-resource "google_secret_manager_secret_version" "xai_key" {
-  count       = var.xai_api_key != "" ? 1 : 0
-  secret      = google_secret_manager_secret.xai_key[0].id
-  secret_data = var.xai_api_key
-}
-
 # API Key for authenticated access
 resource "google_secret_manager_secret" "api_key" {
   secret_id = "${local.prefix}-api-key"
@@ -440,11 +355,11 @@ resource "google_pubsub_subscription" "jobs" {
   name  = "${local.prefix}-jobs-sub"
   topic = google_pubsub_topic.jobs.name
 
-  ack_deadline_seconds       = 600  # 10 minutes
-  message_retention_duration = "604800s"  # 7 days
+  ack_deadline_seconds       = 600       # 10 minutes
+  message_retention_duration = "604800s" # 7 days
   retain_acked_messages      = false
   expiration_policy {
-    ttl = ""  # Never expire
+    ttl = "" # Never expire
   }
 
   retry_policy {
@@ -530,7 +445,7 @@ resource "google_project_iam_member" "api_firestore" {
 
 # API service account - Secret access (read only)
 resource "google_secret_manager_secret_iam_member" "api_openai" {
-  secret_id = google_secret_manager_secret.openai_key.secret_id
+  secret_id = var.openai_secret_id
   role      = "roles/secretmanager.secretAccessor"
   member    = "serviceAccount:${google_service_account.api.email}"
 }
@@ -582,7 +497,7 @@ resource "google_project_iam_member" "worker_firestore" {
 
 # Worker service account - Secret access
 resource "google_secret_manager_secret_iam_member" "worker_openai" {
-  secret_id = google_secret_manager_secret.openai_key.secret_id
+  secret_id = var.openai_secret_id
   role      = "roles/secretmanager.secretAccessor"
   member    = "serviceAccount:${google_service_account.worker.email}"
 }
@@ -621,30 +536,30 @@ resource "google_cloudfunctions2_function" "api" {
   }
 
   service_config {
-    max_instance_count               = 100
-    min_instance_count               = 0
-    available_memory                 = "512M"
-    timeout_seconds                  = 60
-    service_account_email            = google_service_account.api.email
-    ingress_settings                 = "ALLOW_INTERNAL_AND_GCLB"  # Only from load balancer
-    all_traffic_on_latest_revision   = true
-    vpc_connector                    = google_vpc_access_connector.connector.id
-    vpc_connector_egress_settings    = "PRIVATE_RANGES_ONLY"
+    max_instance_count             = 100
+    min_instance_count             = 0
+    available_memory               = "512M"
+    timeout_seconds                = 60
+    service_account_email          = google_service_account.api.email
+    ingress_settings               = "ALLOW_INTERNAL_AND_GCLB" # Only from load balancer
+    all_traffic_on_latest_revision = true
+    vpc_connector                  = google_vpc_access_connector.connector.id
+    vpc_connector_egress_settings  = "PRIVATE_RANGES_ONLY"
 
     environment_variables = {
-      PROJECT_ID       = var.project_id
-      PUBSUB_TOPIC     = google_pubsub_topic.jobs.name
-      RESULTS_BUCKET   = google_storage_bucket.results.name
-      FIRESTORE_DB     = google_firestore_database.deepr.name
-      DAILY_BUDGET     = var.daily_budget
-      MONTHLY_BUDGET   = var.monthly_budget
-      LOG_LEVEL        = "INFO"
+      PROJECT_ID     = var.project_id
+      PUBSUB_TOPIC   = google_pubsub_topic.jobs.name
+      RESULTS_BUCKET = google_storage_bucket.results.name
+      FIRESTORE_DB   = google_firestore_database.deepr.name
+      DAILY_BUDGET   = var.daily_budget
+      MONTHLY_BUDGET = var.monthly_budget
+      LOG_LEVEL      = "INFO"
     }
 
     secret_environment_variables {
       key        = "OPENAI_API_KEY"
       project_id = var.project_id
-      secret     = google_secret_manager_secret.openai_key.secret_id
+      secret     = var.openai_secret_id
       version    = "latest"
     }
 
@@ -658,7 +573,6 @@ resource "google_cloudfunctions2_function" "api" {
 
   depends_on = [
     google_project_service.apis,
-    google_secret_manager_secret_version.openai_key,
     google_secret_manager_secret_version.api_key,
     google_vpc_access_connector.connector,
   ]
@@ -899,7 +813,7 @@ resource "google_cloud_run_v2_service" "worker" {
         name = "OPENAI_API_KEY"
         value_source {
           secret_key_ref {
-            secret  = google_secret_manager_secret.openai_key.secret_id
+            secret  = var.openai_secret_id
             version = "latest"
           }
         }
@@ -927,7 +841,7 @@ resource "google_cloud_run_v2_service" "worker" {
       }
     }
 
-    timeout = "3600s"  # 1 hour max per request
+    timeout = "3600s" # 1 hour max per request
   }
 
   depends_on = [
@@ -959,7 +873,7 @@ resource "google_monitoring_alert_policy" "high_error_rate" {
     }
   }
 
-  notification_channels = []  # Add notification channels in production
+  notification_channels = [] # Add notification channels in production
 }
 
 resource "google_monitoring_alert_policy" "dlq_messages" {

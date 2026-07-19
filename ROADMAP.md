@@ -80,7 +80,8 @@ then hand that evolving perspective to humans or agents through bounded
 interfaces. The Level 5/6 path is the careful version of this idea: self-models,
 metacognitive monitors, current-focus packets, and reflective continuity, all
 under spend, security, provenance, and verification gates. Research is the
-input, verified and operator-accepted current expert state is the reusable product, and better
+input, source-verified factual state plus explicitly admitted non-factual
+perspective state is the reusable product, and better
 repeated decisions are the outcome. Graph size, report count, and apparent
 self-confidence are not substitutes for held-out and downstream evidence.
 
@@ -122,8 +123,11 @@ owns the decision and any downstream action.
 
 The shipped one-shot consult is a smaller baseline: it independently selects
 stored-state packets, makes no expert-generation calls, permits no peer turns,
-and runs at most one synthesis. Question-specific independent positions belong
-to the gated multi-round design, not the current council claim.
+and runs at most one synthesis. The experimental local investigation is the
+question-specific path: independent research, bounded blinded discussion,
+optional private revision, checking, synthesis, and separately staged factual
+and perspective learning. Plan-quota, metered API, remote execution, and
+automatic learning apply remain gated.
 
 Specialization remains a measured context and authority boundary, not a reason
 to multiply processes. A Deepr expert is durable epistemic state plus bounded
@@ -142,6 +146,12 @@ it is trying to learn, and which accepted self-model updates are guiding the
 current transaction. Self-report is not proof; every reflective statement must
 trace to durable state such as belief events, source notes, loop traces, evals,
 accepted self-model records, or human review evidence.
+
+The Digital Consciousness expert must keep a theory-conditioned indicator and
+credence matrix. It should show which observation matters under which theory,
+separate capability evidence from phenomenal-consciousness claims, preserve
+ethical uncertainty, and avoid a binary consciousness verdict. A model's
+self-report or benchmark performance is evidence to interpret, not proof.
 
 **Wiki-memory principle:** the browsable wiki or digest is a regenerated view,
 not canonical memory. Canon lives in source packs, source notes, atomic beliefs,
@@ -312,7 +322,20 @@ reliable product, not a four-language architecture diagram.
 
 ---
 
-## Current Status (v2.36.2)
+## Current Status (v2.37.0)
+
+**v2.37.0 additions:** experimental `$0` local evidence-first expert
+investigations now provide immutable previews, distinct expert research lenses,
+one bounded blinded discussion round, independent checking, dissent-preserving
+synthesis, durable lifecycle controls, and separately staged factual and
+perspective learning. Bulk learning is provenance-bound, atomic across every
+selected ready envelope, explicit-only, and truthful about no-ops, model review,
+truth, and novelty. Security and cost work closes remote ownership, MCP
+authority, SSRF, process confinement, reservation and settlement, and
+no-surprise-bills gaps. Claude Code is the sole currently executable plan-quota
+adapter, only after a fresh provider proof that paid extra usage is disabled;
+all other plan CLIs remain visible but execution-blocked. The complete local
+validation used `$0.00` paid-provider spend and applied no dogfood learning.
 
 **v2.36.2 additions:** metered chat dual confirmation
 (``DEEPR_ALLOW_METERED_EXPERT_CHAT``), no double-ledger after durable settle,
@@ -410,19 +433,43 @@ last-write-wins files.
 Multi-provider research automation with expert system, domain-specific skills, MCP integration, native first-party instruments (Recon + Distillr + Primr; Phase 2b complete), and observability. 8000+ unit tests, 80% branch coverage enforced on Python 3.12/3.13/3.14 (all blocking). Toolchain managed by `uv` (`uv.lock` committed); pre-commit hooks with ruff; strict mypy islands, dependency audit (`pip-audit`), SBOM generation, and a blocking Gitleaks history scan are wired into CI (see [Phase E](#phase-e-engineering-standards-and-code-quality-elevation-foundational-continuous)).
 
 
-**Current main (v2.36.2):** the evidence layer is available (`deepr eval continuity` + the calibration harness `eval calibrate`, design: [calibration-and-trust.md](docs/design/calibration-and-trust.md)); **agentic red-team metrics** now include `deepr eval red-team`, a local `$0` attack-success-rate verifier for prompt-boundary, MCP handoff and loop-status read-path, tool-spoofing, and trust-floor probes, plus `--save` trend artifacts under the configured benchmarks directory; **$0 local-model execution** (local-only `expert make --local`, Ollama backend, `expert sync`/`absorb --local`, plus `expert sync --local --fresh-context` and `--deep-context` for free-only retrieval context with optional SearXNG), **local comparison** (`deepr eval local` with a local Ollama judge or explicit CLI judge), **local context evaluation** (`deepr eval local-context` comparing no/fresh/deep context), **source-pack sync artifacts** for context-bearing runs, **eval-artifact admission** (`deepr capacity admit --from-eval latest`), **runtime admitted-score quality gating**, **capacity next actions** (`deepr capacity next`, with `--probe` for a live `$0` local readiness check), and **capacity visibility** (`deepr capacity`, `capacity fleet`, `capacity probe-fleet`) are wired toward routing on owned/prepaid capacity before metered API, including the normalized `ResearchBackend` profile, append-only `quota_ledger.jsonl` substrate, pure backend eligibility for observed plan-quota state, pure backend selection with measured quality floors, and scheduled wait/action-plan guidance for recurring expert maintenance (design: [capacity-waterfall.md](docs/design/capacity-waterfall.md); fresh local context: [local-fresh-context.md](docs/design/local-fresh-context.md)); **durable expert loops** now record schema-versioned `ExpertLoopRun` state across scheduled waits, sync, gap-fill execution, reflection, and health-check runs, with CLI, MCP, and web rollups; **OKF interchange** exports derived bundles from structured state and re-imports through verified absorb; **expert memory cards** now expose `deepr-expert-memory-card-v1` and `deepr expert memory-card NAME --write`, a `$0` generated `EXPERT.md` orientation view over profile, manifest, belief events, and self-model state, including explicitly tagged theories and insights, self-research agenda, what would change the expert's mind, and agency scope; **hosted MCP foundation** includes HTTP/SSE serving, scoped keys, per-key budgets and rate limits, remote audit logs, smoke checks, registration manifests, deployment recipes, published schemas, and scheduler schemas for sync, gap-fill, reflection, and health-check maintenance payloads; **sequential portability** - `deepr init --data-dir` coordinates expert, report, and runtime roots for one-device-at-a-time use; stop Deepr services and complete file sync before switching devices ([ADR 0004](docs/decisions/0004-one-experts-root-and-portable-data-dir.md), [design](docs/design/multi-device-expert-continuity.md)); routing **quality priors** keep auto mode useful without paid evals; guided setup (`deepr init`) is stable; and expert handoff payloads now preserve grounding assurance per claim with verified and cross-vendor verified summary counts. The graph commit boundary now applies factual belief writes, verifier-supplied typed edges, verified gap promotions, verified exploration-agenda promotions, verified hypothesis promotions, verified concept promotions, verified stance promotions, and verified original-idea promotions through schema-versioned explicit apply operations while preserving `$0` no-model apply semantics. Claim-verification decisions can now carry read-only `candidate_only` recall context for memory-quality routing without changing readiness or writing the graph. Plan-quota CLI adapters now execute via the `research_fn`/chat-client seam (`deepr expert sync --plan <id>`, `deepr expert sync-all --plan <id>`, `deepr expert route-gaps --execute --plan <id>`, `deepr expert absorb --plan <id>`, topic `deepr expert learn --plan <id>` with `learn-web` retained as an explicit alias, `deepr capacity probe-plan <id>`, bounded concurrent `deepr capacity probe-fleet`, and bounded concurrent `deepr mcp validate-consult-fleet`) behind a deterministic auth-mode + no-surprise-bills gate; `deepr expert sync-all --scheduled` and scheduled `deepr expert route-gaps --execute` can consume admitted, quota-observed plan selections from the existing waterfall for roster-level sync and gap-fill maintenance, and non-dry `route-gaps --execute` now holds the per-expert `route-gaps` overlap lock plus deterministic startup jitter so overlapping scheduled fills skip cleanly before any engine or client construction. Legacy `deepr expert fill-gaps` and the web fill-gaps endpoint require explicit metered API acknowledgement before provider construction, while health checks and docs point ordinary gap filling to the local/plan-first scheduled route path. Codex and Claude are the clean auto-routable plan candidates once trusted headroom observations exist, while OpenCode is explicit-only until Deepr can verify the routed provider is OAuth/subscription or local. Kiro/grok/antigravity are explicit-only. Copilot remains visible/read-only and execution-blocked pending deterministic estimation, reservation, usage settlement, and canonical cost-ledger support. `deepr capacity refresh-quota codex`, `deepr capacity refresh-quota claude`, and `deepr capacity refresh-quota grok` record trusted metadata quota windows without model calls (design: [plan-quota-cli-backends.md](docs/design/plan-quota-cli-backends.md)). Live validation on 2026-06-30 confirmed Codex, Claude, Grok, and Antigravity plan probes work on this workstation at `$0` tracked daily spend; Grok and Antigravity remain explicit-only because their policy and automation risk did not change. Remaining capacity work is Grok heavy-consult reliability diagnostics, Antigravity live window/credit probes, remaining scheduler dispatch beyond sync-all and gap-fill, and auto-mode runtime integration. Remaining reach work is live third-party host registration and broader hosted-operational validation. Remaining red-team work is broader adaptive MCP extraction probing, expert-chat harness coverage, and ingestion-path corpora. The cross-cutting principle for what deepr hardcodes vs lets the model decide (workflow vs agent, determinism on side-effects not meaning) is set in [AGENTIC_BALANCE.md](docs/plans/AGENTIC_BALANCE.md); the boundary for which checks specifically are deterministic vs model-based is its instance in [checks-deterministic-vs-agentic.md](docs/design/checks-deterministic-vs-agentic.md).
+**Historical v2.36.2 baseline:** the evidence layer is available (`deepr eval continuity` + the calibration harness `eval calibrate`, design: [calibration-and-trust.md](docs/design/calibration-and-trust.md)); **agentic red-team metrics** now include `deepr eval red-team`, a local `$0` attack-success-rate verifier for prompt-boundary, MCP handoff and loop-status read-path, tool-spoofing, and trust-floor probes, plus `--save` trend artifacts under the configured benchmarks directory; **$0 local-model execution** (local-only `expert make --local`, Ollama backend, `expert sync`/`absorb --local`, plus `expert sync --local --fresh-context` and `--deep-context` for free-only retrieval context with optional SearXNG), **local comparison** (`deepr eval local` with a local Ollama judge or explicit CLI judge), **local context evaluation** (`deepr eval local-context` comparing no/fresh/deep context), **source-pack sync artifacts** for context-bearing runs, **eval-artifact admission** (`deepr capacity admit --from-eval latest`), **runtime admitted-score quality gating**, **capacity next actions** (`deepr capacity next`, with `--probe` for a live `$0` local readiness check), and **capacity visibility** (`deepr capacity`, `capacity fleet`, `capacity probe-fleet`) are wired toward routing on owned/prepaid capacity before metered API, including the normalized `ResearchBackend` profile, append-only `quota_ledger.jsonl` substrate, pure backend eligibility for observed plan-quota state, pure backend selection with measured quality floors, and scheduled wait/action-plan guidance for recurring expert maintenance (design: [capacity-waterfall.md](docs/design/capacity-waterfall.md); fresh local context: [local-fresh-context.md](docs/design/local-fresh-context.md)); **durable expert loops** now record schema-versioned `ExpertLoopRun` state across scheduled waits, sync, gap-fill execution, reflection, and health-check runs, with CLI, MCP, and web rollups; **OKF interchange** exports derived bundles from structured state and re-imports through verified absorb; **expert memory cards** now expose `deepr-expert-memory-card-v1` and `deepr expert memory-card NAME --write`, a `$0` generated `EXPERT.md` orientation view over profile, manifest, belief events, and self-model state, including explicitly tagged theories and insights, self-research agenda, what would change the expert's mind, and agency scope; **hosted MCP foundation** includes HTTP/SSE serving, scoped keys, per-key budgets and rate limits, remote audit logs, smoke checks, registration manifests, deployment recipes, published schemas, and scheduler schemas for sync, gap-fill, reflection, and health-check maintenance payloads; **sequential portability** - `deepr init --data-dir` coordinates expert, report, and runtime roots for one-device-at-a-time use; stop Deepr services and complete file sync before switching devices ([ADR 0004](docs/decisions/0004-one-experts-root-and-portable-data-dir.md), [design](docs/design/multi-device-expert-continuity.md)); routing **quality priors** keep auto mode useful without paid evals; guided setup (`deepr init`) is stable; and expert handoff payloads now preserve grounding assurance per claim with verified and cross-vendor verified summary counts. The graph commit boundary now applies factual belief writes, verifier-supplied typed edges, verified gap promotions, verified exploration-agenda promotions, verified hypothesis promotions, verified concept promotions, verified stance promotions, and verified original-idea promotions through schema-versioned explicit apply operations while preserving `$0` no-model apply semantics. Claim-verification decisions can now carry read-only `candidate_only` recall context for memory-quality routing without changing readiness or writing the graph. Plan-quota CLI adapters now execute via the `research_fn`/chat-client seam (`deepr expert sync --plan <id>`, `deepr expert sync-all --plan <id>`, `deepr expert route-gaps --execute --plan <id>`, `deepr expert absorb --plan <id>`, topic `deepr expert learn --plan <id>` with `learn-web` retained as an explicit alias, `deepr capacity probe-plan <id>`, bounded concurrent `deepr capacity probe-fleet`, and bounded concurrent `deepr mcp validate-consult-fleet`) behind a deterministic auth-mode + no-surprise-bills gate; `deepr expert sync-all --scheduled` and scheduled `deepr expert route-gaps --execute` can consume admitted, quota-observed plan selections from the existing waterfall for roster-level sync and gap-fill maintenance, and non-dry `route-gaps --execute` now holds the per-expert `route-gaps` overlap lock plus deterministic startup jitter so overlapping scheduled fills skip cleanly before any engine or client construction. Legacy `deepr expert fill-gaps` and the web fill-gaps endpoint require explicit metered API acknowledgement before provider construction, while health checks and docs point ordinary gap filling to the local/plan-first scheduled route path. Codex and Claude are the clean auto-routable plan candidates once trusted headroom observations exist, while OpenCode is explicit-only until Deepr can verify the routed provider is OAuth/subscription or local. Kiro/grok/antigravity are explicit-only. Copilot remains visible/read-only and execution-blocked pending deterministic estimation, reservation, usage settlement, and canonical cost-ledger support. `deepr capacity refresh-quota codex`, `deepr capacity refresh-quota claude`, and `deepr capacity refresh-quota grok` record trusted metadata quota windows without model calls (design: [plan-quota-cli-backends.md](docs/design/plan-quota-cli-backends.md)). Live validation on 2026-06-30 confirmed Codex, Claude, Grok, and Antigravity plan probes work on this workstation at `$0` tracked daily spend; Grok and Antigravity remain explicit-only because their policy and automation risk did not change. Remaining capacity work is Grok heavy-consult reliability diagnostics, Antigravity live window/credit probes, remaining scheduler dispatch beyond sync-all and gap-fill, and auto-mode runtime integration. Remaining reach work is live third-party host registration and broader hosted-operational validation. Remaining red-team work is broader adaptive MCP extraction probing, expert-chat harness coverage, and ingestion-path corpora. The cross-cutting principle for what deepr hardcodes vs lets the model decide (workflow vs agent, determinism on side-effects not meaning) is set in [AGENTIC_BALANCE.md](docs/plans/AGENTIC_BALANCE.md); the boundary for which checks specifically are deterministic vs model-based is its instance in [checks-deterministic-vs-agentic.md](docs/design/checks-deterministic-vs-agentic.md).
+**Perspective-label correction (2026-07-18):** the legacy phrase "verified
+hypothesis/concept/stance/original-idea promotion" in the current-main history
+means that a model verifier admitted the typed operation through the commit
+contract. It does not mean externally verified truth, verified novelty, or
+human review. New surfaces use `model_assessed_well_formed`,
+`operator_confirmed_apply`, and `human_reviewed: false` so these different
+claims cannot be collapsed.
+
+**Plan-quota safety correction (2026-07-18):** transport compatibility and a
+zero-dollar Deepr ledger event do not prove that a CLI is safe for untrusted
+research prompts or that the vendor will not bill. Claude Code is the only
+current safety-eligible adapter. Every dispatch requires a fresh provider
+observation that paid extra usage is explicitly disabled, written durably before
+the vendor process starts. Claude runs pinned Sonnet in safe mode with explicit
+empty tool and MCP surfaces and disabled session persistence and slash commands. Missing,
+malformed, enabled, or unwritable overage state fails closed. Antigravity is now
+execution-blocked because its native tools and
+transcript side effects cannot be confined for an untrusted prompt. Codex,
+OpenCode, Kiro, Grok, Antigravity, and Copilot remain fleet-visible but fail
+before vendor dispatch because native-tool confinement, stored provider/auth
+provenance, prepaid overage posture, or full metered accounting is unproven.
+This supersedes older current-main and live transport statements below.
+Explicit `--plan` never bypasses the safety gate.
+
 **v2.36 capability correction:** references below to explicit metered expert
 profile, curriculum, refresh, gap-fill, compiled-sync, corpus-calibration, or
 chat execution describe earlier implementation history, not current usable
 capacity. Those paths now fail closed pending the P1 shared durable transaction.
-Local and explicit plan-quota expert paths remain available. Core metered
+Local and safety-eligible explicit plan-quota expert paths remain available. Core metered
 research and separately bounded API council synthesis are unaffected.
 
 **Health-check continuity correction (2026-07-11):** ordinary manual and scheduled health audits remain read-only and do not create `ExpertLoopRun` state. Durable health-check loop records apply only to explicit `--archive-stale` mutation, confirmation-wait, overlap, and completion paths. Scheduled audit plans use `deepr-health-check-action-plan-v2` without `loop_run`.
 
 **v2.32.0 additions:** public README screenshots now use isolated safe demo cost data and future screenshot QA refuses over-limit cost captures unless explicitly overridden. The blocking strict mypy gate now covers security, queue, storage, tools, routing, worker, webhooks, A2A, and the importable `deepr.skills` package in addition to the original strict islands, while the roadmap explicitly tracks the remaining bundled skill tool-script typing boundary. The A2A Agent Card property tests now assert the current built-in `deepr_consult_experts` skill contract, and the official MCP `2026-07-28` release candidate is tracked as a future protocol migration watch item.
 
-**Cycle 24 capacity validation update (2026-06-30):** `deepr capacity validate-fleet` now bundles selected plan CLI transport probes with no-metered consult-contract validation, emits `deepr-plan-fleet-validation-v1`, and fails selected backends that are skipped, missing, exhausted, timed out, or return failed synthesis status. Live validation on this workstation confirmed Codex, Claude, Grok, and Antigravity transports at `$0` Deepr spend. Codex, Claude, and Antigravity also passed the full no-metered consult contract. Grok transport works, but the heavier consult path timed out after the 240s plan subprocess guard and remains explicit-only plus not-yet-reliable for heavy consult validation on this machine. Remaining capacity work now includes Grok heavy-consult reliability diagnostics in addition to Antigravity live window/credit probes, scheduler dispatch, and auto-mode runtime integration.
+**Cycle 24 capacity validation update (2026-06-30, historical transport evidence):** `deepr capacity validate-fleet` bundles selected plan CLI transport probes with no-metered consult-contract validation and emits `deepr-plan-fleet-validation-v1`. The workstation run showed Codex, Claude, Grok, and Antigravity transports returning at `$0` Deepr spend; this did not prove safe native-tool posture or vendor billing treatment. The 2026-07-18 plan-quota safety correction above controls current execution.
 
 **Copilot cost-safety correction (2026-07-11):** Copilot is visible/read-only
 capacity metadata, not an explicit execution backend. Its per-token billing
@@ -532,12 +579,12 @@ memory surface. This order is dependency-based, not calendar-based:
    hard per-job, daily, and monthly `$10` caps, and routes discussion into
    source-seeking research rather than absorbing it as evidence.
 
-   July 2026 evidence adds three requirements to any future live runtime:
-   consensus-free early stopping, blinded peer-content evaluation with private
-   canonical lineage, and selective escalation rather than mandatory full-panel
-   execution. Measure identity and order bias, minority-position preservation,
-   quality per call, and false support before widening the shipped one-shot
-   contract.
+   July 2026 evidence adds requirements to any live runtime: deliberately
+   diverse evidence, consensus-free early stopping, blinded peer-content
+   evaluation with private canonical lineage, targeted message retention, and
+   selective escalation rather than mandatory full-panel execution. Measure
+   identity and order bias, minority-position preservation, quality per call,
+   and false support before widening a default.
 
    `deepr mcp validate-consult` proves the no-metered one-shot path through an
    offline fixture, in-process local or plan capacity, or a remote HTTP endpoint
@@ -547,11 +594,46 @@ memory surface. This order is dependency-based, not calendar-based:
    but no shipped command serves that contract long-running and the data model
    still needs A2A 1.0 conformance work. The `$0` structural evaluator and
    protocol-neutral durable single-expert local conversation core are complete.
-   Live multi-expert rounds remain gated. The accepted three-expert default
-   would permit at most seven provider dispatches under one parent ceiling. A
-   metered `$10` run must reserve and settle against one `$10` total, never one
-   allowance per turn, and must enforce aggregate tokens, context, elapsed time,
-   replay, cancellation, and proposal-only graph authority before shipping.
+   Experimental `deepr expert investigate` now runs locally at exact `$0` with
+   no fallback. It freezes each expert, gives the shared question a distinct
+   hash-bound frozen-domain evidence lens, performs independent free-web
+   retrieval, supports `independent`, `discuss`, and `deep` protocols, checks
+   and synthesizes with preserved dissent, and stages separate factual and
+   non-factual perspective envelopes. Model-generated charter queries cannot
+   authorize network access. `apply-learning` hash-verifies and preflights every
+   selected envelope before explicit idempotent apply across locked experts.
+   Factual writes require sources plus an independent verifier. Perspectives
+   require model-assessed form, internal coherence, and testability but retain
+   `truth_verified=false`, `novelty_verified=false`, and
+   `human_reviewed=false`. Applying perspectives does not advance factual
+   freshness.
+
+   Plan-quota, metered API, MCP/A2A remote investigation, and automatic learning
+   apply remain gated. A metered `$10` run must reserve and settle against one
+   `$10` total, never one allowance per expert or phase, and must enforce
+   aggregate calls, searches, tokens, context, elapsed time, retries, replay,
+   cancellation, and proposal-only authority before shipping.
+
+   Promotion evidence must compare the strongest single expert, one-shot
+   consult, independent investigation, discussion, and deep revision under
+   matched envelopes. Measure decision utility, factual support, retrieval
+   precision and diversity, temporal ordering, contradiction behavior,
+   calibrated abstention, minority-hypothesis retention, later hypothesis
+   predictions, negative transfer, forgetting, source independence, and later
+   held-out benefit. Graph size, candidate count, consensus, and self-reported
+   confidence are not improvement metrics.
+
+   Research cutoff 2026-07-16: the current design is informed by
+   [Diverse Evidence, Better Forecasts](https://arxiv.org/abs/2607.01661),
+   [Demystifying Multi-Agent Debate](https://arxiv.org/abs/2601.19921),
+   [Hear Both Sides](https://arxiv.org/abs/2603.20640),
+   [Contemporary AI lacks the imagination to diverge or negate in science](https://arxiv.org/abs/2606.08251),
+   and
+   [On the Limits of LLM-as-Judge for Scientific Novelty Assessment](https://arxiv.org/abs/2606.12071).
+   These are emerging results, including preprints, so Deepr treats their
+   reported gains as design hypotheses to test. They motivate evidence
+   diversity, explicit null hypotheses, bounded selective communication, and
+   the prohibition on automated novelty certification.
    - [x] Stage 2 MCP surface (2026-07-15): four free local-only tools
      `deepr_start_expert_conversation`, `deepr_continue_expert_conversation`,
      `deepr_get_expert_conversation`, and `deepr_close_expert_conversation`;
@@ -1558,15 +1640,17 @@ threat model, evaluation arms, and delivery order are in
       expert, optional private revision in `deep` mode, durable phase artifacts,
       exact parent ceilings, and pause/resume/cancel controls.
 - [x] **Stage 4, staged per-expert learning:** implemented experimentally on
-      2026-07-17 by reusing source-note claim extraction, independent
-      verification, and graph commit envelopes. Claim extraction is told the
-      target expert domain, and the independent verifier must return a positive
-      material-domain-relevance verdict before deterministic code can admit a
-      commit. No lexical rule decides relevance. Each compiler is bounded to
-      the first five model-prioritized candidates before verification. Dialogue
-      and synthesis cannot enter the learning source pack; partial outcomes
-      resume idempotently; no proposal is auto-applied or labeled
-      human-reviewed.
+      2026-07-17 and extended 2026-07-18. The factual lane reuses source-note
+      claim extraction, independent support and target-domain verification, and
+      graph commit envelopes. The perspective lane preserves typed hypotheses,
+      concepts, stances, and original ideas from each final position when the
+      checker assesses their form, internal coherence, and testability as
+      `well_formed`. It cannot verify truth, importance, originality, novelty,
+      or human review. No lexical rule decides meaning. `apply-learning`
+      hash-verifies and preflights every selected expert and lane before one
+      explicit idempotent apply under roster locks. Dialogue and synthesis
+      cannot enter the factual source pack; partial outcomes resume
+      idempotently; no proposal is auto-applied or labeled human-reviewed.
 - [ ] **Stage 5, explicit plan-quota capacity:** bind the exact plan id and
       process attempts to one parent call/token/context/time envelope. Keep
       execution explicit-only and state that Deepr cannot prove vendor quota or
@@ -1590,6 +1674,74 @@ threat model, evaluation arms, and delivery order are in
       native `/api/chat` investigation backend that pins `num_ctx` per request,
       enforces JSON output, caps prediction, and rejects prompts that cannot fit
       the hash-bound prompt-plus-output context before dispatch.
+- [x] **Live-validation finding, hidden reasoning exhausted structured output:**
+      a 2026-07-18 deep pilot let a thinking-capable Ollama model spend the
+      entire 4,096-token output allowance in its separate reasoning field. The
+      public content was empty, so the run failed closed before any learning
+      write. Fixed 2026-07-18 by explicitly sending `think: false` on native
+      investigation calls. Deepr still never treats a hidden reasoning trace as
+      the validated answer, and models that cannot disable thinking continue to
+      fail closed if they produce no structured content.
+- [x] **Live-validation finding, search telemetry consumed evidence slots:** a
+      free search backend returned a relative click-tracking link that the SSRF
+      boundary correctly refused, but it still occupied one bounded page-fetch
+      position. Fixed 2026-07-18 by filtering bounded absolute HTTP(S) URL form,
+      credentials, invalid ports, and unsafe host syntax before fetch-slot
+      assignment, while recording only an aggregate rejection count.
+- [x] **Live-validation finding, evidence URLs polluted discovery queries:**
+      explicit caller URLs were correctly fetched first but were also copied
+      into every generated search route. Long URL-bearing searches produced
+      noisy results and weakened the distinct expert lenses. Fixed 2026-07-18
+      by separating discovery text from explicit retrieval targets: search
+      routes omit URLs, direct evidence URLs remain first-class fetches, and a
+      URL-only deep request performs no unnecessary search.
+- [x] **Live-validation finding, deep-round prompt envelope exceeded context:**
+      a 2026-07-18 deep pilot completed research, three independent positions,
+      one challenge round, and two private revisions before the third revision
+      exceeded the correct 32K-context per-call byte ceiling. The run stopped as
+      `budget_exhausted`, wrote no expert state, and spent `$0.00`. Fixed
+      2026-07-18 by adding explicit component and total packet ceilings for
+      snapshots, inputs, source excerpts, positions, discussions, checking, and
+      synthesis. A revision may now cite only caller evidence and the expert's
+      own rendered source pack; peer dialogue remains a proposal rather than
+      evidence. A worst-shape regression proves every protocol prompt fits the
+      pinned 114,688-byte input allowance.
+- [x] **Security-review finding, plan quota could not prove zero overage:**
+      Claude Code's current subscription flow can optionally use paid extra
+      usage, while attempt and legacy compatibility accounting previously
+      populated an unsupported `overage_enabled: false` value. Fixed 2026-07-18 by removing fabricated
+      overage metadata and requiring a fresh, strictly parsed provider
+      observation before every Claude dispatch. The durable observation must
+      state that paid extra usage is disabled. Claude receives no tools, no
+      project or session context, and pinned Sonnet. Unknown state, enabled
+      extra usage, ledger failure, or an unclassified model stops before process
+      launch. Explicit selection cannot override the gate.
+- [x] **Live-validation finding, zero-dollar Claude flag was not executable:**
+      Claude Code 2.1.206 rejects `--max-budget-usd 0` during argument parsing
+      because it accepts only a positive value. A 2026-07-18 probe therefore
+      stopped before model inference, recorded the conservative attempt, and
+      spent `$0.00`. Fixed the same day by removing the invalid flag rather than
+      substituting positive spend permission. The executable no-bill boundary
+      remains fresh provider proof that paid extra usage is disabled, refusal
+      of API credentials, pinned Sonnet, safe mode, empty tool and MCP surfaces,
+      and no session persistence. The next minimal probe completed at `$0.00`.
+- [x] **Live-validation finding, Claude confinement disabled plan auth:**
+      `--bare` intentionally suppresses OAuth and keychain reads, so a stored
+      Max subscription appeared logged out even though metadata authentication
+      was valid. The vendor placed that nonzero error on stdout, while Deepr's
+      diagnostic inspected only stderr. Fixed 2026-07-18 by using
+      `--safe-mode`, which preserves plan authentication while disabling
+      customizations, together with empty tools, strict empty MCP configuration,
+      disabled slash commands, and disabled session persistence. Bounded
+      redacted nonzero diagnostics now inspect both output channels. Unit
+      regressions pass, and a fresh guarded probe returned exactly `OK` with
+      paired quota and `$0` cost records.
+- [x] **Security-review finding, Antigravity side effects were unconfined:**
+      explicit Antigravity execution could invoke native agent tools and write
+      transcript state outside Deepr's output contract. Fixed 2026-07-18 by
+      blocking execution before vendor launch. Fleet visibility remains for
+      diagnostics only until both native tools and transcript side effects can
+      be deterministically confined.
 - [x] **Implementation-audit finding, measured input-token settlement:** the
       runtime reserved a conservative byte-derived input estimate before local
       dispatch and recorded a larger measured Ollama count afterward, but did
@@ -1642,11 +1794,44 @@ threat model, evaluation arms, and delivery order are in
       retained candidates domain-relevant, but every envelope then failed
       closed because deduplication remained `uncertain`. Zero writes were ready
       or applied. This validates safe refusal, not semantic quality.
+- [x] **Live-validation finding, mixed no-op learning blocked bulk preview:** a
+      completed 2026-07-18 deep run staged three provenance-bound empty or
+      blocked envelopes alongside three ready envelopes containing six
+      operations. The bulk coordinator treated the first empty envelope as a
+      transaction failure, so the operator could not inspect the ready lanes.
+      Fixed 2026-07-18 by classifying only a provenance-verified producer
+      `blocked` or `empty` envelope with zero operations as an explicit no-op.
+      All ready lanes still preflight together. An unexpectedly empty ready
+      envelope or any additional schema, target, provenance, or operation
+      failure remains an atomic blocker. Live dry-run now reports all six
+      candidates, three no-op envelopes, zero applied writes, and `$0.00` cost.
+- [x] **Live-validation finding, semantic context leaked into claim verdicts:**
+      one factual candidate omitted MCP from its statement, but the verifier
+      borrowed domain relevance from the surrounding evidence packet. Another
+      perspective described the future MCP release candidate as a completed
+      transition. None were applied. Fixed 2026-07-18 by versioning the claim
+      verification prompt and requiring relevance judgment over the exact
+      candidate statement, plus explicit synthesis instructions to retain
+      draft, proposal, release-candidate, planned, final, and shipped maturity.
+      These remain model judgments and require held-out calibration; no lexical
+      verdict was added.
+- [ ] **Investigation evidence-quality gate:** the corrected deep run completed
+      20 local calls, 12 searches, and 24 page fetches at `$0.00`, but one
+      expert source pack still included low-relevance general-web results. The
+      factual verifier safely blocked that lane, yet safe refusal is not useful
+      research. Compare source relevance, authority, diversity, recency, and
+      downstream decision value across direct caller evidence, current bounded
+      discovery, and any future model-assisted query route before changing
+      network authority or adding calls. Meaning stays model-judged; URL form,
+      fetch authority, and bounds stay deterministic.
 - [ ] **Semantic promotion gate:** the 2026-07-17 three-expert local pilot
       completed research, blinded discussion, private revision, independent
       checking, and synthesis at `$0`; later independent pilots exercised all
       three staged-learning paths, exposed negative transfer, and demonstrated
-      fail-closed no-op behavior. All final artifacts remained `unreviewed`,
+      fail-closed no-op behavior. A corrected 2026-07-18 deep run completed all
+      20 planned local calls and exposed statement-level relevance, temporal
+      maturity, and source-quality failures before any write. All final
+      artifacts remained `unreviewed`,
       and the runs exposed source-coverage, lineage, and verifier uncertainty
       warnings. Complete the held-out matched-resource comparison and
       later-learning transfer test before claiming that investigation is better
@@ -2109,18 +2294,25 @@ Why this matters: a $20-300/month plan with quota windows or monthly credit pool
 
 Platform requirement: adapter discovery, auth-profile inspection, and path handling must work on Windows, macOS, and Linux. Explicit plan execution currently ships only where Deepr can contain detached descendants before vendor code runs: Windows Job Objects and the Linux child-subreaper supervisor. Other POSIX systems fail before launch rather than ship a process-tree escape. macOS execution remains gated until it has an equivalent ownership primitive.
 
-Current truth in the product: local Ollama, budget-gated API research, and
-explicit `deepr expert sync --plan <id>` plan CLIs execute today through
-deterministic auth-mode, process-ownership, and paired-ledger gates. Capacity
-display remains read-only for automatic plan routing because vendors do not
-expose a trustworthy remaining-quota probe. The QOL target is a clear route
-planner: tell the user whether a job should run locally, use an explicitly
-selected plan, wait for capacity, or use a metered API with an explicit budget
-ceiling.
+Current truth in the product: local Ollama and budget-gated API research work.
+Explicit plan commands execute only when the selected adapter clears auth,
+native-tool, marginal-cost, process-ownership, and paired-ledger gates. Claude
+Code is the sole eligible adapter and additionally requires a fresh provider
+observation proving paid extra usage is disabled before every dispatch. Codex,
+OpenCode, Kiro, Grok, Antigravity, and Copilot are visible but blocked.
+Automatic Claude routing additionally requires admission and a trusted
+remaining-quota observation. The QOL target is a clear route planner: tell the
+user whether a job should run locally, use an eligible plan, wait for capacity,
+or use a metered API with an explicit budget ceiling.
 
-Vendor reality (verified June 2026 - revalidate before implementation, this churns quarterly):
+Vendor reality (revalidated 2026-07-18 - revalidate before each release):
 
-- **Claude Code**: headless `claude -p` / Agent SDK usage bills a *separate monthly credit pool* per plan tier ($20 Pro / $100 Max 5x / $200 Max 20x) as of June 15, 2026; automation stops when the pool empties unless overflow billing is enabled. Bounded and predictable - exactly the no-surprise-bills shape - but Deepr must verify overflow billing is OFF. Interactive sessions draw from 5-hour rolling windows instead.
+- **Claude Code**: Anthropic paused the announced June 15 Agent SDK credit-pool
+  change. Current `claude -p` usage can draw from Claude subscription limits,
+  but optional paid extra usage can continue at API rates. Deepr therefore
+  requires a fresh provider response with `extra_usage.is_enabled: false`
+  immediately before each dispatch. It does not infer billing posture from a
+  `$0` local ledger row, cached quota state, or plan ownership.
 - **Codex CLI**: usage limits share five-hour local/cloud task windows, extra credits or API-key mode can bill, and `/status` surfaces limits during active CLI sessions. Adapter must distinguish plan usage from API-key metered usage.
 - **Google Antigravity CLI** (`agy`): Gemini CLI stops serving consumer/free requests on June 18, 2026; Antigravity CLI is the consumer replacement and supports asynchronous/background workflows. Enterprise/API-key Gemini CLI paths remain separate. Opaque compute units make the observed-quota tracker mandatory here.
 - **Kiro CLI**: officially sanctioned for automation ("reviews during CI/CD"); credit plans from Free (50/mo) to Power ($200/mo, 10,000 credits). Caveat: **overage bills automatically at $0.04/credit at month-end** - the adapter must detect/require overage protection off, or cap usage below the credit ceiling, to honor no-surprise-bills.
@@ -2133,13 +2325,17 @@ Design (builds on existing kernel primitives - cost ledger, budget contracts, pr
 - [~] **Provider prompt-cache economics**: actual usage ingestion and settlement now account for OpenAI/Azure cached input tokens, Anthropic cache creation and cache read buckets, xAI cached input tokens, Gemini large-context tier multipliers, and post-completion provider costs. Remaining: cache-control estimators for TTL, provider cache keys, implicit versus explicit cache behavior, and any pre-warm request shape before enabling controls. Anthropic remains the sharpest gate: 5-minute cache writes cost more than base input, 1-hour writes cost more again, cache reads are cheaper, and pre-warm requests can still incur a cache-write charge. No automatic pre-warming, keep-warm jobs, or longer TTL default until the expected-cost model proves savings and the user budget explicitly allows it.
 - [~] **Quota window tracker**: per-account `QuotaWindow` (window type: rolling-5h / daily / weekly-compute / monthly-credit-pool; usage observed, never assumed; reset time). Durable observed events, `deepr capacity` summaries, and eligibility stops are in place. Remaining: adapter-side live probes and scheduler decisions that mark exhaustion (429 / vendor error signature) and reschedule instead of failing the job. Vendors do not expose remaining quota reliably - treat limits as observed from exhaustion signals.
 - [ ] **Multi-account quota pools**: a user with several plans on one vendor (e.g. three Google accounts - personal + two work) registers one authenticated profile per account; each is an independent QuotaWindow and the scheduler drains across the pool before deferring. Only accounts the user owns/controls, each consuming strictly within its own plan limits - this is using paid seats fully, not circumventing a single account's cap. Per-account credential isolation (no shared auth state).
-- [~] **CLI provider adapters** - shipped via the `research_fn`/chat-client seam (not the API-shaped `DeepResearchProvider` contract, which is wrong for a subprocess CLI): a shared safe subprocess runner (`backends/plan_quota/cli_runner.py`), a deterministic auth-mode + no-surprise-bills gate (`safety.py`), a declarative adapter registry (`adapters.py`), and a `PlanQuotaChatClient` that drives the CLI for *both* synthesis/research and verified extraction so `expert sync --plan <id>`, `expert absorb --plan <id>`, and topic `expert learn --plan <id>` run end to end on prepaid capacity for non-metered adapters. `learn-web --plan <id>` remains an explicit live-web alias. Surfaced as explicit expert `--plan` flags and `deepr capacity probe-plan <id>`. Design: [plan-quota-cli-backends.md](docs/design/plan-quota-cli-backends.md). Auto-routing stays gated off until a live remaining-quota probe exists (see Auto-mode integration); explicit `--plan` is the works-now path for non-metered adapters.
-  - [x] `codex` (`codex exec`, ChatGPT plan, 5h rolling windows) - admissible operator-intent backend; auto-routing still requires trusted remaining quota
-  - [x] `claude` (`claude -p`, Pro/Max plan window; the 2026-06-15 headless credit-pool change was paused, so headless draws the plan window again) - admissible operator-intent backend; auto-routing still requires trusted remaining quota
-  - [~] `opencode` (`opencode run`, BYO provider; route to an OAuth/subscription or local model) - explicit-only until Deepr can verify the routed provider is OAuth/subscription or local
-  - [x] `kiro` (`kiro-cli chat --no-interactive`) - explicit `--plan` only; Kiro's ToS prohibits third-party-harness use (printed note)
-  - [x] `grok` (Grok Build `grok -p`) - explicit only, experimental; subscription headless is ToS gray-zone, xAI steers automation to the metered key
-  - [x] `antigravity` (`agy -p`) - explicit only, experimental; non-TTY stdout-drop bug + active automation ban wave
+- [~] **CLI provider adapters** - shipped via the `research_fn`/chat-client seam (not the API-shaped `DeepResearchProvider` contract, which is wrong for a subprocess CLI): a bounded subprocess runner, deterministic auth and native-tool gate, declarative adapter registry, and paired quota plus cost-ledger accounting. Explicit `--plan` selects an adapter but does not override safety. Design: [plan-quota-cli-backends.md](docs/design/plan-quota-cli-backends.md).
+  - [~] `codex` (`codex exec`, ChatGPT plan, 5h rolling windows) - visible/read-only; native read and shell tools are not narrowly confined for untrusted prompts
+  - [x] `claude` (`claude -p`, Pro/Max plan window) - explicit execution works
+    only with fresh paid-extra-usage-off proof, pinned Sonnet, safe mode, empty
+    tool and MCP surfaces, no session persistence, and no slash commands; auto-routing also
+    requires admission plus trusted remaining quota
+  - [~] `opencode` (`opencode run`, BYO provider) - visible/read-only until provider, stored credential, marginal cost, and native tools can be proven
+  - [~] `kiro` (`kiro-cli chat --no-interactive`) - visible/read-only; tool confinement and prepaid overage posture are unproven, with an additional third-party-harness policy concern
+  - [~] `grok` (Grok Build `grok -p`) - visible/read-only; native tools are not confined and subscription headless use is policy-gray
+  - [~] `antigravity` (`agy -p`) - visible/read-only; execution is blocked
+    because native tools and transcript side effects are not confined
   - [x] `copilot` (`copilot -p -s`) - visible/read-only, **execution blocked**; usage-based/metered per token since 2026-06-01 and cannot run until estimate/reserve/settle/canonical-ledger support exists
   - [ ] Grok API credit pool: flag the existing Grok API provider as `credit_pool` when a bounded free-credit program is active and observable, with the monthly credit amount as the bound
 - [ ] **Local backend** (`local-ollama`): a `DeepResearchProvider` over the Ollama HTTP API (works identically on Windows/macOS/Linux); `cost_source: local`, no quota window. Availability scheduling instead: configurable time windows (e.g. outside work hours) plus an optional GPU-utilization/VRAM probe before dispatch so background research never fights the user's interactive sessions.
@@ -2148,15 +2344,22 @@ Design (builds on existing kernel primitives - cost ledger, budget contracts, pr
 - [~] **Capacity waterfall in auto mode**: the pure selector orders `local -> plan_quota/credit_pool -> api_metered`, applies eligibility, and enforces measured per-task quality floors; selected expert maintenance consumes admitted local scores at runtime. The automatic metered rung is disabled in v2.36. Remaining work is trusted quota evidence, scheduler/runtime integration, live quality evidence, and a separately approved reservation before any future metered selection.
 - [x] **Auth-mode control** (`safety.detect_auth_mode` / `evaluate_plan_quota_safety`): known metered-env vars (`OPENAI_API_KEY`/`CODEX_API_KEY`, `ANTHROPIC_API_KEY`, `XAI_API_KEY`, ...) are removed from the child environment before explicit plan launch, so the subprocess cannot authenticate by API key. The safety decision records that sanitization. Deterministic and tested.
 - [~] **No-surprise-bills invariants** (kernel-enforced, tested):
-  - [x] Auto-routing never selects a plan-quota CLI without an observed, non-exhausted quota window; explicit non-metered `--plan` requests pass the safety gate; metered-at-margin CLIs such as Copilot fail before execution until complete cost accounting exists. Default is never a silent paid call.
-  - [~] Overage handling: Copilot is `metered_at_margin` and execution-blocked; Kiro's note records overage-off-by-default; per-vendor overage *probing* on a cadence remains. Known metered env keys are stripped from explicit plan child processes so API-key shells do not become plan spend paths.
+  - [x] Auto-routing never selects a plan-quota CLI without an observed, non-exhausted quota window and the adapter's complete safety eligibility. Explicit `--plan` does not bypass the gate. Unclassified, native-tool-unsafe, and metered-at-margin CLIs fail before execution. Default is never a silent paid call.
+  - [~] Overage handling: Claude requires a fresh provider observation proving
+    paid extra usage is disabled before every dispatch. Missing, malformed,
+    enabled, or unwritable state fails before launch. Copilot is
+    `metered_at_margin` and execution-blocked; Kiro remains blocked because its
+    prepaid overage posture is unproven. Known metered env keys are stripped
+    from explicit plan child processes so API-key shells do not become plan
+    spend paths. Equivalent trustworthy live overage proofs remain required
+    before any other adapter can execute.
   - [x] Eligible non-metered quota events land in `quota_ledger.jsonl` and a `$0` `cost_ledger.jsonl` entry carries the quota units, so `costs show` and anomaly detection see volume even at $0.
   - [ ] Add a caller-visible plan-capacity ceiling over the whole operation: maximum CLI requests, output tokens where observable, and elapsed time, with a typed exhausted stop. A dollar ceiling correctly stays `$0` for non-metered plan calls but does not by itself bound scarce prepaid quota when one absorb or deliberation fans out into several semantic calls.
   - [ ] Bind every plan-quota cost and quota event to the expert, task id, session id, and parent loop or consult trace id. The 2026-07-11 dogfood reconciled 50 CLI attempts one-for-one by timestamp and backend, but empty task/session fields made per-expert and per-run quota attribution impossible.
 - [ ] **Quota-aware scheduling**: the queue learns window math - defer non-urgent jobs to the next reset, drain batches into open windows (overnight = free capacity), interleave across multiple plan backends *and accounts* before touching any metered API. This is the "auto-schedule around it" piece.
-- [x] **Expert maintenance and bootstrap on explicit plan quota** (the compounding payoff): `--plan <id>` runs the whole job (synthesis/research + verified extraction) on prepaid capacity across `expert sync`, `expert absorb`, topic `expert learn`, the explicit `expert learn-web` alias, and `route-gaps --execute` via the shared chat-client. `deepr capacity admit-plan` records operator intent for future automatic plan routing, but it no longer replaces the trusted remaining-quota gate; explicit `--plan` is the works-now path. (`health-check`/`reflect` are read/eval surfaces, not research execution.)
-- [~] **Auto-mode integration**: the waterfall selector ranks `local -> plan_quota -> api_metered`. Plan CLI auto-routing now requires installed CLI, plan auth, operator admission, and a trusted remaining-quota observation in the local quota ledger; admission alone is not enough. `expert sync-all --scheduled` and `expert route-gaps --execute --scheduled` consume those selections for sync and gap-fill maintenance. Remaining: extend auto-routing into general `research --auto` and other scheduled surfaces, add Antigravity metadata probes, and `--dry-run`/`--preview` showing why each rung is blocked.
-- [~] **ToS guardrail**: only clean auto-routable backends are codex/claude, and they still need trusted remaining quota before auto-routing. OpenCode is explicit-only until routed-provider auth can be verified. ToS-gray CLIs (kiro third-party-harness clause, grok subscription headless, antigravity ban wave) are explicit-`--plan`-only with a printed note and never auto-routed; Copilot is metered, fleet-visible, and execution-blocked until full cost accounting exists. Revalidate per release - vendor terms churn quarterly.
+- [x] **Expert maintenance and bootstrap on eligible explicit plan quota** (the compounding payoff): `--plan claude` runs the whole job (synthesis/research plus verified extraction) across `expert sync`, `expert absorb`, topic `expert learn`, the explicit `expert learn-web` alias, and `route-gaps --execute` via the shared chat client only when each child dispatch obtains fresh paid-extra-usage-off proof. All other adapter ids return typed pre-dispatch refusals. `deepr capacity admit-plan` records intent for future automatic Claude routing but never replaces safety, live overage proof, or trusted remaining-quota gates.
+- [~] **Auto-mode integration**: the waterfall selector ranks `local -> plan_quota -> api_metered`. Plan CLI auto-routing now requires installed CLI, plan auth, operator admission, a trusted remaining-quota observation in the local quota ledger, and the adapter's per-dispatch live safety proof; admission alone is not enough. `expert sync-all --scheduled` and `expert route-gaps --execute --scheduled` consume those selections for sync and gap-fill maintenance. Remaining: extend auto-routing into general `research --auto` and other scheduled surfaces, and add `--dry-run`/`--preview` showing why each rung is blocked.
+- [~] **ToS and tool guardrail**: Claude is the only safety-eligible backend and still needs fresh paid-extra-usage-off proof on every dispatch plus trusted remaining quota for auto-routing. Codex, OpenCode, Kiro, Grok, Antigravity, and Copilot are fleet-visible and execution-blocked for tool, side-effect, auth, overage, policy, or metered-accounting reasons. Revalidate per release because vendor terms and CLI capabilities churn.
 - [~] **Capacity quality-of-life path**: make the cheapest safe path obvious without hiding gates. `deepr capacity next` now gives a ranked action list with the current block reason, local setup, latest usable eval-artifact admission, eval refresh, and explicit metered fallback. Remaining QOL work is dry-run previews that explain why each rung is blocked during a concrete job, plus guided scheduler suggestions for jobs that should wait for local or plan capacity instead of paying now.
 
 Honest caveats (why this is experimental): CLI agents are not deep-research APIs - citation quality and output contracts differ and must be normalized through the existing reflection/verification loop; vendor quota mechanics churn quarterly (the tracker treats limits as *observed*, not configured); subprocess lifecycle on long jobs needs the same async-durability treatment as MCP clients (reuse that layer).

@@ -70,10 +70,17 @@ To exercise real local or plan capacity on the host machine:
 
 ```powershell
 deepr mcp validate-consult --live --synthesis-backend local --expert "AI Agent Harnesses" --json
-deepr mcp validate-consult --live --synthesis-backend plan --plan codex --expert "AI Agent Harnesses" --json
-deepr capacity validate-fleet --backend codex --backend claude --backend grok --backend antigravity --expert "AI Agent Harnesses" --json
-deepr mcp validate-consult-fleet --plan codex --plan claude --plan grok --plan antigravity --expert "AI Agent Harnesses" --json
+deepr mcp validate-consult --live --synthesis-backend plan --plan claude --expert "AI Agent Harnesses" --json
+deepr capacity validate-fleet --backend claude --expert "AI Agent Harnesses" --json
+deepr mcp validate-consult-fleet --plan claude --expert "AI Agent Harnesses" --json
 ```
+
+Claude is the current safety-eligible adapter for this live check. Each call
+first requires live provider metadata proving paid extra usage is disabled,
+then runs in safe mode with empty tool and MCP surfaces, no persistence, the
+included `sonnet` alias, and no API credential. Codex,
+OpenCode, Kiro, Grok, Antigravity, and Copilot are fleet-visible but fail before
+vendor dispatch; inspect their exact reasons with `deepr capacity fleet`.
 
 `capacity validate-fleet` is the preferred operator check when validating a
 plan fleet. It first proves CLI transport and auth, records quota observations,
@@ -326,7 +333,7 @@ Prerequisite: the target plan CLI is installed and Deepr reports it as explicit
 plan capacity:
 
 ```powershell
-deepr capacity probe-plan codex --json
+deepr capacity probe-plan claude --json
 ```
 
 Call:
@@ -438,9 +445,10 @@ Expected completed task:
   `true`.
 - `cost` stays `0` for local or explicit plan synthesis.
 
-API synthesis over A2A requires both a positive `budget` and
-`metadata.allow_metered_api=true`; otherwise the task fails closed without
-spend.
+API synthesis over A2A requires a positive `budget`, exact
+`metadata.allow_metered_api=true`, and exact
+`metadata.confirm_metered_cost=true`. A budget is only a ceiling; otherwise the
+task fails closed without spend.
 
 Before Deepr ships a listener, the custom task and Agent Card model must be
 migrated or versioned against A2A 1.0, task and context state must survive

@@ -309,7 +309,10 @@ def test_mcp_http_cloudflare_worker_preserves_origin_enforcement():
     assert "fetch(new Request(targetUrl, init))" in worker
     assert 'normalized === "host"' in worker
     assert "HOP_BY_HOP_HEADERS" in worker
-    assert "request.arrayBuffer()" in worker
+    assert "request.arrayBuffer()" not in worker
+    assert "request.body.getReader()" in worker
+    assert "totalBytes > MAX_BODY_BYTES" in worker
+    assert 'reader.cancel("request body limit exceeded")' in worker
     assert "ScopedMCPKeyStore" not in worker
     assert "RemoteMCPAuditLog" not in worker
     assert "OPENAI_API_KEY" not in worker

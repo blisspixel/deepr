@@ -26,6 +26,7 @@ from pathlib import Path
 from typing import Any, Literal
 
 from deepr.config import load_config
+from deepr.mcp.request_context import MCPRequestIdentity
 
 from .expert_resources import ExpertResourceManager
 from .job_manager import JobManager
@@ -148,7 +149,23 @@ class MCPResourceHandler:
         """Access expert resource manager."""
         return self._experts
 
-    def read_resource(self, uri: str) -> ResourceResponse:
+    def _identity_can_access_resource(self, identity: MCPRequestIdentity | None, uri: str) -> bool:
+        if identity is None or identity.authentication != "scoped_key":
+            return True
+        parsed = parse_resource_uri(uri)
+        if parsed is None:
+            return False
+        if parsed.resource_type == "experts":
+            return not identity.expert_allowlist or parsed.resource_id in identity.expert_allowlist
+        state = self._jobs.get_state(parsed.resource_id)
+        return state is not None and state.owner_id is not None and state.owner_id == identity.owner_id
+
+    def read_resource(
+        self,
+        uri: str,
+        *,
+        identity: MCPRequestIdentity | None = None,
+    ) -> ResourceResponse:
         """
         Read a resource by URI.
 
@@ -162,6 +179,8 @@ class MCPResourceHandler:
 
         if not parsed:
             return ResourceResponse(uri=uri, data=None, error=f"Invalid resource URI: {uri}")
+        if not self._identity_can_access_resource(identity, uri):
+            return ResourceResponse(uri=uri, data=None, error="Resource not found")
 
         if parsed.resource_type == "campaigns":
             return self._read_campaign_resource(parsed.resource_id, parsed.subresource, uri)
@@ -290,7 +309,12 @@ class MCPResourceHandler:
 
         return ResourceResponse(uri=uri, data=None, error=f"Expert resource not found: {uri}")
 
-    def list_resources(self, resource_type: str | None = None) -> list[str]:
+    def list_resources(
+        self,
+        resource_type: str | None = None,
+        *,
+        identity: MCPRequestIdentity | None = None,
+    ) -> list[str]:
         """
         List available resource URIs.
 
@@ -349,10 +373,15 @@ class MCPResourceHandler:
                     ]
                 )
 
-        return uris
+        return [uri for uri in uris if self._identity_can_access_resource(identity, uri)]
 
     async def handle_subscribe(
-        self, uri: str, callback: Callable[[dict[str, Any]], Awaitable[None]], wildcard: bool = False
+        self,
+        uri: str,
+        callback: Callable[[dict[str, Any]], Awaitable[None]],
+        wildcard: bool = False,
+        *,
+        identity: MCPRequestIdentity | None = None,
     ) -> dict[str, Any]:
         """
         Handle a subscribe request.
@@ -365,13 +394,27 @@ class MCPResourceHandler:
         Returns:
             Response dict with subscription_id or error
         """
+        authorization_uri = uri
+        if wildcard:
+            base_uri = uri.removesuffix("/*")
+            resource_type = base_uri.removeprefix("deepr://").split("/", 1)[0]
+            subresource = "profile" if resource_type == "experts" else "status"
+            authorization_uri = f"{base_uri}/{subresource}"
+        if not self._identity_can_access_resource(identity, authorization_uri):
+            return {"error": "Resource not found"}
         try:
-            sub_id = await self._subscriptions.subscribe(uri, callback, wildcard)
+            owner_id = identity.owner_id if identity is not None and identity.authentication == "scoped_key" else None
+            sub_id = await self._subscriptions.subscribe(uri, callback, wildcard, owner_id=owner_id)
             return {"subscription_id": sub_id, "uri": uri, "wildcard": wildcard}
         except ValueError as e:
             return {"error": str(e)}
 
-    async def handle_unsubscribe(self, subscription_id: str) -> dict[str, Any]:
+    async def handle_unsubscribe(
+        self,
+        subscription_id: str,
+        *,
+        identity: MCPRequestIdentity | None = None,
+    ) -> dict[str, Any]:
         """
         Handle an unsubscribe request.
 
@@ -381,7 +424,8 @@ class MCPResourceHandler:
         Returns:
             Response dict with success status
         """
-        success = await self._subscriptions.unsubscribe(subscription_id)
+        owner_id = identity.owner_id if identity is not None and identity.authentication == "scoped_key" else None
+        success = await self._subscriptions.unsubscribe(subscription_id, owner_id=owner_id)
         return {"success": success, "subscription_id": subscription_id}
 
     def get_resource_uri_for_job(self, job_id: str) -> dict[str, Any]:

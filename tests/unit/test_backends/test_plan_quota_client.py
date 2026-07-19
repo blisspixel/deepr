@@ -11,11 +11,12 @@ import asyncio
 import json
 import threading
 import time
+from dataclasses import replace
 
 import pytest
 
 from deepr.backends.fresh_context import FreshContext, FreshContextConfig, FreshSource
-from deepr.backends.plan_quota.adapters import get_adapter
+from deepr.backends.plan_quota.adapters import REGISTRY, get_adapter
 from deepr.backends.plan_quota.attempt_accounting import AttemptAccountingStatus
 from deepr.backends.plan_quota.cli_runner import (
     CliResult,
@@ -31,7 +32,22 @@ from deepr.backends.plan_quota.client import (
     probe_plan_quota,
 )
 from deepr.backends.quota_ledger import QuotaEventType, QuotaLedger
+from deepr.backends.quota_snapshot import QuotaSnapshot
 from deepr.observability.cost_ledger import CostLedger
+
+
+@pytest.fixture(autouse=True)
+def _enable_blocked_adapters_for_transport_unit_tests(monkeypatch):
+    """Keep transport tests isolated from production adapter admission policy."""
+    for adapter in REGISTRY.values():
+        for variable in adapter.metered_env_vars:
+            monkeypatch.delenv(variable, raising=False)
+    for backend_id in ("codex", "grok", "antigravity"):
+        monkeypatch.setitem(
+            REGISTRY,
+            backend_id,
+            replace(REGISTRY[backend_id], execution_block_reason=""),
+        )
 
 
 def _runner(
@@ -76,6 +92,21 @@ def _runner(
     return fake
 
 
+def _claude_quota_snapshot(*, overage_enabled: bool | None = False, ok: bool = True) -> QuotaSnapshot:
+    return QuotaSnapshot(
+        backend_id="claude",
+        display_name="Claude Code",
+        account_id="test-plan",
+        ok=ok,
+        overage_enabled=overage_enabled,
+        metadata={"source": "test_claude_usage"},
+    )
+
+
+def _paid_overage_disabled(_backend_id: str, **_kwargs) -> QuotaSnapshot:
+    return _claude_quota_snapshot()
+
+
 def test_safe_error_summary_redacts_short_prompt_echo_and_bearer_secret():
     summary = _safe_cli_error_summary(
         "Prompt: xy7\nAuthorization: Bearer private-token-value\nfatal: login required",
@@ -105,6 +136,44 @@ def test_safe_error_summary_keeps_terminal_cause_before_footer_lines():
     assert "selected model is unavailable" in summary
     assert "session closed" in summary
     assert "banner" not in summary
+
+
+def test_safe_error_summary_redacts_cloud_storage_and_database_secrets():
+    summary = _safe_cli_error_summary(
+        "\n".join(
+            [
+                "AWS_SECRET_ACCESS_KEY=aws-validation-secret",
+                "AZURE_STORAGE_CONNECTION_STRING=DefaultEndpointsProtocol=https;AccountKey=azure-validation-secret",
+                "DB_PASSWORD=db-validation-secret",
+            ]
+        )
+    )
+
+    assert "aws-validation-secret" not in summary
+    assert "azure-validation-secret" not in summary
+    assert "db-validation-secret" not in summary
+    assert summary.count("[REDACTED]") == 3
+
+
+def test_safe_error_summary_uses_a_fixed_number_of_prompt_searches():
+    class CountingPrompt(str):
+        searches = 0
+
+        def __contains__(self, value):
+            type(self).searches += 1
+            return super().__contains__(value)
+
+    prompt = CountingPrompt("p" * 4096)
+    summary = _safe_cli_error_summary("x" * 4096, prompt=prompt)
+
+    assert summary
+    assert CountingPrompt.searches <= 4
+
+
+def test_safe_error_summary_bounds_megabyte_line_and_prompt_work():
+    summary = _safe_cli_error_summary("x" * (1024 * 1024), prompt="p" * (1024 * 1024))
+
+    assert len(summary) <= 600
 
 
 class TestResearchFn:
@@ -384,6 +453,18 @@ class TestResearchFn:
         assert QuotaLedger(qpath).get_events()[0].event_type == QuotaEventType.ATTEMPT_OBSERVED
         assert CostLedger(cpath).get_events()[0].metadata["outcome"] == "nonzero_exit"
 
+    async def test_nonzero_stdout_error_is_reported_safely(self, tmp_path):
+        fn = make_plan_quota_research_fn(
+            get_adapter("codex"),
+            runner=_runner(stdout="Error: subscription login unavailable", returncode=1),
+            quota_ledger_path=tmp_path / "q.jsonl",
+            cost_ledger_path=tmp_path / "c.jsonl",
+        )
+
+        result = await fn("question", 0.0)
+
+        assert "subscription login unavailable" in result["error"]
+
     async def test_nonzero_exit_surfaces_redacted_terminal_cause(self, tmp_path):
         private_prompt = "private customer request alpha beta gamma 123456789"
         stderr = "\n".join(
@@ -508,19 +589,40 @@ class TestResearchFn:
         assert result["source_pack"]["source_count"] == 1
         assert "No generation backend was called" in result["error"]
 
-    async def test_plan_child_env_drops_metered_api_keys(self, tmp_path):
+    def test_plan_child_env_refuses_metered_api_keys_before_dispatch(self, tmp_path):
+        runner = _runner(stdout="ans")
+        with pytest.raises(PlanQuotaError, match="OPENAI_API_KEY"):
+            make_plan_quota_research_fn(
+                get_adapter("codex"),
+                runner=runner,
+                env={"OPENAI_API_KEY": "sk-xxx", "PATH": "x"},
+                quota_ledger_path=tmp_path / "q.jsonl",
+                cost_ledger_path=tmp_path / "c.jsonl",
+            )
+
+        assert runner.calls == []
+        assert not (tmp_path / "q.jsonl").exists()
+        assert not (tmp_path / "c.jsonl").exists()
+
+    async def test_plan_child_env_uses_a_runtime_allowlist(self, tmp_path):
         runner = _runner(stdout="ans")
         fn = make_plan_quota_research_fn(
-            get_adapter("codex"),
+            get_adapter("claude"),
             runner=runner,
-            env={"OPENAI_API_KEY": "sk-xxx", "PATH": "x"},
+            quota_snapshot_collector=_paid_overage_disabled,
+            env={
+                "PATH": "x",
+                "HOME": "/home/operator",
+                "AWS_SECRET_ACCESS_KEY": "aws-secret",
+                "DEEPR_API_TOKEN": "deepr-secret",
+            },
             quota_ledger_path=tmp_path / "q.jsonl",
             cost_ledger_path=tmp_path / "c.jsonl",
         )
 
         await fn("q", 1.0)
 
-        assert runner.envs[0] == {"PATH": "x"}
+        assert runner.envs[0] == {"PATH": "x", "HOME": "/home/operator"}
 
     async def test_codex_prompt_is_sent_over_stdin(self, tmp_path):
         runner = _runner(stdout="ans")
@@ -572,6 +674,61 @@ class TestChatShim:
         )
         resp = await client.chat.completions.create(model="x", messages=[{"role": "user", "content": "hi"}])
         assert resp.choices[0].message.content == "hello"
+
+    async def test_success_response_redacts_recognized_secrets(self, tmp_path):
+        client = PlanQuotaChatClient(
+            get_adapter("codex"),
+            runner=_runner(
+                stdout=(
+                    "AWS_SECRET_ACCESS_KEY=aws-validation-secret\n"
+                    "AZURE_STORAGE_CONNECTION_STRING=AccountKey=azure-validation-secret\n"
+                    "DB_PASSWORD=db-validation-secret"
+                )
+            ),
+            quota_ledger_path=tmp_path / "q.jsonl",
+            cost_ledger_path=tmp_path / "c.jsonl",
+        )
+
+        response = await client.chat.completions.create(
+            model="x",
+            messages=[{"role": "user", "content": "hi"}],
+        )
+
+        answer = response.choices[0].message.content
+        assert "aws-validation-secret" not in answer
+        assert "azure-validation-secret" not in answer
+        assert "db-validation-secret" not in answer
+        assert answer.count("[REDACTED]") == 3
+
+    async def test_success_response_strips_terminal_control_sequences(self, tmp_path):
+        client = PlanQuotaChatClient(
+            get_adapter("codex"),
+            runner=_runner(stdout="\x1b]0;host-title\x07\x1b[31manswer\x1b[0m\x00"),
+            quota_ledger_path=tmp_path / "q.jsonl",
+            cost_ledger_path=tmp_path / "c.jsonl",
+        )
+
+        response = await client.chat.completions.create(
+            model="x",
+            messages=[{"role": "user", "content": "hi"}],
+        )
+
+        assert response.choices[0].message.content == "answer "
+
+    async def test_invalid_model_is_rejected_before_dispatch(self, tmp_path):
+        runner = _runner(stdout="must not run")
+        client = PlanQuotaChatClient(
+            get_adapter("codex"),
+            model='gpt-5.4" & whoami',
+            runner=runner,
+            quota_ledger_path=tmp_path / "q.jsonl",
+            cost_ledger_path=tmp_path / "c.jsonl",
+        )
+
+        with pytest.raises(ValueError, match="plan model"):
+            await client.chat.completions.create(model="x", messages=[{"role": "user", "content": "hi"}])
+
+        assert runner.calls == []
 
     async def test_cancellation_before_runner_dispatch_records_no_attempt(self, tmp_path):
         runner = _runner(stdout="must not run")
@@ -1303,6 +1460,25 @@ class TestProbe:
         assert not qpath.exists()
         assert not cpath.exists()
 
+    async def test_invalid_model_returns_before_runner_or_accounting(self, tmp_path):
+        runner = _runner(stdout="must not run")
+        qpath = tmp_path / "q.jsonl"
+        cpath = tmp_path / "c.jsonl"
+
+        result = await probe_plan_quota(
+            get_adapter("codex"),
+            model="gpt-5.4 & whoami",
+            runner=runner,
+            quota_ledger_path=qpath,
+            cost_ledger_path=cpath,
+        )
+
+        assert result["ok"] is False
+        assert "plan model" in result["error"]
+        assert runner.calls == []
+        assert not qpath.exists()
+        assert not cpath.exists()
+
     async def test_antigravity_probe_expired_deadline_is_not_accounted(self, tmp_path, monkeypatch):
         from deepr.backends.plan_quota import client as client_module
 
@@ -1380,6 +1556,60 @@ class TestProbe:
         assert runner.calls == []
         assert not cost_path.exists()
 
+    async def test_claude_paid_overage_is_refused_before_dispatch(self, tmp_path):
+        runner = _runner(stdout="must not run")
+        qpath = tmp_path / "q.jsonl"
+        cpath = tmp_path / "c.jsonl"
+
+        result = await probe_plan_quota(
+            get_adapter("claude"),
+            runner=runner,
+            quota_ledger_path=qpath,
+            cost_ledger_path=cpath,
+            quota_snapshot_collector=lambda _backend_id, **_kwargs: _claude_quota_snapshot(overage_enabled=True),
+        )
+
+        assert result["ok"] is False
+        assert result["outcome"] == "overage_guard_refused"
+        assert result["vendor_dispatched"] is False
+        assert result["quota_observation_recorded"] is True
+        assert runner.calls == []
+        assert QuotaLedger(qpath).get_events()[0].overage_enabled is True
+        assert not cpath.exists()
+
+    async def test_claude_unknown_overage_state_is_refused_before_dispatch(self, tmp_path):
+        runner = _runner(stdout="must not run")
+
+        result = await probe_plan_quota(
+            get_adapter("claude"),
+            runner=runner,
+            quota_ledger_path=tmp_path / "q.jsonl",
+            cost_ledger_path=tmp_path / "c.jsonl",
+            quota_snapshot_collector=lambda _backend_id, **_kwargs: _claude_quota_snapshot(
+                overage_enabled=None,
+                ok=False,
+            ),
+        )
+
+        assert result["ok"] is False
+        assert "did not prove" in result["error"]
+        assert runner.calls == []
+
+    async def test_claude_disabled_overage_allows_zero_tool_probe(self, tmp_path):
+        runner = _runner(stdout="ok")
+
+        result = await probe_plan_quota(
+            get_adapter("claude"),
+            runner=runner,
+            quota_ledger_path=tmp_path / "q.jsonl",
+            cost_ledger_path=tmp_path / "c.jsonl",
+            quota_snapshot_collector=_paid_overage_disabled,
+        )
+
+        assert result["ok"] is True
+        assert runner.calls[0][runner.calls[0].index("--tools") + 1] == ""
+        assert "--max-budget-usd" not in runner.calls[0]
+
     async def test_ok(self, tmp_path):
         qpath = tmp_path / "quota.jsonl"
         result = await probe_plan_quota(
@@ -1403,6 +1633,18 @@ class TestProbe:
         assert result["quota_observation_recorded"] is True
         assert event["idempotency_key"] == result["attempt_id"]
         assert quota[0].idempotency_key == result["attempt_id"]
+
+    async def test_probe_reply_redacts_recognized_secrets(self, tmp_path):
+        result = await probe_plan_quota(
+            get_adapter("codex"),
+            runner=_runner(stdout="DB_PASSWORD=db-validation-secret"),
+            quota_ledger_path=tmp_path / "q.jsonl",
+            cost_ledger_path=tmp_path / "c.jsonl",
+        )
+
+        assert result["ok"] is True
+        assert "db-validation-secret" not in result["reply"]
+        assert "[REDACTED]" in result["reply"]
 
     async def test_output_limit_is_typed_and_accounted_as_unknown_usage(self, tmp_path):
         qpath = tmp_path / "quota.jsonl"
@@ -1542,15 +1784,16 @@ class TestProbe:
         assert exc_info.value.__dict__["quota_recorded"] is True
         assert exc_info.value.__dict__["cost_recorded"] is True
 
-    async def test_probe_drops_metered_api_keys(self, tmp_path):
+    async def test_probe_refuses_metered_api_keys_before_dispatch(self, tmp_path):
         runner = _runner(stdout="OK")
         result = await probe_plan_quota(
             get_adapter("codex"),
             runner=runner,
             env={"OPENAI_API_KEY": "sk-xxx", "PATH": "x"},
         )
-        assert result["ok"] is True
-        assert runner.envs[0] == {"PATH": "x"}
+        assert result["ok"] is False
+        assert "OPENAI_API_KEY" in result["error"]
+        assert runner.calls == []
 
     async def test_probe_uses_stdin_when_adapter_requires_it(self, tmp_path):
         runner = _runner(stdout="OK")
@@ -1831,6 +2074,17 @@ class TestProbe:
         assert QuotaLedger(qpath).get_events()[0].event_type == QuotaEventType.ATTEMPT_OBSERVED
         assert CostLedger(cpath).get_events()[0].metadata["outcome"] == "nonzero_exit"
 
+    async def test_probe_nonzero_stdout_error_is_reported_safely(self, tmp_path):
+        result = await probe_plan_quota(
+            get_adapter("codex"),
+            runner=_runner(stdout="Error: subscription login unavailable", returncode=1),
+            quota_ledger_path=tmp_path / "q.jsonl",
+            cost_ledger_path=tmp_path / "c.jsonl",
+        )
+
+        assert result["ok"] is False
+        assert "subscription login unavailable" in result["error"]
+
     async def test_empty_output_records_attempt(self, tmp_path):
         qpath, cpath = tmp_path / "quota.jsonl", tmp_path / "costs.jsonl"
         result = await probe_plan_quota(
@@ -1869,7 +2123,12 @@ class TestPromptDelivery:
         argv, stdin, path = _build_invocation(get_adapter("claude"), "p", None)
         assert stdin == "p"
         assert path is None
-        assert argv == ["claude", "-p", "-"]
+        assert argv[-2:] == ["-p", "-"]
+        assert argv[argv.index("--tools") + 1] == ""
+        assert "--safe-mode" in argv
+        assert argv[argv.index("--mcp-config") + 1] == '{"mcpServers":{}}'
+        assert "--strict-mcp-config" in argv
+        assert "--no-session-persistence" in argv
 
     def test_arg_mode_passes_prompt_as_argument(self):
         from deepr.backends.plan_quota.client import _build_invocation

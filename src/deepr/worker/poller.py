@@ -19,6 +19,7 @@ from ..providers import create_provider
 from ..providers.base import DeepResearchProvider, ResearchResponse
 from ..queue import create_queue
 from ..queue.base import JobStatus, QueueBackend, ResearchJob
+from ..services.provider_completion import authoritative_completion_usage
 from ..services.provider_status import (
     classify_provider_status,
     provider_exception_name,
@@ -259,45 +260,42 @@ class JobPoller:
         *,
         cost: float | None,
         tokens: int,
-    ) -> ResearchCostReservation | None:
+    ) -> tuple[ResearchCostReservation | None, float]:
         """Update both cost observers while retaining retry-safe reservation state."""
+        reservation = restore_research_cost_reservation(
+            job_id=job.id,
+            metadata=job.metadata,
+            provider=str(getattr(job, "provider", "") or ""),
+            model=str(job.model),
+        )
+        if reservation is not None:
+            settle_research_cost(
+                reservation,
+                actual_cost=cost,
+                tokens=tokens,
+                request_id=str(job.provider_job_id or ""),
+                source="worker.poller._handle_completion",
+            )
+            accounted_cost = float(cost) if cost is not None else reservation.estimated_cost
+        else:
+            accounted_cost = record_unreserved_research_cost(
+                job_id=job.id,
+                provider=str(getattr(job, "provider", "") or ""),
+                model=str(job.model),
+                actual_cost=cost,
+                tokens=tokens,
+                request_id=str(job.provider_job_id or ""),
+                source="worker.poller._handle_completion",
+            )
+
         try:
             job_key = str(job.id)
             if job_key not in self._cost_controller_recorded_job_ids:
-                self.cost_controller.record_cost(actual_cost=float(cost or 0))
+                self.cost_controller.record_cost(actual_cost=accounted_cost)
                 self._cost_controller_recorded_job_ids.add(job_key)
         except Exception:
             logger.debug("CostController.record_cost failed for job %s", job.id, exc_info=True)
-
-        reservation: ResearchCostReservation | None = None
-        try:
-            reservation = restore_research_cost_reservation(
-                job_id=job.id,
-                metadata=job.metadata,
-                provider=getattr(job, "provider", "") or "",
-                model=job.model,
-            )
-            if reservation is not None:
-                settle_research_cost(
-                    reservation,
-                    actual_cost=cost,
-                    tokens=tokens,
-                    request_id=job.provider_job_id or "",
-                    source="worker.poller._handle_completion",
-                )
-            else:
-                record_unreserved_research_cost(
-                    job_id=job.id,
-                    provider=getattr(job, "provider", "") or "",
-                    model=job.model,
-                    actual_cost=float(cost or 0),
-                    tokens=tokens,
-                    request_id=job.provider_job_id or "",
-                    source="worker.poller._handle_completion",
-                )
-        except Exception:
-            logger.debug("cost_safety.record_cost failed for job %s", job.id, exc_info=True)
-        return reservation
+        return reservation, accounted_cost
 
     async def _cleanup_completed_job(self, job: ResearchJob) -> None:
         """Remove provider uploads and clear their durable cleanup metadata."""
@@ -333,9 +331,8 @@ class JobPoller:
             )
 
             # Extract cost and tokens
-            cost = response.usage.cost if response.usage else None
-            tokens = response.usage.total_tokens if response.usage else 0
-            reservation = self._record_completion_cost(job, cost=cost, tokens=tokens)
+            cost, tokens = authoritative_completion_usage(job, response)
+            reservation, cost = self._record_completion_cost(job, cost=cost, tokens=tokens)
 
             # Update queue with results
             results_updated = await self.queue.update_results(
@@ -382,15 +379,27 @@ class JobPoller:
                     provider=getattr(job, "provider", "") or "",
                     model=job.model,
                 )
-                if reservation is not None and job.provider_job_id:
+                provider_job_id = job.provider_job_id if isinstance(job.provider_job_id, str) else ""
+                if reservation is not None and provider_job_id:
                     settle_research_cost(
                         reservation,
                         actual_cost=None,
-                        request_id=job.provider_job_id,
+                        request_id=provider_job_id,
+                        source="worker.poller._handle_failure",
+                    )
+                elif provider_job_id:
+                    record_unreserved_research_cost(
+                        job_id=job.id,
+                        provider=str(getattr(job, "provider", "") or ""),
+                        model=str(job.model),
+                        actual_cost=None,
+                        request_id=provider_job_id,
                         source="worker.poller._handle_failure",
                     )
                 else:
                     refund_research_cost(reservation)
+                if provider_job_id and not reconcile_research_cost_from_ledger(reservation, job_id=job.id):
+                    raise RuntimeError(f"Canonical cost settlement missing for terminal job {job.id}")
             except Exception:
                 logger.exception("Failed to close provider cost for failed job %s", job.id)
                 return

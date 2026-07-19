@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from datetime import UTC, date, datetime
 
+import pytest
+
 from deepr.backends.capacity import CostModel
 from deepr.backends.plan_quota.adapters import (
     REGISTRY,
@@ -108,7 +110,7 @@ class TestRegistry:
 
     def test_auto_routable_are_only_free_at_margin_tos_clean(self):
         ids = {a.backend_id for a in auto_routable_adapters()}
-        assert ids == {"codex", "claude"}
+        assert ids == {"claude"}
 
     def test_copilot_is_metered_and_off_by_default(self):
         cp = get_adapter("copilot")
@@ -121,6 +123,12 @@ class TestRegistry:
         assert "OPENAI_API_KEY" in adapter.metered_env_vars
         assert "ANTHROPIC_API_KEY" in adapter.metered_env_vars
         assert "explicit-only" in adapter.tos_note
+        assert not adapter.stored_plan_auth_verified
+        assert adapter.execution_block_reason
+
+    def test_read_capable_native_tool_backends_are_execution_blocked(self):
+        for backend_id in ("codex", "kiro", "grok", "antigravity"):
+            assert get_adapter(backend_id).execution_block_reason, backend_id
 
     def test_gray_zone_backends_off_by_default(self):
         for bid in ("kiro", "grok", "antigravity"):
@@ -150,9 +158,27 @@ class TestArgvBuilders:
         assert argv[argv.index("--model") + 1] == "gpt-5.4"
         assert argv[-1] == "q"
 
-    def test_claude_print_mode(self):
+    def test_claude_print_mode_has_no_ambient_tools_or_state(self):
         argv = get_adapter("claude").build_argv("q")
-        assert argv == ["claude", "-p", "q"]
+        assert argv == [
+            "claude",
+            "--safe-mode",
+            "--tools",
+            "",
+            "--no-session-persistence",
+            "--disable-slash-commands",
+            "--strict-mcp-config",
+            "--mcp-config",
+            '{"mcpServers":{}}',
+            "--model",
+            "sonnet",
+            "-p",
+            "q",
+        ]
+
+    def test_claude_refuses_unclassified_model_billing(self):
+        with pytest.raises(ValueError, match="only the included 'sonnet' alias"):
+            get_adapter("claude").build_argv("q", "opus")
 
     def test_claude_uses_stdin_delivery(self):
         # A multi-line synthesis prompt passed as a claude.cmd command-line arg is
@@ -160,7 +186,9 @@ class TestArgvBuilders:
         # The prompt must go over stdin instead (`claude -p -`).
         adapter = get_adapter("claude")
         assert adapter.stdin_prompt is True
-        assert adapter.build_argv("-") == ["claude", "-p", "-"]
+        argv = adapter.build_argv("-")
+        assert argv[-2:] == ["-p", "-"]
+        assert argv[argv.index("--tools") + 1] == ""
 
     def test_opencode_passes_model_as_provider_slash_model(self):
         argv = get_adapter("opencode").build_argv("q", "anthropic/claude-sonnet-4-6")
@@ -175,7 +203,22 @@ class TestArgvBuilders:
         assert adapter.prompt_is_file is True
         argv = adapter.build_argv("/tmp/deepr-plan-xyz.txt")
         assert "-p" not in argv
+        assert "--always-approve" not in argv
         assert argv[-2:] == ["--prompt-file", "/tmp/deepr-plan-xyz.txt"]
+
+    @pytest.mark.parametrize(
+        "model",
+        [
+            'gpt-5.4" & whoami',
+            "gpt-5.4%PATH%",
+            "gpt-5.4\nwhoami",
+            "provider model",
+        ],
+    )
+    def test_model_identifier_rejects_shell_and_control_syntax(self, model):
+        for adapter in REGISTRY.values():
+            with pytest.raises(ValueError, match="plan model"):
+                adapter.build_argv("q", model)
 
     def test_copilot_denies_shell_and_write(self):
         argv = get_adapter("copilot").build_argv("q")

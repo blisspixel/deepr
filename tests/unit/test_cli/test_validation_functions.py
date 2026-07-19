@@ -219,7 +219,8 @@ class TestValidateBudget:
     @patch("deepr.cli.validation.click.confirm", return_value=True)
     def test_confirm_threshold_requires_confirmation(self, mock_confirm, mock_echo):
         """Budget above confirm threshold should require confirmation."""
-        result = validate_budget(30.0, confirm_threshold=25.0)
+        with patch("deepr.cli.validation.sys.stdin.isatty", return_value=True):
+            result = validate_budget(30.0, confirm_threshold=25.0)
 
         assert result == 30.0
         mock_confirm.assert_called_once()
@@ -228,7 +229,10 @@ class TestValidateBudget:
     @patch("deepr.cli.validation.click.confirm", return_value=False)
     def test_confirm_declined_raises_abort(self, mock_confirm, mock_echo):
         """Declining confirmation should raise Abort."""
-        with pytest.raises(click.Abort):
+        with (
+            patch("deepr.cli.validation.sys.stdin.isatty", return_value=True),
+            pytest.raises(click.Abort),
+        ):
             validate_budget(30.0, confirm_threshold=25.0)
 
 
@@ -249,7 +253,8 @@ class TestConfirmHighCostOperation:
     @patch("deepr.cli.validation.click.confirm", return_value=True)
     def test_above_threshold_confirms(self, mock_confirm, mock_echo):
         """Cost above threshold should prompt and return True on confirmation."""
-        result = confirm_high_cost_operation(10.0, threshold=5.0)
+        with patch("deepr.cli.validation.sys.stdin.isatty", return_value=True):
+            result = confirm_high_cost_operation(10.0, threshold=5.0)
 
         assert result is True
         mock_confirm.assert_called_once()
@@ -260,7 +265,10 @@ class TestConfirmHighCostOperation:
     @patch("deepr.cli.validation.click.confirm", return_value=False)
     def test_declined_raises_abort(self, mock_confirm, mock_echo):
         """Declining confirmation should raise Abort."""
-        with pytest.raises(click.Abort):
+        with (
+            patch("deepr.cli.validation.sys.stdin.isatty", return_value=True),
+            pytest.raises(click.Abort),
+        ):
             confirm_high_cost_operation(10.0, threshold=5.0)
 
 

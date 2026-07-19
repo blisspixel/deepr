@@ -34,25 +34,24 @@ inspection remain available. Supplying provider keys does not enable dispatch.
 ## Quick Start
 
 ```bash
-# 1. Copy and edit environment file
+# 1. Create the provider secret outside CloudFormation. Use the console or a
+# protected local JSON file so key values do not enter shell history.
+aws secretsmanager create-secret \
+  --name deepr/prod/provider-keys \
+  --secret-string file://provider-keys.json
+
+# 2. Copy and edit environment file. Store only the returned secret ARN.
 cp .env.example .env
-# Edit .env with your API keys
+# Set DEEPR_AWS_PROVIDER_SECRET_ARN in .env.
 
-# 2. Build the application
-sam build
-
-# 3. Deploy (first time - guided)
-sam deploy --guided
-
-# Or deploy with defaults
-sam deploy \
-  --stack-name deepr \
-  --parameter-overrides \
-    OpenAIApiKey=$OPENAI_API_KEY \
-    GoogleApiKey=$GOOGLE_API_KEY \
-    XaiApiKey=$XAI_API_KEY \
-  --capabilities CAPABILITY_IAM
+# 3. Build, deploy, and validate from any working directory.
+./deploy.sh
 ```
+
+The secret JSON may contain `OPENAI_API_KEY`, `GOOGLE_API_KEY`, and
+`XAI_API_KEY`. CloudFormation receives only the ARN. If the secret uses a
+customer-managed KMS key, grant the generated API and worker roles decrypt
+permission on that key before relying on the secret.
 
 ## Build Worker Container
 
@@ -100,11 +99,9 @@ curl https://xxxxx.execute-api.us-east-1.amazonaws.com/Prod/results/{job_id}
 | Parameter | Default | Description |
 |-----------|---------|-------------|
 | Environment | prod | Deployment environment (dev/staging/prod) |
-| OpenAIApiKey | - | Accepted by the template but cannot enable v2.36 dispatch |
-| GoogleApiKey | - | Accepted by the template but cannot enable v2.36 dispatch |
-| XaiApiKey | - | Accepted by the template but cannot enable v2.36 dispatch |
-| DailyBudget | 50 | Daily spending limit (USD) |
-| MonthlyBudget | 500 | Monthly spending limit (USD) |
+| ProviderSecretArn | - | Required ARN of a pre-created provider-key secret; the secret value never enters CloudFormation parameters |
+| DailyBudget | 10 | Daily provider spending limit (USD), effective only after hosted metered execution is deliberately enabled in a later release |
+| MonthlyBudget | 10 | Monthly provider spending limit (USD), effective only after hosted metered execution is deliberately enabled in a later release |
 
 ### Scaling
 
@@ -179,5 +176,5 @@ aws logs tail /aws/lambda/deepr-api-prod --follow
 
 Verify secrets:
 ```bash
-aws secretsmanager get-secret-value --secret-id deepr/prod/api-keys
+aws secretsmanager describe-secret --secret-id "$DEEPR_AWS_PROVIDER_SECRET_ARN"
 ```

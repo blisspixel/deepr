@@ -19,7 +19,7 @@ class ScrapeConfig:
         timeout: int = 30,
         max_retries: int = 3,
         try_http: bool = True,
-        try_selenium: bool = True,
+        try_selenium: bool = False,
         try_pdf: bool = False,
         try_archive: bool = True,
         log_strategy_failures: bool = True,
@@ -37,7 +37,8 @@ class ScrapeConfig:
             timeout: Request timeout in seconds (default: 30)
             max_retries: Retry attempts per strategy (default: 3)
             try_http: Attempt HTTP fetching (default: True)
-            try_selenium: Attempt Selenium rendering (default: True)
+            try_selenium: Compatibility setting. Browser rendering is disabled
+                until requests have peer-bound SSRF and response-size controls.
             try_pdf: Attempt PDF rendering (expensive, default: False)
             try_archive: Attempt archive.org fallback (default: True)
             log_strategy_failures: Log generic per-strategy failures. Disable
@@ -77,7 +78,7 @@ class ScrapeConfig:
             timeout=int(os.getenv("SCRAPE_TIMEOUT", "30") or "30"),
             max_retries=int(os.getenv("SCRAPE_MAX_RETRIES", "3") or "3"),
             try_http=os.getenv("SCRAPE_TRY_HTTP", "true").lower() == "true",
-            try_selenium=os.getenv("SCRAPE_TRY_SELENIUM", "true").lower() == "true",
+            try_selenium=os.getenv("SCRAPE_TRY_SELENIUM", "false").lower() == "true",
             try_pdf=os.getenv("SCRAPE_TRY_PDF", "false").lower() == "true",
             try_archive=os.getenv("SCRAPE_TRY_ARCHIVE", "true").lower() == "true",
             user_agent=os.getenv("SCRAPE_USER_AGENT"),
@@ -115,7 +116,7 @@ class ScrapeConfig:
             timeout=self.timeout,
             max_retries=5,  # More retries
             try_http=True,
-            try_selenium=True,
+            try_selenium=False,
             try_pdf=True,  # Try everything
             try_archive=True,
             log_strategy_failures=self.log_strategy_failures,

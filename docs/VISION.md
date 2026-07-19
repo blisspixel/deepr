@@ -6,7 +6,7 @@
 
 Transform research from isolated queries into cumulative understanding. Build systems that learn and improve over time.
 
-## Current State (v2.36.2)
+## Current State (v2.37.0)
 
 What works today:
 - Bounded single-job provider research where exact pricing and finite request,
@@ -16,6 +16,9 @@ What works today:
   and portable handoff artifacts.
 - One-shot local, explicit plan, and separately bounded API expert councils with
   dissent preservation and proposal-only authority.
+- Experimental `$0` local expert investigations with independent research,
+  bounded blinded discussion, checking, synthesis, and separately staged
+  factual and non-factual learning.
 - MCP, A2A, web, CLI, cost-ledger, evaluation, and capacity-control substrates.
 - An enforced no-key test and coverage gate.
 

@@ -1,7 +1,6 @@
 """Flask web interface for Deepr monitoring, research, and cost tracking."""
 
 import asyncio
-import hmac
 import json as _json
 import logging
 import math
@@ -22,11 +21,17 @@ from flask_cors import CORS
 from flask_socketio import SocketIO
 
 from deepr.config import runtime_data_path
+from deepr.security.http_auth import (
+    SharedSecretDecision,
+    check_shared_secret,
+    env_flag,
+    presented_http_secret,
+)
 
 # Shared sync-to-async bridge, retaining the historical local alias.
 from deepr.utils.async_runner import run_async_command as run_async
 from deepr.utils.security import is_loopback_bind_host
-from deepr.web import action_safety
+from deepr.web import action_safety, council_api
 from deepr.web.expert_chat_contract import BrowserChatContractError, parse_browser_expert_chat_request  # noqa: F401
 from deepr.web.expert_chat_rest import (
     build_browser_expert_chat_response,
@@ -45,9 +50,11 @@ _frontend_dist = Path(__file__).parent / "frontend" / "dist"
 # ---------------------------------------------------------------------------
 # Security configuration
 # ---------------------------------------------------------------------------
-# Authentication is optional for local-first desktop use. When the dashboard
-# is network reachable, DEEPR_API_KEY is required to protect API mutations.
-_API_KEY = os.getenv("DEEPR_API_KEY", "")  # empty = auth disabled (local dev)
+# Loopback locality is not caller authentication. Sensitive dashboard APIs and
+# Socket.IO events require DEEPR_API_KEY unless the operator explicitly opts
+# into the unsafe loopback compatibility mode.
+_API_KEY = os.getenv("DEEPR_API_KEY", "").strip()
+_ALLOW_UNAUTHENTICATED_LOOPBACK = env_flag("DEEPR_WEB_ALLOW_UNAUTHENTICATED_LOOPBACK")
 _CORS_ORIGINS = os.getenv("DEEPR_CORS_ORIGINS", "http://localhost:5000").split(",")
 _SOCKETIO_CORS_ORIGINS = _CORS_ORIGINS if os.getenv("DEEPR_CORS_ORIGINS") else None
 _MAX_PROMPT_LENGTH = 50_000  # characters
@@ -96,41 +103,34 @@ logger = logging.getLogger(__name__)
 @app.before_request
 def _check_auth():
     """
-    Require API key on /api/ routes when DEEPR_API_KEY is set.
+    Require API key on sensitive API routes.
 
-    When DEEPR_API_KEY is empty (the common local-dev case), ALL /api
-    routes are reachable without authentication. This includes the
-    destructive /api/demo/clear and /api/demo/load endpoints (which have
-    their own DEEPR_DEMO + confirmation-token gates).
+    Tokenless loopback compatibility requires a separate explicit opt-in.
     """
-    if not _API_KEY:
-        return  # Auth intentionally disabled for local development
-
     # Skip auth for non-API routes (SPA, static assets, health check)
     if not request.path.startswith("/api/"):
         return
     if request.path == "/api/health":
         return
-
-    # Accept via Authorization: Bearer <key> or X-Api-Key: <key>
-    token = None
-    auth_header = request.headers.get("Authorization", "")
-    if auth_header.startswith("Bearer "):
-        token = auth_header[7:]
-    if not token:
-        token = request.headers.get("X-Api-Key", "")
-
-    if not token:
-        return jsonify({"error": "Unauthorized"}), 401
-    # hmac.compare_digest raises TypeError on non-ASCII str inputs; treat
-    # that as Unauthorized so a malformed Authorization header cannot
-    # exit through the generic 500 handler.
-    try:
-        valid = hmac.compare_digest(token, _API_KEY)
-    except TypeError:
-        return jsonify({"error": "Unauthorized"}), 401
-    if not valid:
-        return jsonify({"error": "Unauthorized"}), 401
+    decision = check_shared_secret(
+        configured_secret=_API_KEY,
+        presented_secret=presented_http_secret(
+            request.headers.get("Authorization", ""),
+            request.headers.get("X-Api-Key", ""),
+        ),
+        allow_unauthenticated_loopback=_ALLOW_UNAUTHENTICATED_LOOPBACK,
+        remote_addr=request.remote_addr,
+    )
+    if decision is SharedSecretDecision.ALLOW:
+        return
+    if decision is SharedSecretDecision.NOT_CONFIGURED:
+        return jsonify(
+            {
+                "error": "Dashboard authentication is not configured",
+                "error_code": "AUTH_NOT_CONFIGURED",
+            }
+        ), 503
+    return jsonify({"error": "Unauthorized"}), 401
 
 
 # ---------------------------------------------------------------------------
@@ -279,7 +279,12 @@ from deepr.api.websockets.events import (
     register_socketio_events,
 )
 
-register_socketio_events(socketio, max_chat_budget=_web_expert_chat_budget_ceiling)
+register_socketio_events(
+    socketio,
+    max_chat_budget=_web_expert_chat_budget_ceiling,
+    api_key=lambda: _API_KEY,
+    allow_unauthenticated_loopback=lambda: _ALLOW_UNAUTHENTICATED_LOOPBACK,
+)
 
 # ---------------------------------------------------------------------------
 # Background poller - checks provider status for PROCESSING jobs
@@ -746,6 +751,8 @@ def submit_job():
             return jsonify(payload), status
 
         metadata = client_job_metadata(data.get("metadata"))
+        if denial := research_cost_api.metered_api_consent_error(data):
+            return jsonify({"error": denial}), 403
 
         job_id = str(uuid.uuid4())
         run_async(reconcile_research_cost_reservations(queue, default_provider="openai"))
@@ -866,6 +873,8 @@ def batch_submit():
         if denial is not None:
             payload, status = denial
             return jsonify(payload), status
+        if consent_denial := research_cost_api.metered_api_consent_error(data):
+            return jsonify({"error": consent_denial}), 403
 
         results = []
         for job in jobs or []:
@@ -1805,36 +1814,11 @@ def chat_with_expert(name):
 @(limiter.limit("5 per minute") if limiter else (lambda f: f))
 def expert_council():
     """Consult multiple experts on a query."""
-    try:
-        data = request.json
-        if not data or not data.get("query"):
-            return jsonify({"error": "query required"}), 400
-
-        from deepr.experts.cost_safety import CostSafetyManager
-        from deepr.experts.council import ExpertCouncil
-
-        # Clamp the caller-supplied budget. The endpoint previously
-        # forwarded `data.get("budget", 5.0)` directly to council.consult,
-        # which fans out to 5 parallel experts (each running its own
-        # agentic chat session). With no upper bound, a single request
-        # could authorise tens of dollars of paid model calls in seconds.
-        try:
-            raw_budget = float(data.get("budget", 5.0))
-        except (TypeError, ValueError):
-            raw_budget = 5.0
-        budget = max(0.0, min(raw_budget, CostSafetyManager.ABSOLUTE_MAX_PER_OPERATION))
-
-        council = ExpertCouncil()
-        result = run_async(
-            council.consult(
-                query=data["query"],
-                budget=budget,
-            )
-        )
-        return jsonify(result)
-    except Exception as e:
-        logger.error(f"Council error: {e}")
-        return jsonify({"error": "Internal server error"}), 500
+    return council_api.handle_expert_council_request(
+        request.get_json(silent=True),
+        run_async=run_async,
+        jsonify_response=jsonify,
+    )
 
 
 @app.route("/api/experts/<name>/conversations", methods=["GET"])
@@ -3892,16 +3876,14 @@ if __name__ == "__main__":
     debug = _os.environ.get("FLASK_DEBUG", "0") == "1"
     host = _os.environ.get("DEEPR_HOST", "127.0.0.1")
     port = int(_os.environ.get("DEEPR_PORT", "5000") or "5000")
-    allow_public = _os.environ.get("DEEPR_ALLOW_PUBLIC_BIND", "").strip().lower() in ("1", "true", "yes")
-
-    if not is_loopback_bind_host(host) and not _API_KEY and not allow_public:
+    loopback = is_loopback_bind_host(host)
+    if not _API_KEY and (not loopback or not _ALLOW_UNAUTHENTICATED_LOOPBACK):
         _sys.stderr.write(
-            f"ERROR: refusing to bind '{host}' without DEEPR_API_KEY. The Flask web\n"
-            "dashboard ships destructive APIs, provider-backed research, and ledger\n"
-            "endpoints; unauthenticated network peers must not reach them.\n"
-            "  - Set DEEPR_API_KEY to require a bearer token, or\n"
-            "  - Use DEEPR_HOST=127.0.0.1 (the safe default), or\n"
-            "  - Set DEEPR_ALLOW_PUBLIC_BIND=1 to accept the risk on a trusted network.\n"
+            f"ERROR: refusing to start '{host}' without DEEPR_API_KEY. The dashboard\n"
+            "ships provider-backed and data-bearing APIs, and loopback locality is\n"
+            "not caller authentication. Set DEEPR_API_KEY. For an explicitly accepted\n"
+            "loopback-only compatibility mode, set\n"
+            "DEEPR_WEB_ALLOW_UNAUTHENTICATED_LOOPBACK=1.\n"
         )
         raise SystemExit(2)
 
@@ -3911,14 +3893,13 @@ if __name__ == "__main__":
     # the operator must front the app with a real server (gunicorn+eventlet,
     # uvicorn workers, etc.) - we surface that requirement instead of
     # silently running the dev server on a reachable interface.
-    use_werkzeug = is_loopback_bind_host(host)
+    use_werkzeug = loopback
 
     print("\n" + "=" * 70)
     print("  Deepr Research Dashboard")
     print(f"  Running on http://{host}:{port}")
-    if not is_loopback_bind_host(host) and not _API_KEY:
-        print("  WARNING: binding non-loopback interface without DEEPR_API_KEY.")
-        print("  Any reachable network peer can submit jobs and read reports.")
+    if not _API_KEY:
+        print("  WARNING: explicit unauthenticated loopback compatibility mode.")
     if not use_werkzeug:
         print("  ERROR: refusing to start Werkzeug dev server on a non-loopback host.")
         print("  Run behind gunicorn/eventlet or uvicorn for production.")

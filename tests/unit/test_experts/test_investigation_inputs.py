@@ -2,9 +2,11 @@ from __future__ import annotations
 
 import copy
 from pathlib import Path
+from zipfile import ZIP_DEFLATED, ZipFile
 
 import pytest
 
+import deepr.experts.investigation.inputs as investigation_inputs
 from deepr.experts.investigation.inputs import (
     InputLimits,
     compile_input_bundle,
@@ -136,3 +138,76 @@ def test_input_limits_fail_closed() -> None:
         InputLimits(max_files=0).validated()
     with pytest.raises(InvestigationContractError, match="cannot exceed"):
         InputLimits(max_file_bytes=10, max_total_bytes=5).validated()
+
+
+def test_oversized_file_is_rejected_before_content_open(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    path = tmp_path / "oversized.txt"
+    path.write_bytes(b"x" * 32)
+
+    def fail_open(*_args, **_kwargs):
+        raise AssertionError("oversized file content must not be opened")
+
+    monkeypatch.setattr(investigation_inputs.os, "open", fail_open)
+    bundle = compile_input_bundle(
+        input_root=tmp_path,
+        files=[path],
+        limits=InputLimits(
+            max_file_bytes=8,
+            max_total_bytes=16,
+            max_extracted_bytes=16,
+        ),
+        created_at=NOW,
+    )
+
+    assert bundle["items"] == []
+    assert [(item["path"], item["reason"]) for item in bundle["exclusions"]] == [
+        ("oversized.txt", "oversized_file")
+    ]
+
+
+def test_docx_expansion_is_bounded_before_xml_parse(tmp_path: Path) -> None:
+    path = tmp_path / "expanded.docx"
+    document_xml = (
+        '<w:document xmlns:w="urn:test"><w:body><w:p><w:r><w:t>'
+        + ("x" * 300_000)
+        + "</w:t></w:r></w:p></w:body></w:document>"
+    )
+    with ZipFile(path, "w", compression=ZIP_DEFLATED) as archive:
+        archive.writestr("word/document.xml", document_xml)
+
+    bundle = compile_input_bundle(
+        input_root=tmp_path,
+        files=[path],
+        limits=InputLimits(max_extracted_bytes=32),
+        created_at=NOW,
+    )
+
+    with pytest.raises(InvestigationContractError, match="expansion"):
+        materialize_input_context(bundle)
+
+
+def test_docx_text_is_extracted_inside_byte_ceiling(tmp_path: Path) -> None:
+    path = tmp_path / "notes.docx"
+    document_xml = (
+        '<w:document xmlns:w="urn:test"><w:body><w:p><w:r><w:t>'
+        "Bounded document evidence"
+        "</w:t></w:r></w:p></w:body></w:document>"
+    )
+    with ZipFile(path, "w", compression=ZIP_DEFLATED) as archive:
+        archive.writestr("word/document.xml", document_xml)
+
+    bundle = compile_input_bundle(
+        input_root=tmp_path,
+        files=[path],
+        limits=InputLimits(max_extracted_bytes=12),
+        created_at=NOW,
+    )
+
+    assert materialize_input_context(bundle) == [
+        {
+            "ref": "input-0001",
+            "label": "notes.docx",
+            "source_class": "caller_supplied_file",
+            "text": "Bounded docu",
+        }
+    ]

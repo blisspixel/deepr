@@ -171,6 +171,21 @@ class MCPClientPool:
 
         profile = self._profiles.get(server_name)
 
+        # Outbound MCP is a separate billing authority. A caller estimate,
+        # approval, or remote self-reported cost cannot prove a provider-side
+        # maximum. Until a tool has an enforceable reservation contract, only
+        # tools explicitly curated as free may cross this dispatch boundary.
+        if profile is None or not isinstance(profile.free_tools, list) or tool_name not in profile.free_tools:
+            return StructuredError(
+                code=MCPErrorCode.COST_ACCOUNTING_UNAVAILABLE,
+                message=(
+                    f"Outbound MCP tool '{server_name}/{tool_name}' is not proven free; "
+                    "execution is disabled until deterministic maximum-cost reservation and settlement are available."
+                ),
+                retryable=False,
+                fallback_suggestion="Use a tool declared in profile.free_tools or run the provider through a Deepr-owned budget gate.",
+            )
+
         # 1. Budget check
         if self._budget_propagator and profile and estimated_cost > 0:
             decision = self._budget_propagator.check_budget(profile, estimated_cost, session_remaining)

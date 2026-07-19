@@ -26,7 +26,11 @@ def server() -> A2AServer:
     gen.register_expert(ExpertInfo(name="recon", description="DNS recon", domain="infrastructure"))
     gen.register_expert(ExpertInfo(name="analyst", description="Analysis", domain="strategic"))
     mgr = TaskManager()
-    return A2AServer(card_generator=gen, task_manager=mgr)
+    return A2AServer(
+        card_generator=gen,
+        task_manager=mgr,
+        allow_unauthenticated_loopback=True,
+    )
 
 
 class TestAgentCardEndpoint:
@@ -173,6 +177,7 @@ class TestTaskCreation:
                     "experts": ["Contract Expert"],
                     "synthesis_backend": "api",
                     "allow_metered_api": True,
+                    "confirm_metered_cost": True,
                 },
             }
         )
@@ -241,6 +246,98 @@ class TestTaskCancellation:
         status, _body = asyncio.run(server.handle_request("POST", f"/tasks/{task_id}/cancel"))
 
         assert status == 409
+
+    @pytest.mark.asyncio
+    async def test_cancel_active_consult_cancels_underlying_coroutine(
+        self,
+        server: A2AServer,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        started = asyncio.Event()
+        cancelled = asyncio.Event()
+
+        async def blocking_consult(**_kwargs):
+            started.set()
+            try:
+                await asyncio.Future()
+            except asyncio.CancelledError:
+                cancelled.set()
+                raise
+
+        monkeypatch.setattr(
+            "deepr.a2a.consult_tasks.consult_experts_tool",
+            blocking_consult,
+        )
+        payload = json.dumps(
+            {
+                "skill": CONSULT_SKILL_NAME,
+                "input": "Wait for cancellation.",
+                "budget": 0,
+                "metadata": {"synthesis_backend": "local"},
+            }
+        )
+        create_call = asyncio.create_task(
+            server.handle_request("POST", "/tasks", payload)
+        )
+        await asyncio.wait_for(started.wait(), timeout=1)
+        active = server._task_manager.list_tasks(TaskState.WORKING)
+        assert len(active) == 1
+
+        status, body = await server.handle_request(
+            "POST",
+            f"/tasks/{active[0].id}/cancel",
+        )
+        create_status, create_body = await asyncio.wait_for(create_call, timeout=1)
+
+        assert status == 200
+        assert body["state"] == "cancelled"
+        assert create_status == 200
+        assert create_body["state"] == "cancelled"
+        assert cancelled.is_set()
+        assert not server._active_runs
+
+
+class TestTaskCapacity:
+    @pytest.mark.asyncio
+    async def test_active_task_and_input_limits_fail_closed(self) -> None:
+        manager = TaskManager(
+            max_active_tasks=1,
+            max_active_input_bytes=16,
+            max_task_input_bytes=8,
+        )
+        server = A2AServer(
+            AgentCardGenerator(name="bounded"),
+            manager,
+            allow_unauthenticated_loopback=True,
+        )
+
+        first_status, _ = await server.handle_request(
+            "POST",
+            "/tasks",
+            json.dumps({"skill": "recon", "input": "12345678"}),
+        )
+        active_status, active_body = await server.handle_request(
+            "POST",
+            "/tasks",
+            json.dumps({"skill": "recon", "input": "x"}),
+        )
+
+        assert first_status == 201
+        assert active_status == 429
+        assert active_body["error_code"] == "TASK_CAPACITY_EXCEEDED"
+
+        separate = A2AServer(
+            AgentCardGenerator(name="bounded"),
+            TaskManager(max_task_input_bytes=8),
+            allow_unauthenticated_loopback=True,
+        )
+        large_status, large_body = await separate.handle_request(
+            "POST",
+            "/tasks",
+            json.dumps({"skill": "recon", "input": "123456789"}),
+        )
+        assert large_status == 413
+        assert large_body["error_code"] == "TASK_CAPACITY_EXCEEDED"
 
 
 class TestSSEStream:

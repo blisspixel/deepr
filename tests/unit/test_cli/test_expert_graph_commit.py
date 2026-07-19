@@ -8,6 +8,7 @@ from click.testing import CliRunner
 
 from deepr.cli.main import cli
 from deepr.experts.beliefs import BeliefStore
+from deepr.experts.graph_commit_provenance import write_sync_graph_commit_receipt
 from deepr.experts.metacognition import MetaCognitionTracker
 from deepr.experts.profile import ExpertProfile, ExpertStore
 from tests.unit.graph_commit_helpers import (
@@ -28,8 +29,39 @@ def _save_profile() -> ExpertProfile:
     return profile
 
 
-def _write_envelope(path, payload: dict) -> None:
-    path.write_text(json.dumps(payload), encoding="utf-8")
+def _write_envelope(path, payload: dict):
+    target = str(payload["target"]["expert_name"])
+    root = ExpertStore().find_existing_dir(target)
+    assert root is not None
+    input_payload = payload["input"]
+    extraction = {
+        "schema_version": input_payload["claim_extraction_schema_version"],
+        "kind": "deepr.expert.semantic_claim_extraction",
+        "candidates": [],
+    }
+    verification = {
+        "schema_version": input_payload["claim_verification_schema_version"],
+        "kind": input_payload["claim_verification_kind"],
+        "decisions": [],
+    }
+    extraction_path = root / input_payload["claim_extraction_artifact"]
+    verification_path = root / input_payload["claim_verification_artifact"]
+    envelope_path = root / "sync_artifacts" / "graph_commit_envelopes" / path.name
+    for artifact_path, artifact in (
+        (extraction_path, extraction),
+        (verification_path, verification),
+        (envelope_path, payload),
+    ):
+        artifact_path.parent.mkdir(parents=True, exist_ok=True)
+        artifact_path.write_text(json.dumps(artifact), encoding="utf-8")
+    write_sync_graph_commit_receipt(
+        root,
+        envelope_artifact=envelope_path.relative_to(root).as_posix(),
+        envelope=payload,
+        claim_extraction=extraction,
+        claim_verification=verification,
+    )
+    return envelope_path
 
 
 def test_apply_graph_commit_registered_in_expert_help():
@@ -46,7 +78,7 @@ def test_apply_graph_commit_json_dry_run_does_not_write(tmp_path):
         expert_name=profile.name,
     )
     envelope_path = tmp_path / "envelope.json"
-    _write_envelope(envelope_path, envelope)
+    envelope_path = _write_envelope(envelope_path, envelope)
 
     result = CliRunner().invoke(
         cli,
@@ -71,7 +103,7 @@ def test_apply_graph_commit_json_apply_requires_yes_in_noninteractive_mode(tmp_p
         expert_name=profile.name,
     )
     envelope_path = tmp_path / "envelope.json"
-    _write_envelope(envelope_path, envelope)
+    envelope_path = _write_envelope(envelope_path, envelope)
 
     result = CliRunner().invoke(cli, ["expert", "apply-graph-commit", profile.name, str(envelope_path), "--json"])
 
@@ -82,6 +114,48 @@ def test_apply_graph_commit_json_apply_requires_yes_in_noninteractive_mode(tmp_p
     assert BeliefStore(profile.name).beliefs == {}
 
 
+def test_apply_graph_commit_rejects_unattested_caller_selected_json(tmp_path):
+    profile = _save_profile()
+    envelope = graph_commit_envelope(
+        graph_commit_operation("b1", "Caller-authored content must remain inert.", "a" * 64),
+        expert_name=profile.name,
+    )
+    envelope_path = tmp_path / "forged-envelope.json"
+    envelope_path.write_text(json.dumps(envelope), encoding="utf-8")
+
+    result = CliRunner().invoke(
+        cli,
+        ["expert", "apply-graph-commit", profile.name, str(envelope_path), "--yes", "--json"],
+    )
+
+    assert result.exit_code == 2, result.output
+    payload = json.loads(result.output)
+    assert payload["summary"]["status"] == "blocked"
+    assert "investigation_run_provenance_untrusted" in payload["summary"]["failure_reasons"]
+    assert BeliefStore(profile.name).beliefs == {}
+
+
+def test_apply_graph_commit_rejects_envelope_tampered_after_receipt(tmp_path):
+    profile = _save_profile()
+    envelope = graph_commit_envelope(
+        graph_commit_operation("b1", "Original producer output.", "a" * 64),
+        expert_name=profile.name,
+    )
+    envelope_path = _write_envelope(tmp_path / "envelope.json", envelope)
+    envelope["operations"][0]["belief"]["claim"] = "Tampered caller content."
+    envelope_path.write_text(json.dumps(envelope), encoding="utf-8")
+
+    result = CliRunner().invoke(
+        cli,
+        ["expert", "apply-graph-commit", profile.name, str(envelope_path), "--yes", "--json"],
+    )
+
+    assert result.exit_code == 2, result.output
+    payload = json.loads(result.output)
+    assert "envelope_artifact_hash_mismatch" in payload["summary"]["failure_reasons"]
+    assert BeliefStore(profile.name).beliefs == {}
+
+
 def test_apply_graph_commit_json_apply_writes_with_yes(tmp_path):
     profile = _save_profile()
     envelope = graph_commit_envelope(
@@ -89,7 +163,7 @@ def test_apply_graph_commit_json_apply_writes_with_yes(tmp_path):
         expert_name=profile.name,
     )
     envelope_path = tmp_path / "envelope.json"
-    _write_envelope(envelope_path, envelope)
+    envelope_path = _write_envelope(envelope_path, envelope)
 
     result = CliRunner().invoke(
         cli, ["expert", "apply-graph-commit", profile.name, str(envelope_path), "--yes", "--json"]
@@ -111,7 +185,7 @@ def test_apply_graph_commit_json_apply_promotes_gap_with_yes(tmp_path):
     topic = "Which unresolved verifier gaps should drive the next expert sync?"
     envelope = graph_commit_envelope(graph_commit_gap_operation(topic, "c" * 64), expert_name=profile.name)
     envelope_path = tmp_path / "envelope.json"
-    _write_envelope(envelope_path, envelope)
+    envelope_path = _write_envelope(envelope_path, envelope)
 
     result = CliRunner().invoke(
         cli,
@@ -135,7 +209,7 @@ def test_apply_graph_commit_json_apply_promotes_agenda_with_yes(tmp_path):
     title = "Which agenda signals should guide the next expert sync?"
     envelope = graph_commit_envelope(graph_commit_agenda_operation(title, "e" * 64), expert_name=profile.name)
     envelope_path = tmp_path / "envelope.json"
-    _write_envelope(envelope_path, envelope)
+    envelope_path = _write_envelope(envelope_path, envelope)
 
     result = CliRunner().invoke(
         cli,
@@ -155,7 +229,7 @@ def test_apply_graph_commit_json_apply_promotes_hypothesis_with_yes(tmp_path):
     title = "Statistical traces improve expert council verification."
     envelope = graph_commit_envelope(graph_commit_hypothesis_operation(title, "1" * 64), expert_name=profile.name)
     envelope_path = tmp_path / "envelope.json"
-    _write_envelope(envelope_path, envelope)
+    envelope_path = _write_envelope(envelope_path, envelope)
 
     result = CliRunner().invoke(
         cli,
@@ -175,7 +249,7 @@ def test_apply_graph_commit_json_apply_promotes_concept_with_yes(tmp_path):
     name = "Statistical variable map for expert council plans"
     envelope = graph_commit_envelope(graph_commit_concept_operation(name, "3" * 64), expert_name=profile.name)
     envelope_path = tmp_path / "envelope.json"
-    _write_envelope(envelope_path, envelope)
+    envelope_path = _write_envelope(envelope_path, envelope)
 
     result = CliRunner().invoke(
         cli,
@@ -195,7 +269,7 @@ def test_apply_graph_commit_json_apply_promotes_stance_with_yes(tmp_path):
     title = "Prefer variable-first expert council plans"
     envelope = graph_commit_envelope(graph_commit_stance_operation(title, "5" * 64), expert_name=profile.name)
     envelope_path = tmp_path / "envelope.json"
-    _write_envelope(envelope_path, envelope)
+    envelope_path = _write_envelope(envelope_path, envelope)
 
     result = CliRunner().invoke(
         cli,
@@ -215,7 +289,7 @@ def test_apply_graph_commit_json_apply_promotes_original_idea_with_yes(tmp_path)
     title = "Statistician council packets"
     envelope = graph_commit_envelope(graph_commit_original_idea_operation(title, "7" * 64), expert_name=profile.name)
     envelope_path = tmp_path / "envelope.json"
-    _write_envelope(envelope_path, envelope)
+    envelope_path = _write_envelope(envelope_path, envelope)
 
     result = CliRunner().invoke(
         cli,

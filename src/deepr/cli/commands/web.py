@@ -26,44 +26,36 @@ def _is_loopback(host: str) -> bool:
 @click.option("--port", "-p", default=5000, type=int, help="Port to bind to")
 @click.option("--debug", is_flag=True, help="Enable debug mode with auto-reload")
 @click.option(
-    "--allow-unauthenticated-public-bind",
+    "--allow-unauthenticated-loopback",
     is_flag=True,
+    envvar="DEEPR_WEB_ALLOW_UNAUTHENTICATED_LOOPBACK",
     help=(
-        "Acknowledge an unauthenticated public-bind request. The built-in Werkzeug launcher "
-        "still refuses non-loopback hosts; use a production WSGI server."
+        "Explicitly allow tokenless access from this machine while bound to loopback. "
+        "Never permits a non-loopback bind."
     ),
 )
-def web(host: str, port: int, debug: bool, allow_unauthenticated_public_bind: bool) -> None:
+def web(host: str, port: int, debug: bool, allow_unauthenticated_loopback: bool) -> None:
     """Start the Deepr web dashboard.
 
     Launches the Flask web interface with real-time WebSocket updates.
 
     \b
     Examples:
-        deepr web                  # Bind to 127.0.0.1:5000 (safe default)
+        deepr web                  # Requires DEEPR_API_KEY
+        deepr web --allow-unauthenticated-loopback
         deepr web -p 8080          # Use port 8080
         deepr web --host 0.0.0.0   # Refused by the built-in development server
         deepr web --debug          # Enable debug mode
     """
     try:
-        from deepr.web.app import app, socketio
+        from deepr.web import app as web_app
     except ImportError as exc:
         raise click.ClickException(
             f"Web dependencies not installed: {exc}\nInstall with: pip install -e '.[web]'"
         ) from exc
 
-    api_key_set = bool(os.getenv("DEEPR_API_KEY", "").strip())
+    api_key = os.getenv("DEEPR_API_KEY", "").strip()
     loopback = _is_loopback(host)
-
-    if not loopback and not api_key_set and not allow_unauthenticated_public_bind:
-        raise click.ClickException(
-            "Refusing to bind '" + host + "' without DEEPR_API_KEY set. The dashboard would be reachable by any\n"
-            "network peer without authentication. Either:\n"
-            "  - Set DEEPR_API_KEY in your environment to require an API key, or\n"
-            "  - Run with --host 127.0.0.1 (the safe default), or\n"
-            "  - Pass --allow-unauthenticated-public-bind if you explicitly accept the risk\n"
-            "    (only on a trusted network)."
-        )
 
     if not loopback:
         raise click.ClickException(
@@ -71,12 +63,25 @@ def web(host: str, port: int, debug: bool, allow_unauthenticated_public_bind: bo
             "Use a production WSGI server and configure DEEPR_API_KEY before exposing the dashboard."
         )
 
+    if not api_key and not allow_unauthenticated_loopback:
+        raise click.ClickException(
+            "Refusing to start without DEEPR_API_KEY. Loopback locality is not caller "
+            "authentication. Set DEEPR_API_KEY, or explicitly accept tokenless local "
+            "access with --allow-unauthenticated-loopback."
+        )
+
+    # The application module is imported before Click dispatch in some hosts.
+    # Apply the validated launch contract to the already-registered HTTP and
+    # Socket.IO callbacks instead of relying on import-time environment state.
+    web_app._API_KEY = api_key
+    web_app._ALLOW_UNAUTHENTICATED_LOOPBACK = allow_unauthenticated_loopback
+
     click.echo("\n  Deepr Web Dashboard")
     click.echo(f"  http://{host}:{port}")
     click.echo("")
 
-    socketio.run(
-        app,
+    web_app.socketio.run(
+        web_app.app,
         debug=debug,
         host=host,
         port=port,

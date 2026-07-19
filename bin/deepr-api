@@ -33,23 +33,25 @@ def main():
     port = int(os.getenv("API_PORT", 5000))
     debug = os.getenv("FLASK_ENV", "production") == "development"
     api_token_set = bool(os.getenv("DEEPR_API_TOKEN", "").strip())
-    allow_public = os.getenv("DEEPR_ALLOW_PUBLIC_BIND", "").strip().lower() in ("1", "true", "yes")
+    allow_unauthenticated_loopback = os.getenv(
+        "DEEPR_API_ALLOW_UNAUTHENTICATED_LOOPBACK",
+        "",
+    ).strip().lower() in ("1", "true", "yes")
 
-    if not _is_loopback(host) and not api_token_set and not allow_public:
+    loopback = _is_loopback(host)
+    if not api_token_set and (not loopback or not allow_unauthenticated_loopback):
         sys.stderr.write(
-            f"ERROR: refusing to bind '{host}' without DEEPR_API_TOKEN set. The API\n"
-            "exposes job submission and provider-backed research; an unauthenticated\n"
-            "peer could spend your provider budget and read stored reports.\n"
-            "  - Set DEEPR_API_TOKEN to require a bearer token, or\n"
-            "  - Use API_HOST=127.0.0.1 (the safe default), or\n"
-            "  - Set DEEPR_ALLOW_PUBLIC_BIND=1 ONLY on a trusted network after\n"
-            "    you have read and accepted the risk in the documentation.\n"
+            f"ERROR: refusing to start '{host}' without DEEPR_API_TOKEN set. The API\n"
+            "exposes job submission and stored reports, and loopback locality is not\n"
+            "caller authentication. Set DEEPR_API_TOKEN. For an explicitly accepted\n"
+            "loopback-only compatibility mode, set\n"
+            "DEEPR_API_ALLOW_UNAUTHENTICATED_LOOPBACK=1.\n"
         )
         sys.exit(2)
 
     warning = ""
-    if not _is_loopback(host) and not api_token_set:
-        warning = "WARNING: binding non-loopback interface WITHOUT auth - DEEPR_ALLOW_PUBLIC_BIND is set."
+    if not api_token_set:
+        warning = "WARNING: explicit unauthenticated loopback compatibility mode."
 
     print(f"""
 ===============================================================================

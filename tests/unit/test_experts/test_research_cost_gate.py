@@ -12,6 +12,7 @@ from deepr.core.costs import CostEstimate
 from deepr.experts.cost_safety import CostSafetyManager
 from deepr.experts.research_cost_gate import (
     ResearchCostBlocked,
+    record_unreserved_research_cost,
     refund_research_cost,
     reserve_configured_research_cost,
     reserve_research_cost,
@@ -112,6 +113,39 @@ def test_refund_releases_reservation_without_ledger_spend() -> None:
     assert CostLedger().get_events() == []
     assert ResearchReservationStore().state(reservation.reservation_id) == "refunded"
     assert ResearchReservationStore().state("missing") is None
+
+
+def test_refund_cannot_release_hold_after_provider_dispatch_mark() -> None:
+    manager = CostSafetyManager()
+    reservation = _reserve(manager, "job-dispatched", 0.8)
+    store = ResearchReservationStore()
+    store.mark_provider_work_may_have_run(reservation.reservation_id)
+
+    refund_research_cost(reservation)
+
+    assert store.state(reservation.reservation_id) == "active"
+    assert store.active_reservations()[0].provider_work_may_have_run is True
+    assert manager._reserved_daily == pytest.approx(0.8)
+
+
+def test_unreserved_missing_usage_records_configured_ceiling(monkeypatch) -> None:
+    monkeypatch.setenv("DEEPR_MAX_COST_PER_JOB", "0.75")
+    manager = CostSafetyManager()
+
+    settled = record_unreserved_research_cost(
+        job_id="legacy-missing-usage",
+        provider="openai",
+        model="o3-deep-research",
+        actual_cost=None,
+        manager=manager,
+        source="test.legacy",
+    )
+
+    assert settled == pytest.approx(0.75)
+    event = CostLedger().get_events()[0]
+    assert event.cost_usd == pytest.approx(0.75)
+    assert event.metadata["actual_cost_reported"] is False
+    assert event.metadata["settlement_basis"] == "configured_ceiling"
 
 
 def test_active_reservation_check_binds_job_and_reserved_cost() -> None:

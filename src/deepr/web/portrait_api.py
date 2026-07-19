@@ -14,7 +14,6 @@ from flask import jsonify
 from deepr.experts.portrait_cost_gate import (
     PortraitCostBlocked,
     record_portrait_cost,
-    refund_portrait_cost,
     reserve_portrait_cost,
 )
 
@@ -115,7 +114,15 @@ def generate_expert_portrait_response(
                 )
             )
         except Exception as exc:
-            refund_portrait_cost(cost_reservation)
+            record_portrait_cost(
+                expert_name=decoded_name,
+                reservation=cost_reservation,
+                source="web.generate_expert_portrait",
+                metadata={
+                    "outcome": "failed",
+                    "settlement_reason": "provider_dispatch_or_completion_uncertain",
+                },
+            )
             logger.warning("Portrait generation failed for %s with %s", decoded_name, type(exc).__name__)
             return jsonify({"error": "Portrait generation failed"}), 500
         finally:
@@ -125,6 +132,7 @@ def generate_expert_portrait_response(
             expert_name=decoded_name,
             reservation=cost_reservation,
             source="web.generate_expert_portrait",
+            metadata={"outcome": "completed"},
         )
         last_generated[decoded_name] = time.monotonic()
         profile.portrait_url = portrait_url

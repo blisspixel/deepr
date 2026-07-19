@@ -226,6 +226,42 @@ class TestJobPoller:
         )
 
     @pytest.mark.asyncio
+    async def test_azure_completion_reprices_usage_with_reserved_model(self, poller):
+        mock_job = ResearchJob(
+            id="azure-priced",
+            prompt="Test prompt",
+            model="o3-deep-research",
+            provider="azure",
+            provider_job_id="provider-job",
+            metadata={"cost_reservation_model": "o3-deep-research"},
+        )
+        response = MagicMock()
+        response.output = []
+        response.usage = MagicMock(
+            cost=1.1,
+            input_tokens=1_000_000,
+            output_tokens=1_000_000,
+            total_tokens=2_000_000,
+            cached_input_tokens=0,
+        )
+        reservation = MagicMock(estimated_cost=5.0)
+
+        with (
+            patch("deepr.worker.poller.restore_research_cost_reservation", return_value=reservation),
+            patch("deepr.worker.poller.settle_research_cost") as settle,
+        ):
+            await poller._handle_completion(mock_job, response)
+
+        settle.assert_called_once_with(
+            reservation,
+            actual_cost=25.0,
+            tokens=2_000_000,
+            request_id="provider-job",
+            source="worker.poller._handle_completion",
+        )
+        assert poller.queue.update_results.await_args.kwargs["cost"] == pytest.approx(25.0)
+
+    @pytest.mark.asyncio
     async def test_handle_failure_updates_queue(self, poller):
         """_handle_failure updates queue status to FAILED."""
         mock_job = MagicMock()
@@ -257,6 +293,37 @@ class TestJobPoller:
             actual_cost=None,
             request_id="provider-job",
             source="worker.poller._handle_failure",
+        )
+
+    @pytest.mark.asyncio
+    async def test_handle_failure_records_ceiling_for_unreserved_provider_job(self, poller):
+        job = ResearchJob(
+            id="legacy-provider-failure",
+            prompt="test",
+            model="o3-deep-research",
+            provider="openai",
+            provider_job_id="provider-job",
+            status=JobStatus.PROCESSING,
+        )
+
+        with (
+            patch("deepr.worker.poller.restore_research_cost_reservation", return_value=None),
+            patch("deepr.worker.poller.record_unreserved_research_cost", return_value=5.0) as record,
+        ):
+            await poller._handle_failure(job, "Provider failed")
+
+        record.assert_called_once_with(
+            job_id="legacy-provider-failure",
+            provider="openai",
+            model="o3-deep-research",
+            actual_cost=None,
+            request_id="provider-job",
+            source="worker.poller._handle_failure",
+        )
+        poller.queue.update_status.assert_awaited_once_with(
+            job_id="legacy-provider-failure",
+            status=JobStatus.FAILED,
+            error="Provider failed",
         )
 
     @pytest.mark.asyncio

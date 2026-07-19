@@ -23,6 +23,7 @@ from deepr.experts.maker_checker import CheckAssurance, CheckVerdict
 from deepr.experts.report_absorber import (
     AbsorptionResult,
     ReportAbsorber,
+    ReportAbsorberCommitError,
     ReportAbsorberCostError,
     ReportAbsorberError,
 )
@@ -147,6 +148,21 @@ async def test_bad_json_raises(tmp_path):
     absorber = _absorber("not json at all", tmp_path)
     with pytest.raises(ReportAbsorberError):
         await absorber.absorb("rep1", "some report text")
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("nonfinite", ["NaN", "Infinity", "-Infinity"])
+async def test_nonfinite_model_confidence_fails_closed(tmp_path, nonfinite):
+    payload = (
+        '{"claims":[{"statement":"Unbounded confidence must not become certainty",'
+        f'"confidence":{nonfinite},"evidence":[]}}]}}'
+    )
+    absorber = _absorber(payload, tmp_path)
+
+    with pytest.raises(ReportAbsorberError, match="Non-finite JSON number"):
+        await absorber.absorb("rep1", "some report text")
+
+    assert absorber.belief_store.beliefs == {}
 
 
 @pytest.mark.asyncio
@@ -1010,7 +1026,7 @@ def _grounding_absorber(content, tmp_path, checker):
 
 class TestGroundingCheck:
     """The injected cross-vendor checker stamps assurance on absorbed beliefs
-    and flags refutations (record-don't-reject); off by default."""
+    and holds explicitly refuted factual claims; off by default."""
 
     @pytest.mark.asyncio
     async def test_no_checker_leaves_assurance_unverified(self, tmp_path):
@@ -1048,7 +1064,7 @@ class TestGroundingCheck:
         assert calls == [("X is true", quote)]
 
     @pytest.mark.asyncio
-    async def test_refuted_claim_is_flagged_but_still_absorbed_unverified(self, tmp_path):
+    async def test_refuted_claim_is_flagged_and_not_absorbed(self, tmp_path):
         content = _claims_json({"statement": "Price is $30", "confidence": 0.9, "evidence": ["the price is $10"]})
         checker = _checker(CheckVerdict(False, CheckAssurance.CROSS_VENDOR, "xai", "$10 not $30"))
         absorber = _grounding_absorber(content, tmp_path, checker)
@@ -1056,9 +1072,31 @@ class TestGroundingCheck:
         assert len(result.grounding_flagged) == 1
         assert result.grounding_flagged[0].checker_vendor == "xai"
         assert result.to_dict()["grounding_flagged_count"] == 1
-        # Record-don't-reject: still absorbed this slice, but not marked verified.
-        bel = next(iter(absorber.belief_store.beliefs.values()))
-        assert bel.grounding_assurance == "unverified"
+        assert [item.reason for item in result.rejected] == ["grounding_refuted"]
+        assert absorber.belief_store.beliefs == {}
+
+    @pytest.mark.asyncio
+    async def test_later_grounding_failure_leaves_all_candidates_uncommitted(self, tmp_path):
+        content = _claims_json(
+            {"statement": "First factual claim", "confidence": 0.9, "evidence": ["first source"]},
+            {"statement": "Second factual claim", "confidence": 0.9, "evidence": ["second source"]},
+        )
+        calls = 0
+
+        async def checker(claim: str, evidence: str) -> CheckVerdict:
+            nonlocal calls
+            calls += 1
+            if calls == 2:
+                raise ReportAbsorberCostError("second grounding check blocked by run budget")
+            return CheckVerdict(True, CheckAssurance.CROSS_VENDOR, "xai", "supported")
+
+        absorber = _grounding_absorber(content, tmp_path, checker)
+
+        with pytest.raises(ReportAbsorberCostError, match="second grounding check blocked"):
+            await absorber.absorb("rep1", "report")
+
+        assert calls == 2
+        assert absorber.belief_store.beliefs == {}
 
     @pytest.mark.asyncio
     async def test_could_not_verify_leaves_unverified_no_flag(self, tmp_path):
@@ -1122,8 +1160,8 @@ class TestGroundingEscalation:
         assert built == ["gemini"]  # independent third vendor, not the maker or first checker
         assert len(result.grounding_flagged) == 1
         assert "xai" in result.grounding_flagged[0].reason and "gemini" in result.grounding_flagged[0].reason
-        bel = next(iter(absorber.belief_store.beliefs.values()))
-        assert bel.grounding_assurance == "unverified"
+        assert [item.reason for item in result.rejected] == ["grounding_refuted"]
+        assert absorber.belief_store.beliefs == {}
 
     @pytest.mark.asyncio
     async def test_disagreement_is_flagged_contested_not_trusted(self, tmp_path):
@@ -1152,6 +1190,32 @@ class TestGroundingEscalation:
         assert result.grounding_flagged == []
         bel = next(iter(absorber.belief_store.beliefs.values()))
         assert bel.grounding_assurance == "cross_vendor"
+
+
+@pytest.mark.asyncio
+async def test_commit_failure_reports_durable_partial_state(tmp_path, monkeypatch):
+    content = _claims_json(
+        {"statement": "First factual claim", "confidence": 0.9},
+        {"statement": "Second factual claim", "confidence": 0.9},
+    )
+    absorber = _absorber(content, tmp_path)
+    original_add = absorber.belief_store.add_belief
+    calls = 0
+
+    def fail_second_add(*args, **kwargs):
+        nonlocal calls
+        calls += 1
+        if calls == 2:
+            raise OSError("storage unavailable")
+        return original_add(*args, **kwargs)
+
+    monkeypatch.setattr(absorber.belief_store, "add_belief", fail_second_add)
+
+    with pytest.raises(ReportAbsorberCommitError, match="committed belief ids before failure") as caught:
+        await absorber.absorb("rep1", "report")
+
+    assert len(caught.value.committed_belief_ids) == 1
+    assert set(absorber.belief_store.beliefs) == set(caught.value.committed_belief_ids)
 
 
 def test_belief_grounding_assurance_roundtrips():

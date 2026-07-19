@@ -29,9 +29,11 @@ import asyncio
 import importlib.util
 import json
 import logging
+import math
 import os
 import re
 import sys
+from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
@@ -46,6 +48,14 @@ _COST_TIER_ESTIMATES = {
     "medium": 0.05,
     "high": 0.20,
 }
+
+
+def _tool_properties(tool: SkillTool) -> dict[str, Any]:
+    """Return parameter properties from JSON Schema or legacy skill YAML."""
+    parameters = tool.parameters or {}
+    nested = parameters.get("properties")
+    return nested if isinstance(nested, dict) else parameters
+
 
 # Public-identifier regex for skill ``function`` names. Blocks dunder
 # attribute escapes (``__import__``, ``__class__``) and underscore-prefixed
@@ -114,7 +124,7 @@ class MCPClientProxy:
         self._env = {**base, **resolved}
         self._process: asyncio.subprocess.Process | None = None
         self._request_id = 0
-        self._stderr_task: asyncio.Task | None = None
+        self._stderr_task: asyncio.Task[None] | None = None
 
     @staticmethod
     def _resolve_env(env: dict[str, str]) -> dict[str, str]:
@@ -184,7 +194,7 @@ class MCPClientProxy:
             # Intent: any unexpected error in background stderr drain for external MCP skill process; task exits cleanly, skill session continues.
             return
 
-    async def _send_jsonrpc(self, method: str, params: dict) -> dict:
+    async def _send_jsonrpc(self, method: str, params: dict[str, Any]) -> dict[str, Any]:
         """Send a JSON-RPC request and read the response."""
         proc = await self._ensure_started() if self._process is None else self._process
         if proc is None or proc.stdin is None or proc.stdout is None:
@@ -207,11 +217,12 @@ class MCPClientProxy:
             return {"error": "MCP server closed connection"}
 
         try:
-            return json.loads(response_line)
+            decoded = json.loads(response_line)
+            return decoded if isinstance(decoded, dict) else {"error": "MCP server returned a non-object response"}
         except json.JSONDecodeError:
-            return {"error": f"Invalid JSON from MCP server: {response_line[:200]}"}
+            return {"error": f"Invalid JSON from MCP server: {response_line[:200]!r}"}
 
-    async def call_tool(self, tool_name: str, arguments: dict, timeout: int = 30) -> dict:
+    async def call_tool(self, tool_name: str, arguments: dict[str, Any], timeout: int = 30) -> dict[str, Any]:
         """Call a tool on the MCP server.
 
         Args:
@@ -239,15 +250,25 @@ class MCPClientProxy:
                 return {"error": response["error"]}
 
             result = response.get("result", {})
+            if not isinstance(result, dict):
+                return {"result": result}
+            reported_cost = result.get("cost")
+            structured = result.get("structuredContent")
+            if reported_cost is None and isinstance(structured, dict):
+                reported_cost = structured.get("cost")
             # MCP tools return content array
             content = result.get("content", [])
             if content and isinstance(content, list):
                 text_parts = [c.get("text", "") for c in content if c.get("type") == "text"]
-                return {"result": "\n".join(text_parts)}
-            return {"result": result}
+                output: dict[str, Any] = {"result": "\n".join(text_parts)}
+            else:
+                output = {"result": structured if isinstance(structured, dict) else result}
+            if reported_cost is not None:
+                output["cost"] = reported_cost
+            return output
 
         except TimeoutError:
-            return {"error": f"MCP tool '{tool_name}' timed out after {timeout}s"}
+            raise TimeoutError(f"MCP tool '{tool_name}' timed out after {timeout}s") from None
         except (asyncio.CancelledError, SystemExit, KeyboardInterrupt):
             # Fatal / cancellation signals must always propagate; never swallow.
             raise
@@ -259,7 +280,7 @@ class MCPClientProxy:
             # This mirrors the fail-closed pattern used in doc_reviewer and MCP client.
             return {"error": f"MCP error: {e}"}
 
-    async def close(self):
+    async def close(self) -> None:
         """Terminate the MCP server subprocess and stop draining stderr."""
         if self._stderr_task and not self._stderr_task.done():
             self._stderr_task.cancel()
@@ -286,12 +307,19 @@ class SkillExecutor:
         budget_remaining: float,
         *,
         allow_metered_tools: bool = False,
-    ):
+    ) -> None:
         # Fail closed: paid tools require an explicit opt-in. Live expert chat
         # always passes False; deliberate CLI/operator runs may pass True and
         # then hit durable reserve/mark/settle.
+        if (
+            isinstance(budget_remaining, bool)
+            or not isinstance(budget_remaining, (int, float))
+            or not math.isfinite(budget_remaining)
+            or budget_remaining < 0
+        ):
+            raise ValueError("budget_remaining must be a finite non-negative number")
         self._skill = skill
-        self._budget_remaining = budget_remaining
+        self._budget_remaining = float(budget_remaining)
         self._allow_metered_tools = allow_metered_tools
         self._mcp_proxies: dict[str, MCPClientProxy] = {}
         self._tool_map: dict[str, SkillTool] = {t.name: t for t in skill.tools}
@@ -305,7 +333,7 @@ class SkillExecutor:
         # arg clamps still see the true pre-call remaining for this tool.
         self._held_budget = 0.0
 
-    async def execute_tool(self, tool_name: str, arguments: dict) -> dict[str, Any]:
+    async def execute_tool(self, tool_name: str, arguments: dict[str, Any]) -> dict[str, Any]:
         """Route to Python or MCP execution. Check budget first.
 
         Returns:
@@ -322,7 +350,10 @@ class SkillExecutor:
         estimated_cost = _COST_TIER_ESTIMATES.get(tool.cost_tier)
         if estimated_cost is None:
             estimated_cost = 0.0 if tool.cost_tier in {"", "free", None} else _COST_TIER_ESTIMATES["high"]
-        if estimated_cost > 0 and not self._allow_metered_tools:
+        tool_props = _tool_properties(tool)
+        declares_budget = tool.type == "mcp" and "budget" in tool_props
+        is_metered = estimated_cost > 0 or declares_budget
+        if is_metered and not self._allow_metered_tools:
             return {
                 "error": "METERED_SKILL_TOOL_DISABLED",
                 "status": "blocked",
@@ -337,36 +368,70 @@ class SkillExecutor:
         # the lock. Holds live in ``_held_budget`` so clamp logic still sees
         # pre-call remaining; settle actual only after success.
         hold = 0.0
+        prepared_arguments = dict(arguments)
         async with self._lock:
             available = self._budget_remaining - self._held_budget
-            if estimated_cost > 0 and estimated_cost > available:
+            authorized_ceiling = float(estimated_cost)
+            if declares_budget:
+                manifest_cap = float(self._skill.budget.max_per_call)
+                if not math.isfinite(manifest_cap) or manifest_cap <= 0:
+                    return {
+                        "error": "INVALID_TOOL_BUDGET",
+                        "status": "blocked",
+                        "detail": "Skill max_per_call must be finite and positive",
+                        "cost": 0.0,
+                    }
+                cap = min(manifest_cap, max(0.0, available))
+                requested = arguments.get("budget", cap)
+                if (
+                    isinstance(requested, bool)
+                    or not isinstance(requested, (int, float))
+                    or not math.isfinite(requested)
+                ):
+                    return {
+                        "error": "INVALID_TOOL_BUDGET",
+                        "status": "blocked",
+                        "detail": "Tool budget must be a finite number",
+                        "cost": 0.0,
+                    }
+                authorized_ceiling = round(max(0.0, min(float(requested), cap)), 4)
+                prepared_arguments["budget"] = authorized_ceiling
+            if is_metered and (authorized_ceiling <= 0 or authorized_ceiling > available):
                 return {
                     "error": "BUDGET_EXCEEDED",
-                    "detail": f"Tool costs ~${estimated_cost:.2f} but only ${available:.2f} remains",
+                    "detail": f"Tool may cost ${authorized_ceiling:.2f} but only ${available:.2f} remains",
                     "cost": 0.0,
                 }
-            if estimated_cost > 0:
-                hold = float(estimated_cost)
+            if is_metered:
+                hold = authorized_ceiling
                 self._held_budget += hold
 
+        settled_cost = 0.0
+
+        def _remember_settlement(cost: float) -> None:
+            nonlocal settled_cost
+            settled_cost = cost
+
         try:
-            if estimated_cost > 0:
+            if is_metered:
                 result = await self._execute_metered_tool(
                     tool,
                     tool_name,
-                    arguments,
-                    estimated_cost=estimated_cost,
+                    prepared_arguments,
+                    authorized_ceiling=hold,
+                    on_settled=_remember_settlement,
                 )
             elif tool.type == "python":
-                result = await self._execute_python(tool, arguments)
+                result = await self._execute_python(tool, prepared_arguments)
             elif tool.type == "mcp":
-                result = await self._execute_mcp(tool, arguments)
+                result = await self._execute_mcp(tool, prepared_arguments)
             else:
                 result = {"error": f"Unknown tool type: {tool.type}", "cost": 0.0}
-        except Exception:
+        except BaseException:
             if hold:
                 async with self._lock:
                     self._held_budget = max(0.0, self._held_budget - hold)
+                    self._budget_remaining -= settled_cost
             raise
 
         # Only charge cost for SUCCESSFUL executions. The previous
@@ -375,7 +440,8 @@ class SkillExecutor:
         # for failed paid tool invocations.
         if "error" in result:
             result["cost"] = 0.0
-        actual = float(result.get("cost", 0.0) or 0.0)
+        actual = settled_cost if is_metered else float(result.get("cost", 0.0) or 0.0)
+        result["cost"] = actual
         async with self._lock:
             if hold:
                 self._held_budget = max(0.0, self._held_budget - hold)
@@ -386,9 +452,10 @@ class SkillExecutor:
         self,
         tool: SkillTool,
         tool_name: str,
-        arguments: dict,
+        arguments: dict[str, Any],
         *,
-        estimated_cost: float,
+        authorized_ceiling: float,
+        on_settled: Callable[[float], None],
     ) -> dict[str, Any]:
         """Run a paid skill tool under durable reserve / mark / settle."""
         from deepr.experts.research_cost_gate import ResearchCostBlocked
@@ -401,15 +468,13 @@ class SkillExecutor:
             if tool.type == "python":
                 return await self._execute_python(tool, arguments)
             if tool.type == "mcp":
-                return await self._execute_mcp(tool, arguments)
+                return await self._execute_mcp(tool, arguments, authorized_cost_ceiling=authorized_ceiling)
             return {"error": f"Unknown tool type: {tool.type}", "cost": 0.0}
 
         def _cost_from_result(result: dict[str, Any]) -> float:
-            # Soft failures settle $0. Successful paid tools settle the reserved
-            # tier estimate so a result payload cannot under-report spend.
             if "error" in result:
                 return 0.0
-            return float(estimated_cost)
+            return float(result.get("cost", authorized_ceiling))
 
         try:
             return await execute_reserved_fixed_cost_async_call(
@@ -417,9 +482,10 @@ class SkillExecutor:
                 provider="skill",
                 model=f"{self._skill.name}:{tool_name}",
                 source="skill_executor.metered_tool",
-                max_cost_per_job=estimated_cost,
+                max_cost_per_job=authorized_ceiling,
                 call=_run,
                 cost_from_result=_cost_from_result,
+                on_settled=on_settled,
             )
         except ResearchCostBlocked as exc:
             return {
@@ -436,7 +502,7 @@ class SkillExecutor:
                 "cost": 0.0,
             }
 
-    async def _execute_python(self, tool: SkillTool, arguments: dict) -> dict[str, Any]:
+    async def _execute_python(self, tool: SkillTool, arguments: dict[str, Any]) -> dict[str, Any]:
         """Import module and call function. Supports sync and async.
 
         Security:
@@ -449,10 +515,12 @@ class SkillExecutor:
         """
         if not tool.module or not tool.function:
             return {"error": "Python tool missing module/function", "cost": 0.0}
+        module_name = tool.module
+        function_name = tool.function
 
-        if not _PYTHON_IDENTIFIER.match(tool.function):
+        if not _PYTHON_IDENTIFIER.match(function_name):
             return {
-                "error": f"Invalid function name {tool.function!r}: must be a public Python identifier",
+                "error": f"Invalid function name {function_name!r}: must be a public Python identifier",
                 "cost": 0.0,
             }
 
@@ -460,9 +528,9 @@ class SkillExecutor:
         # Run in thread to avoid blocking the event loop (ASYNC240).
         def _validate_skill_path() -> Path | dict[str, Any]:
             skill_root = Path(self._skill.path).resolve()
-            relative = tool.module.replace(".", "/") + ".py"
+            relative = module_name.replace(".", "/") + ".py"
             # Reject absolute / parent-traversal module values up front.
-            if Path(tool.module).is_absolute() or ".." in Path(tool.module).parts:
+            if Path(module_name).is_absolute() or ".." in Path(module_name).parts:
                 return {"error": "Module path escapes skill directory", "cost": 0.0}
             candidate = (skill_root / relative).resolve()
             try:
@@ -474,7 +542,7 @@ class SkillExecutor:
             if candidate.is_symlink():
                 return {"error": "Module path escapes skill directory (symlink)", "cost": 0.0}
             if candidate.suffix != ".py" or not candidate.is_file():
-                return {"error": f"Module {tool.module} not found in skill", "cost": 0.0}
+                return {"error": f"Module {module_name} not found in skill", "cost": 0.0}
             return candidate
 
         validation = await asyncio.to_thread(_validate_skill_path)
@@ -485,7 +553,7 @@ class SkillExecutor:
         # Build a unique module qualname so skills shipping a same-named
         # ``tools.py`` cannot collide in ``sys.modules`` cache.
         safe_skill = re.sub(r"[^A-Za-z0-9_]", "_", self._skill.name)
-        safe_module = re.sub(r"[^A-Za-z0-9_]", "_", tool.module)
+        safe_module = re.sub(r"[^A-Za-z0-9_]", "_", module_name)
         qualname = f"_deepr_skill_{safe_skill}_{safe_module}"
 
         try:
@@ -494,9 +562,9 @@ class SkillExecutor:
                 return {"error": "Failed to load skill module", "cost": 0.0}
             mod = importlib.util.module_from_spec(spec)
             spec.loader.exec_module(mod)
-            func = getattr(mod, tool.function, None)
+            func = getattr(mod, function_name, None)
             if not callable(func):
-                return {"error": f"{tool.module}.{tool.function} is not callable", "cost": 0.0}
+                return {"error": f"{module_name}.{function_name} is not callable", "cost": 0.0}
 
             if asyncio.iscoroutinefunction(func):
                 result = await func(**arguments)
@@ -515,10 +583,16 @@ class SkillExecutor:
             # from the skill) must be turned into a tool error result so the
             # expert turn and budget accounting continue safely.
             # Never let a skill bug crash the parent expert or leak stack traces.
-            logger.warning("Python tool %s.%s failed: %s", tool.module, tool.function, e)
+            logger.warning("Python tool %s.%s failed: %s", module_name, function_name, e)
             return {"error": str(e), "cost": 0.0}
 
-    async def _execute_mcp(self, tool: SkillTool, arguments: dict) -> dict[str, Any]:
+    async def _execute_mcp(
+        self,
+        tool: SkillTool,
+        arguments: dict[str, Any],
+        *,
+        authorized_cost_ceiling: float | None = None,
+    ) -> dict[str, Any]:
         """Spawn/reuse MCP server, proxy the call, handle timeout.
 
         Enforces the subprocess command allowlist - community skills
@@ -540,23 +614,10 @@ class SkillExecutor:
                 "cost": 0.0,
             }
 
-        # Enforce the skill's per-call budget cap on any caller/model-supplied
-        # ``budget`` argument. Paid first-party MCP tools (primr/distillr)
-        # accept a ``budget`` parameter and will spend up to it. Without
-        # clamping, the model - or prompt-injected content steering it - could
-        # pass an arbitrarily large budget and blow past both the manifest
-        # ``max_per_call`` and whatever budget the skill has left.
-        tool_props = (tool.parameters or {}).get("properties", {})
-        if isinstance(tool_props, dict) and "budget" in tool_props:
-            cap = float(self._skill.budget.max_per_call)
-            # Never authorize more than the skill's remaining budget.
-            cap = min(cap, max(0.0, self._budget_remaining))
-            requested = arguments.get("budget")
-            try:
-                requested = float(requested) if requested is not None else cap
-            except (TypeError, ValueError):
-                requested = cap
-            arguments = {**arguments, "budget": round(max(0.0, min(requested, cap)), 4)}
+        tool_props = _tool_properties(tool)
+        if "budget" in tool_props:
+            if authorized_cost_ceiling is None or arguments.get("budget") != authorized_cost_ceiling:
+                return {"error": "MCP tool budget authority is unavailable", "cost": 0.0}
 
         proxy_key = f"{tool.server_command}:{' '.join(tool.server_args)}"
 
@@ -580,11 +641,15 @@ class SkillExecutor:
         # here makes intent explicit for any callers that bypass it.
         if "error" in result:
             result["cost"] = 0.0
-        else:
-            result["cost"] = _COST_TIER_ESTIMATES.get(tool.cost_tier, 0.0)
+        elif "cost" not in result:
+            result["cost"] = (
+                authorized_cost_ceiling
+                if authorized_cost_ceiling is not None
+                else _COST_TIER_ESTIMATES.get(tool.cost_tier, 0.0)
+            )
         return result
 
-    async def cleanup(self):
+    async def cleanup(self) -> None:
         """Terminate all MCP subprocesses."""
         for proxy in self._mcp_proxies.values():
             await proxy.close()

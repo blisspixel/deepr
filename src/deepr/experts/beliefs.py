@@ -12,7 +12,7 @@ from datetime import UTC, datetime, timedelta
 from enum import Enum
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
-from urllib.parse import urlparse
+from urllib.parse import urlsplit
 
 from deepr.experts import mutation_audit as audit
 from deepr.experts.belief_edges import EDGE_TYPES, Edge, normalized_edge_temporal_context
@@ -22,6 +22,31 @@ logger = logging.getLogger(__name__)
 # Source identifiers are compact tokens, such as URLs, ``report:<id>``, or ``doc_001``.
 # Free-text evidence excerpts ground one source but are not independent origins.
 _URL_SCHEME_RE = re.compile(r"^[a-z][a-z0-9+.\-]*://", re.IGNORECASE)
+
+
+def _canonical_url_source_key(token: str) -> str | None:
+    """Return one conservative source identity for an absolute URL.
+
+    Source independence is host based. User information, spelling variants,
+    trailing dots, and ports must not let one publisher masquerade as several
+    independent sources. Malformed URLs fail closed and contribute no source.
+    """
+    try:
+        parsed = urlsplit(token)
+        if parsed.username is not None or parsed.password is not None:
+            return None
+        hostname = parsed.hostname
+    except (UnicodeError, ValueError):
+        return None
+    if not hostname:
+        return None
+    try:
+        canonical = hostname.rstrip(".").lower().encode("idna").decode("ascii")
+    except UnicodeError:
+        return None
+    canonical = canonical.removeprefix("www.")
+    return f"url:{canonical}" if canonical else None
+
 
 if TYPE_CHECKING:
     from deepr.core.contracts import Claim
@@ -124,8 +149,10 @@ class Belief:
             if not token or any(ch.isspace() for ch in token):
                 continue  # a quote excerpt grounds one source; it is not a new origin
             if _URL_SCHEME_RE.match(token):
-                host = (urlparse(token).netloc or "").lower().removeprefix("www.")
-                keys.add(f"url:{host}" if host else token.lower())
+                if source_key := _canonical_url_source_key(token):
+                    keys.add(source_key)
+            elif token.lower().startswith("conflicting:"):
+                continue  # a rejected conflict candidate is not corroborating evidence
             else:
                 keys.add(token.lower())
         return len(keys)
@@ -1088,20 +1115,21 @@ class BeliefStore:
             Tuple of (resolved belief, change record)
         """
         if self.conflict_resolution == ConflictResolution.NEWER_WINS:
-            # Replace with new belief
-            change = self.revise_belief(existing.id, new.claim, new.confidence, "Newer information available")
+            change = self._replace_belief_content(existing, new, "Newer information available")
             return self.beliefs[existing.id], change
 
         if self.conflict_resolution == ConflictResolution.HIGHER_CONFIDENCE:
-            if new.confidence > existing.confidence:
-                change = self.revise_belief(existing.id, new.claim, new.confidence, "Higher confidence evidence")
+            if new.get_current_confidence() > existing.get_current_confidence():
+                change = self._replace_belief_content(existing, new, "Higher effective-confidence evidence")
                 return self.beliefs[existing.id], change
             else:
-                # Keep existing, but note the new evidence
+                # Keep existing and audit the rejected candidate without
+                # treating it as corroboration or refreshing factual recency.
                 before = audit.belief_snapshot(existing)
                 old_confidence = existing.confidence
                 evidence_ref = f"conflicting:{new.id}"
-                existing.add_evidence(evidence_ref)
+                if evidence_ref not in existing.evidence_refs:
+                    existing.evidence_refs.append(evidence_ref)
                 change = BeliefChange(
                     belief_id=existing.id,
                     change_type="updated",
@@ -1140,6 +1168,46 @@ class BeliefStore:
 
         # ASK_USER - return both for user decision
         return existing, None
+
+    def _replace_belief_content(self, existing: Belief, new: Belief, reason: str) -> BeliefChange:
+        """Replace a stable belief's content and provenance as one audited unit."""
+        before = audit.belief_snapshot(existing)
+        old_claim = existing.claim
+        old_confidence = existing.confidence
+        changed_at = _utc_now()
+        existing.history.append(
+            {
+                "timestamp": changed_at.isoformat(),
+                "old_claim": old_claim,
+                "new_claim": new.claim,
+                "old_confidence": old_confidence,
+                "new_confidence": new.confidence,
+                "reason": reason,
+                "provenance_replaced": True,
+            }
+        )
+        existing.claim = new.claim
+        existing.confidence = new.confidence
+        existing.evidence_refs = list(new.evidence_refs)
+        existing.source_type = new.source_type
+        existing.decay_rate = new.decay_rate
+        existing.trust_class = new.trust_class
+        existing.grounding_assurance = new.grounding_assurance
+        existing.updated_at = changed_at
+
+        change = BeliefChange(
+            belief_id=existing.id,
+            change_type="revised",
+            old_claim=old_claim,
+            new_claim=new.claim,
+            old_confidence=old_confidence,
+            new_confidence=new.confidence,
+            reason=reason,
+            evidence=new.evidence_refs[0] if new.evidence_refs else "",
+        )
+        self._record_change(change, before=before, after=audit.belief_snapshot(existing))
+        self._save()
+        return change
 
     def _index_belief(self, belief: Belief):
         """Add belief to domain index."""

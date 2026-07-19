@@ -51,6 +51,22 @@ class TestMCPToolResult:
 
 
 class TestMCPClientConnect:
+    def test_child_environment_excludes_unrelated_parent_secrets(self, monkeypatch):
+        monkeypatch.setenv("PATH", "validation-path")
+        monkeypatch.setenv("DEEPR_VALIDATION_SELECTED", "selected-value")
+        monkeypatch.setenv("OPENAI_API_KEY", "unrelated-secret")
+
+        client = MCPClient(
+            name="test",
+            command="echo",
+            env={"CHILD_TOKEN": "${DEEPR_VALIDATION_SELECTED}"},
+        )
+
+        assert client.env["PATH"] == "validation-path"
+        assert client.env["CHILD_TOKEN"] == "selected-value"
+        assert "OPENAI_API_KEY" not in client.env
+        assert "DEEPR_VALIDATION_SELECTED" not in client.env
+
     @pytest.mark.asyncio
     async def test_connect_initializes(self):
         """Connect should spawn subprocess and do MCP handshake."""

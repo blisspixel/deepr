@@ -13,7 +13,7 @@ def test_investigate_help_exposes_durable_lifecycle() -> None:
     result = CliRunner().invoke(cli, ["expert", "investigate", "--help"])
 
     assert result.exit_code == 0
-    for command in ("plan", "run", "status", "inspect", "pause", "resume", "cancel"):
+    for command in ("plan", "run", "apply-learning", "status", "inspect", "pause", "resume", "cancel"):
         assert command in result.output
 
 
@@ -103,6 +103,21 @@ def test_plan_rejects_nonzero_local_budget_before_build(monkeypatch) -> None:
     build.assert_not_called()
 
 
+def test_plan_rejects_remote_ollama_host_before_build(monkeypatch) -> None:
+    build = Mock()
+    monkeypatch.setenv("OLLAMA_HOST", "https://ollama.example.com:11434")
+    monkeypatch.setattr("deepr.cli.commands.semantic.expert_investigate.build_investigation_plan", build)
+
+    result = CliRunner().invoke(
+        cli,
+        ["expert", "investigate", "plan", "Question", "--expert", "Expert"],
+    )
+
+    assert result.exit_code == 2
+    assert "literal loopback host" in result.output
+    build.assert_not_called()
+
+
 def test_run_requires_confirmation_before_backend_construction(monkeypatch, tmp_path: Path) -> None:
     path = tmp_path / "plan.json"
     path.write_text("{}", encoding="utf-8")
@@ -167,6 +182,56 @@ def test_inspect_keeps_unreviewed_and_blocked_learning_labels_truthful(monkeypat
 
     assert result.exit_code == 0, result.output
     assert "Semantic quality: unreviewed" in result.output
-    assert "Human reviewed: 0" in result.output
+    assert "Human review recorded: no" in result.output
     assert "No applicable graph writes passed the automatic verifier." in result.output
     assert "Preview apply:" not in result.output
+
+
+def _learning_apply_payload(*, dry_run: bool) -> dict:
+    return {
+        "schema_version": "deepr-investigation-learning-apply-v1",
+        "kind": "deepr.expert.investigation_learning_apply",
+        "run_id": "inv_cli_test",
+        "summary": {
+            "status": "dry_run" if dry_run else "applied",
+            "dry_run": dry_run,
+            "expert_count": 3,
+            "envelope_count": 6,
+            "planned_write_count": 6 if dry_run else 0,
+            "applied_write_count": 0 if dry_run else 6,
+            "already_applied_count": 0,
+            "failure_reasons": [],
+        },
+        "results": [],
+    }
+
+
+def test_apply_learning_preflights_then_applies_with_explicit_yes(monkeypatch) -> None:
+    calls: list[dict] = []
+
+    def apply(run_id, **kwargs):
+        calls.append({"run_id": run_id, **kwargs})
+        return _learning_apply_payload(dry_run=kwargs["dry_run"])
+
+    monkeypatch.setattr("deepr.cli.commands.semantic.expert_investigate.apply_investigation_learning", apply)
+
+    result = CliRunner().invoke(
+        cli,
+        ["expert", "investigate", "apply-learning", "inv_cli_test", "--yes", "--json"],
+    )
+
+    assert result.exit_code == 0, result.output
+    assert json.loads(result.output)["summary"]["status"] == "applied"
+    assert [call["dry_run"] for call in calls] == [True, False]
+    assert all(call["facts"] is True and call["perspectives"] is True for call in calls)
+
+
+def test_apply_learning_refuses_noninteractive_write_without_yes(monkeypatch) -> None:
+    apply = Mock(return_value=_learning_apply_payload(dry_run=True))
+    monkeypatch.setattr("deepr.cli.commands.semantic.expert_investigate.apply_investigation_learning", apply)
+
+    result = CliRunner().invoke(cli, ["expert", "investigate", "apply-learning", "inv_cli_test"])
+
+    assert result.exit_code == 2
+    assert "requires interactive confirmation or --yes" in result.output
+    assert apply.call_count == 1

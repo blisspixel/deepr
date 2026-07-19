@@ -165,7 +165,7 @@ audit logs, and provider keys on the origin side.
 
 ```bash
 cd deploy/aws
-cp .env.example .env        # Add your API keys
+cp .env.example .env        # Add a pre-created provider secret ARN
 
 ./deploy.sh                  # Build + deploy + auto-validate
 ./validate.sh                # Re-run validation anytime
@@ -176,7 +176,7 @@ cp .env.example .env        # Add your API keys
 
 ```bash
 cd deploy/azure
-cp .env.example .env        # Add your API keys
+cp .env.example .env        # Add secure template inputs
 
 az login
 ./deploy.sh                  # Deploy + auto-validate
@@ -188,7 +188,7 @@ az login
 
 ```bash
 cd deploy/gcp
-cp .env.example .env        # Add your API keys
+cp .env.example .env        # Add project and pre-created secret ID
 
 gcloud auth login
 ./deploy.sh                  # Deploy + auto-validate
@@ -204,15 +204,17 @@ All three clouds follow the same lifecycle:
 2. **Validate** (`validate.sh`) - Smoke tests the deployment's current supported boundary
 3. **Destroy** (`destroy.sh`) - Tears down all resources with confirmation prompt (use `--yes` to skip)
 
-AWS v2.36 validation is provider-free:
+Hosted v2.36 validation is provider-free:
 - `GET /health` returns 200
-- `POST /jobs` returns 503 with `aws_metered_research_accounting_unavailable`
+- `POST /jobs` returns 503 with the cloud-specific
+  `*_metered_research_accounting_unavailable` code
 - `GET /jobs` returns 200 without creating a job
 - `GET /costs` returns 200
 
-Azure and GCP remain separate infrastructure templates. Their validation
-scripts do not establish the durable metered-accounting contract required to
-describe hosted paid research as a supported v2.36 surface.
+AWS, Azure, and GCP independently block job submission before payload parsing,
+durable job writes, queue writes, or provider work. Their validation scripts do
+not establish the durable metered-accounting contract required to describe
+hosted paid research as a supported v2.36 surface.
 
 Set `API_URL` and `API_KEY` environment variables to point validation at a specific deployment.
 
@@ -295,32 +297,34 @@ Serverless deployments have different cost profiles than local execution:
 | VPC Endpoints | ~$7/endpoint/month (AWS) |
 | NAT Gateway | ~$30/month + data transfer |
 
-**Note:** AWS v2.36 incurs infrastructure costs but blocks LLM research calls.
+**Note:** AWS, Azure, and GCP v2.36 deployments can incur infrastructure costs
+but block LLM research calls.
 The provider-cost comparison applies only after a deployment implements the
 required durable metered-accounting transaction. Security features add
 approximately $50-100/month overhead.
 
 ## Environment Variables
 
-The deployment templates currently accept these environment variables. A key
-does not enable the gated AWS v2.36 research path:
+The deployment scripts use cloud-specific secret inputs. A secret reference or
+secure parameter does not enable the gated v2.36 research path:
 
 ```bash
-# Required: At least one provider
-OPENAI_API_KEY=sk-...
-# or
-GOOGLE_API_KEY=...
-# or
-XAI_API_KEY=xai-...
+# AWS: pre-created Secrets Manager ARN. Key values stay outside CloudFormation.
+DEEPR_AWS_PROVIDER_SECRET_ARN=arn:aws:secretsmanager:REGION:ACCOUNT:secret:NAME
 
-# Optional: Additional explicit bounded provider configuration.
-# Automatic cross-provider metered fallback is gated in v2.36.
-AZURE_OPENAI_API_KEY=...
-AZURE_OPENAI_ENDPOINT=https://....openai.azure.com
+# GCP: pre-created Secret Manager ID. Key values stay outside Terraform state.
+DEEPR_GCP_OPENAI_SECRET_ID=deepr-prod-openai-key
+
+# Azure: secure Bicep input passed through a protected temporary parameter file.
+OPENAI_API_KEY=sk-...
+
+# Optional Azure stored credentials. They do not enable automatic fallback.
+GOOGLE_API_KEY=
+XAI_API_KEY=
 
 # Optional: Deepr budget configuration
-DEEPR_BUDGET_DAILY=50
-DEEPR_BUDGET_MONTHLY=500
+DEEPR_BUDGET_DAILY=10
+DEEPR_BUDGET_MONTHLY=10
 
 # Security (auto-generated if not provided)
 API_KEY=your-secure-api-key
@@ -489,9 +493,9 @@ Check API logs:
 ### Authentication errors
 
 Verify secrets are set correctly:
-- AWS: `aws secretsmanager get-secret-value --secret-id deepr/prod/api-keys`
-- Azure: `az keyvault secret show --vault-name deepr-prod-kv-xxx --name openai-api-key`
-- GCP: `gcloud secrets versions access latest --secret=deepr-prod-openai-key`
+- AWS: `aws secretsmanager describe-secret --secret-id "$DEEPR_AWS_PROVIDER_SECRET_ARN"`
+- Azure: `az keyvault secret show --vault-name deepr-prod-kv-xxx --name openai-api-key --query id -o tsv`
+- GCP: `gcloud secrets describe "$DEEPR_GCP_OPENAI_SECRET_ID"`
 
 ## Security Incident Response
 

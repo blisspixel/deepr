@@ -3,7 +3,7 @@
 [![CI](https://github.com/blisspixel/deepr/actions/workflows/ci.yml/badge.svg)](https://github.com/blisspixel/deepr/actions/workflows/ci.yml)
 [![License: Apache 2.0](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](LICENSE)
 [![Python 3.12+](https://img.shields.io/badge/python-3.12+-blue.svg)](https://www.python.org/downloads/)
-[![Version](https://img.shields.io/badge/version-2.36.2-blue)](https://github.com/blisspixel/deepr/releases/tag/v2.36.2)
+[![Version](https://img.shields.io/badge/version-2.37.0-blue)](https://github.com/blisspixel/deepr/releases/tag/v2.37.0)
 
 **Domain experts that remember, not another chat window.**
 
@@ -15,9 +15,9 @@ records, and handoff payloads that humans or other agents can reuse later.
 
 - Local Ollama is the true `$0` marginal-cost path for quality-tolerant expert
   setup, absorb, sync, eval, and local-context workflows.
-- Explicit non-metered plan-quota CLIs run on prepaid or subscription capacity
-  only after deterministic no-surprise-bills checks. Metered-at-margin adapters
-  remain visible but blocked until they have complete cost accounting.
+- Selected non-metered plan-quota CLIs run on prepaid or subscription capacity
+  only after deterministic auth, native-tool, process, and no-surprise-bills
+  checks. Other adapters remain visible with a typed refusal reason.
 - Cloud APIs remain the strongest bounded single-job research path when you
   provide keys, a budget ceiling, and a provider/model/tool envelope Deepr can
   price completely.
@@ -33,7 +33,10 @@ Deepr is useful when research is infrastructure: recurring expert maintenance,
 repeatable bounded research, citable knowledge for coding agents, and durable domain roles
 that stay current over time.
 
-Research is the input. Verified, current, operator-accepted expert state is the reusable product.
+Research is the input. Source-verified factual state and explicitly admitted
+non-factual perspective state are the reusable product. A hypothesis, theory,
+concept, stance, or original idea can be valuable without being web-verifiable,
+but it must remain visibly non-factual with uncertainty and disconfirming tests.
 Better repeated decisions, measured on held-out cases and later outcomes, are
 the result Deepr is trying to earn.
 
@@ -60,6 +63,12 @@ deepr expert consult "Which cross-domain assumption should we test?" --expert "T
 # one bounded blinded exchange, checking, synthesis, and optional relevance-gated staged learning.
 deepr expert investigate plan "How should persistent experts improve Deepr?" --expert "Temporal Knowledge Graphs" --expert "Digital Consciousness" --expert "Model Context Protocol" --local-model qwen2.5:14b --protocol discuss --learning stage --budget-usd 0 --out investigation-plan.json
 deepr expert investigate run investigation-plan.json -y
+# Inspect both learning lanes. Nothing has changed expert state yet.
+deepr expert investigate inspect RUN_ID
+deepr expert investigate apply-learning RUN_ID --dry-run --json
+# Explicitly admit the preflighted factual and perspective writes. This records
+# operator-confirmed apply, not human review and not truth or novelty verification.
+deepr expert investigate apply-learning RUN_ID -y --json
 
 # Record what happened later. This never changes beliefs or routing automatically.
 deepr expert record-outcome "Platform Team Expert" --decision-id harness-2026-07 --summary "Choose the next harness improvement" --result mixed --observation "Recovery improved, but reviewer time did not." --attested-by operator
@@ -198,9 +207,9 @@ Results are saved under the configured reports root, defaulting to
 |---|---|---|
 | API-backed research | Single bounded jobs work for provider/model/tool combinations with complete finite pricing. Preview and dispatch use the same hard envelope. Automatic metered fallback, hosted file/vector context, and multi-call campaigns are gated in v2.36. | [docs/FEATURES.md](docs/FEATURES.md), [docs/MODELS.md](docs/MODELS.md) |
 | Local expert maintenance | Works through Ollama for local expert setup, absorb, sync, fresh/deep local context, eval, and scored admission | [docs/CAPACITY.md](docs/CAPACITY.md) |
-| Explicit plan-quota execution | Works for selected non-metered expert sync, sync-all, gap-fill, absorb, learn, consult, and probe commands behind auth-mode and no-surprise-bills checks | [docs/CAPACITY.md](docs/CAPACITY.md), [docs/design/plan-quota-cli-backends.md](docs/design/plan-quota-cli-backends.md) |
+| Explicit plan-quota execution | Works for selected non-metered expert sync, sync-all, gap-fill, absorb, learn, consult, and probe commands behind auth-mode, native-tool, live paid-overage, and no-surprise-bills checks. Claude Code is currently executable only after a live proof that paid extra usage is off. Codex, OpenCode, Kiro, Grok, Antigravity, and Copilot are visible but execution-blocked. | [docs/CAPACITY.md](docs/CAPACITY.md), [docs/design/plan-quota-cli-backends.md](docs/design/plan-quota-cli-backends.md) |
 | Domain experts | Works for unreviewed blueprint drafts, zero-call structural preflight, operator-attested purpose contracts and outcome observations, local creation and maintenance, consult, beliefs, gaps, loop status, `$0` next-action guidance, OKF export/import, self-model reads, monitor proposals, reviewed monitor promotion, and self-model update review and acceptance records | [docs/EXPERTS.md](docs/EXPERTS.md) |
-| Multi-expert investigations | Experimental local CLI works at `$0` provider cost for immutable preview, independent free-web research, one bounded blinded exchange, checking, synthesis, pause/resume/cancel, and source-only, target-domain-relevance-gated staged learning. Semantic quality is still unreviewed; plan-quota and API execution are not shipped. | [docs/THREE_EXPERT_COUNCIL.md](docs/THREE_EXPERT_COUNCIL.md), [docs/design/evidence-first-expert-investigations.md](docs/design/evidence-first-expert-investigations.md) |
+| Multi-expert investigations | Experimental local CLI works at `$0` provider cost for immutable preview, expert-specific evidence lenses, independent free-web research, bounded blinded discussion, checking, synthesis, pause/resume/cancel, source-verified factual proposals, and separately staged non-factual perspectives. `apply-learning` preflights every selected envelope before an explicit write. It never implies human review or verifies perspective truth or novelty. Plan-quota and API execution are not shipped. | [docs/THREE_EXPERT_COUNCIL.md](docs/THREE_EXPERT_COUNCIL.md), [docs/design/evidence-first-expert-investigations.md](docs/design/evidence-first-expert-investigations.md) |
 | MCP | Works for local stdio and experimental HTTP/SSE with scoped keys, budgets, rate limits, audit logs, smoke checks, no-metered one-shot consult validation, and registration manifests | [mcp/README.md](mcp/README.md) |
 | A2A | Library and validation prototype only: Agent Card, in-memory tasks, consult mapping, and host validation exist, but no long-running serve command or A2A 1.0 conformance claim is shipped | [docs/SUPPORTED_SURFACE.md](docs/SUPPORTED_SURFACE.md) |
 | Web dashboard | Experimental but usable for reports, experts, costs, model views, loop status, and OpenAI-backed research submission; use CLI workflows for other providers | [docs/FEATURES.md](docs/FEATURES.md) |
@@ -211,11 +220,12 @@ the API, web dashboard, and CLI report a retryable failure instead of claiming
 that the job was cancelled.
 
 Automatic routing to plan-quota CLIs is still conservative. Explicit `--plan`
-is the works-now path for selected non-metered expert workflows. Auto-routing
-to plan capacity waits for operator admission and trusted remaining-quota
-observations. Metered-at-margin Copilot is fleet-visible but fails closed before
-execution until deterministic estimation, reservation, usage settlement, and
-canonical cost-ledger support exist.
+selects an adapter but never bypasses its safety decision. Claude Code is the
+only current auto-routable candidate, and still requires operator admission plus
+a trusted remaining-quota observation. Every actual Claude dispatch then runs a
+metadata-only live check and stops unless paid extra usage is explicitly off.
+Codex, OpenCode, Kiro, Grok, Antigravity, and Copilot remain fleet-visible but
+fail closed before vendor execution.
 
 `deepr init --data-dir PATH` configures expert, report, and operational
 runtime roots below one folder. That folder can be synced for sequential use
@@ -282,7 +292,7 @@ deepr expert next "AI Policy Expert"
 deepr expert monitor "AI Policy Expert" --json
 deepr expert review-consult-quality "AI Policy Expert" consult_abc123 --score uses_expert_state=5 --score surfaces_uncertainty=5 --score preserves_dissent=5 --score actionability=5 --score grounded_when_factual=5 --score original_thought=5 --reviewer operator --decision accept --target eval --apply
 deepr expert judge-consult-quality "AI Policy Expert" consult_abc123 --local-judge-model qwen2.5 --target eval --json
-deepr expert judge-consult-quality "AI Policy Expert" consult_abc123 --plan codex --plan-model gpt-5-mini --target eval --json
+deepr expert judge-consult-quality "AI Policy Expert" consult_abc123 --plan claude --target eval --json
 deepr expert promote-monitor "AI Policy Expert" meta_abc123 --target gap --apply
 deepr expert propose-self-model "AI Policy Expert" meta_def456 --json
 deepr expert accept-self-model "AI Policy Expert" ./data/self_model_updates/ai-policy/self_model_update_meta_def456_20260626_120000000000.json --outcome-evidence loop_run:loop_123 --reviewer operator --json
@@ -392,7 +402,7 @@ review, enforces the acceptance policy, and can promote accepted cases into gap
 or eval artifacts. This path costs `$0` and never commits beliefs.
 `deepr expert judge-consult-quality NAME TRACE_ID --local-judge-model MODEL`
 runs that same review path with an explicit local Ollama judge. The command can
-also use an explicit plan-quota judge with `--plan BACKEND` and optional
+also use a safety-eligible explicit plan-quota judge with `--plan BACKEND` and optional
 `--plan-model MODEL`. The judge sees the local trace answer at command time,
 but Deepr stores only validated scores, labels, notes, and bounded judge
 metadata in the review artifact. Plan judges consume subscription quota and
@@ -427,12 +437,12 @@ deepr eval local-context --model qwen2.5:14b --judge-model qwen2.5:14b --save
 deepr capacity admit --from-eval latest --task-class sync --yes
 ```
 
-Local and non-metered plan-backed services must not create dollar cost inside
-Deepr. They may consume hardware time, subscription quota, or external credits
-that Deepr cannot prove, so explicit plan and CLI-judge paths stay opt-in and
-documented. Metered-at-margin plan CLIs remain execution-blocked until their
-estimation, reservation, settlement, and canonical ledger contracts are
-complete. Copilot is visible/read-only capacity metadata in v2.36.
+Local and successful safety-eligible plan-backed services must not create dollar
+cost inside Deepr. They may consume hardware time, subscription quota, or
+external credits that Deepr cannot independently verify, so explicit plan and
+CLI-judge paths stay opt-in and documented. A zero-dollar budget never bypasses
+auth, tool, or process-safety refusals. See [docs/CAPACITY.md](docs/CAPACITY.md)
+for the current per-adapter matrix.
 
 ### MCP and Agents
 
@@ -460,10 +470,24 @@ resume, and A2A conformance. See
 An experimental local evidence-first investigation accepts a topic plus inline
 text, URLs, files, and folders. It freezes each expert, performs independent
 research first, allows at most one targeted cross-examination round, checks and
-synthesizes with preserved dissent, and stages only source-verified,
-target-domain-relevant learning. A separate verifier model judges material
-domain relevance; deterministic code requires a positive verdict without
-using word overlap to decide meaning.
+synthesizes with preserved dissent, and stages two deliberately separate
+learning lanes. Factual proposals require replayable sources, independent
+verification, and target-domain relevance judged from the exact candidate
+statement. Hypotheses, concepts, stances, and original ideas require coherent
+form, explicit uncertainty, expected
+observations, and disconfirming signals, but no online source as proof. Their
+sources are inspiration or context only. Deepr does not claim that a model can
+certify their truth, importance, originality, or novelty.
+
+Every expert receives the shared question through a distinct hash-bound lens
+made from the question plus its frozen domain. Caller-requested URLs remain
+direct fetch targets and are not copied into search text. Model-generated charter
+queries remain proposals and never gain network authority. This reduces
+identical-evidence herding while keeping retrieval reproducible and bounded.
+The independent checker may assess a perspective for form, internal coherence,
+and testability. Deterministic code enforces schemas, finite ranges, provenance,
+the fact-versus-perspective write boundary, and explicit apply. It never uses
+word overlap to decide meaning.
 Each staged compiler is form-bounded to the first five model-prioritized claims
 per expert before separate verification, so one verbose expert cannot consume
 the rest of the parent envelope.
@@ -508,14 +532,15 @@ Deepr deliberately separates workflow control from model judgment.
 
 - Deterministic code owns spend, budget reservations, cost settlement, quota
   gates, auth-mode checks, schema validation, durable writes, locks, typed stop
-  reasons, and human-review gates.
+  reasons, and truthful review labels.
 - Model judgment owns meaning: extraction, synthesis, contradiction, grounding,
   gap selection, and narrative quality.
 - Cheap lexical or structural checks may route work, but they must not conclude
   semantic truth.
 - Original ideas, hypotheses, and stances are first-class expert state. They
   need origin, rationale, uncertainty, and disconfirming signals, not an online
-  source requirement. They must not masquerade as verified external facts.
+  source requirement. They must not masquerade as verified external facts, and
+  explicit apply must not masquerade as human review.
 - Self-model updates must be proposals with evidence, verifier results,
   accepted-record gates, and explicit outcome evidence before they affect a
   learning transaction. They do not grant new authority.
@@ -541,6 +566,15 @@ are not automatically replayed. Deepr also has per-operation limits, daily and m
 caps, anomaly checks, and an append-only cost ledger at
 `data/costs/cost_ledger.jsonl`. See
 [research-cost-reservations.md](docs/design/research-cost-reservations.md).
+
+For API and remote request surfaces, a positive budget is never permission to
+spend. Metered execution requires both `allow_metered_api=true` and
+`confirm_metered_cost=true` before provider construction, plus a finite priced
+ceiling. CLI paid paths require an interactive confirmation, or their explicit
+noninteractive cost-confirmation flag. Missing pricing, consent, durable
+reservation, or ledger settlement fails closed. `--budget 10` means at most
+`$10` for that command or parent transaction. It does not create a shared
+wallet across unrelated commands and it never authorizes automatic fallback.
 
 Defaults favor owned capacity: local `$0` backends first, then explicit
 plan-quota capacity where supported. Metered APIs are explicit premium paths;

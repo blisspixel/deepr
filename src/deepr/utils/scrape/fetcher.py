@@ -11,8 +11,10 @@ from typing import Any
 from urllib.parse import urlencode, urljoin, urlparse
 
 import requests
+from requests.adapters import HTTPAdapter
+from urllib3 import HTTPConnectionPool, HTTPSConnectionPool
 
-from deepr.utils.security import SSRFError, is_safe_url, validate_url
+from deepr.utils.security import SSRFError, is_safe_url, resolve_safe_url_ips, validate_url
 
 from .config import USER_AGENTS, ScrapeConfig
 
@@ -22,14 +24,83 @@ RESPONSE_CHUNK_BYTES = 64 * 1024
 MAX_ARCHIVE_METADATA_BYTES = 256 * 1024
 ARCHIVE_SNAPSHOT_HOST = "web.archive.org"
 
-# Check if Playwright is available
+# Browser navigation remains fail-closed. These sentinels retain import-safe
+# compatibility for the old implementation below while every browser entry
+# point returns before engine creation or navigation.
 PLAYWRIGHT_AVAILABLE = False
-try:
-    from playwright.async_api import async_playwright
+async_playwright: Any = None
 
-    PLAYWRIGHT_AVAILABLE = True
-except ImportError:
-    pass
+
+class _PinnedAddressAdapter(HTTPAdapter):
+    """Connect to one prevalidated IP while retaining the original TLS name."""
+
+    def __init__(self, *, address: str, hostname: str, port: int, scheme: str) -> None:
+        super().__init__(max_retries=0)
+        self._address = address
+        self._hostname = hostname
+        self._port = port
+        self._scheme = scheme
+
+    def get_connection_with_tls_context(
+        self,
+        request: Any,
+        verify: Any,
+        proxies: Any = None,
+        cert: Any = None,
+    ) -> HTTPConnectionPool:
+        del request, verify, proxies, cert
+        if self._scheme == "https":
+            return HTTPSConnectionPool(
+                self._address,
+                self._port,
+                assert_hostname=self._hostname,
+                server_hostname=self._hostname,
+                maxsize=1,
+                block=True,
+            )
+        return HTTPConnectionPool(self._address, self._port, maxsize=1, block=True)
+
+
+def _pinned_get(url: str, **kwargs: Any) -> requests.Response:
+    """Perform one redirect-disabled GET through a prevalidated address."""
+    if kwargs.get("allow_redirects", False):
+        raise ValueError("pinned fetches require caller-managed redirects")
+    parsed = urlparse(url)
+    addresses = resolve_safe_url_ips(url, allow_private=False)
+    port = parsed.port or (443 if parsed.scheme == "https" else 80)
+    headers = dict(kwargs.pop("headers", {}) or {})
+    headers["Host"] = parsed.netloc
+    last_error: requests.RequestException | None = None
+    for address in addresses:
+        session = requests.Session()
+        session.trust_env = False
+        session.mount(
+            f"{parsed.scheme}://",
+            _PinnedAddressAdapter(
+                address=address,
+                hostname=str(parsed.hostname),
+                port=port,
+                scheme=parsed.scheme,
+            ),
+        )
+        try:
+            response = session.get(url, headers=headers, **kwargs)
+        except requests.RequestException as exc:
+            last_error = exc
+            session.close()
+            continue
+        response.__dict__["_deepr_transport_owner"] = session
+        return response
+    if last_error is not None:
+        raise last_error
+    raise SSRFError(f"URL is not safe to fetch: {url}")
+
+
+def _close_pinned_response(response: requests.Response) -> None:
+    response.close()
+    owner = getattr(response, "_deepr_transport_owner", None)
+    if owner is not None:
+        owner.close()
 
 
 class FetchFailureCode(str, Enum):
@@ -90,10 +161,10 @@ class ContentFetcher:
         strategies: list[tuple[str, Callable[[str], FetchResult]]] = []
         if self.config.try_http:
             strategies.append(("HTTP", lambda target: self._fetch_http(target, headers=headers)))
-        if PLAYWRIGHT_AVAILABLE and self.config.try_selenium:
-            strategies.append(("Playwright", self._fetch_playwright))
-        if self.config.try_selenium:
-            strategies.append(("Selenium Headless", self._fetch_selenium_headless))
+        # Browser engines resolve and navigate independently, so a hostname
+        # precheck cannot pin their subrequests or redirects. They stay out of
+        # the executable chain until every browser request has peer-bound SSRF
+        # enforcement and the same decoded-byte ceiling as HTTP.
         if self.config.try_archive:
             strategies.append(("Archive.org", self._fetch_archive))
         return strategies
@@ -219,7 +290,7 @@ class ContentFetcher:
             try:
                 current_url = url
                 for redirect_count in range(MAX_SAFE_REDIRECTS + 1):
-                    response = requests.get(
+                    response = _pinned_get(
                         current_url,
                         headers=request_headers,
                         timeout=self.config.timeout,
@@ -231,7 +302,7 @@ class ContentFetcher:
                     try:
                         redirect_target = self._redirect_target(response, current_url, url, redirect_count)
                     finally:
-                        response.close()
+                        _close_pinned_response(response)
                     if isinstance(redirect_target, FetchResult):
                         return redirect_target
                     current_url = redirect_target
@@ -262,7 +333,7 @@ class ContentFetcher:
                 except _ResponseBodyTooLargeError:
                     return self._response_too_large_result(current_url, response, "HTTP")
                 finally:
-                    response.close()
+                    _close_pinned_response(response)
 
             except requests.exceptions.RequestException as e:
                 logger.debug(f"HTTP attempt {attempt + 1} failed: {e}")
@@ -415,7 +486,7 @@ class ContentFetcher:
 
         current_url = validated_start
         for redirect_count in range(MAX_SAFE_REDIRECTS + 1):
-            response = requests.get(
+            response = _pinned_get(
                 current_url,
                 timeout=self.config.timeout,
                 allow_redirects=False,
@@ -425,7 +496,7 @@ class ContentFetcher:
                 try:
                     redirect_target = self._redirect_target(response, current_url, original_url, redirect_count)
                 finally:
-                    response.close()
+                    _close_pinned_response(response)
                 if isinstance(redirect_target, FetchResult):
                     redirect_target.strategy = "Archive.org"
                     return redirect_target
@@ -447,7 +518,7 @@ class ContentFetcher:
             except _ResponseBodyTooLargeError:
                 return self._response_too_large_result(original_url, response, "Archive.org")
             finally:
-                response.close()
+                _close_pinned_response(response)
 
         return FetchResult(
             url=original_url,
@@ -466,12 +537,7 @@ class ContentFetcher:
         Returns:
             FetchResult
         """
-        if not PLAYWRIGHT_AVAILABLE:
-            return FetchResult(
-                url=url,
-                success=False,
-                error="Playwright not installed (pip install playwright && playwright install chromium)",
-            )
+        return self._browser_fetch_disabled(url, "Playwright")
 
         # Check if we're already in an async context
         try:
@@ -501,6 +567,8 @@ class ContentFetcher:
         - After page.goto() completes, page.url is re-validated to catch top-
           level redirects/window.location navigations to internal targets.
         """
+        return self._browser_fetch_disabled(url, "Playwright")
+
         try:
             async with async_playwright() as p:
                 browser = await p.chromium.launch(headless=True)
@@ -582,6 +650,8 @@ class ContentFetcher:
         Returns:
             FetchResult
         """
+        return self._browser_fetch_disabled(url, "Selenium Headless")
+
         try:
             from selenium import webdriver
             from selenium.webdriver.chrome.options import Options
@@ -643,6 +713,8 @@ class ContentFetcher:
         Returns:
             FetchResult
         """
+        return self._browser_fetch_disabled(url, "Selenium Visible")
+
         try:
             from selenium import webdriver
             from selenium.webdriver.chrome.options import Options
@@ -694,6 +766,20 @@ class ContentFetcher:
             if driver:
                 driver.quit()
 
+    @staticmethod
+    def _browser_fetch_disabled(url: str, strategy: str) -> FetchResult:
+        """Refuse browser navigation until every request is peer-bound and bounded."""
+        return FetchResult(
+            url=url,
+            strategy=strategy,
+            success=False,
+            error=(
+                "Browser fetching is disabled until subrequests and redirects have "
+                "peer-bound SSRF enforcement and decoded response-size ceilings"
+            ),
+            security_blocked=True,
+        )
+
     def _fetch_pdf_render(self, url: str) -> FetchResult:
         """
         Fetch by rendering page to PDF and extracting text (nuclear option).
@@ -725,7 +811,7 @@ class ContentFetcher:
         try:
             # Try to get latest snapshot
             archive_url = f"https://archive.org/wayback/available?{urlencode({'url': url})}"
-            response = requests.get(archive_url, timeout=10, stream=True)
+            response = _pinned_get(archive_url, timeout=10, allow_redirects=False, stream=True)
             try:
                 response.raise_for_status()
                 metadata_text = self._read_response_text(response, MAX_ARCHIVE_METADATA_BYTES)
@@ -738,7 +824,7 @@ class ContentFetcher:
                     limit=MAX_ARCHIVE_METADATA_BYTES,
                 )
             finally:
-                response.close()
+                _close_pinned_response(response)
             if data.get("archived_snapshots", {}).get("closest"):
                 snapshot_url = data["archived_snapshots"]["closest"]["url"]
                 return self._fetch_archive_snapshot(url, snapshot_url)

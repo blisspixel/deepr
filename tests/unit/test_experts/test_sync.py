@@ -565,6 +565,63 @@ class TestFreshSourcesUnchanged:
 
 class TestSyncEngine:
     @pytest.mark.asyncio
+    @pytest.mark.parametrize("budget", [float("nan"), float("inf"), float("-inf"), -0.01, True])
+    async def test_sync_rejects_invalid_run_budget_before_research(self, tmp_path, budget):
+        called = False
+
+        async def research_fn(query: str, run_budget: float) -> dict:
+            nonlocal called
+            called = True
+            return {"answer": _NO_CHANGES_MARKER, "cost": 0.0}
+
+        engine = ExpertSyncEngine(
+            _expert(),
+            research_fn=research_fn,
+            subscription_store=_sub_store(tmp_path, Subscription(topic="Topic X")),
+        )
+
+        with pytest.raises(ValueError, match="budget must be a finite non-negative number"):
+            await engine.sync(budget=budget)
+        assert called is False
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("budget", [float("nan"), float("inf"), float("-inf"), -0.01, True])
+    async def test_sync_rejects_invalid_subscription_budget_before_research(self, tmp_path, budget):
+        called = False
+
+        async def research_fn(query: str, run_budget: float) -> dict:
+            nonlocal called
+            called = True
+            return {"answer": _NO_CHANGES_MARKER, "cost": 0.0}
+
+        engine = ExpertSyncEngine(
+            _expert(),
+            research_fn=research_fn,
+            subscription_store=_sub_store(tmp_path, Subscription(topic="Topic X", budget=budget)),
+        )
+
+        with pytest.raises(ValueError, match="subscription budget"):
+            await engine.sync(budget=1.0)
+        assert called is False
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("cost", [float("nan"), float("inf"), float("-inf"), -0.01, "invalid"])
+    async def test_sync_rejects_invalid_reported_research_spend(self, tmp_path, cost):
+        store = _sub_store(tmp_path, Subscription(topic="Topic X", budget=0.5))
+        engine = _engine(tmp_path, store, {"Topic X": {"answer": _NO_CHANGES_MARKER, "cost": cost}})
+
+        with pytest.raises(RuntimeError, match="research returned invalid spend"):
+            await engine.sync(budget=1.0)
+
+    @pytest.mark.asyncio
+    async def test_sync_rejects_reported_research_spend_above_allocation(self, tmp_path):
+        store = _sub_store(tmp_path, Subscription(topic="Topic X", budget=0.5))
+        engine = _engine(tmp_path, store, {"Topic X": {"answer": _NO_CHANGES_MARKER, "cost": 0.500_001}})
+
+        with pytest.raises(RuntimeError, match="research spend exceeded the allocated ceiling"):
+            await engine.sync(budget=1.0)
+
+    @pytest.mark.asyncio
     async def test_sync_absorbs_delta_and_reports_what_changed(self, tmp_path):
         store = _sub_store(tmp_path, Subscription(topic="Topic X", budget=0.5))
         engine = _engine(
@@ -612,29 +669,68 @@ class TestSyncEngine:
         assert result.outcomes[0].cost == pytest.approx(0.23)
 
     @pytest.mark.asyncio
-    async def test_no_changes_skips_absorb_but_updates_cadence(self, tmp_path):
+    async def test_model_only_no_changes_skips_absorb_and_stays_due(self, tmp_path):
         store = _sub_store(tmp_path, Subscription(topic="Quiet Topic"))
         engine = _engine(tmp_path, store, {"Quiet Topic": {"answer": "No significant changes.", "cost": 0.0}})
 
         result = await engine.sync(budget=1.0)
 
-        assert result.outcomes[0].status == "no_changes"
+        assert result.outcomes[0].status == "failed"
+        assert result.outcomes[0].error_code == "unverified_no_changes"
+        assert result.outcomes[0].retryable is True
+        assert "freshness was not advanced" in result.outcomes[0].detail
         assert len(engine.belief_store.beliefs) == 0
-        assert store.subscriptions[0].last_synced is not None  # cadence advanced
+        assert store.subscriptions[0].last_synced is None
         assert result.knowledge_observed_at is None
         assert getattr(engine.expert, "knowledge_cutoff_date", None) is None
         assert getattr(engine.expert, "last_knowledge_refresh", None) is None
 
     @pytest.mark.asyncio
-    async def test_markdown_wrapped_no_changes_skips_absorb(self, tmp_path):
+    async def test_markdown_wrapped_model_only_no_changes_stays_due(self, tmp_path):
         store = _sub_store(tmp_path, Subscription(topic="Quiet Topic"))
         engine = _engine(tmp_path, store, {"Quiet Topic": {"answer": "**no significant changes**", "cost": 0.0}})
 
         result = await engine.sync(budget=1.0)
 
-        assert result.outcomes[0].status == "no_changes"
+        assert result.outcomes[0].status == "failed"
+        assert result.outcomes[0].error_code == "unverified_no_changes"
         assert len(engine.belief_store.beliefs) == 0
-        assert store.subscriptions[0].last_synced is not None
+        assert store.subscriptions[0].last_synced is None
+
+    @pytest.mark.asyncio
+    async def test_changed_source_hash_cannot_be_hidden_by_model_no_change_marker(self, tmp_path):
+        store = _sub_store(
+            tmp_path,
+            Subscription(topic="Topic X", budget=0.5, cadence_days=0, last_synced=datetime.now(UTC)),
+        )
+        artifact_dir = tmp_path / "knowledge" / "sync_artifacts" / "source_packs"
+        artifact_dir.mkdir(parents=True)
+        (artifact_dir / "20260701T000000000000Z_topic-x.json").write_text(
+            json.dumps({"source_pack": {"sources": [{"content_hash": "a" * 64}]}}),
+            encoding="utf-8",
+        )
+        engine = _engine(
+            tmp_path,
+            store,
+            {
+                "Topic X": {
+                    "answer": "No significant changes.",
+                    "cost": 0.0,
+                    "fresh_context": {"source_count": 1, "mode": "fresh"},
+                    "source_pack": {
+                        "mode": "fresh",
+                        "sources": [{"url": "https://example.com", "content_hash": "b" * 64}],
+                    },
+                }
+            },
+        )
+        before = store.subscriptions[0].last_synced
+
+        result = await engine.sync(budget=1.0, only_due=False)
+
+        assert result.outcomes[0].status == "failed"
+        assert result.outcomes[0].error_code == "unverified_no_changes"
+        assert store.subscriptions[0].last_synced == before
 
     @pytest.mark.asyncio
     async def test_unchanged_sources_skip_absorb_on_second_sync(self, tmp_path):
@@ -1521,14 +1617,16 @@ class TestSyncEngine:
         store = _sub_store(tmp_path, Subscription(topic="Topic X", budget=0.5))
         beliefs = BeliefStore("Sync Test Expert", storage_dir=tmp_path / "beliefs")
         absorber = ReportAbsorber(_expert(), client=_FakeExtractionClient(), belief_store=beliefs, estimated_cost=0.0)
-        original_write = sync_module.atomic_write_json
+        from deepr.experts import graph_commit_provenance
 
-        def fail_graph_commit_write(path, payload):
+        original_write = graph_commit_provenance.atomic_write_json
+
+        def fail_graph_commit_write(path, payload, **kwargs):
             if "graph_commit_envelopes" in str(path):
                 raise OSError("disk full")
-            original_write(path, payload)
+            original_write(path, payload, **kwargs)
 
-        monkeypatch.setattr(sync_module, "atomic_write_json", fail_graph_commit_write)
+        monkeypatch.setattr(graph_commit_provenance, "atomic_write_json", fail_graph_commit_write)
         engine = ExpertSyncEngine(
             _expert(),
             research_fn=_topic_x_research_fn(_topic_x_source_pack()),
@@ -1546,7 +1644,7 @@ class TestSyncEngine:
         assert outcome.claim_extraction_artifact.endswith("_topic-x.json")
         assert outcome.claim_verification_artifact.endswith("_topic-x.json")
         assert outcome.graph_commit_envelope_artifact == ""
-        assert "graph commit envelope artifact failed" in outcome.detail
+        assert "graph commit envelope artifact write failed" in outcome.detail
 
     @pytest.mark.asyncio
     async def test_source_pack_write_failure_blocks_absorb(self, tmp_path, monkeypatch):
@@ -1631,7 +1729,7 @@ class TestSyncEngine:
     async def test_budget_exhaustion_skips_remaining(self, tmp_path):
         store = _sub_store(
             tmp_path,
-            Subscription(topic="Topic X", budget=0.5),
+            Subscription(topic="Topic X", budget=1.0),
             Subscription(topic="Topic Z", budget=0.5),
         )
         engine = _engine(

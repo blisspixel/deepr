@@ -107,21 +107,32 @@ class CostCircuitBreaker:
             cooldown_remaining=cooldown_remaining,
         )
 
-    def allow_request(self, estimated_cost: float = 0.0) -> tuple[bool, str | None]:
-        """Check whether one estimated operation fits all circuit bounds."""
+    def allow_request(
+        self,
+        estimated_cost: float = 0.0,
+        *,
+        reserved_cost: float = 0.0,
+        reserved_events: int = 0,
+    ) -> tuple[bool, str | None]:
+        """Check settled and in-flight work against all circuit bounds."""
         estimated_cost = _validated_nonnegative_number(estimated_cost, field_name="estimated_cost")
+        reserved_cost = _validated_nonnegative_number(reserved_cost, field_name="reserved_cost")
+        if isinstance(reserved_events, bool) or not isinstance(reserved_events, int) or reserved_events < 0:
+            raise ValueError("reserved_events must be a non-negative integer")
         self._check_auto_reset()
         if self._is_open:
             return False, f"Circuit breaker open: {self._open_reason}"
         if estimated_cost > self.max_single_cost:
             return False, f"Single operation cost ${estimated_cost:.2f} exceeds limit ${self.max_single_cost:.2f}"
         current_cost = self._calculate_window_cost()
-        if current_cost + estimated_cost > self.cost_threshold:
+        if current_cost + reserved_cost + estimated_cost > self.cost_threshold:
             return (
                 False,
-                f"Would exceed cost threshold: ${current_cost:.2f} + ${estimated_cost:.2f} > ${self.cost_threshold:.2f}",
+                "Would exceed cost threshold: "
+                f"${current_cost:.2f} settled + ${reserved_cost:.2f} reserved "
+                f"+ ${estimated_cost:.2f} > ${self.cost_threshold:.2f}",
             )
-        event_count = self._calculate_window_events()
+        event_count = self._calculate_window_events() + reserved_events
         if event_count >= self.event_threshold:
             return False, f"Event threshold reached: {event_count} >= {self.event_threshold}"
         return True, None

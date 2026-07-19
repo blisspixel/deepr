@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import math
 from collections.abc import Mapping
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
@@ -23,9 +24,17 @@ class ReportAbsorberCostError(ReportAbsorberError):
 
 def nonnegative_cost(value: Any) -> float:
     try:
-        return max(float(value or 0.0), 0.0)
+        cost = float(value or 0.0)
     except (TypeError, ValueError):
         return 0.0
+    return max(cost, 0.0) if math.isfinite(cost) else 0.0
+
+
+def _loads_json_candidate(candidate: str, *, strict: bool) -> Any:
+    def reject_nonfinite(value: str) -> None:
+        raise ValueError(f"Non-finite JSON number is not allowed: {value}")
+
+    return json.loads(candidate, strict=strict, parse_constant=reject_nonfinite)
 
 
 def absorber_estimated_cost(absorber: Any) -> float:
@@ -70,13 +79,19 @@ def loads_model_json(raw: str) -> Any:
     first_error: json.JSONDecodeError | None = None
     for candidate in candidates:
         try:
-            return json.loads(candidate)
-        except json.JSONDecodeError as exc:
-            first_error = first_error or exc
+            return _loads_json_candidate(candidate, strict=True)
+        except ValueError as exc:
+            if first_error is None:
+                first_error = (
+                    exc if isinstance(exc, json.JSONDecodeError) else json.JSONDecodeError(str(exc), candidate, 0)
+                )
         try:
-            return json.loads(candidate, strict=False)
-        except json.JSONDecodeError as exc:
-            first_error = first_error or exc
+            return _loads_json_candidate(candidate, strict=False)
+        except ValueError as exc:
+            if first_error is None:
+                first_error = (
+                    exc if isinstance(exc, json.JSONDecodeError) else json.JSONDecodeError(str(exc), candidate, 0)
+                )
     if first_error is not None:
         raise first_error
     raise json.JSONDecodeError("No JSON object found", raw, 0)

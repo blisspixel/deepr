@@ -903,8 +903,13 @@ class TestExpertAbsorbCommand:
             mock_store_class.return_value = mock_store
             mock_idx.return_value.get_report_content.return_value = "report body"
 
-            # Decline the confirmation prompt (no --yes).
-            result = runner.invoke(cli, ["expert", "absorb", "Test Expert", "rep1"], input="n\n")
+            # The terminal gate is covered separately; this exercises the
+            # command's genuine interactive-decline branch.
+            with patch(
+                "deepr.cli.commands.semantic.expert_maintenance.confirm_interactively",
+                return_value=False,
+            ):
+                result = runner.invoke(cli, ["expert", "absorb", "Test Expert", "rep1"])
 
             assert "cancelled" in result.output.lower()
 
@@ -1934,7 +1939,7 @@ class TestExpertRouteGapsCommand:
             async def execute(self, received_routes, **kwargs):
                 return FakeResult()
 
-        for var in ("OPENAI_API_KEY", "CODEX_API_KEY", "CODEX_ACCESS_TOKEN"):
+        for var in ("ANTHROPIC_API_KEY",):
             monkeypatch.delenv(var, raising=False)
 
         with (
@@ -1957,11 +1962,11 @@ class TestExpertRouteGapsCommand:
 
             result = runner.invoke(
                 cli,
-                ["expert", "route-gaps", "AI Strategy Expert", "--execute", "--plan", "codex", "--yes", "--json"],
+                ["expert", "route-gaps", "AI Strategy Expert", "--execute", "--plan", "claude", "--yes", "--json"],
             )
 
         assert result.exit_code == 0, result.output
-        assert mock_record.call_args.kwargs["capacity_source"] == "plan_quota:codex"
+        assert mock_record.call_args.kwargs["capacity_source"] == "plan_quota:claude"
         assert captured["research_fn"] is not None
         assert captured["absorber"] is not None
 

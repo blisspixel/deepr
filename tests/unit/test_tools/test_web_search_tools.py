@@ -10,7 +10,7 @@ import asyncio
 import sys
 import threading
 from pathlib import Path
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
 import pytest
 
@@ -40,102 +40,57 @@ class TestWebSearchTool:
         assert "query" in tool.parameters["required"]
 
     @pytest.mark.asyncio
-    async def test_brave_backend_calls_brave_api(self):
+    async def test_brave_backend_fails_before_network(self):
         tool = WebSearchTool(backend="brave", brave_api_key="bk")
-        fake_response = MagicMock()
-        fake_response.json.return_value = {
-            "web": {
-                "results": [
-                    {"title": "T", "url": "https://x", "description": "snip"},
-                    {"title": "T2", "url": "https://y", "description": "snip2"},
-                ]
-            }
-        }
-        fake_response.raise_for_status.return_value = None
-        with patch("deepr.tools.web_search.requests.get", return_value=fake_response) as get:
+        with patch.object(tool, "_search_duckduckgo") as free_search:
             res = await tool.execute(query="hi", num_results=2)
-        assert res.success is True
-        assert res.metadata["backend"] == "brave"
-        assert len(res.data) == 2
-        get.assert_called_once()
-        called_headers = get.call_args.kwargs["headers"]
-        assert called_headers["X-Subscription-Token"] == "bk"
+        assert res.success is False
+        assert "price, reserve, and settle" in res.error
+        free_search.assert_not_called()
 
     @pytest.mark.asyncio
-    async def test_brave_request_does_not_block_event_loop(self):
+    async def test_positional_query_contract_still_enforces_metered_gate(self):
         tool = WebSearchTool(backend="brave", brave_api_key="bk")
-        request_started = threading.Event()
-        release_request = threading.Event()
-        fake_response = MagicMock()
-        fake_response.json.return_value = {"web": {"results": []}}
-        fake_response.raise_for_status.return_value = None
-
-        def blocking_get(*_args, **_kwargs):
-            request_started.set()
-            assert release_request.wait(timeout=2)
-            return fake_response
-
-        with patch("deepr.tools.web_search.requests.get", side_effect=blocking_get):
-            task = asyncio.create_task(tool.execute(query="hi", num_results=1))
-            while not request_started.is_set():
-                await asyncio.sleep(0.01)
-            release_request.set()
-            result = await asyncio.wait_for(task, timeout=1)
-
-        assert result.success is True
+        res = await tool.execute("hi", 2)
+        assert res.success is False
+        assert "disabled" in res.error
 
     @pytest.mark.asyncio
-    async def test_positional_query_contract_calls_brave_api(self):
-        tool = WebSearchTool(backend="brave", brave_api_key="bk")
-        fake_response = MagicMock()
-        fake_response.json.return_value = {"web": {"results": [{"title": "T", "url": "https://x"}]}}
-        fake_response.raise_for_status.return_value = None
-        with patch("deepr.tools.web_search.requests.get", return_value=fake_response) as get:
-            res = await tool.execute("hi", 2)
-        assert res.success is True
-        assert get.call_args.kwargs["params"] == {"q": "hi", "count": 2}
-
-    @pytest.mark.asyncio
-    async def test_tavily_backend_calls_tavily_api(self):
+    async def test_tavily_backend_fails_before_network(self):
         tool = WebSearchTool(backend="tavily", tavily_api_key="tk")
-        fake = MagicMock()
-        fake.json.return_value = {
-            "results": [{"title": "A", "url": "https://a", "content": "snip"}],
-        }
-        fake.raise_for_status.return_value = None
-        with patch("deepr.tools.web_search.requests.post", return_value=fake) as post:
-            res = await tool.execute(query="q", num_results=1)
-        assert res.success is True
-        assert res.metadata["backend"] == "tavily"
-        assert res.data[0]["url"] == "https://a"
-        assert post.call_args.kwargs["json"]["api_key"] == "tk"
+        res = await tool.execute(query="q", num_results=1)
+        assert res.success is False
+        assert "price, reserve, and settle" in res.error
 
     @pytest.mark.asyncio
-    async def test_no_backend_returns_error(self):
+    async def test_named_metered_backend_is_blocked_without_key(self):
         tool = WebSearchTool(backend="brave")
-        tool.brave_api_key = None
         res = await tool.execute(query="hi")
         assert res.success is False
-        assert "No working web search backend" in res.error
+        assert "disabled" in res.error
 
     @pytest.mark.asyncio
-    async def test_brave_failure_falls_through_to_tavily_in_auto_mode(self):
+    async def test_auto_mode_ignores_ambient_metered_keys(self):
         tool = WebSearchTool(backend="auto", brave_api_key="bk", tavily_api_key="tk")
-        # Brave raises, Tavily succeeds.
-        with (
-            patch(
-                "deepr.tools.web_search.requests.get",
-                side_effect=RuntimeError("brave 500"),
-            ),
-            patch("deepr.tools.web_search.requests.post") as post,
-        ):
-            ok = MagicMock()
-            ok.json.return_value = {"results": [{"title": "x", "url": "https://x", "content": "s"}]}
-            ok.raise_for_status.return_value = None
-            post.return_value = ok
+        with patch.object(
+            tool,
+            "_search_duckduckgo",
+            return_value=ToolResult(success=True, data=[], metadata={"backend": "duckduckgo"}),
+        ) as free_search:
             res = await tool.execute(query="q", num_results=1)
-            assert res.success is True
-            assert res.metadata["backend"] == "tavily"
+        assert res.success is True
+        assert res.metadata["backend"] == "duckduckgo"
+        free_search.assert_awaited_once_with("q", 1)
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("num_results", [0, 21])
+    async def test_result_count_is_bounded_before_search(self, num_results):
+        tool = WebSearchTool(backend="auto")
+        with patch.object(tool, "_search_duckduckgo") as free_search:
+            res = await tool.execute(query="q", num_results=num_results)
+        assert res.success is False
+        assert "between 1 and 20" in res.error
+        free_search.assert_not_called()
 
     @pytest.mark.asyncio
     async def test_duckduckgo_missing_lib_reports_install_hint(self):

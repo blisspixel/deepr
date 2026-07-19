@@ -385,7 +385,11 @@ def _validate_learning_contract(value: Any, *, learning: LearningMode) -> None:
     expected: dict[str, Any] = {
         "mode": learning.value,
         "source_pack_evidence_only": True,
+        "factual_belief_source_pack_evidence_only": True,
         "dialogue_is_evidence": False,
+        "perspective_proposals_from_expert_positions": expected_relevance,
+        "perspective_proposals_are_factual_beliefs": False,
+        "perspective_truth_or_novelty_verified": False,
         "domain_relevance_required": expected_relevance,
         "domain_relevance_judgment": expected_judgment,
         "writes_expert_state": False,

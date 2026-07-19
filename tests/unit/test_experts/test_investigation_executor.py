@@ -109,7 +109,11 @@ def _plan(
         "learning_contract": {
             "mode": learning.value,
             "source_pack_evidence_only": True,
+            "factual_belief_source_pack_evidence_only": True,
             "dialogue_is_evidence": False,
+            "perspective_proposals_from_expert_positions": learning is LearningMode.STAGE,
+            "perspective_proposals_are_factual_beliefs": False,
+            "perspective_truth_or_novelty_verified": False,
             "domain_relevance_required": learning is LearningMode.STAGE,
             "domain_relevance_judgment": (
                 "independent_verifier_model" if learning is LearningMode.STAGE else "not_applicable"
@@ -235,6 +239,20 @@ class ScriptedLocalBackend:
         if "independent evidence checker" in system:
             return {
                 "assessments": [],
+                "perspective_assessments": [
+                    {
+                        "expert_name": name,
+                        "candidate_id": "theory-1",
+                        "status": "well_formed",
+                        "reason": "The proposal separates assumptions from predicted observations.",
+                        "suggested_test": "Compare held-out repeated decisions.",
+                    }
+                    for name in (
+                        "Temporal Knowledge Graphs",
+                        "Digital Consciousness",
+                        "Model Context Protocol",
+                    )
+                ],
                 "shared_misconceptions": [],
                 "unsupported_consensus": [],
                 "minority_evidence_preserved": True,
@@ -300,11 +318,30 @@ class ScriptedLocalBackend:
                         "temporal_scope": "fixture",
                     }
                 ],
+                "perspective_candidates": [
+                    {
+                        "candidate_id": "theory-1",
+                        "kind": "theory",
+                        "title": "Bounded continuity can improve repeated decisions",
+                        "statement": "A bounded expert memory may improve later decisions without expanding authority.",
+                        "rationale": "Durable state can preserve useful revisions across related tasks.",
+                        "uncertainty": "The effect may disappear on unrelated or adversarial tasks.",
+                        "assumptions": ["The retrieval policy selects relevant state."],
+                        "implications": ["Evaluate downstream decisions, not graph size."],
+                        "expected_observations": ["Held-out repeated decisions improve."],
+                        "disconfirming_signals": ["Negative transfer rises on unrelated tasks."],
+                        "time_horizon": "Repeated work over several weeks",
+                        "priority": 4,
+                        "confidence": 0.62,
+                        "source_refs": refs[:1],
+                    }
+                ],
                 "caller_inputs_used": ["input-0001"],
                 "assumptions": ["Writes remain staged."],
                 "unknowns": ["Long-term effects"],
                 "contradictions": [],
                 "strongest_alternative": "A stateless panel may be simpler.",
+                "null_hypothesis": "Persistent expert state does not improve held-out repeated work.",
                 "disconfirming_test": "Compare held-out repeated work.",
                 "decision_implications": ["Preserve provenance."],
                 "proposed_cruxes": ["Does memory improve later work?"],
@@ -384,7 +421,10 @@ async def test_deep_staged_learning_completes_exact_twenty_call_path(tmp_path: P
     assert state["usage"]["cost_usd"] == 0.0
     assert len(backend.requests) == 20
     assert len(context.queries) == 3
-    assert all("https://example.com/reference" not in query for query in context.queries)
+    assert len(set(context.queries)) == 3
+    assert all("https://example.com/reference" in query for query in context.queries)
+    assert all("durable agents knowledge graph MCP safety" not in query for query in context.queries)
+    assert all("Research lens: Research about" in query for query in context.queries)
     result = store.read_artifact("inv_deep_stage", state["artifacts"]["result"])
     assert result["answer"].startswith("Use a bounded coordinator")
     assert result["contract"]["human_reviewed"] is False
@@ -392,10 +432,14 @@ async def test_deep_staged_learning_completes_exact_twenty_call_path(tmp_path: P
     learning = store.read_artifact("inv_deep_stage", state["artifacts"]["learning:manifest"])
     assert learning["summary"]["automatic_verifier_accepted_count"] == 3
     assert learning["summary"]["ready_write_count"] == 3
+    assert learning["summary"]["perspective_ready_write_count"] == 3
+    assert learning["summary"]["total_staged_write_count"] == 6
     assert learning["summary"]["expert_state_write_count"] == 0
     assert learning["contract"]["domain_relevance_required"] is True
     assert all(entry["human_reviewed"] is False for entry in learning["entries"])
     assert all(entry["graph_commit_envelope_artifact"] for entry in learning["entries"])
+    assert all(entry["perspective_human_reviewed"] is False for entry in learning["entries"])
+    assert all(entry["perspective_graph_commit_envelope_artifact"] for entry in learning["entries"])
     compiler_requests = [
         request for request in backend.requests if "semantic claim extraction" in str(request.messages[0]["content"])
     ]

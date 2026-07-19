@@ -26,6 +26,11 @@ RESULTS_BUCKET = os.environ.get("RESULTS_BUCKET")
 FIRESTORE_DB = os.environ.get("FIRESTORE_DB", "(default)")
 DAILY_BUDGET = float(os.environ.get("DAILY_BUDGET", 50))
 MONTHLY_BUDGET = float(os.environ.get("MONTHLY_BUDGET", 500))
+
+# This deployment shard does not yet share Deepr's durable estimate,
+# reservation, dispatch-mark, and canonical settlement transaction.
+GCP_METERED_RESEARCH_EXECUTION_ENABLED = False
+GCP_METERED_RESEARCH_BLOCK_CODE = "gcp_metered_research_accounting_unavailable"
 API_KEY = os.environ.get("API_KEY", "")
 
 # Initialize clients
@@ -164,6 +169,19 @@ def handle_request(request):
 
 def submit_job(request):
     """Submit a new research job to Pub/Sub."""
+    if not GCP_METERED_RESEARCH_EXECUTION_ENABLED:
+        return response(
+            503,
+            {
+                "error": "GCP metered research is disabled until durable reservation and settlement are implemented.",
+                "error_code": GCP_METERED_RESEARCH_BLOCK_CODE,
+                "status": "blocked",
+                "retryable": False,
+                "provider_work_started": False,
+                "durable_job_written": False,
+                "queue_message_written": False,
+            },
+        )
     try:
         body = request.get_json()
     except Exception:

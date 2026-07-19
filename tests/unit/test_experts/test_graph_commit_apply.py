@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from copy import deepcopy
 
+import pytest
+
 from deepr.experts.beliefs import Belief, BeliefStore
 from deepr.experts.graph_commit_apply import (
     GRAPH_COMMIT_APPLY_KIND,
@@ -166,6 +168,19 @@ def test_apply_graph_commit_envelope_blocks_hypothesis_without_tracker(tmp_path)
     assert result["operation_results"][0]["failure_reasons"] == ["hypothesis_tracker_missing"]
 
 
+@pytest.mark.parametrize("confidence", [float("nan"), float("inf"), float("-inf")])
+def test_apply_graph_commit_envelope_blocks_nonfinite_hypothesis_confidence(tmp_path, confidence):
+    envelope = graph_commit_envelope(graph_commit_hypothesis_operation("Nonfinite confidence.", "2" * 64))
+    envelope["operations"][0]["hypothesis"]["confidence"] = confidence
+    store = BeliefStore("Compiler Expert", storage_dir=tmp_path / "beliefs")
+    tracker = MetaCognitionTracker("Compiler Expert", base_path=str(tmp_path / "experts"))
+
+    result = apply_graph_commit_envelope(envelope, store, gap_tracker=tracker, dry_run=False)
+
+    assert result["summary"]["status"] == "blocked"
+    assert "invalid_hypothesis_confidence" in result["operation_results"][0]["failure_reasons"]
+
+
 def test_apply_graph_commit_envelope_promotes_concept_and_replays_idempotently(tmp_path):
     name = "Statistical variable map for expert council plans"
     envelope = graph_commit_envelope(graph_commit_concept_operation(name, "3" * 64))
@@ -282,6 +297,20 @@ def test_apply_graph_commit_envelope_blocks_unready_envelope(tmp_path):
 
     assert result["summary"]["status"] == "blocked"
     assert "envelope_not_ready_for_commit" in result["summary"]["failure_reasons"]
+    assert store.beliefs == {}
+
+
+def test_apply_graph_commit_envelope_requires_nonempty_exact_target(tmp_path):
+    envelope = graph_commit_envelope(
+        graph_commit_operation("b1", "Targetless content must remain inert.", "a" * 64),
+        expert_name="",
+    )
+    store = BeliefStore("Different Expert", storage_dir=tmp_path / "beliefs")
+
+    result = apply_graph_commit_envelope(envelope, store, dry_run=False)
+
+    assert result["summary"]["status"] == "blocked"
+    assert "missing_target_expert" in result["summary"]["failure_reasons"]
     assert store.beliefs == {}
 
 

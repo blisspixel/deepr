@@ -9,12 +9,15 @@ from __future__ import annotations
 
 import asyncio
 import json
+from unittest.mock import MagicMock
 
 import pytest
 from click.testing import CliRunner
 
 import deepr.cli.commands.semantic.expert_consult as mod
 from deepr.cli.commands.semantic.expert_consult import build_consult_payload, expert_consult
+
+_API_ACK = ["--yes", "--confirm-metered-cost"]
 
 
 @pytest.fixture(autouse=True)
@@ -92,7 +95,7 @@ def test_build_payload_shape():
 
 def test_consult_json_emits_versioned_artifact(monkeypatch):
     _patch(monkeypatch, _result())
-    result = CliRunner().invoke(expert_consult, ["q", "--json"])
+    result = CliRunner().invoke(expert_consult, ["q", "--json", *_API_ACK])
     assert result.exit_code == 0
     parsed = json.loads(result.output)
     assert parsed["schema_version"] == "deepr-consult-v1"
@@ -105,10 +108,32 @@ def test_consult_json_emits_versioned_artifact(monkeypatch):
     assert parsed["collaboration"]["budget_capacity_contract"]["metered_synthesis_ceiling_usd"] == 0.15
 
 
+def test_consult_json_does_not_authorize_metered_api(monkeypatch):
+    execute = MagicMock(side_effect=AssertionError("metered consult must not execute"))
+    monkeypatch.setattr(mod, "_execute_cli_consult", execute)
+
+    result = CliRunner().invoke(expert_consult, ["q", "--json"])
+
+    assert result.exit_code == 2
+    assert "requires --yes --confirm-metered-cost" in result.output
+    execute.assert_not_called()
+
+
+def test_consult_yes_requires_explicit_metered_cost_acknowledgement(monkeypatch):
+    execute = MagicMock(side_effect=AssertionError("metered consult must not execute"))
+    monkeypatch.setattr(mod, "_execute_cli_consult", execute)
+
+    result = CliRunner().invoke(expert_consult, ["q", "--yes"])
+
+    assert result.exit_code == 2
+    assert "requires --confirm-metered-cost" in result.output
+    execute.assert_not_called()
+
+
 def test_consult_writes_replayable_trace(monkeypatch, consult_trace_path):
     _patch(monkeypatch, _result())
 
-    result = CliRunner().invoke(expert_consult, ["q", "--json"])
+    result = CliRunner().invoke(expert_consult, ["q", "--json", *_API_ACK])
 
     assert result.exit_code == 0
     trace = json.loads(consult_trace_path.read_text(encoding="utf-8").strip())
@@ -125,7 +150,7 @@ def test_consult_writes_replayable_trace(monkeypatch, consult_trace_path):
 
 def test_consult_human_render(monkeypatch):
     _patch(monkeypatch, _result())
-    result = CliRunner().invoke(expert_consult, ["q", "-y"])
+    result = CliRunner().invoke(expert_consult, ["q", *_API_ACK])
     assert result.exit_code == 0
     assert "Consult trace: consult_" in result.output
     assert "Synthesis" in result.output
@@ -139,7 +164,7 @@ def test_consult_output_path_explicitly_writes_full_artifact(monkeypatch, tmp_pa
     _patch(monkeypatch, _result())
     output = tmp_path / "council.json"
 
-    result = CliRunner().invoke(expert_consult, ["q", "--output", str(output), "-y"])
+    result = CliRunner().invoke(expert_consult, ["q", "--output", str(output), *_API_ACK])
 
     assert result.exit_code == 0, result.output
     saved = json.loads(output.read_text(encoding="utf-8"))
@@ -160,7 +185,7 @@ def test_consult_truncated_synthesis_emits_artifact_and_exits_nonzero(monkeypatc
         ),
     )
 
-    result = CliRunner().invoke(expert_consult, ["q", "--json"])
+    result = CliRunner().invoke(expert_consult, ["q", "--json", *_API_ACK])
 
     assert result.exit_code == 1
     parsed = json.loads(result.output)
@@ -179,7 +204,7 @@ def test_consult_trace_records_effective_explicit_roster_size(monkeypatch, consu
 
     result = CliRunner().invoke(
         expert_consult,
-        ["q", "-e", "A", "-e", "B", "-e", "C", "-e", "D", "--budget", "1", "--json"],
+        ["q", "-e", "A", "-e", "B", "-e", "C", "-e", "D", "--budget", "1", "--json", *_API_ACK],
     )
 
     assert result.exit_code == 0
@@ -191,7 +216,7 @@ def test_consult_trace_records_effective_explicit_roster_size(monkeypatch, consu
 
 def test_consult_no_experts_exits_2(monkeypatch):
     _patch(monkeypatch, _result(perspectives=[], synthesis="No experts available for this query."))
-    result = CliRunner().invoke(expert_consult, ["q", "-y"])
+    result = CliRunner().invoke(expert_consult, ["q", *_API_ACK])
     assert result.exit_code == 2
 
 
@@ -261,7 +286,7 @@ def test_consult_storage_lock_timeout_is_retryable(monkeypatch):
         raise ConsultStorageLockTimeoutError("consult_storage_busy", "trace lock busy")
 
     monkeypatch.setattr(mod, "execute_consult_transaction", storage_busy)
-    result = CliRunner().invoke(expert_consult, ["q", "-y"])
+    result = CliRunner().invoke(expert_consult, ["q", *_API_ACK])
 
     assert result.exit_code == 1
     assert "storage failed; retry safely" in result.output
@@ -274,7 +299,7 @@ def test_consult_post_work_storage_timeout_is_not_presented_as_retryable(monkeyp
         raise ConsultStorageLockTimeoutError("consult_post_work_busy", "trace lock busy", retryable=False)
 
     monkeypatch.setattr(mod, "execute_consult_transaction", storage_busy)
-    result = CliRunner().invoke(expert_consult, ["q", "-y"])
+    result = CliRunner().invoke(expert_consult, ["q", *_API_ACK])
 
     assert result.exit_code == 1
     assert "do not retry the full consultation" in result.output
@@ -298,7 +323,7 @@ def test_failure_surfaced_not_silent(monkeypatch, consult_trace_path):
         raise RuntimeError("council down")
 
     monkeypatch.setattr(mod, "run_consult", boom)
-    result = CliRunner().invoke(expert_consult, ["q", "-y"])
+    result = CliRunner().invoke(expert_consult, ["q", *_API_ACK])
     assert result.exit_code == 1
     assert "Consultation failed" in result.output
     trace = json.loads(consult_trace_path.read_text(encoding="utf-8").strip())
@@ -315,7 +340,10 @@ def test_explicit_experts_and_budget_passed_through(monkeypatch):
         return _result()
 
     monkeypatch.setattr(mod, "run_consult", fake)
-    result = CliRunner().invoke(expert_consult, ["q", "-e", "A", "-e", "B", "-b", "1.5", "--json"])
+    result = CliRunner().invoke(
+        expert_consult,
+        ["q", "-e", "A", "-e", "B", "-b", "1.5", "--json", *_API_ACK],
+    )
     assert result.exit_code == 0
     assert captured["experts"] == ["A", "B"]
     assert captured["budget"] == 1.5
@@ -409,7 +437,17 @@ def test_consult_anthropic_api_synthesis_passes_provider_and_model(monkeypatch):
 
     result = CliRunner().invoke(
         expert_consult,
-        ["q", "--provider", "anthropic", "--model", "claude-sonnet-4-6", "--budget", "1", "--json"],
+        [
+            "q",
+            "--provider",
+            "anthropic",
+            "--model",
+            "claude-sonnet-4-6",
+            "--budget",
+            "1",
+            "--json",
+            *_API_ACK,
+        ],
     )
 
     assert result.exit_code == 0

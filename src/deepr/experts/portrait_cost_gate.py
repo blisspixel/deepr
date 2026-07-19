@@ -56,15 +56,24 @@ def refund_portrait_cost(reservation: PortraitCostReservation) -> None:
         reservation.manager.refund_reservation(reservation.reservation_id)
 
 
-def record_portrait_cost(*, expert_name: str, reservation: PortraitCostReservation, source: str) -> None:
+def record_portrait_cost(
+    *,
+    expert_name: str,
+    reservation: PortraitCostReservation,
+    source: str,
+    metadata: dict[str, Any] | None = None,
+) -> None:
     if reservation.manager is None:
         return
+    event_metadata = {"expert": expert_name}
+    if metadata:
+        event_metadata.update(metadata)
     reservation.manager.record_cost(
         session_id=f"portrait_{expert_name}",
         operation_type="portrait_generation",
         actual_cost=reservation.estimated_cost,
         provider=reservation.effective_provider or "auto",
         source=source,
-        metadata={"expert": expert_name},
+        metadata=event_metadata,
         reservation_id=reservation.reservation_id,
     )

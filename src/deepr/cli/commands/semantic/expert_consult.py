@@ -292,7 +292,12 @@ def _emit_consult_result(
     type=click.Path(dir_okay=False, path_type=Path),
     help="Explicit path for the full consult artifact. No file is written here by default.",
 )
-@click.option("-y", "--yes", is_flag=True, help="Skip the spend confirmation.")
+@click.option("-y", "--yes", is_flag=True, help="Run without an interactive confirmation.")
+@click.option(
+    "--confirm-metered-cost",
+    is_flag=True,
+    help="With --yes, explicitly authorize metered API synthesis up to --budget.",
+)
 def expert_consult(
     question,
     experts,
@@ -308,6 +313,7 @@ def expert_consult(
     json_output,
     output,
     yes,
+    confirm_metered_cost,
 ):
     """Consult a team of experts and synthesize one calibrated answer.
 
@@ -319,7 +325,7 @@ def expert_consult(
     EXAMPLES:
       deepr expert consult "How should we harden absorption provenance?"
       deepr expert consult "Cost vs quality tradeoff?" -e "AI Cost Optimization" -e "LLM Evaluation and Calibration"
-      deepr expert consult "What changed in MCP?" --json
+      deepr expert consult "What changed in MCP?" --local --json
     """
     _validate_consult_limits(
         budget=budget,
@@ -336,9 +342,23 @@ def expert_consult(
         api_model=api_model,
     )
 
-    if not yes and not json_output and not click.confirm(f"Consult experts (budget ${budget:.2f})?", default=True):
-        print_warning("Cancelled.")
-        return
+    if backend_mode == "api":
+        if yes and not confirm_metered_cost:
+            raise click.UsageError(
+                "Metered API consult with --yes requires --confirm-metered-cost; --budget is only a hard ceiling."
+            )
+        if not yes:
+            if json_output or not sys.stdin.isatty():
+                raise click.UsageError(
+                    "Noninteractive metered API consult requires --yes --confirm-metered-cost. "
+                    "Use --local or --plan for an explicit non-metered path."
+                )
+            if not click.confirm(
+                f"Authorize metered API synthesis with a hard ceiling of ${budget:.2f}?",
+                default=False,
+            ):
+                print_warning("Cancelled.")
+                return
 
     backend_factory = _make_backend_factory(
         use_local=use_local,

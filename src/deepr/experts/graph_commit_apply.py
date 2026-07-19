@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import math
 import re
 from datetime import UTC, datetime
 from typing import Any
@@ -186,7 +187,7 @@ def _nonnegative_number_failure(gap: dict[str, Any], field: str) -> str:
         value = float(gap.get(field, 0.0))
     except (TypeError, ValueError):
         return f"invalid_gap_{field}"
-    return f"invalid_gap_{field}" if value < 0.0 else ""
+    return f"invalid_gap_{field}" if not math.isfinite(value) or value < 0.0 else ""
 
 
 def _gap_expected_value_failure(gap: dict[str, Any]) -> str:
@@ -194,7 +195,11 @@ def _gap_expected_value_failure(gap: dict[str, Any]) -> str:
         expected_value = float(gap.get("expected_value", 0.0))
     except (TypeError, ValueError):
         return "invalid_gap_expected_value"
-    return "invalid_gap_expected_value" if expected_value < 0.0 or expected_value > 1.0 else ""
+    return (
+        "invalid_gap_expected_value"
+        if not math.isfinite(expected_value) or expected_value < 0.0 or expected_value > 1.0
+        else ""
+    )
 
 
 def _gap_times_asked_failure(gap: dict[str, Any]) -> str:
@@ -301,7 +306,9 @@ def _hypothesis_confidence_failure(hypothesis: dict[str, Any]) -> str:
         confidence = float(hypothesis.get("confidence", 0.0))
     except (TypeError, ValueError):
         return "invalid_hypothesis_confidence"
-    return "invalid_hypothesis_confidence" if confidence < 0.0 or confidence > 1.0 else ""
+    return (
+        "invalid_hypothesis_confidence" if not math.isfinite(confidence) or confidence < 0.0 or confidence > 1.0 else ""
+    )
 
 
 def _hypothesis_failure_reasons(hypothesis: dict[str, Any], gap_tracker: MetaCognitionTracker | None) -> list[str]:
@@ -331,7 +338,7 @@ def _concept_confidence_failure(concept: dict[str, Any]) -> str:
         confidence = float(concept.get("confidence", 0.0))
     except (TypeError, ValueError):
         return "invalid_concept_confidence"
-    return "invalid_concept_confidence" if confidence < 0.0 or confidence > 1.0 else ""
+    return "invalid_concept_confidence" if not math.isfinite(confidence) or confidence < 0.0 or confidence > 1.0 else ""
 
 
 def _concept_failure_reasons(concept: dict[str, Any], gap_tracker: MetaCognitionTracker | None) -> list[str]:
@@ -361,7 +368,7 @@ def _stance_confidence_failure(stance: dict[str, Any]) -> str:
         confidence = float(stance.get("confidence", 0.0))
     except (TypeError, ValueError):
         return "invalid_stance_confidence"
-    return "invalid_stance_confidence" if confidence < 0.0 or confidence > 1.0 else ""
+    return "invalid_stance_confidence" if not math.isfinite(confidence) or confidence < 0.0 or confidence > 1.0 else ""
 
 
 def _stance_failure_reasons(stance: dict[str, Any], gap_tracker: MetaCognitionTracker | None) -> list[str]:
@@ -394,7 +401,11 @@ def _original_idea_confidence_failure(original_idea: dict[str, Any]) -> str:
         confidence = float(original_idea.get("confidence", 0.0))
     except (TypeError, ValueError):
         return "invalid_original_idea_confidence"
-    return "invalid_original_idea_confidence" if confidence < 0.0 or confidence > 1.0 else ""
+    return (
+        "invalid_original_idea_confidence"
+        if not math.isfinite(confidence) or confidence < 0.0 or confidence > 1.0
+        else ""
+    )
 
 
 def _original_idea_failure_reasons(
@@ -423,7 +434,7 @@ def _belief_failure_reasons(belief: dict[str, Any], store: BeliefStore) -> list[
     except (TypeError, ValueError):
         failures.append("invalid_confidence")
     else:
-        if confidence < 0.0 or confidence > 1.0:
+        if not math.isfinite(confidence) or confidence < 0.0 or confidence > 1.0:
             failures.append("invalid_confidence")
     if not _evidence_refs(belief.get("evidence_refs")):
         failures.append("missing_evidence_refs")
@@ -745,7 +756,9 @@ def _envelope_failure_reasons(envelope: dict[str, Any], store: BeliefStore) -> l
         failures.append("unsupported_envelope_kind")
 
     target_name = str(_as_dict(envelope.get("target")).get("expert_name", "")).strip()
-    if target_name and target_name != store.expert_name:
+    if not target_name:
+        failures.append("missing_target_expert")
+    elif target_name != store.expert_name:
         failures.append("target_expert_mismatch")
 
     if _as_dict(envelope.get("summary")).get("status") != "ready_for_commit":

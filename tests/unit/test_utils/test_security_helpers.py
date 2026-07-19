@@ -23,6 +23,7 @@ from deepr.utils.security import (
     is_loopback_bind_host,
     is_safe_url,
     resolve_all_ips,
+    resolve_safe_url_ips,
     sanitize_log_message,
     sanitize_name,
     validate_api_key,
@@ -160,6 +161,22 @@ class TestIsSafeUrl:
     def test_allow_private_lets_private_through(self):
         with patch("deepr.utils.security.resolve_all_ips", return_value=["192.168.1.5"]):
             assert is_safe_url("http://example.com", allow_private=True)
+
+    def test_rejects_rfc6598_shared_address_space(self):
+        with patch("deepr.utils.security.resolve_all_ips", return_value=["100.64.0.1"]):
+            assert not is_safe_url("http://shared.example")
+            with pytest.raises(SSRFError):
+                resolve_safe_url_ips("http://shared.example")
+
+    def test_resolved_fetch_addresses_are_frozen_and_sorted(self):
+        with patch(
+            "deepr.utils.security.resolve_all_ips",
+            return_value=["2606:2800:220:1:248:1893:25c8:1946", "93.184.216.34"],
+        ):
+            assert resolve_safe_url_ips("https://example.com/path") == (
+                "93.184.216.34",
+                "2606:2800:220:1:248:1893:25c8:1946",
+            )
 
 
 class TestValidateUrl:

@@ -71,6 +71,50 @@ class TestTrustCeilings:
         )
         assert b.get_current_confidence() == pytest.approx(0.60)
 
+    @pytest.mark.parametrize(
+        "variant",
+        [
+            "https://EXAMPLE.com:443/b",
+            "http://example.com:80/b",
+            "https://example.com./b",
+            "https://www.example.com:8443/b",
+        ],
+    )
+    def test_same_host_url_spelling_variants_are_one_source(self, variant):
+        b = Belief(
+            claim="X",
+            confidence=0.95,
+            domain="d",
+            evidence_refs=["https://example.com/a", variant],
+        )
+        assert b.get_current_confidence() == pytest.approx(0.60)
+
+    @pytest.mark.parametrize(
+        "invalid",
+        [
+            "https://user@example.com/a",
+            "https://user:password@example.com/a",
+            "https://[invalid/a",
+        ],
+    )
+    def test_credentialed_or_malformed_url_does_not_mint_a_source(self, invalid):
+        b = Belief(
+            claim="X",
+            confidence=0.95,
+            domain="d",
+            evidence_refs=["https://example.com/a", invalid],
+        )
+        assert b.get_current_confidence() == pytest.approx(0.60)
+
+    def test_rejected_conflict_marker_is_not_corroborating_evidence(self):
+        b = Belief(
+            claim="X",
+            confidence=0.95,
+            domain="d",
+            evidence_refs=["report:r1", "conflicting:candidate-2"],
+        )
+        assert b.get_current_confidence() == pytest.approx(0.60)
+
     def test_distinct_host_urls_corroborate(self):
         b = Belief(
             claim="X",

@@ -5,7 +5,6 @@ This module provides the REST API for the Deepr research assistant,
 including OpenAPI documentation via Swagger UI at /api/docs.
 """
 
-import hmac
 import logging
 import os
 
@@ -16,6 +15,8 @@ from flask_cors import CORS
 
 from deepr.api.middleware.errors import register_error_handlers
 from deepr.api.middleware.rate_limiter import create_limiter, limit_job_status, limit_job_submit, limit_listing
+from deepr.security import http_auth
+from deepr.security.metered_consent import metered_api_consent_error
 
 # Shared sync-to-async bridge, aliased to the historical request-handler name.
 from deepr.utils.async_runner import run_async_command as run_async
@@ -33,12 +34,11 @@ app.config["MAX_CONTENT_LENGTH"] = 1 * 1024 * 1024
 _cors_origins = os.getenv("DEEPR_CORS_ORIGINS", "http://localhost:5173,http://localhost:5174,http://localhost:3000")
 CORS(app, origins=[o.strip() for o in _cors_origins.split(",")])
 
-# Bearer token authentication
-# IMPORTANT: Token is optional. When unset, the entire API (including
-# job submission that spends your provider credentials) is unauthenticated.
-# This is a deliberate local-first design choice. For any non-localhost
-# exposure, you MUST set DEEPR_API_TOKEN (see bin/deepr-api safety checks).
-_api_token = os.getenv("DEEPR_API_TOKEN")
+# Bearer token authentication. Loopback locality is not identity: another
+# local process can reach the operator's API. Tokenless operation therefore
+# requires a separate explicit compatibility opt-in.
+_api_token = os.getenv("DEEPR_API_TOKEN", "").strip()
+_allow_unauthenticated_loopback = http_auth.env_flag("DEEPR_API_ALLOW_UNAUTHENTICATED_LOOPBACK")
 
 # Server-side guards applied to job submission (defence in depth on top of
 # cost controller and rate limiter). Sized to match deepr/web/app.py.
@@ -63,34 +63,22 @@ _ALLOWED_MODELS = {
 
 @app.before_request
 def _check_auth():
-    """
-    Require bearer token if DEEPR_API_TOKEN is set.
-
-    When no token is configured the whole API surface (job submission,
-    result download, cost data, etc.) is reachable without credentials.
-    This is intentional for localhost development only.
-    """
-    if not _api_token:
-        return  # No token configured -- allow all (local dev only)
-    # Skip auth for health check and docs
+    """Require bearer auth, with an explicit tokenless loopback escape hatch."""
     if request.path in ("/health", "/api/health", "/api/docs", "/apispec_1.json"):
         return
     if request.path.startswith("/flasgger_static"):
         return
-    auth = request.headers.get("Authorization", "")
-    if not auth.startswith("Bearer ") or len(auth) <= 7:
-        return jsonify({"error": "Unauthorized"}), 401
-    # hmac.compare_digest raises TypeError for str inputs containing
-    # non-ASCII characters. Treat any TypeError as Unauthorized rather
-    # than letting it escape into the generic 500 handler - the latter
-    # turned malformed Authorization headers into an availability/log-
-    # amplification primitive.
-    try:
-        valid = hmac.compare_digest(auth[7:], _api_token)
-    except TypeError:
-        return jsonify({"error": "Unauthorized"}), 401
-    if not valid:
-        return jsonify({"error": "Unauthorized"}), 401
+    decision = http_auth.check_shared_secret(
+        configured_secret=_api_token,
+        presented_secret=http_auth.presented_http_secret(request.headers.get("Authorization", "")),
+        allow_unauthenticated_loopback=_allow_unauthenticated_loopback,
+        remote_addr=request.remote_addr,
+    )
+    if decision is http_auth.SharedSecretDecision.ALLOW:
+        return
+    if decision is http_auth.SharedSecretDecision.NOT_CONFIGURED:
+        return jsonify({"error": "API authentication is not configured", "error_code": "AUTH_NOT_CONFIGURED"}), 503
+    return jsonify({"error": "Unauthorized"}), 401
 
 
 # OpenAPI/Swagger Configuration
@@ -427,6 +415,8 @@ def list_jobs():
         offset = int(request.args.get("offset", 0))
     except (ValueError, TypeError):
         return jsonify({"error": "Invalid limit or offset parameter"}), 400
+    if not 1 <= limit <= 1_000 or not 0 <= offset <= 1_000_000:
+        return jsonify({"error": ("limit must be between 1 and 1000 and offset must be between 0 and 1000000")}), 400
 
     status_filter = request.args.get("status", None)
 
@@ -644,6 +634,8 @@ def submit_job():
         metadata = client_job_metadata(data.get("metadata"))
     except ValueError:
         return jsonify({"error": "Invalid metadata"}), 400
+    if denial := metered_api_consent_error(data):
+        return jsonify({"error": denial}), 403
 
     job_id = str(uuid.uuid4())
     try:
@@ -1006,14 +998,14 @@ if __name__ == "__main__":
     debug = os.getenv("DEEPR_DEBUG", "").lower() in ("1", "true", "yes")
     host = os.getenv("DEEPR_HOST", "127.0.0.1")
     port = int(os.getenv("DEEPR_PORT", "5000") or "5000")
-    allow_public = os.getenv("DEEPR_ALLOW_PUBLIC_BIND", "").lower() in ("1", "true", "yes")
-
-    if not is_loopback_bind_host(host) and not _api_token and not allow_public:
+    loopback = is_loopback_bind_host(host)
+    if not _api_token and (not loopback or not _allow_unauthenticated_loopback):
         import sys as _sys
 
         _sys.stderr.write(
-            f"ERROR: refusing to bind '{host}' without DEEPR_API_TOKEN. "
-            "Set DEEPR_API_TOKEN, bind 127.0.0.1, or DEEPR_ALLOW_PUBLIC_BIND=1 to override.\n"
+            f"ERROR: refusing to start '{host}' without DEEPR_API_TOKEN. "
+            "For an explicitly accepted loopback-only compatibility mode, set "
+            "DEEPR_API_ALLOW_UNAUTHENTICATED_LOOPBACK=1.\n"
         )
         raise SystemExit(2)
 
@@ -1022,7 +1014,7 @@ if __name__ == "__main__":
     print(f"  Running on http://{host}:{port}")
     if debug:
         print("  WARNING: Debug mode enabled -- do not use in production")
-    if not is_loopback_bind_host(host) and not _api_token:
-        print("  WARNING: non-loopback bind without auth (DEEPR_ALLOW_PUBLIC_BIND is set)")
+    if not _api_token:
+        print("  WARNING: explicit unauthenticated loopback compatibility mode")
     print("=" * 70 + "\n")
     app.run(debug=debug, host=host, port=port)

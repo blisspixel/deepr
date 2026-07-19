@@ -108,7 +108,7 @@ class CompanyResearchOrchestrator:
         scrape_config = ScrapeConfig(
             max_pages=25,  # More pages for comprehensive company research
             max_depth=3,  # Deeper crawl to get product/services pages
-            try_selenium=True,  # Use Selenium for dynamic content
+            try_selenium=False,  # Browser fetches remain gated pending peer-bound SSRF controls
             try_pdf=True,  # Capture PDF documents (annual reports, etc.)
         )
 

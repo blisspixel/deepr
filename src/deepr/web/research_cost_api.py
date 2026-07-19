@@ -21,6 +21,7 @@ from deepr.experts.research_cost_gate import (
 )
 from deepr.providers.base import ResearchRequest, ToolConfig
 from deepr.queue.base import JobStatus, ResearchJob, client_job_metadata
+from deepr.security.metered_consent import metered_api_consent_error
 from deepr.services.provider_status import provider_exception_name
 from deepr.services.research_bounds import bounded_research_cost_estimate
 from deepr.services.research_cancellation import cancel_reserved_research
@@ -359,6 +360,7 @@ __all__ = [
     "OPENAI_NOT_CONFIGURED",
     "WebProviderNotConfiguredError",
     "WebResearchCostCoordinator",
+    "metered_api_consent_error",
     "resolve_web_research_provider",
     "retryable_dispatch_payload",
     "validate_web_research_input",

@@ -68,7 +68,11 @@ def test_published_investigation_contracts_validate_runtime_shapes(tmp_path: Pat
         "learning_contract": {
             "mode": "off",
             "source_pack_evidence_only": True,
+            "factual_belief_source_pack_evidence_only": True,
             "dialogue_is_evidence": False,
+            "perspective_proposals_from_expert_positions": False,
+            "perspective_proposals_are_factual_beliefs": False,
+            "perspective_truth_or_novelty_verified": False,
             "domain_relevance_required": False,
             "domain_relevance_judgment": "not_applicable",
             "writes_expert_state": False,

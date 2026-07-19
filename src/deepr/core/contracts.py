@@ -275,11 +275,12 @@ class Gap:
 
 @dataclass
 class ExplorationAgenda:
-    """A verified expert exploration agenda item.
+    """An explicitly admitted expert exploration agenda item.
 
     Agenda items are perspective state, not factual beliefs. They preserve the
-    reviewed research direction plus the uncertainty, expected observations,
-    and disconfirmation hooks needed for later expert learning.
+    research direction plus the uncertainty, expected observations, and
+    disconfirmation hooks needed for later expert learning. Admission does not
+    assert truth, novelty, or human review.
     """
 
     id: str
@@ -348,10 +349,11 @@ class ExplorationAgenda:
 
 @dataclass
 class ExpertConcept:
-    """A verified but non-factual expert concept.
+    """An explicitly admitted, non-factual expert concept.
 
     Concepts preserve reusable mental models and vocabulary as perspective
-    state. They can guide future reasoning without becoming factual claims.
+    state. They can guide future reasoning without becoming factual claims or
+    implying truth, novelty, or human review.
     """
 
     id: str
@@ -418,11 +420,11 @@ class ExpertConcept:
 
 @dataclass
 class ExpertStance:
-    """A verified but non-factual expert position.
+    """An explicitly admitted, non-factual expert position.
 
     Stances preserve interpretive judgment, taste, and tradeoff posture as
     perspective state. They can guide future decisions without becoming
-    externally verified factual claims.
+    externally verified factual claims or implying human review.
     """
 
     id: str
@@ -537,11 +539,12 @@ class ExpertOriginalIdea:
 
 @dataclass
 class ExpertHypothesis:
-    """A verified but not factual expert hypothesis.
+    """An explicitly admitted, non-factual expert hypothesis.
 
     Hypotheses preserve testable expert perspective without presenting the idea
-    as an externally verified fact. Later learning can confirm, reject, or
-    refine the hypothesis through explicit evidence and review gates.
+    as an externally verified fact. Admission does not establish truth,
+    novelty, or human review. Later learning can confirm, reject, or refine the
+    hypothesis through explicit evidence and evaluation gates.
     """
 
     id: str

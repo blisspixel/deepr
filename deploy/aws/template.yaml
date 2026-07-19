@@ -8,34 +8,22 @@ Parameters:
     Default: prod
     AllowedValues: [dev, staging, prod]
 
-  OpenAIApiKey:
+  ProviderSecretArn:
     Type: String
-    NoEcho: true
-    Description: OpenAI API Key (stored in Secrets Manager)
+    Description: ARN of a pre-created Secrets Manager secret containing provider keys
     MinLength: 1
-
-  GoogleApiKey:
-    Type: String
-    NoEcho: true
-    Default: ''
-    Description: Google API Key for Gemini (optional)
-
-  XaiApiKey:
-    Type: String
-    NoEcho: true
-    Default: ''
-    Description: xAI API Key for Grok (optional)
+    AllowedPattern: '^arn:aws[a-zA-Z-]*:secretsmanager:[a-z0-9-]+:[0-9]{12}:secret:.+$'
 
   DailyBudget:
     Type: Number
-    Default: 50
+    Default: 10
     Description: Daily spending limit in USD
     MinValue: 1
     MaxValue: 10000
 
   MonthlyBudget:
     Type: Number
-    Default: 500
+    Default: 10
     Description: Monthly spending limit in USD
     MinValue: 1
     MaxValue: 100000
@@ -67,7 +55,7 @@ Globals:
         QUEUE_URL: !Ref JobQueue
         RESULTS_BUCKET: !Ref ResultsBucket
         JOBS_TABLE: !Ref JobsTable
-        SECRETS_ARN: !Ref ApiSecrets
+        SECRETS_ARN: !Ref ProviderSecretArn
         LOG_LEVEL: INFO
 
 Resources:
@@ -116,26 +104,6 @@ Resources:
       TargetKeyId: !Ref DeeprKMSKey
 
   # ============================================================================
-  # Secrets Manager - API Keys with Rotation Support
-  # ============================================================================
-  ApiSecrets:
-    Type: AWS::SecretsManager::Secret
-    Properties:
-      Name: !Sub deepr/${Environment}/api-keys
-      Description: Deepr API keys for LLM providers
-      KmsKeyId: !Ref DeeprKMSKey
-      SecretString: !Sub |
-        {
-          "OPENAI_API_KEY": "${OpenAIApiKey}",
-          "GOOGLE_API_KEY": "${GoogleApiKey}",
-          "XAI_API_KEY": "${XaiApiKey}",
-          "DEEPR_BUDGET_DAILY": "${DailyBudget}",
-          "DEEPR_BUDGET_MONTHLY": "${MonthlyBudget}"
-        }
-      Tags:
-        - Key: Environment
-          Value: !Ref Environment
-
   # Internal API key for service-to-service auth
   InternalApiKey:
     Type: AWS::SecretsManager::Secret
@@ -426,7 +394,7 @@ Resources:
               Action:
                 - secretsmanager:GetSecretValue
               Resource:
-                - !Ref ApiSecrets
+                - !Ref ProviderSecretArn
                 - !Ref InternalApiKey
             # KMS - Decrypt only with our key
             - Effect: Allow
@@ -980,7 +948,7 @@ Resources:
             - Name: JOBS_TABLE
               Value: !Ref JobsTable
             - Name: SECRETS_ARN
-              Value: !Ref ApiSecrets
+              Value: !Ref ProviderSecretArn
             - Name: AWS_REGION
               Value: !Ref AWS::Region
             - Name: LOG_LEVEL
@@ -1073,7 +1041,7 @@ Resources:
               - Effect: Allow
                 Action:
                   - secretsmanager:GetSecretValue
-                Resource: !Ref ApiSecrets
+                Resource: !Ref ProviderSecretArn
               - Effect: Allow
                 Action:
                   - kms:Decrypt
@@ -1128,7 +1096,7 @@ Resources:
               - Effect: Allow
                 Action:
                   - secretsmanager:GetSecretValue
-                Resource: !Ref ApiSecrets
+                Resource: !Ref ProviderSecretArn
               # KMS - Decrypt only
               - Effect: Allow
                 Action:
@@ -1265,7 +1233,7 @@ Resources:
       Namespace: AWS/SecretsManager
       Dimensions:
         - Name: SecretId
-          Value: !Ref ApiSecrets
+          Value: !Ref ProviderSecretArn
       Statistic: Sum
       Period: 3600
       EvaluationPeriods: 1

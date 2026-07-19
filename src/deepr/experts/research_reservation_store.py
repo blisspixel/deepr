@@ -29,6 +29,7 @@ class ActiveResearchReservation:
     job_id: str
     reserved_cost: float
     created_at: datetime
+    provider_work_may_have_run: bool
 
 
 def _validated_money(value: object, *, field_name: str) -> float:
@@ -207,7 +208,7 @@ class ResearchReservationStore:
             if cursor.rowcount != 1:
                 raise RuntimeError("durable reservation is not active")
 
-    def refund(self, reservation_id: str) -> bool:
+    def refund(self, reservation_id: str, *, provider_work_did_not_run: bool = False) -> bool:
         """Close an active durable reservation without recording spend."""
         with closing(self._connect()) as connection, connection:
             connection.execute("BEGIN IMMEDIATE")
@@ -215,9 +216,11 @@ class ResearchReservationStore:
                 """
                 UPDATE research_cost_reservations
                 SET state = 'refunded', closed_at = ?
-                WHERE reservation_id = ? AND state = 'active'
+                WHERE reservation_id = ?
+                  AND state = 'active'
+                  AND (? = 1 OR provider_work_may_have_run = 0)
                 """,
-                (datetime.now(UTC).isoformat(), reservation_id),
+                (datetime.now(UTC).isoformat(), reservation_id, int(provider_work_did_not_run)),
             )
             return cursor.rowcount > 0
 
@@ -274,7 +277,7 @@ class ResearchReservationStore:
         with closing(self._connect()) as connection, connection:
             rows = connection.execute(
                 """
-                SELECT reservation_id, job_id, reserved_cost, created_at
+                SELECT reservation_id, job_id, reserved_cost, created_at, provider_work_may_have_run
                 FROM research_cost_reservations
                 WHERE state = 'active'
                 ORDER BY created_at, reservation_id
@@ -286,8 +289,9 @@ class ResearchReservationStore:
                 job_id=str(job_id),
                 reserved_cost=float(reserved_cost),
                 created_at=datetime.fromisoformat(str(created_at)),
+                provider_work_may_have_run=bool(provider_work_may_have_run),
             )
-            for reservation_id, job_id, reserved_cost, created_at in rows
+            for reservation_id, job_id, reserved_cost, created_at, provider_work_may_have_run in rows
         ]
 
     def is_active(self, reservation_id: str) -> bool:

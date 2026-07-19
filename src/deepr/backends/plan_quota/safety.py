@@ -4,11 +4,10 @@ Determinism belongs on the money side-effect, not on meaning (AGENTIC_BALANCE.md
 This module is that deterministic gate. Before Deepr runs research through a
 vendor CLI as "prepaid plan capacity", two things must hold:
 
-1. **Child auth mode is plan/subscription, not a metered API key.** A CLI
-   authenticated by an API key is metered spend wearing a CLI costume. Deepr
-   removes known metered env vars from the child process before launch, then
-   evaluates that sanitized env so a normal API-capable shell can still run
-   explicit plan-quota commands without mutating the user's environment.
+1. **Child auth mode is provably plan/subscription, not a metered API key.** A
+   CLI authenticated by an API key is metered spend wearing a CLI costume.
+   Known metered credentials and unverified stored-provider authentication are
+   refused before launch. The child receives only a small runtime allowlist.
 
 2. **Metered-at-margin CLIs have complete cost accounting before execution.** A
    few detected CLIs (e.g. Copilot, post-2026-06 usage-based) are not free at
@@ -37,6 +36,39 @@ class AuthMode(str, Enum):
 
     PLAN = "plan"  # subscription / OAuth session - prepaid, $0 at the margin
     METERED = "metered"  # an API key is set - this would bill per use
+    UNKNOWN = "unknown"  # stored/provider authentication cannot be proven
+
+
+_PLAN_CHILD_ENV_ALLOWLIST = frozenset(
+    {
+        "APPDATA",
+        "CLAUDE_CONFIG_DIR",
+        "HOME",
+        "HOMEDRIVE",
+        "HOMEPATH",
+        "LANG",
+        "LC_ALL",
+        "LC_CTYPE",
+        "LOCALAPPDATA",
+        "LOGNAME",
+        "NO_COLOR",
+        "PATH",
+        "PATHEXT",
+        "SYSTEMROOT",
+        "TEMP",
+        "TERM",
+        "TMP",
+        "TMPDIR",
+        "TZ",
+        "USER",
+        "USERNAME",
+        "USERPROFILE",
+        "WINDIR",
+        "XDG_CACHE_HOME",
+        "XDG_CONFIG_HOME",
+        "XDG_DATA_HOME",
+    }
+)
 
 
 @dataclass(frozen=True)
@@ -64,30 +96,52 @@ def detect_auth_mode(adapter: PlanQuotaAdapter, env: Mapping[str, str]) -> AuthM
 
     If any of the backend's metered-env vars is set and non-empty, the next
     ``argv`` run would authenticate with that key and bill per use -> METERED.
-    Otherwise the CLI uses its stored subscription/OAuth session -> PLAN. This
-    is intentionally conservative on the money side: a key in the env always
-    wins on every vendor's precedence rules, so its mere presence is enough to
-    refuse the "plan capacity" classification unless the caller sanitizes the
-    child environment first.
+    Otherwise a backend whose stored authentication provenance is verified uses
+    its subscription/OAuth session. Backends that can route through an opaque
+    stored provider remain UNKNOWN. This is intentionally conservative on the
+    money side: removing a key does not prove which stored credential is used.
     """
-    for var in adapter.metered_env_vars:
-        value = env.get(var)
-        if value and value.strip():
-            return AuthMode.METERED
+    if _first_set(adapter.metered_env_vars, env):
+        return AuthMode.METERED
+    if not adapter.stored_plan_auth_verified:
+        return AuthMode.UNKNOWN
     return AuthMode.PLAN
 
 
 def plan_quota_child_env(adapter: PlanQuotaAdapter, env: Mapping[str, str]) -> dict[str, str]:
-    """Return a subprocess env that cannot authenticate this adapter by API key."""
-    blocked = set(adapter.metered_env_vars)
-    return {key: value for key, value in env.items() if key not in blocked}
+    """Return the least-privilege runtime and stored-session child environment."""
+    del adapter
+    return {key: value for key, value in env.items() if key.upper() in _PLAN_CHILD_ENV_ALLOWLIST}
 
 
 def evaluate_plan_quota_safety(adapter: PlanQuotaAdapter, *, env: Mapping[str, str]) -> SafetyDecision:
     """Return the pre-run safety decision for ``adapter``. Deterministic, $0."""
-    sanitized_env = plan_quota_child_env(adapter, env)
-    mode = detect_auth_mode(adapter, sanitized_env)
-    removed_var = _first_set(adapter.metered_env_vars, env)
+    mode = detect_auth_mode(adapter, env)
+    metered_var = _first_set(adapter.metered_env_vars, env)
+
+    if mode is AuthMode.METERED:
+        return SafetyDecision(
+            backend_id=adapter.backend_id,
+            safe=False,
+            auth_mode=mode,
+            requires_ack=False,
+            reason=(
+                f"{adapter.display_name} cannot execute as plan capacity while {metered_var} is set; "
+                "remove the API credential and use verified subscription auth, or use an explicitly budgeted API path"
+            ),
+        )
+
+    if mode is AuthMode.UNKNOWN:
+        return SafetyDecision(
+            backend_id=adapter.backend_id,
+            safe=False,
+            auth_mode=mode,
+            requires_ack=False,
+            reason=(
+                f"{adapter.display_name} stored authentication and provider provenance cannot be proven prepaid or "
+                "local before dispatch; use a backend with verified plan auth or an explicitly budgeted API path"
+            ),
+        )
 
     if adapter.metered_at_margin:
         return SafetyDecision(
@@ -98,14 +152,32 @@ def evaluate_plan_quota_safety(adapter: PlanQuotaAdapter, *, env: Mapping[str, s
             reason=metered_plan_execution_block_reason(adapter),
         )
 
-    removed_note = f"; removed {removed_var} from child env" if removed_var else ""
+    if adapter.execution_block_reason:
+        return SafetyDecision(
+            backend_id=adapter.backend_id,
+            safe=False,
+            auth_mode=mode,
+            requires_ack=False,
+            reason=(
+                f"{adapter.display_name} execution is disabled: {adapter.execution_block_reason}. "
+                "Use a backend with verified no-tool execution or a hardened OS sandbox with an explicit allowlist."
+            ),
+        )
+
     note = f"; note: {adapter.tos_note}" if adapter.tos_note else ""
+    runtime_note = (
+        "; every dispatch also requires a live provider observation proving paid overage is disabled"
+        if adapter.requires_live_overage_check
+        else ""
+    )
     return SafetyDecision(
         backend_id=adapter.backend_id,
         safe=True,
         auth_mode=mode,
         requires_ack=False,
-        reason=f"{adapter.display_name} in plan mode; prepaid capacity before metered API{removed_note}{note}",
+        reason=(
+            f"{adapter.display_name} in verified plan mode; prepaid capacity before metered API{runtime_note}{note}"
+        ),
     )
 
 
@@ -119,8 +191,8 @@ def metered_plan_execution_block_reason(adapter: PlanQuotaAdapter) -> str:
 
 
 def _first_set(vars_: tuple[str, ...], env: Mapping[str, str]) -> str:
+    populated = {key.upper() for key, value in env.items() if value and value.strip()}
     for var in vars_:
-        value = env.get(var)
-        if value and value.strip():
+        if var.upper() in populated:
             return var
-    return vars_[0] if vars_ else ""
+    return ""

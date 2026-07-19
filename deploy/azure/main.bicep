@@ -24,12 +24,12 @@ param xaiApiKey string = ''
 @description('Daily budget limit in USD')
 @minValue(1)
 @maxValue(10000)
-param dailyBudget int = 50
+param dailyBudget int = 10
 
 @description('Monthly budget limit in USD')
 @minValue(1)
 @maxValue(100000)
-param monthlyBudget int = 500
+param monthlyBudget int = 10
 
 @description('Enable WAF on Application Gateway')
 param enableWaf bool = true

@@ -54,6 +54,7 @@ class MCPClientProfile:
     # Budget / cost
     budget_limit: float = 0.0  # Max spend through this server (0 = unlimited)
     cost_per_call: float = 0.0  # Estimated cost per tool call
+    free_tools: list[str] = field(default_factory=list)  # Curated tools proven $0 at the margin
 
     # Health
     circuit_breaker_threshold: int = 5  # Failures before circuit opens
@@ -85,6 +86,7 @@ class MCPClientProfile:
             "connect_timeout": self.connect_timeout,
             "budget_limit": self.budget_limit,
             "cost_per_call": self.cost_per_call,
+            "free_tools": self.free_tools,
             "circuit_breaker_threshold": self.circuit_breaker_threshold,
             "circuit_breaker_recovery": self.circuit_breaker_recovery,
             "auto_approve": self.auto_approve,
@@ -111,6 +113,9 @@ class MCPClientProfile:
             connect_timeout=float(data.get("connect_timeout", 10.0)),
             budget_limit=float(data.get("budget_limit", 0.0)),
             cost_per_call=float(data.get("cost_per_call", 0.0)),
+            free_tools=[str(value) for value in data.get("free_tools", [])]
+            if isinstance(data.get("free_tools", []), list)
+            else [],
             circuit_breaker_threshold=int(data.get("circuit_breaker_threshold", 5)),
             circuit_breaker_recovery=float(data.get("circuit_breaker_recovery", 60.0)),
             auto_approve=data.get("auto_approve", []),

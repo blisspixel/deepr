@@ -224,15 +224,16 @@ class TestCapacity:
     def test_explicit_plan_forces_roster_capacity(self, monkeypatch):
         import json
 
+        monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
         recorded: list = []
         _wire(monkeypatch, _sync_result(SyncOutcome("t", "synced"), cost=0.0), recorded=recorded)
 
-        r = CliRunner().invoke(expert, ["sync-all", "--all", "--plan", "codex", "-y", "--json"])
+        r = CliRunner().invoke(expert, ["sync-all", "--all", "--plan", "claude", "-y", "--json"])
 
         assert r.exit_code == 0, r.output
         payload = json.loads(r.output)
-        assert {row["capacity_source"] for row in payload["summaries"]} == {"plan_quota:codex"}
-        assert recorded == [("Alpha", "plan_quota:codex"), ("Beta", "plan_quota:codex")]
+        assert {row["capacity_source"] for row in payload["summaries"]} == {"plan_quota:claude"}
+        assert recorded == [("Alpha", "plan_quota:claude"), ("Beta", "plan_quota:claude")]
 
     def test_explicit_metered_at_margin_plan_is_rejected_for_roster(self, monkeypatch):
         _wire(monkeypatch, _sync_result(cost=0.0))
