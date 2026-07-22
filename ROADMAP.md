@@ -2047,18 +2047,30 @@ Sequenced smallest-shippable-first:
       (2026-06-24): `experts/sync_all.py:run_library_sync` syncs every due
       expert in one pass through the capacity waterfall (`--local`/`--api`/`--plan`/auto,
       plan-quota auto dispatch requires admission plus trusted quota observation), per-expert budget within a total
-      ceiling, **skip-not-fail** (one expert's failure never aborts the roster),
+      ceiling, **continue-on-error** (one expert's failure never aborts the roster),
       and holds the per-(expert, sync) overlap lock so a pass never collides
       with a manual sync - the first real consumer of `loop_lock`. The
       orchestration is pure/injectable (`$0`-tested); the per-expert work reuses
       `build_sync_engine` and records a per-expert `ExpertLoopRun` so
       `deepr fleet status` sees the pass, and the run returns a versioned
-      `deepr-library-sync-v1` roll-up. `deepr expert sync-all`
+      `deepr-library-sync-v1` roll-up. Completed full or partial expert failure
+      renders first, sends a failed scheduled heartbeat, and exits 1 for shell
+      automation. The additive payload includes aggregate status, exit
+      code, status counts, failed-topic posture, and exact read-only loop-status
+      argv without exposing provider-controlled exception or outcome text.
+      `would_sync` remains distinct in dry-run output, and an empty JSON roster
+      returns the same versioned completion with a local create-expert action.
+      Both total and per-expert
+      ceilings reject negative and non-finite values before roster work. Automatic
+      and explicit metered execution now share the v2.36 expert-mutation gate, so
+      no no-flag fallback can bypass it; local, eligible plan, scheduled wait, and
+      dry-run paths remain available. `deepr expert sync-all`
       (`--budget`/`--per-expert-budget`/`--all`/`--dry-run`/`--scheduled`/`--json`);
       scheduled passes wait instead of spending metered when no owned/prepaid
       capacity exists. Cycle 25 added explicit non-metered `--plan <id>` roster
       dispatch plus scheduled auto dispatch through an admitted quota-observed
-      plan choice. 23 tests. Deferred: `--fresh-context` parity and
+      plan choice. Completion and safety contract hardened 2026-07-22 with 58
+      focused domain and CLI tests. Deferred: `--fresh-context` parity and
       a single library-level loop record (per-expert records + the returned
       roll-up cover the need without a synthetic expert).
 - [~] **Budget degradation tiers + targeted-spend gate**: drive behavior off

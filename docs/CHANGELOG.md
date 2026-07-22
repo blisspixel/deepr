@@ -50,6 +50,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Changed `deepr expert sync-all` to fail closed for automatic as well as
+  explicit metered roster execution. Completed full or partial expert failures
+  now render a versioned aggregate, send a failed scheduled heartbeat, and exit
+  1 while continuing past each individual failure. Public output replaces raw
+  provider diagnostics with fixed failure codes, bounded retry posture, and
+  exact read-only loop-status argv. Dry-run preserves `would_sync`, invalid or
+  non-finite ceilings fail before roster work, an empty JSON roster returns a
+  structured local create-expert action, and help names only current
+  safety-gated paths.
 - Changed base capacity, init, doctor, onboarding, and dashboard Help to avoid
   treating source presence as execution readiness. First-run guidance now uses
   offline doctor and source-specific capacity inspection, metered guidance

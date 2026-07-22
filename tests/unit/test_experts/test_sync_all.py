@@ -58,9 +58,48 @@ class TestSummarize:
         assert s.status == "no_changes"
 
     def test_failed_when_an_outcome_failed_and_none_synced(self):
-        s = _summarize("E", _result(SyncOutcome("t1", "failed", detail="boom")), "api_metered")
+        s = _summarize("E", _result(SyncOutcome("t1", "failed", detail="secret=boom")), "api_metered")
         assert s.status == "failed"
-        assert "boom" in s.detail
+        assert s.failed_topics == 1
+        assert "secret=boom" not in s.detail
+        assert s.failures == [
+            {
+                "topic": "t1",
+                "error_code": "EXPERT_SYNC_TOPIC_FAILED",
+                "retryable": False,
+                "no_metered_fallback": False,
+                "inspect_command_argv": ["deepr", "expert", "loop-status", "E", "--json"],
+            }
+        ]
+
+    def test_mixed_topic_outcome_is_partial_failure(self):
+        s = _summarize(
+            "E",
+            _result(
+                SyncOutcome("good", "synced", absorbed=2),
+                SyncOutcome(
+                    "bad",
+                    "failed",
+                    detail="signed_url=https://secret.example",
+                    retryable=True,
+                    no_metered_fallback=True,
+                ),
+            ),
+            "local",
+        )
+
+        assert s.status == "partial_failure"
+        assert s.topics_synced == 1
+        assert s.absorbed == 2
+        assert s.failed_topics == 1
+        assert "secret.example" not in str(s.to_dict())
+        assert s.failures[0]["retryable"] is True
+        assert s.failures[0]["no_metered_fallback"] is True
+
+    def test_would_sync_preview_remains_distinct(self):
+        s = _summarize("E", _result(SyncOutcome("t1", "would_sync")), "local")
+
+        assert s.status == "would_sync"
 
 
 class TestRunLibrarySync:
@@ -111,7 +150,7 @@ class TestRunLibrarySync:
 
     async def test_one_expert_failure_does_not_abort_the_roster(self):
         behaviors = {
-            "A": RuntimeError("provider down"),
+            "A": RuntimeError("provider down with secret=sk-sensitive"),
             "B": (_result(SyncOutcome("t", "synced"), cost=0.0), "local"),
         }
         result = await run_library_sync(
@@ -123,7 +162,17 @@ class TestRunLibrarySync:
         statuses = {s.expert: s.status for s in result.summaries}
         assert statuses["A"] == "failed"
         assert statuses["B"] == "synced"
-        assert "provider down" in next(s.detail for s in result.summaries if s.expert == "A")
+        assert "sk-sensitive" not in str(result.to_dict())
+        failure = next(s for s in result.summaries if s.expert == "A")
+        assert failure.failures == [
+            {
+                "topic": None,
+                "error_code": "EXPERT_SYNC_EXECUTION_FAILED",
+                "retryable": None,
+                "no_metered_fallback": None,
+                "inspect_command_argv": ["deepr", "expert", "loop-status", "A", "--json"],
+            }
+        ]
 
     async def test_failure_preserves_known_spend_in_summary_and_roster_total(self):
         class CostedRuntimeError(RuntimeError):
@@ -189,11 +238,40 @@ class TestRunLibrarySync:
                 budget=-1.0,
             )
 
+    @pytest.mark.parametrize("budget", [float("nan"), float("inf"), float("-inf")])
+    async def test_non_finite_total_budget_rejected(self, budget):
+        with pytest.raises(ValueError, match="budget must be finite"):
+            await run_library_sync(sync_one=_sync_one({}), expert_names=[], budget=budget)
+
+    @pytest.mark.parametrize("per_expert_budget", [-1.0, float("nan"), float("inf"), float("-inf")])
+    async def test_invalid_per_expert_budget_rejected(self, per_expert_budget):
+        with pytest.raises(ValueError, match="per_expert_budget must be finite and non-negative"):
+            await run_library_sync(
+                sync_one=_sync_one({}),
+                expert_names=[],
+                budget=1.0,
+                per_expert_budget=per_expert_budget,
+            )
+
+    async def test_zero_budgets_remain_valid(self):
+        result = await run_library_sync(
+            sync_one=_sync_one({}),
+            expert_names=[],
+            budget=0.0,
+            per_expert_budget=0.0,
+        )
+
+        assert result.status == "completed"
+        assert result.exit_code == 0
+
     def test_rollup_to_dict_is_versioned(self):
         result = run_library_sync_sync_helper()
         payload = result.to_dict()
         assert payload["schema_version"] == "deepr-library-sync-v1"
         assert payload["kind"] == "deepr.expert.sync_all"
+        assert payload["status"] == "completed"
+        assert payload["exit_code"] == 0
+        assert payload["status_counts"]["synced"] == 1
         assert payload["experts"] == 1
 
 

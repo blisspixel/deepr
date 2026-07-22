@@ -14,7 +14,9 @@ from __future__ import annotations
 
 import asyncio
 import json as _json
+import math
 import sys
+from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from typing import Any
@@ -32,6 +34,8 @@ from deepr.experts.metered_mutation_gate import (
 
 _STATUS_MARKERS = {
     "synced": "[green]synced[/green]",
+    "partial_failure": "[red]partial failure[/red]",
+    "would_sync": "[cyan]would sync[/cyan]",
     "no_changes": "[dim]no changes[/dim]",
     "not_due": "[dim]not due[/dim]",
     "skipped": "[yellow]skipped[/yellow]",
@@ -173,7 +177,9 @@ def _sync_all_retry_argv(
     return argv
 
 
-def _make_sync_one(*, backend: _PassBackend, include_all: bool, scheduled: bool):
+def _make_sync_one(
+    *, backend: _PassBackend, include_all: bool, scheduled: bool
+) -> Callable[[str, float, bool], Awaitable[tuple[Any, str]]]:
     """Per-expert sync closure, kept module-level so its branches do not inflate
     the command's cyclomatic complexity (ruff rolls a nested function into its
     parent). Builds the engine the same way ``expert sync`` does and records the
@@ -259,7 +265,7 @@ def _emit_roster_wait(json_output: bool, detail: str) -> None:
         click.echo(_json.dumps({"kind": "deepr.expert.sync_all", "status": "waiting_for_capacity", "detail": detail}))
         return
     print_warning("Scheduled sync-all is waiting for owned/prepaid capacity (no metered spend).")
-    console.print(f"[dim]{detail}. Rerun without --scheduled to use the metered API.[/dim]")
+    console.print(f"[dim]{detail}. Inspect current options with: deepr capacity next[/dim]")
 
 
 def _experts_with_sync_work(expert_names: list[str], *, include_all: bool) -> list[str]:
@@ -349,8 +355,8 @@ def _metered_tier_defers(json_output: bool) -> bool:
     When the budget tier is LOCAL_ONLY/PAUSE_METERED, a roster pass that fell
     through to metered (no local capacity, no explicit --api) defers instead of
     spending - graceful degradation that protects the monthly pool. Returns True
-    when it deferred (the caller should stop). The hard monthly cap in
-    CostSafetyManager still backstops an explicit --api. See
+    when it deferred (the caller should stop). Metered expert mutation remains
+    independently gated for both automatic and explicit API selection. See
     docs/design/budget-degradation.md.
     """
     from deepr.experts.cost_safety import get_cost_safety_manager
@@ -367,20 +373,32 @@ def _metered_tier_defers(json_output: bool) -> bool:
         f"Budget tier {snapshot['tier']} ({snapshot['drain_percent']}% of the monthly pool used): "
         "metered roster sync is off."
     )
-    console.print("[dim]Use --local for $0 maintenance, wait for the monthly reset, or --api to override.[/dim]")
+    console.print("[dim]Use --local, inspect deepr capacity next, or wait for the monthly reset.[/dim]")
     return True
 
 
-def _validate_sync_all_flags(*, local: bool, api: bool, plan: str | None, plan_model: str | None) -> None:
+def _validate_sync_all_flags(
+    *,
+    budget: float,
+    per_expert_budget: float,
+    local: bool,
+    api: bool,
+    plan: str | None,
+    plan_model: str | None,
+) -> None:
+    if not math.isfinite(budget) or budget < 0:
+        raise ValueError("--budget must be finite and non-negative.")
+    if not math.isfinite(per_expert_budget) or per_expert_budget < 0:
+        raise ValueError("--per-expert-budget must be finite and non-negative.")
     if sum(bool(x) for x in (local, api, plan)) > 1:
         raise ValueError("Use only one of --local, --api, or --plan.")
     if plan_model and not plan:
         raise ValueError("Use --plan-model only with --plan.")
 
 
-def _gate_explicit_api_sync_all(*, api: bool, dry_run: bool) -> None:
-    """Keep explicit API execution outside the command's orchestration complexity."""
-    if not api or dry_run:
+def _gate_metered_sync_all(*, backend: _PassBackend, dry_run: bool) -> None:
+    """Fail closed before any resolved metered roster backend can dispatch."""
+    if dry_run or backend.owned_or_prepaid:
         return
     try:
         require_metered_expert_mutation(
@@ -401,13 +419,13 @@ def _emit_backend_notes(backend: _PassBackend, *, json_output: bool) -> None:
         print_warning(backend.plan_adapter.tos_note)
 
 
-def _confirm_sync_all(*, backend: _PassBackend, budget: float, expert_count: int) -> bool:
+def _confirm_sync_all(*, backend: _PassBackend, expert_count: int) -> bool:
     if backend.use_local:
         cost_desc = "on the local model at $0"
     elif backend.use_plan and backend.plan_adapter is not None:
         cost_desc = f"via {backend.plan_adapter.display_name} at $0 at the margin"
     else:
-        cost_desc = f"up to ${budget:.2f} metered"
+        raise RuntimeError("metered backend reached owned/prepaid confirmation")
     return click.confirm(f"Sync up to {expert_count} expert(s) {cost_desc}?", default=False)
 
 
@@ -416,12 +434,11 @@ def _sync_all_cancelled(
     dry_run: bool,
     yes: bool,
     backend: _PassBackend,
-    budget: float,
     expert_count: int,
 ) -> bool:
     if dry_run or yes:
         return False
-    if _confirm_sync_all(backend=backend, budget=budget, expert_count=expert_count):
+    if _confirm_sync_all(backend=backend, expert_count=expert_count):
         return False
     print_warning("Cancelled.")
     return True
@@ -469,6 +486,13 @@ def _render_library_result(result: Any, json_output: bool) -> None:
                 f"  [dim](+{summary.absorbed} beliefs, {summary.flagged} contested, "
                 f"${summary.cost:.3f} {summary.capacity_source})[/dim]"
             )
+        elif summary.status == "partial_failure":
+            topic_label = "topic" if summary.topics_synced == 1 else "topics"
+            line += (
+                f"  [dim]({summary.topics_synced} {topic_label} synced, {summary.failed_topics} failed, "
+                f"+{summary.absorbed} beliefs, {summary.flagged} contested, "
+                f"${summary.cost:.3f} {summary.capacity_source})[/dim]"
+            )
         elif summary.detail:
             line += f"  [dim]{summary.detail[:90]}[/dim]"
         console.print(line)
@@ -476,6 +500,33 @@ def _render_library_result(result: Any, json_output: bool) -> None:
         f"\n[bold]{len(result.summaries)} experts[/bold] · {result.synced_experts} synced · "
         f"{result.failed_experts} failed · ${result.total_cost:.3f} spent"
     )
+    if result.would_sync_experts:
+        console.print(f"[dim]{result.would_sync_experts} expert(s) would sync in a non-dry run.[/dim]")
+    if result.failed_experts:
+        print_error("Roster sync completed with failures.")
+        console.print("[dim]Inspect each failed expert: deepr expert loop-status NAME --json[/dim]")
+
+
+def _finish_library_result(result: Any, json_output: bool) -> None:
+    """Render the completed pass before returning its automation status."""
+    _render_library_result(result, json_output)
+    if result.exit_code:
+        sys.exit(result.exit_code)
+
+
+def _emit_empty_roster(json_output: bool) -> None:
+    if not json_output:
+        print_success("No experts yet. Create one with: deepr expert make NAME --local")
+        return
+    from deepr.experts.sync_all import LibrarySyncResult
+
+    payload = LibrarySyncResult(started_at=datetime.now(UTC)).to_dict()
+    payload["next_action"] = {
+        "kind": "create_expert",
+        "command_argv": ["deepr", "expert", "make", "NAME", "--local"],
+        "requires_user_input": ["NAME"],
+    }
+    click.echo(_json.dumps(payload, indent=2))
 
 
 @expert.command(name="sync-all")
@@ -486,18 +537,20 @@ def _render_library_result(result: Any, json_output: bool) -> None:
 @click.option("--all", "include_all", is_flag=True, help="Include experts with no due subscriptions.")
 @click.option("--dry-run", is_flag=True, help="Show what would sync; no research, no spend.")
 @click.option("--local", is_flag=True, help="Force the local model for every expert.")
-@click.option("--api", is_flag=True, help="Force the metered API (overrides the owned/prepaid waterfall).")
+@click.option(
+    "--api",
+    is_flag=True,
+    help="Preview the metered API with --dry-run; execution is currently gated.",
+)
 @click.option(
     "--plan",
     "plan",
     type=click.Choice(PLAN_BACKEND_CHOICES),
     default=None,
-    help="Force a non-metered plan-quota CLI backend for every expert. See: deepr capacity",
+    help="Request a plan-quota backend; every dispatch remains safety-gated. See: deepr capacity fleet",
 )
 @click.option("--plan-model", "plan_model", default=None, help="Model to pass to the plan-quota CLI.")
-@click.option(
-    "--scheduled", is_flag=True, help="Wait instead of spending metered when no owned/prepaid capacity exists."
-)
+@click.option("--scheduled", is_flag=True, help="Emit a wait state when no owned/prepaid capacity is available.")
 @click.option("--yes", "-y", is_flag=True, help="Skip confirmation.")
 @click.option("--json", "json_output", is_flag=True, help="Output JSON.")
 def sync_all_cmd(
@@ -515,32 +568,38 @@ def sync_all_cmd(
 ) -> None:
     """Sync every due expert in one capacity-aware pass.
 
-    Owned/prepaid capacity first, per-expert budgets within the total ceiling,
-    skip-not-fail. Designed to run on a schedule (deepr fleet install-schedule)
-    so the library self-maintains. On a --scheduled run, set DEEPR_HEARTBEAT_URL
-    to ping a dead-man's-switch (healthchecks.io) so you are alerted if a
-    scheduled pass ever silently does not run.
+    Owned/prepaid capacity first, per-expert budgets within the total ceiling.
+    The pass continues after individual failures, then exits 1 if any expert
+    failed. Designed to run on a schedule (deepr fleet install-schedule) so the
+    library self-maintains. On a --scheduled run, set DEEPR_HEARTBEAT_URL to ping
+    a dead-man's-switch so you are alerted if a scheduled pass does not run.
 
+    \b
     EXAMPLES:
       deepr expert sync-all --dry-run
       deepr expert sync-all --local -y
-      deepr expert sync-all --plan codex -y
+      deepr expert sync-all --plan claude -y
       deepr expert sync-all --scheduled -y
     """
     from deepr.experts.profile import ExpertStore
     from deepr.experts.sync_all import run_library_sync
 
     try:
-        _validate_sync_all_flags(local=local, api=api, plan=plan, plan_model=plan_model)
+        _validate_sync_all_flags(
+            budget=budget,
+            per_expert_budget=per_expert_budget,
+            local=local,
+            api=api,
+            plan=plan,
+            plan_model=plan_model,
+        )
     except ValueError as exc:
         print_error(str(exc))
         sys.exit(2)
 
-    _gate_explicit_api_sync_all(api=api, dry_run=dry_run)
-
     names = [profile.name for profile in ExpertStore().list_all()]
     if not names:
-        print_success("No experts yet. Create one with `deepr expert make`.")
+        _emit_empty_roster(json_output)
         return
 
     try:
@@ -579,12 +638,13 @@ def sync_all_cmd(
     ):
         return
 
-    # Graceful degradation: an auto metered pass defers when the monthly pool is
-    # drained (a dry run previews freely; an explicit --api overrides the soft
-    # tier, the hard cap still applies).
+    # A dry run can preview the selected metered rung. Execution either defers
+    # under a drained monthly tier or reaches the shared disabled mutation gate.
     metered_auto = not backend.use_local and not backend.use_plan and not api
     if metered_auto and not dry_run and _metered_tier_defers(json_output):
         return
+
+    _gate_metered_sync_all(backend=backend, dry_run=dry_run)
 
     _emit_backend_notes(backend, json_output=json_output)
 
@@ -592,7 +652,6 @@ def sync_all_cmd(
         dry_run=dry_run,
         yes=yes,
         backend=backend,
-        budget=budget,
         expert_count=len(names),
     ):
         return
@@ -614,5 +673,5 @@ def sync_all_cmd(
         # woke up). Opt-in via DEEPR_HEARTBEAT_URL; best-effort, never fails here.
         from deepr.experts.heartbeat import send_heartbeat
 
-        send_heartbeat(success=result.failed_experts == 0)
-    _render_library_result(result, json_output)
+        send_heartbeat(success=result.exit_code == 0)
+    _finish_library_result(result, json_output)
