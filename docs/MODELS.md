@@ -1,6 +1,6 @@
 # Model Selection Guide
 
-Status: current with Deepr v2.37.0. Last reviewed: 2026-07-18.
+Status: current with Deepr v2.37.0. Last reviewed: 2026-07-22.
 
 The source of truth for model IDs, pricing estimates, context windows, and
 routing metadata is [src/deepr/providers/registry.py](../src/deepr/providers/registry.py).
@@ -8,7 +8,7 @@ This guide explains how to use that registry safely. Provider docs and prices
 change faster than prose, so treat this document as an operating guide, not a
 billing authority.
 
-External model docs checked on 2026-07-01:
+External model docs checked through 2026-07-22:
 
 - OpenAI Models and Pricing:
   <https://platform.openai.com/docs/models>,
@@ -22,7 +22,9 @@ External model docs checked on 2026-07-01:
   <https://platform.claude.com/docs/en/release-notes/overview>
 - Google Gemini Models and Pricing:
   <https://ai.google.dev/gemini-api/docs/models>,
-  <https://ai.google.dev/gemini-api/docs/pricing>
+  <https://ai.google.dev/gemini-api/docs/pricing>,
+  <https://ai.google.dev/gemini-api/docs/generate-content/latest-model>,
+  <https://blog.google/innovation-and-ai/models-and-research/gemini-models/gemini-3-6-flash-3-5-flash-lite-3-5-flash-cyber/>
 - xAI Models and Pricing:
   <https://docs.x.ai/developers/models>,
   <https://docs.x.ai/developers/pricing>
@@ -30,13 +32,13 @@ External model docs checked on 2026-07-01:
   <https://learn.microsoft.com/azure/foundry/foundry-models/concepts/models-sold-directly-by-azure>,
   <https://learn.microsoft.com/azure/ai-foundry/agents/overview>
 
-## 2026-07-01 Verification Matrix
+## 2026-07-22 Verification Matrix
 
 | Provider | Current external signal | Deepr status | Action |
 |----------|-------------------------|--------------|--------|
 | OpenAI | Official API docs list GPT-5.5 as the recommended flagship and GPT-5.6 as trusted-partner preview only. | GPT-5.5 is registered. GPT-5.6 is watchlist-only. | Keep GPT-5.6 out of auto-routing until self-serve API access, pricing, context, and adapter behavior are verified. |
 | Anthropic | Claude docs list Fable 5 as generally available, Mythos 5 as limited availability, and Sonnet 5 as the current balanced Sonnet with adaptive thinking. | Fable 5, Sonnet 5, Opus 4.8, and Haiku 4.5 are registered. Mythos is not registered. | Keep Sonnet 5 as the balanced Anthropic default. Keep Mythos out until access and settlement are normal. |
-| Google Gemini | Gemini docs list Gemini 3.5 Flash and Gemini 3.1 Flash-Lite as stable; Gemini 3 Pro Preview and Gemini 3.1 Flash-Lite Preview are in the shut-down previous-model set. | Stable Gemini text models are registered. Managed Gemini Deep Research dispatch is gated because its autonomous loop lacks a complete request ceiling. The shut-down preview IDs are deprecated migration entries. | Do not target shut-down preview IDs in new benchmark or routing runs. |
+| Google Gemini | Google released Gemini 3.6 Flash and Gemini 3.5 Flash-Lite as GA production API models on 2026-07-21. The same launch limits Gemini 3.5 Flash Cyber to a CodeMender pilot for governments and trusted partners. | Both GA API models are registered with standard pricing, cached-input pricing, context metadata, and the new thinking-level request shape. Flash Cyber is deliberately absent. Managed Gemini Deep Research remains gated because its autonomous loop lacks a complete request ceiling. | Use the GA API models for explicit bounded requests. Do not represent Flash Cyber as selectable Gemini API capacity. |
 | xAI | xAI docs direct general text work to Grok 4.3, list Grok Build 0.1 for coding, and price Imagine image/video APIs separately. | Grok 4.3 is the preferred xAI text default. Grok Build is watchlist-only. xAI image remains explicit premium capacity. | Keep coding and media model additions behind registry, adapter, and no-surprise-bills tests. |
 | Azure AI Foundry | Foundry docs expose agents through the Responses API, deployment catalogs, regional limits, and managed endpoint controls. | Azure entries remain deployment targets, not global public model defaults. | Treat availability as subscription, deployment, and region dependent. |
 
@@ -52,10 +54,18 @@ explicitly updated.
 - Anthropic lists Claude Mythos 5 and the Mythos preview as limited
   availability. Keep them out of Deepr's public registry and auto-routing until
   API access and pricing are normal enough to test and settle.
-- Gemini lists Gemini 3.5 Flash as stable and several Gemini or Nano Banana
-  media models. Deepr's registry covers text and research backends; media
-  models must stay explicit and cost-gated before any image or video path uses
-  them.
+- Gemini 3.6 Flash and Gemini 3.5 Flash-Lite are stable and registered. The
+  provider omits deprecated sampling parameters for both and uses
+  `thinking_level` instead of `thinking_budget`. A future migration from the
+  supported generateContent seam to the preferred Interactions API requires a
+  separate contract review for usage, tools, streaming, and settlement.
+- Gemini 3.5 Flash Cyber is limited-access CodeMender capacity, not a general
+  Gemini API model. It remains outside the registry unless Google later
+  publishes ordinary API access, pricing, identifiers, and terms that Deepr can
+  test and settle.
+- Gemini also lists media models. Deepr's registry covers text and research
+  backends; media models must stay explicit and cost-gated before any image or
+  video path uses them.
 - Google now lists `gemini-3-pro-preview` and
   `gemini-3.1-flash-lite-preview` in the shut-down previous-model set. Deepr
   keeps them only as deprecated migration entries for historical cost lookup.
@@ -110,10 +120,10 @@ Pricing notes:
 
 ## Current Deepr Registry Snapshot
 
-The registry currently contains 56 models across OpenAI, Gemini, xAI,
+The registry currently contains 58 models across OpenAI, Gemini, xAI,
 Anthropic, and Azure AI Foundry. The list below mirrors the registry on
-2026-07-12; run the command above for exact pricing and context values. The web
-Models page intentionally reports 39 active benchmarkable public text or
+2026-07-22; run the command above for exact pricing and context values. The web
+Models page intentionally reports 41 active benchmarkable public text or
 research models because Azure AI Foundry entries are deployment targets, premium
 media entries are not chat capacity, and deprecated migration entries are hidden
 from new benchmark target lists.
@@ -168,6 +178,8 @@ Environment variable: `GEMINI_API_KEY`
 
 Registered IDs:
 
+- `gemini/gemini-3.6-flash`
+- `gemini/gemini-3.5-flash-lite`
 - `gemini/gemini-3.5-flash`
 - `gemini/gemini-3-flash-preview`
 - `gemini/gemini-3.1-flash-lite`
@@ -181,6 +193,16 @@ Registered IDs:
 
 Default posture:
 
+- `gemini-flash` resolves to `gemini-3.6-flash`; `gemini-flash-lite`
+  resolves to `gemini-3.5-flash-lite`. These aliases select a model but do not
+  bypass explicit budget, tool, or provider gates. Alias resolution is shared
+  by adapter dispatch, canonical pricing, bounded preflight, and the REST API.
+- Provider-reported cached-content tokens settle at each model's documented
+  cached-input rate; uncached prompt and billable output or thinking tokens use
+  their standard rates.
+- Gemini 3.6 Flash and Gemini 3.5 Flash-Lite reject the old sampling-control
+  contract. Deepr omits `temperature`, `top_p`, and `top_k` for these models and
+  sends the documented `thinking_level` values.
 - Use Gemini for large-context document work and cost-sensitive multimodal or
   research workflows when the registry price and quality floor fit the task.
 - Treat preview IDs as volatile. Re-check official docs before making them a
@@ -189,6 +211,8 @@ Default posture:
   so historical artifacts and cost records can still be interpreted.
 - Keep Gemini image generation explicit. The registry's text/research support
   does not mean portraits or other image calls should run automatically.
+- Do not target Gemini 3.5 Flash Cyber. Its announced CodeMender pilot is not a
+  generally available Gemini API surface.
 
 Manual verification:
 

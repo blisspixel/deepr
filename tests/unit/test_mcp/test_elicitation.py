@@ -337,15 +337,20 @@ class TestCostOptimizer:
     def test_calculate_optimized_config_reduce_iterations(self, optimizer):
         """calculate_optimized_config should reduce iterations if needed."""
         config = optimizer.calculate_optimized_config(
-            current_model="gemini-flash",  # Already cheapest
+            current_model="grok-3-mini",
             current_iterations=10,
-            target_budget=0.05,
+            target_budget=0.2,
             estimated_tokens_per_iteration=100_000,
         )
 
-        # Should reduce iterations since already on cheapest model
         assert config["max_iterations"] < 10
-        assert config["estimated_cost"] <= 0.05
+        assert config["estimated_cost"] <= 0.2
+
+    def test_gemini_flash_uses_conservative_current_rate_and_capability(self, optimizer):
+        info = optimizer.get_model_info("gemini-flash")
+
+        assert info["cost_per_million_tokens"] == 7.50
+        assert info["capabilities"] == {"reasoning": "good", "speed": "very_fast", "depth": "high"}
 
     def test_get_model_info(self, optimizer):
         """get_model_info should return model details."""

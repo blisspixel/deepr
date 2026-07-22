@@ -46,6 +46,8 @@
 | [Multi-Device Expert Continuity](docs/design/multi-device-expert-continuity.md) | Sequential portability contract and staged device-partitioned event design |
 | [Expert Event Memory V2](docs/design/expert-event-memory-v2.md) | Proposed bitemporal event authority, replay, forgetting, and replica convergence |
 | [Historically Grounded Perspectives](docs/design/historically-grounded-perspectives.md) | Sourced great-mind lenses without impersonation or invented memory |
+| [Epistemic Simulation Experts](docs/design/epistemic-simulation-experts.md) | Branch-scoped speculative lenses with isolated memory authority, graph-aware context, and held-out evaluation |
+| [Epistemic Simulation Evaluation](docs/design/epistemic-simulation-evaluation.md) | Identity ablation, counterfactual transfer, belief revision, evidence contracts, and outcome gates for reasoning lenses |
 | [Agent Harness Lessons 2026](docs/design/agent-harness-lessons-2026.md) | Hermes, OpenClaw, Pi, OpenHands, Goose, and Letta patterns relevant to Deepr |
 | [Evidence-Gated Polyglot Evolution](docs/design/evidence-gated-polyglot-evolution.md) | Measured Python-first performance plan and explicit Rust, Go, Mojo, and free-threading extraction gates |
 | [Architecture](docs/ARCHITECTURE.md) | Technical details, security, observability |
@@ -709,8 +711,9 @@ memory surface. This order is dependency-based, not calendar-based:
 17. **ExpertEventV2 shadow authority and replay** - define bitemporal event, identity, causal-parent, deletion, and migration invariants in an ADR; add replica identity, canonical hashing, shadow dual-write, and exact deterministic replay before changing authority. Current snapshots remain authoritative until replay equality is proven. Why: device sync, selective forgetting, and trustworthy self-improvement all fail if state cannot be reconstructed from one versioned history. Design: [expert-event-memory-v2.md](docs/design/expert-event-memory-v2.md).
 18. **Device-partitioned expert continuity** - after deterministic event replay, add read-only sync health, immutable per-device journals, idempotent union, quarantine, tombstones, and explicit conflict artifacts before claiming concurrent edits. Separate machine-bound operational state from the concurrent expert event exchange. Never let storage convergence decide semantic belief, stance, hypothesis, or policy conflicts. Why: generic cloud sync preserves conflicting files but cannot merge an evolving expert's meaning. Design: [multi-device-expert-continuity.md](docs/design/multi-device-expert-continuity.md).
 19. **Historically grounded perspective lenses** - define `deepr-historical-perspective-v1` with persistent AI disclosure, institutional-source provenance, historical cutoff, contested interpretations, temporal bridge labels, non-impersonation, and a Why this perspective inspector. Pilot Leonardo and Beethoven only after the held-out acceptance harness exists. No identity claims, invented memories, fabricated quotations, voice cloning, or canonical writes from fictional dramatization. Why: great-mind perspectives can make expert consultation memorable and useful only when historical record, interpretation, and modern synthesis remain visibly distinct. Design: [historically-grounded-perspectives.md](docs/design/historically-grounded-perspectives.md).
-20. **Harness-grade run control plane** - persist a run-start capability snapshot and an exact prepared-approval artifact binding argv, cwd, model, auth mode, budget, writes, inputs, expert snapshot, and schema hashes. Join routing, capacity, policy, trace, and verification in one control-plane evidence record. Why: current Hermes, OpenClaw, Pi, and OpenHands patterns show that reproducibility and authority must be explicit before adding more surfaces. Design: [agent-harness-lessons-2026.md](docs/design/agent-harness-lessons-2026.md).
-21. **Steering, fork lineage, and verified skill candidates** - distinguish steer-after-safe-boundary from follow-up-after-completion, restore queued input on abort, and fork from checkpoints with inherited budget and parent trace. Promote learned skills only through isolated replay, held-out improvement, negative-transfer checks, and reviewed activation. Why: responsive long-running agents and learning skills are valuable, but neither may bypass the evidence and authority boundaries. Design: [agent-harness-lessons-2026.md](docs/design/agent-harness-lessons-2026.md).
+20. **Epistemic simulation experts** - define `deepr-epistemic-simulation-v1` and a `$0`, read-only five-arm acceptance fixture before adding a persona catalog or live deliberation. Separate factual, perspective, simulation, episodic, and governance authority; scope every counterfactual node and edge to an immutable branch; preserve alternative hypotheses and prior-to-posterior belief deltas; compile task-shaped graph paths with assumptions, dissent, temporal change, and Why this lens provenance; blind identity during adjudication; and prohibit simulation-to-fact writes. Start with one Leonardo-informed historical lens and one five-years-forward scenario lens only after anonymous-method, counterfactual-transfer, private-evidence, revision, negative-transfer, and held-out outcome gates pass. Why: exceptional insight can come from coherent unverified hypotheses and deliberately different priors, but only lane isolation, branch integrity, and outcome-grounded evaluation keep imagination from becoming synthetic evidence. Design: [epistemic-simulation-experts.md](docs/design/epistemic-simulation-experts.md). Evaluation: [epistemic-simulation-evaluation.md](docs/design/epistemic-simulation-evaluation.md). Proposed authority: [ADR 0006](docs/decisions/0006-epistemic-simulation-memory-authority.md).
+21. **Harness-grade run control plane** - persist a run-start capability snapshot and an exact prepared-approval artifact binding argv, cwd, model, auth mode, budget, writes, inputs, expert snapshot, and schema hashes. Join routing, capacity, policy, trace, and verification in one control-plane evidence record. Why: current Hermes, OpenClaw, Pi, and OpenHands patterns show that reproducibility and authority must be explicit before adding more surfaces. Design: [agent-harness-lessons-2026.md](docs/design/agent-harness-lessons-2026.md).
+22. **Steering, fork lineage, and verified skill candidates** - distinguish steer-after-safe-boundary from follow-up-after-completion, restore queued input on abort, and fork from checkpoints with inherited budget and parent trace. Promote learned skills only through isolated replay, held-out improvement, negative-transfer checks, and reviewed activation. Why: responsive long-running agents and learning skills are valuable, but neither may bypass the evidence and authority boundaries. Design: [agent-harness-lessons-2026.md](docs/design/agent-harness-lessons-2026.md).
 
 The Phase 4c `$0` read-only structured-consultation evidence gate is a child of
 item 5 and may run as soon as its human-anchored consult review set is
@@ -1197,6 +1200,14 @@ Goal: continuously validate routing quality/cost claims with measurable feedback
 - [ ] Stale-model CI checks + provider-family alerting
   - [x] `deepr eval` preflight warns when newer relevant models are missing from the registry
   - [ ] Scheduled CI job that alerts on provider model drift
+  - [x] Gemini July 2026 refresh (2026-07-22): registered the GA
+    `gemini-3.6-flash` and `gemini-3.5-flash-lite` API models with standard
+    token and cached-input prices, 1,048,576-token context metadata, and their
+    required `thinking_level` request shape. Generic Flash aliases now resolve
+    consistently across adapter dispatch, bounded pricing, and REST submission;
+    cached-content usage settles at the discounted rate. Gemini 3.5 Flash Cyber remains unregistered
+    because Google limits it to a CodeMender pilot for governments and trusted
+    partners rather than general Gemini API access.
   - [x] First-party tool-surface drift check (`scripts/validate_integrations.py`, 2026-06-11): live `tools/list` handshake against installed recon/distillr/primr through Deepr's own MCP client, diffed against the profile approval lists. Built after all three integrations were found silently drifted (primr removed `batch_analyze`/`quick_lookup`; distillr renamed its entire verb surface; recon added five tools). $0; run after upgrading any sibling tool. The live check immediately corrected two errors in the static fix itself - this class of break is only catchable live.
 - [x] Routing preview: `deepr research --preview` shows model choice, estimated cost band, and (in `--auto` mode) routing confidence and reasoning before executing. Works for both explicit `--model/--provider` runs and `--auto` mode. JSON output (`--json`) emits a structured `{preview, executed, provider, model, cost_estimate}` payload for machine consumers. Back-compat: `--dry-run` is preserved as an alias.
 - [~] Eval methodology v2 (design: [docs/design/calibration-and-trust.md](docs/design/calibration-and-trust.md)):
@@ -1600,6 +1611,58 @@ regression, stop. Only then may a secondary comparison test smaller models.
       use reviewed decision usefulness and downstream verification results, not
       synthetic agreement, as the feedback signal. This is descriptive until
       held-out evidence justifies a routing or prompt change.
+
+**Epistemic simulation evidence gate.** A Leonardo-informed, future-facing,
+nonhuman, or higher-dimensional lens is an input contract for structured
+consultation, not a new debate runtime and not a claim about identity. Before a
+named pilot, complete the `$0`, read-only protocol in
+[epistemic-simulation-evaluation.md](docs/design/epistemic-simulation-evaluation.md):
+
+- [ ] freeze method packs independently from display names and prove useful
+      behavior survives anonymous evaluation;
+- [ ] add paired counterfactual cases that change rules, incentives,
+      constraints, or sensory assumptions and measure conditional adaptation;
+- [ ] preserve alternative and null hypotheses, prior-to-posterior deltas,
+      disconfirmers, and invalidated-memory state;
+- [ ] bind factual subclaims to exact public or access-controlled evidence
+      units while keeping simulation implications branch-scoped;
+- [ ] evaluate graph-context retrieval separately from answer quality, including
+      evidence-root recall, useful-path recall, branch leakage, stale-memory
+      leakage, access-policy violations, and context cost;
+- [ ] compare generic, style-only, current-memory, compiled-lens, and blinded
+      multi-lens arms under matched aggregate resources; and
+- [ ] require zero authority, disclosure, privacy, provenance, and cost-ledger
+      violations plus factual non-inferiority and negative-transfer acceptance
+      before a runtime default or persistent learning path.
+- [x] **Stage 0, `$0` authority contracts and structural fixture:** implemented
+      2026-07-22 with published schemas for the five-lane simulation, consult
+      context, individual case, frozen case bundle, and zero-call evaluation
+      report. The seven-case fixture covers every named adversarial family,
+      exact five-arm declaration and resource matching, distinct-branch
+      counterfactual lineage with exactly one branch assumption per world, the
+      structured declared condition,
+      matched case and context shape, exact paired temporal metadata and
+      evidence identity, ordered causal and reciprocal belief revisions,
+      invalidated-memory exclusion, protected evidence and record-valued
+      provenance closures checked against an externally supplied principal,
+      endpoint-bound evidence provenance, disjoint artifact identifiers,
+      lane-to-record-type compatibility, acyclic assumption dependencies,
+      exact world assumption manifests, identical non-intervention record
+      hashes, connected branch-local paths, canonical context byte counts,
+      hash-bound linked inputs, persistent disclosure, and the simulation-to-
+      fact prohibition. The protected-
+      evidence family requires a genuinely access-controlled unit. Each family
+      requires concrete structural witnesses. These checks prove the declared
+      intervention binding and matched envelope, not that the intervention is
+      semantically the only meaningful difference.
+      The five arms, including the declared three-lens arm, have no supplied
+      inputs or outputs and are not executed. Structural validation makes no
+      semantic quality claim, executes no model or network call, writes no
+      expert state, exposes no public command, and cannot select a winner or
+      change a runtime default. The outcome and comparative evidence gates
+      above remain open.
+
+The proposed memory authority is [ADR 0006](docs/decisions/0006-epistemic-simulation-memory-authority.md).
 
 **Evidence-first expert investigation.** The accepted direction for a deeper
 surface is a durable investigation, not a general chat or peer-to-peer swarm.

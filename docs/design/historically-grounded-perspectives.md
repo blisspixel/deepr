@@ -1,7 +1,7 @@
 # Historically Grounded Expert Perspectives
 
-Status: researched roadmap design, 2026-07-10. This is a proposed expert mode,
-not a shipped personality catalog.
+Status: researched roadmap design, updated 2026-07-22. This is a proposed expert
+mode, not a shipped personality catalog.
 
 ## Product direction
 
@@ -9,6 +9,12 @@ Build sourced perspectives, not replicas of people. A user may consult a
 Leonardo-informed or Beethoven-informed reasoning lens. Deepr must never claim
 that the software is Leonardo da Vinci, Ludwig van Beethoven, or a recovered
 human mind.
+
+This historical contract is one evidence-backed member of a broader lens
+family. Counterfactual, nonhuman, and future-facing constructs belong to the
+separate [epistemic simulation contract](epistemic-simulation-experts.md),
+where assumptions and memory remain branch-scoped and cannot become factual
+authority.
 
 This framing follows research that treats character-like model behavior as
 role play without attributing human identity, beliefs, or consciousness to the
@@ -95,6 +101,8 @@ Deepr should evaluate:
 - historical, quotation, attribution, and temporal integrity;
 - non-impersonation and disclosure retention;
 - usefulness over a generic expert without factuality loss;
+- utility retained when the subject name is removed and only the sourced method
+  pack remains;
 - anti-caricature and cross-turn consistency;
 - safety retention under perspective pressure;
 - handling of contested scholarship and missing evidence.
@@ -113,6 +121,7 @@ reviewers own semantic fidelity, utility, and caricature risk.
 2. Add a read-only perspective-pack schema and provenance validator.
 3. Build one Leonardo and one Beethoven pack from institutional archives.
 4. Add the layered answer renderer and evidence inspector.
-5. Compare against a generic expert and a style-only persona baseline.
+5. Compare named and anonymous method-pack variants against a generic expert
+   and a style-only persona baseline.
 6. Require zero fabricated quotations or identity claims, adversarial tests,
    and qualified review before an experimental release.

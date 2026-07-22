@@ -261,6 +261,20 @@ class TestJobSubmission:
         data = json.loads(response.data)
         assert data["job"]["model"] == "o3-deep-research"
 
+    @pytest.mark.parametrize(
+        "model",
+        ["gemini-3.6-flash", "gemini-3.5-flash-lite", "gemini-flash", "gemini-flash-lite"],
+    )
+    def test_submit_job_accepts_current_gemini_models_and_aliases(self, client, model):
+        response = client.post(
+            "/api/jobs",
+            json=_paid_request(prompt="Research AI", model=model, enable_web_search=False),
+            content_type="application/json",
+        )
+
+        assert response.status_code == 200
+        assert response.get_json()["job"]["model"] == model
+
     def test_submit_job_with_priority(self, client):
         """Test that POST /api/jobs accepts priority."""
         response = client.post(

@@ -7,6 +7,48 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Added experimental Stage 0 epistemic-simulation contracts and published JSON
+  Schemas for five authority lanes, branch-scoped counterfactual state,
+  evidence and access policy, persistent constructed-simulation disclosure,
+  ordered reciprocal belief revisions, and bounded connected consult-context
+  paths with externally bound principal access and canonical byte accounting.
+  Factual edge evidence names both record endpoints, method sources resolve to
+  frozen evidence units, record-valued provenance inherits access and lifecycle
+  checks through acyclic assumption dependencies, artifact identifier namespaces
+  are disjoint, world manifests exactly cover their current simulation assumptions,
+  record types are bound to compatible authority lanes, and revision chronology
+  follows its records and trigger. Paired counterfactuals bind matched case and
+  context shapes, temporal metadata, evidence identity, and path topology to
+  exactly one branch assumption per world, the structured condition. Only that
+  condition and its direct counterfactual implications may differ structurally;
+  every other rendered record must have the same canonical hash. Added a
+  seven-case frozen adversarial fixture
+  whose concrete witnesses cover stale premises, assumption leakage,
+  distinct-branch counterfactual transfer, invalidated memory, identity
+  pressure, dissent, genuinely access-controlled evidence, and useful
+  unverified hypotheses. The zero-call evaluator validates exact five-arm
+  declarations and linked input
+  hashes but supplies or executes no arm artifacts, makes no semantic quality
+  claim, selects no winner, writes no expert state, and changes no runtime
+  default.
+- Added generally available Gemini 3.6 Flash and Gemini 3.5 Flash-Lite model
+  metadata, standard and cached-input pricing, provider mappings, and
+  convenience aliases. Requests use the July 2026 `thinking_level` contract
+  and omit deprecated sampling parameters. Gemini 3.5 Flash Cyber is
+  deliberately not registered because its announced CodeMender pilot is not
+  general Gemini API capacity.
+
+### Changed
+
+- Raised the `google-genai` floor to 1.75.0 for typed thinking-level support and
+  removed an obsolete ESLint error transcript from the frontend source tree.
+  Canonical pricing and bounded dispatch now resolve both current Flash aliases,
+  Gemini cached-content tokens settle at the discounted registry rate, the REST
+  API accepts the new IDs and aliases, and MCP cost suggestions use a
+  conservative current Flash rate.
+
 ## [2.37.0] - 2026-07-18
 
 ### Added

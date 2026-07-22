@@ -11,6 +11,10 @@ logger = logging.getLogger(__name__)
 _MODEL_ALIASES: dict[str, str] = {
     "gemini-deep-research": "deep-research-pro-preview-12-2025",
     "deep-research": "deep-research-pro-preview-12-2025",
+    "gemini-pro": "gemini-3.1-pro-preview",
+    "gemini-3.1-pro": "gemini-3.1-pro-preview",
+    "gemini-flash": "gemini-3.6-flash",
+    "gemini-flash-lite": "gemini-3.5-flash-lite",
 }
 
 _TIERED_PRICING: dict[str, tuple[int, float, float]] = {

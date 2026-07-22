@@ -13,6 +13,24 @@ All v1 schemas are additive within the same schema version:
   a new `schema_version` and a new schema file.
 - Deprecated fields remain readable until a new schema version replaces them.
 
+## Linked invariant validation
+
+JSON Schema validates serialized shape. It cannot prove cross-record reference
+integrity, reciprocal evidence links, branch isolation, access authorization,
+snapshot equality, or matched resources across a case bundle. The experimental
+epistemic-simulation schemas therefore publish an `x-deepr-linked-validator`
+entry naming the pure Python validator that owns those checks. Schema success
+alone is not a structural pass. Consumers must run the named linked validator
+or implement every invariant documented by the corresponding design contract.
+The context validator requires its frozen lens. A standalone case must be
+validated inside its enclosing bundle because its witnesses, pair, context,
+and resource envelope are cross-artifact invariants. The context validator also
+requires the expected authenticated principal as a separate argument. The
+principal serialized in a packet is a requested consumer identity, not proof of
+authentication. This dependency is named in the schema's machine-readable
+`requires` metadata. The evaluation validator requires the frozen source bundle
+and recomputes the full report, including the fixture and linked input hashes.
+
 ## Published Schemas
 
 | Schema | File | Purpose |
@@ -59,6 +77,11 @@ All v1 schemas are additive within the same schema version:
 | `deepr-investigation-learning-manifest-v1` | [investigation-learning-manifest-v1.json](investigation-learning-manifest-v1.json) | Per-expert source-only, target-domain-relevance-gated staged learning outcomes with no automatic expert-state writes or human-review claim |
 | `deepr-investigation-event-v1` | [investigation-event-v1.json](investigation-event-v1.json) | Append-only lifecycle and reservation event for durable, resumable investigation execution |
 | `deepr-investigation-eval-v1` | [investigation-eval-v1.json](investigation-eval-v1.json) | Zero-cost six-arm structural evaluation for investigation contracts with no semantic quality claim |
+| `deepr-epistemic-simulation-v1` | [epistemic-simulation-v1.json](epistemic-simulation-v1.json) | Read-only five-lane lens with explicit evidence, branch, memory, provenance, and authority boundaries |
+| `deepr-consult-context-v2` | [consult-context-v2.json](consult-context-v2.json) | Bounded read-only consult context with connected path provenance, branch scope, invalidated-memory exclusion, principal-bound access, canonical byte accounting, and persistent simulation disclosure |
+| `deepr-epistemic-simulation-case-v1` | [epistemic-simulation-case-v1.json](epistemic-simulation-case-v1.json) | One frozen adversarial evaluation case with concrete structural witnesses, exact future-arm declarations, and zero-call bounds |
+| `deepr-epistemic-simulation-case-bundle-v1` | [epistemic-simulation-case-bundle-v1.json](epistemic-simulation-case-bundle-v1.json) | Frozen Stage 0 lens, context, unexecuted arm declaration, and adversarial-case bundle |
+| `deepr-epistemic-simulation-eval-v1` | [epistemic-simulation-eval-v1.json](epistemic-simulation-eval-v1.json) | Zero-call structural report with linked hash bindings that cannot claim semantic quality, select a winner, write expert state, or change runtime defaults |
 | `deepr-consult-trace-candidates-v1` | [consult-trace-candidates-v1.json](consult-trace-candidates-v1.json) | Sanitized gap and eval candidates mined from failed, low-context, or middle-context review consult traces |
 | `deepr-consult-quality-eval-case-v1` | [consult-quality-eval-case-v1.json](consult-quality-eval-case-v1.json) | Read-only semantic quality review case packet for human or calibrated-model consult judging, including hallucination risk checks and middle-context metadata |
 | `deepr-consult-quality-review-v1` | [consult-quality-review-v1.json](consult-quality-review-v1.json) | Reviewed consult-quality score artifact with explicit semantic judge metadata, policy gate, and safe gap/eval promotion actions |

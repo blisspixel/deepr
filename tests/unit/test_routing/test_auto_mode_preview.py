@@ -98,7 +98,8 @@ class TestProvisionalQualityPrior:
     def test_get_quality_prior_known_and_unknown(self):
         from deepr.routing.quality_priors import get_quality_prior
 
-        assert get_quality_prior("gemini", "gemini-2.5-flash") is not None
+        assert get_quality_prior("gemini", "gemini-3.6-flash") == 0.72
+        assert get_quality_prior("gemini", "gemini-3.5-flash-lite") == 0.66
         assert get_quality_prior("nope", "nope") is None
 
     def test_prior_overrides_price_tier(self, monkeypatch):

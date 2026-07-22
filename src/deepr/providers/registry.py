@@ -603,7 +603,39 @@ MODEL_CAPABILITIES: dict[str, ModelCapability] = {
         successor="xai/grok-imagine-image",
     ),
     # Google Models (Gemini)
-    # Gemini 3.5 Flash - newest Flash generation (GA May 19, 2026, Google I/O 2026)
+    "gemini/gemini-3.6-flash": ModelCapability(
+        provider="gemini",
+        model="gemini-3.6-flash",
+        cost_per_query=0.025,
+        latency_ms=1500,
+        context_window=1_048_576,
+        specializations=["reasoning", "coding", "agentic", "multimodal", "speed", "thinking"],
+        strengths=[
+            "GA Flash workhorse with 1,048,576-token input and 65,536-token output limits",
+            "Multimodal input, structured output, thinking levels, and built-in tools",
+        ],
+        weaknesses=["Thinking output is billable; search can add charges; computer use is preview-only"],
+        input_cost_per_1m=1.50,
+        output_cost_per_1m=7.50,
+        cached_input_cost_per_1m=0.15,
+    ),
+    "gemini/gemini-3.5-flash-lite": ModelCapability(
+        provider="gemini",
+        model="gemini-3.5-flash-lite",
+        cost_per_query=0.008,
+        latency_ms=1000,
+        context_window=1_048_576,
+        specializations=["speed", "cost", "agentic", "multimodal", "high_throughput", "thinking"],
+        strengths=[
+            "GA high-throughput model with 1,048,576-token input and 65,536-token output limits",
+            "Multimodal input, structured output, and task-scaled thinking levels",
+        ],
+        weaknesses=["Below full Flash on hard reasoning; thinking and search can add charges"],
+        input_cost_per_1m=0.30,
+        output_cost_per_1m=2.50,
+        cached_input_cost_per_1m=0.03,
+    ),
+    # Gemini 3.5 Flash - retained stable generation (GA May 19, 2026)
     "gemini/gemini-3.5-flash": ModelCapability(
         provider="gemini",
         model="gemini-3.5-flash",
@@ -611,18 +643,8 @@ MODEL_CAPABILITIES: dict[str, ModelCapability] = {
         latency_ms=1500,
         context_window=1_000_000,
         specializations=["reasoning", "coding", "agentic", "multimodal", "speed", "thinking"],
-        strengths=[
-            "First model in the Gemini 3.5 family (GA May 19, 2026)",
-            "Surpasses Gemini 3.1 Pro on coding, agentic, and multimodal benchmarks",
-            "Frontier intelligence at Flash speed (~4x faster output than frontier peers)",
-            "1M token context window, 65K output",
-            "Multimodal input (text, image, audio, video, PDF)",
-            "Dynamic thinking",
-        ],
-        weaknesses=[
-            "3x pricier than Gemini 3 Flash preview ($1.50/$9.00 vs $0.50/$3.00 per MTok)",
-            "Thinking tokens add to output cost",
-        ],
+        strengths=["Stable multimodal Flash model with a 1M context window and dynamic thinking"],
+        weaknesses=["Gemini 3.6 Flash is newer and has a lower standard output-token price"],
         input_cost_per_1m=1.50,
         output_cost_per_1m=9.00,  # Includes thinking tokens; non-global regions $1.65/$9.90
     ),
@@ -633,17 +655,8 @@ MODEL_CAPABILITIES: dict[str, ModelCapability] = {
         latency_ms=1500,
         context_window=1_000_000,
         specializations=["speed", "thinking", "general"],
-        strengths=[
-            "Newest generation, fast",
-            "Pro-level intelligence at Flash pricing",
-            "1M token context window",
-            "Dynamic thinking",
-        ],
-        weaknesses=[
-            "Preview model (may change)",
-            "Thinking tokens add to output cost",
-            "Superseded for quality by gemini-3.5-flash (which costs ~3x more)",
-        ],
+        strengths=["Fast preview model with a 1M context window and dynamic thinking"],
+        weaknesses=["Preview model superseded by stable Gemini 3.6 Flash"],
         input_cost_per_1m=0.50,
         output_cost_per_1m=3.00,  # Includes thinking tokens
     ),

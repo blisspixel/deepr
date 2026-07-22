@@ -12,7 +12,7 @@ scores), capped below measured eval results so real benchmarks always win once
 they exist (see routing.auto_mode._estimate_quality), and they are refined or
 overridden the moment `deepr eval` produces measured rankings.
 
-Source (looked up June 2026, refresh on model changes):
+Source (reviewed July 2026, refresh on model changes):
 - Artificial Analysis Intelligence Index: Claude Opus 4.8 ~61, GPT-5.5 ~60,
   Gemini 3.1 Pro ~57, Grok 4.3 ~53 - the four flagships are near-parity at the
   top (https://artificialanalysis.ai/models).
@@ -23,6 +23,10 @@ Source (looked up June 2026, refresh on model changes):
 - Efficient tier punches above price: GPT-5 mini and Gemini Flash are
   near-frontier on easy tasks; Gemini Flash-Lite scores above GPT nano at half
   the cost. This is the price-as-quality failure these priors correct.
+- Google's July 21, 2026 Gemini 3.6 Flash and Gemini 3.5 Flash-Lite launch
+  reports the former near larger frontier models and the latter as its
+  high-volume efficiency model
+  (https://blog.google/innovation-and-ai/models-and-research/gemini-models/gemini-3-6-flash-3-5-flash-lite-3-5-flash-cyber/).
 
 Tiers (0-1): frontier 0.78 (the cap), strong 0.75, capable-efficient 0.72,
 budget 0.66. The point is the relative ordering being independent of price, not
@@ -72,6 +76,7 @@ QUALITY_PRIORS: dict[str, float] = {
     "openai/gpt-5-mini": _EFFICIENT,
     "openai/o4-mini": _EFFICIENT,
     "openai/gpt-4.1": _EFFICIENT,
+    "gemini/gemini-3.6-flash": _EFFICIENT,
     "gemini/gemini-3.5-flash": _EFFICIENT,
     "gemini/gemini-3-flash-preview": _EFFICIENT,
     "azure-foundry/gpt-5-mini": _EFFICIENT,
@@ -80,6 +85,7 @@ QUALITY_PRIORS: dict[str, float] = {
     "openai/gpt-5-nano": _BUDGET,
     "openai/gpt-4.1-mini": _BUDGET,
     "openai/gpt-4.1-nano": _BUDGET,
+    "gemini/gemini-3.5-flash-lite": _BUDGET,
     "gemini/gemini-3.1-flash-lite": _BUDGET,
     "gemini/gemini-2.5-flash": _BUDGET,
     "gemini/gemini-2.5-flash-lite": _BUDGET,

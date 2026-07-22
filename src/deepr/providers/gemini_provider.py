@@ -16,6 +16,7 @@ import logging
 import os
 from contextlib import suppress
 from datetime import UTC, datetime
+from enum import Enum
 from types import SimpleNamespace
 from typing import Any, cast
 
@@ -39,6 +40,7 @@ from .base import (
     ResearchResponse,
     UsageStats,
     VectorStore,
+    coerce_usage_int,
 )
 
 # Suppress experimental API warning for Interactions API.
@@ -60,6 +62,14 @@ class _FallbackThinkingConfig:
     def __init__(self, **kwargs: Any) -> None:
         for key, value in kwargs.items():
             setattr(self, key, value)
+
+
+class _FallbackThinkingLevel(str, Enum):
+    """Thinking-level values used only when the optional SDK is unavailable."""
+
+    MINIMAL = "MINIMAL"
+    MEDIUM = "MEDIUM"
+    HIGH = "HIGH"
 
 
 class _FallbackGenerateContentConfig(dict[str, Any]):
@@ -106,6 +116,7 @@ class _UnavailableGeminiClient:
 if types is None:
     types = SimpleNamespace(
         ThinkingConfig=_FallbackThinkingConfig,
+        ThinkingLevel=_FallbackThinkingLevel,
         GenerateContentConfig=_FallbackGenerateContentConfig,
     )
 
@@ -122,6 +133,8 @@ class GeminiProvider(DeepResearchProvider):
     - Deep Research Agent via Interactions API (background async)
     - Regular Gemini models via generate_content (synchronous streaming)
     """
+
+    _THINKING_LEVEL_MODELS = frozenset({"gemini-3.6-flash", "gemini-3.5-flash-lite"})
 
     def __init__(
         self,
@@ -150,6 +163,8 @@ class GeminiProvider(DeepResearchProvider):
 
         # Model mappings for convenience
         self.model_mappings = model_mappings or {
+            "gemini-3.6-flash": "gemini-3.6-flash",
+            "gemini-3.5-flash-lite": "gemini-3.5-flash-lite",
             "gemini-3.5-flash": "gemini-3.5-flash",
             "gemini-3.1-pro-preview": "gemini-3.1-pro-preview",
             "gemini-3.1-pro": "gemini-3.1-pro-preview",
@@ -160,8 +175,8 @@ class GeminiProvider(DeepResearchProvider):
             "gemini-2.5-flash": "gemini-2.5-flash",
             "gemini-2.5-flash-lite": "gemini-2.5-flash-lite",
             "gemini-pro": "gemini-3.1-pro-preview",
-            "gemini-flash": "gemini-2.5-flash",
-            "gemini-flash-lite": "gemini-3.1-flash-lite",
+            "gemini-flash": "gemini-3.6-flash",
+            "gemini-flash-lite": "gemini-3.5-flash-lite",
             # Deep Research Agent
             "gemini-deep-research": DEEP_RESEARCH_AGENT,
             "deep-research": DEEP_RESEARCH_AGENT,
@@ -171,6 +186,8 @@ class GeminiProvider(DeepResearchProvider):
         from .registry import get_token_pricing
 
         self.pricing = {
+            "gemini-3.6-flash": get_token_pricing("gemini-3.6-flash"),
+            "gemini-3.5-flash-lite": get_token_pricing("gemini-3.5-flash-lite"),
             "gemini-3.5-flash": get_token_pricing("gemini-3.5-flash"),
             "gemini-3.1-pro-preview": get_token_pricing("gemini-3.1-pro-preview"),
             "gemini-3.1-flash-lite": get_token_pricing("gemini-3.1-flash-lite"),
@@ -195,46 +212,34 @@ class GeminiProvider(DeepResearchProvider):
         """Map generic model key to Gemini model name."""
         return str(self.model_mappings.get(model_key, model_key))
 
-    # Models whose published pricing doubles for prompts exceeding the
-    # large-context threshold (200K input tokens for Gemini 3.x Pro).
-    _LARGE_CONTEXT_MODELS: set[str] = {
-        "gemini-3.1-pro-preview",
-        "gemini-3-pro-preview",
-    }
-    _LARGE_CONTEXT_INPUT_TOKEN_THRESHOLD = 200_000
-    _LARGE_CONTEXT_INPUT_MULTIPLIER = 2.0
-    _LARGE_CONTEXT_OUTPUT_MULTIPLIER = 1.5
-
-    def _calculate_cost(self, input_tokens: int, output_tokens: int, model: str) -> float:
-        """Calculate cost for Gemini models, including the >200K-token tier.
-
-        Gemini 3.x Pro applies separate large-context multipliers above
-        200K input tokens: 2x input and 1.5x output.
-        """
+    def _calculate_cost(
+        self,
+        input_tokens: int,
+        output_tokens: int,
+        model: str,
+        *,
+        cached_input_tokens: int = 0,
+    ) -> float:
+        """Calculate token cost using canonical registry rates and tiers."""
         if _is_deep_research_model(model):
             return self.deep_research_cost_estimate
 
-        base_model = model
+        resolved_model = self.get_model_name(model)
+        base_model = "gemini-2.5-flash"
         # Match the longest pricing key first so e.g. "gemini-2.5-flash-lite"
         # resolves to its own entry instead of the shorter "gemini-2.5-flash"
         # prefix - which would charge Flash-Lite at ~5x the Flash rate.
         for key in sorted(self.pricing, key=len, reverse=True):
-            if key in model:
+            if key in resolved_model:
                 base_model = key
                 break
 
-        prices = self.pricing.get(base_model, self.pricing["gemini-2.5-flash"])
-
-        input_multiplier = 1.0
-        output_multiplier = 1.0
-        if base_model in self._LARGE_CONTEXT_MODELS and input_tokens > self._LARGE_CONTEXT_INPUT_TOKEN_THRESHOLD:
-            input_multiplier = self._LARGE_CONTEXT_INPUT_MULTIPLIER
-            output_multiplier = self._LARGE_CONTEXT_OUTPUT_MULTIPLIER
-
-        input_cost = (input_tokens / 1_000_000) * prices["input"] * input_multiplier
-        output_cost = (output_tokens / 1_000_000) * prices["output"] * output_multiplier
-
-        return input_cost + output_cost
+        return UsageStats.calculate_cost_with_cached_input(
+            input_tokens,
+            output_tokens,
+            base_model,
+            cached_input_tokens=cached_input_tokens,
+        )
 
     def _get_thinking_config(self, model: str, complexity: str = "medium") -> types.ThinkingConfig | None:
         """
@@ -247,6 +252,18 @@ class GeminiProvider(DeepResearchProvider):
         Returns:
             ThinkingConfig or None
         """
+        if model == "gemini-3.6-flash":
+            level = types.ThinkingLevel.HIGH if complexity == "hard" else types.ThinkingLevel.MEDIUM
+            return types.ThinkingConfig(thinking_level=level)
+
+        if model == "gemini-3.5-flash-lite":
+            levels = {
+                "easy": types.ThinkingLevel.MINIMAL,
+                "medium": types.ThinkingLevel.MEDIUM,
+                "hard": types.ThinkingLevel.HIGH,
+            }
+            return types.ThinkingConfig(thinking_level=levels.get(complexity, types.ThinkingLevel.MEDIUM))
+
         # Gemini 3.1 Pro: configurable thinking levels (minimal/low/medium/high)
         if "3.1-pro" in model:
             if complexity == "easy":
@@ -400,7 +417,7 @@ class GeminiProvider(DeepResearchProvider):
             if request.system_message:
                 config_params["system_instruction"] = request.system_message
 
-            if request.temperature is not None:
+            if request.temperature is not None and model not in self._THINKING_LEVEL_MODELS:
                 config_params["temperature"] = request.temperature
 
             enable_search = any(tool.type in ("web_search_preview", "google_search") for tool in request.tools)
@@ -441,16 +458,21 @@ class GeminiProvider(DeepResearchProvider):
             thoughts_summary = "".join(thought_parts) if thought_parts else None
 
             if last_usage is not None:
-                prompt_tokens = int(getattr(last_usage, "prompt_token_count", 0) or 0)
-                candidates_tokens = int(getattr(last_usage, "candidates_token_count", 0) or 0)
-                thoughts_tokens = int(getattr(last_usage, "thoughts_token_count", 0) or 0)
-                total_tokens = int(getattr(last_usage, "total_token_count", 0) or 0)
+                prompt_tokens = coerce_usage_int(getattr(last_usage, "prompt_token_count", 0))
+                cached_input_tokens = min(
+                    coerce_usage_int(getattr(last_usage, "cached_content_token_count", 0)),
+                    prompt_tokens,
+                )
+                candidates_tokens = coerce_usage_int(getattr(last_usage, "candidates_token_count", 0))
+                thoughts_tokens = coerce_usage_int(getattr(last_usage, "thoughts_token_count", 0))
+                total_tokens = coerce_usage_int(getattr(last_usage, "total_token_count", 0))
                 input_tokens = prompt_tokens
                 output_tokens = candidates_tokens + thoughts_tokens
                 if total_tokens <= 0:
                     total_tokens = input_tokens + output_tokens
             else:
                 input_tokens = len(request.prompt) // 4
+                cached_input_tokens = 0
                 output_tokens = len(full_response) // 4
                 total_tokens = input_tokens + output_tokens
 
@@ -462,6 +484,7 @@ class GeminiProvider(DeepResearchProvider):
                     "thoughts": thoughts_summary,
                     "usage": {
                         "input_tokens": int(input_tokens),
+                        "cached_input_tokens": int(cached_input_tokens),
                         "output_tokens": int(output_tokens),
                         "total_tokens": int(total_tokens),
                     },
@@ -631,11 +654,15 @@ class GeminiProvider(DeepResearchProvider):
             usage_data = job_data["usage"]
             usage = UsageStats(
                 input_tokens=usage_data.get("input_tokens", 0),
+                cached_input_tokens=usage_data.get("cached_input_tokens", 0),
                 output_tokens=usage_data.get("output_tokens", 0),
                 total_tokens=usage_data.get("total_tokens", 0),
                 reasoning_tokens=0,
                 cost=self._calculate_cost(
-                    usage_data.get("input_tokens", 0), usage_data.get("output_tokens", 0), job_data["model"]
+                    usage_data.get("input_tokens", 0),
+                    usage_data.get("output_tokens", 0),
+                    job_data["model"],
+                    cached_input_tokens=usage_data.get("cached_input_tokens", 0),
                 ),
             )
 

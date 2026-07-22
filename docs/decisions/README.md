@@ -34,3 +34,4 @@ gate; it is a memory aid.
 | [0003](0003-cli-non-tty-and-self-update.md) | CLI: non-TTY safety and self-update | Accepted |
 | [0004](0004-one-experts-root-and-portable-data-dir.md) | One experts root, and a portable data directory | Accepted |
 | [0005](0005-protocol-neutral-expert-conversation-handles.md) | Protocol-neutral handles for expert conversations | Accepted |
+| [0006](0006-epistemic-simulation-memory-authority.md) | Epistemic simulation memory authority | Proposed |
