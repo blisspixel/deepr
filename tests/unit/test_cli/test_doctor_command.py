@@ -5,9 +5,9 @@ and connectivity issues.
 """
 
 import sys
+import types
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
-from unittest.mock import patch
 
 import pytest
 from click.testing import CliRunner
@@ -16,6 +16,22 @@ from click.testing import CliRunner
 sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent))
 
 from deepr.cli.main import cli
+
+_PROVIDER_ENV_VARS = (
+    "OPENAI_API_KEY",
+    "GEMINI_API_KEY",
+    "XAI_API_KEY",
+    "ANTHROPIC_API_KEY",
+    "AZURE_OPENAI_API_KEY",
+    "AZURE_OPENAI_ENDPOINT",
+)
+
+
+@pytest.fixture(autouse=True)
+def _clear_provider_environment(monkeypatch):
+    """Remove developer keys without clearing the runtime-root isolation."""
+    for name in _PROVIDER_ENV_VARS:
+        monkeypatch.delenv(name, raising=False)
 
 
 class TestDoctorCommandStructure:
@@ -50,16 +66,15 @@ class TestDoctorChecks:
 
     def test_doctor_checks_api_keys(self, runner):
         """Test that doctor checks for API keys."""
-        with patch.dict("os.environ", {}, clear=True):
-            result = runner.invoke(cli, ["doctor"])
-            output = result.output.lower()
+        result = runner.invoke(cli, ["doctor", "--skip-connectivity"])
+        output = result.output.lower()
 
-            # Should mention API keys or configuration
-            assert "api" in output or "key" in output or "config" in output
+        # Should mention API keys or configuration
+        assert "api" in output or "key" in output or "config" in output
 
     def test_doctor_checks_providers(self, runner):
         """Test that doctor checks provider configuration."""
-        result = runner.invoke(cli, ["doctor"])
+        result = runner.invoke(cli, ["doctor", "--skip-connectivity"])
         output = result.output.lower()
 
         # Should mention providers
@@ -67,7 +82,7 @@ class TestDoctorChecks:
 
     def test_doctor_shows_pass_fail_status(self, runner):
         """Test that doctor shows pass/fail status for checks."""
-        result = runner.invoke(cli, ["doctor"])
+        result = runner.invoke(cli, ["doctor", "--skip-connectivity"])
         output = result.output.lower()
 
         # Should show some kind of status indicators
@@ -115,7 +130,7 @@ class TestDoctorOutput:
 
     def test_doctor_output_is_readable(self, runner):
         """Test that doctor output is human-readable."""
-        result = runner.invoke(cli, ["doctor"])
+        result = runner.invoke(cli, ["doctor", "--skip-connectivity"])
 
         # Should have some structured output
         assert len(result.output) > 0
@@ -124,10 +139,59 @@ class TestDoctorOutput:
 
     def test_doctor_exits_cleanly(self, runner):
         """Test that doctor exits cleanly even with missing config."""
-        with patch.dict("os.environ", {}, clear=True):
-            result = runner.invoke(cli, ["doctor"])
-            # Should not crash, even if checks fail
-            assert result.exit_code in [0, 1]  # 0 = all pass, 1 = some fail
+        result = runner.invoke(cli, ["doctor", "--skip-connectivity"])
+        assert result.exit_code == 0
+
+    def test_doctor_returns_nonzero_when_a_check_errors(self, runner, monkeypatch):
+        from deepr.cli.commands import doctor as doctor_module
+
+        async def failing_check():
+            return [doctor_module.DiagnosticCheck("Broken filesystem", "Filesystem")]
+
+        monkeypatch.setattr(doctor_module, "check_filesystem", failing_check)
+        result = runner.invoke(cli, ["doctor", "--skip-connectivity"])
+
+        assert result.exit_code == 1
+        assert "Diagnostics found one or more errors" in result.output
+
+    def test_configuration_failure_is_redacted_and_nonzero(self, runner, monkeypatch):
+        from deepr.cli.commands import doctor as doctor_module
+
+        secret = "configuration-secret-should-not-render"
+
+        def fail_load():
+            raise RuntimeError(secret)
+
+        monkeypatch.setattr(doctor_module, "load_config", fail_load)
+        result = runner.invoke(cli, ["doctor", "--skip-connectivity"])
+
+        assert result.exit_code == 1
+        assert "Could not load configuration" in result.output
+        assert secret not in result.output
+
+    def test_skip_connectivity_never_constructs_provider_clients(self, runner, monkeypatch):
+        class ForbiddenClient:
+            def __init__(self, **_):
+                raise AssertionError("provider client constructed in offline mode")
+
+        fake_openai = types.ModuleType("openai")
+        fake_openai.AsyncOpenAI = ForbiddenClient
+        fake_openai.AsyncAzureOpenAI = ForbiddenClient
+        fake_genai = types.ModuleType("google.genai")
+        fake_genai.Client = ForbiddenClient
+        fake_google = types.ModuleType("google")
+        fake_google.genai = fake_genai
+        monkeypatch.setitem(sys.modules, "openai", fake_openai)
+        monkeypatch.setitem(sys.modules, "google", fake_google)
+        monkeypatch.setitem(sys.modules, "google.genai", fake_genai)
+        for name in _PROVIDER_ENV_VARS:
+            monkeypatch.setenv(name, "configured-test-value")
+
+        result = runner.invoke(cli, ["doctor", "--skip-connectivity"])
+
+        assert result.exit_code == 0
+        assert "provider connectivity checks are skipped" in result.output
+        assert "provider client constructed" not in result.output
 
 
 class TestDoctorNextStep:
@@ -137,16 +201,60 @@ class TestDoctorNextStep:
     def runner(self):
         return CliRunner()
 
-    def test_no_keys_points_to_init(self, runner):
-        with patch.dict("os.environ", {}, clear=True):
-            result = runner.invoke(cli, ["doctor", "--skip-connectivity"])
-            assert "deepr init" in result.output
+    def test_no_keys_points_to_capacity_inventory(self, capsys):
+        from deepr.cli.commands.doctor import DiagnosticCheck, print_next_step
 
-    def test_configured_key_points_to_research(self, runner):
-        with patch.dict("os.environ", {"GEMINI_API_KEY": "real-gemini-key-123"}, clear=True):
-            result = runner.invoke(cli, ["doctor", "--skip-connectivity"])
-            assert "research" in result.output.lower()
-            assert "deepr init" not in result.output
+        metered = DiagnosticCheck("Metered API capacity", "API Keys")
+        metered.failure_severity = "info"
+
+        print_next_step([metered])
+
+        output = capsys.readouterr().out
+        assert "Next: deepr capacity" in output
+        assert "capacity next" not in output
+        assert "No metered API keys" in output
+
+    def test_configured_key_points_to_research_preview(self, capsys):
+        from deepr.cli.commands.doctor import DiagnosticCheck, print_next_step
+
+        metered = DiagnosticCheck("Metered API capacity", "API Keys")
+        metered.passed = True
+
+        print_next_step([metered])
+
+        output = capsys.readouterr().out
+        assert "research" in output.lower()
+        assert "--preview" in output
+        assert "deepr init" not in output
+
+    def test_error_blocks_success_and_new_work(self, capsys):
+        from deepr.cli.commands.doctor import DiagnosticCheck, print_next_step
+
+        configured = DiagnosticCheck("OpenAI API Key", "API Keys")
+        configured.passed = True
+        broken = DiagnosticCheck("OpenAI API Connection", "Connectivity")
+
+        print_next_step([configured, broken])
+
+        output = capsys.readouterr().out
+        assert "Resolve the ERROR" in output
+        assert "Setup looks good" not in output
+        assert "research" not in output
+
+    def test_stale_queue_warning_precedes_new_work(self, capsys):
+        from deepr.cli.commands.doctor import DiagnosticCheck, print_next_step
+
+        configured = DiagnosticCheck("OpenAI API Key", "API Keys")
+        configured.passed = True
+        stale = DiagnosticCheck("Queue Lifecycle", "Database")
+        stale.failure_severity = "warning"
+
+        print_next_step([configured, stale])
+
+        output = capsys.readouterr().out
+        assert "jobs list --status queued" in output
+        assert "costs doctor" in output
+        assert "research" not in output
 
 
 class TestDoctorSeverity:
@@ -170,8 +278,8 @@ class TestDoctorSeverity:
         by_name = {c.name: c for c in await check_api_keys({})}
         assert by_name["OpenAI API Key"].severity == "info"
         assert by_name["Anthropic API Key"].severity == "info"
-        # The only real error when nothing is set: no provider at all.
-        assert by_name["At least one provider configured"].severity == "error"
+        assert by_name["Metered API capacity"].severity == "info"
+        assert "local" in by_name["Metered API capacity"].message.lower()
 
     async def test_one_provider_clears_the_summary_error(self, monkeypatch):
         from deepr.cli.commands.doctor import check_api_keys
@@ -181,7 +289,7 @@ class TestDoctorSeverity:
         monkeypatch.setenv("GEMINI_API_KEY", "real-gemini-key-123")
         by_name = {c.name: c for c in await check_api_keys({})}
         assert by_name["Gemini API Key"].passed
-        assert by_name["At least one provider configured"].severity == "ok"
+        assert by_name["Metered API capacity"].severity == "ok"
         assert by_name["Azure OpenAI Key"].severity == "info"  # unset optional, not an error
 
     def test_summarize_counts_only_errors_as_issues(self):
@@ -199,6 +307,48 @@ class TestDoctorSeverity:
 
         counts = _summarize([ok, optional, advisory, real])
         assert counts == {"total": 4, "passed": 1, "errors": 1, "warnings": 1, "info": 1}
+
+    async def test_provider_exception_content_is_not_exposed(self, monkeypatch):
+        from deepr.cli.commands.doctor import check_provider_connectivity
+
+        secret = "provider-response-secret-should-not-render"
+
+        class FailingModels:
+            async def list(self):
+                raise RuntimeError(secret)
+
+        class FailingClient:
+            models = FailingModels()
+
+        class FailingGeminiModels:
+            def list(self):
+                raise RuntimeError(secret)
+
+        class FailingGeminiClient:
+            models = FailingGeminiModels()
+
+        fake_openai = types.ModuleType("openai")
+        fake_openai.AsyncOpenAI = lambda **_: FailingClient()
+        fake_openai.AsyncAzureOpenAI = lambda **_: FailingClient()
+        fake_genai = types.ModuleType("google.genai")
+        fake_genai.Client = lambda **_: FailingGeminiClient()
+        fake_google = types.ModuleType("google")
+        fake_google.genai = fake_genai
+        monkeypatch.setitem(sys.modules, "openai", fake_openai)
+        monkeypatch.setitem(sys.modules, "google", fake_google)
+        monkeypatch.setitem(sys.modules, "google.genai", fake_genai)
+        for name in ("OPENAI_API_KEY", "GEMINI_API_KEY", "XAI_API_KEY"):
+            monkeypatch.setenv(name, "configured-test-key")
+        monkeypatch.setenv("ANTHROPIC_API_KEY", "configured-test-key")
+        monkeypatch.delenv("AZURE_OPENAI_API_KEY", raising=False)
+
+        checks = await check_provider_connectivity({})
+        rendered = " ".join(check.message + " " + " ".join(check.details) for check in checks)
+
+        assert rendered.count("Connection check failed") == 3
+        assert "Anthropic API Connectivity" in " ".join(check.name for check in checks)
+        assert "not checked" in rendered.lower()
+        assert secret not in rendered
 
 
 class TestDiagnosticsCommand:

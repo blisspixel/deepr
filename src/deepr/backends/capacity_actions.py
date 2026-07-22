@@ -156,7 +156,7 @@ def build_capacity_next_actions(
             actions.append(probe_block)
             actions.extend(_wait_actions(context))
             if not context.requires_local:
-                actions.extend(_fallback_actions(context, sources))
+                actions.extend(_metered_preview_actions(sources))
             return sorted(actions, key=lambda action: action.rank)
 
         actions.append(
@@ -165,7 +165,7 @@ def build_capacity_next_actions(
                 "ready",
                 "Automatic local routing is ready",
                 _ready_detail(choice.reason, context, local_capacity=local_capacity),
-                _expert_command(context, local=True),
+                _local_expert_command(context),
             )
         )
         return actions
@@ -175,7 +175,7 @@ def build_capacity_next_actions(
     actions.extend(_latest_eval_actions(context.task_class, benchmarks_dir, quality_floor, models))
     actions.extend(_wait_actions(context))
     if not context.requires_local:
-        actions.extend(_fallback_actions(context, sources))
+        actions.extend(_metered_preview_actions(sources))
     return sorted(actions, key=lambda action: action.rank)
 
 
@@ -321,33 +321,30 @@ def _wait_actions(context: CapacityJobContext) -> list[CapacityNextAction]:
     ]
 
 
-def _fallback_actions(context: CapacityJobContext, sources: list[CapacitySource]) -> list[CapacityNextAction]:
+def _metered_preview_actions(sources: list[CapacitySource]) -> list[CapacityNextAction]:
     if not any(source.kind == BackendKind.API_METERED and source.available for source in sources):
         return []
     return [
         CapacityNextAction(
             9,
-            "fallback",
-            "Metered API is available as last resort",
-            "Use it only behind the explicit budget gate when local capacity is blocked.",
-            _expert_command(context, local=False),
+            "preview",
+            "Preview a separate metered research workflow",
+            "Expert maintenance never falls through to API capacity. This command only previews a separate bounded research job.",
+            'deepr research "your question" --auto --preview',
         )
     ]
 
 
-def _expert_command(context: CapacityJobContext, *, local: bool) -> str:
+def _local_expert_command(context: CapacityJobContext) -> str:
     expert = _quote(context.expert_name)
     if context.task_class == admission.TASK_CLASS_ABSORB:
-        flag = "--local" if local else "--api"
-        return f"deepr expert absorb {expert} {context.report_id} {flag} -y"
-    if local:
-        context_flag = ""
-        if context.context_mode == "fresh":
-            context_flag = " --fresh-context"
-        elif context.context_mode == "deep":
-            context_flag = " --deep-context"
-        return f"deepr expert sync {expert}{context_flag} -y"
-    return f"deepr expert sync {expert} --api --budget 2.00 -y"
+        return f"deepr expert absorb {expert} {context.report_id} --local -y"
+    context_flag = ""
+    if context.context_mode == "fresh":
+        context_flag = " --fresh-context"
+    elif context.context_mode == "deep":
+        context_flag = " --deep-context"
+    return f"deepr expert sync {expert}{context_flag} -y"
 
 
 def _quote(value: str) -> str:

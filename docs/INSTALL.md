@@ -42,7 +42,8 @@ pip install -e .          # core
 # pip install -e ".[full]"  # web + everything
 
 cp .env.example .env
-deepr doctor && deepr budget set 50
+deepr doctor --skip-connectivity
+deepr budget set 50
 deepr --version
 ```
 
@@ -58,7 +59,8 @@ pip install -e .          # core
 # pip install -e ".[full]"  # web + everything
 
 cp .env.example .env
-deepr doctor && deepr budget set 50
+deepr doctor --skip-connectivity
+deepr budget set 50
 deepr --version
 ```
 
@@ -129,9 +131,8 @@ DEEPR_MAX_COST_PER_MONTH=50.0
 # Set monthly budget (one-time setup)
 deepr budget set 50
 
-# This protects you from unexpected costs
-# Jobs auto-execute if under budget
-# You'll be prompted when approaching limit
+# This blocks work whose estimate exceeds the ceiling
+# A budget ceiling never authorizes spend; preview and confirmation still apply
 ```
 
 ### Step 4: Run Your First Research
@@ -224,7 +225,10 @@ DEEPR_REPORTS_PATH=data/reports     # Separate report root
 
 ### Recommended Provider Setup
 
-**Minimum:** run `deepr init` and `deepr doctor`. A local Ollama model or an
+**Minimum:** run `deepr init`, `deepr doctor --skip-connectivity`, and
+`deepr capacity`. Base capacity directs local sources to `capacity next` and
+registered installed plan adapters to `capacity fleet`; unadapted CLIs remain
+inventory-only. A local Ollama model or an
 explicit admitted plan-quota CLI can support `$0` marginal-cost expert
 maintenance without provider keys. For API-backed research, any single provider
 key works.
@@ -259,13 +263,13 @@ If `deepr --version` doesn't work after installation:
 
 ```bash
 # Make sure pip installed to the right place
-pip show deepr
+pip show deepr-research
 
 # If installed but command not found, try:
 python -m deepr.cli.main --version
 
 # Or reinstall with:
-pip uninstall deepr
+pip uninstall deepr-research
 pip install -e .
 ```
 
@@ -357,7 +361,7 @@ After installation:
 ## Uninstall
 
 ```bash
-pip uninstall deepr
+pip uninstall deepr-research
 ```
 
 ## Getting Help

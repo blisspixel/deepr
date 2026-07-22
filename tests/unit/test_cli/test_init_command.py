@@ -10,7 +10,27 @@ from __future__ import annotations
 import pytest
 from click.testing import CliRunner
 
+from deepr.backends.capacity import BackendKind, CapacitySource, CostModel
 from deepr.cli.commands.init import _key_is_set, _read_env_file, _upsert_env, init
+
+
+def _capacity_source(
+    name: str,
+    kind: BackendKind,
+    *,
+    backend_id: str | None = None,
+    cost_model: CostModel | None = None,
+    detail: str = "test evidence",
+) -> CapacitySource:
+    resolved_cost = (
+        cost_model
+        or {
+            BackendKind.LOCAL: CostModel.OWNED_HARDWARE,
+            BackendKind.PLAN_QUOTA: CostModel.CREDIT_POOL,
+            BackendKind.API_METERED: CostModel.METERED,
+        }[kind]
+    )
+    return CapacitySource(name, kind, resolved_cost, True, detail=detail, backend_id=backend_id or name.lower())
 
 
 @pytest.fixture(autouse=True)
@@ -111,6 +131,107 @@ class TestInitYes:
             assert env["DEEPR_DATA_DIR"] == "/synced/deepr"
             assert env["DEEPR_EXPERTS_PATH"] == "/synced/deepr/experts"
             assert env["DEEPR_REPORTS_PATH"] == "/synced/deepr/reports"
+
+    def test_summary_uses_workflow_specific_safe_next_actions(self, monkeypatch):
+        monkeypatch.setattr(
+            "deepr.backends.capacity.detect_capacity",
+            lambda **_: [_capacity_source("Ollama", BackendKind.LOCAL)],
+        )
+        runner = CliRunner()
+        with runner.isolated_filesystem():
+            result = runner.invoke(init, ["--yes"])
+
+        assert result.exit_code == 0
+        assert "capacity next --task-class sync" in result.output
+        assert "doctor --skip-connectivity" in result.output
+        assert "will use the cheapest capacity" not in result.output
+        assert 'research "Your question here" --auto\n' not in result.output
+
+    def test_configured_api_key_adds_preview_not_live_research(self, monkeypatch):
+        monkeypatch.setenv("GEMINI_API_KEY", "real-gemini-key-123")
+        monkeypatch.setattr(
+            "deepr.backends.capacity.detect_capacity",
+            lambda **_: [_capacity_source("Gemini", BackendKind.API_METERED)],
+        )
+        runner = CliRunner()
+        with runner.isolated_filesystem():
+            result = runner.invoke(init, ["--yes"])
+
+        assert result.exit_code == 0
+        assert 'research "Your question here" --auto --preview' in result.output
+        assert 'research "Your question here" --auto\n' not in result.output
+
+    def test_plan_only_setup_uses_fleet_not_local_or_metered_guidance(self, monkeypatch):
+        monkeypatch.setattr(
+            "deepr.backends.capacity.detect_capacity",
+            lambda **_: [_capacity_source("Claude Code", BackendKind.PLAN_QUOTA, backend_id="claude")],
+        )
+        runner = CliRunner()
+        with runner.isolated_filesystem():
+            result = runner.invoke(init, ["--yes"])
+
+        assert result.exit_code == 0
+        assert "capacity fleet" in result.output
+        assert "capacity next" not in result.output
+        assert "research" not in result.output
+
+    @pytest.mark.parametrize(
+        ("source", "expected_evidence", "expects_fleet"),
+        [
+            (
+                _capacity_source(
+                    "Copilot CLI",
+                    BackendKind.PLAN_QUOTA,
+                    backend_id="copilot",
+                    cost_model=CostModel.METERED,
+                    detail="monthly AI credits; metered per token",
+                ),
+                "paid per call",
+                True,
+            ),
+            (
+                _capacity_source(
+                    "Cursor CLI",
+                    BackendKind.PLAN_QUOTA,
+                    backend_id="cursor-agent",
+                    detail="Auto model free; frontier models metered",
+                ),
+                "frontier models metered",
+                False,
+            ),
+        ],
+    )
+    def test_plan_style_cli_guidance_preserves_cost_and_adapter_evidence(
+        self, monkeypatch, source, expected_evidence, expects_fleet
+    ):
+        monkeypatch.setattr("deepr.backends.capacity.detect_capacity", lambda **_: [source])
+        runner = CliRunner()
+        with runner.isolated_filesystem():
+            result = runner.invoke(init, ["--yes"])
+
+        assert result.exit_code == 0
+        assert expected_evidence in result.output
+        assert ("capacity fleet" in result.output) is expects_fleet
+        assert ("inventory-only" in result.output) is not expects_fleet
+
+    def test_process_key_overrides_placeholder_copied_from_example(self, monkeypatch):
+        seen_env: dict[str, str] = {}
+
+        def fake_detect_capacity(*, env):
+            seen_env.update(env)
+            return [_capacity_source("Gemini", BackendKind.API_METERED)]
+
+        monkeypatch.setenv("GEMINI_API_KEY", "real-process-key")
+        monkeypatch.setattr("deepr.backends.capacity.detect_capacity", fake_detect_capacity)
+        runner = CliRunner()
+        with runner.isolated_filesystem():
+            with open(".env.example", "w", encoding="utf-8") as handle:
+                handle.write("GEMINI_API_KEY=your-gemini-api-key\n")
+            result = runner.invoke(init, ["--yes"])
+
+        assert result.exit_code == 0
+        assert seen_env["GEMINI_API_KEY"] == "real-process-key"
+        assert "--auto --preview" in result.output
 
 
 class TestInitInteractive:

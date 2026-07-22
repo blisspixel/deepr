@@ -173,7 +173,9 @@ class TestCapacityNextActions:
         assert actions[0].status == "blocked"
         assert actions[0].title == "Admitted local model failed live probe"
         assert "not enough memory" in actions[0].detail
-        assert any(action.status == "fallback" for action in actions)
+        preview = next(action for action in actions if action.status == "preview")
+        assert preview.command.endswith("--auto --preview")
+        assert "--api" not in preview.command
 
     def test_ready_sync_preview_includes_fresh_context_and_expert_name(self, tmp_path):
         p = tmp_path / "adm.jsonl"
@@ -278,7 +280,7 @@ class TestCapacityNextActions:
         assert "ollama serve" in commands
         assert "deepr capacity --probe" in commands
 
-    def test_metered_available_is_last_resort_action(self, tmp_path):
+    def test_metered_source_offers_only_no_spend_research_preview(self, tmp_path):
         actions = build_capacity_next_actions(
             task_class="sync",
             now=T0,
@@ -288,7 +290,10 @@ class TestCapacityNextActions:
             benchmarks_dir=tmp_path / "benchmarks",
         )
 
-        assert any(action.status == "fallback" and "--api" in action.command for action in actions)
+        preview = next(action for action in actions if action.status == "preview")
+        assert preview.command == 'deepr research "your question" --auto --preview'
+        assert all("--api" not in action.command for action in actions)
+        assert all(" --budget " not in action.command for action in actions)
 
     def test_fresh_context_preview_waits_instead_of_metered_fallback(self, tmp_path):
         actions = build_capacity_next_actions(
@@ -302,7 +307,7 @@ class TestCapacityNextActions:
         )
 
         assert any(action.status == "wait" for action in actions)
-        assert not any(action.status == "fallback" for action in actions)
+        assert not any(action.status == "preview" for action in actions)
 
     def test_scheduled_preview_adds_wait_guidance(self, tmp_path):
         actions = build_capacity_next_actions(
@@ -316,7 +321,7 @@ class TestCapacityNextActions:
         )
 
         assert any(action.status == "wait" for action in actions)
-        assert any(action.status == "fallback" for action in actions)
+        assert any(action.status == "preview" for action in actions)
 
     def test_absorb_preview_fills_report_id(self, tmp_path):
         actions = build_capacity_next_actions(
@@ -329,8 +334,9 @@ class TestCapacityNextActions:
             benchmarks_dir=tmp_path / "benchmarks",
         )
 
-        fallback = next(action for action in actions if action.status == "fallback")
-        assert fallback.command == 'deepr expert absorb "Policy Expert" job-123 --api -y'
+        preview = next(action for action in actions if action.status == "preview")
+        assert preview.command == 'deepr research "your question" --auto --preview'
+        assert "expert absorb" not in preview.command
 
     def test_context_mode_rejected_for_absorb(self):
         try:

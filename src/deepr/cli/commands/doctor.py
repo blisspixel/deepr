@@ -108,16 +108,14 @@ async def check_api_keys(config) -> list[DiagnosticCheck]:
         check.details.append("Set ANTHROPIC_API_KEY in .env")
     checks.append(check)
 
-    # Any single provider is enough; the only real error is having none. Each
-    # provider above is individually optional (info), so this is the check that
-    # actually fails a keyless setup.
-    summary = DiagnosticCheck("At least one provider configured", "API Keys")
+    summary = DiagnosticCheck("Metered API capacity", "API Keys")
     if any(c.passed for c in checks):
         summary.passed = True
-        summary.message = "Yes"
+        summary.message = "At least one API key is configured"
     else:
-        summary.message = "No provider keys found"
-        summary.details.append("Add one of OPENAI / GEMINI / XAI / ANTHROPIC_API_KEY (run `deepr init`)")
+        summary.failure_severity = "info"
+        summary.message = "No metered API keys; local and explicit plan workflows remain available"
+        summary.details.append("Run `deepr capacity` to inventory local, plan, and API sources")
     checks.append(summary)
 
     return checks
@@ -140,9 +138,8 @@ async def check_provider_connectivity(config) -> list[DiagnosticCheck]:
             check.passed = True
             check.message = "Connected successfully"
             check.details.append(f"Available models: {len(models.data)}")
-        except Exception as e:
-            check.message = f"Connection failed: {str(e)[:50]}"
-            check.details.append(str(e))
+        except Exception:
+            _record_connectivity_failure(check)
         checks.append(check)
 
     # Gemini (uses google-genai SDK, not the deprecated google.generativeai)
@@ -158,9 +155,8 @@ async def check_provider_connectivity(config) -> list[DiagnosticCheck]:
             check.passed = True
             check.message = "Connected successfully"
             check.details.append(f"Available models: {len(model_list)}")
-        except Exception as e:
-            check.message = f"Connection failed: {str(e)[:50]}"
-            check.details.append(str(e))
+        except Exception:
+            _record_connectivity_failure(check)
         checks.append(check)
 
     # xAI Grok
@@ -176,9 +172,19 @@ async def check_provider_connectivity(config) -> list[DiagnosticCheck]:
             check.passed = True
             check.message = "Connected successfully"
             check.details.append(f"Available models: {len(models.data)}")
-        except Exception as e:
-            check.message = f"Connection failed: {str(e)[:50]}"
-            check.details.append(str(e))
+        except Exception:
+            _record_connectivity_failure(check)
+        checks.append(check)
+
+    # Anthropic does not expose a zero-work model-list check here. Report the
+    # boundary explicitly instead of implying that credential presence was
+    # validated by a live request.
+    anthropic_key = os.getenv("ANTHROPIC_API_KEY")
+    if anthropic_key and anthropic_key != "your-anthropic-api-key":
+        check = DiagnosticCheck("Anthropic API Connectivity", "Connectivity")
+        check.failure_severity = "info"
+        check.message = "Configured; live connectivity not checked"
+        check.details.append("Doctor validates Anthropic credential presence only")
         checks.append(check)
 
     # Azure
@@ -194,12 +200,17 @@ async def check_provider_connectivity(config) -> list[DiagnosticCheck]:
             check.passed = True
             check.message = "Configured (connectivity test skipped)"
             check.details.append("Azure OpenAI client initialized")
-        except Exception as e:
-            check.message = f"Configuration error: {str(e)[:50]}"
-            check.details.append(str(e))
+        except Exception:
+            _record_connectivity_failure(check, configuration=True)
         checks.append(check)
 
     return checks
+
+
+def _record_connectivity_failure(check: DiagnosticCheck, *, configuration: bool = False) -> None:
+    """Keep provider-controlled exception content outside operator output."""
+    check.message = "Configuration check failed" if configuration else "Connection check failed"
+    check.details.append("Verify the configured credential, endpoint, and provider availability, then retry")
 
 
 async def check_filesystem() -> list[DiagnosticCheck]:
@@ -429,31 +440,32 @@ def print_checks(checks: list[DiagnosticCheck]):
 
 
 @click.command()
-@click.option("--skip-connectivity", is_flag=True, help="Skip network connectivity tests")
+@click.option("--skip-connectivity", is_flag=True, help="Skip all provider network calls (recommended first run)")
 def doctor(skip_connectivity: bool):
     """Run diagnostics to check Deepr configuration and connectivity.
 
     Checks:
     - Provider API keys are configured
-    - Network connectivity to providers (unless --skip-connectivity)
+    - Supported provider connectivity checks (unless --skip-connectivity)
     - File system read/write permissions
     - Database access
 
     Examples:
-        deepr doctor
         deepr doctor --skip-connectivity
+        deepr doctor  # contact configured OpenAI, Gemini, and xAI providers
     """
     click.echo("Running Deepr diagnostics...\n")
+    if skip_connectivity:
+        click.echo("Offline mode: provider connectivity checks are skipped.\n")
 
-    async def run_diagnostics():
+    async def run_diagnostics() -> int:
         all_checks = []
 
         # Load config
         try:
             config = load_config()
-        except Exception as e:
-            click.echo(f"Error loading configuration: {e}")
-            return
+        except Exception as exc:
+            raise click.ClickException("Could not load configuration. Review local settings and retry.") from exc
 
         # Run all checks
         with click.progressbar(length=7, label="Running checks") as bar:
@@ -482,25 +494,51 @@ def doctor(skip_connectivity: bool):
         # Print results
         print_checks(all_checks)
         print_next_step(all_checks)
+        return _summarize(all_checks)["errors"]
 
     # Run async checks
-    run_async_command(run_diagnostics())
+    if run_async_command(run_diagnostics()):
+        raise click.ClickException("Diagnostics found one or more errors.")
 
 
 def print_next_step(checks: list[DiagnosticCheck]) -> None:
     """Closing guidance: the single next command for the user's current state.
 
-    Complements ``deepr init`` - a keyless setup is pointed at the wizard
-    rather than left at a bare pass/fail summary.
+    Complements ``deepr init`` by deriving the next no-spend action from the
+    strongest diagnostic evidence available.
     """
-    key_checks = [c for c in checks if c.category == "API Keys"]
-    if not key_checks:
+    errors = [check for check in checks if check.severity == "error"]
+    stale_queue = any(check.name == "Queue Lifecycle" and check.severity == "warning" for check in checks)
+    if errors:
+        click.echo("\nResolve the ERROR checks above before starting new work.")
+        if any(check.category == "Connectivity" for check in errors):
+            click.echo("For an offline-only diagnosis, rerun `deepr doctor --skip-connectivity`.")
+        if stale_queue:
+            _print_stale_queue_guidance()
         return
-    if not any(c.passed for c in key_checks):
-        click.echo("\nNo provider keys detected. Run `deepr init` for guided setup")
-        click.echo("(or add OPENAI_API_KEY / GEMINI_API_KEY / XAI_API_KEY / ANTHROPIC_API_KEY to .env).")
+    if stale_queue:
+        _print_stale_queue_guidance()
+        return
+    if any(check.severity == "warning" for check in checks):
+        click.echo("\nReview the WARN checks above before starting new work.")
+        return
+
+    metered = next((check for check in checks if check.name == "Metered API capacity"), None)
+    if metered is None:
+        return
+    if not metered.passed:
+        click.echo("\nNo metered API keys are configured; local and explicit plan workflows remain available.")
+        click.echo("Next: deepr capacity")
     else:
-        click.echo('\nSetup looks good. Try: deepr research "Your question here" --auto')
+        click.echo(
+            '\nDiagnostics passed. Preview before spending: deepr research "Your question here" --auto --preview'
+        )
+
+
+def _print_stale_queue_guidance() -> None:
+    click.echo("\nReview stale queued work before starting more jobs:")
+    click.echo("  deepr jobs list --status queued")
+    click.echo("  deepr costs doctor")
 
 
 def check_native_instruments() -> list[DiagnosticCheck]:

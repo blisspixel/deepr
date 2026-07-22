@@ -15,6 +15,7 @@ from deepr.backends.plan_quota.adapters import (
     all_adapters,
     auto_routable_adapters,
     get_adapter,
+    get_adapter_by_executable,
 )
 from deepr.backends.plan_quota.client import (
     PlanQuotaChatClient,
@@ -71,6 +72,7 @@ __all__ = [
     "detect_auth_mode",
     "evaluate_plan_quota_safety",
     "get_adapter",
+    "get_adapter_by_executable",
     "make_plan_quota_research_fn",
     "metered_plan_execution_block_reason",
     "plan_quota_child_env",

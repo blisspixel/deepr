@@ -11,7 +11,7 @@ from datetime import UTC, datetime
 
 from click.testing import CliRunner
 
-from deepr.backends.capacity import CostModel
+from deepr.backends.capacity import BackendKind, CapacitySource, CostModel
 from deepr.backends.quota_ledger import (
     QuotaConfidence,
     QuotaEventType,
@@ -22,6 +22,29 @@ from deepr.backends.quota_ledger import (
 )
 from deepr.backends.quota_snapshot import QuotaSnapshot, QuotaWindowSnapshot
 from deepr.cli.commands.capacity import capacity
+
+
+def _source(
+    name: str,
+    kind: BackendKind,
+    *,
+    available: bool = True,
+    backend_id: str | None = None,
+) -> CapacitySource:
+    cost_model = {
+        BackendKind.LOCAL: CostModel.OWNED_HARDWARE,
+        BackendKind.PLAN_QUOTA: CostModel.CREDIT_POOL,
+        BackendKind.API_METERED: CostModel.METERED,
+    }[kind]
+    return CapacitySource(
+        name=name,
+        kind=kind,
+        cost_model=cost_model,
+        available=available,
+        backend_id=backend_id or name.lower().replace(" ", "_"),
+        detail="test evidence",
+    )
+
 
 _CLEAN = (
     "OPENAI_API_KEY",
@@ -135,6 +158,57 @@ class TestLocalAdmissionGuidance:
         assert "Local preference removed" in revoked.output
         assert "capacity next" in revoked.output
         assert "falls back" not in revoked.output
+
+
+class TestCapacityInventoryLanguage:
+    def test_human_output_distinguishes_detection_configuration_and_installation(self, capsys):
+        from deepr.cli.commands.capacity import _print_sources
+
+        _print_sources(
+            [
+                _source("Ollama", BackendKind.LOCAL),
+                _source("Claude CLI", BackendKind.PLAN_QUOTA, backend_id="claude"),
+                _source("OpenAI", BackendKind.API_METERED),
+            ]
+        )
+
+        output = capsys.readouterr().out
+        assert "Capacity sources detected" in output
+        assert "used in order" not in output
+        assert "Ollama" in output and "detected" in output
+        assert "Claude CLI" in output and "installed" in output
+        assert "OpenAI" in output and "configured" in output
+        assert "Owned/prepaid capacity available" not in output
+        assert "capacity next" in output
+        assert "capacity fleet" in output
+
+    def test_json_inventory_names_evidence_without_claiming_execution(self):
+        from deepr.cli.commands.capacity import _source_to_dict
+
+        plan = _source_to_dict(_source("Claude CLI", BackendKind.PLAN_QUOTA, backend_id="claude"), [])
+        local = _source_to_dict(_source("Ollama", BackendKind.LOCAL), [])
+        api = _source_to_dict(_source("OpenAI", BackendKind.API_METERED), [])
+
+        assert plan["available"] is True  # compatibility field
+        assert plan["availability_basis"] == "installed_on_path"
+        assert local["availability_basis"] == "local_runtime_detected"
+        assert api["availability_basis"] == "credential_configured"
+        assert plan["execution_eligible"] is None
+        assert plan["eligibility_command"] == "deepr capacity fleet"
+        assert local["eligibility_command"] == "deepr capacity next --task-class sync"
+        assert api["eligibility_command"] is None
+
+        cursor = _source("Cursor CLI", BackendKind.PLAN_QUOTA)
+        cursor.backend_id = "cursor-agent"
+        assert _source_to_dict(cursor, [])["eligibility_command"] is None
+
+    def test_absent_sources_are_deterministically_ineligible(self):
+        from deepr.cli.commands.capacity import _source_to_dict
+
+        for kind in BackendKind:
+            source = _source(kind.value, kind, available=False)
+            payload = _source_to_dict(source, [])
+            assert payload["execution_eligible"] is False
 
 
 class TestProbePlan:

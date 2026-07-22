@@ -12,9 +12,16 @@ from deepr.backends.plan_quota.adapters import (
     all_adapters,
     auto_routable_adapters,
     get_adapter,
+    get_adapter_by_executable,
     parse_reset_after_seconds,
     parse_reset_at_utc,
 )
+
+
+def test_adapter_lookup_by_executable_excludes_unadapted_clis():
+    assert get_adapter_by_executable("claude").backend_id == "claude"
+    assert get_adapter_by_executable("kiro-cli").backend_id == "kiro"
+    assert get_adapter_by_executable("cursor-agent") is None
 
 
 class TestResetParser:
