@@ -261,7 +261,11 @@ one bounded research job at a time.
 
 Model names and prices move quickly. The registry under
 `src/deepr/providers/registry.py` is the canonical source for pricing used by
-estimates and settlement. Current Anthropic support includes `claude-sonnet-5`
+estimates and settlement. Current Gemini support includes the generally
+available `gemini-3.6-flash` and `gemini-3.5-flash-lite` models with their
+July 21, 2026 thinking-level request contract. Gemini 3.5 Flash Cyber is not a
+general Gemini API model and is therefore not registered. Current Anthropic
+support includes `claude-sonnet-5`
 for balanced chat/synthesis and `claude-opus-4-8` for higher-reasoning research;
 Sonnet 5 is handled through the native Messages API with adaptive thinking and
 no non-default sampling parameters. Deepr estimates Sonnet 5 with Anthropic's
@@ -394,6 +398,21 @@ independent first positions, targeted challenges, dissent preservation, typed
 stops, inert untrusted text, no fallback, and proposal-only authority. The
 report is explicitly `unreviewed` for semantic quality, and no live multi-round
 surface is enabled by this command.
+
+Epistemic simulation Stage 0 publishes strict, read-only contracts for factual,
+perspective, simulation, episodic, and governance lanes plus a frozen five-arm
+evaluation fixture. It preserves structured branch interventions, endpoint-bound
+evidence lineage, causally ordered belief revision, invalidated-memory
+exclusion, access checked against an externally supplied principal, canonical
+context sizing, disjoint artifact identifiers, lane-to-record-type authority,
+matched pair time and evidence identity, concrete adversarial witnesses, and a
+persistent constructed-simulation disclosure. Stage 0 validates only the five
+future arm declarations: no arm input or output is supplied or executed,
+including the declared three-lens arm. This is an internal evidence surface
+only: no public command, live lens, model call, expert-state write, semantic
+quality verdict, winner, or runtime-default change is enabled. See
+[the design](docs/design/epistemic-simulation-experts.md) and
+[evaluation protocol](docs/design/epistemic-simulation-evaluation.md).
 
 `deepr expert review-consult-quality` turns one review-ready consult trace case
 into a `deepr-consult-quality-review-v1` artifact. Human or calibrated-model

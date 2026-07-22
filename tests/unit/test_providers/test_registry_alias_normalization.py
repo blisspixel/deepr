@@ -10,7 +10,12 @@ from __future__ import annotations
 
 import pytest
 
-from deepr.providers.registry import get_cached_input_pricing, get_cost_estimate, get_token_pricing
+from deepr.providers.registry import (
+    get_cached_input_pricing,
+    get_cost_estimate,
+    get_token_pricing,
+)
+from deepr.providers.registry_pricing import get_resolved_model_capability
 
 
 class TestGrokAliasNormalization:
@@ -49,6 +54,27 @@ class TestAliasResolution:
         # Falls back to o4-mini default rates
         assert prices["input"] == pytest.approx(1.10)
         assert prices["output"] == pytest.approx(4.40)
+
+    @pytest.mark.parametrize(
+        ("alias", "model", "input_rate", "output_rate", "cached_rate"),
+        [
+            ("gemini-flash", "gemini-3.6-flash", 1.50, 7.50, 0.15),
+            ("gemini-flash-lite", "gemini-3.5-flash-lite", 0.30, 2.50, 0.03),
+        ],
+    )
+    def test_current_gemini_aliases_share_canonical_pricing(
+        self,
+        alias,
+        model,
+        input_rate,
+        output_rate,
+        cached_rate,
+    ):
+        capability = get_resolved_model_capability(alias)
+        assert capability is not None
+        assert capability.model == model
+        assert get_token_pricing(alias) == {"input": input_rate, "output": output_rate}
+        assert get_cached_input_pricing(alias) == pytest.approx(cached_rate)
 
 
 class TestPartialMatchOrdering:

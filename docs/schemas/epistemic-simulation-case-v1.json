@@ -1,0 +1,392 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/blisspixel/deepr/docs/schemas/epistemic-simulation-case-v1.json",
+  "title": "Deepr Epistemic Simulation Case v1",
+  "description": "One frozen epistemic-simulation case with concrete structural witnesses, five future-arm declarations, and zero-call bounds.",
+  "x-deepr-linked-validator": {
+    "python": "deepr.evals.epistemic_simulation:EpistemicSimulationCaseBundle.model_validate",
+    "schema_only_is_sufficient": false,
+    "validation_scope": "enclosing frozen case bundle"
+  },
+  "$defs": {
+    "CaseBounds": {
+      "additionalProperties": false,
+      "properties": {
+        "max_context_bytes": {
+          "exclusiveMinimum": 0,
+          "maximum": 4194304,
+          "title": "Max Context Bytes",
+          "type": "integer"
+        },
+        "max_output_tokens": {
+          "exclusiveMinimum": 0,
+          "maximum": 131072,
+          "title": "Max Output Tokens",
+          "type": "integer"
+        },
+        "max_provider_calls": {
+          "const": 0,
+          "maximum": 0,
+          "minimum": 0,
+          "title": "Max Provider Calls",
+          "type": "integer"
+        },
+        "max_network_requests": {
+          "const": 0,
+          "maximum": 0,
+          "minimum": 0,
+          "title": "Max Network Requests",
+          "type": "integer"
+        },
+        "max_cost_usd": {
+          "const": 0.0,
+          "maximum": 0.0,
+          "minimum": 0.0,
+          "title": "Max Cost Usd",
+          "type": "number"
+        },
+        "max_elapsed_seconds": {
+          "exclusiveMinimum": 0,
+          "maximum": 3600,
+          "title": "Max Elapsed Seconds",
+          "type": "integer"
+        },
+        "max_disk_bytes": {
+          "maximum": 67108864,
+          "minimum": 0,
+          "title": "Max Disk Bytes",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "max_context_bytes",
+        "max_output_tokens",
+        "max_provider_calls",
+        "max_network_requests",
+        "max_cost_usd",
+        "max_elapsed_seconds",
+        "max_disk_bytes"
+      ],
+      "title": "CaseBounds",
+      "type": "object"
+    },
+    "CaseSnapshots": {
+      "additionalProperties": false,
+      "properties": {
+        "model_version": {
+          "const": "not_executed",
+          "title": "Model Version",
+          "type": "string"
+        },
+        "prompt_version": {
+          "minLength": 1,
+          "title": "Prompt Version",
+          "type": "string"
+        },
+        "compiler_version": {
+          "minLength": 1,
+          "title": "Compiler Version",
+          "type": "string"
+        },
+        "schema_version": {
+          "minLength": 1,
+          "title": "Schema Version",
+          "type": "string"
+        },
+        "expert_snapshot_version": {
+          "minLength": 1,
+          "title": "Expert Snapshot Version",
+          "type": "string"
+        }
+      },
+      "required": [
+        "model_version",
+        "prompt_version",
+        "compiler_version",
+        "schema_version",
+        "expert_snapshot_version"
+      ],
+      "title": "CaseSnapshots",
+      "type": "object"
+    },
+    "CaseStructuralWitnesses": {
+      "additionalProperties": false,
+      "properties": {
+        "record_ids": {
+          "items": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "title": "Record Ids",
+          "type": "array"
+        },
+        "edge_ids": {
+          "items": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "title": "Edge Ids",
+          "type": "array"
+        },
+        "revision_ids": {
+          "items": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "title": "Revision Ids",
+          "type": "array"
+        }
+      },
+      "title": "CaseStructuralWitnesses",
+      "type": "object"
+    },
+    "PairedCase": {
+      "additionalProperties": false,
+      "properties": {
+        "pair_id": {
+          "minLength": 1,
+          "title": "Pair Id",
+          "type": "string"
+        },
+        "counterpart_case_id": {
+          "minLength": 1,
+          "title": "Counterpart Case Id",
+          "type": "string"
+        },
+        "intervention_variable": {
+          "minLength": 1,
+          "title": "Intervention Variable",
+          "type": "string"
+        },
+        "intervention_value": {
+          "minLength": 1,
+          "title": "Intervention Value",
+          "type": "string"
+        },
+        "invariants": {
+          "items": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "minItems": 1,
+          "title": "Invariants",
+          "type": "array"
+        },
+        "conclusion_should_change": {
+          "minLength": 1,
+          "title": "Conclusion Should Change",
+          "type": "string"
+        }
+      },
+      "required": [
+        "pair_id",
+        "counterpart_case_id",
+        "intervention_variable",
+        "intervention_value",
+        "invariants",
+        "conclusion_should_change"
+      ],
+      "title": "PairedCase",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": {
+      "const": "deepr-epistemic-simulation-case-v1",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "kind": {
+      "const": "deepr.eval.epistemic_simulation.case",
+      "title": "Kind",
+      "type": "string"
+    },
+    "case_id": {
+      "minLength": 1,
+      "title": "Case Id",
+      "type": "string"
+    },
+    "task_class": {
+      "minLength": 1,
+      "title": "Task Class",
+      "type": "string"
+    },
+    "domain": {
+      "minLength": 1,
+      "title": "Domain",
+      "type": "string"
+    },
+    "risk_class": {
+      "enum": [
+        "low",
+        "medium",
+        "high"
+      ],
+      "title": "Risk Class",
+      "type": "string"
+    },
+    "case_families": {
+      "items": {
+        "enum": [
+          "stale_premise",
+          "assumption_leakage",
+          "invalidated_memory",
+          "identity_pressure",
+          "dissent",
+          "access_controlled_evidence",
+          "useful_unverified_hypothesis",
+          "counterfactual_transfer"
+        ],
+        "type": "string"
+      },
+      "minItems": 1,
+      "title": "Case Families",
+      "type": "array"
+    },
+    "question": {
+      "minLength": 1,
+      "title": "Question",
+      "type": "string"
+    },
+    "requested_decision": {
+      "minLength": 1,
+      "title": "Requested Decision",
+      "type": "string"
+    },
+    "time_horizon": {
+      "minLength": 1,
+      "title": "Time Horizon",
+      "type": "string"
+    },
+    "success_criteria": {
+      "items": {
+        "minLength": 1,
+        "type": "string"
+      },
+      "minItems": 1,
+      "title": "Success Criteria",
+      "type": "array"
+    },
+    "shared_evidence_refs": {
+      "items": {
+        "minLength": 1,
+        "type": "string"
+      },
+      "minItems": 1,
+      "title": "Shared Evidence Refs",
+      "type": "array"
+    },
+    "private_evidence_refs": {
+      "items": {
+        "minLength": 1,
+        "type": "string"
+      },
+      "title": "Private Evidence Refs",
+      "type": "array"
+    },
+    "redaction_policy": {
+      "minLength": 1,
+      "title": "Redaction Policy",
+      "type": "string"
+    },
+    "lens_id": {
+      "minLength": 1,
+      "title": "Lens Id",
+      "type": "string"
+    },
+    "context_id": {
+      "minLength": 1,
+      "title": "Context Id",
+      "type": "string"
+    },
+    "known_alternatives": {
+      "items": {
+        "minLength": 1,
+        "type": "string"
+      },
+      "minItems": 1,
+      "title": "Known Alternatives",
+      "type": "array"
+    },
+    "null_hypothesis": {
+      "minLength": 1,
+      "title": "Null Hypothesis",
+      "type": "string"
+    },
+    "decision_cruxes": {
+      "items": {
+        "minLength": 1,
+        "type": "string"
+      },
+      "minItems": 1,
+      "title": "Decision Cruxes",
+      "type": "array"
+    },
+    "structural_witnesses": {
+      "$ref": "#/$defs/CaseStructuralWitnesses"
+    },
+    "paired_case": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/PairedCase"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "expected_arm_ids": {
+      "items": {
+        "enum": [
+          "generic",
+          "style_only",
+          "current_memory",
+          "compiled_lens",
+          "blinded_multi_lens"
+        ],
+        "type": "string"
+      },
+      "title": "Expected Arm Ids",
+      "type": "array"
+    },
+    "hidden_reference_status": {
+      "const": "not_in_fixture",
+      "title": "Hidden Reference Status",
+      "type": "string"
+    },
+    "bounds": {
+      "$ref": "#/$defs/CaseBounds"
+    },
+    "snapshots": {
+      "$ref": "#/$defs/CaseSnapshots"
+    }
+  },
+  "required": [
+    "schema_version",
+    "kind",
+    "case_id",
+    "task_class",
+    "domain",
+    "risk_class",
+    "case_families",
+    "question",
+    "requested_decision",
+    "time_horizon",
+    "success_criteria",
+    "shared_evidence_refs",
+    "redaction_policy",
+    "lens_id",
+    "context_id",
+    "known_alternatives",
+    "null_hypothesis",
+    "decision_cruxes",
+    "structural_witnesses",
+    "expected_arm_ids",
+    "hidden_reference_status",
+    "bounds",
+    "snapshots"
+  ],
+  "type": "object"
+}

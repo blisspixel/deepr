@@ -7,6 +7,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import httpx
 import pytest
+from google.genai import types
 from google.genai.errors import APIError as GenaiAPIError
 
 from deepr.providers.base import ResearchRequest, ToolConfig
@@ -29,6 +30,8 @@ class TestGeminiProvider:
         """Test provider initializes correctly."""
         assert provider.api_key == "test-gemini-key"
         assert provider.client is not None
+        assert "gemini-3.6-flash" in provider.model_mappings
+        assert "gemini-3.5-flash-lite" in provider.model_mappings
         assert "gemini-2.5-pro" in provider.model_mappings
         assert "gemini-2.5-flash" in provider.model_mappings
 
@@ -44,17 +47,21 @@ class TestGeminiProvider:
 
     def test_model_name_mapping(self, provider):
         """Test model name mapping."""
+        assert provider.get_model_name("gemini-3.6-flash") == "gemini-3.6-flash"
+        assert provider.get_model_name("gemini-3.5-flash-lite") == "gemini-3.5-flash-lite"
         assert provider.get_model_name("gemini-3.1-pro-preview") == "gemini-3.1-pro-preview"
         assert provider.get_model_name("gemini-3.1-pro") == "gemini-3.1-pro-preview"  # Alias
         assert provider.get_model_name("gemini-2.5-pro") == "gemini-2.5-pro"
         assert provider.get_model_name("gemini-2.5-flash") == "gemini-2.5-flash"
         assert provider.get_model_name("gemini-pro") == "gemini-3.1-pro-preview"  # Default pro alias
-        assert provider.get_model_name("gemini-flash") == "gemini-2.5-flash"  # Alias
-        assert provider.get_model_name("gemini-flash-lite") == "gemini-3.1-flash-lite"
+        assert provider.get_model_name("gemini-flash") == "gemini-3.6-flash"
+        assert provider.get_model_name("gemini-flash-lite") == "gemini-3.5-flash-lite"
         assert provider.get_model_name("unknown-model") == "unknown-model"
 
     def test_pricing_configuration(self, provider):
         """Test pricing is configured correctly."""
+        assert provider.pricing["gemini-3.6-flash"] == {"input": 1.50, "output": 7.50}
+        assert provider.pricing["gemini-3.5-flash-lite"] == {"input": 0.30, "output": 2.50}
         assert "gemini-3.1-pro-preview" in provider.pricing
         assert "gemini-3.1-flash-lite-preview" in provider.pricing
         assert "gemini-2.5-pro" in provider.pricing
@@ -101,9 +108,48 @@ class TestGeminiProvider:
 
     def test_thinking_config_lite_model(self, provider):
         """Test thinking config for Flash-Lite model (optional thinking)."""
-        # Flash-Lite typically doesn't use thinking for simple tasks
         config = provider._get_thinking_config("gemini-2.5-flash-lite", complexity="low")
-        # May return None or minimal thinking config
+        assert config is None
+
+    @pytest.mark.parametrize(
+        ("model", "complexity", "expected_level"),
+        [
+            ("gemini-3.6-flash", "easy", types.ThinkingLevel.MEDIUM),
+            ("gemini-3.6-flash", "hard", types.ThinkingLevel.HIGH),
+            ("gemini-3.5-flash-lite", "easy", types.ThinkingLevel.MINIMAL),
+            ("gemini-3.5-flash-lite", "medium", types.ThinkingLevel.MEDIUM),
+            ("gemini-3.5-flash-lite", "hard", types.ThinkingLevel.HIGH),
+        ],
+    )
+    def test_new_models_use_thinking_level(self, provider, model, complexity, expected_level):
+        """July 2026 models require thinking_level instead of thinking_budget."""
+        config = provider._get_thinking_config(model, complexity=complexity)
+        assert config is not None
+        assert config.thinking_level == expected_level
+        assert config.thinking_budget is None
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("model", ["gemini-3.6-flash", "gemini-3.5-flash-lite"])
+    async def test_new_models_omit_deprecated_sampling_parameters(self, provider, model):
+        """The new model family must not receive temperature, top_p, or top_k."""
+        request = ResearchRequest(
+            prompt="Short request",
+            model=model,
+            system_message="Be precise.",
+            temperature=0.25,
+            tools=[],
+        )
+
+        with patch.object(provider.client.models, "generate_content_stream", return_value=[]) as generate:
+            await provider.submit_research(request)
+
+        config = generate.call_args.kwargs["config"]
+        payload = config.model_dump(mode="json", exclude_none=True)
+        assert "temperature" not in payload
+        assert "top_p" not in payload
+        assert "top_k" not in payload
+        assert "thinking_level" in payload["thinking_config"]
+        assert "thinking_budget" not in payload["thinking_config"]
 
     @pytest.mark.asyncio
     async def test_submit_research_basic(self, provider):
@@ -119,7 +165,9 @@ class TestGeminiProvider:
         mock_response.candidates = [mock_candidate]
         mock_response.usage_metadata = MagicMock()
         mock_response.usage_metadata.prompt_token_count = 100
+        mock_response.usage_metadata.cached_content_token_count = 40
         mock_response.usage_metadata.candidates_token_count = 200
+        mock_response.usage_metadata.thoughts_token_count = 0
         mock_response.usage_metadata.total_token_count = 300
 
         with patch.object(provider.client.models, "generate_content_stream") as mock_generate:
@@ -127,7 +175,7 @@ class TestGeminiProvider:
 
             request = ResearchRequest(
                 prompt="Test prompt",
-                model="gemini-2.5-flash",
+                model="gemini-3.6-flash",
                 system_message="Test system message",
                 tools=[],
             )
@@ -138,6 +186,11 @@ class TestGeminiProvider:
             assert job_id is not None
             assert len(job_id) > 0
             mock_generate.assert_called_once()
+
+            response = await provider.get_status(job_id)
+            assert response.usage is not None
+            assert response.usage.cached_input_tokens == 40
+            assert response.usage.cost == pytest.approx(0.001596)
 
     def test_google_search_grounding(self, provider):
         """Test that Google Search can be enabled for grounding.
@@ -192,18 +245,6 @@ class TestGeminiToolConfiguration:
         assert tools[0].type == "code_execution"
         # Gemini Code Execution doesn't need container parameters
 
-    def test_multimodal_file_upload(self, provider):
-        """Test that Gemini handles file uploads differently than OpenAI.
-
-        Gemini uploads files directly (not vector stores) and supports:
-        - Images, audio, video (multimodal)
-        - PDFs and documents
-        - No vector store abstraction needed
-        """
-        # This tests the concept - implementation would be in actual provider code
-        # Gemini files are uploaded with MIME type detection
-        pass
-
 
 class TestGeminiVsOpenAIDifferences:
     """Document key differences between Gemini and OpenAI providers.
@@ -226,18 +267,6 @@ class TestGeminiVsOpenAIDifferences:
         assert hasattr(provider, "jobs")  # Regular job tracking
         assert hasattr(provider, "_deep_research_jobs")  # Deep research tracking
 
-    def test_tool_naming_differences(self, provider):
-        """Document: Different tool names between providers.
-
-        OpenAI -> Gemini:
-        - web_search_preview -> google_search
-        - code_interpreter -> code_execution
-        - file_search (vector stores) -> Direct file upload with MIME detection
-        """
-        # This is a documentation test
-        # Developers need to know these differences when switching providers
-        pass
-
     def test_thinking_vs_reasoning(self, provider):
         """Document: Gemini "thinking" vs OpenAI "reasoning".
 
@@ -258,9 +287,11 @@ class TestGeminiVsOpenAIDifferences:
 
         This affects how we handle long documents.
         """
-        # This is a documentation test
-        # Gemini can handle much larger document uploads
-        pass
+        from deepr.providers.registry import get_model_capability
+
+        capability = get_model_capability("gemini", provider.get_model_name("gemini-flash"))
+        assert capability is not None
+        assert capability.context_window == 1_048_576
 
 
 class TestGeminiCostCalculation:

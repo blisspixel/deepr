@@ -1,7 +1,7 @@
 # Expert Event Memory V2
 
-Status: researched architecture proposal, 2026-07-10. No authority migration or
-multi-device merge is shipped.
+Status: researched architecture proposal, updated 2026-07-22. No authority
+migration or multi-device merge is shipped.
 
 ## Decision direction
 
@@ -75,6 +75,30 @@ governance or identity distinct. Retrieval may compose lanes, but every item
 retains its authority. An outcome may add episode evidence; it cannot directly
 rewrite identity. Accepted identity changes require explicit reviewed events.
 
+## Simulation branches and belief deltas
+
+Epistemic simulations add a fifth, branch-scoped authority lane rather than
+overloading factual or perspective state. Every simulated assumption,
+implication, prediction, revision, and episode carries an immutable branch id,
+scenario time, and parent branch. A merge can reconcile storage or selected
+method state; it never means that branch-local claims became externally true.
+
+The canonical event history should preserve observations and revisions, not
+only the latest confidence. A belief-delta event needs prior and posterior
+state refs, triggering evidence or observation, retained alternatives, update
+method and provenance, validity time, record time, and calibration scope.
+Probabilistic belief views are projections. Numeric values become probabilities
+only when the alternatives are explicitly exhaustive and the update and
+calibration contract supports that interpretation.
+
+Prospective implications may be indexed to improve later recall, but they keep
+`candidate_only` authority, the originating assumption set, expected and
+disconfirming observations, and an expiry condition. Retrieval can surface a
+prediction; replay and rendering must never relabel it as an observation.
+
+The proposed lane and branch invariants are recorded in
+[ADR 0006](../decisions/0006-epistemic-simulation-memory-authority.md).
+
 ## Revision and forgetting
 
 The mutation path remains:
@@ -126,15 +150,16 @@ stability.
 
 ## Dependency order
 
-1. Approve an ADR for event authority, time semantics, identity authority,
-   deletion policy, and migration invariants.
+1. Approve ADRs for event authority, time semantics, identity authority,
+   simulation lane and branch authority, deletion policy, and migration
+   invariants.
 2. Freeze Deepr-specific held-out baseline cases.
 3. Add ExpertEventV2, replica identity, causal parents, hashes, and shadow
    replay.
 4. Dual-write and prove replay equality before switching authority.
 5. Build bitemporal projections and consolidate duplicate temporal state.
 6. Make revision immutable with explicit supersession and contestation.
-7. Enforce memory-lane authority in retrieval and graph commits.
+7. Enforce memory-lane and branch authority in retrieval and graph commits.
 8. Add simulated selective-forgetting proposals and protected classes.
 9. Add event synchronization and replica convergence tests.
 10. Enable held-out promotion gates.

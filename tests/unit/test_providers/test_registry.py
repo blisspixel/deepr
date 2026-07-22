@@ -128,6 +128,20 @@ class TestModelCapabilities:
 
     def test_gemini_models(self):
         """Test Gemini model capabilities."""
+        gemini_36_flash = get_model_capability("gemini", "gemini-3.6-flash")
+        assert gemini_36_flash is not None
+        assert gemini_36_flash.context_window == 1_048_576
+        assert gemini_36_flash.input_cost_per_1m == pytest.approx(1.50)
+        assert gemini_36_flash.output_cost_per_1m == pytest.approx(7.50)
+        assert gemini_36_flash.cached_input_cost_per_1m == pytest.approx(0.15)
+
+        gemini_35_flash_lite = get_model_capability("gemini", "gemini-3.5-flash-lite")
+        assert gemini_35_flash_lite is not None
+        assert gemini_35_flash_lite.context_window == 1_048_576
+        assert gemini_35_flash_lite.input_cost_per_1m == pytest.approx(0.30)
+        assert gemini_35_flash_lite.output_cost_per_1m == pytest.approx(2.50)
+        assert gemini_35_flash_lite.cached_input_cost_per_1m == pytest.approx(0.03)
+
         gemini_pro = get_model_capability("gemini", "gemini-3.1-pro-preview")
         assert gemini_pro is not None
         assert "large_context" in gemini_pro.specializations
@@ -137,6 +151,10 @@ class TestModelCapabilities:
         assert gemini_flash is not None
         assert "speed" in gemini_flash.specializations
         assert gemini_flash.cost_per_query < 0.01  # Very cheap
+
+    def test_limited_access_flash_cyber_is_not_public_capacity(self):
+        """CodeMender-only Flash Cyber must not appear as a Gemini API model."""
+        assert get_model_capability("gemini", "gemini-3.5-flash-cyber") is None
 
     def test_shutdown_gemini_preview_models_are_deprecated(self):
         """Current Google model docs list these preview IDs as shut down."""

@@ -1,0 +1,2145 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/blisspixel/deepr/docs/schemas/epistemic-simulation-case-bundle-v1.json",
+  "title": "Deepr Epistemic Simulation Case Bundle v1",
+  "description": "Frozen Stage 0 lens, context, unexecuted arm declaration, and adversarial-case bundle with no runtime or write authority.",
+  "x-deepr-linked-validator": {
+    "python": "deepr.evals.epistemic_simulation:EpistemicSimulationCaseBundle.model_validate",
+    "schema_only_is_sufficient": false
+  },
+  "$defs": {
+    "AccessPolicy": {
+      "additionalProperties": false,
+      "properties": {
+        "visibility": {
+          "enum": [
+            "public",
+            "access_controlled",
+            "withheld"
+          ],
+          "title": "Visibility",
+          "type": "string"
+        },
+        "authorized_principal_ids": {
+          "items": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "title": "Authorized Principal Ids",
+          "type": "array"
+        },
+        "redacted_description": {
+          "anyOf": [
+            {
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Redacted Description"
+        }
+      },
+      "required": [
+        "visibility"
+      ],
+      "title": "AccessPolicy",
+      "type": "object"
+    },
+    "BeliefRevision": {
+      "additionalProperties": false,
+      "properties": {
+        "revision_id": {
+          "minLength": 1,
+          "title": "Revision Id",
+          "type": "string"
+        },
+        "sequence": {
+          "minimum": 1,
+          "title": "Sequence",
+          "type": "integer"
+        },
+        "valid_time": {
+          "minLength": 1,
+          "title": "Valid Time",
+          "type": "string"
+        },
+        "recorded_at": {
+          "minLength": 1,
+          "title": "Recorded At",
+          "type": "string"
+        },
+        "branch_id": {
+          "anyOf": [
+            {
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Branch Id"
+        },
+        "scenario_time": {
+          "anyOf": [
+            {
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Scenario Time"
+        },
+        "prior_record_ids": {
+          "items": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "minItems": 1,
+          "title": "Prior Record Ids",
+          "type": "array"
+        },
+        "posterior_record_ids": {
+          "items": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "minItems": 1,
+          "title": "Posterior Record Ids",
+          "type": "array"
+        },
+        "triggering_evidence_refs": {
+          "items": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "minItems": 1,
+          "title": "Triggering Evidence Refs",
+          "type": "array"
+        },
+        "alternatives_preserved": {
+          "items": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "minItems": 1,
+          "title": "Alternatives Preserved",
+          "type": "array"
+        },
+        "update_method": {
+          "minLength": 1,
+          "title": "Update Method",
+          "type": "string"
+        },
+        "update_method_provenance_refs": {
+          "items": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "minItems": 1,
+          "title": "Update Method Provenance Refs",
+          "type": "array"
+        },
+        "calibration_scope": {
+          "anyOf": [
+            {
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Calibration Scope"
+        },
+        "numeric_values_are_probabilities": {
+          "default": false,
+          "title": "Numeric Values Are Probabilities",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "revision_id",
+        "sequence",
+        "valid_time",
+        "recorded_at",
+        "prior_record_ids",
+        "posterior_record_ids",
+        "triggering_evidence_refs",
+        "alternatives_preserved",
+        "update_method",
+        "update_method_provenance_refs"
+      ],
+      "title": "BeliefRevision",
+      "type": "object"
+    },
+    "BranchCondition": {
+      "additionalProperties": false,
+      "properties": {
+        "variable": {
+          "minLength": 1,
+          "title": "Variable",
+          "type": "string"
+        },
+        "value": {
+          "minLength": 1,
+          "title": "Value",
+          "type": "string"
+        }
+      },
+      "required": [
+        "variable",
+        "value"
+      ],
+      "title": "BranchCondition",
+      "type": "object"
+    },
+    "CaseBounds": {
+      "additionalProperties": false,
+      "properties": {
+        "max_context_bytes": {
+          "exclusiveMinimum": 0,
+          "maximum": 4194304,
+          "title": "Max Context Bytes",
+          "type": "integer"
+        },
+        "max_output_tokens": {
+          "exclusiveMinimum": 0,
+          "maximum": 131072,
+          "title": "Max Output Tokens",
+          "type": "integer"
+        },
+        "max_provider_calls": {
+          "const": 0,
+          "maximum": 0,
+          "minimum": 0,
+          "title": "Max Provider Calls",
+          "type": "integer"
+        },
+        "max_network_requests": {
+          "const": 0,
+          "maximum": 0,
+          "minimum": 0,
+          "title": "Max Network Requests",
+          "type": "integer"
+        },
+        "max_cost_usd": {
+          "const": 0.0,
+          "maximum": 0.0,
+          "minimum": 0.0,
+          "title": "Max Cost Usd",
+          "type": "number"
+        },
+        "max_elapsed_seconds": {
+          "exclusiveMinimum": 0,
+          "maximum": 3600,
+          "title": "Max Elapsed Seconds",
+          "type": "integer"
+        },
+        "max_disk_bytes": {
+          "maximum": 67108864,
+          "minimum": 0,
+          "title": "Max Disk Bytes",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "max_context_bytes",
+        "max_output_tokens",
+        "max_provider_calls",
+        "max_network_requests",
+        "max_cost_usd",
+        "max_elapsed_seconds",
+        "max_disk_bytes"
+      ],
+      "title": "CaseBounds",
+      "type": "object"
+    },
+    "CaseSnapshots": {
+      "additionalProperties": false,
+      "properties": {
+        "model_version": {
+          "const": "not_executed",
+          "title": "Model Version",
+          "type": "string"
+        },
+        "prompt_version": {
+          "minLength": 1,
+          "title": "Prompt Version",
+          "type": "string"
+        },
+        "compiler_version": {
+          "minLength": 1,
+          "title": "Compiler Version",
+          "type": "string"
+        },
+        "schema_version": {
+          "minLength": 1,
+          "title": "Schema Version",
+          "type": "string"
+        },
+        "expert_snapshot_version": {
+          "minLength": 1,
+          "title": "Expert Snapshot Version",
+          "type": "string"
+        }
+      },
+      "required": [
+        "model_version",
+        "prompt_version",
+        "compiler_version",
+        "schema_version",
+        "expert_snapshot_version"
+      ],
+      "title": "CaseSnapshots",
+      "type": "object"
+    },
+    "CaseStructuralWitnesses": {
+      "additionalProperties": false,
+      "properties": {
+        "record_ids": {
+          "items": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "title": "Record Ids",
+          "type": "array"
+        },
+        "edge_ids": {
+          "items": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "title": "Edge Ids",
+          "type": "array"
+        },
+        "revision_ids": {
+          "items": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "title": "Revision Ids",
+          "type": "array"
+        }
+      },
+      "title": "CaseStructuralWitnesses",
+      "type": "object"
+    },
+    "ComparisonArm": {
+      "additionalProperties": false,
+      "properties": {
+        "arm_id": {
+          "enum": [
+            "generic",
+            "style_only",
+            "current_memory",
+            "compiled_lens",
+            "blinded_multi_lens"
+          ],
+          "title": "Arm Id",
+          "type": "string"
+        },
+        "description": {
+          "minLength": 1,
+          "title": "Description",
+          "type": "string"
+        },
+        "identity_label_visible_to_generator": {
+          "title": "Identity Label Visible To Generator",
+          "type": "boolean"
+        },
+        "identity_label_visible_to_reviewer": {
+          "const": false,
+          "title": "Identity Label Visible To Reviewer",
+          "type": "boolean"
+        },
+        "method_pack_present": {
+          "title": "Method Pack Present",
+          "type": "boolean"
+        },
+        "current_memory_present": {
+          "title": "Current Memory Present",
+          "type": "boolean"
+        },
+        "compiled_context_present": {
+          "title": "Compiled Context Present",
+          "type": "boolean"
+        },
+        "declared_lens_count": {
+          "maximum": 16,
+          "minimum": 0,
+          "title": "Declared Lens Count",
+          "type": "integer"
+        },
+        "input_artifact_status": {
+          "const": "not_supplied",
+          "title": "Input Artifact Status",
+          "type": "string"
+        },
+        "execution_status": {
+          "const": "not_executed",
+          "title": "Execution Status",
+          "type": "string"
+        },
+        "semantic_review_status": {
+          "const": "not_supplied",
+          "title": "Semantic Review Status",
+          "type": "string"
+        },
+        "quality_claim": {
+          "const": false,
+          "title": "Quality Claim",
+          "type": "boolean"
+        },
+        "resource_contract": {
+          "$ref": "#/$defs/FrozenResourceContract"
+        }
+      },
+      "required": [
+        "arm_id",
+        "description",
+        "identity_label_visible_to_generator",
+        "identity_label_visible_to_reviewer",
+        "method_pack_present",
+        "current_memory_present",
+        "compiled_context_present",
+        "declared_lens_count",
+        "input_artifact_status",
+        "execution_status",
+        "semantic_review_status",
+        "quality_claim",
+        "resource_contract"
+      ],
+      "title": "ComparisonArm",
+      "type": "object"
+    },
+    "CompiledContextPath": {
+      "additionalProperties": false,
+      "properties": {
+        "path_id": {
+          "minLength": 1,
+          "title": "Path Id",
+          "type": "string"
+        },
+        "record_ids": {
+          "items": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "minItems": 1,
+          "title": "Record Ids",
+          "type": "array"
+        },
+        "edge_ids": {
+          "items": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "title": "Edge Ids",
+          "type": "array"
+        },
+        "lane_sequence": {
+          "items": {
+            "enum": [
+              "factual",
+              "perspective",
+              "simulation",
+              "episodic",
+              "governance"
+            ],
+            "type": "string"
+          },
+          "minItems": 1,
+          "title": "Lane Sequence",
+          "type": "array"
+        },
+        "branch_id": {
+          "anyOf": [
+            {
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Branch Id"
+        },
+        "scenario_time": {
+          "anyOf": [
+            {
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Scenario Time"
+        },
+        "why_this_lens": {
+          "minLength": 1,
+          "title": "Why This Lens",
+          "type": "string"
+        },
+        "provenance_refs": {
+          "items": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "minItems": 1,
+          "title": "Provenance Refs",
+          "type": "array"
+        }
+      },
+      "required": [
+        "path_id",
+        "record_ids",
+        "lane_sequence",
+        "why_this_lens",
+        "provenance_refs"
+      ],
+      "title": "CompiledContextPath",
+      "type": "object"
+    },
+    "ConsultContextPacket": {
+      "additionalProperties": false,
+      "properties": {
+        "schema_version": {
+          "const": "deepr-consult-context-v2",
+          "title": "Schema Version",
+          "type": "string"
+        },
+        "kind": {
+          "const": "deepr.consult.context",
+          "title": "Kind",
+          "type": "string"
+        },
+        "context_id": {
+          "minLength": 1,
+          "title": "Context Id",
+          "type": "string"
+        },
+        "query_id": {
+          "minLength": 1,
+          "title": "Query Id",
+          "type": "string"
+        },
+        "lens_id": {
+          "minLength": 1,
+          "title": "Lens Id",
+          "type": "string"
+        },
+        "branch_id": {
+          "minLength": 1,
+          "title": "Branch Id",
+          "type": "string"
+        },
+        "consumer_principal_id": {
+          "minLength": 1,
+          "title": "Consumer Principal Id",
+          "type": "string"
+        },
+        "simulation_disclosure": {
+          "minLength": 1,
+          "title": "Simulation Disclosure",
+          "type": "string"
+        },
+        "disclosure_persistent": {
+          "const": true,
+          "title": "Disclosure Persistent",
+          "type": "boolean"
+        },
+        "constructed_simulation": {
+          "const": true,
+          "title": "Constructed Simulation",
+          "type": "boolean"
+        },
+        "identity_claims_allowed": {
+          "const": false,
+          "title": "Identity Claims Allowed",
+          "type": "boolean"
+        },
+        "expert_snapshot_version": {
+          "minLength": 1,
+          "title": "Expert Snapshot Version",
+          "type": "string"
+        },
+        "compiler_version": {
+          "minLength": 1,
+          "title": "Compiler Version",
+          "type": "string"
+        },
+        "selected_paths": {
+          "items": {
+            "$ref": "#/$defs/CompiledContextPath"
+          },
+          "minItems": 1,
+          "title": "Selected Paths",
+          "type": "array"
+        },
+        "selected_record_ids": {
+          "items": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "minItems": 1,
+          "title": "Selected Record Ids",
+          "type": "array"
+        },
+        "selected_edge_ids": {
+          "items": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "title": "Selected Edge Ids",
+          "type": "array"
+        },
+        "excluded_invalidated_record_ids": {
+          "items": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "title": "Excluded Invalidated Record Ids",
+          "type": "array"
+        },
+        "lane_reservations": {
+          "$ref": "#/$defs/LaneReservations"
+        },
+        "content_bytes": {
+          "exclusiveMinimum": 0,
+          "title": "Content Bytes",
+          "type": "integer"
+        },
+        "bounds": {
+          "$ref": "#/$defs/ContextBounds"
+        },
+        "contract": {
+          "$ref": "#/$defs/ContextAuthorityContract"
+        }
+      },
+      "required": [
+        "schema_version",
+        "kind",
+        "context_id",
+        "query_id",
+        "lens_id",
+        "branch_id",
+        "consumer_principal_id",
+        "simulation_disclosure",
+        "disclosure_persistent",
+        "constructed_simulation",
+        "identity_claims_allowed",
+        "expert_snapshot_version",
+        "compiler_version",
+        "selected_paths",
+        "selected_record_ids",
+        "lane_reservations",
+        "content_bytes",
+        "bounds",
+        "contract"
+      ],
+      "title": "ConsultContextPacket",
+      "type": "object"
+    },
+    "ContextAuthorityContract": {
+      "additionalProperties": false,
+      "properties": {
+        "read_only": {
+          "const": true,
+          "title": "Read Only",
+          "type": "boolean"
+        },
+        "candidate_context_only": {
+          "const": true,
+          "title": "Candidate Context Only",
+          "type": "boolean"
+        },
+        "writes_expert_state": {
+          "const": false,
+          "title": "Writes Expert State",
+          "type": "boolean"
+        },
+        "writes_graph": {
+          "const": false,
+          "title": "Writes Graph",
+          "type": "boolean"
+        },
+        "decides_relevance": {
+          "const": false,
+          "title": "Decides Relevance",
+          "type": "boolean"
+        },
+        "decides_truth": {
+          "const": false,
+          "title": "Decides Truth",
+          "type": "boolean"
+        },
+        "semantic_verdict": {
+          "const": false,
+          "title": "Semantic Verdict",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "read_only",
+        "candidate_context_only",
+        "writes_expert_state",
+        "writes_graph",
+        "decides_relevance",
+        "decides_truth",
+        "semantic_verdict"
+      ],
+      "title": "ContextAuthorityContract",
+      "type": "object"
+    },
+    "ContextBounds": {
+      "additionalProperties": false,
+      "properties": {
+        "max_context_bytes": {
+          "exclusiveMinimum": 0,
+          "maximum": 4194304,
+          "title": "Max Context Bytes",
+          "type": "integer"
+        },
+        "max_paths": {
+          "exclusiveMinimum": 0,
+          "maximum": 128,
+          "title": "Max Paths",
+          "type": "integer"
+        },
+        "max_records": {
+          "exclusiveMinimum": 0,
+          "maximum": 1024,
+          "title": "Max Records",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "max_context_bytes",
+        "max_paths",
+        "max_records"
+      ],
+      "title": "ContextBounds",
+      "type": "object"
+    },
+    "EpistemicEdge": {
+      "additionalProperties": false,
+      "properties": {
+        "edge_id": {
+          "minLength": 1,
+          "title": "Edge Id",
+          "type": "string"
+        },
+        "relation": {
+          "enum": [
+            "supports",
+            "contradicts",
+            "enables",
+            "derived_from",
+            "assumes",
+            "implies_within",
+            "analogizes_to",
+            "predicts",
+            "tested_by",
+            "disconfirmed_by",
+            "inspired_by",
+            "forked_from"
+          ],
+          "title": "Relation",
+          "type": "string"
+        },
+        "source_record_id": {
+          "minLength": 1,
+          "title": "Source Record Id",
+          "type": "string"
+        },
+        "target_record_id": {
+          "minLength": 1,
+          "title": "Target Record Id",
+          "type": "string"
+        },
+        "branch_id": {
+          "anyOf": [
+            {
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Branch Id"
+        },
+        "scenario_time": {
+          "anyOf": [
+            {
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Scenario Time"
+        },
+        "provenance_refs": {
+          "items": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "minItems": 1,
+          "title": "Provenance Refs",
+          "type": "array"
+        }
+      },
+      "required": [
+        "edge_id",
+        "relation",
+        "source_record_id",
+        "target_record_id",
+        "provenance_refs"
+      ],
+      "title": "EpistemicEdge",
+      "type": "object"
+    },
+    "EpistemicRecord": {
+      "additionalProperties": false,
+      "properties": {
+        "record_id": {
+          "minLength": 1,
+          "title": "Record Id",
+          "type": "string"
+        },
+        "lane": {
+          "enum": [
+            "factual",
+            "perspective",
+            "simulation",
+            "episodic",
+            "governance"
+          ],
+          "title": "Lane",
+          "type": "string"
+        },
+        "record_type": {
+          "enum": [
+            "factual_claim",
+            "interpretation",
+            "hypothesis",
+            "assumption",
+            "counterfactual_implication",
+            "forecast",
+            "episode",
+            "disclosure",
+            "policy"
+          ],
+          "title": "Record Type",
+          "type": "string"
+        },
+        "statement": {
+          "minLength": 1,
+          "title": "Statement",
+          "type": "string"
+        },
+        "valid_time": {
+          "minLength": 1,
+          "title": "Valid Time",
+          "type": "string"
+        },
+        "recorded_at": {
+          "minLength": 1,
+          "title": "Recorded At",
+          "type": "string"
+        },
+        "branch_id": {
+          "anyOf": [
+            {
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Branch Id"
+        },
+        "scenario_time": {
+          "anyOf": [
+            {
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Scenario Time"
+        },
+        "branch_condition": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/BranchCondition"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "provenance_class": {
+          "enum": [
+            "source_derived",
+            "user_supplied",
+            "model_proposed",
+            "reviewer_accepted",
+            "simulation_derived",
+            "outcome_observed"
+          ],
+          "title": "Provenance Class",
+          "type": "string"
+        },
+        "verification_status": {
+          "enum": [
+            "verified",
+            "not_publicly_verifiable",
+            "source_withheld",
+            "not_yet_tested",
+            "lost_source",
+            "contested_observation",
+            "in_principle_untestable",
+            "not_applicable"
+          ],
+          "title": "Verification Status",
+          "type": "string"
+        },
+        "evidence_refs": {
+          "items": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "title": "Evidence Refs",
+          "type": "array"
+        },
+        "assumption_refs": {
+          "items": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "title": "Assumption Refs",
+          "type": "array"
+        },
+        "expected_observations": {
+          "items": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "title": "Expected Observations",
+          "type": "array"
+        },
+        "disconfirmers": {
+          "items": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "title": "Disconfirmers",
+          "type": "array"
+        },
+        "review_after": {
+          "anyOf": [
+            {
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Review After"
+        },
+        "expires_at": {
+          "anyOf": [
+            {
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Expires At"
+        },
+        "status": {
+          "default": "current",
+          "enum": [
+            "current",
+            "invalidated",
+            "retired"
+          ],
+          "title": "Status",
+          "type": "string"
+        },
+        "superseded_by": {
+          "anyOf": [
+            {
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Superseded By"
+        },
+        "candidate_only": {
+          "default": false,
+          "title": "Candidate Only",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "record_id",
+        "lane",
+        "record_type",
+        "statement",
+        "valid_time",
+        "recorded_at",
+        "provenance_class",
+        "verification_status"
+      ],
+      "title": "EpistemicRecord",
+      "type": "object"
+    },
+    "EpistemicSimulation": {
+      "additionalProperties": false,
+      "properties": {
+        "schema_version": {
+          "const": "deepr-epistemic-simulation-v1",
+          "title": "Schema Version",
+          "type": "string"
+        },
+        "kind": {
+          "const": "deepr.expert.epistemic_simulation",
+          "title": "Kind",
+          "type": "string"
+        },
+        "representation_mode": {
+          "const": "epistemic_simulation",
+          "title": "Representation Mode",
+          "type": "string"
+        },
+        "lens_id": {
+          "minLength": 1,
+          "title": "Lens Id",
+          "type": "string"
+        },
+        "display_label": {
+          "minLength": 1,
+          "title": "Display Label",
+          "type": "string"
+        },
+        "purpose": {
+          "minLength": 1,
+          "title": "Purpose",
+          "type": "string"
+        },
+        "disclosure": {
+          "$ref": "#/$defs/SimulationDisclosure"
+        },
+        "world_models": {
+          "items": {
+            "$ref": "#/$defs/WorldModel"
+          },
+          "minItems": 1,
+          "title": "World Models",
+          "type": "array"
+        },
+        "method_pack": {
+          "$ref": "#/$defs/MethodPack"
+        },
+        "memory_policy": {
+          "$ref": "#/$defs/MemoryPolicy"
+        },
+        "evidence_units": {
+          "items": {
+            "$ref": "#/$defs/EvidenceUnit"
+          },
+          "minItems": 1,
+          "title": "Evidence Units",
+          "type": "array"
+        },
+        "records": {
+          "items": {
+            "$ref": "#/$defs/EpistemicRecord"
+          },
+          "minItems": 5,
+          "title": "Records",
+          "type": "array"
+        },
+        "edges": {
+          "items": {
+            "$ref": "#/$defs/EpistemicEdge"
+          },
+          "title": "Edges",
+          "type": "array"
+        },
+        "belief_revisions": {
+          "items": {
+            "$ref": "#/$defs/BeliefRevision"
+          },
+          "title": "Belief Revisions",
+          "type": "array"
+        },
+        "snapshots": {
+          "$ref": "#/$defs/SnapshotRefs"
+        },
+        "contract": {
+          "$ref": "#/$defs/SimulationAuthorityContract"
+        }
+      },
+      "required": [
+        "schema_version",
+        "kind",
+        "representation_mode",
+        "lens_id",
+        "display_label",
+        "purpose",
+        "disclosure",
+        "world_models",
+        "method_pack",
+        "memory_policy",
+        "evidence_units",
+        "records",
+        "edges",
+        "belief_revisions",
+        "snapshots",
+        "contract"
+      ],
+      "title": "EpistemicSimulation",
+      "type": "object"
+    },
+    "EpistemicSimulationCase": {
+      "additionalProperties": false,
+      "properties": {
+        "schema_version": {
+          "const": "deepr-epistemic-simulation-case-v1",
+          "title": "Schema Version",
+          "type": "string"
+        },
+        "kind": {
+          "const": "deepr.eval.epistemic_simulation.case",
+          "title": "Kind",
+          "type": "string"
+        },
+        "case_id": {
+          "minLength": 1,
+          "title": "Case Id",
+          "type": "string"
+        },
+        "task_class": {
+          "minLength": 1,
+          "title": "Task Class",
+          "type": "string"
+        },
+        "domain": {
+          "minLength": 1,
+          "title": "Domain",
+          "type": "string"
+        },
+        "risk_class": {
+          "enum": [
+            "low",
+            "medium",
+            "high"
+          ],
+          "title": "Risk Class",
+          "type": "string"
+        },
+        "case_families": {
+          "items": {
+            "enum": [
+              "stale_premise",
+              "assumption_leakage",
+              "invalidated_memory",
+              "identity_pressure",
+              "dissent",
+              "access_controlled_evidence",
+              "useful_unverified_hypothesis",
+              "counterfactual_transfer"
+            ],
+            "type": "string"
+          },
+          "minItems": 1,
+          "title": "Case Families",
+          "type": "array"
+        },
+        "question": {
+          "minLength": 1,
+          "title": "Question",
+          "type": "string"
+        },
+        "requested_decision": {
+          "minLength": 1,
+          "title": "Requested Decision",
+          "type": "string"
+        },
+        "time_horizon": {
+          "minLength": 1,
+          "title": "Time Horizon",
+          "type": "string"
+        },
+        "success_criteria": {
+          "items": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "minItems": 1,
+          "title": "Success Criteria",
+          "type": "array"
+        },
+        "shared_evidence_refs": {
+          "items": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "minItems": 1,
+          "title": "Shared Evidence Refs",
+          "type": "array"
+        },
+        "private_evidence_refs": {
+          "items": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "title": "Private Evidence Refs",
+          "type": "array"
+        },
+        "redaction_policy": {
+          "minLength": 1,
+          "title": "Redaction Policy",
+          "type": "string"
+        },
+        "lens_id": {
+          "minLength": 1,
+          "title": "Lens Id",
+          "type": "string"
+        },
+        "context_id": {
+          "minLength": 1,
+          "title": "Context Id",
+          "type": "string"
+        },
+        "known_alternatives": {
+          "items": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "minItems": 1,
+          "title": "Known Alternatives",
+          "type": "array"
+        },
+        "null_hypothesis": {
+          "minLength": 1,
+          "title": "Null Hypothesis",
+          "type": "string"
+        },
+        "decision_cruxes": {
+          "items": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "minItems": 1,
+          "title": "Decision Cruxes",
+          "type": "array"
+        },
+        "structural_witnesses": {
+          "$ref": "#/$defs/CaseStructuralWitnesses"
+        },
+        "paired_case": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/PairedCase"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "expected_arm_ids": {
+          "items": {
+            "enum": [
+              "generic",
+              "style_only",
+              "current_memory",
+              "compiled_lens",
+              "blinded_multi_lens"
+            ],
+            "type": "string"
+          },
+          "title": "Expected Arm Ids",
+          "type": "array"
+        },
+        "hidden_reference_status": {
+          "const": "not_in_fixture",
+          "title": "Hidden Reference Status",
+          "type": "string"
+        },
+        "bounds": {
+          "$ref": "#/$defs/CaseBounds"
+        },
+        "snapshots": {
+          "$ref": "#/$defs/CaseSnapshots"
+        }
+      },
+      "required": [
+        "schema_version",
+        "kind",
+        "case_id",
+        "task_class",
+        "domain",
+        "risk_class",
+        "case_families",
+        "question",
+        "requested_decision",
+        "time_horizon",
+        "success_criteria",
+        "shared_evidence_refs",
+        "redaction_policy",
+        "lens_id",
+        "context_id",
+        "known_alternatives",
+        "null_hypothesis",
+        "decision_cruxes",
+        "structural_witnesses",
+        "expected_arm_ids",
+        "hidden_reference_status",
+        "bounds",
+        "snapshots"
+      ],
+      "title": "EpistemicSimulationCase",
+      "type": "object"
+    },
+    "EvidenceUnit": {
+      "additionalProperties": false,
+      "properties": {
+        "evidence_id": {
+          "minLength": 1,
+          "title": "Evidence Id",
+          "type": "string"
+        },
+        "evidence_class": {
+          "enum": [
+            "public_source",
+            "private_document",
+            "experiment",
+            "tool_observation",
+            "sensor_observation",
+            "testimony",
+            "formal_derivation",
+            "outcome_observation"
+          ],
+          "title": "Evidence Class",
+          "type": "string"
+        },
+        "content_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Content Sha256",
+          "type": "string"
+        },
+        "creator_or_observer": {
+          "minLength": 1,
+          "title": "Creator Or Observer",
+          "type": "string"
+        },
+        "observed_at": {
+          "minLength": 1,
+          "title": "Observed At",
+          "type": "string"
+        },
+        "valid_time": {
+          "minLength": 1,
+          "title": "Valid Time",
+          "type": "string"
+        },
+        "access_policy": {
+          "$ref": "#/$defs/AccessPolicy"
+        },
+        "independence_root_id": {
+          "minLength": 1,
+          "title": "Independence Root Id",
+          "type": "string"
+        },
+        "verification_status": {
+          "enum": [
+            "verified",
+            "not_publicly_verifiable",
+            "source_withheld",
+            "not_yet_tested",
+            "lost_source",
+            "contested_observation",
+            "in_principle_untestable",
+            "not_applicable"
+          ],
+          "title": "Verification Status",
+          "type": "string"
+        },
+        "claim_refs": {
+          "items": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "minItems": 1,
+          "title": "Claim Refs",
+          "type": "array"
+        },
+        "edge_refs": {
+          "items": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "title": "Edge Refs",
+          "type": "array"
+        },
+        "revision_refs": {
+          "items": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "title": "Revision Refs",
+          "type": "array"
+        }
+      },
+      "required": [
+        "evidence_id",
+        "evidence_class",
+        "content_sha256",
+        "creator_or_observer",
+        "observed_at",
+        "valid_time",
+        "access_policy",
+        "independence_root_id",
+        "verification_status",
+        "claim_refs"
+      ],
+      "title": "EvidenceUnit",
+      "type": "object"
+    },
+    "FixtureAuthorityContract": {
+      "additionalProperties": false,
+      "properties": {
+        "execution_mode": {
+          "const": "frozen_fixture",
+          "title": "Execution Mode",
+          "type": "string"
+        },
+        "consumer_principal_id": {
+          "minLength": 1,
+          "title": "Consumer Principal Id",
+          "type": "string"
+        },
+        "provider_calls": {
+          "const": 0,
+          "maximum": 0,
+          "minimum": 0,
+          "title": "Provider Calls",
+          "type": "integer"
+        },
+        "network_access": {
+          "const": false,
+          "title": "Network Access",
+          "type": "boolean"
+        },
+        "expert_store_reads": {
+          "const": 0,
+          "maximum": 0,
+          "minimum": 0,
+          "title": "Expert Store Reads",
+          "type": "integer"
+        },
+        "writes_expert_state": {
+          "const": false,
+          "title": "Writes Expert State",
+          "type": "boolean"
+        },
+        "writes_graph": {
+          "const": false,
+          "title": "Writes Graph",
+          "type": "boolean"
+        },
+        "changes_runtime_default": {
+          "const": false,
+          "title": "Changes Runtime Default",
+          "type": "boolean"
+        },
+        "semantic_verdict": {
+          "const": false,
+          "title": "Semantic Verdict",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "execution_mode",
+        "consumer_principal_id",
+        "provider_calls",
+        "network_access",
+        "expert_store_reads",
+        "writes_expert_state",
+        "writes_graph",
+        "changes_runtime_default",
+        "semantic_verdict"
+      ],
+      "title": "FixtureAuthorityContract",
+      "type": "object"
+    },
+    "FrozenResourceContract": {
+      "additionalProperties": false,
+      "properties": {
+        "provider_calls": {
+          "const": 0,
+          "maximum": 0,
+          "minimum": 0,
+          "title": "Provider Calls",
+          "type": "integer"
+        },
+        "network_access": {
+          "const": false,
+          "title": "Network Access",
+          "type": "boolean"
+        },
+        "expert_store_reads": {
+          "const": 0,
+          "maximum": 0,
+          "minimum": 0,
+          "title": "Expert Store Reads",
+          "type": "integer"
+        },
+        "writes_expert_state": {
+          "const": false,
+          "title": "Writes Expert State",
+          "type": "boolean"
+        },
+        "writes_graph": {
+          "const": false,
+          "title": "Writes Graph",
+          "type": "boolean"
+        },
+        "cost_usd": {
+          "const": 0.0,
+          "maximum": 0.0,
+          "minimum": 0.0,
+          "title": "Cost Usd",
+          "type": "number"
+        },
+        "max_context_bytes": {
+          "exclusiveMinimum": 0,
+          "maximum": 4194304,
+          "title": "Max Context Bytes",
+          "type": "integer"
+        },
+        "max_output_tokens": {
+          "exclusiveMinimum": 0,
+          "maximum": 131072,
+          "title": "Max Output Tokens",
+          "type": "integer"
+        },
+        "max_elapsed_seconds": {
+          "exclusiveMinimum": 0,
+          "maximum": 3600,
+          "title": "Max Elapsed Seconds",
+          "type": "integer"
+        },
+        "max_disk_bytes": {
+          "maximum": 67108864,
+          "minimum": 0,
+          "title": "Max Disk Bytes",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "provider_calls",
+        "network_access",
+        "expert_store_reads",
+        "writes_expert_state",
+        "writes_graph",
+        "cost_usd",
+        "max_context_bytes",
+        "max_output_tokens",
+        "max_elapsed_seconds",
+        "max_disk_bytes"
+      ],
+      "title": "FrozenResourceContract",
+      "type": "object"
+    },
+    "LaneReservations": {
+      "additionalProperties": false,
+      "properties": {
+        "factual": {
+          "minimum": 0,
+          "title": "Factual",
+          "type": "integer"
+        },
+        "perspective": {
+          "minimum": 0,
+          "title": "Perspective",
+          "type": "integer"
+        },
+        "simulation": {
+          "minimum": 0,
+          "title": "Simulation",
+          "type": "integer"
+        },
+        "episodic": {
+          "minimum": 0,
+          "title": "Episodic",
+          "type": "integer"
+        },
+        "governance": {
+          "minimum": 0,
+          "title": "Governance",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "factual",
+        "perspective",
+        "simulation",
+        "episodic",
+        "governance"
+      ],
+      "title": "LaneReservations",
+      "type": "object"
+    },
+    "MemoryPolicy": {
+      "additionalProperties": false,
+      "properties": {
+        "allowed_lanes": {
+          "items": {
+            "enum": [
+              "factual",
+              "perspective",
+              "simulation",
+              "episodic",
+              "governance"
+            ],
+            "type": "string"
+          },
+          "title": "Allowed Lanes",
+          "type": "array"
+        },
+        "read_scope": {
+          "const": "frozen_fixture_only",
+          "title": "Read Scope",
+          "type": "string"
+        },
+        "write_policy": {
+          "const": "none",
+          "title": "Write Policy",
+          "type": "string"
+        },
+        "tool_scope": {
+          "const": "none",
+          "title": "Tool Scope",
+          "type": "string"
+        },
+        "spend_ceiling_usd": {
+          "const": 0.0,
+          "maximum": 0.0,
+          "minimum": 0.0,
+          "title": "Spend Ceiling Usd",
+          "type": "number"
+        },
+        "prospective_authority": {
+          "const": "candidate_only",
+          "title": "Prospective Authority",
+          "type": "string"
+        }
+      },
+      "required": [
+        "allowed_lanes",
+        "read_scope",
+        "write_policy",
+        "tool_scope",
+        "spend_ceiling_usd",
+        "prospective_authority"
+      ],
+      "title": "MemoryPolicy",
+      "type": "object"
+    },
+    "MethodPack": {
+      "additionalProperties": false,
+      "properties": {
+        "method_pack_id": {
+          "minLength": 1,
+          "title": "Method Pack Id",
+          "type": "string"
+        },
+        "version": {
+          "minLength": 1,
+          "title": "Version",
+          "type": "string"
+        },
+        "operations": {
+          "items": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "minItems": 1,
+          "title": "Operations",
+          "type": "array"
+        },
+        "provenance_refs": {
+          "items": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "title": "Provenance Refs",
+          "type": "array"
+        },
+        "attributed_to_historical_subject": {
+          "default": false,
+          "title": "Attributed To Historical Subject",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "method_pack_id",
+        "version",
+        "operations"
+      ],
+      "title": "MethodPack",
+      "type": "object"
+    },
+    "PairedCase": {
+      "additionalProperties": false,
+      "properties": {
+        "pair_id": {
+          "minLength": 1,
+          "title": "Pair Id",
+          "type": "string"
+        },
+        "counterpart_case_id": {
+          "minLength": 1,
+          "title": "Counterpart Case Id",
+          "type": "string"
+        },
+        "intervention_variable": {
+          "minLength": 1,
+          "title": "Intervention Variable",
+          "type": "string"
+        },
+        "intervention_value": {
+          "minLength": 1,
+          "title": "Intervention Value",
+          "type": "string"
+        },
+        "invariants": {
+          "items": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "minItems": 1,
+          "title": "Invariants",
+          "type": "array"
+        },
+        "conclusion_should_change": {
+          "minLength": 1,
+          "title": "Conclusion Should Change",
+          "type": "string"
+        }
+      },
+      "required": [
+        "pair_id",
+        "counterpart_case_id",
+        "intervention_variable",
+        "intervention_value",
+        "invariants",
+        "conclusion_should_change"
+      ],
+      "title": "PairedCase",
+      "type": "object"
+    },
+    "ReviewerRubric": {
+      "additionalProperties": false,
+      "properties": {
+        "rubric_version": {
+          "minLength": 1,
+          "title": "Rubric Version",
+          "type": "string"
+        },
+        "semantic_labels_source": {
+          "const": "not_supplied",
+          "title": "Semantic Labels Source",
+          "type": "string"
+        },
+        "thresholds_status": {
+          "const": "requires_pilot_variance",
+          "title": "Thresholds Status",
+          "type": "string"
+        },
+        "identity_blinded": {
+          "const": true,
+          "title": "Identity Blinded",
+          "type": "boolean"
+        },
+        "novelty_certification_allowed": {
+          "const": false,
+          "title": "Novelty Certification Allowed",
+          "type": "boolean"
+        },
+        "historical_fidelity_certification_allowed": {
+          "const": false,
+          "title": "Historical Fidelity Certification Allowed",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "rubric_version",
+        "semantic_labels_source",
+        "thresholds_status",
+        "identity_blinded",
+        "novelty_certification_allowed",
+        "historical_fidelity_certification_allowed"
+      ],
+      "title": "ReviewerRubric",
+      "type": "object"
+    },
+    "SimulationAuthorityContract": {
+      "additionalProperties": false,
+      "properties": {
+        "read_only": {
+          "const": true,
+          "title": "Read Only",
+          "type": "boolean"
+        },
+        "writes_expert_state": {
+          "const": false,
+          "title": "Writes Expert State",
+          "type": "boolean"
+        },
+        "writes_graph": {
+          "const": false,
+          "title": "Writes Graph",
+          "type": "boolean"
+        },
+        "simulation_to_factual_transition": {
+          "const": false,
+          "title": "Simulation To Factual Transition",
+          "type": "boolean"
+        },
+        "transcript_is_evidence": {
+          "const": false,
+          "title": "Transcript Is Evidence",
+          "type": "boolean"
+        },
+        "consensus_is_evidence": {
+          "const": false,
+          "title": "Consensus Is Evidence",
+          "type": "boolean"
+        },
+        "semantic_verdict": {
+          "const": false,
+          "title": "Semantic Verdict",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "read_only",
+        "writes_expert_state",
+        "writes_graph",
+        "simulation_to_factual_transition",
+        "transcript_is_evidence",
+        "consensus_is_evidence",
+        "semantic_verdict"
+      ],
+      "title": "SimulationAuthorityContract",
+      "type": "object"
+    },
+    "SimulationDisclosure": {
+      "additionalProperties": false,
+      "properties": {
+        "text": {
+          "minLength": 1,
+          "title": "Text",
+          "type": "string"
+        },
+        "persistent": {
+          "const": true,
+          "title": "Persistent",
+          "type": "boolean"
+        },
+        "constructed_simulation": {
+          "const": true,
+          "title": "Constructed Simulation",
+          "type": "boolean"
+        },
+        "identity_claims_allowed": {
+          "const": false,
+          "title": "Identity Claims Allowed",
+          "type": "boolean"
+        },
+        "prohibited_claims": {
+          "items": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "minItems": 6,
+          "title": "Prohibited Claims",
+          "type": "array"
+        }
+      },
+      "required": [
+        "text",
+        "persistent",
+        "constructed_simulation",
+        "identity_claims_allowed",
+        "prohibited_claims"
+      ],
+      "title": "SimulationDisclosure",
+      "type": "object"
+    },
+    "SnapshotRefs": {
+      "additionalProperties": false,
+      "properties": {
+        "schema_version": {
+          "minLength": 1,
+          "title": "Schema Version",
+          "type": "string"
+        },
+        "lens_version": {
+          "minLength": 1,
+          "title": "Lens Version",
+          "type": "string"
+        },
+        "expert_snapshot_version": {
+          "minLength": 1,
+          "title": "Expert Snapshot Version",
+          "type": "string"
+        },
+        "context_compiler_version": {
+          "minLength": 1,
+          "title": "Context Compiler Version",
+          "type": "string"
+        },
+        "prompt_version": {
+          "minLength": 1,
+          "title": "Prompt Version",
+          "type": "string"
+        },
+        "model_id": {
+          "anyOf": [
+            {
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Model Id"
+        }
+      },
+      "required": [
+        "schema_version",
+        "lens_version",
+        "expert_snapshot_version",
+        "context_compiler_version",
+        "prompt_version"
+      ],
+      "title": "SnapshotRefs",
+      "type": "object"
+    },
+    "WorldModel": {
+      "additionalProperties": false,
+      "properties": {
+        "world_model_id": {
+          "minLength": 1,
+          "title": "World Model Id",
+          "type": "string"
+        },
+        "branch_id": {
+          "minLength": 1,
+          "title": "Branch Id",
+          "type": "string"
+        },
+        "parent_branch_id": {
+          "anyOf": [
+            {
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Parent Branch Id"
+        },
+        "fork_reason": {
+          "minLength": 1,
+          "title": "Fork Reason",
+          "type": "string"
+        },
+        "time_anchor": {
+          "minLength": 1,
+          "title": "Time Anchor",
+          "type": "string"
+        },
+        "scenario_time": {
+          "minLength": 1,
+          "title": "Scenario Time",
+          "type": "string"
+        },
+        "controlled_condition": {
+          "$ref": "#/$defs/BranchCondition"
+        },
+        "condition_record_id": {
+          "minLength": 1,
+          "title": "Condition Record Id",
+          "type": "string"
+        },
+        "assumption_record_ids": {
+          "items": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "minItems": 1,
+          "title": "Assumption Record Ids",
+          "type": "array"
+        },
+        "invariants": {
+          "items": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "minItems": 1,
+          "title": "Invariants",
+          "type": "array"
+        },
+        "exclusions": {
+          "items": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "minItems": 1,
+          "title": "Exclusions",
+          "type": "array"
+        },
+        "status": {
+          "default": "active",
+          "enum": [
+            "active",
+            "retired"
+          ],
+          "title": "Status",
+          "type": "string"
+        }
+      },
+      "required": [
+        "world_model_id",
+        "branch_id",
+        "fork_reason",
+        "time_anchor",
+        "scenario_time",
+        "controlled_condition",
+        "condition_record_id",
+        "assumption_record_ids",
+        "invariants",
+        "exclusions"
+      ],
+      "title": "WorldModel",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": {
+      "const": "deepr-epistemic-simulation-case-bundle-v1",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "kind": {
+      "const": "deepr.eval.epistemic_simulation.cases",
+      "title": "Kind",
+      "type": "string"
+    },
+    "bundle_id": {
+      "minLength": 1,
+      "title": "Bundle Id",
+      "type": "string"
+    },
+    "methodology_version": {
+      "const": "1.0",
+      "title": "Methodology Version",
+      "type": "string"
+    },
+    "contract": {
+      "$ref": "#/$defs/FixtureAuthorityContract"
+    },
+    "review_contract": {
+      "$ref": "#/$defs/ReviewerRubric"
+    },
+    "comparison_arms": {
+      "items": {
+        "$ref": "#/$defs/ComparisonArm"
+      },
+      "title": "Comparison Arms",
+      "type": "array"
+    },
+    "lens_snapshots": {
+      "items": {
+        "$ref": "#/$defs/EpistemicSimulation"
+      },
+      "minItems": 1,
+      "title": "Lens Snapshots",
+      "type": "array"
+    },
+    "context_packets": {
+      "items": {
+        "$ref": "#/$defs/ConsultContextPacket"
+      },
+      "minItems": 1,
+      "title": "Context Packets",
+      "type": "array"
+    },
+    "cases": {
+      "items": {
+        "$ref": "#/$defs/EpistemicSimulationCase"
+      },
+      "minItems": 1,
+      "title": "Cases",
+      "type": "array"
+    }
+  },
+  "required": [
+    "schema_version",
+    "kind",
+    "bundle_id",
+    "methodology_version",
+    "contract",
+    "review_contract",
+    "comparison_arms",
+    "lens_snapshots",
+    "context_packets",
+    "cases"
+  ],
+  "type": "object"
+}

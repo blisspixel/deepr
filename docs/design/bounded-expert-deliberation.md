@@ -1,7 +1,7 @@
 # Bounded expert deliberation
 
-Status: accepted prototype contract, 2026-07-12. Live multi-round surfaces remain
-gated by the acceptance criteria below.
+Status: accepted prototype contract, updated 2026-07-22. Live multi-round
+surfaces remain gated by the acceptance criteria below.
 
 Cross-cuts expert consult, consult traces, local and plan capacity, verified
 expert loops, and the graph-commit boundary. Read
@@ -229,6 +229,32 @@ Only explicit deep mode enables these rounds. Each expert may revise its
 position while preserving the original. The final synthesizer reports
 agreements, unresolved dissent, confidence changes, proposed tests, and source
 gaps. It does not adjudicate truth by majority.
+
+## Epistemic simulation integration
+
+Epistemic simulation lenses reuse this bounded protocol. They do not create a
+second, less-governed debate runtime.
+
+- Freeze method pack, authority lanes, branch id, scenario time, assumptions,
+  evidence access, expert state, and compiler version with the run.
+- Present the lens as an anonymous method and world-model packet during
+  exchange. Restore a user-facing name only after content adjudication.
+- Keep factual claims atomic and bound to exact evidence units. Keep
+  branch-local implications bound to assumption ids.
+- Preserve candidate alternatives, question-specific confidence, evidence
+  confidence, and stored-belief confidence separately. None is presumed a
+  calibrated probability.
+- Use peer interaction to expose unique evidence, cruxes, disconfirmers, and
+  tests. Do not target consensus or majority agreement.
+- Preserve the original position and every revision delta so a fluent final
+  synthesis cannot hide conformity.
+- Give the deliberation no memory-write authority. Any later factual or
+  perspective learning follows its existing staged path.
+
+The evidence gate is
+[epistemic-simulation-evaluation.md](epistemic-simulation-evaluation.md), and
+the memory authority is proposed in
+[ADR 0006](../decisions/0006-epistemic-simulation-memory-authority.md).
 
 ## Learning boundary
 

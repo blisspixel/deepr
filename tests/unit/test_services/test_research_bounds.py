@@ -113,6 +113,28 @@ def test_gemini_deep_research_explains_missing_provider_budget_control() -> None
     assert "autonomous tool loop" in str(raised.value)
 
 
+@pytest.mark.parametrize(
+    ("model", "expected_maximum"),
+    [
+        ("gemini-flash", 0.019788),
+        ("gemini-flash-lite", 0.0049576),
+    ],
+)
+def test_current_gemini_aliases_have_exact_bounded_pricing(model: str, expected_maximum: float) -> None:
+    request = ResearchRequest(
+        prompt="Research",
+        model=model,
+        system_message="Test",
+        max_input_tokens=8_192,
+        max_output_tokens=1_000,
+        max_provider_requests=1,
+    )
+
+    estimate = bounded_research_cost_estimate(request=request, provider="gemini")
+
+    assert estimate.max_cost == pytest.approx(expected_maximum)
+
+
 def test_persisted_request_bounds_must_match_exactly() -> None:
     request = ResearchRequest(
         prompt="Research",

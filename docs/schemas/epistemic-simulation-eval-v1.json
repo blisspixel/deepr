@@ -1,0 +1,543 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/blisspixel/deepr/docs/schemas/epistemic-simulation-eval-v1.json",
+  "title": "Deepr Epistemic Simulation Evaluation v1",
+  "description": "Zero-call structural report over unexecuted arm declarations that makes no semantic quality claim and cannot select a winner.",
+  "x-deepr-linked-validator": {
+    "python": "deepr.evals.epistemic_simulation:validate_epistemic_simulation_eval_payload",
+    "schema_only_is_sufficient": false,
+    "requires": [
+      "frozen EpistemicSimulationCaseBundle",
+      "EpistemicSimulationEvalPayload"
+    ]
+  },
+  "$defs": {
+    "ArtifactHash": {
+      "additionalProperties": false,
+      "properties": {
+        "artifact_id": {
+          "minLength": 1,
+          "title": "Artifact Id",
+          "type": "string"
+        },
+        "sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Sha256",
+          "type": "string"
+        }
+      },
+      "required": [
+        "artifact_id",
+        "sha256"
+      ],
+      "title": "ArtifactHash",
+      "type": "object"
+    },
+    "ComparisonArm": {
+      "additionalProperties": false,
+      "properties": {
+        "arm_id": {
+          "enum": [
+            "generic",
+            "style_only",
+            "current_memory",
+            "compiled_lens",
+            "blinded_multi_lens"
+          ],
+          "title": "Arm Id",
+          "type": "string"
+        },
+        "description": {
+          "minLength": 1,
+          "title": "Description",
+          "type": "string"
+        },
+        "identity_label_visible_to_generator": {
+          "title": "Identity Label Visible To Generator",
+          "type": "boolean"
+        },
+        "identity_label_visible_to_reviewer": {
+          "const": false,
+          "title": "Identity Label Visible To Reviewer",
+          "type": "boolean"
+        },
+        "method_pack_present": {
+          "title": "Method Pack Present",
+          "type": "boolean"
+        },
+        "current_memory_present": {
+          "title": "Current Memory Present",
+          "type": "boolean"
+        },
+        "compiled_context_present": {
+          "title": "Compiled Context Present",
+          "type": "boolean"
+        },
+        "declared_lens_count": {
+          "maximum": 16,
+          "minimum": 0,
+          "title": "Declared Lens Count",
+          "type": "integer"
+        },
+        "input_artifact_status": {
+          "const": "not_supplied",
+          "title": "Input Artifact Status",
+          "type": "string"
+        },
+        "execution_status": {
+          "const": "not_executed",
+          "title": "Execution Status",
+          "type": "string"
+        },
+        "semantic_review_status": {
+          "const": "not_supplied",
+          "title": "Semantic Review Status",
+          "type": "string"
+        },
+        "quality_claim": {
+          "const": false,
+          "title": "Quality Claim",
+          "type": "boolean"
+        },
+        "resource_contract": {
+          "$ref": "#/$defs/FrozenResourceContract"
+        }
+      },
+      "required": [
+        "arm_id",
+        "description",
+        "identity_label_visible_to_generator",
+        "identity_label_visible_to_reviewer",
+        "method_pack_present",
+        "current_memory_present",
+        "compiled_context_present",
+        "declared_lens_count",
+        "input_artifact_status",
+        "execution_status",
+        "semantic_review_status",
+        "quality_claim",
+        "resource_contract"
+      ],
+      "title": "ComparisonArm",
+      "type": "object"
+    },
+    "EpistemicSimulationCaseResult": {
+      "additionalProperties": false,
+      "properties": {
+        "case_id": {
+          "minLength": 1,
+          "title": "Case Id",
+          "type": "string"
+        },
+        "case_hash": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Case Hash",
+          "type": "string"
+        },
+        "lens_id": {
+          "minLength": 1,
+          "title": "Lens Id",
+          "type": "string"
+        },
+        "lens_hash": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Lens Hash",
+          "type": "string"
+        },
+        "context_id": {
+          "minLength": 1,
+          "title": "Context Id",
+          "type": "string"
+        },
+        "context_hash": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Context Hash",
+          "type": "string"
+        },
+        "arm_ids": {
+          "items": {
+            "enum": [
+              "generic",
+              "style_only",
+              "current_memory",
+              "compiled_lens",
+              "blinded_multi_lens"
+            ],
+            "type": "string"
+          },
+          "title": "Arm Ids",
+          "type": "array"
+        },
+        "structural_pass": {
+          "const": true,
+          "title": "Structural Pass",
+          "type": "boolean"
+        },
+        "semantic_review_status": {
+          "const": "not_supplied",
+          "title": "Semantic Review Status",
+          "type": "string"
+        },
+        "quality_claim": {
+          "const": false,
+          "title": "Quality Claim",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "case_id",
+        "case_hash",
+        "lens_id",
+        "lens_hash",
+        "context_id",
+        "context_hash",
+        "arm_ids",
+        "structural_pass",
+        "semantic_review_status",
+        "quality_claim"
+      ],
+      "title": "EpistemicSimulationCaseResult",
+      "type": "object"
+    },
+    "EvalAcceptance": {
+      "additionalProperties": false,
+      "properties": {
+        "status": {
+          "const": "accountable_review_required",
+          "title": "Status",
+          "type": "string"
+        },
+        "accepted": {
+          "const": false,
+          "title": "Accepted",
+          "type": "boolean"
+        },
+        "winner": {
+          "default": null,
+          "title": "Winner",
+          "type": "null"
+        },
+        "changes_runtime_default": {
+          "const": false,
+          "title": "Changes Runtime Default",
+          "type": "boolean"
+        },
+        "writes_expert_state": {
+          "const": false,
+          "title": "Writes Expert State",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "status",
+        "accepted",
+        "changes_runtime_default",
+        "writes_expert_state"
+      ],
+      "title": "EvalAcceptance",
+      "type": "object"
+    },
+    "FixtureAuthorityContract": {
+      "additionalProperties": false,
+      "properties": {
+        "execution_mode": {
+          "const": "frozen_fixture",
+          "title": "Execution Mode",
+          "type": "string"
+        },
+        "consumer_principal_id": {
+          "minLength": 1,
+          "title": "Consumer Principal Id",
+          "type": "string"
+        },
+        "provider_calls": {
+          "const": 0,
+          "maximum": 0,
+          "minimum": 0,
+          "title": "Provider Calls",
+          "type": "integer"
+        },
+        "network_access": {
+          "const": false,
+          "title": "Network Access",
+          "type": "boolean"
+        },
+        "expert_store_reads": {
+          "const": 0,
+          "maximum": 0,
+          "minimum": 0,
+          "title": "Expert Store Reads",
+          "type": "integer"
+        },
+        "writes_expert_state": {
+          "const": false,
+          "title": "Writes Expert State",
+          "type": "boolean"
+        },
+        "writes_graph": {
+          "const": false,
+          "title": "Writes Graph",
+          "type": "boolean"
+        },
+        "changes_runtime_default": {
+          "const": false,
+          "title": "Changes Runtime Default",
+          "type": "boolean"
+        },
+        "semantic_verdict": {
+          "const": false,
+          "title": "Semantic Verdict",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "execution_mode",
+        "consumer_principal_id",
+        "provider_calls",
+        "network_access",
+        "expert_store_reads",
+        "writes_expert_state",
+        "writes_graph",
+        "changes_runtime_default",
+        "semantic_verdict"
+      ],
+      "title": "FixtureAuthorityContract",
+      "type": "object"
+    },
+    "FrozenResourceContract": {
+      "additionalProperties": false,
+      "properties": {
+        "provider_calls": {
+          "const": 0,
+          "maximum": 0,
+          "minimum": 0,
+          "title": "Provider Calls",
+          "type": "integer"
+        },
+        "network_access": {
+          "const": false,
+          "title": "Network Access",
+          "type": "boolean"
+        },
+        "expert_store_reads": {
+          "const": 0,
+          "maximum": 0,
+          "minimum": 0,
+          "title": "Expert Store Reads",
+          "type": "integer"
+        },
+        "writes_expert_state": {
+          "const": false,
+          "title": "Writes Expert State",
+          "type": "boolean"
+        },
+        "writes_graph": {
+          "const": false,
+          "title": "Writes Graph",
+          "type": "boolean"
+        },
+        "cost_usd": {
+          "const": 0.0,
+          "maximum": 0.0,
+          "minimum": 0.0,
+          "title": "Cost Usd",
+          "type": "number"
+        },
+        "max_context_bytes": {
+          "exclusiveMinimum": 0,
+          "maximum": 4194304,
+          "title": "Max Context Bytes",
+          "type": "integer"
+        },
+        "max_output_tokens": {
+          "exclusiveMinimum": 0,
+          "maximum": 131072,
+          "title": "Max Output Tokens",
+          "type": "integer"
+        },
+        "max_elapsed_seconds": {
+          "exclusiveMinimum": 0,
+          "maximum": 3600,
+          "title": "Max Elapsed Seconds",
+          "type": "integer"
+        },
+        "max_disk_bytes": {
+          "maximum": 67108864,
+          "minimum": 0,
+          "title": "Max Disk Bytes",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "provider_calls",
+        "network_access",
+        "expert_store_reads",
+        "writes_expert_state",
+        "writes_graph",
+        "cost_usd",
+        "max_context_bytes",
+        "max_output_tokens",
+        "max_elapsed_seconds",
+        "max_disk_bytes"
+      ],
+      "title": "FrozenResourceContract",
+      "type": "object"
+    },
+    "StructuralSummary": {
+      "additionalProperties": false,
+      "properties": {
+        "total_cases": {
+          "exclusiveMinimum": 0,
+          "title": "Total Cases",
+          "type": "integer"
+        },
+        "passed_cases": {
+          "exclusiveMinimum": 0,
+          "title": "Passed Cases",
+          "type": "integer"
+        },
+        "failed_cases": {
+          "const": 0,
+          "maximum": 0,
+          "minimum": 0,
+          "title": "Failed Cases",
+          "type": "integer"
+        },
+        "hard_invariant_violations": {
+          "const": 0,
+          "maximum": 0,
+          "minimum": 0,
+          "title": "Hard Invariant Violations",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "total_cases",
+        "passed_cases",
+        "failed_cases",
+        "hard_invariant_violations"
+      ],
+      "title": "StructuralSummary",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": {
+      "const": "deepr-epistemic-simulation-eval-v1",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "kind": {
+      "const": "deepr.eval.epistemic_simulation",
+      "title": "Kind",
+      "type": "string"
+    },
+    "methodology_version": {
+      "const": "1.0",
+      "title": "Methodology Version",
+      "type": "string"
+    },
+    "fixture_hash": {
+      "pattern": "^[0-9a-f]{64}$",
+      "title": "Fixture Hash",
+      "type": "string"
+    },
+    "case_hashes": {
+      "items": {
+        "$ref": "#/$defs/ArtifactHash"
+      },
+      "title": "Case Hashes",
+      "type": "array"
+    },
+    "lens_hashes": {
+      "items": {
+        "$ref": "#/$defs/ArtifactHash"
+      },
+      "title": "Lens Hashes",
+      "type": "array"
+    },
+    "context_hashes": {
+      "items": {
+        "$ref": "#/$defs/ArtifactHash"
+      },
+      "title": "Context Hashes",
+      "type": "array"
+    },
+    "contract": {
+      "$ref": "#/$defs/FixtureAuthorityContract"
+    },
+    "comparison_arms": {
+      "items": {
+        "$ref": "#/$defs/ComparisonArm"
+      },
+      "title": "Comparison Arms",
+      "type": "array"
+    },
+    "covered_case_families": {
+      "items": {
+        "enum": [
+          "stale_premise",
+          "assumption_leakage",
+          "invalidated_memory",
+          "identity_pressure",
+          "dissent",
+          "access_controlled_evidence",
+          "useful_unverified_hypothesis",
+          "counterfactual_transfer"
+        ],
+        "type": "string"
+      },
+      "title": "Covered Case Families",
+      "type": "array"
+    },
+    "case_results": {
+      "items": {
+        "$ref": "#/$defs/EpistemicSimulationCaseResult"
+      },
+      "minItems": 1,
+      "title": "Case Results",
+      "type": "array"
+    },
+    "structural_summary": {
+      "$ref": "#/$defs/StructuralSummary"
+    },
+    "semantic_review_status": {
+      "const": "not_supplied",
+      "title": "Semantic Review Status",
+      "type": "string"
+    },
+    "quality_claim": {
+      "const": false,
+      "title": "Quality Claim",
+      "type": "boolean"
+    },
+    "acceptance": {
+      "$ref": "#/$defs/EvalAcceptance"
+    },
+    "generated_at": {
+      "minLength": 1,
+      "title": "Generated At",
+      "type": "string"
+    }
+  },
+  "required": [
+    "schema_version",
+    "kind",
+    "methodology_version",
+    "fixture_hash",
+    "case_hashes",
+    "lens_hashes",
+    "context_hashes",
+    "contract",
+    "comparison_arms",
+    "covered_case_families",
+    "case_results",
+    "structural_summary",
+    "semantic_review_status",
+    "quality_claim",
+    "acceptance",
+    "generated_at"
+  ],
+  "type": "object"
+}

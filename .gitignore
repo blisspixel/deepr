@@ -74,11 +74,13 @@ DEPRECATED/
 /docs/ideas/
 /docs/reference/
 /reports/
-# Ignore generated test data, but keep the committed calibration corpus
-# (held-out, versioned reports the calibration harness grades - ADR 0004 / v2.15).
+# Ignore generated test data, but keep committed versioned evaluation corpora.
+# Calibration reports follow ADR 0004; epistemic simulations use frozen synthetic cases.
 /tests/data/*
 !/tests/data/calibration/
 !/tests/data/calibration-hard/
+!/tests/data/epistemic_simulation/
+!/tests/data/epistemic_simulation/acceptance-v1.json
 
 # Log files
 logs/

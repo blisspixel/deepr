@@ -1,0 +1,365 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/blisspixel/deepr/docs/schemas/consult-context-v2.json",
+  "title": "Deepr Consult Context v2",
+  "description": "Bounded read-only consult context with explicit path provenance, branch scope, and persistent simulation disclosure.",
+  "x-deepr-linked-validator": {
+    "python": "deepr.experts.epistemic_simulation_context:validate_context_packet",
+    "schema_only_is_sufficient": false,
+    "requires": [
+      "frozen EpistemicSimulation lens",
+      "ConsultContextPacket packet",
+      "expected_principal_id from authenticated caller boundary"
+    ]
+  },
+  "$defs": {
+    "CompiledContextPath": {
+      "additionalProperties": false,
+      "properties": {
+        "path_id": {
+          "minLength": 1,
+          "title": "Path Id",
+          "type": "string"
+        },
+        "record_ids": {
+          "items": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "minItems": 1,
+          "title": "Record Ids",
+          "type": "array"
+        },
+        "edge_ids": {
+          "items": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "title": "Edge Ids",
+          "type": "array"
+        },
+        "lane_sequence": {
+          "items": {
+            "enum": [
+              "factual",
+              "perspective",
+              "simulation",
+              "episodic",
+              "governance"
+            ],
+            "type": "string"
+          },
+          "minItems": 1,
+          "title": "Lane Sequence",
+          "type": "array"
+        },
+        "branch_id": {
+          "anyOf": [
+            {
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Branch Id"
+        },
+        "scenario_time": {
+          "anyOf": [
+            {
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Scenario Time"
+        },
+        "why_this_lens": {
+          "minLength": 1,
+          "title": "Why This Lens",
+          "type": "string"
+        },
+        "provenance_refs": {
+          "items": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "minItems": 1,
+          "title": "Provenance Refs",
+          "type": "array"
+        }
+      },
+      "required": [
+        "path_id",
+        "record_ids",
+        "lane_sequence",
+        "why_this_lens",
+        "provenance_refs"
+      ],
+      "title": "CompiledContextPath",
+      "type": "object"
+    },
+    "ContextAuthorityContract": {
+      "additionalProperties": false,
+      "properties": {
+        "read_only": {
+          "const": true,
+          "title": "Read Only",
+          "type": "boolean"
+        },
+        "candidate_context_only": {
+          "const": true,
+          "title": "Candidate Context Only",
+          "type": "boolean"
+        },
+        "writes_expert_state": {
+          "const": false,
+          "title": "Writes Expert State",
+          "type": "boolean"
+        },
+        "writes_graph": {
+          "const": false,
+          "title": "Writes Graph",
+          "type": "boolean"
+        },
+        "decides_relevance": {
+          "const": false,
+          "title": "Decides Relevance",
+          "type": "boolean"
+        },
+        "decides_truth": {
+          "const": false,
+          "title": "Decides Truth",
+          "type": "boolean"
+        },
+        "semantic_verdict": {
+          "const": false,
+          "title": "Semantic Verdict",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "read_only",
+        "candidate_context_only",
+        "writes_expert_state",
+        "writes_graph",
+        "decides_relevance",
+        "decides_truth",
+        "semantic_verdict"
+      ],
+      "title": "ContextAuthorityContract",
+      "type": "object"
+    },
+    "ContextBounds": {
+      "additionalProperties": false,
+      "properties": {
+        "max_context_bytes": {
+          "exclusiveMinimum": 0,
+          "maximum": 4194304,
+          "title": "Max Context Bytes",
+          "type": "integer"
+        },
+        "max_paths": {
+          "exclusiveMinimum": 0,
+          "maximum": 128,
+          "title": "Max Paths",
+          "type": "integer"
+        },
+        "max_records": {
+          "exclusiveMinimum": 0,
+          "maximum": 1024,
+          "title": "Max Records",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "max_context_bytes",
+        "max_paths",
+        "max_records"
+      ],
+      "title": "ContextBounds",
+      "type": "object"
+    },
+    "LaneReservations": {
+      "additionalProperties": false,
+      "properties": {
+        "factual": {
+          "minimum": 0,
+          "title": "Factual",
+          "type": "integer"
+        },
+        "perspective": {
+          "minimum": 0,
+          "title": "Perspective",
+          "type": "integer"
+        },
+        "simulation": {
+          "minimum": 0,
+          "title": "Simulation",
+          "type": "integer"
+        },
+        "episodic": {
+          "minimum": 0,
+          "title": "Episodic",
+          "type": "integer"
+        },
+        "governance": {
+          "minimum": 0,
+          "title": "Governance",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "factual",
+        "perspective",
+        "simulation",
+        "episodic",
+        "governance"
+      ],
+      "title": "LaneReservations",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": {
+      "const": "deepr-consult-context-v2",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "kind": {
+      "const": "deepr.consult.context",
+      "title": "Kind",
+      "type": "string"
+    },
+    "context_id": {
+      "minLength": 1,
+      "title": "Context Id",
+      "type": "string"
+    },
+    "query_id": {
+      "minLength": 1,
+      "title": "Query Id",
+      "type": "string"
+    },
+    "lens_id": {
+      "minLength": 1,
+      "title": "Lens Id",
+      "type": "string"
+    },
+    "branch_id": {
+      "minLength": 1,
+      "title": "Branch Id",
+      "type": "string"
+    },
+    "consumer_principal_id": {
+      "minLength": 1,
+      "title": "Consumer Principal Id",
+      "type": "string"
+    },
+    "simulation_disclosure": {
+      "minLength": 1,
+      "title": "Simulation Disclosure",
+      "type": "string"
+    },
+    "disclosure_persistent": {
+      "const": true,
+      "title": "Disclosure Persistent",
+      "type": "boolean"
+    },
+    "constructed_simulation": {
+      "const": true,
+      "title": "Constructed Simulation",
+      "type": "boolean"
+    },
+    "identity_claims_allowed": {
+      "const": false,
+      "title": "Identity Claims Allowed",
+      "type": "boolean"
+    },
+    "expert_snapshot_version": {
+      "minLength": 1,
+      "title": "Expert Snapshot Version",
+      "type": "string"
+    },
+    "compiler_version": {
+      "minLength": 1,
+      "title": "Compiler Version",
+      "type": "string"
+    },
+    "selected_paths": {
+      "items": {
+        "$ref": "#/$defs/CompiledContextPath"
+      },
+      "minItems": 1,
+      "title": "Selected Paths",
+      "type": "array"
+    },
+    "selected_record_ids": {
+      "items": {
+        "minLength": 1,
+        "type": "string"
+      },
+      "minItems": 1,
+      "title": "Selected Record Ids",
+      "type": "array"
+    },
+    "selected_edge_ids": {
+      "items": {
+        "minLength": 1,
+        "type": "string"
+      },
+      "title": "Selected Edge Ids",
+      "type": "array"
+    },
+    "excluded_invalidated_record_ids": {
+      "items": {
+        "minLength": 1,
+        "type": "string"
+      },
+      "title": "Excluded Invalidated Record Ids",
+      "type": "array"
+    },
+    "lane_reservations": {
+      "$ref": "#/$defs/LaneReservations"
+    },
+    "content_bytes": {
+      "exclusiveMinimum": 0,
+      "title": "Content Bytes",
+      "type": "integer"
+    },
+    "bounds": {
+      "$ref": "#/$defs/ContextBounds"
+    },
+    "contract": {
+      "$ref": "#/$defs/ContextAuthorityContract"
+    }
+  },
+  "required": [
+    "schema_version",
+    "kind",
+    "context_id",
+    "query_id",
+    "lens_id",
+    "branch_id",
+    "consumer_principal_id",
+    "simulation_disclosure",
+    "disclosure_persistent",
+    "constructed_simulation",
+    "identity_claims_allowed",
+    "expert_snapshot_version",
+    "compiler_version",
+    "selected_paths",
+    "selected_record_ids",
+    "lane_reservations",
+    "content_bytes",
+    "bounds",
+    "contract"
+  ],
+  "type": "object"
+}

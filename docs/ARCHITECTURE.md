@@ -82,6 +82,24 @@ metered multi-call fan-out fail closed.
   metered agentic chat and expert lifecycle mutation are gated in v2.36, and no
   conversation can authorize its own spend or permanent belief writes.
 
+- **Epistemic simulations are authority-isolated data, not identities.** The
+  experimental Stage 0 contract separates factual, perspective, simulation,
+  episodic, and governance lanes; binds counterfactual records to immutable
+  branches and structured declared conditions; orders causal, reciprocal belief
+  revisions; checks protected evidence against an externally supplied
+  principal, including record-valued provenance; binds factual edge provenance
+  to both endpoints; enforces disjoint artifact identifiers and lane-to-record-
+  type compatibility, acyclic assumption dependencies, and exact current-world
+  assumption manifests; and rejects simulation-to-fact transitions. Paired
+  worlds carry only their one structured-condition assumption. Only that
+  condition and direct counterfactual implications may vary structurally; all
+  other rendered records must have identical canonical hashes. The worlds also
+  match record time, evidence identity, path topology, case framing, snapshots,
+  and resources. Its frozen evaluator is read-only and provider-free and
+  validates declarations only, with no arm artifacts or semantic comparison.
+  No graph compiler, public lens runtime, named lens catalog, or persistent
+  simulation learning is enabled.
+
 - **Routing separates preview from execution.** Registry metadata, admitted
   quality, local readiness, trusted plan-quota evidence, and exact API envelopes
   inform previews and selected scheduled maintenance paths. Global
@@ -115,6 +133,14 @@ metered multi-call fan-out fail closed.
   - `learner.py`: Autonomous learning execution
   - `chat.py`: Interactive Q&A with experts
   - `router.py`: Routes queries to appropriate models
+  - `epistemic_simulation_contract.py`: Experimental read-only lens and consult
+    context schemas with linked authority, provenance, access, disclosure, and
+    branch invariants. It does not compile live expert state or judge meaning.
+  - `epistemic_simulation_context.py`: Linked access, branch, path,
+    provenance, and canonical context-byte validation for frozen simulation
+    packets. Caller authentication remains outside this pure validator.
+  - `epistemic_simulation_pairing.py`: Matched-world structural fingerprints
+    that normalize only the declared intervention and its direct implications.
   - `beliefs.py`: The temporal knowledge graph's canonical store - beliefs
     with confidence (time decay + deterministic source-trust ceilings:
     tertiary caps at 0.60/0.80, secondary+ uncapped), typed edges
@@ -153,7 +179,7 @@ metered multi-call fan-out fail closed.
   - Azure OpenAI (same models, Azure-hosted)
   - Azure AI Foundry model metadata (Agent/Thread/Run execution gated in v2.36)
   - xAI (Grok 4.3, Grok 4.20, explicit premium image generation)
-  - Google (Gemini 3.5 Flash, Gemini 3.1, Gemini 2.5; managed Deep Research gated)
+  - Google (Gemini 3.6 Flash, Gemini 3.5 Flash-Lite, and retained 3.5/3.1/2.5 models; managed Deep Research gated)
   - Anthropic (Claude Sonnet 5, Opus 4.8, Fable 5, Haiku 4.5)
 
 ### 4. Model Registry
@@ -227,7 +253,7 @@ secondary docs.
 
 - **OpenAI**: GPT-5.5 and GPT-5.4 families for synthesis and planning, plus o3/o4-mini deep research for explicitly deep async jobs.
 - **xAI**: Grok text-model metadata is available where pricing is complete; multi-agent research is gated in v2.36.
-- **Google Gemini**: Gemini 3.5 Flash and 3.1/2.5 model metadata is available; the managed Deep Research Agent is gated in v2.36.
+- **Google Gemini**: Gemini 3.6 Flash and Gemini 3.5 Flash-Lite are the current stable Flash entries; retained 3.5/3.1/2.5 metadata remains available, and the managed Deep Research Agent is gated in v2.36. Gemini 3.5 Flash Cyber is not registered because it is not general Gemini API capacity.
 - **Anthropic**: Claude Sonnet 5 for balanced chat/synthesis, Opus 4.8 for high-reasoning work, and Fable 5 as premium opt-in capacity.
 - **Azure AI Foundry**: Deployment metadata remains available; Agent/Thread/Run work with Bing grounding is gated until the multi-call and tool-cost envelope is complete.
 

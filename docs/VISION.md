@@ -80,6 +80,24 @@ Experts that genuinely evolve:
 - Track belief provenance over time
 - Express honest uncertainty
 
+### Epistemic Simulation Experts
+
+Planned experts that can explore perspectives and worlds not fully recoverable
+from public web evidence:
+
+- Historically grounded method lenses without impersonation
+- Future-facing scenarios with explicit assumptions, predictions, and backcasts
+- Nonhuman or higher-dimensional method lenses without origin or consciousness
+  claims
+- Separate factual, perspective, simulation, episodic, and governance memory
+- Branch-scoped TKG reasoning that cannot silently become factual authority
+- Anonymous method, counterfactual-transfer, belief-revision, and outcome tests
+  before any lens is described as exceptional
+
+The goal is evidence-governed imagination, not a personality catalog. See
+[epistemic-simulation-experts.md](design/epistemic-simulation-experts.md) and
+[epistemic-simulation-evaluation.md](design/epistemic-simulation-evaluation.md).
+
 ### Autonomous Research Agent
 
 Systems that identify research needs without prompting:

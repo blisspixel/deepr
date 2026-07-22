@@ -47,8 +47,8 @@ const API_KEYS: ProviderKey[] = [
     provider: 'Google Gemini',
     envVar: 'GEMINI_API_KEY',
     url: 'https://aistudio.google.com/apikey',
-    description: 'Gemini 3.5 Flash, 3.1, 2.5, multimodal, Deep Research',
-    models: ['gemini-3.5-flash', 'gemini-3.1-pro-preview', 'gemini-3.1-flash-lite', 'gemini-2.5-pro', 'gemini-2.5-flash', 'deep-research'],
+    description: 'Gemini 3.6 Flash, 3.5 Flash-Lite, multimodal, Deep Research',
+    models: ['gemini-3.6-flash', 'gemini-3.5-flash-lite', 'gemini-3.5-flash', 'gemini-3.1-pro-preview', 'gemini-2.5-pro', 'deep-research'],
     free: true,
   },
   {

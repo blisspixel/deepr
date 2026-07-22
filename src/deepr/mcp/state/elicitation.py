@@ -13,6 +13,10 @@ from datetime import datetime
 from enum import Enum
 from typing import Any
 
+from deepr.providers.registry import get_token_pricing
+
+_GEMINI_FLASH_MAX_TOKEN_RATE = max(get_token_pricing("gemini-flash").values())
+
 
 class BudgetDecision(Enum):
     """User decisions for budget limit scenarios."""
@@ -404,6 +408,9 @@ class ElicitationHandler:
 class CostOptimizer:
     """
     Handles OPTIMIZE_FOR_COST decisions by adjusting research parameters.
+
+    These conservative planning estimates do not replace the authoritative
+    reservation and settlement gates at provider dispatch.
     """
 
     # Model cost tiers (cost per 1M tokens, approximate)
@@ -411,7 +418,7 @@ class CostOptimizer:
         "o3": 15.00,
         "o4-mini": 3.00,
         "grok-4.3": 2.50,
-        "gemini-flash": 0.075,
+        "gemini-flash": _GEMINI_FLASH_MAX_TOKEN_RATE,
         "grok-3-mini": 0.30,
     }
 
@@ -420,7 +427,7 @@ class CostOptimizer:
         "o3": {"reasoning": "excellent", "speed": "slow", "depth": "maximum"},
         "o4-mini": {"reasoning": "good", "speed": "medium", "depth": "high"},
         "grok-4.3": {"reasoning": "good", "speed": "fast", "depth": "medium"},
-        "gemini-flash": {"reasoning": "basic", "speed": "very_fast", "depth": "low"},
+        "gemini-flash": {"reasoning": "good", "speed": "very_fast", "depth": "high"},
         "grok-3-mini": {"reasoning": "basic", "speed": "fast", "depth": "low"},
     }
 

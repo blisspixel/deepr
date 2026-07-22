@@ -122,7 +122,7 @@ def providers():
         "Quick lookups, freshness, multi-agent research",
     )
     table.add_row(
-        "gemini", "gemini-3.5-flash, gemini-3.1-pro-preview, gemini-3.1-flash-lite", "Multimodal tasks, long context"
+        "gemini", "gemini-3.6-flash, gemini-3.5-flash-lite, gemini-3.1-pro-preview", "Multimodal tasks, long context"
     )
     table.add_row("azure", "(your deployments)", "Enterprise deployments with Azure OpenAI")
 

@@ -615,6 +615,46 @@
       "compatibility": "additive-within-v1"
     },
     {
+      "name": "epistemic-simulation",
+      "schema_version": "deepr-epistemic-simulation-v1",
+      "kind": "deepr.expert.epistemic_simulation",
+      "path": "epistemic-simulation-v1.json",
+      "status": "experimental",
+      "compatibility": "additive-within-v1"
+    },
+    {
+      "name": "consult-context",
+      "schema_version": "deepr-consult-context-v2",
+      "kind": "deepr.consult.context",
+      "path": "consult-context-v2.json",
+      "status": "experimental",
+      "compatibility": "additive-within-v2"
+    },
+    {
+      "name": "epistemic-simulation-case",
+      "schema_version": "deepr-epistemic-simulation-case-v1",
+      "kind": "deepr.eval.epistemic_simulation.case",
+      "path": "epistemic-simulation-case-v1.json",
+      "status": "experimental",
+      "compatibility": "additive-within-v1"
+    },
+    {
+      "name": "epistemic-simulation-case-bundle",
+      "schema_version": "deepr-epistemic-simulation-case-bundle-v1",
+      "kind": "deepr.eval.epistemic_simulation.cases",
+      "path": "epistemic-simulation-case-bundle-v1.json",
+      "status": "experimental",
+      "compatibility": "additive-within-v1"
+    },
+    {
+      "name": "epistemic-simulation-eval",
+      "schema_version": "deepr-epistemic-simulation-eval-v1",
+      "kind": "deepr.eval.epistemic_simulation",
+      "path": "epistemic-simulation-eval-v1.json",
+      "status": "experimental",
+      "compatibility": "additive-within-v1"
+    },
+    {
       "name": "cli-operation-result",
       "schema_version": "deepr-cli-operation-result-v1",
       "kind": "deepr.cli.operation_result",
