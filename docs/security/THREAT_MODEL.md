@@ -248,8 +248,10 @@ Relevant attacker stories:
 
 Existing controls:
 
-- `src/deepr/web/app.py` uses `DEEPR_API_KEY` bearer or `X-Api-Key` checks for
-  API routes when configured and warns that empty auth is for local dev.
+- `src/deepr/web/app.py` requires `DEEPR_API_KEY` bearer or `X-Api-Key` checks
+  for protected API routes. Missing server authentication fails closed.
+  Tokenless access requires a separate explicit compatibility flag and is
+  accepted only from loopback.
 - Web provider/model overrides are allowlisted before dispatch.
 - `src/deepr/web/portrait_api.py` and related portrait helpers require
   explicit premium image provider intent, acknowledgement of the estimate, and

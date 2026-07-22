@@ -446,17 +446,15 @@ provider API.
 
 ### Audit Logging
 
-Security-relevant events are logged:
+The append-only cost ledger records bounded spend decisions and settlement.
+Experimental HTTP MCP has a separate schema-validated remote-call audit. A
+general security-audit event model exists, but authentication, permission,
+research, expert, and configuration call sites are not yet wired to one
+canonical runtime log. Do not treat the event model alone as evidence that
+those actions were recorded.
 
-- API key validation (success/failure)
-- Cost threshold alerts
-- Research job submissions
-- Expert creation/deletion
-
-Logs do NOT contain:
-- API keys or tokens
-- Full research content
-- User credentials
+Current public logs and audit responses must not contain API keys, browser
+tokens, full research content, or user credentials.
 
 ### Recommendations for Deployment
 
@@ -468,14 +466,26 @@ Logs do NOT contain:
 
 ### Known Limitations
 
-- No authentication on local web interface (designed for local use)
-- No encryption at rest for local storage
-- API keys have full provider access (no scoping)
+- The web dashboard uses one operator-configured shared secret, not user
+  accounts, role-based access control, or delegated identity. Tokenless
+  loopback access requires an explicit launch flag.
+- The built-in development server does not terminate TLS and refuses
+  non-loopback binds. Use a production server and HTTPS-capable reverse proxy
+  for remote access only with `DEEPR_API_KEY` configured. Never place explicit
+  tokenless-loopback mode behind a reverse proxy, tunnel, or port forward: the
+  application evaluates the immediate peer, which a local intermediary can
+  make appear to be loopback.
+- Local storage is not encrypted at rest.
+- Provider API keys can retain broad provider permissions.
 
-For production deployments, consider:
-- Adding authentication layer
-- Encrypting sensitive data at rest
-- Using provider-specific API key scoping where available
+Protected browser launches gate the application shell before loading data. The
+submitted dashboard token is retained in session storage, with an in-memory
+fallback when browser storage is unavailable, and is removed from the legacy
+persistent browser key. HTTP and Socket.IO read the same session credential.
+
+For production deployments, add identity-aware access control where multiple
+operators require distinct authority, encrypt sensitive data at rest, and use
+provider-specific API key scoping where available.
 
 ## Observability
 

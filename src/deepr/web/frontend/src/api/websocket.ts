@@ -1,6 +1,7 @@
 import { io, Socket } from 'socket.io-client'
 import type { Job, CommandResult, ThoughtItem, PlanStep, ConfirmRequest } from '../types'
 import type { BrowserExpertChatRequestPayload } from '../lib/expert-chat-contract'
+import { loadDashboardToken } from '../lib/dashboard-auth'
 
 const WS_URL = import.meta.env.VITE_WS_URL || `${window.location.protocol}//${window.location.host}`
 const isDev = import.meta.env.DEV
@@ -29,7 +30,7 @@ class WebSocketClient {
   connect() {
     if (this.socket?.connected) return
 
-    const token = localStorage.getItem('api_token') || ''
+    const token = loadDashboardToken()
     this.socket = io(WS_URL, {
       transports: ['polling', 'websocket'],
       reconnection: true,

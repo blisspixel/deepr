@@ -771,7 +771,7 @@ These features work but APIs or behavior may change:
 - Expert skills system: 7 built-in skills, Python + MCP tool types, auto-activation triggers, three-tier storage
 - Conversations API for browsing stored sessions. Resuming with a new metered turn remains gated in v2.36.
 - MCP server with 36 tools, persistence, security, multi-runtime configs
-- Web dashboard (12 pages: overview, research studio, research live, results library, result detail, expert hub, expert profile, cost intelligence, models & benchmarks, trace explorer, help, settings)
+- Web dashboard (12 pages: overview, research studio, research live, results library, result detail, expert hub, expert profile, cost intelligence, models & benchmarks, trace explorer, help, settings). Protected launches gate the application shell on a read-only authenticated probe, keep the shared HTTP and Socket.IO token within the browser session, and distinguish rejected credentials, missing server authentication, and an unreachable server.
 - CLI trace flags (`--explain`, `--timeline`, `--full-trace`)
 - Output modes (`--verbose`, `--json`, `--quiet`)
 - One bounded provider attempt with conservative ambiguous-outcome settlement;
