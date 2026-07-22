@@ -384,6 +384,10 @@ class ExpertStore:
 
         profiles = _ProfileList()
         profiles.errors = []
+        if not self.base_path.exists():
+            return profiles
+        if not self.base_path.is_dir():
+            raise NotADirectoryError("The configured experts root is not a directory")
         for expert_dir in self.base_path.iterdir():
             if expert_dir.is_dir():
                 profile_path = expert_dir / "profile.json"

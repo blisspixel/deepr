@@ -299,6 +299,11 @@ deepr expert blueprint "AI Policy Expert" --from-file expert-blueprint.json --ap
 deepr expert make "AI Policy Expert" --local -d "EU AI Act enforcement timeline"
 deepr expert subscribe "AI Policy Expert" "EU AI Act enforcement timeline"
 deepr expert sync "AI Policy Expert" --local --fresh-context -y
+# Preview and schedule one capacity-aware maintenance pass for the whole roster.
+deepr expert sync-all --dry-run --json
+deepr expert sync-all --scheduled -y --json
+deepr fleet status --json
+deepr fleet install-schedule --command "deepr expert sync-all --scheduled -y"
 deepr expert consult "What should our agentic harness improve next?" --expert "AI Policy Expert" --local
 deepr expert record-outcome "AI Policy Expert" --decision-id policy-review-2026 --summary "Choose the policy response" --result succeeded --observation "The reviewed response met the compliance deadline." --attested-by operator
 deepr expert outcomes "AI Policy Expert" --json

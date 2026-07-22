@@ -38,11 +38,21 @@ def _subs(due_map: dict):
     class _FakeSub:
         def __init__(self, name):
             self._due = due_map.get(name, True)
+            self.load_failed = False
+            self.subscriptions = [object()]
 
         def due(self, now=None):
             return [object()] if self._due else []
 
     return _FakeSub
+
+
+def _unreadable_subs(name):
+    return type(
+        "UnreadableSubscriptions",
+        (),
+        {"load_failed": True, "subscriptions": [], "due": lambda self, now=None: []},
+    )()
 
 
 class TestSummarize:
@@ -103,6 +113,30 @@ class TestSummarize:
 
 
 class TestRunLibrarySync:
+    async def test_unreadable_subscription_state_is_a_failed_expert_without_dispatch(self):
+        calls: list = []
+
+        result = await run_library_sync(
+            sync_one=_sync_one({}, calls),
+            expert_names=["Alpha"],
+            budget=5.0,
+            subscription_store_factory=_unreadable_subs,
+        )
+
+        assert calls == []
+        assert result.status == "completed_with_failures"
+        assert result.exit_code == 1
+        assert result.summaries[0].status == "failed"
+        assert result.summaries[0].failures == [
+            {
+                "topic": None,
+                "error_code": "EXPERT_SUBSCRIPTIONS_UNREADABLE",
+                "retryable": False,
+                "no_metered_fallback": True,
+                "inspect_command_argv": ["deepr", "expert", "loop-status", "Alpha", "--json"],
+            }
+        ]
+
     async def test_syncs_due_experts_and_skips_not_due(self):
         behaviors = {
             "Alpha": (_result(SyncOutcome("t", "synced", absorbed=1), cost=0.02), "local"),
@@ -229,6 +263,27 @@ class TestRunLibrarySync:
             subscription_store_factory=_subs({"A": False}),  # not due, but forced
         )
         assert result.summaries[0].status == "no_changes"
+
+    async def test_only_due_false_does_not_dispatch_empty_subscription_store(self):
+        calls: list = []
+
+        class EmptySubscriptions:
+            load_failed = False
+            subscriptions: list = []
+
+            def due(self, now=None):
+                return []
+
+        result = await run_library_sync(
+            sync_one=_sync_one({}, calls),
+            expert_names=["Empty"],
+            budget=5.0,
+            only_due=False,
+            subscription_store_factory=lambda name: EmptySubscriptions(),
+        )
+
+        assert calls == []
+        assert [(row.expert, row.status) for row in result.summaries] == [("Empty", "no_changes")]
 
     async def test_negative_budget_rejected(self):
         with pytest.raises(ValueError, match="budget must be non-negative"):

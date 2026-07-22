@@ -149,6 +149,8 @@ class ExpertSyncEngine:
         self.expert = expert
         self._research_fn = research_fn
         self.subscriptions = subscription_store or SubscriptionStore(expert.name)
+        if getattr(self.subscriptions, "load_failed", False):
+            raise RuntimeError("Subscription state could not be loaded safely. Repair it before syncing.")
         self.belief_store = belief_store or BeliefStore(expert.name)
         self._absorber = absorber
         self._claim_extractor = claim_extractor

@@ -6,11 +6,13 @@ timer, the laptop stayed asleep, the box was off). Nothing on that host runs to
 notice, so nothing alerts. The only signal is *absence* of an expected check-in,
 observed off-box.
 
-So on a successful scheduled run we ping an operator-configured dead-man's-switch
-(healthchecks.io, Dead Man's Snitch, or any URL). The service alerts when the
-ping does not arrive on schedule. This is opt-in (set ``DEEPR_HEARTBEAT_URL``)
-and strictly best-effort: a heartbeat failure must never break or fail a
-maintenance run. Pure side-effect at the edge - no model judgment.
+On each expected scheduled, non-dry terminal outcome we ping an
+operator-configured dead-man's-switch (healthchecks.io, Dead Man's Snitch, or
+any URL). Completed and no-work outcomes report success; non-completion and
+failed outcomes report failure. The service also alerts when no ping arrives on
+schedule. This is opt-in (set ``DEEPR_HEARTBEAT_URL``) and strictly best-effort:
+a heartbeat delivery failure must never change the maintenance result. Pure
+side-effect at the edge - no model judgment.
 """
 
 from __future__ import annotations
@@ -45,11 +47,11 @@ def send_heartbeat(*, success: bool = True, url: str | None = None, timeout: flo
         return False
     target = base if success else base.rstrip("/") + "/fail"
     try:
-        response = requests.get(target, timeout=timeout)
-    except requests.RequestException as exc:
-        logger.debug("heartbeat ping to %s failed: %s", target, exc)
+        response = requests.get(target, timeout=timeout, allow_redirects=False)
+    except requests.RequestException:
+        logger.debug("heartbeat request failed")
         return False
     if 200 <= response.status_code < 300:
         return True
-    logger.debug("heartbeat ping to %s returned HTTP %s", target, response.status_code)
+    logger.debug("heartbeat request returned HTTP %s", response.status_code)
     return False
