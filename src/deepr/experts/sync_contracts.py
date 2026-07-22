@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import logging
+import math
 from dataclasses import dataclass, field
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
@@ -14,6 +15,32 @@ from deepr.utils.atomic_io import atomic_write_json
 logger = logging.getLogger(__name__)
 
 DEFAULT_SUBSCRIPTION_BUDGET = 0.50
+
+
+def _finite_nonnegative_number(value: object, *, field_name: str) -> float:
+    if isinstance(value, bool):
+        raise ValueError(f"{field_name} must be a finite non-negative number")
+    try:
+        parsed = float(value)
+    except (TypeError, ValueError) as exc:
+        raise ValueError(f"{field_name} must be a finite non-negative number") from exc
+    if not math.isfinite(parsed) or parsed < 0:
+        raise ValueError(f"{field_name} must be a finite non-negative number")
+    return parsed
+
+
+def _optional_aware_datetime(value: object, *, field_name: str) -> datetime | None:
+    if value in (None, ""):
+        return None
+    if not isinstance(value, str):
+        raise ValueError(f"{field_name} must be an ISO 8601 timestamp with a timezone")
+    try:
+        parsed = datetime.fromisoformat(value)
+    except ValueError as exc:
+        raise ValueError(f"{field_name} must be an ISO 8601 timestamp with a timezone") from exc
+    if parsed.tzinfo is None or parsed.utcoffset() is None:
+        raise ValueError(f"{field_name} must include a timezone")
+    return parsed
 
 
 @dataclass
@@ -44,13 +71,21 @@ class Subscription:
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> Subscription:
+        if not isinstance(data, dict):
+            raise ValueError("each subscription must be an object")
+        topic = data.get("topic")
+        query = data.get("query", "")
+        if not isinstance(topic, str) or not topic.strip():
+            raise ValueError("subscription topic must be non-empty text")
+        if not isinstance(query, str):
+            raise ValueError("subscription query must be text")
         return cls(
-            topic=data["topic"],
-            query=data.get("query", ""),
-            cadence_days=float(data.get("cadence_days", 7.0)),
-            budget=float(data.get("budget", DEFAULT_SUBSCRIPTION_BUDGET)),
-            last_synced=datetime.fromisoformat(data["last_synced"]) if data.get("last_synced") else None,
-            created_at=datetime.fromisoformat(data["created_at"]) if data.get("created_at") else datetime.now(UTC),
+            topic=topic,
+            query=query,
+            cadence_days=_finite_nonnegative_number(data.get("cadence_days", 7.0), field_name="cadence_days"),
+            budget=_finite_nonnegative_number(data.get("budget", DEFAULT_SUBSCRIPTION_BUDGET), field_name="budget"),
+            last_synced=_optional_aware_datetime(data.get("last_synced"), field_name="last_synced"),
+            created_at=_optional_aware_datetime(data.get("created_at"), field_name="created_at") or datetime.now(UTC),
         )
 
 
@@ -62,18 +97,26 @@ class SubscriptionStore:
         if storage_dir is None:
             from deepr.experts.profile import ExpertStore
 
-            storage_dir = ExpertStore().get_knowledge_dir(expert_name)
+            storage_dir = ExpertStore(create=False).get_knowledge_dir(expert_name)
         self.path = Path(storage_dir) / "subscriptions.json"
         self.subscriptions: list[Subscription] = []
+        self.load_failed = False
         self._load()
 
     def _load(self) -> None:
-        if not self.path.exists():
-            return
         try:
+            if not self.path.exists():
+                return
             data = json.loads(self.path.read_text(encoding="utf-8"))
-            self.subscriptions = [Subscription.from_dict(item) for item in data.get("subscriptions", [])]
-        except (json.JSONDecodeError, OSError, KeyError, ValueError) as exc:
+            if not isinstance(data, dict):
+                raise ValueError("subscription state must be an object")
+            items = data.get("subscriptions", [])
+            if not isinstance(items, list):
+                raise ValueError("subscriptions must be a list")
+            self.subscriptions = [Subscription.from_dict(item) for item in items]
+        except (json.JSONDecodeError, OSError, TypeError, ValueError) as exc:
+            self.subscriptions = []
+            self.load_failed = True
             logger.error("Could not load subscriptions for %s: %s", self.expert_name, exc)
 
     def save(self) -> None:

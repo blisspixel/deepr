@@ -2069,8 +2069,14 @@ Sequenced smallest-shippable-first:
       scheduled passes wait instead of spending metered when no owned/prepaid
       capacity exists. Cycle 25 added explicit non-metered `--plan <id>` roster
       dispatch plus scheduled auto dispatch through an admitted quota-observed
-      plan choice. Completion and safety contract hardened 2026-07-22 with 58
-      focused domain and CLI tests. Deferred: `--fresh-context` parity and
+      plan choice. Completion and safety contract hardened 2026-07-22. A second
+      2026-07-22 hardening pass added read-only roster preflight, fail-closed
+      profile and subscription parsing, no-work completion before capacity
+      lookup, one additive terminal JSON envelope, stderr-only JSON confirmation,
+      bounded heartbeat delivery evidence, single-line literal Rich name
+      rendering, aggregate-invariant roster counts, and redirect-free secret-safe
+      heartbeat transport. These paths have 74 focused domain and CLI tests.
+      Deferred: `--fresh-context` parity and
       a single library-level loop record (per-expert records + the returned
       roll-up cover the need without a synthetic expert).
 - [~] **Budget degradation tiers + targeted-spend gate**: drive behavior off
@@ -2220,10 +2226,14 @@ Sequenced smallest-shippable-first:
         (healthchecks.io / Dead Man's Snitch convention: GET the URL on success,
         `<url>/fail` on a failed run). Opt-in via `DEEPR_HEARTBEAT_URL`,
         best-effort (never raises, never fails the run), `$0`. Wired into
-        `expert sync-all`'s scheduled, non-dry-run completion (success = no failed
-        experts), so the service alerts when the scheduled pass silently does not
-        arrive - the only signal that catches "the laptop never woke up." 12
-        tests. No same-host monitor (it dies with the jobs).
+        `expert sync-all`'s scheduled, non-dry terminal outcomes: completed and
+        no-work results report success, while capacity waits, busy deferrals,
+        cancellation, storage failure, and completed expert failures report
+        failure. Machine results expose bounded delivery disposition without the
+        URL. Redirects are refused and debug diagnostics contain neither the
+        target nor exception text. The service still alerts when the scheduled
+        pass silently does not arrive - the only signal that catches "the laptop
+        never woke up." No same-host monitor (it dies with the jobs).
 
 ### Phase 5: Operations, Team, and Security Hardening
 

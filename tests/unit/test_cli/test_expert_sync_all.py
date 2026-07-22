@@ -7,7 +7,9 @@ injected so nothing touches providers or disk.
 
 from __future__ import annotations
 
+import json
 from datetime import UTC, datetime
+from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
@@ -22,6 +24,12 @@ def _sync_result(*outcomes: SyncOutcome, cost: float = 0.0) -> SyncResult:
     return SyncResult(expert_name="x", started_at=datetime.now(UTC), outcomes=list(outcomes), total_cost=cost)
 
 
+def _assert_aggregate_invariants(payload: dict, *, roster_experts: int) -> None:
+    assert payload["experts"] == len(payload["summaries"])
+    assert sum(payload["status_counts"].values()) == payload["experts"]
+    assert payload["roster_experts"] == roster_experts
+
+
 def _wire(
     monkeypatch,
     result: SyncResult,
@@ -32,14 +40,31 @@ def _wire(
     profiles=None,
     built=None,
     loop_events=None,
+    due_names=None,
+    subscribed_names=None,
+    profile_errors=(),
+    subscription_failures=(),
+    due_failures=(),
 ):
     profiles = profiles or [SimpleNamespace(name=n) for n in names]
+    due_names = set(names if due_names is None else due_names)
+    subscribed_names = set(names if subscribed_names is None else subscribed_names)
+    subscription_failures = set(subscription_failures)
+    due_failures = set(due_failures)
+
+    class FakeProfiles(list):
+        errors = list(profile_errors)
+
+    profile_rows = FakeProfiles(profiles)
 
     class FakeStore:
-        def list_all(self, include_errors=False):
-            return profiles
+        def __init__(self, *args, **kwargs):
+            self.read_only = kwargs.get("create") is False
 
-        def load(self, name):
+        def list_all(self, include_errors=False):
+            return profile_rows
+
+        def load(self, name, *args, **kwargs):
             return next(profile for profile in profiles if profile.name == name)
 
     class FakeEngine:
@@ -47,13 +72,15 @@ def _wire(
             return result
 
     class FakeSubscriptionStore:
-        subscriptions = [SimpleNamespace(topic="t")]
-
         def __init__(self, name):
             self.name = name
+            self.load_failed = name in subscription_failures
+            self.subscriptions = [SimpleNamespace(topic="t")] if name in subscribed_names else []
 
-        def due(self):
-            return list(self.subscriptions)
+        def due(self, now=None):
+            if self.name in due_failures:
+                raise ValueError("invalid persisted cadence token=private")
+            return list(self.subscriptions) if self.name in due_names else []
 
     monkeypatch.setattr("deepr.experts.profile.ExpertStore", FakeStore)
     monkeypatch.setattr("deepr.experts.sync.SubscriptionStore", FakeSubscriptionStore)
@@ -108,6 +135,9 @@ class TestRegistration:
 
     def test_no_experts_is_friendly(self, monkeypatch):
         class EmptyStore:
+            def __init__(self, *args, **kwargs):
+                assert kwargs.get("create") is False
+
             def list_all(self, include_errors=False):
                 return []
 
@@ -119,6 +149,9 @@ class TestRegistration:
 
     def test_no_experts_json_is_a_versioned_completion_with_next_action(self, monkeypatch):
         class EmptyStore:
+            def __init__(self, *args, **kwargs):
+                assert kwargs.get("create") is False
+
             def list_all(self, include_errors=False):
                 return []
 
@@ -137,6 +170,40 @@ class TestRegistration:
             "command_argv": ["deepr", "expert", "make", "NAME", "--local"],
             "requires_user_input": ["NAME"],
         }
+        assert payload["heartbeat"] == {
+            "configured": False,
+            "attempted": False,
+            "delivered": False,
+            "reported_status": None,
+        }
+        _assert_aggregate_invariants(payload, roster_experts=0)
+
+    def test_scheduled_empty_roster_reports_success_heartbeat(self, monkeypatch):
+        class EmptyStore:
+            def __init__(self, *args, **kwargs):
+                assert kwargs.get("create") is False
+
+            def list_all(self, include_errors=False):
+                return []
+
+        pinged = []
+        monkeypatch.setattr("deepr.experts.profile.ExpertStore", EmptyStore)
+        monkeypatch.setenv("DEEPR_HEARTBEAT_URL", "https://hc.example/secret")
+        monkeypatch.setattr("deepr.experts.heartbeat.send_heartbeat", lambda **kw: pinged.append(kw) or True)
+
+        result = CliRunner().invoke(expert, ["sync-all", "--scheduled", "--json"])
+
+        assert result.exit_code == 0, result.output
+        payload = json.loads(result.stdout)
+        assert payload["status"] == "completed"
+        assert payload["heartbeat"] == {
+            "configured": True,
+            "attempted": True,
+            "delivered": True,
+            "reported_status": "success",
+        }
+        _assert_aggregate_invariants(payload, roster_experts=0)
+        assert pinged == [{"success": True}]
 
     @pytest.mark.parametrize(
         "option,value",
@@ -166,13 +233,88 @@ class TestRegistration:
         assert touched is False
 
     def test_help_describes_current_gates_and_complete_examples(self):
-        result = CliRunner().invoke(expert, ["sync-all", "--help"])
+        result = CliRunner().invoke(expert, ["sync-all", "--help"], terminal_width=120)
+        normalized = " ".join(result.output.split())
 
         assert result.exit_code == 0
-        assert "--plan claude -y" in result.output
-        assert "--plan codex -y" not in result.output
-        assert "execution is currently gated" in result.output
-        assert "continues after individual failures" in result.output
+        assert "--plan claude -y" in normalized
+        assert "--plan codex -y" not in normalized
+        assert "execution is currently gated" in normalized
+        assert "continues after individual failures" in normalized
+        assert "Sync every subscription regardless of cadence" in normalized
+        assert "expected terminal outcomes" in normalized
+        assert "dead-man's-switch" in normalized
+
+    def test_profile_corruption_blocks_before_backend_resolution(self, monkeypatch):
+        touched_backend = False
+        pinged = []
+
+        class BrokenProfiles(list):
+            errors = [(Path("broken/profile.json"), "token=private")]
+
+        class BrokenStore:
+            def __init__(self, *args, **kwargs):
+                assert kwargs.get("create") is False
+
+            def list_all(self, include_errors=False):
+                return BrokenProfiles()
+
+        def fail_backend(*args, **kwargs):
+            nonlocal touched_backend
+            touched_backend = True
+            raise AssertionError("backend resolution must not run")
+
+        monkeypatch.setattr("deepr.experts.profile.ExpertStore", BrokenStore)
+        monkeypatch.setattr(
+            "deepr.cli.commands.semantic.expert_sync_all._resolve_pass_backend",
+            fail_backend,
+        )
+        monkeypatch.setenv("DEEPR_HEARTBEAT_URL", "https://hc.example/secret")
+        monkeypatch.setattr("deepr.experts.heartbeat.send_heartbeat", lambda **kw: pinged.append(kw) or True)
+
+        result = CliRunner().invoke(expert, ["sync-all", "--scheduled", "--json"])
+
+        assert result.exit_code == 1
+        payload = json.loads(result.stdout)
+        assert payload["schema_version"] == "deepr-library-sync-v1"
+        assert payload["status"] == "blocked_storage_state"
+        assert payload["exit_code"] == 1
+        assert payload["state_errors"] == {"profiles": 1, "subscriptions": 0}
+        assert payload["heartbeat"]["reported_status"] == "failure"
+        _assert_aggregate_invariants(payload, roster_experts=0)
+        assert "private" not in result.output
+        assert touched_backend is False
+        assert pinged == [{"success": False}]
+
+    def test_non_directory_experts_root_is_blocked_state(self, monkeypatch, tmp_path):
+        invalid_root = tmp_path / "experts"
+        invalid_root.write_text("not a directory", encoding="utf-8")
+        touched_backend = False
+        pinged = []
+
+        def fail_backend(*args, **kwargs):
+            nonlocal touched_backend
+            touched_backend = True
+            raise AssertionError("backend resolution must not run")
+
+        monkeypatch.setenv("DEEPR_EXPERTS_PATH", str(invalid_root))
+        monkeypatch.setenv("DEEPR_HEARTBEAT_URL", "https://hc.example/secret")
+        monkeypatch.setattr(
+            "deepr.cli.commands.semantic.expert_sync_all._resolve_pass_backend",
+            fail_backend,
+        )
+        monkeypatch.setattr("deepr.experts.heartbeat.send_heartbeat", lambda **kw: pinged.append(kw) or True)
+
+        result = CliRunner().invoke(expert, ["sync-all", "--scheduled", "--json"])
+
+        assert result.exit_code == 1
+        payload = json.loads(result.stdout)
+        assert payload["status"] == "blocked_storage_state"
+        assert payload["state_errors"] == {"profiles": 1, "subscriptions": 0}
+        assert payload["heartbeat"]["reported_status"] == "failure"
+        _assert_aggregate_invariants(payload, roster_experts=0)
+        assert touched_backend is False
+        assert pinged == [{"success": False}]
 
 
 class TestRun:
@@ -191,6 +333,7 @@ class TestRun:
         assert payload["exit_code"] == 0
         assert payload["synced_experts"] == 2
         assert {row["expert"] for row in payload["summaries"]} == {"Alpha", "Beta"}
+        _assert_aggregate_invariants(payload, roster_experts=2)
         # Each synced expert recorded a per-expert loop run (fleet status sees it).
         assert [name for name, _ in recorded] == ["Alpha", "Beta"]
 
@@ -222,6 +365,175 @@ class TestRun:
         assert r.exit_code == 0
         assert "synced" in r.output
         assert "2 experts" in r.output
+
+    def test_human_render_escapes_literal_expert_markup(self, monkeypatch):
+        _wire(
+            monkeypatch,
+            _sync_result(SyncOutcome("t", "synced"), cost=0.0),
+            names=("[red]Literal[/red]",),
+        )
+
+        result = CliRunner().invoke(expert, ["sync-all", "--all", "--local", "-y"])
+
+        assert result.exit_code == 0, result.output
+        assert "[red]Literal[/red]" in result.output
+
+    def test_human_render_makes_expert_control_characters_visible(self, monkeypatch):
+        name = "Alpha\nBeta\rGamma\tDelta\x1b[31m"
+        _wire(
+            monkeypatch,
+            _sync_result(SyncOutcome("t", "synced"), cost=0.0),
+            names=(name,),
+        )
+
+        result = CliRunner().invoke(expert, ["sync-all", "--all", "--local", "-y"])
+
+        assert result.exit_code == 0, result.output
+        assert "Alpha\\nBeta\\rGamma\\tDelta\\x1b[31m" in result.output
+        assert "\x1b[31m" not in result.output
+
+    def test_json_cancellation_keeps_stdout_machine_parseable(self, monkeypatch):
+        _wire(monkeypatch, _sync_result(SyncOutcome("t", "synced"), cost=0.0), names=("Alpha",))
+
+        result = CliRunner().invoke(expert, ["sync-all", "--all", "--local", "--json"], input="n\n")
+
+        assert result.exit_code == 0, result.output
+        payload = json.loads(result.stdout)
+        assert payload["schema_version"] == "deepr-library-sync-v1"
+        assert payload["status"] == "cancelled"
+        assert payload["exit_code"] == 0
+        _assert_aggregate_invariants(payload, roster_experts=1)
+        assert "Sync up to 1 expert" in result.stderr
+        assert "Cancelled." not in result.stdout
+        assert payload["next_action"]["command_argv"] == [
+            "deepr",
+            "expert",
+            "sync-all",
+            "--budget",
+            "5",
+            "--per-expert-budget",
+            "0.5",
+            "--all",
+            "--local",
+            "--json",
+        ]
+
+    def test_scheduled_cancellation_reports_failed_heartbeat_and_retry_mode(self, monkeypatch):
+        _wire(monkeypatch, _sync_result(SyncOutcome("t", "synced"), cost=0.0), names=("Alpha",))
+        pinged = []
+        monkeypatch.setenv("DEEPR_HEARTBEAT_URL", "https://hc.example/secret")
+        monkeypatch.setattr("deepr.experts.heartbeat.send_heartbeat", lambda **kw: pinged.append(kw) or True)
+
+        result = CliRunner().invoke(
+            expert,
+            ["sync-all", "--all", "--local", "--scheduled", "--json"],
+            input="n\n",
+        )
+
+        assert result.exit_code == 0, result.output
+        payload = json.loads(result.stdout)
+        assert payload["status"] == "cancelled"
+        assert "--scheduled" in payload["next_action"]["command_argv"]
+        assert payload["heartbeat"]["reported_status"] == "failure"
+        _assert_aggregate_invariants(payload, roster_experts=1)
+        assert pinged == [{"success": False}]
+
+    def test_mixed_roster_cancellation_separates_pending_and_roster_counts(self, monkeypatch):
+        _wire(
+            monkeypatch,
+            _sync_result(SyncOutcome("t", "synced"), cost=0.0),
+            names=("Subscribed", "Empty"),
+            subscribed_names=("Subscribed",),
+        )
+
+        result = CliRunner().invoke(
+            expert,
+            ["sync-all", "--all", "--local", "--json"],
+            input="n\n",
+        )
+
+        assert result.exit_code == 0, result.output
+        payload = json.loads(result.stdout)
+        assert "Sync up to 1 expert" in result.stderr
+        _assert_aggregate_invariants(payload, roster_experts=2)
+
+    def test_subscription_corruption_blocks_before_backend_resolution(self, monkeypatch):
+        _wire(
+            monkeypatch,
+            _sync_result(SyncOutcome("t", "synced"), cost=0.0),
+            names=("Alpha",),
+            subscription_failures=("Alpha",),
+        )
+        touched_backend = False
+
+        def fail_backend(*args, **kwargs):
+            nonlocal touched_backend
+            touched_backend = True
+            raise AssertionError("backend resolution must not run")
+
+        monkeypatch.setattr(
+            "deepr.cli.commands.semantic.expert_sync_all._resolve_pass_backend",
+            fail_backend,
+        )
+
+        result = CliRunner().invoke(expert, ["sync-all", "--scheduled", "--json"])
+
+        assert result.exit_code == 1
+        payload = json.loads(result.stdout)
+        assert payload["status"] == "blocked_storage_state"
+        assert payload["state_errors"] == {"profiles": 0, "subscriptions": 1}
+        _assert_aggregate_invariants(payload, roster_experts=1)
+        assert touched_backend is False
+
+    def test_due_evaluation_failure_blocks_before_backend_resolution(self, monkeypatch):
+        _wire(
+            monkeypatch,
+            _sync_result(SyncOutcome("t", "synced"), cost=0.0),
+            names=("Alpha",),
+            due_failures=("Alpha",),
+        )
+        touched_backend = False
+
+        def fail_backend(*args, **kwargs):
+            nonlocal touched_backend
+            touched_backend = True
+            raise AssertionError("backend resolution must not run")
+
+        monkeypatch.setattr(
+            "deepr.cli.commands.semantic.expert_sync_all._resolve_pass_backend",
+            fail_backend,
+        )
+
+        result = CliRunner().invoke(expert, ["sync-all", "--scheduled", "--json"])
+
+        assert result.exit_code == 1
+        payload = json.loads(result.stdout)
+        assert payload["status"] == "blocked_storage_state"
+        assert payload["state_errors"] == {"profiles": 0, "subscriptions": 1}
+        _assert_aggregate_invariants(payload, roster_experts=1)
+        assert "private" not in result.output
+        assert touched_backend is False
+
+    def test_all_skips_engine_construction_for_experts_without_subscriptions(self, monkeypatch):
+        built: list = []
+        _wire(
+            monkeypatch,
+            _sync_result(SyncOutcome("t", "synced"), cost=0.0),
+            names=("Subscribed", "Empty"),
+            subscribed_names=("Subscribed",),
+            built=built,
+        )
+
+        result = CliRunner().invoke(expert, ["sync-all", "--all", "--local", "-y", "--json"])
+
+        assert result.exit_code == 0, result.output
+        payload = json.loads(result.stdout)
+        assert [(row["expert"], row["status"]) for row in payload["summaries"]] == [
+            ("Subscribed", "synced"),
+            ("Empty", "no_changes"),
+        ]
+        assert [name for name, _ in built] == ["Subscribed"]
+        _assert_aggregate_invariants(payload, roster_experts=2)
 
     def test_human_partial_failure_preserves_success_and_failure_counts(self, monkeypatch):
         _wire(
@@ -318,9 +630,94 @@ class TestCapacity:
             lambda task_class: SimpleNamespace(is_local=False, is_plan_quota=False, reason=""),
         )
         _wire(monkeypatch, _sync_result(cost=0.0))
+        pinged = []
+        monkeypatch.setenv("DEEPR_HEARTBEAT_URL", "https://hc.example/secret")
+        monkeypatch.setattr("deepr.experts.heartbeat.send_heartbeat", lambda **kw: pinged.append(kw) or True)
         r = CliRunner().invoke(expert, ["sync-all", "--all", "--scheduled", "--json"])
         assert r.exit_code == 0
-        assert "waiting_for_capacity" in r.output
+        payload = json.loads(r.stdout)
+        assert payload["schema_version"] == "deepr-library-sync-v1"
+        assert payload["status"] == "waiting_for_capacity"
+        assert payload["exit_code"] == 0
+        _assert_aggregate_invariants(payload, roster_experts=2)
+        assert payload["heartbeat"] == {
+            "configured": True,
+            "attempted": True,
+            "delivered": True,
+            "reported_status": "failure",
+        }
+        assert pinged == [{"success": False}]
+
+    def test_scheduled_no_due_work_completes_before_backend_resolution(self, monkeypatch):
+        _wire(
+            monkeypatch,
+            _sync_result(cost=0.0),
+            names=("Alpha", "Beta"),
+            due_names=(),
+        )
+        touched_backend = False
+        pinged = []
+
+        def fail_backend(*args, **kwargs):
+            nonlocal touched_backend
+            touched_backend = True
+            raise AssertionError("backend resolution must not run")
+
+        monkeypatch.setattr(
+            "deepr.cli.commands.semantic.expert_sync_all._resolve_pass_backend",
+            fail_backend,
+        )
+        monkeypatch.setenv("DEEPR_HEARTBEAT_URL", "https://hc.example/secret")
+        monkeypatch.setattr("deepr.experts.heartbeat.send_heartbeat", lambda **kw: pinged.append(kw) or True)
+
+        result = CliRunner().invoke(expert, ["sync-all", "--scheduled", "--json"])
+
+        assert result.exit_code == 0, result.output
+        payload = json.loads(result.stdout)
+        assert payload["status"] == "completed"
+        assert payload["status_counts"]["not_due"] == 2
+        assert {row["status"] for row in payload["summaries"]} == {"not_due"}
+        assert payload["heartbeat"]["reported_status"] == "success"
+        _assert_aggregate_invariants(payload, roster_experts=2)
+        assert pinged == [{"success": True}]
+        assert touched_backend is False
+
+    def test_scheduled_local_busy_wait_uses_versioned_envelope(self, monkeypatch):
+        _wire(monkeypatch, _sync_result(cost=0.0), names=("Alpha",))
+        busy = LocalCapacityObservation(
+            state=LocalCapacityState.BUSY,
+            source="test",
+            detail="GPU is occupied",
+        )
+        retry_at = datetime(2026, 7, 22, 21, 0, tzinfo=UTC)
+        wait = SimpleNamespace(
+            retry_at=retry_at,
+            retry_after_seconds=60,
+            to_dict=lambda: {"expert": "Alpha", "retry_at": retry_at.isoformat()},
+        )
+        pinged = []
+        monkeypatch.setattr("deepr.backends.local_capacity.probe_local_gpu_occupancy", lambda: busy)
+        monkeypatch.setattr(
+            "deepr.experts.scheduled_local_capacity.record_scheduled_local_capacity_wait",
+            lambda **kwargs: wait,
+        )
+        monkeypatch.setenv("DEEPR_HEARTBEAT_URL", "https://hc.example/secret")
+        monkeypatch.setattr("deepr.experts.heartbeat.send_heartbeat", lambda **kw: pinged.append(kw) or True)
+
+        result = CliRunner().invoke(
+            expert,
+            ["sync-all", "--all", "--local", "--scheduled", "-y", "--json"],
+        )
+
+        assert result.exit_code == 0, result.output
+        payload = json.loads(result.stdout)
+        assert payload["schema_version"] == "deepr-library-sync-v1"
+        assert payload["status"] == "waiting_for_capacity"
+        assert payload["exit_code"] == 0
+        assert payload["capacity_unavailable_reason"] == "local_gpu_busy"
+        assert payload["heartbeat"]["reported_status"] == "failure"
+        _assert_aggregate_invariants(payload, roster_experts=1)
+        assert pinged == [{"success": False}]
 
     def test_scheduled_uses_auto_selected_plan_capacity(self, monkeypatch):
         import json
@@ -375,6 +772,7 @@ class TestCapacity:
 class TestHeartbeat:
     def _capture(self, monkeypatch):
         pinged: list = []
+        monkeypatch.setenv("DEEPR_HEARTBEAT_URL", "https://hc.example/secret")
         monkeypatch.setattr("deepr.experts.heartbeat.send_heartbeat", lambda **kw: pinged.append(kw) or True)
         return pinged
 
@@ -384,6 +782,12 @@ class TestHeartbeat:
         r = CliRunner().invoke(expert, ["sync-all", "--all", "--local", "--scheduled", "-y", "--json"])
         assert r.exit_code == 0
         assert pinged == [{"success": True}]
+        assert json.loads(r.stdout)["heartbeat"] == {
+            "configured": True,
+            "attempted": True,
+            "delivered": True,
+            "reported_status": "success",
+        }
 
     def test_scheduled_failure_pings_fail(self, monkeypatch):
         pinged = self._capture(monkeypatch)
@@ -409,6 +813,7 @@ class TestHeartbeat:
         payload = json.loads(result.output)
         assert payload["summaries"][0]["status"] == "partial_failure"
         assert payload["partial_failure_experts"] == 1
+        assert payload["heartbeat"]["reported_status"] == "failure"
 
     def test_non_scheduled_run_does_not_ping(self, monkeypatch):
         pinged = self._capture(monkeypatch)
@@ -423,6 +828,31 @@ class TestHeartbeat:
         r = CliRunner().invoke(expert, ["sync-all", "--all", "--local", "--scheduled", "--dry-run"])
         assert r.exit_code == 0
         assert pinged == []
+
+    def test_configured_delivery_failure_is_visible_but_non_fatal(self, monkeypatch):
+        monkeypatch.setenv("DEEPR_HEARTBEAT_URL", "https://hc.example/secret")
+        monkeypatch.setattr("deepr.experts.heartbeat.send_heartbeat", lambda **kwargs: False)
+        _wire(monkeypatch, _sync_result(SyncOutcome("t", "synced"), cost=0.0), names=("Alpha",))
+
+        structured = CliRunner().invoke(
+            expert,
+            ["sync-all", "--all", "--local", "--scheduled", "-y", "--json"],
+        )
+        human = CliRunner().invoke(
+            expert,
+            ["sync-all", "--all", "--local", "--scheduled", "-y"],
+        )
+
+        assert structured.exit_code == 0, structured.output
+        assert json.loads(structured.stdout)["heartbeat"] == {
+            "configured": True,
+            "attempted": True,
+            "delivered": False,
+            "reported_status": "success",
+        }
+        assert human.exit_code == 0, human.output
+        assert "heartbeat delivery failed" in human.output
+        assert "secret" not in human.output
 
 
 class TestBudgetTierGate:
@@ -444,7 +874,18 @@ class TestBudgetTierGate:
         _wire(monkeypatch, _sync_result(SyncOutcome("t", "synced"), cost=0.0))
         r = CliRunner().invoke(expert, ["sync-all", "--all", "-y", "--json"])
         assert r.exit_code == 0
-        assert "metered_deferred" in r.output
+        payload = json.loads(r.stdout)
+        assert payload["schema_version"] == "deepr-library-sync-v1"
+        assert payload["status"] == "metered_deferred"
+        assert payload["exit_code"] == 0
+        _assert_aggregate_invariants(payload, roster_experts=2)
+        assert payload["heartbeat"] == {
+            "configured": False,
+            "attempted": False,
+            "delivered": False,
+            "reported_status": None,
+        }
+        assert payload["next_action"]["command_argv"] == ["deepr", "capacity", "next"]
 
     def test_drained_pool_human_recovery_does_not_recommend_gated_api(self, monkeypatch):
         self._auto_metered(monkeypatch)

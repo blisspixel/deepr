@@ -36,7 +36,7 @@ def _wire_single_sync(monkeypatch, tmp_path, *, engine_must_not_build: bool = Fa
         subscriptions = [SimpleNamespace(topic="GPU scheduling", budget=0.5)]
 
         def __init__(self, name):
-            pass
+            self.name = name
 
         def due(self):
             return list(self.subscriptions)
@@ -239,17 +239,21 @@ def test_scheduled_sync_all_busy_records_each_expert_and_never_builds_engine(mon
     profiles = [SimpleNamespace(name="Alpha"), SimpleNamespace(name="Beta"), SimpleNamespace(name="Idle")]
 
     class FakeStore:
+        def __init__(self, *args, **kwargs):
+            assert kwargs.get("create") is False
+
         def list_all(self, include_errors=False):
             return profiles
 
-        def load(self, name):
+        def load(self, name, *args, **kwargs):
             return next(profile for profile in profiles if profile.name == name)
 
     class FakeSubscriptionStore:
         def __init__(self, name):
+            self.load_failed = False
             self.subscriptions = [] if name == "Idle" else [SimpleNamespace(topic="GPU scheduling")]
 
-        def due(self):
+        def due(self, now=None):
             return list(self.subscriptions)
 
     monkeypatch.setenv("DEEPR_EXPERTS_PATH", str(tmp_path / "experts"))

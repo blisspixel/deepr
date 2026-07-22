@@ -258,7 +258,29 @@ async def run_library_sync(
 
     remaining = budget
     for name in expert_names:
-        if only_due and not sub_factory(name).due(now):
+        subscription_store = sub_factory(name)
+        if getattr(subscription_store, "load_failed", False):
+            result.summaries.append(
+                ExpertSyncSummary(
+                    name,
+                    "failed",
+                    detail=_PUBLIC_FAILURE_DETAIL,
+                    failures=[
+                        _failure_record(
+                            name,
+                            topic=None,
+                            error_code="EXPERT_SUBSCRIPTIONS_UNREADABLE",
+                            retryable=False,
+                            no_metered_fallback=True,
+                        )
+                    ],
+                )
+            )
+            continue
+        if not subscription_store.subscriptions:
+            result.summaries.append(ExpertSyncSummary(name, "not_due" if only_due else "no_changes"))
+            continue
+        if only_due and not subscription_store.due(now):
             result.summaries.append(ExpertSyncSummary(name, "not_due"))
             continue
         if not dry_run and remaining < MIN_PER_TOPIC_BUDGET:

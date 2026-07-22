@@ -102,9 +102,14 @@ class TestWebRetrieval:
 
         monkeypatch.setattr(web_app, "queue", queue)
         monkeypatch.setattr(web_app, "storage", storage)
+        monkeypatch.setattr(web_app, "_API_KEY", "dashboard-test-secret")
+        monkeypatch.setattr(web_app, "_ALLOW_UNAUTHENTICATED_LOOPBACK", False)
         web_app.app.config.update(TESTING=True)
 
-        resp = web_app.app.test_client().get(f"/api/results/{job.id}")
+        resp = web_app.app.test_client().get(
+            f"/api/results/{job.id}",
+            headers={"Authorization": "Bearer dashboard-test-secret"},
+        )
 
         assert resp.status_code == 200
         result = resp.get_json()["result"]

@@ -50,6 +50,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Changed `deepr expert sync-all` to inspect roster and subscription state
+  read-only before capacity selection. Unreadable state now blocks with bounded
+  versioned evidence instead of becoming false empty or success, while a
+  no-due scheduled roster completes without probing a backend. Completed,
+  empty, no-work, waiting, busy, deferred, and cancelled machine outcomes now
+  share the additive `deepr-library-sync-v1` envelope and expose bounded
+  heartbeat disposition. Early outcomes preserve aggregate invariants and use
+  `roster_experts` for the inspected roster size. JSON confirmation keeps stdout
+  parseable, expert-name control characters render visibly on one literal Rich
+  row, empty subscription stores do not dispatch under `--all`, heartbeat
+  redirects are not followed, and heartbeat failure logs contain neither the
+  configured URL nor exception text.
 - Changed `deepr expert sync-all` to fail closed for automatic as well as
   explicit metered roster execution. Completed full or partial expert failures
   now render a versioned aggregate, send a failed scheduled heartbeat, and exit

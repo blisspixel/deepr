@@ -453,6 +453,44 @@ def _engine(tmp_path, sub_store, research_answers: dict[str, dict]):
 
 
 class TestSubscriptionStore:
+    def test_malformed_state_is_explicitly_unreadable(self, tmp_path):
+        knowledge = tmp_path / "knowledge"
+        knowledge.mkdir()
+        (knowledge / "subscriptions.json").write_text("{not-json", encoding="utf-8")
+
+        store = SubscriptionStore("Sync Test Expert", storage_dir=knowledge)
+
+        assert store.subscriptions == []
+        assert store.load_failed is True
+
+    @pytest.mark.parametrize(
+        "payload",
+        [
+            [],
+            {"subscriptions": {}},
+            {"subscriptions": [None]},
+            {"subscriptions": ["not-an-object"]},
+            {"subscriptions": [{"topic": "Invalid cadence", "cadence_days": "nan"}]},
+            {"subscriptions": [{"topic": "Invalid budget", "budget": -0.01}]},
+            {"subscriptions": [{"topic": "Naive time", "last_synced": "2026-07-22T12:00:00"}]},
+        ],
+    )
+    def test_semantically_invalid_state_is_explicitly_unreadable(self, tmp_path, payload):
+        knowledge = tmp_path / "knowledge"
+        knowledge.mkdir()
+        (knowledge / "subscriptions.json").write_text(json.dumps(payload), encoding="utf-8")
+
+        store = SubscriptionStore("Sync Test Expert", storage_dir=knowledge)
+
+        assert store.subscriptions == []
+        assert store.load_failed is True
+
+    def test_missing_state_is_a_valid_empty_store(self, tmp_path):
+        store = SubscriptionStore("Sync Test Expert", storage_dir=tmp_path / "knowledge")
+
+        assert store.subscriptions == []
+        assert store.load_failed is False
+
     def test_add_list_remove_roundtrip(self, tmp_path):
         store = _sub_store(tmp_path, Subscription(topic="MCP spec changes"))
         assert len(store.subscriptions) == 1
@@ -564,6 +602,20 @@ class TestFreshSourcesUnchanged:
 
 
 class TestSyncEngine:
+    def test_unreadable_subscription_state_fails_before_other_stores_are_built(self, tmp_path, monkeypatch):
+        knowledge = tmp_path / "knowledge"
+        knowledge.mkdir()
+        (knowledge / "subscriptions.json").write_text("{not-json", encoding="utf-8")
+        subscriptions = SubscriptionStore("Sync Test Expert", storage_dir=knowledge)
+        monkeypatch.setattr(
+            sync_module,
+            "BeliefStore",
+            lambda *args, **kwargs: pytest.fail("belief storage must not be constructed"),
+        )
+
+        with pytest.raises(RuntimeError, match="Subscription state could not be loaded safely"):
+            ExpertSyncEngine(_expert(), subscription_store=subscriptions)
+
     @pytest.mark.asyncio
     @pytest.mark.parametrize("budget", [float("nan"), float("inf"), float("-inf"), -0.01, True])
     async def test_sync_rejects_invalid_run_budget_before_research(self, tmp_path, budget):

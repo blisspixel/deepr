@@ -107,11 +107,18 @@ must not be described as usable capacity.
   waterfall selects one). Automatic and explicit metered sync-all execution is
   gated in v2.36; dry-run remains available. The command also preserves
   `would_sync` as a distinct preview state and returns a versioned empty-roster
-  completion with a structured local create-expert action. Fleet maintenance
-  also includes
+  completion with a structured local create-expert action. Read-only preflight
+  blocks unreadable profile or subscription state before capacity selection,
+  and a no-due roster completes without backend lookup. Completed and expected
+  early machine outcomes share the additive versioned envelope with explicit
+  process status, safe next actions, bounded heartbeat disposition, invariant
+  aggregate counts, and a separate `roster_experts` snapshot count. Stored
+  expert-name control characters are rendered visibly on one human-output row,
+  and experts without subscriptions are not dispatched under `--all`. Fleet
+  maintenance also includes
   `deepr fleet install-schedule` (emits host scheduler recipes; never
   auto-installs). The off-box heartbeat (`DEEPR_HEARTBEAT_URL`) is opt-in and
-  best-effort.
+  best-effort; it does not follow redirects or log its configured target.
 - Pre-sync content-hash change-detection gate, the per-(expert, verb) overlap
   guard + startup jitter, budget degradation tiers + value-of-spend gate, and the
   reservation TTL sweep - deterministic spend/side-effect guards.

@@ -742,10 +742,17 @@ deepr fleet status --json
 # continues after an individual failure, reports mixed topic outcomes as partial
 # failures, and exits 1 after rendering if any expert failed. Machine output
 # includes aggregate status, status counts, safe loop-status inspection argv,
-# and a structured create-expert action when the roster is empty.
-# A --scheduled pass waits whenever owned/prepaid capacity is unavailable and
-# pings the heartbeat on completed execution. Metered sync-all execution is
-# currently gated; --api remains available only with --dry-run.
+# bounded heartbeat disposition, and a structured create-expert action when
+# the roster is empty. Unreadable profile or subscription state blocks before
+# backend construction, including invalid root shape, subscription schema,
+# numbers, and timestamps. A roster with no selected work completes before
+# capacity lookup instead of reporting an irrelevant wait. Early envelopes keep
+# aggregate counts internally consistent and expose the inspected size as
+# roster_experts. Empty subscription stores never dispatch under --all.
+# A --scheduled pass reports success for completed or no-work execution and
+# failure for expected non-completion states such as capacity wait or operator
+# cancellation. Metered sync-all execution is currently gated; --api remains
+# available only with --dry-run.
 deepr expert sync-all --dry-run
 deepr expert sync-all --local -y
 deepr expert sync-all --plan claude -y
@@ -758,7 +765,7 @@ deepr fleet install-schedule --command "deepr expert sync-all --scheduled -y"
 deepr fleet install-schedule --platform systemd --output ./schedule
 ```
 
-Set `DEEPR_HEARTBEAT_URL` to a free dead-man's-switch (healthchecks.io / Dead Man's Snitch) so you are alerted if a scheduled pass ever silently does not run - the only signal that catches "the laptop never woke up" (a same-host monitor dies with the jobs).
+Set `DEEPR_HEARTBEAT_URL` to a free dead-man's-switch (healthchecks.io / Dead Man's Snitch) so you are alerted if a scheduled pass ever silently does not run - the only signal that catches "the laptop never woke up" (a same-host monitor dies with the jobs). Delivery is best-effort and never changes the maintenance exit status. Machine output states whether a heartbeat was configured, attempted, delivered, and reported as success or failure. Redirects are not followed, and diagnostics never print the configured URL.
 
 ### Temporal Perspective Queries
 

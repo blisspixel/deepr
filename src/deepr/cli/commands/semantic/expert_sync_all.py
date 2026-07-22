@@ -22,6 +22,7 @@ from datetime import UTC, datetime
 from typing import Any
 
 import click
+from rich.markup import escape
 
 from deepr.backends.local_capacity import LocalCapacityObservation, LocalCapacityUnavailableReason
 from deepr.cli.colors import console, print_error, print_header, print_success, print_warning
@@ -61,6 +62,101 @@ class _PassBackend:
         if self.use_plan and self.plan_adapter is not None:
             return not bool(getattr(self.plan_adapter, "metered_at_margin", False))
         return False
+
+
+@dataclass(frozen=True)
+class _RosterPreflight:
+    names: tuple[str, ...]
+    pending_names: tuple[str, ...]
+    subscription_stores: dict[str, Any]
+    profile_errors: int = 0
+    subscription_errors: int = 0
+
+    @property
+    def has_storage_errors(self) -> bool:
+        return bool(self.profile_errors or self.subscription_errors)
+
+
+def _heartbeat_evidence(*, scheduled: bool, dry_run: bool, success: bool) -> dict[str, Any]:
+    """Report bounded heartbeat disposition without exposing its configured URL."""
+    from deepr.experts.heartbeat import heartbeat_url, send_heartbeat
+
+    configured = heartbeat_url() is not None
+    attempted = scheduled and not dry_run and configured
+    delivered = send_heartbeat(success=success) if attempted else False
+    return {
+        "configured": configured,
+        "attempted": attempted,
+        "delivered": delivered,
+        "reported_status": ("success" if success else "failure") if attempted else None,
+    }
+
+
+def _warn_heartbeat_delivery(heartbeat: dict[str, Any], *, json_output: bool) -> None:
+    if not json_output and heartbeat["attempted"] and not heartbeat["delivered"]:
+        print_warning("Configured heartbeat delivery failed; maintenance status is unchanged.")
+
+
+def _terminal_safe_text(value: str) -> str:
+    """Make stored text single-line and literal before passing it to Rich."""
+    visible = "".join(character if character.isprintable() else ascii(character)[1:-1] for character in value)
+    return escape(visible)
+
+
+def _terminal_payload(
+    *,
+    started_at: datetime,
+    status: str,
+    exit_code: int,
+    expert_count: int,
+    detail: str,
+    heartbeat: dict[str, Any],
+    **extra: Any,
+) -> dict[str, Any]:
+    """Build one additive terminal envelope from the public library contract."""
+    from deepr.experts.sync_all import LibrarySyncResult
+
+    payload = LibrarySyncResult(started_at=started_at).to_dict()
+    payload.update(
+        status=status,
+        exit_code=exit_code,
+        roster_experts=expert_count,
+        detail=detail,
+        heartbeat=heartbeat,
+        **extra,
+    )
+    return payload
+
+
+def _inspect_roster(*, include_all: bool, now: datetime) -> _RosterPreflight:
+    """Read roster and subscription state without creating or migrating storage."""
+    from deepr.experts.profile import ExpertStore
+    from deepr.experts.sync import SubscriptionStore
+
+    try:
+        profiles = ExpertStore(create=False).list_all()
+    except (OSError, ValueError):
+        return _RosterPreflight((), (), {}, profile_errors=1)
+
+    names = tuple(profile.name for profile in profiles)
+    profile_errors = len(getattr(profiles, "errors", ()))
+    pending: list[str] = []
+    stores: dict[str, Any] = {}
+    subscription_errors = 0
+    for name in names:
+        try:
+            subscriptions = SubscriptionStore(name)
+            if getattr(subscriptions, "load_failed", False):
+                subscription_errors += 1
+                continue
+            targets = subscriptions.subscriptions if include_all else subscriptions.due(now)
+        except (OSError, OverflowError, TypeError, ValueError):
+            subscription_errors += 1
+            continue
+        stores[name] = subscriptions
+        if targets:
+            pending.append(name)
+    return _RosterPreflight(names, tuple(pending), stores, profile_errors, subscription_errors)
 
 
 def _plan_backend_choice(plan: str, plan_model: str | None, *, note: str | None = None) -> _PassBackend:
@@ -147,6 +243,7 @@ def _sync_all_retry_argv(
     api: bool,
     plan: str | None,
     plan_model: str | None,
+    scheduled: bool,
     yes: bool,
     json_output: bool,
 ) -> list[str]:
@@ -154,12 +251,13 @@ def _sync_all_retry_argv(
         "deepr",
         "expert",
         "sync-all",
-        "--scheduled",
         "--budget",
         f"{budget:g}",
         "--per-expert-budget",
         f"{per_expert_budget:g}",
     ]
+    if scheduled:
+        argv.append("--scheduled")
     if include_all:
         argv.append("--all")
     if local:
@@ -260,35 +358,41 @@ def _make_sync_one(
     return sync_one
 
 
-def _emit_roster_wait(json_output: bool, detail: str) -> None:
+def _emit_roster_wait(
+    json_output: bool,
+    detail: str,
+    *,
+    started_at: datetime,
+    expert_count: int,
+    scheduled: bool,
+    dry_run: bool,
+) -> None:
+    heartbeat = _heartbeat_evidence(scheduled=scheduled, dry_run=dry_run, success=False)
     if json_output:
-        click.echo(_json.dumps({"kind": "deepr.expert.sync_all", "status": "waiting_for_capacity", "detail": detail}))
+        payload = _terminal_payload(
+            started_at=started_at,
+            status="waiting_for_capacity",
+            exit_code=0,
+            expert_count=expert_count,
+            detail=detail,
+            heartbeat=heartbeat,
+            next_action={"kind": "inspect_capacity", "command_argv": ["deepr", "capacity", "next"]},
+        )
+        click.echo(_json.dumps(payload, indent=2))
         return
     print_warning("Scheduled sync-all is waiting for owned/prepaid capacity (no metered spend).")
     console.print(f"[dim]{detail}. Inspect current options with: deepr capacity next[/dim]")
-
-
-def _experts_with_sync_work(expert_names: list[str], *, include_all: bool) -> list[str]:
-    """Return roster members whose selected subscription set is non-empty."""
-    from deepr.experts.sync import SubscriptionStore
-
-    pending: list[str] = []
-    for name in expert_names:
-        subscriptions = SubscriptionStore(name)
-        targets = subscriptions.subscriptions if include_all else subscriptions.due()
-        if targets:
-            pending.append(name)
-    return pending
+    _warn_heartbeat_delivery(heartbeat, json_output=json_output)
 
 
 def _local_models_for_wait(expert_names: list[str], backend: _PassBackend) -> dict[str, str]:
     from deepr.backends.local import resolve_local_maintenance_model
     from deepr.experts.profile import ExpertStore
 
-    store = ExpertStore()
+    store = ExpertStore(create=False)
     resolved_models: dict[str, str] = {}
     for expert_name in expert_names:
-        profile = store.load(expert_name)
+        profile = store.load(expert_name, persist_migration=False)
         if profile is None:
             continue
         resolved = resolve_local_maintenance_model(profile) if backend.prefer_profile_model else backend.local_model
@@ -300,6 +404,8 @@ def _local_models_for_wait(expert_names: list[str], backend: _PassBackend) -> di
 def _emit_roster_local_busy_wait(
     expert_names: list[str],
     *,
+    started_at: datetime,
+    expert_count: int,
     observation: LocalCapacityObservation,
     per_expert_budget: float,
     json_output: bool,
@@ -325,31 +431,44 @@ def _emit_roster_local_busy_wait(
         for name in expert_names
     ]
     earliest = min(waits, key=lambda wait: wait.retry_at)
-    payload = {
-        "kind": "deepr.expert.sync_all",
-        "status": "waiting_for_capacity",
-        "detail": "scheduled roster sync found meaningful local GPU contention",
-        "capacity_unavailable_reason": LocalCapacityUnavailableReason.GPU_BUSY.value,
-        "local_capacity": observation.to_dict(),
-        "retry_after_seconds": earliest.retry_after_seconds,
-        "retry_at": earliest.retry_at.isoformat(),
-        "requested_operation": {
+    detail = "scheduled roster sync found meaningful local GPU contention"
+    heartbeat = _heartbeat_evidence(scheduled=True, dry_run=False, success=False)
+    payload = _terminal_payload(
+        started_at=started_at,
+        status="waiting_for_capacity",
+        exit_code=0,
+        expert_count=expert_count,
+        detail=detail,
+        heartbeat=heartbeat,
+        capacity_unavailable_reason=LocalCapacityUnavailableReason.GPU_BUSY.value,
+        local_capacity=observation.to_dict(),
+        retry_after_seconds=earliest.retry_after_seconds,
+        retry_at=earliest.retry_at.isoformat(),
+        requested_operation={
             "command_argv": list(command_argv),
             "capacity_source": "local",
             "backend_profile_id": "",
             "backend_profile_ids": dict(local_models),
         },
-        "waiting_experts": [wait.to_dict() for wait in waits],
-    }
+        waiting_experts=[wait.to_dict() for wait in waits],
+    )
     if json_output:
         click.echo(_json.dumps(payload, indent=2))
         return
     print_warning("Scheduled sync-all is waiting because local GPU capacity is busy.")
     console.print(f"[dim]{observation.detail}.[/dim]")
     console.print(f"[dim]Try again at or after {earliest.retry_at.isoformat()}; no fallback was dispatched.[/dim]")
+    _warn_heartbeat_delivery(heartbeat, json_output=json_output)
 
 
-def _metered_tier_defers(json_output: bool) -> bool:
+def _metered_tier_defers(
+    json_output: bool,
+    *,
+    started_at: datetime,
+    expert_count: int,
+    scheduled: bool,
+    dry_run: bool,
+) -> bool:
     """Defer an auto metered pass when the monthly pool is drained.
 
     When the budget tier is LOCAL_ONLY/PAUSE_METERED, a roster pass that fell
@@ -366,14 +485,26 @@ def _metered_tier_defers(json_output: bool) -> bool:
     if tier_from_manager(manager) not in METERED_OFF_TIERS:
         return False
     snapshot = describe_tier(manager)
+    heartbeat = _heartbeat_evidence(scheduled=scheduled, dry_run=dry_run, success=False)
     if json_output:
-        click.echo(_json.dumps({"kind": "deepr.expert.sync_all", "status": "metered_deferred", **snapshot}))
+        payload = _terminal_payload(
+            started_at=started_at,
+            status="metered_deferred",
+            exit_code=0,
+            expert_count=expert_count,
+            detail="metered roster sync is disabled by the current budget tier",
+            heartbeat=heartbeat,
+            next_action={"kind": "inspect_capacity", "command_argv": ["deepr", "capacity", "next"]},
+            **snapshot,
+        )
+        click.echo(_json.dumps(payload, indent=2))
         return True
     print_warning(
         f"Budget tier {snapshot['tier']} ({snapshot['drain_percent']}% of the monthly pool used): "
         "metered roster sync is off."
     )
     console.print("[dim]Use --local, inspect deepr capacity next, or wait for the monthly reset.[/dim]")
+    _warn_heartbeat_delivery(heartbeat, json_output=json_output)
     return True
 
 
@@ -419,14 +550,23 @@ def _emit_backend_notes(backend: _PassBackend, *, json_output: bool) -> None:
         print_warning(backend.plan_adapter.tos_note)
 
 
-def _confirm_sync_all(*, backend: _PassBackend, expert_count: int) -> bool:
+def _confirm_sync_all(*, backend: _PassBackend, expert_count: int, json_output: bool) -> bool:
     if backend.use_local:
         cost_desc = "on the local model at $0"
     elif backend.use_plan and backend.plan_adapter is not None:
         cost_desc = f"via {backend.plan_adapter.display_name} at $0 at the margin"
     else:
         raise RuntimeError("metered backend reached owned/prepaid confirmation")
-    return click.confirm(f"Sync up to {expert_count} expert(s) {cost_desc}?", default=False)
+    prompt = f"Sync up to {expert_count} expert(s) {cost_desc}?"
+    if json_output:
+        click.echo(f"{prompt} [y/N]: ", nl=False, err=True)
+        response = click.getchar(echo=False)
+        click.echo(err=True)
+        return response.lower() == "y"
+    return click.confirm(
+        prompt,
+        default=False,
+    )
 
 
 def _sync_all_cancelled(
@@ -434,22 +574,42 @@ def _sync_all_cancelled(
     dry_run: bool,
     yes: bool,
     backend: _PassBackend,
-    expert_count: int,
+    pending_expert_count: int,
+    roster_expert_count: int,
+    started_at: datetime,
+    scheduled: bool,
+    json_output: bool,
+    retry_command_argv: list[str],
 ) -> bool:
     if dry_run or yes:
         return False
-    if _confirm_sync_all(backend=backend, expert_count=expert_count):
+    if _confirm_sync_all(backend=backend, expert_count=pending_expert_count, json_output=json_output):
         return False
-    print_warning("Cancelled.")
+    heartbeat = _heartbeat_evidence(scheduled=scheduled, dry_run=dry_run, success=False)
+    if json_output:
+        payload = _terminal_payload(
+            started_at=started_at,
+            status="cancelled",
+            exit_code=0,
+            expert_count=roster_expert_count,
+            detail="roster sync was cancelled before dispatch",
+            heartbeat=heartbeat,
+            next_action={"kind": "retry_sync_all", "command_argv": list(retry_command_argv)},
+        )
+        click.echo(_json.dumps(payload, indent=2))
+    else:
+        print_warning("Cancelled.")
+        _warn_heartbeat_delivery(heartbeat, json_output=json_output)
     return True
 
 
 def _scheduled_local_busy_wait(
-    names: list[str],
+    pending_names: tuple[str, ...],
     *,
+    started_at: datetime,
+    expert_count: int,
     scheduled: bool,
     dry_run: bool,
-    include_all: bool,
     backend: _PassBackend,
     per_expert_budget: float,
     json_output: bool,
@@ -459,28 +619,32 @@ def _scheduled_local_busy_wait(
 
     if not scheduled or dry_run or not backend.use_local:
         return False
-    pending_local_experts = _experts_with_sync_work(names, include_all=include_all)
-    local_capacity = probe_local_gpu_occupancy() if pending_local_experts else None
+    local_capacity = probe_local_gpu_occupancy() if pending_names else None
     if local_capacity is None or local_capacity.state != LocalCapacityState.BUSY:
         return False
     _emit_roster_local_busy_wait(
-        pending_local_experts,
+        list(pending_names),
+        started_at=started_at,
+        expert_count=expert_count,
         observation=local_capacity,
         per_expert_budget=per_expert_budget,
         json_output=json_output,
         command_argv=command_argv,
-        local_models=_local_models_for_wait(pending_local_experts, backend),
+        local_models=_local_models_for_wait(list(pending_names), backend),
     )
     return True
 
 
-def _render_library_result(result: Any, json_output: bool) -> None:
+def _render_library_result(result: Any, json_output: bool, *, heartbeat: dict[str, Any]) -> None:
     if json_output:
-        click.echo(_json.dumps(result.to_dict(), indent=2))
+        payload = result.to_dict()
+        payload["roster_experts"] = len(result.summaries)
+        payload["heartbeat"] = heartbeat
+        click.echo(_json.dumps(payload, indent=2))
         return
     print_header("Library sync")
     for summary in result.summaries:
-        line = f"  {_STATUS_MARKERS.get(summary.status, summary.status)}  [bold]{summary.expert}[/bold]"
+        line = f"  {_STATUS_MARKERS.get(summary.status, summary.status)}  [bold]{_terminal_safe_text(summary.expert)}[/bold]"
         if summary.status == "synced":
             line += (
                 f"  [dim](+{summary.absorbed} beliefs, {summary.flagged} contested, "
@@ -505,22 +669,33 @@ def _render_library_result(result: Any, json_output: bool) -> None:
     if result.failed_experts:
         print_error("Roster sync completed with failures.")
         console.print("[dim]Inspect each failed expert: deepr expert loop-status NAME --json[/dim]")
+    _warn_heartbeat_delivery(heartbeat, json_output=json_output)
 
 
-def _finish_library_result(result: Any, json_output: bool) -> None:
+def _finish_library_result(result: Any, json_output: bool, *, heartbeat: dict[str, Any]) -> None:
     """Render the completed pass before returning its automation status."""
-    _render_library_result(result, json_output)
+    _render_library_result(result, json_output, heartbeat=heartbeat)
     if result.exit_code:
         sys.exit(result.exit_code)
 
 
-def _emit_empty_roster(json_output: bool) -> None:
+def _emit_empty_roster(
+    json_output: bool,
+    *,
+    started_at: datetime,
+    scheduled: bool,
+    dry_run: bool,
+) -> None:
+    heartbeat = _heartbeat_evidence(scheduled=scheduled, dry_run=dry_run, success=True)
     if not json_output:
         print_success("No experts yet. Create one with: deepr expert make NAME --local")
+        _warn_heartbeat_delivery(heartbeat, json_output=json_output)
         return
     from deepr.experts.sync_all import LibrarySyncResult
 
-    payload = LibrarySyncResult(started_at=datetime.now(UTC)).to_dict()
+    payload = LibrarySyncResult(started_at=started_at).to_dict()
+    payload["roster_experts"] = 0
+    payload["heartbeat"] = heartbeat
     payload["next_action"] = {
         "kind": "create_expert",
         "command_argv": ["deepr", "expert", "make", "NAME", "--local"],
@@ -529,12 +704,103 @@ def _emit_empty_roster(json_output: bool) -> None:
     click.echo(_json.dumps(payload, indent=2))
 
 
+def _emit_storage_state_error(
+    preflight: _RosterPreflight,
+    *,
+    started_at: datetime,
+    scheduled: bool,
+    dry_run: bool,
+    json_output: bool,
+) -> None:
+    detail = "Expert storage could not be read safely; no roster work was dispatched."
+    heartbeat = _heartbeat_evidence(scheduled=scheduled, dry_run=dry_run, success=False)
+    if json_output:
+        payload = _terminal_payload(
+            started_at=started_at,
+            status="blocked_storage_state",
+            exit_code=1,
+            expert_count=len(preflight.names),
+            detail=detail,
+            heartbeat=heartbeat,
+            state_errors={
+                "profiles": preflight.profile_errors,
+                "subscriptions": preflight.subscription_errors,
+            },
+            next_action={"kind": "inspect_local_logs", "requires_manual_repair": True},
+        )
+        click.echo(_json.dumps(payload, indent=2))
+    else:
+        print_error(detail)
+        console.print("[dim]Inspect local logs, repair the unreadable profile or subscription file, then retry.[/dim]")
+        _warn_heartbeat_delivery(heartbeat, json_output=json_output)
+
+
+def _finish_no_work(
+    preflight: _RosterPreflight,
+    *,
+    include_all: bool,
+    started_at: datetime,
+    scheduled: bool,
+    dry_run: bool,
+    json_output: bool,
+) -> None:
+    from deepr.experts.sync_all import ExpertSyncSummary, LibrarySyncResult
+
+    status = "no_changes" if include_all else "not_due"
+    result = LibrarySyncResult(
+        started_at=started_at,
+        summaries=[ExpertSyncSummary(name, status) for name in preflight.names],
+    )
+    heartbeat = _heartbeat_evidence(scheduled=scheduled, dry_run=dry_run, success=True)
+    _finish_library_result(result, json_output, heartbeat=heartbeat)
+
+
+def _finish_preflight_terminal(
+    preflight: _RosterPreflight,
+    *,
+    include_all: bool,
+    started_at: datetime,
+    scheduled: bool,
+    dry_run: bool,
+    json_output: bool,
+) -> bool:
+    """Finish storage-error, empty, or no-work snapshots before capacity lookup."""
+    if preflight.has_storage_errors:
+        _emit_storage_state_error(
+            preflight,
+            started_at=started_at,
+            scheduled=scheduled,
+            dry_run=dry_run,
+            json_output=json_output,
+        )
+        sys.exit(1)
+    if not preflight.names:
+        _emit_empty_roster(
+            json_output,
+            started_at=started_at,
+            scheduled=scheduled,
+            dry_run=dry_run,
+        )
+        return True
+    if preflight.pending_names:
+        return False
+    _finish_no_work(
+        preflight,
+        include_all=include_all,
+        started_at=started_at,
+        scheduled=scheduled,
+        dry_run=dry_run,
+        json_output=json_output,
+    )
+    return True
+
+
 @expert.command(name="sync-all")
 @click.option("--budget", "-b", type=float, default=5.0, show_default=True, help="Total ceiling for the roster pass.")
 @click.option(
     "--per-expert-budget", type=float, default=0.50, show_default=True, help="Max spend per expert within the ceiling."
 )
-@click.option("--all", "include_all", is_flag=True, help="Include experts with no due subscriptions.")
+@click.option("--all", "include_all", is_flag=True, help="Sync every subscription regardless of cadence.")
 @click.option("--dry-run", is_flag=True, help="Show what would sync; no research, no spend.")
 @click.option("--local", is_flag=True, help="Force the local model for every expert.")
 @click.option(
@@ -571,8 +837,9 @@ def sync_all_cmd(
     Owned/prepaid capacity first, per-expert budgets within the total ceiling.
     The pass continues after individual failures, then exits 1 if any expert
     failed. Designed to run on a schedule (deepr fleet install-schedule) so the
-    library self-maintains. On a --scheduled run, set DEEPR_HEARTBEAT_URL to ping
-    a dead-man's-switch so you are alerted if a scheduled pass does not run.
+    library self-maintains. On a --scheduled run, set DEEPR_HEARTBEAT_URL so
+    expected terminal outcomes report success or failure to a dead-man's-switch,
+    which also alerts when a scheduled pass does not run.
 
     \b
     EXAMPLES:
@@ -581,7 +848,6 @@ def sync_all_cmd(
       deepr expert sync-all --plan claude -y
       deepr expert sync-all --scheduled -y
     """
-    from deepr.experts.profile import ExpertStore
     from deepr.experts.sync_all import run_library_sync
 
     try:
@@ -597,9 +863,16 @@ def sync_all_cmd(
         print_error(str(exc))
         sys.exit(2)
 
-    names = [profile.name for profile in ExpertStore().list_all()]
-    if not names:
-        _emit_empty_roster(json_output)
+    started_at = datetime.now(UTC)
+    preflight = _inspect_roster(include_all=include_all, now=started_at)
+    if _finish_preflight_terminal(
+        preflight,
+        include_all=include_all,
+        started_at=started_at,
+        scheduled=scheduled,
+        dry_run=dry_run,
+        json_output=json_output,
+    ):
         return
 
     try:
@@ -616,21 +889,30 @@ def sync_all_cmd(
         api=api,
         plan=plan,
         plan_model=plan_model,
+        scheduled=scheduled,
         yes=yes,
         json_output=json_output,
     )
 
     if scheduled and not api and not backend.owned_or_prepaid:
-        _emit_roster_wait(json_output, "no owned/prepaid capacity is available")
+        _emit_roster_wait(
+            json_output,
+            "no owned/prepaid capacity is available",
+            started_at=started_at,
+            expert_count=len(preflight.names),
+            scheduled=scheduled,
+            dry_run=dry_run,
+        )
         return
     if backend.use_local and backend.local_model is None:
         print_error("No local model available. Is Ollama running? Check: deepr capacity --probe")
         sys.exit(2)
     if _scheduled_local_busy_wait(
-        names,
+        preflight.pending_names,
+        started_at=started_at,
+        expert_count=len(preflight.names),
         scheduled=scheduled,
         dry_run=dry_run,
-        include_all=include_all,
         backend=backend,
         per_expert_budget=per_expert_budget,
         json_output=json_output,
@@ -641,7 +923,17 @@ def sync_all_cmd(
     # A dry run can preview the selected metered rung. Execution either defers
     # under a drained monthly tier or reaches the shared disabled mutation gate.
     metered_auto = not backend.use_local and not backend.use_plan and not api
-    if metered_auto and not dry_run and _metered_tier_defers(json_output):
+    if (
+        metered_auto
+        and not dry_run
+        and _metered_tier_defers(
+            json_output,
+            started_at=started_at,
+            expert_count=len(preflight.names),
+            scheduled=scheduled,
+            dry_run=dry_run,
+        )
+    ):
         return
 
     _gate_metered_sync_all(backend=backend, dry_run=dry_run)
@@ -652,7 +944,12 @@ def sync_all_cmd(
         dry_run=dry_run,
         yes=yes,
         backend=backend,
-        expert_count=len(names),
+        pending_expert_count=len(preflight.pending_names),
+        roster_expert_count=len(preflight.names),
+        started_at=started_at,
+        scheduled=scheduled,
+        json_output=json_output,
+        retry_command_argv=retry_command_argv,
     ):
         return
 
@@ -660,18 +957,18 @@ def sync_all_cmd(
     result = asyncio.run(
         run_library_sync(
             sync_one=sync_one,
-            expert_names=names,
+            expert_names=list(preflight.names),
             budget=budget,
             per_expert_budget=per_expert_budget,
             only_due=not include_all,
             dry_run=dry_run,
+            now=started_at,
+            subscription_store_factory=preflight.subscription_stores.__getitem__,
         )
     )
-    if scheduled and not dry_run:
-        # Off-box liveness: tell the dead-man's-switch the scheduled pass ran, so
-        # the operator is alerted if it ever silently does not (the laptop never
-        # woke up). Opt-in via DEEPR_HEARTBEAT_URL; best-effort, never fails here.
-        from deepr.experts.heartbeat import send_heartbeat
-
-        send_heartbeat(success=result.exit_code == 0)
-    _finish_library_result(result, json_output)
+    heartbeat = _heartbeat_evidence(
+        scheduled=scheduled,
+        dry_run=dry_run,
+        success=result.exit_code == 0,
+    )
+    _finish_library_result(result, json_output, heartbeat=heartbeat)

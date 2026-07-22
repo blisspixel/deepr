@@ -71,6 +71,27 @@ execution does not become false-success automation. Automatic and explicit
 metered roster execution use the same disabled expert-mutation gate in v2.36;
 no default waterfall result can bypass that boundary.
 
+Before that boundary, sync-all takes one read-only roster snapshot. Profile or
+subscription read failure is a typed blocked terminal result, never an empty
+roster or proof that nothing is due. Invalid root shape, JSON shape, finite
+numbers, and timestamp awareness all fail closed. If the selected subscription
+set is empty, the roster returns per-expert `not_due` or `no_changes` evidence
+without resolving capacity, and a mixed `--all` roster never dispatches its
+empty experts. Completed, empty, no-work, capacity-wait, local-busy,
+metered-deferred, storage-blocked, and cancelled JSON outcomes derive from the
+same additive `deepr-library-sync-v1` envelope. `experts`, summaries, and status
+counts preserve the library aggregate invariant; `roster_experts` separately
+records the inspected roster size for early outcomes. Interactive JSON
+confirmation writes its prompt to stderr so stdout remains one machine document.
+
+Every rendered terminal envelope carries only bounded heartbeat disposition:
+configured, attempted, delivered, and the reported success or failure state.
+Scheduled non-dry completion and no-work outcomes report success; expected
+non-completion outcomes report failure. Delivery remains best-effort and cannot
+change the maintenance result. The HTTP helper refuses redirects and logs only
+fixed failure text or the numeric HTTP status, never the credential-bearing
+target or exception text.
+
 ## Autonomy ladder
 
 Deepr should build from the smallest reliable loop upward:

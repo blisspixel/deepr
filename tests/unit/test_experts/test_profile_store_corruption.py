@@ -13,6 +13,8 @@ import json
 from datetime import UTC, datetime
 from pathlib import Path
 
+import pytest
+
 from deepr.experts.profile_store import ExpertStore
 
 
@@ -36,6 +38,22 @@ def _valid_profile_dict(name: str) -> dict:
 
 
 class TestListAllCorruption:
+    def test_read_only_missing_root_returns_empty_without_creating_it(self, tmp_path):
+        missing = tmp_path / "missing-experts"
+
+        profiles = ExpertStore(str(missing), create=False).list_all()
+
+        assert profiles == []
+        assert profiles.errors == []
+        assert not missing.exists()
+
+    def test_existing_non_directory_root_is_not_an_empty_roster(self, tmp_path):
+        invalid_root = tmp_path / "experts"
+        invalid_root.write_text("not a directory", encoding="utf-8")
+
+        with pytest.raises(NotADirectoryError):
+            ExpertStore(str(invalid_root), create=False).list_all()
+
     def test_corrupted_profile_logged_at_error(self, tmp_path, caplog):
         # Write one good and one corrupted profile.
         _write_profile(tmp_path, "good-expert", json.dumps(_valid_profile_dict("good-expert")))
