@@ -749,6 +749,9 @@ deepr fleet status --json
 # capacity lookup instead of reporting an irrelevant wait. Early envelopes keep
 # aggregate counts internally consistent and expose the inspected size as
 # roster_experts. Empty subscription stores never dispatch under --all.
+# Dry-run builds topic outcomes from that same in-memory snapshot. It does not
+# reload profiles or construct write-capable maintenance dependencies. Human
+# output is explicitly a preview; JSON carries dry_run=true and state_changes=0.
 # A --scheduled pass reports success for completed or no-work execution and
 # failure for expected non-completion states such as capacity wait or operator
 # cancellation. Metered sync-all execution is currently gated; --api remains

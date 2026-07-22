@@ -17,7 +17,15 @@ from click.testing import CliRunner
 
 from deepr.backends.local_capacity import LocalCapacityObservation, LocalCapacityState
 from deepr.cli.commands.semantic.experts import expert
-from deepr.experts.sync import SyncOutcome, SyncResult
+from deepr.experts.sync import Subscription, SyncOutcome, SyncResult
+
+
+def _tree_snapshot(root: Path) -> dict[str, tuple[str, bytes | None]]:
+    """Capture relative path kinds and file bytes without unstable metadata."""
+    return {
+        path.relative_to(root).as_posix(): ("directory", None) if path.is_dir() else ("file", path.read_bytes())
+        for path in sorted(root.rglob("*"), key=lambda candidate: candidate.as_posix())
+    }
 
 
 def _sync_result(*outcomes: SyncOutcome, cost: float = 0.0) -> SyncResult:
@@ -39,6 +47,7 @@ def _wire(
     recorded=None,
     profiles=None,
     built=None,
+    loaded=None,
     loop_events=None,
     due_names=None,
     subscribed_names=None,
@@ -65,6 +74,8 @@ def _wire(
             return profile_rows
 
         def load(self, name, *args, **kwargs):
+            if loaded is not None:
+                loaded.append((name, kwargs))
             return next(profile for profile in profiles if profile.name == name)
 
     class FakeEngine:
@@ -75,7 +86,7 @@ def _wire(
         def __init__(self, name):
             self.name = name
             self.load_failed = name in subscription_failures
-            self.subscriptions = [SimpleNamespace(topic="t")] if name in subscribed_names else []
+            self.subscriptions = [Subscription(topic="t")] if name in subscribed_names else []
 
         def due(self, now=None):
             if self.name in due_failures:
@@ -84,6 +95,7 @@ def _wire(
 
     monkeypatch.setattr("deepr.experts.profile.ExpertStore", FakeStore)
     monkeypatch.setattr("deepr.experts.sync.SubscriptionStore", FakeSubscriptionStore)
+    monkeypatch.setattr("deepr.experts.sync_all.SubscriptionStore", FakeSubscriptionStore)
 
     def fake_build_sync_engine(profile, **kw):
         if built is not None:
@@ -176,6 +188,25 @@ class TestRegistration:
             "delivered": False,
             "reported_status": None,
         }
+        _assert_aggregate_invariants(payload, roster_experts=0)
+
+    def test_empty_roster_dry_run_is_an_explicit_zero_change_preview(self, monkeypatch):
+        class EmptyStore:
+            def __init__(self, *args, **kwargs):
+                assert kwargs.get("create") is False
+
+            def list_all(self, include_errors=False):
+                return []
+
+        monkeypatch.setattr("deepr.experts.profile.ExpertStore", EmptyStore)
+
+        result = CliRunner().invoke(expert, ["sync-all", "--api", "--dry-run", "--json"])
+
+        assert result.exit_code == 0, result.output
+        payload = json.loads(result.stdout)
+        assert payload["dry_run"] is True
+        assert payload["state_changes"] == 0
+        assert payload["status"] == "completed"
         _assert_aggregate_invariants(payload, roster_experts=0)
 
     def test_scheduled_empty_roster_reports_success_heartbeat(self, monkeypatch):
@@ -559,7 +590,15 @@ class TestRun:
 
     def test_dry_run_does_not_record(self, monkeypatch):
         recorded: list = []
-        _wire(monkeypatch, _sync_result(SyncOutcome("t", "would_sync"), cost=0.0), recorded=recorded)
+        built: list = []
+        loaded: list = []
+        _wire(
+            monkeypatch,
+            _sync_result(SyncOutcome("t", "would_sync"), cost=0.0),
+            recorded=recorded,
+            built=built,
+            loaded=loaded,
+        )
         r = CliRunner().invoke(expert, ["sync-all", "--all", "--local", "--dry-run", "--json"])
         assert r.exit_code == 0
         import json
@@ -567,7 +606,70 @@ class TestRun:
         payload = json.loads(r.output)
         assert payload["status_counts"]["would_sync"] == 2
         assert {row["status"] for row in payload["summaries"]} == {"would_sync"}
-        assert recorded == []  # dry run writes nothing
+        assert payload["dry_run"] is True
+        assert payload["state_changes"] == 0
+        assert recorded == []
+        assert loaded == []
+        assert built == []
+
+    def test_dry_run_human_output_is_visibly_a_preview(self, monkeypatch):
+        _wire(monkeypatch, _sync_result(SyncOutcome("t", "would_sync"), cost=0.0), names=("Alpha",))
+
+        result = CliRunner().invoke(expert, ["sync-all", "--all", "--api", "--dry-run"])
+
+        assert result.exit_code == 0, result.output
+        assert "Library sync preview" in result.output
+        assert "1 expert reviewed" in result.output
+        assert "Preview only: no research, spend, or expert files changed." in result.output
+        assert "$0.000 spent" not in result.output
+
+    @pytest.mark.parametrize("belief_state", ["missing", "legacy"])
+    def test_dry_run_preserves_every_expert_tree_path_and_byte(self, monkeypatch, tmp_path, belief_state):
+        from deepr.experts.beliefs import Belief
+        from deepr.experts.profile import ExpertProfile, ExpertStore
+        from deepr.experts.sync import Subscription, SubscriptionStore
+
+        experts_root = tmp_path / "experts"
+        monkeypatch.setenv("DEEPR_EXPERTS_PATH", str(experts_root))
+        name = "Preview Expert"
+        profiles = ExpertStore()
+        profiles.save(ExpertProfile(name=name, vector_store_id="vs-preview"))
+        expert_dir = profiles.find_existing_dir(name)
+        assert expert_dir is not None
+
+        profile_path = expert_dir / "profile.json"
+        profile_data = json.loads(profile_path.read_text(encoding="utf-8"))
+        profile_data["schema_version"] = 3
+        profile_data.pop("portrait_url", None)
+        profile_path.write_text(json.dumps(profile_data, indent=2), encoding="utf-8")
+        SubscriptionStore(name).add(Subscription(topic="Current model releases"))
+        beliefs_dir = expert_dir / "beliefs"
+        if belief_state == "missing":
+            beliefs_dir.rmdir()
+        else:
+            belief = Belief(claim="A legacy contradiction", confidence=0.8, domain="testing")
+            belief.contradictions_with.append("missing-peer")
+            (beliefs_dir / "beliefs.json").write_text(
+                json.dumps(
+                    {
+                        "edges": [],
+                        "beliefs": {belief.id: belief.to_dict()},
+                        "changes": [],
+                    },
+                    indent=2,
+                ),
+                encoding="utf-8",
+            )
+        before = _tree_snapshot(experts_root)
+
+        result = CliRunner().invoke(expert, ["sync-all", "--all", "--api", "--dry-run", "--json"])
+
+        assert result.exit_code == 0, result.output
+        assert _tree_snapshot(experts_root) == before
+        payload = json.loads(result.stdout)
+        assert payload["dry_run"] is True
+        assert payload["state_changes"] == 0
+        assert payload["status_counts"]["would_sync"] == 1
 
     def test_completed_failure_renders_safe_recovery_then_exits_one(self, monkeypatch):
         _wire(
@@ -621,6 +723,39 @@ class TestRun:
         assert loop_events[0][2]["run_id"] == loop_events[1][2]["run_id"]
         assert loop_events[0][2]["started_at"] == loop_events[1][2]["started_at"]
 
+    def test_non_dry_reloads_subscription_state_before_dispatch(self, monkeypatch):
+        built: list = []
+        _wire(
+            monkeypatch,
+            _sync_result(SyncOutcome("t", "synced"), cost=0.0),
+            names=("Alpha",),
+            built=built,
+        )
+        constructed: list[str] = []
+
+        class ChangingSubscriptionStore:
+            load_failed = False
+
+            def __init__(self, name):
+                self.name = name
+                self.snapshot = len(constructed)
+                self.subscriptions = [Subscription(topic="t")]
+                constructed.append(name)
+
+            def due(self, now=None):
+                return list(self.subscriptions) if self.snapshot == 0 else []
+
+        monkeypatch.setattr("deepr.experts.sync.SubscriptionStore", ChangingSubscriptionStore)
+        monkeypatch.setattr("deepr.experts.sync_all.SubscriptionStore", ChangingSubscriptionStore)
+
+        result = CliRunner().invoke(expert, ["sync-all", "--local", "-y", "--json"])
+
+        assert result.exit_code == 0, result.output
+        payload = json.loads(result.stdout)
+        assert payload["status_counts"]["not_due"] == 1
+        assert built == []
+        assert constructed == ["Alpha", "Alpha"]
+
 
 class TestCapacity:
     def test_scheduled_waits_when_no_owned_capacity(self, monkeypatch):
@@ -647,6 +782,20 @@ class TestCapacity:
             "reported_status": "failure",
         }
         assert pinged == [{"success": False}]
+
+    def test_scheduled_dry_run_wait_is_visibly_a_preview(self, monkeypatch):
+        monkeypatch.setattr(
+            "deepr.backends.waterfall.choose_maintenance_backend",
+            lambda task_class: SimpleNamespace(is_local=False, is_plan_quota=False, reason=""),
+        )
+        _wire(monkeypatch, _sync_result(cost=0.0), names=("Alpha",))
+
+        result = CliRunner().invoke(expert, ["sync-all", "--all", "--scheduled", "--dry-run"])
+
+        assert result.exit_code == 0, result.output
+        assert "Library sync preview" in result.output
+        assert "waiting for owned/prepaid capacity" in result.output
+        assert "Preview only: no research, spend, or expert files changed." in result.output
 
     def test_scheduled_no_due_work_completes_before_backend_resolution(self, monkeypatch):
         _wire(

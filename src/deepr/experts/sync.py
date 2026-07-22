@@ -38,10 +38,12 @@ from deepr.experts.sync_contracts import (
     SyncResult,
 )
 from deepr.experts.sync_support import (
+    MIN_PER_TOPIC_BUDGET,
     NO_CHANGES_MARKER,
     RETRIEVAL_FOCUS_MAX_CHARS,
     RETRIEVAL_TOPIC_MAX_CHARS,
     bounded_retrieval_text,
+    build_sync_preview,
     explicit_retrieval_urls,
     fresh_context_has_no_sources,
     is_no_changes_answer,
@@ -53,6 +55,9 @@ from deepr.experts.sync_support import (
     source_pack_summary,
     write_source_snapshots,
 )
+from deepr.experts.sync_support import (
+    build_freshness_query as build_sync_freshness_query,
+)
 from deepr.utils.atomic_io import atomic_write_json
 
 if TYPE_CHECKING:
@@ -62,6 +67,7 @@ logger = logging.getLogger(__name__)
 
 __all__ = [
     "DEFAULT_SUBSCRIPTION_BUDGET",
+    "MIN_PER_TOPIC_BUDGET",
     "ExpertSyncEngine",
     "Subscription",
     "SubscriptionStore",
@@ -71,10 +77,6 @@ __all__ = [
 ]
 
 _NO_CHANGES_MARKER = NO_CHANGES_MARKER
-
-# Floor below which a sync run refuses to start a subscription (mirrors the
-# learner's refuse-before-spending preflight).
-MIN_PER_TOPIC_BUDGET = 0.05
 
 ResearchFn = Callable[..., Awaitable[dict[str, Any]]]
 SpendDecisionFn = Callable[[Any, float], Any]
@@ -209,27 +211,7 @@ class ExpertSyncEngine:
 
     @staticmethod
     def build_freshness_query(subscription: Subscription) -> str:
-        """The research query for one subscription.
-
-        First sync (no ``last_synced``) establishes the baseline: a comprehensive,
-        sourced overview, so a brand-new expert is actually populated - including
-        evergreen topics where "what changed lately" is correctly nothing.
-        Subsequent syncs ask only for the delta since the last sync.
-        """
-        focus = f" Focus: {subscription.query}" if subscription.query else ""
-        if subscription.last_synced is None:
-            return (
-                f"Provide a comprehensive, well-sourced overview of '{subscription.topic}'.{focus} "
-                "Cover the key facts, core concepts, and current state of the art, each grounded in the "
-                "provided sources (include dates where relevant). Be specific and factual; do not speculate."
-            )
-        since = subscription.last_synced.strftime("%Y-%m-%d")
-        return (
-            f"What has changed regarding '{subscription.topic}' since {since}?{focus} "
-            "Report ONLY new developments: announcements, releases, pricing or policy changes, "
-            "deprecations, retractions, or significant new evidence - each with its date and source. "
-            f"If nothing meaningful changed, reply exactly: '{_NO_CHANGES_MARKER}'."
-        )
+        return build_sync_freshness_query(subscription)
 
     @staticmethod
     def build_retrieval_query(subscription: Subscription) -> str:
@@ -277,6 +259,14 @@ class ExpertSyncEngine:
         if budget < 0.0:
             raise ValueError("budget must be a finite non-negative number")
         started_at = datetime.now(UTC)
+        if dry_run:
+            return build_sync_preview(
+                self.expert.name,
+                self.subscriptions,
+                budget=budget,
+                only_due=only_due,
+                now=started_at,
+            )
         result = SyncResult(expert_name=self.expert.name, started_at=started_at)
 
         targets = self.subscriptions.due() if only_due else list(self.subscriptions.subscriptions)
@@ -297,7 +287,7 @@ class ExpertSyncEngine:
                 sub,
                 budget=allocation,
                 started_at=started_at,
-                dry_run=dry_run,
+                dry_run=False,
                 apply_graph_commits=apply_graph_commits,
             )
             if isinstance(spent, bool) or not isinstance(spent, (int, float)) or not math.isfinite(float(spent)):
@@ -311,12 +301,11 @@ class ExpertSyncEngine:
             result.total_cost += spent
             result.outcomes.append(outcome)
 
-        if not dry_run:
-            # what_changed is strictly-after; nudge the window back 1ms so a
-            # belief written in the same clock tick as started_at (coarse
-            # Windows timer granularity) is not excluded from the delta.
-            since = started_at - timedelta(milliseconds=1)
-            result.delta = what_changed(self.belief_store, since, expert_name=self.expert.name).to_dict()
+        # what_changed is strictly-after; nudge the window back 1ms so a
+        # belief written in the same clock tick as started_at (coarse Windows
+        # timer granularity) is not excluded from the delta.
+        since = started_at - timedelta(milliseconds=1)
+        result.delta = what_changed(self.belief_store, since, expert_name=self.expert.name).to_dict()
 
         return result
 

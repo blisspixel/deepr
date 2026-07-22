@@ -50,6 +50,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Changed `deepr expert sync-all --dry-run` to build its result directly from
+  the read-only preflight subscription snapshot. Preview no longer reloads
+  profiles or constructs provider clients, absorbers, engines, belief stores,
+  locks, loop records, heartbeat requests, or sync artifacts, so legacy profile and belief
+  migrations cannot mutate state behind a successful preview. Human output now
+  uses a preview-specific heading and zero-change footer; additive JSON exposes
+  `dry_run: true` and `state_changes: 0`. Whole-tree regressions compare every
+  expert path kind and file byte before and after missing-state and legacy-state
+  previews.
 - Changed `deepr expert sync-all` to inspect roster and subscription state
   read-only before capacity selection. Unreadable state now blocks with bounded
   versioned evidence instead of becoming false empty or success, while a

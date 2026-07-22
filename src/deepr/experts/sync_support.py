@@ -4,15 +4,19 @@ from __future__ import annotations
 
 import hashlib
 import logging
+import math
 import re
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
+from deepr.experts.sync_contracts import Subscription, SubscriptionStore, SyncOutcome, SyncResult
 from deepr.utils.atomic_io import atomic_write_text
 
 logger = logging.getLogger(__name__)
 
 NO_CHANGES_MARKER = "no significant changes"
+MIN_PER_TOPIC_BUDGET = 0.05
 
 # Retrieval receives a concise route, not the full synthesis prompt. These are
 # form and transport bounds only; they do not judge topical meaning.
@@ -27,6 +31,70 @@ _RETRIEVAL_TRAILING_PUNCTUATION = ".,;:!?"
 # break the re-hash invariant). Fetched pages are usually well under this;
 # the cap only bounds pathological pages so the snapshot store cannot balloon.
 MAX_SNAPSHOT_CHARS = 2_000_000
+
+
+def build_freshness_query(subscription: Subscription) -> str:
+    """Build the research prompt for a first baseline or later delta sync."""
+    focus = f" Focus: {subscription.query}" if subscription.query else ""
+    if subscription.last_synced is None:
+        return (
+            f"Provide a comprehensive, well-sourced overview of '{subscription.topic}'.{focus} "
+            "Cover the key facts, core concepts, and current state of the art, each grounded in the "
+            "provided sources (include dates where relevant). Be specific and factual; do not speculate."
+        )
+    since = subscription.last_synced.strftime("%Y-%m-%d")
+    return (
+        f"What has changed regarding '{subscription.topic}' since {since}?{focus} "
+        "Report ONLY new developments: announcements, releases, pricing or policy changes, "
+        "deprecations, retractions, or significant new evidence - each with its date and source. "
+        f"If nothing meaningful changed, reply exactly: '{NO_CHANGES_MARKER}'."
+    )
+
+
+def _finite_nonnegative_budget(value: object, *, message: str) -> float:
+    if isinstance(value, bool) or not isinstance(value, (int, float)) or not math.isfinite(float(value)):
+        raise ValueError(message)
+    budget = float(value)
+    if budget < 0.0:
+        raise ValueError(message)
+    return budget
+
+
+def build_sync_preview(
+    expert_name: str,
+    subscriptions: SubscriptionStore,
+    *,
+    budget: float = 2.0,
+    only_due: bool = True,
+    now: datetime | None = None,
+) -> SyncResult:
+    """Build a pure preview from one already-read subscription snapshot."""
+    if getattr(subscriptions, "load_failed", False):
+        raise RuntimeError("Subscription state could not be loaded safely. Repair it before syncing.")
+    budget = _finite_nonnegative_budget(budget, message="budget must be a finite non-negative number")
+    started_at = now or datetime.now(UTC)
+    result = SyncResult(expert_name=expert_name, started_at=started_at)
+    targets = subscriptions.due(started_at) if only_due else list(subscriptions.subscriptions)
+    for subscription in targets:
+        subscription_budget = _finite_nonnegative_budget(
+            subscription.budget,
+            message=f"subscription budget for {subscription.topic!r} must be a finite non-negative number",
+        )
+        allocation = min(subscription_budget, budget)
+        if allocation < MIN_PER_TOPIC_BUDGET:
+            outcome = SyncOutcome(
+                subscription.topic,
+                "skipped",
+                detail=f"run budget exhausted (${allocation:.2f} left)",
+            )
+        else:
+            outcome = SyncOutcome(
+                subscription.topic,
+                "would_sync",
+                detail=build_freshness_query(subscription)[:120],
+            )
+        result.outcomes.append(outcome)
+    return result
 
 
 def bounded_retrieval_text(value: str, limit: int) -> str:
