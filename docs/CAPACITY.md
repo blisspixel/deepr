@@ -75,7 +75,7 @@ fail before a vendor process starts.
 ```bash
 # Setup and visibility.
 deepr init --yes --budget 5 --data-dir ~/OneDrive/deepr
-deepr doctor
+deepr doctor --skip-connectivity
 deepr capacity
 deepr capacity --probe
 deepr capacity fleet
@@ -105,9 +105,20 @@ queues, traces, benchmarks, observability artifacts, and several MCP databases
 follow a synced `DEEPR_DATA_DIR` today.
 
 `deepr capacity next` runs no research and makes no provider generation call. It
-explains whether a job can use local capacity, whether the local model lacks
-admission evidence, whether a plan quota is observed, or whether the operator
-must choose an explicitly metered path.
+explains whether a job can use local capacity and whether the local model lacks
+admission evidence. It never evaluates plan eligibility or proposes a metered
+expert-lifecycle fallback. Use `capacity fleet` for registered plan adapters;
+an optional API action is only a no-spend preview of a separate research job.
+
+Base `deepr capacity` is inventory only. Its human labels mean local runtime
+detected, plan CLI installed, or API credential configured. Compatibility JSON
+retains `available` but adds `availability_basis`, null
+`execution_eligible` for present but unresolved sources, and false
+`execution_eligible` for absent sources. Local and registered plan-adapter
+entries name their next inspection command; unadapted plan-style CLIs and API
+entries leave it null. An exact API query is required. Use `capacity fleet`
+for registered plan-adapter blockers. See
+[Workflow Readiness Language](design/workflow-readiness-language.md).
 
 ## Local Capacity
 

@@ -1,6 +1,7 @@
 ﻿# Quick Start Guide
 
-Get started with Deepr in 5 minutes.
+Complete local setup in about 5 minutes. An optional live provider research job
+can take 15 to 30 minutes and may incur metered cost.
 
 ---
 
@@ -35,7 +36,7 @@ pip install -e ".[docs]"                # Document processing for experts
 pip install -e ".[full]"                # All features
 ```
 
-### 2. Configure API Key
+### 2. Optionally Configure an API Key
 
 ```bash
 cp .env.example .env
@@ -51,11 +52,18 @@ XAI_API_KEY=...             # Cheapest, web search - https://console.x.ai/
 ANTHROPIC_API_KEY=...       # Complex reasoning - https://console.anthropic.com/settings/keys
 ```
 
-### 3. Verify Setup
+### 3. Verify Local Setup
 
 ```bash
-deepr doctor
+deepr doctor --skip-connectivity
+deepr capacity
 ```
+
+The offline doctor command makes no provider call. Run plain `deepr doctor`
+only when you intentionally want supported live checks for configured OpenAI,
+Gemini, and xAI credentials. Anthropic and Azure remain configuration-only in
+doctor. Base capacity directs local users to `capacity next`, registered plan
+adapters to `capacity fleet`, and API research users to an exact preview.
 
 Cancellation succeeds only when Deepr confirms the job transition,
 cost-reservation closure, and provider-resource cleanup. A nonzero exit means cancellation was not fully
@@ -66,7 +74,10 @@ If at least one intended capacity path is ready, continue.
 
 ---
 
-## Your First Research (3 minutes)
+## Optional Bounded API Research
+
+Skip this section when you want only local or explicit plan expert workflows.
+Those paths are covered under Domain Experts below.
 
 ### Set Budget Protection
 
@@ -74,7 +85,8 @@ If at least one intended capacity path is ready, continue.
 deepr budget set 5
 ```
 
-Start with $5 to stay safe. You can increase later.
+Start with a $5 ceiling and increase it only after reviewing a preview. A
+budget ceiling can block excess spend; it never authorizes a paid call.
 
 ### Preview and Run One Bounded Job
 
@@ -204,8 +216,8 @@ deepr expert info "Expert Name"
 # View cost analytics
 deepr costs show
 
-# Check configuration
-deepr doctor
+# Check local configuration without provider calls
+deepr doctor --skip-connectivity
 ```
 
 ---
@@ -232,7 +244,8 @@ authoritative hard cap, set `DEEPR_MAX_COST_PER_JOB`,
 
 ### "No API key found"
 
-Check your `.env` file has at least one provider key set.
+API research requires a configured provider key. Local and explicit plan expert
+workflows do not; run `deepr capacity` to see the appropriate next inspection.
 
 ### "Budget exceeded"
 
@@ -245,7 +258,8 @@ Check status for error details: `deepr jobs status <job-id>`
 
 ### Research taking too long
 
-Deep research can take 15-30 minutes. This is normal. Check status periodically.
+Deep research can take 15 to 30 minutes after the local setup is complete. Check
+status periodically.
 
 ### Need help?
 

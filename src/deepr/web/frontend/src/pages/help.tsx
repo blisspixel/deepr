@@ -47,16 +47,16 @@ const API_KEYS: ProviderKey[] = [
     provider: 'Google Gemini',
     envVar: 'GEMINI_API_KEY',
     url: 'https://aistudio.google.com/apikey',
-    description: 'Gemini 3.6 Flash, 3.5 Flash-Lite, multimodal, Deep Research',
-    models: ['gemini-3.6-flash', 'gemini-3.5-flash-lite', 'gemini-3.5-flash', 'gemini-3.1-pro-preview', 'gemini-2.5-pro', 'deep-research'],
+    description: 'Gemini text and multimodal models; managed Deep Research remains gated',
+    models: ['gemini-3.6-flash', 'gemini-3.5-flash-lite', 'gemini-3.5-flash', 'gemini-3.1-pro-preview', 'gemini-2.5-pro'],
     free: true,
   },
   {
     provider: 'xAI (Grok)',
     envVar: 'XAI_API_KEY',
     url: 'https://console.x.ai/',
-    description: 'Grok 4.3 text default, Grok 4.20 multi-agent, explicit premium images',
-    models: ['grok-4.3', 'grok-4.20-reasoning', 'grok-4.20-non-reasoning', 'grok-4.20-multi-agent', 'grok-imagine-image'],
+    description: 'Grok 4.3 bounded text; other registry entries remain workflow-gated',
+    models: ['grok-4.3'],
     free: false,
   },
 ]
@@ -91,7 +91,7 @@ export default function Help() {
       <div>
         <h1 className="text-2xl font-bold text-foreground">Help</h1>
         <p className="text-sm text-muted-foreground mt-1">
-          Get started with Deepr, configure API keys, and understand the platform.
+          Start with local diagnostics, inspect safe capacity, and add API keys only when needed.
         </p>
       </div>
 
@@ -102,9 +102,9 @@ export default function Help() {
           What is Deepr?
         </h2>
         <p className="text-sm text-muted-foreground leading-relaxed">
-          Deepr turns research into durable local state. It routes work across local models, plan-quota CLIs,
-          and metered APIs, then builds persistent experts with beliefs, gaps, citations, confidence,
-          provenance, and cost records.
+          Deepr turns research into durable local state. Local, plan-quota, and metered paths have
+          workflow-specific safety gates; source detection never authorizes execution. Persistent experts retain
+          beliefs, gaps, citations, confidence, provenance, and cost records.
         </p>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-3">
           <div className="rounded-md border p-3 space-y-1">
@@ -178,6 +178,7 @@ export default function Help() {
           <p className="text-xs text-muted-foreground">
             Deepr can run through local Ollama, explicit plan-quota CLIs, metered API keys, or a mix.
             Add API keys to your <code className="px-1.5 py-0.5 bg-muted rounded text-[11px]">.env</code> file only when you want metered cloud capacity.
+            Start with <code className="px-1.5 py-0.5 bg-muted rounded text-[11px]">capacity</code>, then use <code className="px-1.5 py-0.5 bg-muted rounded text-[11px]">capacity next</code> for local maintenance or <code className="px-1.5 py-0.5 bg-muted rounded text-[11px]">capacity fleet</code> for plan-adapter evidence.
           </p>
           <div className="space-y-3">
             {API_KEYS.map((key) => (
@@ -228,8 +229,9 @@ cp .env.example .env
 #   ANTHROPIC_API_KEY=sk-ant-...
 #   XAI_API_KEY=xai-...
 
-# Free or prepaid capacity starts with:
+# Capacity inspection starts with:
 #   deepr init
+#   deepr doctor --skip-connectivity
 #   deepr capacity`}
             </pre>
             <p className="text-xs text-muted-foreground mt-2">
@@ -248,19 +250,21 @@ cp .env.example .env
           <div className="space-y-2">
             {[
               { cmd: 'deepr research "your question" --auto --dry-run', desc: 'Preview route and cost before spending' },
-              { cmd: 'deepr research "topic" --auto --budget 3', desc: 'Run a budget-capped research job' },
-              { cmd: 'deepr capacity', desc: 'Show local, plan, and API capacity' },
-              { cmd: 'deepr expert make my-expert', desc: 'Create a domain expert' },
+              { cmd: 'deepr doctor --skip-connectivity', desc: 'Run local diagnostics without provider calls' },
+              { cmd: 'deepr capacity', desc: 'Inventory detected, installed, and configured sources' },
+              { cmd: 'deepr capacity next --task-class sync', desc: 'Show safe local-maintenance guidance' },
+              { cmd: 'deepr capacity fleet', desc: 'Inspect plan-adapter eligibility and blockers' },
+              { cmd: 'deepr expert make my-expert --local', desc: 'Create a local-only domain expert' },
               { cmd: 'deepr expert sync my-expert --local --fresh-context -y', desc: 'Refresh an expert on local capacity' },
-              { cmd: 'deepr expert chat my-expert', desc: 'Chat with a domain expert' },
+              { cmd: 'deepr expert consult "what should change?" -e my-expert --local', desc: 'Consult stored expert knowledge locally' },
               { cmd: 'deepr costs show', desc: 'Check cost ledger totals' },
               { cmd: 'deepr costs estimate "prompt"', desc: 'Estimate before a metered call' },
               { cmd: 'deepr web', desc: 'Start the web UI' },
-              { cmd: 'deepr mcp', desc: 'Start as an MCP server for agent hosts' },
+              { cmd: 'deepr mcp serve', desc: 'Start the MCP server for agent hosts' },
             ].map(({ cmd, desc }) => (
-              <div key={cmd} className="flex gap-3 items-baseline">
-                <code className="text-[11px] font-mono bg-muted px-2 py-0.5 rounded shrink-0">{cmd}</code>
-                <span className="text-xs text-muted-foreground">{desc}</span>
+              <div key={cmd} className="flex flex-col gap-1 sm:flex-row sm:gap-3 sm:items-baseline">
+                <code className="min-w-0 max-w-full whitespace-pre-wrap break-words text-[11px] font-mono bg-muted px-2 py-0.5 rounded">{cmd}</code>
+                <span className="min-w-0 text-xs text-muted-foreground">{desc}</span>
               </div>
             ))}
           </div>
@@ -271,28 +275,29 @@ cp .env.example .env
       <Accordion title="Understanding Model Tiers" icon={<FileText className="h-4 w-4" />}>
         <div className="space-y-3">
           <p className="text-xs text-muted-foreground">
-            Deepr categorizes models into tiers based on task type. Auto-routing selects the best model for each query.
+            Deepr categorizes models by task. API research routing scores only configured, bounded API paths;
+            local and plan capacity use separate workflow-specific gates.
           </p>
           <div className="space-y-2">
             <div className="rounded-md border p-3">
               <p className="text-xs font-medium text-foreground">Research (Deep Research)</p>
               <p className="text-[11px] text-muted-foreground mt-0.5">
-                Multi-step browsing, synthesis, and comprehensive reports. Uses OpenAI Deep Research, Gemini Deep Research,
-                xAI multi-agent, or Azure Foundry only when explicitly budgeted.
+                Multi-step browsing, synthesis, and comprehensive reports execute only when the exact provider, model,
+                tools, context, output, and price envelope passes the current research gate.
               </p>
             </div>
             <div className="rounded-md border p-3">
               <p className="text-xs font-medium text-foreground">News</p>
               <p className="text-[11px] text-muted-foreground mt-0.5">
-                Real-time information with source citations. Uses Grok text models, Gemini grounding, or other configured fresh-context paths.
-                Best for current events and trending topics.
+                Fresh-context capability is provider and tool-envelope specific. Preview the exact path to see whether
+                current pricing and tool bounds allow it.
               </p>
             </div>
             <div className="rounded-md border p-3">
               <p className="text-xs font-medium text-foreground">Chat</p>
               <p className="text-[11px] text-muted-foreground mt-0.5">
-                Quick lookups, technical docs, reasoning, synthesis, and expert consult. Auto-routing picks based on complexity,
-                configured capacity, quality floor, and budget.
+                Expert consultation works through explicit local or safety-eligible plan synthesis. Legacy metered expert
+                chat remains gated.
               </p>
             </div>
           </div>

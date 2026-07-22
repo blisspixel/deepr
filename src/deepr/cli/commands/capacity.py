@@ -13,9 +13,11 @@ from typing import Any
 
 import click
 
-from deepr.backends.capacity import BackendKind, CostModel, detect_capacity
+from deepr.backends.capacity import BackendKind, detect_capacity
 from deepr.backends.local_capacity import LocalCapacityObservation, probe_local_gpu_occupancy
+from deepr.backends.plan_quota.adapters import get_adapter_by_executable
 from deepr.backends.quota_ledger import QuotaState, summarize_quota_state
+from deepr.cli.commands.capacity_inventory import print_sources as _print_sources
 from deepr.cli.commands.capacity_validation import (
     FLEET_VALIDATION_DEFAULT_TIMEOUT_S,
     build_fleet_validation_payload,
@@ -26,11 +28,6 @@ _PLAN_BACKEND_IDS = ("codex", "claude", "opencode", "kiro", "grok", "antigravity
 _AUTO_PLAN_TASK_CLASSES = ("sync", "absorb", "gap_fill", "reflect")
 _FLEET_PROBE_SCHEMA_VERSION = "deepr-plan-fleet-probe-v1"
 _FLEET_PROBE_KIND = "deepr.capacity.probe_fleet"
-_GROUP_ORDER = [
-    (BackendKind.LOCAL, "Local (free at the margin)"),
-    (BackendKind.PLAN_QUOTA, "Plan quota (prepaid - your subscriptions)"),
-    (BackendKind.API_METERED, "Metered API (paid per call - last resort)"),
-]
 
 
 @click.group(name="capacity", invoke_without_command=True)
@@ -38,12 +35,10 @@ _GROUP_ORDER = [
 @click.option("--probe", is_flag=True, help="Do a $0 round-trip to the local model to confirm it works.")
 @click.pass_context
 def capacity(ctx: click.Context, json_output: bool, probe: bool):
-    """Show available research capacity (local, plan quota, metered API).
+    """Inventory detected local, installed plan, and configured API sources.
 
-    Capacity-aware routing (v2.16) drains owned and prepaid capacity before any
-    metered API call. The default view spends nothing; --probe does one tiny $0
-    local round-trip. Manage automatic local maintenance with admit, admissions,
-    and revoke.
+    The default view spends nothing. Eligibility is workflow-specific; use
+    ``capacity next`` for local actions and ``capacity fleet`` for plan blockers.
     """
     # Group with a default action: only run the status view when no subcommand
     # was given (e.g. `deepr capacity admit ...` skips this body).
@@ -93,6 +88,18 @@ def _source_to_dict(
     state = _primary_quota_state(states)
     d["quota_state"] = state.to_dict() if state else None
     d["quota_states"] = [s.to_dict() for s in states]
+    d["availability_basis"] = {
+        BackendKind.LOCAL: "local_runtime_detected",
+        BackendKind.PLAN_QUOTA: "installed_on_path",
+        BackendKind.API_METERED: "credential_configured",
+    }[source.kind]
+    d["execution_eligible"] = None if source.available else False
+    if source.kind == BackendKind.LOCAL:
+        d["eligibility_command"] = "deepr capacity next --task-class sync"
+    elif source.kind == BackendKind.PLAN_QUOTA and get_adapter_by_executable(source.backend_id):
+        d["eligibility_command"] = "deepr capacity fleet"
+    else:
+        d["eligibility_command"] = None
     if local_probe is not None and source.kind == BackendKind.LOCAL:
         d["local_probe"] = local_probe
     if local_capacity is not None and source.kind == BackendKind.LOCAL:
@@ -132,36 +139,6 @@ def _print_local_probe(result: dict[str, object]) -> None:
         )
     else:
         click.echo(f"Local probe: FAILED - {result['error']}\n")
-
-
-def _print_sources(sources) -> None:
-    """Print detected capacity grouped cheapest-first, then a one-line summary."""
-    click.echo("Research capacity (used in order: local -> plan quota -> metered API)\n")
-    for kind, heading in _GROUP_ORDER:
-        group = [s for s in sources if s.kind == kind]
-        if not group:
-            continue
-        click.echo(heading)
-        for s in group:
-            mark = "+" if s.available else "-"
-            status = "available" if s.available else "not available"
-            click.echo(f"  [{mark}] {s.name:24s} {status:14s} {s.marginal_cost:16s} {s.detail}")
-        click.echo("")
-
-    local_or_plan = [
-        s
-        for s in sources
-        if s.kind in (BackendKind.LOCAL, BackendKind.PLAN_QUOTA) and s.cost_model != CostModel.METERED and s.available
-    ]
-    if local_or_plan:
-        names = ", ".join(s.name for s in local_or_plan)
-        click.echo(f"Owned/prepaid capacity available: {names}")
-    else:
-        click.echo(
-            "No owned/prepaid capacity detected. Install Ollama or a plan CLI to research without per-call cost."
-        )
-    click.echo("Note: CLI 'available' means installed on PATH only - auth, quota window, and overflow")
-    click.echo("state are verified by the adapter at run time. Only the local probe (--probe) round-trips.")
 
 
 def _print_local_capacity(observation: LocalCapacityObservation) -> None:

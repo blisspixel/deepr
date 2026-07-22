@@ -118,7 +118,7 @@ class TestCapacityCommand:
         assert "Local" in result.output
         assert "Metered API" in result.output
 
-    def test_metered_plan_cli_is_not_summarized_as_owned_capacity(self, monkeypatch):
+    def test_plan_cli_inventory_does_not_claim_owned_capacity(self, monkeypatch):
         from deepr.cli.commands import capacity as capacity_module
 
         monkeypatch.setattr(
@@ -146,9 +146,12 @@ class TestCapacityCommand:
         result = CliRunner().invoke(capacity, [])
 
         assert result.exit_code == 0, result.output
-        summary = next(line for line in result.output.splitlines() if line.startswith("Owned/prepaid"))
-        assert "Claude Code" in summary
-        assert "Copilot CLI" not in summary
+        copilot = next(line for line in result.output.splitlines() if "Copilot CLI" in line)
+        claude = next(line for line in result.output.splitlines() if "Claude Code" in line)
+        assert "installed" in copilot
+        assert "installed" in claude
+        assert "Owned/prepaid capacity available" not in result.output
+        assert "does not prove execution" in result.output
 
     def test_json_output(self):
         result = CliRunner().invoke(capacity, ["--json"])

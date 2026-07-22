@@ -515,10 +515,16 @@ _ADAPTERS: tuple[PlanQuotaAdapter, ...] = (
 )
 
 REGISTRY: dict[str, PlanQuotaAdapter] = {a.backend_id: a for a in _ADAPTERS}
+_EXECUTABLE_REGISTRY: dict[str, PlanQuotaAdapter] = {a.exe: a for a in _ADAPTERS}
 
 
 def get_adapter(backend_id: str) -> PlanQuotaAdapter | None:
     return REGISTRY.get(backend_id)
+
+
+def get_adapter_by_executable(executable: str) -> PlanQuotaAdapter | None:
+    """Return the registered adapter for an installed executable, if any."""
+    return _EXECUTABLE_REGISTRY.get(executable)
 
 
 def all_adapters() -> tuple[PlanQuotaAdapter, ...]:

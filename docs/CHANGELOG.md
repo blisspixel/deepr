@@ -9,6 +9,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Added a workflow-readiness language contract that separates detected local
+  runtimes, installed plan CLIs, configured API credentials, workflow
+  eligibility, and explicit spend authority.
 - Added a protected dashboard access gate that verifies one read-only endpoint
   before mounting the application shell, accepts the operator-configured
   `DEEPR_API_KEY`, and presents distinct rejected-token, missing-server-auth,
@@ -47,6 +50,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Changed base capacity, init, doctor, onboarding, and dashboard Help to avoid
+  treating source presence as execution readiness. First-run guidance now uses
+  offline doctor and source-specific capacity inspection, metered guidance
+  starts with preview, stale queue or error evidence blocks new-work
+  recommendations, doctor exits nonzero on errors, and provider exception
+  content no longer crosses the doctor console boundary.
 - Changed dashboard credential handling from an undocumented persistent
   `localStorage` key to one session-scoped HTTP and Socket.IO credential. A
   denied session-storage write falls back to tab-local memory, and the obsolete

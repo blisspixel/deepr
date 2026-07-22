@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import os
 from pathlib import Path
+from typing import NamedTuple
 
 import click
 
@@ -166,57 +167,75 @@ def _resolve_budget_updates(env_file: dict[str, str], *, yes: bool, budget: floa
     return updates
 
 
-def _report_capacity(env_file: dict[str, str]) -> bool:
-    """Show what Deepr can run on, cheapest-first, across all three tiers.
+class _CapacityPresence(NamedTuple):
+    local: bool
+    plan_adapter: bool
+    unadapted_plan: bool
+    api: bool
 
-    Deepr is capability-adaptive: it works with whatever you have - a local
-    Ollama model ($0), a subscription CLI you already pay for (prepaid), or a
-    cloud API key (metered) - and routes cheapest-first. Returns True if any
-    capacity is available, so setup is "ready" without forcing an API key.
-    Cross-platform (Mac/Linux/Windows): detection is HTTP probe + PATH lookup.
+
+def _report_capacity(env_file: dict[str, str]) -> _CapacityPresence:
+    """Show detected sources without claiming workflow execution eligibility.
+
+    Returns source-specific evidence. Presence never proves that an arbitrary
+    workflow can execute.
     """
     from deepr.backends.capacity import BackendKind, detect_capacity
+    from deepr.backends.plan_quota.adapters import get_adapter_by_executable
 
-    merged = {**os.environ, **{k: v for k, v in env_file.items() if v}}
+    merged = {**{k: v for k, v in env_file.items() if v}, **os.environ}
     sources = detect_capacity(env=merged)
-    groups = [
-        (BackendKind.LOCAL, "Local models", "free at the margin"),
-        (BackendKind.PLAN_QUOTA, "Subscription CLIs", "prepaid - accounts you already have"),
-        (BackendKind.API_METERED, "Cloud API keys", "metered - paid per call"),
-    ]
-    console.print("\nWhat Deepr can run on (it routes cheapest-first: local -> quota -> metered):")
-    any_available = False
-    for kind, label, note in groups:
-        available = [s.name for s in sources if s.kind == kind and s.available]
-        if available:
-            any_available = True
-            console.print(f"  [green]+[/green] {label} [dim]({note})[/dim]: {', '.join(available)}")
+    groups = (
+        (BackendKind.LOCAL, "Local models"),
+        (BackendKind.PLAN_QUOTA, "Plan-style CLI installations"),
+        (BackendKind.API_METERED, "Cloud API keys"),
+    )
+    console.print("\nDetected capacity sources (execution eligibility is workflow-specific):")
+    available = [source for source in sources if source.available]
+    for kind, label in groups:
+        detected = [source for source in available if source.kind == kind]
+        if detected:
+            evidence = "; ".join(f"{source.name} ({source.marginal_cost}; {source.detail})" for source in detected)
+            console.print(f"  [green]+[/green] {label}: {evidence}")
         else:
-            console.print(f"  [dim]- {label} ({note}): none detected[/dim]")
-    return any_available
+            console.print(f"  [dim]- {label}: none detected[/dim]")
+    console.print("  [dim]Detection does not bypass workflow-specific safety or spend gates.[/dim]")
+    plan_sources = [source for source in available if source.kind == BackendKind.PLAN_QUOTA]
+    return _CapacityPresence(
+        local=any(source.kind == BackendKind.LOCAL for source in available),
+        plan_adapter=any(get_adapter_by_executable(source.backend_id) for source in plan_sources),
+        unadapted_plan=any(not get_adapter_by_executable(source.backend_id) for source in plan_sources),
+        api=any(source.kind == BackendKind.API_METERED for source in available),
+    )
 
 
-def _print_summary(env_file: dict[str, str], has_capacity: bool) -> None:
-    """Print readiness (any capacity tier), the budget, and the next command."""
+def _print_summary(env_file: dict[str, str], presence: _CapacityPresence) -> None:
+    """Print evidence-matched readiness and no-spend next actions."""
     console.print("")
-    if not has_capacity:
+    if not any(presence):
         console.print("[yellow]No capacity detected yet.[/yellow] Deepr needs ONE of these (cheapest first):")
         console.print(
             "  - Local model: install Ollama (https://ollama.com), then `ollama pull qwen2.5-coder:32b`  ($0)"
         )
-        console.print("  - Subscription CLI on PATH: codex / claude / opencode / ...  (prepaid)")
+        console.print("  - Plan-style CLI on PATH: cost and adapter posture vary; inspect before use")
         console.print("  - Cloud API key in .env: OPENAI_API_KEY / ANTHROPIC_API_KEY / GEMINI_API_KEY  (metered)")
-        console.print("Then: deepr doctor")
+        console.print("Then: deepr doctor --skip-connectivity")
         return
-    print_success("Ready - Deepr will use the cheapest capacity available (local -> quota -> metered).")
+    print_success("Capacity sources detected. Workflow-specific gates still decide execution.")
     console.print(f"Per-job budget ceiling: ${float(env_file.get(_BUDGET_JOB, _DEFAULT_JOB_BUDGET)):.2f}")
     data_dir = env_file.get(_DATA_DIR)
     if data_dir:
         console.print(f"Data location: {data_dir} (experts + research; portable across machines)")
     console.print("\nNext steps:")
-    console.print("  deepr capacity        # see exactly what Deepr will run on")
-    console.print('  deepr research "Your question here" --auto')
-    console.print("  deepr doctor          # verify connectivity")
+    console.print("  deepr doctor --skip-connectivity          # local diagnostics, no provider calls")
+    if presence.local:
+        console.print("  deepr capacity next --task-class sync     # safe local maintenance guidance")
+    if presence.plan_adapter:
+        console.print("  deepr capacity fleet                      # registered plan adapters only")
+    if presence.unadapted_plan:
+        console.print("  Installed plan-style CLIs without a registered adapter remain inventory-only.")
+    if presence.api:
+        console.print('  deepr research "Your question here" --auto --preview  # no-spend API preview')
 
 
 @click.command(name="init")
@@ -258,5 +277,4 @@ def init(yes: bool, budget: float | None, data_dir: str | None):
         _upsert_env(env_path, updates)
         env_file.update(updates)
 
-    has_capacity = _report_capacity(env_file)
-    _print_summary(env_file, has_capacity)
+    _print_summary(env_file, _report_capacity(env_file))

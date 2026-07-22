@@ -164,7 +164,8 @@ Open a new terminal after install:
 
 ```bash
 deepr init
-deepr doctor
+deepr doctor --skip-connectivity
+deepr capacity
 deepr expert blueprint "My Domain Expert" --template --output expert-blueprint.json
 # Edit the mission, decision use cases, source policy, and acceptance cases.
 deepr expert blueprint "My Domain Expert" --from-file expert-blueprint.json --output expert-blueprint-preflight.json
@@ -179,6 +180,14 @@ deepr expert consult "What should we decide next?" --expert "My Domain Expert" -
 This path needs no API key and never falls through to a paid provider. For one
 bounded cloud research job, preview the exact provider/model request first and
 then rerun it with an explicit `--budget` ceiling.
+
+Base `deepr capacity` is an inventory: local means detected, plan means
+installed on `PATH`, and API means a credential is configured. None of those
+facts alone proves that a workflow can execute. Base capacity directs detected
+local runtimes to `capacity next`, registered installed plan adapters to
+`capacity fleet`, and configured API credentials to an exact research preview. Plain `deepr doctor`
+contacts configured OpenAI, Gemini, and xAI providers; Anthropic and Azure are
+reported as configured but are not live-validated there.
 
 Install from source when developing:
 
