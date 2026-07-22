@@ -10,6 +10,7 @@ from __future__ import annotations
 from datetime import UTC, datetime
 from types import SimpleNamespace
 
+import pytest
 from click.testing import CliRunner
 
 from deepr.backends.local_capacity import LocalCapacityObservation, LocalCapacityState
@@ -49,7 +50,7 @@ def _wire(
         subscriptions = [SimpleNamespace(topic="t")]
 
         def __init__(self, name):
-            pass
+            self.name = name
 
         def due(self):
             return list(self.subscriptions)
@@ -114,6 +115,64 @@ class TestRegistration:
         r = CliRunner().invoke(expert, ["sync-all", "--local", "-y"])
         assert r.exit_code == 0
         assert "No experts yet" in r.output
+        assert "deepr expert make NAME --local" in r.output
+
+    def test_no_experts_json_is_a_versioned_completion_with_next_action(self, monkeypatch):
+        class EmptyStore:
+            def list_all(self, include_errors=False):
+                return []
+
+        monkeypatch.setattr("deepr.experts.profile.ExpertStore", EmptyStore)
+        result = CliRunner().invoke(expert, ["sync-all", "--local", "-y", "--json"])
+
+        assert result.exit_code == 0
+        import json
+
+        payload = json.loads(result.output)
+        assert payload["schema_version"] == "deepr-library-sync-v1"
+        assert payload["status"] == "completed"
+        assert payload["experts"] == 0
+        assert payload["next_action"] == {
+            "kind": "create_expert",
+            "command_argv": ["deepr", "expert", "make", "NAME", "--local"],
+            "requires_user_input": ["NAME"],
+        }
+
+    @pytest.mark.parametrize(
+        "option,value",
+        [
+            ("--budget", "-1"),
+            ("--budget", "nan"),
+            ("--budget", "inf"),
+            ("--per-expert-budget", "-1"),
+            ("--per-expert-budget", "nan"),
+            ("--per-expert-budget", "inf"),
+        ],
+    )
+    def test_rejects_invalid_budget_before_roster_work(self, monkeypatch, option, value):
+        touched = False
+
+        class UntouchedStore:
+            def list_all(self, include_errors=False):
+                nonlocal touched
+                touched = True
+                return []
+
+        monkeypatch.setattr("deepr.experts.profile.ExpertStore", UntouchedStore)
+        result = CliRunner().invoke(expert, ["sync-all", option, value, "--local", "-y"])
+
+        assert result.exit_code == 2
+        assert "finite and non-negative" in result.output
+        assert touched is False
+
+    def test_help_describes_current_gates_and_complete_examples(self):
+        result = CliRunner().invoke(expert, ["sync-all", "--help"])
+
+        assert result.exit_code == 0
+        assert "--plan claude -y" in result.output
+        assert "--plan codex -y" not in result.output
+        assert "execution is currently gated" in result.output
+        assert "continues after individual failures" in result.output
 
 
 class TestRun:
@@ -128,6 +187,8 @@ class TestRun:
 
         payload = json.loads(r.output)
         assert payload["schema_version"] == "deepr-library-sync-v1"
+        assert payload["status"] == "completed"
+        assert payload["exit_code"] == 0
         assert payload["synced_experts"] == 2
         assert {row["expert"] for row in payload["summaries"]} == {"Alpha", "Beta"}
         # Each synced expert recorded a per-expert loop run (fleet status sees it).
@@ -162,12 +223,75 @@ class TestRun:
         assert "synced" in r.output
         assert "2 experts" in r.output
 
+    def test_human_partial_failure_preserves_success_and_failure_counts(self, monkeypatch):
+        _wire(
+            monkeypatch,
+            _sync_result(
+                SyncOutcome("good", "synced", absorbed=2, flagged=1),
+                SyncOutcome("bad", "failed", detail="private provider detail"),
+                cost=0.25,
+            ),
+            names=("Alpha",),
+        )
+
+        result = CliRunner().invoke(expert, ["sync-all", "--all", "--local", "-y"])
+
+        assert result.exit_code == 1
+        assert "partial failure" in result.output
+        assert "1 topic synced" in result.output
+        assert "1 failed" in result.output
+        assert "+2 beliefs" in result.output
+        assert "$0.250 local" in result.output
+        assert "private provider detail" not in result.output
+        assert "deepr expert loop-status NAME --json" in result.output
+
     def test_dry_run_does_not_record(self, monkeypatch):
         recorded: list = []
         _wire(monkeypatch, _sync_result(SyncOutcome("t", "would_sync"), cost=0.0), recorded=recorded)
-        r = CliRunner().invoke(expert, ["sync-all", "--all", "--local", "--dry-run"])
+        r = CliRunner().invoke(expert, ["sync-all", "--all", "--local", "--dry-run", "--json"])
         assert r.exit_code == 0
+        import json
+
+        payload = json.loads(r.output)
+        assert payload["status_counts"]["would_sync"] == 2
+        assert {row["status"] for row in payload["summaries"]} == {"would_sync"}
         assert recorded == []  # dry run writes nothing
+
+    def test_completed_failure_renders_safe_recovery_then_exits_one(self, monkeypatch):
+        _wire(
+            monkeypatch,
+            _sync_result(
+                SyncOutcome(
+                    "private-topic",
+                    "failed",
+                    detail="signed_url=https://secret.example?token=abc",
+                    retryable=True,
+                    no_metered_fallback=True,
+                ),
+                cost=0.0,
+            ),
+            names=("Alpha",),
+        )
+
+        result = CliRunner().invoke(expert, ["sync-all", "--all", "--local", "-y", "--json"])
+
+        assert result.exit_code == 1
+        import json
+
+        payload = json.loads(result.output)
+        assert payload["status"] == "completed_with_failures"
+        assert payload["exit_code"] == 1
+        assert payload["failed_experts"] == 1
+        assert "secret.example" not in result.output
+        assert payload["summaries"][0]["failures"] == [
+            {
+                "topic": "private-topic",
+                "error_code": "EXPERT_SYNC_TOPIC_FAILED",
+                "retryable": True,
+                "no_metered_fallback": True,
+                "inspect_command_argv": ["deepr", "expert", "loop-status", "Alpha", "--json"],
+            }
+        ]
 
     def test_non_dry_records_running_then_completes_same_run_id(self, monkeypatch):
         loop_events: list = []
@@ -265,8 +389,26 @@ class TestHeartbeat:
         pinged = self._capture(monkeypatch)
         _wire(monkeypatch, _sync_result(SyncOutcome("t", "failed", detail="boom"), cost=0.0))
         r = CliRunner().invoke(expert, ["sync-all", "--all", "--local", "--scheduled", "-y", "--json"])
-        assert r.exit_code == 0
+        assert r.exit_code == 1
         assert pinged == [{"success": False}]
+
+    def test_scheduled_partial_failure_pings_fail_and_exits_one(self, monkeypatch):
+        pinged = self._capture(monkeypatch)
+        _wire(
+            monkeypatch,
+            _sync_result(SyncOutcome("ok", "synced"), SyncOutcome("bad", "failed"), cost=0.0),
+            names=("Alpha",),
+        )
+
+        result = CliRunner().invoke(expert, ["sync-all", "--all", "--local", "--scheduled", "-y", "--json"])
+
+        assert result.exit_code == 1
+        assert pinged == [{"success": False}]
+        import json
+
+        payload = json.loads(result.output)
+        assert payload["summaries"][0]["status"] == "partial_failure"
+        assert payload["partial_failure_experts"] == 1
 
     def test_non_scheduled_run_does_not_ping(self, monkeypatch):
         pinged = self._capture(monkeypatch)
@@ -304,15 +446,26 @@ class TestBudgetTierGate:
         assert r.exit_code == 0
         assert "metered_deferred" in r.output
 
-    def test_normal_tier_allows_auto_metered_pass(self, monkeypatch):
-        import json
+    def test_drained_pool_human_recovery_does_not_recommend_gated_api(self, monkeypatch):
+        self._auto_metered(monkeypatch)
+        self._manager(monkeypatch, spent=9.6)
+        _wire(monkeypatch, _sync_result(SyncOutcome("t", "synced"), cost=0.0))
 
+        result = CliRunner().invoke(expert, ["sync-all", "--all", "-y"])
+
+        assert result.exit_code == 0
+        assert "deepr capacity next" in result.output
+        assert "--api" not in result.output
+
+    def test_normal_tier_still_blocks_auto_metered_expert_mutation(self, monkeypatch):
         self._auto_metered(monkeypatch)
         self._manager(monkeypatch, spent=1.0)  # 10% -> NORMAL
-        _wire(monkeypatch, _sync_result(SyncOutcome("t", "synced"), cost=0.0))
+        built: list = []
+        _wire(monkeypatch, _sync_result(SyncOutcome("t", "synced"), cost=0.0), built=built)
         r = CliRunner().invoke(expert, ["sync-all", "--all", "-y", "--json"])
-        assert r.exit_code == 0
-        assert json.loads(r.output)["schema_version"] == "deepr-library-sync-v1"  # ran, not deferred
+        assert r.exit_code == 2
+        assert "temporarily disabled" in r.output.lower()
+        assert built == []
 
     def test_api_override_fails_closed_before_sync(self, monkeypatch):
         self._manager(monkeypatch, spent=9.6)

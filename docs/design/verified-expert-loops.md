@@ -59,6 +59,18 @@ the failed snapshot preserves the greatest known amount instead of resetting
 spend to zero, and sync-all carries that amount into its failed summary and
 roster total. Exception text remains out of durable failure metadata.
 
+The roster boundary follows the same rule publicly. It never copies caught
+exception text or per-topic provider detail into terminal human or JSON output.
+Instead, failed summaries carry a fixed code, the bounded retry and
+no-metered-fallback posture already produced by the sync contract, and an exact
+read-only `expert loop-status` argv. A mixed synced and failed topic set is a
+partial failure, not a successful expert. The roster continues to process later
+experts, renders its versioned result, sends a failed completion heartbeat when
+scheduled, and exits 1 after any full or partial failure. Thus continue-on-error
+execution does not become false-success automation. Automatic and explicit
+metered roster execution use the same disabled expert-mutation gate in v2.36;
+no default waterfall result can bypass that boundary.
+
 ## Autonomy ladder
 
 Deepr should build from the smallest reliable loop upward:

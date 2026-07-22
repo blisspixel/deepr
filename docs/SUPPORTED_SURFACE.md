@@ -100,9 +100,15 @@ must not be described as usable capacity.
 - Fleet self-maintenance: `deepr fleet status` (read-only `$0` roster-health
   rollup, `deepr-fleet-status-v1`, non-zero exit on a failed latest run),
   `deepr expert sync-all` (one capacity-aware roster pass, `deepr-library-sync-v1`
-  roll-up, overlap-locked, per-expert budgets, skip-not-fail, explicit
-  non-metered `--plan <id>` override, and admitted quota-observed plan dispatch
-  when the waterfall selects one), and
+  roll-up, overlap-locked, finite per-expert budgets, continue-on-error roster
+  execution with non-zero final status for full or partial expert failure, fixed
+  public failure copy, safe loop-status inspection argv, explicit non-metered
+  `--plan <id>` override, and admitted quota-observed plan dispatch when the
+  waterfall selects one). Automatic and explicit metered sync-all execution is
+  gated in v2.36; dry-run remains available. The command also preserves
+  `would_sync` as a distinct preview state and returns a versioned empty-roster
+  completion with a structured local create-expert action. Fleet maintenance
+  also includes
   `deepr fleet install-schedule` (emits host scheduler recipes; never
   auto-installs). The off-box heartbeat (`DEEPR_HEARTBEAT_URL`) is opt-in and
   best-effort.

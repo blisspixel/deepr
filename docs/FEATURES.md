@@ -737,12 +737,18 @@ deepr fleet status
 deepr fleet status --json
 
 # Sync every due expert in one capacity-aware pass: owned/prepaid capacity first
-# (local model at $0 with --local), per-expert budgets within a total ceiling,
-# skip-not-fail, overlap-locked so a pass never collides with a manual sync. A
-# --scheduled pass waits instead of spending metered when the monthly pool is
-# drained, and pings the heartbeat (below) on completion.
+# (local model at $0 with --local), finite per-expert budgets within a total
+# ceiling, and overlap locks so a pass never collides with manual sync. The pass
+# continues after an individual failure, reports mixed topic outcomes as partial
+# failures, and exits 1 after rendering if any expert failed. Machine output
+# includes aggregate status, status counts, safe loop-status inspection argv,
+# and a structured create-expert action when the roster is empty.
+# A --scheduled pass waits whenever owned/prepaid capacity is unavailable and
+# pings the heartbeat on completed execution. Metered sync-all execution is
+# currently gated; --api remains available only with --dry-run.
 deepr expert sync-all --dry-run
 deepr expert sync-all --local -y
+deepr expert sync-all --plan claude -y
 deepr expert sync-all --scheduled -y
 
 # Emit the correct host scheduler recipe (Windows Task Scheduler XML / cron /
