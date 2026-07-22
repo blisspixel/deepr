@@ -4,6 +4,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { Toaster } from 'sonner'
 import AppShell from '@/components/layout/app-shell'
 import { ErrorBoundary } from '@/components/error-boundary'
+import DashboardAuthGate from '@/components/auth/dashboard-auth-gate'
 
 const Overview = lazy(() => import('@/pages/overview'))
 const ResearchStudio = lazy(() => import('@/pages/research-studio'))
@@ -49,7 +50,7 @@ function App() {
       <BrowserRouter>
         <ErrorBoundary>
           <Routes>
-            <Route path="/" element={<AppShell />}>
+            <Route path="/" element={<DashboardAuthGate><AppShell /></DashboardAuthGate>}>
               <Route index element={<Overview />} />
               <Route path="research" element={<ResearchStudio />} />
               <Route path="research/:id" element={<ResearchLive />} />

@@ -28,9 +28,21 @@ A local web interface for managing research operations visually. Built with Reac
 
 ```bash
 pip install -e ".[web]"
+# Set DEEPR_API_KEY in the process environment.
 deepr web
 # Open http://localhost:5000
 ```
+
+The protected dashboard asks for the configured `DEEPR_API_KEY` before it loads
+application data. A successful token is retained only for the current browser
+tab and is shared by HTTP and Socket.IO. Rejected credentials, missing server
+authentication, and an unreachable server have distinct recovery states. For
+intentional tokenless access on the same machine, use
+`deepr web --allow-unauthenticated-loopback`; this option never permits a
+non-loopback bind. Never expose tokenless mode through a reverse proxy, tunnel,
+or port forward because the immediate peer may appear to be loopback. See
+[Dashboard Authentication Session](design/dashboard-auth-session.md)
+for the bounded browser and transport contract.
 
 ### Pages
 
@@ -46,7 +58,7 @@ deepr web
 
 **Expert Hub** - List all domain experts with document counts, finding counts, knowledge gaps, and cost stats. Search and sort controls. Navigate to individual expert profiles.
 
-**Expert Profile** - Seven tabs: Chat (the interface remains visible, but metered streaming and slash-command execution fail closed in v2.36; use explicit local or plan query and consult surfaces), Claims (tracked assertions with confidence scores and source provenance), Knowledge Gaps (view gaps with EV/cost priority), Decisions (reasoning audit trail with rationale and alternatives), History (learning timeline with costs), Skills (install/remove domain-specific capability packages), and Conversations (browse stored sessions read-only; metered resume is gated). Each secondary view distinguishes a retrieval failure from a legitimate empty state and offers a scoped retry without hiding the loaded profile.
+**Expert Profile** - Six tabs: Chat (the interface remains visible, but metered streaming and slash-command execution fail closed in v2.36; use explicit local or plan query and consult surfaces), Claims (tracked assertions with confidence scores and source provenance), Knowledge Gaps (view gaps with EV/cost priority), Decisions (reasoning audit trail with rationale and alternatives), History (learning timeline with costs), and Skills (install/remove domain-specific capability packages). Chat includes a read-only stored-conversation sidebar when sessions exist; metered resume is gated. Each secondary view distinguishes a retrieval failure from a legitimate empty state and offers a scoped retry without hiding the loaded profile.
 
 **Cost Intelligence** - Append-only ledger spending trends over configurable time ranges (7/30/90 days), per-model cost breakdown with charts, budget limit controls with debounced sliders, all-operation ledger total, and queue completion progress. The scope note explains that imported or demo result costs do not create ledger spend and provider billing remains authoritative.
 

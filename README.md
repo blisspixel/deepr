@@ -214,6 +214,13 @@ Results are saved under the configured reports root, defaulting to
 | A2A | Library and validation prototype only: Agent Card, in-memory tasks, consult mapping, and host validation exist, but no long-running serve command or A2A 1.0 conformance claim is shipped | [docs/SUPPORTED_SURFACE.md](docs/SUPPORTED_SURFACE.md) |
 | Web dashboard | Experimental but usable for reports, experts, costs, model views, loop status, and OpenAI-backed research submission; use CLI workflows for other providers | [docs/FEATURES.md](docs/FEATURES.md) |
 
+`deepr web` requires `DEEPR_API_KEY` unless the operator explicitly accepts
+tokenless loopback access with `--allow-unauthenticated-loopback`. Protected
+launches show a sign-in gate before loading dashboard data. The browser keeps
+the token only for the current tab session and uses the same credential for
+HTTP and Socket.IO. Never place tokenless mode behind a reverse proxy, tunnel,
+or port forward because the immediate peer may appear to be loopback.
+
 Job cancellation reports success only after the provider or queue transition,
 cost reservation closure, and recorded provider-resource cleanup are confirmed. If any state cannot be confirmed,
 the API, web dashboard, and CLI report a retryable failure instead of claiming

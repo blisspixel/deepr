@@ -9,6 +9,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Added a protected dashboard access gate that verifies one read-only endpoint
+  before mounting the application shell, accepts the operator-configured
+  `DEEPR_API_KEY`, and presents distinct rejected-token, missing-server-auth,
+  unreachable-server, and unexpected-response states. Explicit tokenless
+  loopback mode continues to open without a prompt.
 - Added experimental Stage 0 epistemic-simulation contracts and published JSON
   Schemas for five authority lanes, branch-scoped counterfactual state,
   evidence and access policy, persistent constructed-simulation disclosure,
@@ -42,6 +47,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Changed dashboard credential handling from an undocumented persistent
+  `localStorage` key to one session-scoped HTTP and Socket.IO credential. A
+  denied session-storage write falls back to tab-local memory, and the obsolete
+  persistent token is removed without migration. Auth probes use a lightweight
+  protected configuration read, late responses cannot clear a newer token, and
+  retry failures return focus to an announced error heading. Candidate-token
+  retries preserve the intended credential, validation feedback remains tied
+  to the field, and documentation warns against proxying tokenless mode.
 - Raised the `google-genai` floor to 1.75.0 for typed thinking-level support and
   removed an obsolete ESLint error transcript from the frontend source tree.
   Canonical pricing and bounded dispatch now resolve both current Flash aliases,
