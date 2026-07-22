@@ -51,6 +51,14 @@ of leaving artifacts with no run record. Dry runs remain write-free, and a
 failed RUNNING write blocks dispatch because untracked autonomous work is not an
 acceptable degradation.
 
+Sync-all enforces the dry-run side of that boundary structurally. It builds
+would-sync outcomes from the already-read preflight subscription snapshot and
+does not reload profiles or construct provider clients, absorbers, engines, belief
+stores, locks, loop records, or sync artifacts. This also prevents an unlocked
+preview from persisting a profile or belief migration while real maintenance is
+running. The machine result sets `dry_run: true` and `state_changes: 0`; the
+human result uses a preview-specific heading and no-change footer.
+
 Sync-all applies the same snapshot rule inside each already overlap-locked
 per-expert attempt: RUNNING is durable before engine construction, and the
 completion or caught-failure snapshot reuses that run id. When an exception

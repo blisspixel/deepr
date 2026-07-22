@@ -113,8 +113,11 @@ must not be described as usable capacity.
   early machine outcomes share the additive versioned envelope with explicit
   process status, safe next actions, bounded heartbeat disposition, invariant
   aggregate counts, and a separate `roster_experts` snapshot count. Stored
-  expert-name control characters are rendered visibly on one human-output row,
-  and experts without subscriptions are not dispatched under `--all`. Fleet
+  expert-name control characters are rendered visibly on one human-output row.
+  Dry-run uses the preflight subscription snapshot directly, constructs no
+  write-capable maintenance dependency, and reports `dry_run: true` plus
+  `state_changes: 0`; its human heading and footer identify it as a preview.
+  Experts without subscriptions are not dispatched under `--all`. Fleet
   maintenance also includes
   `deepr fleet install-schedule` (emits host scheduler recipes; never
   auto-installs). The off-box heartbeat (`DEEPR_HEARTBEAT_URL`) is opt-in and

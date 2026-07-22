@@ -330,6 +330,12 @@ deepr expert loop-status "AI Policy Expert" --json
 deepr expert export-okf "AI Policy Expert" ./okf/ai-policy
 ```
 
+`deepr expert sync-all --dry-run` consumes the read-only roster snapshot
+directly. It does not reload profiles, persist schema migrations, or construct
+provider clients, absorbers, engines, belief stores, locks, loop records, or sync
+artifacts. Human output is headed `Library sync preview`; JSON sets
+`dry_run: true` and `state_changes: 0`.
+
 The draft and preflight are non-authoritative preparation artifacts, not
 knowledge and not proof of review. Each applied revision is a complete
 operator-attested scope snapshot with reviewer identity explicitly unverified

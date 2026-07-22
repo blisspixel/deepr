@@ -540,8 +540,10 @@ def test_sync_all_failure_reuses_running_id_and_preserves_known_spend(monkeypatc
     )
     sync_one = _make_sync_one(
         backend=_PassBackend(use_local=True, local_model="local-model"),
+        preflight=SimpleNamespace(subscription_stores={}),
         include_all=True,
         scheduled=True,
+        snapshot_at=datetime.now(UTC),
     )
 
     with pytest.raises(CostedRuntimeError, match="private provider detail"):

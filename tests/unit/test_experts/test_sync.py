@@ -25,6 +25,7 @@ from deepr.experts.sync import (
     SubscriptionStore,
     fresh_sources_unchanged,
 )
+from deepr.experts.sync_support import build_sync_preview
 
 
 def _expert():
@@ -602,6 +603,30 @@ class TestFreshSourcesUnchanged:
 
 
 class TestSyncEngine:
+    def test_preview_uses_supplied_subscription_snapshot_without_writes(self, tmp_path):
+        store = _sub_store(tmp_path, Subscription(topic="Topic X"))
+        before = (store.path.read_bytes(), sorted(path.as_posix() for path in tmp_path.rglob("*")))
+
+        result = build_sync_preview(
+            "Sync Test Expert",
+            store,
+            budget=0.5,
+            only_due=True,
+            now=datetime(2026, 7, 22, tzinfo=UTC),
+        )
+
+        assert [(outcome.topic, outcome.status) for outcome in result.outcomes] == [("Topic X", "would_sync")]
+        assert (store.path.read_bytes(), sorted(path.as_posix() for path in tmp_path.rglob("*"))) == before
+
+    def test_preview_preserves_minimum_topic_budget_semantics(self, tmp_path):
+        store = _sub_store(tmp_path, Subscription(topic="Topic X", budget=0.04))
+
+        result = build_sync_preview("Sync Test Expert", store, budget=1.0, only_due=False)
+
+        assert [(outcome.status, outcome.detail) for outcome in result.outcomes] == [
+            ("skipped", "run budget exhausted ($0.04 left)")
+        ]
+
     def test_unreadable_subscription_state_fails_before_other_stores_are_built(self, tmp_path, monkeypatch):
         knowledge = tmp_path / "knowledge"
         knowledge.mkdir()

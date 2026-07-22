@@ -252,6 +252,25 @@ class TestRunLibrarySync:
             )
         assert result.summaries[0].status != "locked"
         assert calls == [("A", 0.5, True)]
+        assert result.to_dict()["dry_run"] is True
+        assert "state_changes" not in result.to_dict()
+
+    async def test_generic_dry_run_does_not_claim_injected_callback_was_read_only(self):
+        behaviors = {"A": (_result(SyncOutcome("t", "synced"), cost=0.25), "api_metered")}
+
+        result = await run_library_sync(
+            sync_one=_sync_one(behaviors),
+            expert_names=["A"],
+            budget=5.0,
+            dry_run=True,
+            subscription_store_factory=_subs({}),
+        )
+
+        payload = result.to_dict()
+        assert payload["dry_run"] is True
+        assert payload["synced_experts"] == 1
+        assert payload["total_cost"] == 0.25
+        assert "state_changes" not in payload
 
     async def test_only_due_false_includes_not_due_experts(self):
         behaviors = {"A": (_result(SyncOutcome("t", "no_changes"), cost=0.0), "local")}
@@ -328,6 +347,8 @@ class TestRunLibrarySync:
         assert payload["exit_code"] == 0
         assert payload["status_counts"]["synced"] == 1
         assert payload["experts"] == 1
+        assert payload["dry_run"] is False
+        assert "state_changes" not in payload
 
 
 def run_library_sync_sync_helper():

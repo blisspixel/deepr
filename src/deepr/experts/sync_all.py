@@ -100,6 +100,7 @@ class LibrarySyncResult:
     started_at: datetime
     summaries: list[ExpertSyncSummary] = field(default_factory=list)
     total_cost: float = 0.0
+    dry_run: bool = False
 
     @property
     def synced_experts(self) -> int:
@@ -133,11 +134,12 @@ class LibrarySyncResult:
         return counts
 
     def to_dict(self) -> dict[str, Any]:
-        return {
+        payload = {
             "schema_version": "deepr-library-sync-v1",
             "kind": "deepr.expert.sync_all",
             "status": self.status,
             "exit_code": self.exit_code,
+            "dry_run": self.dry_run,
             "started_at": self.started_at.isoformat(),
             "experts": len(self.summaries),
             "synced_experts": self.synced_experts,
@@ -148,6 +150,7 @@ class LibrarySyncResult:
             "total_cost": round(self.total_cost, 4),
             "summaries": [s.to_dict() for s in self.summaries],
         }
+        return payload
 
 
 def _summarize(name: str, result: SyncResult, capacity_source: str) -> ExpertSyncSummary:
@@ -254,7 +257,7 @@ async def run_library_sync(
         raise ValueError("per_expert_budget must be finite and non-negative")
     started = now or datetime.now(UTC)
     sub_factory = subscription_store_factory or (lambda n: SubscriptionStore(n))
-    result = LibrarySyncResult(started_at=started)
+    result = LibrarySyncResult(started_at=started, dry_run=dry_run)
 
     remaining = budget
     for name in expert_names:
