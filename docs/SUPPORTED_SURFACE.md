@@ -128,8 +128,15 @@ must not be described as usable capacity.
   or systemd recipes with atomic per-file replacement; existing files require `--force`; never
   auto-installs). Auto-selection uses cron on macOS with explicit no-catch-up and
   no-jitter limits because native launchd emission is not shipped. The off-box
-  heartbeat (`DEEPR_HEARTBEAT_URL`) is opt-in and
-  best-effort; it does not follow redirects or log its configured target.
+  heartbeat (`DEEPR_HEARTBEAT_URL`) is opt-in and best-effort. It supports the
+  public HTTPS Healthchecks-compatible terminal success and `/fail` contract,
+  validates local form during scheduled dry-run without sending, pins delivery
+  to a prevalidated public address with environment proxies disabled, preserves
+  endpoint queries, refuses redirects, leaves response content unread, and never
+  logs its configured target. Typed output distinguishes configuration, no-send,
+  blocked-target,
+  network, HTTP, and delivered states. Start pings, retries, durable delivery
+  history, and other vendor failure conventions are not shipped.
 - Pre-sync content-hash change-detection gate, the per-(expert, verb) overlap
   guard + startup jitter, budget degradation tiers + value-of-spend gate, and the
   reservation TTL sweep - deterministic spend/side-effect guards.

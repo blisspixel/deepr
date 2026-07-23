@@ -363,6 +363,18 @@ macOS `auto` uses the limited cron fallback, and unknown hosts must choose a
 target explicitly. Use an absolute executable path in `--command` if the
 scheduler's PATH cannot resolve `deepr`.
 
+Optional off-box liveness uses `DEEPR_HEARTBEAT_URL`, a secret-bearing public
+HTTPS endpoint with the Healthchecks-compatible success and `/fail` path
+contract. Persist it in the scheduled account's Deepr `.env`, not in a recipe or
+command. `deepr expert sync-all --scheduled --dry-run --json` validates its
+local form without contacting the service or changing expert state. A real
+scheduled pass reports a redacted disposition, safe failure kind, attempt time,
+duration, and bounded HTTP status; human output names missing, locally valid,
+delivered, blocked, and failed states. Delivery remains one terminal,
+best-effort GET and cannot change the maintenance exit status. Set the remote
+period to the recipe cadence and grace above wake delay, jitter, and maximum
+expected runtime. See [Fleet Maintenance](docs/FEATURES.md#fleet-maintenance-whole-roster).
+
 The draft and preflight are non-authoritative preparation artifacts, not
 knowledge and not proof of review. Each applied revision is a complete
 operator-attested scope snapshot with reviewer identity explicitly unverified

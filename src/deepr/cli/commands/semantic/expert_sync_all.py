@@ -20,6 +20,12 @@ from rich.markup import escape
 
 from deepr.backends.local_capacity import LocalCapacityObservation, LocalCapacityUnavailableReason
 from deepr.cli.colors import console, print_error, print_header, print_success, print_warning
+from deepr.cli.commands.semantic.expert_sync_heartbeat import (
+    heartbeat_evidence as _heartbeat_evidence,
+)
+from deepr.cli.commands.semantic.expert_sync_heartbeat import (
+    render_heartbeat_evidence as _render_heartbeat_evidence,
+)
 from deepr.cli.commands.semantic.experts import expert
 from deepr.cli.commands.semantic.grounding_support import PLAN_BACKEND_CHOICES
 from deepr.experts.metered_mutation_gate import (
@@ -70,26 +76,6 @@ class _RosterPreflight:
     @property
     def has_storage_errors(self) -> bool:
         return bool(self.profile_errors or self.subscription_errors)
-
-
-def _heartbeat_evidence(*, scheduled: bool, dry_run: bool, success: bool) -> dict[str, Any]:
-    """Report bounded heartbeat disposition without exposing its configured URL."""
-    from deepr.experts.heartbeat import heartbeat_url, send_heartbeat
-
-    configured = heartbeat_url() is not None
-    attempted = scheduled and not dry_run and configured
-    delivered = send_heartbeat(success=success) if attempted else False
-    return {
-        "configured": configured,
-        "attempted": attempted,
-        "delivered": delivered,
-        "reported_status": ("success" if success else "failure") if attempted else None,
-    }
-
-
-def _warn_heartbeat_delivery(heartbeat: dict[str, Any], *, json_output: bool) -> None:
-    if not json_output and heartbeat["attempted"] and not heartbeat["delivered"]:
-        print_warning("Configured heartbeat delivery failed; maintenance status is unchanged.")
 
 
 def _terminal_safe_text(value: str) -> str:
@@ -395,7 +381,7 @@ def _emit_roster_wait(
     print_warning("Scheduled sync-all is waiting for owned/prepaid capacity (no metered spend).")
     preview_note = " Preview only: no research, spend, or expert files changed." if dry_run else ""
     console.print(f"[dim]{detail}. Inspect current options with: deepr capacity next.{preview_note}[/dim]")
-    _warn_heartbeat_delivery(heartbeat, json_output=json_output)
+    _render_heartbeat_evidence(heartbeat, json_output=json_output)
 
 
 def _local_models_for_wait(expert_names: list[str], backend: _PassBackend) -> dict[str, str]:
@@ -472,7 +458,7 @@ def _emit_roster_local_busy_wait(
     print_warning("Scheduled sync-all is waiting because local GPU capacity is busy.")
     console.print(f"[dim]{observation.detail}.[/dim]")
     console.print(f"[dim]Try again at or after {earliest.retry_at.isoformat()}; no fallback was dispatched.[/dim]")
-    _warn_heartbeat_delivery(heartbeat, json_output=json_output)
+    _render_heartbeat_evidence(heartbeat, json_output=json_output)
 
 
 def _metered_tier_defers(
@@ -519,7 +505,7 @@ def _metered_tier_defers(
         "metered roster sync is off."
     )
     console.print("[dim]Use --local, inspect deepr capacity next, or wait for the monthly reset.[/dim]")
-    _warn_heartbeat_delivery(heartbeat, json_output=json_output)
+    _render_heartbeat_evidence(heartbeat, json_output=json_output)
     return True
 
 
@@ -615,7 +601,7 @@ def _sync_all_cancelled(
         click.echo(_json.dumps(payload, indent=2))
     else:
         print_warning("Cancelled.")
-        _warn_heartbeat_delivery(heartbeat, json_output=json_output)
+        _render_heartbeat_evidence(heartbeat, json_output=json_output)
     return True
 
 
@@ -692,7 +678,7 @@ def _render_library_result(result: Any, json_output: bool, *, heartbeat: dict[st
     if result.failed_experts:
         print_error("Roster sync completed with failures.")
         console.print("[dim]Inspect each failed expert: deepr expert loop-status NAME --json[/dim]")
-    _warn_heartbeat_delivery(heartbeat, json_output=json_output)
+    _render_heartbeat_evidence(heartbeat, json_output=json_output)
 
 
 def _finish_library_result(result: Any, json_output: bool, *, heartbeat: dict[str, Any]) -> None:
@@ -713,7 +699,7 @@ def _emit_empty_roster(
     if not json_output:
         prefix = "Preview complete: " if dry_run else ""
         print_success(f"{prefix}No experts yet. Create one with: deepr expert make NAME --local")
-        _warn_heartbeat_delivery(heartbeat, json_output=json_output)
+        _render_heartbeat_evidence(heartbeat, json_output=json_output)
         return
     payload = _cli_library_payload(LibrarySyncResult(started_at=started_at, dry_run=dry_run))
     payload["roster_experts"] = 0
@@ -755,7 +741,7 @@ def _emit_storage_state_error(
     else:
         print_error(detail)
         console.print("[dim]Inspect local logs, repair the unreadable profile or subscription file, then retry.[/dim]")
-        _warn_heartbeat_delivery(heartbeat, json_output=json_output)
+        _render_heartbeat_evidence(heartbeat, json_output=json_output)
 
 
 def _finish_no_work(
@@ -859,9 +845,11 @@ def sync_all_cmd(
     Owned/prepaid capacity first, per-expert budgets within the total ceiling.
     The pass continues after individual failures, then exits 1 if any expert
     failed. Designed to run on a schedule (deepr fleet install-schedule) so the
-    library self-maintains. On a --scheduled run, set DEEPR_HEARTBEAT_URL so
-    expected terminal outcomes report success or failure to a dead-man's-switch,
-    which also alerts when a scheduled pass does not run.
+    library self-maintains. On a --scheduled run, set DEEPR_HEARTBEAT_URL to a
+    public HTTPS Healthchecks-compatible endpoint so expected terminal outcomes
+    report success or failure and dead-man's-switch silence remains observable.
+    A scheduled --dry-run validates local endpoint form without sending a
+    request.
 
     \b
     EXAMPLES:

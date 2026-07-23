@@ -50,6 +50,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Changed scheduled fleet heartbeat delivery to require a bounded public HTTPS
+  Healthchecks-compatible endpoint, preserve query parameters when adding the
+  failure path, pin connections to prevalidated public addresses with environment
+  proxies disabled, refuse redirects, and close streamed responses without
+  consuming endpoint-controlled content. The existing bool
+  helper remains compatible over a typed result. Scheduled dry-run now validates
+  local endpoint form without a request; machine evidence adds validity,
+  disposition, safe failure kind, attempt count and time, duration, and bounded
+  HTTP status. Human logs name missing, validated-only, delivered, blocked, and
+  failed states without exposing the secret URL. Configuration docs now explain
+  scheduler-visible `.env` storage, first-run verification, terminal-only
+  signaling, and remote period and grace.
 - Changed `deepr fleet install-schedule` to separate preview, written-artifact,
   and host-installed states. File-backed previews no longer print commands for
   nonexistent files. Successful `--output` instructions reference the exact

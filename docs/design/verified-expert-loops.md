@@ -92,13 +92,17 @@ counts preserve the library aggregate invariant; `roster_experts` separately
 records the inspected roster size for early outcomes. Interactive JSON
 confirmation writes its prompt to stderr so stdout remains one machine document.
 
-Every rendered terminal envelope carries only bounded heartbeat disposition:
-configured, attempted, delivered, and the reported success or failure state.
-Scheduled non-dry completion and no-work outcomes report success; expected
-non-completion outcomes report failure. Delivery remains best-effort and cannot
-change the maintenance result. The HTTP helper refuses redirects and logs only
-fixed failure text or the numeric HTTP status, never the credential-bearing
-target or exception text.
+Every rendered terminal envelope carries bounded heartbeat evidence: configured
+and local-validity state, scheduled and dry-run posture, attempted and delivered
+state, attempt count and timestamp, duration, intended reported status, stable
+disposition, safe failure kind, and bounded HTTP status. Scheduled non-dry
+completion and no-work outcomes intend success; expected non-completion outcomes
+intend failure. `reported_status` remains the backward-compatible intended
+remote state and must be read with `delivered` and `disposition`. Delivery stays
+best-effort and cannot change the maintenance result. The helper accepts only a
+public HTTPS Healthchecks-compatible endpoint, preserves query parameters when
+adding `/fail`, refuses redirects, closes a streamed response without consuming
+its content, and logs neither the credential-bearing target nor exception text.
 
 ## Autonomy ladder
 
