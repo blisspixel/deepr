@@ -464,6 +464,31 @@ class TestSubscriptionStore:
         assert store.subscriptions == []
         assert store.load_failed is True
 
+    def test_typed_caller_can_suppress_raw_load_error_log(self, tmp_path, caplog):
+        knowledge = tmp_path / "knowledge"
+        knowledge.mkdir()
+        (knowledge / "subscriptions.json").write_text("{not-json", encoding="utf-8")
+
+        with caplog.at_level("ERROR", logger="deepr.experts.sync_contracts"):
+            store = SubscriptionStore("Sync Test Expert", storage_dir=knowledge, log_errors=False)
+
+        assert store.load_failed is True
+        assert caplog.records == []
+
+    def test_deeply_nested_state_is_explicitly_unreadable(self, tmp_path):
+        knowledge = tmp_path / "knowledge"
+        knowledge.mkdir()
+        nested = "[" * 1500 + "]" * 1500
+        (knowledge / "subscriptions.json").write_text(
+            f'{{"subscriptions":{nested}}}',
+            encoding="utf-8",
+        )
+
+        store = SubscriptionStore("Sync Test Expert", storage_dir=knowledge, log_errors=False)
+
+        assert store.subscriptions == []
+        assert store.load_failed is True
+
     @pytest.mark.parametrize(
         "payload",
         [

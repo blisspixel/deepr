@@ -20,6 +20,7 @@ from typing import Any
 from deepr.utils.atomic_io import append_jsonl_durable
 
 LOOP_RUN_SCHEMA_VERSION = 1
+_MAX_LOOP_RUN_METADATA_DEPTH = 64
 
 
 def _utc_now() -> datetime:
@@ -141,6 +142,18 @@ def _dict_or_empty(value: Any) -> dict[str, Any]:
     return value if isinstance(value, dict) else {}
 
 
+def _validate_metadata_nesting(value: object, *, field_name: str) -> None:
+    stack: list[tuple[object, int]] = [(value, 0)]
+    while stack:
+        current, depth = stack.pop()
+        if depth > _MAX_LOOP_RUN_METADATA_DEPTH:
+            raise ValueError(f"{field_name} exceeds the supported nesting depth")
+        if isinstance(current, dict):
+            stack.extend((child, depth + 1) for child in current.values())
+        elif isinstance(current, list | tuple):
+            stack.extend((child, depth + 1) for child in current)
+
+
 def _validate_nonnegative_int(value: object, *, field_name: str, positive: bool = False) -> None:
     minimum = 1 if positive else 0
     if isinstance(value, bool) or not isinstance(value, int) or value < minimum:
@@ -225,6 +238,8 @@ class ExpertLoopRun:
         self._validate_numeric_fields()
         self._validate_timestamps()
         self._validate_stop_reason()
+        _validate_metadata_nesting(self.next_action, field_name="next_action")
+        _validate_metadata_nesting(self.run_context, field_name="run_context")
 
     def _validate_identity_fields(self) -> None:
         if isinstance(self.schema_version, bool) or not isinstance(self.schema_version, int):
@@ -356,6 +371,7 @@ class ExpertLoopRunStore:
     def __init__(self, expert_name: str, *, path: Path | None = None):
         self.expert_name = expert_name
         self.path = loop_runs_path(expert_name, path)
+        self.load_failed = False
 
     def append(self, run: ExpertLoopRun) -> ExpertLoopRun:
         if run.expert_name != self.expert_name:
@@ -386,6 +402,7 @@ class ExpertLoopRunStore:
         return runs[0] if runs else None
 
     def _iter_snapshots(self) -> list[ExpertLoopRun]:
+        self.load_failed = False
         if not self.path.exists():
             return []
         snapshots: list[ExpertLoopRun] = []
@@ -396,7 +413,10 @@ class ExpertLoopRunStore:
                 payload = json.loads(line)
                 if isinstance(payload, dict):
                     snapshots.append(ExpertLoopRun.from_dict(payload))
-            except (KeyError, TypeError, ValueError, json.JSONDecodeError):
+                else:
+                    self.load_failed = True
+            except (KeyError, RecursionError, TypeError, ValueError, json.JSONDecodeError):
+                self.load_failed = True
                 continue
         return snapshots
 

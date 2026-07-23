@@ -729,10 +729,12 @@ deepr expert reflect "Azure Architect" <job_id> --execute-followups --scheduled 
 Keep an entire roster of experts current as a fleet, mostly at `$0`, and run it unattended.
 
 ```bash
-# Read-only $0 roster health: per expert the last run, what changed, cost +
-# capacity source, last failure, and whether a refresh is due. Anomalies sort
-# first; exits non-zero when any latest run failed, so a scheduler can run it as
-# a watchdog.
+# Read-only $0 roster health: per expert the last run, what changed, cost,
+# capacity source, last failure, and refresh cadence. Unreadable profile,
+# loop-run, or subscription state sorts first and returns a typed incomplete
+# result with exit 1 instead of a false zero or empty roster. A latest failed
+# run also exits 1. Waiting and refresh-due state remain normal and exit 0 after
+# a complete scan.
 deepr fleet status
 deepr fleet status --json
 

@@ -486,7 +486,7 @@ reservation, usage settlement, and canonical cost-ledger support exist.
 
 **Cycle 27 route-gaps overlap update (2026-06-30):** non-dry `deepr expert route-gaps NAME --execute` now accepts `--jitter`, applies deterministic startup jitter, and holds the per-expert `route-gaps` overlap lock across gap-fill engine construction and execution. A colliding run exits 0 with a skipped outcome and records `overlap_locked` without constructing any gap-fill engine or client. Health-check archive and reflection follow-up execution now use the same skip-before-mutation pattern. Remaining scheduler guard work is broader library wrappers where they still mutate or call long-running tools.
 
-**Fleet autopilot (Phase 4d, current main):** the roster now self-maintains end to end. `deepr fleet status` is a read-only `$0` roster-health watchdog (non-zero exit when any latest run failed); `deepr expert sync-all` syncs every due expert in one capacity-aware pass (owned/prepaid capacity first, admitted quota-observed plan dispatch when available, explicit non-metered `--plan <id>` override, per-expert budgets within a ceiling, skip-not-fail, overlap-locked); `deepr fleet install-schedule` emits the correct host scheduler recipe (Windows Task Scheduler XML / cron / systemd timer, built for catch-up not punctuality), and an off-box dead-man's-switch heartbeat (`DEEPR_HEARTBEAT_URL`) on a scheduled pass catches "the laptop never woke up". Each pass is made safe and cheap by a content-hash pre-sync change-detection gate, a per-(expert, verb) overlap guard + deterministic startup jitter, budget degradation tiers + a value-of-spend gate, and a TTL sweep for leaked budget reservations. Knowledge quality gains a **cross-vendor maker-checker** - a different-vendor, fresh-context, disconfirm-prompted grounding check (validated live on OpenAI + xAI) wired into `expert absorb` and `expert sync` behind explicit `--check-grounding` / `--checker-plan` flags so a belief carries a `grounding_assurance` level.
+**Fleet autopilot (Phase 4d, current main):** the roster now self-maintains end to end. `deepr fleet status` is a read-only `$0` roster-health watchdog (non-zero exit when any latest run failed or durable fleet state is unreadable); `deepr expert sync-all` syncs every due expert in one capacity-aware pass (owned/prepaid capacity first, admitted quota-observed plan dispatch when available, explicit non-metered `--plan <id>` override, per-expert budgets within a ceiling, skip-not-fail, overlap-locked); `deepr fleet install-schedule` emits the correct host scheduler recipe (Windows Task Scheduler XML / cron / systemd timer, built for catch-up not punctuality), and an off-box dead-man's-switch heartbeat (`DEEPR_HEARTBEAT_URL`) on a scheduled pass catches "the laptop never woke up". Each pass is made safe and cheap by a content-hash pre-sync change-detection gate, a per-(expert, verb) overlap guard + deterministic startup jitter, budget degradation tiers + a value-of-spend gate, and a TTL sweep for leaked budget reservations. Knowledge quality gains a **cross-vendor maker-checker** - a different-vendor, fresh-context, disconfirm-prompted grounding check (validated live on OpenAI + xAI) wired into `expert absorb` and `expert sync` behind explicit `--check-grounding` / `--checker-plan` flags so a belief carries a `grounding_assurance` level.
 
 **v2.29.0 additions:** the bounded second-checker escalator now has an operator seam - `deepr expert absorb` and `deepr expert sync` accept `--second-checker-plan` (used with `--check-grounding --checker-plan`) so a *weak* first grounding verdict escalates to a distinct third-vendor plan CLI, built lazily; a clean SUPPORTED verdict is never escalated, and grounding stays advisory (assurance metadata, never a storage gate). `deepr expert loop-status` (and the `deepr_expert_loop_status` MCP tool) now also report a non-probing `$0`/prepaid next-run capacity outlook per maintenance task class plus a `due_subscriptions` summary, both read-only with no live probe.
 
@@ -1998,11 +1998,25 @@ Sequenced smallest-shippable-first:
       is taken). Per expert: last run (type/status/typed stop reason),
       accepted/rejected changes, cost + capacity source, last failure, **refresh
       due** (honest cadence from `Subscription.is_due`, not an invented interval),
-      and waiting next-action. Anomalies sort first. `deepr-fleet-status-v1`,
-      `--json`, **non-zero exit when any latest run failed** (so a scheduler can
-      run it as a watchdog). Read-only, $0. Module `experts/fleet_status.py` +
-      `deepr fleet status`; 17 tests. Deferred: web-dashboard view; a configurable
+      and waiting next-action. Anomalies sort first. `deepr-fleet-status-v2`,
+      `--json`, **non-zero exit when any latest run failed or durable fleet state
+      is unreadable** (so a scheduler can run it as a fail-closed watchdog).
+      Read-only, $0. Module `experts/fleet_status.py` + `deepr fleet status`; 20
+      direct domain tests. Deferred: web-dashboard view; a configurable
       `expected_interval` for clock-based overdue beyond subscription cadence.
+      Hardened 2026-07-22: the command now uses non-creating profile discovery
+      and fails closed when profile, loop-run, or subscription state is
+      unreadable. The new v2 envelope exposes `complete`, terminal `status`,
+      `exit_code`, typed `state_errors`, bounded safe relative source references,
+      a repair action, and per-expert error codes. Affected row metrics and
+      unknowable fleet totals are null; a separate `observed` object carries
+      explicitly labeled lower bounds over readable state. Human output puts
+      unreadable rows first, avoids false healthy or empty copy, renders stored
+      text literally, and derived machine output redacts recognized credentials
+      without erasing ordinary secret-related prose. Normal waiting and
+      refresh-due state continues to exit 0; unreadable state or a failed latest
+      run exits 1. Whole-tree snapshots prove status remains byte-for-byte
+      read-only.
 - [~] **In-verb overlap guard + `--jitter`**: a non-blocking cross-platform
       `filelock` keyed by `expert + verb` (Windows-primary rules out `flock`);
       on contention exit 0 with a recorded skip. Bounded startup jitter (stable

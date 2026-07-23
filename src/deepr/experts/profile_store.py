@@ -365,11 +365,14 @@ class ExpertStore:
 
         return ExpertProfile.from_dict(data)
 
-    def list_all(self, include_errors: bool = False) -> list[ExpertProfile]:
+    def list_all(self, include_errors: bool = False, *, log_errors: bool = True) -> list[ExpertProfile]:
         """List all expert profiles.
 
         Args:
-            include_errors: If True, log but don't skip profiles with load errors
+            include_errors: Retained for backward compatibility. Load errors
+                are always attached to the returned list.
+            log_errors: Emit raw path and exception diagnostics. Callers that
+                return a bounded typed error contract can disable this.
 
         Returns:
             List of ExpertProfile instances, sorted by updated_at (newest first)
@@ -379,7 +382,7 @@ class ExpertStore:
         # Use a list subclass so we can attach the ``.errors`` attribute
         # without changing the public return type (plain ``list`` rejects
         # attribute assignment in CPython).
-        class _ProfileList(list):
+        class _ProfileList(list[ExpertProfile]):
             errors: list[tuple[Path, str]] = []
 
         profiles = _ProfileList()
@@ -402,11 +405,13 @@ class ExpertStore:
                         # miss, so corrupted profiles silently disappeared
                         # from the UI's expert list. Operators saw their
                         # expert "deleted" with no indication of why.
-                        logger.error(
-                            "Failed to load expert profile %s: %s. This expert will be hidden until the file is repaired.",
-                            profile_path,
-                            e,
-                        )
+                        if log_errors:
+                            logger.error(
+                                "Failed to load expert profile %s: %s. "
+                                "This expert will be hidden until the file is repaired.",
+                                profile_path,
+                                e,
+                            )
                         profiles.errors.append((profile_path, str(e)))
 
         sorted_profiles = _ProfileList(sorted(profiles, key=lambda p: p.updated_at, reverse=True))

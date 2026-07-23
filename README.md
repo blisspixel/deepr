@@ -336,6 +336,18 @@ provider clients, absorbers, engines, belief stores, locks, loop records, or syn
 artifacts. Human output is headed `Library sync preview`; JSON sets
 `dry_run: true` and `state_changes: 0`.
 
+`deepr fleet status` is also structurally read-only and `$0`. It leaves a
+missing experts root absent. A complete empty roster exits 0, while an
+unreadable profile, loop history, or subscription source returns the
+`deepr-fleet-status-v2` contract with `status: blocked_storage_state`,
+`complete: false`, typed `state_errors`, safe relative source references, null
+unknown totals, explicitly labeled observed lower bounds, and exit 1. A latest
+failed run also exits 1. Waiting capacity and refresh-due work remain normal
+scheduler state and exit 0 when the durable scan is complete. Stored terminal
+text is rendered on one literal line, and derived host-facing payloads redact
+recognized credentials without treating ordinary secret-related prose as a
+credential.
+
 The draft and preflight are non-authoritative preparation artifacts, not
 knowledge and not proof of review. Each applied revision is a complete
 operator-attested scope snapshot with reviewer identity explicitly unverified

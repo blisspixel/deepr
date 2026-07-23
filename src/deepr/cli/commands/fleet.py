@@ -14,11 +14,13 @@ from __future__ import annotations
 import json as _json
 import sys
 from pathlib import Path
+from typing import Any
 
 import click
+from rich.markup import escape
 
 from deepr.cli.colors import console, print_error, print_success, print_warning
-from deepr.experts.fleet_schedule import ScheduleSpec, render_recipe, resolve_platform
+from deepr.experts.fleet_schedule import ScheduleRecipe, ScheduleSpec, render_recipe, resolve_platform
 from deepr.experts.fleet_status import build_fleet_status_rollup, fleet_needs_attention
 
 
@@ -27,8 +29,10 @@ def fleet() -> None:
     """Roster-wide expert fleet health (read-only, $0)."""
 
 
-def _row_tag(row: dict) -> str:
-    if row["attention"]:
+def _row_tag(row: dict[str, Any]) -> str:
+    if row.get("state_errors"):
+        return "[red]UNREADABLE[/red]"
+    if row["attention"] is True:
         return "[red]FAILED[/red]"
     if row["waiting"]:
         return "[yellow]waiting[/yellow]"
@@ -39,7 +43,9 @@ def _row_tag(row: dict) -> str:
     return "[green]ok[/green]"
 
 
-def _row_detail(row: dict) -> str:
+def _row_detail(row: dict[str, Any]) -> str:
+    if "runs_unreadable" in row.get("state_errors", []):
+        return "loop history unavailable"
     last = row["last_run"]
     if not last:
         return "no runs recorded"
@@ -50,36 +56,97 @@ def _row_detail(row: dict) -> str:
     )
 
 
-def _print_row_extras(row: dict) -> None:
-    if row["refresh_due"]:
-        topics = ", ".join(row["due_topics"][:5])
+def _terminal_safe_text(value: object) -> str:
+    """Render stored text on one visible Rich-safe terminal line."""
+    text = str(value)
+    visible = "".join(character if character.isprintable() else ascii(character)[1:-1] for character in text)
+    return escape(visible)
+
+
+def _print_row_extras(row: dict[str, Any]) -> None:
+    state_errors = row.get("state_errors", [])
+    if state_errors:
+        labels = {
+            "runs_unreadable": "loop history",
+            "subscriptions_unreadable": "subscriptions",
+        }
+        unavailable = ", ".join(labels[code] for code in state_errors if code in labels)
+        console.print(f"      [red]state unavailable:[/red] {_terminal_safe_text(unavailable)}")
+    if isinstance(row["refresh_due"], int) and row["refresh_due"] > 0:
+        topics = ", ".join(_terminal_safe_text(topic) for topic in (row["due_topics"] or [])[:5])
         more = "..." if row["refresh_due"] > 5 else ""
         console.print(f"      [cyan]refresh due:[/cyan] {row['refresh_due']} topic(s) - {topics}{more}")
     if row["waiting_next_action"]:
-        console.print(f"      [yellow]waiting:[/yellow] {row['waiting_next_action'].get('title', '')}")
-    if row["attention"] and row["last_failure"]:
+        title = _terminal_safe_text(row["waiting_next_action"].get("title", ""))
+        console.print(f"      [yellow]waiting:[/yellow] {title}")
+    if row["attention"] is True and row["last_failure"]:
         reason = row["last_failure"].get("failure_reason") or row["last_failure"].get("stop_reason") or ""
-        console.print(f"      [red]last failure:[/red] {reason}")
+        console.print(f"      [red]last failure:[/red] {_terminal_safe_text(reason)}")
 
 
-def _render_human(payload: dict) -> None:
+def _render_human(payload: dict[str, Any]) -> None:
     summary = payload["summary"]
     rows = payload["experts"]
 
-    if not rows:
+    if not payload.get("complete", True):
+        errors = payload.get("state_errors", {})
+        labels = {
+            "profiles": ("profile source", "profile sources"),
+            "runs": ("loop history", "loop histories"),
+            "subscriptions": ("subscription source", "subscription sources"),
+        }
+        details = [
+            f"{count} unreadable {labels[kind][count != 1]}"
+            for kind, count in errors.items()
+            if count and kind in labels
+        ]
+        suffix = f": {', '.join(details)}" if details else ""
+        print_error(f"Fleet status is incomplete{suffix}.")
+
+    if not rows and payload.get("complete", True):
         print_warning("No experts yet. Create one with `deepr expert make`.")
         return
 
     for row in rows:
-        console.print(f"  {_row_tag(row)}  [bold]{row['expert']}[/bold]  [dim]{_row_detail(row)}[/dim]")
+        expert = _terminal_safe_text(row["expert"])
+        detail = _terminal_safe_text(_row_detail(row))
+        console.print(f"  {_row_tag(row)}  [bold]{expert}[/bold]  [dim]{detail}[/dim]")
         _print_row_extras(row)
 
-    console.print(
-        f"\n[bold]{summary['experts']} experts[/bold] · "
-        f"{summary['attention']} failed · {summary['waiting']} waiting · "
-        f"{summary['refresh_due']} refresh-due · {summary['never_run']} never-run · "
-        f"${summary['budget_spent_window_total']:.2f} spent (window)"
-    )
+    if rows or not payload.get("complete", True):
+        expert_label = "expert" if summary["experts"] == 1 else "experts"
+        state_error_count = summary.get("state_errors", 0)
+        state_error_label = "source" if state_error_count == 1 else "sources"
+        state_error_summary = (
+            f" · {state_error_count} unreadable state {state_error_label}" if state_error_count else ""
+        )
+        if payload.get("complete", True):
+            console.print(
+                f"\n[bold]{summary['experts']} readable {expert_label}[/bold] · "
+                f"{summary['attention']} failed · {summary['waiting']} waiting · "
+                f"{summary['refresh_due']} refresh-due · {summary['never_run']} never-run · "
+                f"${summary['budget_spent_window_total']:.2f} spent (window)"
+            )
+        else:
+            observed = summary["observed"]
+            console.print(
+                f"\n[bold]{summary['experts']} readable {expert_label}[/bold] · "
+                f"observed readable state: {observed['attention']} failed · "
+                f"{observed['waiting']} waiting · {observed['refresh_due']} refresh-due · "
+                f"{observed['never_run']} never-run · "
+                f"${observed['budget_spent_window_total']:.2f} spent (window)"
+                f"{state_error_summary}"
+            )
+    if not payload.get("complete", True):
+        for ref in payload.get("state_error_refs", []):
+            expert = f"{ref['expert']}: " if ref.get("expert") else ""
+            console.print(
+                f"      [red]unreadable source:[/red] {_terminal_safe_text(expert)}{_terminal_safe_text(ref['source'])}"
+            )
+        omitted = payload.get("state_error_refs_omitted", 0)
+        if omitted:
+            console.print(f"      [red]{omitted} additional unreadable source(s) omitted[/red]")
+        console.print("[dim]Inspect the listed source under the configured experts root, repair it, then retry.[/dim]")
 
 
 @fleet.command(name="status")
@@ -89,8 +156,8 @@ def status(json_output: bool, limit: int) -> None:
     """Show fleet health across all experts.
 
     Read-only and $0: folds each expert's loop-run history and refresh cadence.
-    Exits non-zero when any expert's latest run failed, so a scheduler can run
-    this as a cheap watchdog.
+    Exits non-zero when any expert's latest run failed or durable state was
+    unreadable, so a scheduler can use it as a cheap fail-closed watchdog.
 
     EXAMPLES:
       deepr fleet status
@@ -107,13 +174,13 @@ def status(json_output: bool, limit: int) -> None:
     else:
         _render_human(payload)
         if not fleet_needs_attention(payload) and payload["experts"]:
-            print_success("No experts need attention.")
+            print_success("No latest-run failures or unreadable expert state detected.")
 
     if fleet_needs_attention(payload):
         sys.exit(1)
 
 
-def _render_recipe_to_stdout(recipe) -> None:
+def _render_recipe_to_stdout(recipe: ScheduleRecipe) -> None:
     for filename, content in recipe.files.items():
         console.print(f"[bold]# {filename}[/bold]")
         click.echo(content)

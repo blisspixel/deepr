@@ -98,7 +98,12 @@ must not be described as usable capacity.
   confirmations. These are experimental but schema-versioned and additive.
 - Durable `ExpertLoopRun` records.
 - Fleet self-maintenance: `deepr fleet status` (read-only `$0` roster-health
-  rollup, `deepr-fleet-status-v1`, non-zero exit on a failed latest run),
+  rollup, `deepr-fleet-status-v2`, non-creating profile discovery, explicit
+  completeness and typed profile, loop-run, and subscription read errors,
+  nullable unknown row and aggregate metrics, explicitly labeled observed lower
+  bounds, bounded relative-source repair posture, literal single-line stored
+  terminal text, and non-zero exit on a failed latest run or unreadable durable
+  state),
   `deepr expert sync-all` (one capacity-aware roster pass, `deepr-library-sync-v1`
   roll-up, overlap-locked, finite per-expert budgets, continue-on-error roster
   execution with non-zero final status for full or partial expert failure, fixed
