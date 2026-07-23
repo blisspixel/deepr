@@ -50,6 +50,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Changed `deepr fleet status` to fail closed when any profile, loop-run, or
+  subscription source is unreadable. The command now uses non-creating profile
+  discovery, leaves a missing experts root absent, preserves safely readable
+  partial rows, represents unknown metrics as null, sorts unreadable rows first,
+  and exits 1 instead of reporting a false healthy or empty fleet. The new
+  `deepr-fleet-status-v2` contract exposes completeness, terminal status,
+  process exit, typed state-error counts, per-expert error codes, bounded safe
+  relative source references, and a repair action. Affected row metrics and
+  unknowable fleet totals are null; a separate `observed` object carries only
+  explicitly labeled lower bounds over readable state. Human output names
+  unreadable counts without raw absolute paths or exceptions,
+  escapes stored Rich markup and controls onto one visible line, and uses
+  success copy limited to the invariant actually checked. Derived host-facing
+  payloads now redact recognized provider tokens, authorization values, named
+  credentials, signed query values, URL credentials, and JWTs before prompt
+  neutralization. Field-aware and credential-shape checks preserve ordinary
+  prose that discusses secrets, passwords, or access tokens.
 - Changed `deepr expert sync-all --dry-run` to build its result directly from
   the read-only preflight subscription snapshot. Preview no longer reloads
   profiles or constructs provider clients, absorbers, engines, belief stores,

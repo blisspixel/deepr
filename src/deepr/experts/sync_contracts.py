@@ -92,7 +92,13 @@ class Subscription:
 class SubscriptionStore:
     """JSON sidecar of an expert's topic subscriptions."""
 
-    def __init__(self, expert_name: str, storage_dir: Path | None = None):
+    def __init__(
+        self,
+        expert_name: str,
+        storage_dir: Path | None = None,
+        *,
+        log_errors: bool = True,
+    ) -> None:
         self.expert_name = expert_name
         if storage_dir is None:
             from deepr.experts.profile import ExpertStore
@@ -101,6 +107,7 @@ class SubscriptionStore:
         self.path = Path(storage_dir) / "subscriptions.json"
         self.subscriptions: list[Subscription] = []
         self.load_failed = False
+        self._log_errors = log_errors
         self._load()
 
     def _load(self) -> None:
@@ -114,10 +121,11 @@ class SubscriptionStore:
             if not isinstance(items, list):
                 raise ValueError("subscriptions must be a list")
             self.subscriptions = [Subscription.from_dict(item) for item in items]
-        except (json.JSONDecodeError, OSError, TypeError, ValueError) as exc:
+        except (json.JSONDecodeError, OSError, RecursionError, TypeError, ValueError) as exc:
             self.subscriptions = []
             self.load_failed = True
-            logger.error("Could not load subscriptions for %s: %s", self.expert_name, exc)
+            if self._log_errors:
+                logger.error("Could not load subscriptions for %s: %s", self.expert_name, exc)
 
     def save(self) -> None:
         self.path.parent.mkdir(parents=True, exist_ok=True)

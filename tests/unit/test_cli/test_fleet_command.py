@@ -14,17 +14,47 @@ import deepr.cli.commands.fleet as fleet_mod
 from deepr.cli.commands.fleet import fleet
 
 
-def _payload(experts, *, attention=0, waiting=0, refresh_due=0, never_run=0):
+def _payload(
+    experts,
+    *,
+    attention=0,
+    waiting=0,
+    refresh_due=0,
+    never_run=0,
+    state_errors=None,
+):
+    errors = state_errors or {"profiles": 0, "runs": 0, "subscriptions": 0}
+    complete = not any(errors.values())
+    status = "blocked_storage_state" if not complete else "attention_required" if attention else "completed"
+    observed = {
+        "experts": len(experts),
+        "attention": attention,
+        "waiting": waiting,
+        "refresh_due": refresh_due,
+        "never_run": never_run,
+        "budget_spent_window_total": 0.0,
+    }
+    run_totals_known = errors["profiles"] == 0 and errors["runs"] == 0
+    subscription_totals_known = errors["profiles"] == 0 and errors["subscriptions"] == 0
     return {
-        "schema_version": "deepr-fleet-status-v1",
+        "schema_version": "deepr-fleet-status-v2",
         "kind": "deepr.expert.fleet_status",
+        "complete": complete,
+        "status": status,
+        "exit_code": 0 if complete and attention == 0 else 1,
+        "state_errors": errors,
+        "state_error_refs": [],
+        "state_error_refs_omitted": 0,
+        "next_action": None if complete else {"kind": "repair_local_expert_state", "requires_manual_repair": True},
         "summary": {
             "experts": len(experts),
-            "attention": attention,
-            "waiting": waiting,
-            "refresh_due": refresh_due,
-            "never_run": never_run,
-            "budget_spent_window_total": 0.0,
+            "attention": attention if run_totals_known else None,
+            "waiting": waiting if run_totals_known else None,
+            "refresh_due": refresh_due if subscription_totals_known else None,
+            "never_run": never_run if run_totals_known else None,
+            "state_errors": sum(errors.values()),
+            "budget_spent_window_total": 0.0 if run_totals_known else None,
+            "observed": observed,
         },
         "experts": experts,
     }
@@ -50,6 +80,7 @@ def _row(name, **over):
         "budget_spent_window": 0.0,
         "attention": False,
         "waiting": False,
+        "state_errors": [],
     }
     base.update(over)
     return base
@@ -64,7 +95,7 @@ def test_status_json_emits_versioned_payload(monkeypatch):
     result = CliRunner().invoke(fleet, ["status", "--json"])
     assert result.exit_code == 0
     parsed = json.loads(result.output)
-    assert parsed["schema_version"] == "deepr-fleet-status-v1"
+    assert parsed["schema_version"] == "deepr-fleet-status-v2"
 
 
 def test_status_human_empty_roster(monkeypatch):
@@ -78,7 +109,7 @@ def test_status_healthy_reports_no_attention(monkeypatch):
     _patch(monkeypatch, _payload([_row("Healthy")]))
     result = CliRunner().invoke(fleet, ["status"])
     assert result.exit_code == 0
-    assert "No experts need attention" in result.output
+    assert "No latest-run failures or unreadable expert state detected" in result.output
 
 
 def test_status_exits_nonzero_on_attention(monkeypatch):
@@ -116,6 +147,85 @@ def test_status_renders_refresh_due_and_waiting(monkeypatch):
     assert result.exit_code == 0
     assert "refresh due" in result.output
     assert "Wait for capacity" in result.output
+
+
+def test_status_incomplete_state_is_visible_and_nonzero(monkeypatch):
+    row = _row(
+        "Unreadable",
+        has_runs=None,
+        last_run=None,
+        subscriptions=None,
+        refresh_due=None,
+        due_topics=None,
+        attention=None,
+        waiting=None,
+        state_errors=["runs_unreadable", "subscriptions_unreadable"],
+    )
+    payload = _payload(
+        [row],
+        state_errors={"profiles": 1, "runs": 1, "subscriptions": 1},
+    )
+    _patch(monkeypatch, payload)
+
+    human = CliRunner().invoke(fleet, ["status"])
+    machine = CliRunner().invoke(fleet, ["status", "--json"])
+
+    assert human.exit_code == 1
+    assert "Fleet status is incomplete" in human.output
+    assert "UNREADABLE" in human.output
+    assert "Inspect the listed source under the configured experts root" in human.output
+    assert "observed readable state" in human.output
+    assert "No experts yet" not in human.output
+    assert "No latest-run failures" not in human.output
+    assert machine.exit_code == 1
+    assert json.loads(machine.output)["status"] == "blocked_storage_state"
+
+
+def test_status_human_neutralizes_stored_markup_and_controls(monkeypatch):
+    row = _row(
+        "[/red]\nFORGED",
+        refresh_due=1,
+        due_topics=["[bold]topic[/bold]\tNEXT"],
+        attention=True,
+        last_failure={"failure_reason": "[/green]\rREASON", "stop_reason": "tool_failure"},
+    )
+    _patch(monkeypatch, _payload([row], attention=1, refresh_due=1))
+
+    result = CliRunner().invoke(fleet, ["status"])
+
+    assert result.exit_code == 1
+    assert isinstance(result.exception, SystemExit)
+    assert "[/red]\\nFORGED" in result.output
+    assert "[bold]topic[/bold]\\tNEXT" in result.output
+    assert "[/green]\\rREASON" in result.output
+    assert "\nFORGED\n" not in result.output
+
+
+def test_status_corrupt_only_roster_never_looks_empty(monkeypatch):
+    payload = _payload([], state_errors={"profiles": 1, "runs": 0, "subscriptions": 0})
+    _patch(monkeypatch, payload)
+
+    result = CliRunner().invoke(fleet, ["status"])
+
+    assert result.exit_code == 1
+    assert "Fleet status is incomplete: 1 unreadable profile source" in result.output
+    assert "0 readable experts" in result.output
+    assert "No experts yet" not in result.output
+
+
+def test_status_invalid_root_emits_clean_machine_envelope(tmp_path, monkeypatch):
+    invalid_root = tmp_path / "experts"
+    invalid_root.write_text("not a directory", encoding="utf-8")
+    monkeypatch.setenv("DEEPR_EXPERTS_PATH", str(invalid_root))
+
+    result = CliRunner().invoke(fleet, ["status", "--json"])
+
+    assert result.exit_code == 1
+    payload = json.loads(result.output)
+    assert payload["status"] == "blocked_storage_state"
+    assert payload["state_errors"]["profiles"] == 1
+    assert payload["state_error_refs"] == [{"kind": "profiles_unreadable", "source": "experts-root"}]
+    assert str(tmp_path) not in result.output
 
 
 def test_status_rejects_nonpositive_limit():

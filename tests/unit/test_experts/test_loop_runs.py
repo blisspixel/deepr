@@ -213,6 +213,7 @@ def test_store_ignores_corrupt_lines(tmp_path):
     path.write_text(path.read_text(encoding="utf-8") + "not json\n", encoding="utf-8")
 
     assert len(store.list_runs()) == 1
+    assert store.load_failed is True
 
 
 def test_store_ignores_snapshot_with_non_finite_metrics(tmp_path):
@@ -225,6 +226,46 @@ def test_store_ignores_snapshot_with_non_finite_metrics(tmp_path):
     path.write_text(path.read_text(encoding="utf-8") + json.dumps(malformed) + "\n", encoding="utf-8")
 
     assert store.list_runs() == [original]
+    assert store.load_failed is True
+
+
+def test_store_complete_read_clears_previous_failure_signal(tmp_path):
+    path = tmp_path / "loop_runs.jsonl"
+    store = ExpertLoopRunStore("Platform Expert", path=path)
+    path.write_text("not json\n", encoding="utf-8")
+    assert store.list_runs() == []
+    assert store.load_failed is True
+
+    expected = _run()
+    path.write_text(json.dumps(expected.to_dict()) + "\n", encoding="utf-8")
+    assert store.list_runs() == [expected]
+    assert store.load_failed is False
+
+
+def test_store_marks_deeply_nested_snapshot_unreadable(tmp_path):
+    path = tmp_path / "loop_runs.jsonl"
+    path.write_text("[" * 1500 + "]" * 1500 + "\n", encoding="utf-8")
+    store = ExpertLoopRunStore("Platform Expert", path=path)
+
+    assert store.list_runs() == []
+    assert store.load_failed is True
+
+
+def test_store_rejects_valid_snapshot_with_over_nested_metadata(tmp_path):
+    path = tmp_path / "loop_runs.jsonl"
+    payload = _run().to_dict()
+    nested: dict = {}
+    cursor = nested
+    for _ in range(100):
+        child: dict = {}
+        cursor["child"] = child
+        cursor = child
+    payload["next_action"] = nested
+    path.write_text(json.dumps(payload) + "\n", encoding="utf-8")
+    store = ExpertLoopRunStore("Platform Expert", path=path)
+
+    assert store.list_runs() == []
+    assert store.load_failed is True
 
 
 @pytest.mark.parametrize("limit", [True, 0, -1, 1.5])

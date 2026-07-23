@@ -236,28 +236,40 @@ doesn't hand-build the non-default settings that are the entire point.
 The per-expert `loop_status_rollup` (`deepr-loop-status-v1`) and the plan-quota
 `capacity fleet` view don't cover roster-wide *agent-run* health; the name
 `capacity fleet` is taken, so use **`deepr fleet status`**. It needs **zero new
-storage** - it folds the existing per-expert `loop_runs.jsonl` files. Publish as
-`deepr-fleet-status-v1` and wire into the web dashboard. One row per expert ×
-loop_type:
+storage** - it folds existing profiles, per-expert `loop_runs.jsonl`, and
+`subscriptions.json`. The shipped CLI publishes `deepr-fleet-status-v2`; a web
+dashboard remains deferred. One row per readable expert currently includes:
 
 - **Last run** - timestamp + status + typed `stop_reason`.
 - **What changed** - `accepted_changes` / `rejected_changes`, `acceptance_rate`.
 - **What it cost** - `budget_spent`, `cost_per_accepted_change`,
   `capacity_source` (owned / prepaid / metered).
 - **What failed** - `last_failure` + `failure_reason`.
-- **Overdue / stale** - the load-bearing column:
-  `last_run.finished_at + expected_interval + grace < now -> OVERDUE`.
-  `expected_interval` is the one new piece of per-expert/verb config (a small
-  `schedule.json`); without it Deepr can't tell "idle" from "broken." Default to
-  `interval × 3` when unset.
+- **Refresh due** - the existing subscription cadence evaluated by
+  `Subscription.is_due`, without inventing a separate interval.
 - **Next action** - the typed `waiting_for_capacity` / `waiting_for_confirmation`
   next-action so the operator sees what's blocking.
-- **Roster summary** - `N experts · X overdue · Y waiting · Z failed · $TOTAL
-  (window)`; anomalies first, green boring.
+- **Roster summary** - readable experts, failed latest runs, waiting experts,
+  refresh-due experts, never-run experts, unreadable state sources, and bounded
+  window spend; anomalies first, green boring.
+- **Observation integrity** - profile discovery uses `create=False`. Corrupt or
+  unreadable profile, loop-run, and subscription state sets `complete: false`,
+  returns `status: blocked_storage_state`, emits typed counts, bounded safe
+  relative source references, and per-expert error codes, and exits 1. Affected
+  row fields and aggregate totals that cannot be known are null. A separate
+  `summary.observed` object retains lower bounds over readable state and is
+  always labeled as observed, never presented as whole-fleet health.
+- **Output integrity** - raw storage paths and exceptions do not cross this
+  terminal contract. Stored Rich markup and control characters render
+  literally on one line, and recognized credentials are redacted from the
+  derived host-facing payload.
 
-`--json` for the versioned payload; human table by default; **non-zero exit when
-anything is overdue or failed** so the scheduler can run `fleet status` itself as
-a cheap watchdog.
+`--json` returns the versioned payload; the human roster is the default.
+**Non-zero exit means either a failed latest run or an incomplete durable-state
+observation.** Waiting capacity and refresh-due work are normal scheduler state
+and remain exit 0 after a complete scan. A future configurable
+`expected_interval` may add clock-based overdue detection beyond subscription
+cadence, but it is not part of the shipped contract.
 
 ### 3.4 The dead-man's-switch (the one thing a local command can't do)
 
@@ -375,7 +387,8 @@ input to "is this metered dollar worth it."
 2. **Pre-sync change-detection gate** (Pillar 1.1) - ETag/IMS -> 304 skip, feed/
    sitemap hint, content-hash; the highest-leverage freshness-per-$0 change.
 3. **`deepr fleet status`** (Pillar 3.3) - cross-expert rollup over existing
-   `loop_runs.jsonl`, `deepr-fleet-status-v1`, overdue detection, non-zero exit.
+   `loop_runs.jsonl`, `deepr-fleet-status-v2`, incomplete-state detection,
+   non-zero exit.
 4. **[PARTIAL 2026-06-24] In-verb overlap guard + `--jitter`** (Pillar 3.1) -
    cross-platform `filelock`, recorded skip on contention. The primitive and
    `sync-all` wiring shipped earlier; `expert sync` now applies jitter, holds

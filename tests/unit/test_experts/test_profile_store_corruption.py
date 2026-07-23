@@ -86,3 +86,12 @@ class TestListAllCorruption:
         path, reason = errors[0]
         assert "broken" in str(path)
         assert reason  # non-empty error description
+
+    def test_caller_with_typed_error_contract_can_suppress_raw_error_log(self, tmp_path, caplog):
+        _write_profile(tmp_path, "broken", "garbage")
+
+        with caplog.at_level("ERROR", logger="deepr.experts.profile_store"):
+            profiles = ExpertStore(str(tmp_path)).list_all(log_errors=False)
+
+        assert len(profiles.errors) == 1
+        assert caplog.records == []
