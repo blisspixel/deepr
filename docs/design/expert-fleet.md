@@ -223,13 +223,23 @@ enable catch-up. The load-bearing **non-default** Task Scheduler settings:
 - Action: `deepr expert sync "<Name>" --scheduled` (already returns structured
   waits; never blind-spends).
 
-Linux/macOS equivalents: cron + a daily catch-up (anacron) or, preferred,
-systemd `.timer` with `Persistent=true` (fires once on next boot if a run was
-missed) + `RandomizedDelaySec=` for jitter + `WakeSystem=`.
+Linux equivalents: cron + a daily catch-up (anacron) or, preferred, a systemd
+`.timer` with `Persistent=true` (fires once on next boot if a run was missed) +
+`RandomizedDelaySec=` for jitter + `WakeSystem=`. macOS currently uses a plain
+cron fallback with explicit no-catch-up and no-jitter limits. Native launchd
+recipe emission remains deferred.
 
 Ship a **`deepr fleet install-schedule`** helper that emits the correct
 `schtasks`/XML (Windows), crontab line, and systemd `.timer` - so the operator
 doesn't hand-build the non-default settings that are the entire point.
+Preview and write are separate states. File-backed installation commands appear
+only after all requested root-confined files finish their atomic per-file writes;
+collisions need explicit replacement authority, atomic no-replace closes the
+preflight race, and host registration remains a manual operator step. Command
+serialization preserves Windows paths and argv boundaries, quotes copied
+PowerShell paths literally, uses systemd-native C-style argument escaping, and
+escapes cron percent delimiters. Force mode replaces the named recipe entry
+without following a file symlink to unrelated content.
 
 ### 3.3 `deepr fleet status` - the cross-expert health surface
 

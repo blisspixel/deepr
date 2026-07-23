@@ -124,8 +124,11 @@ must not be described as usable capacity.
   `state_changes: 0`; its human heading and footer identify it as a preview.
   Experts without subscriptions are not dispatched under `--all`. Fleet
   maintenance also includes
-  `deepr fleet install-schedule` (emits host scheduler recipes; never
-  auto-installs). The off-box heartbeat (`DEEPR_HEARTBEAT_URL`) is opt-in and
+  `deepr fleet install-schedule` (previews or writes root-confined Windows, cron,
+  or systemd recipes with atomic per-file replacement; existing files require `--force`; never
+  auto-installs). Auto-selection uses cron on macOS with explicit no-catch-up and
+  no-jitter limits because native launchd emission is not shipped. The off-box
+  heartbeat (`DEEPR_HEARTBEAT_URL`) is opt-in and
   best-effort; it does not follow redirects or log its configured target.
 - Pre-sync content-hash change-detection gate, the per-(expert, verb) overlap
   guard + startup jitter, budget degradation tiers + value-of-spend gate, and the

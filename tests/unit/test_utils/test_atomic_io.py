@@ -74,6 +74,19 @@ class TestAtomicWriteText:
         atomic_write_text(path, "ABC", encoding="ascii")
         assert path.read_bytes() == b"ABC"
 
+    def test_no_replace_creates_a_complete_file(self, tmp_path: Path):
+        path = tmp_path / "new.txt"
+        atomic_write_text(path, "complete", overwrite=False)
+        assert path.read_text(encoding="utf-8") == "complete"
+
+    def test_no_replace_preserves_an_existing_file(self, tmp_path: Path):
+        path = tmp_path / "existing.txt"
+        path.write_text("operator-owned", encoding="utf-8")
+        with pytest.raises(FileExistsError):
+            atomic_write_text(path, "replacement", overwrite=False)
+        assert path.read_text(encoding="utf-8") == "operator-owned"
+        assert list(tmp_path.glob(f".{path.name}.*")) == []
+
 
 class TestAtomicWriteBytes:
     def test_writes_raw_bytes(self, tmp_path: Path):

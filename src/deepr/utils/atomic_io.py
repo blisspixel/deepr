@@ -2,9 +2,10 @@
 
 Crash-safe replacements for ``open(path, "w") + json.dump(...)``. Writes go to
 a tempfile in the same directory and are then renamed onto the target path so
-readers never observe a half-written file. On Windows the rename is retried
-a few times because antivirus / indexer / open-handle races can produce
-transient ``PermissionError`` on ``os.replace``.
+readers never observe a half-written file. Callers can also request atomic
+no-replace creation, which links the complete tempfile only when the target is
+still absent. On Windows replacement is retried because antivirus, indexer, or
+open-handle races can produce transient ``PermissionError`` on ``os.replace``.
 
 This module is the single source of truth for atomic writes across the
 codebase. The pattern lives here so it stays consistent everywhere; see
@@ -33,13 +34,43 @@ def _retry_attempts() -> int:
     return _WINDOWS_RETRY_ATTEMPTS if sys.platform == "win32" else 1
 
 
-def atomic_write_bytes(path: str | os.PathLike[str], data: bytes, *, fsync: bool = False) -> None:
+def _replace_tempfile(tmp_path: Path, target: Path) -> None:
+    attempts = _retry_attempts()
+    for attempt in range(attempts):
+        try:
+            os.replace(tmp_path, target)
+            return
+        except PermissionError:
+            if attempt == attempts - 1:
+                raise
+            time.sleep(_WINDOWS_RETRY_BASE_SLEEP * (attempt + 1))
+
+
+def _link_tempfile_without_replacement(tmp_path: Path, target: Path) -> None:
+    # Linking a complete same-directory tempfile creates the target only if it
+    # is still absent. Readers never observe a partially written destination.
+    os.link(tmp_path, target)
+    try:
+        tmp_path.unlink()
+    except OSError:
+        logger.warning("Unable to remove temporary link after an atomic no-replace write")
+
+
+def atomic_write_bytes(
+    path: str | os.PathLike[str],
+    data: bytes,
+    *,
+    fsync: bool = False,
+    overwrite: bool = True,
+) -> None:
     """Atomically write ``data`` to ``path``.
 
     Writes to a tempfile in the same directory, then renames onto the target.
     If ``fsync`` is true the file is fsync'd before rename - slow, but the
     only way to survive a power-loss event without a corrupt or zero-byte
-    file. Off by default; opt in for ledgers and other write-once records.
+    file. Off by default; opt in for ledgers and other write-once records. If
+    ``overwrite`` is false, atomically create the complete target or raise
+    ``FileExistsError`` without changing the existing target.
     """
     target = Path(path)
     parent = target.parent
@@ -55,16 +86,10 @@ def atomic_write_bytes(path: str | os.PathLike[str], data: bytes, *, fsync: bool
                 f.flush()
                 os.fsync(f.fileno())
 
-        attempts = _retry_attempts()
-        for attempt in range(attempts):
-            try:
-                os.replace(tmp_path, target)
-                break
-            except PermissionError:
-                if attempt < attempts - 1:
-                    time.sleep(_WINDOWS_RETRY_BASE_SLEEP * (attempt + 1))
-                else:
-                    raise
+        if overwrite:
+            _replace_tempfile(tmp_path, target)
+        else:
+            _link_tempfile_without_replacement(tmp_path, target)
     except Exception:
         try:
             if tmp_path.exists():
@@ -80,9 +105,10 @@ def atomic_write_text(
     *,
     encoding: str = "utf-8",
     fsync: bool = False,
+    overwrite: bool = True,
 ) -> None:
     """Atomically write a text string to ``path``."""
-    atomic_write_bytes(path, text.encode(encoding), fsync=fsync)
+    atomic_write_bytes(path, text.encode(encoding), fsync=fsync, overwrite=overwrite)
 
 
 def atomic_write_json(
@@ -93,6 +119,7 @@ def atomic_write_json(
     sort_keys: bool = False,
     default: Any = None,
     fsync: bool = False,
+    overwrite: bool = True,
 ) -> None:
     """Atomically write ``data`` as JSON to ``path``.
 
@@ -101,7 +128,7 @@ def atomic_write_json(
     the target is left untouched.
     """
     payload = json.dumps(data, indent=indent, sort_keys=sort_keys, default=default)
-    atomic_write_text(path, payload, fsync=fsync)
+    atomic_write_text(path, payload, fsync=fsync, overwrite=overwrite)
 
 
 def append_jsonl_durable(

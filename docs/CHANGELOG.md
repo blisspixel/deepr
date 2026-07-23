@@ -50,6 +50,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Changed `deepr fleet install-schedule` to separate preview, written-artifact,
+  and host-installed states. File-backed previews no longer print commands for
+  nonexistent files. Successful `--output` instructions reference the exact
+  written paths and include optional first-run and platform diagnostics, while
+  systemd installation now reloads user units before enabling the timer. The
+  emitter rejects path-bearing, reserved, overlong, or control-bearing schedule
+  names and malformed or control-bearing commands; preserves Windows and systemd
+  argument boundaries; bounds jitter below its cadence; selects cron rather than
+  systemd for macOS auto-detection; and fails closed on unknown hosts. Output is
+  root-confined and atomic per file, existing files require explicit `--force`,
+  and non-force writes use atomic no-replace creation so a concurrent file cannot
+  be clobbered after preflight. Windows backslash paths remain intact, PowerShell
+  output paths are literal-quoted, systemd arguments use unit-native escaping,
+  and cron percent signs survive cron parsing. Force mode replaces a named recipe
+  symlink rather than following it to unrelated content. Filesystem failures
+  return bounded recovery guidance without raw host errors or false success.
 - Changed `deepr fleet status` to fail closed when any profile, loop-run, or
   subscription source is unreadable. The command now uses non-creating profile
   discovery, leaves a missing experts root absent, preserves safely readable
