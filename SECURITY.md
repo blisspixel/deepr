@@ -28,6 +28,9 @@ Deepr includes:
 - Input validation and request sanitization
 - Prompt-injection detection/sanitization (`utils/prompt_security.PromptSanitizer`)
 - SSRF protection on user-supplied URLs
+- Scheduled fleet heartbeat endpoints require public HTTPS, reject credentials
+  and fragments, connect only to a prevalidated public address with environment
+  proxies disabled, refuse redirects, and never log the secret-bearing target
 - API key redaction in logs and error output
 - Budget enforcement to prevent runaway spend (per-operation + daily/monthly caps, approval tiers)
 - Dependency audit (`pip-audit`, blocking in CI) and SBOM generation

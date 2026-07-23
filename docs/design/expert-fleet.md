@@ -285,12 +285,18 @@ cadence, but it is not part of the shipped contract.
 
 A local `fleet status` only reports trouble *when you run it* - if the laptop is
 asleep, nothing runs it, and a same-host monitor dies with the jobs. Close that
-gap with an **optional, off-by-default outbound heartbeat**: on a successful
-scheduled verb, POST a run summary (Healthchecks-compatible: `/start`, success,
-`/fail`) to a user-configured URL on a **free off-box tier** (healthchecks.io /
-Dead Man's Snitch). Off-box is the point - it catches "the laptop never woke up,"
-the failure a single-laptop fleet is most exposed to. No self-hosted monitor on
-the same laptop; no new always-on service in Deepr.
+gap with an **optional, off-by-default outbound heartbeat**. The shipped
+contract sends one terminal GET to a secret-bearing public HTTPS endpoint that
+implements Healthchecks-compatible success and `/fail` paths. It does not send
+a start event, request body, or silent retry. Scheduled dry-run validates only
+local URL form and sends nothing. A real terminal envelope records a redacted
+typed disposition while a delivery failure never changes maintenance status.
+Off-box is the point - absence catches "the laptop never woke up," the failure a
+single-laptop fleet is most exposed to. Configure remote grace above host wake
+delay, recipe jitter, and maximum expected runtime. No monitor on the same
+laptop and no new always-on service in Deepr. The external endpoint contract is
+the [Healthchecks Pinging API](https://healthchecks.io/docs/http_api/); other
+failure conventions require a separate adapter.
 
 ---
 

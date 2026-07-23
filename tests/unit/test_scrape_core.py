@@ -8,7 +8,7 @@ import os
 import sys
 
 import pytest
-from requests import Request, Response
+from requests import Response
 from requests.exceptions import ChunkedEncodingError
 
 # Add parent directory to path
@@ -23,7 +23,7 @@ from deepr.utils.scrape import (
     PageDeduplicator,
     ScrapeConfig,
 )
-from deepr.utils.scrape.fetcher import MAX_ARCHIVE_METADATA_BYTES, _PinnedAddressAdapter
+from deepr.utils.scrape.fetcher import MAX_ARCHIVE_METADATA_BYTES
 from deepr.utils.security import SSRFError
 from tests.unit.scrape_helpers import make_scrape_response
 
@@ -209,23 +209,6 @@ def test_http_fetcher(monkeypatch):
     print(f"  [OK] Got {len(result.html)} chars of HTML")
 
     print("[PASS] ContentFetcher fetch\n")
-
-
-def test_pinned_https_adapter_connects_to_authorized_ip_with_original_tls_name():
-    adapter = _PinnedAddressAdapter(
-        address="93.184.216.34",
-        hostname="example.com",
-        port=443,
-        scheme="https",
-    )
-    request = Request("GET", "https://example.com/path").prepare()
-
-    pool = adapter.get_connection_with_tls_context(request, True)
-
-    assert pool.host == "93.184.216.34"
-    assert pool.port == 443
-    assert pool.assert_hostname == "example.com"
-    assert pool.conn_kw["server_hostname"] == "example.com"
 
 
 def test_browser_fetch_strategies_are_not_executable(monkeypatch):

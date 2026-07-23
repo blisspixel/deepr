@@ -773,7 +773,38 @@ deepr fleet install-schedule --command "deepr expert sync-all --scheduled -y"
 deepr fleet install-schedule --platform systemd --output ./schedule
 ```
 
-Set `DEEPR_HEARTBEAT_URL` to a free dead-man's-switch (healthchecks.io / Dead Man's Snitch) so you are alerted if a scheduled pass ever silently does not run - the only signal that catches "the laptop never woke up" (a same-host monitor dies with the jobs). Delivery is best-effort and never changes the maintenance exit status. Machine output states whether a heartbeat was configured, attempted, delivered, and reported as success or failure. Redirects are not followed, and diagnostics never print the configured URL.
+For off-box liveness, set `DEEPR_HEARTBEAT_URL` to the full secret ping URL of a
+public HTTPS service that implements the Healthchecks-compatible terminal
+success and `/fail` path contract. Put it in the scheduled account's per-user
+Deepr `.env`, not in the recipe or command. Then use this sequence:
+
+```bash
+# Local form validation only: no request, research, spend, or expert-state write.
+deepr expert sync-all --scheduled --dry-run --json
+
+# After the host recipe is registered, inspect the first real terminal delivery.
+deepr expert sync-all --scheduled -y --json
+```
+
+Local validation is not a remote test. A real pass reports `delivered` only
+after a 2xx response. Machine evidence preserves the existing configured,
+attempted, delivered, and reported-status fields and adds local validity, a
+stable disposition, safe failure kind, attempt count and timestamp, duration,
+and bounded HTTP status. Human logs state missing, locally valid, delivered,
+blocked, and failed conditions without printing the URL. Redirects are refused,
+DNS is resolved to public addresses and the connection is pinned to one
+authorized address with environment proxies disabled, and response content is
+not consumed. Delivery is one terminal best-effort GET,
+never a start signal or silent retry, and never changes maintenance status.
+
+Set the remote period to the installed recipe cadence. Set its grace above the
+host's possible wake delay, the recipe jitter, and the longest expected run;
+otherwise a healthy long pass can look late before its terminal ping. This
+off-box absence signal catches a machine that never wakes, which a same-host
+monitor cannot. The exact endpoint semantics follow the
+[Healthchecks Pinging API](https://healthchecks.io/docs/http_api/); services that
+encode failures differently require a separate adapter and are not claimed as
+active-failure compatible.
 
 ### Temporal Perspective Queries
 

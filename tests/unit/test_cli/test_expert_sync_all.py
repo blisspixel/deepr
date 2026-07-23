@@ -17,6 +17,7 @@ from click.testing import CliRunner
 
 from deepr.backends.local_capacity import LocalCapacityObservation, LocalCapacityState
 from deepr.cli.commands.semantic.experts import expert
+from deepr.experts.heartbeat import HeartbeatDelivery
 from deepr.experts.sync import Subscription, SyncOutcome, SyncResult
 
 
@@ -36,6 +37,68 @@ def _assert_aggregate_invariants(payload: dict, *, roster_experts: int) -> None:
     assert payload["experts"] == len(payload["summaries"])
     assert sum(payload["status_counts"].values()) == payload["experts"]
     assert payload["roster_experts"] == roster_experts
+
+
+def _delivered_heartbeat() -> HeartbeatDelivery:
+    return HeartbeatDelivery(attempted=True, delivered=True, http_status=204)
+
+
+def _failed_heartbeat(*, failure_kind: str = "network_error", http_status: int | None = None) -> HeartbeatDelivery:
+    return HeartbeatDelivery(
+        attempted=True,
+        delivered=False,
+        failure_kind=failure_kind,
+        http_status=http_status,
+    )
+
+
+def _assert_heartbeat_evidence(
+    evidence: dict,
+    *,
+    configured: bool,
+    configuration_valid: bool | None,
+    scheduled: bool,
+    dry_run: bool,
+    attempted: bool,
+    delivered: bool,
+    reported_status: str | None,
+    disposition: str,
+    failure_kind: str | None = None,
+    http_status: int | None = None,
+) -> None:
+    assert set(evidence) == {
+        "configured",
+        "configuration_valid",
+        "scheduled",
+        "dry_run",
+        "attempted",
+        "attempt_count",
+        "attempted_at",
+        "duration_ms",
+        "delivered",
+        "reported_status",
+        "disposition",
+        "failure_kind",
+        "http_status",
+    }
+    assert evidence["configured"] is configured
+    assert evidence["configuration_valid"] is configuration_valid
+    assert evidence["scheduled"] is scheduled
+    assert evidence["dry_run"] is dry_run
+    assert evidence["attempted"] is attempted
+    assert evidence["attempt_count"] == int(attempted)
+    assert evidence["delivered"] is delivered
+    assert evidence["reported_status"] == reported_status
+    assert evidence["disposition"] == disposition
+    assert evidence["failure_kind"] == failure_kind
+    assert evidence["http_status"] == http_status
+    if attempted:
+        assert datetime.fromisoformat(evidence["attempted_at"]).tzinfo is not None
+        assert isinstance(evidence["duration_ms"], int)
+        assert evidence["duration_ms"] >= 0
+    else:
+        assert evidence["attempted_at"] is None
+        assert evidence["duration_ms"] is None
 
 
 def _wire(
@@ -182,12 +245,17 @@ class TestRegistration:
             "command_argv": ["deepr", "expert", "make", "NAME", "--local"],
             "requires_user_input": ["NAME"],
         }
-        assert payload["heartbeat"] == {
-            "configured": False,
-            "attempted": False,
-            "delivered": False,
-            "reported_status": None,
-        }
+        _assert_heartbeat_evidence(
+            payload["heartbeat"],
+            configured=False,
+            configuration_valid=None,
+            scheduled=False,
+            dry_run=False,
+            attempted=False,
+            delivered=False,
+            reported_status=None,
+            disposition="not_configured",
+        )
         _assert_aggregate_invariants(payload, roster_experts=0)
 
     def test_empty_roster_dry_run_is_an_explicit_zero_change_preview(self, monkeypatch):
@@ -220,21 +288,30 @@ class TestRegistration:
         pinged = []
         monkeypatch.setattr("deepr.experts.profile.ExpertStore", EmptyStore)
         monkeypatch.setenv("DEEPR_HEARTBEAT_URL", "https://hc.example/secret")
-        monkeypatch.setattr("deepr.experts.heartbeat.send_heartbeat", lambda **kw: pinged.append(kw) or True)
+        monkeypatch.setattr(
+            "deepr.experts.heartbeat.deliver_heartbeat",
+            lambda **kw: pinged.append(kw) or _delivered_heartbeat(),
+        )
 
         result = CliRunner().invoke(expert, ["sync-all", "--scheduled", "--json"])
 
         assert result.exit_code == 0, result.output
         payload = json.loads(result.stdout)
         assert payload["status"] == "completed"
-        assert payload["heartbeat"] == {
-            "configured": True,
-            "attempted": True,
-            "delivered": True,
-            "reported_status": "success",
-        }
+        _assert_heartbeat_evidence(
+            payload["heartbeat"],
+            configured=True,
+            configuration_valid=True,
+            scheduled=True,
+            dry_run=False,
+            attempted=True,
+            delivered=True,
+            reported_status="success",
+            disposition="delivered",
+            http_status=204,
+        )
         _assert_aggregate_invariants(payload, roster_experts=0)
-        assert pinged == [{"success": True}]
+        assert pinged == [{"success": True, "url": "https://hc.example/secret"}]
 
     @pytest.mark.parametrize(
         "option,value",
@@ -301,7 +378,10 @@ class TestRegistration:
             fail_backend,
         )
         monkeypatch.setenv("DEEPR_HEARTBEAT_URL", "https://hc.example/secret")
-        monkeypatch.setattr("deepr.experts.heartbeat.send_heartbeat", lambda **kw: pinged.append(kw) or True)
+        monkeypatch.setattr(
+            "deepr.experts.heartbeat.deliver_heartbeat",
+            lambda **kw: pinged.append(kw) or _delivered_heartbeat(),
+        )
 
         result = CliRunner().invoke(expert, ["sync-all", "--scheduled", "--json"])
 
@@ -315,7 +395,7 @@ class TestRegistration:
         _assert_aggregate_invariants(payload, roster_experts=0)
         assert "private" not in result.output
         assert touched_backend is False
-        assert pinged == [{"success": False}]
+        assert pinged == [{"success": False, "url": "https://hc.example/secret"}]
 
     def test_non_directory_experts_root_is_blocked_state(self, monkeypatch, tmp_path):
         invalid_root = tmp_path / "experts"
@@ -334,7 +414,10 @@ class TestRegistration:
             "deepr.cli.commands.semantic.expert_sync_all._resolve_pass_backend",
             fail_backend,
         )
-        monkeypatch.setattr("deepr.experts.heartbeat.send_heartbeat", lambda **kw: pinged.append(kw) or True)
+        monkeypatch.setattr(
+            "deepr.experts.heartbeat.deliver_heartbeat",
+            lambda **kw: pinged.append(kw) or _delivered_heartbeat(),
+        )
 
         result = CliRunner().invoke(expert, ["sync-all", "--scheduled", "--json"])
 
@@ -345,7 +428,7 @@ class TestRegistration:
         assert payload["heartbeat"]["reported_status"] == "failure"
         _assert_aggregate_invariants(payload, roster_experts=0)
         assert touched_backend is False
-        assert pinged == [{"success": False}]
+        assert pinged == [{"success": False, "url": "https://hc.example/secret"}]
 
 
 class TestRun:
@@ -453,7 +536,10 @@ class TestRun:
         _wire(monkeypatch, _sync_result(SyncOutcome("t", "synced"), cost=0.0), names=("Alpha",))
         pinged = []
         monkeypatch.setenv("DEEPR_HEARTBEAT_URL", "https://hc.example/secret")
-        monkeypatch.setattr("deepr.experts.heartbeat.send_heartbeat", lambda **kw: pinged.append(kw) or True)
+        monkeypatch.setattr(
+            "deepr.experts.heartbeat.deliver_heartbeat",
+            lambda **kw: pinged.append(kw) or _delivered_heartbeat(),
+        )
 
         result = CliRunner().invoke(
             expert,
@@ -467,7 +553,7 @@ class TestRun:
         assert "--scheduled" in payload["next_action"]["command_argv"]
         assert payload["heartbeat"]["reported_status"] == "failure"
         _assert_aggregate_invariants(payload, roster_experts=1)
-        assert pinged == [{"success": False}]
+        assert pinged == [{"success": False, "url": "https://hc.example/secret"}]
 
     def test_mixed_roster_cancellation_separates_pending_and_roster_counts(self, monkeypatch):
         _wire(
@@ -767,7 +853,10 @@ class TestCapacity:
         _wire(monkeypatch, _sync_result(cost=0.0))
         pinged = []
         monkeypatch.setenv("DEEPR_HEARTBEAT_URL", "https://hc.example/secret")
-        monkeypatch.setattr("deepr.experts.heartbeat.send_heartbeat", lambda **kw: pinged.append(kw) or True)
+        monkeypatch.setattr(
+            "deepr.experts.heartbeat.deliver_heartbeat",
+            lambda **kw: pinged.append(kw) or _delivered_heartbeat(),
+        )
         r = CliRunner().invoke(expert, ["sync-all", "--all", "--scheduled", "--json"])
         assert r.exit_code == 0
         payload = json.loads(r.stdout)
@@ -775,13 +864,19 @@ class TestCapacity:
         assert payload["status"] == "waiting_for_capacity"
         assert payload["exit_code"] == 0
         _assert_aggregate_invariants(payload, roster_experts=2)
-        assert payload["heartbeat"] == {
-            "configured": True,
-            "attempted": True,
-            "delivered": True,
-            "reported_status": "failure",
-        }
-        assert pinged == [{"success": False}]
+        _assert_heartbeat_evidence(
+            payload["heartbeat"],
+            configured=True,
+            configuration_valid=True,
+            scheduled=True,
+            dry_run=False,
+            attempted=True,
+            delivered=True,
+            reported_status="failure",
+            disposition="delivered",
+            http_status=204,
+        )
+        assert pinged == [{"success": False, "url": "https://hc.example/secret"}]
 
     def test_scheduled_dry_run_wait_is_visibly_a_preview(self, monkeypatch):
         monkeypatch.setattr(
@@ -817,7 +912,10 @@ class TestCapacity:
             fail_backend,
         )
         monkeypatch.setenv("DEEPR_HEARTBEAT_URL", "https://hc.example/secret")
-        monkeypatch.setattr("deepr.experts.heartbeat.send_heartbeat", lambda **kw: pinged.append(kw) or True)
+        monkeypatch.setattr(
+            "deepr.experts.heartbeat.deliver_heartbeat",
+            lambda **kw: pinged.append(kw) or _delivered_heartbeat(),
+        )
 
         result = CliRunner().invoke(expert, ["sync-all", "--scheduled", "--json"])
 
@@ -828,7 +926,7 @@ class TestCapacity:
         assert {row["status"] for row in payload["summaries"]} == {"not_due"}
         assert payload["heartbeat"]["reported_status"] == "success"
         _assert_aggregate_invariants(payload, roster_experts=2)
-        assert pinged == [{"success": True}]
+        assert pinged == [{"success": True, "url": "https://hc.example/secret"}]
         assert touched_backend is False
 
     def test_scheduled_local_busy_wait_uses_versioned_envelope(self, monkeypatch):
@@ -851,7 +949,10 @@ class TestCapacity:
             lambda **kwargs: wait,
         )
         monkeypatch.setenv("DEEPR_HEARTBEAT_URL", "https://hc.example/secret")
-        monkeypatch.setattr("deepr.experts.heartbeat.send_heartbeat", lambda **kw: pinged.append(kw) or True)
+        monkeypatch.setattr(
+            "deepr.experts.heartbeat.deliver_heartbeat",
+            lambda **kw: pinged.append(kw) or _delivered_heartbeat(),
+        )
 
         result = CliRunner().invoke(
             expert,
@@ -866,7 +967,7 @@ class TestCapacity:
         assert payload["capacity_unavailable_reason"] == "local_gpu_busy"
         assert payload["heartbeat"]["reported_status"] == "failure"
         _assert_aggregate_invariants(payload, roster_experts=1)
-        assert pinged == [{"success": False}]
+        assert pinged == [{"success": False, "url": "https://hc.example/secret"}]
 
     def test_scheduled_uses_auto_selected_plan_capacity(self, monkeypatch):
         import json
@@ -922,7 +1023,10 @@ class TestHeartbeat:
     def _capture(self, monkeypatch):
         pinged: list = []
         monkeypatch.setenv("DEEPR_HEARTBEAT_URL", "https://hc.example/secret")
-        monkeypatch.setattr("deepr.experts.heartbeat.send_heartbeat", lambda **kw: pinged.append(kw) or True)
+        monkeypatch.setattr(
+            "deepr.experts.heartbeat.deliver_heartbeat",
+            lambda **kw: pinged.append(kw) or _delivered_heartbeat(),
+        )
         return pinged
 
     def test_scheduled_success_pings_heartbeat(self, monkeypatch):
@@ -930,20 +1034,26 @@ class TestHeartbeat:
         _wire(monkeypatch, _sync_result(SyncOutcome("t", "synced"), cost=0.0))
         r = CliRunner().invoke(expert, ["sync-all", "--all", "--local", "--scheduled", "-y", "--json"])
         assert r.exit_code == 0
-        assert pinged == [{"success": True}]
-        assert json.loads(r.stdout)["heartbeat"] == {
-            "configured": True,
-            "attempted": True,
-            "delivered": True,
-            "reported_status": "success",
-        }
+        assert pinged == [{"success": True, "url": "https://hc.example/secret"}]
+        _assert_heartbeat_evidence(
+            json.loads(r.stdout)["heartbeat"],
+            configured=True,
+            configuration_valid=True,
+            scheduled=True,
+            dry_run=False,
+            attempted=True,
+            delivered=True,
+            reported_status="success",
+            disposition="delivered",
+            http_status=204,
+        )
 
     def test_scheduled_failure_pings_fail(self, monkeypatch):
         pinged = self._capture(monkeypatch)
         _wire(monkeypatch, _sync_result(SyncOutcome("t", "failed", detail="boom"), cost=0.0))
         r = CliRunner().invoke(expert, ["sync-all", "--all", "--local", "--scheduled", "-y", "--json"])
         assert r.exit_code == 1
-        assert pinged == [{"success": False}]
+        assert pinged == [{"success": False, "url": "https://hc.example/secret"}]
 
     def test_scheduled_partial_failure_pings_fail_and_exits_one(self, monkeypatch):
         pinged = self._capture(monkeypatch)
@@ -956,7 +1066,7 @@ class TestHeartbeat:
         result = CliRunner().invoke(expert, ["sync-all", "--all", "--local", "--scheduled", "-y", "--json"])
 
         assert result.exit_code == 1
-        assert pinged == [{"success": False}]
+        assert pinged == [{"success": False, "url": "https://hc.example/secret"}]
         import json
 
         payload = json.loads(result.output)
@@ -978,9 +1088,86 @@ class TestHeartbeat:
         assert r.exit_code == 0
         assert pinged == []
 
+    def test_scheduled_dry_run_validates_configuration_without_delivery(self, monkeypatch):
+        pinged = self._capture(monkeypatch)
+        _wire(monkeypatch, _sync_result(SyncOutcome("t", "would_sync"), cost=0.0))
+
+        structured = CliRunner().invoke(
+            expert,
+            ["sync-all", "--all", "--local", "--scheduled", "--dry-run", "--json"],
+        )
+        human = CliRunner().invoke(
+            expert,
+            ["sync-all", "--all", "--local", "--scheduled", "--dry-run"],
+        )
+
+        assert structured.exit_code == 0, structured.output
+        heartbeat = json.loads(structured.stdout)["heartbeat"]
+        assert heartbeat["configuration_valid"] is True
+        assert heartbeat["disposition"] == "validated_not_sent"
+        assert heartbeat["attempt_count"] == 0
+        assert heartbeat["attempted_at"] is None
+        assert heartbeat["duration_ms"] is None
+        assert human.exit_code == 0, human.output
+        assert "configuration is valid" in human.output
+        assert "did not contact it" in human.output
+        assert pinged == []
+
+    def test_invalid_configuration_is_visible_and_never_requested(self, monkeypatch):
+        monkeypatch.setenv("DEEPR_HEARTBEAT_URL", "http://hc.example/secret")
+        pinged = []
+        monkeypatch.setattr(
+            "deepr.experts.heartbeat.deliver_heartbeat",
+            lambda **kw: pinged.append(kw) or _delivered_heartbeat(),
+        )
+        _wire(monkeypatch, _sync_result(SyncOutcome("t", "would_sync"), cost=0.0))
+
+        structured = CliRunner().invoke(
+            expert,
+            ["sync-all", "--all", "--local", "--scheduled", "--dry-run", "--json"],
+        )
+        human = CliRunner().invoke(
+            expert,
+            ["sync-all", "--all", "--local", "--scheduled", "--dry-run"],
+        )
+
+        heartbeat = json.loads(structured.stdout)["heartbeat"]
+        assert heartbeat["configured"] is True
+        assert heartbeat["configuration_valid"] is False
+        assert heartbeat["attempted"] is False
+        assert heartbeat["disposition"] == "invalid_configuration"
+        assert heartbeat["failure_kind"] == "invalid_configuration"
+        assert "public HTTPS URL" in human.output
+        assert "secret" not in human.output
+        assert pinged == []
+
+    def test_scheduled_human_output_confirms_missing_and_delivered_states(self, monkeypatch):
+        _wire(monkeypatch, _sync_result(SyncOutcome("t", "synced"), cost=0.0), names=("Alpha",))
+        monkeypatch.delenv("DEEPR_HEARTBEAT_URL", raising=False)
+        missing = CliRunner().invoke(
+            expert,
+            ["sync-all", "--all", "--local", "--scheduled", "-y"],
+        )
+
+        pinged = self._capture(monkeypatch)
+        delivered = CliRunner().invoke(
+            expert,
+            ["sync-all", "--all", "--local", "--scheduled", "-y"],
+        )
+
+        assert missing.exit_code == 0, missing.output
+        assert "heartbeat is not configured" in missing.output
+        assert delivered.exit_code == 0, delivered.output
+        assert "heartbeat delivered" in delivered.output
+        assert "success" in delivered.output
+        assert pinged == [{"success": True, "url": "https://hc.example/secret"}]
+
     def test_configured_delivery_failure_is_visible_but_non_fatal(self, monkeypatch):
         monkeypatch.setenv("DEEPR_HEARTBEAT_URL", "https://hc.example/secret")
-        monkeypatch.setattr("deepr.experts.heartbeat.send_heartbeat", lambda **kwargs: False)
+        monkeypatch.setattr(
+            "deepr.experts.heartbeat.deliver_heartbeat",
+            lambda **kwargs: _failed_heartbeat(),
+        )
         _wire(monkeypatch, _sync_result(SyncOutcome("t", "synced"), cost=0.0), names=("Alpha",))
 
         structured = CliRunner().invoke(
@@ -993,14 +1180,64 @@ class TestHeartbeat:
         )
 
         assert structured.exit_code == 0, structured.output
-        assert json.loads(structured.stdout)["heartbeat"] == {
-            "configured": True,
-            "attempted": True,
-            "delivered": False,
-            "reported_status": "success",
-        }
+        _assert_heartbeat_evidence(
+            json.loads(structured.stdout)["heartbeat"],
+            configured=True,
+            configuration_valid=True,
+            scheduled=True,
+            dry_run=False,
+            attempted=True,
+            delivered=False,
+            reported_status="success",
+            disposition="delivery_failed",
+            failure_kind="network_error",
+        )
         assert human.exit_code == 0, human.output
         assert "heartbeat delivery failed" in human.output
+        assert "secret" not in human.output
+
+    @pytest.mark.parametrize(
+        ("delivery", "disposition", "message"),
+        [
+            (
+                HeartbeatDelivery(attempted=False, delivered=False, failure_kind="unsafe_target"),
+                "blocked_unsafe_target",
+                "not a public address",
+            ),
+            (
+                _failed_heartbeat(failure_kind="http_error", http_status=503),
+                "delivery_failed",
+                "HTTP 503",
+            ),
+        ],
+    )
+    def test_blocked_and_http_delivery_states_are_typed_and_secret_safe(
+        self,
+        monkeypatch,
+        delivery,
+        disposition,
+        message,
+    ):
+        monkeypatch.setenv("DEEPR_HEARTBEAT_URL", "https://hc.example/secret")
+        monkeypatch.setattr("deepr.experts.heartbeat.deliver_heartbeat", lambda **kwargs: delivery)
+        _wire(monkeypatch, _sync_result(SyncOutcome("t", "synced"), cost=0.0), names=("Alpha",))
+
+        structured = CliRunner().invoke(
+            expert,
+            ["sync-all", "--all", "--local", "--scheduled", "-y", "--json"],
+        )
+        human = CliRunner().invoke(
+            expert,
+            ["sync-all", "--all", "--local", "--scheduled", "-y"],
+        )
+
+        assert structured.exit_code == 0, structured.output
+        heartbeat = json.loads(structured.stdout)["heartbeat"]
+        assert heartbeat["disposition"] == disposition
+        assert heartbeat["failure_kind"] == delivery.failure_kind
+        assert heartbeat["http_status"] == delivery.http_status
+        assert human.exit_code == 0, human.output
+        assert message in human.output
         assert "secret" not in human.output
 
 
@@ -1028,12 +1265,17 @@ class TestBudgetTierGate:
         assert payload["status"] == "metered_deferred"
         assert payload["exit_code"] == 0
         _assert_aggregate_invariants(payload, roster_experts=2)
-        assert payload["heartbeat"] == {
-            "configured": False,
-            "attempted": False,
-            "delivered": False,
-            "reported_status": None,
-        }
+        _assert_heartbeat_evidence(
+            payload["heartbeat"],
+            configured=False,
+            configuration_valid=None,
+            scheduled=False,
+            dry_run=False,
+            attempted=False,
+            delivered=False,
+            reported_status=None,
+            disposition="not_configured",
+        )
         assert payload["next_action"]["command_argv"] == ["deepr", "capacity", "next"]
 
     def test_drained_pool_human_recovery_does_not_recommend_gated_api(self, monkeypatch):

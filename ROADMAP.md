@@ -2252,8 +2252,8 @@ Sequenced smallest-shippable-first:
         settle clears the timestamp).
   - [x] **Off-box heartbeat** (2026-06-24): `experts/heartbeat.py` -
         `send_heartbeat(success=...)` pings an operator-configured dead-man's-switch
-        (healthchecks.io / Dead Man's Snitch convention: GET the URL on success,
-        `<url>/fail` on a failed run). Opt-in via `DEEPR_HEARTBEAT_URL`,
+        (public HTTPS Healthchecks-compatible convention: GET the URL on success,
+        append `/fail` to its path on a failed run). Opt-in via `DEEPR_HEARTBEAT_URL`,
         best-effort (never raises, never fails the run), `$0`. Wired into
         `expert sync-all`'s scheduled, non-dry terminal outcomes: completed and
         no-work results report success, while capacity waits, busy deferrals,
@@ -2263,6 +2263,17 @@ Sequenced smallest-shippable-first:
         target nor exception text. The service still alerts when the scheduled
         pass silently does not arrive - the only signal that catches "the laptop
         never woke up." No same-host monitor (it dies with the jobs).
+        - [x] **Operator-trust hardening** (2026-07-22): endpoint form is bounded
+              to public HTTPS without credentials or fragments, query-bearing
+              failure targets are built structurally, response content is not
+              consumed, and the bool helper remains compatible over a typed
+              delivery result. Scheduled dry-run performs local no-contact
+              validation. Human and machine output now distinguish missing,
+              invalid, validated-only, unsafe-target, network, HTTP, and
+              delivered states with credential-safe timing evidence. Setup docs
+              explain scheduler-visible secret persistence and remote grace.
+              Start events, retries, durable delivery history, and non-Healthchecks
+              failure conventions remain separate work.
 
 ### Phase 5: Operations, Team, and Security Hardening
 

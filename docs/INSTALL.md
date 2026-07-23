@@ -217,11 +217,33 @@ DEEPR_AUTO_REFINE=false             # Auto-optimize prompts before submission
 DEEPR_AUTO_EVAL=false               # Explicit opt-in to cost-capped model evals
 SCRAPE_MAX_RESPONSE_BYTES=8388608   # Decompressed HTTP body ceiling per page
 
+# Optional scheduled fleet liveness. The full URL is a secret and must use a
+# public HTTPS Healthchecks-compatible success and /fail endpoint contract.
+# DEEPR_HEARTBEAT_URL=https://hc-ping.com/CHECK_ID
+
 # Storage
 DEEPR_DATA_DIR=data                 # Runtime root, including data/queue/research_queue.db
 DEEPR_REPORTS_PATH=data/reports     # Separate report root
 # DEEPR_QUEUE_DB_PATH=queue/research_queue.db  # Optional explicit queue override
 ```
+
+For an installed host schedule, put `DEEPR_HEARTBEAT_URL` in the scheduled
+account's Deepr `.env`, not in the generated command or recipe. Deepr loads an
+`.env` from the process working directory and the per-user Deepr data directory
+(default `~/.deepr/.env`); the latter is reliable when a scheduler starts in a
+different directory. Keep that file private. Validate endpoint form without a
+request or expert-state write:
+
+```bash
+deepr expert sync-all --scheduled --dry-run --json
+```
+
+`configuration_valid: true` means only that the secret URL has safe local form.
+It does not prove DNS, TLS, reachability, or remote acceptance. A real scheduled
+pass publishes `disposition: delivered` only after a 2xx response. Configure the
+remote check period to match the recipe cadence and set grace above host wake
+delay, recipe jitter, and the longest expected maintenance runtime. Deepr sends
+one terminal GET, not a start event, and never retries silently.
 
 ### Recommended Provider Setup
 
