@@ -15,9 +15,15 @@ class TestResolvePlatform:
     def test_auto_picks_windows_on_win32(self):
         assert resolve_platform("auto", system="win32") == "windows"
 
-    def test_auto_picks_systemd_elsewhere(self):
+    def test_auto_picks_systemd_on_linux(self):
         assert resolve_platform("auto", system="linux") == "systemd"
-        assert resolve_platform("auto", system="darwin") == "systemd"
+
+    def test_auto_picks_cron_on_macos(self):
+        assert resolve_platform("auto", system="darwin") == "cron"
+
+    def test_auto_rejects_an_unknown_host(self):
+        with pytest.raises(ValueError, match="cannot auto-detect"):
+            resolve_platform("auto", system="plan9")
 
     def test_explicit_platform_is_passed_through(self):
         assert resolve_platform("cron", system="win32") == "cron"
@@ -46,9 +52,54 @@ class TestScheduleSpecValidation:
         with pytest.raises(ValueError, match="jitter_minutes"):
             ScheduleSpec(command="deepr fleet status", jitter_minutes=-1)
 
+    @pytest.mark.parametrize(("cadence", "jitter"), [("hourly", 60), ("daily", 1440)])
+    def test_rejects_jitter_that_reaches_the_next_interval(self, cadence, jitter):
+        with pytest.raises(ValueError, match="shorter than the selected cadence"):
+            ScheduleSpec(command="deepr fleet status", cadence=cadence, jitter_minutes=jitter)
+
+    @pytest.mark.parametrize(
+        "name",
+        [
+            "",
+            ".",
+            "..",
+            "../outside",
+            r"..\outside",
+            "fleet name",
+            "fleet;echo",
+            "fleet\nname",
+            "a" * 65,
+            "CON",
+            "CON.backup",
+            "lpt9",
+            "lpt9.logs",
+        ],
+    )
+    def test_rejects_unsafe_scheduler_name(self, name):
+        with pytest.raises(ValueError, match="name"):
+            ScheduleSpec(command="deepr fleet status", name=name)
+
+    @pytest.mark.parametrize("command", ["deepr fleet status\nwhoami", "deepr\rstatus", "deepr\x1b[31m"])
+    def test_rejects_control_characters_in_command(self, command):
+        with pytest.raises(ValueError, match="control"):
+            ScheduleSpec(command=command)
+
+    def test_rejects_unbalanced_command_quotes_during_validation(self):
+        with pytest.raises(ValueError, match="quoted"):
+            ScheduleSpec(command="deepr expert sync 'unfinished")
+
     def test_argv_splits_command(self):
         spec = ScheduleSpec(command="deepr expert sync 'AI Policy Expert' --scheduled -y")
         assert spec.argv == ["deepr", "expert", "sync", "AI Policy Expert", "--scheduled", "-y"]
+
+    def test_argv_preserves_windows_backslash_paths(self):
+        spec = ScheduleSpec(command=r'"C:\Program Files\Deepr\deepr.exe" fleet status C:\Reports\status.json')
+        assert spec.argv == [
+            r"C:\Program Files\Deepr\deepr.exe",
+            "fleet",
+            "status",
+            r"C:\Reports\status.json",
+        ]
 
 
 class TestWindowsRecipe:
@@ -74,6 +125,17 @@ class TestWindowsRecipe:
         xml = self._xml()
         assert "<Command>deepr</Command>" in xml
         assert "<Arguments>fleet status</Arguments>" in xml
+
+    def test_preserves_a_spaced_argument_with_windows_quoting(self):
+        spec = ScheduleSpec(command="deepr expert sync 'AI Policy Expert' --scheduled -y")
+        xml = render_recipe("windows", spec).files["deepr-fleet.xml"]
+        assert '<Arguments>expert sync "AI Policy Expert" --scheduled -y</Arguments>' in xml
+
+    def test_preserves_windows_executable_and_argument_paths(self):
+        spec = ScheduleSpec(command=r'"C:\Program Files\Deepr\deepr.exe" fleet status C:\Reports\status.json')
+        xml = render_recipe("windows", spec).files["deepr-fleet.xml"]
+        assert r"<Command>C:\Program Files\Deepr\deepr.exe</Command>" in xml
+        assert r"<Arguments>fleet status C:\Reports\status.json</Arguments>" in xml
 
     def test_daily_uses_calendar_trigger_at_the_chosen_time(self):
         xml = self._xml(cadence="daily", at="04:30")
@@ -116,6 +178,12 @@ class TestCronRecipe:
         recipe = render_recipe("cron", ScheduleSpec(command="deepr fleet status"))
         assert "no catch-up" in recipe.instructions
 
+    def test_escapes_percent_before_cron_interprets_the_command(self):
+        spec = ScheduleSpec(command="deepr expert consult 'Is coverage 100%?'")
+        recipe = render_recipe("cron", spec)
+        assert "Is coverage 100\\%?" in recipe.inline
+        assert "100%?" not in recipe.inline
+
 
 class TestSystemdRecipe:
     def _units(self, **kwargs) -> dict[str, str]:
@@ -145,8 +213,49 @@ class TestSystemdRecipe:
 
     def test_service_runs_the_command(self):
         service = self._units()["deepr-fleet.service"]
-        assert "ExecStart=deepr fleet status" in service
+        assert 'ExecStart="deepr" "fleet" "status"' in service
         assert "Type=oneshot" in service
+
+    def test_service_preserves_a_spaced_argument(self):
+        spec = ScheduleSpec(command="deepr expert sync 'AI Policy Expert' --scheduled -y")
+        service = render_recipe("systemd", spec).files["deepr-fleet.service"]
+        assert 'ExecStart="deepr" "expert" "sync" "AI Policy Expert" "--scheduled" "-y"' in service
+
+    def test_service_preserves_literal_systemd_expansion_characters(self):
+        spec = ScheduleSpec(command="deepr inspect '$HOME' '100%'")
+        service = render_recipe("systemd", spec).files["deepr-fleet.service"]
+        assert 'ExecStart="deepr" "inspect" "$$HOME" "100%%"' in service
+
+    def test_service_uses_systemd_escaping_for_backslashes_and_quotes(self):
+        spec = ScheduleSpec(command=r"""deepr inspect 'line\nnext' "O'Brien" 'say "hello"' """)
+        service = render_recipe("systemd", spec).files["deepr-fleet.service"]
+        assert r'"line\\nnext"' in service
+        assert '"O\'Brien"' in service
+        assert r'"say \"hello\""' in service
+
+    def test_install_instructions_reload_and_expose_first_run_diagnostics(self):
+        recipe = render_recipe("systemd", ScheduleSpec(command="deepr fleet status"))
+        assert recipe.instructions.index("daemon-reload") < recipe.instructions.index("enable --now")
+        assert "executes the scheduled command now" in recipe.instructions
+        assert "journalctl --user -u deepr-fleet.service" in recipe.instructions
+
+
+def test_output_aware_windows_instructions_reference_the_written_xml(tmp_path):
+    recipe = render_recipe("windows", ScheduleSpec(command="deepr fleet status"), output_directory=tmp_path)
+    assert str(tmp_path.resolve() / "deepr-fleet.xml") in recipe.instructions
+
+
+def test_windows_instructions_quote_powershell_metacharacters_in_output_path(tmp_path):
+    output = tmp_path / "semi;whoami;&$`O'Brien"
+    recipe = render_recipe("windows", ScheduleSpec(command="deepr fleet status"), output_directory=output)
+    expected_path = str(output.resolve() / "deepr-fleet.xml").replace("'", "''")
+    assert f"/XML '{expected_path}'" in recipe.instructions
+
+
+def test_output_aware_systemd_instructions_reference_both_written_units(tmp_path):
+    recipe = render_recipe("systemd", ScheduleSpec(command="deepr fleet status"), output_directory=tmp_path)
+    assert str(tmp_path.resolve() / "deepr-fleet.service") in recipe.instructions
+    assert str(tmp_path.resolve() / "deepr-fleet.timer") in recipe.instructions
 
 
 def test_custom_name_flows_into_filenames_and_units():

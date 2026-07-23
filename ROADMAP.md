@@ -2039,10 +2039,10 @@ Sequenced smallest-shippable-first:
         belief store when locked, and emits a schema-valid
         `waiting_for_overlap` archive payload; scheduled `reflect` waits before
         evaluator/follow-up execution instead of starting metered work.
-- [x] **`deepr fleet install-schedule`** (2026-06-23): emits the correct
-      **non-default** host recipe and the exact install command (it does not
-      auto-install - registering a task is a privileged host step the operator
-      runs). Windows Task Scheduler XML (`StartWhenAvailable`, `S4U`
+- [x] **`deepr fleet install-schedule`** (2026-06-23): previews the correct
+      **non-default** host recipe and, after explicit output succeeds, prints the
+      exact install command. It does not auto-install - registering a task is a
+      privileged host step the operator runs. Windows Task Scheduler XML (`StartWhenAvailable`, `S4U`
       run-whether-logged-on, `DisallowStartIfOnBatteries`/`StopIfGoingOnBatteries`
       false, `WakeToRun`, `MultipleInstancesPolicy=IgnoreNew` so a still-running
       job is never double-started - the scheduler-level complement to the in-verb
@@ -2054,9 +2054,19 @@ Sequenced smallest-shippable-first:
       double-spend). Pure deterministic generators in `experts/fleet_schedule.py`
       + `deepr fleet install-schedule` (`--platform auto/windows/cron/systemd`,
       `--command`, `--cadence`, `--at`, `--name`, `--jitter-minutes`,
-      `--output`); 38 tests; `$0`, no model judgment (AGENTIC_BALANCE workflow
-      form). The roster-wide maintenance verb it is meant to drive
+      `--output`); focused domain and CLI regressions; `$0`, no model judgment
+      (AGENTIC_BALANCE workflow form). The roster-wide maintenance verb it is meant to drive
       (`expert sync-all`) is the next item.
+      - [x] **Operator-trust hardening** (2026-07-22): preview, written, and host-
+        installed states are explicit; file-backed install commands are shown
+        only after successful output and reference exact written paths. Portable
+        task names and root confinement block path escape, Windows and systemd
+        preserve parsed argument boundaries, macOS auto-selects the documented
+        limited cron fallback, and unknown hosts fail closed. Existing files need
+        `--force`; an atomic no-replace primitive closes concurrent clobber races;
+        force replacement never follows a recipe symlink; PowerShell paths,
+        systemd arguments, and cron percent signs retain literal meaning. Bounded
+        failure copy and optional first-run plus diagnostic commands make recovery visible.
 - [x] **Library-wide maintenance** (`expert sync-all`, see expert-library.md)
       (2026-06-24): `experts/sync_all.py:run_library_sync` syncs every due
       expert in one pass through the capacity waterfall (`--local`/`--api`/`--plan`/auto,

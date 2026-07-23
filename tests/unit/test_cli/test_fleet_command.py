@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import json
 
+import pytest
 from click.testing import CliRunner
 
 import deepr.cli.commands.fleet as fleet_mod
@@ -239,13 +240,16 @@ class TestInstallSchedule:
         assert result.exit_code == 0
         assert "deepr-fleet.timer" in result.output
         assert "Persistent=true" in result.output
-        assert "systemctl --user enable --now" in result.output
+        assert "Preview only" in result.output
+        assert "no files were written" in result.output
+        assert "systemctl --user enable --now" not in result.output
 
     def test_prints_windows_recipe(self):
         result = CliRunner().invoke(fleet, ["install-schedule", "--platform", "windows"])
         assert result.exit_code == 0
         assert "MultipleInstancesPolicy>IgnoreNew" in result.output
-        assert "schtasks /Create" in result.output
+        assert "Preview only" in result.output
+        assert "schtasks /Create" not in result.output
 
     def test_custom_command_flows_into_recipe(self):
         result = CliRunner().invoke(
@@ -269,3 +273,133 @@ class TestInstallSchedule:
         assert (tmp_path / "deepr-fleet.service").exists()
         assert (tmp_path / "deepr-fleet.timer").exists()
         assert "Wrote" in result.output
+        assert "host schedule was not installed" in result.output
+        assert str(tmp_path.resolve() / "deepr-fleet.service") in result.output
+
+    def test_rejects_a_name_that_would_escape_output(self, tmp_path):
+        output = tmp_path / "output"
+        result = CliRunner().invoke(
+            fleet,
+            ["install-schedule", "--platform", "windows", "--name", "../escaped", "--output", str(output)],
+        )
+        assert result.exit_code == 2
+        assert "name" in result.output
+        assert not output.exists()
+        assert not (tmp_path / "escaped.xml").exists()
+
+    def test_generated_filename_defense_is_bounded(self, tmp_path, monkeypatch):
+        def unsafe_recipe(*_args, **_kwargs):
+            return fleet_mod.ScheduleRecipe(platform="windows", files={"../escaped.xml": "unsafe"})
+
+        monkeypatch.setattr(fleet_mod, "render_recipe", unsafe_recipe)
+        output = tmp_path / "output"
+        result = CliRunner().invoke(
+            fleet,
+            ["install-schedule", "--platform", "windows", "--output", str(output)],
+        )
+
+        assert result.exit_code == 2
+        assert "remain directly inside" in result.output
+        assert "Traceback" not in result.output
+        assert not output.exists()
+        assert not (tmp_path / "escaped.xml").exists()
+
+    def test_existing_recipe_is_preserved_without_force(self, tmp_path):
+        service = tmp_path / "deepr-fleet.service"
+        service.write_text("operator-owned\n", encoding="utf-8")
+
+        result = CliRunner().invoke(
+            fleet,
+            ["install-schedule", "--platform", "systemd", "--output", str(tmp_path)],
+        )
+
+        assert result.exit_code == 2
+        assert "Refusing to replace" in result.output
+        assert "--force" in result.output
+        assert service.read_text(encoding="utf-8") == "operator-owned\n"
+        assert not (tmp_path / "deepr-fleet.timer").exists()
+
+    def test_competing_recipe_is_not_replaced_after_preflight(self, tmp_path, monkeypatch):
+        real_atomic_write = fleet_mod.atomic_write_text
+        raced = False
+
+        def race_write(path, content, **kwargs):
+            nonlocal raced
+            if not raced:
+                path.write_text("competing writer\n", encoding="utf-8")
+                raced = True
+            real_atomic_write(path, content, **kwargs)
+
+        monkeypatch.setattr(fleet_mod, "atomic_write_text", race_write)
+        result = CliRunner().invoke(
+            fleet,
+            ["install-schedule", "--platform", "systemd", "--output", str(tmp_path)],
+        )
+
+        assert result.exit_code == 2
+        assert "Refusing to replace" in result.output
+        assert (tmp_path / "deepr-fleet.service").read_text(encoding="utf-8") == "competing writer\n"
+        assert not (tmp_path / "deepr-fleet.timer").exists()
+
+    def test_force_atomically_replaces_existing_recipe(self, tmp_path):
+        service = tmp_path / "deepr-fleet.service"
+        service.write_text("old\n", encoding="utf-8")
+
+        result = CliRunner().invoke(
+            fleet,
+            ["install-schedule", "--platform", "systemd", "--output", str(tmp_path), "--force"],
+        )
+
+        assert result.exit_code == 0
+        assert service.read_text(encoding="utf-8").startswith("[Unit]\n")
+        assert (tmp_path / "deepr-fleet.timer").exists()
+
+    @pytest.mark.parametrize("force", [False, True])
+    def test_recipe_output_never_follows_an_existing_file_symlink(self, tmp_path, force):
+        output = tmp_path / "output"
+        output.mkdir()
+        important = output / "important.txt"
+        important.write_text("operator-owned\n", encoding="utf-8")
+        service = output / "deepr-fleet.service"
+        try:
+            service.symlink_to(important.name)
+        except OSError:
+            pytest.skip("file symlinks are not available on this platform")
+
+        args = ["install-schedule", "--platform", "systemd", "--output", str(output)]
+        if force:
+            args.append("--force")
+        result = CliRunner().invoke(fleet, args)
+
+        assert important.read_text(encoding="utf-8") == "operator-owned\n"
+        if force:
+            assert result.exit_code == 0
+            assert not service.is_symlink()
+            assert service.read_text(encoding="utf-8").startswith("[Unit]\n")
+            assert (output / "deepr-fleet.timer").exists()
+        else:
+            assert result.exit_code == 2
+            assert service.is_symlink()
+            assert not (output / "deepr-fleet.timer").exists()
+
+    def test_force_requires_output(self):
+        result = CliRunner().invoke(fleet, ["install-schedule", "--platform", "cron", "--force"])
+        assert result.exit_code == 2
+        assert "--force requires --output" in result.output
+
+    def test_write_failure_is_bounded_and_never_reports_success(self, tmp_path, monkeypatch):
+        def fail_write(*_args, **_kwargs):
+            raise OSError("secret host detail")
+
+        monkeypatch.setattr(fleet_mod, "atomic_write_text", fail_write)
+        result = CliRunner().invoke(
+            fleet,
+            ["install-schedule", "--platform", "windows", "--output", str(tmp_path)],
+        )
+
+        assert result.exit_code == 1
+        assert "Could not write schedule recipe" in result.output
+        assert "may be incomplete" in result.output
+        assert "secret host detail" not in result.output
+        assert "Traceback" not in result.output
+        assert "Wrote" not in result.output

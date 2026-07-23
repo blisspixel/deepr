@@ -29,7 +29,11 @@ docs/plans/AGENTIC_BALANCE.md.
 from __future__ import annotations
 
 import shlex
+import subprocess
+import unicodedata
 from dataclasses import dataclass, field
+from pathlib import Path
+from re import fullmatch
 from xml.sax.saxutils import escape as _xml_escape
 
 SCHEDULE_PLATFORMS = ("windows", "cron", "systemd")
@@ -39,20 +43,41 @@ CADENCES = ("hourly", "daily")
 # time-of-day for recurring triggers; the date only has to predate "now", so a
 # constant keeps the emitted recipe deterministic (stable across runs and tests).
 _START_DATE = "2026-01-01"
+_MAX_SCHEDULE_NAME_CHARS = 64
+_SCHEDULE_NAME_PATTERN = r"[A-Za-z0-9][A-Za-z0-9_.-]*"
+_WINDOWS_RESERVED_FILENAMES = {
+    "aux",
+    "con",
+    "nul",
+    "prn",
+    *(f"com{number}" for number in range(1, 10)),
+    *(f"lpt{number}" for number in range(1, 10)),
+}
 
 
 def resolve_platform(platform: str, *, system: str) -> str:
     """Map ``platform`` (possibly ``"auto"``) to a concrete recipe target.
 
-    ``system`` is a ``sys.platform``-style string; ``auto`` picks Windows on
-    ``win32`` and systemd elsewhere (the modern Linux default; cron stays an
-    explicit choice).
+    ``system`` is a ``sys.platform``-style string. ``auto`` selects Windows Task
+    Scheduler on Windows, systemd on Linux, and cron on macOS. Other hosts must
+    choose an explicit target because guessing systemd would emit an unusable
+    recipe on platforms that do not provide it.
     """
     if platform != "auto":
         if platform not in SCHEDULE_PLATFORMS:
             raise ValueError(f"unknown platform: {platform!r} (choose from {', '.join(SCHEDULE_PLATFORMS)})")
         return platform
-    return "windows" if system.startswith("win") else "systemd"
+    normalized_system = system.casefold()
+    if normalized_system.startswith("win"):
+        return "windows"
+    if normalized_system.startswith("linux"):
+        return "systemd"
+    if normalized_system.startswith("darwin"):
+        return "cron"
+    raise ValueError(
+        f"cannot auto-detect a supported scheduler for platform {system!r}; "
+        f"choose --platform from {', '.join(SCHEDULE_PLATFORMS)}"
+    )
 
 
 def _validate_time(at: str) -> tuple[int, int]:
@@ -63,6 +88,27 @@ def _validate_time(at: str) -> tuple[int, int]:
     if not (0 <= hour <= 23 and 0 <= minute <= 59):
         raise ValueError(f"--at must be a valid 24h time, got {at!r}")
     return hour, minute
+
+
+def _split_command(command: str) -> list[str]:
+    """Split portable quoted argv while preserving literal path backslashes."""
+    lexer = shlex.shlex(command, posix=True)
+    lexer.whitespace_split = True
+    lexer.commenters = ""
+    lexer.escape = ""
+    return list(lexer)
+
+
+def _powershell_literal(value: str) -> str:
+    """Quote one literal PowerShell argument without interpolation."""
+    return "'" + value.replace("'", "''") + "'"
+
+
+def _systemd_literal(value: str) -> str:
+    """Quote one systemd unit argument while preserving its exact value."""
+    escaped = value.replace("\\", "\\\\").replace('"', '\\"')
+    escaped = escaped.replace("%", "%%").replace("$", "$$")
+    return f'"{escaped}"'
 
 
 @dataclass(frozen=True)
@@ -76,12 +122,35 @@ class ScheduleSpec:
     jitter_minutes: int = 15
 
     def __post_init__(self) -> None:
-        if not self.command.strip():
+        if not isinstance(self.command, str) or not self.command.strip():
             raise ValueError("command is required")
+        if any(unicodedata.category(character).startswith("C") for character in self.command):
+            raise ValueError("command must not contain control characters or line breaks")
+        try:
+            argv = _split_command(self.command)
+        except ValueError:
+            raise ValueError("command must use balanced quoted arguments") from None
+        if not argv:
+            raise ValueError("command is required")
+        if (
+            not isinstance(self.name, str)
+            or len(self.name) > _MAX_SCHEDULE_NAME_CHARS
+            or fullmatch(_SCHEDULE_NAME_PATTERN, self.name) is None
+            or self.name in {".", ".."}
+            or self.name.endswith(".")
+            or self.name.partition(".")[0].casefold() in _WINDOWS_RESERVED_FILENAMES
+        ):
+            raise ValueError(
+                "name must be 1-64 ASCII letters, digits, dots, underscores, or hyphens, "
+                "start with a letter or digit, and identify one task without a path"
+            )
         if self.cadence not in CADENCES:
             raise ValueError(f"cadence must be one of {', '.join(CADENCES)}, got {self.cadence!r}")
         if self.jitter_minutes < 0:
             raise ValueError("jitter_minutes must be non-negative")
+        cadence_minutes = 60 if self.cadence == "hourly" else 24 * 60
+        if self.jitter_minutes >= cadence_minutes:
+            raise ValueError("jitter_minutes must be shorter than the selected cadence")
         _validate_time(self.at)
 
     @property
@@ -94,8 +163,8 @@ class ScheduleSpec:
 
     @property
     def argv(self) -> list[str]:
-        """The command split into executable + arguments (POSIX tokenization)."""
-        return shlex.split(self.command)
+        """Return the validated command as executable plus argument values."""
+        return _split_command(self.command)
 
 
 @dataclass(frozen=True)
@@ -114,7 +183,7 @@ def _windows_task_xml(spec: ScheduleSpec) -> str:
     # command containing & < > (e.g. a shell redirect) cannot produce malformed
     # XML that schtasks would reject.
     executable = _xml_escape(argv[0] if argv else "deepr")
-    arguments = _xml_escape(" ".join(argv[1:]))
+    arguments = _xml_escape(subprocess.list2cmdline(argv[1:]))
     description = _xml_escape(f"Deepr fleet maintenance ({spec.command})")
     uri_name = _xml_escape(spec.name)
     random_delay = f"PT{spec.jitter_minutes}M"
@@ -185,7 +254,12 @@ def _crontab_line(spec: ScheduleSpec) -> str:
         schedule = f"{spec.minute} {spec.hour} * * *"
     else:  # hourly
         schedule = f"{spec.minute} * * * *"
-    return f"{schedule} {spec.command}"
+    # cron consumes unescaped percent signs before the shell sees the command,
+    # even when the percent appears inside quotes. Prefix each one so the shell
+    # receives the caller's literal value rather than a truncated command plus
+    # injected standard input.
+    command = spec.command.replace("%", r"\%")
+    return f"{schedule} {command}"
 
 
 def _systemd_units(spec: ScheduleSpec) -> dict[str, str]:
@@ -194,13 +268,14 @@ def _systemd_units(spec: ScheduleSpec) -> dict[str, str]:
     else:  # hourly
         on_calendar = f"*-*-* *:{spec.minute:02d}:00"
 
+    exec_start = " ".join(_systemd_literal(argument) for argument in spec.argv)
     service = (
         "[Unit]\n"
         f"Description=Deepr fleet maintenance ({spec.command})\n"
         "\n"
         "[Service]\n"
         "Type=oneshot\n"
-        f"ExecStart={spec.command}\n"
+        f"ExecStart={exec_start}\n"
     )
     timer = (
         "[Unit]\n"
@@ -219,45 +294,80 @@ def _systemd_units(spec: ScheduleSpec) -> dict[str, str]:
     return {f"{spec.name}.service": service, f"{spec.name}.timer": timer}
 
 
-def render_recipe(platform: str, spec: ScheduleSpec) -> ScheduleRecipe:
-    """Render the host-scheduler recipe for ``platform`` (already resolved)."""
+def _artifact_reference(filename: str, output_directory: str | Path | None) -> Path:
+    if output_directory is None:
+        return Path(filename)
+    return Path(output_directory).resolve() / filename
+
+
+def render_recipe(
+    platform: str,
+    spec: ScheduleSpec,
+    *,
+    output_directory: str | Path | None = None,
+) -> ScheduleRecipe:
+    """Render a recipe and output-aware manual installation instructions."""
     if platform == "windows":
         filename = f"{spec.name}.xml"
+        xml_reference = _powershell_literal(str(_artifact_reference(filename, output_directory)))
+        task_reference = _powershell_literal(spec.name)
         return ScheduleRecipe(
             platform="windows",
             files={filename: _windows_task_xml(spec)},
             instructions=(
-                f"Register the task (one line, run as your user):\n"
-                f"  schtasks /Create /TN {spec.name} /XML {filename} /RU $env:USERNAME\n"
-                f"Inspect:  schtasks /Query /TN {spec.name} /V /FO LIST\n"
-                f"Remove:   schtasks /Delete /TN {spec.name} /F"
+                "Register the task from PowerShell as your user:\n"
+                f'  schtasks /Create /TN {task_reference} /XML {xml_reference} /RU "$env:USERNAME"\n'
+                "Optional test run (executes the scheduled command now):\n"
+                f"  schtasks /Run /TN {task_reference}\n"
+                "Inspect registration and Last Run Result:\n"
+                f"  schtasks /Query /TN {task_reference} /V /FO LIST\n"
+                f"Remove: schtasks /Delete /TN {task_reference} /F"
             ),
         )
     if platform == "systemd":
         units = _systemd_units(spec)
+        service_name = f"{spec.name}.service"
+        timer_name = f"{spec.name}.timer"
+        service_reference = shlex.quote(str(_artifact_reference(service_name, output_directory)))
+        timer_reference = shlex.quote(str(_artifact_reference(timer_name, output_directory)))
         return ScheduleRecipe(
             platform="systemd",
             files=units,
             instructions=(
-                f"Install as a user timer (no root, runs while you are logged in):\n"
-                f"  mkdir -p ~/.config/systemd/user\n"
-                f"  cp {spec.name}.service {spec.name}.timer ~/.config/systemd/user/\n"
-                f"  systemctl --user enable --now {spec.name}.timer\n"
-                f"  loginctl enable-linger $USER   # let it run while you are logged out\n"
-                f"Inspect:  systemctl --user list-timers {spec.name}.timer\n"
-                f"Remove:   systemctl --user disable --now {spec.name}.timer"
+                "Install as a user timer:\n"
+                "  mkdir -p ~/.config/systemd/user\n"
+                f"  cp {service_reference} {timer_reference} ~/.config/systemd/user/\n"
+                "  systemctl --user daemon-reload\n"
+                f"  systemctl --user enable --now {timer_name}\n"
+                "Optional test run (executes the scheduled command now):\n"
+                f"  systemctl --user start {service_name}\n"
+                "Inspect timer, latest service result, and logs:\n"
+                f"  systemctl --user status {timer_name} {service_name}\n"
+                f"  journalctl --user -u {service_name} --since today\n"
+                "Optional logged-out operation (may require administrator authorization):\n"
+                '  loginctl enable-linger "$USER"\n'
+                f"Remove: systemctl --user disable --now {timer_name}"
             ),
         )
     if platform == "cron":
+        if output_directory is None:
+            install_step = "  crontab -e   # then paste the line above"
+        else:
+            cron_reference = shlex.quote(str(_artifact_reference(f"{spec.name}.cron", output_directory)))
+            install_step = f"  Review {cron_reference}, then use crontab -e to add that line"
         return ScheduleRecipe(
             platform="cron",
             inline=_crontab_line(spec),
             instructions=(
                 "Add the line to your crontab:\n"
-                "  crontab -e   # then paste the line above\n"
+                f"{install_step}\n"
+                "Optional test run (executes the scheduled command now):\n"
+                f"  {spec.command}\n"
+                "Inspect installed entries: crontab -l\n"
                 "Note: plain cron has no catch-up for missed runs (asleep/off) and no\n"
-                "jitter. On a laptop, prefer the systemd timer (--platform systemd) for\n"
-                "Persistent catch-up and RandomizedDelaySec spreading."
+                "jitter. On Linux, prefer --platform systemd for Persistent catch-up and\n"
+                "RandomizedDelaySec spreading. macOS currently uses cron as a limited\n"
+                "fallback because native launchd recipe emission is not shipped."
             ),
         )
     raise ValueError(f"unknown platform: {platform!r}")

@@ -1,9 +1,8 @@
-"""`deepr fleet` - roster-wide expert health (read-only, $0).
+"""`deepr fleet` - roster health and host-schedule recipe workflows.
 
-One glance at the whole expert fleet: which experts failed their last loop run,
-which are waiting on capacity/confirmation, which have knowledge refresh due, and
-what each cost on which capacity. Folds the per-expert ``loop_runs.jsonl`` and
-``subscriptions.json`` already on disk - it runs no loop and spends nothing.
+``fleet status`` provides one read-only, $0 view of failures, waits, refresh work,
+and bounded spend evidence. ``fleet install-schedule`` previews or explicitly
+writes host scheduler recipes but never registers host state or runs maintenance.
 
 This is the agent-run health view; ``deepr capacity fleet`` is the separate
 plan-quota CLI-backend view. Design: docs/design/expert-fleet.md.
@@ -22,11 +21,12 @@ from rich.markup import escape
 from deepr.cli.colors import console, print_error, print_success, print_warning
 from deepr.experts.fleet_schedule import ScheduleRecipe, ScheduleSpec, render_recipe, resolve_platform
 from deepr.experts.fleet_status import build_fleet_status_rollup, fleet_needs_attention
+from deepr.utils.atomic_io import atomic_write_text
 
 
 @click.group(name="fleet")
 def fleet() -> None:
-    """Roster-wide expert fleet health (read-only, $0)."""
+    """Roster-wide expert health and host-schedule recipes ($0)."""
 
 
 def _row_tag(row: dict[str, Any]) -> str:
@@ -181,14 +181,71 @@ def status(json_output: bool, limit: int) -> None:
 
 
 def _render_recipe_to_stdout(recipe: ScheduleRecipe) -> None:
+    console.print("[bold]Schedule recipe preview[/bold]")
+    click.echo(f"Resolved target: {recipe.platform}")
     for filename, content in recipe.files.items():
         console.print(f"[bold]# {filename}[/bold]")
         click.echo(content)
     if recipe.inline:
         console.print("[bold]# crontab line[/bold]")
         click.echo(recipe.inline)
+    print_warning("Preview only: no files were written and no host schedule was installed.")
+    if recipe.files:
+        click.echo("Next: rerun this command with --output DIRECTORY to write the recipe files.")
+        click.echo("Install instructions are shown only after all requested files are written.")
+        return
     console.print("\n[bold]Install[/bold]")
-    console.print(recipe.instructions)
+    click.echo(recipe.instructions)
+
+
+def _resolve_schedule_output_directory(output: Path) -> Path:
+    if any(not character.isprintable() for character in str(output)):
+        raise ValueError("--output must not contain control characters or line breaks")
+    return output.resolve()
+
+
+def _schedule_output_files(recipe: ScheduleRecipe, *, name: str) -> dict[str, str]:
+    files = dict(recipe.files)
+    if recipe.inline:
+        files[f"{name}.cron"] = recipe.inline + "\n"
+    return files
+
+
+def _schedule_output_targets(output_directory: Path, files: dict[str, str]) -> dict[Path, str]:
+    targets: dict[Path, str] = {}
+    for filename, content in files.items():
+        target = output_directory / filename
+        if target.parent.resolve() != output_directory:
+            raise ValueError("recipe output must remain directly inside --output")
+        targets[target] = content
+    return targets
+
+
+class _ScheduleOutputCollisionError(Exception):
+    """An existing recipe needs explicit replacement authority."""
+
+
+def _write_schedule_recipe(targets: dict[Path, str], *, force: bool) -> list[str]:
+    collisions = sorted(path.name for path in targets if path.exists())
+    if collisions and not force:
+        names = ", ".join(collisions)
+        raise _ScheduleOutputCollisionError(
+            f"Refusing to replace existing schedule recipe file(s): {names}. "
+            "Rerun with --force only after reviewing those files."
+        )
+
+    written: list[str] = []
+    for path, content in targets.items():
+        try:
+            atomic_write_text(path, content, encoding="utf-8", overwrite=force)
+        except FileExistsError:
+            raise _ScheduleOutputCollisionError(
+                f"Refusing to replace existing schedule recipe file: {path.name}. "
+                "Another writer may have created it during output; existing content was preserved. "
+                "Review the directory and rerun with --force only if replacement is intended."
+            ) from None
+        written.append(path.name)
+    return written
 
 
 @fleet.command(name="install-schedule")
@@ -203,7 +260,10 @@ def _render_recipe_to_stdout(recipe: ScheduleRecipe) -> None:
     "--command",
     default="deepr fleet status",
     show_default=True,
-    help="The deepr command to run on the schedule.",
+    help=(
+        "The deepr command to schedule. The default is a read-only health check; "
+        "use 'deepr expert sync-all --scheduled -y' for maintenance."
+    ),
 )
 @click.option("--cadence", type=click.Choice(["hourly", "daily"]), default="daily", show_default=True)
 @click.option("--at", default="03:00", show_default=True, help="HH:MM local time (daily cadence).")
@@ -217,9 +277,14 @@ def _render_recipe_to_stdout(recipe: ScheduleRecipe) -> None:
 )
 @click.option(
     "--output",
-    type=click.Path(file_okay=False),
+    type=click.Path(file_okay=False, path_type=Path),
     default=None,
     help="Write recipe files to this directory instead of printing them.",
+)
+@click.option(
+    "--force",
+    is_flag=True,
+    help="Replace existing recipe files in --output after explicit review.",
 )
 def install_schedule(
     platform: str,
@@ -228,42 +293,62 @@ def install_schedule(
     at: str,
     name: str,
     jitter_minutes: int,
-    output: str | None,
+    output: Path | None,
+    force: bool,
 ) -> None:
     """Emit a host-scheduler recipe to run a deepr command on a cadence.
 
-    This does not install anything - registering a scheduled task is a
-    privileged, host-specific step you run yourself. It prints (or with --output
-    writes) the recipe plus the exact install command. The recipe is tuned for
-    catch-up, not punctuality: a laptop asleep at the scheduled time runs the
-    job on its next wake, and Deepr's verbs are idempotent so nothing
-    double-spends.
+    This command never registers host state. Without --output it previews the
+    recipe. With --output it writes the artifacts and then prints output-aware
+    manual installation and verification steps. The recipe is tuned for catch-up,
+    not punctuality: a sleeping host may run the job after its next wake.
 
-    EXAMPLES:
+    \b
+    Examples:
       deepr fleet install-schedule
-      deepr fleet install-schedule --command "deepr expert sync 'AI Policy Expert' --scheduled -y"
-      deepr fleet install-schedule --platform systemd --cadence daily --at 02:30 --output ./schedule
+      deepr fleet install-schedule --command "deepr expert sync-all --scheduled -y"
+      deepr fleet install-schedule --platform systemd --at 02:30 --output ./schedule
     """
+    if force and output is None:
+        print_error("--force requires --output because previews never replace files")
+        sys.exit(2)
+
     try:
         target = resolve_platform(platform, system=sys.platform)
         spec = ScheduleSpec(command=command, cadence=cadence, at=at, name=name, jitter_minutes=jitter_minutes)
-        recipe = render_recipe(target, spec)
+        output_directory = _resolve_schedule_output_directory(output) if output is not None else None
+        recipe = render_recipe(target, spec, output_directory=output_directory)
     except ValueError as exc:
         print_error(str(exc))
         sys.exit(2)
+    except OSError:
+        print_error("Could not resolve --output. No recipe files or host schedule were created.")
+        sys.exit(1)
 
-    if output:
-        out_dir = Path(output)
-        out_dir.mkdir(parents=True, exist_ok=True)
-        written = []
-        for filename, content in recipe.files.items():
-            (out_dir / filename).write_text(content, encoding="utf-8")
-            written.append(filename)
-        if recipe.inline:
-            (out_dir / f"{name}.cron").write_text(recipe.inline + "\n", encoding="utf-8")
-            written.append(f"{name}.cron")
-        print_success(f"Wrote {', '.join(written)} to {out_dir}")
-        console.print(recipe.instructions)
+    if output_directory is not None:
+        try:
+            files = _schedule_output_files(recipe, name=name)
+            targets = _schedule_output_targets(output_directory, files)
+            output_directory.mkdir(parents=True, exist_ok=True)
+            written = _write_schedule_recipe(targets, force=force)
+        except ValueError as exc:
+            print_error(str(exc))
+            sys.exit(2)
+        except _ScheduleOutputCollisionError as exc:
+            print_error(str(exc))
+            sys.exit(2)
+        except OSError:
+            print_error(
+                "Could not write schedule recipe files. No host schedule was installed; "
+                "the output directory may be incomplete. Check permissions and free space, "
+                "review any files present, and retry."
+            )
+            sys.exit(1)
+        safe_output = _terminal_safe_text(output_directory)
+        print_success(f"Wrote {', '.join(written)} to {safe_output}")
+        click.echo("Recipe files are ready; the host schedule was not installed.")
+        console.print("\n[bold]Install and verify[/bold]")
+        click.echo(recipe.instructions)
         return
 
     _render_recipe_to_stdout(recipe)

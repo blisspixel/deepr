@@ -763,9 +763,12 @@ deepr expert sync-all --local -y
 deepr expert sync-all --plan claude -y
 deepr expert sync-all --scheduled -y
 
-# Emit the correct host scheduler recipe (Windows Task Scheduler XML / cron /
-# systemd timer), tuned for catch-up not punctuality. It prints the recipe plus
-# the exact install command; it does not auto-install (a privileged host step).
+# Preview a host scheduler recipe without writing files or installing host state.
+# Windows Task Scheduler XML and systemd units show installation commands only
+# after --output writes every requested file. Existing output is preserved unless
+# --force is explicit. macOS auto-selects the limited cron fallback because a
+# native launchd recipe is not shipped. Every target includes an optional first
+# run and diagnostics; use an absolute executable path when scheduler PATH differs.
 deepr fleet install-schedule --command "deepr expert sync-all --scheduled -y"
 deepr fleet install-schedule --platform systemd --output ./schedule
 ```

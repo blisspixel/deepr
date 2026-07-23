@@ -348,6 +348,21 @@ text is rendered on one literal line, and derived host-facing payloads redact
 recognized credentials without treating ordinary secret-related prose as a
 credential.
 
+`deepr fleet install-schedule` is an emit-only `$0` workflow. Without
+`--output` it labels the result as a preview and prints no unusable install
+command for files that do not exist. With `--output` it writes each root-confined
+recipe file atomically, refuses to replace an existing file unless `--force`
+is explicit, and prints paths bound to that directory plus an optional first-run
+check and platform diagnostics. The host schedule is still not installed.
+Schedule names use a portable single-component identifier. Quoted arguments are
+preserved without stripping Windows path backslashes, PowerShell install paths
+are literal-quoted, systemd arguments use unit-native escaping, and cron percent
+signs are escaped before cron parsing. Force replacement replaces only the named
+recipe entry and never follows an existing file symlink to unrelated content.
+macOS `auto` uses the limited cron fallback, and unknown hosts must choose a
+target explicitly. Use an absolute executable path in `--command` if the
+scheduler's PATH cannot resolve `deepr`.
+
 The draft and preflight are non-authoritative preparation artifacts, not
 knowledge and not proof of review. Each applied revision is a complete
 operator-attested scope snapshot with reviewer identity explicitly unverified
