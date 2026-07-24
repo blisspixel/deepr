@@ -75,6 +75,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Changed expert chat to ground its system message on the maintained belief
+  graph instead of the `worldview.json` synthesis snapshot, falling back to the
+  snapshot when an expert has no belief store yet. Chat now states beliefs at
+  their current decayed, trust-capped confidence and marks verified and
+  contested ones, so it answers from what the expert believes now rather than
+  from what it believed at the last synthesis. Building the summary is
+  read-only; the pure read-side query surface is unchanged, so MCP read-only
+  mode keeps its guarantee.
+- Changed expert chat to record belief retrieval once per turn, which restores
+  the previously dormant "recent usage shields a belief from archival" gate in
+  the belief lifecycle: `record_retrieval` had no production caller, so
+  `last_retrieved_at` was never set and load-bearing beliefs got no protection.
 - Upgraded the dashboard frontend to React 19.2 and react-router 8.3, clearing
   three medium react-router open-redirect/XSS advisories and the high-severity
   react-router 7.x RSC CSRF-bypass advisory (react-router 8 requires React 19).
