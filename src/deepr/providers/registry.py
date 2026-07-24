@@ -22,6 +22,7 @@ class ModelCapability:
     input_cost_per_1m: float = 0.0  # Cost per 1M input tokens (USD)
     output_cost_per_1m: float = 0.0  # Cost per 1M output tokens (USD)
     cached_input_cost_per_1m: float | None = None  # Cost per 1M cached input tokens (USD)
+    max_output_tokens: int | None = None  # Provider-documented output ceiling when verified
     deprecated: bool = False  # Whether this model is deprecated
     successor: str | None = None  # Model key to migrate to (e.g. "openai/gpt-4.1")
 
@@ -618,6 +619,7 @@ MODEL_CAPABILITIES: dict[str, ModelCapability] = {
         input_cost_per_1m=1.50,
         output_cost_per_1m=7.50,
         cached_input_cost_per_1m=0.15,
+        max_output_tokens=65_536,
     ),
     "gemini/gemini-3.5-flash-lite": ModelCapability(
         provider="gemini",
@@ -634,6 +636,7 @@ MODEL_CAPABILITIES: dict[str, ModelCapability] = {
         input_cost_per_1m=0.30,
         output_cost_per_1m=2.50,
         cached_input_cost_per_1m=0.03,
+        max_output_tokens=65_536,
     ),
     # Gemini 3.5 Flash - retained stable generation (GA May 19, 2026)
     "gemini/gemini-3.5-flash": ModelCapability(

@@ -268,7 +268,7 @@ class TestJobSubmission:
     def test_submit_job_accepts_current_gemini_models_and_aliases(self, client, model):
         response = client.post(
             "/api/jobs",
-            json=_paid_request(prompt="Research AI", model=model, enable_web_search=False),
+            json=_paid_request(prompt="Research AI", model=model, provider="gemini", enable_web_search=False),
             content_type="application/json",
         )
 

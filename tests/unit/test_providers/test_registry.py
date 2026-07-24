@@ -134,6 +134,7 @@ class TestModelCapabilities:
         assert gemini_36_flash.input_cost_per_1m == pytest.approx(1.50)
         assert gemini_36_flash.output_cost_per_1m == pytest.approx(7.50)
         assert gemini_36_flash.cached_input_cost_per_1m == pytest.approx(0.15)
+        assert gemini_36_flash.max_output_tokens == 65_536
 
         gemini_35_flash_lite = get_model_capability("gemini", "gemini-3.5-flash-lite")
         assert gemini_35_flash_lite is not None
@@ -141,6 +142,7 @@ class TestModelCapabilities:
         assert gemini_35_flash_lite.input_cost_per_1m == pytest.approx(0.30)
         assert gemini_35_flash_lite.output_cost_per_1m == pytest.approx(2.50)
         assert gemini_35_flash_lite.cached_input_cost_per_1m == pytest.approx(0.03)
+        assert gemini_35_flash_lite.max_output_tokens == 65_536
 
         gemini_pro = get_model_capability("gemini", "gemini-3.1-pro-preview")
         assert gemini_pro is not None

@@ -14,7 +14,7 @@ import pytest
 
 sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent))
 
-from deepr.providers.base import ResearchRequest
+from deepr.providers.base import ProviderError, ResearchRequest
 from deepr.providers.gemini_provider import DEEP_RESEARCH_AGENT, GeminiProvider
 
 
@@ -55,11 +55,9 @@ class TestCalculateCost:
         ratio = big / small if small else 1.0
         assert ratio < 1.5
 
-    def test_unknown_model_falls_back_to_flash(self, provider):
-        # Unknown model uses the flash price entry as fallback.
-        cost_unknown = provider._calculate_cost(1000, 1000, "totally-fake-model")
-        cost_flash = provider._calculate_cost(1000, 1000, "gemini-2.5-flash")
-        assert cost_unknown == cost_flash
+    def test_unknown_model_fails_closed(self, provider):
+        with pytest.raises(ProviderError, match="model contract"):
+            provider._calculate_cost(1000, 1000, "totally-fake-model")
 
 
 # ---------------------------------------------------------------------- #

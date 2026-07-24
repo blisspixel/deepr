@@ -621,6 +621,7 @@ def submit_job():
     model = data.get("model", "o4-mini-deep-research")
     priority = data.get("priority", 5)
     enable_web_search = data.get("enable_web_search", True)
+    provider = data.get("provider")
 
     if not prompt or not isinstance(prompt, str):
         return jsonify({"error": "Prompt required"}), 400
@@ -646,12 +647,12 @@ def submit_job():
         run_async(
             reconcile_research_cost_reservations(
                 queue,
-                default_provider=str(config.get("provider", "openai")),
+                default_provider=provider or str(config.get("provider", "openai")),
             )
         )
         estimate, reservation = reserve_api_research_cost(
             job_id=job_id,
-            provider=str(config.get("provider", "openai")),
+            provider=provider or str(config.get("provider", "openai")),
             prompt=prompt,
             model=model,
             enable_web_search=bool(enable_web_search),
@@ -672,7 +673,7 @@ def submit_job():
         id=job_id,
         prompt=prompt,
         model=model,
-        provider=str(config.get("provider", "openai")),
+        provider=active_provider,
         priority=priority,
         enable_web_search=enable_web_search,
         status=JobStatus.QUEUED,

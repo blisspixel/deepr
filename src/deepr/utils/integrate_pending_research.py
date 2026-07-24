@@ -34,12 +34,23 @@ async def integrate_expert_research(expert_name: str):
     config = load_config()
     learner = AutonomousLearner(config)
 
+    import time
+
+    session = learner.cost_safety.create_session(
+        session_id=f"manual_integrate_{expert_name}_{int(time.time())}", session_type="learning", budget_limit=10.0
+    )
+
     # Run polling and integration
     print("Starting integration...")
-    await learner._poll_and_integrate_reports(expert=expert, job_ids=expert.research_jobs, callback=None)
+    await learner._poll_and_integrate_reports(
+        expert=expert, job_ids=expert.research_jobs, session=session, callback=None
+    )
 
     # Reload to show updated counts
     expert = store.load(expert_name)
+    if expert is None:
+        print("Expert could not be reloaded after integration")
+        return
     print()
     print(f"DONE! Expert now has {expert.total_documents} documents")
 

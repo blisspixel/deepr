@@ -84,6 +84,7 @@ def build_bounded_cli_request(
     no_code: bool,
     document_ids: list[str] | None = None,
     vector_store_id: str | None = None,
+    system_message: str | None = None,
 ) -> ResearchRequest:
     """Build the stable request envelope used for CLI admission and queue metadata."""
     tools: list[ToolConfig] = []
@@ -96,7 +97,8 @@ def build_bounded_cli_request(
     return ResearchRequest(
         prompt=query,
         model=model,
-        system_message="You are a research assistant. Provide comprehensive, citation-backed analysis.",
+        system_message=system_message
+        or "You are a research assistant. Provide comprehensive, citation-backed analysis.",
         tools=tools,
         document_ids=document_ids or None,
     )

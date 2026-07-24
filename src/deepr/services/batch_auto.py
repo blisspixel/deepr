@@ -415,7 +415,7 @@ class AutoBatchExecutor:
         tasks = [execute_one(item, decision) for item, decision in zip(items, routing.decisions)]
 
         # Execute all
-        results = await asyncio.gather(*tasks, return_exceptions=True)
+        gather_results = await asyncio.gather(*tasks, return_exceptions=True)
 
         # Process results
         final_results = []
@@ -423,8 +423,8 @@ class AutoBatchExecutor:
         failure_count = 0
         total_actual = 0.0
 
-        for i, result in enumerate(results):
-            if isinstance(result, Exception):
+        for i, result in enumerate(gather_results):
+            if isinstance(result, BaseException):
                 failure_count += 1
                 final_results.append(
                     BatchQueryResult(

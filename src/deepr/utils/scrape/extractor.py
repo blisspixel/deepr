@@ -290,17 +290,20 @@ class PageDeduplicator:
 
     def _normalize_url(self, url: str) -> str:
         """
-        Normalize URL for comparison.
-
-        Args:
-            url: URL to normalize
-
-        Returns:
-            Normalized URL
+        Normalize URL for comparison by removing trailing slashes and tracking params.
         """
+        from urllib.parse import parse_qsl, urlencode, urlparse, urlunparse
+
         # Remove trailing slash
         url = url.rstrip("/")
 
-        # TODO: Remove common tracking parameters / implement parameter filtering
+        parsed = urlparse(url)
+        if parsed.query:
+            query_params = parse_qsl(parsed.query, keep_blank_values=True)
+            tracking_params = {"utm_source", "utm_medium", "utm_campaign", "utm_term", "utm_content", "fbclid", "gclid"}
+            filtered_params = [(k, v) for k, v in query_params if k.lower() not in tracking_params]
+            new_query = urlencode(filtered_params)
+            parsed = parsed._replace(query=new_query)
+            url = urlunparse(parsed)
 
         return url.lower()

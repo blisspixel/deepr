@@ -1,3 +1,5 @@
+from typing import Any
+
 """
 Research Planner Service
 
@@ -78,7 +80,7 @@ class ResearchPlanner:
         scenario: str,
         max_tasks: int = 5,
         context: str | None = None,
-    ) -> list[dict[str, str]]:
+    ) -> list[dict[str, Any]]:
         """
         Decompose a scenario into multiple research tasks.
 
@@ -213,7 +215,7 @@ Please analyze this scenario and generate {max_tasks} distinct research tasks th
             if not isinstance(tasks, list):
                 raise ValueError("Response is not a list")
 
-            validated_tasks = []
+            validated_tasks: list[dict[str, Any]] = []
             for task in tasks[:max_tasks]:  # Ensure we don't exceed max_tasks
                 if isinstance(task, dict) and "title" in task and "prompt" in task:
                     # Preserve ``id``, ``phase``, ``depends_on``, ``type``,
@@ -247,7 +249,7 @@ Please analyze this scenario and generate {max_tasks} distinct research tasks th
             logger.error("Error planning research: %s", e)
             return self._fallback_plan(scenario, max_tasks)
 
-    def _fallback_plan(self, scenario: str, max_tasks: int) -> list[dict[str, str]]:
+    def _fallback_plan(self, scenario: str, max_tasks: int) -> list[dict[str, Any]]:
         """
         Fallback plan if GPT-5 call fails.
         Generates generic but useful research tasks.

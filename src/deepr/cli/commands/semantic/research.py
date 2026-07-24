@@ -12,6 +12,7 @@ from deepr.cli.commands.research_safety import (
     require_parent_budget,
     require_storage,
 )
+from deepr.cli.commands.research_support import bounded_tool_disable_flags, resolve_research_route
 from deepr.cli.commands.run import TraceFlags, _run_campaign, _run_single, _run_team
 from deepr.cli.output import OutputContext, OutputMode, output_options
 
@@ -307,30 +308,17 @@ def research(
 
         return
 
-    # Determine provider and model based on configuration
-    import os
-
-    # Determine if this is deep research or general operation
-    is_deep_research = model is None or ("deep-research" in model.lower() if model else True)
-
-    # Use defaults from environment if not specified
-    if provider is None:
-        if is_deep_research:
-            provider = os.getenv("DEEPR_DEEP_RESEARCH_PROVIDER", "openai")
-            operation_type = "deep research"
-        else:
-            provider = os.getenv("DEEPR_DEFAULT_PROVIDER", "xai")
-            operation_type = "general operations"
-        if output_context.mode == OutputMode.VERBOSE:
-            click.echo(f"[Using {provider} provider (default for {operation_type})]")
-
-    if model is None:
-        if is_deep_research:
-            model = os.getenv("DEEPR_DEEP_RESEARCH_MODEL", "o3-deep-research")
-        else:
-            model = os.getenv("DEEPR_DEFAULT_MODEL", "grok-4.3")
-        if output_context.mode == OutputMode.VERBOSE:
+    provider, model = resolve_research_route(provider, model)
+    if output_context.mode == OutputMode.VERBOSE:
+        if not user_specified_provider:
+            click.echo(f"[Using {provider} provider for {model}]")
+        if not user_specified_model:
             click.echo(f"[Using {model} model (default for {provider})]")
+
+    requested_tool_flags = (no_web, no_code)
+    no_web, no_code = bounded_tool_disable_flags(provider, no_web, no_code)
+    if requested_tool_flags != (no_web, no_code) and output_context.mode == OutputMode.VERBOSE:
+        click.echo(f"[Using the current tool-free bounded path for {provider}]")
 
     # Preview / dry-run for explicit (non-auto) model+provider runs.
     # Shows the resolved choice plus an estimated cost band so users can
@@ -354,7 +342,6 @@ def research(
             click.echo(f"\n[Scraping {scrape} for primary source research...]")
 
         try:
-            import os
             import tempfile
 
             from deepr.utils.scrape import ScrapeConfig, scrape_website
@@ -391,7 +378,7 @@ def research(
                 temp_file.close()
 
                 # Add to upload list
-                upload = [*list(upload), temp_file.name]
+                upload = (*upload, temp_file.name)
                 if output_context.mode == OutputMode.VERBOSE:
                     click.echo("[Scraped content saved and added to research context]\n")
             else:
@@ -594,7 +581,9 @@ async def _verify_fact(claim: str, sources: str | None, provider: str | None, mo
     else:
         api_key = config.provider.openai_api_key
 
-    provider_instance = create_provider(provider, api_key=api_key)
+    from typing import Any, cast
+
+    provider_instance = create_provider(cast(Any, provider), api_key=api_key)
 
     # Build verification prompt
     scope_instruction = f"\nScope: Only check against {sources}" if sources else ""
@@ -629,7 +618,7 @@ Rules:
     with progress.operation("Verifying claim..."):
         for attempt in range(max_attempts):
             try:
-                response = await provider_instance.complete(prompt, model=model)
+                response = await provider_instance.complete(prompt, model=model)  # type: ignore[attr-defined]
                 content = response.choices[0].message.content
 
                 # Extract JSON from response
@@ -977,6 +966,10 @@ def _print_explicit_preview(
                 "max": round(estimate.max_cost, 6),
             },
             "reasoning": estimate.reasoning,
+            "tools": {
+                "web_search": not no_web,
+                "code_interpreter": not no_code,
+            },
         }
         # Use click.echo (not Rich console) so the JSON is clean for
         # downstream consumers - no ANSI control codes leak in.

@@ -42,6 +42,7 @@ from .base import (
     VectorStore,
     coerce_usage_int,
 )
+from .registry import MODEL_CAPABILITIES, ModelCapability, get_token_pricing
 
 # Suppress experimental API warning for Interactions API.
 if genai is not None:
@@ -161,41 +162,39 @@ class GeminiProvider(DeepResearchProvider):
         else:
             self.client = _UnavailableGeminiClient()
 
-        # Model mappings for convenience
-        self.model_mappings = model_mappings or {
-            "gemini-3.6-flash": "gemini-3.6-flash",
-            "gemini-3.5-flash-lite": "gemini-3.5-flash-lite",
-            "gemini-3.5-flash": "gemini-3.5-flash",
-            "gemini-3.1-pro-preview": "gemini-3.1-pro-preview",
-            "gemini-3.1-pro": "gemini-3.1-pro-preview",
-            "gemini-3.1-flash-lite": "gemini-3.1-flash-lite",
-            "gemini-3.1-flash-lite-preview": "gemini-3.1-flash-lite-preview",
-            "gemini-3-pro-preview": "gemini-3-pro-preview",
-            "gemini-2.5-pro": "gemini-2.5-pro",
-            "gemini-2.5-flash": "gemini-2.5-flash",
-            "gemini-2.5-flash-lite": "gemini-2.5-flash-lite",
-            "gemini-pro": "gemini-3.1-pro-preview",
-            "gemini-flash": "gemini-3.6-flash",
-            "gemini-flash-lite": "gemini-3.5-flash-lite",
-            # Deep Research Agent
-            "gemini-deep-research": DEEP_RESEARCH_AGENT,
-            "deep-research": DEEP_RESEARCH_AGENT,
+        self._model_contracts = {
+            capability.model: capability
+            for capability in MODEL_CAPABILITIES.values()
+            if capability.provider == "gemini"
         }
 
-        # Pricing per 1M tokens -- sourced from registry, with local fallbacks
-        from .registry import get_token_pricing
+        # Canonical model coverage is derived from the registry so dispatch
+        # cannot drift from admission and settlement. Deprecated contracts
+        # remain available for historical cost records but are not dispatchable.
+        default_model_mappings = {
+            capability.model: capability.model
+            for capability in self._model_contracts.values()
+            if not capability.deprecated
+        }
+        default_model_mappings.update(
+            {
+                "gemini-3.1-pro": "gemini-3.1-pro-preview",
+                "gemini-pro": "gemini-3.1-pro-preview",
+                "gemini-flash": "gemini-3.6-flash",
+                "gemini-flash-lite": "gemini-3.5-flash-lite",
+                # Deep Research Agent
+                "gemini-deep-research": DEEP_RESEARCH_AGENT,
+                "deep-research": DEEP_RESEARCH_AGENT,
+            }
+        )
+        self.model_mappings = model_mappings or default_model_mappings
 
+        # This compatibility view is registry-derived. Cost calculation below
+        # resolves the same typed contract directly and fails closed if absent.
         self.pricing = {
-            "gemini-3.6-flash": get_token_pricing("gemini-3.6-flash"),
-            "gemini-3.5-flash-lite": get_token_pricing("gemini-3.5-flash-lite"),
-            "gemini-3.5-flash": get_token_pricing("gemini-3.5-flash"),
-            "gemini-3.1-pro-preview": get_token_pricing("gemini-3.1-pro-preview"),
-            "gemini-3.1-flash-lite": get_token_pricing("gemini-3.1-flash-lite"),
-            "gemini-3.1-flash-lite-preview": get_token_pricing("gemini-3.1-flash-lite-preview"),
-            "gemini-3-pro-preview": get_token_pricing("gemini-3-pro-preview"),
-            "gemini-2.5-pro": get_token_pricing("gemini-2.5-pro"),
-            "gemini-2.5-flash": get_token_pricing("gemini-2.5-flash"),
-            "gemini-2.5-flash-lite": get_token_pricing("gemini-2.5-flash-lite"),
+            capability.model: get_token_pricing(capability.model)
+            for capability in self._model_contracts.values()
+            if capability.input_cost_per_1m > 0
         }
 
         # Estimated cost per deep research job (varies by search query count)
@@ -212,6 +211,26 @@ class GeminiProvider(DeepResearchProvider):
         """Map generic model key to Gemini model name."""
         return str(self.model_mappings.get(model_key, model_key))
 
+    def _require_model_contract(self, model: str) -> ModelCapability:
+        """Return an active Gemini model contract or fail before metered work."""
+        capability = self._model_contracts.get(model)
+        if capability is None:
+            raise ProviderError(
+                message=f"Gemini model contract is unavailable for {model!r}",
+                provider="gemini",
+                category="configuration",
+                retryable=False,
+            )
+        if capability.deprecated:
+            successor = f"; use {capability.successor.split('/', 1)[-1]!r}" if capability.successor else ""
+            raise ProviderError(
+                message=f"Gemini model {model!r} is deprecated{successor}",
+                provider="gemini",
+                category="configuration",
+                retryable=False,
+            )
+        return capability
+
     def _calculate_cost(
         self,
         input_tokens: int,
@@ -221,76 +240,47 @@ class GeminiProvider(DeepResearchProvider):
         cached_input_tokens: int = 0,
     ) -> float:
         """Calculate token cost using canonical registry rates and tiers."""
-        if _is_deep_research_model(model):
-            return self.deep_research_cost_estimate
-
         resolved_model = self.get_model_name(model)
-        base_model = "gemini-2.5-flash"
-        # Match the longest pricing key first so e.g. "gemini-2.5-flash-lite"
-        # resolves to its own entry instead of the shorter "gemini-2.5-flash"
-        # prefix - which would charge Flash-Lite at ~5x the Flash rate.
-        for key in sorted(self.pricing, key=len, reverse=True):
-            if key in resolved_model:
-                base_model = key
-                break
+        capability = self._require_model_contract(resolved_model)
+        if _is_deep_research_model(capability.model):
+            return self.deep_research_cost_estimate
 
         return UsageStats.calculate_cost_with_cached_input(
             input_tokens,
             output_tokens,
-            base_model,
+            capability.model,
             cached_input_tokens=cached_input_tokens,
         )
 
     def _get_thinking_config(self, model: str, complexity: str = "medium") -> types.ThinkingConfig | None:
-        """
-        Get thinking configuration based on model and task complexity.
-
-        Args:
-            model: Model name
-            complexity: Task complexity (easy/medium/hard)
-
-        Returns:
-            ThinkingConfig or None
-        """
+        """Get thinking configuration based on model and task complexity."""
         if model == "gemini-3.6-flash":
-            level = types.ThinkingLevel.HIGH if complexity == "hard" else types.ThinkingLevel.MEDIUM
-            return types.ThinkingConfig(thinking_level=level)
+            return types.ThinkingConfig(
+                thinking_level=types.ThinkingLevel.HIGH if complexity == "hard" else types.ThinkingLevel.MEDIUM
+            )
 
         if model == "gemini-3.5-flash-lite":
-            levels = {
-                "easy": types.ThinkingLevel.MINIMAL,
-                "medium": types.ThinkingLevel.MEDIUM,
-                "hard": types.ThinkingLevel.HIGH,
-            }
-            return types.ThinkingConfig(thinking_level=levels.get(complexity, types.ThinkingLevel.MEDIUM))
+            return types.ThinkingConfig(
+                thinking_level={"easy": types.ThinkingLevel.MINIMAL, "hard": types.ThinkingLevel.HIGH}.get(
+                    complexity, types.ThinkingLevel.MEDIUM
+                )
+            )
 
-        # Gemini 3.1 Pro: configurable thinking levels (minimal/low/medium/high)
         if "3.1-pro" in model:
-            if complexity == "easy":
-                return types.ThinkingConfig(thinking_budget=1024, include_thoughts=True)
-            elif complexity == "hard":
-                return types.ThinkingConfig(thinking_budget=24576, include_thoughts=True)
-            else:
-                return types.ThinkingConfig(thinking_budget=-1, include_thoughts=True)
-
-        # Gemini 3 Pro: mandatory thinking (can't disable)
-        if "3-pro" in model and "3.1" not in model:
-            return types.ThinkingConfig(thinking_budget=-1, include_thoughts=True)
-
-        if "2.5-pro" in model:
-            return types.ThinkingConfig(thinking_budget=-1, include_thoughts=True)
+            return types.ThinkingConfig(
+                thinking_budget={"easy": 1024, "hard": 24576}.get(complexity, -1), include_thoughts=True
+            )
 
         if "2.5-flash" in model and "lite" not in model:
-            if complexity == "easy":
-                return types.ThinkingConfig(thinking_budget=0)
-            elif complexity == "hard":
-                return types.ThinkingConfig(thinking_budget=24576, include_thoughts=True)
-            else:
-                return types.ThinkingConfig(thinking_budget=-1, include_thoughts=True)
+            return types.ThinkingConfig(
+                thinking_budget={"easy": 0, "hard": 24576}.get(complexity, -1), include_thoughts=(complexity != "easy")
+            )
 
-        if "flash-lite" in model:
-            if complexity == "hard":
-                return types.ThinkingConfig(thinking_budget=8192, include_thoughts=True)
+        if "2.5-pro" in model or ("3-pro" in model and "3.1" not in model):
+            return types.ThinkingConfig(thinking_budget=-1, include_thoughts=True)
+
+        if "flash-lite" in model and complexity == "hard":
+            return types.ThinkingConfig(thinking_budget=8192, include_thoughts=True)
 
         return None
 
@@ -306,6 +296,7 @@ class GeminiProvider(DeepResearchProvider):
         models, or to regular generate_content for standard Gemini models.
         """
         model = self.get_model_name(request.model)
+        self._require_model_contract(model)
 
         if _is_deep_research_model(model):
             return await self._submit_deep_research(request)

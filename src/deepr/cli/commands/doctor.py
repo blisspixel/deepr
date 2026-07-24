@@ -149,9 +149,9 @@ async def check_provider_connectivity(config) -> list[DiagnosticCheck]:
         try:
             from google import genai
 
-            client = genai.Client(api_key=gemini_key)
+            gemini_client = genai.Client(api_key=gemini_key)
             # Simple test: list models (makes API call to verify connectivity + key)
-            model_list = list(client.models.list())
+            model_list = [m for m in gemini_client.models.list()]
             check.passed = True
             check.message = "Connected successfully"
             check.details.append(f"Available models: {len(model_list)}")
@@ -195,8 +195,9 @@ async def check_provider_connectivity(config) -> list[DiagnosticCheck]:
         try:
             from openai import AsyncAzureOpenAI
 
-            client = AsyncAzureOpenAI(api_key=azure_key, azure_endpoint=azure_endpoint, api_version="2024-10-21")
-            # Azure doesn't support models.list() easily, so just mark as configured
+            # Constructing the client validates the key/endpoint shape without a
+            # network call; Azure has no cheap models.list() probe to run here.
+            AsyncAzureOpenAI(api_key=azure_key, azure_endpoint=azure_endpoint or "", api_version="2024-10-21")
             check.passed = True
             check.message = "Configured (connectivity test skipped)"
             check.details.append("Azure OpenAI client initialized")

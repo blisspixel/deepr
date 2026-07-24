@@ -135,6 +135,76 @@ def test_current_gemini_aliases_have_exact_bounded_pricing(model: str, expected_
     assert estimate.max_cost == pytest.approx(expected_maximum)
 
 
+@pytest.mark.parametrize("model", ["gemini-flash", "gemini-flash-lite"])
+def test_current_gemini_aliases_enforce_provider_output_limit(model: str) -> None:
+    request = ResearchRequest(
+        prompt="Research",
+        model=model,
+        system_message="Test",
+        max_input_tokens=8_192,
+        max_output_tokens=65_537,
+        max_provider_requests=1,
+    )
+
+    with pytest.raises(ResearchRequestBoundsError) as raised:
+        bounded_research_cost_estimate(request=request, provider="gemini")
+
+    assert raised.value.code == "research_output_bound_unsupported"
+    assert "65,536" in str(raised.value)
+
+
+def test_provider_model_mismatch_fails_before_cost_admission() -> None:
+    request = ResearchRequest(
+        prompt="Research",
+        model="gemini-3.6-flash",
+        system_message="Test",
+        max_input_tokens=8_192,
+        max_output_tokens=1_000,
+        max_provider_requests=1,
+    )
+
+    with pytest.raises(ResearchRequestBoundsError) as raised:
+        bounded_research_cost_estimate(request=request, provider="xai")
+
+    assert raised.value.code == "research_provider_model_mismatch"
+    assert "gemini" in str(raised.value)
+    assert "xai" in str(raised.value)
+
+
+def test_azure_accepts_openai_model_contracts() -> None:
+    request = ResearchRequest(
+        prompt="Research",
+        model="o4-mini-deep-research",
+        system_message="Test",
+        tools=[],
+        max_input_tokens=8_192,
+        max_output_tokens=1_000,
+        max_provider_requests=1,
+    )
+
+    estimate = bounded_research_cost_estimate(request=request, provider="azure")
+
+    assert estimate.max_cost > 0
+
+
+@pytest.mark.parametrize("model", ["gemini-3-pro-preview", "gemini-3.1-flash-lite-preview"])
+def test_deprecated_gemini_model_fails_before_cost_admission(model: str) -> None:
+    request = ResearchRequest(
+        prompt="Research",
+        model=model,
+        system_message="Test",
+        max_input_tokens=8_192,
+        max_output_tokens=1_000,
+        max_provider_requests=1,
+    )
+
+    with pytest.raises(ResearchRequestBoundsError) as raised:
+        bounded_research_cost_estimate(request=request, provider="gemini")
+
+    assert raised.value.code == "research_model_deprecated"
+    assert "successor" in str(raised.value)
+
+
 def test_persisted_request_bounds_must_match_exactly() -> None:
     request = ResearchRequest(
         prompt="Research",

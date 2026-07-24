@@ -52,11 +52,8 @@ class LearningProgress:
 class AutonomousLearner:
     """Executes learning curricula autonomously with budget protection.
 
-    Safety features:
-    - Hard budget caps that cannot be bypassed
-    - Session-level cost tracking with alerts
-    - Circuit breaker for repeated failures
-    - Audit logging of all costs
+    Safety features include hard budget caps, session-level cost tracking,
+    circuit breakers for repeated failures, and full cost audit logging.
     """
 
     def __init__(self, config):
@@ -103,10 +100,8 @@ class AutonomousLearner:
     ) -> LearningProgress:
         """Execute a learning curriculum autonomously using parallel approach.
 
-        Optimized workflow:
-        1. Submit deep research jobs FIRST (async, 5-20 min each)
-        2. While waiting, scrape/acquire sources (parallel)
-        3. Poll for research completion and integrate
+        Optimized workflow: (1) Submit deep research jobs FIRST, (2) While waiting,
+        scrape/acquire sources, (3) Poll for research completion and integrate.
 
         Args:
             expert: Expert profile to update
@@ -132,15 +127,13 @@ class AutonomousLearner:
             saved_progress = self.load_learning_progress(expert.name)
             if saved_progress:
                 self._log_progress(
-                    "",
                     "=" * 70,
                     "  Resuming from Saved Progress",
                     "=" * 70,
-                    f"Paused at: {saved_progress.get('paused_at', 'unknown')}",
-                    f"Completed: {len(saved_progress.get('completed_topics', []))} topics",
-                    f"Remaining: {len(saved_progress.get('remaining_topics', []))} topics",
+                    f"Paused at: {saved_progress.get('paused_at', 'unknown')} | "
+                    f"Completed: {len(saved_progress.get('completed_topics', []))} | "
+                    f"Remaining: {len(saved_progress.get('remaining_topics', []))} | "
                     f"Cost so far: ${saved_progress.get('total_cost_so_far', 0):.2f}",
-                    "",
                     callback=progress_callback,
                 )
             else:
@@ -181,15 +174,11 @@ class AutonomousLearner:
         phases = generator.get_execution_order(curriculum)
 
         # Pre-flight cost estimate
-        deep_count = sum(1 for t in curriculum.topics if t.research_mode == "campaign")
-        quick_count = sum(1 for t in curriculum.topics if t.research_mode == "focus")
-        docs_count = sum(1 for t in curriculum.topics if t.research_type == "documentation")
-
         cost_estimate = estimate_curriculum_cost(
             topic_count=len(curriculum.topics),
-            deep_research_count=deep_count,
-            quick_research_count=quick_count,
-            docs_count=docs_count,
+            deep_research_count=sum(1 for t in curriculum.topics if t.research_mode == "campaign"),
+            quick_research_count=sum(1 for t in curriculum.topics if t.research_mode == "focus"),
+            docs_count=sum(1 for t in curriculum.topics if t.research_type == "documentation"),
         )
 
         self._log_progress(
@@ -297,7 +286,7 @@ class AutonomousLearner:
         """
         from deepr.experts.cost_safety import get_resume_message, is_pausable_limit
 
-        job_ids = []
+        job_ids: list[str] = []
 
         for topic in topics:
             # Budget check using session tracker
@@ -561,7 +550,7 @@ class AutonomousLearner:
         MAX_SOURCES_PER_TYPE = 5
 
         # Group by type
-        by_type = {}
+        by_type: dict[str, list] = {}
         for source in all_sources:
             if source.source_type not in by_type:
                 by_type[source.source_type] = []
@@ -582,7 +571,7 @@ class AutonomousLearner:
         )
 
         # Show counts by type
-        limited_by_type = {}
+        limited_by_type: dict[str, list] = {}
         for source in limited_sources:
             if source.source_type not in limited_by_type:
                 limited_by_type[source.source_type] = []
@@ -774,7 +763,6 @@ class AutonomousLearner:
                     return None
 
             # For now, just fetch HTML content
-            # TODO: Add PDF extraction support
             async with httpx.AsyncClient(timeout=30.0) as client:
                 response = await client.get(source.url)
                 response.raise_for_status()
@@ -782,8 +770,10 @@ class AutonomousLearner:
                 # Check content type
                 content_type = response.headers.get("content-type", "")
 
-                if "pdf" in content_type.lower():
-                    self._log_progress("  [SKIP] PDF extraction not yet implemented", callback=callback)
+                if "pdf" in content_type.lower() or source.url.lower().endswith(".pdf"):
+                    # PDF text extraction is not enabled: no PDF parser dependency
+                    # is declared, so skip rather than ingest binary bytes as text.
+                    self._log_progress("  [SKIP] PDF extraction not supported", callback=callback)
                     return None
                 else:
                     # HTML content - extract text
@@ -938,8 +928,8 @@ class AutonomousLearner:
         )
 
         pending = set(job_ids)
-        completed = set()
-        failed = set()
+        completed: set[str] = set()
+        failed: set[str] = set()
         total_cost = 0.0
         start_time = datetime.now()
 
