@@ -137,10 +137,11 @@ def plan(
                 for gap in gaps[:5]:  # Show first 5
                     click.echo(f"  - {gap}")
 
-            # Generate enhanced context for planner
-            enhanced_context = reviewer.generate_enhanced_plan_context(
-                scenario=scenario,
-                doc_analysis=doc_review,
+            # Feed the doc analysis to the planner as additional context so it can
+            # reuse sufficient docs and focus new research on the gaps. (DocReviewer
+            # exposes no context-builder; the review dict is the durable surface.)
+            enhanced_context = (
+                f"Scenario: {scenario}\n\nExisting documentation analysis:\n{json.dumps(doc_review, indent=2)}"
             )
 
             click.echo("\nDoc review cost: ~$0.01")
@@ -479,12 +480,15 @@ def status(batch_id: str):
     print_section_header(f"Batch Status: {batch_id}")
 
     try:
-        from deepr.services.queue import get_queue
+        from deepr.cli.async_runner import run_async_command
+        from deepr.config import load_config
+        from deepr.queue import create_queue
 
-        queue = get_queue()
+        cfg = load_config()
+        queue = create_queue("local", db_path=cfg.get("queue_db_path", "queue/research_queue.db"))
+        all_jobs = run_async_command(queue.list_jobs(limit=1000))
 
         # Get all jobs in batch
-        all_jobs = queue.list_jobs(limit=1000)
         batch_jobs = [
             j for j in all_jobs if hasattr(j, "metadata") and j.metadata and j.metadata.get("batch_id") == batch_id
         ]
