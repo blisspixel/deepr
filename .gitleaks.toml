@@ -19,4 +19,5 @@ regexes = [
   '''sk-proj-abc123xyz''',
   '''sk-proj-abcdefghijklmnopqrstuvwxyz123456''',
   '''xai-abcdefghijklmnopqrstuvwxyz123456''',
+  '''AZURE_OPENAI_KEY=0123456789abcdef0123456789abcdef''',
 ]
