@@ -20,6 +20,7 @@ import click
 
 from deepr.cli.colors import console, print_error, print_header
 from deepr.cli.commands.eval import evaluate
+from deepr.evals.benchmark_adapters import BENCHMARK_ADAPTERS, load_benchmark_cases
 
 
 def _build_checker(checker_plan: str | None, checker_plan_model: str | None, model: str | None):
@@ -66,7 +67,8 @@ def _build_checker(checker_plan: str | None, checker_plan_model: str | None, mod
 def _render_report(report: dict, checker_label: str) -> None:
     print_header("Grounding correctness")
     console.print(
-        f"[dim]checker: {checker_label}  |  {report['case_count']} curated case(s) ({report['label_counts']})[/dim]"
+        f"[dim]checker: {checker_label}  |  {report['case_count']} case(s) from "
+        f"{report.get('case_source', 'the golden set')} ({report['label_counts']})[/dim]"
     )
     console.print(
         f"  [bold]support precision[/bold]: {report['support_precision']:.1%}  "
@@ -82,6 +84,44 @@ def _render_report(report: dict, checker_label: str) -> None:
         "[dim]Agreement on a bounded curated set is not proof of world-truth; it measures "
         "entailment-verdict correctness. Labels are human-curated; the checker owns the verdict.[/dim]"
     )
+
+
+def _resolve_cases(
+    benchmark_file: Path | None,
+    benchmark_format: str,
+    cases_path: Path | None,
+    case_set: str,
+) -> tuple[list, str]:
+    """Resolve the case set and a human-readable source label, or exit(2) cleanly.
+
+    Precedence: an explicit public benchmark, then a custom cases file, then one
+    of the built-in golden sets.
+    """
+    from deepr.evals.grounding_correctness import (
+        DEFAULT_GROUNDING_CASES,
+        HARD_GROUNDING_CASES,
+        load_grounding_cases,
+    )
+
+    if benchmark_file is not None:
+        try:
+            cases = load_benchmark_cases(benchmark_file, benchmark_format)
+        except (OSError, ValueError) as exc:
+            print_error(f"Could not load benchmark: {exc}")
+            sys.exit(2)
+        return cases, f"{benchmark_format} benchmark ({benchmark_file.name})"
+    if cases_path is not None:
+        try:
+            cases = load_grounding_cases(json.loads(cases_path.read_text(encoding="utf-8")))
+        except (OSError, ValueError, json.JSONDecodeError) as exc:
+            print_error(f"Could not load cases: {exc}")
+            sys.exit(2)
+        return cases, f"custom cases ({cases_path.name})"
+    if case_set == "hard":
+        return list(HARD_GROUNDING_CASES), "hard adversarial golden set"
+    if case_set == "all":
+        return list(DEFAULT_GROUNDING_CASES) + list(HARD_GROUNDING_CASES), "full golden set (baseline + hard)"
+    return list(DEFAULT_GROUNDING_CASES), "baseline golden set"
 
 
 @evaluate.command("grounding-correctness")
@@ -107,6 +147,20 @@ def _render_report(report: dict, checker_label: str) -> None:
     default=None,
     help="JSON array of {case_id, claim, evidence, label} triples (default: built-in golden set)",
 )
+@click.option(
+    "--benchmark-file",
+    "benchmark_file",
+    type=click.Path(exists=True, dir_okay=False, path_type=Path),
+    default=None,
+    help="Score against a public benchmark file (JSON array or JSON Lines) instead of the built-in set",
+)
+@click.option(
+    "--benchmark-format",
+    type=click.Choice(sorted(BENCHMARK_ADAPTERS)),
+    default="halubench",
+    show_default=True,
+    help="How to read --benchmark-file",
+)
 @click.option("--json", "json_output", is_flag=True, help="Emit the report as JSON")
 @click.option("--save", is_flag=True, help="Write the report under the benchmarks directory")
 def grounding_correctness(
@@ -115,6 +169,8 @@ def grounding_correctness(
     model: str | None,
     case_set: str,
     cases_path: Path | None,
+    benchmark_file: Path | None,
+    benchmark_format: str,
     json_output: bool,
     save: bool,
 ) -> None:
@@ -129,27 +185,18 @@ def grounding_correctness(
       deepr eval grounding-correctness
       deepr eval grounding-correctness --set hard --json
       deepr eval grounding-correctness --checker-plan codex --set all --save
+      deepr eval grounding-correctness --benchmark-file halubench.jsonl --benchmark-format halubench
+
+    Pass --benchmark-file to score against a public, third-party-labeled benchmark
+    (proof by benchmark) instead of the built-in curated set, so the numbers are
+    externally comparable. The dataset is supplied by the operator, never vendored.
     """
     from deepr.evals.grounding_correctness import (
-        DEFAULT_GROUNDING_CASES,
-        HARD_GROUNDING_CASES,
-        load_grounding_cases,
         run_grounding_correctness_eval,
         write_grounding_correctness_report,
     )
 
-    if cases_path is not None:
-        try:
-            cases = load_grounding_cases(json.loads(cases_path.read_text(encoding="utf-8")))
-        except (OSError, ValueError, json.JSONDecodeError) as exc:
-            print_error(f"Could not load cases: {exc}")
-            sys.exit(2)
-    elif case_set == "hard":
-        cases = list(HARD_GROUNDING_CASES)
-    elif case_set == "all":
-        cases = list(DEFAULT_GROUNDING_CASES) + list(HARD_GROUNDING_CASES)
-    else:
-        cases = list(DEFAULT_GROUNDING_CASES)
+    cases, case_source = _resolve_cases(benchmark_file, benchmark_format, cases_path, case_set)
 
     try:
         checker, checker_label = _build_checker(checker_plan, checker_plan_model, model)
@@ -158,6 +205,7 @@ def grounding_correctness(
         sys.exit(2)
 
     report = asyncio.run(run_grounding_correctness_eval(cases, checker))
+    report["case_source"] = case_source
 
     if save:
         path = write_grounding_correctness_report(report)

@@ -9,6 +9,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Added proof-by-benchmark grounding evaluation: `deepr eval
+  grounding-correctness --benchmark-file PATH --benchmark-format halubench`
+  scores the grounding checker against a public, third-party-labeled benchmark
+  (HaluBench) instead of only the built-in curated set, so support precision and
+  false-support rate become externally comparable rather than self-asserted. The
+  dataset is supplied by the operator and never vendored; the report discloses
+  the case source and count. See [docs/design/grounding-benchmarks.md](design/grounding-benchmarks.md).
 - Added optional per-request `provider` selection to job submission (the API and
   web `submit_job` paths). Cost reconciliation, the cost reservation, and the
   queued job now honor the caller-supplied provider instead of only the
