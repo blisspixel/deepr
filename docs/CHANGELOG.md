@@ -68,6 +68,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Upgraded the dashboard frontend to React 19.2 and react-router 8.3, clearing
+  three medium react-router open-redirect/XSS advisories and the high-severity
+  react-router 7.x RSC CSRF-bypass advisory (react-router 8 requires React 19).
+  Router imports moved from `react-router-dom` to `react-router`. No routing
+  behavior change; tsc, lint, the frontend unit tests, and the build pass and
+  `npm audit` reports zero vulnerabilities.
+- Upgraded the transitive `pyasn1` dependency to 0.6.4 to resolve two
+  high-severity denial-of-service advisories in OBJECT IDENTIFIER / RELATIVE-OID
+  and decoded-REAL processing.
 - Changed unit and property test collection to run independently of developer
   credentials and of workspace or per-user dotenv files: metered credential
   environment variables are cleared and dotenv loading is disabled unless the
