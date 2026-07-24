@@ -187,17 +187,50 @@ class ExpertChatSession:
         self._plan_callback: Any | None = None
         self._plan_step_callback: Any | None = None
 
+        # Belief ids the last system message was grounded on. Populated by
+        # get_system_message (read-only) and consumed by
+        # record_belief_grounding_usage once a turn actually runs.
+        self._grounded_belief_ids: list[str] = []
+
+    def record_belief_grounding_usage(self) -> int:
+        """Record that the grounded beliefs were load-bearing in this turn.
+
+        Separate from ``get_system_message`` on purpose: that method is also
+        called for token estimation and for rebuilding the tool loop's message
+        list, so recording there would inflate usage counts. The ids are
+        consumed once per turn so a repeated call cannot double count.
+        """
+        from deepr.experts.chat_grounding import record_grounded_retrieval
+
+        belief_ids, self._grounded_belief_ids = self._grounded_belief_ids, []
+        return record_grounded_retrieval(self.expert.name, belief_ids)
+
     def get_system_message(self) -> str:
-        """Get the system message for the expert."""
-        # Load worldview if it exists
+        """Get the system message for the expert.
+
+        Prefers the maintained belief graph (decayed, trust-capped confidence,
+        verified/contested signals) and falls back to the worldview synthesis
+        snapshot when the expert has no belief store yet. Building the summary
+        writes nothing; usage is recorded separately by
+        ``record_belief_grounding_usage`` once a turn actually runs.
+        """
+        from deepr.experts.chat_grounding import build_stored_belief_grounding
+
+        # Prefer the maintained belief graph over the worldview snapshot.
         worldview_summary = None
+        grounding = build_stored_belief_grounding(self.expert.name)
+        if grounding is not None:
+            self._grounded_belief_ids = list(grounding.belief_ids)
+            worldview_summary = grounding.summary
+
+        # Fall back to the synthesis snapshot when there is no belief store yet.
         try:
             from deepr.experts.synthesis import Worldview
 
             store = ExpertStore()
             worldview_path = store.get_knowledge_dir(self.expert.name) / "worldview.json"
 
-            if worldview_path.exists():
+            if worldview_summary is None and worldview_path.exists():
                 worldview = Worldview.load(worldview_path)
 
                 # Summarize top beliefs for system message
@@ -1366,6 +1399,8 @@ Budget remaining: ${budget_remaining:.2f}
             )
 
             assistant_message = first_turn.message
+            # The grounded beliefs reached the model, so they count as used.
+            self.record_belief_grounding_usage()
 
             # Step 2: Multi-round tool calling loop
             # Keep calling tools until no more tool calls are made
@@ -2016,6 +2051,8 @@ Budget remaining: ${budget_remaining:.2f}
                 max_cost_per_job=self._call_cost_ceiling(estimated_cost),
             )
             assistant_message = first_turn.message
+            # The grounded beliefs reached the model, so they count as used.
+            self.record_belief_grounding_usage()
 
             # Tool-call loop (non-streaming)
             current_message = assistant_message
