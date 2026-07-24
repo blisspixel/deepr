@@ -112,10 +112,18 @@ def client(mock_queue, mock_provider, mock_storage):
     async def submit_expected(**kwargs):
         return await mock_provider.submit_research(kwargs["request"])
 
+    # The submit path resolves the active provider lazily, and that resolver
+    # reads real credentials. Unit tests must not depend on an ambient
+    # OPENAI_API_KEY (tests/conftest.py strips metered credentials), so pin the
+    # resolver here rather than letting the result vary with the environment.
+    resolved_provider = MagicMock()
+    resolved_provider.resolve.return_value = "openai"
+
     with (
         patch.object(app_module, "queue", mock_queue),
         patch.object(app_module, "provider", mock_provider),
         patch.object(app_module, "storage", mock_storage),
+        patch.object(app_module, "_provider_resolver", resolved_provider),
         patch.object(app_module.limiter, "enabled", False),
         patch.object(app_module, "_allow_unauthenticated_loopback", True),
         patch.object(app_module, "reserve_api_research_cost", side_effect=reserve_expected) as reserve_cost,
@@ -896,10 +904,16 @@ class TestAPIResponseStructure:
         async def submit_expected(**kwargs):
             return await mock_provider.submit_research(kwargs["request"])
 
+        # Pin the lazy provider resolver so the property holds without an
+        # ambient OPENAI_API_KEY (see the `client` fixture for the rationale).
+        resolved_provider = MagicMock()
+        resolved_provider.resolve.return_value = "openai"
+
         with (
             patch.object(app_module, "queue", mock_queue),
             patch.object(app_module, "provider", mock_provider),
             patch.object(app_module, "storage", mock_storage),
+            patch.object(app_module, "_provider_resolver", resolved_provider),
             patch.object(app_module, "_allow_unauthenticated_loopback", True),
             patch.object(app_module, "reserve_api_research_cost", side_effect=reserve_expected),
             patch(
@@ -984,10 +998,16 @@ class TestAPIResponseStructure:
 
         app_module = sys.modules["deepr.api.app"]
 
+        # Pin the lazy provider resolver so the property holds without an
+        # ambient OPENAI_API_KEY (see the `client` fixture for the rationale).
+        resolved_provider = MagicMock()
+        resolved_provider.resolve.return_value = "openai"
+
         with (
             patch.object(app_module, "queue", mock_queue),
             patch.object(app_module, "provider", mock_provider),
             patch.object(app_module, "storage", mock_storage),
+            patch.object(app_module, "_provider_resolver", resolved_provider),
             patch.object(app_module, "_allow_unauthenticated_loopback", True),
         ):
             app_module.app.config["TESTING"] = True
@@ -1034,10 +1054,16 @@ class TestAPIResponseStructure:
 
         app_module = sys.modules["deepr.api.app"]
 
+        # Pin the lazy provider resolver so the property holds without an
+        # ambient OPENAI_API_KEY (see the `client` fixture for the rationale).
+        resolved_provider = MagicMock()
+        resolved_provider.resolve.return_value = "openai"
+
         with (
             patch.object(app_module, "queue", mock_queue),
             patch.object(app_module, "provider", mock_provider),
             patch.object(app_module, "storage", mock_storage),
+            patch.object(app_module, "_provider_resolver", resolved_provider),
             patch.object(app_module, "_allow_unauthenticated_loopback", True),
         ):
             app_module.app.config["TESTING"] = True
