@@ -377,7 +377,7 @@ class TestRouterSelection:
     async def test_router_selection_when_no_provider(self, mock_queue, mock_budget):
         """Without explicit --provider, router should select provider."""
         router = _make_mock_router()
-        router.select_provider.return_value = ("xai", "grok-4-1-fast-non-reasoning")
+        router.select_provider.return_value = ("xai", "grok-4-20-non-reasoning")
 
         submitted_providers = []
 

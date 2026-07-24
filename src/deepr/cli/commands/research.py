@@ -1,3 +1,5 @@
+from typing import Any, cast
+
 # research.py
 """Research commands - submit and manage individual research jobs."""
 
@@ -251,7 +253,7 @@ def submit(
             max_cost_per_job=cost_limit,
         )
         try:
-            provider_instance = create_provider(resolved_provider, api_key=api_key)
+            provider_instance = create_provider(cast(Any, resolved_provider), api_key=api_key)
         except Exception:
             refund_research_cost(reservation)
             raise
@@ -451,7 +453,9 @@ def result(job_id: str):
                         if text:
                             console.print(text)
                     if content := block.get("content"):
-                        anns = next((c.get("annotations", []) for c in content if "annotations" in c), [])
+                        anns: list[dict[str, Any]] = next(
+                            (c.get("annotations", []) for c in content if "annotations" in c), []
+                        )
                         if anns:
                             console.print(f"\n\nCitations ({len(anns)}):")
                             for i, ann in enumerate(anns, 1):
@@ -812,8 +816,8 @@ def trace(
             breakdown = emitter.get_cost_breakdown()
             if breakdown:
                 console.print("\n[bold]Cost Breakdown:[/bold]")
-                for task_type, cost in sorted(breakdown.items(), key=lambda x: x[1], reverse=True):
-                    console.print(f"  {task_type}: ${cost:.4f}")
+                for task_type, cost_val in sorted(breakdown.items(), key=lambda x: x[1], reverse=True):
+                    console.print(f"  {task_type}: ${cost_val:.4f}")
 
         if temporal:
             # Show temporal knowledge timeline

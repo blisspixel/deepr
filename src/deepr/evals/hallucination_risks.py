@@ -100,6 +100,10 @@ def _contract() -> dict[str, Any]:
     }
 
 
+def _dict_value(val: Any) -> dict[str, Any]:
+    return val if isinstance(val, dict) else {}
+
+
 def _stable_id(parts: list[str]) -> str:
     return hashlib.sha256("|".join(parts).encode("utf-8")).hexdigest()[:12]
 
@@ -205,7 +209,7 @@ def load_source_pack_manifests(
 
 
 def _source_ref_from_review(review: dict[str, Any]) -> dict[str, str]:
-    source = review.get("source") if isinstance(review.get("source"), dict) else {}
+    source = _dict_value(review.get("source"))
     return {
         "review_id": str(review.get("review_id", "")),
         "source_trace_id": str(source.get("source_trace_id", "")),
@@ -262,18 +266,14 @@ def _review_signal(review: dict[str, Any]) -> dict[str, Any] | None:
 
 
 def _trace_selected_context_count(trace: dict[str, Any]) -> int:
-    packet = trace.get("context_packet") if isinstance(trace.get("context_packet"), dict) else {}
-    selected = packet.get("selected", []) if isinstance(packet, dict) else []
-    if not isinstance(selected, list):
-        return 0
+    packet = _dict_value(trace.get("context_packet"))
+    selected = packet.get("selected", []) if isinstance(packet.get("selected"), list) else []
     return sum(1 for item in selected if isinstance(item, dict) and bool(item.get("context")))
 
 
 def _trace_selected_context_items(trace: dict[str, Any]) -> list[dict[str, Any]]:
-    packet = trace.get("context_packet") if isinstance(trace.get("context_packet"), dict) else {}
-    selected = packet.get("selected", []) if isinstance(packet, dict) else []
-    if not isinstance(selected, list):
-        return []
+    packet = _dict_value(trace.get("context_packet"))
+    selected = packet.get("selected", []) if isinstance(packet.get("selected"), list) else []
     return [item for item in selected if isinstance(item, dict) and bool(item.get("context"))]
 
 
@@ -289,7 +289,7 @@ def _context_position_metadata(traces: list[dict[str, Any]]) -> dict[str, Any]:
         trace_has_middle_context = False
         for item in _trace_selected_context_items(trace):
             selected_context_slot_count += 1
-            position = item.get("context_position") if isinstance(item.get("context_position"), dict) else {}
+            position = _dict_value(item.get("context_position"))
             if not position:
                 continue
             position_metadata_slot_count += 1
@@ -318,7 +318,7 @@ def _context_position_metadata(traces: list[dict[str, Any]]) -> dict[str, Any]:
 
 
 def _trace_question(trace: dict[str, Any]) -> str:
-    input_block = trace.get("input") if isinstance(trace.get("input"), dict) else {}
+    input_block = _dict_value(trace.get("input"))
     return str(input_block.get("question", ""))
 
 
@@ -350,7 +350,7 @@ def _trace_signal(trace: dict[str, Any]) -> dict[str, Any] | None:
     labels, basis = _trace_structural_labels(trace)
     if not labels:
         return None
-    input_block = trace.get("input") if isinstance(trace.get("input"), dict) else {}
+    input_block = _dict_value(trace.get("input"))
     trace_id = str(trace.get("trace_id", ""))
     signal_id = "hallucination_signal_" + _stable_id(["trace", trace_id, ",".join(labels)])
     return {
@@ -378,10 +378,10 @@ def _has_high_stakes_text(values: Sequence[str]) -> bool:
 def _handoff_signal(handoff: dict[str, Any]) -> dict[str, Any] | None:
     labels: set[str] = set()
     basis: list[str] = []
-    expert = handoff.get("expert") if isinstance(handoff.get("expert"), dict) else {}
-    summary = handoff.get("summary") if isinstance(handoff.get("summary"), dict) else {}
-    limits = handoff.get("limits") if isinstance(handoff.get("limits"), dict) else {}
-    grounding = summary.get("grounding_assurance") if isinstance(summary.get("grounding_assurance"), dict) else {}
+    expert = _dict_value(handoff.get("expert"))
+    summary = _dict_value(handoff.get("summary"))
+    limits = _dict_value(handoff.get("limits"))
+    grounding = _dict_value(summary.get("grounding_assurance"))
 
     claim_count = _int_value(summary.get("claim_count"))
     unverified_count = _int_value(grounding.get("unverified"))
@@ -433,8 +433,8 @@ def _handoff_signal(handoff: dict[str, Any]) -> dict[str, Any] | None:
 def _source_pack_manifest_signal(manifest: dict[str, Any]) -> dict[str, Any] | None:
     labels: set[str] = set()
     basis: list[str] = []
-    source_pack = manifest.get("source_pack") if isinstance(manifest.get("source_pack"), dict) else {}
-    summary = manifest.get("manifest") if isinstance(manifest.get("manifest"), dict) else {}
+    source_pack = _dict_value(manifest.get("source_pack"))
+    summary = _dict_value(manifest.get("manifest"))
 
     source_count = _int_value(summary.get("source_entry_count"))
     if source_count == 0:
@@ -542,7 +542,7 @@ def _prompt_regression_candidates(signals: list[dict[str, Any]], *, limit: int =
         if not labels:
             continue
 
-        source_ref = signal.get("source_ref") if isinstance(signal.get("source_ref"), dict) else {}
+        source_ref = _dict_value(signal.get("source_ref"))
         candidates.append(
             {
                 "candidate_id": "prompt_regression_" + _stable_id([str(signal.get("signal_id", "")), ",".join(labels)]),

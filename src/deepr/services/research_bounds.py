@@ -94,6 +94,14 @@ def _provider_key(provider: str) -> str:
     return normalized
 
 
+def _provider_matches_model(provider: str, model_provider: str) -> bool:
+    """Return whether a registry model can execute through the provider."""
+    if provider == model_provider:
+        return True
+    # Azure OpenAI deployments intentionally reuse OpenAI model contracts.
+    return provider in {"azure", "azure-foundry"} and model_provider == "openai"
+
+
 def _canonical_request_bytes(request: ResearchRequest) -> bytes:
     try:
         return json.dumps(
@@ -241,10 +249,27 @@ def bounded_research_cost_estimate(
             f"No exact pricing and context contract exists for research model {request.model!r}",
             code="research_model_pricing_unavailable",
         )
+    if not _provider_matches_model(provider_key, capability.provider):
+        raise ResearchRequestBoundsError(
+            f"Research provider {provider_key!r} cannot execute model {request.model!r}; "
+            f"the registry assigns it to {capability.provider!r}",
+            code="research_provider_model_mismatch",
+        )
+    if capability.deprecated:
+        successor = f"; use successor {capability.successor!r}" if capability.successor else ""
+        raise ResearchRequestBoundsError(
+            f"Research model {request.model!r} is deprecated{successor}",
+            code="research_model_deprecated",
+        )
     if request.max_input_tokens > capability.context_window:
         raise ResearchRequestBoundsError(
             "max_input_tokens exceeds the registered model context window",
             code="research_input_bound_unsupported",
+        )
+    if capability.max_output_tokens is not None and request.max_output_tokens > capability.max_output_tokens:
+        raise ResearchRequestBoundsError(
+            f"max_output_tokens exceeds the registered {capability.max_output_tokens:,}-token model limit",
+            code="research_output_bound_unsupported",
         )
 
     tool_cost = _tool_cost_bound(request, provider_key, capability.context_window)

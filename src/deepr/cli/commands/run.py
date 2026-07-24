@@ -1,3 +1,5 @@
+from typing import Any, cast
+
 """Run research jobs with modern CLI interface."""
 
 import asyncio
@@ -322,12 +324,9 @@ def _model_supports_web_search(model: str) -> bool:
 def _provider_for_model(model: str) -> str | None:
     """Resolve which provider serves an explicitly requested model."""
     try:
-        from deepr.providers.registry import MODEL_CAPABILITIES
+        from deepr.cli.commands.research_support import provider_for_model
 
-        normalized = model.lower().replace(".", "-")
-        for key, cap in MODEL_CAPABILITIES.items():
-            if cap.model.lower().replace(".", "-") == normalized:
-                return key.split("/", 1)[0]
+        return provider_for_model(model)
     except Exception as exc:
         logger.debug("Provider lookup for model %s failed: %s", model, exc, exc_info=exc)
     return None
@@ -363,6 +362,7 @@ async def _run_single(
     no_fallback: bool = False,
     user_specified_provider: bool = True,
     user_specified_model: bool = False,
+    system_message: str | None = None,
 ):
     """Execute one bounded research job without automatic metered fallback.
 
@@ -444,6 +444,13 @@ async def _run_single(
             if output_context.mode == OutputMode.VERBOSE:
                 console.print(f"  [dim]Using {provider} (serves requested model {model})[/dim]")
 
+    from deepr.cli.commands.research_support import bounded_tool_disable_flags
+
+    requested_tool_flags = (no_web, no_code)
+    no_web, no_code = bounded_tool_disable_flags(provider, no_web, no_code)
+    if requested_tool_flags != (no_web, no_code) and output_context.mode == OutputMode.VERBOSE:
+        print_warning(f"Using the current tool-free bounded path for {provider}")
+
     # Drop the web-search tool up front for models known to reject it
     # (the submit loop also retries once without it on rejection).
     if not no_web and not _model_supports_web_search(model):
@@ -492,6 +499,7 @@ async def _run_single(
         model=model,
         no_web=no_web,
         no_code=no_code,
+        system_message=system_message,
     )
     estimated_cost = bounded_research_cost_estimate(request=admission_request, provider=provider).max_cost
     _show_research_header(output_context, query, provider, model, estimated_cost, upload)
@@ -617,7 +625,7 @@ async def _run_single(
         current_model = model
         attempted = []  # (provider, model) tuples that have failed
         fallback_count = 0
-        last_error = None
+        last_error: Exception | None = None
         success = False
         web_tool_retry_done = False  # one retry without web tool on rejection
 
@@ -912,7 +920,7 @@ async def _run_single(
 
 def _show_research_header(
     output_context: OutputContext, query: str, provider: str, model: str, estimated_cost: float, upload: tuple
-) -> bool:
+) -> None:
     """Display research header in verbose mode."""
     if output_context.mode == OutputMode.VERBOSE:
         console.print()
@@ -977,7 +985,7 @@ async def _submit_to_provider(
     start_time: float,
     emitter=None,
     reservation=None,
-) -> None:
+) -> bool:
     """Submit job to provider API and handle response."""
     from deepr.cli.commands.provider_factory import (
         create_provider_instance,
@@ -1080,7 +1088,7 @@ def _build_tools_list(provider: str, no_web: bool, no_code: bool, vector_store_i
 
     tools = []
     if not no_web:
-        tool_name = get_tool_name(provider, "web_search")
+        tool_name = cast(Any, get_tool_name(provider, "web_search"))
         tools.append(ToolConfig(type=tool_name))
     if not no_code:
         tools.append(ToolConfig(type="code_interpreter"))
@@ -1236,10 +1244,6 @@ def docs(
         deepr run docs "Database schema design" --upload existing_docs.md
         deepr run docs "Deployment guide for Kubernetes"
     """
-    # NOTE: Documentation-specific system message could be passed through _run_single
-    # but for now we use a docs-optimized prompt prefix instead.
-    # TODO: Add system_message parameter to _run_single for customization
-
     # Call _run_single with docs-specific parameters
     run_async_command(
         _run_single(
@@ -1253,6 +1257,7 @@ def docs(
             yes=yes,
             output_context=output_context,
             no_fallback=no_fallback,
+            system_message="You are a documentation expert. Create comprehensive, well-structured documentation with clear explanations, examples, and references.",
         ),
         runner=asyncio.run,
     )

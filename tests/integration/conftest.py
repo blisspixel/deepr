@@ -18,6 +18,12 @@ import pytest
 _RUN_LIVE = os.getenv("DEEPR_RUN_LIVE_TESTS") == "1"
 _INTEGRATION_DIR = os.path.dirname(os.path.abspath(__file__))
 
+if _RUN_LIVE:
+    from dotenv import load_dotenv
+
+    os.environ.pop("PYTHON_DOTENV_DISABLED", None)
+    load_dotenv()
+
 
 def pytest_collection_modifyitems(config: pytest.Config, items: list[pytest.Item]) -> None:
     """Skip everything under tests/integration/ unless live tests are opted in."""

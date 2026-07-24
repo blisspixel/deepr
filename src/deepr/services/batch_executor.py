@@ -1,3 +1,5 @@
+from typing import Any
+
 """
 Batch Executor Service
 
@@ -94,8 +96,8 @@ class BatchExecutor:
         phases = self._group_by_phase(tasks)
 
         # Track completed tasks and results
-        completed_tasks = {}
-        campaign_results = {
+        completed_tasks: dict[int, dict[str, Any]] = {}
+        campaign_results: dict[str, Any] = {
             "campaign_id": campaign_id,
             "started_at": datetime.now(UTC).isoformat(),
             "phases": {},
@@ -530,7 +532,7 @@ class BatchExecutor:
 
     def _group_by_phase(self, tasks: list[dict]) -> dict[int, list[dict]]:
         """Group tasks by phase number."""
-        phases = {}
+        phases: dict[int, list[dict]] = {}
         for task in tasks:
             phase = task.get("phase", 1)
             if phase not in phases:

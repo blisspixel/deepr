@@ -1,3 +1,5 @@
+from datetime import datetime
+
 """Self-directed learning curriculum generation for domain experts."""
 
 import json
@@ -5,7 +7,7 @@ import logging
 import os
 from collections.abc import Callable
 from dataclasses import dataclass
-from datetime import UTC, datetime
+from datetime import UTC
 
 import click
 import httpx
@@ -39,7 +41,7 @@ class CurriculumGenerationProgress:
         current_step: Name of the current step being executed
     """
 
-    def __init__(self, callback: Callable[[str], None] | None = None):
+    def __init__(self, callback: Callable[[str], None] | None = None) -> None:
         """Initialize progress tracker.
 
         Args:
@@ -47,8 +49,8 @@ class CurriculumGenerationProgress:
                      If None, messages are printed to console via click.echo.
         """
         self.callback = callback
-        self.start_time = None
-        self.current_step = None
+        self.start_time: datetime | None = None
+        self.current_step: str | None = None
 
     def start(self, step: str):
         """Start a new step in the curriculum generation process.
@@ -142,8 +144,8 @@ class LearningTopic:
     estimated_minutes: int
     priority: int  # 1 (highest) to 5 (lowest)
     research_prompt: str
-    dependencies: list[str] = None  # Topic titles this depends on
-    sources: list[SourceReference] = None  # Specific sources to learn from (populated in discovery phase)
+    dependencies: list[str] | None = None  # Topic titles this depends on
+    sources: list[SourceReference] | None = None  # Specific sources to learn from (populated in discovery phase)
 
     def __post_init__(self):
         if self.dependencies is None:
@@ -431,7 +433,7 @@ class CurriculumGenerator:
             NetworkError,
         )
 
-        last_error = None
+        last_error: Exception | None = None
         attempt = 0
 
         for attempt in range(max_retries):
@@ -573,7 +575,7 @@ class CurriculumGenerator:
         # All retries exhausted or non-retryable error
         if progress and last_error:
             progress.error(f"Failed after {attempt + 1} attempt(s)")
-        raise last_error
+        raise last_error or Exception("Unknown error")
 
     async def _discover_sources(
         self,
@@ -708,7 +710,7 @@ Generate the source list now for: {domain}"""
 
             if progress:
                 # Show breakdown by type
-                type_counts = {}
+                type_counts: dict[str, int] = {}
                 for s in sources:
                     type_counts[s.source_type] = type_counts.get(s.source_type, 0) + 1
                 breakdown = ", ".join(f"{count} {type_}" for type_, count in sorted(type_counts.items()))
@@ -764,7 +766,7 @@ We've identified {len(discovered_sources)} high-quality sources for this domain:
 
 """
             # Group by type
-            by_type = {}
+            by_type: dict[str, list[SourceReference]] = {}
             for source in discovered_sources:
                 if source.source_type not in by_type:
                     by_type[source.source_type] = []
@@ -1307,7 +1309,7 @@ Generate the curriculum now:"""
             # Find topics with no unmet dependencies
             ready = []
             for topic in remaining:
-                deps_met = all(dep in completed for dep in topic.dependencies)
+                deps_met = all(dep in completed for dep in (topic.dependencies or []))
                 if deps_met:
                     ready.append(topic)
 

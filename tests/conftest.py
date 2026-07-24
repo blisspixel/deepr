@@ -10,15 +10,36 @@ The fixtures are designed to enable comprehensive testing without
 making actual API calls or incurring costs.
 """
 
+import os
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
-from dotenv import load_dotenv
 from hypothesis import HealthCheck
 from hypothesis import settings as hypothesis_settings
 
-# Load .env file for API keys in integration/E2E tests
-load_dotenv()
+_METERED_CREDENTIAL_ENV_VARS = (
+    "OPENAI_API_KEY",
+    "CODEX_API_KEY",
+    "CODEX_ACCESS_TOKEN",
+    "ANTHROPIC_API_KEY",
+    "XAI_API_KEY",
+    "GEMINI_API_KEY",
+    "GOOGLE_API_KEY",
+    "AZURE_OPENAI_KEY",
+    "AZURE_OPENAI_API_KEY",
+    "AZURE_FOUNDRY_API_KEY",
+    "AZURE_PROJECT_ENDPOINT",
+    "ANTIGRAVITY_API_KEY",
+    "KIRO_API_KEY",
+)
+
+# Unit and property collection must be independent of developer credentials and
+# both workspace and per-user dotenv files. The integration subtree restores
+# dotenv loading only after the explicit live-test opt-in is present.
+if os.getenv("DEEPR_RUN_LIVE_TESTS") != "1":
+    os.environ["PYTHON_DOTENV_DISABLED"] = "1"
+    for _credential_name in _METERED_CREDENTIAL_ENV_VARS:
+        os.environ.pop(_credential_name, None)
 
 # Suppress slow-generation health checks globally - property tests use complex
 # strategies (nested dicts, filtered text) that can be slow on CI/Windows.

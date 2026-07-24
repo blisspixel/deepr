@@ -90,7 +90,7 @@ try:
         storage_uri="memory://",
     )
 except ImportError:
-    limiter = None
+    limiter = None  # type: ignore[assignment]
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -254,8 +254,8 @@ try:
     cost_estimator = CostEstimator()
 except Exception as e:
     logger.error("Cost controls unavailable; paid submissions are disabled: %s", e)
-    cost_controller = None
-    cost_estimator = None
+    cost_controller = None  # type: ignore[assignment]
+    cost_estimator = None  # type: ignore[assignment]
 
 research_costs = research_cost_api.WebResearchCostCoordinator(cost_controller, cost_estimator)
 

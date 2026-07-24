@@ -10,7 +10,7 @@ import pytest
 from google.genai import types
 from google.genai.errors import APIError as GenaiAPIError
 
-from deepr.providers.base import ResearchRequest, ToolConfig
+from deepr.providers.base import ProviderError, ResearchRequest, ToolConfig
 from deepr.providers.gemini_provider import (
     DEEP_RESEARCH_AGENT,
     GeminiProvider,
@@ -74,6 +74,25 @@ class TestGeminiProvider:
         assert "output" in pro_pricing
         assert pro_pricing["input"] > 0
         assert pro_pricing["output"] > 0
+
+    def test_active_registry_models_have_adapter_and_pricing_contracts(self, provider):
+        """Every selectable Gemini registry row must dispatch and settle exactly."""
+        from deepr.providers.registry import MODEL_CAPABILITIES
+
+        active_models = {
+            capability.model
+            for capability in MODEL_CAPABILITIES.values()
+            if capability.provider == "gemini" and not capability.deprecated
+        }
+
+        assert active_models <= set(provider.model_mappings.values())
+        assert active_models <= set(provider.pricing)
+
+    def test_preview_flash_settles_with_its_registry_price(self, provider):
+        """Adapter settlement must not substitute a cheaper fallback model."""
+        cost = provider._calculate_cost(1_000, 1_000, "gemini-3-flash-preview")
+
+        assert cost == pytest.approx(0.0035)
 
     def test_calculate_cost(self, provider):
         """Test cost calculation for Gemini models."""
@@ -150,6 +169,21 @@ class TestGeminiProvider:
         assert "top_k" not in payload
         assert "thinking_level" in payload["thinking_config"]
         assert "thinking_budget" not in payload["thinking_config"]
+
+    @pytest.mark.asyncio
+    async def test_deprecated_model_is_rejected_before_provider_call(self, provider):
+        request = ResearchRequest(
+            prompt="Short request",
+            model="gemini-3-pro-preview",
+            system_message="Be precise.",
+            tools=[],
+        )
+
+        with patch.object(provider.client.models, "generate_content_stream", return_value=[]) as generate:
+            with pytest.raises(ProviderError, match="deprecated"):
+                await provider.submit_research(request)
+
+        generate.assert_not_called()
 
     @pytest.mark.asyncio
     async def test_submit_research_basic(self, provider):
@@ -328,12 +362,10 @@ class TestGeminiCostCalculation:
         assert abs(cost_2k - (cost_1k * 2)) < 0.00001
         assert abs(cost_10k - (cost_1k * 10)) < 0.00001
 
-    def test_unknown_model_defaults_to_flash(self, provider):
-        """Test that unknown models default to Flash pricing."""
-        cost_unknown = provider._calculate_cost(1000, 1000, "unknown-model")
-        cost_flash = provider._calculate_cost(1000, 1000, "gemini-2.5-flash")
-
-        assert cost_unknown == cost_flash  # Defaults to Flash pricing
+    def test_unknown_model_has_no_silent_settlement_fallback(self, provider):
+        """Unknown metered models must fail before settlement can undercount."""
+        with pytest.raises(ProviderError, match="model contract"):
+            provider._calculate_cost(1000, 1000, "unknown-model")
 
     def test_deep_research_cost_returns_estimate(self, provider):
         """Test that deep research models return a flat cost estimate."""

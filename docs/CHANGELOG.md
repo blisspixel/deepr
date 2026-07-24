@@ -9,6 +9,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Added optional per-request `provider` selection to job submission (the API and
+  web `submit_job` paths). Cost reconciliation, the cost reservation, and the
+  queued job now honor the caller-supplied provider instead of only the
+  configured default, falling back to the default when the field is omitted.
+- Added a pre-flight research-request bounds check
+  (`deepr.services.research_bounds`) that fails a request before dispatch when
+  the requested model is not assigned to the chosen provider in the registry
+  (`research_provider_model_mismatch`; Azure and Azure Foundry deployments reuse
+  the OpenAI model contract), when the model is registered as deprecated
+  (`research_model_deprecated`, naming a successor when one exists), or when
+  `max_output_tokens` exceeds the model's registered output ceiling
+  (`research_output_bound_unsupported`).
+- Added a `max_output_tokens` field to registry model capabilities and recorded
+  the documented 65,536-token output ceiling for the affected Gemini models so
+  the bounds check can enforce it.
+- Added tracking-parameter stripping to scraper URL normalization (removes
+  `utm_*`, `fbclid`, and `gclid`) so URLs that differ only by tracking
+  parameters compare and deduplicate as equal.
 - Added a workflow-readiness language contract that separates detected local
   runtimes, installed plan CLIs, configured API credentials, workflow
   eligibility, and explicit spend authority.
@@ -50,6 +68,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Changed unit and property test collection to run independently of developer
+  credentials and of workspace or per-user dotenv files: metered credential
+  environment variables are cleared and dotenv loading is disabled unless the
+  explicit `DEEPR_RUN_LIVE_TESTS=1` live-test opt-in is present, which the
+  integration subtree restores. A `test_test_hygiene` guard asserts the isolation.
+- Changed autonomous-learning completion tracking to map each provider job id to
+  its topic so the run summary credits completed topics correctly instead of
+  reporting zero.
 - Changed scheduled fleet heartbeat delivery to require a bounded public HTTPS
   Healthchecks-compatible endpoint, preserve query parameters when adding the
   failure path, pin connections to prevalidated public addresses with environment

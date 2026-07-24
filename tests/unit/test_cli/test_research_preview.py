@@ -139,6 +139,47 @@ class TestPreviewExplicitModel:
         assert {"min", "expected", "max"} <= set(ce.keys())
         assert 0.0 <= ce["min"] <= ce["expected"] <= ce["max"]
 
+    def test_provider_only_gemini_preview_uses_safe_current_default(self, runner: CliRunner) -> None:
+        result = runner.invoke(
+            cli,
+            ["research", "--preview", "--json", "--provider", "gemini", "Bounded Gemini setup check"],
+        )
+
+        assert result.exit_code == 0, result.output
+        payload = json.loads(result.output)
+        assert payload["provider"] == "gemini"
+        assert payload["model"] == "gemini-3.6-flash"
+        assert payload["tools"] == {"web_search": False, "code_interpreter": False}
+
+    def test_gemini_alias_without_provider_infers_provider_before_preview(self, runner: CliRunner) -> None:
+        result = runner.invoke(
+            cli,
+            ["research", "--preview", "--json", "--model", "gemini-flash", "Bounded Gemini setup check"],
+        )
+
+        assert result.exit_code == 0, result.output
+        payload = json.loads(result.output)
+        assert payload["provider"] == "gemini"
+        assert payload["model"] == "gemini-flash"
+
+    def test_preview_rejects_provider_model_mismatch(self, runner: CliRunner) -> None:
+        result = runner.invoke(
+            cli,
+            [
+                "research",
+                "--preview",
+                "--json",
+                "--provider",
+                "xai",
+                "--model",
+                "gemini-3.6-flash",
+                "Mismatched route",
+            ],
+        )
+
+        assert result.exit_code == 1
+        assert "research_provider_model_mismatch" in result.output
+
 
 class TestPreviewAutoMode:
     """``--auto --preview`` shows the routing decision without spending."""
@@ -150,7 +191,7 @@ class TestPreviewAutoMode:
 
         decision = AutoModeDecision(
             provider="xai",
-            model="grok-4-1-fast-non-reasoning",
+            model="grok-4.20-0309-non-reasoning",
             complexity="simple",
             task_type="factual",
             cost_estimate=0.01,
@@ -167,7 +208,7 @@ class TestPreviewAutoMode:
 
         assert result.exit_code == 0, result.output
         out = result.output
-        assert "grok-4-1-fast-non-reasoning" in out
+        assert "grok-4.20-0309-non-reasoning" in out
         assert "xai" in out
         assert "92%" in out  # confidence rendered as percentage
         assert "preview only" in out.lower()
@@ -238,7 +279,7 @@ class TestPreviewAutoMode:
 
         decision = AutoModeDecision(
             provider="xai",
-            model="grok-4-1-fast-non-reasoning",
+            model="grok-4.20-0309-non-reasoning",
             complexity="simple",
             task_type="factual",
             cost_estimate=0.01,
