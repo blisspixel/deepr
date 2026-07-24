@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { Link, useNavigate } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router'
 import { resultsApi } from '@/api/results'
 import { cn, formatCurrency, formatRelativeTime, truncateText } from '@/lib/utils'
 import { Button } from '@/components/ui/button'

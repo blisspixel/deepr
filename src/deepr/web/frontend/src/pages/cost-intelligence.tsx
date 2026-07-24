@@ -73,7 +73,7 @@ export default function CostIntelligence() {
   })
 
   // Debounce slider changes to avoid excessive API calls
-  const debounceRef = useRef<ReturnType<typeof setTimeout>>()
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
   useEffect(() => {
     return () => {
       if (debounceRef.current) clearTimeout(debounceRef.current)
