@@ -206,6 +206,11 @@ def grounding_correctness(
 
     report = asyncio.run(run_grounding_correctness_eval(cases, checker))
     report["case_source"] = case_source
+    # Record which checker produced the number. Grounding quality varies a lot by
+    # capacity path (local model, plan CLI) and the default local pick is just
+    # whichever model Ollama lists first, so a report that does not name its
+    # checker cannot be compared against another run or trusted as evidence.
+    report["checker"] = checker_label
 
     if save:
         path = write_grounding_correctness_report(report)

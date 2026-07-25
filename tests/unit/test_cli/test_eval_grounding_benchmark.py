@@ -46,6 +46,9 @@ def test_grounding_correctness_scores_a_benchmark_file(monkeypatch: pytest.Monke
     report = json.loads(result.output)
     assert report["case_count"] == 2
     assert "halubench" in report["case_source"]
+    # The report must name its checker: grounding quality varies by capacity path,
+    # so an unlabelled number cannot be compared across runs or configurations.
+    assert report["checker"] == "stub-local"
     # One PASS row (correctly supported), one FAIL row wrongly supported by the stub.
     assert report["false_support_rate"] == pytest.approx(1.0)
 
