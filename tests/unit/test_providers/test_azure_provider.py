@@ -224,22 +224,23 @@ class TestSubmitResearch:
                 await provider.submit_research(req)
 
     @pytest.mark.asyncio
-    async def test_submit_retries_on_timeout_and_connection(self, provider, monkeypatch):
-        async def _no_sleep(*_a, **_k):
-            return None
+    async def test_submit_never_retries_ambiguous_timeout_or_connection(self, provider):
+        """Timeouts/connection failures are ambiguous POST outcomes: the first
+        request may have been accepted and billed server-side, so a re-POST
+        can mint a second billed job invisible to accounting. They surface
+        immediately as ProviderError with exactly one POST attempted."""
+        for make_error in (_make_timeout_error, _make_connection_error):
+            calls = {"n": 0}
 
-        monkeypatch.setattr("deepr.providers.azure_provider.asyncio.sleep", _no_sleep)
-        seq = [_make_timeout_error(), _make_connection_error(), MagicMock(id="ok")]
+            async def _side(*_a, _calls=calls, _make=make_error, **_k):
+                _calls["n"] += 1
+                raise _make()
 
-        async def _side(*_a, **_k):
-            val = seq.pop(0)
-            if isinstance(val, Exception):
-                raise val
-            return val
-
-        with patch.object(provider.client.responses, "create", side_effect=_side):
-            req = ResearchRequest(prompt="p", model="o3", system_message="s", tools=[], metadata=None)
-            assert (await provider.submit_research(req)) == "ok"
+            with patch.object(provider.client.responses, "create", side_effect=_side):
+                req = ResearchRequest(prompt="p", model="o3", system_message="s", tools=[], metadata=None)
+                with pytest.raises(ProviderError, match="ambiguous"):
+                    await provider.submit_research(req)
+                assert calls["n"] == 1
 
     @pytest.mark.asyncio
     async def test_submit_non_transient_error_raises_immediately(self, provider):

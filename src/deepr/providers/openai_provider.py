@@ -156,24 +156,37 @@ class OpenAIProvider(DeepResearchProvider):
                 response = await self.client.responses.create(**payload)
                 return str(response.id)
 
-            except (RateLimitError, APIConnectionError, APITimeoutError) as e:
-                # Retryable errors
+            except RateLimitError as e:
+                # 429 means the server rejected the request without creating
+                # a job - the only submission error that is safe to retry at
+                # this layer.
                 if attempt < max_retries - 1:
-                    # Exponential backoff
                     wait_time = retry_delay * (2**attempt)
                     logger.warning("Provider error (attempt %d/%d): %s", attempt + 1, max_retries, e)
                     logger.warning("Retrying in %ss...", wait_time)
                     await asyncio.sleep(wait_time)
                     continue
                 else:
-                    # Transient failures that survived every retry: the
-                    # envelope (retryable + retry_after) is auto-classified
-                    # from the wrapped SDK exception by ProviderError.
                     raise ProviderError(
                         message=f"Failed after {max_retries} retries: {e}",
                         provider="openai",
                         original_error=e,
                     ) from e
+
+            except (APIConnectionError, APITimeoutError) as e:
+                # Ambiguous POST outcome: the server may have accepted and
+                # billed a background job whose id was lost with the response.
+                # Re-POSTing here mints a SECOND billed job invisible to every
+                # accounting layer (the Idempotency-Key header is not honored
+                # by the Responses API), so surface the ambiguity instead -
+                # callers settle the reservation conservatively. Same
+                # invariant as gemini_provider: never retry an ambiguous POST
+                # at this layer.
+                raise ProviderError(
+                    message=f"Submission outcome ambiguous (network failure mid-POST): {e}",
+                    provider="openai",
+                    original_error=e,
+                ) from e
 
             except openai.OpenAIError as e:
                 # Non-retryable API errors (auth, invalid request, etc.);

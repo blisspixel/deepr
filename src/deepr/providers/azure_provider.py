@@ -161,7 +161,10 @@ class AzureProvider(DeepResearchProvider):
                 validate_provider_payload_bytes(payload, request.max_request_bytes)
                 response = await self.client.responses.create(**payload)
                 return str(response.id)
-            except (RateLimitError, APIConnectionError, APITimeoutError) as e:
+            except RateLimitError as e:
+                # 429 rejected the request without creating a job: safe to
+                # retry. Azure throttles aggressively, so a single 429
+                # shouldn't fail a whole job.
                 if attempt < max_retries - 1:
                     wait_time = retry_delay * (2**attempt)
                     logger.warning(
@@ -175,6 +178,15 @@ class AzureProvider(DeepResearchProvider):
                     continue
                 raise ProviderError(
                     message=f"Azure failed after {max_retries} retries: {e}",
+                    provider="azure",
+                    original_error=e,
+                ) from e
+            except (APIConnectionError, APITimeoutError) as e:
+                # Ambiguous POST outcome: the request may have been accepted
+                # and billed server-side. Never re-POST at this layer - a
+                # retry can mint a second billed job invisible to accounting.
+                raise ProviderError(
+                    message=f"Azure submission outcome ambiguous (network failure mid-POST): {e}",
                     provider="azure",
                     original_error=e,
                 ) from e
