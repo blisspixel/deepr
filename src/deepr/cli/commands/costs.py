@@ -532,26 +532,8 @@ def spend_decisions(expert: str | None, operation: str | None, decision: str, li
     console.print(table)
 
 
-@costs.command("doctor")
-@click.option("--drift-threshold", default=0.01, type=float, show_default=True, help="Allowed absolute drift in USD")
-@click.option(
-    "--rebuild",
-    is_flag=True,
-    help="Rebuild the dashboard view from the canonical ledger before checking (repairs drift)",
-)
-def costs_doctor(drift_threshold: float, rebuild: bool):
-    """Run zero-cost integrity checks for cost tracking."""
-    dashboard = CostDashboard()
-    ledger_path = Path(dashboard.storage_path).with_name("cost_ledger.jsonl")
-    ledger = CostLedger(ledger_path=ledger_path)
-
-    if rebuild:
-        # The ledger is the append-only source of truth; the dashboard is a
-        # derived view and may drift (several recorders write the ledger
-        # directly). Regenerate the view rather than trusting it.
-        count = dashboard.rebuild_from_ledger()
-        console.print(f"[green]Rebuilt dashboard view from ledger ({count} entries)[/green]")
-
+def _tracking_integrity_checks(dashboard, ledger, ledger_path: Path, drift_threshold: float):
+    """Zero-cost integrity checks for the tracking stores themselves."""
     checks: list[tuple[str, bool, str]] = []
 
     # The dashboard file is a DERIVED view, regenerable from the canonical
@@ -582,23 +564,23 @@ def costs_doctor(drift_threshold: float, rebuild: bool):
     dashboard_total = sum(e.cost for e in dashboard.entries)
     ledger_total = ledger.get_total_cost()
     drift = abs(ledger_total - dashboard_total)
-    drift_ok = drift <= drift_threshold
     checks.append(
         (
             "Ledger vs dashboard drift",
-            drift_ok,
+            drift <= drift_threshold,
             f"drift=${drift:.6f} (ledger=${ledger_total:.4f}, dashboard=${dashboard_total:.4f})",
         )
     )
+    return checks
 
+
+def _print_tracking_checks(checks) -> None:
     table = Table(title="Cost Tracking Doctor")
     table.add_column("Check", style="cyan")
     table.add_column("Status", style="bold")
     table.add_column("Details")
-
     for name, ok, details in checks:
         table.add_row(name, "PASS" if ok else "FAIL", details)
-
     console.print(table)
 
     passed = sum(1 for _name, ok, _details in checks if ok)
@@ -648,20 +630,49 @@ def _doctor_classify(events, dir_names, cutoff):
 
 
 @costs.command()
+@click.option("--drift-threshold", default=0.01, type=float, show_default=True, help="Allowed absolute drift in USD")
+@click.option(
+    "--rebuild",
+    is_flag=True,
+    help="Rebuild the dashboard view from the canonical ledger before checking (repairs drift)",
+)
 @click.option("--days", default=45, show_default=True, help="How many days of ledger to reconcile")
 @click.option("--reports-dir", default=None, help="Report root to reconcile against (default: data/reports)")
 @click.option("--ledger-path", default=None, hidden=True, help="Override ledger path (tests)")
 @click.option("--json", "json_output", is_flag=True, help="Machine-readable output")
-def doctor(days: int, reports_dir: str | None, ledger_path: str | None, json_output: bool):
-    """Reconcile paid ledger events against artifacts on disk.
+def doctor(
+    drift_threshold: float,
+    rebuild: bool,
+    days: int,
+    reports_dir: str | None,
+    ledger_path: str | None,
+    json_output: bool,
+):
+    """Cost-tracking integrity checks plus paid-artifact reconciliation.
 
-    Every settled research dollar should map to a report directory that still
+    First audits the tracking stores themselves (ledger writable and
+    accounting-ready, dashboard view drift vs the canonical ledger), then
+    reconciles paid ledger events against report artifacts on disk. Every
+    settled research dollar should map to a report directory that still
     exists. Spend without a surviving artifact is ORPHANED and this command's
     reason to exist: a 30-job, $37.79 campaign once billed with zero artifacts
     retained, and nothing surfaced the loss for 24 days. Exits 1 when orphaned
     spend is found, so schedulers and CI can alarm on it.
     """
     from datetime import datetime, timedelta
+
+    dashboard = CostDashboard()
+    if rebuild:
+        # The ledger is the append-only source of truth; the dashboard is a
+        # derived view and may drift (several recorders write the ledger
+        # directly). Regenerate the view rather than trusting it.
+        count = dashboard.rebuild_from_ledger()
+        if not json_output:
+            console.print(f"[green]Rebuilt dashboard view from ledger ({count} entries)[/green]")
+    tracking_ledger_path = Path(dashboard.storage_path).with_name("cost_ledger.jsonl")
+    tracking_checks = _tracking_integrity_checks(
+        dashboard, CostLedger(ledger_path=tracking_ledger_path), tracking_ledger_path, drift_threshold
+    )
 
     ledger = CostLedger(ledger_path=Path(ledger_path)) if ledger_path else CostLedger()
     root = Path(reports_dir) if reports_dir else Path("data/reports")
@@ -678,9 +689,11 @@ def doctor(days: int, reports_dir: str | None, ledger_path: str | None, json_out
             "orphaned_spend_usd": round(orphaned_total, 2),
             "matched": matched,
             "orphaned": orphaned,
+            "tracking_checks": [{"name": name, "ok": ok, "details": details} for name, ok, details in tracking_checks],
         }
         click.echo(json.dumps(payload))
     else:
+        _print_tracking_checks(tracking_checks)
         console.print(f"\n[bold]Cost doctor[/bold] (last {days} days)")
         console.print(f"  matched spend:  ${matched_total:.2f} across {len(matched)} event(s) with artifacts on disk")
         colour = "red" if orphaned_total > 0.005 else "green"

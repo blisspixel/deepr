@@ -52,15 +52,17 @@ def save_budget_config(config):
 CAUTIOUS_MODE_MONTHLY_CEILING = 25.0
 
 
-def _ledger_month_spend() -> float:
+def _ledger_month_spend() -> float | None:
     """Current calendar-month spend from the canonical cost ledger.
 
     The budget.json counter only sees spend recorded through
     record_spending; the ledger sees every recorder (CLI, web, MCP,
     expert learning). Budget decisions use whichever is HIGHER, so a
     path that bypassed the side counter cannot make the month look
-    cheaper than it was. Best-effort: a ledger read failure returns 0
-    and the side counter still applies.
+    cheaper than it was. Returns None when the ledger cannot be read:
+    an unreadable ledger must never look like $0 spent - that would
+    UNLOCK spending exactly when the spend record is broken. Callers
+    treat None as "cannot verify, require manual confirmation".
     """
     try:
         from datetime import UTC
@@ -71,7 +73,7 @@ def _ledger_month_spend() -> float:
         month_start = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
         return CostLedger().get_total_cost(start_date=month_start)
     except Exception:
-        return 0.0
+        return None
 
 
 def check_budget_approval(estimated_cost: float) -> bool:
@@ -84,13 +86,21 @@ def check_budget_approval(estimated_cost: float) -> bool:
     config = load_budget_config()
     monthly_limit = config.get("monthly_limit", 0)
 
+    ledger_spend = _ledger_month_spend()
+
     # Mode 1: Confirm every job (budget = 0)
     if monthly_limit == 0:
         # QoL: Auto-approve small jobs under $1 even in cautious mode -
         # but only up to a cumulative monthly ceiling (canonical ledger).
         # Without the ceiling, a headless loop of $0.99 jobs was unbounded:
         # "under $1 each" must never become a surprise bill in aggregate.
-        if estimated_cost < 1.0 and _ledger_month_spend() + estimated_cost < CAUTIOUS_MODE_MONTHLY_CEILING:
+        # An unreadable ledger (None) fails closed: no auto-approval when
+        # the month's real spend cannot be verified.
+        if (
+            ledger_spend is not None
+            and estimated_cost < 1.0
+            and ledger_spend + estimated_cost < CAUTIOUS_MODE_MONTHLY_CEILING
+        ):
             return True
         return False
 
@@ -100,8 +110,11 @@ def check_budget_approval(estimated_cost: float) -> bool:
 
     # Mode 3: Budget limit. Spend = max(side counter, canonical ledger) so
     # spend recorded by other entry points (web, MCP, expert learning)
-    # counts against the month even if record_spending never saw it.
-    current_spending = max(config.get("monthly_spending", 0.0), _ledger_month_spend())
+    # counts against the month even if record_spending never saw it. An
+    # unreadable ledger fails closed to manual confirmation.
+    if ledger_spend is None:
+        return False
+    current_spending = max(config.get("monthly_spending", 0.0), ledger_spend)
     new_total = current_spending + estimated_cost
 
     # Auto-approve if under 80% of budget
@@ -162,9 +175,12 @@ def set(amount: float):
         # Show the same reconciled number the approval gate uses. The session
         # counter alone once displayed $0.00 while the canonical ledger held
         # $37.99 of campaign spend - the display must never lie about money.
-        spent = max(float(config.get("monthly_spending", 0) or 0), _ledger_month_spend())
+        ledger_spend = _ledger_month_spend()
+        spent = max(float(config.get("monthly_spending", 0) or 0), ledger_spend or 0.0)
         click.echo(f"\nBudget: ${amount:.2f}/month")
         click.echo(f"Current spending (ledger-reconciled): ${spent:.2f}")
+        if ledger_spend is None:
+            click.echo("Warning: the canonical cost ledger could not be read; real spend may be higher.")
         click.echo(f"Resets: {datetime.now().strftime('%B')} 1")
 
 
@@ -181,7 +197,9 @@ def status():
     # campaign spend recorded by other entry points - the exact blindfold that
     # let a surprise bill go unnoticed for 24 days.
     counter_spending = float(config.get("monthly_spending", 0.0) or 0.0)
-    ledger_spending = _ledger_month_spend()
+    ledger_raw = _ledger_month_spend()
+    ledger_unreadable = ledger_raw is None
+    ledger_spending = ledger_raw or 0.0
     current_spending = max(counter_spending, ledger_spending)
     current_month = config.get("current_month", datetime.now().strftime("%Y-%m"))
 
@@ -195,6 +213,11 @@ def status():
 
         click.echo(f"\nBudget: ${current_spending:.2f} / ${monthly_limit:.2f} ({percentage:.0f}%)")
         click.echo(f"Remaining: ${remaining:.2f}")
+        if ledger_unreadable:
+            click.echo(
+                "Warning: the canonical cost ledger could not be read; real spend may be "
+                "higher and metered auto-approval is disabled until it is readable."
+            )
         if ledger_spending - counter_spending > 0.01:
             click.echo(
                 f"Note: ${ledger_spending - counter_spending:.2f} of this month's spend was recorded "

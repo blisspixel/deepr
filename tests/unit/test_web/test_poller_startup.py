@@ -549,7 +549,9 @@ def test_web_poller_keeps_unknown_recorded_provider_active_without_fallback(monk
     create.assert_called_once_with(job, web_app._cfg)
     openai.assert_not_called()
     failure.assert_not_called()
-    stuck.assert_called_once_with(loop, job)
+    # Status unknown is not status dead: only the 24h hard cap may cancel a
+    # job that could still be running (and billing) at the provider.
+    stuck.assert_called_once_with(loop, job, threshold=web_app._LIVE_JOB_HARD_CAP)
     assert "recorded provider unavailable" in caplog.text
     assert "forged" not in caplog.text
     assert "secret" not in caplog.text

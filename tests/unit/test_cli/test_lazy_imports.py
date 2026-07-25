@@ -33,6 +33,7 @@ _TOP_LEVEL_COMMANDS = {
     "init",
     "interactive",
     "jobs",
+    "keys",
     "knowledge",
     "l",
     "learn",
