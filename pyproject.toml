@@ -228,7 +228,7 @@ ignore = [
 # trusted-internal subprocess calls). Listing them here keeps RUF100 from
 # flagging those explanatory noqa comments as unused under default runs.
 # Run `ruff check --select S` to surface them explicitly for audit.
-external = ["S104", "S105", "S110", "S112", "S311", "S324", "S603", "S607", "S608"]
+external = ["S104", "S105", "S110", "S112", "S310", "S311", "S324", "S603", "S607", "S608"]
 
 [tool.ruff.lint.mccabe]
 # Cyclomatic-complexity cap. C901 is not in the main `select` (it would fail

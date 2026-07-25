@@ -95,6 +95,11 @@ _COMMAND_SPECS: dict[str, _LazyCommandSpec] = {
         "costs",
         "Cost tracking and budget management.",
     ),
+    "keys": _LazyCommandSpec(
+        "deepr.cli.commands.keys",
+        "keys",
+        "Inspect and validate provider API keys without exposing them.",
+    ),
     "diagnostics": _LazyCommandSpec(
         "deepr.cli.commands.diagnostics",
         "diagnostics_cli",
