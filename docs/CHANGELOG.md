@@ -9,6 +9,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Added `deepr costs doctor`: reconciles paid ledger events against report
+  artifacts on disk and reports orphaned spend (money settled with no surviving
+  artifact), exiting nonzero so schedulers can alarm. Motivated by a 30-job
+  research campaign that billed $37.79 with zero artifacts retained and no
+  surfacing of the loss for 24 days; the first live run found $41.16 of
+  historical orphaned spend in seconds.
 - Added `deepr keys` for provider credential visibility without exposure:
   `keys list` shows which provider keys exist and where (.env vs process
   environment), masked to prefix and length, flags a stale exported variable
