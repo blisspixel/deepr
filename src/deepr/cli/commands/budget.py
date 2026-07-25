@@ -159,8 +159,12 @@ def set(amount: float):
     elif amount == -1:
         click.echo("\nBudget: Unlimited (trust mode)")
     else:
+        # Show the same reconciled number the approval gate uses. The session
+        # counter alone once displayed $0.00 while the canonical ledger held
+        # $37.99 of campaign spend - the display must never lie about money.
+        spent = max(float(config.get("monthly_spending", 0) or 0), _ledger_month_spend())
         click.echo(f"\nBudget: ${amount:.2f}/month")
-        click.echo(f"Current spending: ${config.get('monthly_spending', 0):.2f}")
+        click.echo(f"Current spending (ledger-reconciled): ${spent:.2f}")
         click.echo(f"Resets: {datetime.now().strftime('%B')} 1")
 
 
@@ -171,7 +175,14 @@ def status():
 
     config = load_budget_config()
     monthly_limit = config.get("monthly_limit", 0)
-    current_spending = config.get("monthly_spending", 0.0)
+    # The approval gate spends against max(session counter, canonical ledger),
+    # so the status display must show that same reconciled number. Showing only
+    # the session counter once reported $0.00 while the ledger held $37.99 of
+    # campaign spend recorded by other entry points - the exact blindfold that
+    # let a surprise bill go unnoticed for 24 days.
+    counter_spending = float(config.get("monthly_spending", 0.0) or 0.0)
+    ledger_spending = _ledger_month_spend()
+    current_spending = max(counter_spending, ledger_spending)
     current_month = config.get("current_month", datetime.now().strftime("%Y-%m"))
 
     if monthly_limit == 0:
@@ -184,6 +195,12 @@ def status():
 
         click.echo(f"\nBudget: ${current_spending:.2f} / ${monthly_limit:.2f} ({percentage:.0f}%)")
         click.echo(f"Remaining: ${remaining:.2f}")
+        if ledger_spending - counter_spending > 0.01:
+            click.echo(
+                f"Note: ${ledger_spending - counter_spending:.2f} of this month's spend was recorded "
+                "by other entry points (ledger) and never hit the session counter. "
+                "The ledger is canonical; run 'deepr costs doctor' to audit it."
+            )
 
         if percentage >= 90:
             click.echo("\nWarning: Budget nearly exhausted")
