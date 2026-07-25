@@ -57,6 +57,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   downstream as a misleading "authentication failed") even when a valid key was
   present. The factory now falls back to the provider's environment variable
   and treats the "***" redaction placeholder as absent.
+- Fixed the user's hard spend caps not binding the web and REST surfaces:
+  the dashboard and REST API read a different env-var family
+  (DEEPR_PER_JOB_LIMIT/DEEPR_DAILY_LIMIT/DEEPR_MONTHLY_LIMIT) than the
+  documented DEEPR_MAX_COST_PER_JOB/_DAY/_MONTH caps, so setting the
+  documented ceilings gave no protection there. A shared resolver
+  (core/cost_caps.py) now honors both families with the tighter bound
+  winning, treats malformed or non-positive values as unset rather than
+  unlimited, and UI-saved dashboard limits are ceilinged by the env caps so
+  no dashboard action can quietly out-spend the configured maximums.
+- Fixed `deepr research` bypassing the monthly budget gate: the
+  `deepr budget set` approval gate was wired only into `deepr run`, so
+  research submissions never consulted the monthly budget. The gate now
+  runs after reservation with the same semantics as run: -y skips the
+  confirmation, never the gate, and a headless run the gate flags is
+  refused with instructions rather than waved through.
 - Fixed the settle-before-artifact ordering across retrieval and completion
   paths, so a failure between billing and persistence can no longer burn
   money silently: `deepr get` and the `deepr list` auto-refresh now record

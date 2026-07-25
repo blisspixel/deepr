@@ -90,9 +90,46 @@ def bounded_tool_disable_flags(provider: str, no_web: bool, no_code: bool) -> tu
     return no_web, no_code
 
 
+def enforce_monthly_budget_gate(estimate, reservation, *, yes: bool) -> bool:
+    """Consult the monthly budget gate for an already-reserved submission.
+
+    Returns True to proceed. On refusal the reservation is refunded and a
+    message is emitted. Mirrors run.py semantics: -y skips the confirmation,
+    never the gate - a non-interactive caller cannot consent to spend the
+    gate flagged for human judgment. The gate was historically wired only
+    into `deepr run`, so `deepr research` could spend past the monthly
+    budget without it ever being consulted.
+    """
+    import click
+
+    from deepr.cli.commands.budget import check_budget_approval
+    from deepr.experts.research_cost_gate import refund_research_cost
+
+    estimated_cost = float(getattr(estimate, "expected_cost", 0.0) or 0.0)
+    if check_budget_approval(estimated_cost):
+        return True
+    if yes:
+        refund_research_cost(reservation)
+        click.echo(
+            f"Budget gate: estimated ${estimated_cost:.2f} needs confirmation "
+            "(over/near the monthly budget, or above the $1 cautious-mode floor) "
+            "and -y cannot consent to it. Raise the budget with "
+            "'deepr budget set <amount>' to authorize headless spend at this level, "
+            "or run interactively.",
+            err=True,
+        )
+        return False
+    if not click.confirm(f"Budget gate: proceed with estimated cost ${estimated_cost:.2f}?"):
+        refund_research_cost(reservation)
+        click.echo("Cancelled")
+        return False
+    return True
+
+
 __all__ = [
     "bounded_tool_disable_flags",
     "build_research_prompt",
+    "enforce_monthly_budget_gate",
     "ensure_parent_dir",
     "provider_for_model",
     "resolve_job_id",

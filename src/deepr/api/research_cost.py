@@ -2,8 +2,7 @@
 
 from __future__ import annotations
 
-import os
-
+from deepr.core.cost_caps import resolve_spend_caps
 from deepr.core.costs import CostEstimate
 from deepr.experts.research_cost_gate import ResearchCostReservation, reserve_research_cost
 from deepr.providers.base import ResearchRequest, ToolConfig
@@ -19,13 +18,10 @@ def reserve_api_research_cost(
     enable_web_search: bool,
 ) -> tuple[CostEstimate, ResearchCostReservation]:
     """Estimate and atomically reserve one REST API research job."""
-    limits = {
-        "per_job": float(os.getenv("DEEPR_PER_JOB_LIMIT", "5") or "5"),
-        "daily": float(os.getenv("DEEPR_DAILY_LIMIT", "10") or "10"),
-        "monthly": float(os.getenv("DEEPR_MONTHLY_LIMIT", "20") or "20"),
-    }
-    if any(limit <= 0 for limit in limits.values()):
-        raise ValueError("research cost limits must be positive")
+    # Documented DEEPR_MAX_COST_PER_* caps and the legacy DEEPR_*_LIMIT names
+    # are both honored; the tighter bound wins and malformed values never
+    # fall open (see core/cost_caps.py).
+    limits = resolve_spend_caps()
     bounded_request = ResearchRequest(
         prompt=prompt,
         model=model,
