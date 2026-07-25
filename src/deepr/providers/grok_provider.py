@@ -87,19 +87,21 @@ class GrokProvider(DeepResearchProvider):
             "grok-4-1-fast-reasoning": "grok-4-1-fast-reasoning",
             "grok-4-1-fast-non-reasoning": "grok-4-1-fast-non-reasoning",
             # Grok 4.3 (May 2026)
+            "grok-4-5": "grok-4.5",
+            "grok-4.5": "grok-4.5",
             "grok-4-3": "grok-4.3",
             "grok-4.3": "grok-4.3",
             # Legacy / other
             "grok-3": "grok-3",
             "grok-3-mini": "grok-3-mini",
             "grok-code-fast": "grok-code-fast-1",
-            # Aliases - map to canonical "grok-4.3" so the pricing table lookup
+            # Aliases - map to a canonical dotted id so the pricing table lookup
             # matches and cost accounting does not silently fall back to the
             # much cheaper Grok 4.1 Fast pricing.
-            "grok": "grok-4.3",  # Default: newest flagship (reasoning + agentic)
+            "grok": "grok-4.5",  # Default: newest flagship (launched July 8, 2026)
             "grok-fast": "grok-4.20-0309-non-reasoning",  # Fast non-reasoning
-            "grok-flagship": "grok-4.3",  # Explicit flagship -> 4.3
-            "grok-reasoning": "grok-4.3",  # Reasoning workloads -> 4.3
+            "grok-flagship": "grok-4.5",  # Explicit flagship -> 4.5
+            "grok-reasoning": "grok-4.5",  # Reasoning workloads -> 4.5
             "grok-multi-agent": "grok-4.20-multi-agent-0309",  # Multi-agent stays 4.20
             "grok-mini": "grok-3-mini",
         }
@@ -117,6 +119,7 @@ class GrokProvider(DeepResearchProvider):
             }
 
         _grok_4_20 = _rates("grok-4-20-reasoning")
+        _grok_4_5 = _rates("grok-4-5")
         _grok_4_3 = _rates("grok-4-3")
         _grok_4_1_fast = get_token_pricing("grok-4-1-fast-non-reasoning")
         _grok_4_1_fast_cached = get_cached_input_pricing("grok-4-1-fast-non-reasoning")
@@ -135,6 +138,10 @@ class GrokProvider(DeepResearchProvider):
             "grok-4-20-reasoning": _grok_4_20,
             "grok-4-20-non-reasoning": _grok_4_20,
             "grok-4-20-multi-agent": _grok_4_20,
+            # Grok 4.5 flagship. Dotted API id and hyphenated registry form both
+            # keyed so cost accounting is correct regardless of caller spelling.
+            "grok-4.5": _grok_4_5,
+            "grok-4-5": _grok_4_5,
             # Grok 4.3. Listed under both the canonical
             # name and the hyphenated alias so any caller / older code path
             # that submits "grok-4-3" still gets accurate cost accounting.

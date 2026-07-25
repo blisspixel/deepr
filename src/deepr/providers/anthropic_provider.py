@@ -57,8 +57,9 @@ class AnthropicProvider(DeepResearchProvider):
 
     SUPPORTED_MODELS = [
         "claude-fable-5",  # Frontier tier - $10/$50 per MTok (new tokenizer ~30% more tokens)
+        "claude-opus-5",  # Newest Opus flagship (GA 2026-07-24) - $5/$25 per MTok
         "claude-sonnet-5",  # Current Sonnet - estimate at standard $3/$15 per MTok
-        "claude-opus-4-8",  # Flagship - $5/$25 per MTok (adaptive thinking only)
+        "claude-opus-4-8",  # Previous Opus flagship - $5/$25 per MTok (adaptive thinking only)
         "claude-opus-4-7",  # Previous flagship - $5/$25 per MTok (adaptive thinking only)
         "claude-opus-4-6",  # $5/$25 per MTok (adaptive thinking recommended)
         "claude-opus-4-5",  # $5/$25 per MTok
@@ -72,7 +73,7 @@ class AnthropicProvider(DeepResearchProvider):
 
     # Recommended models by use case
     RECOMMENDED_MODELS = {
-        "research": "claude-opus-4-8",  # Best reasoning for deep research (~$0.85/query)
+        "research": "claude-opus-5",  # Newest Opus flagship, same rate as 4.8 (~$0.85/query)
         "frontier": "claude-fable-5",  # Most capable, premium price (~$2.20/query)
         "balanced": "claude-sonnet-5",  # Current Sonnet, estimated at standard rates (~$0.48/query)
         "fast": "claude-haiku-4-5",  # Quick answers, cheapest (no Extended Thinking)
@@ -82,6 +83,7 @@ class AnthropicProvider(DeepResearchProvider):
     # claude-fable-5 additionally rejects an explicit {"type": "disabled"}.
     ADAPTIVE_THINKING_MODELS = (
         "claude-fable-5",
+        "claude-opus-5",
         "claude-sonnet-5",
         "claude-opus-4-8",
         "claude-opus-4-7",
