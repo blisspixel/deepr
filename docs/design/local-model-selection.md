@@ -68,3 +68,14 @@ default is not a neutral choice.
 3. Then: wire `expert sync/absorb/eval` call sites through the task-class parameter.
 4. Then: a short sweep matrix in CI-adjacent tooling is NOT planned - evals cost real
    local compute; they stay operator-run via the shipped eval commands.
+
+## Measured addendum (2026-07-25 sweep)
+
+Five local checkers (qwen2.5-coder:32b, qwen2.5:14b, gemma4:26b, qwen3:30b,
+mistral-openorca:7b) all score at or below the trivial always-reject baseline on a
+HaluBench faithfulness screen while scoring 0.97-1.00 on the curated entailment set.
+Two of them produced identical verdict distributions. Conclusion: for the grounding
+checker role specifically, model selection is not the binding constraint - the checker
+prompt's framing does not transfer to long-passage QA-faithfulness inputs. The
+selection policy above still holds for latency and task-hygiene reasons, but checker
+fitness requires the prompt fix first, then re-measurement on a fresh benchmark slice.
