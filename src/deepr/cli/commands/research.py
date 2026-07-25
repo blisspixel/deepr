@@ -238,13 +238,8 @@ def submit(
         job_id = str(uuid.uuid4())
         research_prompt = _build_research_prompt(prompt, context_content)
 
-        asyncio.run(
-            reconcile_research_cost_reservations(
-                queue,
-                default_provider=resolved_provider,
-            )
-        )
-        _, reservation = reserve_configured_research_cost(
+        asyncio.run(reconcile_research_cost_reservations(queue, default_provider=resolved_provider))
+        estimate, reservation = reserve_configured_research_cost(
             job_id=job_id,
             provider=resolved_provider,
             prompt=research_prompt,
@@ -252,6 +247,9 @@ def submit(
             enable_web_search=web_search,
             max_cost_per_job=cost_limit,
         )
+        # Monthly budget gate (see research_support.enforce_monthly_budget_gate).
+        if not research_support.enforce_monthly_budget_gate(estimate, reservation, yes=yes):
+            return
         try:
             provider_instance = create_provider(cast(Any, resolved_provider), api_key=api_key)
         except Exception:

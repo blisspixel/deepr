@@ -214,20 +214,27 @@ _LIMITS_FILE = config_path / "budget_limits.json"
 
 
 def _load_persisted_limits() -> dict:
-    """Load budget limits from disk, falling back to env vars / defaults."""
-    defaults = {
-        "per_job": float(os.getenv("DEEPR_PER_JOB_LIMIT", "5") or "5"),
-        "daily": float(os.getenv("DEEPR_DAILY_LIMIT", "10") or "10"),
-        "monthly": float(os.getenv("DEEPR_MONTHLY_LIMIT", "20") or "20"),
-    }
+    """Load budget limits from disk, ceilinged by the env hard caps.
+
+    The env caps (DEEPR_MAX_COST_PER_* with the legacy DEEPR_*_LIMIT names
+    honored, tighter bound wins - see core/cost_caps.py) are HARD ceilings:
+    a UI-saved limit may go lower but never above them, so no dashboard
+    action can quietly out-spend the user's configured maximums.
+    """
+    from deepr.core.cost_caps import resolve_spend_caps
+
+    caps = resolve_spend_caps()
+    limits = dict(caps)
     if _LIMITS_FILE.exists():
         try:
             with open(_LIMITS_FILE, encoding="utf-8") as f:
                 saved = _json.load(f)
-            defaults.update({k: float(v) for k, v in saved.items() if k in defaults})
+            for key, value in saved.items():
+                if key in limits:
+                    limits[key] = min(float(value), caps[key])
         except Exception:
             logger.warning("Could not read %s, using defaults", _LIMITS_FILE)
-    return defaults
+    return limits
 
 
 def _save_limits(per_job: float, daily: float, monthly: float):
