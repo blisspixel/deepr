@@ -57,6 +57,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   downstream as a misleading "authentication failed") even when a valid key was
   present. The factory now falls back to the provider's environment variable
   and treats the "***" redaction placeholder as absent.
+- Fixed background-job submission double-billing on network timeouts: the
+  OpenAI and Azure providers re-POSTed responses.create on timeout and
+  connection errors, but those are ambiguous outcomes - the first POST may
+  have been accepted and billed server-side, and the retry minted a second
+  billed job invisible to every accounting layer (only the last response id
+  was kept; the Idempotency-Key header is not honored by the Responses
+  API). Both providers now retry only 429 rejections and surface ambiguous
+  network failures immediately, matching the invariant the Gemini provider
+  already documented, so callers settle the reservation conservatively.
 - Fixed the user's hard spend caps not binding the web and REST surfaces:
   the dashboard and REST API read a different env-var family
   (DEEPR_PER_JOB_LIMIT/DEEPR_DAILY_LIMIT/DEEPR_MONTHLY_LIMIT) than the

@@ -522,15 +522,16 @@ class TestErrorHandling:
             assert len(keys) == 1
 
     @pytest.mark.asyncio
-    async def test_submit_research_retries_on_connection_error(self, provider):
-        """Test that connection errors trigger retry."""
+    async def test_submit_research_never_retries_ambiguous_connection_error(self, provider):
+        """A mid-POST network failure must NOT re-POST: the first request may
+        have been accepted and billed server-side, and a retry mints a second
+        billed job invisible to accounting (the Responses API does not honor
+        idempotency keys). The ambiguity surfaces as ProviderError so callers
+        settle the reservation conservatively."""
         from openai import APIConnectionError
 
-        mock_response = MagicMock()
-        mock_response.id = "resp_test123"
-
         with patch.object(provider.client.responses, "create", new_callable=AsyncMock) as mock_create:
-            mock_create.side_effect = [APIConnectionError(request=MagicMock()), mock_response]
+            mock_create.side_effect = APIConnectionError(request=MagicMock())
 
             request = ResearchRequest(
                 prompt="Test prompt",
@@ -539,20 +540,18 @@ class TestErrorHandling:
                 tools=[],
             )
 
-            job_id = await provider.submit_research(request)
-            assert job_id == "resp_test123"
-            assert mock_create.call_count == 2
+            with pytest.raises(ProviderError, match="ambiguous"):
+                await provider.submit_research(request)
+            assert mock_create.call_count == 1
 
     @pytest.mark.asyncio
-    async def test_submit_research_retries_on_timeout(self, provider):
-        """Test that timeout errors trigger retry."""
+    async def test_submit_research_never_retries_ambiguous_timeout(self, provider):
+        """Timeouts are ambiguous POST outcomes: never re-POST (see the
+        connection-error test above for the money trace)."""
         from openai import APITimeoutError
 
-        mock_response = MagicMock()
-        mock_response.id = "resp_test123"
-
         with patch.object(provider.client.responses, "create", new_callable=AsyncMock) as mock_create:
-            mock_create.side_effect = [APITimeoutError(request=MagicMock()), mock_response]
+            mock_create.side_effect = APITimeoutError(request=MagicMock())
 
             request = ResearchRequest(
                 prompt="Test prompt",
@@ -561,9 +560,9 @@ class TestErrorHandling:
                 tools=[],
             )
 
-            job_id = await provider.submit_research(request)
-            assert job_id == "resp_test123"
-            assert mock_create.call_count == 2
+            with pytest.raises(ProviderError, match="ambiguous"):
+                await provider.submit_research(request)
+            assert mock_create.call_count == 1
 
     @pytest.mark.asyncio
     async def test_submit_research_raises_after_max_retries(self, provider):
