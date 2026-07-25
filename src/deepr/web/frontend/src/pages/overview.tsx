@@ -66,6 +66,12 @@ export default function Overview() {
     queryFn: () => costApi.getTrends(14),
   })
 
+  const { data: integrity } = useQuery({
+    queryKey: ['cost', 'integrity'],
+    queryFn: () => costApi.getIntegrity(),
+    refetchInterval: 60000,
+  })
+
   const jobs = jobsData?.jobs || []
   const liveJobs = jobs.filter(j => ['queued', 'processing'].includes(j.status))
   const completedCount = jobStats?.completed ?? jobs.filter(j => j.status === 'completed').length
@@ -112,6 +118,33 @@ export default function Overview() {
             Start the server or go to{' '}
             <button onClick={() => navigate('/settings')} className="text-primary hover:underline">Settings</button>
             {' '}to load demo data.
+          </p>
+        </div>
+      )}
+
+      {/* Spend truth: over-budget and orphaned spend must be impossible to
+          miss. A 30-job campaign once billed $37.79 with zero surviving
+          artifacts and the dashboard showed nothing. */}
+      {costSummary?.over_budget && (
+        <div className="rounded-lg border border-destructive/40 bg-destructive/5 px-4 py-3 flex items-center gap-3">
+          <AlertTriangle className="w-4 h-4 text-destructive flex-shrink-0" />
+          <p className="text-sm text-foreground">
+            <span className="font-semibold text-destructive">Over budget:</span>{' '}
+            {formatCurrency(costSummary.monthly)} spent this month against a{' '}
+            {formatCurrency(costSummary.effective_monthly_limit || 0)} limit. Metered dispatch
+            should be blocked; review{' '}
+            <Link to="/costs" className="text-primary hover:underline">Costs</Link> before approving anything.
+          </p>
+        </div>
+      )}
+      {(integrity?.orphaned_spend ?? 0) > 0.005 && (
+        <div className="rounded-lg border border-destructive/40 bg-destructive/5 px-4 py-3 flex items-center gap-3">
+          <AlertTriangle className="w-4 h-4 text-destructive flex-shrink-0" />
+          <p className="text-sm text-foreground">
+            <span className="font-semibold text-destructive">Orphaned spend:</span>{' '}
+            {formatCurrency(integrity!.orphaned_spend)} across {integrity!.orphaned_events} paid events
+            in the last {integrity!.days} days has no surviving report artifact. Audit with{' '}
+            <code className="rounded bg-muted px-1 py-0.5 text-xs">deepr costs doctor</code>.
           </p>
         </div>
       )}

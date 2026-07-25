@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { Activity, DollarSign } from 'lucide-react'
+import { Activity, AlertTriangle, DollarSign } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { jobsApi } from '@/api/jobs'
 import { costApi } from '@/api/cost'
@@ -36,6 +36,9 @@ export default function StatusBar() {
 
   const activeJobs = (jobStats?.queued ?? 0) + (jobStats?.processing ?? 0)
   const todaySpend = costSummary?.daily ?? 0
+  const monthSpend = costSummary?.monthly ?? 0
+  const monthLimit = costSummary?.effective_monthly_limit ?? 0
+  const overBudget = costSummary?.over_budget ?? false
   const connectionLabel = wsConnected
     ? 'Live updates connected'
     : isOnline && wsStatus === 'reconnecting'
@@ -65,6 +68,24 @@ export default function StatusBar() {
         <div className="hidden items-center gap-1.5 sm:flex">
           <DollarSign className="h-3 w-3" />
           <span>Today: {formatCurrency(todaySpend)}</span>
+        </div>
+
+        {/* Month spend vs the governing budget, always visible: the exact
+            number the approval gate uses, red when over. A $37.99 month once
+            showed nowhere until the bill arrived. */}
+        <div
+          className={cn(
+            'flex items-center gap-1.5 whitespace-nowrap',
+            overBudget && 'font-semibold text-destructive'
+          )}
+          title={overBudget ? 'Monthly budget exceeded - metered dispatch should be blocked' : undefined}
+        >
+          {overBudget && <AlertTriangle className="h-3 w-3" />}
+          <span>
+            Month: {formatCurrency(monthSpend)}
+            {monthLimit > 0 && ` / ${formatCurrency(monthLimit)}`}
+            {overBudget && ' OVER BUDGET'}
+          </span>
         </div>
       </div>
 

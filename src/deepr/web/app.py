@@ -176,7 +176,7 @@ from deepr.services.provider_status import (
 from deepr.services.research_cost_reconciliation import reconcile_research_cost_reservations
 from deepr.services.research_submission import dispatch_reserved_research
 from deepr.storage.local import LocalStorage
-from deepr.web import research_cost_api
+from deepr.web import research_cost_api, spend_truth
 
 _cfg = load_config()
 config_path = Path(".deepr")
@@ -1044,6 +1044,8 @@ def get_cost_summary():
             "total": round(total_spending, 2),
             "daily_limit": daily_limit,
             "monthly_limit": monthly_limit,
+            # Governing ceiling + breach flag (see web/spend_truth.py).
+            **spend_truth.budget_gate_fields(monthly_spending, monthly_limit),
             "per_job_limit": per_job_limit,
             "avg_cost_per_job": round(avg_cost, 2),
             "completed_jobs": len(completed_jobs),
@@ -1054,6 +1056,25 @@ def get_cost_summary():
 
     except Exception as e:
         logger.error(f"Error getting cost summary: {e}")
+        return jsonify({"error": "Internal server error"}), 500
+
+
+# Where research report artifacts live, relative to the deployment root.
+_REPORTS_ROOT = Path("data/reports")
+
+
+@app.route("/api/cost/integrity", methods=["GET"])
+def get_cost_integrity():
+    """Reconcile settled spend against surviving report artifacts.
+
+    Money settled with no artifact on disk is orphaned spend; the $37.79
+    campaign with zero survivors must be impossible to miss here.
+    """
+    try:
+        days = max(1, min(_safe_int(request.args.get("days", 45), 45), 365))
+        return jsonify({"integrity": spend_truth.audit_spend_integrity(days, _REPORTS_ROOT)})
+    except Exception as e:
+        logger.error(f"Error auditing cost integrity: {e}")
         return jsonify({"error": "Internal server error"}), 500
 
 

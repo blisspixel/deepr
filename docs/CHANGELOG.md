@@ -9,6 +9,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Added spend truth to the web dashboard: `/api/cost/summary` now reports the
+  governing monthly ceiling (the lower of the env-cap controller limit and the
+  approval-gate budget) and an explicit `over_budget` flag; a new
+  `/api/cost/integrity` endpoint runs the same paid-events-vs-artifacts
+  classifier as `deepr costs doctor`. The status bar shows month spend against
+  the governing budget on every page (red when breached) and the Overview page
+  raises unmissable banners for over-budget state and orphaned spend.
 - Added a Spend section to `deepr doctor`: reconciles month-to-date spend
   (max of session counter and canonical ledger) against the configured
   monthly budget and errors loudly when over, and audits that every settled
