@@ -704,6 +704,23 @@ and pre-warm estimators are explicit and budget-gated. See
 cost buckets such as cached tokens, server-side tools, batch modifiers, and
 provider-returned exact cost settlement.
 
+## Privacy and Data Ownership
+
+Deepr has no telemetry, no analytics, no accounts, and no automatic phone-home.
+The only network calls are ones you invoke: provider APIs with your own keys,
+free-web retrieval inside research you start, MCP servers you configure, the
+user-invoked `deepr upgrade` release check against GitHub, and the optional
+`DEEPR_HEARTBEAT_URL` liveness signal, which is off by default and points at an
+endpoint you control. The dashboard "telemetry" surfaces aggregate your local
+expert state for your own dashboard and send nothing anywhere.
+
+Everything Deepr produces is a local artifact you own: expert state, beliefs,
+reports, cost ledgers, and audit records are plain JSON, JSONL, and Markdown
+under your data root, with published schemas and OKF export. Deepr is Apache
+2.0. If this project stopped tomorrow, your experts would still be readable
+files on your disk and the code would still be yours to run and fork. That is
+a property of the architecture, not a promise about the future.
+
 ## Stable vs Experimental
 
 Stable today: bounded single-job research for supported provider/model/tool
