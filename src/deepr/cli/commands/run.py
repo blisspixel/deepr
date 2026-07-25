@@ -1132,6 +1132,11 @@ async def _handle_background_job(
         import json as json_module
 
         print(json_module.dumps({"status": "pending", "job_id": job_id, "provider_job_id": provider_job_id}))
+    elif output_context.mode == OutputMode.MINIMAL:
+        # MINIMAL promises a single success line. Printing nothing here left the
+        # default mode silent after reserving cost and submitting a background
+        # job, so operators had no job id to poll and no sign anything happened.
+        click.echo(f"SUBMITTED | {job_id[:12]} | check: deepr status {job_id[:12]}")
 
 
 @run.command()
