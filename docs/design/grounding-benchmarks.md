@@ -48,9 +48,41 @@ because HaluBench does not separate contradiction from fabrication, and the
 scorer treats every non-`supported` label identically (a SUPPORTED verdict on
 any of them is the same false support).
 
-To obtain it, download the dataset from its Hugging Face page and export the
-rows as a JSON array or JSON Lines file with at least the `passage`, `answer`,
-and `label` fields.
+HaluBench ships as a single parquet file (14,900 rows across six source
+datasets: halueval, DROP, pubmedQA, FinanceBench, RAGTruth, covidQA), so reading
+it directly needs `pyarrow` or `pandas`. Neither is a Deepr dependency. Use the
+Hugging Face datasets-server instead, which returns rows as JSON and needs
+nothing beyond the standard library:
+
+```python
+import json, urllib.request, pathlib
+
+# Evenly spaced offsets so the sample spans every source dataset rather than the
+# head of the file. Deterministic, so the same slice is reproducible.
+rows = []
+for offset in range(0, 14900, 596):
+    url = (
+        "https://datasets-server.huggingface.co/rows"
+        "?dataset=PatronusAI%2FHaluBench&config=default&split=test"
+        f"&offset={offset}&length=4"
+    )
+    with urllib.request.urlopen(url, timeout=60) as response:
+        rows.extend(item["row"] for item in json.load(response)["rows"])
+
+pathlib.Path("halubench-sample.jsonl").write_text(
+    "\n".join(json.dumps(row) for row in rows) + "\n", encoding="utf-8"
+)
+```
+
+Sample deliberately rather than running all 14,900 cases: each case is one
+checker call, so a local model at roughly 40 seconds per case takes about an
+hour per hundred cases. Report the sample size with the result.
+
+One caveat worth knowing before reading a number: DROP-sourced rows carry a
+stringified list of candidate answer spans (for example
+`"['Rams', 'second', 'Marc Bulger']"`) rather than a single sentence. That is
+HaluBench's own content and the adapter passes it through unchanged, but it is a
+harder and less natural entailment target than a prose claim.
 
 ## Running it
 
