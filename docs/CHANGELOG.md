@@ -9,6 +9,38 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Added `deepr keys` for provider credential visibility without exposure:
+  `keys list` shows which provider keys exist and where (.env vs process
+  environment), masked to prefix and length, flags a stale exported variable
+  shadowing a fresh `.env` value (dotenv never overrides the environment), and
+  flags misspelled key names nothing will ever read; `keys check` live-validates
+  present keys against each provider's free models endpoint with typed results.
+  There is deliberately no `keys set`: secrets on a command line land in shell
+  history, so the supported write path remains editing `.env`.
+- Registered `grok-4.5` (launched July 8, 2026: $2.00/$6.00 per MTok, $0.50
+  cached, 500K context, provider doubles rates above 200K prompt tokens - noted
+  so estimates never understate) and `claude-opus-5` (GA July 24, 2026: $5.00/
+  $25.00 per MTok unchanged from Opus 4.8, 1M context, 128K max output) with
+  sourced pricing; the xai research default and grok/grok-flagship aliases now
+  resolve to grok-4.5, and claude-opus-5 is the recommended Anthropic research
+  model.
+
+### Fixed
+
+- Fixed provider API key resolution: `load_config()` deliberately carries no
+  real credentials, but the CLI provider factory read keys only from that
+  config, so every non-OpenAI provider failed with "No API key found" (surfaced
+  downstream as a misleading "authentication failed") even when a valid key was
+  present. The factory now falls back to the provider's environment variable
+  and treats the "***" redaction placeholder as absent.
+- Fixed provider-failed background jobs being stuck "processing" forever: both
+  status-refresh paths passed the provider SDK error object into the SQLite
+  update, the bind raised, and the failure was swallowed. Errors are coerced to
+  strings and the FAILED transition lands.
+- Fixed silent background-job submission in the default output mode: MINIMAL
+  now prints its promised single line (job id plus how to check status) instead
+  of exiting silently after reserving cost.
+
 - Added a Privacy and Data Ownership section to the README stating the verified
   posture: no telemetry, no analytics, no accounts, no automatic phone-home;
   every network call is user-invoked (provider APIs with user keys, free-web
