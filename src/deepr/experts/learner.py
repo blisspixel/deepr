@@ -88,6 +88,9 @@ class AutonomousLearner:
         # provider job id -> local queue job id (durable tracking of
         # submitted research jobs; see _record_job_in_queue)
         self._queue_ids: dict[str, str] = {}
+        # provider_job_id -> persisted report path, written at poll time so
+        # a crash after settlement can never lose an already-paid report.
+        self._persisted_reports: dict[str, str] = {}
 
     async def execute_curriculum(
         self,
@@ -411,26 +414,45 @@ class AutonomousLearner:
             logger.warning("Could not record learner job %s in local queue: %s", provider_job_id, exc)
             return None
 
-    async def _sync_job_status_in_queue(self, provider_job_id: str, status: str, cost: float | None = None) -> None:
+    async def _sync_job_status_in_queue(
+        self,
+        provider_job_id: str,
+        status: str,
+        cost: float | None = None,
+        report_path: str | None = None,
+    ) -> None:
         """Mirror a learner job's terminal state into the local queue (best-effort)."""
-        local_id = self._queue_ids.get(provider_job_id)
-        if not local_id:
-            return
-        try:
-            from deepr.config import queue_db_path
-            from deepr.queue import create_queue
-            from deepr.queue.base import JobStatus
+        from deepr.experts.learner_persistence import sync_job_status_in_queue
 
-            db_path = queue_db_path()
-            if isinstance(self.config, dict):
-                db_path = self.config.get("queue_db_path", db_path) or db_path
-            queue = create_queue("local", db_path=db_path)
-            target = JobStatus.COMPLETED if status == "completed" else JobStatus.FAILED
-            await queue.update_status(local_id, target)
-            if cost is not None and target is JobStatus.COMPLETED:
-                await queue.update_results(local_id, report_paths={}, cost=cost)
-        except Exception as exc:
-            logger.warning("Could not sync learner job %s status in local queue: %s", provider_job_id, exc)
+        await sync_job_status_in_queue(
+            queue_ids=self._queue_ids,
+            config=self.config,
+            provider_job_id=provider_job_id,
+            status=status,
+            cost=cost,
+            report_path=report_path,
+        )
+
+    def _persist_completed_report(
+        self,
+        expert: ExpertProfile,
+        provider_job_id: str,
+        response,
+        callback: Callable | None = None,
+    ) -> str | None:
+        """Persist a completed job's report at poll time (see learner_persistence)."""
+        from deepr.experts.learner_persistence import persist_completed_report
+
+        doc_path = persist_completed_report(
+            report_generator=self.research.report_generator,
+            expert_name=expert.name,
+            provider_job_id=provider_job_id,
+            response=response,
+            log=lambda line: self._log_progress(line, callback=callback),
+        )
+        if doc_path:
+            self._persisted_reports[provider_job_id] = doc_path
+        return doc_path
 
     def _save_learning_progress(
         self, expert: ExpertProfile, progress: LearningProgress, remaining_topics: list[LearningTopic]
@@ -962,6 +984,14 @@ class AutonomousLearner:
                             if topic_title not in progress.completed_topics:
                                 progress.completed_topics.append(topic_title)
 
+                        # Persist the paid report NOW, before recording spend
+                        # or marking the queue COMPLETED. Integration used to
+                        # be deferred until the whole campaign finished and
+                        # was best-effort: a crash or empty re-fetch in that
+                        # window is how a 30-job, $37.79 campaign settled
+                        # with zero surviving artifacts.
+                        doc_path = self._persist_completed_report(expert, job_id, response, callback=callback)
+
                         cost: float | None = response.usage.cost if response.usage else None
                         if cost is not None:
                             total_cost += cost
@@ -973,7 +1003,12 @@ class AutonomousLearner:
                                 details=f"Job {job_id[:12]}",
                             )
                             self._log_progress(f"       Cost: ${cost:.4f}", callback=callback)
-                        await self._sync_job_status_in_queue(job_id, "completed", cost)
+                        await self._sync_job_status_in_queue(
+                            job_id,
+                            "completed" if doc_path else "failed",
+                            cost,
+                            report_path=doc_path,
+                        )
 
                     elif response.status in ["failed", "cancelled"]:
                         self._log_progress(f"  {job_id[:20]}... {response.status.upper()}", callback=callback)
@@ -1054,25 +1089,36 @@ class AutonomousLearner:
             try:
                 self._log_progress(f"{i}/{len(job_ids)}: {job_id[:20]}...", callback=callback)
 
-                # Get report from OpenAI
-                response = await self.research.provider.get_status(job_id)
-
-                # Extract text
-                raw_text = self.research.report_generator.extract_text_from_response(response)
+                # The report was persisted at poll time (before settlement);
+                # read it from disk rather than trusting a provider re-fetch
+                # that can come back empty after money already moved. The
+                # re-fetch remains only as a fallback for resumed campaigns
+                # whose polling ran in an earlier process.
+                filename = f"research_{job_id[:12]}.md"
+                persisted = self._persisted_reports.get(job_id)
+                if persisted and await asyncio.to_thread(Path(persisted).exists):
+                    raw_text = await asyncio.to_thread(Path(persisted).read_text, encoding="utf-8")
+                    doc_path = Path(persisted)
+                else:
+                    response = await self.research.provider.get_status(job_id)
+                    raw_text = self.research.report_generator.extract_text_from_response(response)
+                    if not raw_text:
+                        self._log_progress(
+                            "  [ERROR] Paid report unavailable: not persisted locally and provider "
+                            "re-fetch returned no content",
+                            callback=callback,
+                        )
+                        continue
+                    store = ExpertStore()
+                    docs_dir = store.get_documents_dir(expert.name)
+                    docs_dir.mkdir(parents=True, exist_ok=True)
+                    doc_path = docs_dir / filename
+                    with open(doc_path, "w", encoding="utf-8") as f:
+                        f.write(raw_text)
 
                 if not raw_text:
                     self._log_progress("  [SKIP] No content found", callback=callback)
                     continue
-
-                # Save to expert's documents folder
-                filename = f"research_{job_id[:12]}.md"
-                store = ExpertStore()
-                docs_dir = store.get_documents_dir(expert.name)
-                docs_dir.mkdir(parents=True, exist_ok=True)
-
-                doc_path = docs_dir / filename
-                with open(doc_path, "w", encoding="utf-8") as f:
-                    f.write(raw_text)
 
                 # Also save to temporary file for upload
                 with tempfile.NamedTemporaryFile(mode="w", suffix=".md", delete=False, encoding="utf-8") as f:
