@@ -1,11 +1,19 @@
 import apiClient from './client'
-import type { CostSummary, CostEstimate, CostTrend } from '../types'
+import type { CostSummary, CostEstimate, CostIntegrity, CostTrend } from '../types'
 
 export const costApi = {
   // Get cost summary
   getSummary: async () => {
     const response = await apiClient.get<{ summary: CostSummary }>('/cost/summary')
     return response.data.summary
+  },
+
+  // Reconcile settled spend against surviving report artifacts
+  getIntegrity: async (days = 45) => {
+    const response = await apiClient.get<{ integrity: CostIntegrity }>('/cost/integrity', {
+      params: { days },
+    })
+    return response.data.integrity
   },
 
   // Get spending trends

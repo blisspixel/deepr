@@ -53,11 +53,22 @@ export interface CostSummary {
   daily_limit: number
   monthly: number
   monthly_limit: number
+  budget_monthly_limit?: number
+  effective_monthly_limit?: number
+  over_budget?: boolean
   total: number
   per_job_limit: number
   avg_cost_per_job: number
   completed_jobs: number
   total_jobs: number
+}
+
+export interface CostIntegrity {
+  days: number
+  matched_spend: number
+  orphaned_spend: number
+  matched_events: number
+  orphaned_events: number
 }
 
 export interface CostTrend {
