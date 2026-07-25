@@ -212,12 +212,15 @@ async def _get_results(job_id: str, output_context: OutputContext | None = None)
                     },
                 )
 
-                # Update queue status
+                # Record results BEFORE flipping status, and record them
+                # unconditionally: report_paths used to be written only when
+                # the provider reported a cost, so a completed job with no
+                # usage payload ended up COMPLETED with no recorded report
+                # path - the artifact existed on disk but nothing (context
+                # index, absorb, retrieval) could ever find it again.
+                actual_cost = response.usage.cost if response.usage and response.usage.cost else None
+                await queue.update_results(job.id, report_paths={"markdown": report_metadata.url}, cost=actual_cost)
                 await queue.update_status(job.id, JobStatus.COMPLETED)
-                if response.usage and response.usage.cost:
-                    await queue.update_results(
-                        job.id, report_paths={"markdown": report_metadata.url}, cost=response.usage.cost
-                    )
 
                 # Update job object
                 job.status = JobStatus.COMPLETED
@@ -407,12 +410,14 @@ async def _refresh_job_statuses(queue, jobs):
                         },
                     )
 
-                    # Update queue
+                    # Record results before flipping status, unconditionally
+                    # (same defect as the single-job path: results used to be
+                    # recorded only when the provider reported a cost).
+                    refresh_cost = response.usage.cost if response.usage and response.usage.cost else None
+                    await queue.update_results(
+                        job.id, report_paths={"markdown": report_metadata.url}, cost=refresh_cost
+                    )
                     await queue.update_status(job.id, JobStatus.COMPLETED)
-                    if response.usage and response.usage.cost:
-                        await queue.update_results(
-                            job.id, report_paths={"markdown": report_metadata.url}, cost=response.usage.cost
-                        )
 
                 elif response.status == "failed":
                     # Same object-vs-string coercion as the single-job path above.

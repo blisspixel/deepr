@@ -416,13 +416,18 @@ def _handle_completion(loop, job, response):
         job=job,
         provider_factory=_provider_factory_for_job(job),
     )
-    research_costs.finalize_completed_job(loop=loop, queue=queue, job=job, actual_cost=cost, tokens=tokens)
+    research_costs.finalize_completed_job(
+        loop=loop, queue=queue, job=job, actual_cost=cost, tokens=tokens, report_saved=bool(report_text)
+    )
 
     updated_job = loop.run_until_complete(queue.get_job(job.id))
-    if updated_job:
+    if not updated_job:
+        logger.error("Poller: job %s vanished after completion update - WebSocket notification lost", job.id)
+    elif report_text:
         emit_job_completed(socketio, updated_job)
     else:
-        logger.error("Poller: job %s vanished after completion update - WebSocket notification lost", job.id)
+        emit_job_failed(socketio, updated_job, "Provider completion had no report content")
+        logger.error("Poller: job %s billed as complete but produced no report content", job.id)
     logger.info("Poller: job %s completed (cost=%.4f)", job.id, cost or 0)
 
 

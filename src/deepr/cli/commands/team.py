@@ -230,14 +230,12 @@ Provide your analysis from this perspective."""
 
             if response.status == "completed":
                 cost = float(response.usage.cost or 0.0) if response.usage else 0.0
-                settle_research_cost(
-                    reservation,
-                    actual_cost=cost,
-                    tokens=response.usage.total_tokens if response.usage else 0,
-                    request_id=provider_job_id,
-                    source="cli.team.immediate_completion",
-                )
-                # Extract content
+                # Extract and persist the paid artifact BEFORE settling the
+                # cost: settling first left a window where an extraction or
+                # storage failure burned the money with no artifact and no
+                # flag. With this ordering a failure lands in the generic
+                # handler below while the reservation is still active, which
+                # settles it conservatively and marks the job FAILED.
                 content = ""
                 if response.output:
                     for block in response.output:
@@ -262,9 +260,18 @@ Provide your analysis from this perspective."""
                     },
                 )
 
-                # Update queue
-                await queue.update_status(job_id, JobStatus.COMPLETED)
+                settle_research_cost(
+                    reservation,
+                    actual_cost=cost,
+                    tokens=response.usage.total_tokens if response.usage else 0,
+                    request_id=provider_job_id,
+                    source="cli.team.immediate_completion",
+                )
+
+                # Update queue (results before status, so a COMPLETED job
+                # always has its report path recorded)
                 await queue.update_results(job_id, report_paths={"markdown": report_metadata.url}, cost=cost)
+                await queue.update_status(job_id, JobStatus.COMPLETED)
 
                 results.append({"job_id": job_id, "role": member["role"], "content": content, "cost": cost})
 

@@ -57,6 +57,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   downstream as a misleading "authentication failed") even when a valid key was
   present. The factory now falls back to the provider's environment variable
   and treats the "***" redaction placeholder as absent.
+- Fixed the settle-before-artifact ordering across retrieval and completion
+  paths, so a failure between billing and persistence can no longer burn
+  money silently: `deepr get` and the `deepr list` auto-refresh now record
+  report paths unconditionally (previously only when the provider returned a
+  cost, leaving completed jobs whose artifact nothing could ever find again)
+  and record results before flipping status; team research extracts and
+  saves the report before settling, so a storage failure settles
+  conservatively and lands as FAILED instead of paid-and-lost; the MCP
+  deepr_get_result tool persists the report to storage before settling
+  (previously the paid report only went back over the wire and was
+  unrecoverable if the client dropped it); and the web poller now records a
+  completion with no extractable report as FAILED with an explicit error,
+  with cost settled, instead of COMPLETED with nothing on disk.
 - Fixed the canonical cost ledger silently fragmenting by working directory:
   the default path was bare CWD-relative, so any process launched from a
   different directory minted a fresh empty ledger and every budget gate read
