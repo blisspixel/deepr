@@ -607,3 +607,96 @@ def costs_doctor(drift_threshold: float, rebuild: bool):
         console.print(f"[green]All checks passed ({passed}/{total})[/green]")
     else:
         console.print(f"[red]Issues found ({total - passed}/{total})[/red]")
+
+
+def _doctor_classify(events, dir_names, cutoff):
+    """Split paid ledger events into artifact-matched and orphaned entries."""
+    from datetime import datetime
+
+    matched: list[dict[str, Any]] = []
+    orphaned: list[dict[str, Any]] = []
+    for event in events:
+        cost = float(event.cost_usd or 0)
+        if cost <= 0:
+            continue
+        stamp = event.timestamp
+        if isinstance(stamp, str):
+            try:
+                stamp = datetime.fromisoformat(stamp)
+            except ValueError:
+                stamp = None
+        if stamp is not None and stamp.tzinfo is None:
+            stamp = stamp.replace(tzinfo=UTC)
+        if stamp is not None and stamp < cutoff:
+            continue
+        # task_id carries the job id (e.g. research_research-a7ae5c653d8c);
+        # report directories embed the first 8 hex chars of that job fragment.
+        task = str(event.task_id or "")
+        fragment = task.split("research-", 1)[1][:8] if "research-" in task else ""
+        entry = {
+            "timestamp": str(event.timestamp)[:19],
+            "provider": event.provider,
+            "model": event.model,
+            "cost_usd": round(cost, 4),
+            "task_id": task,
+        }
+        if fragment and any(fragment in name for name in dir_names):
+            matched.append(entry)
+        else:
+            orphaned.append(entry)
+    return matched, orphaned
+
+
+@costs.command()
+@click.option("--days", default=45, show_default=True, help="How many days of ledger to reconcile")
+@click.option("--reports-dir", default=None, help="Report root to reconcile against (default: data/reports)")
+@click.option("--ledger-path", default=None, hidden=True, help="Override ledger path (tests)")
+@click.option("--json", "json_output", is_flag=True, help="Machine-readable output")
+def doctor(days: int, reports_dir: str | None, ledger_path: str | None, json_output: bool):
+    """Reconcile paid ledger events against artifacts on disk.
+
+    Every settled research dollar should map to a report directory that still
+    exists. Spend without a surviving artifact is ORPHANED and this command's
+    reason to exist: a 30-job, $37.79 campaign once billed with zero artifacts
+    retained, and nothing surfaced the loss for 24 days. Exits 1 when orphaned
+    spend is found, so schedulers and CI can alarm on it.
+    """
+    from datetime import datetime, timedelta
+
+    ledger = CostLedger(ledger_path=Path(ledger_path)) if ledger_path else CostLedger()
+    root = Path(reports_dir) if reports_dir else Path("data/reports")
+    dir_names = [d.name for d in root.iterdir() if d.is_dir()] if root.exists() else []
+    cutoff = datetime.now(UTC) - timedelta(days=days)
+    matched, orphaned = _doctor_classify(ledger.get_events(), dir_names, cutoff)
+
+    matched_total = sum(e["cost_usd"] for e in matched)
+    orphaned_total = sum(e["cost_usd"] for e in orphaned)
+    if json_output:
+        payload = {
+            "days": days,
+            "matched_spend_usd": round(matched_total, 2),
+            "orphaned_spend_usd": round(orphaned_total, 2),
+            "matched": matched,
+            "orphaned": orphaned,
+        }
+        click.echo(json.dumps(payload))
+    else:
+        console.print(f"\n[bold]Cost doctor[/bold] (last {days} days)")
+        console.print(f"  matched spend:  ${matched_total:.2f} across {len(matched)} event(s) with artifacts on disk")
+        colour = "red" if orphaned_total > 0.005 else "green"
+        console.print(f"  [{colour}]orphaned spend: ${orphaned_total:.2f} across {len(orphaned)} event(s)[/{colour}]")
+        for entry in orphaned[:15]:
+            console.print(
+                f"    {entry['timestamp']}  ${entry['cost_usd']:6.2f}  {entry['provider']}/{entry['model']}",
+                markup=False,
+            )
+        if len(orphaned) > 15:
+            console.print(f"    ... and {len(orphaned) - 15} more")
+        if orphaned_total > 0.005:
+            console.print(
+                "  Orphaned spend means money settled with no surviving report artifact: "
+                "a failed or cancelled job settled conservatively, or an artifact that was "
+                "lost after billing. Investigate before it compounds."
+            )
+    if orphaned_total > 0.005:
+        raise SystemExit(1)
