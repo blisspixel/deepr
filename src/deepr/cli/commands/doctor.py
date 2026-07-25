@@ -621,19 +621,26 @@ def check_spend_integrity() -> list[DiagnosticCheck]:
         limit = float(config.get("monthly_limit", 0) or 0)
         counter = float(config.get("monthly_spending", 0.0) or 0.0)
         ledger = _ledger_month_spend()
-        spent = max(counter, ledger)
-        if limit > 0 and spent > limit:
+        if ledger is None:
             check.passed = False
-            check.message = f"OVER BUDGET: ${spent:.2f} spent against a ${limit:.2f}/month budget"
-            check.details.append("Metered dispatch should be blocked; verify with a preview before trusting any -y run")
+            check.message = "Canonical cost ledger could not be read; real spend is unverifiable"
+            check.details.append("Metered auto-approval fails closed until the ledger is readable")
         else:
-            check.passed = True
-            check.message = f"${spent:.2f} spent this month" + (f" of ${limit:.2f} budget" if limit > 0 else "")
-        if ledger - counter > 0.01:
-            check.details.append(
-                f"${ledger - counter:.2f} was recorded by other entry points and never hit the session counter; "
-                "the ledger is canonical"
-            )
+            spent = max(counter, ledger)
+            if limit > 0 and spent > limit:
+                check.passed = False
+                check.message = f"OVER BUDGET: ${spent:.2f} spent against a ${limit:.2f}/month budget"
+                check.details.append(
+                    "Metered dispatch should be blocked; verify with a preview before trusting any -y run"
+                )
+            else:
+                check.passed = True
+                check.message = f"${spent:.2f} spent this month" + (f" of ${limit:.2f} budget" if limit > 0 else "")
+            if ledger - counter > 0.01:
+                check.details.append(
+                    f"${ledger - counter:.2f} was recorded by other entry points and never hit the session counter; "
+                    "the ledger is canonical"
+                )
     except Exception as exc:
         check.passed = False
         check.message = f"Could not reconcile spend: {exc}"

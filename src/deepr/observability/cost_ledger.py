@@ -64,12 +64,28 @@ def default_cost_data_dir() -> Path:
     """Resolve the cost-data directory.
 
     Honors DEEPR_COST_DATA_DIR so deployments can relocate cost state and -
-    critically - so the test suite can isolate itself: the default is
-    CWD-relative, and unit tests running from the repo root were appending
-    fabricated cost events to the user's real canonical ledger.
+    critically - so the test suite can isolate itself. Without the override,
+    a project-local data/costs that already holds a ledger keeps being used
+    (existing installs keep their history), but a bare CWD no longer mints a
+    fresh empty ledger: that made every budget gate read $0 spent whenever a
+    process happened to run from a different directory. The stable fallback
+    is ~/.deepr/costs, the same anchor budget.json already uses.
     """
     base = os.environ.get("DEEPR_COST_DATA_DIR", "").strip()
-    return Path(base) if base else Path("data/costs")
+    if base:
+        return Path(base)
+    project_local = Path("data/costs")
+    if (project_local / "cost_ledger.jsonl").exists():
+        return project_local
+    return Path.home() / ".deepr" / "costs"
+
+
+def _well_known_ledger_paths() -> list[Path]:
+    """Every default location a canonical ledger may live in on this machine."""
+    return [
+        Path("data/costs") / "cost_ledger.jsonl",
+        Path.home() / ".deepr" / "costs" / "cost_ledger.jsonl",
+    ]
 
 
 @dataclass
@@ -145,8 +161,24 @@ class CostLedger:
         *,
         lock_timeout_seconds: float | None = None,
     ):
+        using_default_path = ledger_path is None and not os.environ.get("DEEPR_COST_DATA_DIR", "").strip()
         self.ledger_path = ledger_path or default_cost_data_dir() / "cost_ledger.jsonl"
         self.ledger_path.parent.mkdir(parents=True, exist_ok=True)
+        # Spend queries against the default ledger also read the other
+        # well-known location (project-local data/costs vs ~/.deepr/costs):
+        # historical installs wrote wherever the CWD happened to be, and a
+        # budget gate that cannot see all recorded spend approves money it
+        # should block. Explicit ledger_path and DEEPR_COST_DATA_DIR stay
+        # fully isolated (tests, relocated deployments). Writes always go to
+        # the primary path only.
+        self._sibling_ledger_paths: list[Path] = []
+        if using_default_path:
+            for candidate in _well_known_ledger_paths():
+                try:
+                    if candidate.exists() and candidate.resolve() != self.ledger_path.resolve():
+                        self._sibling_ledger_paths.append(candidate)
+                except OSError:
+                    continue
         self._lock = threading.Lock()
         self._lock_timeout_seconds = _validated_lock_timeout(lock_timeout_seconds)
         self._idempotency_keys: set[str] = set()
@@ -393,11 +425,26 @@ class CostLedger:
         end_date: datetime | None = None,
         source: str | None = None,
     ) -> list[CostLedgerEvent]:
+        events = self._read_ledger_file(self.ledger_path, start_date=start_date, end_date=end_date, source=source)
+        if self._sibling_ledger_paths:
+            for sibling in self._sibling_ledger_paths:
+                events.extend(self._read_ledger_file(sibling, start_date=start_date, end_date=end_date, source=source))
+            events.sort(key=lambda e: e.timestamp)
+        return events
+
+    @staticmethod
+    def _read_ledger_file(
+        path: Path,
+        *,
+        start_date: datetime | None = None,
+        end_date: datetime | None = None,
+        source: str | None = None,
+    ) -> list[CostLedgerEvent]:
         events: list[CostLedgerEvent] = []
-        if not self.ledger_path.exists():
+        if not path.exists():
             return events
 
-        with open(self.ledger_path, encoding="utf-8") as f:
+        with open(path, encoding="utf-8") as f:
             for line in f:
                 line = line.strip()
                 if not line:

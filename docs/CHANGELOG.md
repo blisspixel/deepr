@@ -29,7 +29,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   artifact), exiting nonzero so schedulers can alarm. Motivated by a 30-job
   research campaign that billed $37.79 with zero artifacts retained and no
   surfacing of the loss for 24 days; the first live run found $41.16 of
-  historical orphaned spend in seconds.
+  historical orphaned spend in seconds. The command also carries the earlier
+  cost-tracking integrity checks (ledger writable and accounting-ready,
+  dashboard-view drift vs the canonical ledger, --rebuild repair), which a
+  duplicate command registration had briefly shadowed.
 - Added `deepr keys` for provider credential visibility without exposure:
   `keys list` shows which provider keys exist and where (.env vs process
   environment), masked to prefix and length, flags a stale exported variable
@@ -54,6 +57,33 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   downstream as a misleading "authentication failed") even when a valid key was
   present. The factory now falls back to the provider's environment variable
   and treats the "***" redaction placeholder as absent.
+- Fixed the canonical cost ledger silently fragmenting by working directory:
+  the default path was bare CWD-relative, so any process launched from a
+  different directory minted a fresh empty ledger and every budget gate read
+  $0 spent. The default now prefers an existing project-local data/costs
+  ledger and otherwise anchors to ~/.deepr/costs (the same anchor as
+  budget.json), and default-path spend queries union both well-known
+  locations so no recorded dollar is invisible to a gate. Explicit paths and
+  DEEPR_COST_DATA_DIR stay fully isolated.
+- Fixed budget approval failing OPEN when the canonical ledger is unreadable:
+  a corrupt or locked ledger read returned $0 month spend, which unlocked
+  auto-approval exactly when the spend record was broken. Ledger read
+  failures now fail closed to manual confirmation in both cautious mode and
+  budget mode, and budget status/doctor say so explicitly.
+- Fixed the web poller cancelling live paid research: any PROCESSING job
+  older than 30 minutes was auto-cancelled even when the provider had just
+  confirmed it in_progress - deep research legitimately runs longer, and
+  cancellation burns everything billed and destroys the pending result.
+  Provider-confirmed-alive jobs (and jobs whose status cannot be confirmed)
+  are now exempt from the 30-minute threshold and governed only by a
+  24-hour hard cap; the manual cleanup-stale route checks provider status
+  before failing anything.
+- Fixed demo mode destroying real research: POST /api/demo/load deleted
+  every queue row and every report directory on disk as a side effect of
+  seeding samples, so "load demo data" silently wiped all paid artifacts.
+  Demo jobs are now namespaced with a demo- id prefix and both demo routes
+  can only delete inside that namespace; real jobs and reports are never
+  eligible.
 - Fixed `deepr budget status` and `deepr budget set` understating the month's
   spend: both now display the same ledger-reconciled number the approval gate
   uses (max of session counter and canonical cost ledger), with an explicit
