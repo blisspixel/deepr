@@ -316,9 +316,18 @@ class WebResearchCostCoordinator:
         job: Any,
         actual_cost: float | None,
         tokens: int | None,
+        report_saved: bool = True,
     ) -> None:
-        """Persist results, settle cost, and only then mark completion."""
-        if actual_cost is not None or tokens is not None:
+        """Persist results, settle cost, and only then mark completion.
+
+        The provider billed either way, so cost always settles - but a
+        "completed" job with no persisted report is a loss, not a success:
+        it lands as FAILED with an explicit error instead of silently
+        reading COMPLETED with nothing on disk (the July 1 incident shape).
+        Report paths are recorded whenever a report was saved, even when
+        the provider returned no usage payload.
+        """
+        if report_saved:
             loop.run_until_complete(
                 queue.update_results(
                     job_id=job.id,
@@ -327,10 +336,31 @@ class WebResearchCostCoordinator:
                     tokens_used=tokens,
                 )
             )
+        elif actual_cost is not None or tokens is not None:
+            loop.run_until_complete(
+                queue.update_results(
+                    job_id=job.id,
+                    report_paths={},
+                    cost=actual_cost,
+                    tokens_used=tokens,
+                )
+            )
         self.safe_settle_job(job, actual_cost=actual_cost, tokens=tokens or 0)
         if not self.reconcile_completed_job(job):
             raise RuntimeError(f"Canonical cost settlement missing for completed job {job.id}")
-        loop.run_until_complete(queue.update_status(job_id=job.id, status=JobStatus.COMPLETED))
+        if report_saved:
+            loop.run_until_complete(queue.update_status(job_id=job.id, status=JobStatus.COMPLETED))
+        else:
+            loop.run_until_complete(
+                queue.update_status(
+                    job_id=job.id,
+                    status=JobStatus.FAILED,
+                    error=(
+                        "Provider reported completion but no report content was extracted; "
+                        "cost settled conservatively and no artifact was saved"
+                    ),
+                )
+            )
 
     def settle_job(self, job: Any, *, actual_cost: float | None, tokens: int) -> None:
         """Settle actual cost, or the reserved estimate when usage is absent."""

@@ -1029,13 +1029,28 @@ class DeeprMCPServer:
                     "message": f"Job not yet complete. Current status: {response.status}",
                 }
 
+            # Extract and persist the paid report BEFORE settling: settling
+            # first meant an extraction failure burned the money with nothing
+            # persisted, and even on success the report only went back over
+            # the wire - if the MCP client dropped it, the paid artifact was
+            # gone once the provider expired the response.
+            report = ReportGenerator().extract_text_from_response(response)
+            if report:
+                storage_instance = create_storage("local", base_path=load_config().get("results_dir", "data/reports"))
+                await storage_instance.save_report(
+                    job_id=job_id,
+                    filename="report.md",
+                    content=report.encode("utf-8"),
+                    content_type="text/markdown",
+                    metadata={"source": "mcp.deepr_get_result", "provider_job_id": job_id},
+                )
+
             cost_final = orchestrator.settle_completion_cost(
                 job_id,
                 response,
                 source="mcp.deepr_get_result",
             )
 
-            report = ReportGenerator().extract_text_from_response(response)
             metadata = response.metadata or {}
             result = build_research_result_view(
                 job_id=job_id,
