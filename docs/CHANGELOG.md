@@ -9,6 +9,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Added a Spend section to `deepr doctor`: reconciles month-to-date spend
+  (max of session counter and canonical ledger) against the configured
+  monthly budget and errors loudly when over, and audits that every settled
+  dollar in the last 45 days maps to a surviving report artifact, pointing
+  at `deepr costs doctor` when it does not. The one command people run when
+  something feels off now surfaces both halves of the $37.79 incident:
+  spend the display never showed, and paid artifacts that no longer exist.
+
 - Added `deepr costs doctor`: reconciles paid ledger events against report
   artifacts on disk and reports orphaned spend (money settled with no surviving
   artifact), exiting nonzero so schedulers can alarm. Motivated by a 30-job
@@ -39,6 +47,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   downstream as a misleading "authentication failed") even when a valid key was
   present. The factory now falls back to the provider's environment variable
   and treats the "***" redaction placeholder as absent.
+- Fixed `deepr budget status` and `deepr budget set` understating the month's
+  spend: both now display the same ledger-reconciled number the approval gate
+  uses (max of session counter and canonical cost ledger), with an explicit
+  note when other entry points recorded spend the session counter never saw.
+  Previously the display read only the session counter, which showed $0.00
+  while the ledger held $37.99 of campaign spend - the exact blindfold that
+  let a surprise bill go unnoticed for 24 days.
 - Fixed provider-failed background jobs being stuck "processing" forever: both
   status-refresh paths passed the provider SDK error object into the SQLite
   update, the bind raised, and the failure was swallowed. Errors are coerced to

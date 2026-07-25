@@ -492,6 +492,9 @@ def doctor(skip_connectivity: bool):
             all_checks.extend(check_native_instruments())
             bar.update(1)
 
+            all_checks.extend(check_spend_integrity())
+            bar.update(1)
+
         # Print results
         print_checks(all_checks)
         print_next_step(all_checks)
@@ -597,3 +600,71 @@ def check_storage_locations() -> list[DiagnosticCheck]:
 
 if __name__ == "__main__":
     doctor()
+
+
+def check_spend_integrity() -> list[DiagnosticCheck]:
+    """Spend truth checks: the display, the gate, and the disk must agree.
+
+    A $37.79 campaign once ran while the budget display showed $0.00 (the
+    session counter never saw spend from other entry points) and none of its
+    artifacts survived. These checks make both failure modes loud in the one
+    command people actually run when something feels off.
+    """
+    checks: list[DiagnosticCheck] = []
+
+    # 1. Ledger-reconciled month spend vs the configured monthly budget.
+    check = DiagnosticCheck("Monthly spend vs budget", "Spend")
+    try:
+        from deepr.cli.commands.budget import _ledger_month_spend, load_budget_config
+
+        config = load_budget_config()
+        limit = float(config.get("monthly_limit", 0) or 0)
+        counter = float(config.get("monthly_spending", 0.0) or 0.0)
+        ledger = _ledger_month_spend()
+        spent = max(counter, ledger)
+        if limit > 0 and spent > limit:
+            check.passed = False
+            check.message = f"OVER BUDGET: ${spent:.2f} spent against a ${limit:.2f}/month budget"
+            check.details.append("Metered dispatch should be blocked; verify with a preview before trusting any -y run")
+        else:
+            check.passed = True
+            check.message = f"${spent:.2f} spent this month" + (f" of ${limit:.2f} budget" if limit > 0 else "")
+        if ledger - counter > 0.01:
+            check.details.append(
+                f"${ledger - counter:.2f} was recorded by other entry points and never hit the session counter; "
+                "the ledger is canonical"
+            )
+    except Exception as exc:
+        check.passed = False
+        check.message = f"Could not reconcile spend: {exc}"
+    checks.append(check)
+
+    # 2. Orphaned spend: settled money with no surviving report artifact.
+    check = DiagnosticCheck("Paid artifacts on disk", "Spend")
+    try:
+        from datetime import UTC, datetime, timedelta
+        from pathlib import Path
+
+        from deepr.cli.commands.costs import _doctor_classify
+        from deepr.observability.cost_ledger import CostLedger
+
+        root = Path("data/reports")
+        dir_names = [d.name for d in root.iterdir() if d.is_dir()] if root.exists() else []
+        cutoff = datetime.now(UTC) - timedelta(days=45)
+        matched, orphaned = _doctor_classify(CostLedger().get_events(), dir_names, cutoff)
+        orphaned_total = sum(e["cost_usd"] for e in orphaned)
+        if orphaned_total > 0.005:
+            check.passed = False
+            check.message = f"${orphaned_total:.2f} of settled spend has no surviving artifact (45 days)"
+            check.details.append("Run: deepr costs doctor")
+        else:
+            check.passed = True
+            check.message = (
+                f"All paid events map to artifacts (${sum(e['cost_usd'] for e in matched):.2f} matched, 45 days)"
+            )
+    except Exception as exc:
+        check.passed = False
+        check.message = f"Could not audit artifacts: {exc}"
+    checks.append(check)
+
+    return checks
