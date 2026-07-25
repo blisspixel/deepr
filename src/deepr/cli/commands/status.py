@@ -229,7 +229,11 @@ async def _get_results(job_id: str, output_context: OutputContext | None = None)
                     click.echo("Results downloaded successfully!")
 
             elif response.status == "failed":
-                error_msg = response.error if response.error else "Unknown error"
+                # response.error is a provider SDK object, not a string. Passing
+                # it raw into the queue update made the SQLite bind throw, the
+                # generic handler below swallowed that, and the job stayed
+                # "processing" forever with its cost reservation open.
+                error_msg = str(response.error) if response.error else "Unknown error"
                 if output_context.mode == OutputMode.JSON:
                     print(json.dumps({"status": "error", "error": f"Job failed at provider: {error_msg}"}))
                 elif output_context.mode != OutputMode.QUIET:
@@ -411,7 +415,8 @@ async def _refresh_job_statuses(queue, jobs):
                         )
 
                 elif response.status == "failed":
-                    error_msg = response.error if response.error else "Unknown error"
+                    # Same object-vs-string coercion as the single-job path above.
+                    error_msg = str(response.error) if response.error else "Unknown error"
                     await queue.update_status(job.id, JobStatus.FAILED, error=error_msg)
 
                 # If still queued/processing, leave it (no update needed)
