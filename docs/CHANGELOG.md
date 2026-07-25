@@ -9,6 +9,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Added a Privacy and Data Ownership section to the README stating the verified
+  posture: no telemetry, no analytics, no accounts, no automatic phone-home;
+  every network call is user-invoked (provider APIs with user keys, free-web
+  retrieval in user-started research, configured MCP servers, the user-invoked
+  `deepr upgrade` release check, and the off-by-default operator-controlled
+  heartbeat). All produced state is plain local artifacts with published schemas
+  under an Apache 2.0 license, so it remains usable independent of the project.
 - Added proof-by-benchmark grounding evaluation: `deepr eval
   grounding-correctness --benchmark-file PATH --benchmark-format halubench`
   scores the grounding checker against a public, third-party-labeled benchmark
