@@ -6,7 +6,22 @@ Reduces complexity in run.py by extracting provider setup.
 Requirements: 6.2 - Centralize provider initialization logic
 """
 
+import os
+
 from deepr.config import load_config
+
+# load_config() deliberately redacts or omits provider credentials, so the
+# environment (populated from .env by deepr.config's load_dotenv) is the actual
+# source of truth for keys. The config dict is consulted first only so tests
+# and callers that inject explicit keys keep working.
+_ENV_KEY_MAP = {
+    "gemini": "GEMINI_API_KEY",
+    "grok": "XAI_API_KEY",
+    "xai": "XAI_API_KEY",
+    "azure": "AZURE_OPENAI_API_KEY",
+    "azure-foundry": "AZURE_PROJECT_ENDPOINT",
+    "openai": "OPENAI_API_KEY",
+}
 
 
 def get_api_key(provider: str, config: dict | None = None) -> str:
@@ -37,8 +52,24 @@ def get_api_key(provider: str, config: dict | None = None) -> str:
     config_key = key_map.get(provider, "api_key")
     api_key = config.get(config_key)
 
+    # The redaction placeholder is not a credential; treat it as absent so the
+    # environment fallback below can supply the real key.
+    if api_key in ("***", ""):
+        api_key = None
+
     if not api_key:
-        raise ValueError(f"No API key found for provider '{provider}'. Set {config_key} in config.")
+        # load_config() intentionally carries no real credentials ("callers
+        # needing real keys should use env"), so honor that contract here.
+        # Without this fallback every non-OpenAI provider failed with a missing
+        # key even when the key was present in the environment, and the failure
+        # surfaced downstream as a misleading "authentication failed".
+        env_var = _ENV_KEY_MAP.get(provider)
+        if env_var:
+            api_key = os.getenv(env_var) or None
+
+    if not api_key:
+        env_hint = _ENV_KEY_MAP.get(provider, "the provider's API key variable")
+        raise ValueError(f"No API key found for provider '{provider}'. Set {env_hint} in .env or the environment.")
 
     return api_key
 
