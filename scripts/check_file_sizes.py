@@ -34,7 +34,7 @@ GRANDFATHERED: dict[str, int] = {
     "deepr/experts/curriculum.py": 1340,
     "deepr/experts/memory.py": 1291,
     "deepr/experts/learner.py": 1287,
-    "deepr/providers/registry.py": 1279,
+    "deepr/providers/registry.py": 1303,  # +24: grok-4.5 + claude-opus-5 registration (2026-07-25); the pricing registry must grow when providers launch billable models
     "deepr/observability/costs.py": 1156,  # +10: cost-integrity fix (dashboard reads canonical ledger, 2026-06-21)
     "deepr/core/settings.py": 1120,
     "deepr/cli/commands/prep.py": 1094,

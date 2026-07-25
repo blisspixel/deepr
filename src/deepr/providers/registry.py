@@ -440,7 +440,24 @@ MODEL_CAPABILITIES: dict[str, ModelCapability] = {
         output_cost_per_1m=2.50,
         cached_input_cost_per_1m=0.20,
     ),
-    # Grok 4.3 - Newest generation (May 2026)
+    # Grok 4.5 - newest xAI flagship (launched July 8, 2026)
+    "xai/grok-4-5": ModelCapability(
+        provider="xai",
+        model="grok-4-5",
+        cost_per_query=0.10,
+        latency_ms=2500,
+        context_window=500_000,
+        specializations=["reasoning", "agentic", "tool_calling", "instruction_following"],
+        strengths=["Newest xAI flagship (launched July 8, 2026)", "Succeeds Grok 4.3 as top Grok model"],
+        weaknesses=[
+            "Smaller context than Grok 4.20 (500K vs 2M) and Grok 4.3 (1M)",
+            "Provider doubles token rates above 200K prompt tokens; Deepr's bounded envelope stays under that per request",
+        ],
+        input_cost_per_1m=2.00,
+        output_cost_per_1m=6.00,
+        cached_input_cost_per_1m=0.50,
+    ),
+    # Grok 4.3 - previous generation (May 2026)
     "xai/grok-4-3": ModelCapability(
         provider="xai",
         model="grok-4-3",
@@ -874,7 +891,28 @@ MODEL_CAPABILITIES: dict[str, ModelCapability] = {
         output_cost_per_1m=15.00,
         cached_input_cost_per_1m=0.30,
     ),
-    # Claude Opus 4.8 - most capable Claude (GA May 28, 2026); recommended flagship
+    # Claude Opus 5 - newest Opus flagship (GA July 24, 2026); same price as 4.8
+    "anthropic/claude-opus-5": ModelCapability(
+        provider="anthropic",
+        model="claude-opus-5",
+        cost_per_query=0.85,
+        latency_ms=12000,
+        context_window=1_000_000,
+        specializations=["research", "reasoning", "coding", "analysis", "complex_tasks", "agents"],
+        strengths=[
+            "Newest Opus flagship (GA July 24, 2026); pricing unchanged from Opus 4.8",
+            "1M token context window at standard pricing, 128K max output",
+        ],
+        weaknesses=[
+            "No native deep research API (requires orchestration)",
+            "Days old at registration; provider fast mode doubles the price and is not registered",
+        ],
+        input_cost_per_1m=5.00,
+        output_cost_per_1m=25.00,
+        cached_input_cost_per_1m=0.50,
+        max_output_tokens=128_000,
+    ),
+    # Claude Opus 4.8 - previous Opus flagship (GA May 28, 2026)
     "anthropic/claude-opus-4-8": ModelCapability(
         provider="anthropic",
         model="claude-opus-4-8",
