@@ -57,6 +57,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   downstream as a misleading "authentication failed") even when a valid key was
   present. The factory now falls back to the provider's environment variable
   and treats the "***" redaction placeholder as absent.
+- Fixed expert learning settling spend hours before persisting the paid
+  reports - the exact shape of the July 1 incident. The learner recorded
+  cost and marked queue jobs COMPLETED (with empty report paths) the moment
+  the provider finished, while report content waited for a deferred,
+  best-effort integration pass that swallowed every failure; a crash or an
+  empty provider re-fetch in that multi-hour window lost the artifacts with
+  the queue still asserting success, and the COMPLETED status blocked every
+  recovery path. Reports are now written to the expert's documents directory
+  at poll time, before spend is recorded and before the queue row flips;
+  a completion with no extractable content lands as FAILED instead of
+  silently COMPLETED; the queue row carries the real report path; and the
+  integration pass reads the already-persisted file instead of trusting a
+  provider re-fetch after money has moved.
 - Fixed background-job submission double-billing on network timeouts: the
   OpenAI and Azure providers re-POSTed responses.create on timeout and
   connection errors, but those are ambiguous outcomes - the first POST may
