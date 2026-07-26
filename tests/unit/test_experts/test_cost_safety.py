@@ -555,8 +555,12 @@ class TestCostSafetyManager:
             reservation_id=reservation_id,
         )
 
-        assert second.daily_cost == 0.0
-        assert second.monthly_cost == 0.0
+        # The second manager seeds its counters from the canonical ledger, so
+        # it starts at the first manager's $0.10 (cross-process spend must be
+        # visible to the day/month caps) - and the duplicate idempotent event
+        # must not increment beyond that seed.
+        assert second.daily_cost == pytest.approx(0.1)
+        assert second.monthly_cost == pytest.approx(0.1)
         assert second.get_session_cost("shared-session") == 0.0
         assert second._reserved_daily == 0.0
         assert second.circuit_breaker.get_recent_events() == []

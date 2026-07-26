@@ -142,4 +142,28 @@ __all__ = [
     "DurableCostReservationError",
     "append_cost_event",
     "append_cost_record",
+    "seed_window_costs",
 ]
+
+
+def seed_window_costs(ledger: CostLedger) -> tuple[float, float]:
+    """Current (daily, monthly) spend already in the canonical ledger.
+
+    Seeds a fresh CostSafetyManager's counters so DEEPR_MAX_COST_PER_DAY and
+    _MONTH projections bound the machine's real spend, not just this
+    process's. Best-effort: an unreadable ledger seeds (0, 0) - the strict
+    write path and the budget gate's own fail-closed read still apply.
+    """
+    try:
+        from datetime import UTC, datetime
+
+        now = datetime.now(UTC)
+        month_start = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+        day_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
+        return (
+            float(ledger.get_total_cost(start_date=day_start)),
+            float(ledger.get_total_cost(start_date=month_start)),
+        )
+    except Exception:
+        logger.warning("Could not seed cost counters from the canonical ledger; starting at $0 for this process")
+        return 0.0, 0.0

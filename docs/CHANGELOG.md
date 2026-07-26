@@ -57,6 +57,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   downstream as a misleading "authentication failed") even when a valid key was
   present. The factory now falls back to the provider's environment variable
   and treats the "***" redaction placeholder as absent.
+- Fixed curriculum planning issuing hidden paid retries: the OpenAI client
+  defaulted to 2 silent SDK retries underneath curriculum's own 3-attempt
+  loop, so one intent could issue up to 9 billed requests; the client now
+  runs with max_retries=0 and the loop owns all retry decisions. Curriculum
+  cost also settles the moment the billed call returns instead of after
+  response extraction, so a malformed response can no longer leave real
+  spend with no ledger record.
+- Fixed the cost-safety day/month counters starting at $0 in every process:
+  they are now seeded from the canonical ledger at manager construction, so
+  DEEPR_MAX_COST_PER_DAY/_MONTH projections bound the machine's real spend
+  including CLI, web, and MCP runs from other processes.
 - Fixed learn pause/resume re-buying research already in flight: pausing at
   a daily limit saved every not-yet-completed topic as "remaining",
   including topics whose jobs were already submitted and billing at the
