@@ -361,7 +361,18 @@ View disabled providers with `deepr providers status`.
 
 ## Expert System
 
-Create and interact with domain experts that can answer questions from uploaded documents.
+Create and maintain domain experts. An expert is not a list of facts and not
+a document-chat wrapper: it is a maintained, self-auditing knowledge role,
+modeled on what makes a cutting-edge human expert worth consulting. It holds
+beliefs with provenance, confidence, and decay; a temporal knowledge graph
+that can answer what changed, what is contested, and why it believes
+something; explicit gaps, hypotheses, stances, and disconfirming tests as
+labeled non-factual perspective state; scheduled research over time so the
+knowledge tracks a moving field; and a reviewed purpose with decision use
+cases and recorded outcomes so its value is measured on better repeated
+decisions, not fact recall (see "An Expert Is Not a List of Facts" in the
+README). Documents and research reports are evidence feeding that state, not
+the product.
 
 ### Define Expert Purpose
 

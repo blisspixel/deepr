@@ -132,7 +132,7 @@ _COMMAND_SPECS: dict[str, _LazyCommandSpec] = {
     "expert": _LazyCommandSpec(
         "deepr.cli.commands.semantic",
         "expert",
-        "Create and interact with domain experts.",
+        "Create and maintain domain experts (beliefs, temporal graph, purpose - not a list of facts).",
         load_after=("deepr.cli.commands.semantic.expert_investigate",),
     ),
     "fleet": _LazyCommandSpec(

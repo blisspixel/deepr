@@ -526,6 +526,49 @@ The fleet-autopilot track (Phase 4d) is largely closed. The active edge is
 measured improvement in decisions over time, not more document chat or a larger
 memory surface. This order is dependency-based, not calendar-based:
 
+0. **No Surprise Bills: spend caps that cannot be overshot (governing money
+   invariant, outranks every feature).** The July 2026 incident is the
+   standard to design against: $37.99 of real spend accumulated against a
+   $10/month budget while the budget display showed $0.00 and zero paid
+   artifacts survived - a 385% overshoot that nothing surfaced for 24 days.
+   That is an extreme, unacceptable failure class; a cap that can be exceeded
+   is not a cap. Closed 2026-07-25/26 (143-agent adversarial audit, 25
+   confirmed cost bugs, all criticals and highs fixed): ledger-anchored
+   reconciled spend on every surface, fail-closed approval on unreadable
+   ledgers, `DEEPR_MAX_COST_PER_*` enforced across CLI/web/REST with the
+   tighter bound winning, the monthly gate wired into `deepr research` and
+   MCP dispatch, ambiguous-POST retry double-billing eliminated,
+   artifact-before-settlement ordering everywhere, strict ledger tracking by
+   default, and four spend-truth surfaces (`budget status`, `doctor` Spend
+   section, `costs doctor`, dashboard over-budget/orphaned banners).
+   Remaining committed work, in order:
+   - [ ] **Hard freeze at breach**: once reconciled window spend reaches its
+     cap, every metered dispatch path refuses with a typed error until the
+     window rolls or the operator explicitly raises the cap - enforced at
+     the shared reservation layer so no new entry point can forget it. Plus
+     `deepr budget freeze` / `unfreeze` as a manual kill switch.
+   - [ ] **Headroom reservations**: dispatch reserves against remaining cap
+     headroom counting live reservations, so settled + reserved + new
+     ceiling stays at or under the cap by construction; concurrent jobs
+     cannot jointly overshoot a cap each passes alone.
+   - [ ] **Weekly cap**: `DEEPR_MAX_COST_PER_WEEK` alongside job/day/month
+     in the shared `core/cost_caps.py` resolver, enforced everywhere the
+     other caps are.
+   - [ ] **Threshold alerts that reach the operator**: 50/80/95% of any cap
+     surfaces on the CLI at dispatch time and in the dashboard status bar,
+     not only on the costs page; 100% is a doctor error (shipped) and a
+     dispatch freeze (above).
+   - [ ] **Settle-time divergence alarm**: an actual settled cost above the
+     reserved ceiling becomes a flagged ledger event surfaced by
+     `costs doctor`; unknown model pricing fails closed instead of
+     defaulting to a cheap model's rates; provider tool fees are included
+     in actuals.
+   - [ ] **Remaining audit mediums** (`.agent/cost-audit-2026-07-25.json`):
+     batch_auto cost attribution, curriculum hidden SDK retries and
+     success-only cost recording, Grok fan-out partial-failure accounting,
+     cost-safety counters seeded from the canonical ledger, prep campaign
+     resume identity, the alternate research_agent poller, fsync tear
+     handling.
 1. **Graph commit apply path for compiled expert memory** - finish the write boundary after the shipped compiler envelopes. Already done: `deepr-source-pack-manifest-v1`, `deepr-source-note-v1`, explicit `deepr expert sync --compile-claims`, `deepr-semantic-claim-extraction-v1`, `deepr-claim-verification-v1`, verifier-supplied typed candidate edges in claim verification, compiler-side `candidate_only` recall context on claim-verification decisions, `deepr-graph-commit-envelope-v1` as an apply-gated no-write envelope for verified factual decisions and candidate-to-candidate typed edges, `deepr-graph-commit-envelope-v2` with verifier-gated `promote_gap` operations, `deepr-graph-commit-envelope-v3` with verifier-gated `promote_exploration_agenda` operations, `deepr-graph-commit-envelope-v4` with verifier-gated `promote_hypothesis` operations, `deepr-graph-commit-envelope-v5` with verifier-gated `promote_concept` operations, `deepr-graph-commit-envelope-v6` with verifier-gated `promote_stance` operations, `deepr-graph-commit-envelope-v7` with verifier-gated `promote_original_idea` operations, `deepr-graph-commit-envelope-v8` with structured temporal qualifiers on verifier-supplied typed edge operations, explicit `deepr expert apply-graph-commit` for idempotent factual belief, typed-edge, temporal edge qualifier, gap-promotion, exploration-agenda, hypothesis, concept, stance, and original-idea writes, `deepr-graph-commit-apply-v1` apply results, local `candidate_only` recall, generated `deepr-expert-memory-card-v1` / `EXPERT.md` views, store-backed `candidate_only` recall routing for ready claim-verification candidates, optional sync-side verifier plus staged graph-commit sidecar artifacts for replayable review, concrete budget-gated `SemanticClaimVerifier` wiring for local, explicit plan-quota, and metered API `expert sync --compile-claims`, sync-side graph-commit apply for compiled claims with compatibility `--apply-compiled-claims`, sync apply regression coverage for verified gap, exploration-agenda, hypothesis, concept, stance, and original-idea promotions through an injected metacognition tracker, sync-level replay coverage proving tracker-state already-applied results still report `synced` without duplicate state writes, fail-closed cadence behavior when the apply result sidecar cannot be written, default compiled sync migration away from legacy absorb with `--stage-compiled-claims` as the explicit no-write staging path, and first-class temporal edge qualifier persistence through claim verification, graph-commit envelopes, and idempotent apply. Original ideas now surface in memory cards, handoff payloads, consult context, and read-only recall as labeled perspective state, never as verified external facts. Temporal edge qualifiers now surface in read-side perspective deltas, belief explanations, the continuity memory-quality metric, the `deepr_temporal_edges` MCP filter surface, and generated expert digests. It must preserve the agentic boundary: deterministic code owns schema, spend, provenance, idempotency, locks, and writes; calibrated model judgment owns support, contradiction, deduplication, temporal scope, edge type, temporal edge meaning, gap quality, agenda quality, hypothesis quality, concept quality, stance quality, and original-idea quality. Why: graph mutation is the point where bad meaning becomes durable, so it needs one narrow, replayable, auditable commit point.
    - [x] Live-validation closure (2026-07-11): a compiled video-expert sync produced seven verifier decisions, four ready and three insufficient, but the aggregate blocked verification status incorrectly vetoed all four valid operations. Graph envelopes now select only verifier-ready operations, retain every rejected candidate and reason, and permit atomic apply when top-level artifact integrity is sound. Top-level schema, kind, model-response, and selected-operation failures still block the whole apply set. Regression coverage preserves the observed 4-ready/3-blocked shape through sync and apply.
 2. **Longitudinal expert value proof** - prove that a compiled, maintained
