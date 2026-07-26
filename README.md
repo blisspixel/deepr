@@ -7,220 +7,82 @@
 
 **Domain experts that remember, not another chat window.**
 
-You bring the AI accounts, plan quotas, API keys, or local models you already
-have. Deepr previews explicit local, plan-quota, and bounded API paths, dispatches
-only when capacity and cost can be proven, and turns useful results into durable
-experts with beliefs, gaps, contradictions, confidence, provenance, loop
-records, and handoff payloads that humans or other agents can reuse later.
+Deepr runs bounded research across local models, proven subscription quota,
+and explicitly authorized paid APIs. It turns useful results into persistent
+experts with beliefs, gaps, contradictions, confidence, citations, provenance,
+and portable local artifacts.
 
-- Local Ollama is the true `$0` marginal-cost path for quality-tolerant expert
-  setup, absorb, sync, eval, and local-context workflows.
-- Selected non-metered plan-quota CLIs run on prepaid or subscription capacity
-  only after deterministic auth, native-tool, process, and no-surprise-bills
-  checks. Other adapters remain visible with a typed refusal reason.
-- Cloud APIs remain the strongest bounded single-job research path when you
-  provide keys, a budget ceiling, and a provider/model/tool envelope Deepr can
-  price completely.
+Use Deepr when research must be reusable, auditable, current, and governed by
+hard cost limits. For a casual one-off question, a normal chat product is
+simpler.
 
-A budget is a ceiling, not a target price. `--budget 3` means Deepr may spend
-up to $3 for that job, stops before the ceiling when it can, and records every
-settled cost in the append-only ledger.
-Saved dashboard benchmark artifacts remain readable. Live provider benchmark
-execution is gated in v2.36 until it uses the shared durable research
-transaction; unpriced or request-unbounded benchmark adapters fail closed.
+<p align="center">
+  <img src="assets/dashboard.png" width="49%" alt="Dashboard with cost trends, job status, and activity" />
+  <img src="assets/expert-hub.png" width="49%" alt="Persistent expert hub with maintained domain knowledge" />
+</p>
 
-Deepr is useful when research is infrastructure: recurring expert maintenance,
-repeatable bounded research, citable knowledge for coding agents, and durable domain roles
-that stay current over time.
+## Capacity and cost
 
-Research is the input. Source-verified factual state and explicitly admitted
-non-factual perspective state are the reusable product. A hypothesis, theory,
-concept, stance, or original idea can be valuable without being web-verifiable,
-but it must remain visibly non-factual with uncertainty and disconfirming tests.
-Better repeated decisions, measured on held-out cases and later outcomes, are
-the result Deepr is trying to earn.
+| Capacity | Intended use | Safety posture |
+| --- | --- | --- |
+| Local Ollama | Routine expert setup, maintenance, evaluation, and consultation | Preferred owned-capacity path. Endpoint ownership must be proven. |
+| Prepaid plan quota | Selected expert workflows using an existing subscription | Runs only when authentication, tool confinement, and paid-overage posture are proven safe. |
+| Metered API | Premium bounded research and synthesis | Explicit opt-in only. Never selected as automatic fallback. |
+
+A budget is a ceiling, not permission to spend. Supported paid dispatch
+requires explicit consent, trusted pricing, finite input and output bounds, a
+durable reservation, and append-only settlement. Settled spend and concurrent
+holds are checked together across per-job, day, week, and month limits.
+Unknown or unreadable money state fails closed.
 
 ```bash
-# Prepare an explicitly unreviewed purpose draft before collecting knowledge.
-deepr expert blueprint "Platform Team Expert" --template --output expert-blueprint.json
-# Edit it, then produce a $0 structural preflight with no review claim or authority.
-deepr expert blueprint "Platform Team Expert" --from-file expert-blueprint.json --output expert-blueprint-preflight.json
-# Only after actual review, record the operator's attestation.
-deepr expert blueprint "Platform Team Expert" --from-file expert-blueprint.json --apply --attested-by operator
-
-# Create, maintain, and consult the expert on local capacity.
-deepr expert make "Platform Team Expert" --local -d "Platform engineering decisions"
-deepr expert subscribe "Platform Team Expert" "agent harness reliability"
-deepr expert sync "Platform Team Expert" --local --fresh-context -y
-deepr expert consult "What should this agentic harness improve next?" --expert "Platform Team Expert" --local
-
-# A council reads one stored-state packet per expert and runs one synthesis.
-# It is one-shot: experts do not exchange turns or write one another's knowledge.
-# Use exact names from `deepr expert list`; the linked guide creates this example roster.
-deepr expert consult "Which cross-domain assumption should we test?" --expert "Temporal Knowledge Graphs" --expert "Digital Consciousness" --expert "Model Context Protocol" --local --budget 0 --output three-expert-council.json -y
-
-# An experimental investigation does the deeper job: independent research,
-# one bounded blinded exchange, checking, synthesis, and optional relevance-gated staged learning.
-deepr expert investigate plan "How should persistent experts improve Deepr?" --expert "Temporal Knowledge Graphs" --expert "Digital Consciousness" --expert "Model Context Protocol" --local-model qwen2.5:14b --protocol discuss --learning stage --budget-usd 0 --out investigation-plan.json
-deepr expert investigate run investigation-plan.json -y
-# Inspect both learning lanes. Nothing has changed expert state yet.
-deepr expert investigate inspect RUN_ID
-deepr expert investigate apply-learning RUN_ID --dry-run --json
-# Explicitly admit the preflighted factual and perspective writes. This records
-# operator-confirmed apply, not human review and not truth or novelty verification.
-deepr expert investigate apply-learning RUN_ID -y --json
-
-# Record what happened later. This never changes beliefs or routing automatically.
-deepr expert record-outcome "Platform Team Expert" --decision-id harness-2026-07 --summary "Choose the next harness improvement" --result mixed --observation "Recovery improved, but reviewer time did not." --attested-by operator
-deepr expert outcomes "Platform Team Expert"
-
-# Prepare a frozen four-arm value review. This command does not run the arms.
-deepr eval expert-value "Platform Team Expert" --template --output expert-value-review.json
-# After arm execution and blinded operator semantic and protocol attestations, aggregate locally.
-deepr eval expert-value "Platform Team Expert" --from-file expert-value-review.json --output expert-value-report.json
-# Add --artifact-root to recompute every declared local SHA-256 digest first.
-deepr eval expert-value "Platform Team Expert" --from-file expert-value-review.json --artifact-root ./eval-artifacts --output expert-value-verified.json
-
-# Optional paid research starts with the exact hard request maximum.
-deepr research "What bottlenecks could constrain NVIDIA Blackwell deployment?" --provider openai --model o4-mini-deep-research --preview
+deepr budget set 10
+deepr budget status
+deepr budget freeze --reason "operator stop"
+deepr costs doctor
 ```
 
-Multi-provider support includes OpenAI, Gemini, Grok, Anthropic, Azure, local
-Ollama, and explicit plan-quota CLIs. Reports and expert state are local
-artifacts you own. Deepr also exposes 36 MCP tools for agent hosts.
+`budget set 0` is a persistent paid freeze. Paid composed fan-out remains
+disabled until one durable parent reservation can cover every child, retry,
+verifier, tool, and synthesis call. See [Capacity and Cost](docs/CAPACITY.md)
+and the [spend authority design](docs/design/no-surprise-spend-authority.md).
 
-For a complete, copyable workflow for the Temporal Knowledge Graphs, Digital
-Consciousness, and Model Context Protocol experts, including hard per-job,
-daily, and monthly `$10` caps and the safe discussion-to-research boundary, see
-[Three Expert Council And Learning Workflow](docs/THREE_EXPERT_COUNCIL.md).
+## Install
 
-<p align="center">
-  <img src="assets/dashboard.png" width="49%" alt="Dashboard - cost trends, job stats, activity feed" />
-  <img src="assets/expert-hub.png" width="49%" alt="Expert Hub - persistent domain experts with knowledge tracking" />
-</p>
-<p align="center">
-  <img src="assets/expert-profile.png" width="49%" alt="Expert Profile - claims, evidence, gaps, and profile state" />
-  <img src="assets/models.png" width="49%" alt="Models and Benchmarks - provider comparison and quality rankings" />
-</p>
-
-## Why Deepr
-
-If you need one report, a vendor chat product is easier. Deepr is for the cases
-where research needs to be repeatable, budgeted, auditable, and reusable.
-
-- **Budgeted research**: run one fully priced provider request under the same
-  hard envelope shown by preview. Metered batch execution remains gated until
-  one durable parent reservation can cover every child request.
-- **Persistent experts**: maintain named roles such as "AI Strategy Expert" or
-  "Security Specialist" with beliefs, gaps, provenance, and loop history.
-- **Agent handoffs**: let coding agents query a stable knowledge layer over MCP
-  instead of relying on stale training data or session memory.
-- **Current knowledge**: schedule quality-tolerant refreshes through local or
-  prepaid capacity, and reserve metered APIs for work that needs them.
-- **Auditability**: cost, routing, source trust, budget denials, and loop stops
-  are recorded as structured artifacts.
-
-The long-term direction is self-auditing understanding, not unbounded autonomy.
-Experts should be able to explain what they know, what they do not know, what
-changed, and what they should learn next. They do not get to authorize their own
-spend, writes, or authority changes.
-
-## An Expert Is Not a List of Facts
-
-If all you wanted was facts, you would use a search engine or an encyclopedia.
-Facts are the commodity layer: every frontier model already has them, and a
-static pile of them is exactly what an expert is not. Deepr's unit of value is
-the expert, and an expert is modeled on what makes a cutting-edge human expert
-worth consulting:
-
-- **They know how the field is moving, not just where it stands.** A real
-  expert tracks what changed this quarter, what is newly contested, what got
-  quietly deprecated, and what everyone still cites but should not. Deepr
-  encodes this in the temporal knowledge graph: beliefs carry provenance and
-  time, edges carry temporal qualifiers, confidence decays instead of
-  pretending knowledge is permanent, and `what-changed` / `contested` /
-  `explain-belief` are first-class queries. A fact list cannot answer "what
-  changed since March and why does it matter."
-- **They hold contradictions honestly.** Experts at the edge of a field live
-  where the evidence disagrees. Deepr preserves contradictions instead of
-  resolving them by deletion: both claims stay, linked as contested, with
-  sources, so a consult surfaces the live dispute rather than a false
-  consensus.
-- **They know what they do not know.** A real expert names their gaps, keeps a
-  watch list, and can tell you exactly what evidence would change their mind.
-  Deepr experts carry explicit gaps, an exploration agenda, hypotheses,
-  stances, and disconfirming tests as first-class, explicitly non-factual
-  perspective state, labeled as such and never passed off as verified fact.
-- **They get better with repeated exposure, on a schedule.** Expertise is
-  maintained, not downloaded. Deepr experts stay current through scheduled,
-  budget-bounded research over time (sync subscriptions, gap-fill, reflection
-  loops), so the expert a year from now has metabolized a year of change,
-  with the audit trail to prove it.
-- **They are accountable to decisions, not trivia.** You consult a human
-  expert to decide something. Deepr experts carry a reviewed purpose, decision
-  use cases, acceptance cases, and recorded outcomes, so their value is
-  measured where it exists: better repeated decisions over time.
-
-This is also why benchmarking an expert on arbitrary fact recall is a fail
-pattern, not a measurement. Fact benchmarks test the commodity layer (any
-frontier model passes), their answer keys are frequently stale or simply
-wrong, and they structurally reward yesterday's consensus while punishing
-exactly the current, contested, still-moving knowledge a maintained expert
-exists to hold. A fact test cannot see retention, update behavior, forward
-transfer, or the ability to say "that changed last month." The honest
-instrument is the four-arm expert-value review (`deepr eval expert-value`):
-fresh research vs static history vs compiled expert vs maintained expert,
-scored on initial quality, retention, update, forward transfer, and hard
-negatives, with blinded operator attestation. Measure experts the way you
-would measure a human advisor: not "can you recite," but "are your judgments
-better than starting from scratch, and do they stay better as the world
-moves."
-
-## Who Deepr Is For
-
-Deepr fits builders, operators, researchers, and agent-host users who need
-research to become durable local state instead of one-off chat transcripts.
-
-- **Buyers and operators** who need budget ceilings, audit trails, and repeatable
-  research workflows across multiple providers.
-- **Builders** who want local-first expert maintenance, explicit plan-quota
-  execution, and structured artifacts they can inspect or version.
-- **Agent-host users** who want coding agents or MCP clients to query a current
-  knowledge layer instead of relying on stale training data.
-
-Deepr is not the shortest path for a casual one-off question. It is also not a
-way to bypass provider terms, spend without explicit budgets, or let an agent
-authorize its own writes, tools, or paid calls.
-
-## Quick Start
-
-**Windows PowerShell**
+Windows PowerShell:
 
 ```powershell
 powershell -ExecutionPolicy ByPass -c "irm https://raw.githubusercontent.com/blisspixel/deepr/main/scripts/install.ps1 | iex"
 ```
 
-**macOS / Linux**
+Linux and macOS:
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/blisspixel/deepr/main/scripts/install.sh | bash
 ```
 
-These installers resolve the latest versioned wheel from GitHub Releases and
-install it with pipx. If GitHub is unavailable or the release has no supported
-wheel, they stop before changing an existing Deepr installation. Public PyPI
-installation is not currently available.
+The installers fetch the latest verified wheel from GitHub Releases and use an
+isolated pipx environment. They stop without changing an existing installation
+if a supported release asset is unavailable. PyPI publication is not enabled.
 
-Open a new terminal after install:
+For platform details and source installation, see the
+[Installation Guide](docs/INSTALL.md).
+
+## Quick start
+
+Inspect capacity before running work:
 
 ```bash
 deepr init
 deepr doctor --skip-connectivity
 deepr capacity
+```
+
+Create and consult a local expert:
+
+```bash
 deepr expert blueprint "My Domain Expert" --template --output expert-blueprint.json
-# Edit the mission, decision use cases, source policy, and acceptance cases.
-deepr expert blueprint "My Domain Expert" --from-file expert-blueprint.json --output expert-blueprint-preflight.json
-# Apply only after actual review; Deepr records but cannot verify the attestation.
+# Review and edit the blueprint before recording an attestation.
 deepr expert blueprint "My Domain Expert" --from-file expert-blueprint.json --apply --attested-by operator
 deepr expert make "My Domain Expert" --local -d "The decisions this expert supports"
 deepr expert subscribe "My Domain Expert" "The first topic to keep current"
@@ -228,627 +90,103 @@ deepr expert sync "My Domain Expert" --local --fresh-context -y
 deepr expert consult "What should we decide next?" --expert "My Domain Expert" --local
 ```
 
-This path needs no API key and never falls through to a paid provider. For one
-bounded cloud research job, preview the exact provider/model request first and
-then rerun it with an explicit `--budget` ceiling.
-
-Base `deepr capacity` is an inventory: local means detected, plan means
-installed on `PATH`, and API means a credential is configured. None of those
-facts alone proves that a workflow can execute. Base capacity directs detected
-local runtimes to `capacity next`, registered installed plan adapters to
-`capacity fleet`, and configured API credentials to an exact research preview. Plain `deepr doctor`
-contacts configured OpenAI, Gemini, and xAI providers; Anthropic and Azure are
-reported as configured but are not live-validated there.
-
-Install from source when developing:
+Preview one bounded paid research request without dispatching it:
 
 ```bash
-git clone https://github.com/blisspixel/deepr
-cd deepr
-python -m venv .venv
-# Windows PowerShell: .\.venv\Scripts\Activate.ps1
-# macOS / Linux: source .venv/bin/activate
-pip install -e ".[dev,full]"
+deepr research "What changed in this field this month?" \
+  --provider openai \
+  --model o4-mini-deep-research \
+  --preview
 ```
 
-For a global editable command instead of an activated venv:
-
-```bash
-pipx install -e .
-```
-
-Results are saved under the configured reports root, defaulting to
-`data/reports/`. See [docs/QUICK_START.md](docs/QUICK_START.md) and
-[docs/INSTALL.md](docs/INSTALL.md) for setup details.
-
-## What Works Now
-
-| Area | Status | Where to go |
-|---|---|---|
-| API-backed research | Single bounded jobs work for provider/model/tool combinations with complete finite pricing. Preview and dispatch use the same hard envelope. Automatic metered fallback, hosted file/vector context, and multi-call campaigns are gated in v2.36. | [docs/FEATURES.md](docs/FEATURES.md), [docs/MODELS.md](docs/MODELS.md) |
-| Local expert maintenance | Works through Ollama for local expert setup, absorb, sync, fresh/deep local context, eval, and scored admission | [docs/CAPACITY.md](docs/CAPACITY.md) |
-| Explicit plan-quota execution | Works for selected non-metered expert sync, sync-all, gap-fill, absorb, learn, consult, and probe commands behind auth-mode, native-tool, live paid-overage, and no-surprise-bills checks. Claude Code is currently executable only after a live proof that paid extra usage is off. Codex, OpenCode, Kiro, Grok, Antigravity, and Copilot are visible but execution-blocked. | [docs/CAPACITY.md](docs/CAPACITY.md), [docs/design/plan-quota-cli-backends.md](docs/design/plan-quota-cli-backends.md) |
-| Domain experts | Works for unreviewed blueprint drafts, zero-call structural preflight, operator-attested purpose contracts and outcome observations, local creation and maintenance, consult, beliefs, gaps, loop status, `$0` next-action guidance, OKF export/import, self-model reads, monitor proposals, reviewed monitor promotion, and self-model update review and acceptance records | [docs/EXPERTS.md](docs/EXPERTS.md) |
-| Multi-expert investigations | Experimental local CLI works at `$0` provider cost for immutable preview, expert-specific evidence lenses, independent free-web research, bounded blinded discussion, checking, synthesis, pause/resume/cancel, source-verified factual proposals, and separately staged non-factual perspectives. `apply-learning` preflights every selected envelope before an explicit write. It never implies human review or verifies perspective truth or novelty. Plan-quota and API execution are not shipped. | [docs/THREE_EXPERT_COUNCIL.md](docs/THREE_EXPERT_COUNCIL.md), [docs/design/evidence-first-expert-investigations.md](docs/design/evidence-first-expert-investigations.md) |
-| MCP | Works for local stdio and experimental HTTP/SSE with scoped keys, budgets, rate limits, audit logs, smoke checks, no-metered one-shot consult validation, and registration manifests | [mcp/README.md](mcp/README.md) |
-| A2A | Library and validation prototype only: Agent Card, in-memory tasks, consult mapping, and host validation exist, but no long-running serve command or A2A 1.0 conformance claim is shipped | [docs/SUPPORTED_SURFACE.md](docs/SUPPORTED_SURFACE.md) |
-| Web dashboard | Experimental but usable for reports, experts, costs, model views, loop status, and OpenAI-backed research submission; use CLI workflows for other providers | [docs/FEATURES.md](docs/FEATURES.md) |
-
-`deepr web` requires `DEEPR_API_KEY` unless the operator explicitly accepts
-tokenless loopback access with `--allow-unauthenticated-loopback`. Protected
-launches show a sign-in gate before loading dashboard data. The browser keeps
-the token only for the current tab session and uses the same credential for
-HTTP and Socket.IO. Never place tokenless mode behind a reverse proxy, tunnel,
-or port forward because the immediate peer may appear to be loopback.
-
-Job cancellation reports success only after the provider or queue transition,
-cost reservation closure, and recorded provider-resource cleanup are confirmed. If any state cannot be confirmed,
-the API, web dashboard, and CLI report a retryable failure instead of claiming
-that the job was cancelled.
-
-Automatic routing to plan-quota CLIs is still conservative. Explicit `--plan`
-selects an adapter but never bypasses its safety decision. Claude Code is the
-only current auto-routable candidate, and still requires operator admission plus
-a trusted remaining-quota observation. Every actual Claude dispatch then runs a
-metadata-only live check and stops unless paid extra usage is explicitly off.
-Codex, OpenCode, Kiro, Grok, Antigravity, and Copilot remain fleet-visible but
-fail closed before vendor execution.
-
-`deepr init --data-dir PATH` configures expert, report, and operational
-runtime roots below one folder. That folder can be synced for sequential use
-across devices. Setting `DEEPR_DATA_DIR` manually relocates experts and runtime
-state, including the local queue at `queue/research_queue.db` below that root,
-but does not override the separate report root. `DEEPR_QUEUE_DB_PATH` is the
-explicit queue override. Stop Deepr services, use one writer at a time, and wait
-for the sync provider to finish before switching devices. Concurrent
-multi-device mutation is not shipped; the staged
-event-journal design is documented in
-[multi-device-expert-continuity.md](docs/design/multi-device-expert-continuity.md).
-
-## Core Workflows
-
-### Research
-
-```bash
-# Inspect the exact maximum before any provider call.
-deepr research "What changed in AI infrastructure economics this quarter?" --provider openai --model o4-mini-deep-research --preview
-
-# Run one bounded job. The budget is a hard ceiling.
-deepr research "What changed in AI infrastructure economics this quarter?" --provider openai --model o4-mini-deep-research --budget 2
-
-# Batch routing preview is $0; metered batch execution is gated in v2.36.
-deepr research --auto --batch queries.txt --dry-run
-```
-
-Hosted file upload, file search, vector-store creation, metered multi-job
-campaigns, dream-team research, and automatic cross-provider metered fallback
-fail closed in v2.36 until their full storage or parent-run costs share the
-durable reservation. Use local source packs, `expert make --local --files`, or
-one bounded research job at a time.
-
-Model names and prices move quickly. The registry under
-`src/deepr/providers/registry.py` is the canonical source for pricing used by
-estimates and settlement. Current Gemini support includes the generally
-available `gemini-3.6-flash` and `gemini-3.5-flash-lite` models with their
-July 21, 2026 thinking-level request contract. Gemini 3.5 Flash Cyber is not a
-general Gemini API model and is therefore not registered. Current Anthropic
-support includes `claude-sonnet-5`
-for balanced chat/synthesis and `claude-opus-4-8` for higher-reasoning research;
-Sonnet 5 is handled through the native Messages API with adaptive thinking and
-no non-default sampling parameters. Deepr estimates Sonnet 5 with Anthropic's
-standard post-intro token rates so budget checks do not understate future spend;
-Anthropic's current docs list lower introductory pricing through 2026-08-31.
-
-### Experts
-
-```bash
-# Start with an unreviewed draft and structural preflight.
-deepr expert blueprint "AI Policy Expert" --template --output expert-blueprint.json
-deepr expert blueprint "AI Policy Expert" --from-file expert-blueprint.json --output expert-blueprint-preflight.json
-# Apply only after someone actually reviews the draft.
-deepr expert blueprint "AI Policy Expert" --from-file expert-blueprint.json --apply --attested-by operator
-deepr expert make "AI Policy Expert" --local -d "EU AI Act enforcement timeline"
-deepr expert subscribe "AI Policy Expert" "EU AI Act enforcement timeline"
-deepr expert sync "AI Policy Expert" --local --fresh-context -y
-# Preview and schedule one capacity-aware maintenance pass for the whole roster.
-deepr expert sync-all --dry-run --json
-deepr expert sync-all --scheduled -y --json
-deepr fleet status --json
-deepr fleet install-schedule --command "deepr expert sync-all --scheduled -y"
-deepr expert consult "What should our agentic harness improve next?" --expert "AI Policy Expert" --local
-deepr expert record-outcome "AI Policy Expert" --decision-id policy-review-2026 --summary "Choose the policy response" --result succeeded --observation "The reviewed response met the compliance deadline." --attested-by operator
-deepr expert outcomes "AI Policy Expert" --json
-deepr eval consult --json
-deepr eval conversation --json
-deepr eval deliberation --json
-deepr eval investigation --json
-deepr eval hallucination-risks --json
-deepr expert self-model "AI Policy Expert" --json
-deepr expert next "AI Policy Expert"
-deepr expert monitor "AI Policy Expert" --json
-deepr expert review-consult-quality "AI Policy Expert" consult_abc123 --score uses_expert_state=5 --score surfaces_uncertainty=5 --score preserves_dissent=5 --score actionability=5 --score grounded_when_factual=5 --score original_thought=5 --reviewer operator --decision accept --target eval --apply
-deepr expert judge-consult-quality "AI Policy Expert" consult_abc123 --local-judge-model qwen2.5 --target eval --json
-deepr expert judge-consult-quality "AI Policy Expert" consult_abc123 --plan claude --target eval --json
-deepr expert promote-monitor "AI Policy Expert" meta_abc123 --target gap --apply
-deepr expert propose-self-model "AI Policy Expert" meta_def456 --json
-deepr expert accept-self-model "AI Policy Expert" ./data/self_model_updates/ai-policy/self_model_update_meta_def456_20260626_120000000000.json --outcome-evidence loop_run:loop_123 --reviewer operator --json
-deepr expert memory-card "AI Policy Expert" --write
-deepr expert semantic-recall "AI Policy Expert" "agentic guardrail evidence" --json
-deepr expert semantic-recall "AI Policy Expert" "agentic guardrail evidence" --local-embedding-model nomic-embed-text --json
-deepr expert refresh-semantic-recall "AI Policy Expert" --embedding-model local-test --embeddings-json ./belief-vectors.json --json
-deepr expert refresh-semantic-recall "AI Policy Expert" --local-embedding-model nomic-embed-text --json
-deepr expert loop-status "AI Policy Expert" --json
-deepr expert export-okf "AI Policy Expert" ./okf/ai-policy
-```
-
-`deepr expert sync-all --dry-run` consumes the read-only roster snapshot
-directly. It does not reload profiles, persist schema migrations, or construct
-provider clients, absorbers, engines, belief stores, locks, loop records, or sync
-artifacts. Human output is headed `Library sync preview`; JSON sets
-`dry_run: true` and `state_changes: 0`.
-
-`deepr fleet status` is also structurally read-only and `$0`. It leaves a
-missing experts root absent. A complete empty roster exits 0, while an
-unreadable profile, loop history, or subscription source returns the
-`deepr-fleet-status-v2` contract with `status: blocked_storage_state`,
-`complete: false`, typed `state_errors`, safe relative source references, null
-unknown totals, explicitly labeled observed lower bounds, and exit 1. A latest
-failed run also exits 1. Waiting capacity and refresh-due work remain normal
-scheduler state and exit 0 when the durable scan is complete. Stored terminal
-text is rendered on one literal line, and derived host-facing payloads redact
-recognized credentials without treating ordinary secret-related prose as a
-credential.
-
-`deepr fleet install-schedule` is an emit-only `$0` workflow. Without
-`--output` it labels the result as a preview and prints no unusable install
-command for files that do not exist. With `--output` it writes each root-confined
-recipe file atomically, refuses to replace an existing file unless `--force`
-is explicit, and prints paths bound to that directory plus an optional first-run
-check and platform diagnostics. The host schedule is still not installed.
-Schedule names use a portable single-component identifier. Quoted arguments are
-preserved without stripping Windows path backslashes, PowerShell install paths
-are literal-quoted, systemd arguments use unit-native escaping, and cron percent
-signs are escaped before cron parsing. Force replacement replaces only the named
-recipe entry and never follows an existing file symlink to unrelated content.
-macOS `auto` uses the limited cron fallback, and unknown hosts must choose a
-target explicitly. Use an absolute executable path in `--command` if the
-scheduler's PATH cannot resolve `deepr`.
-
-Optional off-box liveness uses `DEEPR_HEARTBEAT_URL`, a secret-bearing public
-HTTPS endpoint with the Healthchecks-compatible success and `/fail` path
-contract. Persist it in the scheduled account's Deepr `.env`, not in a recipe or
-command. `deepr expert sync-all --scheduled --dry-run --json` validates its
-local form without contacting the service or changing expert state. A real
-scheduled pass reports a redacted disposition, safe failure kind, attempt time,
-duration, and bounded HTTP status; human output names missing, locally valid,
-delivered, blocked, and failed states. Delivery remains one terminal,
-best-effort GET and cannot change the maintenance exit status. Set the remote
-period to the recipe cadence and grace above wake delay, jitter, and maximum
-expected runtime. See [Fleet Maintenance](docs/FEATURES.md#fleet-maintenance-whole-roster).
-
-The draft and preflight are non-authoritative preparation artifacts, not
-knowledge and not proof of review. Each applied revision is a complete
-operator-attested scope snapshot with reviewer identity explicitly unverified
-and no claim of human authorship. Outcome records use the same attestation
-boundary for later decision observations. They are append-only and do not
-automatically change beliefs, prompts, routing, spend, or authority. These lanes
-close the product loop from intended use to observed value without pretending
-that more stored material is proof of improvement.
-
-`deepr eval expert-value NAME --template --output FILE` turns the latest
-operator-attested blueprint into an intentionally incomplete longitudinal
-review workbook. An operator supplies at least two frozen, hashed source worlds,
-the complete fresh-research, static-history, compiled-expert, and
-maintained-expert trial matrix, artifact hashes, costs, effort, rubric scores,
-risk labels, semantic attestations, and a protocol attestation. Each
-attestation explicitly denies verified identity and human authorship.
-`--from-file` validates and aggregates that workbook into separate quality,
-false-support, stale-memory, transfer, cost, effort, outcome, reproducible
-paired-bootstrap uncertainty, and cost-only break-even measures. By default the
-evaluator records the protocol's operator hash attestation and does not open
-referenced files. `--artifact-root PATH` instead rejects absolute,
-traversing, escaping, missing, conflicting, or mismatched references and
-recomputes every SHA-256 digest inside that root. Neither mode makes model,
-provider, or network calls. Reports write only to an explicit output path, emit
-no superiority flag, select no winner, and change no default. Running the arms
-is a separate capacity decision and can incur the costs recorded in the
-workbook.
-
-Learning is a processing loop, not passive RAG. Source material becomes atomic
-beliefs, concepts, hypotheses, stance, provenance refs, temporal edges,
-contradiction signals, gap backlogs, freshness watchlists, and regenerated
-digest, memory-card, or handoff views. Generated reports, digests, `EXPERT.md`
-memory cards, OKF bundles, and handoff payloads are derived views over
-structured state.
-
-`deepr expert next NAME` turns operator-attested-blueprint presence, current claims,
-freshness, gaps,
-contradictions, and durable loop outcomes into at most three argument-safe next
-actions. Its JSON contract carries argv arrays instead of shell text, so names
-and domains are never reinterpreted as commands. It is a `$0`, read-only
-structural navigator, not a semantic maturity score and never a default-policy
-change.
-
-Compiled sync through `--local` or explicit `--plan <id>` capacity runs
-budget-gated semantic extraction and verification over source-note windows,
-builds a verified graph-commit
-envelope, and applies that envelope instead of calling the legacy absorber. It
-writes claim-extraction, claim-verification, graph-commit envelope, and
-`graph_commit_apply_results` sidecars with prompt, schema, provider, model,
-capacity, cost, source-window refs, read-only recall context, and
-verifier-supplied temporal edge qualifiers when present. Sync cadence advances
-only after an applied or already-applied graph commit result is durably
-recorded. Use `--stage-compiled-claims` with `--compile-claims` when you need
-the old no-write staging behavior; `--apply-compiled-claims` remains a
-compatibility alias for the default apply behavior.
-
-Read-side perspective deltas and belief explanations now surface those
-temporal edge qualifiers as structured `temporal_edges` /
-`temporal_contexts`, and `deepr eval continuity` checks that stored temporal
-edge qualifiers are inspectable through the `$0` read and generated-digest
-surfaces. Regenerated expert digests also render temporal edge qualifiers in a
-dedicated derived section so humans can inspect valid time, observed time,
-scope, and provenance without treating the Markdown view as canonical memory.
-
-`deepr eval consult` runs a `$0` consult harness suite. It checks structural
-contracts for expert routing, context packets, collaboration metadata,
-no-metered capacity posture, dissent preservation, replayable traces, and
-sanitized semantic quality review cases. It does not score answer meaning with
-brittle lexical rules.
-
-`deepr eval conversation` is the `$0`, no-write contract gate for the internal
-durable conversation core. Its twelve frozen checks cover application handles,
-owner isolation, serialized versions, idempotent replay, typed stops, bounded
-frozen context, finite retention, content-free audit events, local-only
-capacity, and proposal-only advice. It publishes a repeated-one-shot structural
-comparison manifest but does not claim that multi-turn answers are semantically
-better. The protocol-neutral SQLite core now passes restart, concurrency,
-deletion, recovery, property, schema, and injected-executor tests without a
-model. MCP start, continue, inspect, and close now ship for the explicit local
-Ollama path with per-request authorization and loopback or authenticated HTTP
-validation. A held-out comparison remains required before claiming that this
-multi-turn path is semantically better than repeated one-shot queries.
-
-`deepr eval deliberation` is the `$0`, frozen-fixture gate for future
-expert-to-expert discussion. Its eleven checks cover bounded round lineage,
-independent first positions, targeted challenges, dissent preservation, typed
-stops, inert untrusted text, no fallback, and proposal-only authority. The
-report is explicitly `unreviewed` for semantic quality, and no live multi-round
-surface is enabled by this command.
-
-Epistemic simulation Stage 0 publishes strict, read-only contracts for factual,
-perspective, simulation, episodic, and governance lanes plus a frozen five-arm
-evaluation fixture. It preserves structured branch interventions, endpoint-bound
-evidence lineage, causally ordered belief revision, invalidated-memory
-exclusion, access checked against an externally supplied principal, canonical
-context sizing, disjoint artifact identifiers, lane-to-record-type authority,
-matched pair time and evidence identity, concrete adversarial witnesses, and a
-persistent constructed-simulation disclosure. Stage 0 validates only the five
-future arm declarations: no arm input or output is supplied or executed,
-including the declared three-lens arm. This is an internal evidence surface
-only: no public command, live lens, model call, expert-state write, semantic
-quality verdict, winner, or runtime-default change is enabled. See
-[the design](docs/design/epistemic-simulation-experts.md) and
-[evaluation protocol](docs/design/epistemic-simulation-evaluation.md).
-
-`deepr expert review-consult-quality` turns one review-ready consult trace case
-into a `deepr-consult-quality-review-v1` artifact. Human or calibrated-model
-scores own semantic judgment; Deepr only validates score shape, records the
-review, enforces the acceptance policy, and can promote accepted cases into gap
-or eval artifacts. This path costs `$0` and never commits beliefs.
-`deepr expert judge-consult-quality NAME TRACE_ID --local-judge-model MODEL`
-runs that same review path with an explicit local Ollama judge. The command can
-also use a safety-eligible explicit plan-quota judge with `--plan BACKEND` and optional
-`--plan-model MODEL`. The judge sees the local trace answer at command time,
-but Deepr stores only validated scores, labels, notes, and bounded judge
-metadata in the review artifact. Plan judges consume subscription quota and
-record `$0` Deepr cost metadata through the plan-quota ledger path. The premium
-`--api-provider` implementation is gated in v2.36 pending the shared durable
-transaction.
-`deepr expert consult-quality-trends NAME` summarizes those reviewed artifacts
-as `deepr-consult-quality-trend-v1`, including score trends and deterministic
-prompt-regression candidates selected only from reviewer scores and review
-status.
-`deepr eval hallucination-risks` emits
-`deepr-hallucination-risk-report-v1`, a `$0` no-write advisory report over
-consult traces, consult-quality reviews, optional expert handoff artifacts, and
-optional source-pack manifest artifacts. It routes hallucination-pattern risk
-signals into review and regression selection without blocking answers or
-writing beliefs. False-premise, template-order, and long-context middle-loss
-labels come only from human or calibrated-model consult-quality review cases.
-Traces with selected middle context now create review-only cases for
-middle-context evidence preservation. Consult trace and consult-quality review
-signals also produce read-only prompt-regression candidates for prompt-variant
-selection. Consult traces preserve selected-order context-position metadata
-without treating position alone as a semantic verdict.
-
-### Capacity
-
-```bash
-deepr capacity
-deepr capacity --probe
-deepr capacity next --task-class sync --context-mode fresh --scheduled
-deepr eval local --model qwen2.5:14b --judge-model qwen2.5:14b --save
-deepr eval local-context --model qwen2.5:14b --judge-model qwen2.5:14b --save
-deepr capacity admit --from-eval latest --task-class sync --yes
-```
-
-Local and successful safety-eligible plan-backed services must not create dollar
-cost inside Deepr. They may consume hardware time, subscription quota, or
-external credits that Deepr cannot independently verify, so explicit plan and
-CLI-judge paths stay opt-in and documented. A zero-dollar budget never bypasses
-auth, tool, or process-safety refusals. See [docs/CAPACITY.md](docs/CAPACITY.md)
-for the current per-adapter matrix.
-
-### MCP and Agents
-
-Deepr experts are consultable roles for host agents. An agent can list experts,
-read a handoff, inspect loop state, run a one-expert or multi-expert one-shot consult,
-use `deepr_query_expert` with explicit local or plan capacity for a no-metered
-read-only compiled-context turn. In v2.36, every standalone metered
-`ExpertChatSession` dispatch fails closed, including CLI, browser, and
-`deepr_query_expert backend=api` paths. Restoring metered chat requires a
-durable reserve, dispatch-mark, and settlement lifecycle for every provider
-call, hard output ceilings, auxiliary calls charged to the parent budget, and
-serialized turns per session. API council synthesis is a separate bounded
-surface and remains available with explicit approval. A current council member
-contributes selected stored state, not a live model-generated turn. The host remains the
-orchestrator; Deepr provides the verified knowledge layer.
-
-MCP query and council consult are one-shot today. Four owner-bound MCP tools now
-support a durable `$0` local conversation with one frozen expert snapshot:
-start, continue, inspect, and close. That is not a multi-expert deliberation.
-Generic or remote expert-to-expert chat and a long-running A2A service remain
-gated on held-out quality, aggregate token and context enforcement, replay,
-resume, and A2A conformance. See
-[remote-expert-conversations.md](docs/design/remote-expert-conversations.md).
-
-An experimental local evidence-first investigation accepts a topic plus inline
-text, URLs, files, and folders. It freezes each expert, performs independent
-research first, allows at most one targeted cross-examination round, checks and
-synthesizes with preserved dissent, and stages two deliberately separate
-learning lanes. Factual proposals require replayable sources, independent
-verification, and target-domain relevance judged from the exact candidate
-statement. Hypotheses, concepts, stances, and original ideas require coherent
-form, explicit uncertainty, expected
-observations, and disconfirming signals, but no online source as proof. Their
-sources are inspiration or context only. Deepr does not claim that a model can
-certify their truth, importance, originality, or novelty.
-
-Every expert receives the shared question through a distinct hash-bound lens
-made from the question plus its frozen domain. Caller-requested URLs remain
-direct fetch targets and are not copied into search text. Model-generated charter
-queries remain proposals and never gain network authority. This reduces
-identical-evidence herding while keeping retrieval reproducible and bounded.
-The independent checker may assess a perspective for form, internal coherence,
-and testability. Deterministic code enforces schemas, finite ranges, provenance,
-the fact-versus-perspective write boundary, and explicit apply. It never uses
-word overlap to decide meaning.
-Each staged compiler is form-bounded to the first five model-prioritized claims
-per expert before separate verification, so one verbose expert cannot consume
-the rest of the parent envelope.
-One parent envelope covers the entire roster. The current implementation
-requires exact `$0` local capacity with no fallback; a future API `$10` limit
-means `$10` total, not per expert. Semantic quality remains unreviewed. See
-[evidence-first-expert-investigations.md](docs/design/evidence-first-expert-investigations.md).
-
-```bash
-deepr mcp serve
-deepr mcp serve --http --host 127.0.0.1 --port 8765
-deepr mcp smoke-http http://127.0.0.1:8765/mcp
-deepr mcp validate-consult --json
-deepr capacity validate-fleet --backend codex --backend claude --backend grok --backend antigravity --expert "AI Agent Harnesses" --json
-deepr mcp validate-consult http://127.0.0.1:8765/mcp --auth-token "$DEEPR_MCP_KEY" --json
-```
-
-API consult synthesis can be pinned to `provider=openai|anthropic` and a model
-when the caller supplies a positive budget. Local and plan modes remain the
-no-metered path for validation and routine agent handoff tests.
-
-`deepr mcp validate-consult` proves the external-agent consult contract without
-metered fallback. With no URL it runs a deterministic offline fixture. With
-`--live` it exercises local or explicit plan capacity in-process. With a URL it
-calls the HTTP MCP endpoint and validates `deepr_consult_experts`,
-`deepr-consult-v1`, `deepr-expert-collaboration-v1`, trace linkage, cost fields,
-capacity no-fallback posture, dissent preservation, host action boundaries, and
-secret redaction.
-
-`deepr capacity validate-fleet` is the plan-fleet health check for operator
-machines. It fans out selected plan CLI transport probes, records quota
-observations, then validates the no-metered consult contract only for
-transports that succeeded. It is not an auto-routing shortcut and does not
-score answer meaning.
-
-See [mcp/README.md](mcp/README.md) and
-[docs/MCP_AGENT_TEST_GUIDE.md](docs/MCP_AGENT_TEST_GUIDE.md).
-
-## Agentic Balance
-
-Deepr deliberately separates workflow control from model judgment.
-
-- Deterministic code owns spend, budget reservations, cost settlement, quota
-  gates, auth-mode checks, schema validation, durable writes, locks, typed stop
-  reasons, and truthful review labels.
-- Model judgment owns meaning: extraction, synthesis, contradiction, grounding,
-  gap selection, and narrative quality.
-- Cheap lexical or structural checks may route work, but they must not conclude
-  semantic truth.
-- Original ideas, hypotheses, and stances are first-class expert state. They
-  need origin, rationale, uncertainty, and disconfirming signals, not an online
-  source requirement. They must not masquerade as verified external facts, and
-  explicit apply must not masquerade as human review.
-- Self-model updates must be proposals with evidence, verifier results,
-  accepted-record gates, and explicit outcome evidence before they affect a
-  learning transaction. They do not grant new authority.
-- The research-processing compiler starts with deterministic source snapshots,
-  source notes, content hashes, prompt/schema versions, explicit
-  `--compile-claims` extraction, verification, graph-commit envelopes, durable
-  graph-commit apply results, and `--stage-compiled-claims` no-write staging
-  when requested. Deterministic code validates temporal edge qualifier shape
-  and ISO date fields, while leaving support, contradiction, deduplication,
-  temporal scope, and semantic edges to calibrated model judgment.
-
-This boundary is tracked in
-[docs/plans/AGENTIC_BALANCE.md](docs/plans/AGENTIC_BALANCE.md) and the active
-order of operations in [ROADMAP.md](ROADMAP.md).
-
-## Cost Controls
-
-Bounded single-job provider research and paid synchronous planning reserve cost
-before dispatch and settle after usage. Research admission coordinates REST,
-web, direct CLI, MCP, and internal single-job orchestrator processes through
-durable maximum holds. Ambiguous provider outcomes settle conservatively and
-are not automatically replayed. Deepr also has per-operation limits, daily and monthly
-caps, anomaly checks, and an append-only cost ledger at
-`data/costs/cost_ledger.jsonl`. See
-[research-cost-reservations.md](docs/design/research-cost-reservations.md).
-
-For API and remote request surfaces, a positive budget is never permission to
-spend. Metered execution requires both `allow_metered_api=true` and
-`confirm_metered_cost=true` before provider construction, plus a finite priced
-ceiling. CLI paid paths require an interactive confirmation, or their explicit
-noninteractive cost-confirmation flag. Missing pricing, consent, durable
-reservation, or ledger settlement fails closed. `--budget 10` means at most
-`$10` for that command or parent transaction. That command envelope is nested
-inside one shared operator wallet across every Deepr process. `deepr budget set
-10` is therefore a hard `$10` UTC-month ceiling for canonical settled spend
-plus every active reservation, not a confirmation threshold. It never
-authorizes automatic fallback.
-
-Defaults favor owned capacity: local `$0` backends first, then explicit
-plan-quota capacity where supported. Metered APIs are explicit premium paths;
-Deepr does not automatically fall through to another paid provider in v2.36.
-Image generation follows the same rule:
-`DEEPR_LOCAL_IMAGE_URL` is the only portrait provider auto-selected by default.
-OpenAI, Gemini, and xAI remain recognized explicit provider choices, but paid
-portrait dispatch fails closed in v2.36 pending the shared durable transaction.
-Set `DEEPR_LOCAL_IMAGE_URL` and pass `--provider local` for the shipped path.
-Existing portraits are not regenerated by default. Generated portraits live
-under the configured runtime data root, and forced regeneration archives the
-previous image before replacement.
-
-In v2.36, unsafe metered expert lifecycle entry points fail closed while their
-shared durable transaction is completed. This includes nonlocal `expert make`
-and `--learn`, API curriculum `expert plan`, `expert resume`, normal metered
-`expert reflect` and MCP `deepr_reflect`, provider-backed `expert refresh` and
-`--synthesize`, API `fill-gaps`, explicit API sync and sync-all, paid portraits,
-API consult-quality judging, live provider benchmarks, and paid
-`deepr eval calibrate --corpus`. Use local, scheduled, dry-run, history-only,
-or explicit plan-quota paths where available; `$0`
-`deepr eval calibrate --from` remains available.
-`deepr expert make --local` is the provider-free profile setup path.
-Hosted file/vector context and metered multi-call research also fail closed.
-Their `$0` previews remain available, but batch, campaign, team, and prepared
-campaign execution require one durable parent reservation before re-enablement.
-Legacy metered `deepr check`, `deepr make docs`, `deepr make strategy`, and
-`deepr agentic research` also fail before provider construction until they use
-the shared durable call transaction.
-
-```bash
-deepr budget set 5
-deepr budget freeze --reason "operator stop"
-deepr budget unfreeze
-deepr costs show
-deepr costs doctor
-deepr research --auto --batch queries.txt --dry-run
-```
-
-Cost tracking is strict by default: a spend event that cannot be written to
-the canonical ledger raises instead of silently continuing (set
-`DEEPR_COST_TRACKING_STRICT=0` to opt out). The monthly budget gate
-(`deepr budget set`) binds CLI, web, REST, MCP, scripts, and background
-settlement alike. `budget set 0` and `budget freeze` stop new paid dispatch;
-`budget unfreeze` restores only the remaining headroom under the configured
-cap. `DEEPR_MAX_COST_PER_JOB/_DAY/_WEEK/_MONTH` are hard ceilings enforced on the
-CLI, web, and REST surfaces (the legacy `DEEPR_*_LIMIT` names are still
-honored - the tighter bound wins, zero is a freeze, and malformed values fail
-closed). Every dispatch rechecks ledger spend plus all active holds immediately
-before provider work, so a positive cap reduction also stops stale reservations.
-`deepr budget status`, `deepr doctor`, `deepr costs doctor`, and the web
-dashboard all report the same ledger-reconciled spend, including settled money
-whose report artifact no longer exists on disk (orphaned spend). Provider
-prompt-cache controls remain planned until TTL, cache-key,
-and pre-warm estimators are explicit and budget-gated. See
-[docs/CAPACITY.md](docs/CAPACITY.md#costing-deep-dive) for provider-specific
-cost buckets such as cached tokens, server-side tools, batch modifiers, and
-provider-returned exact cost settlement.
-
-## Privacy and Data Ownership
-
-Deepr has no telemetry, no analytics, no accounts, and no automatic phone-home.
-The only network calls are ones you invoke: provider APIs with your own keys,
-free-web retrieval inside research you start, MCP servers you configure, the
-user-invoked `deepr upgrade` release check against GitHub, and the optional
-`DEEPR_HEARTBEAT_URL` liveness signal, which is off by default and points at an
-endpoint you control. The dashboard "telemetry" surfaces aggregate your local
-expert state for your own dashboard and send nothing anywhere.
-
-Everything Deepr produces is a local artifact you own: expert state, beliefs,
-reports, cost ledgers, and audit records are plain JSON, JSONL, and Markdown
-under your data root, with published schemas and OKF export. Deepr is Apache
-2.0. If this project stopped tomorrow, your experts would still be readable
-files on your disk and the code would still be yours to run and fork. That is
-a property of the architecture, not a promise about the future.
-
-## Stable vs Experimental
-
-Stable today: bounded single-job research for supported provider/model/tool
-envelopes, guided setup, cost controls, provider selection with user keys,
-local report storage, expert profiles, CLI output modes, and published schemas.
-
-Experimental but usable: web dashboard, councils, skills,
-MCP HTTP, scoped keys, remote-call audits, loop status, OKF interchange,
-self-model reads, metacognitive monitor proposals, reviewed monitor promotion,
-local execution, plan-quota execution, local evals, red-team metrics, and fleet
-maintenance surfaces.
-
-Standalone metered expert chat is gated in v2.36. Local and explicit plan
-`deepr_query_expert` read-only turns remain available, and no metered chat live
-validation is claimed for this release.
-
-See [docs/SUPPORTED_SURFACE.md](docs/SUPPORTED_SURFACE.md) for the contract.
+Preview and dispatch use the same hard request envelope. A provider key,
+positive budget, and explicit confirmation are still required for a paid call.
+
+See [Quick Start](docs/QUICK_START.md), [Features](docs/FEATURES.md), and
+[Experts](docs/EXPERTS.md) for complete workflows.
+
+## What works now
+
+| Area | Current contract |
+| --- | --- |
+| Bounded research | Single provider jobs work when model, token, tool, and payload pricing can be bounded completely. |
+| Persistent experts | Blueprint, local creation, maintenance, consultation, beliefs, gaps, outcomes, handoffs, and derived views are available. |
+| Local investigations | Experimental multi-expert research, bounded discussion, checking, synthesis, and staged learning run at `$0` provider cost. |
+| Plan quota | Claude Code is executable only after a live proof that paid extra usage is disabled. Other adapters remain visible with typed refusal reasons. |
+| MCP and A2A | Read, consult, handoff, validation, and scoped transport surfaces are available. Deepr exposes 36 MCP tools. |
+| Paid multi-call work | Batch, campaign, team, and other composed paid graphs remain gated pending one aggregate parent budget. |
+
+The exact stable, experimental, visible, and planned boundaries live in
+[Supported Surface](docs/SUPPORTED_SURFACE.md). Roadmap items must not be
+marketed as shipped behavior.
+
+## How experts differ from fact lists
+
+A maintained expert tracks change, contradiction, uncertainty, gaps, and the
+decisions its knowledge supports. Factual beliefs require evidence and
+provenance. Hypotheses, concepts, theories, and stances may remain useful, but
+they stay explicitly non-factual with uncertainty and disconfirming tests.
+Generated reports and digests are derived views of structured state, not the
+authority themselves.
+
+For councils, learning lanes, evaluation, and expert-value measurement, see
+[Experts](docs/EXPERTS.md) and the
+[Three Expert Council workflow](docs/THREE_EXPERT_COUNCIL.md).
+
+## Privacy and ownership
+
+Deepr has no product telemetry, analytics account, or automatic phone-home.
+Network calls occur only for operator-invoked provider work, configured search
+or MCP services, the explicit release update check, and an optional
+operator-owned heartbeat endpoint.
+
+Reports, experts, beliefs, ledgers, and audit records remain local JSON, JSONL,
+and Markdown under the configured data root. Published schemas and OKF exports
+keep that state portable.
+
+See the [Threat Model](docs/security/THREAT_MODEL.md) for precise trust
+boundaries and exceptions.
 
 ## Documentation
 
-| Guide | Description |
-|---|---|
-| [Quick Start](docs/QUICK_START.md) | Installation and first research job |
-| [Install](docs/INSTALL.md) | Platform setup and extras |
-| [Features](docs/FEATURES.md) | Full command reference |
-| [Capacity](docs/CAPACITY.md) | Local, plan-quota, metered API, scheduler, and no-surprise-bills behavior |
-| [Experts](docs/EXPERTS.md) | Domain expert system |
-| [Three Expert Council](docs/THREE_EXPERT_COUNCIL.md) | Three persistent experts, one-shot council, bounded local investigation, relevance-gated graph proposals, and strict cost ceilings |
-| [Models](docs/MODELS.md) | Provider comparison and model selection |
-| [Architecture](docs/ARCHITECTURE.md) | Technical architecture, security, budget protection |
-| [Security Threat Model](docs/security/THREAT_MODEL.md) | Trust boundaries, attacker stories, mitigations, and severity calibration |
-| [MCP Integration](mcp/README.md) | MCP server setup and agent integration |
-| [Agentic Balance](docs/plans/AGENTIC_BALANCE.md) | Workflow vs agent boundary |
-| [Supported Surface](docs/SUPPORTED_SURFACE.md) | Stable, experimental, planned, and export guarantees |
-| [Changelog](docs/CHANGELOG.md) | Release history |
-| [Roadmap](ROADMAP.md) | Active development order |
+| Guide | Purpose |
+| --- | --- |
+| [Installation](docs/INSTALL.md) | Supported installation and upgrade paths |
+| [Quick Start](docs/QUICK_START.md) | First research and expert workflow |
+| [Supported Surface](docs/SUPPORTED_SURFACE.md) | Stable, experimental, visible, planned, and gated behavior |
+| [Capacity and Cost](docs/CAPACITY.md) | Local, subscription, metered, scheduler, and budget contracts |
+| [Experts](docs/EXPERTS.md) | Persistent expert lifecycle and commands |
+| [Features](docs/FEATURES.md) | Full feature and command reference |
+| [Models](docs/MODELS.md) | Provider models, pricing posture, and selection |
+| [MCP Agent Guide](docs/MCP_AGENT_TEST_GUIDE.md) | Host integration and validation |
+| [Architecture](docs/ARCHITECTURE.md) | Components, data flow, and design boundaries |
+| [Threat Model](docs/security/THREAT_MODEL.md) | Security boundaries and mitigations |
+| [Agentic Balance](docs/plans/AGENTIC_BALANCE.md) | Deterministic control versus model judgment |
+| [Changelog](docs/CHANGELOG.md) | Released behavior and migration notes |
+| [Roadmap](ROADMAP.md) | Active priorities and planned work |
+| [Contributing](CONTRIBUTING.md) | Development workflow and Definition of Done |
 
-## Requirements
+## Development
 
-- Python 3.12+ (tested on 3.12-3.14)
-- At least one usable capacity source:
-  - local Ollama for `$0` expert maintenance after evaluation and admission
-  - provider API key for full API-backed research
-  - explicit plan-quota CLI for selected expert workflows
-- Optional Node.js 18+ for web dashboard development
+```bash
+uv pip install -e ".[dev,full]"
+pytest tests/unit/ --ignore=tests/data -q
+ruff check src/deepr/
+ruff format --check src/deepr/
+python scripts/check_file_sizes.py
+python scripts/check_ratchets.py
+python scripts/check_paid_api_boundaries.py
+```
 
-## Project Notes
-
-The test suite has 8000+ tests (Python 3.12-3.14), with an 80% coverage gate.
-Pre-commit and CI run ruff, mypy on strict islands, docs consistency checks,
-file-size ratchets, and security/complexity ratchets.
-
-Security issues should use GitHub private vulnerability reporting when
-available. Do not post exploit details publicly.
+Do not run bare `pytest`: integration tests can contact real providers. CI
+runs 8,000+ tests (Python 3.12-3.14) with an 80 percent branch coverage gate,
+strict type islands, security checks, frontend validation, and package
+verification.
 
 ## License
 
-[Apache 2.0](LICENSE). Free to use, build on, fork, and share.
+[Apache 2.0](LICENSE)
 
-Maintainer: Nick Seal ([blisspixel](https://github.com/blisspixel)).
-
-[GitHub](https://github.com/blisspixel/deepr) | [Issues](https://github.com/blisspixel/deepr/issues) | [Discussions](https://github.com/blisspixel/deepr/discussions)
+[GitHub](https://github.com/blisspixel/deepr) |
+[Issues](https://github.com/blisspixel/deepr/issues) |
+[Discussions](https://github.com/blisspixel/deepr/discussions)
