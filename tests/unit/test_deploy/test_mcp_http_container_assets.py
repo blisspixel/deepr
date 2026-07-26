@@ -76,10 +76,11 @@ def test_mcp_http_compose_serves_with_scoped_key_store():
     assert service["healthcheck"]["test"][-1].count("/mcp/health") == 1
 
 
-def test_mcp_http_dockerfile_runs_as_cli_with_full_install():
+def test_mcp_http_dockerfile_runs_as_cli_with_frozen_full_install():
     dockerfile = (DEPLOY_DIR / "Dockerfile").read_text(encoding="utf-8")
 
-    assert 'pip install --no-cache-dir ".[full]"' in dockerfile
+    assert "COPY pyproject.toml uv.lock setup.py README.md LICENSE MANIFEST.in ./" in dockerfile
+    assert "uv sync --frozen --no-dev --no-editable --extra full" in dockerfile
     assert "USER deepr" in dockerfile
     assert "DEEPR_MCP_KEYS_PATH=/data/security/mcp_keys.json" in dockerfile
     assert "DEEPR_MCP_HTTP_MAX_CONCURRENCY=32" in dockerfile

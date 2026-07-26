@@ -127,7 +127,7 @@ export default function ResearchLive() {
         {/* Success banner */}
         <div className="rounded-lg border bg-card p-6 space-y-4">
           <div className="flex items-start gap-4">
-            <div className="w-10 h-10 bg-success/10 rounded-full flex items-center justify-center flex-shrink-0">
+            <div className="w-10 h-10 bg-success/10 rounded-full flex items-center justify-center shrink-0">
               <Zap className="w-5 h-5 text-success" />
             </div>
             <div className="flex-1 min-w-0">
@@ -136,7 +136,7 @@ export default function ResearchLive() {
             </div>
             <button
               onClick={() => navigate(`/results/${job.id}`)}
-              className="inline-flex items-center gap-2 px-4 py-2 bg-primary text-primary-foreground rounded-lg text-sm font-medium hover:bg-primary/90 flex-shrink-0"
+              className="inline-flex items-center gap-2 px-4 py-2 bg-primary text-primary-foreground rounded-lg text-sm font-medium hover:bg-primary/90 shrink-0"
             >
               View Result
               <ExternalLink className="w-4 h-4" />

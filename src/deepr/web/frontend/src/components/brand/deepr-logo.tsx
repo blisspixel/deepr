@@ -60,7 +60,7 @@ export function DeeprLogo({
 }) {
   return (
     <span className={cn('flex items-center gap-2', className)}>
-      <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-primary text-primary-foreground shadow-sm">
+      <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-primary text-primary-foreground shadow-xs">
         <DeeprMark className="h-[19px] w-[19px]" />
       </span>
       {!collapsed && <span className="text-lg font-semibold tracking-tight">Deepr</span>}

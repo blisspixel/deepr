@@ -556,7 +556,7 @@ export default function Benchmarks() {
                 className={cn(
                   'px-3 py-1 rounded-md capitalize transition-colors',
                   routingMode === mode
-                    ? 'bg-background text-foreground shadow-sm font-medium'
+                    ? 'bg-background text-foreground shadow-xs font-medium'
                     : 'text-muted-foreground hover:text-foreground'
                 )}
               >
@@ -722,7 +722,7 @@ export default function Benchmarks() {
                     color: CHART_THEME.tooltip.text,
                     fontSize: 12,
                   }}
-                  formatter={(value: number) => [`${(value * 100).toFixed(1)}%`, 'Quality']}
+                  formatter={(value) => [`${(Number(value) * 100).toFixed(1)}%`, 'Quality']}
                 />
                 <Bar dataKey="quality" radius={[0, 4, 4, 0]}>
                   {availableSorted.map((_, i) => (

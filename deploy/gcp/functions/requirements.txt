@@ -1,7 +1,7 @@
-functions-framework==3.*
-google-cloud-pubsub==2.*
-google-cloud-storage==2.*
-google-cloud-secret-manager==2.*
-google-cloud-firestore==2.*
+functions-framework==3.10.2
+google-cloud-pubsub==2.39.0
+google-cloud-storage==3.13.0
+google-cloud-secret-manager==2.30.0
+google-cloud-firestore==2.28.0
 # Shared library (install from deploy/shared before deployment)
 # deepr-api-common @ file:../../shared

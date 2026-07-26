@@ -144,7 +144,7 @@ export default function DashboardAuthGate({ children }: DashboardAuthGateProps) 
   if (accessState === 'auth_required') {
     return (
       <main className="flex min-h-dvh items-center justify-center bg-background p-6">
-        <section className="w-full max-w-md rounded-xl border bg-card p-6 shadow-sm" aria-labelledby="dashboard-auth-title">
+        <section className="w-full max-w-md rounded-xl border bg-card p-6 shadow-xs" aria-labelledby="dashboard-auth-title">
           <div className="mb-5 flex h-11 w-11 items-center justify-center rounded-lg bg-primary/10 text-primary">
             <ShieldCheck className="h-5 w-5" aria-hidden="true" />
           </div>
@@ -211,7 +211,7 @@ export default function DashboardAuthGate({ children }: DashboardAuthGateProps) 
       <section
         role="alert"
         aria-live="assertive"
-        className="w-full max-w-md rounded-xl border bg-card p-6 shadow-sm"
+        className="w-full max-w-md rounded-xl border bg-card p-6 shadow-xs"
         aria-labelledby="dashboard-access-title"
       >
         <div className="mb-5 flex h-11 w-11 items-center justify-center rounded-lg bg-destructive/10 text-destructive">
@@ -221,7 +221,7 @@ export default function DashboardAuthGate({ children }: DashboardAuthGateProps) 
           ref={errorHeadingRef}
           id="dashboard-access-title"
           tabIndex={-1}
-          className="text-xl font-semibold text-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          className="text-xl font-semibold text-foreground outline-hidden focus-visible:ring-2 focus-visible:ring-ring"
         >
           {title}
         </h1>

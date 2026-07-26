@@ -7,6 +7,38 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.38.1] - 2026-07-26
+
+### Changed
+
+- Refreshed every compatible locked Python and frontend dependency to the
+  current stable release. This includes OpenAI 2.48, Google GenAI 2.14,
+  Rich 15, Flask-Limiter 4.1, ESLint 10, Tailwind CSS 4, and Recharts 3.
+  TypeScript remains at 6.0.3 because the current TypeScript ESLint release
+  explicitly supports TypeScript only below 6.1. Python and npm vulnerability
+  audits report no known vulnerabilities.
+- Made `pyproject.toml` and `uv.lock` the Python dependency authority used by
+  CI and containers. Removed divergent split requirement files, pinned cloud
+  function requirements, current build tools, uv 0.11.32, Node 24.18 LTS, npm
+  12.0.1, and production Python image digests, and made every Python CI install
+  frozen.
+- Replaced legacy ESLint and Tailwind configuration with their current flat
+  and CSS-first formats. The production dashboard build, lint, type check, and
+  frontend unit suite remain green after the migration.
+- Disabled automated dependency pull requests so update branches and bot
+  authorship cannot accumulate. Dependency refreshes remain deliberate,
+  human-authored changes that must clear the full release gate.
+
+### Fixed
+
+- Persist the reserved worst-case ceiling in queue results when a provider
+  completes without authoritative usage. The canonical ledger already settled
+  conservatively; queue displays now show the same accounted cost instead of
+  understating it.
+- Repaired the AWS worker container for the repository's `src/` layout and
+  Python 3.12 floor. All application containers now install from the frozen
+  lock rather than resolving dependencies independently during each build.
+
 ## [2.38.0] - 2026-07-26
 
 ### Added

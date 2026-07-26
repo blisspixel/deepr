@@ -263,7 +263,7 @@ cp .env.example .env
               { cmd: 'deepr mcp serve', desc: 'Start the MCP server for agent hosts' },
             ].map(({ cmd, desc }) => (
               <div key={cmd} className="flex flex-col gap-1 sm:flex-row sm:gap-3 sm:items-baseline">
-                <code className="min-w-0 max-w-full whitespace-pre-wrap break-words text-[11px] font-mono bg-muted px-2 py-0.5 rounded">{cmd}</code>
+                <code className="min-w-0 max-w-full whitespace-pre-wrap wrap-break-word text-[11px] font-mono bg-muted px-2 py-0.5 rounded">{cmd}</code>
                 <span className="min-w-0 text-xs text-muted-foreground">{desc}</span>
               </div>
             ))}

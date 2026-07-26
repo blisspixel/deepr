@@ -94,8 +94,9 @@ async def finalize_provider_completion(
             request_id=str(job.provider_job_id or ""),
             source=source,
         )
+        accounted_cost = cost if cost is not None else reservation.estimated_cost
     else:
-        cost = record_unreserved_research_cost(
+        accounted_cost = record_unreserved_research_cost(
             job_id=job.id,
             provider=job.provider,
             model=job.model,
@@ -107,7 +108,7 @@ async def finalize_provider_completion(
     if not await queue.update_results(
         job.id,
         report_paths={"markdown": str(report.url)},
-        cost=cost,
+        cost=accounted_cost,
         tokens_used=tokens,
     ):
         raise RuntimeError("queue rejected provider result update")

@@ -163,7 +163,7 @@ export default function Settings() {
 
       <div className="flex flex-col md:flex-row gap-6">
         {/* Section Nav */}
-        <div className="w-48 flex-shrink-0 space-y-1 hidden md:block">
+        <div className="w-48 shrink-0 space-y-1 hidden md:block">
           {sections.map((section) => (
             <button
               key={section.key}
@@ -256,21 +256,21 @@ export default function Settings() {
                 <h2 className="text-base font-semibold text-foreground">Environment</h2>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div className="flex items-center gap-3 p-3 rounded-lg bg-muted/50">
-                    <Server className="w-4 h-4 text-muted-foreground flex-shrink-0" />
+                    <Server className="w-4 h-4 text-muted-foreground shrink-0" />
                     <div>
                       <p className="text-xs text-muted-foreground">Provider</p>
                       <p className="text-sm font-medium text-foreground capitalize">{config?.provider || 'openai'}</p>
                     </div>
                   </div>
                   <div className="flex items-center gap-3 p-3 rounded-lg bg-muted/50">
-                    <Database className="w-4 h-4 text-muted-foreground flex-shrink-0" />
+                    <Database className="w-4 h-4 text-muted-foreground shrink-0" />
                     <div>
                       <p className="text-xs text-muted-foreground">Queue</p>
                       <p className="text-sm font-medium text-foreground capitalize">{config?.queue || 'sqlite'}</p>
                     </div>
                   </div>
                   <div className="flex items-center gap-3 p-3 rounded-lg bg-muted/50">
-                    <HardDrive className="w-4 h-4 text-muted-foreground flex-shrink-0" />
+                    <HardDrive className="w-4 h-4 text-muted-foreground shrink-0" />
                     <div>
                       <p className="text-xs text-muted-foreground">Storage</p>
                       <p className="text-sm font-medium text-foreground capitalize">{config?.storage || 'local'}</p>
@@ -280,9 +280,9 @@ export default function Settings() {
                     Object.entries(config.provider_keys).map(([provider, hasKey]) => (
                       <div key={provider} className="flex items-center gap-3 p-3 rounded-lg bg-muted/50">
                         {hasKey ? (
-                          <CheckCircle className="w-4 h-4 text-success flex-shrink-0" />
+                          <CheckCircle className="w-4 h-4 text-success shrink-0" />
                         ) : (
-                          <XCircle className="w-4 h-4 text-destructive flex-shrink-0" />
+                          <XCircle className="w-4 h-4 text-destructive shrink-0" />
                         )}
                         <div>
                           <p className="text-xs text-muted-foreground">{provider}</p>
@@ -293,9 +293,9 @@ export default function Settings() {
                   ) : (
                     <div className="flex items-center gap-3 p-3 rounded-lg bg-muted/50">
                       {config?.has_api_key ? (
-                        <CheckCircle className="w-4 h-4 text-success flex-shrink-0" />
+                        <CheckCircle className="w-4 h-4 text-success shrink-0" />
                       ) : (
-                        <XCircle className="w-4 h-4 text-destructive flex-shrink-0" />
+                        <XCircle className="w-4 h-4 text-destructive shrink-0" />
                       )}
                       <div>
                         <p className="text-xs text-muted-foreground">API Key</p>
@@ -441,13 +441,13 @@ export default function Settings() {
                         title={ACCENTS[key].label}
                         className={cn(
                           'relative h-9 w-9 rounded-full border-2 transition-transform hover:scale-105',
-                          'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background',
+                          'focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background',
                           isActive ? 'border-foreground' : 'border-transparent'
                         )}
                         style={{ backgroundColor: `hsl(${ACCENTS[key].light})` }}
                       >
                         {isActive && (
-                          <CheckCircle className="absolute inset-0 m-auto h-4 w-4 text-white drop-shadow" />
+                          <CheckCircle className="absolute inset-0 m-auto h-4 w-4 text-white drop-shadow-sm" />
                         )}
                       </button>
                     )

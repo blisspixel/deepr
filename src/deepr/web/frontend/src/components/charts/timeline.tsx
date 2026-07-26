@@ -40,12 +40,12 @@ export function TemporalTimeline({ events, className }: TimelineProps) {
       {events.map((event, index) => (
         <div key={index} className="flex items-start gap-3 text-sm">
           {/* Timestamp */}
-          <span className="text-xs text-muted-foreground w-12 flex-shrink-0 tabular-nums pt-0.5">
+          <span className="text-xs text-muted-foreground w-12 shrink-0 tabular-nums pt-0.5">
             {formatDuration(Math.round(event.timestamp_ms / 1000))}
           </span>
 
           {/* Icon */}
-          <div className="flex-shrink-0 pt-0.5">
+          <div className="shrink-0 pt-0.5">
             {getIcon(event.type)}
           </div>
 

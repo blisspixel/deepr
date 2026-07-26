@@ -160,9 +160,7 @@ def test_oversized_file_is_rejected_before_content_open(tmp_path: Path, monkeypa
     )
 
     assert bundle["items"] == []
-    assert [(item["path"], item["reason"]) for item in bundle["exclusions"]] == [
-        ("oversized.txt", "oversized_file")
-    ]
+    assert [(item["path"], item["reason"]) for item in bundle["exclusions"]] == [("oversized.txt", "oversized_file")]
 
 
 def test_docx_expansion_is_bounded_before_xml_parse(tmp_path: Path) -> None:

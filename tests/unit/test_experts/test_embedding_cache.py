@@ -266,6 +266,7 @@ class TestEmbeddingCacheAddDocuments:
         self, tmp_path, monkeypatch, enable_metered_embeds
     ):
         """Cost bookkeeping failure must not clear the gate and still spend."""
+
         async def blocked(**_kwargs):
             raise RuntimeError("durable cost admission unavailable: test")
 

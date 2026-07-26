@@ -7,7 +7,8 @@ import tempfile
 from pathlib import Path
 
 import pytest
-from hypothesis import assume, given, settings, strategies as st
+from hypothesis import assume, given, settings
+from hypothesis import strategies as st
 
 from deepr.experts.conversation.models import ConversationContinueRequest, IdempotencyConflict
 from deepr.experts.conversation.store import ExpertConversationStore

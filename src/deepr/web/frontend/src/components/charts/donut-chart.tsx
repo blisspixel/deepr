@@ -55,7 +55,7 @@ export function DonutChart({
               color: CHART_THEME.tooltip.text,
               fontSize: 13,
             }}
-            formatter={(value: number) => [formatValue(value)]}
+            formatter={(value) => [formatValue(Number(value))]}
           />
         </PieChart>
       </ResponsiveContainer>

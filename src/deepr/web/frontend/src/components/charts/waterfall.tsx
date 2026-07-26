@@ -77,7 +77,7 @@ export function WaterfallChart({
         >
           {/* Span name */}
           <div
-            className="w-32 flex-shrink-0 text-xs truncate pr-2 text-muted-foreground group-hover:text-foreground"
+            className="w-32 shrink-0 text-xs truncate pr-2 text-muted-foreground group-hover:text-foreground"
             style={{ paddingLeft: `${span.depth * 12}px` }}
           >
             {span.depth > 0 && <span className="text-border mr-1">{'└'}</span>}

@@ -139,7 +139,7 @@ export default function CostIntelligence() {
               onClick={() => setTimeRange(tr.key)}
               className={cn(
                 'px-3 py-1.5 rounded-md text-xs font-medium transition-all',
-                timeRange === tr.key ? 'bg-background shadow-sm text-foreground' : 'text-muted-foreground hover:text-foreground'
+                timeRange === tr.key ? 'bg-background shadow-xs text-foreground' : 'text-muted-foreground hover:text-foreground'
               )}
             >
               {tr.label}
@@ -160,7 +160,7 @@ export default function CostIntelligence() {
       {/* Error Banner */}
       {isSummaryError && (
         <div className="rounded-lg border border-warning/30 bg-warning/5 p-4 flex items-center gap-3">
-          <AlertTriangle className="w-5 h-5 text-warning flex-shrink-0" />
+          <AlertTriangle className="w-5 h-5 text-warning shrink-0" />
           <p className="text-sm text-muted-foreground flex-1">Unable to load cost data. The backend may not be running.</p>
           <button
             onClick={() => refetchSummary()}
@@ -231,7 +231,7 @@ export default function CostIntelligence() {
       {/* Budget Alert */}
       {(dailyUtilization > 80 || monthlyUtilization > 80) && (
         <div className="rounded-lg border border-warning/30 bg-warning/5 p-4 flex items-start gap-3">
-          <AlertTriangle className="w-5 h-5 text-warning flex-shrink-0 mt-0.5" />
+          <AlertTriangle className="w-5 h-5 text-warning shrink-0 mt-0.5" />
           <div>
             <p className="text-sm font-medium text-foreground">Budget Alert</p>
             <div className="text-sm text-muted-foreground mt-0.5">
@@ -336,7 +336,7 @@ export default function CostIntelligence() {
             <div className="space-y-2 flex-1 min-w-0">
               {breakdownData.map((item: { name: string; value: number; color: string }) => (
                 <div key={item.name} className="flex items-center gap-2 text-sm">
-                  <div className="w-3 h-3 rounded-full flex-shrink-0" style={{ backgroundColor: item.color }} />
+                  <div className="w-3 h-3 rounded-full shrink-0" style={{ backgroundColor: item.color }} />
                   <span className="flex-1 text-foreground text-xs truncate">{item.name}</span>
                   <span className="text-muted-foreground text-xs tabular-nums">{formatCurrency(item.value)}</span>
                 </div>

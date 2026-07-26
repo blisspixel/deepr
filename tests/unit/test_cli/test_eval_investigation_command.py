@@ -41,9 +41,7 @@ def test_eval_investigation_save_writes_json_artifact() -> None:
 
 
 def test_eval_investigation_fails_on_structural_regression_by_default() -> None:
-    report = InvestigationEvalReport(
-        outcomes=(InvestigationEvalOutcome("fixture_failure", "fixture", False),)
-    )
+    report = InvestigationEvalReport(outcomes=(InvestigationEvalOutcome("fixture_failure", "fixture", False),))
 
     with patch("deepr.evals.investigation.run_investigation_eval", return_value=report):
         result = CliRunner().invoke(cli, ["eval", "investigation"])
@@ -53,9 +51,7 @@ def test_eval_investigation_fails_on_structural_regression_by_default() -> None:
 
 
 def test_eval_investigation_can_report_without_failing_exit() -> None:
-    report = InvestigationEvalReport(
-        outcomes=(InvestigationEvalOutcome("fixture_failure", "fixture", False),)
-    )
+    report = InvestigationEvalReport(outcomes=(InvestigationEvalOutcome("fixture_failure", "fixture", False),))
 
     with patch("deepr.evals.investigation.run_investigation_eval", return_value=report):
         result = CliRunner().invoke(

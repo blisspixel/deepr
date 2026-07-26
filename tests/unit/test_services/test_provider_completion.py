@@ -128,6 +128,58 @@ async def test_completion_closes_cost_and_cleanup_before_terminal_state() -> Non
 
 
 @pytest.mark.asyncio
+async def test_completion_persists_reserved_ceiling_when_usage_is_missing() -> None:
+    job = ResearchJob(
+        id="job-missing-usage",
+        prompt="complete",
+        status=JobStatus.PROCESSING,
+        provider_job_id="provider-job",
+    )
+    updated = ResearchJob(id=job.id, prompt=job.prompt, status=JobStatus.COMPLETED)
+    queue = MagicMock(
+        update_results=AsyncMock(return_value=True),
+        update_status=AsyncMock(return_value=True),
+        get_job=AsyncMock(return_value=updated),
+    )
+    storage = MagicMock(save_report=AsyncMock(return_value=SimpleNamespace(url="report.md")))
+    reservation = MagicMock(estimated_cost=0.75)
+    response = SimpleNamespace(output=[], usage=None)
+
+    with (
+        patch(
+            "deepr.services.provider_completion.restore_research_cost_reservation",
+            return_value=reservation,
+        ),
+        patch("deepr.services.provider_completion.settle_research_cost") as settle,
+        patch(
+            "deepr.services.provider_completion.reconcile_research_cost_from_ledger",
+            return_value=True,
+        ),
+        patch(
+            "deepr.cli.commands.run_submission.cleanup_persisted_uploads",
+            new=AsyncMock(return_value=True),
+        ),
+    ):
+        result = await finalize_provider_completion(
+            queue=queue,
+            storage=storage,
+            provider=MagicMock(),
+            job=job,
+            response=response,
+            source="test.missing_usage",
+        )
+
+    assert result is updated
+    assert settle.call_args.kwargs["actual_cost"] is None
+    queue.update_results.assert_awaited_once_with(
+        job.id,
+        report_paths={"markdown": "report.md"},
+        cost=0.75,
+        tokens_used=0,
+    )
+
+
+@pytest.mark.asyncio
 async def test_completion_does_not_claim_terminal_state_when_cost_settlement_fails() -> None:
     job = ResearchJob(
         id="job-1",

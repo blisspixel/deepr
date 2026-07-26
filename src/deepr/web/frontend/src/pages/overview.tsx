@@ -112,7 +112,7 @@ export default function Overview() {
       {/* Connection warning */}
       {(isJobsError || isCostError) && (
         <div className="rounded-lg border border-warning/30 bg-warning/5 px-4 py-3 flex items-center gap-3">
-          <AlertTriangle className="w-4 h-4 text-warning flex-shrink-0" />
+          <AlertTriangle className="w-4 h-4 text-warning shrink-0" />
           <p className="text-sm text-muted-foreground">
             Unable to connect to the backend. Data below may be incomplete.
             Start the server or go to{' '}
@@ -127,7 +127,7 @@ export default function Overview() {
           artifacts and the dashboard showed nothing. */}
       {costSummary?.over_budget && (
         <div className="rounded-lg border border-destructive/40 bg-destructive/5 px-4 py-3 flex items-center gap-3">
-          <AlertTriangle className="w-4 h-4 text-destructive flex-shrink-0" />
+          <AlertTriangle className="w-4 h-4 text-destructive shrink-0" />
           <p className="text-sm text-foreground">
             <span className="font-semibold text-destructive">Over budget:</span>{' '}
             {formatCurrency(costSummary.monthly)} spent this month against a{' '}
@@ -139,7 +139,7 @@ export default function Overview() {
       )}
       {(integrity?.orphaned_spend ?? 0) > 0.005 && (
         <div className="rounded-lg border border-destructive/40 bg-destructive/5 px-4 py-3 flex items-center gap-3">
-          <AlertTriangle className="w-4 h-4 text-destructive flex-shrink-0" />
+          <AlertTriangle className="w-4 h-4 text-destructive shrink-0" />
           <p className="text-sm text-foreground">
             <span className="font-semibold text-destructive">Orphaned spend:</span>{' '}
             {formatCurrency(integrity!.orphaned_spend)} across {integrity!.orphaned_events} paid events
@@ -248,7 +248,7 @@ export default function Overview() {
                   <Link
                     key={job.id}
                     to={`/research/${job.id}`}
-                    className="block rounded-lg border bg-card p-4 hover:border-primary/30 hover:shadow-md transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                    className="block rounded-lg border bg-card p-4 hover:border-primary/30 hover:shadow-md transition-all focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring"
                   >
                     <div className="flex justify-between items-start gap-3">
                       <div className="flex-1 min-w-0">
@@ -307,7 +307,7 @@ export default function Overview() {
                   <p className="text-sm font-medium text-foreground text-center mb-4">Get started in 3 steps</p>
                   <div className="space-y-3 max-w-sm mx-auto">
                     <div className="flex items-start gap-3">
-                      <span className="flex-shrink-0 w-5 h-5 rounded-full bg-primary/10 text-primary text-xs font-bold flex items-center justify-center mt-0.5">1</span>
+                      <span className="shrink-0 w-5 h-5 rounded-full bg-primary/10 text-primary text-xs font-bold flex items-center justify-center mt-0.5">1</span>
                       <div>
                         <p className="text-sm text-foreground">Set a budget</p>
                         <p className="text-xs text-muted-foreground">
@@ -320,7 +320,7 @@ export default function Overview() {
                       </div>
                     </div>
                     <div className="flex items-start gap-3">
-                      <span className="flex-shrink-0 w-5 h-5 rounded-full bg-primary/10 text-primary text-xs font-bold flex items-center justify-center mt-0.5">2</span>
+                      <span className="shrink-0 w-5 h-5 rounded-full bg-primary/10 text-primary text-xs font-bold flex items-center justify-center mt-0.5">2</span>
                       <div>
                         <p className="text-sm text-foreground">Run a research job</p>
                         <p className="text-xs text-muted-foreground">
@@ -329,7 +329,7 @@ export default function Overview() {
                       </div>
                     </div>
                     <div className="flex items-start gap-3">
-                      <span className="flex-shrink-0 w-5 h-5 rounded-full bg-primary/10 text-primary text-xs font-bold flex items-center justify-center mt-0.5">3</span>
+                      <span className="shrink-0 w-5 h-5 rounded-full bg-primary/10 text-primary text-xs font-bold flex items-center justify-center mt-0.5">3</span>
                       <div>
                         <p className="text-sm text-foreground">Review results with citations</p>
                         <p className="text-xs text-muted-foreground">
@@ -344,9 +344,9 @@ export default function Overview() {
                   <Link
                     key={job.id}
                     to={['queued', 'processing'].includes(job.status) ? `/research/${job.id}` : `/results/${job.id}`}
-                    className="px-4 py-3 flex items-center gap-3 hover:bg-accent/50 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
+                    className="px-4 py-3 flex items-center gap-3 hover:bg-accent/50 transition-colors focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
                   >
-                    <div className="flex-shrink-0">
+                    <div className="shrink-0">
                       {job.status === 'completed' ? <CheckCircle2 className="w-4 h-4 text-success" /> :
                        job.status === 'processing' ? <Loader2 className="w-4 h-4 text-info animate-spin" /> :
                        job.status === 'queued' ? <Activity className="w-4 h-4 text-warning" /> :
@@ -362,7 +362,7 @@ export default function Overview() {
                         }
                       </p>
                     </div>
-                    <div className="flex items-center gap-2 flex-shrink-0">
+                    <div className="flex items-center gap-2 shrink-0">
                       {job.model && (
                         <span className="text-[10px] text-muted-foreground px-1.5 py-0.5 rounded bg-muted">
                           {job.model.split('/').pop()}

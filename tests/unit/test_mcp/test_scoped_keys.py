@@ -213,10 +213,13 @@ class TestScopedMCPAuthorization:
 
     def test_consult_experts_cost_estimate_respects_owned_capacity_backend(self):
         assert estimate_scoped_mcp_tool_cost("deepr_consult_experts", {}) == 0.0
-        assert estimate_scoped_mcp_tool_cost(
-            "deepr_consult_experts",
-            {"synthesis_backend": "api"},
-        ) is None
+        assert (
+            estimate_scoped_mcp_tool_cost(
+                "deepr_consult_experts",
+                {"synthesis_backend": "api"},
+            )
+            is None
+        )
         assert (
             estimate_scoped_mcp_tool_cost(
                 "deepr_consult_experts",

@@ -324,7 +324,15 @@ reliable product, not a four-language architecture diagram.
 
 ---
 
-## Current Status (v2.38.0)
+## Current Status (v2.38.1)
+
+**v2.38.1 additions:** current stable Python and frontend dependencies, clean
+Python and npm vulnerability audits, frozen lock consumption in CI and
+containers, current ESLint and Tailwind configuration, pinned deployment
+requirements and production base images, and queue cost displays that use the
+same conservative accounted amount as the canonical ledger. Automated update
+branches are disabled so dependency work remains human-authored, reviewed, and
+short-lived.
 
 **v2.38.0 additions:** one authoritative paid-spend wallet now binds CLI, web,
 REST, MCP, workers, scripts, judges, embeddings, and expert maintenance to the

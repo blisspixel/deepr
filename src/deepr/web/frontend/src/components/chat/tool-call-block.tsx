@@ -23,11 +23,11 @@ export function ToolCallBlock({ tool, query, elapsed_ms, running }: ToolCallBloc
     <Collapsible defaultOpen={running}>
       <CollapsibleTrigger className="flex items-center gap-2 text-xs text-muted-foreground hover:text-foreground transition-colors py-1 group w-full">
         {running ? (
-          <Loader2 className="w-3.5 h-3.5 animate-spin text-primary flex-shrink-0" />
+          <Loader2 className="w-3.5 h-3.5 animate-spin text-primary shrink-0" />
         ) : (
-          <CheckCircle className="w-3.5 h-3.5 text-green-500 flex-shrink-0" />
+          <CheckCircle className="w-3.5 h-3.5 text-green-500 shrink-0" />
         )}
-        <Icon className="w-3 h-3 flex-shrink-0" />
+        <Icon className="w-3 h-3 shrink-0" />
         <span>{running ? info.label.replace(/^(Searched|Ran)/, (m) => m === 'Searched' ? 'Searching' : 'Running') : info.label}</span>
         {elapsed_ms != null && (
           <span className="tabular-nums">{elapsed_ms < 1000 ? `${elapsed_ms}ms` : `${(elapsed_ms / 1000).toFixed(1)}s`}</span>
@@ -39,7 +39,7 @@ export function ToolCallBlock({ tool, query, elapsed_ms, running }: ToolCallBloc
       </CollapsibleTrigger>
       <CollapsibleContent>
         {query && (
-          <div className="ml-6 pl-2 border-l text-[11px] text-muted-foreground py-1 break-words">
+          <div className="ml-6 pl-2 border-l text-[11px] text-muted-foreground py-1 wrap-break-word">
             {query}
           </div>
         )}

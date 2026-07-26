@@ -1,20 +1,20 @@
-FROM python:3.11-slim
+FROM python:3.12.13-slim@sha256:57cd7c3a7a273101a6485ba99423ee568157882804b1124b4dd04266317710de
 
 # Security: non-root user
 RUN groupadd -r deepr && useradd -r -g deepr -u 1000 deepr
 
 WORKDIR /app
 
-# Install AWS CLI for secrets access
-RUN pip install --no-cache-dir awscli boto3
+# Install the exact lock-selected application and AWS worker dependencies.
+RUN pip install --no-cache-dir uv==0.11.32
+COPY pyproject.toml uv.lock setup.py README.md LICENSE MANIFEST.in ./
+COPY src/ src/
+COPY skills/ skills/
+RUN uv sync --frozen --no-dev --no-editable --extra aws
 
-# Copy and install deepr
-COPY pyproject.toml setup.py README.md ./
-COPY deepr/__init__.py deepr/__init__.py
-RUN pip install --no-cache-dir .
+ENV PATH="/app/.venv/bin:$PATH"
 
-# Copy application code
-COPY deepr/ deepr/
+# Copy worker entry point.
 COPY deploy/aws/src/worker/worker.py ./worker.py
 
 # Switch to non-root user

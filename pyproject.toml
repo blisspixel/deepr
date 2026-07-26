@@ -1,10 +1,10 @@
 [build-system]
-requires = ["setuptools>=77.0.0", "wheel"]
+requires = ["setuptools>=83.0.0,<84.0.0", "wheel>=0.47.0,<1.0.0"]
 build-backend = "setuptools.build_meta"
 
 [project]
 name = "deepr-research"
-version = "2.38.0"
+version = "2.38.1"
 description = "Research automation platform that replicates human research team workflows using AI"
 readme = "README.md"
 license = "Apache-2.0"
@@ -82,6 +82,7 @@ azure-foundry = [
 docs = [
     "python-docx>=0.8.11,<2.0.0",
     "beautifulsoup4>=4.12.0,<5.0.0",
+    "docx2pdf>=0.1.8,<1.0.0",
 ]
 
 # Free keyless web search for $0 fresh-context retrieval (local/plan maintenance).
@@ -91,26 +92,41 @@ search = [
     "ddgs>=9.0.0,<10.0.0",
 ]
 
+# JavaScript-capable scraping. Browser binaries remain an explicit post-install
+# step so package installation never downloads them unexpectedly.
+scrape = [
+    "playwright>=1.61.0,<2.0.0",
+]
+
+# AWS worker runtime. Exact pins make the deployment lock authoritative.
+aws = [
+    "awscli==1.45.56",
+    "boto3==1.43.56",
+]
+
 # Full install with all features
 full = [
-    "deepr-research[web,azure,azure-foundry,docs,search]",
+    "deepr-research[web,azure,azure-foundry,docs,search,scrape]",
 ]
 
 # Development dependencies
 dev = [
-    "pytest>=7.0.0",
+    "pytest>=9.1.1",
     "pytest-asyncio>=0.21.0",
     "pytest-cov>=4.0.0",
     "pytest-mock>=3.10.0",
     "pytest-socket>=0.7.0,<1.0.0",
     "pytest-timeout>=2.3.0",
-    "black>=23.0.0",
-    "ruff>=0.15.17",
-    "hypothesis>=6.0.0",
-    "mypy>=1.13.0",
-    "types-PyYAML>=6.0.12",
-    "pip-audit>=2.7.0",
-    "mutmut>=3.0.0",
+    "black>=26.5.1",
+    "ruff>=0.16.0",
+    "hypothesis>=6.161.5",
+    "mypy>=2.3.0",
+    "types-PyYAML>=6.0.12.20260724",
+    "pip-audit>=2.10.1",
+    "mutmut>=3.6.0",
+    "build>=1.5.0,<2.0.0",
+    "twine>=6.2.0,<7.0.0",
+    "pre-commit>=4.6.1,<5.0.0",
 ]
 
 [project.scripts]

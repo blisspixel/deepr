@@ -50,7 +50,7 @@ export function ProgressPhases({ phases, className }: ProgressPhasesProps) {
           {index < phases.length - 1 && (
             <div
               className={cn(
-                'h-0.5 w-8 mx-1 mt-[-1.5rem]',
+                'h-0.5 w-8 mx-1 -mt-6',
                 phases[index + 1].status !== 'pending'
                   ? 'bg-primary'
                   : 'bg-muted-foreground/20'

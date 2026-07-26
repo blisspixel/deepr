@@ -16,17 +16,15 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Install uv
-        uses: astral-sh/setup-uv@11f9893b081a58869d3b5fccaea48c9e9e46f990 # v8.3.2
+        uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9 # v9.0.0
         with:
           activate-environment: true
           python-version: "3.12"
+          version: "0.11.32"
 
       - name: Install lint tooling
-        # No --system: setup-uv creates and activates a .venv, so install into
-        # it and let the .venv's ruff/mypy/python resolve on PATH.
-        # ruff is pinned exactly so the Phase Q complexity/security ratchets
-        # (which count findings) are reproducible between local runs and CI.
-        run: uv pip install ruff==0.15.17 "mypy>=1.13.0"
+        # uv.lock is the dependency authority used by every Python CI job.
+        run: uv sync --frozen --extra dev
 
       - name: Lint
         run: ruff check src/deepr/
@@ -82,10 +80,11 @@ jobs:
           fetch-depth: 0
 
       - name: Install uv
-        uses: astral-sh/setup-uv@11f9893b081a58869d3b5fccaea48c9e9e46f990 # v8.3.2
+        uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9 # v9.0.0
         with:
           activate-environment: true
           python-version: "3.12"
+          version: "0.11.32"
 
       - name: Secret scan (Gitleaks, blocking)
         run: |
@@ -98,7 +97,7 @@ jobs:
         # build. Accepted advisories are pinned explicitly with
         # `--ignore-vuln <ID>` rather than by disabling the gate.
         run: |
-          uv pip install -e ".[full]" "pip-audit>=2.7.0"
+          uv sync --frozen --extra dev --extra full
           pip-audit --skip-editable
 
       - name: Generate SBOM (pinned dependency bill of materials)
@@ -107,7 +106,7 @@ jobs:
         run: uv export --frozen --no-emit-project --no-dev --format requirements-txt -o sbom-requirements.txt
 
       - name: Upload SBOM artifact
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: sbom-requirements
           path: sbom-requirements.txt
@@ -126,13 +125,14 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Install uv
-        uses: astral-sh/setup-uv@11f9893b081a58869d3b5fccaea48c9e9e46f990 # v8.3.2
+        uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9 # v9.0.0
         with:
           activate-environment: true
           python-version: "3.12"
+          version: "0.11.32"
 
       - name: Install CORE only (no extras)
-        run: uv pip install .
+        run: uv sync --frozen
 
       - name: Smoke-test the core CLI (no network, no extras)
         run: |
@@ -155,12 +155,18 @@ jobs:
 
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
-          node-version: "22"
+          node-version: "24.18.0"
           cache: npm
           cache-dependency-path: src/deepr/web/frontend/package-lock.json
 
+      - name: Install npm
+        run: npm install --global npm@12.0.1
+
       - name: Install frontend dependencies
         run: npm ci
+
+      - name: Dependency audit (npm, blocking)
+        run: npm audit --audit-level=high
 
       - name: Lint (eslint, zero warnings)
         run: npm run lint
@@ -174,9 +180,11 @@ jobs:
       - name: Production build (vite)
         run: npx vite build
 
-      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+      - uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9 # v9.0.0
         with:
+          activate-environment: true
           python-version: "3.12"
+          version: "0.11.32"
 
       - name: Verify committed frontend archive is current
         working-directory: ${{ github.workspace }}
@@ -187,8 +195,8 @@ jobs:
       - name: Build Python distributions with packaged frontend
         working-directory: ${{ github.workspace }}
         run: |
-          python -m pip install build
-          python -m build
+          uv sync --frozen --extra dev
+          uv run python -m build
 
       - name: Verify wheel contains dashboard assets
         working-directory: ${{ github.workspace }}
@@ -209,13 +217,14 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Install uv
-        uses: astral-sh/setup-uv@11f9893b081a58869d3b5fccaea48c9e9e46f990 # v8.3.2
+        uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9 # v9.0.0
         with:
           activate-environment: true
           python-version: ${{ matrix.python-version }}
+          version: "0.11.32"
 
       - name: Install dependencies
-        run: uv pip install -e ".[dev,full]"
+        run: uv sync --frozen --extra dev --extra full
 
       - name: Unit tests with coverage
         # Coverage threshold lives in pyproject.toml (currently 80%).

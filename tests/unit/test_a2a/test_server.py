@@ -276,9 +276,7 @@ class TestTaskCancellation:
                 "metadata": {"synthesis_backend": "local"},
             }
         )
-        create_call = asyncio.create_task(
-            server.handle_request("POST", "/tasks", payload)
-        )
+        create_call = asyncio.create_task(server.handle_request("POST", "/tasks", payload))
         await asyncio.wait_for(started.wait(), timeout=1)
         active = server._task_manager.list_tasks(TaskState.WORKING)
         assert len(active) == 1

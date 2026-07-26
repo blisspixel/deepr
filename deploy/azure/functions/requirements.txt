@@ -1,8 +1,8 @@
-azure-functions
-azure-identity
-azure-keyvault-secrets
-azure-cosmos
-azure-storage-blob
-azure-storage-queue
+azure-functions==1.24.0
+azure-identity==1.25.3
+azure-keyvault-secrets==4.11.0
+azure-cosmos==4.16.2
+azure-storage-blob==12.30.0
+azure-storage-queue==12.17.0
 # Shared library (install from deploy/shared before deployment)
 # deepr-api-common @ file:../../shared

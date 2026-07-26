@@ -82,7 +82,7 @@ export function AreaChartComponent({
               color: CHART_THEME.tooltip.text,
               fontSize: 13,
             }}
-            formatter={formatTooltip ? (v: number) => [formatTooltip(v)] : undefined}
+            formatter={formatTooltip ? (value) => [formatTooltip(Number(value))] : undefined}
           />
           <Area
             type="monotone"

@@ -190,7 +190,7 @@ export default function ExpertHub() {
                   <ExpertPortrait
                     name={expert.name}
                     portraitUrl={expert.portrait_url}
-                    className="w-10 h-10 rounded-lg flex-shrink-0"
+                    className="w-10 h-10 rounded-lg shrink-0"
                     iconClassName="w-5 h-5"
                   />
                   <div className="min-w-0">
