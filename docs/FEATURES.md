@@ -1422,9 +1422,10 @@ deepr costs limits --daily 15 --monthly 150
 - Timeline chart with anomaly detection (days > 2x average highlighted)
 - Per-expert costs: total research cost, monthly spending, budget usage, per-operation breakdown
 - Active alerts at configurable thresholds (50%, 80%, 95%)
-- Tracker integrity checks (ledger writable + drift vs dashboard totals) via `deepr costs doctor`
+- Tracker integrity checks (ledger writable + drift vs dashboard totals) plus paid-events-vs-artifacts reconciliation via `deepr costs doctor`: every settled dollar either maps to a report directory on disk or is flagged as orphaned spend, with a nonzero exit so schedulers can alarm
+- A Spend section in `deepr doctor` that errors when the month is over budget or settled spend has no surviving artifact
 
-Set `DEEPR_COST_TRACKING_STRICT=1` to fail fast when cost events cannot be written to the canonical ledger.
+Cost tracking is strict by default: a spend event that cannot be written to the canonical ledger raises instead of silently continuing. Set `DEEPR_COST_TRACKING_STRICT=0` to opt into lenient tracking.
 
 ### Budget Limits
 
