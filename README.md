@@ -125,6 +125,57 @@ Experts should be able to explain what they know, what they do not know, what
 changed, and what they should learn next. They do not get to authorize their own
 spend, writes, or authority changes.
 
+## An Expert Is Not a List of Facts
+
+If all you wanted was facts, you would use a search engine or an encyclopedia.
+Facts are the commodity layer: every frontier model already has them, and a
+static pile of them is exactly what an expert is not. Deepr's unit of value is
+the expert, and an expert is modeled on what makes a cutting-edge human expert
+worth consulting:
+
+- **They know how the field is moving, not just where it stands.** A real
+  expert tracks what changed this quarter, what is newly contested, what got
+  quietly deprecated, and what everyone still cites but should not. Deepr
+  encodes this in the temporal knowledge graph: beliefs carry provenance and
+  time, edges carry temporal qualifiers, confidence decays instead of
+  pretending knowledge is permanent, and `what-changed` / `contested` /
+  `explain-belief` are first-class queries. A fact list cannot answer "what
+  changed since March and why does it matter."
+- **They hold contradictions honestly.** Experts at the edge of a field live
+  where the evidence disagrees. Deepr preserves contradictions instead of
+  resolving them by deletion: both claims stay, linked as contested, with
+  sources, so a consult surfaces the live dispute rather than a false
+  consensus.
+- **They know what they do not know.** A real expert names their gaps, keeps a
+  watch list, and can tell you exactly what evidence would change their mind.
+  Deepr experts carry explicit gaps, an exploration agenda, hypotheses,
+  stances, and disconfirming tests as first-class, explicitly non-factual
+  perspective state, labeled as such and never passed off as verified fact.
+- **They get better with repeated exposure, on a schedule.** Expertise is
+  maintained, not downloaded. Deepr experts stay current through scheduled,
+  budget-bounded research over time (sync subscriptions, gap-fill, reflection
+  loops), so the expert a year from now has metabolized a year of change,
+  with the audit trail to prove it.
+- **They are accountable to decisions, not trivia.** You consult a human
+  expert to decide something. Deepr experts carry a reviewed purpose, decision
+  use cases, acceptance cases, and recorded outcomes, so their value is
+  measured where it exists: better repeated decisions over time.
+
+This is also why benchmarking an expert on arbitrary fact recall is a fail
+pattern, not a measurement. Fact benchmarks test the commodity layer (any
+frontier model passes), their answer keys are frequently stale or simply
+wrong, and they structurally reward yesterday's consensus while punishing
+exactly the current, contested, still-moving knowledge a maintained expert
+exists to hold. A fact test cannot see retention, update behavior, forward
+transfer, or the ability to say "that changed last month." The honest
+instrument is the four-arm expert-value review (`deepr eval expert-value`):
+fresh research vs static history vs compiled expert vs maintained expert,
+scored on initial quality, retention, update, forward transfer, and hard
+negatives, with blinded operator attestation. Measure experts the way you
+would measure a human advisor: not "can you recite," but "are your judgments
+better than starting from scratch, and do they stay better as the world
+moves."
+
 ## Who Deepr Is For
 
 Deepr fits builders, operators, researchers, and agent-host users who need

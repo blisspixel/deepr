@@ -33,11 +33,15 @@ def _require_metered_expert_cli(operation: str, *, safe_alternative: str) -> Non
 @click.option("--list", "list_flag", "-l", is_flag=True, help="List all experts")
 @click.pass_context
 def expert(ctx, list_flag):
-    """Create and interact with domain experts.
+    """Create and maintain domain experts.
 
-    Experts combine structured knowledge with bounded local or plan-quota
-    maintenance and consultation. Legacy metered lifecycle and chat execution
-    fail closed in v2.36.
+    An expert is not a list of facts: it is a maintained knowledge role with
+    beliefs (provenance, confidence, decay), a temporal graph that answers
+    what changed and what is contested, explicit gaps and stances, scheduled
+    research over time, and a reviewed purpose measured on repeated
+    decisions. Maintenance and consultation run on bounded local or
+    plan-quota capacity. Legacy metered lifecycle and chat execution fail
+    closed in v2.36.
 
     COMMON COMMANDS:
       deepr expert list              List all experts
