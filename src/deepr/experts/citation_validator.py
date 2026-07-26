@@ -18,6 +18,8 @@ logger = logging.getLogger(__name__)
 
 # Max claim-source pairs per LLM batch call
 _BATCH_SIZE = 5
+_CITATION_CALL_CEILING_USD = 0.02
+_CITATION_OUTPUT_TOKENS = 900
 
 
 class CitationValidator:
@@ -37,8 +39,38 @@ class CitationValidator:
         if self.client is None:
             from openai import AsyncOpenAI
 
-            self.client = AsyncOpenAI()
+            self.client = AsyncOpenAI(max_retries=0)
         return self.client
+
+    async def _complete_bounded(self, messages: list[dict[str, str]]) -> Any:
+        """Run one citation judgment inside a priced durable transaction."""
+        from deepr.experts.report_absorber_costs import bounded_metered_completion_kwargs
+        from deepr.services.metered_call import execute_reserved_async_call
+
+        kwargs, worst_case_cost = bounded_metered_completion_kwargs(
+            operation="citation_validation",
+            model=self.model,
+            call_ceiling=_CITATION_CALL_CEILING_USD,
+            kwargs={
+                "model": self.model,
+                "messages": messages,
+                "reasoning_effort": "low",
+                "max_completion_tokens": _CITATION_OUTPUT_TOKENS,
+            },
+        )
+
+        async def dispatch() -> Any:
+            client = await self._get_client()
+            return await client.chat.completions.create(**kwargs)
+
+        return await execute_reserved_async_call(
+            operation_prefix="citation-validation",
+            provider="openai",
+            model=self.model,
+            source="experts.citation_validator.validate_claims",
+            max_cost_per_job=worst_case_cost,
+            call=dispatch,
+        )
 
     async def validate_claims(
         self,
@@ -102,41 +134,15 @@ class CitationValidator:
         prompt_parts.append("Output ONLY the JSON array, no other text.")
         prompt = "\n".join(prompt_parts)
 
-        # Pre-flight cost-safety gate. Citation validation can fire many
-        # paid LLM calls in a long-running expert workflow; without this
-        # gate the daily / monthly budget is bypassed. Fail closed if the
-        # gate cannot run - never skip admission and still spend.
-        from deepr.experts.cost_admission import admit_soft_cost_operation
-
-        cost_safety, est_cost, deny_reason = admit_soft_cost_operation(
-            session_id="citation_validator",
-            operation_type="citation_validation",
-            estimated_cost=0.02,  # gpt-5.2 batch validation; low reasoning effort
-        )
-        if deny_reason is not None:
-            logger.warning("Citation validation blocked by cost-safety: %s", deny_reason)
-            return [
-                SourceValidation(
-                    source_id=src.id,
-                    claim_id=claim.id,
-                    support_class=SupportClass.UNCERTAIN,
-                    explanation=f"Skipped: {deny_reason}",
-                )
-                for claim, src, _ in pairs
-            ]
-
         try:
-            client = await self._get_client()
-            response = await client.chat.completions.create(
-                model=self.model,
-                messages=[
+            response = await self._complete_bounded(
+                [
                     {
                         "role": "system",
                         "content": "You validate whether sources support claims. Output only valid JSON.",
                     },
                     {"role": "user", "content": prompt},
-                ],
-                reasoning_effort="low",
+                ]
             )
 
             import json
@@ -165,24 +171,6 @@ class CitationValidator:
                             explanation=result.get("explanation", ""),
                         )
                     )
-
-            # Settle the cost into the canonical ledger.
-            actual_cost = est_cost
-            if response.usage:
-                from deepr.experts.chat_turns import chat_token_cost as _tc
-
-                actual_cost = _tc(response.usage, self.model)
-            from deepr.experts.cost_admission import record_soft_cost
-
-            record_soft_cost(
-                cost_safety,
-                session_id="citation_validator",
-                operation_type="citation_validation",
-                actual_cost=float(actual_cost),
-                provider="openai",
-                model=self.model,
-                source="experts.citation_validator.validate_claims",
-            )
 
             return validations
 

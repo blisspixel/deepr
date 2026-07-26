@@ -108,16 +108,26 @@ Generate up to {max_tasks} next research tasks, or indicate we're ready to synth
 Return ONLY valid JSON, no other text."""
 
         from deepr.services.metered_call import execute_reserved_sync_call
+        from deepr.services.metered_envelope import bounded_chat_envelope
+
+        envelope = bounded_chat_envelope(
+            model=self.model,
+            prompt_parts=(system_prompt, user_prompt),
+            budget_usd=0.50,
+            maximum_output_tokens=3_000,
+        )
 
         response = execute_reserved_sync_call(
             operation_prefix="research-review",
             provider="openai",
             model=self.model,
             source="services.research_reviewer.review_and_plan_next",
+            max_cost_per_job=envelope.cost_usd,
             call=partial(
                 self.client.responses.create,
                 model=self.model,
                 input=[{"role": "system", "content": system_prompt}, {"role": "user", "content": user_prompt}],
+                max_output_tokens=envelope.output_tokens,
             ),
         )
 

@@ -85,11 +85,12 @@ def build_absorb_backend(
 ) -> AbsorbBackend:
     """Resolve the maintenance backend and build the matching ``ReportAbsorber``.
 
-    The capacity waterfall picks owned local capacity before metered API:
+    The capacity waterfall picks owned or prepaid capacity without inventing
+    metered authority:
     ``--local`` forces local, ``--plan`` forces an explicit plan CLI, ``--api``
-    or an explicit ``--model`` forces metered, and otherwise an admitted and
-    available local model is used, else metered. The reason is printed as a dim
-    note (unless JSON output is requested), matching the command's prior output.
+    or an explicit ``--model`` forces metered, and otherwise an admitted local
+    or safe plan backend must be available. The reason is printed as a dim note
+    unless JSON output is requested.
 
     Raises ``AbsorbBackendError`` for a user-facing setup failure (unknown plan
     backend or no local model). The grounding-pair builders may separately raise
@@ -152,6 +153,8 @@ def _resolve_backend_selection(*, local: bool, api: bool, plan: str | None, mode
             selection_note = choice.reason
         elif use_plan:
             selection_note = choice.reason
+        else:
+            raise AbsorbBackendError(f"No owned or prepaid absorb capacity is available: {choice.reason}")
     return _Selection(use_local, use_plan, plan_backend_id, selection_note, model)
 
 

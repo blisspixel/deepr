@@ -24,6 +24,12 @@ from typing import TYPE_CHECKING, Any
 
 from deepr.experts.metered_mutation_gate import require_metered_expert_mutation
 
+_SYNTHESIS_MODEL = "gpt-5.2"
+_SYNTHESIS_CALL_CEILING_USD = 0.10
+_SYNTHESIS_OUTPUT_TOKENS = 4_000
+_EXTRACTION_CALL_CEILING_USD = 0.03
+_EXTRACTION_OUTPUT_TOKENS = 1_600
+
 if TYPE_CHECKING:
     from deepr.core.contracts import Claim, Gap
 
@@ -195,6 +201,43 @@ class KnowledgeSynthesizer:
         """Initialize synthesizer with OpenAI client."""
         self.client = client
 
+    async def _complete_bounded(
+        self,
+        *,
+        operation: str,
+        source: str,
+        messages: list[dict[str, str]],
+        call_ceiling: float,
+        output_tokens: int,
+        json_output: bool = False,
+    ) -> Any:
+        """Run one synthesis call inside a provider-enforced cost envelope."""
+        from deepr.experts.report_absorber_costs import bounded_metered_completion_kwargs
+        from deepr.services.metered_call import execute_reserved_async_call
+
+        request: dict[str, Any] = {
+            "model": _SYNTHESIS_MODEL,
+            "messages": messages,
+            "reasoning_effort": "low",
+            "max_completion_tokens": output_tokens,
+        }
+        if json_output:
+            request["response_format"] = {"type": "json_object"}
+        kwargs, worst_case_cost = bounded_metered_completion_kwargs(
+            operation=operation,
+            model=_SYNTHESIS_MODEL,
+            call_ceiling=call_ceiling,
+            kwargs=request,
+        )
+        return await execute_reserved_async_call(
+            operation_prefix=f"knowledge-synthesis-{operation}",
+            provider="openai",
+            model=_SYNTHESIS_MODEL,
+            source=source,
+            max_cost_per_job=worst_case_cost,
+            call=lambda: self.client.chat.completions.create(**kwargs),
+        )
+
     async def synthesize_new_knowledge(
         self,
         expert_name: str,
@@ -234,21 +277,10 @@ class KnowledgeSynthesizer:
         # Build synthesis prompt
         synthesis_prompt = self._build_synthesis_prompt(expert_name, domain, doc_contents, existing_worldview)
 
-        # Cost-safety gate for the synthesis LLM call.
-        from deepr.experts.cost_admission import admit_soft_cost_operation, record_soft_cost
-
-        _cost_safety, _est, _reason = admit_soft_cost_operation(
-            session_id=f"synthesize:{expert_name}",
-            operation_type="synthesize_new_knowledge",
-            estimated_cost=0.10,
-        )
-        if _reason is not None:
-            logger.warning("Knowledge synthesis blocked by cost-safety: %s", _reason)
-            return {"success": False, "error": f"Cost-safety blocked: {_reason}"}
-
         # GPT-5.2 synthesizes knowledge (low reasoning - extraction/synthesis, not deep analysis)
-        response = await self.client.chat.completions.create(
-            model="gpt-5.2",
+        response = await self._complete_bounded(
+            operation="reflection",
+            source="experts.synthesis.synthesize_new_knowledge",
             messages=[
                 {
                     "role": "system",
@@ -256,22 +288,11 @@ class KnowledgeSynthesizer:
                 },
                 {"role": "user", "content": synthesis_prompt},
             ],
-            reasoning_effort="low",
+            call_ceiling=_SYNTHESIS_CALL_CEILING_USD,
+            output_tokens=_SYNTHESIS_OUTPUT_TOKENS,
         )
 
         reflection_text = response.choices[0].message.content or ""
-        from deepr.experts.chat_turns import chat_token_cost as _tc
-
-        _actual = _tc(response.usage, "gpt-5.2") if response.usage else _est
-        record_soft_cost(
-            _cost_safety,
-            session_id=f"synthesize:{expert_name}",
-            operation_type="synthesize_new_knowledge",
-            actual_cost=float(_actual),
-            provider="openai",
-            model="gpt-5.2",
-            source="experts.synthesis.synthesize_new_knowledge",
-        )
 
         # Parse structured beliefs from reflection
         beliefs, gaps = await self._extract_structured_knowledge(reflection_text, doc_contents, expert_name)
@@ -404,37 +425,16 @@ Focus on extracting the expert's formed beliefs and identified gaps.
 Output ONLY the JSON, no other text.
 """
 
-        # Cost-safety gate for the structure-extraction LLM call.
-        from deepr.experts.cost_admission import admit_soft_cost_operation, record_soft_cost
-
-        _cost_safety, _est, _reason = admit_soft_cost_operation(
-            session_id=f"synthesize:{expert_name}",
-            operation_type="extract_structured_knowledge",
-            estimated_cost=0.03,
-        )
-        if _reason is not None:
-            logger.warning("Knowledge extraction blocked by cost-safety: %s", _reason)
-            return [], []
-
-        response = await self.client.chat.completions.create(
-            model="gpt-5.2",
+        response = await self._complete_bounded(
+            operation="structured-extraction",
+            source="experts.synthesis.extract_structured_knowledge",
             messages=[
                 {"role": "system", "content": "You extract structured data from text. Output only valid JSON."},
                 {"role": "user", "content": parse_prompt},
             ],
-            reasoning_effort="low",  # JSON extraction doesn't need deep reasoning
-        )
-        from deepr.experts.chat_turns import chat_token_cost as _tc
-
-        _actual = _tc(response.usage, "gpt-5.2") if response.usage else _est
-        record_soft_cost(
-            _cost_safety,
-            session_id=f"synthesize:{expert_name}",
-            operation_type="extract_structured_knowledge",
-            actual_cost=float(_actual),
-            provider="openai",
-            model="gpt-5.2",
-            source="experts.synthesis.extract_structured_knowledge",
+            call_ceiling=_EXTRACTION_CALL_CEILING_USD,
+            output_tokens=_EXTRACTION_OUTPUT_TOKENS,
+            json_output=True,
         )
 
         try:

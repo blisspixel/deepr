@@ -15,6 +15,7 @@ from deepr.experts.consult_transaction import (
     execute_consult_transaction,
     requested_consult_capacity,
 )
+from deepr.mcp.metered_contract import MeteredMCPContractError, require_metered_api_contract
 
 CONSULT_EXPERTS_OUTPUT_SCHEMA: dict[str, Any] = {
     "type": "object",
@@ -74,12 +75,26 @@ CONSULT_EXPERTS_INPUT_SCHEMA: dict[str, Any] = {
             "minimum": 1,
             "maximum": 10,
         },
-        "budget": {"type": "number", "description": "USD ceiling for API consults", "default": 2.0},
+        "budget": {
+            "type": "number",
+            "minimum": 0,
+            "description": "USD ceiling. Required and positive for API; zero is valid for local or plan.",
+        },
         "synthesis_backend": {
             "type": "string",
             "enum": ["api", "local", "plan"],
-            "description": "Use local or explicit plan capacity to avoid live metered fallback.",
-            "default": "api",
+            "description": "Defaults to local. API use requires explicit metered consent and a budget.",
+            "default": "local",
+        },
+        "allow_metered_api": {
+            "type": "boolean",
+            "default": False,
+            "description": "Must be true for synthesis_backend='api'.",
+        },
+        "confirm_metered_cost": {
+            "type": "boolean",
+            "default": False,
+            "description": "Must be true for synthesis_backend='api'; budget alone is not consent.",
         },
         "provider": {
             "type": "string",
@@ -115,6 +130,18 @@ CONSULT_EXPERTS_INPUT_SCHEMA: dict[str, Any] = {
         },
     },
     "required": ["question"],
+    "allOf": [
+        {
+            "if": {
+                "properties": {"synthesis_backend": {"const": "api"}},
+                "required": ["synthesis_backend"],
+            },
+            "then": {
+                "properties": {"budget": {"exclusiveMinimum": 0}},
+                "required": ["budget", "allow_metered_api", "confirm_metered_cost"],
+            },
+        }
+    ],
 }
 
 
@@ -151,7 +178,7 @@ def _runtime_type_error(
         return _error("INVALID_EXPERT_LIMIT", "experts must be an array of strings")
     if isinstance(experts, list) and any(not isinstance(expert, str) for expert in experts):
         return _error("INVALID_EXPERT_LIMIT", "experts must be an array of strings")
-    if isinstance(budget, bool) or not isinstance(budget, (int, float)):
+    if budget is not None and (isinstance(budget, bool) or not isinstance(budget, (int, float))):
         return _error("INVALID_BUDGET", "budget must be positive")
     if isinstance(max_elapsed_seconds, bool) or not isinstance(max_elapsed_seconds, (int, float)):
         return _error(
@@ -203,6 +230,28 @@ def _request_validation_error(
     return None
 
 
+def _authorized_budget(
+    *,
+    backend_mode: str,
+    budget: float | None,
+    allow_metered_api: object,
+    confirm_metered_cost: object,
+) -> tuple[float, dict[str, Any] | None]:
+    if backend_mode != "api":
+        return (0.0 if budget is None else float(budget)), None
+    try:
+        return (
+            require_metered_api_contract(
+                budget=budget,
+                allow_metered_api=allow_metered_api,
+                confirm_metered_cost=confirm_metered_cost,
+            ),
+            None,
+        )
+    except MeteredMCPContractError as exc:
+        return 0.0, _error(exc.code, str(exc))
+
+
 def _requested_capacity(
     *,
     backend_mode: str,
@@ -233,13 +282,15 @@ async def consult_experts_tool(
     question: str,
     experts: list[str] | None = None,
     max_experts: int = 3,
-    budget: float = 2.0,
-    synthesis_backend: str = "api",
+    budget: float | None = None,
+    synthesis_backend: str = "local",
     provider: str | None = None,
     model: str | None = None,
     local_model: str | None = None,
     plan: str | None = None,
     plan_model: str | None = None,
+    allow_metered_api: bool = False,
+    confirm_metered_cost: bool = False,
     max_elapsed_seconds: float = DEFAULT_CONSULT_MAX_ELAPSED_SECONDS,
 ) -> dict[str, Any]:
     """Run the MCP expert council consult tool."""
@@ -259,11 +310,20 @@ async def consult_experts_tool(
         return runtime_error
 
     backend_mode = synthesis_backend.strip().lower()
+    effective_budget, authorization_error = _authorized_budget(
+        backend_mode=backend_mode,
+        budget=budget,
+        allow_metered_api=allow_metered_api,
+        confirm_metered_cost=confirm_metered_cost,
+    )
+    if authorization_error is not None:
+        return authorization_error
+
     validation_error = _request_validation_error(
         backend_mode=backend_mode,
         experts=experts,
         max_experts=max_experts,
-        budget=budget,
+        budget=effective_budget,
         provider=provider,
         model=model,
         plan=plan,
@@ -303,7 +363,7 @@ async def consult_experts_tool(
             question=question,
             requested_experts=requested_experts,
             max_experts=max_experts,
-            budget=budget,
+            budget=effective_budget,
             backend_mode=backend_mode,
             backend_factory=build_backend,
             requested_capacity=capacity_request,

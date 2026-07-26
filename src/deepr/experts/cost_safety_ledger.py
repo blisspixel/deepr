@@ -146,24 +146,20 @@ __all__ = [
 ]
 
 
-def seed_window_costs(ledger: CostLedger) -> tuple[float, float]:
-    """Current (daily, monthly) spend already in the canonical ledger.
+def seed_window_costs(ledger: CostLedger) -> tuple[float, float, float]:
+    """Current (daily, weekly, monthly) canonical spend.
 
-    Seeds a fresh CostSafetyManager's counters so DEEPR_MAX_COST_PER_DAY and
-    _MONTH projections bound the machine's real spend, not just this
-    process's. Best-effort: an unreadable ledger seeds (0, 0) - the strict
-    write path and the budget gate's own fail-closed read still apply.
+    An unreadable accounting source must not look like zero spend. Propagate the
+    failure so paid admission stays disabled until the ledger is repaired.
     """
-    try:
-        from datetime import UTC, datetime
+    from datetime import UTC, datetime, timedelta
 
-        now = datetime.now(UTC)
-        month_start = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
-        day_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
-        return (
-            float(ledger.get_total_cost(start_date=day_start)),
-            float(ledger.get_total_cost(start_date=month_start)),
-        )
-    except Exception:
-        logger.warning("Could not seed cost counters from the canonical ledger; starting at $0 for this process")
-        return 0.0, 0.0
+    now = datetime.now(UTC)
+    month_start = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+    day_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
+    week_start = day_start - timedelta(days=day_start.weekday())
+    return (
+        float(ledger.get_total_cost(start_date=day_start)),
+        float(ledger.get_total_cost(start_date=week_start)),
+        float(ledger.get_total_cost(start_date=month_start)),
+    )

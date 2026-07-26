@@ -23,9 +23,11 @@ from deepr.experts.reflection import (
 class _FakeClient:
     def __init__(self, content: str):
         self._content = content
+        self.last_request = None
         self.chat = SimpleNamespace(completions=SimpleNamespace(create=self._create))
 
     async def _create(self, **kwargs):
+        self.last_request = kwargs
         return SimpleNamespace(choices=[SimpleNamespace(message=SimpleNamespace(content=self._content))])
 
 
@@ -86,11 +88,14 @@ class TestReflect:
 
     @pytest.mark.asyncio
     async def test_full_pass_accepts_strong_answer(self):
-        eng = ReflectionEngine(client=_FakeClient(_payload(0.9, 0.85, 0.8, 0.9, followups=["check 2027 data"])))
+        client = _FakeClient(_payload(0.9, 0.85, 0.8, 0.9, followups=["check 2027 data"]))
+        eng = ReflectionEngine(client=client)
         report = await eng.reflect("Will X happen?", "A well-cited answer.")
         assert report.verdict == "accept"
         assert len(report.dimensions) == 4
         assert report.followups == ["check 2027 data"]
+        assert 0 < client.last_request["max_completion_tokens"] <= 900
+        assert "max_tokens" not in client.last_request
 
     @pytest.mark.asyncio
     async def test_missing_dimensions_filled_conservatively(self):

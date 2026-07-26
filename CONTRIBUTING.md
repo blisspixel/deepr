@@ -90,9 +90,11 @@ The repository stays tidy by rule, not by cleanup:
   body trailers. No machine attribution ever lands on `main`: no AI
   attribution, and no automated coauthor or signoff trailers. Repo settings
   enforce the clean squash message.
-- **Dependencies.** Dependency update automation opens the PRs. Merge green minor/patch bumps
-  promptly; close major bumps that fail CI until they are compatible. Do not
-  leave dependency branches or PRs sitting open.
+- **Dependencies.** Routine automation runs monthly and opens at most one
+  grouped minor/patch PR per ecosystem. Major upgrades are deliberate roadmap
+  work, not automatically opened branches. Merge green updates promptly and
+  close incompatible updates in the same maintenance pass. Do not leave
+  dependency branches or PRs sitting open.
 - **Nothing merges red.** A green CI run is the gate for every merge.
 
 ## Code style

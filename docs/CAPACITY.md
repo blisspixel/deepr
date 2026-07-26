@@ -373,6 +373,18 @@ API work in scheduled mode. `sync-all --plan <id>` and
 
 ## Cost Accounting Rules
 
+- `deepr budget set N` is the shared UTC-month paid API wallet across CLI,
+  web, REST, MCP, scripts, workers, and unrelated commands. A command budget is
+  a narrower child envelope, never a separate wallet or permission to exceed N.
+- `deepr budget set 0` and `deepr budget freeze --reason TEXT` block new paid
+  dispatch. `deepr budget unfreeze` cannot restore exhausted headroom.
+- Effective per-job, UTC-day, UTC-week, and UTC-month limits are the tightest of
+  the operator wallet, `DEEPR_MAX_COST_PER_*`, legacy compatibility caps,
+  caller envelopes, and compiled safety ceilings. Missing monthly authority,
+  malformed policy, or unreadable cost state fails closed.
+- Admission and the immediate pre-dispatch mark both count canonical settled
+  spend plus every active durable hold. Lowering a positive cap therefore stops
+  old reservations that no longer fit.
 - Local Ollama and successful safety-eligible plan-quota services report `$0`
   Deepr dollar cost.
 - Every enabled provider API call reserves a complete finite maximum before dispatch.
@@ -406,6 +418,9 @@ reserve, settle, and audit every bucket it can trigger.
 - Server-side tools can be separate spend sources. Web search, X search, code
   execution, file or collection search, grounding, and remote tool calls must
   have explicit preflight estimates and settlement paths before automatic use.
+  xAI documents that one agent turn may invoke multiple tools in parallel, so
+  `max_turns` is not a hard tool-invocation or dollar ceiling. Deepr keeps that
+  legacy metered search path gated until the total tool bill is bounded.
 - Batch, flex, priority, provisioned, data-residency, and deployment-tier
   modifiers must be modeled as first-class pricing dimensions, not hidden in a
   single model price.

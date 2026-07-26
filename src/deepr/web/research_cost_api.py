@@ -181,14 +181,18 @@ class WebResearchCostCoordinator:
                 ),
             )
         try:
+            from deepr.core.cost_caps import resolve_spend_caps
+
+            authority = resolve_spend_caps()
             reservation = reserve_research_cost(
                 job_id=job_id,
                 provider="openai",
                 model=model,
                 estimate=estimate,
-                max_cost_per_job=self._controller.max_cost_per_job,
-                max_daily_cost=self._controller.max_daily_cost,
-                max_monthly_cost=self._controller.max_monthly_cost,
+                max_cost_per_job=min(self._controller.max_cost_per_job, authority["per_job"]),
+                max_daily_cost=min(self._controller.max_daily_cost, authority["daily"]),
+                max_weekly_cost=authority["weekly"],
+                max_monthly_cost=min(self._controller.max_monthly_cost, authority["monthly"]),
             )
         except ResearchCostBlocked:
             return (

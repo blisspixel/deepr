@@ -12,6 +12,7 @@ Usage:
 
 import json
 import logging
+import math
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from typing import Any
@@ -19,6 +20,14 @@ from typing import Any
 from deepr.services.context_chainer import ContextChainer, StructuredPhaseOutput
 
 logger = logging.getLogger(__name__)
+
+_MODEL = "gpt-5.2"
+_EXTRACT_CALL_CEILING_USD = 0.10
+_EXTRACT_OUTPUT_TOKENS = 1_600
+_CROSS_REFERENCE_CALL_CEILING_USD = 0.04
+_CROSS_REFERENCE_OUTPUT_TOKENS = 1_000
+_SYNTHESIS_CALL_CEILING_USD = 0.05
+_SYNTHESIS_OUTPUT_TOKENS = 1_400
 
 
 def _utc_now() -> datetime:
@@ -86,8 +95,50 @@ class MultiPassPipeline:
         if self.client is None:
             from openai import AsyncOpenAI
 
-            self.client = AsyncOpenAI()
+            self.client = AsyncOpenAI(max_retries=0)
         return self.client
+
+    async def _complete_bounded(
+        self,
+        *,
+        operation: str,
+        source: str,
+        messages: list[dict[str, str]],
+        budget: float,
+        hard_ceiling: float,
+        output_tokens: int,
+    ) -> Any:
+        """Execute one pass without exceeding its caller allocation."""
+        from deepr.experts.report_absorber_costs import bounded_metered_completion_kwargs
+        from deepr.services.metered_call import execute_reserved_async_call
+
+        if not math.isfinite(float(budget)) or float(budget) <= 0:
+            raise ValueError("multi-pass call budget must be finite and positive")
+        call_ceiling = min(float(budget), hard_ceiling)
+        kwargs, worst_case_cost = bounded_metered_completion_kwargs(
+            operation=operation,
+            model=_MODEL,
+            call_ceiling=call_ceiling,
+            kwargs={
+                "model": _MODEL,
+                "messages": messages,
+                "reasoning_effort": "low",
+                "max_completion_tokens": output_tokens,
+            },
+        )
+
+        async def dispatch() -> Any:
+            client = await self._get_client()
+            return await client.chat.completions.create(**kwargs)
+
+        return await execute_reserved_async_call(
+            operation_prefix=f"multi-pass-{operation}",
+            provider="openai",
+            model=_MODEL,
+            source=source,
+            max_cost_per_job=worst_case_cost,
+            call=dispatch,
+        )
 
     async def fill_gap(
         self,
@@ -183,25 +234,12 @@ class MultiPassPipeline:
             )
             raw_output = consensus_result.consensus_answer
         else:
-            # Cost-safety gate before any LLM dispatch. Pass 1 uses
-            # web_search_preview which can rack up real money fast on long
-            # questions, so we check budget first and bail with an empty
-            # output (chainer will produce a degenerate StructuredPhaseOutput).
-            from deepr.experts.cost_admission import admit_soft_cost_operation
-
-            _cost_safety, _est, _reason = admit_soft_cost_operation(
-                session_id="multi_pass",
-                operation_type="pass_extract",
-                estimated_cost=max(0.05, float(budget) * 0.5),
-            )
-            if _reason is not None:
-                logger.warning("Multi-pass extract blocked by cost-safety: %s", _reason)
-                return self.chainer.structure_phase_output(raw_output="", phase=1)
-
-            # Standard single-provider research via OpenAI
-            client = await self._get_client()
-            response = await client.chat.completions.create(
-                model="gpt-5.2",
+            # Server-side search is intentionally excluded here because this
+            # legacy chat endpoint cannot prove a provider-enforced tool-call
+            # count. Fresh web research must use the bounded research service.
+            response = await self._complete_bounded(
+                operation="extract",
+                source="experts.multi_pass.pass_extract",
                 messages=[
                     {
                         "role": "system",
@@ -209,23 +247,11 @@ class MultiPassPipeline:
                     },
                     {"role": "user", "content": f"Research thoroughly: {query}"},
                 ],
-                tools=[{"type": "web_search_preview"}],
-                reasoning_effort="low",
+                budget=budget,
+                hard_ceiling=_EXTRACT_CALL_CEILING_USD,
+                output_tokens=_EXTRACT_OUTPUT_TOKENS,
             )
             raw_output = response.choices[0].message.content or ""
-            from deepr.experts.chat_turns import chat_token_cost as _tc
-            from deepr.experts.cost_admission import record_soft_cost
-
-            _actual = _tc(response.usage, "gpt-5.2") if response.usage else _est
-            record_soft_cost(
-                _cost_safety,
-                session_id="multi_pass",
-                operation_type="pass_extract",
-                actual_cost=float(_actual),
-                provider="openai",
-                model="gpt-5.2",
-                source="experts.multi_pass.pass_extract",
-            )
 
         # Structure the output
         return self.chainer.structure_phase_output(raw_output=raw_output, phase=1)
@@ -266,39 +292,16 @@ class MultiPassPipeline:
             "Output ONLY the JSON."
         )
 
-        # Cost-safety gate for cross-reference pass.
-        from deepr.experts.cost_admission import admit_soft_cost_operation
-
-        _cost_safety, _est, _reason = admit_soft_cost_operation(
-            session_id="multi_pass",
-            operation_type="pass_cross_reference",
-            estimated_cost=max(0.02, float(budget) * 0.5),
-        )
-        if _reason is not None:
-            logger.warning("Multi-pass cross-ref blocked by cost-safety: %s", _reason)
-            return CrossReferenceResult()
-
-        client = await self._get_client()
-        response = await client.chat.completions.create(
-            model="gpt-5.2",
+        response = await self._complete_bounded(
+            operation="cross-reference",
+            source="experts.multi_pass.pass_cross_reference",
             messages=[
                 {"role": "system", "content": "You cross-reference research findings. Output only valid JSON."},
                 {"role": "user", "content": prompt},
             ],
-            reasoning_effort="low",
-        )
-        from deepr.experts.chat_turns import chat_token_cost as _tc
-        from deepr.experts.cost_admission import record_soft_cost
-
-        _actual = _tc(response.usage, "gpt-5.2") if response.usage else _est
-        record_soft_cost(
-            _cost_safety,
-            session_id="multi_pass",
-            operation_type="pass_cross_reference",
-            actual_cost=float(_actual),
-            provider="openai",
-            model="gpt-5.2",
-            source="experts.multi_pass.pass_cross_reference",
+            budget=budget,
+            hard_ceiling=_CROSS_REFERENCE_CALL_CEILING_USD,
+            output_tokens=_CROSS_REFERENCE_OUTPUT_TOKENS,
         )
 
         try:
@@ -369,21 +372,9 @@ class MultiPassPipeline:
             "Output ONLY the JSON."
         )
 
-        # Cost-safety gate for the synthesize pass.
-        from deepr.experts.cost_admission import admit_soft_cost_operation
-
-        _cost_safety, _est, _reason = admit_soft_cost_operation(
-            session_id="multi_pass",
-            operation_type="pass_synthesize",
-            estimated_cost=max(0.02, float(budget) * 0.5),
-        )
-        if _reason is not None:
-            logger.warning("Multi-pass synthesize blocked by cost-safety: %s", _reason)
-            return [], [], False
-
-        client = await self._get_client()
-        response = await client.chat.completions.create(
-            model="gpt-5.2",
+        response = await self._complete_bounded(
+            operation="synthesize",
+            source="experts.multi_pass.pass_synthesize",
             messages=[
                 {
                     "role": "system",
@@ -391,20 +382,9 @@ class MultiPassPipeline:
                 },
                 {"role": "user", "content": prompt},
             ],
-            reasoning_effort="low",
-        )
-        from deepr.experts.chat_turns import chat_token_cost as _tc
-        from deepr.experts.cost_admission import record_soft_cost
-
-        _actual = _tc(response.usage, "gpt-5.2") if response.usage else _est
-        record_soft_cost(
-            _cost_safety,
-            session_id="multi_pass",
-            operation_type="pass_synthesize",
-            actual_cost=float(_actual),
-            provider="openai",
-            model="gpt-5.2",
-            source="experts.multi_pass.pass_synthesize",
+            budget=budget,
+            hard_ceiling=_SYNTHESIS_CALL_CEILING_USD,
+            output_tokens=_SYNTHESIS_OUTPUT_TOKENS,
         )
 
         try:

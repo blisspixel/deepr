@@ -3,6 +3,7 @@
 import asyncio
 import sqlite3
 import threading
+from functools import partial
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, Mock, patch
 
@@ -12,11 +13,37 @@ from deepr.experts.research_reservation_store import ResearchReservationStore
 from deepr.observability.cost_ledger import CostLedger, default_cost_data_dir
 from deepr.services.metered_call import (
     MeteredCallAccountingError,
-    execute_reserved_async_call,
-    execute_reserved_async_stream,
     execute_reserved_fixed_cost_async_call,
-    execute_reserved_sync_call,
 )
+from deepr.services.metered_call import (
+    execute_reserved_async_call as _execute_reserved_async_call,
+)
+from deepr.services.metered_call import (
+    execute_reserved_async_stream as _execute_reserved_async_stream,
+)
+from deepr.services.metered_call import (
+    execute_reserved_sync_call as _execute_reserved_sync_call,
+)
+
+execute_reserved_sync_call = partial(_execute_reserved_sync_call, max_cost_per_job=5.0)
+execute_reserved_async_call = partial(_execute_reserved_async_call, max_cost_per_job=5.0)
+execute_reserved_async_stream = partial(_execute_reserved_async_stream, max_cost_per_job=5.0)
+
+
+def test_opaque_default_ceiling_is_rejected_before_provider_work() -> None:
+    call = Mock()
+
+    with pytest.raises(MeteredCallAccountingError, match="provider-enforced maximum"):
+        _execute_reserved_sync_call(
+            operation_prefix="opaque",
+            provider="openai",
+            model="gpt-5",
+            source="test.opaque",
+            call=call,
+        )
+
+    call.assert_not_called()
+    assert ResearchReservationStore().active_cost() == 0
 
 
 def test_sync_call_settles_reported_token_cost_and_releases_ceiling() -> None:

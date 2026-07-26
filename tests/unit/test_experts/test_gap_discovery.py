@@ -226,6 +226,19 @@ class TestEmbedStatements:
 
         assert result is not None
         assert result.shape == (2, 3)
+        request = mock_client.embeddings.create.await_args.kwargs
+        assert request["model"] == "text-embedding-3-small"
+        assert request["input"] == ["claim 1", "claim 2"]
+
+    @pytest.mark.asyncio
+    async def test_oversized_embedding_batch_fails_before_dispatch(self):
+        mock_client = AsyncMock()
+        discoverer = GapDiscoverer(client=mock_client)
+
+        result = await discoverer._embed_statements(["claim"] * 257)
+
+        assert result is None
+        mock_client.embeddings.create.assert_not_awaited()
 
     @pytest.mark.asyncio
     async def test_embedding_failure(self):
@@ -259,6 +272,9 @@ class TestGenerateGapsForThinAreas:
         result = await discoverer._generate_gaps_for_thin_areas([["Single lonely claim"]], "test_domain")
         assert len(result) == 1
         assert result[0]["topic"] == "Thin area"
+        request = mock_client.chat.completions.create.await_args.kwargs
+        assert 0 < request["max_completion_tokens"] <= 800
+        assert "max_tokens" not in request
 
     @pytest.mark.asyncio
     async def test_api_failure(self):

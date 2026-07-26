@@ -362,13 +362,14 @@ async def handle_immediate_job(
         return False
 
     from deepr.experts.research_cost_gate import settle_research_cost
+    from deepr.services.provider_completion import conservative_completion_cost
     from deepr.storage import create_storage
 
-    actual_cost = float(response.usage.cost or 0.0) if response.usage else 0.0
+    reported_cost, actual_cost, tokens = conservative_completion_cost(response, reservation)
     settle_research_cost(
         reservation,
-        actual_cost=actual_cost,
-        tokens=response.usage.total_tokens if response.usage else 0,
+        actual_cost=reported_cost,
+        tokens=tokens,
         request_id=provider_job_id,
         source="cli.run.immediate_completion",
     )
@@ -393,7 +394,7 @@ async def handle_immediate_job(
         job_id=job_id,
         report_url=str(report_metadata.url),
         cost=actual_cost,
-        tokens=response.usage.total_tokens if response.usage else 0,
+        tokens=tokens,
     )
     if submit_op:
         submit_op.set_cost(actual_cost)

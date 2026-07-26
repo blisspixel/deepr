@@ -1254,49 +1254,32 @@ class TestBudgetTierGate:
             lambda: SimpleNamespace(monthly_cost=spent, max_monthly=cap),
         )
 
-    def test_drained_pool_defers_auto_metered_pass(self, monkeypatch):
+    def test_drained_pool_cannot_create_auto_metered_pass(self, monkeypatch):
         self._auto_metered(monkeypatch)
         self._manager(monkeypatch, spent=9.6)  # 96% -> LOCAL_ONLY
         _wire(monkeypatch, _sync_result(SyncOutcome("t", "synced"), cost=0.0))
         r = CliRunner().invoke(expert, ["sync-all", "--all", "-y", "--json"])
-        assert r.exit_code == 0
-        payload = json.loads(r.stdout)
-        assert payload["schema_version"] == "deepr-library-sync-v1"
-        assert payload["status"] == "metered_deferred"
-        assert payload["exit_code"] == 0
-        _assert_aggregate_invariants(payload, roster_experts=2)
-        _assert_heartbeat_evidence(
-            payload["heartbeat"],
-            configured=False,
-            configuration_valid=None,
-            scheduled=False,
-            dry_run=False,
-            attempted=False,
-            delivered=False,
-            reported_status=None,
-            disposition="not_configured",
-        )
-        assert payload["next_action"]["command_argv"] == ["deepr", "capacity", "next"]
+        assert r.exit_code == 2
+        assert "No owned or prepaid sync capacity" in r.output
 
-    def test_drained_pool_human_recovery_does_not_recommend_gated_api(self, monkeypatch):
+    def test_drained_pool_human_path_still_requires_explicit_capacity(self, monkeypatch):
         self._auto_metered(monkeypatch)
         self._manager(monkeypatch, spent=9.6)
         _wire(monkeypatch, _sync_result(SyncOutcome("t", "synced"), cost=0.0))
 
         result = CliRunner().invoke(expert, ["sync-all", "--all", "-y"])
 
-        assert result.exit_code == 0
-        assert "deepr capacity next" in result.output
-        assert "--api" not in result.output
+        assert result.exit_code == 2
+        assert "No owned or prepaid sync capacity" in result.output
 
-    def test_normal_tier_still_blocks_auto_metered_expert_mutation(self, monkeypatch):
+    def test_normal_tier_still_requires_explicit_api_selection(self, monkeypatch):
         self._auto_metered(monkeypatch)
         self._manager(monkeypatch, spent=1.0)  # 10% -> NORMAL
         built: list = []
         _wire(monkeypatch, _sync_result(SyncOutcome("t", "synced"), cost=0.0), built=built)
         r = CliRunner().invoke(expert, ["sync-all", "--all", "-y", "--json"])
         assert r.exit_code == 2
-        assert "temporarily disabled" in r.output.lower()
+        assert "No owned or prepaid sync capacity" in r.output
         assert built == []
 
     def test_api_override_fails_closed_before_sync(self, monkeypatch):
@@ -1313,10 +1296,10 @@ class TestBudgetTierGate:
         assert r.exit_code == 0, r.output
         assert "temporarily disabled" not in r.output.lower()
 
-    def test_dry_run_previews_even_when_drained(self, monkeypatch):
+    def test_dry_run_still_requires_explicit_capacity_selection(self, monkeypatch):
         self._auto_metered(monkeypatch)
         self._manager(monkeypatch, spent=9.6)
         _wire(monkeypatch, _sync_result(SyncOutcome("t", "would_sync"), cost=0.0))
         r = CliRunner().invoke(expert, ["sync-all", "--all", "--dry-run", "--json"])
-        assert r.exit_code == 0
-        assert "metered_deferred" not in r.output
+        assert r.exit_code == 2
+        assert "No owned or prepaid sync capacity" in r.output

@@ -1,28 +1,44 @@
-# Dependency update automation keeps dependencies current and surfaces security advisories.
-# See ROADMAP "Phase E: Engineering Standards". Grouped, weekly, patch/minor
-# only by default - majors are opened separately for explicit review.
+# Dependency update automation stays bounded so maintenance does not create a
+# branch and PR backlog. Security updates remain provider-triggered. Routine
+# version updates run monthly, group minor and patch changes per ecosystem, and
+# never open major upgrades automatically.
 version: 2
 updates:
   - package-ecosystem: "pip"
     directory: "/"
     schedule:
-      interval: "weekly"
-      day: "monday"
-    open-pull-requests-limit: 5
+      interval: "monthly"
+    open-pull-requests-limit: 1
     groups:
       python-minor-patch:
+        patterns:
+          - "*"
         update-types:
           - "minor"
           - "patch"
+    ignore:
+      - dependency-name: "*"
+        update-types:
+          - "version-update:semver-major"
     labels:
       - "dependencies"
 
   - package-ecosystem: "github-actions"
     directory: "/"
     schedule:
-      interval: "weekly"
-      day: "monday"
-    open-pull-requests-limit: 5
+      interval: "monthly"
+    open-pull-requests-limit: 1
+    groups:
+      actions-minor-patch:
+        patterns:
+          - "*"
+        update-types:
+          - "minor"
+          - "patch"
+    ignore:
+      - dependency-name: "*"
+        update-types:
+          - "version-update:semver-major"
     labels:
       - "dependencies"
       - "ci"
@@ -30,14 +46,19 @@ updates:
   - package-ecosystem: "npm"
     directory: "/src/deepr/web/frontend"
     schedule:
-      interval: "weekly"
-      day: "monday"
-    open-pull-requests-limit: 5
+      interval: "monthly"
+    open-pull-requests-limit: 1
     groups:
       npm-minor-patch:
+        patterns:
+          - "*"
         update-types:
           - "minor"
           - "patch"
+    ignore:
+      - dependency-name: "*"
+        update-types:
+          - "version-update:semver-major"
     labels:
       - "dependencies"
       - "frontend"

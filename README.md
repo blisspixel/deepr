@@ -3,7 +3,7 @@
 [![CI](https://github.com/blisspixel/deepr/actions/workflows/ci.yml/badge.svg)](https://github.com/blisspixel/deepr/actions/workflows/ci.yml)
 [![License: Apache 2.0](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](LICENSE)
 [![Python 3.12+](https://img.shields.io/badge/python-3.12+-blue.svg)](https://www.python.org/downloads/)
-[![Version](https://img.shields.io/badge/version-2.37.0-blue)](https://github.com/blisspixel/deepr/releases/tag/v2.37.0)
+[![Version](https://img.shields.io/badge/version-2.38.0-blue)](https://github.com/blisspixel/deepr/releases/tag/v2.38.0)
 
 **Domain experts that remember, not another chat window.**
 
@@ -709,8 +709,11 @@ spend. Metered execution requires both `allow_metered_api=true` and
 ceiling. CLI paid paths require an interactive confirmation, or their explicit
 noninteractive cost-confirmation flag. Missing pricing, consent, durable
 reservation, or ledger settlement fails closed. `--budget 10` means at most
-`$10` for that command or parent transaction. It does not create a shared
-wallet across unrelated commands and it never authorizes automatic fallback.
+`$10` for that command or parent transaction. That command envelope is nested
+inside one shared operator wallet across every Deepr process. `deepr budget set
+10` is therefore a hard `$10` UTC-month ceiling for canonical settled spend
+plus every active reservation, not a confirmation threshold. It never
+authorizes automatic fallback.
 
 Defaults favor owned capacity: local `$0` backends first, then explicit
 plan-quota capacity where supported. Metered APIs are explicit premium paths;
@@ -743,6 +746,8 @@ the shared durable call transaction.
 
 ```bash
 deepr budget set 5
+deepr budget freeze --reason "operator stop"
+deepr budget unfreeze
 deepr costs show
 deepr costs doctor
 deepr research --auto --batch queries.txt --dry-run
@@ -751,10 +756,14 @@ deepr research --auto --batch queries.txt --dry-run
 Cost tracking is strict by default: a spend event that cannot be written to
 the canonical ledger raises instead of silently continuing (set
 `DEEPR_COST_TRACKING_STRICT=0` to opt out). The monthly budget gate
-(`deepr budget set`) binds `deepr run`, `deepr research`, and MCP research
-alike; `DEEPR_MAX_COST_PER_JOB/_DAY/_MONTH` are hard ceilings enforced on the
+(`deepr budget set`) binds CLI, web, REST, MCP, scripts, and background
+settlement alike. `budget set 0` and `budget freeze` stop new paid dispatch;
+`budget unfreeze` restores only the remaining headroom under the configured
+cap. `DEEPR_MAX_COST_PER_JOB/_DAY/_WEEK/_MONTH` are hard ceilings enforced on the
 CLI, web, and REST surfaces (the legacy `DEEPR_*_LIMIT` names are still
-honored - the tighter bound wins, and malformed values never fall open).
+honored - the tighter bound wins, zero is a freeze, and malformed values fail
+closed). Every dispatch rechecks ledger spend plus all active holds immediately
+before provider work, so a positive cap reduction also stops stale reservations.
 `deepr budget status`, `deepr doctor`, `deepr costs doctor`, and the web
 dashboard all report the same ledger-reconciled spend, including settled money
 whose report artifact no longer exists on disk (orphaned spend). Provider

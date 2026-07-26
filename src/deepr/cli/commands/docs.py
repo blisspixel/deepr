@@ -64,6 +64,12 @@ async def _analyze_and_queue(
     docs_path: str, scenario: str, max_topics: int, planner_model: str, research_model: str, auto_execute: bool
 ):
     """Execute the agentic documentation analysis workflow."""
+    from deepr.experts.metered_mutation_gate import require_metered_expert_mutation
+
+    require_metered_expert_mutation(
+        "composed_docs_analysis",
+        safe_alternative="inspect docs locally, then submit one explicit budgeted deepr research job",
+    )
     import asyncio
     import json
     import os

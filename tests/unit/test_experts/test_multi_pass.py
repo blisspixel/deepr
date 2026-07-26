@@ -94,6 +94,10 @@ class TestPassExtract:
 
         assert result.phase == 1
         assert result.summary is not None
+        request = mock_client.chat.completions.create.await_args.kwargs
+        assert 0 < request["max_completion_tokens"] <= 1_600
+        assert "max_tokens" not in request
+        assert "tools" not in request
 
     @pytest.mark.asyncio
     async def test_extraction_with_consensus(self):
@@ -158,6 +162,8 @@ class TestPassCrossReference:
         assert len(result.confirmations) == 1
         assert len(result.contradictions) == 1
         assert len(result.novel_facts) == 1
+        request = mock_client.chat.completions.create.await_args.kwargs
+        assert 0 < request["max_completion_tokens"] <= 1_000
 
     @pytest.mark.asyncio
     async def test_cross_reference_confidence_boost(self):

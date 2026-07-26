@@ -561,6 +561,12 @@ def route_gaps(
                 return
             _emit_scheduled_gap_fill_wait(profile.name, routes, budget=budget, top_n=top_n)
             return
+        if research_routes and not api and not backend.owned_or_prepaid:
+            print_error(
+                f"No owned or prepaid gap-fill capacity is available: {backend.note}. "
+                "Pass --api only when metered capacity is intentionally authorized."
+            )
+            sys.exit(2)
         resolved_local_model = backend.local_model
         if scheduled and not dry_run and research_routes and backend.use_local:
             from deepr.backends.local_capacity import LocalCapacityState, probe_local_gpu_occupancy

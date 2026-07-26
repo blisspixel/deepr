@@ -1,13 +1,12 @@
 """Capacity-waterfall backend selection (v2.16).
 
-Chooses which backend runs a piece of work so owned capacity is drained before
-a metered API is ever touched (docs/design/capacity-waterfall.md). Three rungs,
-cheapest first: an eval-admitted local Ollama model, then a prepaid plan-quota
-CLI (codex/claude/opencode), then the metered API. The choice is a pure decision
-plus a human-readable reason, so "why did this run on X" is always answerable (a
-no-surprise-bills invariant).
+Chooses which owned or prepaid backend runs maintenance work
+(docs/design/capacity-waterfall.md). The automatic rungs are an eval-admitted
+local Ollama model and then a prepaid plan-quota CLI. If neither is proven safe,
+selection returns unavailable. A paid API requires an explicit caller flag and
+is never an automatic fallback.
 
-The metered API is the explicit last resort. Local is chosen when a live
+Local is chosen when a live
 admission exists for the task class and the model is loaded. The plan-quota rung
 is *auto-routed only* when an installed, ToS-clean CLI is in subscription auth
 mode and has an observed, non-exhausted quota window; since vendor CLIs do not
@@ -40,6 +39,7 @@ from deepr.backends.selection import BackendSelection, BackendSelectionStatus, s
 BACKEND_LOCAL = "local"
 BACKEND_PLAN_QUOTA = "plan_quota"
 BACKEND_API_METERED = "api_metered"
+BACKEND_UNAVAILABLE = "unavailable"
 
 
 @dataclass
@@ -59,9 +59,13 @@ class BackendChoice:
     def is_plan_quota(self) -> bool:
         return self.backend == BACKEND_PLAN_QUOTA
 
+    @property
+    def is_unavailable(self) -> bool:
+        return self.backend == BACKEND_UNAVAILABLE
 
-def _metered(reason: str) -> BackendChoice:
-    return BackendChoice(BACKEND_API_METERED, None, reason)
+
+def _unavailable(reason: str) -> BackendChoice:
+    return BackendChoice(BACKEND_UNAVAILABLE, None, reason)
 
 
 def choose_maintenance_backend(
@@ -75,7 +79,7 @@ def choose_maintenance_backend(
     plan_env: dict[str, str] | None = None,
     quota_ledger_path: Path | None = None,
 ) -> BackendChoice:
-    """Pick the cheapest eligible backend: local, then plan-quota, then metered.
+    """Pick eligible owned capacity: local, then safe observed plan quota.
 
     Admission drives the local rung (not list order or an env var): of the local
     models admitted for ``task_class``, use one that Ollama currently has. When
@@ -87,7 +91,7 @@ def choose_maintenance_backend(
     an observed, non-exhausted quota window. Because vendor CLIs do not expose
     trustworthy *remaining* quota, this stays gated off by default (no observed
     remaining -> not auto-routed); the explicit ``--plan`` path is how operators
-    opt in today. Metered API is the explicit last resort.
+    opt in today. Unavailable capacity never authorizes a metered API.
     """
 
     def _fallback(reason: str) -> BackendChoice:
@@ -99,7 +103,7 @@ def choose_maintenance_backend(
             quota_ledger_path=quota_ledger_path,
             admissions_path=admissions_path,
         )
-        return plan or _metered(reason)
+        return plan or _unavailable(f"{reason}; select --api explicitly to authorize metered capacity")
 
     admitted = {
         a.model: a
@@ -308,13 +312,13 @@ def choose_plan_quota_backend(
 
     adapter = get_adapter(backend_id)
     if adapter is None:
-        return _metered(f"unknown plan-quota backend {backend_id!r}")
+        return _unavailable(f"unknown plan-quota backend {backend_id!r}")
 
     decision = evaluate_plan_quota_safety(adapter, env=env if env is not None else dict(os.environ))
     if not decision.safe:
-        return _metered(decision.reason)
+        return _unavailable(decision.reason)
     if decision.requires_ack and not allow_metered_at_margin:
-        return _metered(
+        return _unavailable(
             f"{adapter.display_name} is metered at the margin and requires explicit paid-capacity acknowledgement"
         )
     return BackendChoice(BACKEND_PLAN_QUOTA, None, decision.reason, plan_backend_id=backend_id)

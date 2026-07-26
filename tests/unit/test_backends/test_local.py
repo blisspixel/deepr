@@ -14,6 +14,74 @@ from deepr.backends import local
 from deepr.backends.fresh_context import FreshContext, FreshContextConfig, FreshSource, deep_fresh_context_config
 
 
+class TestOwnedLocalEndpoint:
+    @pytest.mark.parametrize(
+        ("value", "expected"),
+        [
+            ("localhost:11434", "http://127.0.0.1:11434"),
+            ("http://127.0.0.1:11434/", "http://127.0.0.1:11434"),
+            ("https://127.0.0.2:443", "https://127.0.0.2:443"),
+            ("http://[::1]:11434", "http://[::1]:11434"),
+        ],
+    )
+    def test_canonicalizes_to_literal_loopback(self, value, expected):
+        assert local.validate_owned_local_ollama_url(value) == expected
+
+    @pytest.mark.parametrize(
+        "value",
+        [
+            "https://ollama.example.com:11434",
+            "http://192.168.1.2:11434",
+            "http://0.0.0.0:11434",
+            "http://user:secret@127.0.0.1:11434",
+            "http://127.0.0.1:11434/proxy",
+            "file:///tmp/ollama.sock",
+            "http://[::1%25loopback]:11434",
+            "http://[not-an-ip]:11434",
+            "http://127.0.0.1:not-a-port",
+        ],
+    )
+    def test_rejects_remote_or_ambiguous_endpoint(self, value):
+        with pytest.raises(ValueError, match="Owned local Ollama"):
+            local.validate_owned_local_ollama_url(value)
+
+    def test_default_endpoint_is_dns_free(self, monkeypatch):
+        monkeypatch.delenv("OLLAMA_HOST", raising=False)
+        assert local._base_url(None) == "http://127.0.0.1:11434"
+
+    def test_remote_environment_endpoint_fails_before_client_construction(self, monkeypatch):
+        constructed = False
+
+        class FakeAsyncOpenAI:
+            def __init__(self, **_kwargs):
+                nonlocal constructed
+                constructed = True
+
+        import openai
+
+        monkeypatch.setattr(openai, "AsyncOpenAI", FakeAsyncOpenAI)
+        monkeypatch.setenv("OLLAMA_HOST", "https://ollama.example.com:11434")
+
+        with pytest.raises(ValueError, match="remote endpoints need explicit cost attestation"):
+            local.ollama_chat_client()
+        assert constructed is False
+
+    def test_remote_endpoint_is_rejected_even_with_injected_client(self):
+        with pytest.raises(ValueError, match="remote endpoints need explicit cost attestation"):
+            local.make_local_research_fn(
+                "qwen",
+                base_url="http://192.168.1.2:11434",
+                client=_FakeClient(content="must not run"),
+            )
+
+    def test_explicit_model_does_not_bypass_remote_environment_rejection(self, monkeypatch):
+        monkeypatch.setenv("OLLAMA_HOST", "https://ollama.example.com:11434")
+        monkeypatch.setenv("DEEPR_LOCAL_MODEL", "qwen")
+
+        with pytest.raises(ValueError, match="remote endpoints need explicit cost attestation"):
+            local.default_local_model()
+
+
 class _FakeMessage:
     def __init__(self, content):
         self.content = content
@@ -275,6 +343,16 @@ class TestProbe:
         assert result["ok"] is False
         assert "refused" in result["error"]
 
+    async def test_remote_endpoint_is_reported_without_calling_injected_client(self):
+        client = _FakeClient(content="must not run")
+
+        result = await local.probe_local("qwen", base_url="http://10.0.0.4:11434", client=client)
+
+        assert result["ok"] is False
+        assert result["model"] == "qwen"
+        assert "remote endpoints need explicit cost attestation" in result["error"]
+        assert client.chat.completions.calls == []
+
 
 class TestDefaultModel:
     def test_env_override(self, monkeypatch):
@@ -396,6 +474,14 @@ class TestOllamaChatClientTimeout:
         captured = self._capture(monkeypatch)
         local.ollama_chat_client()
         assert captured["timeout"] == 3600.0  # not the 600s SDK default
+
+    def test_default_endpoint_is_literal_loopback(self, monkeypatch):
+        monkeypatch.delenv("OLLAMA_HOST", raising=False)
+        captured = self._capture(monkeypatch)
+
+        local.ollama_chat_client()
+
+        assert captured["base_url"] == "http://127.0.0.1:11434/v1"
 
     def test_timeout_env_override(self, monkeypatch):
         monkeypatch.setenv("DEEPR_LOCAL_TIMEOUT", "7200")

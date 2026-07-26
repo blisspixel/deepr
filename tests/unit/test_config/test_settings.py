@@ -103,7 +103,7 @@ class TestBudgetSettings:
         """Test default budget values."""
         budget = BudgetSettings()
         assert budget.max_cost_per_job == 5.0
-        assert budget.daily_limit == 25.0
+        assert budget.daily_limit == 10.0
         assert budget.monthly_limit == 200.0
 
     def test_alert_thresholds(self):
@@ -204,7 +204,7 @@ class TestSettings:
         settings = Settings.load(reset_singleton=True)
         assert settings.budget.max_cost_per_job == 10.0
         assert settings.budget.daily_limit == 50.0
-        assert settings.budget.monthly_limit == 500.0
+        assert settings.budget.monthly_limit == 200.0
 
     @patch.dict(os.environ, {"DEEPR_STORAGE": "blob"})
     def test_storage_type_from_env(self):
@@ -221,7 +221,7 @@ class TestSettings:
     def test_get_method(self):
         """Test get() method for nested values."""
         settings = Settings()
-        assert settings.get("budget.daily_limit") == 25.0
+        assert settings.get("budget.daily_limit") == 10.0
         assert settings.get("research.max_wait_time") == 1800
         assert settings.get("nonexistent", "default") == "default"
 
@@ -291,10 +291,10 @@ class TestSettings:
         """Test validate() catches invalid budget limits."""
         settings = Settings()
         settings.providers["xai"] = ProviderSettings(name="xai", api_key="test")
-        settings.budget.daily_limit = 0
+        settings.budget.daily_limit = -0.01
 
         errors = settings.validate()
-        assert any("Daily budget" in err for err in errors)
+        assert any("Daily budget" in err and "non-negative" in err for err in errors)
 
     def test_to_dict(self):
         """Test to_dict() serialization."""
@@ -354,7 +354,7 @@ class TestConfigFile:
         settings = Settings.load(config_path=config_file)
         assert settings.default_provider == "anthropic"
         assert settings.default_model == "claude-3-opus"
-        assert settings.budget.daily_limit == 100.0
+        assert settings.budget.daily_limit == 10.0
 
     def test_load_yaml_config(self, tmp_path):
         """Test loading YAML config file."""
@@ -370,8 +370,8 @@ budget:
 
         settings = Settings.load(config_path=config_file)
         assert settings.default_provider == "gemini"
-        assert settings.budget.daily_limit == 75.0
-        assert settings.budget.monthly_limit == 750.0
+        assert settings.budget.daily_limit == 10.0
+        assert settings.budget.monthly_limit == 200.0
 
     @patch.dict(os.environ, {}, clear=False)
     def test_config_file_with_providers(self, tmp_path):

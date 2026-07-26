@@ -597,7 +597,10 @@ def load_config() -> dict:
     Returns:
         Dictionary with configuration values
     """
+    from deepr.core.cost_caps import resolve_spend_caps
+
     config = AppConfig.from_env()
+    spend_caps = resolve_spend_caps()
 
     return {
         "provider": config.provider.type,
@@ -608,7 +611,7 @@ def load_config() -> dict:
         "storage": config.storage.type,
         "results_dir": config.storage.local_path,
         "experts_dir": str(experts_root()),
-        "max_cost_per_job": float(os.getenv("DEEPR_MAX_COST_PER_JOB", "5.0") or "5.0"),
-        "max_daily_cost": float(os.getenv("DEEPR_MAX_COST_PER_DAY", "25.0") or "25.0"),
-        "max_monthly_cost": float(os.getenv("DEEPR_MAX_COST_PER_MONTH", "200.0") or "200.0"),
+        "max_cost_per_job": spend_caps["per_job"],
+        "max_daily_cost": spend_caps["daily"],
+        "max_monthly_cost": spend_caps["monthly"],
     }

@@ -171,7 +171,9 @@ class TestBatchExecutor:
 
         mock_job = MagicMock()
         mock_job.status = JobStatus.COMPLETED
-        mock_job.cost = 2.00
+        # Stay within the provider-enforced reservation ceiling. A reported
+        # cost above that ceiling is a safety divergence and freezes paid work.
+        mock_job.cost = 1.50
         mock_job.tokens_used = 1000
         mock_queue.get_job.return_value = mock_job
         mock_storage.get_report.return_value = b"Report"
@@ -181,7 +183,7 @@ class TestBatchExecutor:
             {"id": 2, "title": "T2", "prompt": "P2", "phase": 1},
         ]
         result = await executor.execute_campaign(tasks, "cost-test")
-        assert result["total_cost"] == 4.00
+        assert result["total_cost"] == 3.00
 
     @pytest.mark.asyncio
     @patch("deepr.services.batch_executor.asyncio.sleep", new_callable=AsyncMock)

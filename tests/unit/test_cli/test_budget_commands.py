@@ -5,6 +5,7 @@ without making any external API calls.
 """
 
 import sys
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from unittest.mock import patch
 
@@ -63,12 +64,8 @@ class TestBudgetSetCommand:
 
     def test_budget_set_accepts_amount(self, runner):
         """Test that 'budget set' accepts an amount argument."""
-        with patch("deepr.cli.commands.budget.save_budget_config") as mock_save:
-            with patch("deepr.cli.commands.budget.load_budget_config") as mock_load:
-                mock_load.return_value = {"monthly_limit": 0, "monthly_spending": 0}
-                result = runner.invoke(cli, ["budget", "set", "10.00"])
-                # Should accept the amount
-                assert result.exit_code == 0
+        result = runner.invoke(cli, ["budget", "set", "10.00"])
+        assert result.exit_code == 0
 
     def test_budget_set_validates_numeric_amount(self, runner):
         """Test that 'budget set' validates numeric amounts."""
@@ -76,24 +73,17 @@ class TestBudgetSetCommand:
         # Should reject non-numeric amounts
         assert result.exit_code != 0
 
-    def test_budget_set_accepts_zero_for_confirm_mode(self, runner):
-        """Test that 'budget set 0' enables confirm-every-job mode."""
-        with patch("deepr.cli.commands.budget.save_budget_config") as mock_save:
-            with patch("deepr.cli.commands.budget.load_budget_config") as mock_load:
-                mock_load.return_value = {"monthly_limit": 0, "monthly_spending": 0}
-                result = runner.invoke(cli, ["budget", "set", "0"])
-                assert result.exit_code == 0
-                assert "confirm every job" in result.output.lower()
+    def test_budget_set_zero_freezes_paid_api(self, runner):
+        """Test that 'budget set 0' creates a hard paid freeze."""
+        result = runner.invoke(cli, ["budget", "set", "0"])
+        assert result.exit_code == 0
+        assert "paid api dispatch frozen" in result.output.lower()
 
-    def test_budget_set_accepts_negative_one_for_unlimited(self, runner):
-        """Test that 'budget set -- -1' enables unlimited mode (using -- to pass negative)."""
-        with patch("deepr.cli.commands.budget.save_budget_config") as mock_save:
-            with patch("deepr.cli.commands.budget.load_budget_config") as mock_load:
-                mock_load.return_value = {"monthly_limit": 0, "monthly_spending": 0}
-                # Use -- to indicate end of options, allowing -1 as argument
-                result = runner.invoke(cli, ["budget", "set", "--", "-1"])
-                assert result.exit_code == 0
-                assert "unlimited" in result.output.lower()
+    def test_budget_set_rejects_unlimited(self, runner):
+        """Unlimited paid autonomy is not a valid budget state."""
+        result = runner.invoke(cli, ["budget", "set", "--", "-1"])
+        assert result.exit_code == 2
+        assert "not in the range" in result.output.lower()
 
 
 class TestBudgetStatusCommand:
@@ -117,6 +107,21 @@ class TestBudgetStatusCommand:
             assert result.exit_code == 0
             # Should show budget info
             assert "$" in result.output
+
+    def test_budget_status_displays_effective_tighter_authority(self, runner):
+        with (
+            patch(
+                "deepr.cli.commands.budget.load_budget_config",
+                return_value={"monthly_limit": 50.0, "monthly_spending": 2.0, "current_month": "2026-07"},
+            ),
+            patch("deepr.cli.commands.budget.resolve_spend_caps", return_value={"monthly": 10.0}),
+            patch("deepr.cli.commands.budget._ledger_month_spend", return_value=2.0),
+        ):
+            result = runner.invoke(cli, ["budget", "status"])
+
+        assert result.exit_code == 0
+        assert "$2.00 / $10.00" in result.output
+        assert "Configured monthly budget: $50.00; tighter policy is active" in result.output
 
 
 class TestBudgetHistoryCommand:
@@ -157,6 +162,124 @@ class TestBudgetSafetyCommand:
         output = result.output.lower()
         # Should mention limits or safety
         assert "limit" in output or "safety" in output or "daily" in output
+
+
+class TestBudgetFreezeCommands:
+    """Manual freezes cannot be cleared without proven headroom."""
+
+    @pytest.fixture
+    def runner(self):
+        return CliRunner()
+
+    def test_freeze_persists_fail_closed_state(self, runner):
+        config = {"monthly_limit": 10.0, "monthly_spending": 2.0}
+
+        def mutate(callback):
+            callback(config)
+            return config
+
+        with patch("deepr.cli.commands.budget.mutate_budget_config", side_effect=mutate):
+            result = runner.invoke(cli, ["budget", "freeze", "--reason", "operator stop"])
+
+        assert result.exit_code == 0
+        assert config["paid_api_frozen"] is True
+        assert config["freeze_reason"] == "operator stop"
+
+    def test_unfreeze_refuses_exhausted_month(self, runner):
+        config = {
+            "monthly_limit": 10.0,
+            "monthly_spending": 9.0,
+            "paid_api_frozen": True,
+        }
+
+        def mutate(callback):
+            callback(config)
+            return config
+
+        with (
+            patch("deepr.cli.commands.budget.mutate_budget_config", side_effect=mutate),
+            patch("deepr.cli.commands.budget._ledger_month_spend", return_value=10.0),
+        ):
+            result = runner.invoke(cli, ["budget", "unfreeze"])
+
+        assert result.exit_code == 1
+        assert "exhausted" in result.output.lower()
+        assert config["paid_api_frozen"] is True
+
+    def test_unfreeze_requires_readable_canonical_ledger(self, runner):
+        config = {
+            "monthly_limit": 10.0,
+            "monthly_spending": 1.0,
+            "paid_api_frozen": True,
+        }
+
+        original = dict(config)
+
+        def mutate(callback):
+            callback(config)
+            return config
+
+        with (
+            patch("deepr.cli.commands.budget.mutate_budget_config", side_effect=mutate),
+            patch("deepr.cli.commands.budget._ledger_month_spend", return_value=None),
+        ):
+            result = runner.invoke(cli, ["budget", "unfreeze"])
+
+        assert result.exit_code == 1
+        assert "unreadable" in result.output.lower()
+        assert config == original
+
+    def test_unfreeze_succeeds_only_with_positive_headroom(self, runner):
+        config = {
+            "monthly_limit": 10.0,
+            "monthly_spending": 1.0,
+            "paid_api_frozen": True,
+            "freeze_reason": "operator stop",
+            "frozen_at": "2026-07-25T00:00:00",
+        }
+
+        def mutate(callback):
+            callback(config)
+            return config
+
+        with (
+            patch("deepr.cli.commands.budget.mutate_budget_config", side_effect=mutate),
+            patch("deepr.cli.commands.budget._ledger_month_spend", return_value=2.0),
+        ):
+            result = runner.invoke(cli, ["budget", "unfreeze"])
+
+        assert result.exit_code == 0
+        assert config["paid_api_frozen"] is False
+        assert config["freeze_reason"] == ""
+        assert "frozen_at" not in config
+
+    def test_concurrent_record_and_limit_update_cannot_clear_freeze(self):
+        from deepr.cli.commands.budget import load_budget_config, mutate_budget_config, record_spending
+
+        def freeze_update():
+            def update(config):
+                config["paid_api_frozen"] = True
+                config["freeze_reason"] = "concurrency test"
+
+            mutate_budget_config(update)
+
+        def limit_update():
+            mutate_budget_config(lambda config: config.__setitem__("monthly_limit", 10.0))
+
+        with ThreadPoolExecutor(max_workers=3) as executor:
+            futures = [
+                executor.submit(freeze_update),
+                executor.submit(limit_update),
+                executor.submit(record_spending, 0.25, "job-race", "race test"),
+            ]
+            for future in futures:
+                future.result(timeout=2)
+
+        config = load_budget_config()
+        assert config["paid_api_frozen"] is True
+        assert config["monthly_limit"] == 10.0
+        assert config["monthly_spending"] == pytest.approx(0.25)
+        assert config["history"][-1]["job_id"] == "job-race"
 
 
 class TestBudgetValidation:
@@ -201,6 +324,13 @@ class TestBudgetValidation:
         from deepr.cli.validation import validate_budget
 
         assert validate_budget(0.5, min_budget=0.5) == 0.5
+
+    @pytest.mark.parametrize("invalid", [True, -0.01, float("inf"), float("nan")])
+    def test_record_spending_rejects_invalid_cost(self, invalid):
+        from deepr.cli.commands.budget import record_spending
+
+        with pytest.raises(ValueError, match="finite non-negative"):
+            record_spending(invalid, "job", "invalid")
 
 
 class TestBudgetDisplay:

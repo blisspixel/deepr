@@ -46,6 +46,7 @@ jobs:
         run: |
           python scripts/check_file_sizes.py
           python scripts/check_ratchets.py
+          python scripts/check_paid_api_boundaries.py
 
       - name: Format check
         run: ruff format --check src/deepr/

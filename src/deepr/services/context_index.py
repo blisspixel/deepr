@@ -268,12 +268,19 @@ class ContextIndex:
             try:
                 embed_text = f"{prompt}\n\n{summary}"[:8000]
                 from deepr.services.metered_call import execute_reserved_async_call
+                from deepr.services.metered_envelope import bounded_embedding_envelope
+
+                envelope = bounded_embedding_envelope(
+                    model="text-embedding-3-small",
+                    inputs=(embed_text,),
+                )
 
                 response = await execute_reserved_async_call(
                     operation_prefix="context-index",
                     provider="openai",
                     model="text-embedding-3-small",
                     source="services.context_index.index_reports",
+                    max_cost_per_job=envelope.cost_usd,
                     call=lambda text=embed_text: client.embeddings.create(model="text-embedding-3-small", input=text),
                 )
                 embedding = np.array(response.data[0].embedding)
@@ -396,14 +403,21 @@ class ContextIndex:
         # Embed query
         try:
             from deepr.services.metered_call import execute_reserved_async_call
+            from deepr.services.metered_envelope import bounded_embedding_envelope
 
             client = AsyncOpenAI(max_retries=0)
+            bounded_query = query[:8000]
+            envelope = bounded_embedding_envelope(
+                model="text-embedding-3-small",
+                inputs=(bounded_query,),
+            )
             response = await execute_reserved_async_call(
                 operation_prefix="context-query",
                 provider="openai",
                 model="text-embedding-3-small",
                 source="services.context_index.semantic_search",
-                call=lambda: client.embeddings.create(model="text-embedding-3-small", input=query),
+                max_cost_per_job=envelope.cost_usd,
+                call=lambda: client.embeddings.create(model="text-embedding-3-small", input=bounded_query),
             )
             query_embedding = np.array(response.data[0].embedding)
         except Exception as e:

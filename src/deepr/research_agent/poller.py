@@ -9,6 +9,7 @@ from typing import Any
 from ..config import load_config
 from ..core.costs import CostController
 from ..experts.research_cost_gate import (
+    ResearchCostReservation,
     reconcile_research_cost_from_ledger,
     record_unreserved_research_cost,
     refund_research_cost,
@@ -17,6 +18,7 @@ from ..experts.research_cost_gate import (
 )
 from ..providers import create_provider
 from ..queue import create_queue
+from ..services.provider_completion import authoritative_completion_usage
 from ..services.provider_status import classify_provider_status, terminal_provider_error
 from ..storage import create_storage
 
@@ -209,23 +211,70 @@ class JobPoller:
                 job_id=job.id, filename=report_filename, content=content.encode("utf-8"), content_type="text/markdown"
             )
 
-            # Extract cost and tokens
-            cost = response.usage.cost if response.usage else 0
-            tokens = response.usage.total_tokens if response.usage else 0
+            # Canonical cost settlement is intentionally before terminal
+            # success. Its job-scoped ledger key makes retries idempotent.
+            reservation, cost, tokens = self._record_completion_cost(job, response)
 
             # Update queue with results
-            await self.queue.update_results(
+            results_updated = await self.queue.update_results(
                 job_id=job.id, report_paths={"markdown": report_filename}, cost=cost, tokens_used=tokens
             )
+            if not results_updated:
+                raise RuntimeError(f"Queue update_results failed for job {job.id}")
+            if not reconcile_research_cost_from_ledger(reservation, job_id=str(job.id)):
+                raise RuntimeError(f"Canonical cost settlement missing for completed job {job.id}")
 
             # Mark as completed
-            await self.queue.update_status(job.id, JobStatus.COMPLETED)
+            status_updated = await self.queue.update_status(job.id, JobStatus.COMPLETED)
+            if not status_updated:
+                raise RuntimeError(f"Queue update_status(COMPLETED) failed for job {job.id}")
 
             logger.info(f"Job {job.id} completed successfully (cost: ${cost:.4f})")
 
-        except Exception as e:
-            logger.error(f"Error handling completion for job {job.id}: {e}")
-            await self._handle_failure(job, str(e))
+        except Exception:
+            logger.exception("Error handling completion for job %s", job.id)
+            # Provider completion is authoritative. Keep the job processing so
+            # a later poll can retry the same idempotent settlement and local
+            # finalization. Never publish terminal success without the ledger.
+
+    @staticmethod
+    def _record_completion_cost(
+        job: Any,
+        response: Any,
+    ) -> tuple[ResearchCostReservation | None, float, int]:
+        """Commit completion usage through the canonical idempotent ledger."""
+        cost, tokens = authoritative_completion_usage(job, response)
+        job_id = str(job.id)
+        provider = str(getattr(job, "provider", "") or "")
+        model = str(getattr(job, "model", "") or "")
+        reservation = restore_research_cost_reservation(
+            job_id=job_id,
+            metadata=getattr(job, "metadata", {}),
+            provider=provider,
+            model=model,
+        )
+        request_id = getattr(job, "provider_job_id", "")
+        request_id = request_id if isinstance(request_id, str) else ""
+        if reservation is not None:
+            settle_research_cost(
+                reservation,
+                actual_cost=cost,
+                tokens=tokens,
+                request_id=request_id,
+                source="research_agent.poller._handle_completion",
+            )
+            accounted_cost = float(cost) if cost is not None else reservation.estimated_cost
+        else:
+            accounted_cost = record_unreserved_research_cost(
+                job_id=job_id,
+                provider=provider,
+                model=model,
+                actual_cost=cost,
+                tokens=tokens,
+                request_id=request_id,
+                source="research_agent.poller._handle_completion",
+            )
+        return reservation, accounted_cost, tokens
 
     async def _handle_failure(self, job: Any, error: str) -> None:
         """Handle job failure."""

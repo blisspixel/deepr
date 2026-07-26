@@ -107,8 +107,40 @@ def _isolate_budget_env(monkeypatch):
     the ledger fixture above. Tests that exercise the env caps set them
     explicitly via monkeypatch, which runs after this and wins.
     """
-    for var in ("DEEPR_MAX_COST_PER_JOB", "DEEPR_MAX_COST_PER_DAY", "DEEPR_MAX_COST_PER_MONTH"):
+    for var in (
+        "DEEPR_MAX_COST_PER_JOB",
+        "DEEPR_MAX_COST_PER_DAY",
+        "DEEPR_MAX_COST_PER_WEEK",
+        "DEEPR_MAX_COST_PER_MONTH",
+        "DEEPR_PER_JOB_LIMIT",
+        "DEEPR_DAILY_LIMIT",
+        "DEEPR_WEEKLY_LIMIT",
+        "DEEPR_MONTHLY_LIMIT",
+    ):
         monkeypatch.delenv(var, raising=False)
+
+
+@pytest.fixture(autouse=True)
+def _isolate_operator_budget(tmp_path, monkeypatch):
+    """Give tests explicit paid authority without reading the user's budget."""
+    import json
+
+    # Keep the injected control file outside a test's caller-supplied input
+    # root. Folder-ingestion tests must see only the files they created.
+    budget_path = tmp_path.parent / f"{tmp_path.name}-operator-budget.json"
+    budget_path.write_text(
+        json.dumps(
+            {
+                "monthly_limit": 200.0,
+                "paid_api_frozen": False,
+                "current_month": "2026-07",
+                "monthly_spending": 0.0,
+                "history": [],
+            }
+        ),
+        encoding="utf-8",
+    )
+    monkeypatch.setenv("DEEPR_BUDGET_FILE", str(budget_path))
 
 
 @pytest.fixture(autouse=True)

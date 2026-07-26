@@ -23,7 +23,7 @@ import time
 from collections.abc import Awaitable, Callable
 from typing import Any
 
-from deepr.backends.capacity import _OLLAMA_DEFAULT_URL, ollama_status
+from deepr.backends.capacity import _OLLAMA_DEFAULT_URL, ollama_status, validate_owned_local_ollama_url
 from deepr.backends.context_building import (
     ContextBuilder,
     build_context,
@@ -50,8 +50,8 @@ _KEEP_ALIVE = os.getenv("DEEPR_OLLAMA_KEEP_ALIVE", "30m")
 
 
 def _base_url(base_url: str | None) -> str:
-    """Resolve the Ollama base URL (arg > env > default), no trailing slash."""
-    return (base_url or os.getenv("OLLAMA_HOST") or _OLLAMA_DEFAULT_URL).rstrip("/")
+    """Resolve and validate the owned Ollama URL (arg > env > default)."""
+    return validate_owned_local_ollama_url(base_url or os.getenv("OLLAMA_HOST") or _OLLAMA_DEFAULT_URL)
 
 
 def ollama_chat_client(base_url: str | None = None, *, timeout: float | None = None) -> Any:
@@ -76,10 +76,11 @@ def ollama_chat_client(base_url: str | None = None, *, timeout: float | None = N
 
 def default_local_model(base_url: str | None = None) -> str | None:
     """Pick a local model: DEEPR_LOCAL_MODEL if set, else the first one Ollama lists."""
+    url = _base_url(base_url)
     explicit = os.getenv("DEEPR_LOCAL_MODEL")
     if explicit:
         return explicit
-    running, detail = ollama_status(base_url)
+    running, detail = ollama_status(url)
     if not running:
         return None
     # ollama_status detail starts "N model(s): a, b, c..." - take the first name.
@@ -91,10 +92,10 @@ def default_local_model(base_url: str | None = None) -> str | None:
 
 async def default_local_model_async(base_url: str | None = None, *, timeout: float = 0.5) -> str | None:
     """Resolve the default local model through a cancellable bounded probe."""
+    url = _base_url(base_url)
     explicit = os.getenv("DEEPR_LOCAL_MODEL")
     if explicit:
         return explicit
-    url = _base_url(base_url)
     try:
         import httpx
 
@@ -128,6 +129,7 @@ def resolve_local_maintenance_model(
     --local --local-model``. Non-local profiles and placeholder local profiles
     retain the existing process-wide default behavior.
     """
+    owned_base_url = _base_url(base_url)
     selected = (explicit_model or "").strip()
     if selected:
         return selected
@@ -136,9 +138,13 @@ def resolve_local_maintenance_model(
     recorded = str(getattr(profile, "model", "") or "").strip()
     if provider == "local" and recorded and recorded.lower() != "ollama":
         return recorded
+    # Preserve the long-standing no-argument probe seam used by callers and
+    # tests when no operation-specific URL was supplied. The endpoint was
+    # already validated above, and default_local_model() resolves the same
+    # environment/default URL again before probing it.
     if base_url is None:
         return default_local_model()
-    return default_local_model(base_url)
+    return default_local_model(owned_base_url)
 
 
 def _local_prompt(query: str, context: Any | None) -> tuple[str, dict[str, Any] | None]:
@@ -179,7 +185,8 @@ def make_local_embedder(
     chosen = model.strip()
     if not chosen:
         raise ValueError("embedding model is required")
-    embeddings_client = client if client is not None else ollama_chat_client(base_url)
+    owned_base_url = _base_url(base_url)
+    embeddings_client = client if client is not None else ollama_chat_client(owned_base_url)
 
     async def embed_claims(claims: list[str]) -> list[tuple[float, ...]]:
         if not claims:
@@ -213,7 +220,8 @@ def make_local_research_fn(
     Cost is always 0.0 (owned hardware); ``budget`` is ignored. Errors are
     returned in the result, never raised, matching the seam's contract.
     """
-    chat = client if client is not None else ollama_chat_client(base_url)
+    owned_base_url = _base_url(base_url)
+    chat = client if client is not None else ollama_chat_client(owned_base_url)
 
     async def research_fn(
         query: str,
@@ -266,11 +274,15 @@ async def probe_local(
 
     Returns ``{ok, model, reply, latency_ms, error}``. Never raises.
     """
-    chosen = model or default_local_model(base_url)
+    try:
+        owned_base_url = _base_url(base_url)
+    except ValueError as error:
+        return {"ok": False, "model": model, "reply": "", "latency_ms": 0, "error": str(error)}
+    chosen = model or default_local_model(owned_base_url)
     if not chosen:
         return {"ok": False, "model": None, "reply": "", "latency_ms": 0, "error": "no local model available"}
 
-    chat = client if client is not None else ollama_chat_client(base_url)
+    chat = client if client is not None else ollama_chat_client(owned_base_url)
     start = time.perf_counter()
     try:
         response = await chat.chat.completions.create(

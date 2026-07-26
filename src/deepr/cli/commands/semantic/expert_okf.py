@@ -42,7 +42,9 @@ def _choose_absorb_backend(local: bool, api: bool, model: str | None) -> tuple[b
     from deepr.backends.waterfall import choose_maintenance_backend
 
     choice = choose_maintenance_backend(TASK_CLASS_ABSORB)
-    return choice.is_local, choice.model if choice.is_local else model, choice.reason if choice.is_local else ""
+    if not choice.is_local:
+        raise ValueError(f"No admitted local OKF absorb capacity is available: {choice.reason}")
+    return True, choice.model, choice.reason
 
 
 def _make_absorber_or_exit(profile, *, use_local: bool, model: str | None):
@@ -232,7 +234,12 @@ def absorb_okf(
 
     store, profile = _load_expert_or_exit(name)
     corpus = _build_okf_corpus_or_exit(path)
-    use_local, model, selection_note = _choose_absorb_backend(local, api, model)
+    try:
+        use_local, model, selection_note = _choose_absorb_backend(local, api, model)
+    except ValueError as exc:
+        print_error(str(exc))
+        print_error("Use --api only when metered capacity is intentionally authorized.")
+        sys.exit(2)
     absorber, cost_note = _make_absorber_or_exit(profile, use_local=use_local, model=model)
     from deepr.experts.report_absorber import absorber_estimated_cost
 

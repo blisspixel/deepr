@@ -16,22 +16,26 @@ from pathlib import Path
 def budget_gate_fields(monthly_spending: float, controller_monthly_limit: float) -> dict:
     """Reconcile the env-cap controller limit with the approval-gate budget.
 
-    The CLI gate spends against budget.json's monthly limit, which can differ
-    from DEEPR_MAX_COST_PER_MONTH. Whichever positive ceiling is LOWER governs,
-    and a breach is reported explicitly.
+    The operator budget and controller are both hard ceilings. Zero is a paid
+    freeze, not an absent value, and unreadable policy fails closed.
     """
     try:
         from deepr.cli.commands.budget import load_budget_config
 
-        budget_monthly_limit = float(load_budget_config().get("monthly_limit", 0) or 0)
+        budget_config = load_budget_config()
+        budget_monthly_limit = float(budget_config.get("monthly_limit", 0) or 0)
+        manually_frozen = bool(budget_config.get("paid_api_frozen", False))
     except Exception:
         budget_monthly_limit = 0.0
-    positive = [x for x in (controller_monthly_limit, budget_monthly_limit) if x and x > 0]
-    effective = min(positive) if positive else 0.0
+        manually_frozen = True
+    effective = min(max(controller_monthly_limit, 0.0), max(budget_monthly_limit, 0.0))
+    if manually_frozen:
+        effective = 0.0
     return {
         "budget_monthly_limit": budget_monthly_limit,
         "effective_monthly_limit": effective,
-        "over_budget": bool(effective and monthly_spending > effective),
+        "paid_api_frozen": manually_frozen or effective <= 0,
+        "over_budget": monthly_spending > effective,
     }
 
 
