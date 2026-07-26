@@ -53,11 +53,23 @@ class Subscription:
     budget: float = DEFAULT_SUBSCRIPTION_BUDGET
     last_synced: datetime | None = None
     created_at: datetime = field(default_factory=lambda: datetime.now(UTC))
+    # Spend brake: a topic that keeps paying for research and then failing a
+    # downstream step (absorb, claim compile) used to be re-billed on every
+    # scheduled run, forever. Paid failures now back the topic off
+    # exponentially (capped at 8x cadence) until a run succeeds.
+    last_attempted: datetime | None = None
+    consecutive_paid_failures: int = 0
 
     def is_due(self, now: datetime | None = None) -> bool:
+        current = now or datetime.now(UTC)
+        if self.consecutive_paid_failures > 0 and self.last_attempted is not None:
+            multiplier = min(2**self.consecutive_paid_failures, 8)
+            cooldown = timedelta(days=max(self.cadence_days, 0.5) * multiplier)
+            if current - self.last_attempted < cooldown:
+                return False
         if self.last_synced is None:
             return True
-        return (now or datetime.now(UTC)) - self.last_synced >= timedelta(days=self.cadence_days)
+        return current - self.last_synced >= timedelta(days=self.cadence_days)
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -67,6 +79,8 @@ class Subscription:
             "budget": self.budget,
             "last_synced": self.last_synced.isoformat() if self.last_synced else None,
             "created_at": self.created_at.isoformat(),
+            "last_attempted": self.last_attempted.isoformat() if self.last_attempted else None,
+            "consecutive_paid_failures": self.consecutive_paid_failures,
         }
 
     @classmethod
@@ -79,6 +93,8 @@ class Subscription:
             raise ValueError("subscription topic must be non-empty text")
         if not isinstance(query, str):
             raise ValueError("subscription query must be text")
+        raw_failures = data.get("consecutive_paid_failures", 0)
+        failures = raw_failures if isinstance(raw_failures, int) and not isinstance(raw_failures, bool) else 0
         return cls(
             topic=topic,
             query=query,
@@ -86,6 +102,8 @@ class Subscription:
             budget=_finite_nonnegative_number(data.get("budget", DEFAULT_SUBSCRIPTION_BUDGET), field_name="budget"),
             last_synced=_optional_aware_datetime(data.get("last_synced"), field_name="last_synced"),
             created_at=_optional_aware_datetime(data.get("created_at"), field_name="created_at") or datetime.now(UTC),
+            last_attempted=_optional_aware_datetime(data.get("last_attempted"), field_name="last_attempted"),
+            consecutive_paid_failures=max(0, failures),
         )
 
 

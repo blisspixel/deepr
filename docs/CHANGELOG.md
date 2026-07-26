@@ -57,6 +57,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   downstream as a misleading "authentication failed") even when a valid key was
   present. The factory now falls back to the provider's environment variable
   and treats the "***" redaction placeholder as absent.
+- Fixed learn pause/resume re-buying research already in flight: pausing at
+  a daily limit saved every not-yet-completed topic as "remaining",
+  including topics whose jobs were already submitted and billing at the
+  provider, so the next --resume re-submitted them as fresh paid research.
+  In-flight topics are now recorded separately with their provider job ids
+  (surfaced on resume for retrieval) and excluded from resubmission.
+- Fixed expert sync re-paying research for a topic whose downstream step
+  keeps failing: a deterministic absorb failure meant every scheduled run
+  re-ran the full paid research for that topic, forever. Paid failures now
+  grow an exponential cooldown on the subscription (capped at 8x cadence,
+  reset by any successful run), persisted with the subscription state.
 - Fixed the MCP research tool bypassing the monthly budget gate: it now
   consults the `deepr budget set` approval gate before dispatch with the
   same headless semantics as `deepr run -y` - a spend the gate flags for

@@ -300,6 +300,7 @@ class ExpertSyncEngine:
             remaining -= spent
             result.total_cost += spent
             result.outcomes.append(outcome)
+            self._record_paid_failure_brake(sub, outcome, spent, started_at)
 
         # what_changed is strictly-after; nudge the window back 1ms so a
         # belief written in the same clock tick as started_at (coarse Windows
@@ -329,6 +330,29 @@ class ExpertSyncEngine:
             "skipped",
             detail=(f"run budget leaves less than ${MIN_PER_TOPIC_BUDGET:.2f} for research after reserving absorption"),
         )
+
+    def _record_paid_failure_brake(
+        self, subscription: Subscription, outcome: SyncOutcome, spent: float, now: datetime
+    ) -> None:
+        """Back off topics that keep paying for research and then failing.
+
+        A subscription whose downstream step fails deterministically used to
+        re-pay full research on every scheduled run, forever - the spend gate
+        scores only schedule metadata and knows nothing about prior failed
+        spend. Paid failures now grow an exponential cooldown (see
+        Subscription.is_due); any non-failed run resets it.
+        """
+        if outcome.status in ("skipped", "would_sync"):
+            return
+        subscription.last_attempted = now
+        if outcome.status == "failed" and spent > 0.0:
+            subscription.consecutive_paid_failures += 1
+        elif outcome.status != "failed":
+            subscription.consecutive_paid_failures = 0
+        try:
+            self.subscriptions.save()
+        except Exception as exc:
+            logger.warning("Could not persist paid-failure brake for %s: %s", subscription.topic, exc)
 
     async def _sync_subscription(
         self,
