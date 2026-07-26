@@ -65,6 +65,25 @@ def _truthy_env(name: str) -> bool:
     return os.getenv(name, "").strip().lower() in {"1", "true", "yes", "on"}
 
 
+def _local_image_base_url(value: str | None = None) -> str:
+    """Return the configured image endpoint only when it is owned loopback."""
+    raw = os.getenv(LOCAL_IMAGE_URL_ENV, "") if value is None else value
+    if not raw.strip():
+        raise RuntimeError(f"{LOCAL_IMAGE_URL_ENV} is not set")
+
+    from deepr.backends.capacity import validate_owned_local_http_url
+
+    try:
+        base_url = validate_owned_local_http_url(
+            raw,
+            service_name="image",
+            allowed_paths=frozenset({"", "/v1"}),
+        )
+    except ValueError as error:
+        raise RuntimeError(f"{LOCAL_IMAGE_URL_ENV} cannot be classified as local/$0: {error}") from None
+    return base_url if base_url.endswith("/v1") else f"{base_url}/v1"
+
+
 def portrait_cost(provider: str | None) -> float:
     """Per-image cost for a provider: $0 for local, the metered estimate else."""
     if provider == "local":
@@ -157,7 +176,9 @@ def detect_provider() -> str | None:
     ``provider="xai"`` for explicit paid generation, or set
     ``DEEPR_ALLOW_METERED_IMAGE_AUTO=1`` to opt into metered auto-selection.
     """
-    if os.getenv(LOCAL_IMAGE_URL_ENV):
+    local_image_url = os.getenv(LOCAL_IMAGE_URL_ENV, "")
+    if local_image_url.strip():
+        _local_image_base_url(local_image_url)
         return "local"
     metered_auto = _truthy_env(METERED_IMAGE_AUTO_ENV)
     if not metered_auto:
@@ -418,11 +439,7 @@ async def _generate_local(prompt: str) -> bytes:
     """
     from openai import AsyncOpenAI
 
-    base_url = os.getenv(LOCAL_IMAGE_URL_ENV, "").rstrip("/")
-    if not base_url:
-        raise RuntimeError(f"{LOCAL_IMAGE_URL_ENV} is not set")
-    if not base_url.endswith("/v1"):
-        base_url = f"{base_url}/v1"
+    base_url = _local_image_base_url()
     client = AsyncOpenAI(api_key="local", base_url=base_url)
     result = await client.images.generate(
         model=os.getenv(LOCAL_IMAGE_MODEL_ENV, DEFAULT_LOCAL_IMAGE_MODEL),

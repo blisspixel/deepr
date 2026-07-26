@@ -5,7 +5,7 @@ Requirements: 1.3 - Test Coverage
 
 import json
 from datetime import UTC, datetime
-from unittest.mock import MagicMock
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
@@ -16,6 +16,30 @@ from deepr.experts.curriculum import (
     LearningTopic,
     SourceReference,
 )
+
+
+@pytest.mark.asyncio
+async def test_curriculum_provider_attempt_is_durably_bounded_and_disables_sdk_retries():
+    generator = CurriculumGenerator({"api_key": "sk-test-fake-key"})
+    response = MagicMock()
+    response.choices = [MagicMock()]
+    response.choices[0].message.content = '{"topics": []}'
+    client = MagicMock()
+    client.chat.completions.create = AsyncMock(return_value=response)
+    client.close = AsyncMock()
+
+    with (
+        patch("deepr.experts.curriculum.require_api_curriculum_generation"),
+        patch("deepr.experts.curriculum.AsyncOpenAI", return_value=client) as client_type,
+    ):
+        result = await generator._call_gpt5_with_retry("Build a bounded curriculum", max_retries=1)
+
+    assert result == '{"topics": []}'
+    request = client.chat.completions.create.await_args.kwargs
+    assert 0 < request["max_completion_tokens"] <= 2_500
+    assert "max_tokens" not in request
+    assert client_type.call_args.kwargs["max_retries"] == 0
+    client.close.assert_awaited_once()
 
 
 class TestSourceReference:

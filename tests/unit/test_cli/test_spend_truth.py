@@ -26,6 +26,8 @@ def test_budget_status_shows_ledger_reconciled_spend() -> None:
 
     # The session counter says $0.00; the display must show the ledger number.
     assert "$38.50 / $10.00" in result.output
+    assert "Over hard ceiling by: $28.50" in result.output
+    assert "Paid API blocked: monthly hard ceiling exceeded" in result.output
     assert "never hit the session counter" in result.output
     assert "costs doctor" in result.output
 

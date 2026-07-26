@@ -226,10 +226,11 @@ def sync():
         from deepr.providers import create_provider
         from deepr.queue import create_queue
         from deepr.queue.base import JobStatus
+        from deepr.storage import create_storage
 
         config = load_config()
         queue_svc = create_queue("local", db_path=config.get("queue_db_path", "queue/research_queue.db"))
-        provider = create_provider(config.get("provider", "openai"), api_key=config.get("api_key"))
+        storage = create_storage(config.get("storage", "local"), base_path=config.get("results_dir", "data/reports"))
 
         async def sync_all():
             jobs = await queue_svc.list_jobs()
@@ -252,6 +253,15 @@ def sync():
                 click.echo(f"Job {job.id[:8]}... | Local: {job.status.value.upper()}")
 
                 try:
+                    if job.provider == "gemini":
+                        api_key = config.get("gemini_api_key")
+                    elif job.provider in ["grok", "xai"]:
+                        api_key = config.get("xai_api_key")
+                    elif job.provider == "azure":
+                        api_key = config.get("azure_api_key")
+                    else:
+                        api_key = config.get("api_key")
+                    provider = create_provider(job.provider, api_key=api_key)
                     # Check status at provider
                     response = await provider.get_status(job.provider_job_id)
                     click.echo(f"                  | Provider: {response.status.upper()}")
@@ -260,19 +270,28 @@ def sync():
                     if response.status == "completed" and job.status != JobStatus.COMPLETED:
                         console.print("   [success]Status changed to COMPLETED[/success]")
 
-                        # Update with usage info but don't download results
-                        cost = response.usage.cost if response.usage else 0
-                        tokens = response.usage.total_tokens if response.usage else 0
+                        from deepr.services.provider_completion import finalize_provider_completion
 
-                        await queue_svc.update_results(job_id=job.id, report_paths={}, cost=cost, tokens_used=tokens)
-
-                        await queue_svc.update_status(job.id, JobStatus.COMPLETED)
+                        await finalize_provider_completion(
+                            queue=queue_svc,
+                            storage=storage,
+                            provider=provider,
+                            job=job,
+                            response=response,
+                            source="cli.queue.sync",
+                        )
                         synced.append(job)
 
                     elif response.status == "failed" and job.status != JobStatus.FAILED:
                         console.print("   [error]Status changed to FAILED[/error]")
-                        await queue_svc.update_status(
-                            job_id=job.id, status=JobStatus.FAILED, error=response.error or "Unknown error"
+                        from deepr.services.provider_completion import finalize_provider_failure
+
+                        await finalize_provider_failure(
+                            queue=queue_svc,
+                            provider=provider,
+                            job=job,
+                            response=response,
+                            source="cli.queue.sync_failure",
                         )
                         synced.append(job)
 

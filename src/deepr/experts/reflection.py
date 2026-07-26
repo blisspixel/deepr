@@ -27,6 +27,8 @@ from typing import Any
 logger = logging.getLogger(__name__)
 
 DEFAULT_REFLECTION_MODEL = "gpt-5-mini"
+_REFLECTION_CALL_CEILING_USD = 0.02
+_REFLECTION_OUTPUT_TOKENS = 900
 
 # The four dimensions the answer is scored on.
 _DIMENSIONS = ("grounding", "completeness", "calibration", "directness")
@@ -111,7 +113,7 @@ class ReflectionEngine:
             api_key = os.getenv("OPENAI_API_KEY")
             if not api_key:
                 raise ReflectionError("OPENAI_API_KEY is not set. Pass a client explicitly or set the env var.")
-            self._client = AsyncOpenAI(api_key=api_key)
+            self._client = AsyncOpenAI(api_key=api_key, max_retries=0)
         return self._client
 
     async def reflect(
@@ -168,7 +170,6 @@ class ReflectionEngine:
         self, question: str, answer: str, domain: str, depth: int
     ) -> tuple[list[ReflectionDimension], list[str]]:
         """One LLM call -> per-dimension scores + follow-up queries."""
-        client = self._get_client()
         rigor = (
             "Be especially rigorous: actively hunt for unsupported claims and missing angles, "
             "and always propose concrete re-research queries."
@@ -196,36 +197,33 @@ class ReflectionEngine:
             '"followups": ["specific re-research query to close a gap", ...]}'
         )
 
-        from deepr.experts.cost_admission import admit_soft_cost_operation, record_soft_cost
+        from deepr.experts.report_absorber_costs import bounded_metered_completion_kwargs
+        from deepr.services.metered_call import execute_reserved_async_call
 
-        cost_safety, est_cost, deny_reason = admit_soft_cost_operation(
-            session_id="reflection",
-            operation_type="answer_reflection",
-            estimated_cost=0.02,
-        )
-        if deny_reason is not None:
-            raise ReflectionError(f"Reflection blocked by cost-safety: {deny_reason}")
-
-        response = await client.chat.completions.create(
+        kwargs, worst_case_cost = bounded_metered_completion_kwargs(
+            operation="answer_reflection",
             model=self.model,
-            messages=[{"role": "system", "content": system}, {"role": "user", "content": user}],
-            response_format={"type": "json_object"},
+            call_ceiling=_REFLECTION_CALL_CEILING_USD,
+            kwargs={
+                "model": self.model,
+                "messages": [{"role": "system", "content": system}, {"role": "user", "content": user}],
+                "response_format": {"type": "json_object"},
+                "max_completion_tokens": _REFLECTION_OUTPUT_TOKENS,
+            },
         )
-        try:
-            from deepr.experts.chat_turns import chat_token_cost
 
-            actual = chat_token_cost(response.usage, self.model) if response.usage else est_cost
-            record_soft_cost(
-                cost_safety,
-                session_id="reflection",
-                operation_type="answer_reflection",
-                actual_cost=float(actual),
-                provider="openai",
-                model=self.model,
-                source="experts.reflection._evaluate",
-            )
-        except Exception as exc:
-            logger.warning("Reflection cost recording failed: %s", exc)
+        async def dispatch() -> Any:
+            client = self._get_client()
+            return await client.chat.completions.create(**kwargs)
+
+        response = await execute_reserved_async_call(
+            operation_prefix="answer-reflection",
+            provider="openai",
+            model=self.model,
+            source="experts.reflection._evaluate",
+            max_cost_per_job=worst_case_cost,
+            call=dispatch,
+        )
 
         raw = response.choices[0].message.content or ""
         try:

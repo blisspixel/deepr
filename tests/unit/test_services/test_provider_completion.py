@@ -7,7 +7,11 @@ import pytest
 
 from deepr.queue.base import JobStatus, ResearchJob
 from deepr.queue.local_queue import SQLiteQueue
-from deepr.services.provider_completion import finalize_provider_completion
+from deepr.services.provider_completion import (
+    conservative_completion_cost,
+    finalize_provider_completion,
+    finalize_provider_failure,
+)
 
 
 def _response():
@@ -15,6 +19,65 @@ def _response():
         output=[{"type": "message", "content": [{"type": "output_text", "text": "result"}]}],
         usage=SimpleNamespace(cost=0.25, total_tokens=42),
     )
+
+
+def test_missing_immediate_usage_consumes_reserved_ceiling() -> None:
+    response = SimpleNamespace(usage=None)
+    reservation = SimpleNamespace(estimated_cost=0.75)
+
+    reported, accounted, tokens = conservative_completion_cost(response, reservation)
+
+    assert reported is None
+    assert accounted == pytest.approx(0.75)
+    assert tokens == 0
+
+
+@pytest.mark.asyncio
+async def test_failure_settles_missing_usage_before_terminal_state() -> None:
+    job = ResearchJob(
+        id="job-failed",
+        prompt="failed",
+        status=JobStatus.PROCESSING,
+        provider_job_id="provider-job",
+        metadata={},
+    )
+    updated = ResearchJob(id=job.id, prompt=job.prompt, status=JobStatus.FAILED)
+    queue = MagicMock(
+        update_results=AsyncMock(return_value=True),
+        update_status=AsyncMock(return_value=True),
+        get_job=AsyncMock(return_value=updated),
+    )
+    reservation = MagicMock(estimated_cost=0.80)
+    response = SimpleNamespace(usage=None, error="provider failed")
+
+    with (
+        patch(
+            "deepr.services.provider_completion.restore_research_cost_reservation",
+            return_value=reservation,
+        ),
+        patch("deepr.services.provider_completion.settle_research_cost") as settle,
+        patch(
+            "deepr.services.provider_completion.reconcile_research_cost_from_ledger",
+            return_value=True,
+        ),
+    ):
+        result = await finalize_provider_failure(
+            queue=queue,
+            provider=MagicMock(),
+            job=job,
+            response=response,
+            source="test.failure",
+        )
+
+    assert result is updated
+    assert settle.call_args.kwargs["actual_cost"] is None
+    queue.update_results.assert_awaited_once_with(
+        job.id,
+        report_paths={},
+        cost=0.80,
+        tokens_used=0,
+    )
+    queue.update_status.assert_awaited_once_with(job.id, JobStatus.FAILED, error="provider failed")
 
 
 @pytest.mark.asyncio

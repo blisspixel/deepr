@@ -849,7 +849,7 @@ class TestExpertAbsorbCommand:
             inst.absorb = AsyncMock(return_value=self._stub_result(dry_run=True))
             mock_absorber.return_value = inst
 
-            result = runner.invoke(cli, ["expert", "absorb", "Test Expert", "rep1", "--dry-run", "--yes"])
+            result = runner.invoke(cli, ["expert", "absorb", "Test Expert", "rep1", "--api", "--dry-run", "--yes"])
 
             assert result.exit_code == 0
             assert "DRY RUN" in result.output
@@ -876,7 +876,7 @@ class TestExpertAbsorbCommand:
             inst.absorb = AsyncMock(return_value=self._stub_result(dry_run=False))
             mock_absorber.return_value = inst
 
-            result = runner.invoke(cli, ["expert", "absorb", "Test Expert", "rep1", "--yes", "--json"])
+            result = runner.invoke(cli, ["expert", "absorb", "Test Expert", "rep1", "--api", "--yes", "--json"])
 
             assert result.exit_code == 0
             import json
@@ -909,7 +909,7 @@ class TestExpertAbsorbCommand:
                 "deepr.cli.commands.semantic.expert_maintenance.confirm_interactively",
                 return_value=False,
             ):
-                result = runner.invoke(cli, ["expert", "absorb", "Test Expert", "rep1"])
+                result = runner.invoke(cli, ["expert", "absorb", "Test Expert", "rep1", "--api"])
 
             assert "cancelled" in result.output.lower()
 
@@ -1806,7 +1806,7 @@ class TestExpertRouteGapsCommand:
         class FakeGapFillEngine:
             def __init__(self, profile, *, spend_decision_fn=None):
                 assert profile is expert
-                assert spend_decision_fn is not None
+                assert spend_decision_fn is None
 
             async def execute(self, received_routes, **kwargs):
                 assert received_routes == [route]
@@ -1835,6 +1835,7 @@ class TestExpertRouteGapsCommand:
                     "route-gaps",
                     "AI Strategy Expert",
                     "--execute",
+                    "--api",
                     "--budget",
                     "0.50",
                     "--yes",

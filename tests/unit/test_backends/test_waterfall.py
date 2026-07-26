@@ -20,9 +20,9 @@ from deepr.backends.quota_ledger import (
     QuotaWindowKind,
 )
 from deepr.backends.waterfall import (
-    BACKEND_API_METERED,
     BACKEND_LOCAL,
     BACKEND_PLAN_QUOTA,
+    BACKEND_UNAVAILABLE,
     choose_maintenance_backend,
     choose_plan_quota_backend,
 )
@@ -74,9 +74,10 @@ def _choose(task_class, *, available, path, now=T0):
 
 
 class TestChoose:
-    def test_nothing_admitted_falls_to_metered(self, tmp_path):
+    def test_nothing_admitted_is_unavailable(self, tmp_path):
         choice = _choose("sync", available=["llama3.1"], path=tmp_path / "a.jsonl")
-        assert choice.backend == BACKEND_API_METERED
+        assert choice.backend == BACKEND_UNAVAILABLE
+        assert choice.is_unavailable
         assert not choice.is_local
         assert "no local model admitted" in choice.reason
 
@@ -84,7 +85,7 @@ class TestChoose:
         p = tmp_path / "a.jsonl"
         record_admission("llama3.1", "sync", score=0.8, now=T0, path=p)
         choice = _choose("sync", available=[], path=p)
-        assert choice.backend == BACKEND_API_METERED
+        assert choice.backend == BACKEND_UNAVAILABLE
         assert "not reachable" in choice.reason
 
     def test_admitted_but_model_not_loaded(self, tmp_path):
@@ -92,7 +93,7 @@ class TestChoose:
         record_admission("llama3.1", "sync", score=0.8, now=T0, path=p)
         # Ollama is up but serving a different model.
         choice = _choose("sync", available=["other-model"], path=p)
-        assert choice.backend == BACKEND_API_METERED
+        assert choice.backend == BACKEND_UNAVAILABLE
         assert "unavailable" in choice.reason
 
     def test_admitted_and_available_is_chosen(self, tmp_path):
@@ -109,20 +110,20 @@ class TestChoose:
         p = tmp_path / "a.jsonl"
         record_admission("llama3.1", "sync", now=T0, path=p)
         choice = _choose("sync", available=["llama3.1"], path=p)
-        assert choice.backend == BACKEND_API_METERED
+        assert choice.backend == BACKEND_UNAVAILABLE
         assert "unknown" in choice.reason
 
     def test_low_score_admission_does_not_auto_route(self, tmp_path):
         p = tmp_path / "a.jsonl"
         record_admission("llama3.1", "sync", score=0.6, now=T0, path=p)
         choice = _choose("sync", available=["llama3.1"], path=p)
-        assert choice.backend == BACKEND_API_METERED
+        assert choice.backend == BACKEND_UNAVAILABLE
         assert "below_floor" in choice.reason
 
     def test_admission_is_task_class_scoped(self, tmp_path):
         p = tmp_path / "a.jsonl"
         record_admission("llama3.1", "sync", score=0.8, now=T0, path=p)
-        assert _choose("absorb", available=["llama3.1"], path=p).backend == BACKEND_API_METERED
+        assert _choose("absorb", available=["llama3.1"], path=p).backend == BACKEND_UNAVAILABLE
         assert _choose("sync", available=["llama3.1"], path=p).backend == BACKEND_LOCAL
 
     def test_env_pref_breaks_tie_among_admitted(self, tmp_path, monkeypatch):
@@ -159,29 +160,29 @@ class TestExplicitPlanQuota:
 
     def test_api_key_present_is_refused(self):
         choice = choose_plan_quota_backend("claude", env={"ANTHROPIC_API_KEY": "sk-x"})
-        assert choice.backend == BACKEND_API_METERED
+        assert choice.backend == BACKEND_UNAVAILABLE
         assert choice.plan_backend_id is None
         assert "ANTHROPIC_API_KEY" in choice.reason
 
     def test_native_tool_backend_is_refused(self):
         choice = choose_plan_quota_backend("codex", env={})
-        assert choice.backend == BACKEND_API_METERED
+        assert choice.backend == BACKEND_UNAVAILABLE
         assert choice.plan_backend_id is None
         assert "native read and shell tools" in choice.reason
 
-    def test_unknown_backend_falls_to_metered(self):
+    def test_unknown_backend_is_unavailable(self):
         choice = choose_plan_quota_backend("bogus", env={})
-        assert choice.backend == BACKEND_API_METERED
+        assert choice.backend == BACKEND_UNAVAILABLE
         assert "unknown" in choice.reason
 
     def test_metered_at_margin_plan_is_rejected_without_acknowledgement(self):
         choice = choose_plan_quota_backend("copilot", env={})
-        assert choice.backend == BACKEND_API_METERED
+        assert choice.backend == BACKEND_UNAVAILABLE
         assert "metered at the margin" in choice.reason
 
     def test_metered_at_margin_plan_cannot_be_enabled_by_legacy_acknowledgement(self):
         choice = choose_plan_quota_backend("copilot", env={}, allow_metered_at_margin=True)
-        assert choice.backend == BACKEND_API_METERED
+        assert choice.backend == BACKEND_UNAVAILABLE
         assert choice.plan_backend_id is None
         assert "durable reservation" in choice.reason
 
@@ -203,18 +204,18 @@ class TestPlanQuotaAutoRung:
             quota_ledger_path=path / "quota.jsonl",
         )
 
-    def test_not_admitted_stays_metered(self, tmp_path):
-        # The honest default: installed + plan auth but no admission -> metered.
+    def test_not_admitted_stays_unavailable(self, tmp_path):
+        # Installed + plan auth but no admission never authorizes paid fallback.
         choice = self._auto(which=_fake_which("claude"), path=tmp_path, admit=False)
-        assert choice.backend == BACKEND_API_METERED
+        assert choice.backend == BACKEND_UNAVAILABLE
 
-    def test_not_installed_falls_to_metered(self, tmp_path):
+    def test_not_installed_is_unavailable(self, tmp_path):
         choice = self._auto(which=_fake_which(), path=tmp_path)
-        assert choice.backend == BACKEND_API_METERED
+        assert choice.backend == BACKEND_UNAVAILABLE
 
-    def test_admitted_and_installed_without_quota_stays_metered(self, tmp_path):
+    def test_admitted_and_installed_without_quota_stays_unavailable(self, tmp_path):
         choice = self._auto(which=_fake_which("claude"), path=tmp_path)
-        assert choice.backend == BACKEND_API_METERED
+        assert choice.backend == BACKEND_UNAVAILABLE
 
     def test_admitted_installed_and_quota_observed_auto_routes(self, tmp_path):
         _record_quota_available(tmp_path / "quota.jsonl", "claude")
@@ -239,15 +240,15 @@ class TestPlanQuotaAutoRung:
         assert choice.backend == BACKEND_PLAN_QUOTA
         assert choice.plan_backend_id == "claude"
 
-    def test_exhausted_future_reset_stays_metered(self, tmp_path):
+    def test_exhausted_future_reset_stays_unavailable(self, tmp_path):
         _record_exhausted(tmp_path / "quota.jsonl", "claude", reset_at=datetime(2026, 6, 13, 3, tzinfo=UTC))
         choice = self._auto(which=_fake_which("claude"), path=tmp_path)
-        assert choice.backend == BACKEND_API_METERED
+        assert choice.backend == BACKEND_UNAVAILABLE
 
-    def test_exhausted_with_unknown_reset_stays_metered(self, tmp_path):
+    def test_exhausted_with_unknown_reset_stays_unavailable(self, tmp_path):
         _record_exhausted(tmp_path / "quota.jsonl", "claude", reset_at=None)
         choice = self._auto(which=_fake_which("claude"), path=tmp_path)
-        assert choice.backend == BACKEND_API_METERED
+        assert choice.backend == BACKEND_UNAVAILABLE
 
     def test_exhausted_past_reset_re_routes(self, tmp_path):
         # Once the observed reset has passed, the backend still needs a fresh
@@ -264,7 +265,7 @@ class TestPlanQuotaAutoRung:
             path=tmp_path,
             plan_env={"ANTHROPIC_API_KEY": "sk-x"},
         )
-        assert choice.backend == BACKEND_API_METERED
+        assert choice.backend == BACKEND_UNAVAILABLE
 
     def test_metered_at_margin_cli_not_auto_routed(self, tmp_path):
         # copilot is metered-per-use, so it is not auto-routable even if a stray
@@ -280,4 +281,4 @@ class TestPlanQuotaAutoRung:
             plan_env={},
             quota_ledger_path=tmp_path / "quota.jsonl",
         )
-        assert choice.backend == BACKEND_API_METERED
+        assert choice.backend == BACKEND_UNAVAILABLE

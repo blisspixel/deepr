@@ -20,7 +20,7 @@ import json
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from typing import Any
-from unittest.mock import AsyncMock
+from unittest.mock import AsyncMock, patch
 
 import pytest
 
@@ -124,6 +124,53 @@ class TestValidationResultShape:
 
 
 class TestValidate:
+    @pytest.mark.asyncio
+    async def test_caller_ceiling_is_forwarded_to_durable_metered_call(self):
+        client = _fake_client_returning(
+            {
+                "verdict": "warn",
+                "confidence": 0.5,
+                "reasoning": "Limited evidence.",
+                "supporting_claim_ids": [],
+                "contradicting_claim_ids": [],
+                "caveats": [],
+            }
+        )
+
+        async def run_reserved(**kwargs):
+            return await kwargs["call"]()
+
+        with patch(
+            "deepr.services.metered_call.execute_reserved_async_call",
+            new=AsyncMock(side_effect=run_reserved),
+        ) as reserved_call:
+            await ExpertValidator(client=client).validate(
+                _make_expert(),
+                "claim",
+                max_cost_per_job=0.03,
+            )
+
+        reserved_ceiling = reserved_call.await_args.kwargs["max_cost_per_job"]
+        assert 0 < reserved_ceiling <= 0.03
+        provider_kwargs = client.chat.completions.create.await_args.kwargs
+        assert 128 <= provider_kwargs["max_completion_tokens"] <= 1_200
+
+    @pytest.mark.asyncio
+    async def test_tiny_budget_fails_before_provider_or_reservation(self):
+        from deepr.services.metered_envelope import MeteredEnvelopeError
+
+        client = _fake_client_returning({})
+        with patch("deepr.services.metered_call.execute_reserved_async_call", new=AsyncMock()) as reserved_call:
+            with pytest.raises(MeteredEnvelopeError, match="cannot cover"):
+                await ExpertValidator(client=client).validate(
+                    _make_expert(),
+                    "claim",
+                    max_cost_per_job=0.000001,
+                )
+
+        reserved_call.assert_not_awaited()
+        client.chat.completions.create.assert_not_awaited()
+
     @pytest.mark.asyncio
     async def test_pass_verdict_roundtrips_supporting_claims(self):
         c1 = _make_claim("Python is dynamically typed", 0.95, claim_id="c1")

@@ -10,6 +10,7 @@ from dataclasses import dataclass, field
 from typing import Any
 
 from deepr.mcp.consult_tool import CONSULT_EXPERTS_INPUT_SCHEMA, CONSULT_EXPERTS_OUTPUT_SCHEMA
+from deepr.mcp.metered_contract import PAID_EXPERT_VALIDATE_INPUT_SCHEMA, PAID_RESEARCH_INPUT_SCHEMA
 from deepr.mcp.query_expert_tool import QUERY_EXPERT_INPUT_SCHEMA
 
 
@@ -315,32 +316,11 @@ def create_default_registry() -> ToolRegistry:
             description=(
                 "Submit a deep research job for comprehensive analysis requiring web search "
                 "and synthesis. Returns job_id for async status tracking and resource URIs for "
-                "subscriptions. Costs $0.10-$0.50. Do NOT use for simple factual lookups -- "
-                "use web search instead. Example: deepr_research(prompt='Compare HIPAA vs GDPR "
-                "data retention requirements')"
+                "subscriptions. This is a paid API path and remains off unless this call includes "
+                "both explicit consent flags and a finite positive USD ceiling. Do NOT use for "
+                "simple factual lookups; use web search instead."
             ),
-            input_schema={
-                "type": "object",
-                "properties": {
-                    "prompt": {
-                        "type": "string",
-                        "description": "Research question or topic. Be specific (e.g., 'Impact of Basel III on crypto') rather than generic.",
-                    },
-                    "model": {
-                        "type": "string",
-                        "default": "o4-mini-deep-research",
-                        "description": "Model: o4-mini-deep-research ($0.15, fast), o3-deep-research ($0.50, premium)",
-                    },
-                    "provider": {
-                        "type": "string",
-                        "default": "openai",
-                        "description": "Provider: openai, azure, gemini, grok",
-                    },
-                    "budget": {"type": "number", "description": "Maximum cost in dollars"},
-                    "enable_web_search": {"type": "boolean", "default": True},
-                },
-                "required": ["prompt"],
-            },
+            input_schema=PAID_RESEARCH_INPUT_SCHEMA,
             category="research",
             cost_tier="medium",
         )
@@ -486,30 +466,10 @@ def create_default_registry() -> ToolRegistry:
                 "and contradicting claims (with citations), and caveats for any relevant "
                 "knowledge gaps. Pure read-side: does not modify the expert. Useful as a "
                 "guardrail for downstream agents that need domain validation before acting. "
-                "Cost: one small reasoning-model call (default gpt-5-mini). "
-                "Example: deepr_expert_validate(expert_name='AI Strategy Expert', "
-                "claim='GPT-5 outperforms GPT-4 on every benchmark')"
+                "This uses one paid reasoning-model call and remains off unless this call "
+                "includes both explicit consent flags and a finite positive USD ceiling."
             ),
-            input_schema={
-                "type": "object",
-                "properties": {
-                    "expert_name": {"type": "string", "description": "Name of the expert to consult"},
-                    "claim": {
-                        "type": "string",
-                        "description": "The statement to assess. Free text; the expert will return PASS / WARN / FAIL.",
-                    },
-                    "model": {
-                        "type": "string",
-                        "description": "Optional override for the validation model (default: gpt-5-mini)",
-                    },
-                    "max_evidence": {
-                        "type": "integer",
-                        "default": 8,
-                        "description": "Maximum expert beliefs to include as grounding evidence",
-                    },
-                },
-                "required": ["expert_name", "claim"],
-            },
+            input_schema=PAID_EXPERT_VALIDATE_INPUT_SCHEMA,
             category="experts",
             cost_tier="low",
         )

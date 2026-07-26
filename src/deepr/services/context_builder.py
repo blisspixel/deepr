@@ -71,6 +71,9 @@ class ContextBuilder:
         Returns:
             Concise summary with key findings
         """
+        if isinstance(max_tokens, bool) or not isinstance(max_tokens, int) or not 1 <= max_tokens <= 2_000:
+            raise ValueError("max_tokens must be an integer from 1 through 2000")
+
         # Calculate rough target length in words (4 chars = 1 token)
         target_words = max_tokens * 3
         report_block = sanitize_untrusted_content(
@@ -94,6 +97,14 @@ Research Report:
 Summary (bullet list, ~{target_words} words):"""
 
         from deepr.services.metered_call import execute_reserved_sync_call
+        from deepr.services.metered_envelope import bounded_chat_envelope
+
+        envelope = bounded_chat_envelope(
+            model="gpt-5-mini",
+            prompt_parts=(prompt,),
+            budget_usd=0.25,
+            maximum_output_tokens=max_tokens + 100,
+        )
 
         response = await asyncio.to_thread(
             execute_reserved_sync_call,
@@ -101,12 +112,13 @@ Summary (bullet list, ~{target_words} words):"""
             provider="openai",
             model="gpt-5-mini",
             source="services.context_builder.summarize_research",
+            max_cost_per_job=envelope.cost_usd,
             call=partial(
                 self.client.chat.completions.create,
                 model="gpt-5-mini",
                 messages=[{"role": "user", "content": prompt}],
                 temperature=0.3,
-                max_completion_tokens=max_tokens + 100,
+                max_completion_tokens=envelope.output_tokens,
             ),
         )
 

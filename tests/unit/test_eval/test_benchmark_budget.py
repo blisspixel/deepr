@@ -75,6 +75,29 @@ def test_refund_releases_unsubmitted_call_without_ledger_event(isolated_costs):
     assert ResearchReservationStore().active_cost() == 0
 
 
+def test_dispatch_mark_rechecks_operator_freeze(isolated_costs, monkeypatch, tmp_path):
+    budget_file = tmp_path / "budget.json"
+    budget_file.write_text('{"monthly_limit": 10}', encoding="utf-8")
+    monkeypatch.setenv("DEEPR_BUDGET_FILE", str(budget_file))
+    guard = BenchmarkSpendGuard(0.5, run_id="run-freeze")
+    reservation = guard.reserve(
+        provider="openai",
+        model="openai/test",
+        cost_ceiling=0.2,
+        operation="benchmark_evaluation",
+    )
+    budget_file.write_text(
+        '{"monthly_limit": 10, "paid_api_frozen": true, "freeze_reason": "operator"}',
+        encoding="utf-8",
+    )
+
+    with pytest.raises(BenchmarkBudgetExceeded, match="authority changed"):
+        guard.mark_provider_work(reservation)
+
+    guard.refund(reservation)
+    assert ResearchReservationStore().active_cost() == 0
+
+
 def test_invalid_or_unbounded_runtime_budget_is_rejected(isolated_costs):
     for budget in (True, 0, -1, float("inf"), float("nan")):
         with pytest.raises(BenchmarkBudgetExceeded, match="finite and greater than zero"):

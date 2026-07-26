@@ -189,9 +189,9 @@ class TestBudgetGateNotBypassable:
         from deepr.cli.commands import budget as budget_mod
 
         monkeypatch.setattr(budget_mod, "load_budget_config", lambda: {"monthly_limit": 0})
-        # Fresh month: small jobs auto-approve
+        # A zero budget is now a hard paid-dispatch freeze. The old under-$1
+        # convenience could be repeated into an unbounded surprise bill.
         monkeypatch.setattr(budget_mod, "_ledger_month_spend", lambda: 0.0)
-        assert budget_mod.check_budget_approval(0.50) is True
-        # Month already at the ceiling: even a $0.99 job needs a human
+        assert budget_mod.check_budget_approval(0.50) is False
         monkeypatch.setattr(budget_mod, "_ledger_month_spend", lambda: 25.0)
         assert budget_mod.check_budget_approval(0.99) is False

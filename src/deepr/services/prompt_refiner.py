@@ -13,6 +13,10 @@ from datetime import datetime
 
 from openai import OpenAI
 
+_MAX_PROMPT_CHARS = 20_000
+_MAX_COMPLETION_TOKENS = 1_200
+_MAX_REFINEMENT_COST_USD = 0.25
+
 
 class PromptRefiner:
     """
@@ -32,7 +36,14 @@ class PromptRefiner:
         api_key = os.getenv("OPENAI_API_KEY")
         if not api_key:
             raise ValueError("OPENAI_API_KEY environment variable is required for PromptRefiner")
-        self.client = OpenAI(api_key=api_key)
+        self._api_key = api_key
+        self._client: OpenAI | None = None
+
+    def _get_client(self) -> OpenAI:
+        """Construct the provider client only inside the reserved call."""
+        if self._client is None:
+            self._client = OpenAI(api_key=self._api_key, max_retries=0)
+        return self._client
 
     def refine(self, prompt: str, has_files: bool = False) -> dict:
         """
@@ -48,6 +59,11 @@ class PromptRefiner:
                 - changes_made: List of improvements applied
                 - original_prompt: Original for comparison
         """
+        if not isinstance(prompt, str) or not prompt.strip():
+            raise ValueError("prompt must be a non-empty string")
+        if len(prompt) > _MAX_PROMPT_CHARS:
+            raise ValueError(f"prompt exceeds the {_MAX_PROMPT_CHARS:,}-character refinement limit")
+
         current_date = datetime.now().strftime("%B %Y")  # e.g., "October 2025"
 
         system_prompt = f"""You are a research prompt optimizer. Your job is to refine user research queries to follow best practices for deep research.
@@ -86,11 +102,33 @@ Key considerations:
 - Request prioritization of trusted, authoritative, up-to-date sources
 - Add structured deliverables if scope is vague"""
 
-        response = self.client.chat.completions.create(
+        from deepr.services.metered_envelope import bounded_chat_envelope
+
+        envelope = bounded_chat_envelope(
             model=self.model,
-            messages=[{"role": "system", "content": system_prompt}, {"role": "user", "content": user_prompt}],
-            response_format={"type": "json_object"},
-            # Note: GPT-5 models only support temperature=1 (default)
+            prompt_parts=(system_prompt, user_prompt),
+            budget_usd=_MAX_REFINEMENT_COST_USD,
+            maximum_output_tokens=_MAX_COMPLETION_TOKENS,
+            minimum_output_tokens=128,
+        )
+        from deepr.services.metered_call import execute_reserved_sync_call
+
+        response = execute_reserved_sync_call(
+            operation_prefix="prompt-refinement",
+            provider="openai",
+            model=self.model,
+            source="services.prompt_refiner",
+            max_cost_per_job=envelope.cost_usd,
+            call=lambda: self._get_client().chat.completions.create(
+                model=self.model,
+                messages=[
+                    {"role": "system", "content": system_prompt},
+                    {"role": "user", "content": user_prompt},
+                ],
+                response_format={"type": "json_object"},
+                max_completion_tokens=envelope.output_tokens,
+                # GPT-5 models only support temperature=1 (default).
+            ),
         )
 
         import json

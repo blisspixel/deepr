@@ -30,14 +30,17 @@ async def test_provider_failed_job_is_marked_failed_with_string_error(monkeypatc
     job.provider_job_id = "resp_abc"
     job.provider = "openai"
     job.model = "gpt-5-mini"
+    job.metadata = {}
 
     queue = MagicMock()
     queue.get_job = AsyncMock(return_value=job)
+    queue.update_results = AsyncMock(return_value=True)
     queue.update_status = AsyncMock(return_value=True)
 
     response = MagicMock()
     response.status = "failed"
     response.error = _ProviderErrorObject()
+    response.usage = None
 
     provider = MagicMock()
     provider.get_status = AsyncMock(return_value=response)

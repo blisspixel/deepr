@@ -800,7 +800,12 @@ class TestCostSummary:
 
     def test_get_cost_summary(self, client):
         """Test that GET /api/cost/summary returns cost summary."""
+        from deepr.observability.cost_ledger import CostLedger
         from deepr.queue.base import JobStatus, ResearchJob
+
+        ledger = CostLedger()
+        ledger.record_event(operation="research", provider="openai", cost_usd=0.50, source="test")
+        ledger.record_event(operation="research", provider="openai", cost_usd=0.75, source="test")
 
         mock_jobs = [
             ResearchJob(

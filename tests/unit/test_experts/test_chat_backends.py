@@ -266,6 +266,7 @@ async def test_openai_chat_backend_streams_deltas_and_usage():
                 model="gpt-5.2",
                 messages=[{"role": "user", "content": "q"}],
                 reasoning_effort="low",
+                extra={"max_tokens": 123, "max_cost_per_job": 1.0},
             )
         )
     ]
@@ -274,6 +275,7 @@ async def test_openai_chat_backend_streams_deltas_and_usage():
         "model": "gpt-5.2",
         "messages": [{"role": "user", "content": "q"}],
         "reasoning_effort": "low",
+        "max_tokens": 123,
         "stream": True,
         "stream_options": {"include_usage": True},
     }
@@ -313,7 +315,12 @@ async def test_anthropic_chat_backend_uses_native_messages_shape_and_usage():
             ],
             tool_choice="auto",
             reasoning_effort="high",
-            extra={"temperature": 0.2, "max_tokens": 123, "response_format": {"type": "json_object"}},
+            extra={
+                "temperature": 0.2,
+                "max_tokens": 123,
+                "max_cost_per_job": 1.0,
+                "response_format": {"type": "json_object"},
+            },
         )
     )
 
@@ -387,7 +394,7 @@ async def test_anthropic_chat_backend_streams_text_and_final_usage():
                     {"role": "system", "content": "You are careful."},
                     {"role": "user", "content": "q"},
                 ],
-                extra={"temperature": 0.2, "max_tokens": 123},
+                extra={"temperature": 0.2, "max_tokens": 123, "max_cost_per_job": 1.0},
             )
         )
     ]
@@ -451,7 +458,11 @@ async def test_anthropic_chat_backend_surfaces_empty_refusal():
     backend = AnthropicExpertChatBackend(SimpleNamespace(messages=FakeMessages()), model="claude-sonnet-4-6")
 
     result = await backend.complete(
-        ExpertChatRequest(model="claude-sonnet-4-6", messages=[{"role": "user", "content": "q"}])
+        ExpertChatRequest(
+            model="claude-sonnet-4-6",
+            messages=[{"role": "user", "content": "q"}],
+            extra={"max_tokens": 123, "max_cost_per_job": 1.0},
+        )
     )
 
     assert result.text == "Anthropic safety classifiers declined the request (category: safety)."

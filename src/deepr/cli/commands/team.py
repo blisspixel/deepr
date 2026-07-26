@@ -47,6 +47,12 @@ async def run_dream_team(
         perspectives: Number of team perspectives
         provider: Provider to use (defaults to model-based routing)
     """
+    from deepr.experts.metered_mutation_gate import require_metered_expert_mutation
+
+    require_metered_expert_mutation(
+        "multi_agent_team_research",
+        safe_alternative="run one explicit budgeted deepr research job",
+    )
     import os
     import uuid
     from datetime import datetime
@@ -229,7 +235,9 @@ Provide your analysis from this perspective."""
                 continue
 
             if response.status == "completed":
-                cost = float(response.usage.cost or 0.0) if response.usage else 0.0
+                from deepr.services.provider_completion import conservative_completion_cost
+
+                reported_cost, cost, tokens = conservative_completion_cost(response, reservation)
                 # Extract and persist the paid artifact BEFORE settling the
                 # cost: settling first left a window where an extraction or
                 # storage failure burned the money with no artifact and no
@@ -262,8 +270,8 @@ Provide your analysis from this perspective."""
 
                 settle_research_cost(
                     reservation,
-                    actual_cost=cost,
-                    tokens=response.usage.total_tokens if response.usage else 0,
+                    actual_cost=reported_cost,
+                    tokens=tokens,
                     request_id=provider_job_id,
                     source="cli.team.immediate_completion",
                 )
@@ -396,12 +404,18 @@ def analyze(
         from pathlib import Path
 
         from deepr.config import load_config
+        from deepr.experts.metered_mutation_gate import require_metered_expert_mutation
         from deepr.providers import create_provider
         from deepr.queue.local_queue import SQLiteQueue
         from deepr.services.batch_executor import BatchExecutor
         from deepr.services.context_builder import ContextBuilder
         from deepr.services.team_architect import TeamArchitect, TeamSynthesizer
         from deepr.storage.local import LocalStorage
+
+        require_metered_expert_mutation(
+            "multi_agent_team_research",
+            safe_alternative="run one explicit budgeted deepr research job",
+        )
 
         # Phase 1: GPT-5 designs optimal team for THIS question
         if company:

@@ -109,3 +109,23 @@ async def test_planner_tracks_per_step_cost(parent_identity):
     # Two steps each costing 0.05
     assert session.cost_accumulated == pytest.approx(0.10, abs=0.01)
     assert result["total_cost"] == pytest.approx(0.10, abs=0.01)
+
+
+@pytest.mark.asyncio
+async def test_planner_completion_has_provider_enforced_output_bound():
+    from deepr.experts.task_planner import TaskPlanner
+
+    planner = TaskPlanner(_make_mock_session())
+    response = MagicMock()
+    response.choices = [MagicMock()]
+    response.choices[0].message.content = '{"steps": []}'
+    mock_client = AsyncMock()
+    mock_client.chat.completions.create = AsyncMock(return_value=response)
+    planner.client = mock_client
+
+    result = await planner.decompose("Bound this plan")
+
+    assert result["steps"] == []
+    request = mock_client.chat.completions.create.await_args.kwargs
+    assert 0 < request["max_completion_tokens"] <= 500
+    assert "max_tokens" not in request

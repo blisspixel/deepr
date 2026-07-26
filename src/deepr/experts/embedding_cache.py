@@ -123,9 +123,8 @@ class EmbeddingCache:
         filename: str,
         client: Any,
         model: str,
-        cost_safety: Any,
     ) -> tuple[Any, dict[str, Any]] | None:
-        """Embed one document under cost and durable admission gates."""
+        """Embed one bounded document under the durable paid-call gate."""
         from deepr.experts.chat_capacity import (
             MeteredExpertChatDisabledError,
             require_expert_chat_dispatch,
@@ -139,44 +138,15 @@ class EmbeddingCache:
             return None
 
         embed_content = content[:8000]
-        estimate = 0.0002
-        from deepr.experts.cost_admission import admit_soft_cost_operation
-
-        # Prefer the caller's cost manager when provided; still fail closed if
-        # soft admission cannot prove budget headroom.
-        if cost_safety is not None:
-            try:
-                allowed, reason, _ = cost_safety.check_operation(
-                    session_id=f"embed:{self.expert_name}",
-                    operation_type="embed_document",
-                    estimated_cost=estimate,
-                    require_confirmation=False,
-                )
-                if not allowed:
-                    logger.warning("Embedding for %s blocked by cost-safety: %s", filename, reason)
-                    return None
-            except Exception as exc:
-                logger.warning(
-                    "Embedding for %s blocked; cost-safety check failed closed: %s",
-                    filename,
-                    exc,
-                )
-                return None
-        else:
-            _manager, estimate, deny_reason = admit_soft_cost_operation(
-                session_id=f"embed:{self.expert_name}",
-                operation_type="embed_document",
-                estimated_cost=estimate,
-            )
-            if deny_reason is not None:
-                logger.warning("Embedding for %s blocked by cost-safety: %s", filename, deny_reason)
-                return None
         try:
+            from deepr.services.metered_envelope import bounded_embedding_envelope
+
+            envelope = bounded_embedding_envelope(model=model, inputs=(embed_content,))
             response = await execute_metered_chat_provider_call(
                 provider="openai",
                 model=model,
                 source="experts.embedding_cache.add_documents",
-                max_cost_per_job=max(float(estimate), 0.0002),
+                max_cost_per_job=envelope.cost_usd,
                 call=lambda: client.embeddings.create(model=model, input=embed_content),
             )
             # Durable admission already wrote the canonical ledger. Do not call
@@ -212,17 +182,6 @@ class EmbeddingCache:
         if not uncached:
             return 0
 
-        from deepr.experts.cost_admission import admit_soft_cost_operation
-
-        cost_safety, _est, deny_reason = admit_soft_cost_operation(
-            session_id=f"embed:{self.expert_name}",
-            operation_type="embed_document_batch",
-            estimated_cost=0.0002 * max(1, len(uncached)),
-        )
-        if deny_reason is not None:
-            logger.warning("Document embed batch blocked by cost-safety: %s", deny_reason)
-            return 0
-
         new_embeddings = []
         new_metadata = []
         for doc in uncached:
@@ -233,7 +192,6 @@ class EmbeddingCache:
                 filename=filename,
                 client=client,
                 model=model,
-                cost_safety=cost_safety,
             )
             if embedded is None:
                 continue
@@ -272,6 +230,9 @@ class EmbeddingCache:
         """
         if self.embeddings is None or len(self.embeddings) == 0:
             return []
+        if not isinstance(query, str) or not query.strip() or len(query) > 8_000:
+            logger.warning("Query embedding blocked: query must contain 1 to 8,000 characters")
+            return []
 
         from deepr.experts.chat_capacity import (
             MeteredExpertChatDisabledError,
@@ -284,27 +245,17 @@ class EmbeddingCache:
             logger.warning("Query embedding blocked by metered chat gate: %s", blocked)
             return []
 
-        # Cost-safety gate for query embedding (fail closed).
-        from deepr.experts.cost_admission import admit_soft_cost_operation
-
-        _cost_safety, _est, _reason = admit_soft_cost_operation(
-            session_id=f"embed_query:{self.expert_name}",
-            operation_type="embed_query",
-            estimated_cost=0.0001,
-        )
-        if _reason is not None:
-            logger.warning("Query embedding blocked by cost-safety: %s", _reason)
-            return []
-
         # Embed query (single API call) under durable admission.
         try:
             from deepr.experts.chat_metered import execute_metered_chat_provider_call
+            from deepr.services.metered_envelope import bounded_embedding_envelope
 
+            envelope = bounded_embedding_envelope(model=model, inputs=(query,))
             response = await execute_metered_chat_provider_call(
                 provider="openai",
                 model=model,
                 source="experts.embedding_cache.search",
-                max_cost_per_job=max(float(_est), 0.0001),
+                max_cost_per_job=envelope.cost_usd,
                 call=lambda: client.embeddings.create(model=model, input=query),
             )
             # Durable admission is the sole ledger write for this embed.

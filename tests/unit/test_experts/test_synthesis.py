@@ -435,6 +435,11 @@ I believe testing is important (Confidence: 90%)
         assert result["success"] is True
         assert result["documents_processed"] == 1
         assert "worldview" in result
+        requests = [call.kwargs for call in mock_client.chat.completions.create.await_args_list]
+        assert len(requests) == 2
+        assert 0 < requests[0]["max_completion_tokens"] <= 4_000
+        assert 0 < requests[1]["max_completion_tokens"] <= 1_600
+        assert all("max_tokens" not in request for request in requests)
 
     @pytest.mark.asyncio
     async def test_generate_worldview_document(self, synthesizer):

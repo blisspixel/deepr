@@ -16,18 +16,14 @@ Configuration hierarchy (lowest to highest priority):
 Usage:
     from deepr.core.settings import get_settings, Settings
 
-    # Get singleton instance (recommended)
     settings = get_settings()
 
-    # Or load with CLI overrides
     settings = Settings.load(cli_overrides={"provider": "azure"})
 
-    # Access settings
     print(settings.default_provider)
     print(settings.get_api_key("openai"))
     print(settings.budget.daily_limit)
 
-Requirements: 1.1 - Configuration Consolidation
 """
 
 from __future__ import annotations
@@ -40,6 +36,8 @@ from dataclasses import dataclass, field
 from enum import Enum
 from pathlib import Path
 from typing import Any, ClassVar, Literal
+
+from deepr.core.cost_caps import clamp_spend_authority
 
 logger = logging.getLogger(__name__)
 
@@ -195,7 +193,7 @@ class BudgetSettings:
     """Budget and cost limit settings."""
 
     max_cost_per_job: float = 5.0
-    daily_limit: float = 25.0
+    daily_limit: float = 10.0
     monthly_limit: float = 200.0
 
     # Alert thresholds (percentage of limit)
@@ -477,6 +475,8 @@ class Settings:
         # 3. Apply CLI overrides
         if cli_overrides:
             settings._apply_cli_overrides(cli_overrides)
+
+        clamp_spend_authority(settings.budget)
 
         # Cache as singleton
         cls._instance = settings
@@ -954,11 +954,11 @@ class Settings:
             except Exception as e:
                 errors.append(f"Cannot create data directory '{self.data_dir}': {e}")
 
-        # Check budget limits are positive
-        if self.budget.daily_limit <= 0:
-            errors.append("Daily budget limit must be positive")
-        if self.budget.monthly_limit <= 0:
-            errors.append("Monthly budget limit must be positive")
+        # Zero is an intentional paid freeze; only negative limits are invalid.
+        if self.budget.daily_limit < 0:
+            errors.append("Daily budget limit must be non-negative")
+        if self.budget.monthly_limit < 0:
+            errors.append("Monthly budget limit must be non-negative")
 
         return errors
 

@@ -16,6 +16,14 @@ import numpy as np
 
 logger = logging.getLogger(__name__)
 
+_CHAT_MODEL = "gpt-5.2"
+_CHAT_CALL_CEILING_USD = 0.02
+_CHAT_OUTPUT_TOKENS = 800
+_EMBEDDING_MODEL = "text-embedding-3-small"
+_MAX_EMBED_STATEMENTS = 256
+_MAX_EMBED_STATEMENT_CHARS = 2_000
+_MAX_EMBED_INPUT_BYTES = 200_000
+
 
 def _cosine_similarity(a: np.ndarray, b: np.ndarray) -> float:
     """Compute cosine similarity between two vectors."""
@@ -96,8 +104,44 @@ class GapDiscoverer:
         if self.client is None:
             from openai import AsyncOpenAI
 
-            self.client = AsyncOpenAI()
+            self.client = AsyncOpenAI(max_retries=0)
         return self.client
+
+    async def _complete_bounded(
+        self,
+        *,
+        operation: str,
+        source: str,
+        messages: list[dict[str, str]],
+    ) -> Any:
+        """Run one priced gap-analysis completion under a durable hold."""
+        from deepr.experts.report_absorber_costs import bounded_metered_completion_kwargs
+        from deepr.services.metered_call import execute_reserved_async_call
+
+        kwargs, worst_case_cost = bounded_metered_completion_kwargs(
+            operation=operation,
+            model=_CHAT_MODEL,
+            call_ceiling=_CHAT_CALL_CEILING_USD,
+            kwargs={
+                "model": _CHAT_MODEL,
+                "messages": messages,
+                "reasoning_effort": "low",
+                "max_completion_tokens": _CHAT_OUTPUT_TOKENS,
+            },
+        )
+
+        async def dispatch() -> Any:
+            client = await self._get_client()
+            return await client.chat.completions.create(**kwargs)
+
+        return await execute_reserved_async_call(
+            operation_prefix=f"gap-discovery-{operation}",
+            provider="openai",
+            model=_CHAT_MODEL,
+            source=source,
+            max_cost_per_job=worst_case_cost,
+            call=dispatch,
+        )
 
     async def discover_gaps(
         self,
@@ -162,35 +206,30 @@ class GapDiscoverer:
         Returns:
             (N, D) numpy array of embeddings, or None on failure
         """
-        from deepr.experts.cost_admission import admit_soft_cost_operation
-
-        # Tiny per-batch estimate; fail closed if admission cannot run.
-        est = max(0.0002, 0.00005 * max(1, len(statements)))
-        cost_safety, est_cost, deny_reason = admit_soft_cost_operation(
-            session_id="gap_discovery",
-            operation_type="gap_discovery_embed",
-            estimated_cost=est,
-        )
-        if deny_reason is not None:
-            logger.warning("Gap discovery embeddings blocked by cost-safety: %s", deny_reason)
+        bounded_statements = [str(statement)[:_MAX_EMBED_STATEMENT_CHARS] for statement in statements]
+        input_bytes = sum(len(statement.encode("utf-8")) for statement in bounded_statements)
+        if len(bounded_statements) > _MAX_EMBED_STATEMENTS or input_bytes > _MAX_EMBED_INPUT_BYTES:
+            logger.warning("Gap discovery embeddings exceed the bounded request envelope")
             return None
 
         try:
-            client = await self._get_client()
-            response = await client.embeddings.create(
-                model="text-embedding-3-small",
-                input=statements,
-            )
-            from deepr.experts.cost_admission import record_soft_cost
+            from deepr.providers.registry import get_token_pricing
+            from deepr.services.metered_call import execute_reserved_async_call
 
-            record_soft_cost(
-                cost_safety,
-                session_id="gap_discovery",
-                operation_type="gap_discovery_embed",
-                actual_cost=float(est_cost),
+            input_rate = float(get_token_pricing(_EMBEDDING_MODEL)["input"])
+            worst_case_cost = max(0.0002, (input_bytes / 1_000_000) * input_rate)
+
+            async def dispatch() -> Any:
+                client = await self._get_client()
+                return await client.embeddings.create(model=_EMBEDDING_MODEL, input=bounded_statements)
+
+            response = await execute_reserved_async_call(
+                operation_prefix="gap-discovery-embed",
                 provider="openai",
-                model="text-embedding-3-small",
+                model=_EMBEDDING_MODEL,
                 source="experts.gap_discovery._embed_statements",
+                max_cost_per_job=worst_case_cost,
+                call=dispatch,
             )
             embeddings = [item.embedding for item in response.data]
             return np.array(embeddings)
@@ -228,46 +267,19 @@ class GapDiscoverer:
             "Priority 1-5 (5=most important). Output ONLY the JSON."
         )
 
-        # Pre-flight cost-safety gate so the gap-discovery pipeline can't
-        # silently fan out paid LLM calls without daily-budget enforcement.
-        from deepr.experts.cost_admission import admit_soft_cost_operation
-
-        cost_safety, est_cost, deny_reason = admit_soft_cost_operation(
-            session_id="gap_discovery",
-            operation_type="gap_discovery_thin_areas",
-            estimated_cost=0.02,
-        )
-        if deny_reason is not None:
-            logger.warning("Gap discovery (thin areas) blocked by cost-safety: %s", deny_reason)
-            return []
-
         try:
-            client = await self._get_client()
-            response = await client.chat.completions.create(
-                model="gpt-5.2",
+            response = await self._complete_bounded(
+                operation="thin-areas",
+                source="experts.gap_discovery._generate_gaps_for_thin_areas",
                 messages=[
                     {"role": "system", "content": "You identify knowledge gaps. Output only valid JSON."},
                     {"role": "user", "content": prompt},
                 ],
-                reasoning_effort="low",
             )
             text = response.choices[0].message.content or "[]"
             if text.startswith("```"):
                 text = text.split("\n", 1)[-1].rsplit("```", 1)[0]
             result = json.loads(text)
-            from deepr.experts.chat_turns import chat_token_cost as _tc
-            from deepr.experts.cost_admission import record_soft_cost
-
-            actual_cost = _tc(response.usage, "gpt-5.2") if response.usage else est_cost
-            record_soft_cost(
-                cost_safety,
-                session_id="gap_discovery",
-                operation_type="gap_discovery_thin_areas",
-                actual_cost=float(actual_cost),
-                provider="openai",
-                model="gpt-5.2",
-                source="experts.gap_discovery._generate_gaps_for_thin_areas",
-            )
             return result
         except Exception as e:
             logger.warning("Gap generation failed: %s", e)
@@ -303,44 +315,19 @@ class GapDiscoverer:
             "Output ONLY the JSON. Return [] if coverage is good."
         )
 
-        from deepr.experts.cost_admission import admit_soft_cost_operation
-
-        cost_safety, est_cost, deny_reason = admit_soft_cost_operation(
-            session_id="gap_discovery",
-            operation_type="gap_discovery_domain_coverage",
-            estimated_cost=0.02,
-        )
-        if deny_reason is not None:
-            logger.warning("Gap discovery (domain coverage) blocked by cost-safety: %s", deny_reason)
-            return []
-
         try:
-            client = await self._get_client()
-            response = await client.chat.completions.create(
-                model="gpt-5.2",
+            response = await self._complete_bounded(
+                operation="domain-coverage",
+                source="experts.gap_discovery._check_domain_coverage",
                 messages=[
                     {"role": "system", "content": "You analyze domain coverage. Output only valid JSON."},
                     {"role": "user", "content": prompt},
                 ],
-                reasoning_effort="low",
             )
             text = response.choices[0].message.content or "[]"
             if text.startswith("```"):
                 text = text.split("\n", 1)[-1].rsplit("```", 1)[0]
             gaps = json.loads(text)
-            from deepr.experts.chat_turns import chat_token_cost as _tc
-            from deepr.experts.cost_admission import record_soft_cost
-
-            actual_cost = _tc(response.usage, "gpt-5.2") if response.usage else est_cost
-            record_soft_cost(
-                cost_safety,
-                session_id="gap_discovery",
-                operation_type="gap_discovery_domain_coverage",
-                actual_cost=float(actual_cost),
-                provider="openai",
-                model="gpt-5.2",
-                source="experts.gap_discovery._check_domain_coverage",
-            )
             for gap in gaps:
                 gap["discovery_method"] = "domain_coverage"
             return gaps

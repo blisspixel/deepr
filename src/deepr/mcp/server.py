@@ -65,6 +65,7 @@ from deepr.experts.consult_transaction import DEFAULT_CONSULT_MAX_ELAPSED_SECOND
 from deepr.experts.profile import ExpertStore
 from deepr.mcp.consult_tool import CONSULT_EXPERTS_INPUT_SCHEMA, CONSULT_EXPERTS_OUTPUT_SCHEMA, consult_experts_tool
 from deepr.mcp.expert_reads import get_expert_handoff, get_expert_loop_status, get_semantic_recall, get_temporal_edges
+from deepr.mcp.metered_contract import MeteredMCPContractError, require_metered_api_contract
 from deepr.mcp.protocol_compat import LEGACY_METHOD_MAP
 from deepr.mcp.query_expert_tool import query_expert_tool
 from deepr.mcp.request_context import (
@@ -416,13 +417,15 @@ class DeeprMCPServer:
         question: str,
         experts: list[str] | None = None,
         max_experts: int = 3,
-        budget: float = 2.0,
-        synthesis_backend: str = "api",
+        budget: float | None = None,
+        synthesis_backend: str = "local",
         provider: str | None = None,
         model: str | None = None,
         local_model: str | None = None,
         plan: str | None = None,
         plan_model: str | None = None,
+        allow_metered_api: bool = False,
+        confirm_metered_cost: bool = False,
         max_elapsed_seconds: float = DEFAULT_CONSULT_MAX_ELAPSED_SECONDS,
     ) -> dict[str, Any]:
         """Consult a team of experts as one bounded knowledge transaction.
@@ -443,6 +446,8 @@ class DeeprMCPServer:
             local_model=local_model,
             plan=plan,
             plan_model=plan_model,
+            allow_metered_api=allow_metered_api,
+            confirm_metered_cost=confirm_metered_cost,
             max_elapsed_seconds=max_elapsed_seconds,
         )
 
@@ -469,6 +474,9 @@ class DeeprMCPServer:
         claim: str,
         model: str | None = None,
         max_evidence: int = 8,
+        budget: float | None = None,
+        allow_metered_api: bool = False,
+        confirm_metered_cost: bool = False,
     ) -> dict[str, Any]:
         """Validate a claim against an expert's knowledge.
 
@@ -476,6 +484,15 @@ class DeeprMCPServer:
         confidence. Pure read-side: does not modify the expert. Useful
         for downstream agents that need domain validation before acting.
         """
+        try:
+            ceiling = require_metered_api_contract(
+                budget=budget,
+                allow_metered_api=allow_metered_api,
+                confirm_metered_cost=confirm_metered_cost,
+            )
+        except MeteredMCPContractError as exc:
+            return _make_error(exc.code, str(exc))
+
         try:
             expert = self.store.load(expert_name)
             if not expert:
@@ -492,7 +509,7 @@ class DeeprMCPServer:
                     model=model or DEFAULT_VALIDATION_MODEL,
                     max_evidence=max_evidence,
                 )
-                result = await validator.validate(expert, claim)
+                result = await validator.validate(expert, claim, max_cost_per_job=ceiling)
             except ExpertValidatorError as e:
                 return _make_error("EXPERT_VALIDATE_INVALID_INPUT", str(e))
             except ValueError as e:
@@ -766,8 +783,19 @@ class DeeprMCPServer:
         enable_code_interpreter: bool = True,
         budget: float | None = None,
         files: list[str] | None = None,
+        allow_metered_api: bool = False,
+        confirm_metered_cost: bool = False,
     ) -> dict[str, Any]:
         """Submit a deep research job."""
+        try:
+            ceiling = require_metered_api_contract(
+                budget=budget,
+                allow_metered_api=allow_metered_api,
+                confirm_metered_cost=confirm_metered_cost,
+            )
+        except MeteredMCPContractError as exc:
+            return _make_error(exc.code, str(exc))
+
         try:
             # Generate trace_id for end-to-end request tracking
             trace_id = uuid.uuid4().hex[:16]
@@ -816,25 +844,11 @@ class DeeprMCPServer:
                     fallback=f"Daily spent: ${cost_safety.daily_cost:.2f}",
                 )
 
-            if budget is not None and cost_estimate > budget:
+            if cost_estimate > ceiling:
                 return _make_error(
                     "BUDGET_INSUFFICIENT",
-                    f"Estimated cost ${cost_estimate:.2f} exceeds budget ${budget:.2f}",
+                    f"Estimated cost ${cost_estimate:.2f} exceeds budget ${ceiling:.2f}",
                     retry_hint=f"Set budget >= ${cost_estimate:.2f}",
-                )
-
-            # The monthly budget gate (deepr budget set) binds this entry
-            # point too. MCP is headless, so a spend the gate flags for human
-            # judgment is REFUSED with instructions - an agent cannot consent
-            # on the operator's behalf (same semantics as `deepr run -y`).
-            from deepr.cli.commands.budget import check_budget_approval
-
-            if not check_budget_approval(cost_estimate):
-                return _make_error(
-                    "BUDGET_CONFIRMATION_REQUIRED",
-                    f"Estimated ${cost_estimate:.2f} needs confirmation: over/near the monthly "
-                    "budget, above the cautious-mode floor, or the spend ledger is unreadable.",
-                    retry_hint="Raise the budget with 'deepr budget set <amount>' to authorize this spend level",
                 )
 
             # SSRF: validate any user-provided file URLs
@@ -872,8 +886,8 @@ class DeeprMCPServer:
                 documents=files if files else None,
                 enable_web_search=enable_web_search,
                 enable_code_interpreter=enable_code_interpreter,
-                cost_sensitive=budget is not None and budget < 0.20,
-                budget_limit=budget,
+                cost_sensitive=ceiling < 0.20,
+                budget_limit=ceiling,
                 session_id=session_id,
             )
 
@@ -1677,6 +1691,9 @@ async def _handle_tools_call(server: DeeprMCPServer, params: dict[str, Any]) -> 
             claim=args.get("claim", ""),
             model=args.get("model"),
             max_evidence=args.get("max_evidence", 8),
+            budget=args.get("budget"),
+            allow_metered_api=args.get("allow_metered_api", False),
+            confirm_metered_cost=args.get("confirm_metered_cost", False),
         ),
         "deepr_rank_gaps": lambda args: server.rank_gaps(
             expert_name=args.get("expert_name", ""),

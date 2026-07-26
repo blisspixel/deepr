@@ -557,8 +557,10 @@ class TestLoadConfigProperties:
         with patch.dict(os.environ, env_vars, clear=False):
             config = load_config()
 
-            assert abs(config["max_cost_per_job"] - max_cost_per_job) < 0.001
-            assert abs(config["max_daily_cost"] - max_daily_cost) < 0.001
+            effective_daily = min(max_daily_cost, 200.0)
+            effective_per_job = min(max_cost_per_job, effective_daily)
+            assert abs(config["max_cost_per_job"] - effective_per_job) < 0.001
+            assert abs(config["max_daily_cost"] - effective_daily) < 0.001
 
     def test_load_config_returns_dict(self):
         """Test load_config returns a dictionary with expected keys."""

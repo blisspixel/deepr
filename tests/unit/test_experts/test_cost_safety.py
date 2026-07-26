@@ -912,11 +912,12 @@ class TestSpendingSummaryContract:
         manager.monthly_cost = 20.0
         summary = manager.get_spending_summary()
 
-        for bucket in ("daily", "monthly"):
+        for bucket in ("daily", "weekly", "monthly"):
             for key in ("spent", "limit", "remaining", "percent_used"):
                 assert key in summary[bucket], f"{bucket}.{key} missing"
-        assert summary["limits"]["per_operation"] == CostSafetyManager.ABSOLUTE_MAX_PER_OPERATION
+        assert summary["limits"]["per_operation"] == manager.max_per_operation
         assert summary["limits"]["daily"] == manager.max_daily
+        assert summary["limits"]["weekly"] == manager.max_weekly
         assert summary["limits"]["monthly"] == manager.max_monthly
         assert summary["daily"]["percent_used"] == pytest.approx(2.0 / manager.max_daily * 100)
 
@@ -936,22 +937,65 @@ class TestSpendingSummaryContract:
         assert manager.max_daily == 1.0
         assert manager.max_monthly == 25.0
 
-    def test_env_caps_invalid_or_oversized_fall_back(self, monkeypatch):
+    def test_zero_per_operation_authority_blocks_soft_admission(self, monkeypatch):
+        from deepr.experts.cost_safety import CostSafetyManager
+
+        monkeypatch.setenv("DEEPR_MAX_COST_PER_JOB", "0")
+        manager = CostSafetyManager()
+
+        allowed, reason, needs_confirmation = manager.check_operation(
+            session_id="soft",
+            operation_type="citation_validation",
+            estimated_cost=0.01,
+        )
+
+        assert allowed is False
+        assert "ceiling $0.00" in reason
+        assert needs_confirmation is False
+
+    def test_caller_narrowing_survives_freeze_and_unfreeze(self, monkeypatch):
+        import json
+        import os
+        from pathlib import Path
+
+        from deepr.experts.cost_safety import CostSafetyManager
+
+        manager = CostSafetyManager()
+        manager.max_daily = 5.0
+        budget_path = Path(os.environ["DEEPR_BUDGET_FILE"])
+        budget_path.write_text(
+            json.dumps({"monthly_limit": 200.0, "paid_api_frozen": True}),
+            encoding="utf-8",
+        )
+        assert manager.check_operation("freeze", "test", 0.01)[0] is False
+
+        budget_path.write_text(
+            json.dumps({"monthly_limit": 200.0, "paid_api_frozen": False}),
+            encoding="utf-8",
+        )
+        first = manager.check_and_reserve("one", "test", 4.0)
+        second = manager.check_and_reserve("two", "test", 4.0)
+
+        assert first[0] is True
+        assert second[0] is False
+        assert "Daily limit $5.00" in second[1]
+        assert manager.max_daily == 5.0
+
+    def test_env_caps_invalid_fail_closed(self, monkeypatch):
+        from deepr.core.cost_caps import SpendCapConfigurationError
         from deepr.experts.cost_safety import CostSafetyManager
 
         monkeypatch.setenv("DEEPR_MAX_COST_PER_DAY", "not-a-number")
         monkeypatch.setenv("DEEPR_MAX_COST_PER_MONTH", "999999")
-        manager = CostSafetyManager()
-        assert manager.max_daily == 50.0
-        assert manager.max_monthly == CostSafetyManager.ABSOLUTE_MAX_MONTHLY
+        with pytest.raises(SpendCapConfigurationError):
+            CostSafetyManager()
 
     @pytest.mark.parametrize("value", ["nan", "inf", "-inf"])
-    def test_env_caps_nonfinite_values_fall_back(self, monkeypatch, value):
+    def test_env_caps_nonfinite_values_fail_closed(self, monkeypatch, value):
+        from deepr.core.cost_caps import SpendCapConfigurationError
         from deepr.experts.cost_safety import CostSafetyManager
 
         monkeypatch.setenv("DEEPR_MAX_COST_PER_DAY", value)
         monkeypatch.setenv("DEEPR_MAX_COST_PER_MONTH", value)
-        manager = CostSafetyManager()
-
-        assert manager.max_daily == 50.0
-        assert manager.max_monthly == 500.0
+        with pytest.raises(SpendCapConfigurationError):
+            CostSafetyManager()

@@ -595,10 +595,8 @@ def sync_cmd(
         console.print(f"Subscriptions: deepr expert subscriptions '{name}'")
         return
 
-    # Pick the backend (capacity waterfall): owned local then prepaid plan-quota
-    # before metered API. --local/--api/--plan force a rung; otherwise the
-    # waterfall auto-selects (local if admitted+available, else metered; plan is
-    # auto-routed only with an observed quota window - see choose_maintenance_backend).
+    # Pick owned/prepaid capacity. --api is the only route to metered work;
+    # unavailable local/plan capacity is a stop, never spend authorization.
     use_local = local
     use_plan = False
     plan_backend_id: str | None = plan
@@ -624,8 +622,7 @@ def sync_cmd(
         plan_backend_id = choice.plan_backend_id
         if use_local:
             selected_local_model = choice.model
-        if use_local or use_plan:
-            selection_note = choice.reason
+        selection_note = choice.reason
 
     owned_or_prepaid = use_local or use_plan
     if api and not dry_run:
@@ -689,6 +686,13 @@ def sync_cmd(
             json_output=json_output,
             detail="fresh/deep context requires a local or plan-quota sync backend",
             profile=profile,
+        )
+        sys.exit(2)
+
+    if not api and not owned_or_prepaid:
+        _emit_backend_setup_error(
+            f"No owned or prepaid sync capacity is available: {selection_note}",
+            json_output=json_output,
         )
         sys.exit(2)
 

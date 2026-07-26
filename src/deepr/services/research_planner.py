@@ -172,18 +172,32 @@ Please analyze this scenario and generate {max_tasks} distinct research tasks th
 
         try:
             from deepr.services.metered_call import execute_reserved_sync_call
+            from deepr.services.metered_envelope import MeteredEnvelopeError, bounded_chat_envelope
+
+            if self.use_azure:
+                raise MeteredEnvelopeError(
+                    "Azure planning is blocked until deployment-specific paid pricing can be proven before dispatch"
+                )
+            envelope = bounded_chat_envelope(
+                model=self.model,
+                prompt_parts=(system_prompt, user_prompt),
+                budget_usd=0.50,
+                maximum_output_tokens=3_000,
+            )
 
             response = execute_reserved_sync_call(
                 operation_prefix="research-plan",
                 provider="azure" if self.use_azure else "openai",
                 model=self.model,
                 source="services.research_planner.plan_research",
+                max_cost_per_job=envelope.cost_usd,
                 call=lambda: self.client.responses.create(
                     model=self.model,
                     input=[
                         {"role": "system", "content": system_prompt},
                         {"role": "user", "content": user_prompt},
                     ],
+                    max_output_tokens=envelope.output_tokens,
                 ),
             )
 

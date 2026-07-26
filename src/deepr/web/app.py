@@ -251,6 +251,29 @@ def _save_limits(per_job: float, daily: float, monthly: float):
         raise
 
 
+def _validated_cost_limit_updates(data: dict, fields: dict[str, str]) -> dict[str, float]:
+    """Parse web limit updates without permitting an authority increase."""
+    from deepr.core.cost_caps import resolve_spend_caps
+
+    authority = resolve_spend_caps()
+    updates: dict[str, float] = {}
+    for request_field, cap_field in fields.items():
+        if request_field not in data:
+            continue
+        value = data[request_field]
+        ceiling = authority[cap_field]
+        if (
+            isinstance(value, bool)
+            or not isinstance(value, (int, float))
+            or not math.isfinite(value)
+            or value < 0
+            or value > ceiling
+        ):
+            raise ValueError(f"{request_field} must be a finite number between 0 and {ceiling}")
+        updates[cap_field] = float(value)
+    return updates
+
+
 try:
     _limits = _load_persisted_limits()
     cost_controller = CostController(
@@ -885,7 +908,7 @@ def batch_submit():
     """Submit multiple jobs at once."""
     try:
         data = request.json
-        if not data:
+        if not isinstance(data, dict) or not data:
             return jsonify({"error": "Request body required"}), 400
         jobs, denial = research_cost_api.prepare_web_batch_jobs(
             data.get("jobs"),
@@ -916,7 +939,7 @@ def bulk_cancel():
     """Cancel multiple jobs at once."""
     try:
         data = request.json
-        if not data:
+        if not isinstance(data, dict) or not data:
             return jsonify({"error": "Request body required"}), 400
         job_ids = data.get("job_ids", [])
 
@@ -1325,36 +1348,29 @@ def update_cost_limits():
     """Update budget limits."""
     try:
         data = request.json
-        if not data:
+        if not isinstance(data, dict) or not data:
             return jsonify({"error": "Request body required"}), 400
 
-        if cost_controller:
-            _MAX_LIMIT = 100_000.0
-            for field in ("per_job", "daily", "monthly"):
-                if field not in data:
-                    continue
-                val = data[field]
-                # bool is an int subclass; reject it so {"per_job": true} does
-                # not silently set the limit to 1.0.
-                if (
-                    isinstance(val, bool)
-                    or not isinstance(val, (int, float))
-                    or not math.isfinite(val)
-                    or val < 0
-                    or val > _MAX_LIMIT
-                ):
-                    return jsonify({"error": f"{field} must be a finite number between 0 and {_MAX_LIMIT}"}), 400
-            if "per_job" in data:
-                cost_controller.max_cost_per_job = float(data["per_job"])
-            if "daily" in data:
-                cost_controller.max_daily_cost = float(data["daily"])
-            if "monthly" in data:
-                cost_controller.max_monthly_cost = float(data["monthly"])
+        if cost_controller is None:
+            return jsonify({"error": "Cost controls unavailable; limits cannot be changed"}), 503
+        try:
+            updates = _validated_cost_limit_updates(
+                data,
+                {"per_job": "per_job", "daily": "daily", "monthly": "monthly"},
+            )
+        except ValueError as exc:
+            return jsonify({"error": str(exc)}), 400
+        if "per_job" in updates:
+            cost_controller.max_cost_per_job = updates["per_job"]
+        if "daily" in updates:
+            cost_controller.max_daily_cost = updates["daily"]
+        if "monthly" in updates:
+            cost_controller.max_monthly_cost = updates["monthly"]
 
         limits = {
-            "per_job": cost_controller.max_cost_per_job if cost_controller else 10.0,
-            "daily": cost_controller.max_daily_cost if cost_controller else 10.0,
-            "monthly": cost_controller.max_monthly_cost if cost_controller else 100.0,
+            "per_job": cost_controller.max_cost_per_job,
+            "daily": cost_controller.max_daily_cost,
+            "monthly": cost_controller.max_monthly_cost,
             "expert_chat_max": _web_expert_chat_budget_ceiling(),
         }
         _save_limits(limits["per_job"], limits["daily"], limits["monthly"])
@@ -1612,10 +1628,20 @@ def update_config():
     """Update configuration."""
     try:
         data = request.json
-        if not data:
+        if not isinstance(data, dict) or not data:
             return jsonify({"error": "Request body required"}), 400
 
-        # Update allowed fields
+        cost_updates: dict[str, float] = {}
+        if cost_controller:
+            try:
+                cost_updates = _validated_cost_limit_updates(
+                    data,
+                    {"daily_limit": "daily", "monthly_limit": "monthly"},
+                )
+            except ValueError as exc:
+                return jsonify({"error": str(exc)}), 400
+
+        # Update allowed fields only after the whole request validates.
         allowed = ["default_model", "default_priority", "enable_web_search"]
         with _config_lock:
             for key in allowed:
@@ -1624,16 +1650,10 @@ def update_config():
 
         # Update cost limits if provided
         if cost_controller:
-            if "daily_limit" in data:
-                try:
-                    cost_controller.max_daily_cost = float(data["daily_limit"])
-                except (TypeError, ValueError):
-                    return jsonify({"error": "daily_limit must be a number"}), 400
-            if "monthly_limit" in data:
-                try:
-                    cost_controller.max_monthly_cost = float(data["monthly_limit"])
-                except (TypeError, ValueError):
-                    return jsonify({"error": "monthly_limit must be a number"}), 400
+            if "daily" in cost_updates:
+                cost_controller.max_daily_cost = cost_updates["daily"]
+            if "monthly" in cost_updates:
+                cost_controller.max_monthly_cost = cost_updates["monthly"]
             _save_limits(
                 cost_controller.max_cost_per_job,
                 cost_controller.max_daily_cost,

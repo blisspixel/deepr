@@ -8,6 +8,7 @@ import os
 from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import UTC
+from typing import Any
 
 import click
 import httpx
@@ -27,6 +28,11 @@ ESTIMATED_GENERATION_COST = 0.10
 # would spend money and then every topic would be skipped at the per-topic
 # budget gate - so we refuse BEFORE the first paid call.
 MIN_VIABLE_LEARN_BUDGET = 0.15
+
+# Every provider dispatch is bounded and durably reserved before the client is
+# constructed. The manual retry loop receives a fresh reservation per attempt.
+_CURRICULUM_CALL_CEILING_USD = 0.05
+_CURRICULUM_OUTPUT_TOKENS = 2500
 
 
 class CurriculumGenerationProgress:
@@ -451,78 +457,74 @@ class CurriculumGenerator:
                 if api_key in ("***", ""):
                     api_key = os.getenv("OPENAI_API_KEY")
 
-                # Create client with timeout. max_retries=0: the SDK defaults
-                # to 2 silent retries UNDER this function's own 3-attempt
-                # loop, so one intent could issue up to 9 paid requests. This
-                # loop owns all retry decisions.
-                client = AsyncOpenAI(api_key=api_key, timeout=httpx.Timeout(timeout, connect=10.0), max_retries=0)
+                if not api_key:
+                    raise CurriculumGenerationError("OpenAI API key is required for curriculum generation")
 
-                try:
-                    # Make API call using Chat Completions (synchronous, not Responses API)
-                    # This returns immediately instead of submitting an async job
-                    # Use the model registry to get the best model for curriculum generation
-                    from deepr.providers.registry import get_models_by_specialization
+                # The client below is OpenAI-specific, so only select an OpenAI
+                # capability with an exact pricing contract.
+                from deepr.experts.report_absorber_costs import bounded_metered_completion_kwargs
+                from deepr.providers.registry import get_models_by_specialization
+                from deepr.services.metered_call import execute_reserved_async_call
 
-                    # Get best curriculum planning model (fast, good at structured output)
-                    curriculum_models = get_models_by_specialization("curriculum")
-                    if not curriculum_models:
-                        # Fallback to reasoning models if no curriculum-specific model
-                        curriculum_models = get_models_by_specialization("reasoning")
-
-                    # Use the cheapest curriculum model (sorted by cost)
-                    model_name = curriculum_models[0].model if curriculum_models else "gpt-5.2"
-
-                    # Cost-safety gate before the curriculum LLM call.
-                    from deepr.experts.cost_admission import admit_soft_cost_operation, record_soft_cost
-
-                    _cost_safety, _est_cost, _deny_reason = admit_soft_cost_operation(
-                        session_id="curriculum",
-                        operation_type="curriculum_plan",
-                        estimated_cost=0.05,  # Curriculum prompts are larger; bumpier estimate
-                    )
-                    if _deny_reason is not None:
-                        logger.warning("Curriculum planning blocked by cost-safety: %s", _deny_reason)
-                        raise RuntimeError(f"Curriculum blocked: {_deny_reason}")
-
-                    response_obj = await client.chat.completions.create(
-                        model=model_name,
-                        messages=[
+                curriculum_models = [
+                    item for item in get_models_by_specialization("curriculum") if item.provider == "openai"
+                ]
+                if not curriculum_models:
+                    curriculum_models = [
+                        item for item in get_models_by_specialization("reasoning") if item.provider == "openai"
+                    ]
+                model_name = curriculum_models[0].model if curriculum_models else "gpt-5.2"
+                request_kwargs, worst_case_cost = bounded_metered_completion_kwargs(
+                    operation="curriculum_plan",
+                    model=model_name,
+                    call_ceiling=_CURRICULUM_CALL_CEILING_USD,
+                    kwargs={
+                        "model": model_name,
+                        "messages": [
                             {
                                 "role": "system",
-                                "content": "You are an expert curriculum designer. Generate structured learning plans quickly and accurately.",
+                                "content": (
+                                    "You are an expert curriculum designer. Generate structured learning plans "
+                                    "quickly and accurately."
+                                ),
                             },
                             {"role": "user", "content": prompt},
                         ],
-                        temperature=0.7,  # Some creativity for topic generation
-                        response_format={"type": "json_object"},  # Ensure JSON output
+                        "temperature": 0.7,
+                        "response_format": {"type": "json_object"},
+                        "max_completion_tokens": _CURRICULUM_OUTPUT_TOKENS,
+                    },
+                )
+
+                async def _dispatch(
+                    _api_key: str = api_key,
+                    _request_kwargs: dict[str, Any] = request_kwargs,
+                ) -> Any:
+                    # Construct the provider client only after the durable
+                    # reservation exists and its dispatch intent is recorded.
+                    client = AsyncOpenAI(
+                        api_key=_api_key,
+                        timeout=httpx.Timeout(timeout, connect=10.0),
+                        max_retries=0,
                     )
+                    try:
+                        return await client.chat.completions.create(**_request_kwargs)
+                    finally:
+                        await client.close()
 
-                    # Settle the cost the moment the billed call returns:
-                    # recording only after extraction meant a malformed
-                    # response left real spend with no ledger record.
-                    from deepr.experts.chat_turns import chat_token_cost as _tc
+                response_obj = await execute_reserved_async_call(
+                    operation_prefix="curriculum-plan",
+                    provider="openai",
+                    model=model_name,
+                    source="experts.curriculum.generate_curriculum",
+                    max_cost_per_job=worst_case_cost,
+                    call=_dispatch,
+                )
 
-                    _actual_cost = _tc(response_obj.usage, model_name) if response_obj.usage else _est_cost
-                    record_soft_cost(
-                        _cost_safety,
-                        session_id="curriculum",
-                        operation_type="curriculum_plan",
-                        actual_cost=float(_actual_cost),
-                        provider="openai",
-                        model=model_name,
-                        source="experts.curriculum.generate_curriculum",
-                    )
-
-                    # Extract response from chat completion
-                    response = response_obj.choices[0].message.content or ""
-
-                    if progress:
-                        progress.complete("Done")
-
-                    return response
-                finally:
-                    # Always close the client to prevent event loop errors
-                    await client.close()
+                response = response_obj.choices[0].message.content or ""
+                if progress:
+                    progress.complete("Done")
+                return response
 
             except httpx.TimeoutException:
                 last_error = APITimeoutError(timeout)

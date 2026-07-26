@@ -92,6 +92,23 @@ def _with_token_tier(model: str, prices: dict[str, float], input_tokens: int | N
 
 def get_token_pricing(model: str, input_tokens: int | None = None) -> dict[str, float]:
     """Get input and output pricing per 1M tokens for a model."""
+    resolved = get_resolved_token_pricing(model, input_tokens=input_tokens)
+    if resolved is not None:
+        return resolved
+
+    logger.warning(
+        "No registry pricing for model %r; defaulting to o4-mini rates ($1.10/$4.40 per 1M). "
+        "Add the model to deepr/providers/registry.py to bill it correctly.",
+        model,
+    )
+    default = MODEL_CAPABILITIES.get("openai/o4-mini")
+    if default:
+        return {"input": default.input_cost_per_1m, "output": default.output_cost_per_1m}
+    return {"input": 1.10, "output": 4.40}
+
+
+def get_resolved_token_pricing(model: str, input_tokens: int | None = None) -> dict[str, float] | None:
+    """Return trusted registered token pricing, without an estimation fallback."""
     normalized = _resolved_model_needle(model)
     for model_name, pricing in _SPECIALIZED_TOKEN_PRICING.items():
         if _normalize_model_name(model_name) == normalized:
@@ -103,16 +120,7 @@ def get_token_pricing(model: str, input_tokens: int | None = None) -> dict[str, 
             {"input": cap.input_cost_per_1m, "output": cap.output_cost_per_1m},
             input_tokens,
         )
-
-    logger.warning(
-        "No registry pricing for model %r; defaulting to o4-mini rates ($1.10/$4.40 per 1M). "
-        "Add the model to deepr/providers/registry.py to bill it correctly.",
-        model,
-    )
-    default = MODEL_CAPABILITIES.get("openai/o4-mini")
-    if default:
-        return {"input": default.input_cost_per_1m, "output": default.output_cost_per_1m}
-    return {"input": 1.10, "output": 4.40}
+    return None
 
 
 def get_cached_input_pricing(model: str, input_tokens: int | None = None) -> float | None:

@@ -47,6 +47,16 @@ def authoritative_completion_usage(job: ResearchJob, response: Any) -> tuple[flo
     return cost, tokens
 
 
+def conservative_completion_cost(response: Any, reservation: Any) -> tuple[float | None, float, int]:
+    """Return reported cost, ledger/display cost, and tokens for immediate work."""
+    usage = getattr(response, "usage", None)
+    raw_cost = getattr(usage, "cost", None) if usage is not None else None
+    reported_cost = float(raw_cost) if raw_cost is not None else None
+    accounted_cost = reported_cost if reported_cost is not None else float(reservation.estimated_cost)
+    tokens = max(0, int(getattr(usage, "total_tokens", 0) or 0)) if usage is not None else 0
+    return reported_cost, accounted_cost, tokens
+
+
 async def finalize_provider_completion(
     *,
     queue: Any,
@@ -108,7 +118,8 @@ async def finalize_provider_completion(
 
     if not await cleanup_persisted_uploads(provider, job):
         raise RuntimeError("provider resource cleanup was not confirmed")
-    has_cleanup_metadata = bool(job.metadata.get("provider_file_ids") or job.metadata.get("vector_store_id"))
+    metadata = job.metadata if isinstance(job.metadata, dict) else {}
+    has_cleanup_metadata = bool(metadata.get("provider_file_ids") or metadata.get("vector_store_id"))
     if has_cleanup_metadata and not await queue.clear_cleanup_metadata(job.id):
         raise RuntimeError("provider cleanup state was not persisted")
     if not await queue.update_status(job.id, JobStatus.COMPLETED):
@@ -119,4 +130,72 @@ async def finalize_provider_completion(
     return cast(ResearchJob, updated)
 
 
-__all__ = ["authoritative_completion_usage", "finalize_provider_completion"]
+async def finalize_provider_failure(
+    *,
+    queue: Any,
+    provider: Any,
+    job: ResearchJob,
+    response: Any,
+    source: str,
+) -> ResearchJob:
+    """Settle possible provider spend before publishing terminal failure."""
+    cost, tokens = authoritative_completion_usage(job, response)
+    reservation = restore_research_cost_reservation(
+        job_id=job.id,
+        metadata=job.metadata,
+        provider=job.provider,
+        model=job.model,
+    )
+    if reservation is not None:
+        settle_research_cost(
+            reservation,
+            actual_cost=cost,
+            tokens=tokens,
+            request_id=str(job.provider_job_id or ""),
+            source=source,
+        )
+        accounted_cost = cost if cost is not None else reservation.estimated_cost
+    else:
+        accounted_cost = record_unreserved_research_cost(
+            job_id=job.id,
+            provider=job.provider,
+            model=job.model,
+            actual_cost=cost,
+            tokens=tokens,
+            request_id=str(job.provider_job_id or ""),
+            source=source,
+        )
+    if not await queue.update_results(
+        job.id,
+        report_paths={},
+        cost=accounted_cost,
+        tokens_used=tokens,
+    ):
+        raise RuntimeError("queue rejected provider failure cost update")
+    if not reconcile_research_cost_from_ledger(reservation, job_id=job.id):
+        raise RuntimeError("canonical provider failure cost settlement is missing")
+
+    metadata = job.metadata if isinstance(job.metadata, dict) else {}
+    has_cleanup_metadata = bool(metadata.get("provider_file_ids") or metadata.get("vector_store_id"))
+    if has_cleanup_metadata:
+        from deepr.cli.commands.run_submission import cleanup_persisted_uploads
+
+        if not await cleanup_persisted_uploads(provider, job):
+            raise RuntimeError("provider resource cleanup was not confirmed")
+        if not await queue.clear_cleanup_metadata(job.id):
+            raise RuntimeError("provider cleanup state was not persisted")
+    error = str(getattr(response, "error", "") or "Unknown provider error")
+    if not await queue.update_status(job.id, JobStatus.FAILED, error=error):
+        raise RuntimeError("queue rejected provider failure status")
+    updated = await queue.get_job(job.id)
+    if updated is None:
+        raise RuntimeError("failed job disappeared from the queue")
+    return cast(ResearchJob, updated)
+
+
+__all__ = [
+    "authoritative_completion_usage",
+    "conservative_completion_cost",
+    "finalize_provider_completion",
+    "finalize_provider_failure",
+]

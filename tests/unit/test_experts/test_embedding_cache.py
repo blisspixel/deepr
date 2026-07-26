@@ -266,9 +266,12 @@ class TestEmbeddingCacheAddDocuments:
         self, tmp_path, monkeypatch, enable_metered_embeds
     ):
         """Cost bookkeeping failure must not clear the gate and still spend."""
+        async def blocked(**_kwargs):
+            raise RuntimeError("durable cost admission unavailable: test")
+
         monkeypatch.setattr(
-            "deepr.experts.cost_admission.admit_soft_cost_operation",
-            lambda **_kwargs: (None, 0.0002, "cost admission unavailable: test"),
+            "deepr.experts.chat_metered.execute_metered_chat_provider_call",
+            blocked,
         )
         cache = EmbeddingCache("test-expert", cache_dir=tmp_path)
         docs = [{"filename": "new.md", "content": "New content"}]

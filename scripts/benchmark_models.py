@@ -1482,6 +1482,11 @@ def _eval_single_accounted(
 ) -> tuple[EvalResult, float]:
     """Run one reserved evaluation and settle its ledger event."""
     try:
+        spend_guard.mark_provider_work(reservation)
+    except BaseException:
+        spend_guard.refund(reservation)
+        raise
+    try:
         result, cost = _eval_single(model_key, prompt, registry)
     except BaseException:
         spend_guard.settle(reservation, status="ambiguous_error")
@@ -1873,6 +1878,11 @@ def _judge_single_accounted(
     reservation: BenchmarkCostReservation,
 ) -> tuple[dict[str, float] | None, float]:
     """Run one reserved judge call and settle its ledger event."""
+    try:
+        spend_guard.mark_provider_work(reservation)
+    except BaseException:
+        spend_guard.refund(reservation)
+        raise
     try:
         scores, score = _judge_single(result, judge_model)
     except BaseException:
@@ -2482,6 +2492,11 @@ def _accounted_validation_call(
         operation="benchmark_validation",
         metadata={"tier": tier},
     )
+    try:
+        spend_guard.mark_provider_work(reservation)
+    except BaseException:
+        spend_guard.refund(reservation)
+        raise
     try:
         response = call_model(model_key, prompt, max_tokens, tier=tier)
     except BaseException:

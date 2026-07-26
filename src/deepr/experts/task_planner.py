@@ -22,6 +22,8 @@ from openai import AsyncOpenAI
 from deepr.experts.constants import MAX_PLAN_CONCURRENCY, UTILITY_MODEL
 from deepr.experts.metered_mutation_gate import require_metered_expert_mutation
 
+_PLANNER_CALL_CEILING_USD = 0.02
+
 if TYPE_CHECKING:
     from deepr.experts.chat import ExpertChatSession
 
@@ -70,7 +72,39 @@ class TaskPlanner:
         )
         self.session = session
         self.agent_identity = agent_identity
-        self.client = AsyncOpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+        self.client = AsyncOpenAI(api_key=os.getenv("OPENAI_API_KEY"), max_retries=0)
+
+    async def _complete_bounded(
+        self,
+        *,
+        operation: str,
+        source: str,
+        messages: list[dict[str, str]],
+        output_tokens: int,
+    ) -> Any:
+        """Run one planner utility call under a durable exact-price hold."""
+        from deepr.experts.report_absorber_costs import bounded_metered_completion_kwargs
+        from deepr.services.metered_call import execute_reserved_async_call
+
+        kwargs, worst_case_cost = bounded_metered_completion_kwargs(
+            operation=operation,
+            model=UTILITY_MODEL,
+            call_ceiling=_PLANNER_CALL_CEILING_USD,
+            kwargs={
+                "model": UTILITY_MODEL,
+                "messages": messages,
+                "temperature": 0.3,
+                "max_completion_tokens": output_tokens,
+            },
+        )
+        return await execute_reserved_async_call(
+            operation_prefix=f"task-planner-{operation}",
+            provider="openai",
+            model=UTILITY_MODEL,
+            source=source,
+            max_cost_per_job=worst_case_cost,
+            call=lambda: self.client.chat.completions.create(**kwargs),
+        )
 
     async def decompose(self, query: str) -> dict:
         """Break a query into numbered steps with dependencies.
@@ -89,23 +123,10 @@ class TaskPlanner:
             f"- Maximum 6 steps\n"
         )
 
-        # Cost-safety gate. A task plan that proceeds spawns N step
-        # send_message calls - each itself a research dispatch - so the
-        # planner is a high-amplification cost point.
-        from deepr.experts.cost_admission import admit_soft_cost_operation, record_soft_cost
-
-        _cost_safety, _est, _reason = admit_soft_cost_operation(
-            session_id="task_planner",
-            operation_type="decompose",
-            estimated_cost=0.02,
-        )
-        if _reason is not None:
-            logger.warning("Task decomposition blocked by cost-safety: %s", _reason)
-            return {"display": f"Plan blocked by cost-safety: {_reason}", "steps": [], "query": query}
-
         try:
-            result = await self.client.chat.completions.create(
-                model=UTILITY_MODEL,
+            result = await self._complete_bounded(
+                operation="decompose",
+                source="experts.task_planner.decompose",
                 messages=[
                     {
                         "role": "system",
@@ -113,20 +134,7 @@ class TaskPlanner:
                     },
                     {"role": "user", "content": prompt},
                 ],
-                temperature=0.3,
-                max_tokens=500,
-            )
-            from deepr.experts.chat_turns import chat_token_cost as _tc
-
-            _actual = _tc(result.usage, UTILITY_MODEL) if result.usage else _est
-            record_soft_cost(
-                _cost_safety,
-                session_id="task_planner",
-                operation_type="decompose",
-                actual_cost=float(_actual),
-                provider="openai",
-                model=UTILITY_MODEL,
-                source="experts.task_planner.decompose",
+                output_tokens=500,
             )
             raw = (result.choices[0].message.content or "").strip()
             # Strip markdown code fences if present
@@ -302,23 +310,10 @@ class TaskPlanner:
         if not step_results:
             return "No steps completed successfully."
 
-        # Cost-safety gate for plan synthesis.
-        from deepr.experts.cost_admission import admit_soft_cost_operation, record_soft_cost
-
-        _cost_safety, _est, _reason = admit_soft_cost_operation(
-            session_id="task_planner",
-            operation_type="synthesise",
-            estimated_cost=0.02,
-        )
-        if _reason is not None:
-            logger.warning("Plan synthesis blocked by cost-safety: %s", _reason)
-            # Return raw concatenation as fallback so the user still
-            # sees per-step results even when the synth call is gated.
-            return "\n\n".join(step_results)
-
         try:
-            result = await self.client.chat.completions.create(
-                model=UTILITY_MODEL,
+            result = await self._complete_bounded(
+                operation="synthesise",
+                source="experts.task_planner.synthesise",
                 messages=[
                     {
                         "role": "system",
@@ -329,20 +324,7 @@ class TaskPlanner:
                         "content": (f"Query: {query}\n\nStep results:\n" + "\n---\n".join(step_results))[:3000],
                     },
                 ],
-                temperature=0.3,
-                max_tokens=600,
-            )
-            from deepr.experts.chat_turns import chat_token_cost as _tc
-
-            _actual = _tc(result.usage, UTILITY_MODEL) if result.usage else _est
-            record_soft_cost(
-                _cost_safety,
-                session_id="task_planner",
-                operation_type="synthesise",
-                actual_cost=float(_actual),
-                provider="openai",
-                model=UTILITY_MODEL,
-                source="experts.task_planner.synthesise",
+                output_tokens=600,
             )
             return result.choices[0].message.content or "Synthesis unavailable."
         except Exception as e:

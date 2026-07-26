@@ -94,22 +94,33 @@ class TeamArchitect:
         )
 
         from deepr.services.metered_call import execute_reserved_sync_call
+        from deepr.services.metered_envelope import bounded_chat_envelope
+
+        system_prompt = "You are a research team architect. Design optimal teams with diverse perspectives."
+        envelope = bounded_chat_envelope(
+            model=self.model,
+            prompt_parts=(system_prompt, prompt),
+            budget_usd=0.50,
+            maximum_output_tokens=3_000,
+        )
 
         response = execute_reserved_sync_call(
             operation_prefix="team-design",
             provider="openai",
             model=self.model,
             source="services.team_architect.design_team",
+            max_cost_per_job=envelope.cost_usd,
             call=lambda: self.client.chat.completions.create(
                 model=self.model,
                 messages=[
                     {
                         "role": "system",
-                        "content": "You are a research team architect. Design optimal teams with diverse perspectives.",
+                        "content": system_prompt,
                     },
                     {"role": "user", "content": prompt},
                 ],
                 response_format={"type": "json_object"},
+                max_completion_tokens=envelope.output_tokens,
             ),
         )
 
@@ -164,22 +175,33 @@ Only include people you find with actual research. If unable to find information
 
         try:
             from deepr.services.metered_call import execute_reserved_sync_call
+            from deepr.services.metered_envelope import bounded_chat_envelope
+
+            system_prompt = "You are a research analyst. Find factual information about company leadership."
+            envelope = bounded_chat_envelope(
+                model="gpt-5",
+                prompt_parts=(system_prompt, prompt),
+                budget_usd=0.50,
+                maximum_output_tokens=3_000,
+            )
 
             response = execute_reserved_sync_call(
                 operation_prefix="company-leadership",
                 provider="openai",
                 model="gpt-5",
                 source="services.team_architect.research_company_people",
+                max_cost_per_job=envelope.cost_usd,
                 call=lambda: self.client.chat.completions.create(
                     model="gpt-5",
                     messages=[
                         {
                             "role": "system",
-                            "content": "You are a research analyst. Find factual information about company leadership.",
+                            "content": system_prompt,
                         },
                         {"role": "user", "content": prompt},
                     ],
                     response_format={"type": "json_object"},
+                    max_completion_tokens=envelope.output_tokens,
                 ),
             )
 
@@ -335,21 +357,35 @@ class TeamSynthesizer:
         prompt = self._build_synthesis_prompt(question, team_results)
 
         from deepr.services.metered_call import execute_reserved_sync_call
+        from deepr.services.metered_envelope import bounded_chat_envelope
+
+        system_prompt = (
+            "You are the Lead Researcher synthesizing diverse team perspectives. Show your work. "
+            "Make conflicts explicit. Attribute findings to team members."
+        )
+        envelope = bounded_chat_envelope(
+            model=self.model,
+            prompt_parts=(system_prompt, prompt),
+            budget_usd=0.50,
+            maximum_output_tokens=5_000,
+        )
 
         response = execute_reserved_sync_call(
             operation_prefix="team-synthesis",
             provider="openai",
             model=self.model,
             source="services.team_architect.synthesize_with_conflict_analysis",
+            max_cost_per_job=envelope.cost_usd,
             call=lambda: self.client.chat.completions.create(
                 model=self.model,
                 messages=[
                     {
                         "role": "system",
-                        "content": "You are the Lead Researcher synthesizing diverse team perspectives. Show your work. Make conflicts explicit. Attribute findings to team members.",
+                        "content": system_prompt,
                     },
                     {"role": "user", "content": prompt},
                 ],
+                max_completion_tokens=envelope.output_tokens,
             ),
         )
 
