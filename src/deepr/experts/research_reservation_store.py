@@ -6,7 +6,7 @@ import sqlite3
 from collections.abc import Callable
 from contextlib import closing
 from dataclasses import dataclass
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from math import isfinite
 from pathlib import Path
 
@@ -99,49 +99,76 @@ class ResearchReservationStore:
         reserved_cost: float,
         max_daily_cost: float,
         max_monthly_cost: float,
+        max_weekly_cost: float | None = None,
     ) -> None:
         """Atomically hold cost after checking fresh ledger and active holds."""
+        from deepr.core.cost_caps import resolve_spend_caps, spend_policy_lock
+
         reserved_cost = _validated_money(reserved_cost, field_name="reserved_cost")
         max_daily_cost = _validated_money(max_daily_cost, field_name="max_daily_cost")
         max_monthly_cost = _validated_money(max_monthly_cost, field_name="max_monthly_cost")
-        now = datetime.now(UTC)
-        ledger = CostLedger()
-        with closing(self._connect()) as connection, connection:
-            connection.execute("BEGIN IMMEDIATE")
-
-            def commit_hold(events: list[CostLedgerEvent]) -> None:
-                self._reconcile_rows(connection, events)
-                self._expire_stale_council_predispatch_rows(connection, now)
-                active = float(
-                    connection.execute(
-                        "SELECT COALESCE(SUM(reserved_cost), 0) FROM research_cost_reservations WHERE state = 'active'"
-                    ).fetchone()[0]
-                )
-                day_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
-                month_start = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
-                monthly = sum(event.cost_usd for event in events if event.timestamp >= month_start)
-                daily = sum(event.cost_usd for event in events if event.timestamp >= day_start)
-                if daily + active + reserved_cost > max_daily_cost:
-                    raise ResearchReservationLimitExceeded(
-                        f"Daily limit ${max_daily_cost:.2f} would be exceeded "
-                        f"(spent ${daily:.2f}, reserved ${active:.2f}, +${reserved_cost:.2f})"
-                    )
-                if monthly + active + reserved_cost > max_monthly_cost:
-                    raise ResearchReservationLimitExceeded(f"Monthly limit ${max_monthly_cost:.2f} would be exceeded")
-                connection.execute(
-                    """
-                    INSERT INTO research_cost_reservations
-                        (reservation_id, job_id, reserved_cost, state, created_at)
-                    VALUES (?, ?, ?, 'active', ?)
-                    """,
-                    (reservation_id, job_id, reserved_cost, now.isoformat()),
-                )
-                connection.commit()
-
-            ledger.with_locked_accounting_events(
-                commit_hold,
-                lock_timeout_seconds=self._lock_timeout_seconds,
+        caller_weekly = (
+            max_monthly_cost
+            if max_weekly_cost is None
+            else _validated_money(
+                max_weekly_cost,
+                field_name="max_weekly_cost",
             )
+        )
+        with spend_policy_lock():
+            authority = resolve_spend_caps()
+            max_daily_cost = min(max_daily_cost, authority["daily"])
+            max_weekly_cost = min(caller_weekly, authority["weekly"])
+            max_monthly_cost = min(max_monthly_cost, authority["monthly"])
+            now = datetime.now(UTC)
+            ledger = CostLedger()
+            with closing(self._connect()) as connection, connection:
+                connection.execute("BEGIN IMMEDIATE")
+
+                def commit_hold(events: list[CostLedgerEvent]) -> None:
+                    self._reconcile_rows(connection, events)
+                    self._expire_stale_council_predispatch_rows(connection, now)
+                    active = float(
+                        connection.execute(
+                            "SELECT COALESCE(SUM(reserved_cost), 0) "
+                            "FROM research_cost_reservations WHERE state = 'active'"
+                        ).fetchone()[0]
+                    )
+                    day_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
+                    week_start = day_start - timedelta(days=day_start.weekday())
+                    month_start = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+                    monthly = sum(event.cost_usd for event in events if event.timestamp >= month_start)
+                    weekly = sum(event.cost_usd for event in events if event.timestamp >= week_start)
+                    daily = sum(event.cost_usd for event in events if event.timestamp >= day_start)
+                    if daily + active + reserved_cost > max_daily_cost:
+                        raise ResearchReservationLimitExceeded(
+                            f"Daily limit ${max_daily_cost:.2f} would be exceeded "
+                            f"(spent ${daily:.2f}, reserved ${active:.2f}, +${reserved_cost:.2f})"
+                        )
+                    if weekly + active + reserved_cost > max_weekly_cost:
+                        raise ResearchReservationLimitExceeded(
+                            f"Weekly limit ${max_weekly_cost:.2f} would be exceeded "
+                            f"(spent ${weekly:.2f}, reserved ${active:.2f}, +${reserved_cost:.2f})"
+                        )
+                    if monthly + active + reserved_cost > max_monthly_cost:
+                        raise ResearchReservationLimitExceeded(
+                            f"Monthly limit ${max_monthly_cost:.2f} would be exceeded "
+                            f"(spent ${monthly:.2f}, reserved ${active:.2f}, +${reserved_cost:.2f})"
+                        )
+                    connection.execute(
+                        """
+                        INSERT INTO research_cost_reservations
+                            (reservation_id, job_id, reserved_cost, state, created_at)
+                        VALUES (?, ?, ?, 'active', ?)
+                        """,
+                        (reservation_id, job_id, reserved_cost, now.isoformat()),
+                    )
+                    connection.commit()
+
+                ledger.with_locked_accounting_events(
+                    commit_hold,
+                    lock_timeout_seconds=self._lock_timeout_seconds,
+                )
 
     @staticmethod
     def _reconcile_rows(connection: sqlite3.Connection, events: list[CostLedgerEvent]) -> int:
@@ -194,19 +221,63 @@ class ResearchReservationStore:
         )
 
     def mark_provider_work_may_have_run(self, reservation_id: str) -> None:
-        """Make a council hold non-expiring before provider dispatch."""
-        with closing(self._connect()) as connection, connection:
-            connection.execute("BEGIN IMMEDIATE")
-            cursor = connection.execute(
-                """
-                UPDATE research_cost_reservations
-                SET provider_work_may_have_run = 1
-                WHERE reservation_id = ? AND state = 'active'
-                """,
-                (reservation_id,),
-            )
-            if cursor.rowcount != 1:
-                raise RuntimeError("durable reservation is not active")
+        """Revalidate aggregate authority and make a hold non-expiring."""
+        from deepr.core.cost_caps import resolve_spend_caps, spend_policy_lock
+
+        with spend_policy_lock():
+            authority = resolve_spend_caps()
+            now = datetime.now(UTC)
+            ledger = CostLedger()
+            with closing(self._connect()) as connection, connection:
+                connection.execute("BEGIN IMMEDIATE")
+
+                def commit_mark(events: list[CostLedgerEvent]) -> None:
+                    self._reconcile_rows(connection, events)
+                    self._expire_stale_council_predispatch_rows(connection, now)
+                    row = connection.execute(
+                        "SELECT reserved_cost FROM research_cost_reservations "
+                        "WHERE reservation_id = ? AND state = 'active'",
+                        (reservation_id,),
+                    ).fetchone()
+                    if row is None:
+                        raise RuntimeError("durable reservation is not active")
+                    reserved_cost = float(row[0])
+                    active = float(
+                        connection.execute(
+                            "SELECT COALESCE(SUM(reserved_cost), 0) "
+                            "FROM research_cost_reservations WHERE state = 'active'"
+                        ).fetchone()[0]
+                    )
+                    day_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
+                    week_start = day_start - timedelta(days=day_start.weekday())
+                    month_start = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+                    daily = sum(event.cost_usd for event in events if event.timestamp >= day_start)
+                    weekly = sum(event.cost_usd for event in events if event.timestamp >= week_start)
+                    monthly = sum(event.cost_usd for event in events if event.timestamp >= month_start)
+                    changed = (
+                        reserved_cost > authority["per_job"]
+                        or daily + active > authority["daily"]
+                        or weekly + active > authority["weekly"]
+                        or monthly + active > authority["monthly"]
+                    )
+                    if changed:
+                        raise ResearchReservationLimitExceeded(
+                            "Paid API aggregate authority changed before provider dispatch"
+                        )
+                    connection.execute(
+                        """
+                        UPDATE research_cost_reservations
+                        SET provider_work_may_have_run = 1
+                        WHERE reservation_id = ? AND state = 'active'
+                        """,
+                        (reservation_id,),
+                    )
+                    connection.commit()
+
+                ledger.with_locked_accounting_events(
+                    commit_mark,
+                    lock_timeout_seconds=self._lock_timeout_seconds,
+                )
 
     def refund(self, reservation_id: str, *, provider_work_did_not_run: bool = False) -> bool:
         """Close an active durable reservation without recording spend."""

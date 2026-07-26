@@ -299,7 +299,7 @@ register_error_handlers(app)
 import uuid
 
 from deepr.api.job_cancellation import cancellation_response
-from deepr.api.research_cost import reserve_api_research_cost
+from deepr.api.research_cost import build_api_cost_summary, reserve_api_research_cost
 from deepr.config import load_config
 from deepr.experts.research_cost_gate import (
     ResearchCostBlocked,
@@ -962,8 +962,8 @@ def get_cost_summary():
             daily: 5.50
             monthly: 45.50
             total: 45.50
-            daily_limit: 100.0
-            monthly_limit: 1000.0
+            daily_limit: 2.0
+            monthly_limit: 10.0
             total_jobs: 100
             completed_jobs: 90
             avg_cost_per_job: 0.51
@@ -982,21 +982,15 @@ def get_cost_summary():
           $ref: '#/definitions/Error'
     """
     all_jobs = run_async(queue.list_jobs(limit=1000))
-    total_cost = sum(j.cost or 0 for j in all_jobs)
+    queue_reported_cost = sum(j.cost or 0 for j in all_jobs)
     completed = [j for j in all_jobs if j.status == JobStatus.COMPLETED]
-
-    summary = {
-        "daily": total_cost,
-        "monthly": total_cost,
-        "total": total_cost,
-        "daily_limit": 100.0,
-        "monthly_limit": 1000.0,
-        "total_jobs": len(all_jobs),
-        "completed_jobs": len(completed),
-        "avg_cost_per_job": total_cost / len(completed) if completed else 0,
-        "currency": "USD",
-    }
-    return jsonify(summary)
+    return jsonify(
+        build_api_cost_summary(
+            queue_reported_cost=queue_reported_cost,
+            total_jobs=len(all_jobs),
+            completed_jobs=len(completed),
+        )
+    )
 
 
 if __name__ == "__main__":

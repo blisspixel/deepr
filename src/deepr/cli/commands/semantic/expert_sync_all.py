@@ -902,6 +902,9 @@ def sync_all_cmd(
         json_output=json_output,
     )
 
+    if backend.use_local and backend.local_model is None:
+        print_error("No local model available. Is Ollama running? Check: deepr capacity --probe")
+        sys.exit(2)
     if scheduled and not api and not backend.owned_or_prepaid:
         _emit_roster_wait(
             json_output,
@@ -912,8 +915,11 @@ def sync_all_cmd(
             dry_run=dry_run,
         )
         return
-    if backend.use_local and backend.local_model is None:
-        print_error("No local model available. Is Ollama running? Check: deepr capacity --probe")
+    if not api and not backend.owned_or_prepaid:
+        print_error(
+            f"No owned or prepaid sync capacity is available: {backend.note}. "
+            "Pass --api only when metered capacity is intentionally authorized."
+        )
         sys.exit(2)
     if _scheduled_local_busy_wait(
         preflight.pending_names,
@@ -928,8 +934,8 @@ def sync_all_cmd(
     ):
         return
 
-    # A dry run can preview the selected metered rung. Execution either defers
-    # under a drained monthly tier or reaches the shared disabled mutation gate.
+    # Explicit API execution either defers under a drained monthly tier or
+    # reaches the shared disabled mutation gate.
     metered_auto = not backend.use_local and not backend.use_plan and not api
     if (
         metered_auto

@@ -27,6 +27,7 @@ def benchmark_module():
 class OneCallGuard:
     def __init__(self):
         self.reserved = []
+        self.marked = []
         self.settled = []
 
     def reserve(self, **kwargs):
@@ -35,6 +36,9 @@ class OneCallGuard:
         reservation = SimpleNamespace(cost_ceiling=kwargs["cost_ceiling"])
         self.reserved.append((reservation, kwargs))
         return reservation
+
+    def mark_provider_work(self, reservation):
+        self.marked.append(reservation)
 
     def settle(self, reservation, *, status):
         self.settled.append((reservation, status))
@@ -87,6 +91,7 @@ def test_evaluations_submit_only_reserved_calls(benchmark_module, monkeypatch):
     assert provider_calls == ["first"]
     assert len(results) == 1
     assert len(guard.reserved) == 1
+    assert guard.marked == [guard.reserved[0][0]]
     assert [status for _, status in guard.settled] == ["completed"]
 
 
@@ -110,6 +115,7 @@ def test_judge_submits_only_reserved_calls(benchmark_module, monkeypatch):
     assert judged[0].judge_score == 0.8
     assert judged[1].judge_score == 0.0
     assert len(guard.reserved) == 1
+    assert guard.marked == [guard.reserved[0][0]]
     assert [status for _, status in guard.settled] == ["completed"]
 
 
@@ -128,7 +134,46 @@ def test_validation_reserves_and_settles_provider_call(benchmark_module, monkeyp
 
     assert response == ("4", 1, [])
     assert guard.reserved[0][1]["operation"] == "benchmark_validation"
+    assert guard.marked == [guard.reserved[0][0]]
     assert [status for _, status in guard.settled] == ["completed"]
+
+
+def test_failed_dispatch_mark_refunds_without_provider_call(benchmark_module, monkeypatch):
+    class FrozenGuard(OneCallGuard):
+        def mark_provider_work(self, reservation):
+            raise BenchmarkBudgetExceeded("operator freeze")
+
+        def refund(self, reservation):
+            self.refunded = reservation
+
+    provider_called = False
+
+    def fake_eval(*_args):
+        nonlocal provider_called
+        provider_called = True
+        raise AssertionError("provider must not run")
+
+    guard = FrozenGuard()
+    reservation = guard.reserve(
+        provider="openai",
+        model="openai/test",
+        cost_ceiling=0.1,
+        operation="benchmark_evaluation",
+    )
+    monkeypatch.setattr(benchmark_module, "_eval_single", fake_eval)
+
+    with pytest.raises(BenchmarkBudgetExceeded, match="operator freeze"):
+        benchmark_module._eval_single_accounted(
+            "openai/test",
+            benchmark_module.EvalPrompt("a", "easy", "first", []),
+            {},
+            guard,
+            reservation,
+        )
+
+    assert provider_called is False
+    assert guard.refunded is reservation
+    assert guard.settled == []
 
 
 def test_openai_reservation_matches_outbound_reasoning_and_tool_maxima(benchmark_module, monkeypatch):

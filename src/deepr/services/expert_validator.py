@@ -165,13 +165,22 @@ class ExpertValidator:
             evidence = 8
         self.max_evidence = max(1, min(evidence, MAX_EVIDENCE_CAP))
 
-    async def validate(self, expert: ExpertProfile, claim: str) -> ValidationResult:
+    async def validate(
+        self,
+        expert: ExpertProfile,
+        claim: str,
+        *,
+        max_cost_per_job: float | None = None,
+    ) -> ValidationResult:
         """Run a single validation against an expert.
 
         Args:
             expert: The expert profile to consult. Must be loaded; this
                 method does not look up by name.
             claim: The statement to assess. Free text.
+            max_cost_per_job: Optional caller ceiling forwarded to the durable
+                metered-call reservation. Existing callers that omit it retain
+                the configured global per-call ceiling.
 
         Returns:
             ValidationResult with verdict + reasoning + evidence.
@@ -216,6 +225,17 @@ class ExpertValidator:
             "  caveats: list of strings calling out gaps, uncertainties, or scope limits relevant to this claim\n"
         )
 
+        from deepr.core.cost_caps import resolve_spend_caps
+        from deepr.services.metered_envelope import bounded_chat_envelope
+
+        requested_ceiling = resolve_spend_caps()["per_job"] if max_cost_per_job is None else float(max_cost_per_job)
+        envelope = bounded_chat_envelope(
+            model=self.model,
+            prompt_parts=(system, user),
+            budget_usd=requested_ceiling,
+            maximum_output_tokens=1_200,
+            minimum_output_tokens=128,
+        )
         from deepr.services.metered_call import execute_reserved_async_call
 
         response = await execute_reserved_async_call(
@@ -223,6 +243,7 @@ class ExpertValidator:
             provider="openai",
             model=self.model,
             source="services.expert_validator.validate",
+            max_cost_per_job=envelope.cost_usd,
             call=lambda: self.client.chat.completions.create(
                 model=self.model,
                 messages=[
@@ -230,6 +251,7 @@ class ExpertValidator:
                     {"role": "user", "content": user},
                 ],
                 response_format={"type": "json_object"},
+                max_completion_tokens=envelope.output_tokens,
             ),
         )
 

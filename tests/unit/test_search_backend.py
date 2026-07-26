@@ -113,3 +113,29 @@ async def test_searxng_search_maps_json_results(monkeypatch):
 async def test_searxng_search_requires_base_url():
     assert await SearXNGSearchBackend("").search("q") == []
     assert await SearXNGSearchBackend("").health_check() is False
+
+
+def test_searxng_canonicalizes_owned_loopback_base_path():
+    backend = SearXNGSearchBackend("http://localhost:8080/searxng/")
+
+    assert backend._base_url == "http://127.0.0.1:8080/searxng"
+
+
+@pytest.mark.parametrize(
+    "configured_url",
+    [
+        "https://search.example.com",
+        "http://192.168.1.25:8080",
+        "http://searxng:8080",
+    ],
+)
+def test_searxng_rejects_remote_endpoint_before_search(configured_url):
+    with pytest.raises(ValueError, match="remote endpoints need explicit cost attestation"):
+        SearXNGSearchBackend(configured_url)
+
+
+def test_searxng_rejects_remote_endpoint_from_environment(monkeypatch):
+    monkeypatch.setenv("DEEPR_SEARXNG_URL", "https://search.example.com")
+
+    with pytest.raises(ValueError, match="remote endpoints need explicit cost attestation"):
+        SearXNGSearchBackend()

@@ -51,6 +51,15 @@ def consult_trace_path(monkeypatch, tmp_path):
     return path
 
 
+@pytest.fixture(autouse=True)
+def owned_local_backend(monkeypatch):
+    async def resolve_local_model():
+        return "fixture-local"
+
+    monkeypatch.setattr("deepr.backends.local.default_local_model_async", resolve_local_model)
+    monkeypatch.setattr("deepr.backends.local.ollama_chat_client", lambda: object())
+
+
 def test_consult_tool_registered(server):
     names = [t.name for t in server.registry.all_tools()]
     assert "deepr_consult_experts" in names
@@ -60,6 +69,20 @@ def test_consult_output_schema_exposes_completion_reason():
     from deepr.mcp.consult_tool import CONSULT_EXPERTS_OUTPUT_SCHEMA
 
     assert "synthesis_stop_reason" in CONSULT_EXPERTS_OUTPUT_SCHEMA["properties"]
+
+
+def test_consult_schema_defaults_to_owned_capacity_and_conditions_api_fields():
+    properties = CONSULT_EXPERTS_INPUT_SCHEMA["properties"]
+
+    assert properties["synthesis_backend"]["default"] == "local"
+    assert "default" not in properties["budget"]
+    assert properties["budget"]["minimum"] == 0
+    assert CONSULT_EXPERTS_INPUT_SCHEMA["allOf"][0]["then"]["properties"]["budget"] == {"exclusiveMinimum": 0}
+    assert CONSULT_EXPERTS_INPUT_SCHEMA["allOf"][0]["then"]["required"] == [
+        "budget",
+        "allow_metered_api",
+        "confirm_metered_cost",
+    ]
 
 
 @pytest.mark.asyncio
@@ -208,6 +231,8 @@ async def test_consult_api_provider_and_model_pass_to_shared_core(server, monkey
         provider="anthropic",
         model="claude-sonnet-4-6",
         budget=1.0,
+        allow_metered_api=True,
+        confirm_metered_cost=True,
     )
 
     assert captured["budget"] == 1.0
@@ -233,8 +258,40 @@ async def test_consult_rejects_api_provider_for_owned_capacity(server):
 
 @pytest.mark.asyncio
 async def test_consult_rejects_nonpositive_budget(server):
-    out = await server.consult_experts(question="q", budget=0)
+    out = await server.consult_experts(
+        question="q",
+        synthesis_backend="api",
+        budget=0,
+        allow_metered_api=True,
+        confirm_metered_cost=True,
+    )
     assert "INVALID_BUDGET" in str(out)
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("allow_metered_api", "confirm_metered_cost"),
+    [(False, False), (True, False), (False, True)],
+)
+async def test_consult_api_requires_both_explicit_consents_before_transaction(
+    server,
+    monkeypatch,
+    allow_metered_api,
+    confirm_metered_cost,
+):
+    transaction = MagicMock()
+    monkeypatch.setattr("deepr.mcp.consult_tool.execute_consult_transaction", transaction)
+
+    out = await server.consult_experts(
+        question="q",
+        synthesis_backend="api",
+        budget=1.0,
+        allow_metered_api=allow_metered_api,
+        confirm_metered_cost=confirm_metered_cost,
+    )
+
+    assert out["error_code"] == "METERED_API_NOT_APPROVED"
+    transaction.assert_not_called()
 
 
 @pytest.mark.asyncio

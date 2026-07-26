@@ -139,6 +139,9 @@ class TestValidateClaims:
         assert len(result) == 1
         assert result[0].support_class == SupportClass.SUPPORTED
         assert result[0].explanation == "Direct support"
+        request = mock_client.chat.completions.create.await_args.kwargs
+        assert 0 < request["max_completion_tokens"] <= 900
+        assert "max_tokens" not in request
 
     @pytest.mark.asyncio
     async def test_batch_processing(self):

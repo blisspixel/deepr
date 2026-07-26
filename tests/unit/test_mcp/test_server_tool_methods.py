@@ -100,7 +100,13 @@ class TestDeeprResearch:
         cost_safety.check_operation.return_value = (False, "daily limit reached", None)
         cost_safety.daily_cost = 12.34
         with patch("deepr.experts.cost_safety.get_cost_safety_manager", return_value=cost_safety):
-            out = await mock_server.deepr_research(prompt="p", model="o4-mini-deep-research")
+            out = await mock_server.deepr_research(
+                prompt="p",
+                model="o4-mini-deep-research",
+                budget=1.0,
+                allow_metered_api=True,
+                confirm_metered_cost=True,
+            )
         assert out["error_code"] == "BUDGET_EXCEEDED"
         assert "daily limit reached" in out["message"]
 
@@ -113,6 +119,8 @@ class TestDeeprResearch:
                 prompt="p",
                 model="o4-mini-deep-research",
                 budget=0.01,  # estimate floor is 0.15 for o4-mini
+                allow_metered_api=True,
+                confirm_metered_cost=True,
             )
         assert out["error_code"] == "BUDGET_INSUFFICIENT"
 
@@ -128,6 +136,9 @@ class TestDeeprResearch:
                 prompt="p",
                 model="o4-mini",
                 files=["http://169.254.169.254/latest/meta-data"],
+                budget=1.0,
+                allow_metered_api=True,
+                confirm_metered_cost=True,
             )
         assert out["error_code"] == "SSRF_BLOCKED"
         assert "Internal address blocked" in out["message"]
@@ -140,7 +151,14 @@ class TestDeeprResearch:
             patch("deepr.experts.cost_safety.get_cost_safety_manager", return_value=cost_safety),
             patch.object(mock_server, "_get_api_key", return_value=None),
         ):
-            out = await mock_server.deepr_research(prompt="p", model="o4-mini", provider="openai")
+            out = await mock_server.deepr_research(
+                prompt="p",
+                model="o4-mini",
+                provider="openai",
+                budget=1.0,
+                allow_metered_api=True,
+                confirm_metered_cost=True,
+            )
         assert out["error_code"] == "PROVIDER_NOT_CONFIGURED"
 
     @pytest.mark.asyncio
@@ -170,7 +188,13 @@ class TestDeeprResearch:
         ):
             token = bind_mcp_request_identity(identity)
             try:
-                out = await mock_server.deepr_research(prompt="p", model="o4-mini")
+                out = await mock_server.deepr_research(
+                    prompt="p",
+                    model="o4-mini",
+                    budget=1.0,
+                    allow_metered_api=True,
+                    confirm_metered_cost=True,
+                )
             finally:
                 reset_mcp_request_identity(token)
         assert out["job_id"] == "job_abc"
@@ -189,8 +213,52 @@ class TestDeeprResearch:
             patch.object(mock_server, "_get_api_key", return_value="k"),
             patch("deepr.mcp.server.create_provider", side_effect=RuntimeError("boom")),
         ):
-            out = await mock_server.deepr_research(prompt="p", model="o4-mini")
+            out = await mock_server.deepr_research(
+                prompt="p",
+                model="o4-mini",
+                budget=1.0,
+                allow_metered_api=True,
+                confirm_metered_cost=True,
+            )
         assert out["error_code"] == "INTERNAL_ERROR"
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize(
+        ("allow_metered_api", "confirm_metered_cost"),
+        [(False, False), (True, False), (False, True)],
+    )
+    async def test_explicit_dual_consent_is_required_before_cost_or_provider_setup(
+        self,
+        mock_server,
+        allow_metered_api,
+        confirm_metered_cost,
+    ):
+        with (
+            patch("deepr.experts.cost_safety.get_cost_safety_manager") as cost_safety,
+            patch("deepr.mcp.server.create_provider") as provider_factory,
+        ):
+            out = await mock_server.deepr_research(
+                prompt="p",
+                budget=1.0,
+                allow_metered_api=allow_metered_api,
+                confirm_metered_cost=confirm_metered_cost,
+            )
+
+        assert out["error_code"] == "METERED_API_NOT_APPROVED"
+        cost_safety.assert_not_called()
+        provider_factory.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_explicit_finite_positive_ceiling_is_required_before_provider_setup(self, mock_server):
+        with patch("deepr.mcp.server.create_provider") as provider_factory:
+            out = await mock_server.deepr_research(
+                prompt="p",
+                allow_metered_api=True,
+                confirm_metered_cost=True,
+            )
+
+        assert out["error_code"] == "INVALID_BUDGET"
+        provider_factory.assert_not_called()
 
 
 # ---------------------------------------------------------------------- #

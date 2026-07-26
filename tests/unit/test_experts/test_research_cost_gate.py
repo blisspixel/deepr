@@ -2,8 +2,11 @@
 
 from __future__ import annotations
 
+import json
+import os
 from concurrent.futures import ThreadPoolExecutor
-from threading import Barrier
+from pathlib import Path
+from threading import Barrier, Event
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -11,15 +14,20 @@ import pytest
 from deepr.core.costs import CostEstimate
 from deepr.experts.cost_safety import CostSafetyManager
 from deepr.experts.research_cost_gate import (
+    PaidCostCeilingDivergence,
     ResearchCostBlocked,
     record_unreserved_research_cost,
     refund_research_cost,
+    reserve_configured_cost_ceiling,
     reserve_configured_research_cost,
     reserve_research_cost,
     restore_research_cost_reservation,
     settle_research_cost,
 )
-from deepr.experts.research_reservation_store import ResearchReservationStore
+from deepr.experts.research_reservation_store import (
+    ResearchReservationLimitExceeded,
+    ResearchReservationStore,
+)
 from deepr.observability.cost_ledger import CostLedger
 
 
@@ -102,6 +110,26 @@ def test_conservative_settlement_is_not_labeled_as_reported_actual_cost() -> Non
     }
 
 
+def test_reported_cost_above_reservation_records_truth_then_freezes_paid_api() -> None:
+    from deepr.core.cost_caps import read_operator_budget
+
+    reservation = _reserve(CostSafetyManager(), "job-divergence", 0.5)
+
+    with pytest.raises(PaidCostCeilingDivergence, match="Paid API frozen"):
+        settle_research_cost(
+            reservation,
+            actual_cost=0.6,
+            source="test.divergence",
+        )
+
+    event = CostLedger().get_events()[0]
+    assert event.cost_usd == pytest.approx(0.6)
+    assert event.metadata["cost_ceiling_diverged"] is True
+    operator = read_operator_budget()
+    assert operator.frozen is True
+    assert "exceeded authorized ceiling" in operator.freeze_reason
+
+
 def test_refund_releases_reservation_without_ledger_spend() -> None:
     manager = CostSafetyManager()
     reservation = _reserve(manager, "job-refund", 0.8)
@@ -113,6 +141,35 @@ def test_refund_releases_reservation_without_ledger_spend() -> None:
     assert CostLedger().get_events() == []
     assert ResearchReservationStore().state(reservation.reservation_id) == "refunded"
     assert ResearchReservationStore().state("missing") is None
+
+
+def test_exact_call_ceiling_is_not_silently_narrowed_to_configured_limit(monkeypatch) -> None:
+    monkeypatch.setenv("DEEPR_MAX_COST_PER_JOB", "0.10")
+
+    with pytest.raises(ResearchCostBlocked, match="exceeds limit"):
+        reserve_configured_cost_ceiling(
+            job_id="too-wide-envelope",
+            provider="openai",
+            model="gpt-5-mini",
+            max_cost_per_job=0.20,
+        )
+
+    assert ResearchReservationStore().active_cost() == pytest.approx(0.0)
+
+
+def test_exact_call_ceiling_is_fully_held_when_authorized(monkeypatch) -> None:
+    monkeypatch.setenv("DEEPR_MAX_COST_PER_JOB", "0.50")
+
+    reservation = reserve_configured_cost_ceiling(
+        job_id="bounded-envelope",
+        provider="openai",
+        model="gpt-5-mini",
+        max_cost_per_job=0.20,
+    )
+
+    assert reservation.estimated_cost == pytest.approx(0.20)
+    assert ResearchReservationStore().active_cost() == pytest.approx(0.20)
+    refund_research_cost(reservation, provider_work_did_not_run=True)
 
 
 def test_refund_cannot_release_hold_after_provider_dispatch_mark() -> None:
@@ -238,6 +295,168 @@ def test_independent_managers_cannot_overcommit_durable_daily_limit() -> None:
 
     assert sorted(results) == [False, True]
     assert ResearchReservationStore().active_cost() == pytest.approx(0.75)
+
+
+def test_operator_monthly_ceiling_binds_concurrent_direct_store_callers() -> None:
+    Path(os.environ["DEEPR_BUDGET_FILE"]).write_text(
+        json.dumps({"monthly_limit": 1.0, "paid_api_frozen": False}),
+        encoding="utf-8",
+    )
+    store = ResearchReservationStore()
+    barrier = Barrier(2)
+
+    def attempt(index: int) -> bool:
+        barrier.wait()
+        try:
+            store.reserve(
+                reservation_id=f"operator-{index}",
+                job_id=f"job-{index}",
+                reserved_cost=0.75,
+                max_daily_cost=100.0,
+                max_weekly_cost=100.0,
+                max_monthly_cost=100.0,
+            )
+        except ResearchReservationLimitExceeded:
+            return False
+        return True
+
+    with ThreadPoolExecutor(max_workers=2) as executor:
+        results = list(executor.map(attempt, range(2)))
+
+    assert sorted(results) == [False, True]
+    assert ResearchReservationStore().active_cost() == pytest.approx(0.75)
+
+
+def test_long_lived_manager_observes_operator_freeze_before_next_reservation() -> None:
+    manager = CostSafetyManager()
+    Path(os.environ["DEEPR_BUDGET_FILE"]).write_text(
+        json.dumps(
+            {
+                "monthly_limit": 200.0,
+                "paid_api_frozen": True,
+                "freeze_reason": "operator stop",
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    allowed, reason, _, reservation_id = manager.check_and_reserve(
+        session_id="frozen",
+        operation_type="research",
+        estimated_cost=0.01,
+    )
+
+    assert allowed is False
+    assert "ceiling $0.00" in reason
+    assert reservation_id == ""
+
+
+def test_positive_budget_reduction_blocks_previously_reserved_aggregate() -> None:
+    store = ResearchReservationStore()
+    for index in range(2):
+        store.reserve(
+            reservation_id=f"reduced-{index}",
+            job_id=f"reduced-job-{index}",
+            reserved_cost=1.0,
+            max_daily_cost=200.0,
+            max_weekly_cost=200.0,
+            max_monthly_cost=200.0,
+        )
+    Path(os.environ["DEEPR_BUDGET_FILE"]).write_text(
+        json.dumps({"monthly_limit": 1.5, "paid_api_frozen": False}),
+        encoding="utf-8",
+    )
+
+    with pytest.raises(ResearchReservationLimitExceeded, match="aggregate authority changed"):
+        store.mark_provider_work_may_have_run("reduced-0")
+
+    assert all(not row.provider_work_may_have_run for row in store.active_reservations())
+
+
+def test_new_ledger_spend_blocks_old_hold_at_dispatch() -> None:
+    store = ResearchReservationStore()
+    Path(os.environ["DEEPR_BUDGET_FILE"]).write_text(
+        json.dumps({"monthly_limit": 1.0, "paid_api_frozen": False}),
+        encoding="utf-8",
+    )
+    store.reserve(
+        reservation_id="old-hold",
+        job_id="old-hold-job",
+        reserved_cost=0.75,
+        max_daily_cost=200.0,
+        max_weekly_cost=200.0,
+        max_monthly_cost=200.0,
+    )
+    CostLedger().record_event(
+        operation="unreserved_completion",
+        provider="openai",
+        cost_usd=0.50,
+        source="test",
+    )
+
+    with pytest.raises(ResearchReservationLimitExceeded, match="aggregate authority changed"):
+        store.mark_provider_work_may_have_run("old-hold")
+
+
+def test_freeze_cannot_finish_between_authority_read_and_reservation_commit(monkeypatch) -> None:
+    from deepr.cli.commands.budget import mutate_budget_config
+    from deepr.core import cost_caps
+
+    store = ResearchReservationStore()
+    authority_read = Event()
+    release_reservation = Event()
+    freeze_started = Event()
+    freeze_finished = Event()
+    original_resolve = cost_caps.resolve_spend_caps
+
+    def paused_resolve(*args, **kwargs):
+        caps = original_resolve(*args, **kwargs)
+        authority_read.set()
+        assert release_reservation.wait(timeout=2)
+        return caps
+
+    monkeypatch.setattr(cost_caps, "resolve_spend_caps", paused_resolve)
+
+    def reserve() -> None:
+        store.reserve(
+            reservation_id="linearized-reservation",
+            job_id="linearized-job",
+            reserved_cost=0.25,
+            max_daily_cost=10.0,
+            max_weekly_cost=200.0,
+            max_monthly_cost=200.0,
+        )
+
+    def freeze() -> None:
+        freeze_started.set()
+
+        def update(config):
+            config["paid_api_frozen"] = True
+            config["freeze_reason"] = "race test"
+
+        mutate_budget_config(update)
+        freeze_finished.set()
+
+    with ThreadPoolExecutor(max_workers=2) as executor:
+        reserve_future = executor.submit(reserve)
+        assert authority_read.wait(timeout=2)
+        freeze_future = executor.submit(freeze)
+        assert freeze_started.wait(timeout=2)
+        assert freeze_finished.wait(timeout=0.05) is False
+        release_reservation.set()
+        reserve_future.result(timeout=2)
+        freeze_future.result(timeout=2)
+
+    assert freeze_finished.is_set()
+    with pytest.raises(ResearchReservationLimitExceeded):
+        store.reserve(
+            reservation_id="post-freeze",
+            job_id="post-freeze-job",
+            reserved_cost=0.01,
+            max_daily_cost=10.0,
+            max_weekly_cost=200.0,
+            max_monthly_cost=200.0,
+        )
 
 
 def test_daily_ceiling_reserves_maximum_estimated_cost() -> None:

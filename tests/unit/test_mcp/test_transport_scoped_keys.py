@@ -505,7 +505,14 @@ class TestStreamingHttpScopedKeys:
             "method": "tools/call",
             "params": {
                 "name": "deepr_expert_validate",
-                "arguments": {"expert_name": "alpha", "claim": "claim", "_approved": True},
+                "arguments": {
+                    "expert_name": "alpha",
+                    "claim": "claim",
+                    "budget": 0.02,
+                    "allow_metered_api": True,
+                    "confirm_metered_cost": True,
+                    "_approved": True,
+                },
             },
         }
 
@@ -633,7 +640,14 @@ class TestStreamingHttpScopedKeys:
             "method": "tools/call",
             "params": {
                 "name": "deepr_expert_validate",
-                "arguments": {"expert_name": "alpha", "claim": "claim", "_approved": True},
+                "arguments": {
+                    "expert_name": "alpha",
+                    "claim": "claim",
+                    "budget": 0.02,
+                    "allow_metered_api": True,
+                    "confirm_metered_cost": True,
+                    "_approved": True,
+                },
             },
         }
 

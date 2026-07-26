@@ -183,65 +183,38 @@ async def _get_results(job_id: str, output_context: OutputContext | None = None)
                 if output_context.mode == OutputMode.VERBOSE:
                     click.echo("Found completed results at provider! Downloading...")
 
-                # Extract content
-                content = ""
-                if response.output:
-                    for block in response.output:
-                        if block.get("type") == "message":
-                            for item in block.get("content", []):
-                                if item.get("type") in ["output_text", "text"]:
-                                    text = item.get("text", "")
-                                    if text:
-                                        content += text + "\n"
-
-                # Save to storage
                 storage = create_storage(
                     config.get("storage", "local"), base_path=config.get("results_dir", "data/reports")
                 )
+                from deepr.services.provider_completion import finalize_provider_completion
 
-                report_metadata = await storage.save_report(
-                    job_id=job.id,
-                    filename="report.md",
-                    content=content.encode("utf-8"),
-                    content_type="text/markdown",
-                    metadata={
-                        "prompt": job.prompt,
-                        "model": job.model,
-                        "status": "completed",
-                        "provider_job_id": job.provider_job_id,
-                    },
+                job = await finalize_provider_completion(
+                    queue=queue,
+                    storage=storage,
+                    provider=provider,
+                    job=job,
+                    response=response,
+                    source="cli.status.get",
                 )
-
-                # Record results BEFORE flipping status, and record them
-                # unconditionally: report_paths used to be written only when
-                # the provider reported a cost, so a completed job with no
-                # usage payload ended up COMPLETED with no recorded report
-                # path - the artifact existed on disk but nothing (context
-                # index, absorb, retrieval) could ever find it again.
-                actual_cost = response.usage.cost if response.usage and response.usage.cost else None
-                await queue.update_results(job.id, report_paths={"markdown": report_metadata.url}, cost=actual_cost)
-                await queue.update_status(job.id, JobStatus.COMPLETED)
-
-                # Update job object
-                job.status = JobStatus.COMPLETED
-                job.report_paths = {"markdown": report_metadata.url}
-                if response.usage:
-                    job.cost = response.usage.cost
 
                 if output_context.mode == OutputMode.VERBOSE:
                     click.echo("Results downloaded successfully!")
 
             elif response.status == "failed":
-                # response.error is a provider SDK object, not a string. Passing
-                # it raw into the queue update made the SQLite bind throw, the
-                # generic handler below swallowed that, and the job stayed
-                # "processing" forever with its cost reservation open.
                 error_msg = str(response.error) if response.error else "Unknown error"
                 if output_context.mode == OutputMode.JSON:
                     print(json.dumps({"status": "error", "error": f"Job failed at provider: {error_msg}"}))
                 elif output_context.mode != OutputMode.QUIET:
                     click.echo(f"Job failed at provider: {error_msg}")
-                await queue.update_status(job.id, JobStatus.FAILED, error=error_msg)
+                from deepr.services.provider_completion import finalize_provider_failure
+
+                await finalize_provider_failure(
+                    queue=queue,
+                    provider=provider,
+                    job=job,
+                    response=response,
+                    source="cli.status.get_failure",
+                )
                 return
 
             else:
@@ -385,44 +358,27 @@ async def _refresh_job_statuses(queue, jobs):
                 response = await provider.get_status(job.provider_job_id)
 
                 if response.status == "completed":
-                    # Download results
-                    content = ""
-                    if response.output:
-                        for block in response.output:
-                            if block.get("type") == "message":
-                                for item in block.get("content", []):
-                                    if item.get("type") in ["output_text", "text"]:
-                                        text = item.get("text", "")
-                                        if text:
-                                            content += text + "\n"
+                    from deepr.services.provider_completion import finalize_provider_completion
 
-                    # Save report
-                    report_metadata = await storage.save_report(
-                        job_id=job.id,
-                        filename="report.md",
-                        content=content.encode("utf-8"),
-                        content_type="text/markdown",
-                        metadata={
-                            "prompt": job.prompt,
-                            "model": job.model,
-                            "status": "completed",
-                            "provider_job_id": job.provider_job_id,
-                        },
+                    await finalize_provider_completion(
+                        queue=queue,
+                        storage=storage,
+                        provider=provider,
+                        job=job,
+                        response=response,
+                        source="cli.status.list_refresh",
                     )
-
-                    # Record results before flipping status, unconditionally
-                    # (same defect as the single-job path: results used to be
-                    # recorded only when the provider reported a cost).
-                    refresh_cost = response.usage.cost if response.usage and response.usage.cost else None
-                    await queue.update_results(
-                        job.id, report_paths={"markdown": report_metadata.url}, cost=refresh_cost
-                    )
-                    await queue.update_status(job.id, JobStatus.COMPLETED)
 
                 elif response.status == "failed":
-                    # Same object-vs-string coercion as the single-job path above.
-                    error_msg = str(response.error) if response.error else "Unknown error"
-                    await queue.update_status(job.id, JobStatus.FAILED, error=error_msg)
+                    from deepr.services.provider_completion import finalize_provider_failure
+
+                    await finalize_provider_failure(
+                        queue=queue,
+                        provider=provider,
+                        job=job,
+                        response=response,
+                        source="cli.status.list_refresh_failure",
+                    )
 
                 # If still queued/processing, leave it (no update needed)
 
@@ -600,7 +556,29 @@ async def _cancel_job(job_id: str, output_context: OutputContext | None = None):
             click.echo(f"Job already finished: {job.status.value}")
         return
 
-    success = await queue.cancel_job(job.id)
+    from deepr.config import load_config
+    from deepr.services.job_provider import create_job_provider
+    from deepr.services.research_cancellation import cancel_reserved_research
+
+    config = load_config()
+    provider_name = getattr(job, "provider", None) or config.get("provider", "openai")
+    provider = None
+    provider_resources = any(job.metadata.get(key) for key in ("provider_file_ids", "vector_store_id")) or (
+        job.status != JobStatus.CANCELLED and job.provider_job_id
+    )
+    try:
+        if provider_resources:
+            provider = create_job_provider(job, config)
+        outcome = await cancel_reserved_research(
+            queue=queue,
+            provider=provider,
+            job=job,
+            default_provider=provider_name,
+            source=f"cli.status.cancel.{job.id}",
+        )
+        success = outcome.queue_cancelled and outcome.confirmed
+    except Exception:
+        success = False
 
     if output_context.mode == OutputMode.JSON:
         if success:

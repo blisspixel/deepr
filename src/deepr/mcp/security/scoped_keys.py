@@ -5,6 +5,7 @@ from __future__ import annotations
 import hashlib
 import hmac
 import json
+import math
 import os
 import secrets
 import threading
@@ -31,7 +32,15 @@ _BUDGET_ARGUMENT_TOOLS = frozenset(
         "deepr_agentic_research",
         "deepr_consult_experts",
         "deepr_expert_absorb",
+        "deepr_expert_validate",
         "deepr_query_expert",
+        "deepr_research",
+    }
+)
+_EXPLICIT_METERED_BUDGET_TOOLS = frozenset(
+    {
+        "deepr_consult_experts",
+        "deepr_expert_validate",
         "deepr_research",
     }
 )
@@ -39,7 +48,6 @@ _FIXED_TOOL_COST_ESTIMATES_USD = {
     "deepr_close_expert_conversation": 0.0,
     "deepr_continue_expert_conversation": 0.0,
     "deepr_expert_absorb": 0.10,
-    "deepr_expert_validate": 0.02,
     "deepr_get_expert_conversation": 0.0,
     "deepr_reflect": 0.02,
     "deepr_start_expert_conversation": 0.0,
@@ -114,36 +122,19 @@ def _coerce_nonnegative_float(value: Any) -> float | None:
         resolved = float(value)
     except (TypeError, ValueError):
         return None
-    if resolved < 0:
+    if not math.isfinite(resolved) or resolved < 0:
         return None
     return resolved
 
 
-def _estimate_research_cost(arguments: dict[str, Any]) -> float:
-    model = str(arguments.get("model") or "o4-mini-deep-research")
-    try:
-        from deepr.providers.registry import get_cost_estimate
-
-        registry_cost = get_cost_estimate(model)
-    except Exception:
-        registry_cost = 0.20
-    if "o4-mini" in model:
-        return max(0.15, registry_cost)
-    if "o3" in model:
-        return max(0.50, registry_cost)
-    if "deep-research" in model:
-        return max(registry_cost, 1.00)
-    return max(registry_cost, 0.20)
-
-
-def _estimate_expert_consult_cost(arguments: dict[str, Any]) -> float:
-    backend = str(arguments.get("synthesis_backend") or "api").strip().lower()
+def _estimate_expert_consult_cost(arguments: dict[str, Any]) -> float | None:
+    backend = str(arguments.get("synthesis_backend") or "local").strip().lower()
     if backend in {"local", "plan"}:
         return 0.0
     requested_budget = _coerce_nonnegative_float(arguments.get("budget"))
     if requested_budget is not None and requested_budget > 0:
         return requested_budget
-    return 2.0
+    return None
 
 
 def _estimate_expert_query_cost(arguments: dict[str, Any]) -> float:
@@ -163,10 +154,10 @@ def estimate_scoped_mcp_tool_cost(tool_name: str, arguments: dict[str, Any]) -> 
     if tool_name == "deepr_query_expert":
         return _estimate_expert_query_cost(arguments)
     requested_budget = _coerce_nonnegative_float(arguments.get("budget"))
+    if tool_name in {"deepr_expert_validate", "deepr_research"}:
+        return requested_budget if requested_budget is not None and requested_budget > 0 else None
     if requested_budget is not None and tool_name in _BUDGET_ARGUMENT_TOOLS:
         return requested_budget
-    if tool_name == "deepr_research":
-        return _estimate_research_cost(arguments)
     if tool_name == "deepr_agentic_research":
         return 5.0
     if tool_name == "deepr_reflect":
@@ -514,8 +505,13 @@ def constrain_scoped_mcp_budget_arguments(
     arguments: dict[str, Any],
     spent_usd: float,
 ) -> dict[str, Any]:
-    """Inject the remaining key budget into budget-aware tools when omitted."""
-    if context.budget_limit_usd is None or tool_name not in _BUDGET_ARGUMENT_TOOLS or "budget" in arguments:
+    """Inject remaining key budget only where caller-supplied ceilings are not mandatory."""
+    if (
+        context.budget_limit_usd is None
+        or tool_name not in _BUDGET_ARGUMENT_TOOLS
+        or tool_name in _EXPLICIT_METERED_BUDGET_TOOLS
+        or "budget" in arguments
+    ):
         return arguments
     remaining = max(context.budget_limit_usd - spent_usd, 0.0)
     if remaining <= 0:

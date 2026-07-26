@@ -119,10 +119,20 @@ class BuiltinSearchBackend:
 
 
 class SearXNGSearchBackend:
-    """Free search backend for a self-hosted or user-selected SearXNG instance."""
+    """Free search backend for an owned loopback SearXNG instance."""
 
     def __init__(self, base_url: str | None = None, *, timeout: float = 10.0) -> None:
-        self._base_url = (base_url or os.getenv("DEEPR_SEARXNG_URL") or "").rstrip("/")
+        configured_url = base_url or os.getenv("DEEPR_SEARXNG_URL") or ""
+        if configured_url.strip():
+            from deepr.backends.capacity import validate_owned_local_http_url
+
+            self._base_url = validate_owned_local_http_url(
+                configured_url,
+                service_name="SearXNG",
+                allowed_paths=None,
+            )
+        else:
+            self._base_url = ""
         self._timeout = timeout
 
     @property

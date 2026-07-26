@@ -17,7 +17,30 @@ from deepr.queue.local_queue import SQLiteQueue
 
 
 @pytest.mark.asyncio
+async def test_composed_docs_and_team_fanout_are_default_blocked_before_provider_setup(tmp_path) -> None:
+    from deepr.experts.metered_mutation_gate import MeteredExpertMutationDisabledError
+
+    docs_path = tmp_path / "docs"
+    docs_path.mkdir()
+    with patch("deepr.services.doc_reviewer.DocReviewer") as reviewer:
+        with pytest.raises(MeteredExpertMutationDisabledError):
+            await _analyze_and_queue(
+                docs_path=str(docs_path),
+                scenario="Close gaps",
+                max_topics=1,
+                planner_model="gpt-5-mini",
+                research_model="o4-mini-deep-research",
+                auto_execute=True,
+            )
+    reviewer.assert_not_called()
+
+    with pytest.raises(MeteredExpertMutationDisabledError):
+        await run_dream_team("Question", perspectives=1, provider="openai")
+
+
+@pytest.mark.asyncio
 async def test_docs_analysis_uses_real_service_methods_and_configured_queue(tmp_path, monkeypatch) -> None:
+    monkeypatch.setattr("deepr.experts.metered_mutation_gate.METERED_EXPERT_MUTATIONS_ENABLED", True)
     monkeypatch.setenv("OPENAI_API_KEY", "test-key")
     docs_path = tmp_path / "docs"
     docs_path.mkdir()
@@ -62,6 +85,7 @@ async def test_docs_analysis_uses_real_service_methods_and_configured_queue(tmp_
 
 
 def test_team_analyze_constructs_batch_executor_and_executes_campaign(tmp_path, monkeypatch) -> None:
+    monkeypatch.setattr("deepr.experts.metered_mutation_gate.METERED_EXPERT_MUTATIONS_ENABLED", True)
     monkeypatch.setenv("OPENAI_API_KEY", "test-key")
     queue_path = tmp_path / "queue.db"
     results_path = tmp_path / "reports"
@@ -121,6 +145,7 @@ def test_team_analyze_constructs_batch_executor_and_executes_campaign(tmp_path, 
 
 @pytest.mark.asyncio
 async def test_dream_team_final_immediate_task_settles_durable_hold(tmp_path, monkeypatch) -> None:
+    monkeypatch.setattr("deepr.experts.metered_mutation_gate.METERED_EXPERT_MUTATIONS_ENABLED", True)
     monkeypatch.setenv("OPENAI_API_KEY", "test-key")
     queue = SQLiteQueue(str(tmp_path / "team.db"))
     provider = MagicMock(
@@ -179,6 +204,7 @@ async def test_dream_team_final_immediate_task_settles_durable_hold(tmp_path, mo
 async def test_dream_team_timeout_preserves_cost_and_tracking_contract(
     tmp_path, monkeypatch, provider_cancels: bool
 ) -> None:
+    monkeypatch.setattr("deepr.experts.metered_mutation_gate.METERED_EXPERT_MUTATIONS_ENABLED", True)
     monkeypatch.setenv("OPENAI_API_KEY", "test-key")
     queue_path = tmp_path / f"timeout-team-{provider_cancels}.db"
     queue = SQLiteQueue(str(queue_path))

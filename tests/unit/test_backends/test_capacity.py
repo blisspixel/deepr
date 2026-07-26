@@ -9,6 +9,7 @@ from __future__ import annotations
 import json
 from datetime import UTC, datetime
 
+import httpx
 from click.testing import CliRunner
 
 from deepr.backends.capacity import (
@@ -71,18 +72,53 @@ class TestDetection:
 
 
 class TestOllamaProbe:
-    def test_dead_port_returns_false_not_raise(self):
-        # No server here: must degrade to (False, detail), never raise.
+    def test_dead_port_returns_false_not_raise(self, monkeypatch):
+        def refuse(url, **_kwargs):
+            assert url == "http://127.0.0.1:1/api/tags"
+            raise httpx.ConnectError("refused")
+
+        monkeypatch.setattr(httpx, "get", refuse)
         ok, detail = ollama_status("http://localhost:1", timeout=0.1)
         assert ok is False
         assert "not reachable" in detail
 
+    def test_remote_environment_endpoint_is_blocked_without_request(self, monkeypatch):
+        requested = False
+
+        def must_not_run(*_args, **_kwargs):
+            nonlocal requested
+            requested = True
+
+        monkeypatch.setattr(httpx, "get", must_not_run)
+        monkeypatch.setenv("OLLAMA_HOST", "https://ollama.example.com:11434")
+
+        ok, detail = ollama_status()
+
+        assert ok is False
+        assert "remote endpoints need explicit cost attestation" in detail
+        assert requested is False
+
 
 class TestAvailableLocalModels:
-    def test_unreachable_returns_empty_not_raise(self):
+    def test_unreachable_returns_empty_not_raise(self, monkeypatch):
         from deepr.backends.capacity import available_local_models
 
+        monkeypatch.setattr(httpx, "get", lambda *_args, **_kwargs: (_ for _ in ()).throw(httpx.ConnectError("no")))
         assert available_local_models("http://localhost:1", timeout=0.1) == []
+
+    def test_remote_endpoint_returns_empty_without_request(self, monkeypatch):
+        from deepr.backends.capacity import available_local_models
+
+        requested = False
+
+        def must_not_run(*_args, **_kwargs):
+            nonlocal requested
+            requested = True
+
+        monkeypatch.setattr(httpx, "get", must_not_run)
+
+        assert available_local_models("http://10.0.0.5:11434") == []
+        assert requested is False
 
 
 class TestPlanQuotaDetection:

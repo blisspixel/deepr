@@ -26,6 +26,18 @@ class MeteredCallAccountingError(RuntimeError):
     """Raised when durable admission or settlement state cannot be updated."""
 
 
+def _required_call_ceiling(value: float | None) -> float:
+    """Reject opaque paid calls that rely on a process-wide default hold."""
+    if value is None:
+        raise MeteredCallAccountingError("Metered call requires an explicit provider-enforced maximum cost ceiling")
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        raise ValueError("max_cost_per_job must be a positive finite number")
+    ceiling = float(value)
+    if not math.isfinite(ceiling) or ceiling <= 0:
+        raise ValueError("max_cost_per_job must be a positive finite number")
+    return ceiling
+
+
 def _optional_declared_attribute(value: object, name: str) -> object | None:
     try:
         inspect.getattr_static(value, name)
@@ -138,13 +150,14 @@ def execute_reserved_sync_call(
     on_settled: Callable[[float], None] | None = None,
 ) -> T:
     """Run one metered call under a cross-process ceiling and settle its usage."""
+    ceiling = _required_call_ceiling(max_cost_per_job)
     job_id = f"{operation_prefix}-{uuid.uuid4().hex}"
     try:
         reservation = reserve_configured_cost_ceiling(
             job_id=job_id,
             provider=provider,
             model=model,
-            max_cost_per_job=max_cost_per_job,
+            max_cost_per_job=ceiling,
         )
     except ValueError:
         raise
@@ -384,13 +397,14 @@ async def execute_reserved_async_call(
     on_settled: Callable[[float], None] | None = None,
 ) -> T:
     """Run one async metered call under a durable ceiling and settle usage."""
+    ceiling = _required_call_ceiling(max_cost_per_job)
     job_id = f"{operation_prefix}-{uuid.uuid4().hex}"
     try:
         reservation = await _reserve_async(
             job_id=job_id,
             provider=provider,
             model=model,
-            max_cost_per_job=max_cost_per_job,
+            max_cost_per_job=ceiling,
         )
     except asyncio.CancelledError:
         raise
@@ -543,11 +557,12 @@ async def execute_reserved_async_stream(
     for settlement. If the stream ends without usable usage, the held ceiling is
     consumed conservatively after dispatch was marked.
     """
+    ceiling = _required_call_ceiling(max_cost_per_job)
     reservation = await _reserve_and_mark_async(
         job_id=f"{operation_prefix}-{uuid.uuid4().hex}",
         provider=provider,
         model=model,
-        max_cost_per_job=max_cost_per_job,
+        max_cost_per_job=ceiling,
     )
 
     final_usage: object | None = None

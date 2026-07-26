@@ -33,6 +33,14 @@ class TestLocalImageProvider:
         monkeypatch.setenv("OPENAI_API_KEY", "sk-test")  # local still wins (cheapest-first)
         assert detect_provider() == "local"
 
+    def test_detect_rejects_remote_local_url_without_metered_fallback(self, monkeypatch):
+        monkeypatch.setenv("DEEPR_LOCAL_IMAGE_URL", "https://images.example.com/v1")
+        monkeypatch.setenv("DEEPR_ALLOW_METERED_IMAGE_AUTO", "1")
+        monkeypatch.setenv("OPENAI_API_KEY", "sk-test")
+
+        with pytest.raises(RuntimeError, match=r"cannot be classified as local/\$0"):
+            detect_provider()
+
     def test_detect_does_not_fall_back_to_metered_without_opt_in(self, monkeypatch):
         monkeypatch.delenv("DEEPR_LOCAL_IMAGE_URL", raising=False)
         monkeypatch.delenv("DEEPR_ALLOW_METERED_IMAGE_AUTO", raising=False)
@@ -86,8 +94,34 @@ class TestLocalImageProvider:
             out = await P._generate_local("a prompt")
 
         assert out == b"IMGBYTES"
-        assert captured["base_url"].endswith("/v1")  # /v1 appended if missing
+        assert captured["base_url"] == "http://127.0.0.1:8188/v1"
         assert captured["api_key"] == "local"  # nothing billed
+
+    @pytest.mark.asyncio
+    async def test_generate_local_rejects_remote_before_client_construction(self, monkeypatch):
+        monkeypatch.setenv("DEEPR_LOCAL_IMAGE_URL", "http://192.168.1.25:8188/v1")
+        constructed = False
+
+        def fake_ctor(*_args, **_kwargs):
+            nonlocal constructed
+            constructed = True
+
+        with patch("openai.AsyncOpenAI", fake_ctor):
+            with pytest.raises(RuntimeError, match="remote endpoints need explicit cost attestation"):
+                await P._generate_local("must not run")
+
+        assert constructed is False
+
+    @pytest.mark.parametrize(
+        ("value", "expected"),
+        [
+            ("localhost:8188", "http://127.0.0.1:8188/v1"),
+            ("http://[::1]:8188/v1/", "http://[::1]:8188/v1"),
+        ],
+    )
+    def test_local_image_url_is_canonical_loopback(self, monkeypatch, value, expected):
+        monkeypatch.setenv("DEEPR_LOCAL_IMAGE_URL", value)
+        assert P._local_image_base_url() == expected
 
     @pytest.mark.asyncio
     async def test_generate_local_requires_url(self, monkeypatch):

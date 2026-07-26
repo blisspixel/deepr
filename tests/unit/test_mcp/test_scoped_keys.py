@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from datetime import UTC, datetime, timedelta
 
+import pytest
+
 from deepr.mcp.search.registry import create_default_registry
 from deepr.mcp.security.scoped_keys import (
     RemoteMCPAuditEvent,
@@ -210,8 +212,18 @@ class TestScopedMCPAuthorization:
         assert estimate_scoped_mcp_tool_cost("deepr_query_expert", {"budget": 0.75}) == 0.75
 
     def test_consult_experts_cost_estimate_respects_owned_capacity_backend(self):
-        assert estimate_scoped_mcp_tool_cost("deepr_consult_experts", {}) == 2.0
-        assert estimate_scoped_mcp_tool_cost("deepr_consult_experts", {"budget": 0.75}) == 0.75
+        assert estimate_scoped_mcp_tool_cost("deepr_consult_experts", {}) == 0.0
+        assert estimate_scoped_mcp_tool_cost(
+            "deepr_consult_experts",
+            {"synthesis_backend": "api"},
+        ) is None
+        assert (
+            estimate_scoped_mcp_tool_cost(
+                "deepr_consult_experts",
+                {"synthesis_backend": "api", "budget": 0.75},
+            )
+            == 0.75
+        )
         assert (
             estimate_scoped_mcp_tool_cost(
                 "deepr_consult_experts",
@@ -227,18 +239,30 @@ class TestScopedMCPAuthorization:
             == 0.0
         )
 
-    def test_consult_experts_budget_injection_uses_remaining_key_budget(self):
+    def test_explicit_metered_mcp_budgets_are_never_injected_from_key_limit(self):
         context = ScopedMCPKeyContext("agent", ResearchMode.UNRESTRICTED, budget_limit_usd=0.8)
 
-        arguments = constrain_scoped_mcp_budget_arguments(
-            context,
-            "deepr_consult_experts",
-            {"question": "q"},
-            spent_usd=0.3,
-        )
+        for tool_name, original in (
+            ("deepr_consult_experts", {"question": "q", "synthesis_backend": "api"}),
+            ("deepr_expert_validate", {"expert_name": "x", "claim": "c"}),
+            ("deepr_research", {"prompt": "q"}),
+        ):
+            arguments = constrain_scoped_mcp_budget_arguments(
+                context,
+                tool_name,
+                original,
+                spent_usd=0.3,
+            )
 
-        assert arguments["budget"] == 0.5
-        assert estimate_scoped_mcp_tool_cost("deepr_consult_experts", arguments) == 0.5
+            assert arguments == original
+            assert "budget" not in arguments
+            assert estimate_scoped_mcp_tool_cost(tool_name, arguments) is None
+
+    @pytest.mark.parametrize("tool_name", ["deepr_expert_validate", "deepr_research"])
+    def test_paid_mcp_ceiling_is_the_remote_key_cost_estimate(self, tool_name):
+        assert estimate_scoped_mcp_tool_cost(tool_name, {}) is None
+        assert estimate_scoped_mcp_tool_cost(tool_name, {"budget": 0.5}) == 0.5
+        assert estimate_scoped_mcp_tool_cost(tool_name, {"budget": float("nan")}) is None
 
     def test_metered_tool_without_estimate_fails_closed(self):
         context = ScopedMCPKeyContext("agent", ResearchMode.UNRESTRICTED, budget_limit_usd=1.0)
@@ -267,7 +291,11 @@ class TestScopedMCPAuthorization:
         assert metered_tools
         for tool_name in metered_tools:
             assert requires_scoped_mcp_cost_estimate(tool_name), tool_name
-            assert estimate_scoped_mcp_tool_cost(tool_name, {}) is not None, tool_name
+            estimate = estimate_scoped_mcp_tool_cost(tool_name, {})
+            if tool_name in {"deepr_expert_validate", "deepr_research"}:
+                assert estimate is None, tool_name
+            else:
+                assert estimate is not None, tool_name
 
     def test_key_rate_limit_blocks_at_limit(self):
         context = ScopedMCPKeyContext("agent", ResearchMode.UNRESTRICTED, rate_limit_per_minute=2)

@@ -47,7 +47,13 @@ class TestSchemaRegistration:
         schema = next(t for t in reg.all_tools() if t.name == "deepr_expert_validate")
         required = set(schema.input_schema.get("required", []))
         props = schema.input_schema.get("properties", {})
-        assert {"expert_name", "claim"} <= required
+        assert {
+            "expert_name",
+            "claim",
+            "budget",
+            "allow_metered_api",
+            "confirm_metered_cost",
+        } <= required
         assert "model" in props
         assert "max_evidence" in props
 
@@ -79,6 +85,9 @@ class TestExpertValidateTool:
             result = await mock_server.expert_validate(
                 expert_name="Test Expert",
                 claim="some claim",
+                budget=0.05,
+                allow_metered_api=True,
+                confirm_metered_cost=True,
             )
 
         assert "error_code" not in result
@@ -96,6 +105,9 @@ class TestExpertValidateTool:
         result = await mock_server.expert_validate(
             expert_name="Ghost",
             claim="anything",
+            budget=0.05,
+            allow_metered_api=True,
+            confirm_metered_cost=True,
         )
 
         assert result.get("error_code") == "EXPERT_NOT_FOUND"
@@ -112,6 +124,9 @@ class TestExpertValidateTool:
             result = await mock_server.expert_validate(
                 expert_name="Test Expert",
                 claim="",
+                budget=0.05,
+                allow_metered_api=True,
+                confirm_metered_cost=True,
             )
 
         assert result.get("error_code") == "EXPERT_VALIDATE_INVALID_INPUT"
@@ -130,9 +145,47 @@ class TestExpertValidateTool:
                 claim="ok",
                 model="gpt-5",
                 max_evidence=3,
+                budget=0.03,
+                allow_metered_api=True,
+                confirm_metered_cost=True,
             )
 
             # The validator should have been constructed with the overrides.
             ctor_kwargs = mock_cls.call_args.kwargs
             assert ctor_kwargs["model"] == "gpt-5"
             assert ctor_kwargs["max_evidence"] == 3
+            assert inst.validate.await_args.kwargs["max_cost_per_job"] == 0.03
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize(
+        ("allow_metered_api", "confirm_metered_cost"),
+        [(False, False), (True, False), (False, True)],
+    )
+    async def test_explicit_dual_consent_is_required_before_expert_lookup(
+        self,
+        mock_server,
+        allow_metered_api,
+        confirm_metered_cost,
+    ) -> None:
+        result = await mock_server.expert_validate(
+            expert_name="Test Expert",
+            claim="claim",
+            budget=0.05,
+            allow_metered_api=allow_metered_api,
+            confirm_metered_cost=confirm_metered_cost,
+        )
+
+        assert result["error_code"] == "METERED_API_NOT_APPROVED"
+        mock_server.store.load.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_finite_positive_ceiling_is_required_before_expert_lookup(self, mock_server) -> None:
+        result = await mock_server.expert_validate(
+            expert_name="Test Expert",
+            claim="claim",
+            allow_metered_api=True,
+            confirm_metered_cost=True,
+        )
+
+        assert result["error_code"] == "INVALID_BUDGET"
+        mock_server.store.load.assert_not_called()

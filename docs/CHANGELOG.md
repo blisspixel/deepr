@@ -7,8 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.38.0] - 2026-07-26
+
 ### Added
 
+- Added one authoritative paid-spend wallet across CLI, web, REST, MCP,
+  scripts, and workers. The persisted operator month limit is now a binding
+  ceiling over canonical settled spend plus every active hold, with UTC weekly
+  limits, `budget set 0`, manual freeze/unfreeze, and a second aggregate
+  authority check immediately before provider dispatch.
+- Added provider-enforceable chat and embedding cost envelopes plus a CI paid
+  boundary check that rejects metered wrapper calls without an explicit
+  maximum. Unknown pricing blocks dispatch. Paid composed fan-out remains
+  disabled until one parent reservation can cover every child and completion
+  policy can account for missing branches.
 - Added spend truth to the web dashboard: `/api/cost/summary` now reports the
   governing monthly ceiling (the lower of the env-cap controller limit and the
   approval-gate budget) and an explicit `over_budget` flag; a new
@@ -51,6 +63,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Fixed terminal accounting holes in legacy `get`, `list`, `queue sync`, and
+  immediate CLI/team completion. Provider success or failure now settles the
+  canonical reservation before terminal queue state; absent usage consumes the
+  held maximum instead of becoming `$0`. The separate REST cost summary now
+  reads the append-only ledger and authoritative limits instead of mutable job
+  rows and hardcoded `$100`/`$1000` values.
+- Fixed local-looking remote endpoints being classified as `$0` capacity.
+  Ollama, local image generation, and SearXNG now require credential-free
+  loopback ownership, with loopback IPv4 and IPv6 supported and remote, DNS,
+  LAN, credential-bearing, and malformed endpoints rejected.
+- Fixed automatic local/plan failure falling through to a paid API, opaque
+  generic metered calls reserving a default without a provider request bound,
+  SDK retry multiplication, positive cap reductions admitting stale holds, and
+  a cross-process window between ceiling divergence and the paid freeze.
 - Fixed provider API key resolution: `load_config()` deliberately carries no
   real credentials, but the CLI provider factory read keys only from that
   config, so every non-OpenAI provider failed with "No API key found" (surfaced
@@ -261,6 +287,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Bounded routine dependency automation to one grouped minor/patch pull
+  request per ecosystem on a monthly schedule. Major upgrades are deliberate
+  roadmap work instead of automatically accumulating branches. Repository
+  settings retain automatic branch deletion after squash merge.
 - Changed expert chat to ground its system message on the maintained belief
   graph instead of the `worldview.json` synthesis snapshot, falling back to the
   snapshot when an expert has no belief store yet. Chat now states beliefs at

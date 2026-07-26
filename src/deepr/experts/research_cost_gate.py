@@ -26,7 +26,9 @@ _configured_managers: weakref.WeakKeyDictionary[CostSafetyManager, bool] = weakr
 def _configure_manager(
     manager: CostSafetyManager,
     *,
+    max_cost_per_job: float,
     max_daily_cost: float,
+    max_weekly_cost: float,
     max_monthly_cost: float,
 ) -> None:
     """Hydrate canonical spend once and apply only stricter process limits."""
@@ -43,14 +45,26 @@ def _configure_manager(
                 ledger.get_total_cost(start_date=now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)),
             )
             _configured_managers[manager] = True
-        if max_daily_cost > 0:
+        if max_cost_per_job >= 0:
+            manager.max_per_operation = min(
+                manager.max_per_operation,
+                max_cost_per_job,
+                manager.ABSOLUTE_MAX_PER_OPERATION,
+            )
+        if max_daily_cost >= 0:
             manager.max_daily = min(manager.max_daily, max_daily_cost, manager.ABSOLUTE_MAX_DAILY)
-        if max_monthly_cost > 0:
+        if max_weekly_cost >= 0:
+            manager.max_weekly = min(manager.max_weekly, max_weekly_cost, manager.ABSOLUTE_MAX_WEEKLY)
+        if max_monthly_cost >= 0:
             manager.max_monthly = min(manager.max_monthly, max_monthly_cost, manager.ABSOLUTE_MAX_MONTHLY)
 
 
 class ResearchCostBlocked(ValueError):
     """Raised when research spend cannot be reserved before provider work."""
+
+
+class PaidCostCeilingDivergence(RuntimeError):
+    """Provider-reported spend exceeded the amount authorized before dispatch."""
 
 
 @dataclass(frozen=True)
@@ -87,8 +101,10 @@ def reserve_configured_research_cost(
 ) -> tuple[CostEstimate, ResearchCostReservation]:
     """Estimate and reserve one research job under configured hard limits."""
     from deepr.config import load_config
+    from deepr.core.cost_caps import resolve_spend_caps
 
     config = load_config()
+    spend_caps = resolve_spend_caps()
     configured_per_job = float(config.get("max_cost_per_job", 5.0))
     per_job = min(configured_per_job, max_cost_per_job) if max_cost_per_job is not None else configured_per_job
     bounded_request = request
@@ -114,6 +130,7 @@ def reserve_configured_research_cost(
         estimate=estimate,
         max_cost_per_job=per_job,
         max_daily_cost=float(config.get("max_daily_cost", 25.0)),
+        max_weekly_cost=spend_caps["weekly"],
         max_monthly_cost=float(config.get("max_monthly_cost", 200.0)),
     )
     return estimate, reservation
@@ -128,14 +145,20 @@ def reserve_configured_cost_ceiling(
 ) -> ResearchCostReservation:
     """Reserve the full configured per-call ceiling when usage is not yet known."""
     from deepr.config import load_config
+    from deepr.core.cost_caps import resolve_spend_caps
 
     config = load_config()
+    spend_caps = resolve_spend_caps()
     configured_per_job = float(config.get("max_cost_per_job", 5.0))
-    per_job = min(configured_per_job, max_cost_per_job) if max_cost_per_job is not None else configured_per_job
+    if max_cost_per_job is not None and (
+        isinstance(max_cost_per_job, bool) or not isfinite(max_cost_per_job) or max_cost_per_job <= 0
+    ):
+        raise ResearchCostBlocked("Requested paid-call ceiling must be finite and positive")
+    requested_ceiling = configured_per_job if max_cost_per_job is None else float(max_cost_per_job)
     estimate = CostEstimate(
-        min_cost=per_job,
-        max_cost=per_job,
-        expected_cost=per_job,
+        min_cost=requested_ceiling,
+        max_cost=requested_ceiling,
+        expected_cost=requested_ceiling,
         model=model,
         reasoning="Full configured ceiling reserved until provider usage is available",
     )
@@ -144,8 +167,9 @@ def reserve_configured_cost_ceiling(
         provider=provider,
         model=model,
         estimate=estimate,
-        max_cost_per_job=per_job,
+        max_cost_per_job=configured_per_job,
         max_daily_cost=float(config.get("max_daily_cost", 25.0)),
+        max_weekly_cost=spend_caps["weekly"],
         max_monthly_cost=float(config.get("max_monthly_cost", 200.0)),
     )
 
@@ -159,13 +183,15 @@ def reserve_research_cost(
     max_cost_per_job: float,
     max_daily_cost: float,
     max_monthly_cost: float,
+    max_weekly_cost: float | None = None,
     manager: CostSafetyManager | None = None,
 ) -> ResearchCostReservation:
     """Atomically reserve expected cost against cumulative safety limits."""
     costs = (estimate.min_cost, estimate.expected_cost, estimate.max_cost)
     if not all(isfinite(cost) for cost in costs) or not 0 <= costs[0] <= costs[1] <= costs[2]:
         raise ResearchCostBlocked("Research cost estimate must be finite, non-negative, and ordered")
-    limits = (max_cost_per_job, max_daily_cost, max_monthly_cost)
+    weekly_limit = max_monthly_cost if max_weekly_cost is None else max_weekly_cost
+    limits = (max_cost_per_job, max_daily_cost, weekly_limit, max_monthly_cost)
     if not all(isfinite(limit) and limit > 0 for limit in limits):
         raise ResearchCostBlocked("Research cost limits must be finite and positive")
     if estimate.max_cost > max_cost_per_job:
@@ -176,7 +202,9 @@ def reserve_research_cost(
     active_manager = manager or CostSafetyManager()
     _configure_manager(
         active_manager,
+        max_cost_per_job=max_cost_per_job,
         max_daily_cost=max_daily_cost,
+        max_weekly_cost=weekly_limit,
         max_monthly_cost=max_monthly_cost,
     )
     allowed, reason, needs_confirmation, reservation_id = active_manager.check_and_reserve(
@@ -193,6 +221,7 @@ def reserve_research_cost(
             job_id=job_id,
             reserved_cost=estimate.max_cost,
             max_daily_cost=max_daily_cost,
+            max_weekly_cost=weekly_limit,
             max_monthly_cost=max_monthly_cost,
         )
     except ResearchReservationLimitExceeded as exc:
@@ -274,7 +303,10 @@ def settle_research_cost(
 ) -> None:
     """Settle a reservation and append one idempotent canonical ledger event."""
     reported = float(actual_cost) if actual_cost is not None else reservation.estimated_cost
+    if not isfinite(reported) or reported < 0:
+        raise ValueError("actual_cost must be finite and non-negative")
     settled_cost = max(0.0, reported)
+    ceiling_diverged = settled_cost > reservation.estimated_cost + 1e-9
     event_metadata = dict(settlement_metadata or {})
     event_metadata.update(
         {
@@ -282,6 +314,8 @@ def settle_research_cost(
             "actual_cost_reported": actual_cost is not None if actual_cost_reported is None else actual_cost_reported,
         }
     )
+    if ceiling_diverged:
+        event_metadata["cost_ceiling_diverged"] = True
     idempotency_key = f"job:{reservation.job_id}:completion"
 
     def record() -> None:
@@ -316,9 +350,33 @@ def settle_research_cost(
             idempotency_key=idempotency_key,
         )
 
-    outcome = ResearchReservationStore().settle(reservation.reservation_id, settled_cost, record)
+    if ceiling_diverged:
+        from deepr.core.cost_caps import (
+            _freeze_paid_api_unlocked,
+            budget_file_path,
+            spend_policy_lock,
+        )
+
+        budget_path = budget_file_path()
+        reason = (
+            f"reported cost ${settled_cost:.6f} exceeded authorized ceiling "
+            f"${reservation.estimated_cost:.6f} for job {reservation.job_id}"
+        )
+        with spend_policy_lock(budget_path):
+            # Persist the cross-process stop while reservations and dispatch
+            # marks are excluded, then record the overrun truth. If ledger
+            # settlement fails, the freeze remains in force and the hold stays.
+            _freeze_paid_api_unlocked(reason, target=budget_path)
+            outcome = ResearchReservationStore().settle(reservation.reservation_id, settled_cost, record)
+    else:
+        outcome = ResearchReservationStore().settle(reservation.reservation_id, settled_cost, record)
     if outcome == "missing":
         record()
+    if ceiling_diverged:
+        raise PaidCostCeilingDivergence(
+            f"Paid API frozen: reported cost ${settled_cost:.6f} exceeded "
+            f"authorized ceiling ${reservation.estimated_cost:.6f}"
+        )
 
 
 def reconcile_research_cost_from_ledger(reservation: ResearchCostReservation | None, *, job_id: str) -> bool:

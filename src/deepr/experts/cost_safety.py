@@ -13,6 +13,7 @@ from dataclasses import dataclass
 from math import isfinite
 from typing import Any
 
+from deepr.core.cost_caps import resolve_spend_caps
 from deepr.experts.cost_circuit_breaker import (
     CircuitBreakerState as CircuitBreakerState,
 )
@@ -32,6 +33,19 @@ from deepr.experts.cost_safety_ledger import (
     append_cost_record,
     seed_window_costs,
 )
+from deepr.experts.cost_safety_messages import (
+    estimate_curriculum_cost as estimate_curriculum_cost,
+)
+from deepr.experts.cost_safety_messages import (
+    format_cost_warning as format_cost_warning,
+)
+from deepr.experts.cost_safety_messages import (
+    get_resume_message as get_resume_message,
+)
+from deepr.experts.cost_safety_messages import (
+    is_pausable_limit as is_pausable_limit,
+)
+from deepr.experts.cost_safety_windows import NarrowingSpendLimit, projected_window_limit_reason
 from deepr.experts.research_reservation_store import (
     ResearchReservationLimitExceeded,
     ResearchReservationStore,
@@ -329,6 +343,7 @@ class CostSafetyManager:
     # budget.py) can reference them without instantiating a manager.
     ABSOLUTE_MAX_PER_OPERATION: float = 10.0
     ABSOLUTE_MAX_DAILY: float = 50.0
+    ABSOLUTE_MAX_WEEKLY: float = 250.0
     ABSOLUTE_MAX_MONTHLY: float = 500.0
 
     # A reservation is presumed leaked (caller crashed between reserve and
@@ -349,14 +364,21 @@ class CostSafetyManager:
         self._ledger = CostLedger(lock_timeout_seconds=5.0)
         self._strict_tracking = os.getenv("DEEPR_COST_TRACKING_STRICT", "1").lower() in {"1", "true", "yes", "on"}
 
-        # Global daily/monthly tracking honoring the same env caps the
-        # research budget gate reads (DEEPR_MAX_COST_PER_DAY/_MONTH): one
-        # knob, every spender. Clamped to absolute ceilings; bad env -> defaults.
-        # Ledger-seeded so day/month caps see other processes' spend
-        self.daily_cost, self.monthly_cost = seed_window_costs(self._ledger)
-        self.max_daily: float = self._env_limit("DEEPR_MAX_COST_PER_DAY", 50.0, self.ABSOLUTE_MAX_DAILY)
-        self.max_monthly: float = self._env_limit("DEEPR_MAX_COST_PER_MONTH", 500.0, self.ABSOLUTE_MAX_MONTHLY)
+        # Every secondary metered call shares the same operator and environment
+        # authority as research submissions. Ledger seeding is strict: broken
+        # accounting cannot be reinterpreted as $0 already spent.
+        self.daily_cost, self.weekly_cost, self.monthly_cost = seed_window_costs(self._ledger)
+        caps = resolve_spend_caps()
+        self.max_per_operation = min(caps["per_job"], self.ABSOLUTE_MAX_PER_OPERATION)
+        self.max_daily = min(caps["daily"], self.ABSOLUTE_MAX_DAILY)
+        self.max_weekly = min(caps["weekly"], self.ABSOLUTE_MAX_WEEKLY)
+        self.max_monthly = min(caps["monthly"], self.ABSOLUTE_MAX_MONTHLY)
+        self._per_operation_limit = NarrowingSpendLimit(self.max_per_operation)
+        self._daily_limit = NarrowingSpendLimit(self.max_daily)
+        self._weekly_limit = NarrowingSpendLimit(self.max_weekly)
+        self._monthly_limit = NarrowingSpendLimit(self.max_monthly)
         self._last_daily_reset: float = time.time()
+        self._last_weekly_reset: float = time.time()
         self._last_monthly_reset: float = time.time()
 
         # Cross-thread lock guarding check_operation + record_cost as a single
@@ -369,6 +391,7 @@ class CostSafetyManager:
         # In-flight reservations keyed by (session_id, reservation_id) ->
         # estimated_cost. record_cost / refund_reservation drain them.
         self._reserved_daily: float = 0.0
+        self._reserved_weekly: float = 0.0
         self._reserved_monthly: float = 0.0
         self._reservations: dict[str, float] = {}
         # reservation_id -> creation time, for the leaked-reservation TTL sweep.
@@ -389,19 +412,17 @@ class CostSafetyManager:
             self._reservation_store = ResearchReservationStore(lock_timeout_seconds=5.0)
         return self._reservation_store
 
-    @staticmethod
-    def _env_limit(var: str, default: float, ceiling: float) -> float:
-        """Read a spend limit from the environment, clamped to (0, ceiling]."""
-        raw = os.getenv(var)
-        if not raw:
-            return default
-        try:
-            value = float(raw)
-        except ValueError:
-            return default
-        if not isfinite(value) or value <= 0:
-            return default
-        return min(value, ceiling)
+    def _refresh_authoritative_limits(self) -> None:
+        """Apply policy changes without widening caller-supplied overrides."""
+        caps = resolve_spend_caps()
+        next_per_operation = min(caps["per_job"], self.ABSOLUTE_MAX_PER_OPERATION)
+        next_daily = min(caps["daily"], self.ABSOLUTE_MAX_DAILY)
+        next_weekly = min(caps["weekly"], self.ABSOLUTE_MAX_WEEKLY)
+        next_monthly = min(caps["monthly"], self.ABSOLUTE_MAX_MONTHLY)
+        self.max_per_operation = self._per_operation_limit.refresh(self.max_per_operation, next_per_operation)
+        self.max_daily = self._daily_limit.refresh(self.max_daily, next_daily)
+        self.max_weekly = self._weekly_limit.refresh(self.max_weekly, next_weekly)
+        self.max_monthly = self._monthly_limit.refresh(self.max_monthly, next_monthly)
 
     @property
     def circuit_breaker(self) -> CostCircuitBreaker:
@@ -488,16 +509,17 @@ class CostSafetyManager:
         estimated_cost = _validated_money(estimated_cost, field_name="estimated_cost")
         _validate_durable_request(durable_reservation, reserve, reservation_job_id)
         with self._budget_lock:
+            self._refresh_authoritative_limits()
             # Release any leaked reservations before projecting, so a crashed
             # caller's stale hold cannot keep blocking the pool.
             self._sweep_stale_reservations(time.time())
 
             # Per-op hard ceiling - any caller value above this is silently
             # treated as a denial regardless of session/daily room.
-            if estimated_cost > self.ABSOLUTE_MAX_PER_OPERATION:
+            if estimated_cost > self.max_per_operation:
                 return (
                     False,
-                    f"Estimated cost ${estimated_cost:.2f} exceeds absolute per-op ceiling ${self.ABSOLUTE_MAX_PER_OPERATION:.2f}",
+                    f"Estimated cost ${estimated_cost:.2f} exceeds absolute per-op ceiling ${self.max_per_operation:.2f}",
                     False,
                     "",
                 )
@@ -518,23 +540,16 @@ class CostSafetyManager:
                 if not can_proceed:
                     return False, session_reason, False, ""
 
-            # Daily projection including in-flight reservations
-            projected_daily = self.daily_cost + self._reserved_daily + estimated_cost
-            if projected_daily > self.max_daily:
-                return (
-                    False,
-                    f"Daily limit ${self.max_daily:.2f} would be exceeded (spent ${self.daily_cost:.2f}, reserved ${self._reserved_daily:.2f}, +${estimated_cost:.2f})",
-                    False,
-                    "",
-                )
-            projected_monthly = self.monthly_cost + self._reserved_monthly + estimated_cost
-            if projected_monthly > self.max_monthly:
-                return (
-                    False,
-                    f"Monthly limit ${self.max_monthly:.2f} would be exceeded",
-                    False,
-                    "",
-                )
+            window_reason = projected_window_limit_reason(
+                estimated_cost,
+                (
+                    ("Daily", self.daily_cost, self._reserved_daily, self.max_daily),
+                    ("Weekly", self.weekly_cost, self._reserved_weekly, self.max_weekly),
+                    ("Monthly", self.monthly_cost, self._reserved_monthly, self.max_monthly),
+                ),
+            )
+            if window_reason:
+                return False, window_reason, False, ""
 
             # Reserve
             reservation_id = ""
@@ -570,6 +585,7 @@ class CostSafetyManager:
                     job_id=reservation_job_id,
                     reserved_cost=estimated_cost,
                     max_daily_cost=self.max_daily,
+                    max_weekly_cost=self.max_weekly,
                     max_monthly_cost=self.max_monthly,
                 )
             except ResearchReservationLimitExceeded as error:
@@ -580,6 +596,7 @@ class CostSafetyManager:
         self._reservations[reservation_id] = estimated_cost
         self._reservation_started[reservation_id] = time.time()
         self._reserved_daily += estimated_cost
+        self._reserved_weekly += estimated_cost
         self._reserved_monthly += estimated_cost
         return True, "OK", reservation_id
 
@@ -599,6 +616,7 @@ class CostSafetyManager:
             held = self._reservations.pop(rid, 0.0)
             self._reservation_started.pop(rid, None)
             self._reserved_daily = max(0.0, self._reserved_daily - held)
+            self._reserved_weekly = max(0.0, self._reserved_weekly - held)
             self._reserved_monthly = max(0.0, self._reserved_monthly - held)
 
     def mark_provider_work_may_have_run(self, reservation_id: str) -> None:
@@ -649,6 +667,7 @@ class CostSafetyManager:
             held = self._reservations.pop(reservation_id, 0.0)
             self._reservation_started.pop(reservation_id, None)
             self._reserved_daily = max(0.0, self._reserved_daily - held)
+            self._reserved_weekly = max(0.0, self._reserved_weekly - held)
             self._reserved_monthly = max(0.0, self._reserved_monthly - held)
             self._durable_reservation_jobs.pop(reservation_id, None)
             self._provider_work_may_have_run.discard(reservation_id)
@@ -765,6 +784,7 @@ class CostSafetyManager:
                 held = self._reservations.pop(record.reservation_id, 0.0)
                 self._reservation_started.pop(record.reservation_id, None)
                 self._reserved_daily = max(0.0, self._reserved_daily - held)
+                self._reserved_weekly = max(0.0, self._reserved_weekly - held)
                 self._reserved_monthly = max(0.0, self._reserved_monthly - held)
                 self._unresolved_durable_reservations.discard(record.reservation_id)
 
@@ -790,6 +810,7 @@ class CostSafetyManager:
             if session:
                 session.record_operation(record.operation_type, record.actual_cost, record.details)
             self.daily_cost += record.actual_cost
+            self.weekly_cost += record.actual_cost
             self.monthly_cost += record.actual_cost
 
         return self._circuit_breaker.record_cost(
@@ -834,12 +855,21 @@ class CostSafetyManager:
         def _percent(spent: float, limit: float) -> float:
             return (spent / limit * 100.0) if limit > 0 else 0.0
 
+        with self._budget_lock:
+            self._refresh_authoritative_limits()
+
         return {
             "daily": {
                 "spent": self.daily_cost,
                 "limit": self.max_daily,
                 "remaining": max(0, self.max_daily - self.daily_cost),
                 "percent_used": _percent(self.daily_cost, self.max_daily),
+            },
+            "weekly": {
+                "spent": self.weekly_cost,
+                "limit": self.max_weekly,
+                "remaining": max(0, self.max_weekly - self.weekly_cost),
+                "percent_used": _percent(self.weekly_cost, self.max_weekly),
             },
             "monthly": {
                 "spent": self.monthly_cost,
@@ -848,8 +878,9 @@ class CostSafetyManager:
                 "percent_used": _percent(self.monthly_cost, self.max_monthly),
             },
             "limits": {
-                "per_operation": self.ABSOLUTE_MAX_PER_OPERATION,
+                "per_operation": self.max_per_operation,
                 "daily": self.max_daily,
+                "weekly": self.max_weekly,
                 "monthly": self.max_monthly,
             },
             "active_sessions": len(self._sessions),
@@ -890,8 +921,10 @@ class CostSafetyManager:
         self._session_costs.clear()
         self._sessions.clear()
         self.daily_cost = 0.0
+        self.weekly_cost = 0.0
         self.monthly_cost = 0.0
         self._reserved_daily = 0.0
+        self._reserved_weekly = 0.0
         self._reserved_monthly = 0.0
         self._reservations.clear()
         self._reservation_started.clear()
@@ -931,69 +964,3 @@ def reset_cost_safety_manager() -> None:
         if _cost_safety_manager is not None:
             _cost_safety_manager.reset()
         _cost_safety_manager = None
-
-
-def estimate_curriculum_cost(
-    topic_count: int,
-    deep_research_count: int = 0,
-    quick_research_count: int = 0,
-    docs_count: int = 0,
-) -> dict[str, float | int]:
-    """Estimate the cost of executing a learning curriculum.
-
-    Returns dict with expected_cost, min_cost, max_cost.
-    """
-    # Per-topic cost estimates by research mode
-    deep_cost = 2.00  # campaign mode
-    quick_cost = 0.25  # focus mode
-    docs_cost = 0.15  # documentation
-
-    other_count = max(0, topic_count - deep_research_count - quick_research_count - docs_count)
-    expected = (
-        deep_research_count * deep_cost
-        + quick_research_count * quick_cost
-        + docs_count * docs_cost
-        + other_count * quick_cost
-    )
-    return {
-        "expected_cost": expected,
-        "min_cost": expected * 0.5,
-        "max_cost": expected * 1.5,
-        "topic_count": topic_count,
-    }
-
-
-def format_cost_warning(expected_cost: float, budget_limit: float | None) -> str:
-    """Format a human-readable cost warning for curriculum execution."""
-    msg = f"Estimated cost: ${expected_cost:.2f}"
-    if budget_limit is not None:
-        if expected_cost > budget_limit:
-            msg += f" (exceeds ${budget_limit:.2f} budget - will stop at limit)"
-        else:
-            msg += f" (within ${budget_limit:.2f} budget)"
-    return msg
-
-
-def is_pausable_limit(reason: str) -> bool:
-    """Check if a block reason is a pausable limit (daily/monthly) vs a hard stop.
-
-    Pausable limits mean progress can be saved and resumed later.
-    """
-    if not reason:
-        return False
-    lower = reason.lower()
-    return "daily" in lower or "monthly" in lower
-
-
-def get_resume_message(reason: str) -> str:
-    """Get a human-readable message explaining when learning can resume.
-
-    Args:
-        reason: The block reason from check_operation
-    """
-    lower = (reason or "").lower()
-    if "daily" in lower:
-        return "Daily spending limit reached. Learning will resume tomorrow."
-    elif "monthly" in lower:
-        return "Monthly spending limit reached. Learning will resume next month."
-    return f"Spending limit reached: {reason}"

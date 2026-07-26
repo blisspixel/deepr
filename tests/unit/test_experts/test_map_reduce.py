@@ -109,6 +109,9 @@ class TestMapChunk:
         assert result["chunk_index"] == 0
         assert len(result["facts"]) == 3
         assert result["doc_name"] == "doc.md"
+        request = mock_client.chat.completions.create.await_args.kwargs
+        assert 0 < request["max_completion_tokens"] <= 800
+        assert "max_tokens" not in request
 
     @pytest.mark.asyncio
     async def test_extraction_failure(self):
@@ -153,6 +156,9 @@ class TestReduceDocument:
             "test_domain",
         )
         assert "Consolidated summary" in result
+        request = mock_client.chat.completions.create.await_args.kwargs
+        assert 0 < request["max_completion_tokens"] <= 2_000
+        assert "max_tokens" not in request
 
     @pytest.mark.asyncio
     async def test_empty_facts(self):

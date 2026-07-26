@@ -174,22 +174,37 @@ class DocReviewer:
 
         # Call GPT-5 for evaluation
         from deepr.services.metered_call import execute_reserved_sync_call
+        from deepr.services.metered_envelope import bounded_chat_envelope
+
+        system_prompt = (
+            "You are a research strategist evaluating existing documentation for reuse opportunities. "
+            "Your goal is to save costs by reusing good existing research and only requesting updates "
+            "or new research where genuinely needed."
+        )
+        envelope = bounded_chat_envelope(
+            model=self.model,
+            prompt_parts=(system_prompt, prompt),
+            budget_usd=0.50,
+            maximum_output_tokens=2_000,
+        )
 
         response = execute_reserved_sync_call(
             operation_prefix="doc-review",
             provider="openai",
             model=self.model,
             source="services.doc_reviewer.review_docs",
+            max_cost_per_job=envelope.cost_usd,
             call=lambda: self.client.chat.completions.create(
                 model=self.model,
                 messages=[
                     {
                         "role": "system",
-                        "content": "You are a research strategist evaluating existing documentation for reuse opportunities. Your goal is to save costs by reusing good existing research and only requesting updates or new research where genuinely needed.",
+                        "content": system_prompt,
                     },
                     {"role": "user", "content": prompt},
                 ],
                 response_format={"type": "json_object"},
+                max_completion_tokens=envelope.output_tokens,
             ),
         )
 

@@ -155,6 +155,13 @@ class BenchmarkSpendGuard:
         if outcome == "missing":
             record()
 
+    def mark_provider_work(self, reservation: BenchmarkCostReservation) -> None:
+        """Re-check current authority and make the hold non-refundable."""
+        try:
+            self._store.mark_provider_work_may_have_run(reservation.reservation_id)
+        except ResearchReservationLimitExceeded as exc:
+            raise BenchmarkBudgetExceeded(str(exc)) from exc
+
     def refund(self, reservation: BenchmarkCostReservation) -> None:
         """Release a call that was definitively not submitted."""
         if self._store.refund(reservation.reservation_id):

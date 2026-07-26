@@ -23,6 +23,10 @@ DEFAULT_CHUNK_SIZE = 4000
 DEFAULT_MAX_PARALLEL = 5
 # Threshold for triggering map-reduce (20KB total content)
 LARGE_DOCUMENT_THRESHOLD = 20_000
+_MAP_CALL_CEILING_USD = 0.02
+_MAP_OUTPUT_TOKENS = 800
+_REDUCE_CALL_CEILING_USD = 0.05
+_REDUCE_OUTPUT_TOKENS = 2_000
 
 
 class MapReduceIngester:
@@ -54,8 +58,50 @@ class MapReduceIngester:
         if self.client is None:
             from openai import AsyncOpenAI
 
-            self.client = AsyncOpenAI()
+            self.client = AsyncOpenAI(max_retries=0)
         return self.client
+
+    async def _complete_bounded(
+        self,
+        *,
+        operation: str,
+        model: str,
+        source: str,
+        messages: list[dict[str, str]],
+        call_ceiling: float,
+        output_tokens: int,
+        reasoning_effort: str | None = None,
+    ) -> Any:
+        """Execute one map/reduce completion inside its exact cost envelope."""
+        from deepr.experts.report_absorber_costs import bounded_metered_completion_kwargs
+        from deepr.services.metered_call import execute_reserved_async_call
+
+        request: dict[str, Any] = {
+            "model": model,
+            "messages": messages,
+            "max_completion_tokens": output_tokens,
+        }
+        if reasoning_effort:
+            request["reasoning_effort"] = reasoning_effort
+        kwargs, worst_case_cost = bounded_metered_completion_kwargs(
+            operation=operation,
+            model=model,
+            call_ceiling=call_ceiling,
+            kwargs=request,
+        )
+
+        async def dispatch() -> Any:
+            client = await self._get_client()
+            return await client.chat.completions.create(**kwargs)
+
+        return await execute_reserved_async_call(
+            operation_prefix=f"map-reduce-{operation}",
+            provider="openai",
+            model=model,
+            source=source,
+            max_cost_per_job=worst_case_cost,
+            call=dispatch,
+        )
 
     async def ingest(
         self,
@@ -175,45 +221,22 @@ class MapReduceIngester:
             "Output ONLY the JSON."
         )
 
-        # Cost-safety gate. Map-reduce can fan out across many chunks;
-        # without this gate a long document blasts the daily budget.
-        from deepr.experts.cost_admission import admit_soft_cost_operation
-
-        _cost_safety, _est, _reason = admit_soft_cost_operation(
-            session_id="map_reduce",
-            operation_type="map_chunk",
-            estimated_cost=0.02,
-        )
-        if _reason is not None:
-            logger.warning("Map-reduce chunk blocked by cost-safety: %s", _reason)
-            return {"chunk_index": chunk_index, "facts": [], "doc_name": doc_name, "error": _reason}
-
         try:
-            client = await self._get_client()
-            response = await client.chat.completions.create(
+            response = await self._complete_bounded(
+                operation="map-chunk",
                 model=self.map_model,
                 messages=[
                     {"role": "system", "content": "Extract key facts. Output only valid JSON."},
                     {"role": "user", "content": prompt},
                 ],
+                source="experts.map_reduce.map_chunk",
+                call_ceiling=_MAP_CALL_CEILING_USD,
+                output_tokens=_MAP_OUTPUT_TOKENS,
             )
             text = response.choices[0].message.content or '{"facts": []}'
             if text.startswith("```"):
                 text = text.split("\n", 1)[-1].rsplit("```", 1)[0]
             parsed = json.loads(text)
-            from deepr.experts.chat_turns import chat_token_cost as _tc
-            from deepr.experts.cost_admission import record_soft_cost
-
-            _actual = _tc(response.usage, self.map_model) if response.usage else _est
-            record_soft_cost(
-                _cost_safety,
-                session_id="map_reduce",
-                operation_type="map_chunk",
-                actual_cost=float(_actual),
-                provider="openai",
-                model=self.map_model,
-                source="experts.map_reduce.map_chunk",
-            )
             return {
                 "chunk_index": chunk_index,
                 "facts": parsed.get("facts", []),
@@ -257,40 +280,18 @@ class MapReduceIngester:
             "Output the summary as plain text (not JSON)."
         )
 
-        # Cost-safety gate for the (more expensive) reduce model.
-        from deepr.experts.cost_admission import admit_soft_cost_operation
-
-        _cost_safety, _est, _reason = admit_soft_cost_operation(
-            session_id="map_reduce",
-            operation_type="reduce_document",
-            estimated_cost=0.05,
-        )
-        if _reason is not None:
-            logger.warning("Map-reduce reduce blocked by cost-safety: %s", _reason)
-            return f"Key facts from {doc_name}:\n{facts_text}"
-
         try:
-            client = await self._get_client()
-            response = await client.chat.completions.create(
+            response = await self._complete_bounded(
+                operation="reduce-document",
                 model=self.reduce_model,
                 messages=[
                     {"role": "system", "content": "You consolidate extracted facts into coherent summaries."},
                     {"role": "user", "content": prompt},
                 ],
                 reasoning_effort="low",
-            )
-            from deepr.experts.chat_turns import chat_token_cost as _tc
-            from deepr.experts.cost_admission import record_soft_cost
-
-            _actual = _tc(response.usage, self.reduce_model) if response.usage else _est
-            record_soft_cost(
-                _cost_safety,
-                session_id="map_reduce",
-                operation_type="reduce_document",
-                actual_cost=float(_actual),
-                provider="openai",
-                model=self.reduce_model,
                 source="experts.map_reduce.reduce_document",
+                call_ceiling=_REDUCE_CALL_CEILING_USD,
+                output_tokens=_REDUCE_OUTPUT_TOKENS,
             )
             return response.choices[0].message.content or facts_text
         except Exception as e:

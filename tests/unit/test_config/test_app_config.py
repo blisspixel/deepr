@@ -329,7 +329,7 @@ class TestLoadConfig:
         result = load_config()
         assert result["max_cost_per_job"] == 10.0
         assert result["max_daily_cost"] == 50.0
-        assert result["max_monthly_cost"] == 500.0
+        assert result["max_monthly_cost"] == 200.0
 
 
 class TestLoadConfigContract:
@@ -398,7 +398,7 @@ class TestLoadConfigContract:
             monkeypatch.delenv(var, raising=False)
         result = load_config()
         assert result["max_cost_per_job"] == 5.0
-        assert result["max_daily_cost"] == 25.0
+        assert result["max_daily_cost"] == 10.0
         assert result["max_monthly_cost"] == 200.0
 
     def test_results_dir_honors_reports_path_env(self, monkeypatch):

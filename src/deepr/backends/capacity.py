@@ -9,10 +9,12 @@ never spends. Design: docs/design/capacity-waterfall.md.
 
 from __future__ import annotations
 
+import ipaddress
 import os
 import shutil
 from dataclasses import dataclass
 from enum import Enum
+from urllib.parse import SplitResult, urlsplit
 
 
 class CostModel(str, Enum):
@@ -116,6 +118,75 @@ _CLI_BACKENDS: list[tuple[str, str, CostModel, str]] = [
 _OLLAMA_DEFAULT_URL = "http://localhost:11434"
 
 
+def _parse_owned_local_http_url(value: str, label: str) -> SplitResult:
+    raw = value.strip()
+    if not raw:
+        raise ValueError(f"{label} URL cannot be empty")
+    candidate = raw if "://" in raw else f"http://{raw}"
+    try:
+        parsed = urlsplit(candidate)
+    except ValueError as exc:
+        raise ValueError(f"{label} URL is invalid") from exc
+    if parsed.scheme not in {"http", "https"}:
+        raise ValueError(f"{label} capacity requires an http or https URL")
+    if parsed.username is not None or parsed.password is not None:
+        raise ValueError(f"{label} URL cannot contain credentials")
+    if parsed.query or parsed.fragment:
+        raise ValueError(f"{label} URL cannot contain a query or fragment")
+    return parsed
+
+
+def _owned_loopback_address(
+    parsed: SplitResult,
+    label: str,
+) -> ipaddress.IPv4Address | ipaddress.IPv6Address:
+    host = (parsed.hostname or "").lower()
+    if host == "localhost":
+        host = "127.0.0.1"
+    if "%" in host:
+        raise ValueError(f"{label} capacity requires an unscoped literal loopback host")
+    try:
+        address = ipaddress.ip_address(host)
+    except ValueError as exc:
+        raise ValueError(
+            f"{label} capacity requires a literal loopback host; remote endpoints need explicit cost attestation"
+        ) from exc
+    if not address.is_loopback:
+        raise ValueError(f"{label} capacity requires a loopback host; remote endpoints need explicit cost attestation")
+    return address
+
+
+def validate_owned_local_http_url(
+    value: str,
+    *,
+    service_name: str,
+    allowed_paths: frozenset[str] | None = frozenset({""}),
+) -> str:
+    """Return a canonical, DNS-free loopback URL for owned capacity.
+
+    ``allowed_paths=None`` permits any path while retaining the ownership and
+    URL-shape checks. Callers should otherwise enumerate their accepted roots.
+    """
+    label = f"Owned local {service_name}"
+    parsed = _parse_owned_local_http_url(value, label)
+    path = parsed.path.rstrip("/")
+    if allowed_paths is not None and path not in allowed_paths:
+        raise ValueError(f"{label} URL path is not allowed")
+    address = _owned_loopback_address(parsed, label)
+    try:
+        port = parsed.port
+    except ValueError as exc:
+        raise ValueError(f"{label} URL has an invalid port") from exc
+
+    rendered_host = f"[{address.compressed}]" if address.version == 6 else address.compressed
+    return f"{parsed.scheme}://{rendered_host}{f':{port}' if port is not None else ''}{path}"
+
+
+def validate_owned_local_ollama_url(value: str) -> str:
+    """Return a canonical loopback-only Ollama endpoint."""
+    return validate_owned_local_http_url(value, service_name="Ollama")
+
+
 def _key_is_set(value: str | None) -> bool:
     return bool(value and value.strip() and "your-" not in value.lower())
 
@@ -126,7 +197,10 @@ def ollama_status(base_url: str | None = None, *, timeout: float = 0.5) -> tuple
     A short-timeout localhost call: $0, no provider involved. Isolated here so
     tests can stub it without real I/O.
     """
-    url = (base_url or os.getenv("OLLAMA_HOST") or _OLLAMA_DEFAULT_URL).rstrip("/")
+    try:
+        url = validate_owned_local_ollama_url(base_url or os.getenv("OLLAMA_HOST") or _OLLAMA_DEFAULT_URL)
+    except ValueError as error:
+        return False, str(error)
     try:
         import httpx
 
@@ -149,7 +223,10 @@ def available_local_models(base_url: str | None = None, *, timeout: float = 2.0)
     forgiving than the status probe's because a false negative here silently
     forfeits owned capacity to the metered API. Never raises.
     """
-    url = (base_url or os.getenv("OLLAMA_HOST") or _OLLAMA_DEFAULT_URL).rstrip("/")
+    try:
+        url = validate_owned_local_ollama_url(base_url or os.getenv("OLLAMA_HOST") or _OLLAMA_DEFAULT_URL)
+    except ValueError:
+        return []
     try:
         import httpx
 
