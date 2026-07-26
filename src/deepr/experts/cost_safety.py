@@ -346,7 +346,7 @@ class CostSafetyManager:
         self._session_costs: dict[str, float] = {}
         self._sessions: dict[str, CostSession] = {}
         self._ledger = CostLedger(lock_timeout_seconds=5.0)
-        self._strict_tracking = os.getenv("DEEPR_COST_TRACKING_STRICT", "0").lower() in {"1", "true", "yes", "on"}
+        self._strict_tracking = os.getenv("DEEPR_COST_TRACKING_STRICT", "1").lower() in {"1", "true", "yes", "on"}
 
         # Global daily/monthly tracking. Limits honor the same env caps the
         # research budget gate reads (DEEPR_MAX_COST_PER_DAY/_MONTH), so a

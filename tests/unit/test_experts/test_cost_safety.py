@@ -767,8 +767,11 @@ class TestCostSafetyManager:
         assert public_error.metadata == {"error_type": "OSError", "errno": 28, "mode": "strict"}
 
     def test_record_cost_nonstrict_ledger_error_log_is_path_safe(self, monkeypatch, tmp_path, caplog):
-        """Best-effort ledger failures must not place local paths in logs."""
-        monkeypatch.delenv("DEEPR_COST_TRACKING_STRICT", raising=False)
+        """Best-effort ledger failures must not place local paths in logs.
+
+        Lenient tracking is now an explicit opt-out (strict is the default,
+        so unset env means a ledger failure raises instead of logging)."""
+        monkeypatch.setenv("DEEPR_COST_TRACKING_STRICT", "0")
         sensitive_path = tmp_path / "private" / "cost_ledger.jsonl"
         ledger_error = OSError(28, "No space left on device", str(sensitive_path))
         with patch("deepr.experts.cost_safety.CostLedger") as mock_ledger_cls:

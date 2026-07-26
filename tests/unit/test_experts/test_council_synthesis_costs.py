@@ -499,6 +499,9 @@ async def test_cancellation_attaches_path_safe_ledger_failure_without_marking_se
             await asyncio.Future()
 
     manager = get_cost_safety_manager()
+    # Lenient tracking is an explicit opt-out now (strict is the default);
+    # these tests exercise the lenient warning path's log hygiene.
+    monkeypatch.setattr(manager, "_strict_tracking", False)
     sensitive_path = tmp_path / "private" / "cost_ledger.jsonl"
     ledger_error = OSError(28, "No space left on device", str(sensitive_path))
     monkeypatch.setattr(manager._ledger, "record_event", MagicMock(side_effect=ledger_error))
@@ -560,6 +563,9 @@ async def test_ordinary_post_dispatch_settlement_failure_is_path_safe(monkeypatc
             raise RuntimeError("ambiguous provider failure")
 
     manager = get_cost_safety_manager()
+    # Lenient tracking is an explicit opt-out now (strict is the default);
+    # these tests exercise the lenient warning path's log hygiene.
+    monkeypatch.setattr(manager, "_strict_tracking", False)
     sensitive_path = tmp_path / "private" / "cost_ledger.jsonl"
     ledger_error = OSError(28, "No space left on device", str(sensitive_path))
     monkeypatch.setattr(manager._ledger, "record_event", MagicMock(side_effect=ledger_error))

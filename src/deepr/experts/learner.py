@@ -88,8 +88,7 @@ class AutonomousLearner:
         # provider job id -> local queue job id (durable tracking of
         # submitted research jobs; see _record_job_in_queue)
         self._queue_ids: dict[str, str] = {}
-        # provider_job_id -> persisted report path, written at poll time so
-        # a crash after settlement can never lose an already-paid report.
+        # provider_job_id -> report path persisted at poll time (crash-safe)
         self._persisted_reports: dict[str, str] = {}
 
     async def execute_curriculum(
@@ -415,16 +414,12 @@ class AutonomousLearner:
             return None
 
     async def _sync_job_status_in_queue(
-        self,
-        provider_job_id: str,
-        status: str,
-        cost: float | None = None,
-        report_path: str | None = None,
+        self, provider_job_id: str, status: str, cost: float | None = None, report_path: str | None = None
     ) -> None:
         """Mirror a learner job's terminal state into the local queue (best-effort)."""
-        from deepr.experts.learner_persistence import sync_job_status_in_queue
+        from deepr.experts import learner_persistence
 
-        await sync_job_status_in_queue(
+        await learner_persistence.sync_job_status_in_queue(
             queue_ids=self._queue_ids,
             config=self.config,
             provider_job_id=provider_job_id,
@@ -434,16 +429,12 @@ class AutonomousLearner:
         )
 
     def _persist_completed_report(
-        self,
-        expert: ExpertProfile,
-        provider_job_id: str,
-        response,
-        callback: Callable | None = None,
+        self, expert: ExpertProfile, provider_job_id: str, response, callback: Callable | None = None
     ) -> str | None:
         """Persist a completed job's report at poll time (see learner_persistence)."""
-        from deepr.experts.learner_persistence import persist_completed_report
+        from deepr.experts import learner_persistence
 
-        doc_path = persist_completed_report(
+        doc_path = learner_persistence.persist_completed_report(
             report_generator=self.research.report_generator,
             expert_name=expert.name,
             provider_job_id=provider_job_id,
@@ -457,76 +448,29 @@ class AutonomousLearner:
     def _save_learning_progress(
         self, expert: ExpertProfile, progress: LearningProgress, remaining_topics: list[LearningTopic]
     ):
-        """Save learning progress for later resume.
+        """Save learning progress for later resume (see learner_persistence)."""
+        from deepr.experts import learner_persistence
 
-        Saves to expert's data directory so it can be resumed later.
-        """
-        import json
-
-        store = ExpertStore()
-        progress_file = store.get_knowledge_dir(expert.name) / "learning_progress.json"
-        progress_file.parent.mkdir(parents=True, exist_ok=True)
-
-        # Calculate remaining topics (not completed, not failed)
-        completed_set = set(progress.completed_topics)
-        failed_set = set(progress.failed_topics)
-        remaining = [t for t in remaining_topics if t.title not in completed_set and t.title not in failed_set]
-
-        progress_data = {
-            "expert_name": expert.name,
-            "paused_at": datetime.now(UTC).isoformat(),
-            "completed_topics": progress.completed_topics,
-            "failed_topics": progress.failed_topics,
-            "remaining_topics": [
-                {
-                    "title": t.title,
-                    "research_prompt": t.research_prompt,
-                    "research_mode": t.research_mode,
-                    "research_type": t.research_type,
-                    "estimated_cost": t.estimated_cost,
-                    "estimated_minutes": t.estimated_minutes,
-                }
-                for t in remaining
-            ],
-            "total_cost_so_far": progress.total_cost,
-            "started_at": progress.started_at.isoformat(),
-            "reason": "daily_or_monthly_limit",
-        }
-
-        with open(progress_file, "w", encoding="utf-8") as f:
-            json.dump(progress_data, f, indent=2)
+        learner_persistence.save_learning_progress(
+            expert_name=expert.name,
+            completed_topics=progress.completed_topics,
+            failed_topics=progress.failed_topics,
+            remaining_topics=remaining_topics,
+            total_cost=progress.total_cost,
+            started_at=progress.started_at,
+        )
 
     def load_learning_progress(self, expert_name: str) -> dict | None:
-        """Load saved learning progress for resume.
+        """Load saved learning progress for resume."""
+        from deepr.experts import learner_persistence
 
-        Args:
-            expert_name: Name of the expert
-
-        Returns:
-            Progress data dict or None if no saved progress
-        """
-        import json
-
-        store = ExpertStore()
-        progress_file = store.get_knowledge_dir(expert_name) / "learning_progress.json"
-
-        if not progress_file.exists():
-            return None
-
-        with open(progress_file, encoding="utf-8") as f:
-            return json.load(f)
+        return learner_persistence.load_learning_progress(expert_name)
 
     def clear_learning_progress(self, expert_name: str):
-        """Clear saved learning progress after successful completion.
+        """Clear saved learning progress after successful completion."""
+        from deepr.experts import learner_persistence
 
-        Args:
-            expert_name: Name of the expert
-        """
-        store = ExpertStore()
-        progress_file = store.get_knowledge_dir(expert_name) / "learning_progress.json"
-
-        if progress_file.exists():
-            progress_file.unlink()
+        learner_persistence.clear_learning_progress(expert_name)
 
     async def _acquire_sources(
         self, expert: ExpertProfile, curriculum: LearningCurriculum, callback: Callable | None = None
@@ -984,12 +928,8 @@ class AutonomousLearner:
                             if topic_title not in progress.completed_topics:
                                 progress.completed_topics.append(topic_title)
 
-                        # Persist the paid report NOW, before recording spend
-                        # or marking the queue COMPLETED. Integration used to
-                        # be deferred until the whole campaign finished and
-                        # was best-effort: a crash or empty re-fetch in that
-                        # window is how a 30-job, $37.79 campaign settled
-                        # with zero surviving artifacts.
+                        # Persist the paid report NOW, before recording spend or
+                        # marking COMPLETED (see learner_persistence for the why).
                         doc_path = self._persist_completed_report(expert, job_id, response, callback=callback)
 
                         cost: float | None = response.usage.cost if response.usage else None
@@ -1089,11 +1029,8 @@ class AutonomousLearner:
             try:
                 self._log_progress(f"{i}/{len(job_ids)}: {job_id[:20]}...", callback=callback)
 
-                # The report was persisted at poll time (before settlement);
-                # read it from disk rather than trusting a provider re-fetch
-                # that can come back empty after money already moved. The
-                # re-fetch remains only as a fallback for resumed campaigns
-                # whose polling ran in an earlier process.
+                # Report persisted at poll time; disk is the source of truth.
+                # Provider re-fetch is only a fallback for resumed campaigns.
                 filename = f"research_{job_id[:12]}.md"
                 persisted = self._persisted_reports.get(job_id)
                 if persisted and await asyncio.to_thread(Path(persisted).exists):

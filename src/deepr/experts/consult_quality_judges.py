@@ -149,7 +149,13 @@ async def _chat_consult_quality_judge_completion(
     case: dict[str, Any],
     trace: dict[str, Any],
     candidate: dict[str, Any],
+    on_dispatch: Callable[[], None] | None = None,
 ) -> _JudgeCompletion:
+    # Flag the dispatch BEFORE the call goes out: any exception from here on
+    # (including response parsing below) may follow a billed provider call,
+    # and the metered caller must settle conservatively instead of refunding.
+    if on_dispatch is not None:
+        on_dispatch()
     response = await chat.chat.completions.create(
         model=model,
         messages=[
@@ -216,6 +222,7 @@ async def _review_consult_quality_candidate_with_chat_judge(
     calibrated_judge: dict[str, Any],
     client: Any,
     completion_metadata: Callable[[_JudgeCompletion], dict[str, Any]] | None = None,
+    on_dispatch: Callable[[], None] | None = None,
     calibration_ref: str = "",
     target: ConsultQualityTarget = "none",
     apply: bool = False,
@@ -244,6 +251,7 @@ async def _review_consult_quality_candidate_with_chat_judge(
         case=case,
         trace=trace,
         candidate=candidate,
+        on_dispatch=on_dispatch,
     )
     calibrated_judge_metadata = completion_metadata(completion) if completion_metadata is not None else {}
     parsed = parse_consult_quality_judge_response(completion.content, case)
@@ -443,6 +451,7 @@ async def review_consult_quality_candidate_with_api_judge(
         client = _build_api_judge_client(request.provider)
 
     settled = False
+    dispatch_attempted = False
 
     def _settle_completion_cost(completion: _JudgeCompletion) -> dict[str, Any]:
         nonlocal settled
@@ -456,6 +465,10 @@ async def review_consult_quality_candidate_with_api_judge(
         settled = True
         return metadata
 
+    def _mark_dispatch() -> None:
+        nonlocal dispatch_attempted
+        dispatch_attempted = True
+
     try:
         return await _review_consult_quality_candidate_with_chat_judge(
             profile,
@@ -466,6 +479,7 @@ async def review_consult_quality_candidate_with_api_judge(
             calibrated_judge=_api_judge_metadata(request),
             client=client,
             completion_metadata=_settle_completion_cost,
+            on_dispatch=_mark_dispatch,
             calibration_ref=calibration_ref,
             target=target,
             apply=apply,
@@ -477,7 +491,28 @@ async def review_consult_quality_candidate_with_api_judge(
         )
     except Exception:
         if not settled:
-            reservation.manager.refund_reservation(reservation.reservation_id)
+            if dispatch_attempted:
+                # The provider call went out and may have been billed even
+                # though this path failed (response parsing, settlement
+                # itself). Refunding would erase real spend from accounting,
+                # so settle conservatively at the reserved estimate instead.
+                reservation.manager.record_cost(
+                    session_id=reservation.session_id,
+                    operation_type="consult_quality_judge",
+                    actual_cost=request.estimated_cost,
+                    provider=request.provider,
+                    model=request.model,
+                    source="experts.consult_quality_judges.conservative",
+                    reservation_id=reservation.reservation_id,
+                    metadata={
+                        "expert": profile.name,
+                        "trace_id": trace_id,
+                        "settlement_basis": "conservative_after_dispatch_failure",
+                    },
+                )
+            else:
+                # Nothing was dispatched, so nothing was billed: refund.
+                reservation.manager.refund_reservation(reservation.reservation_id)
         raise
 
 
