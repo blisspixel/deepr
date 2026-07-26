@@ -301,7 +301,7 @@ export default function ResearchStudio() {
 
       {isConfigError && (
         <div role="alert" className="rounded-lg border border-warning/30 bg-warning/5 px-4 py-3 flex items-center gap-3">
-          <Info className="w-4 h-4 text-warning flex-shrink-0" />
+          <Info className="w-4 h-4 text-warning shrink-0" />
           <p className="text-sm text-muted-foreground flex-1">
             Provider readiness could not be verified. Research submission is paused.
           </p>
@@ -313,7 +313,7 @@ export default function ResearchStudio() {
 
       {config && !providerReady && (
         <div role="alert" className="rounded-lg border border-warning/30 bg-warning/5 px-4 py-3 flex items-start gap-3">
-          <Info className="w-4 h-4 text-warning flex-shrink-0 mt-0.5" />
+          <Info className="w-4 h-4 text-warning shrink-0 mt-0.5" />
           <p className="text-sm text-muted-foreground">
             Dashboard research currently requires OpenAI, but <code className="text-xs">OPENAI_API_KEY</code> is not set.
             Add the key and restart Deepr before submitting. Other configured providers remain available through CLI workflows.{' '}
@@ -349,7 +349,7 @@ export default function ResearchStudio() {
               placeholder="Describe your research question in detail. Be specific about what information you need, sources to prioritize, and desired output format..."
               rows={6}
               maxLength={50000}
-              className="w-full px-3 py-2 bg-background border rounded-lg text-foreground text-sm resize-none focus:outline-none focus:ring-2 focus:ring-ring placeholder:text-muted-foreground"
+              className="w-full px-3 py-2 bg-background border rounded-lg text-foreground text-sm resize-none focus:outline-hidden focus:ring-2 focus:ring-ring placeholder:text-muted-foreground"
             />
             <div className="flex justify-between gap-3 text-xs text-muted-foreground mt-1">
               <span>Be specific for best results</span>
@@ -429,7 +429,7 @@ export default function ResearchStudio() {
                   className={cn(
                     'min-h-11 rounded-md px-2 py-1.5 text-xs font-medium transition-all sm:px-3',
                     mode === m.value
-                      ? 'bg-background text-foreground shadow-sm'
+                      ? 'bg-background text-foreground shadow-xs'
                       : 'text-muted-foreground hover:text-foreground'
                   )}
                 >
@@ -559,7 +559,7 @@ export default function ResearchStudio() {
                             type="button"
                             onClick={() => removeFile(index)}
                             aria-label={`Remove ${file.name}`}
-                            className="ml-2 inline-flex h-11 w-11 flex-shrink-0 items-center justify-center text-muted-foreground hover:text-foreground"
+                            className="ml-2 inline-flex h-11 w-11 shrink-0 items-center justify-center text-muted-foreground hover:text-foreground"
                           >
                             <X className="w-3.5 h-3.5" />
                           </button>

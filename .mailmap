@@ -1,8 +1,0 @@
-# Normalize legacy commit identities to the maintainer.
-#
-# Format (note the order): Proper-Name <proper-email> <commit-email>
-# i.e. the LEFT identity is the canonical one; the RIGHT email is the one
-# rewritten onto it.
-
-Nick Seal <32712898+blisspixel@users.noreply.github.com> <nick@pueo.io>
-Nick Seal <32712898+blisspixel@users.noreply.github.com> <kilo@pueo.io>

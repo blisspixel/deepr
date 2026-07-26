@@ -23,7 +23,7 @@ export function PlanDisplay({ query, steps }: PlanDisplayProps) {
       <ol className="space-y-1.5">
         {steps.map((step) => (
           <li key={step.id} className="flex items-start gap-2">
-            <span className="flex-shrink-0 mt-0.5">{STATUS_ICON[step.status] || STATUS_ICON.pending}</span>
+            <span className="shrink-0 mt-0.5">{STATUS_ICON[step.status] || STATUS_ICON.pending}</span>
             <div className="flex-1 min-w-0">
               <span className={cn(
                 'text-xs',

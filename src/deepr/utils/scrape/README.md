@@ -64,9 +64,9 @@ results = scrape_website(
     company_name="Example Corp",
 )
 
-print(results['pages_scraped'])
-print(results['scraped_urls'])
-print(results['insights'])  # LLM synthesis
+print(results["pages_scraped"])
+print(results["scraped_urls"])
+print(results["insights"])  # LLM synthesis
 ```
 
 ### Company Research
@@ -81,7 +81,7 @@ results = scrape_for_company_research(
 )
 
 # Get structured insights about the company
-print(results['insights'])
+print(results["insights"])
 ```
 
 ### Documentation Harvesting

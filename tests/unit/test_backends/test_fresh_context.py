@@ -274,9 +274,7 @@ async def test_relative_search_links_do_not_consume_fetch_slots():
 
     assert browser.calls == [valid.url]
     assert [source.url for source in context.sources] == [valid.url]
-    assert context.errors == (
-        "ignored 1 candidate URL(s) without a retrievable absolute HTTP(S) form",
-    )
+    assert context.errors == ("ignored 1 candidate URL(s) without a retrievable absolute HTTP(S) form",)
 
 
 async def test_prompt_context_quarantines_untrusted_source_directives():
@@ -629,9 +627,7 @@ async def test_deep_search_excludes_explicit_urls_but_still_fetches_them():
 async def test_deep_explicit_url_only_does_not_issue_a_search_query():
     explicit_url = "https://evidence.example/paper"
     search = _SearchBackend()
-    browser = _BrowserBackend(
-        {explicit_url: PageContent(url=explicit_url, title="Paper", text="Explicit paper text.")}
-    )
+    browser = _BrowserBackend({explicit_url: PageContent(url=explicit_url, title="Paper", text="Explicit paper text.")})
 
     context = await retrieve_deep_fresh_context(
         explicit_url,

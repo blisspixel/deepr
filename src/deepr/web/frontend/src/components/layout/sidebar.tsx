@@ -46,7 +46,7 @@ const bottomNavItems: NavItem[] = [
   { path: '/settings', label: 'Settings', icon: Settings },
 ]
 
-const focusRing = 'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1'
+const focusRing = 'focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1'
 
 function NavLink({
   item,

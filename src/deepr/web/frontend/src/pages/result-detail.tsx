@@ -174,7 +174,7 @@ export default function ResultDetail() {
               onClick={() => setShowRaw(false)}
               className={cn(
                 'px-3 py-1 rounded-md text-xs font-medium transition-all inline-flex items-center gap-1.5',
-                !showRaw ? 'bg-background shadow-sm text-foreground' : 'text-muted-foreground'
+                !showRaw ? 'bg-background shadow-xs text-foreground' : 'text-muted-foreground'
               )}
             >
               <BookOpen className="w-3.5 h-3.5" />
@@ -184,7 +184,7 @@ export default function ResultDetail() {
               onClick={() => setShowRaw(true)}
               className={cn(
                 'px-3 py-1 rounded-md text-xs font-medium transition-all inline-flex items-center gap-1.5',
-                showRaw ? 'bg-background shadow-sm text-foreground' : 'text-muted-foreground'
+                showRaw ? 'bg-background shadow-xs text-foreground' : 'text-muted-foreground'
               )}
             >
               <Code2 className="w-3.5 h-3.5" />
@@ -311,7 +311,7 @@ export default function ResultDetail() {
                   onClick={() => setActiveCitation(activeCitation === index ? null : index)}
                 >
                   <div className="flex items-start gap-2">
-                    <span className="flex-shrink-0 w-5 h-5 bg-primary/10 text-primary rounded text-[10px] font-semibold flex items-center justify-center">
+                    <span className="shrink-0 w-5 h-5 bg-primary/10 text-primary rounded text-[10px] font-semibold flex items-center justify-center">
                       {index + 1}
                     </span>
                     <div className="min-w-0">

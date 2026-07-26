@@ -690,7 +690,7 @@ export default function ExpertProfile() {
   return (
     <div className="flex flex-col h-[calc(100vh-7rem)] animate-fade-in">
       {/* Header */}
-      <div className="p-6 border-b space-y-4 flex-shrink-0">
+      <div className="p-6 border-b space-y-4 shrink-0">
         <button
           onClick={() => navigate('/experts')}
           className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors"
@@ -700,7 +700,7 @@ export default function ExpertProfile() {
         </button>
 
         <div className="flex items-start gap-4">
-          <div className="relative group/avatar flex-shrink-0">
+          <div className="relative group/avatar shrink-0">
             <ExpertPortrait
               name={expert.name}
               portraitUrl={expert.portrait_url}
@@ -757,7 +757,7 @@ export default function ExpertProfile() {
               className={cn(
                 'px-4 py-1.5 rounded-md text-xs font-medium transition-all',
                 activeTab === tab.key
-                  ? 'bg-background shadow-sm text-foreground'
+                  ? 'bg-background shadow-xs text-foreground'
                   : 'text-muted-foreground hover:text-foreground'
               )}
             >
@@ -773,7 +773,7 @@ export default function ExpertProfile() {
           <div className="flex h-full">
             {/* Conversation sidebar */}
             {conversations && conversations.length > 0 && (
-              <div className="hidden md:flex w-56 border-r flex-shrink-0 flex-col overflow-hidden">
+              <div className="hidden md:flex w-56 border-r shrink-0 flex-col overflow-hidden">
                 <div className="p-3 border-b">
                   <Button size="sm" className="w-full" variant="outline" onClick={startNewChat}>
                     New Chat
@@ -1010,7 +1010,7 @@ export default function ExpertProfile() {
                       value={chatBudgetInput}
                       disabled={chatControlsLocked}
                       onChange={(event) => setChatBudgetInput(event.target.value)}
-                      className="w-20 bg-transparent pl-1 outline-none disabled:cursor-not-allowed"
+                      className="w-20 bg-transparent pl-1 outline-hidden disabled:cursor-not-allowed"
                       aria-label="Expert chat session budget"
                     />
                   </span>
@@ -1209,7 +1209,7 @@ export default function ExpertProfile() {
                         </ul>
                       )}
                     </div>
-                    <div className="flex items-center gap-2 flex-shrink-0">
+                    <div className="flex items-center gap-2 shrink-0">
                       <EvScoreBadge ratio={gap.ev_cost_ratio} />
                       <span className="px-2 py-0.5 rounded text-[10px] font-semibold bg-secondary text-muted-foreground">
                         P{gap.priority}
@@ -1265,7 +1265,7 @@ export default function ExpertProfile() {
                   return (
                     <div key={dec.id} className="rounded-lg border bg-card p-4 space-y-2">
                       <div className="flex items-start gap-3">
-                        <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center flex-shrink-0 mt-0.5">
+                        <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center shrink-0 mt-0.5">
                           <Icon className="w-4 h-4 text-primary" />
                         </div>
                         <div className="flex-1 min-w-0">
@@ -1322,7 +1322,7 @@ export default function ExpertProfile() {
             ) : (
               history.map((event) => (
                 <div key={event.id} className="flex items-start gap-3 text-sm">
-                  <div className="w-1.5 h-1.5 rounded-full bg-primary mt-2 flex-shrink-0" />
+                  <div className="w-1.5 h-1.5 rounded-full bg-primary mt-2 shrink-0" />
                   <div className="flex-1 min-w-0">
                     <p className="text-foreground">{event.description}</p>
                     <div className="flex items-center gap-2 text-xs text-muted-foreground mt-0.5">

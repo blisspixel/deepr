@@ -106,8 +106,8 @@ class Check:
 
 
 CHECKS: list[Check] = [
-    # Front-door README (kept current via this check, not by discipline)
-    Check("README.md", r"(\d[\d,]*)\+ tests \(Python 3\.12[-/0-9.]*\)", "tests", "floor"),
+    # Front-door README quotes only the stable MCP surface count. Volatile test
+    # and coverage figures live in ROADMAP, their documented source of truth.
     Check("README.md", r"(\d+) MCP tools", "mcp_tools", "exact"),
     # ROADMAP "Current Status" is the canonical home for status numbers
     Check("ROADMAP.md", r"(\d[\d,]*)\+ unit tests", "tests", "floor"),

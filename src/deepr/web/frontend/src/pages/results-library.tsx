@@ -129,7 +129,7 @@ export default function ResultsLibrary() {
             aria-pressed={viewMode === 'grid'}
             className={cn(
               'inline-flex h-11 w-11 items-center justify-center rounded-md transition-all',
-              viewMode === 'grid' ? 'bg-background shadow-sm text-foreground' : 'text-muted-foreground'
+              viewMode === 'grid' ? 'bg-background shadow-xs text-foreground' : 'text-muted-foreground'
             )}
           >
             <Grid3X3 className="w-4 h-4" />
@@ -140,7 +140,7 @@ export default function ResultsLibrary() {
             aria-pressed={viewMode === 'list'}
             className={cn(
               'inline-flex h-11 w-11 items-center justify-center rounded-md transition-all',
-              viewMode === 'list' ? 'bg-background shadow-sm text-foreground' : 'text-muted-foreground'
+              viewMode === 'list' ? 'bg-background shadow-xs text-foreground' : 'text-muted-foreground'
             )}
           >
             <List className="w-4 h-4" />
@@ -167,7 +167,7 @@ export default function ResultsLibrary() {
             <Link
               key={result.id}
               to={`/results/${result.id}`}
-              className="rounded-lg border bg-card hover:border-primary/20 hover:shadow-md transition-all group focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              className="rounded-lg border bg-card hover:border-primary/20 hover:shadow-md transition-all group focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring"
             >
               <div className="p-4 space-y-3">
                 <p className="text-sm font-medium text-foreground line-clamp-2 group-hover:text-primary transition-colors">
@@ -194,7 +194,7 @@ export default function ResultsLibrary() {
             <Link
               key={result.id}
               to={`/results/${result.id}`}
-              className="p-4 flex items-start gap-4 hover:bg-accent/50 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
+              className="p-4 flex items-start gap-4 hover:bg-accent/50 transition-colors focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
             >
               <div className="flex-1 min-w-0 space-y-1">
                 <p className="text-sm font-medium text-foreground">{result.prompt}</p>

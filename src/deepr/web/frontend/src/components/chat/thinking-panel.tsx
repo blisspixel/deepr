@@ -88,10 +88,10 @@ export function ThinkingPanel({ thoughts, isStreaming }: ThinkingPanelProps) {
             const ThoughtIcon = THOUGHT_ICONS[t.type] || Circle
             return (
               <div key={i} className="flex items-start gap-2 text-xs">
-                <ThoughtIcon className="w-3 h-3 flex-shrink-0 mt-0.5" aria-hidden="true" />
+                <ThoughtIcon className="w-3 h-3 shrink-0 mt-0.5" aria-hidden="true" />
                 <span className="text-muted-foreground flex-1">{t.text}</span>
                 {t.confidence != null && (
-                  <span className={cn('tabular-nums text-[10px] flex-shrink-0', confidenceColor(t.confidence))}>
+                  <span className={cn('tabular-nums text-[10px] shrink-0', confidenceColor(t.confidence))}>
                     {Math.round(t.confidence * 100)}%
                   </span>
                 )}
