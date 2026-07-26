@@ -67,7 +67,7 @@ def test_check_reports_no_key_without_network(env_file: Path, monkeypatch: pytes
 
 
 def test_check_validates_present_keys(env_file: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    env_file.write_text("XAI_API_KEY=xai-fresh-key-0001\n", encoding="utf-8")
+    env_file.write_text("XAI_API_KEY=xai-fresh-key-0001\n", encoding="utf-8")  # gitleaks:allow (fake fixture)
     monkeypatch.setattr(
         keys_module,
         "_validate",
